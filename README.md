@@ -1,6 +1,6 @@
 # Antonius
 
-[Antonius](img/antonius.jpg)
+![Antonius](img/antonius.jpg)
 
 UCI chess engine, written in C++
 
