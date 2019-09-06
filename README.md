@@ -1,5 +1,7 @@
 # Antonius
 
+[Antonius](img/antonius.jpg)
+
 UCI chess engine, written in C++
 
 * Board representation
@@ -42,7 +44,7 @@ UCI chess engine, written in C++
 * Evaluation
     * Material
     * Piece value squares
-    * Tapered between opening and endgame 
+    * Tapered between opening and endgame
     * Passed, doubled, tripled, isolated pawns
     * Open and half open files
     * Undeveloped minor pieces
