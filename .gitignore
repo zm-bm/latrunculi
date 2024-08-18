@@ -1,5 +1,11 @@
-build/*.o
+# Ignore build artifacts and directories
+build/
+out/
+bin/
+lib/
 
-Antonius
-AntoniusTest
-.vscode
+# Ignore CMake cache and output files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
