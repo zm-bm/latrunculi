@@ -11,9 +11,26 @@ include_directories(include)
 # Source files
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
-# Create the executable
+# Create the main executable
 add_executable(Latrunculi ${SOURCES})
 
 # Enable testing
-# enable_testing()
-# add_subdirectory(tests)
+enable_testing()
+
+# Add Google Test submodule
+add_subdirectory(third_party/googletest)
+
+# Include Google Test directories
+include_directories(third_party/googletest/googletest/include)
+
+# Test files
+file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp")
+
+# Create test executable
+add_executable(runTests ${TEST_SOURCES})
+
+# Link GTest to the test executable
+target_link_libraries(runTests gtest gtest_main pthread)
+
+# Add tests
+add_test(NAME LatrunculiTests COMMAND runTests)

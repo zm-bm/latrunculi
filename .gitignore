@@ -7,5 +7,53 @@ lib/
 # Ignore CMake cache and output files
 CMakeFiles/
 CMakeCache.txt
+CTestTestfile.cmake
 cmake_install.cmake
 Makefile
+
+# Ignore executables and libraries
+*.exe
+*.out
+*.app
+*.dylib
+*.so
+*.a
+*.lib
+*.dll
+
+# Ignore temporary files created by editors and IDEs
+*.swp
+*.swo
+*~
+*.user
+*.log
+*.tmp
+*.temp
+*.bak
+*.pid
+
+# Ignore directories created by IDEs
+/.vscode/
+/.idea/
+/*.iml
+
+# Ignore testing-related files
+/test_output.txt
+/test_results.xml
+
+# Ignore coverage analysis artifacts
+*.gcda
+*.gcno
+*.gcov
+
+# Ignore generated documentation
+/doc/
+/docs/
+/Doxyfile
+*.html
+*.pdf
+
+# Ignore other unwanted files
+*.DS_Store
+*.directory
+Thumbs.db
