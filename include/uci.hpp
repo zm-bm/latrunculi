@@ -28,10 +28,10 @@ namespace UCI
 		std::ostream& ostream;
 
 		void uci();
-		void setdebug(VecStr& tokens);
-		void position(VecStr& tokens);
-		void go(VecStr& tokens);
-		void move(VecStr& tokens);
+		void setdebug(std::vector<std::string>& tokens);
+		void position(std::vector<std::string>& tokens);
+		void go(std::vector<std::string>& tokens);
+		void move(std::vector<std::string>& tokens);
 		void moves();
 
 	};

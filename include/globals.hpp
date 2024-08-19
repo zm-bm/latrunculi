@@ -51,7 +51,7 @@ namespace G {
     }
 
     void init();
-    VecStr split(const std::string&, char);
+    std::vector<std::string> split(const std::string&, char);
 
 }
 

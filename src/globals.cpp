@@ -1,7 +1,7 @@
 #include "globals.hpp"
 #include <string>
+#include <sstream>
 #include <algorithm>
-#include <cstdlib>
 #include "types.hpp"
 #include "magics.hpp"
 #include "zobrist.hpp"
@@ -199,35 +199,15 @@ void G::init()
     }
 }
 
-VecStr G::split(const std::string &s, char delim)
+std::vector<std::string> G::split(const std::string &s, char delim)
 {
-    std::string fen (s);
+    std::vector<std::string> tokens;
+    std::string token;
+    std::stringstream ss(s);
 
-    // Remove white space from the front
-    auto end_p = std::find_if(fen.begin(), fen.end(),
-        [](int ch) { return !std::isspace(ch); }
-    );
-    fen.erase(fen.begin(), end_p);
-
-    // Remove white space from the back
-    auto start_p = std::find_if(fen.rbegin(), fen.rend(),
-        [](int ch) { return !std::isspace(ch); }
-    ).base();
-    fen.erase(start_p, fen.end());
-
-    // Create the string vector
-    VecStr tokens;
-    std::size_t start = 0,
-                end = 0;
-
-    // Find the first delimiter
-    while ((end = fen.find(delim, start)) != std::string::npos)
-    {
-        // Push the substring onto the vector
-        tokens.push_back(fen.substr(start, end - start));
-        start = end + 1;
+    while (std::getline(ss, token, delim)) {
+        tokens.push_back(token);
     }
-    tokens.push_back(fen.substr(start));
 
     return tokens;
 }

@@ -89,7 +89,7 @@ namespace UCI {
         ostream << "uciok" << std::endl;
     }
 
-    void Controller::setdebug(VecStr& tokens)
+    void Controller::setdebug(std::vector<std::string>& tokens)
     {
         if (tokens.at(0) == "on")
             _debug = true;
@@ -97,7 +97,7 @@ namespace UCI {
             _debug = false;
     }
 
-    void Controller::position(VecStr& tokens)
+    void Controller::position(std::vector<std::string>& tokens)
     {
         std::string pos = tokens.at(0);
         tokens.erase(tokens.begin());
@@ -134,7 +134,7 @@ namespace UCI {
         ostream << "TODO: moves" << std::endl;
     }
 
-    void Controller::go(VecStr& tokens)
+    void Controller::go(std::vector<std::string>& tokens)
     {
         std::string mode = tokens.at(0);
         tokens.erase(tokens.begin());
@@ -152,7 +152,7 @@ namespace UCI {
         }
     }
 
-    void Controller::move(VecStr& tokens)
+    void Controller::move(std::vector<std::string>& tokens)
     {
         if (tokens.at(0) == "undo")
         {
