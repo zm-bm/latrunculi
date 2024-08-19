@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "uci.hpp"
 
 // A simple function to demonstrate testing
 int add(int a, int b) {
@@ -35,3 +36,4 @@ int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
+
