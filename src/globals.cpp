@@ -64,18 +64,22 @@ namespace G
 
 }
 
-void G::init()
-{
-    // Initialize magics and Zobrist keys
-    Magic::init();
-    Zobrist::init();
-
+void G::initBitset() {
     // Initialize bit set and clear masks
     for (Square sq = A1; sq != INVALID; sq++)
     {
         SQUARE_BB[sq] = 0x1ull << sq;
         CLEAR_BB[sq] = ~SQUARE_BB[sq];
     }
+}
+
+void G::init()
+{
+    // Initialize magics and Zobrist keys
+    Magic::init();
+    Zobrist::init();
+
+    G::initBitset();
 
     // Initialize knight and king attack masks
     for (Square sq = A1; sq != INVALID; sq++)

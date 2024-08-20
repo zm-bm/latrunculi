@@ -2,7 +2,6 @@
 #include <iostream>
 #include <string>
 #include <sstream>
-#include <bitset>
 #include <vector>
 #include "types.hpp"
 #include "movegen.hpp"

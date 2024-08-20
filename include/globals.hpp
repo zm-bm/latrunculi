@@ -50,6 +50,7 @@ namespace G {
         return FILE_MASK[FILE[c][f]];
     }
 
+    void initBitset();
     void init();
     std::vector<std::string> split(const std::string&, char);
 

@@ -10,9 +10,14 @@ include_directories(include)
 
 # Source files
 file(GLOB_RECURSE SOURCES "src/*.cpp")
+list(REMOVE_ITEM SOURCES "${CMAKE_SOURCE_DIR}/src/main.cpp")
+
+# Create object library from source files
+add_library(LatrunculiLib OBJECT ${SOURCES})
 
 # Create the main executable
-add_executable(Latrunculi ${SOURCES})
+add_executable(Latrunculi src/main.cpp)
+target_link_libraries(Latrunculi LatrunculiLib)
 
 # Enable testing
 enable_testing()
@@ -30,7 +35,7 @@ file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp")
 add_executable(runTests ${TEST_SOURCES})
 
 # Link GTest to the test executable
-target_link_libraries(runTests gtest gtest_main pthread)
+target_link_libraries(runTests LatrunculiLib gtest gtest_main pthread)
 
 # Add tests
 add_test(NAME LatrunculiTests COMMAND runTests)
