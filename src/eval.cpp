@@ -3,6 +3,11 @@
 #include "board.hpp"
 #include "types.hpp"
 
+const U64 WHITESQUARES = 0x55AA55AA55AA55AA;
+const U64 BLACKSQUARES = 0xAA55AA55AA55AA55;
+const U64 WHITEHOLES   = 0x0000003CFFFF0000;
+const U64 BLACKHOLES   = 0x0000FFFF3C000000;
+
 template<bool debug>
 int Board::eval() const
 {
@@ -101,8 +106,8 @@ int Board::eval() const
     BB pieces;
 
     // Determine outposts
-    BB wHoles = ~wPawns.getFrontAttackSpan<WHITE>() & G::WHITEHOLES,
-       bHoles = ~bPawns.getFrontAttackSpan<BLACK>() & G::BLACKHOLES,
+    BB wHoles = ~wPawns.getFrontAttackSpan<WHITE>() & WHITEHOLES,
+       bHoles = ~bPawns.getFrontAttackSpan<BLACK>() & BLACKHOLES,
        wOutposts = bHoles & MoveGen::attacksByPawns<WHITE>(wPawns),
        bOutposts = wHoles & MoveGen::attacksByPawns<BLACK>(bPawns),
        allOutposts = wOutposts | bOutposts;
@@ -145,7 +150,7 @@ int Board::eval() const
     // Bishops
     double wBishopScore = 0;
     pieces = getPieces<BISHOP>(WHITE);
-    if ((pieces & G::WHITESQUARES) && (pieces & G::BLACKSQUARES))
+    if ((pieces & WHITESQUARES) && (pieces & BLACKSQUARES))
         wBishopScore += (opPhase * Eval::BishopPairBonus[OPENING]
                       + (egPhase * Eval::BishopPairBonus[ENDGAME])) / TOTALPHASE;
     while (pieces)
@@ -161,7 +166,7 @@ int Board::eval() const
     }
     double bBishopScore = 0;
     pieces = getPieces<BISHOP>(BLACK);
-    if ((pieces & G::WHITESQUARES) && (pieces & G::BLACKSQUARES))
+    if ((pieces & WHITESQUARES) && (pieces & BLACKSQUARES))
         bBishopScore += (opPhase * Eval::BishopPairBonus[OPENING]
                       + (egPhase * Eval::BishopPairBonus[ENDGAME])) / TOTALPHASE;
     while (pieces)

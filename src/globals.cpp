@@ -8,27 +8,21 @@
 
 namespace G
 {
-
+    // default fen / position
     const std::string STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    const std::string KIWIPETE = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
-    const std::string TESTFEN1 = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
-    const std::string TESTFEN2 = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
-    const std::string TESTFEN3 = "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1";
-    const std::string TESTFEN4 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
-    const std::string TESTFEN5 = "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
 
-    U64 KNIGHT_ATTACKS[64];
-    U64 KING_ATTACKS[64];
-    U64 SQUARE_BB[64];
-    U64 CLEAR_BB[64];
+    // base bitboards
+    U64 BITSET[64];
+    U64 BITCLEAR[64];
+
+    // 2d bitboards
     U64 IN_BETWEEN[64][64];
     U64 LINE_BB[64][64];
     int DISTANCE[64][64];
 
-    const U64 WHITESQUARES = 0x55AA55AA55AA55AA;
-    const U64 BLACKSQUARES = 0xAA55AA55AA55AA55;
-    const U64 WHITEHOLES   = 0x0000003CFFFF0000;
-    const U64 BLACKHOLES   = 0x0000FFFF3C000000;
+    // attack bitboards
+    U64 KNIGHT_ATTACKS[64];
+    U64 KING_ATTACKS[64];
 
     const Rank RANK[2][8] = {
         { RANK8, RANK7, RANK6, RANK5, RANK4, RANK3, RANK2, RANK1 },
@@ -64,12 +58,42 @@ namespace G
 
 }
 
-void G::initBitset() {
-    // Initialize bit set and clear masks
-    for (Square sq = A1; sq != INVALID; sq++)
-    {
-        SQUARE_BB[sq] = 0x1ull << sq;
-        CLEAR_BB[sq] = ~SQUARE_BB[sq];
+void G::initBaseBitboards() {
+    for (Square sq = A1; sq != INVALID; sq++) {
+        BITSET[sq] = 0x1ull << sq;
+        BITCLEAR[sq] = ~BITSET[sq];
+    }
+}
+
+void addTarget(Square orig, File targetFile, Rank targetRank, U64 *arr) {
+    auto square = Types::getSquare(targetFile, targetRank);
+    if (Types::validFile(targetFile) && Types::validRank(targetRank)) {
+        arr[orig] |= G::bitset(square);
+    }
+}
+
+void G::initAttackBitboards() {
+    for (Square sq = A1; sq != INVALID; sq++) {
+        auto file = Types::getFile(sq);
+        auto rank = Types::getRank(sq);
+
+        addTarget(sq, file + 2, rank + 1, KNIGHT_ATTACKS);
+        addTarget(sq, file + 2, rank - 1, KNIGHT_ATTACKS);
+        addTarget(sq, file - 2, rank + 1, KNIGHT_ATTACKS);
+        addTarget(sq, file - 2, rank - 1, KNIGHT_ATTACKS);
+        addTarget(sq, file + 1, rank + 2, KNIGHT_ATTACKS);
+        addTarget(sq, file - 1, rank + 2, KNIGHT_ATTACKS);
+        addTarget(sq, file + 1, rank - 2, KNIGHT_ATTACKS);
+        addTarget(sq, file - 1, rank - 2, KNIGHT_ATTACKS);
+
+        addTarget(sq, file - 1, rank - 1, KING_ATTACKS);
+        addTarget(sq, file - 1, rank + 1, KING_ATTACKS);
+        addTarget(sq, file + 1, rank - 1, KING_ATTACKS);
+        addTarget(sq, file + 1, rank + 1, KING_ATTACKS);
+        addTarget(sq, file,     rank - 1, KING_ATTACKS);
+        addTarget(sq, file,     rank + 1, KING_ATTACKS);
+        addTarget(sq, file - 1, rank,     KING_ATTACKS);
+        addTarget(sq, file + 1, rank,     KING_ATTACKS);
     }
 }
 
@@ -79,101 +103,8 @@ void G::init()
     Magic::init();
     Zobrist::init();
 
-    G::initBitset();
-
-    // Initialize knight and king attack masks
-    for (Square sq = A1; sq != INVALID; sq++)
-    {
-        auto file = Types::getFile(sq);
-        auto rank = Types::getRank(sq);
-
-        auto target_file = file - 1;
-        auto target_rank = rank + 2;
-        auto square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KNIGHT_ATTACKS[sq] |= bitset(square);
-
-        target_file = file + 1;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KNIGHT_ATTACKS[sq] |= bitset(square);
-
-        target_file = file - 2; 
-        target_rank = rank + 1;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KNIGHT_ATTACKS[sq] |= bitset(square);
-
-        target_file = file + 2;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KNIGHT_ATTACKS[sq] |= bitset(square);
-
-        target_rank = rank - 1;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KNIGHT_ATTACKS[sq] |= bitset(square);
-
-        target_file = file - 2;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KNIGHT_ATTACKS[sq] |= bitset(square);
-
-        target_file = file - 1; 
-        target_rank = rank - 2;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KNIGHT_ATTACKS[sq] |= bitset(square);
-
-        target_file = file + 1;
-        target_rank = rank - 2;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KNIGHT_ATTACKS[sq] |= bitset(square);
-
-        target_rank = rank + 1;
-        target_file = file + 1;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KING_ATTACKS[sq] |= bitset(square);
-
-        target_file = file;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KING_ATTACKS[sq] |= bitset(square);
-
-        target_file = file - 1; 
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KING_ATTACKS[sq] |= bitset(square);
-
-        target_rank = rank;
-        target_file = file + 1;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KING_ATTACKS[sq] |= bitset(square);
-
-        target_file = file - 1;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KING_ATTACKS[sq] |= bitset(square);
-
-        target_rank = rank - 1;
-        target_file = file + 1; 
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KING_ATTACKS[sq] |= bitset(square);
-
-        target_file = file;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KING_ATTACKS[sq] |= bitset(square);
-
-        target_file = file - 1;
-        square = Types::getSquare(target_file, target_rank);
-        if (Types::validFile(target_file) && Types::validRank(target_rank))
-            KING_ATTACKS[sq] |= bitset(square);
-    }
+    G::initBaseBitboards();
+    G::initAttackBitboards();
 
     // Initialize other bit masks
     for (Square sq1 = A1; sq1 != INVALID; sq1++)

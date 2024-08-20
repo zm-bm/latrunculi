@@ -5,27 +5,21 @@
 #include "types.hpp"
 
 namespace G {
-
+    // default fen / position
     extern const std::string STARTFEN;
-    extern const std::string KIWIPETE;
-    extern const std::string TESTFEN1;
-    extern const std::string TESTFEN2;
-    extern const std::string TESTFEN3;
-    extern const std::string TESTFEN4;
-    extern const std::string TESTFEN5;
 
-    extern U64 KNIGHT_ATTACKS[];
-    extern U64 KING_ATTACKS[];
-    extern U64 SQUARE_BB[];
-    extern U64 CLEAR_BB[];
+    // base bitboards
+    extern U64 BITSET[];
+    extern U64 BITCLEAR[];
+
+    // 2d bitboards
     extern U64 IN_BETWEEN[][64];
     extern U64 LINE_BB[][64];
     extern int DISTANCE[][64];
 
-    extern const U64 WHITESQUARES;
-    extern const U64 BLACKSQUARES;
-    extern const U64 WHITEHOLES;
-    extern const U64 BLACKHOLES;
+    // attack bitboards
+    extern U64 KNIGHT_ATTACKS[];
+    extern U64 KING_ATTACKS[];
 
     extern const Rank RANK[][8];
     extern const File FILE[][8];
@@ -34,12 +28,12 @@ namespace G {
 
     inline U64 bitset(Square sq)
     {
-        return SQUARE_BB[sq];
+        return BITSET[sq];
     }
 
     inline U64 bitclear(Square sq)
     {
-        return CLEAR_BB[sq];
+        return BITCLEAR[sq];
     }
 
     inline U64 rankmask(Rank r, Color c) {
@@ -50,7 +44,9 @@ namespace G {
         return FILE_MASK[FILE[c][f]];
     }
 
-    void initBitset();
+    void initBaseBitboards();
+    void initAttackBitboards();
+
     void init();
     std::vector<std::string> split(const std::string&, char);
 
