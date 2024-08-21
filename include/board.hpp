@@ -156,7 +156,7 @@ template<bool forward>
 inline void Board::movePiece(const Square from, const Square to, const Color c, const PieceType pt)
 {
     // Toggle bitboards and add to square centric board
-    BB mask = G::bitset(from) | G::bitset(to);
+    BB mask = G::BITSET[from] | G::BITSET[to];
     pieces[c][ALL].toggle(mask);
     pieces[c][pt].toggle(mask);
     squares[from] = EMPTY;
@@ -200,7 +200,7 @@ inline BB Board::attacksTo(Square sq, Color c) const
 // Returns a bitboard of pieces of color c which attacks a square
 inline BB Board::attacksTo(Square sq, Color c, BB occ) const
 {
-    BB piece = BB(G::bitset(sq));
+    BB piece = BB(G::BITSET[sq]);
 
     return (getPieces<PAWN>(c)   & MoveGen::attacksByPawns(piece, ~c))
          | (getPieces<KNIGHT>(c) & MoveGen::movesByPiece<KNIGHT>(sq, occ))
@@ -302,7 +302,7 @@ inline void Board::updateState(bool inCheck)
     Square king = getKingSq(enemy);
     BB occ = occupancy();
 
-    state[ply].checkingSquares[PAWN]   = MoveGen::attacksByPawns(G::bitset(king), enemy);
+    state[ply].checkingSquares[PAWN]   = MoveGen::attacksByPawns(G::BITSET[king], enemy);
     state[ply].checkingSquares[KNIGHT] = MoveGen::movesByPiece<KNIGHT>(king, occ);
     state[ply].checkingSquares[BISHOP] = MoveGen::movesByPiece<BISHOP>(king, occ);
     state[ply].checkingSquares[ROOK]   = MoveGen::movesByPiece<ROOK>(king, occ);

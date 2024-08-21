@@ -3,11 +3,9 @@
 #include "magics.hpp"
 
 /**
- * Modified implementation of fancy magic bitboards for Antonius
+ * Modified implementation of fancy magic bitboards for Latrunculi
  * All credit goes to Pradyumna Kannan
- */
-
-/**
+ * 
  * Source file for magic move bitboard generation.
  *
  * The magic keys are not optimal for all squares but they are very close
@@ -234,8 +232,7 @@ namespace Magic {
 
     void init()
     {
-        // Same indices as above, but without const, just initializing
-        U64* rookAttacks2[64] = {
+        U64* rookAttacksInit[64] = {
             rookAttacksDB + 86016, rookAttacksDB + 73728,
             rookAttacksDB + 36864, rookAttacksDB + 43008,
             rookAttacksDB + 47104, rookAttacksDB + 51200,
@@ -269,7 +266,7 @@ namespace Magic {
             rookAttacksDB + 49152, rookAttacksDB + 55296,
             rookAttacksDB + 79872, rookAttacksDB + 98304
         };
-        U64* bishopAttacks2[64] = {
+        U64* bishopAttacksInit[64] = {
             bishopAttacksDB + 4992, bishopAttacksDB + 2624,
             bishopAttacksDB + 256, bishopAttacksDB + 896,
             bishopAttacksDB + 1280, bishopAttacksDB + 1664,
@@ -304,7 +301,7 @@ namespace Magic {
             bishopAttacksDB + 4896, bishopAttacksDB + 5184
         };
 
-        // Pre-calculate bishop attacks with magic
+        // Pre-calculate bishop attacks with magic bitboards
         for (int i = 0; i < 64; i++) {
             int squares[64];
             int numsquares = 0;
@@ -319,11 +316,11 @@ namespace Magic {
                 U64 moves;
                 U64 tempoccupied = init_occupied(squares, numsquares, temp);
                 moves = init_magic_bishop(i, tempoccupied);
-                *(bishopAttacks2[i] + (tempoccupied * bishopMagicNum[i] >> bishopMagicShift[i])) = moves;
+                *(bishopAttacksInit[i] + (tempoccupied * bishopMagicNum[i] >> bishopMagicShift[i])) = moves;
             }
         }
 
-        // Pre-calculate rook attacks with magic
+        // Pre-calculate rook attacks with magic bitboards
         for (int i = 0; i < 64; i++) {
             int squares[64];
             int numsquares = 0;
@@ -337,7 +334,7 @@ namespace Magic {
             for (temp = 0; temp < (U64) 1 << numsquares; temp++) {
                 U64 tempoccupied = init_occupied(squares, numsquares, temp);
                 U64 moves = init_magic_rook(i, tempoccupied);
-                *(rookAttacks2[i] + (tempoccupied * rookMagicNum[i] >> rookMagicShift[i])) = moves;
+                *(rookAttacksInit[i] + (tempoccupied * rookMagicNum[i] >> rookMagicShift[i])) = moves;
             }
         }
     }

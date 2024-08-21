@@ -128,13 +128,13 @@ inline BB& operator^=(BB& lhs, U64 rhs)
 
 // Square operators
 inline BB operator&(const BB& lhs, const Square& sq)
-{ return BB(lhs & G::bitset(sq)); }
+{ return BB(lhs & G::BITSET[sq]); }
 
 inline BB operator|(const BB& lhs, const Square& sq)
-{ return BB(lhs | G::bitset(sq)); }
+{ return BB(lhs | G::BITSET[sq]); }
 
 inline BB operator^(const BB& lhs, const Square& sq)
-{ return BB(lhs ^ G::bitset(sq)); }
+{ return BB(lhs ^ G::BITSET[sq]); }
 
 // Shift operators
 inline BB operator<<(const BB& lhs, const int& rhs)
@@ -145,12 +145,12 @@ inline BB operator>>(const BB& lhs, const int& rhs)
 
 inline void BB::clear(const Square sq)
 {
-    bitboard &= G::bitclear(sq); 
+    bitboard &= G::BITCLEAR[sq]; 
 }
 
 inline void BB::toggle(const Square sq)
 {
-    bitboard ^= G::bitset(sq);
+    bitboard ^= G::BITSET[sq];
 }
 
 inline void BB::toggle(const BB targets)
@@ -165,7 +165,7 @@ inline U64 BB::get() const
 
 inline bool BB::isSet(Square sq) const
 {
-    return bitboard & G::bitset(sq);
+    return bitboard & G::BITSET[sq];
 }
 
 inline bool BB::isEmpty() const

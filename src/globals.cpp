@@ -16,8 +16,8 @@ namespace G
     U64 BITCLEAR[64];
 
     // 2d bitboards
-    U64 IN_BETWEEN[64][64];
-    U64 LINE_BB[64][64];
+    U64 BITS_BETWEEN[64][64];
+    U64 BITS_INLINE[64][64];
     int DISTANCE[64][64];
 
     // attack bitboards
@@ -58,21 +58,19 @@ namespace G
 
 }
 
-void G::initBaseBitboards() {
+void addTarget(Square orig, File targetFile, Rank targetRank, U64 *arr) {
+    auto square = Types::getSquare(targetFile, targetRank);
+    if (Types::validFile(targetFile) && Types::validRank(targetRank)) {
+        arr[orig] |= G::BITSET[square];
+    }
+}
+
+void G::initBitboards() {
     for (Square sq = A1; sq != INVALID; sq++) {
         BITSET[sq] = 0x1ull << sq;
         BITCLEAR[sq] = ~BITSET[sq];
     }
-}
 
-void addTarget(Square orig, File targetFile, Rank targetRank, U64 *arr) {
-    auto square = Types::getSquare(targetFile, targetRank);
-    if (Types::validFile(targetFile) && Types::validRank(targetRank)) {
-        arr[orig] |= G::bitset(square);
-    }
-}
-
-void G::initAttackBitboards() {
     for (Square sq = A1; sq != INVALID; sq++) {
         auto file = Types::getFile(sq);
         auto rank = Types::getRank(sq);
@@ -95,43 +93,46 @@ void G::initAttackBitboards() {
         addTarget(sq, file - 1, rank,     KING_ATTACKS);
         addTarget(sq, file + 1, rank,     KING_ATTACKS);
     }
-}
-
-void G::init()
-{
-    // Initialize magics and Zobrist keys
-    Magic::init();
-    Zobrist::init();
-
-    G::initBaseBitboards();
-    G::initAttackBitboards();
 
     // Initialize other bit masks
-    for (Square sq1 = A1; sq1 != INVALID; sq1++)
-    {
-        for (Square sq2 = A1; sq2 != INVALID; sq2++)
-        {
+    for (Square sq1 = A1; sq1 != INVALID; sq1++) {
+        for (Square sq2 = A1; sq2 != INVALID; sq2++) {
             int rankDistance = abs(Types::getRank(sq1) - Types::getRank(sq2));
             int fileDistance = abs(Types::getFile(sq1) - Types::getFile(sq2));
             DISTANCE[sq1][sq2] = std::max(rankDistance, fileDistance);
 
-            if (Magic::getBishopAttacks(sq1, 0) & bitset(sq2))
-            {
-                IN_BETWEEN[sq1][sq2] = Magic::getBishopAttacks(sq1, bitset(sq2)) \
-                                        & Magic::getBishopAttacks(sq2, bitset(sq1));
-                LINE_BB[sq1][sq2] = (Magic::getBishopAttacks(sq1, 0) & Magic::getBishopAttacks(sq2, 0))
-                                    | bitset(sq1) | bitset(sq2);
+            if (Magic::getBishopAttacks(sq1, 0) & BITSET[sq2]) {
+                BITS_BETWEEN[sq1][sq2] = (
+                    Magic::getBishopAttacks(sq1, BITSET[sq2])
+                    & Magic::getBishopAttacks(sq2, BITSET[sq1])
+                );
+                BITS_INLINE[sq1][sq2] = (
+                    (Magic::getBishopAttacks(sq1, 0) & Magic::getBishopAttacks(sq2, 0))
+                    | BITSET[sq1]
+                    | BITSET[sq2]
+                );
             }
 
-            if (Magic::getRookAttacks(sq1, 0) & bitset(sq2))
-            {
-                IN_BETWEEN[sq1][sq2] = Magic::getRookAttacks(sq1, bitset(sq2)) \
-                                        & Magic::getRookAttacks(sq2, bitset(sq1));
-                LINE_BB[sq1][sq2] = (Magic::getRookAttacks(sq1, 0) & Magic::getRookAttacks(sq2, 0))
-                                    | bitset(sq1) | bitset(sq2);
+            if (Magic::getRookAttacks(sq1, 0) & BITSET[sq2]) {
+                BITS_BETWEEN[sq1][sq2] = (
+                    Magic::getRookAttacks(sq1, BITSET[sq2])
+                    & Magic::getRookAttacks(sq2, BITSET[sq1])
+                );
+                BITS_INLINE[sq1][sq2] = (
+                    (Magic::getRookAttacks(sq1, 0) & Magic::getRookAttacks(sq2, 0))
+                    | BITSET[sq1]
+                    | BITSET[sq2]
+                );
             }
         }
     }
+}
+
+void G::init() {
+    // Initialize magics and Zobrist keys
+    Magic::init();
+    Zobrist::init();
+    G::initBitboards();
 }
 
 std::vector<std::string> G::split(const std::string &s, char delim)

@@ -13,8 +13,8 @@ namespace G {
     extern U64 BITCLEAR[];
 
     // 2d bitboards
-    extern U64 IN_BETWEEN[][64];
-    extern U64 LINE_BB[][64];
+    extern U64 BITS_BETWEEN[][64];
+    extern U64 BITS_INLINE[][64];
     extern int DISTANCE[][64];
 
     // attack bitboards
@@ -26,16 +26,6 @@ namespace G {
     extern const U64 RANK_MASK[];
     extern const U64 FILE_MASK[];
 
-    inline U64 bitset(Square sq)
-    {
-        return BITSET[sq];
-    }
-
-    inline U64 bitclear(Square sq)
-    {
-        return BITCLEAR[sq];
-    }
-
     inline U64 rankmask(Rank r, Color c) {
         return RANK_MASK[RANK[c][r]];
     }
@@ -44,12 +34,9 @@ namespace G {
         return FILE_MASK[FILE[c][f]];
     }
 
-    void initBaseBitboards();
-    void initAttackBitboards();
-
+    void initBitboards();
     void init();
     std::vector<std::string> split(const std::string&, char);
-
 }
 
 #endif

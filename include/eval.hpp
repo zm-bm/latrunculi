@@ -47,7 +47,7 @@ namespace Eval
     template<Color c>
     inline BB kingShield(Square sq)
     {
-        BB bitboard = BB(G::bitset(sq));
+        BB bitboard = BB(G::BITSET[sq]);
         if (c)
             return bitboard.shift_nw()
                  | bitboard.shift_no()

@@ -211,7 +211,7 @@ namespace MoveGen
 
             // Generate moves which block or capture the checking piece
             // NOTE: generate<EVASIONS> does NOT generate king moves
-            targets = BB(G::IN_BETWEEN[checker][king]) | checker;
+            targets = BB(G::BITS_BETWEEN[checker][king]) | checker;
             generate<EVASIONS>(targets);
         }
 

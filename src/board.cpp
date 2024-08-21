@@ -57,7 +57,7 @@ bool Board::isLegalMove(Move mv) const
         // Check if moved piece was pinned
         return !state.at(ply).pinnedPieces
             || !(state.at(ply).pinnedPieces & from)
-            || G::LINE_BB[from][to] & G::bitset(king);
+            || G::BITS_INLINE[from][to] & G::BITSET[king];
     }
 }
 
@@ -76,7 +76,7 @@ bool Board::isCheckingMove(Move mv) const
     Square king = getKingSq(~stm);
     if (state[ply].discoveredCheckers
         && (state[ply].discoveredCheckers & from)
-        && !(G::LINE_BB[from][to] & G::bitset(king)))
+        && !(G::BITS_INLINE[from][to] & G::BITSET[king]))
     {
         return true;
     }
@@ -146,7 +146,7 @@ BB Board::getCheckBlockers(Color c, Color kingC) const
         pinners.clear(pinner);
 
         // Check if only one piece separates the slider and the king
-        BB piecesInBetween = occupancy() & G::IN_BETWEEN[king][pinner];
+        BB piecesInBetween = occupancy() & G::BITS_BETWEEN[king][pinner];
         if (!piecesInBetween.moreThanOneSet())
             blockers |= piecesInBetween & getPieces<ALL>(c);
     }
