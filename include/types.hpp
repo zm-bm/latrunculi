@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <type_traits>
 
 using U64 = uint64_t;
 using U32 = uint32_t;
@@ -119,12 +120,12 @@ enum NodeType : U8 {
 // Define type helper functions
 namespace Types {
 
-    inline Square getSquare(const File file, const Rank rank)
+    constexpr Square getSquare(const File file, const Rank rank)
     {
         return Square(rank * 8 + file);
     }
     
-    inline Square getSquare(const std::string& square)
+    inline Square getSquareFromStr(const std::string& square)
     {
         auto file = File((int) square[0] - 'a');
         auto rank = Rank(((int)square[1] - '0' - 1));
@@ -132,37 +133,37 @@ namespace Types {
         return getSquare(file, rank);
     }
 
-    inline Rank getRank(const Square square)
+    constexpr Rank getRank(const Square square)
     {
         return Rank(square >> 3);
     }
 
-    inline File getFile(const Square square)
+    constexpr File getFile(const Square square)
     {
         return File(square & 7);
     }
 
-    inline bool validRank(const Rank rank)
+    constexpr bool validRank(const Rank rank)
     {
         return (RANK1 <= rank) && (rank <= RANK8);
     }
 
-    inline bool validFile(const File file)
+    constexpr bool validFile(const File file)
     {
         return (FILE1 <= file) && (file <= FILE8);
     }
 
-    inline Piece makePiece(const Color c, const PieceType p)
+    constexpr Piece makePiece(const Color c, const PieceType p)
     {
         return Piece((c << 3) | p);
     }
 
-    inline PieceType getPieceType(const Piece p)
+    constexpr PieceType getPieceType(const Piece p)
     {
         return PieceType(p & 0x7);
     }
 
-    inline Color getPieceColor(const Piece p)
+    constexpr Color getPieceColor(const Piece p)
     {
         return Color(p >> 3);
     }
@@ -202,9 +203,7 @@ namespace Types {
 
 }
 
-
 // Define common type operators
-
 inline Color operator~(Color c)
 {
     return Color(c ^ WHITE);
@@ -236,22 +235,22 @@ inline std::ostream& operator<<(std::ostream& os, Piece p)
 
 // Enable arithmetic and bitwise operators
 #define ENABLE_OPERATORS(T)                             \
-inline T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
-inline T operator+(T d1, int d2) { return T(int(d1) + d2); }    \
-inline T operator-(T d1, T d2) { return T(int(d1) - int(d2)); } \
-inline T operator-(T d1, int d2) { return T(int(d1) - d2); }    \
-inline T operator*(T d, int i) { return T(int(d) * i); }        \
-inline T operator*(int i, T d) { return T(i * int(d)); }        \
-inline T operator/(T d1, T d2) { return T(int(d1) / int(d2)); } \
-inline T operator/(T d, int i) { return T(int(d) / i); }        \
-inline T& operator+=(T& d1, T d2) { return d1 = d1 + d2; }      \
-inline T& operator-=(T& d1, T d2) { return d1 = d1 - d2; }      \
-inline T& operator*=(T& d, int i) { return d = T(int(d) * i); } \
-inline T& operator/=(T& d, int i) { return d = T(int(d) / i); } \
-inline T& operator++(T& d, int) { return d = T(int(d) + 1); }   \
-inline T& operator--(T& d, int) { return d = T(int(d) - 1); }   \
-inline T& operator&=(T& d1, T d2) { return d1 = T(d1 & d2); }   \
-inline T& operator|=(T& d1, T d2) { return d1 = T(d1 | d2); }   \
+constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
+constexpr T operator+(T d1, int d2) { return T(int(d1) + d2); }    \
+constexpr T operator-(T d1, T d2) { return T(int(d1) - int(d2)); } \
+constexpr T operator-(T d1, int d2) { return T(int(d1) - d2); }    \
+constexpr T operator*(T d, int i) { return T(int(d) * i); }        \
+constexpr T operator*(int i, T d) { return T(i * int(d)); }        \
+constexpr T operator/(T d1, T d2) { return T(int(d1) / int(d2)); } \
+constexpr T operator/(T d, int i) { return T(int(d) / i); }        \
+constexpr T& operator+=(T& d1, T d2) { return d1 = d1 + d2; }      \
+constexpr T& operator-=(T& d1, T d2) { return d1 = d1 - d2; }      \
+constexpr T& operator*=(T& d, int i) { return d = T(int(d) * i); } \
+constexpr T& operator/=(T& d, int i) { return d = T(int(d) / i); } \
+constexpr T& operator++(T& d, int) { return d = T(int(d) + 1); }   \
+constexpr T& operator--(T& d, int) { return d = T(int(d) - 1); }   \
+constexpr T& operator&=(T& d1, T d2) { return d1 = T(d1 & d2); }   \
+constexpr T& operator|=(T& d1, T d2) { return d1 = T(d1 | d2); }   \
 
 ENABLE_OPERATORS(Square)
 ENABLE_OPERATORS(File)

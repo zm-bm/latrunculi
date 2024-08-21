@@ -398,7 +398,7 @@ void Board::loadFENPieces(const std::string& pieces)
 void Board::loadFENEnPassant(const std::string& square)
 {
     if (square.compare("-") != 0)
-        setEnPassant(Types::getSquare(square));
+        setEnPassant(Types::getSquareFromStr(square));
 }
 
 void Board::loadFENCastle(const std::string& castle)
