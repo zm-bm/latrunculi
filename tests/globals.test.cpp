@@ -70,6 +70,40 @@ TEST_F(GlobalsTest, kingAttacks) {
     EXPECT_EQ(G::KING_ATTACKS[G2], expected);
 }
 
+TEST_F(GlobalsTest, DISTANCE) {
+    EXPECT_EQ(G::DISTANCE[A1][A1], 0);
+    EXPECT_EQ(G::DISTANCE[A1][A2], 1);
+    EXPECT_EQ(G::DISTANCE[A1][B1], 1);
+    EXPECT_EQ(G::DISTANCE[A1][B2], 1);
+    EXPECT_EQ(G::DISTANCE[A1][G7], 6);
+    EXPECT_EQ(G::DISTANCE[A1][H7], 7);
+    EXPECT_EQ(G::DISTANCE[A1][G8], 7);
+    EXPECT_EQ(G::DISTANCE[A1][H8], 7);
+}
+
+TEST_F(GlobalsTest, BITS_BETWEEN) {
+    EXPECT_EQ(G::BITS_BETWEEN[A1][A1], 0);
+    EXPECT_EQ(G::BITS_BETWEEN[A1][A2], 0);
+    EXPECT_EQ(G::BITS_BETWEEN[A1][A3], targetBitboard({A2}));
+    EXPECT_EQ(G::BITS_BETWEEN[A1][B1], 0);
+    EXPECT_EQ(G::BITS_BETWEEN[A1][B2], 0);
+    EXPECT_EQ(G::BITS_BETWEEN[A1][B3], 0);
+    EXPECT_EQ(G::BITS_BETWEEN[A1][C1], targetBitboard({B1}));
+    EXPECT_EQ(G::BITS_BETWEEN[A1][C2], 0);
+    EXPECT_EQ(G::BITS_BETWEEN[A1][C3], targetBitboard({B2}));
+}
+
+TEST_F(GlobalsTest, BITS_INLINE) {
+    EXPECT_EQ(G::BITS_INLINE[A1][A2], targetBitboard({A1,A2,A3,A4,A5,A6,A7,A8}));
+    EXPECT_EQ(G::BITS_INLINE[A1][A8], targetBitboard({A1,A2,A3,A4,A5,A6,A7,A8}));
+    EXPECT_EQ(G::BITS_INLINE[A1][B1], targetBitboard({A1,B1,C1,D1,E1,F1,G1,H1}));
+    EXPECT_EQ(G::BITS_INLINE[A1][H1], targetBitboard({A1,B1,C1,D1,E1,F1,G1,H1}));
+    EXPECT_EQ(G::BITS_INLINE[A1][B2], targetBitboard({A1,B2,C3,D4,E5,F6,G7,H8}));
+    EXPECT_EQ(G::BITS_INLINE[A1][H8], targetBitboard({A1,B2,C3,D4,E5,F6,G7,H8}));
+}
+
+
+// Split tests
 TEST(SplitTest, split) {
     std::string input = "a,b,c";
     char delimiter = ',';

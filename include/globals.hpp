@@ -10,27 +10,71 @@ namespace G {
     const std::string STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
     // base bitboards
-    constexpr std::array<U64, 64> generateBitset() {
-        std::array<U64, 64> arr = {};
-        for (std::size_t i = 0; i < arr.size(); ++i) {
+    constexpr std::array<U64, NSQUARES> generateBitset() {
+        std::array<U64, NSQUARES> arr = {};
+        for (int i = 0; i < NSQUARES; ++i) {
             arr[i] = 1ull << i;
         }
         return arr;
     }
-    constexpr std::array<U64, 64> generateBitclear() {
-        std::array<U64, 64> arr = {};
-        for (std::size_t i = 0; i < arr.size(); ++i) {
+    constexpr std::array<U64, NSQUARES> generateBitclear() {
+        std::array<U64, NSQUARES> arr = {};
+        for (int i = 0; i < NSQUARES; ++i) {
             arr[i] = ~(1ull << i);
         }
         return arr;
     }
-    constexpr std::array<U64, 64> BITSET = generateBitset();
-    constexpr std::array<U64, 64> BITCLEAR = generateBitclear();
+    constexpr std::array<U64, NSQUARES> BITSET = generateBitset();
+    constexpr std::array<U64, NSQUARES> BITCLEAR = generateBitclear();
 
     // 2d bitboards
+    constexpr int calculateDistance(Square sq1, Square sq2) {
+        int rankDistance = abs(Types::getRank(sq1) - Types::getRank(sq2));
+        int fileDistance = abs(Types::getFile(sq1) - Types::getFile(sq2));
+        return std::max(rankDistance, fileDistance);
+    }
+    constexpr std::array<std::array<int, NSQUARES>, NSQUARES> generateDistance() {
+        std::array<std::array<int, NSQUARES>, NSQUARES> table = {};
+
+        for (int i = 0; i < NSQUARES; ++i) {
+            for (int j = 0; j < NSQUARES; ++j) {
+                table[i][j] = calculateDistance(static_cast<Square>(i), static_cast<Square>(j));
+            }
+        }
+
+        return table;
+    }
+    constexpr std::array<std::array<int, NSQUARES>, NSQUARES> DISTANCE = generateDistance();
+
+    // constexpr std::array<std::array<U64, NSQUARES>, NSQUARES> generateBitsBetween() {
+    //     std::array<std::array<U64, NSQUARES>, NSQUARES> table = {};
+
+    //     for (int i = 0; i < NSQUARES; ++i) {
+    //         Square sq1 = static_cast<Square>(i);
+    //         for (int j = 0; j < NSQUARES; ++j) {
+    //             Square sq2 = static_cast<Square>(j);
+    //             if (Magic::getBishopAttacks(sq1, 0) & BITSET[sq2]) {
+    //                 table[sq1][sq2] = (
+    //                     Magic::getBishopAttacks(sq1, BITSET[sq2])
+    //                     & Magic::getBishopAttacks(sq2, BITSET[sq1])
+    //                 );
+    //             }
+
+    //             if (Magic::getRookAttacks(sq1, 0) & BITSET[sq2]) {
+    //                 table[sq1][sq2] = (
+    //                     Magic::getRookAttacks(sq1, BITSET[sq2])
+    //                     & Magic::getRookAttacks(sq2, BITSET[sq1])
+    //                 );
+    //             }
+    //         }
+    //     }
+
+    //     return table;
+    // }
+    // constexpr std::array<std::array<U64, NSQUARES>, NSQUARES> BITS_BETWEEN = generateBitsBetween();
+
     extern U64 BITS_BETWEEN[][64];
     extern U64 BITS_INLINE[][64];
-    extern int DISTANCE[][64];
 
     constexpr void addTarget(Square orig, File targetFile, Rank targetRank, std::array<U64, 64>& arr) {
         auto square = Types::getSquare(targetFile, targetRank);
