@@ -1,10 +1,12 @@
 #include <iostream>
-#include "globals.hpp"
 #include "uci.hpp"
+#include "magics.hpp"
+#include "zobrist.hpp"
 
 int main()
 {
-	G::init();
+    Magic::init();
+    Zobrist::init();
 
 	UCI::Controller controller(std::cin, std::cout);
 	controller.loop();

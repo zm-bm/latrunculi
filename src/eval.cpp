@@ -11,15 +11,17 @@ const U64 BLACKHOLES   = 0x0000FFFF3C000000;
 template<bool debug>
 int Board::eval() const
 {
+    double totalphase = static_cast<double>(TOTALPHASE);
+
     // Taper the eval between opening and endgame values
     int opPhase = calculatePhase();
     int egPhase = (TOTALPHASE - opPhase);
-    double openingModifier = opPhase / static_cast<double>(TOTALPHASE);
+    double openingModifier = opPhase / totalphase;
 
     // Determine position score
     double opening = openingScore * opPhase;
     double endgame = endgameScore * egPhase;
-    double positionScore = (opening + endgame) / TOTALPHASE;
+    double positionScore = (opening + endgame) / totalphase;
 
     if (debug)
 	{
@@ -28,8 +30,8 @@ int Board::eval() const
                   << " Material   |      -      |      -      | "
                   << std::setw(6) << materialScore << std::endl
                   << " Piece Sq   | " 
-                  << std::setw(6) << opening / TOTALPHASE << std::setw(8) << " | "
-                  << std::setw(6) << endgame / TOTALPHASE << std::setw(8) << " | "
+                  << std::setw(6) << opening / totalphase << std::setw(8) << " | "
+                  << std::setw(6) << endgame / totalphase << std::setw(8) << " | "
                   << std::setw(6) << positionScore << std::endl;
 	}
 
