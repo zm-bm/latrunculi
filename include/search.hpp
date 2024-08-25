@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_SEARCH_H
-#define ANTONIUS_SEARCH_H
+#ifndef LATRUNCULI_SEARCH_H
+#define LATRUNCULI_SEARCH_H
 
 #include <cstring>
 #include <vector>

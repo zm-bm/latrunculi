@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_EVAL_H
-#define ANTONIUS_EVAL_H
+#ifndef LATRUNCULI_EVAL_H
+#define LATRUNCULI_EVAL_H
 
 #include "types.hpp"
 #include "bitboard.hpp"

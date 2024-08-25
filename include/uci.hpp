@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_UCI_H
-#define ANTONIUS_UCI_H
+#ifndef LATRUNCULI_UCI_H
+#define LATRUNCULI_UCI_H
 
 #include <string>
 #include "board.hpp"

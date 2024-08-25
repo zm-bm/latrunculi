@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_BOARD_H
-#define ANTONIUS_BOARD_H
+#ifndef LATRUNCULI_BOARD_H
+#define LATRUNCULI_BOARD_H
 
 #include <iostream>
 #include <vector>

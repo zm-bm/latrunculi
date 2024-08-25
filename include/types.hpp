@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_TYPES_H
-#define ANTONIUS_TYPES_H
+#ifndef LATRUNCULI_TYPES_H
+#define LATRUNCULI_TYPES_H
 
 #include <iostream>
 #include <cstdint>

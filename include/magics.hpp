@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_MAGICS_H
-#define ANTONIUS_MAGICS_H
+#ifndef LATRUNCULI_MAGICS_H
+#define LATRUNCULI_MAGICS_H
 
 #include "types.hpp"
 

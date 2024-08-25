@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_ZOBRIST_H
-#define ANTONIUS_ZOBRIST_H
+#ifndef LATRUNCULI_ZOBRIST_H
+#define LATRUNCULI_ZOBRIST_H
 
 #include "types.hpp"
 

@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_STATE_H
-#define ANTONIUS_STATE_H
+#ifndef LATRUNCULI_STATE_H
+#define LATRUNCULI_STATE_H
 
 #include "types.hpp"
 

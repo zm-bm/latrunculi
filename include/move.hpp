@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_MOVE_H
-#define ANTONIUS_MOVE_H
+#ifndef LATRUNCULI_MOVE_H
+#define LATRUNCULI_MOVE_H
 
 #include <sstream>
 #include "types.hpp"

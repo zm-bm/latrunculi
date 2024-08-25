@@ -84,7 +84,7 @@ namespace UCI {
     void Controller::uci()
     {
         // Identify the engine
-        ostream << "id name Antonius 0.1.0" << std::endl;
+        ostream << "id name Latrunculi 0.1.0" << std::endl;
         ostream << "id author Eric VanderHelm" << std::endl;
         ostream << "uciok" << std::endl;
     }

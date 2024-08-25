@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_GLOBAL_H
-#define ANTONIUS_GLOBAL_H
+#ifndef LATRUNCULI_GLOBAL_H
+#define LATRUNCULI_GLOBAL_H
 
 #include <string>
 #include <array>

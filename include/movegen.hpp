@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_MOVEGEN_H
-#define ANTONIUS_MOVEGEN_H
+#ifndef LATRUNCULI_MOVEGEN_H
+#define LATRUNCULI_MOVEGEN_H
 
 #include <iostream>
 #include <vector>

@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_BITBOARD_H
-#define ANTONIUS_BITBOARD_H
+#ifndef LATRUNCULI_BITBOARD_H
+#define LATRUNCULI_BITBOARD_H
 
 #include <iostream>
 #include <vector>

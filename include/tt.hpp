@@ -1,5 +1,5 @@
-#ifndef ANTONIUS_TT_H
-#define ANTONIUS_TT_H
+#ifndef LATRUNCULI_TT_H
+#define LATRUNCULI_TT_H
 
 #include <iostream>
 #include "types.hpp"
