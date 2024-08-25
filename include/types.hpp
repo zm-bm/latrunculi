@@ -50,8 +50,8 @@ enum PieceType : U8 {
 
 enum Piece : U8 {
     EMPTY =  0,
-    WPAWN = 1, WKNIGHT, WBISHOP, WROOK, WQUEEN, WKING,
-    BPAWN = 9, BKNIGHT, BBISHOP, BROOK, BQUEEN, BKING
+    BPAWN = 1, BKNIGHT, BBISHOP, BROOK, BQUEEN, BKING,
+    WPAWN = 9, WKNIGHT, WBISHOP, WROOK, WQUEEN, WKING,
 };
 
 enum CastleRights : U8 {
@@ -128,7 +128,7 @@ namespace Types {
     inline Square getSquareFromStr(const std::string& square)
     {
         auto file = File((int) square[0] - 'a');
-        auto rank = Rank(((int)square[1] - '0' - 1));
+        auto rank = Rank(((int)square[1] - '1'));
 
         return getSquare(file, rank);
     }
@@ -169,7 +169,7 @@ namespace Types {
     }
 
     template<Color c, PawnMove p, bool forward>
-    inline Square move(const Square sq)
+    inline Square pawnMove(const Square sq)
     {
         if (forward)
         {
@@ -188,12 +188,12 @@ namespace Types {
     }
 
     template<PawnMove p, bool forward>
-    inline Square move(const Square sq, const Color c)
+    inline Square pawnMove(const Square sq, const Color c)
     {
         if (c == WHITE)
-            return move<WHITE, p, forward>(sq);
+            return pawnMove<WHITE, p, forward>(sq);
         else
-            return move<BLACK, p, forward>(sq);
+            return pawnMove<BLACK, p, forward>(sq);
     }
 
     const char PieceChar[16] = {
@@ -235,22 +235,22 @@ inline std::ostream& operator<<(std::ostream& os, Piece p)
 
 // Enable arithmetic and bitwise operators
 #define ENABLE_OPERATORS(T)                             \
-constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
-constexpr T operator+(T d1, int d2) { return T(int(d1) + d2); }    \
-constexpr T operator-(T d1, T d2) { return T(int(d1) - int(d2)); } \
-constexpr T operator-(T d1, int d2) { return T(int(d1) - d2); }    \
-constexpr T operator*(T d, int i) { return T(int(d) * i); }        \
-constexpr T operator*(int i, T d) { return T(i * int(d)); }        \
-constexpr T operator/(T d1, T d2) { return T(int(d1) / int(d2)); } \
-constexpr T operator/(T d, int i) { return T(int(d) / i); }        \
-constexpr T& operator+=(T& d1, T d2) { return d1 = d1 + d2; }      \
-constexpr T& operator-=(T& d1, T d2) { return d1 = d1 - d2; }      \
-constexpr T& operator*=(T& d, int i) { return d = T(int(d) * i); } \
-constexpr T& operator/=(T& d, int i) { return d = T(int(d) / i); } \
-constexpr T& operator++(T& d, int) { return d = T(int(d) + 1); }   \
-constexpr T& operator--(T& d, int) { return d = T(int(d) - 1); }   \
-constexpr T& operator&=(T& d1, T d2) { return d1 = T(d1 & d2); }   \
-constexpr T& operator|=(T& d1, T d2) { return d1 = T(d1 | d2); }   \
+inline constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
+inline constexpr T operator+(T d1, int d2) { return T(int(d1) + d2); }    \
+inline constexpr T operator-(T d1, T d2) { return T(int(d1) - int(d2)); } \
+inline constexpr T operator-(T d1, int d2) { return T(int(d1) - d2); }    \
+inline constexpr T operator*(T d, int i) { return T(int(d) * i); }        \
+inline constexpr T operator*(int i, T d) { return T(i * int(d)); }        \
+inline constexpr T operator/(T d1, T d2) { return T(int(d1) / int(d2)); } \
+inline constexpr T operator/(T d, int i) { return T(int(d) / i); }        \
+inline constexpr T& operator+=(T& d1, T d2) { return d1 = d1 + d2; }      \
+inline constexpr T& operator-=(T& d1, T d2) { return d1 = d1 - d2; }      \
+inline constexpr T& operator*=(T& d, int i) { return d = T(int(d) * i); } \
+inline constexpr T& operator/=(T& d, int i) { return d = T(int(d) / i); } \
+inline constexpr T& operator++(T& d, int) { return d = T(int(d) + 1); }   \
+inline constexpr T& operator--(T& d, int) { return d = T(int(d) - 1); }   \
+inline constexpr T& operator&=(T& d1, T d2) { return d1 = T(d1 & d2); }   \
+inline constexpr T& operator|=(T& d1, T d2) { return d1 = T(d1 | d2); }   \
 
 ENABLE_OPERATORS(Square)
 ENABLE_OPERATORS(File)

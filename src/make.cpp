@@ -23,7 +23,7 @@ void Board::make(Move mv)
     // Make corrections if en passant move
     if (movetype == ENPASSANT) {
         toPieceType = PAWN;
-        capturedPieceSq = Types::move<PawnMove::PUSH, false>(to, stm);
+        capturedPieceSq = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
         squares[capturedPieceSq] = EMPTY;
     }
 
@@ -70,7 +70,7 @@ void Board::make(Move mv)
             if ((from - to) == 16 || (to - from) == 16)
             {
                 // Set en passant square
-                Square epsq = Types::move<PawnMove::PUSH, false>(to, stm);
+                Square epsq = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
                 setEnPassant(epsq);
             }
             else if (movetype == PROMOTION)
@@ -153,7 +153,7 @@ void Board::unmake()
         {
             Square capturedPieceSq = to;
             if (movetype == ENPASSANT)
-                capturedPieceSq = Types::move<PawnMove::PUSH, false>(to, stm);
+                capturedPieceSq = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
 
             addPiece<false>(capturedPieceSq, enemy, toPieceType);
         }

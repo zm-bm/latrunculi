@@ -119,18 +119,18 @@ namespace MoveGen
             if (enpassant != INVALID)
             {
                 // Only necessary if enemy pawn is targeted, or if in check
-                Square enemyPawn = Types::move<c, PawnMove::PUSH, false>(enpassant);
+                Square enemyPawn = Types::pawnMove<c, PawnMove::PUSH, false>(enpassant);
                 if (g != EVASIONS || (targets & enemyPawn))
                 {
                     // Append en passant captures to move list
                     bitboard = MoveGen::movesByPawns<PawnMove::LEFT, c>(pawns) & enpassant;
                     if (bitboard) {
-                        Square from = Types::move<c, PawnMove::LEFT, false>(enpassant);
+                        Square from = Types::pawnMove<c, PawnMove::LEFT, false>(enpassant);
                         moves.push_back(Move(from, enpassant, ENPASSANT));
                     }
                     bitboard = MoveGen::movesByPawns<PawnMove::RIGHT, c>(pawns) & enpassant;
                     if (bitboard) {
-                        Square from = Types::move<c, PawnMove::RIGHT, false>(enpassant);
+                        Square from = Types::pawnMove<c, PawnMove::RIGHT, false>(enpassant);
                         moves.push_back(Move(from, enpassant, ENPASSANT));
                     }
                 }
@@ -255,7 +255,7 @@ namespace MoveGen
             bitboard.clear(to);
 
             // Reverse the move to get the origin square and append move
-            Square from = Types::move<c, p, false>(to);
+            Square from = Types::pawnMove<c, p, false>(to);
             moves.push_back(Move(from, to));
         }
     };
@@ -270,7 +270,7 @@ namespace MoveGen
             bitboard.clear(to);
 
             // Reverse the move to get the origin square and append move(s)
-            Square from = Types::move<c, p, false>(to);
+            Square from = Types::pawnMove<c, p, false>(to);
 
             if (g != QUIETS)
                 moves.push_back(Move(from, to, PROMOTION, QUEEN));

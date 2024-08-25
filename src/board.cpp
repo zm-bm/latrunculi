@@ -45,7 +45,7 @@ bool Board::isLegalMove(Move mv) const
     }
     else if (mv.type() == ENPASSANT)
     {
-        Square enemyPawn = Types::move<PawnMove::PUSH, false>(to, stm);
+        Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
         BB occ = (occupancy() ^ from ^ enemyPawn) | to;
 
         // Check if captured pawn was blocking check
@@ -96,7 +96,7 @@ bool Board::isCheckingMove(Move mv) const
         case ENPASSANT:
         {
             // Check if captured pawn was blocking enemy king from attack
-            Square enemyPawn = Types::move<PawnMove::PUSH, false>(to, stm);
+            Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
             BB occ = (occupancy() ^ from ^ enemyPawn) | to;
 
             return MoveGen::movesByPiece<BISHOP>(king, occ) & diagonalSliders(stm)
