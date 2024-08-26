@@ -2,40 +2,35 @@
 #define LATRUNCULI_UCI_H
 
 #include <string>
+
 #include "board.hpp"
 #include "search.hpp"
 
 // Universal Chess Interface (UCI)
 // http://wbec-ridderkerk.nl/html/UCIProtocol.html
-namespace UCI
-{
+namespace UCI {
 
-	class Controller 
-	{
+class Controller {
+ public:
+  Controller(std::istream&, std::ostream&);
+  void loop();
+  bool execute(const std::string& input);
 
-	public:
+ private:
+  Board board;
+  Search search;
+  bool _debug;
+  std::istream& istream;
+  std::ostream& ostream;
 
-		Controller(std::istream&, std::ostream&);
-		void loop();
-		bool execute(const std::string& input);
+  void uci();
+  void setdebug(std::vector<std::string>& tokens);
+  void position(std::vector<std::string>& tokens);
+  void go(std::vector<std::string>& tokens);
+  void move(std::vector<std::string>& tokens);
+  void moves();
+};
 
-	private:
-
-		Board 	board;
-		Search 	search;
-		bool 	_debug;
-		std::istream& istream;
-		std::ostream& ostream;
-
-		void uci();
-		void setdebug(std::vector<std::string>& tokens);
-		void position(std::vector<std::string>& tokens);
-		void go(std::vector<std::string>& tokens);
-		void move(std::vector<std::string>& tokens);
-		void moves();
-
-	};
-
-}
+}  // namespace UCI
 
 #endif
