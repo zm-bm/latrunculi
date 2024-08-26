@@ -17,6 +17,7 @@ using I8 = int8_t;
 
 enum Color : U8 { BLACK, WHITE, NCOLORS = 2 };
 
+// clang-format off
 enum Square : U8 {
   A1, B1, C1, D1, E1, F1, G1, H1,
   A2, B2, C2, D2, E2, F2, G2, H2,
@@ -29,6 +30,13 @@ enum Square : U8 {
   INVALID = 64,
   NSQUARES = 64
 };
+
+enum Piece : U8 {
+  EMPTY =  0,
+  BPAWN = 1, BKNIGHT, BBISHOP, BROOK, BQUEEN, BKING,
+  WPAWN = 9, WKNIGHT, WBISHOP, WROOK, WQUEEN, WKING,
+};
+// clang-format on
 
 enum File : I8 { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8 };
 
@@ -44,12 +52,6 @@ enum PieceType : U8 {
   QUEEN,
   KING,
   NPIECETYPES = 6
-};
-
-enum Piece : U8 {
-  EMPTY =  0,
-  BPAWN = 1, BKNIGHT, BBISHOP, BROOK, BQUEEN, BKING,
-  WPAWN = 9, WKNIGHT, WBISHOP, WROOK, WQUEEN, WKING,
 };
 
 enum CastleRights : U8 {
@@ -96,7 +98,6 @@ enum NodeType : U8 {
   TT_BETA,
 };
 
-// Define type helper functions
 namespace Types {
 
 constexpr Square getSquare(const File file, const Rank rank) {
@@ -132,8 +133,8 @@ constexpr Color getPieceColor(const Piece p) { return Color(p >> 3); }
 
 template <Color c, PawnMove p, bool forward>
 inline Square pawnMove(const Square sq) {
-  constexpr int transform = (forward == (c == WHITE)) ? 1 : -1;
-  return Square(sq + transform * static_cast<int>(p));
+  return (forward == (c == WHITE)) ? Square(sq + static_cast<int>(p))
+                                   : Square(sq - static_cast<int>(p));
 }
 
 template <PawnMove p, bool forward>
@@ -147,7 +148,6 @@ const char PieceChar[16] = {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ',
 
 }  // namespace Types
 
-// Define common type operators
 inline Color operator~(Color c) { return Color(c ^ WHITE); }
 
 inline std::ostream& operator<<(std::ostream& os, File file) {
