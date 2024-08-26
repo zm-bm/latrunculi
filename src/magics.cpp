@@ -1,11 +1,12 @@
-#include "types.hpp"
-#include "bitboard.hpp"
 #include "magics.hpp"
+
+#include "bitboard.hpp"
+#include "types.hpp"
 
 /**
  * Modified implementation of magic bitboards for Latrunculi
  * All credit goes to Pradyumna Kannan
- * 
+ *
  * Source file for magic move bitboard generation.
  *
  * The magic keys are not optimal for all squares but they are very close
@@ -30,219 +31,197 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-namespace Magic {
-    U64 rookAttacksDB[102400];
-    U64 bishopAttacksDB[5248];
+namespace Magics {
+U64 rookAttacksDB[102400];
+U64 bishopAttacksDB[5248];
 
-    void init()
-    {
-        U64* rookAttacksInit[64] = {
-            rookAttacksDB + 86016, rookAttacksDB + 73728,
-            rookAttacksDB + 36864, rookAttacksDB + 43008,
-            rookAttacksDB + 47104, rookAttacksDB + 51200,
-            rookAttacksDB + 77824, rookAttacksDB + 94208,
-            rookAttacksDB + 69632, rookAttacksDB + 32768,
-            rookAttacksDB + 38912, rookAttacksDB + 10240,
-            rookAttacksDB + 14336, rookAttacksDB + 53248,
-            rookAttacksDB + 57344, rookAttacksDB + 81920,
-            rookAttacksDB + 24576, rookAttacksDB + 33792,
-            rookAttacksDB + 6144, rookAttacksDB + 11264,
-            rookAttacksDB + 15360, rookAttacksDB + 18432,
-            rookAttacksDB + 58368, rookAttacksDB + 61440,
-            rookAttacksDB + 26624, rookAttacksDB + 4096,
-            rookAttacksDB + 7168, rookAttacksDB + 0,
-            rookAttacksDB + 2048, rookAttacksDB + 19456,
-            rookAttacksDB + 22528, rookAttacksDB + 63488,
-            rookAttacksDB + 28672, rookAttacksDB + 5120,
-            rookAttacksDB + 8192, rookAttacksDB + 1024,
-            rookAttacksDB + 3072, rookAttacksDB + 20480,
-            rookAttacksDB + 23552, rookAttacksDB + 65536,
-            rookAttacksDB + 30720, rookAttacksDB + 34816,
-            rookAttacksDB + 9216, rookAttacksDB + 12288,
-            rookAttacksDB + 16384, rookAttacksDB + 21504,
-            rookAttacksDB + 59392, rookAttacksDB + 67584,
-            rookAttacksDB + 71680, rookAttacksDB + 35840,
-            rookAttacksDB + 39936, rookAttacksDB + 13312,
-            rookAttacksDB + 17408, rookAttacksDB + 54272,
-            rookAttacksDB + 60416, rookAttacksDB + 83968,
-            rookAttacksDB + 90112, rookAttacksDB + 75776,
-            rookAttacksDB + 40960, rookAttacksDB + 45056,
-            rookAttacksDB + 49152, rookAttacksDB + 55296,
-            rookAttacksDB + 79872, rookAttacksDB + 98304
-        };
-        U64* bishopAttacksInit[64] = {
-            bishopAttacksDB + 4992, bishopAttacksDB + 2624,
-            bishopAttacksDB + 256, bishopAttacksDB + 896,
-            bishopAttacksDB + 1280, bishopAttacksDB + 1664,
-            bishopAttacksDB + 4800, bishopAttacksDB + 5120,
-            bishopAttacksDB + 2560, bishopAttacksDB + 2656,
-            bishopAttacksDB + 288, bishopAttacksDB + 928,
-            bishopAttacksDB + 1312, bishopAttacksDB + 1696,
-            bishopAttacksDB + 4832, bishopAttacksDB + 4928,
-            bishopAttacksDB + 0, bishopAttacksDB + 128,
-            bishopAttacksDB + 320, bishopAttacksDB + 960,
-            bishopAttacksDB + 1344, bishopAttacksDB + 1728,
-            bishopAttacksDB + 2304, bishopAttacksDB + 2432,
-            bishopAttacksDB + 32, bishopAttacksDB + 160,
-            bishopAttacksDB + 448, bishopAttacksDB + 2752,
-            bishopAttacksDB + 3776, bishopAttacksDB + 1856,
-            bishopAttacksDB + 2336, bishopAttacksDB + 2464,
-            bishopAttacksDB + 64, bishopAttacksDB + 192,
-            bishopAttacksDB + 576, bishopAttacksDB + 3264,
-            bishopAttacksDB + 4288, bishopAttacksDB + 1984,
-            bishopAttacksDB + 2368, bishopAttacksDB + 2496,
-            bishopAttacksDB + 96, bishopAttacksDB + 224,
-            bishopAttacksDB + 704, bishopAttacksDB + 1088,
-            bishopAttacksDB + 1472, bishopAttacksDB + 2112,
-            bishopAttacksDB + 2400, bishopAttacksDB + 2528,
-            bishopAttacksDB + 2592, bishopAttacksDB + 2688,
-            bishopAttacksDB + 832, bishopAttacksDB + 1216,
-            bishopAttacksDB + 1600, bishopAttacksDB + 2240,
-            bishopAttacksDB + 4864, bishopAttacksDB + 4960,
-            bishopAttacksDB + 5056, bishopAttacksDB + 2720,
-            bishopAttacksDB + 864, bishopAttacksDB + 1248,
-            bishopAttacksDB + 1632, bishopAttacksDB + 2272,
-            bishopAttacksDB + 4896, bishopAttacksDB + 5184
-        };
+void init() {
+  U64* rookAttacksInit[64] = {
+      rookAttacksDB + 86016, rookAttacksDB + 73728, rookAttacksDB + 36864,
+      rookAttacksDB + 43008, rookAttacksDB + 47104, rookAttacksDB + 51200,
+      rookAttacksDB + 77824, rookAttacksDB + 94208, rookAttacksDB + 69632,
+      rookAttacksDB + 32768, rookAttacksDB + 38912, rookAttacksDB + 10240,
+      rookAttacksDB + 14336, rookAttacksDB + 53248, rookAttacksDB + 57344,
+      rookAttacksDB + 81920, rookAttacksDB + 24576, rookAttacksDB + 33792,
+      rookAttacksDB + 6144,  rookAttacksDB + 11264, rookAttacksDB + 15360,
+      rookAttacksDB + 18432, rookAttacksDB + 58368, rookAttacksDB + 61440,
+      rookAttacksDB + 26624, rookAttacksDB + 4096,  rookAttacksDB + 7168,
+      rookAttacksDB + 0,     rookAttacksDB + 2048,  rookAttacksDB + 19456,
+      rookAttacksDB + 22528, rookAttacksDB + 63488, rookAttacksDB + 28672,
+      rookAttacksDB + 5120,  rookAttacksDB + 8192,  rookAttacksDB + 1024,
+      rookAttacksDB + 3072,  rookAttacksDB + 20480, rookAttacksDB + 23552,
+      rookAttacksDB + 65536, rookAttacksDB + 30720, rookAttacksDB + 34816,
+      rookAttacksDB + 9216,  rookAttacksDB + 12288, rookAttacksDB + 16384,
+      rookAttacksDB + 21504, rookAttacksDB + 59392, rookAttacksDB + 67584,
+      rookAttacksDB + 71680, rookAttacksDB + 35840, rookAttacksDB + 39936,
+      rookAttacksDB + 13312, rookAttacksDB + 17408, rookAttacksDB + 54272,
+      rookAttacksDB + 60416, rookAttacksDB + 83968, rookAttacksDB + 90112,
+      rookAttacksDB + 75776, rookAttacksDB + 40960, rookAttacksDB + 45056,
+      rookAttacksDB + 49152, rookAttacksDB + 55296, rookAttacksDB + 79872,
+      rookAttacksDB + 98304};
+  U64* bishopAttacksInit[64] = {
+      bishopAttacksDB + 4992, bishopAttacksDB + 2624, bishopAttacksDB + 256,
+      bishopAttacksDB + 896,  bishopAttacksDB + 1280, bishopAttacksDB + 1664,
+      bishopAttacksDB + 4800, bishopAttacksDB + 5120, bishopAttacksDB + 2560,
+      bishopAttacksDB + 2656, bishopAttacksDB + 288,  bishopAttacksDB + 928,
+      bishopAttacksDB + 1312, bishopAttacksDB + 1696, bishopAttacksDB + 4832,
+      bishopAttacksDB + 4928, bishopAttacksDB + 0,    bishopAttacksDB + 128,
+      bishopAttacksDB + 320,  bishopAttacksDB + 960,  bishopAttacksDB + 1344,
+      bishopAttacksDB + 1728, bishopAttacksDB + 2304, bishopAttacksDB + 2432,
+      bishopAttacksDB + 32,   bishopAttacksDB + 160,  bishopAttacksDB + 448,
+      bishopAttacksDB + 2752, bishopAttacksDB + 3776, bishopAttacksDB + 1856,
+      bishopAttacksDB + 2336, bishopAttacksDB + 2464, bishopAttacksDB + 64,
+      bishopAttacksDB + 192,  bishopAttacksDB + 576,  bishopAttacksDB + 3264,
+      bishopAttacksDB + 4288, bishopAttacksDB + 1984, bishopAttacksDB + 2368,
+      bishopAttacksDB + 2496, bishopAttacksDB + 96,   bishopAttacksDB + 224,
+      bishopAttacksDB + 704,  bishopAttacksDB + 1088, bishopAttacksDB + 1472,
+      bishopAttacksDB + 2112, bishopAttacksDB + 2400, bishopAttacksDB + 2528,
+      bishopAttacksDB + 2592, bishopAttacksDB + 2688, bishopAttacksDB + 832,
+      bishopAttacksDB + 1216, bishopAttacksDB + 1600, bishopAttacksDB + 2240,
+      bishopAttacksDB + 4864, bishopAttacksDB + 4960, bishopAttacksDB + 5056,
+      bishopAttacksDB + 2720, bishopAttacksDB + 864,  bishopAttacksDB + 1248,
+      bishopAttacksDB + 1632, bishopAttacksDB + 2272, bishopAttacksDB + 4896,
+      bishopAttacksDB + 5184};
 
-        // Pre-calculate bishop attacks with magic bitboards
-        for (int i = 0; i < 64; i++) {
-            int squares[64];
-            int numsquares = 0;
-            U64 temp = bishopMagicMask[i];
+  // Pre-calculate bishop attacks with magic bitboards
+  for (int i = 0; i < 64; i++) {
+    int squares[64];
+    int numsquares = 0;
+    U64 temp = bishopMagicMask[i];
 
-            while (temp) {
-                U64 lsb = temp & -temp;
-                squares[numsquares++] = BB(lsb).lsb();
-                temp ^= lsb;
-            }
-            for (temp = 0; temp < (U64) 1 << numsquares; temp++) {
-                U64 moves;
-                U64 tempoccupied = init_occupied(squares, numsquares, temp);
-                moves = init_magic_bishop(i, tempoccupied);
-                *(bishopAttacksInit[i] + (tempoccupied * bishopMagicNum[i] >> bishopMagicShift[i])) = moves;
-            }
-        }
-
-        // Pre-calculate rook attacks with magic bitboards
-        for (int i = 0; i < 64; i++) {
-            int squares[64];
-            int numsquares = 0;
-            U64 temp = rookMagicMask[i];
-
-            while (temp) {
-                U64 lsb = temp & -temp;
-                squares[numsquares++] = BB(lsb).lsb();
-                temp ^= lsb;
-            }
-            for (temp = 0; temp < (U64) 1 << numsquares; temp++) {
-                U64 tempoccupied = init_occupied(squares, numsquares, temp);
-                U64 moves = init_magic_rook(i, tempoccupied);
-                *(rookAttacksInit[i] + (tempoccupied * rookMagicNum[i] >> rookMagicShift[i])) = moves;
-            }
-        }
+    while (temp) {
+      U64 lsb = temp & -temp;
+      squares[numsquares++] = BB(lsb).lsb();
+      temp ^= lsb;
     }
-
-    // Translates line occupancy into an occupied-square bitboard
-    U64 init_occupied(int* squares, int numSquares, U64 line_occupied) {
-        int i;
-        U64 ret = 0;
-
-        for (i = 0; i < numSquares; i++)
-            if (line_occupied & (U64) 1 << i)
-            ret |= (U64) 1 << squares[i];
-        return ret;
+    for (temp = 0; temp < (U64)1 << numsquares; temp++) {
+      U64 moves;
+      U64 tempoccupied = initOccupied(squares, numsquares, temp);
+      moves = initMagicBishop(i, tempoccupied);
+      *(bishopAttacksInit[i] +
+        (tempoccupied * bishopMagicNum[i] >> bishopMagicShift[i])) = moves;
     }
+  }
 
-    U64 init_magic_bishop(int square, U64 occupied) {
-        U64 ret = 0;
-        U64 bit;
-        U64 bit2;
-        U64 rowbits = (U64) 0xFF << (8 * (square / 8));
+  // Pre-calculate rook attacks with magic bitboards
+  for (int i = 0; i < 64; i++) {
+    int squares[64];
+    int numsquares = 0;
+    U64 temp = rookMagicMask[i];
 
-        bit = (U64) 1 << square;
-        bit2 = bit;
-        do {
-            bit <<= 8 - 1;
-            bit2 >>= 1;
-            if (bit2 & rowbits)
-                ret |= bit;
-            else
-                break;
-        } while (bit && !(bit & occupied));
-
-        bit = (U64) 1 << square;
-        bit2 = bit;
-        do {
-            bit <<= 8 + 1;
-            bit2 <<= 1;
-            if (bit2 & rowbits)
-                ret |= bit;
-            else
-                break;
-        } while (bit && !(bit & occupied));
-
-        bit = (U64) 1 << square;
-        bit2 = bit;
-        do {
-            bit >>= 8 - 1;
-            bit2 <<= 1;
-            if (bit2 & rowbits)
-                ret |= bit;
-            else
-                break;
-        } while (bit && !(bit & occupied));
-
-        bit = (U64) 1 << square;
-        bit2 = bit;
-        do {
-            bit >>= 8 + 1;
-            bit2 >>= 1;
-            if (bit2 & rowbits)
-                ret |= bit;
-            else
-                break;
-        } while (bit && !(bit & occupied));
-
-        return ret;
+    while (temp) {
+      U64 lsb = temp & -temp;
+      squares[numsquares++] = BB(lsb).lsb();
+      temp ^= lsb;
     }
-
-    U64 init_magic_rook(int square, U64 occupied) {
-        U64 ret = 0;
-        U64 bit;
-        U64 rowbits = (U64) 0xFF << 8 * (square / 8);
-
-        bit = (U64) 1 << square;
-        do {
-            bit <<= 8;
-            ret |= bit;
-        } while (bit && !(bit & occupied));
-
-        bit = (U64) 1 << square;
-        do {
-            bit >>= 8;
-            ret |= bit;
-        } while (bit && !(bit & occupied));
-
-        bit = (U64) 1 << square;
-        do {
-            bit <<= 1;
-            if (bit & rowbits)
-                ret |= bit;
-            else
-                break;
-        } while (!(bit & occupied));
-
-        bit = (U64) 1 << square;
-        do {
-            bit >>= 1;
-            if (bit & rowbits)
-                ret |= bit;
-            else
-                break;
-        } while (!(bit & occupied));
-
-        return ret;
+    for (temp = 0; temp < (U64)1 << numsquares; temp++) {
+      U64 tempoccupied = initOccupied(squares, numsquares, temp);
+      U64 moves = initMagicRook(i, tempoccupied);
+      *(rookAttacksInit[i] +
+        (tempoccupied * rookMagicNum[i] >> rookMagicShift[i])) = moves;
     }
-
+  }
 }
+
+// Translates line occupancy into an occupied-square bitboard
+U64 initOccupied(int* squares, int numSquares, U64 line_occupied) {
+  int i;
+  U64 ret = 0;
+
+  for (i = 0; i < numSquares; i++)
+    if (line_occupied & (U64)1 << i) ret |= (U64)1 << squares[i];
+  return ret;
+}
+
+U64 initMagicBishop(int square, U64 occupied) {
+  U64 ret = 0;
+  U64 bit;
+  U64 bit2;
+  U64 rowbits = (U64)0xFF << (8 * (square / 8));
+
+  bit = (U64)1 << square;
+  bit2 = bit;
+  do {
+    bit <<= 8 - 1;
+    bit2 >>= 1;
+    if (bit2 & rowbits)
+      ret |= bit;
+    else
+      break;
+  } while (bit && !(bit & occupied));
+
+  bit = (U64)1 << square;
+  bit2 = bit;
+  do {
+    bit <<= 8 + 1;
+    bit2 <<= 1;
+    if (bit2 & rowbits)
+      ret |= bit;
+    else
+      break;
+  } while (bit && !(bit & occupied));
+
+  bit = (U64)1 << square;
+  bit2 = bit;
+  do {
+    bit >>= 8 - 1;
+    bit2 <<= 1;
+    if (bit2 & rowbits)
+      ret |= bit;
+    else
+      break;
+  } while (bit && !(bit & occupied));
+
+  bit = (U64)1 << square;
+  bit2 = bit;
+  do {
+    bit >>= 8 + 1;
+    bit2 >>= 1;
+    if (bit2 & rowbits)
+      ret |= bit;
+    else
+      break;
+  } while (bit && !(bit & occupied));
+
+  return ret;
+}
+
+U64 initMagicRook(int square, U64 occupied) {
+  U64 ret = 0;
+  U64 bit;
+  U64 rowbits = (U64)0xFF << 8 * (square / 8);
+
+  bit = (U64)1 << square;
+  do {
+    bit <<= 8;
+    ret |= bit;
+  } while (bit && !(bit & occupied));
+
+  bit = (U64)1 << square;
+  do {
+    bit >>= 8;
+    ret |= bit;
+  } while (bit && !(bit & occupied));
+
+  bit = (U64)1 << square;
+  do {
+    bit <<= 1;
+    if (bit & rowbits)
+      ret |= bit;
+    else
+      break;
+  } while (!(bit & occupied));
+
+  bit = (U64)1 << square;
+  do {
+    bit >>= 1;
+    if (bit & rowbits)
+      ret |= bit;
+    else
+      break;
+  } while (!(bit & occupied));
+
+  return ret;
+}
+
+}  // namespace Magic

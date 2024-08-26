@@ -84,11 +84,11 @@ namespace MoveGen
             case KNIGHT:
                 return G::KNIGHT_ATTACKS[sq];
             case BISHOP:
-                return BB(Magic::getBishopAttacks(sq, occupancy));
+                return BB(Magics::getBishopAttacks(sq, occupancy));
             case ROOK:
-                return BB(Magic::getRookAttacks(sq, occupancy));
+                return BB(Magics::getRookAttacks(sq, occupancy));
             case QUEEN:
-                return BB(Magic::getQueenAttacks(sq, occupancy));
+                return BB(Magics::getQueenAttacks(sq, occupancy));
             case KING:
                 return G::KING_ATTACKS[sq];
         }

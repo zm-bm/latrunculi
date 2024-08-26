@@ -5,7 +5,7 @@
 
 int main()
 {
-    Magic::init();
+    Magics::init();
     Zobrist::init();
 
 	UCI::Controller controller(std::cin, std::cout);
