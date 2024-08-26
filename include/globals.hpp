@@ -3,6 +3,7 @@
 
 #include <string>
 #include <array>
+#include <vector>
 #include "types.hpp"
 
 namespace G {
