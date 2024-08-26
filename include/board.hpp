@@ -107,7 +107,7 @@ class Board {
         inline Square getEnPassant() const { return state.at(ply).enPassantSq; }
         inline U8 getHmClock() const { return state.at(ply).hmClock; }
         inline U64 getKey() const { return state.at(ply).zkey; }
-        inline bool isCheck() const { return !getCheckingPieces().isEmpty(); }
+        inline bool isCheck() const { return getCheckingPieces(); }
         inline bool isDoubleCheck() const { return getCheckingPieces().moreThanOneSet(); }
         inline int getPieceCount(Color c) const {
             return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) + count<QUEEN>(c);

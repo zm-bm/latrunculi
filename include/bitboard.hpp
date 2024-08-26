@@ -4,9 +4,7 @@
 #include <iostream>
 #include <vector>
 #include "types.hpp"
-#include "move.hpp"
 #include "globals.hpp"
-#include "magics.hpp"
 
 // A specialized bit array containing 64 single bit fields
 // One bit for each square of a chess board
@@ -15,19 +13,15 @@ class BB {
         U64 bitboard;
 
     public:
-        BB() = default;
-        BB(U64 value)
-        : bitboard(value) {}
+        constexpr BB() noexcept : bitboard(0) {}
+        constexpr BB(U64 value) noexcept : bitboard(value) {}
 
         // Modifiers
-        void clear(Square);
-        void toggle(Square);
-        void toggle(BB);
+        inline void clear(const Square sq) noexcept { bitboard &= G::BITCLEAR[sq]; }
+        inline void toggle(const Square sq) noexcept { bitboard ^= G::BITSET[sq]; }
+        inline void toggle(const BB& other) noexcept { bitboard ^= other.bitboard; }
 
         // Accessors
-        U64 get() const;
-        bool isSet(Square) const;
-        bool isEmpty() const;
         bool moreThanOneSet() const;
         Square lsb() const;
         Square msb() const;
@@ -68,8 +62,8 @@ class BB {
         inline BB shift_no() const { return *this << 8; }
 
         // Operators
-        inline operator bool() const { return bitboard; }
-        inline operator U64() const { return bitboard; }
+        inline operator bool() const noexcept { return bitboard; }
+        inline operator U64() const noexcept { return bitboard; }
         friend std::ostream& operator<<(std::ostream&, const BB&);
         friend BB operator~(const BB&);
         friend BB operator&(const BB&, const BB&);
@@ -83,6 +77,7 @@ class BB {
         friend BB operator^(const BB&, const Square&);
         friend BB operator<<(const BB& lhs, const int& rhs);
         friend BB operator>>(const BB& lhs, const int& rhs);
+        inline bool operator==(const BB& other) const noexcept { return bitboard == other.bitboard; }
 };
 
 // BB operators
@@ -142,36 +137,6 @@ inline BB operator<<(const BB& lhs, const int& rhs)
 
 inline BB operator>>(const BB& lhs, const int& rhs)
 { return BB(lhs.bitboard >> rhs); }
-
-inline void BB::clear(const Square sq)
-{
-    bitboard &= G::BITCLEAR[sq]; 
-}
-
-inline void BB::toggle(const Square sq)
-{
-    bitboard ^= G::BITSET[sq];
-}
-
-inline void BB::toggle(const BB targets)
-{
-    bitboard ^= targets.get();
-}
-
-inline U64 BB::get() const
-{
-    return bitboard;
-}
-
-inline bool BB::isSet(Square sq) const
-{
-    return bitboard & G::BITSET[sq];
-}
-
-inline bool BB::isEmpty() const
-{
-    return !(bool) bitboard;
-}
 
 inline bool BB::moreThanOneSet() const
 {
@@ -364,7 +329,7 @@ inline std::ostream& operator<<(std::ostream& os, const BB& bb)
     char output[64];
 
     for (unsigned i = 0; i < 64; i++) {
-        if (bb.isSet(Square(i)))
+        if (bb & G::BITSET[i])
             output[i] = '1';
         else
             output[i] = '.';

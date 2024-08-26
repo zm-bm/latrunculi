@@ -5,6 +5,7 @@
 #include <vector>
 #include "types.hpp"
 #include "bitboard.hpp"
+#include "magics.hpp"
 
 class Board;
 class Move;

@@ -2,6 +2,7 @@
 #define LATRUNCULI_STATE_H
 
 #include "types.hpp"
+#include "move.hpp"
 
 class Board;
 
