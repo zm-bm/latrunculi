@@ -16,7 +16,7 @@ class Board {
         std::vector<State> state;
 
         // Square and piece centric board representations
-        BB pieces[2][7];
+        BBz pieces[2][7];
         Piece squares[64];
 
         // Convenience variables
@@ -41,7 +41,7 @@ class Board {
 
         bool isLegalMove(Move) const;
         bool isCheckingMove(Move) const;
-        BB getCheckBlockers(Color, Color) const;
+        BBz getCheckBlockers(Color, Color) const;
 
                                     int calculateMobilityScore(const int, const int) const;
         template<PieceType>         int calculateMobilityScore(const int, const int) const;
@@ -77,9 +77,9 @@ class Board {
         template<PieceType> U8 count() const;
         int calculatePhase() const;
 
-        BB attacksTo(Square, Color) const;
-        BB attacksTo(Square, Color, BB) const;
-        bool isBitboardAttacked(BB, Color) const;
+        BBz attacksTo(Square, Color) const;
+        BBz attacksTo(Square, Color, BBz) const;
+        bool isBitboardAttacked(BBz, Color) const;
 
         bool canCastle(Color) const;
         bool canCastleOO(Color) const;
@@ -90,15 +90,15 @@ class Board {
         void setEnPassant(Square sq);
 
         template<PieceType p>
-        inline BB getPieces(Color c) const { return pieces[c][p]; }
+        inline BBz getPieces(Color c) const { return pieces[c][p]; }
 
-        inline BB occupancy() const { return pieces[WHITE][ALL] | pieces[BLACK][ALL]; }
-        inline BB diagonalSliders(Color c) const {return pieces[c][BISHOP] | pieces[c][QUEEN]; }
-        inline BB straightSliders(Color c) const {return pieces[c][ROOK] | pieces[c][QUEEN]; }
-        inline BB getCheckingPieces() const { return state.at(ply).checkingPieces; }
-        inline BB calculateCheckingPieces(Color c) const { return attacksTo(getKingSq(c), ~c); }
-        inline BB calculateDiscoveredCheckers(Color c) const { return getCheckBlockers(c, ~c); }
-        inline BB calculatePinnedPieces(Color c) const { return getCheckBlockers(c, c); }
+        inline BBz occupancy() const { return pieces[WHITE][ALL] | pieces[BLACK][ALL]; }
+        inline BBz diagonalSliders(Color c) const {return pieces[c][BISHOP] | pieces[c][QUEEN]; }
+        inline BBz straightSliders(Color c) const {return pieces[c][ROOK] | pieces[c][QUEEN]; }
+        inline BBz getCheckingPieces() const { return state.at(ply).checkingPieces; }
+        inline BBz calculateCheckingPieces(Color c) const { return attacksTo(getKingSq(c), ~c); }
+        inline BBz calculateDiscoveredCheckers(Color c) const { return getCheckBlockers(c, ~c); }
+        inline BBz calculatePinnedPieces(Color c) const { return getCheckBlockers(c, c); }
 
         inline Piece getPiece(Square sq) const { return squares[sq]; }
         inline PieceType getPieceType(Square sq) const { return Types::getPieceType(squares[sq]); }
@@ -156,7 +156,7 @@ template<bool forward>
 inline void Board::movePiece(const Square from, const Square to, const Color c, const PieceType pt)
 {
     // Toggle bitboards and add to square centric board
-    BB mask = G::BITSET[from] | G::BITSET[to];
+    BBz mask = G::BITSET[from] | G::BITSET[to];
     pieces[c][ALL].toggle(mask);
     pieces[c][pt].toggle(mask);
     squares[from] = EMPTY;
@@ -192,15 +192,15 @@ inline int Board::calculatePhase() const
 }
 
 // Returns a bitboard of pieces of color c which attacks a square
-inline BB Board::attacksTo(Square sq, Color c) const
+inline BBz Board::attacksTo(Square sq, Color c) const
 {
     return attacksTo(sq, c, occupancy());
 }
 
 // Returns a bitboard of pieces of color c which attacks a square
-inline BB Board::attacksTo(Square sq, Color c, BB occ) const
+inline BBz Board::attacksTo(Square sq, Color c, BBz occ) const
 {
-    BB piece = BB(G::BITSET[sq]);
+    BBz piece = BBz(G::BITSET[sq]);
 
     return (getPieces<PAWN>(c)   & MoveGen::attacksByPawns(piece, ~c))
          | (getPieces<KNIGHT>(c) & MoveGen::movesByPiece<KNIGHT>(sq, occ))
@@ -210,7 +210,7 @@ inline BB Board::attacksTo(Square sq, Color c, BB occ) const
 }
 
 // Determine if any set square of a bitboard is attacked by color c
-inline bool Board::isBitboardAttacked(BB bitboard, Color c) const
+inline bool Board::isBitboardAttacked(BBz bitboard, Color c) const
 {
     while (bitboard)
     {
@@ -300,7 +300,7 @@ inline void Board::updateState(bool inCheck)
 
     Color enemy = ~stm;
     Square king = getKingSq(enemy);
-    BB occ = occupancy();
+    BBz occ = occupancy();
 
     state[ply].checkingSquares[PAWN]   = MoveGen::attacksByPawns(G::BITSET[king], enemy);
     state[ply].checkingSquares[KNIGHT] = MoveGen::movesByPiece<KNIGHT>(king, occ);

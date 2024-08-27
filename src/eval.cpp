@@ -36,23 +36,23 @@ int Board::eval() const
 	}
 
     // Evaluate pawn structure
-    BB wPawns = getPieces<PAWN>(WHITE),
+    BBz wPawns = getPieces<PAWN>(WHITE),
        bPawns = getPieces<PAWN>(BLACK),
        allPawns = wPawns | bPawns;
 
     // Passed pawns
-    BB wPassedPawns = wPawns & ~bPawns.getAllFrontSpan<BLACK>(),
+    BBz wPassedPawns = wPawns & ~bPawns.getAllFrontSpan<BLACK>(),
        bPassedPawns = bPawns & ~wPawns.getAllFrontSpan<WHITE>();
     double passedPawnValue = (opPhase * Eval::PassedPawnBonus[OPENING]
                             + egPhase * Eval::PassedPawnBonus[ENDGAME]) / TOTALPHASE;
     double passedPawnScore = (wPassedPawns.count() - bPassedPawns.count()) * passedPawnValue;
 
     // Doubled+tripled pawns
-    BB wPawnsAhead  = wPawns & ~wPawns.getFrontSpan<WHITE>(),
+    BBz wPawnsAhead  = wPawns & ~wPawns.getFrontSpan<WHITE>(),
        wPawnsBehind = wPawns & ~wPawns.getBackSpan< WHITE>(),
        wTriplePawns = wPawnsAhead & wPawnsBehind,
        wDoublePawns = (wPawnsAhead | wPawnsBehind) ^ wTriplePawns;
-    BB bPawnsAhead  = bPawns & ~bPawns.getFrontSpan<BLACK>(),
+    BBz bPawnsAhead  = bPawns & ~bPawns.getFrontSpan<BLACK>(),
        bPawnsBehind = bPawns & ~bPawns.getBackSpan< BLACK>(),
        bTriplePawns = bPawnsAhead & bPawnsBehind,
        bDoublePawns = (bPawnsAhead | bPawnsBehind) ^ bTriplePawns;
@@ -64,9 +64,9 @@ int Board::eval() const
     double triplePawnScore = (wTriplePawns.count() - bTriplePawns.count()) * triplePawnValue;
 
     // Isolated pawns
-    BB wIsolatedPawns   = (wPawns & ~wPawns.getWestFill())
+    BBz wIsolatedPawns   = (wPawns & ~wPawns.getWestFill())
                         & (wPawns & ~wPawns.getEastFill());
-    BB bIsolatedPawns   = (bPawns & ~bPawns.getWestFill())
+    BBz bIsolatedPawns   = (bPawns & ~bPawns.getWestFill())
                         & (bPawns & ~bPawns.getEastFill());
     double isoPawnValue = (opPhase * Eval::IsoPawnPenalty[OPENING]
                          + egPhase * Eval::IsoPawnPenalty[ENDGAME]) / TOTALPHASE;
@@ -80,7 +80,7 @@ int Board::eval() const
 	}
 
     // Give bonuses to queens/rooks on open/half open files
-    BB openFiles = ~allPawns.getFill(),
+    BBz openFiles = ~allPawns.getFill(),
        wHalfOpenFiles = ~wPawns.getFill() ^ openFiles,
        bHalfOpenFiles = ~bPawns.getFill() ^ openFiles,
        wSliders = straightSliders(WHITE),
@@ -104,11 +104,11 @@ int Board::eval() const
      */
     Square wking = getKingSq(WHITE),
            bking = getKingSq(BLACK);
-    BB occ = occupancy();
-    BB pieces;
+    BBz occ = occupancy();
+    BBz pieces;
 
     // Determine outposts
-    BB wHoles = ~wPawns.getFrontAttackSpan<WHITE>() & WHITEHOLES,
+    BBz wHoles = ~wPawns.getFrontAttackSpan<WHITE>() & WHITEHOLES,
        bHoles = ~bPawns.getFrontAttackSpan<BLACK>() & BLACKHOLES,
        wOutposts = bHoles & MoveGen::attacksByPawns<WHITE>(wPawns),
        bOutposts = wHoles & MoveGen::attacksByPawns<BLACK>(bPawns),
@@ -124,7 +124,7 @@ int Board::eval() const
         wKnightScore += Eval::KNIGHT_TROPISM[G::DISTANCE[bking][sq]];
         if (Types::getRank(sq) == RANK1)
             wKnightScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
-        BB validOutposts = MoveGen::movesByPiece<KNIGHT>(sq, occ) | sq;
+        BBz validOutposts = MoveGen::movesByPiece<KNIGHT>(sq, occ) | sq;
         if (validOutposts & allOutposts)
             wKnightScore += Eval::MINOR_OUTPOST_BONUS;
     }
@@ -137,7 +137,7 @@ int Board::eval() const
         bKnightScore += Eval::KNIGHT_TROPISM[G::DISTANCE[wking][sq]];
         if (Types::getRank(sq) == RANK8)
             bKnightScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
-        BB validOutposts = MoveGen::movesByPiece<KNIGHT>(sq, occ) | sq;
+        BBz validOutposts = MoveGen::movesByPiece<KNIGHT>(sq, occ) | sq;
         if (validOutposts & allOutposts)
             bKnightScore += Eval::MINOR_OUTPOST_BONUS;
     }
@@ -162,7 +162,7 @@ int Board::eval() const
         wBishopScore += Eval::BISHOP_TROPISM[G::DISTANCE[bking][sq]];
         if (Types::getRank(sq) == RANK1)
             wBishopScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
-        BB validOutposts = MoveGen::movesByPiece<BISHOP>(sq, occ) | sq;
+        BBz validOutposts = MoveGen::movesByPiece<BISHOP>(sq, occ) | sq;
         if (validOutposts & allOutposts)
             wBishopScore += Eval::MINOR_OUTPOST_BONUS;
     }
@@ -178,7 +178,7 @@ int Board::eval() const
         bBishopScore += Eval::BISHOP_TROPISM[G::DISTANCE[wking][sq]];
         if (Types::getRank(sq) == RANK8)
             bBishopScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
-        BB validOutposts = MoveGen::movesByPiece<BISHOP>(sq, occ) | sq;
+        BBz validOutposts = MoveGen::movesByPiece<BISHOP>(sq, occ) | sq;
         if (validOutposts & allOutposts)
             bBishopScore += Eval::MINOR_OUTPOST_BONUS;
     }
@@ -266,11 +266,11 @@ int Board::eval() const
 	}
 
     // Kings
-    BB wShield = Eval::kingShield<WHITE>(wking),
+    BBz wShield = Eval::kingShield<WHITE>(wking),
        bShield = Eval::kingShield<BLACK>(bking);
-    BB wShieldStrong = wShield & wPawns,
+    BBz wShieldStrong = wShield & wPawns,
        bShieldStrong = bShield & bPawns;
-    BB wShieldWeak = wShield.shift_no() & wPawns,
+    BBz wShieldWeak = wShield.shift_no() & wPawns,
        bShieldWeak = bShield.shift_so() & bPawns;
     double rawKingScore = Eval::STRONG_KING_SHIELD_BONUS * (wShieldStrong.count() - bShieldStrong.count())
                         + Eval::WEAK_KING_SHIELD_BONUS * (wShieldWeak.count() - bShieldWeak.count());

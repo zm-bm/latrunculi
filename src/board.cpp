@@ -17,8 +17,8 @@ Board::Board(const std::string& fen)
     , materialScore{0}
 {
     for (int i = 0; i < 7; i++) {
-        pieces[BLACK][i] = BB(0x0UL);
-        pieces[WHITE][i] = BB(0x0UL);
+        pieces[BLACK][i] = BBz(0x0UL);
+        pieces[WHITE][i] = BBz(0x0UL);
         pieceCount[BLACK][i] = 0;
         pieceCount[WHITE][i] = 0;
     }
@@ -46,7 +46,7 @@ bool Board::isLegalMove(Move mv) const
     else if (mv.type() == ENPASSANT)
     {
         Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
-        BB occ = (occupancy() ^ from ^ enemyPawn) | to;
+        BBz occ = (occupancy() ^ from ^ enemyPawn) | to;
 
         // Check if captured pawn was blocking check
         return !(MoveGen::movesByPiece<BISHOP>(king, occ) & diagonalSliders(~stm))
@@ -89,7 +89,7 @@ bool Board::isCheckingMove(Move mv) const
         case PROMOTION:
         {
             // Check if a promotion attacks the enemy king
-            BB occ = occupancy() ^ from;
+            BBz occ = occupancy() ^ from;
             return MoveGen::movesByPiece(to, mv.promPiece(), occ) & king;
         }
 
@@ -97,7 +97,7 @@ bool Board::isCheckingMove(Move mv) const
         {
             // Check if captured pawn was blocking enemy king from attack
             Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
-            BB occ = (occupancy() ^ from ^ enemyPawn) | to;
+            BBz occ = (occupancy() ^ from ^ enemyPawn) | to;
 
             return MoveGen::movesByPiece<BISHOP>(king, occ) & diagonalSliders(stm)
                 || MoveGen::movesByPiece<ROOK>(king, occ)   & straightSliders(stm);
@@ -117,7 +117,7 @@ bool Board::isCheckingMove(Move mv) const
                 rookFrom = MoveGen::RookOriginOOO[stm];
             }
 
-            BB occ = (occupancy() ^ from ^ rookFrom) | to | rookTo;
+            BBz occ = (occupancy() ^ from ^ rookFrom) | to | rookTo;
 
             return MoveGen::movesByPiece<ROOK>(rookTo, occ) & king;
         }
@@ -129,13 +129,13 @@ bool Board::isCheckingMove(Move mv) const
 }
 
 // Determine pieces of color c, which block the color kingC from attack by the enemy
-BB Board::getCheckBlockers(Color c, Color kingC) const
+BBz Board::getCheckBlockers(Color c, Color kingC) const
 {
     Color enemy = ~kingC;
     Square king = getKingSq(kingC);
 
     // Determine which enemy sliders could check the kingC's king
-    BB blockers = BB(0x0),
+    BBz blockers = BBz(0x0),
        pinners = (MoveGen::movesByPiece<BISHOP>(king) & diagonalSliders(enemy))
                | (MoveGen::movesByPiece<ROOK  >(king) & straightSliders(enemy));
 
@@ -146,7 +146,7 @@ BB Board::getCheckBlockers(Color c, Color kingC) const
         pinners.clear(pinner);
 
         // Check if only one piece separates the slider and the king
-        BB piecesInBetween = occupancy() & G::BITS_BETWEEN[king][pinner];
+        BBz piecesInBetween = occupancy() & G::BITS_BETWEEN[king][pinner];
         if (!piecesInBetween.moreThanOneSet())
             blockers |= piecesInBetween & getPieces<ALL>(c);
     }
@@ -168,7 +168,7 @@ template<PieceType pt>
 int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
 {
     int mobilityScore = 0;
-    BB occ = occupancy();
+    BBz occ = occupancy();
 
     int whitemoves = MoveGen::mobility<pt>(getPieces<pt>(WHITE),
                                           ~getPieces<ALL>(WHITE), occ);

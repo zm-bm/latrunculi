@@ -91,7 +91,7 @@ void init() {
 
     while (temp) {
       U64 lsb = temp & -temp;
-      squares[numsquares++] = BB(lsb).lsb();
+      squares[numsquares++] = BBz(lsb).lsb();
       temp ^= lsb;
     }
     for (temp = 0; temp < (U64)1 << numsquares; temp++) {
@@ -111,7 +111,7 @@ void init() {
 
     while (temp) {
       U64 lsb = temp & -temp;
-      squares[numsquares++] = BB(lsb).lsb();
+      squares[numsquares++] = BBz(lsb).lsb();
       temp ^= lsb;
     }
     for (temp = 0; temp < (U64)1 << numsquares; temp++) {

@@ -8,18 +8,18 @@
 
 // A specialized bit array containing 64 single bit fields
 // One bit for each square of a chess board
-class BB {
+class BBz {
     private:
         U64 bitboard;
 
     public:
-        constexpr BB() noexcept : bitboard(0) {}
-        constexpr BB(U64 value) noexcept : bitboard(value) {}
+        constexpr BBz() noexcept : bitboard(0) {}
+        constexpr BBz(U64 value) noexcept : bitboard(value) {}
 
         // Modifiers
         inline void clear(const Square sq) noexcept { bitboard &= G::BITCLEAR[sq]; }
         inline void toggle(const Square sq) noexcept { bitboard ^= G::BITSET[sq]; }
-        inline void toggle(const BB& other) noexcept { bitboard ^= other.bitboard; }
+        inline void toggle(const BBz& other) noexcept { bitboard ^= other.bitboard; }
 
         // Accessors
         bool moreThanOneSet() const;
@@ -29,128 +29,128 @@ class BB {
         template<Color c> Square advanced() const;
 
         // Fill + span helpers
-        BB getNorthFill() const;
-        BB getSouthFill() const;
-        BB getNorthSpan() const;
-        BB getSouthSpan() const;
-        BB getFill() const;
-        BB getWestFill() const;
-        BB getEastFill() const;
+        BBz getNorthFill() const;
+        BBz getSouthFill() const;
+        BBz getNorthSpan() const;
+        BBz getSouthSpan() const;
+        BBz getFill() const;
+        BBz getWestFill() const;
+        BBz getEastFill() const;
 
-        template<Color> BB getFrontFill() const;
-        template<Color> BB getBackFill() const;
-        template<Color> BB getFrontSpan() const;
-        template<Color> BB getBackSpan() const;
-        template<Color> BB getFrontSpanWest() const;
-        template<Color> BB getFrontSpanEast() const;
-        template<Color> BB getBackSpanWest() const;
-        template<Color> BB getBackSpanEast() const;
-        template<Color> BB getFrontAttackSpan() const;
-        template<Color> BB getAllFrontSpan() const;
+        template<Color> BBz getFrontFill() const;
+        template<Color> BBz getBackFill() const;
+        template<Color> BBz getFrontSpan() const;
+        template<Color> BBz getBackSpan() const;
+        template<Color> BBz getFrontSpanWest() const;
+        template<Color> BBz getFrontSpanEast() const;
+        template<Color> BBz getBackSpanWest() const;
+        template<Color> BBz getBackSpanEast() const;
+        template<Color> BBz getFrontAttackSpan() const;
+        template<Color> BBz getAllFrontSpan() const;
 
         int count() const;
         int KernCount() const;
 
         // Shift operations
-        inline BB shift_ea() const { return (*this << 1) & ~G::FILE_MASK[FILE1]; }
-        inline BB shift_ne() const { return (*this << 9) & ~G::FILE_MASK[FILE1]; }
-        inline BB shift_se() const { return (*this >> 7) & ~G::FILE_MASK[FILE1]; }
-        inline BB shift_we() const { return (*this >> 1) & ~G::FILE_MASK[FILE8]; }
-        inline BB shift_sw() const { return (*this >> 9) & ~G::FILE_MASK[FILE8]; }
-        inline BB shift_nw() const { return (*this << 7) & ~G::FILE_MASK[FILE8]; }
-        inline BB shift_so() const { return *this >> 8; }
-        inline BB shift_no() const { return *this << 8; }
+        inline BBz shift_ea() const { return (*this << 1) & ~G::FILE_MASK[FILE1]; }
+        inline BBz shift_ne() const { return (*this << 9) & ~G::FILE_MASK[FILE1]; }
+        inline BBz shift_se() const { return (*this >> 7) & ~G::FILE_MASK[FILE1]; }
+        inline BBz shift_we() const { return (*this >> 1) & ~G::FILE_MASK[FILE8]; }
+        inline BBz shift_sw() const { return (*this >> 9) & ~G::FILE_MASK[FILE8]; }
+        inline BBz shift_nw() const { return (*this << 7) & ~G::FILE_MASK[FILE8]; }
+        inline BBz shift_so() const { return *this >> 8; }
+        inline BBz shift_no() const { return *this << 8; }
 
         // Operators
         inline operator bool() const noexcept { return bitboard; }
         inline operator U64() const noexcept { return bitboard; }
-        friend std::ostream& operator<<(std::ostream&, const BB&);
-        friend BB operator~(const BB&);
-        friend BB operator&(const BB&, const BB&);
-        friend BB operator|(const BB&, const BB&);
-        friend BB operator^(const BB&, const BB&);
-        friend BB operator&(const BB&, const U64&);
-        friend BB operator|(const BB&, const U64&);
-        friend BB operator^(const BB&, const U64&);
-        friend BB operator&(const BB&, const Square&);
-        friend BB operator|(const BB&, const Square&);
-        friend BB operator^(const BB&, const Square&);
-        friend BB operator<<(const BB& lhs, const int& rhs);
-        friend BB operator>>(const BB& lhs, const int& rhs);
-        inline bool operator==(const BB& other) const noexcept { return bitboard == other.bitboard; }
+        friend std::ostream& operator<<(std::ostream&, const BBz&);
+        friend BBz operator~(const BBz&);
+        friend BBz operator&(const BBz&, const BBz&);
+        friend BBz operator|(const BBz&, const BBz&);
+        friend BBz operator^(const BBz&, const BBz&);
+        friend BBz operator&(const BBz&, const U64&);
+        friend BBz operator|(const BBz&, const U64&);
+        friend BBz operator^(const BBz&, const U64&);
+        friend BBz operator&(const BBz&, const Square&);
+        friend BBz operator|(const BBz&, const Square&);
+        friend BBz operator^(const BBz&, const Square&);
+        friend BBz operator<<(const BBz& lhs, const int& rhs);
+        friend BBz operator>>(const BBz& lhs, const int& rhs);
+        inline bool operator==(const BBz& other) const noexcept { return bitboard == other.bitboard; }
 };
 
-// BB operators
-inline BB operator~(const BB& bitboard)
-{ return BB(~bitboard.bitboard); }
+// BBz operators
+inline BBz operator~(const BBz& bitboard)
+{ return BBz(~bitboard.bitboard); }
 
-inline BB operator&(const BB& lhs, const BB& rhs)
-{ return BB(lhs.bitboard & rhs.bitboard); }
+inline BBz operator&(const BBz& lhs, const BBz& rhs)
+{ return BBz(lhs.bitboard & rhs.bitboard); }
 
-inline BB operator|(const BB& lhs, const BB& rhs)
-{ return BB(lhs.bitboard | rhs.bitboard); }
+inline BBz operator|(const BBz& lhs, const BBz& rhs)
+{ return BBz(lhs.bitboard | rhs.bitboard); }
 
-inline BB operator^(const BB& lhs, const BB& rhs)
-{ return BB(lhs.bitboard ^ rhs.bitboard); }
+inline BBz operator^(const BBz& lhs, const BBz& rhs)
+{ return BBz(lhs.bitboard ^ rhs.bitboard); }
 
-inline BB& operator&=(BB& lhs, BB rhs)
-{ return lhs = BB(lhs & rhs); }
+inline BBz& operator&=(BBz& lhs, BBz rhs)
+{ return lhs = BBz(lhs & rhs); }
 
-inline BB& operator|=(BB& lhs, BB rhs)
-{ return lhs = BB(lhs | rhs); }
+inline BBz& operator|=(BBz& lhs, BBz rhs)
+{ return lhs = BBz(lhs | rhs); }
 
-inline BB& operator^=(BB& lhs, BB rhs)
-{ return lhs = BB(lhs ^ rhs); }
+inline BBz& operator^=(BBz& lhs, BBz rhs)
+{ return lhs = BBz(lhs ^ rhs); }
 
 // U64 operators
-inline BB operator&(const BB& lhs, const U64& rhs)
-{ return BB(lhs.bitboard & rhs); }
+inline BBz operator&(const BBz& lhs, const U64& rhs)
+{ return BBz(lhs.bitboard & rhs); }
 
-inline BB operator|(const BB& lhs, const U64& rhs)
-{ return BB(lhs.bitboard | rhs); }
+inline BBz operator|(const BBz& lhs, const U64& rhs)
+{ return BBz(lhs.bitboard | rhs); }
 
-inline BB operator^(const BB& lhs, const U64& rhs)
-{ return BB(lhs.bitboard ^ rhs); }
+inline BBz operator^(const BBz& lhs, const U64& rhs)
+{ return BBz(lhs.bitboard ^ rhs); }
 
-inline BB& operator&=(BB& lhs, U64 rhs)
-{ return lhs = BB(lhs & rhs); }
+inline BBz& operator&=(BBz& lhs, U64 rhs)
+{ return lhs = BBz(lhs & rhs); }
 
-inline BB& operator|=(BB& lhs, U64 rhs)
-{ return lhs = BB(lhs | rhs); }
+inline BBz& operator|=(BBz& lhs, U64 rhs)
+{ return lhs = BBz(lhs | rhs); }
 
-inline BB& operator^=(BB& lhs, U64 rhs)
-{ return lhs = BB(lhs ^ rhs); }
+inline BBz& operator^=(BBz& lhs, U64 rhs)
+{ return lhs = BBz(lhs ^ rhs); }
 
 // Square operators
-inline BB operator&(const BB& lhs, const Square& sq)
-{ return BB(lhs & G::BITSET[sq]); }
+inline BBz operator&(const BBz& lhs, const Square& sq)
+{ return BBz(lhs & G::BITSET[sq]); }
 
-inline BB operator|(const BB& lhs, const Square& sq)
-{ return BB(lhs | G::BITSET[sq]); }
+inline BBz operator|(const BBz& lhs, const Square& sq)
+{ return BBz(lhs | G::BITSET[sq]); }
 
-inline BB operator^(const BB& lhs, const Square& sq)
-{ return BB(lhs ^ G::BITSET[sq]); }
+inline BBz operator^(const BBz& lhs, const Square& sq)
+{ return BBz(lhs ^ G::BITSET[sq]); }
 
 // Shift operators
-inline BB operator<<(const BB& lhs, const int& rhs)
-{ return BB(lhs.bitboard << rhs); }
+inline BBz operator<<(const BBz& lhs, const int& rhs)
+{ return BBz(lhs.bitboard << rhs); }
 
-inline BB operator>>(const BB& lhs, const int& rhs)
-{ return BB(lhs.bitboard >> rhs); }
+inline BBz operator>>(const BBz& lhs, const int& rhs)
+{ return BBz(lhs.bitboard >> rhs); }
 
-inline bool BB::moreThanOneSet() const
+inline bool BBz::moreThanOneSet() const
 {
     return bitboard & (bitboard - 1);
 }
 
-inline Square BB::lsb() const
+inline Square BBz::lsb() const
 {
     U64 idx;
 	__asm__("bsfq %1, %0": "=r"(idx) : "rm"(bitboard));
     return (Square) idx;
 }
 
-inline Square BB::msb() const
+inline Square BBz::msb() const
 {
     U64 idx;
 	__asm__("bsrq %1, %0": "=r"(idx) : "rm"(bitboard));
@@ -158,7 +158,7 @@ inline Square BB::msb() const
 
 }
 
-inline Square BB::advanced(Color c) const
+inline Square BBz::advanced(Color c) const
 {
     if (c)
         return msb();
@@ -167,7 +167,7 @@ inline Square BB::advanced(Color c) const
 }
 
 template<Color c>
-inline Square BB::advanced() const
+inline Square BBz::advanced() const
 {
     if (c)
         return msb();
@@ -175,12 +175,12 @@ inline Square BB::advanced() const
         return lsb();
 }
 
-inline int BB::count() const
+inline int BBz::count() const
 {
     return __builtin_popcountll(bitboard);
 }
 
-inline int BB::KernCount() const
+inline int BBz::KernCount() const
 {
     int count = 0;
     U64 bb = bitboard;
@@ -193,7 +193,7 @@ inline int BB::KernCount() const
 }
 
 
-inline BB BB::getNorthFill() const
+inline BBz BBz::getNorthFill() const
 {
     U64 bb = bitboard;
     bb |= (bb <<  8);
@@ -202,7 +202,7 @@ inline BB BB::getNorthFill() const
     return bb;
 }
 
-inline BB BB::getSouthFill() const
+inline BBz BBz::getSouthFill() const
 {
     U64 bb = bitboard;
     bb |= (bb >>  8);
@@ -211,33 +211,33 @@ inline BB BB::getSouthFill() const
     return bb;
 }
 
-inline BB BB::getNorthSpan() const
+inline BBz BBz::getNorthSpan() const
 {
     return getNorthFill().shift_no();
 }
 
-inline BB BB::getSouthSpan() const
+inline BBz BBz::getSouthSpan() const
 {
     return getSouthFill().shift_so();
 }
 
-inline BB BB::getFill() const
+inline BBz BBz::getFill() const
 {
     return getNorthFill() | getSouthFill();
 }
 
-inline BB BB::getWestFill() const
+inline BBz BBz::getWestFill() const
 {
     return getFill().shift_we();
 }
 
-inline BB BB::getEastFill() const
+inline BBz BBz::getEastFill() const
 {
     return getFill().shift_ea();
 }
 
 template<Color c>
-inline BB BB::getFrontFill() const
+inline BBz BBz::getFrontFill() const
 {
     if (c)
         return getNorthFill();
@@ -246,7 +246,7 @@ inline BB BB::getFrontFill() const
 }
 
 template<Color c>
-inline BB BB::getBackFill() const
+inline BBz BBz::getBackFill() const
 {
     if (c)
         return getSouthFill();
@@ -255,7 +255,7 @@ inline BB BB::getBackFill() const
 }
 
 template<Color c>
-inline BB BB::getFrontSpan() const
+inline BBz BBz::getFrontSpan() const
 {
     if (c)
         return getNorthSpan();
@@ -264,7 +264,7 @@ inline BB BB::getFrontSpan() const
 }
 
 template<Color c>
-inline BB BB::getBackSpan() const
+inline BBz BBz::getBackSpan() const
 {
     if (c)
         return getSouthSpan();
@@ -273,7 +273,7 @@ inline BB BB::getBackSpan() const
 }
 
 template<Color c>   
-inline BB BB::getFrontSpanWest() const
+inline BBz BBz::getFrontSpanWest() const
 {
     if (c)
         return getNorthSpan().shift_we();
@@ -282,7 +282,7 @@ inline BB BB::getFrontSpanWest() const
 }
 
 template<Color c>
-inline BB BB::getFrontSpanEast() const
+inline BBz BBz::getFrontSpanEast() const
 {
     if (c)
         return getNorthSpan().shift_ea();
@@ -291,7 +291,7 @@ inline BB BB::getFrontSpanEast() const
 }
 
 template<Color c>
-inline BB BB::getBackSpanWest() const
+inline BBz BBz::getBackSpanWest() const
 {
     if (c)
         return getSouthFill().shift_we();
@@ -300,7 +300,7 @@ inline BB BB::getBackSpanWest() const
 }
 
 template<Color c>
-inline BB BB::getBackSpanEast() const
+inline BBz BBz::getBackSpanEast() const
 {
     if (c)
         return getSouthFill().shift_ea();
@@ -309,13 +309,13 @@ inline BB BB::getBackSpanEast() const
 }
 
 template<Color c>
-inline BB BB::getFrontAttackSpan() const
+inline BBz BBz::getFrontAttackSpan() const
 {
     return getFrontSpanWest<c>() | getFrontSpanEast<c>();
 }
 
 template<Color c>
-inline BB BB::getAllFrontSpan() const
+inline BBz BBz::getAllFrontSpan() const
 {
     return getFrontAttackSpan<c>() | getFrontSpan<c>();
 }
@@ -324,7 +324,7 @@ inline BB BB::getAllFrontSpan() const
  * Friendly operators
  */
 
-inline std::ostream& operator<<(std::ostream& os, const BB& bb)
+inline std::ostream& operator<<(std::ostream& os, const BBz& bb)
 {
     char output[64];
 

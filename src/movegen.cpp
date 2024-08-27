@@ -13,7 +13,7 @@ namespace MoveGen
         else
         {
             Color enemy = ~b->sideToMove();
-            BB targets = b->getPieces<ALL>(enemy);
+            BBz targets = b->getPieces<ALL>(enemy);
             generate<CAPTURES>(targets);
 
             targets = ~b->occupancy();
@@ -30,16 +30,16 @@ namespace MoveGen
         else
         {
             Color enemy = ~b->sideToMove();
-            BB targets = b->getPieces<ALL>(enemy);
+            BBz targets = b->getPieces<ALL>(enemy);
             generate<CAPTURES>(targets);
         }
     }
 
 
     template<MoveGenType g>
-    void Generator::generate(const BB targets)
+    void Generator::generate(const BBz targets)
     {
-        BB occ = b->occupancy();
+        BBz occ = b->occupancy();
         
         if (b->sideToMove() == WHITE)
         {
@@ -64,11 +64,11 @@ namespace MoveGen
     }
 
     template<MoveGenType g, Color c>
-    void Generator::generatePawnMoves(const BB targets, const BB occ)
+    void Generator::generatePawnMoves(const BBz targets, const BBz occ)
     {
         // Determine which enemies to target depending on the type of move generation
         Color enemy = ~b->sideToMove();
-        BB enemies, vacancies = ~occ;
+        BBz enemies, vacancies = ~occ;
         if (g == EVASIONS)
             // If generating evasions, only attack checking pieces
             enemies = b->getPieces<ALL>(enemy) & targets;
@@ -80,10 +80,10 @@ namespace MoveGen
             enemies = b->getPieces<ALL>(enemy);
 
         // Get 7th rank pawns
-        BB pawns = b->getPieces<PAWN>(c) & G::rankmask(RANK7, c);
+        BBz pawns = b->getPieces<PAWN>(c) & G::rankmask(RANK7, c);
 
         // Generate pawn promotions, if there are targets attacked by 7th rank pawns
-        BB bitboard;
+        BBz bitboard;
         if (pawns && (g != EVASIONS || (targets & G::rankmask(RANK8, c))))
         {
             // Generate legal pawn push bitboard
@@ -141,27 +141,27 @@ namespace MoveGen
         if (g != CAPTURES)
         {
             bitboard = MoveGen::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies;
-            BB doubleMovePawns = bitboard & G::rankmask(RANK3, c),
-               doubleMovesBB = MoveGen::movesByPawns<PawnMove::PUSH, c>(doubleMovePawns) & vacancies;
+            BBz doubleMovePawns = bitboard & G::rankmask(RANK3, c),
+               doubleMoves = MoveGen::movesByPawns<PawnMove::PUSH, c>(doubleMovePawns) & vacancies;
 
             // If in check, only make moves that block
             if (g == EVASIONS) {
-                doubleMovesBB &= targets;
+                doubleMoves &= targets;
                 bitboard &= targets;
             }
 
-            appendPawnMoves<PawnMove::DOUBLE, c>(doubleMovesBB);
+            appendPawnMoves<PawnMove::DOUBLE, c>(doubleMoves);
             appendPawnMoves<PawnMove::PUSH, c>(bitboard);
         }
     }
 
     template<MoveGenType g>
-    void Generator::generateKingMoves(const BB targets, const BB occ)
+    void Generator::generateKingMoves(const BBz targets, const BBz occ)
     {
         Color stm = b->sideToMove();
         Square from = b->getKingSq(stm);
 
-        BB kingMoves = movesByPiece<KING>(from, occ) & targets;
+        BBz kingMoves = movesByPiece<KING>(from, occ) & targets;
 
         while (kingMoves)
         {
@@ -175,10 +175,10 @@ namespace MoveGen
     }
 
     template<PieceType p, Color c>
-    void Generator::generatePieceMoves(const BB targets, const BB occ)
+    void Generator::generatePieceMoves(const BBz targets, const BBz occ)
     {
         Color stm = b->sideToMove();
-        BB bitboard = b->getPieces<p>(stm);
+        BBz bitboard = b->getPieces<p>(stm);
 
         while (bitboard)
         {
@@ -186,7 +186,7 @@ namespace MoveGen
             Square from = bitboard.advanced<c>();
             bitboard.clear(from);
 
-            BB pieceMoves = movesByPiece<p>(from, occ) & targets;
+            BBz pieceMoves = movesByPiece<p>(from, occ) & targets;
             while (pieceMoves)
             {
                 Square to = pieceMoves.advanced<c>();
@@ -202,7 +202,7 @@ namespace MoveGen
         Color stm = b->sideToMove();
 
         // If in double check, try to capture the checking piece or block
-        BB targets; 
+        BBz targets; 
         if (!b->isDoubleCheck())
         {
             // Get square of the checking piece and checked king
@@ -211,7 +211,7 @@ namespace MoveGen
 
             // Generate moves which block or capture the checking piece
             // NOTE: generate<EVASIONS> does NOT generate king moves
-            targets = BB(G::BITS_BETWEEN[checker][king]) | checker;
+            targets = BBz(G::BITS_BETWEEN[checker][king]) | checker;
             generate<EVASIONS>(targets);
         }
 
@@ -223,7 +223,7 @@ namespace MoveGen
     void Generator::generateCastling()
     {
         Color stm = b->sideToMove();
-        BB occ = b->occupancy();
+        BBz occ = b->occupancy();
         Square from = MoveGen::KingOrigin[stm];
 
         if (b->canCastleOO(stm) &&
@@ -246,7 +246,7 @@ namespace MoveGen
     }
 
     template<PawnMove p, Color c>
-    void Generator::appendPawnMoves(BB bitboard)
+    void Generator::appendPawnMoves(BBz bitboard)
     {
         while (bitboard)
         {
@@ -261,7 +261,7 @@ namespace MoveGen
     };
 
     template<PawnMove p, Color c, MoveGenType g>
-    void Generator::appendPawnPromotions(BB bitboard)
+    void Generator::appendPawnPromotions(BBz bitboard)
     {
         while (bitboard)
         {

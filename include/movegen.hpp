@@ -29,20 +29,20 @@ namespace MoveGen
         
         Board * b;
 
-        template<MoveGenType>        void generate(BB);
-        template<MoveGenType, Color> void generatePawnMoves(BB, BB);
-        template<MoveGenType>        void generateKingMoves(BB, BB);
-        template<PieceType, Color>   void generatePieceMoves(BB, BB);
+        template<MoveGenType>        void generate(BBz);
+        template<MoveGenType, Color> void generatePawnMoves(BBz, BBz);
+        template<MoveGenType>        void generateKingMoves(BBz, BBz);
+        template<PieceType, Color>   void generatePieceMoves(BBz, BBz);
                                      void generateEvasions();
                                      void generateCastling();
 
-        template<PawnMove, Color>               void appendPawnMoves(BB);
-        template<PawnMove, Color, MoveGenType>  void appendPawnPromotions(BB);
+        template<PawnMove, Color>               void appendPawnMoves(BBz);
+        template<PawnMove, Color, MoveGenType>  void appendPawnPromotions(BBz);
 
     };
 
     template<PawnMove p, Color c>
-    inline BB movesByPawns(BB pawns)
+    inline BBz movesByPawns(BBz pawns)
     {
         if (p == PawnMove::LEFT)
             pawns &= ~G::filemask(FILE1, c);
@@ -56,7 +56,7 @@ namespace MoveGen
     }
     
     template<PawnMove p>
-    inline BB movesByPawns(BB pawns, Color c)
+    inline BBz movesByPawns(BBz pawns, Color c)
     {
         if (c == WHITE)
             return movesByPawns<p, WHITE>(pawns);
@@ -65,43 +65,43 @@ namespace MoveGen
     };;
 
     template<Color c>
-    inline BB attacksByPawns(BB pawns)
+    inline BBz attacksByPawns(BBz pawns)
     {
         return movesByPawns<PawnMove::LEFT,  c>(pawns)
              | movesByPawns<PawnMove::RIGHT, c>(pawns);
     }
 
-    inline BB attacksByPawns(BB pawns, Color c)
+    inline BBz attacksByPawns(BBz pawns, Color c)
     {
         return movesByPawns<PawnMove::LEFT >(pawns, c)
              | movesByPawns<PawnMove::RIGHT>(pawns, c);
     }
 
     template<PieceType p>
-    inline BB movesByPiece(Square sq, BB occupancy)
+    inline BBz movesByPiece(Square sq, BBz occupancy)
     {
         switch (p)
         {
             case KNIGHT:
                 return G::KNIGHT_ATTACKS[sq];
             case BISHOP:
-                return BB(Magics::getBishopAttacks(sq, occupancy));
+                return BBz(Magics::getBishopAttacks(sq, occupancy));
             case ROOK:
-                return BB(Magics::getRookAttacks(sq, occupancy));
+                return BBz(Magics::getRookAttacks(sq, occupancy));
             case QUEEN:
-                return BB(Magics::getQueenAttacks(sq, occupancy));
+                return BBz(Magics::getQueenAttacks(sq, occupancy));
             case KING:
                 return G::KING_ATTACKS[sq];
         }
     }
 
     template<PieceType p>
-    inline BB movesByPiece(Square sq)
+    inline BBz movesByPiece(Square sq)
     {
-        return movesByPiece<p>(sq, BB(0));
+        return movesByPiece<p>(sq, BBz(0));
     }
 
-    inline BB movesByPiece(Square sq, PieceType p, BB occupancy)
+    inline BBz movesByPiece(Square sq, PieceType p, BBz occupancy)
     {
         switch (p)
         {
@@ -116,17 +116,17 @@ namespace MoveGen
             case KING:
                 return movesByPiece<KING>(sq, occupancy);
             default:
-                return BB(0x0);
+                return BBz(0x0);
         }
     }
 
-    inline BB movesByPiece(Square sq, PieceType p)
+    inline BBz movesByPiece(Square sq, PieceType p)
     {
-        return movesByPiece(sq, p, BB(0));
+        return movesByPiece(sq, p, BBz(0));
     }
 
     template<PieceType p>
-    inline int mobility(BB bitboard, BB targets, BB occ)
+    inline int mobility(BBz bitboard, BBz targets, BBz occ)
     {
         int nmoves = 0;
 
@@ -136,7 +136,7 @@ namespace MoveGen
             Square from = bitboard.lsb();
             bitboard.clear(from);
 
-            BB mobility = movesByPiece<p>(from, occ) & targets;
+            BBz mobility = movesByPiece<p>(from, occ) & targets;
             nmoves += mobility.count();
         }
 
