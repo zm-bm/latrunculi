@@ -6,9 +6,7 @@
 
 class MagicsTest : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() {
-    Magics::init();
-  }
+  static void SetUpTestSuite() { Magics::init(); }
 };
 
 U64 targetBitboard(std::vector<Square> squares);
