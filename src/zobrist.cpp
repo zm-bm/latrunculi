@@ -4,7 +4,7 @@
 namespace Zobrist
 {
 
-    U64 psq[NCOLORS][NPIECETYPES][NSQUARES];
+    U64 psq[NCOLORS][N_PIECES][NSQUARES];
     U64 stm;
     U64 ep[8];
     U64 castle[NCOLORS][2];
@@ -14,7 +14,7 @@ namespace Zobrist
         std::mt19937_64 r;
 
         for (int i = 0; i < NCOLORS; i++)
-            for (int j = 0; j < NPIECETYPES; j++)
+            for (int j = 0; j < N_PIECES; j++)
                 for (int k = 0; k < NSQUARES; k++)
                     psq[i][j][k] = r();
 

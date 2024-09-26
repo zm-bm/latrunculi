@@ -146,7 +146,7 @@ int Search::negamax(int depth, int alpha, int beta, bool isPV, bool isNullAllowe
                 && nLegalMoves > 3
                 && !wasInCheck
                 && !_board->isCheck()
-                && _board->state[_board->ply].captured == NONE
+                && _board->state[_board->ply].captured == NO_PIECE_ROLE
                 && move.type() != PROMOTION)
             {
                 if (nLegalMoves > 8)
@@ -273,13 +273,13 @@ int Search::quiesce(int alpha, int beta)
     return alpha;
 }
 
-template<bool Root>
+template<bool Root, bool ShowOutput = true>
 U64 Search::perft(int depth)
 {
     if (depth == 0)
         return 1;
 
-    if (Root)
+    if (Root && ShowOutput)
         start = high_resolution_clock::now();
 
     auto gen  = MoveGen::Generator(_board);
@@ -298,13 +298,13 @@ U64 Search::perft(int depth)
         count = perft<false>(depth-1);
         nodes += count;
 
-        if (Root)
+        if (Root && ShowOutput)
             std::cout << move << ": " << count << std::endl;
 
         _board->unmake();
     }
 
-    if (Root)
+    if (Root && ShowOutput)
     {
         stop = high_resolution_clock::now();
 
@@ -338,15 +338,15 @@ void Search::reset()
 
 void Search::addToHistory(Move move, int ply)
 {
-    PieceType captPiece = _board->getPieceType(move.to());
-    if (captPiece == NONE && move.type() != PROMOTION)
+    PieceRole captPiece = _board->getPieceRole(move.to());
+    if (captPiece == NO_PIECE_ROLE && move.type() != PROMOTION)
     {
         // Add to killer moves
         killers[ply].move2 = killers[ply].move1;
         killers[ply].move1 = move;
 
         // Add to history table
-        PieceType movePiece = _board->getPieceType(move.from());
+        PieceRole movePiece = _board->getPieceRole(move.from());
         history[_board->stm][movePiece-1][move.to()] += (U32)1 << (U64)ply; // ply^2
 
         if (history[_board->stm][movePiece-1][move.to()] > 10000)
@@ -406,13 +406,13 @@ void Search::sortMoves(std::vector<Move>& moves, Move hashmove)
         if (move.type() == PROMOTION)
             move.score += 1000 + move.promPiece();
 
-        PieceType captPiece = _board->getPieceType(move.to());
-        if (captPiece != NONE) {
-            PieceType movePiece = _board->getPieceType(move.from());
+        PieceRole captPiece = _board->getPieceRole(move.to());
+        if (captPiece != NO_PIECE_ROLE) {
+            PieceRole movePiece = _board->getPieceRole(move.from());
             move.score += Eval::PieceValues[captPiece-1][WHITE] - movePiece;
         }
         else {
-            PieceType movePiece = _board->getPieceType(move.from());
+            PieceRole movePiece = _board->getPieceRole(move.from());
             move.score += (I32)history[_board->stm][movePiece-1][move.to()];
         }
 
@@ -427,3 +427,4 @@ void Search::sortMoves(std::vector<Move>& moves, Move hashmove)
 }
 
 template U64 Search::perft<true>(int);
+template U64 Search::perft<true, false>(int);

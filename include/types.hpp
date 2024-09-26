@@ -32,27 +32,20 @@ enum Square : U8 {
 };
 
 enum Piece : U8 {
-  EMPTY =  0,
-  BPAWN = 1, BKNIGHT, BBISHOP, BROOK, BQUEEN, BKING,
-  WPAWN = 9, WKNIGHT, WBISHOP, WROOK, WQUEEN, WKING,
+  NO_PIECE = 0,
+  B_PAWN = 1, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
+  W_PAWN = 9, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
+};
+
+enum PieceRole : U8 {
+  NO_PIECE_ROLE = 0, ALL_PIECE_ROLES = 0,
+  PAWN = 1, KNIGHT, BISHOP, ROOK, QUEEN, KING,
+  N_PIECES = 6
 };
 // clang-format on
 
 enum File : I8 { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8 };
-
 enum Rank : I8 { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8 };
-
-enum PieceType : U8 {
-  NONE = 0,
-  ALL = 0,
-  PAWN,
-  KNIGHT,
-  BISHOP,
-  ROOK,
-  QUEEN,
-  KING,
-  NPIECETYPES = 6
-};
 
 enum CastleRights : U8 {
   NO_CASTLE = 0x0,
@@ -123,11 +116,11 @@ constexpr bool validFile(const File file) {
   return (FILE1 <= file) && (file <= FILE8);
 }
 
-constexpr Piece makePiece(const Color c, const PieceType p) {
+constexpr Piece makePiece(const Color c, const PieceRole p) {
   return Piece((c << 3) | p);
 }
 
-constexpr PieceType getPieceType(const Piece p) { return PieceType(p & 0x7); }
+constexpr PieceRole getPieceRole(const Piece p) { return PieceRole(p & 0x7); }
 
 constexpr Color getPieceColor(const Piece p) { return Color(p >> 3); }
 

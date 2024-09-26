@@ -36,7 +36,7 @@ namespace Eval
 
     extern const Square ColorSq[2][64];
 
-    inline int psqv(Color c, PieceType pt, int phase, Square sq)
+    inline int psqv(Color c, PieceRole pt, int phase, Square sq)
     {
         // Get the piece square value
         int score = PieceSqValues[pt-1][phase][ColorSq[c][sq]];

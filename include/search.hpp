@@ -34,9 +34,12 @@ class Search
         
         void think(int);
         
-        template<bool> int negamax(int, int, int, bool=true, bool=true);
+        template<bool>
+        int negamax(int, int, int, bool=true, bool=true);
         int quiesce(int, int);
-        template<bool> U64 perft(int);
+
+        template<bool, bool = true>
+        U64 perft(int);
 
         void reset();
         void sortMoves(std::vector<Move>&, Move = Move());
@@ -64,5 +67,7 @@ class Search
         void savePV(Move move);
         void printPV(int, int, unsigned int);
 };
+
+
 
 #endif

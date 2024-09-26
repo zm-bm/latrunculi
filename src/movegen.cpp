@@ -13,7 +13,7 @@ namespace MoveGen
         else
         {
             Color enemy = ~b->sideToMove();
-            BBz targets = b->getPieces<ALL>(enemy);
+            BBz targets = b->getPieces<ALL_PIECE_ROLES>(enemy);
             generate<CAPTURES>(targets);
 
             targets = ~b->occupancy();
@@ -30,7 +30,7 @@ namespace MoveGen
         else
         {
             Color enemy = ~b->sideToMove();
-            BBz targets = b->getPieces<ALL>(enemy);
+            BBz targets = b->getPieces<ALL_PIECE_ROLES>(enemy);
             generate<CAPTURES>(targets);
         }
     }
@@ -71,13 +71,13 @@ namespace MoveGen
         BBz enemies, vacancies = ~occ;
         if (g == EVASIONS)
             // If generating evasions, only attack checking pieces
-            enemies = b->getPieces<ALL>(enemy) & targets;
+            enemies = b->getPieces<ALL_PIECE_ROLES>(enemy) & targets;
         else if (g == CAPTURES)
             // If generating captures, targets are all enemy pieces
             enemies = targets;
         else if (g == QUIETS)
             // If generating quiet moves, get enemy pieces
-            enemies = b->getPieces<ALL>(enemy);
+            enemies = b->getPieces<ALL_PIECE_ROLES>(enemy);
 
         // Get 7th rank pawns
         BBz pawns = b->getPieces<PAWN>(c) & G::rankmask(RANK7, c);
@@ -174,7 +174,7 @@ namespace MoveGen
             generateCastling();
     }
 
-    template<PieceType p, Color c>
+    template<PieceRole p, Color c>
     void Generator::generatePieceMoves(const BBz targets, const BBz occ)
     {
         Color stm = b->sideToMove();
@@ -216,7 +216,7 @@ namespace MoveGen
         }
 
         // Generate king evasions
-        targets = ~b->getPieces<ALL>(stm);
+        targets = ~b->getPieces<ALL_PIECE_ROLES>(stm);
         generateKingMoves<EVASIONS>(targets, b->occupancy());
     }
 

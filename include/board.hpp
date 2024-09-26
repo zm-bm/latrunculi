@@ -44,9 +44,9 @@ class Board {
         BBz getCheckBlockers(Color, Color) const;
 
                                     int calculateMobilityScore(const int, const int) const;
-        template<PieceType>         int calculateMobilityScore(const int, const int) const;
+        template<PieceRole>         int calculateMobilityScore(const int, const int) const;
                                     int calculatePieceScore() const;
-        template<PieceType, Color>  int calculatePieceScore() const;
+        template<PieceRole, Color>  int calculatePieceScore() const;
 
         std::string toFEN() const;
         std::string DebugString() const;
@@ -69,12 +69,12 @@ class Board {
         template<bool> int eval() const;
         
         // Inline functions
-        template<bool> void addPiece(Square, Color, PieceType);
-        template<bool> void removePiece(Square, Color, PieceType);
-        template<bool> void movePiece(Square, Square, Color, PieceType);
+        template<bool> void addPiece(Square, Color, PieceRole);
+        template<bool> void removePiece(Square, Color, PieceRole);
+        template<bool> void movePiece(Square, Square, Color, PieceRole);
 
-        template<PieceType> U8 count(Color c) const;
-        template<PieceType> U8 count() const;
+        template<PieceRole> U8 count(Color c) const;
+        template<PieceRole> U8 count() const;
         int calculatePhase() const;
 
         BBz attacksTo(Square, Color) const;
@@ -89,10 +89,10 @@ class Board {
         void disableCastleOOO(Color);
         void setEnPassant(Square sq);
 
-        template<PieceType p>
+        template<PieceRole p>
         inline BBz getPieces(Color c) const { return pieces[c][p]; }
 
-        inline BBz occupancy() const { return pieces[WHITE][ALL] | pieces[BLACK][ALL]; }
+        inline BBz occupancy() const { return pieces[WHITE][ALL_PIECE_ROLES] | pieces[BLACK][ALL_PIECE_ROLES]; }
         inline BBz diagonalSliders(Color c) const {return pieces[c][BISHOP] | pieces[c][QUEEN]; }
         inline BBz straightSliders(Color c) const {return pieces[c][ROOK] | pieces[c][QUEEN]; }
         inline BBz getCheckingPieces() const { return state.at(ply).checkingPieces; }
@@ -101,7 +101,7 @@ class Board {
         inline BBz calculatePinnedPieces(Color c) const { return getCheckBlockers(c, c); }
 
         inline Piece getPiece(Square sq) const { return squares[sq]; }
-        inline PieceType getPieceType(Square sq) const { return Types::getPieceType(squares[sq]); }
+        inline PieceRole getPieceRole(Square sq) const { return Types::getPieceRole(squares[sq]); }
         inline Color sideToMove() const { return stm; }
         inline Square getKingSq(Color c) const { return kingSq[c]; }
         inline Square getEnPassant() const { return state.at(ply).enPassantSq; }
@@ -118,10 +118,10 @@ class Board {
 };
 
 template<bool forward>
-inline void Board::addPiece(const Square sq, const Color c, const PieceType pt)
+inline void Board::addPiece(const Square sq, const Color c, const PieceRole pt)
 {
     // Toggle bitboards and add to square centric board
-    pieces[c][ALL].toggle(sq);
+    pieces[c][ALL_PIECE_ROLES].toggle(sq);
     pieces[c][pt].toggle(sq);
     squares[sq] = Types::makePiece(c, pt);
 
@@ -136,10 +136,10 @@ inline void Board::addPiece(const Square sq, const Color c, const PieceType pt)
 }
 
 template<bool forward>
-inline void Board::removePiece(const Square sq, const Color c, const PieceType pt)
+inline void Board::removePiece(const Square sq, const Color c, const PieceRole pt)
 {
     // Toggle bitboards
-    pieces[c][ALL].toggle(sq);
+    pieces[c][ALL_PIECE_ROLES].toggle(sq);
     pieces[c][pt].toggle(sq);
 
     // Update evaluation helpers
@@ -153,13 +153,13 @@ inline void Board::removePiece(const Square sq, const Color c, const PieceType p
 }
 
 template<bool forward>
-inline void Board::movePiece(const Square from, const Square to, const Color c, const PieceType pt)
+inline void Board::movePiece(const Square from, const Square to, const Color c, const PieceRole pt)
 {
     // Toggle bitboards and add to square centric board
     BBz mask = G::BITSET[from] | G::BITSET[to];
-    pieces[c][ALL].toggle(mask);
+    pieces[c][ALL_PIECE_ROLES].toggle(mask);
     pieces[c][pt].toggle(mask);
-    squares[from] = EMPTY;
+    squares[from] = NO_PIECE;
     squares[to] =  Types::makePiece(c, pt);
 
     // Update evaluation helpers
@@ -170,13 +170,13 @@ inline void Board::movePiece(const Square from, const Square to, const Color c, 
         state.at(ply).zkey ^= Zobrist::psq[c][pt-1][from] ^ Zobrist::psq[c][pt-1][to];
 }
 
-template<PieceType pt>
+template<PieceRole pt>
 inline U8 Board::count(Color c) const
 {
     return pieceCount[c][pt];
 }
 
-template<PieceType pt>
+template<PieceRole pt>
 inline U8 Board::count() const
 {
     return count<pt>(WHITE) + count<pt>(BLACK);

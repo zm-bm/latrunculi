@@ -23,7 +23,7 @@ Board::Board(const std::string& fen)
         pieceCount[WHITE][i] = 0;
     }
     for (Square sq = A1; sq < INVALID; sq++)
-        squares[sq] = EMPTY;
+        squares[sq] = NO_PIECE;
 
     loadFEN(fen);
     updateState();
@@ -66,10 +66,10 @@ bool Board::isCheckingMove(Move mv) const
 {
     Square from = mv.from(),
            to = mv.to();
-    PieceType pieceType = Types::getPieceType(getPiece(from));
+    PieceRole role = Types::getPieceRole(getPiece(from));
 
-    // Check if destination+piece type directly attacks the king
-    if (state[ply].checkingSquares[pieceType] & to)
+    // Check if destination+piece role directly attacks the king
+    if (state[ply].checkingSquares[role] & to)
         return true;
 
     // Check if moved piece was blocking enemy king from attack
@@ -148,7 +148,7 @@ BBz Board::getCheckBlockers(Color c, Color kingC) const
         // Check if only one piece separates the slider and the king
         BBz piecesInBetween = occupancy() & G::BITS_BETWEEN[king][pinner];
         if (!piecesInBetween.moreThanOneSet())
-            blockers |= piecesInBetween & getPieces<ALL>(c);
+            blockers |= piecesInBetween & getPieces<ALL_PIECE_ROLES>(c);
     }
 
     return blockers;
@@ -164,19 +164,19 @@ int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
     return score;
 }
 
-template<PieceType pt>
+template<PieceRole pt>
 int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
 {
     int mobilityScore = 0;
     BBz occ = occupancy();
 
     int whitemoves = MoveGen::mobility<pt>(getPieces<pt>(WHITE),
-                                          ~getPieces<ALL>(WHITE), occ);
+                                          ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);
     mobilityScore += whitemoves * (opPhase * Eval::MobilityScaling[OPENING][pt-1]
                                  + egPhase * Eval::MobilityScaling[ENDGAME][pt-1]);
     
     int blackmoves = MoveGen::mobility<pt>(getPieces<pt>(BLACK),
-                                          ~getPieces<ALL>(BLACK), occ);
+                                          ~getPieces<ALL_PIECE_ROLES>(BLACK), occ);
     mobilityScore -= blackmoves * (opPhase * Eval::MobilityScaling[OPENING][pt-1]
                                  + egPhase * Eval::MobilityScaling[ENDGAME][pt-1]);
     
@@ -197,7 +197,7 @@ int Board::calculatePieceScore() const
     return score;
 }
 
-template<PieceType pt, Color c>
+template<PieceRole pt, Color c>
 int Board::calculatePieceScore() const
 {
     int score = 0;
@@ -215,7 +215,7 @@ std::string Board::toFEN() const
         for (File file = FILE1; file <= FILE8; file++) {
 
             Piece p = getPiece(Types::getSquare(file, rank));
-            if (p != EMPTY) {
+            if (p != NO_PIECE) {
 
                 if (emptyCount > 0) {
                     oss << emptyCount;
@@ -441,10 +441,10 @@ U64 Board::calculateKey() const
     {
         auto piece = getPiece(sq);
 
-        if (piece != EMPTY)
+        if (piece != NO_PIECE)
         {
             auto c = Types::getPieceColor(piece);
-            auto pt = Types::getPieceType(piece);
+            auto pt = Types::getPieceRole(piece);
             zkey ^= Zobrist::psq[c][pt-1][sq];
         }
     }

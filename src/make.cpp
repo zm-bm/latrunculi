@@ -16,31 +16,31 @@ void Board::make(Move mv)
     Square from = mv.from(),
            to = mv.to(),
            capturedPieceSq = to;
-    PieceType fromPieceType = Types::getPieceType(getPiece(from)),
-              toPieceType   = Types::getPieceType(getPiece(to));
+    PieceRole fromPieceRole = Types::getPieceRole(getPiece(from)),
+              toPieceRole   = Types::getPieceRole(getPiece(to));
     MoveType movetype = mv.type();
 
     // Make corrections if en passant move
     if (movetype == ENPASSANT) {
-        toPieceType = PAWN;
+        toPieceRole = PAWN;
         capturedPieceSq = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
-        squares[capturedPieceSq] = EMPTY;
+        squares[capturedPieceSq] = NO_PIECE;
     }
 
-    // Store the captured piece type for undoing move
-    state[ply].captured = toPieceType;
+    // Store the captured piece role for undoing move
+    state[ply].captured = toPieceRole;
 
     Color enemy = ~stm;
-    if (toPieceType)
+    if (toPieceRole)
     {
         // Reset half move clock for capture
         state[ply].hmClock = 0;
 
         // Remove captured piece from the board representation
-        removePiece<true>(capturedPieceSq, enemy, toPieceType);
+        removePiece<true>(capturedPieceSq, enemy, toPieceRole);
 
         // Disable castle rights if captured piece is rook
-        if (canCastle(enemy) && toPieceType == ROOK)
+        if (canCastle(enemy) && toPieceRole == ROOK)
         {
             if (to == MoveGen::RookOriginOO[enemy] && canCastleOO(enemy))
                 disableCastleOO(enemy);
@@ -57,10 +57,10 @@ void Board::make(Move mv)
     if (movetype == CASTLE)
         makeCastle<true>(from, to, stm);
     else
-        movePiece<true>(from, to, stm, fromPieceType);
+        movePiece<true>(from, to, stm, fromPieceRole);
 
     // Handle en passants, promotions, and update castling rights
-    switch (fromPieceType) {
+    switch (fromPieceRole) {
 
         case PAWN:
         {
@@ -123,8 +123,8 @@ void Board::unmake()
     Move mv = state[ply].move;
     Square from = mv.from(),
            to = mv.to();
-    PieceType toPieceType = state[ply].captured,
-              fromPieceType = Types::getPieceType(getPiece(to));
+    PieceRole toPieceRole = state[ply].captured,
+              fromPieceRole = Types::getPieceRole(getPiece(to));
     MoveType movetype = mv.type();
 
     // Revert to the previous board state
@@ -136,9 +136,9 @@ void Board::unmake()
     // Make corrections if promotion move
     if (movetype == PROMOTION)
     {
-        removePiece<false>(to, stm, fromPieceType);
+        removePiece<false>(to, stm, fromPieceRole);
         addPiece<false>(to, stm, PAWN);
-        fromPieceType = PAWN;
+        fromPieceRole = PAWN;
     }
 
     // Undo the move
@@ -146,20 +146,20 @@ void Board::unmake()
         makeCastle<false>(from, to, stm);
     else
     {
-        movePiece<false>(to, from, stm, fromPieceType);
+        movePiece<false>(to, from, stm, fromPieceRole);
 
         // Add captured piece
-        if (toPieceType)
+        if (toPieceRole)
         {
             Square capturedPieceSq = to;
             if (movetype == ENPASSANT)
                 capturedPieceSq = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
 
-            addPiece<false>(capturedPieceSq, enemy, toPieceType);
+            addPiece<false>(capturedPieceSq, enemy, toPieceRole);
         }
     }
 
-    if (fromPieceType == KING)
+    if (fromPieceRole == KING)
         kingSq[stm] = from;
 }
 

@@ -31,7 +31,7 @@ struct State {
 
     // Board state variables
     Move move;
-    PieceType captured = NONE;
+    PieceRole captured = NO_PIECE_ROLE;
     CastleRights castle = ALL_CASTLE;
     Square enPassantSq = INVALID;
     U8 hmClock = 0;

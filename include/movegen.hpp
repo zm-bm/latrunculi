@@ -32,7 +32,7 @@ namespace MoveGen
         template<MoveGenType>        void generate(BBz);
         template<MoveGenType, Color> void generatePawnMoves(BBz, BBz);
         template<MoveGenType>        void generateKingMoves(BBz, BBz);
-        template<PieceType, Color>   void generatePieceMoves(BBz, BBz);
+        template<PieceRole, Color>   void generatePieceMoves(BBz, BBz);
                                      void generateEvasions();
                                      void generateCastling();
 
@@ -77,7 +77,7 @@ namespace MoveGen
              | movesByPawns<PawnMove::RIGHT>(pawns, c);
     }
 
-    template<PieceType p>
+    template<PieceRole p>
     inline BBz movesByPiece(Square sq, BBz occupancy)
     {
         switch (p)
@@ -95,13 +95,13 @@ namespace MoveGen
         }
     }
 
-    template<PieceType p>
+    template<PieceRole p>
     inline BBz movesByPiece(Square sq)
     {
         return movesByPiece<p>(sq, BBz(0));
     }
 
-    inline BBz movesByPiece(Square sq, PieceType p, BBz occupancy)
+    inline BBz movesByPiece(Square sq, PieceRole p, BBz occupancy)
     {
         switch (p)
         {
@@ -120,12 +120,12 @@ namespace MoveGen
         }
     }
 
-    inline BBz movesByPiece(Square sq, PieceType p)
+    inline BBz movesByPiece(Square sq, PieceRole p)
     {
         return movesByPiece(sq, p, BBz(0));
     }
 
-    template<PieceType p>
+    template<PieceRole p>
     inline int mobility(BBz bitboard, BBz targets, BBz occ)
     {
         int nmoves = 0;

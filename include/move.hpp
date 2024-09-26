@@ -8,12 +8,12 @@ class Move
 {
     public:
         Move();
-        Move(Square, Square, MoveType, PieceType);
+        Move(Square, Square, MoveType, PieceRole);
 
         Square from() const;
         Square to() const;
         MoveType type() const;
-        PieceType promPiece() const;
+        PieceRole promPiece() const;
 
         bool isNullMove() const;
         bool operator==(const Move&) const;
@@ -29,7 +29,7 @@ inline Move::Move()
     : value{ U16(NULLMOVE << 12) }
 { }
 
-inline Move::Move(Square from, Square to, MoveType mtype = NORMAL, PieceType ptype = KNIGHT)
+inline Move::Move(Square from, Square to, MoveType mtype = NORMAL, PieceRole ptype = KNIGHT)
     : score(0)
     , value{ U16(from | (to << 6) | (mtype << 12) | ((ptype - KNIGHT) << 14)) }
 { }
@@ -49,9 +49,9 @@ inline MoveType Move::type() const
     return MoveType((value >> 12) & 0x3);
 }
 
-inline PieceType Move::promPiece() const
+inline PieceRole Move::promPiece() const
 {
-    return PieceType(((value >> 14) & 0x3) + KNIGHT);
+    return PieceRole(((value >> 14) & 0x3) + KNIGHT);
 }
 
 inline bool Move::isNullMove() const

@@ -86,48 +86,48 @@ TEST(TypesTest, validFile) {
 }
 
 TEST(TypesTest, makePiece) {
-  EXPECT_EQ(Types::makePiece(WHITE, PAWN), WPAWN);
-  EXPECT_EQ(Types::makePiece(WHITE, KNIGHT), WKNIGHT);
-  EXPECT_EQ(Types::makePiece(WHITE, BISHOP), WBISHOP);
-  EXPECT_EQ(Types::makePiece(WHITE, ROOK), WROOK);
-  EXPECT_EQ(Types::makePiece(WHITE, QUEEN), WQUEEN);
-  EXPECT_EQ(Types::makePiece(WHITE, KING), WKING);
-  EXPECT_EQ(Types::makePiece(BLACK, PAWN), BPAWN);
-  EXPECT_EQ(Types::makePiece(BLACK, KNIGHT), BKNIGHT);
-  EXPECT_EQ(Types::makePiece(BLACK, BISHOP), BBISHOP);
-  EXPECT_EQ(Types::makePiece(BLACK, ROOK), BROOK);
-  EXPECT_EQ(Types::makePiece(BLACK, QUEEN), BQUEEN);
-  EXPECT_EQ(Types::makePiece(BLACK, KING), BKING);
+  EXPECT_EQ(Types::makePiece(WHITE, PAWN), W_PAWN);
+  EXPECT_EQ(Types::makePiece(WHITE, KNIGHT), W_KNIGHT);
+  EXPECT_EQ(Types::makePiece(WHITE, BISHOP), W_BISHOP);
+  EXPECT_EQ(Types::makePiece(WHITE, ROOK), W_ROOK);
+  EXPECT_EQ(Types::makePiece(WHITE, QUEEN), W_QUEEN);
+  EXPECT_EQ(Types::makePiece(WHITE, KING), W_KING);
+  EXPECT_EQ(Types::makePiece(BLACK, PAWN), B_PAWN);
+  EXPECT_EQ(Types::makePiece(BLACK, KNIGHT), B_KNIGHT);
+  EXPECT_EQ(Types::makePiece(BLACK, BISHOP), B_BISHOP);
+  EXPECT_EQ(Types::makePiece(BLACK, ROOK), B_ROOK);
+  EXPECT_EQ(Types::makePiece(BLACK, QUEEN), B_QUEEN);
+  EXPECT_EQ(Types::makePiece(BLACK, KING), B_KING);
 }
 
-TEST(TypesTest, getPieceType) {
-  EXPECT_EQ(Types::getPieceType(WPAWN), PAWN);
-  EXPECT_EQ(Types::getPieceType(WKNIGHT), KNIGHT);
-  EXPECT_EQ(Types::getPieceType(WBISHOP), BISHOP);
-  EXPECT_EQ(Types::getPieceType(WROOK), ROOK);
-  EXPECT_EQ(Types::getPieceType(WQUEEN), QUEEN);
-  EXPECT_EQ(Types::getPieceType(WKING), KING);
-  EXPECT_EQ(Types::getPieceType(BPAWN), PAWN);
-  EXPECT_EQ(Types::getPieceType(BKNIGHT), KNIGHT);
-  EXPECT_EQ(Types::getPieceType(BBISHOP), BISHOP);
-  EXPECT_EQ(Types::getPieceType(BROOK), ROOK);
-  EXPECT_EQ(Types::getPieceType(BQUEEN), QUEEN);
-  EXPECT_EQ(Types::getPieceType(BKING), KING);
+TEST(TypesTest, getPieceRole) {
+  EXPECT_EQ(Types::getPieceRole(W_PAWN), PAWN);
+  EXPECT_EQ(Types::getPieceRole(W_KNIGHT), KNIGHT);
+  EXPECT_EQ(Types::getPieceRole(W_BISHOP), BISHOP);
+  EXPECT_EQ(Types::getPieceRole(W_ROOK), ROOK);
+  EXPECT_EQ(Types::getPieceRole(W_QUEEN), QUEEN);
+  EXPECT_EQ(Types::getPieceRole(W_KING), KING);
+  EXPECT_EQ(Types::getPieceRole(B_PAWN), PAWN);
+  EXPECT_EQ(Types::getPieceRole(B_KNIGHT), KNIGHT);
+  EXPECT_EQ(Types::getPieceRole(B_BISHOP), BISHOP);
+  EXPECT_EQ(Types::getPieceRole(B_ROOK), ROOK);
+  EXPECT_EQ(Types::getPieceRole(B_QUEEN), QUEEN);
+  EXPECT_EQ(Types::getPieceRole(B_KING), KING);
 }
 
 TEST(TypesTest, getPieceColor) {
-  EXPECT_EQ(Types::getPieceColor(WPAWN), WHITE);
-  EXPECT_EQ(Types::getPieceColor(WKNIGHT), WHITE);
-  EXPECT_EQ(Types::getPieceColor(WBISHOP), WHITE);
-  EXPECT_EQ(Types::getPieceColor(WROOK), WHITE);
-  EXPECT_EQ(Types::getPieceColor(WQUEEN), WHITE);
-  EXPECT_EQ(Types::getPieceColor(WKING), WHITE);
-  EXPECT_EQ(Types::getPieceColor(BPAWN), BLACK);
-  EXPECT_EQ(Types::getPieceColor(BKNIGHT), BLACK);
-  EXPECT_EQ(Types::getPieceColor(BBISHOP), BLACK);
-  EXPECT_EQ(Types::getPieceColor(BROOK), BLACK);
-  EXPECT_EQ(Types::getPieceColor(BQUEEN), BLACK);
-  EXPECT_EQ(Types::getPieceColor(BKING), BLACK);
+  EXPECT_EQ(Types::getPieceColor(W_PAWN), WHITE);
+  EXPECT_EQ(Types::getPieceColor(W_KNIGHT), WHITE);
+  EXPECT_EQ(Types::getPieceColor(W_BISHOP), WHITE);
+  EXPECT_EQ(Types::getPieceColor(W_ROOK), WHITE);
+  EXPECT_EQ(Types::getPieceColor(W_QUEEN), WHITE);
+  EXPECT_EQ(Types::getPieceColor(W_KING), WHITE);
+  EXPECT_EQ(Types::getPieceColor(B_PAWN), BLACK);
+  EXPECT_EQ(Types::getPieceColor(B_KNIGHT), BLACK);
+  EXPECT_EQ(Types::getPieceColor(B_BISHOP), BLACK);
+  EXPECT_EQ(Types::getPieceColor(B_ROOK), BLACK);
+  EXPECT_EQ(Types::getPieceColor(B_QUEEN), BLACK);
+  EXPECT_EQ(Types::getPieceColor(B_KING), BLACK);
 }
 
 TEST(TypesTest, pawnMovePush) {
