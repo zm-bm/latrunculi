@@ -41,7 +41,7 @@ class Board {
 
         bool isLegalMove(Move) const;
         bool isCheckingMove(Move) const;
-        BBz getCheckBlockers(Color, Color) const;
+        U64 getCheckBlockers(Color, Color) const;
 
                                     int calculateMobilityScore(const int, const int) const;
         template<PieceRole>         int calculateMobilityScore(const int, const int) const;
@@ -301,7 +301,7 @@ inline void Board::updateState(bool inCheck)
 
     Color enemy = ~stm;
     Square king = getKingSq(enemy);
-    BBz occ = occupancy();
+    U64 occ = occupancy();
 
     state[ply].checkingSquares[PAWN]   = MoveGen::attacksByPawns(G::BITSET[king], enemy);
     state[ply].checkingSquares[KNIGHT] = MoveGen::movesByPiece<KNIGHT>(king, occ);

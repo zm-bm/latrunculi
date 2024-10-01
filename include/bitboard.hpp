@@ -9,12 +9,12 @@
 namespace BB {
 
 inline U64 set(const Square sq) { return G::BITSET[sq]; }
-inline U64 clear(const Square sq) { return G::BITSET[sq]; }
+inline U64 clear(const Square sq) { return G::BITCLEAR[sq]; }
 inline U64 bInline(const Square from, const Square to) { return G::BITS_INLINE[from][to]; }
 
-inline void clear(U64& bb, const Square sq) { bb &= G::BITCLEAR[sq]; }
-inline void toggle(U64& bb, const Square sq) { bb ^= G::BITSET[sq]; }
-inline void toggle(U64& bb1, const U64& bb2) { bb1 ^= bb2; }
+// inline void clear(U64& bb, const Square sq) { bb &= G::BITCLEAR[sq]; }
+// inline void toggle(U64& bb, const Square sq) { bb ^= G::BITSET[sq]; }
+// inline void toggle(U64& bb1, const U64& bb2) { bb1 ^= bb2; }
 
 inline constexpr U64 moreThanOneSet(U64 bb) { return bb & (bb - 1); }
 inline int bitCount(U64 bb) { return __builtin_popcountll(bb); }

@@ -17,8 +17,8 @@ Board::Board(const std::string& fen)
     , materialScore{0}
 {
     for (int i = 0; i < 7; i++) {
-        pieces[BLACK][i] = BBz(0x0UL);
-        pieces[WHITE][i] = BBz(0x0UL);
+        pieces[BLACK][i] = 0;
+        pieces[WHITE][i] = 0;
         pieceCount[BLACK][i] = 0;
         pieceCount[WHITE][i] = 0;
     }
@@ -89,7 +89,7 @@ bool Board::isCheckingMove(Move mv) const
         case PROMOTION:
         {
             // Check if a promotion attacks the enemy king
-            BBz occ = occupancy() ^ BB::set(from);
+            U64 occ = occupancy() ^ BB::set(from);
             return MoveGen::movesByPiece(to, mv.promPiece(), occ) & BB::set(king);
         }
 
@@ -97,7 +97,7 @@ bool Board::isCheckingMove(Move mv) const
         {
             // Check if captured pawn was blocking enemy king from attack
             Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
-            BBz occ = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
+            U64 occ = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
 
             return MoveGen::movesByPiece<BISHOP>(king, occ) & diagonalSliders(stm)
                 || MoveGen::movesByPiece<ROOK>(king, occ)   & straightSliders(stm);
@@ -129,26 +129,27 @@ bool Board::isCheckingMove(Move mv) const
 }
 
 // Determine pieces of color c, which block the color kingC from attack by the enemy
-BBz Board::getCheckBlockers(Color c, Color kingC) const
+U64 Board::getCheckBlockers(Color c, Color kingC) const
 {
     Color enemy = ~kingC;
     Square king = getKingSq(kingC);
 
     // Determine which enemy sliders could check the kingC's king
-    BBz blockers = BBz(0x0),
+    U64 blockers = 0,
        pinners = (MoveGen::movesByPiece<BISHOP>(king) & diagonalSliders(enemy))
                | (MoveGen::movesByPiece<ROOK  >(king) & straightSliders(enemy));
 
     while (pinners)
     {
         // For each potential pinning piece
-        Square pinner = pinners.lsb();
-        pinners.clear(pinner);
+        Square pinner = BB::lsb(pinners);
+        pinners &= BB::clear(pinner);
 
         // Check if only one piece separates the slider and the king
-        BBz piecesInBetween = occupancy() & G::BITS_BETWEEN[king][pinner];
-        if (!piecesInBetween.moreThanOneSet())
+        U64 piecesInBetween = occupancy() & G::BITS_BETWEEN[king][pinner];
+        if (!BB::moreThanOneSet(piecesInBetween)) {
             blockers |= piecesInBetween & getPieces<ALL_PIECE_ROLES>(c);
+        }
     }
 
     return blockers;
