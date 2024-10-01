@@ -96,7 +96,7 @@ class Board {
         inline U64 diagonalSliders(Color c) const { return pieces[c][BISHOP] | pieces[c][QUEEN]; }
         inline U64 straightSliders(Color c) const { return pieces[c][ROOK] | pieces[c][QUEEN]; }
 
-        inline U64 getCheckingPieces() const { return state.at(ply).checkingPieces; }
+        inline U64 getCheckingPieces() const { return U64(state.at(ply).checkingPieces); }
         inline U64 calculateCheckingPieces(Color c) const { return attacksTo(getKingSq(c), ~c); }
         inline U64 calculateDiscoveredCheckers(Color c) const { return getCheckBlockers(c, ~c); }
         inline U64 calculatePinnedPieces(Color c) const { return getCheckBlockers(c, c); }

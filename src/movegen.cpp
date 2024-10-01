@@ -202,7 +202,7 @@ namespace MoveGen
         Color stm = b->sideToMove();
 
         // If in double check, try to capture the checking piece or block
-        U64 targets; 
+        U64 targets;
         if (!b->isDoubleCheck())
         {
             // Get square of the checking piece and checked king
@@ -211,7 +211,7 @@ namespace MoveGen
 
             // Generate moves which block or capture the checking piece
             // NOTE: generate<EVASIONS> does NOT generate king moves
-            targets = BBz(G::BITS_BETWEEN[checker][king]) | checker;
+            targets = G::BITS_BETWEEN[checker][king] | BB::set(checker);
             generate<EVASIONS>(targets);
         }
 
