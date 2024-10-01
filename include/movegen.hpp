@@ -29,20 +29,20 @@ namespace MoveGen
         
         Board * b;
 
-        template<MoveGenType>        void generate(BBz);
-        template<MoveGenType, Color> void generatePawnMoves(BBz, BBz);
-        template<MoveGenType>        void generateKingMoves(BBz, BBz);
-        template<PieceRole, Color>   void generatePieceMoves(BBz, BBz);
+        template<MoveGenType>        void generate(U64);
+        template<MoveGenType, Color> void generatePawnMoves(U64, U64);
+        template<MoveGenType>        void generateKingMoves(U64, U64);
+        template<PieceRole, Color>   void generatePieceMoves(U64, U64);
                                      void generateEvasions();
                                      void generateCastling();
 
-        template<PawnMove, Color>               void appendPawnMoves(BBz);
-        template<PawnMove, Color, MoveGenType>  void appendPawnPromotions(BBz);
+        template<PawnMove, Color>               void appendPawnMoves(U64);
+        template<PawnMove, Color, MoveGenType>  void appendPawnPromotions(U64);
 
     };
 
     template<PawnMove p, Color c>
-    inline BBz movesByPawns(BBz pawns)
+    inline U64 movesByPawns(U64 pawns)
     {
         if (p == PawnMove::LEFT)
             pawns &= ~G::filemask(FILE1, c);
@@ -56,7 +56,7 @@ namespace MoveGen
     }
     
     template<PawnMove p>
-    inline BBz movesByPawns(BBz pawns, Color c)
+    inline U64 movesByPawns(U64 pawns, Color c)
     {
         if (c == WHITE)
             return movesByPawns<p, WHITE>(pawns);
@@ -65,43 +65,43 @@ namespace MoveGen
     };;
 
     template<Color c>
-    inline BBz attacksByPawns(BBz pawns)
+    inline U64 attacksByPawns(U64 pawns)
     {
         return movesByPawns<PawnMove::LEFT,  c>(pawns)
              | movesByPawns<PawnMove::RIGHT, c>(pawns);
     }
 
-    inline BBz attacksByPawns(BBz pawns, Color c)
+    inline U64 attacksByPawns(U64 pawns, Color c)
     {
         return movesByPawns<PawnMove::LEFT >(pawns, c)
              | movesByPawns<PawnMove::RIGHT>(pawns, c);
     }
 
     template<PieceRole p>
-    inline BBz movesByPiece(Square sq, BBz occupancy)
+    inline U64 movesByPiece(Square sq, U64 occupancy)
     {
         switch (p)
         {
             case KNIGHT:
                 return G::KNIGHT_ATTACKS[sq];
             case BISHOP:
-                return BBz(Magics::getBishopAttacks(sq, occupancy));
+                return Magics::getBishopAttacks(sq, occupancy);
             case ROOK:
-                return BBz(Magics::getRookAttacks(sq, occupancy));
+                return Magics::getRookAttacks(sq, occupancy);
             case QUEEN:
-                return BBz(Magics::getQueenAttacks(sq, occupancy));
+                return Magics::getQueenAttacks(sq, occupancy);
             case KING:
                 return G::KING_ATTACKS[sq];
         }
     }
 
     template<PieceRole p>
-    inline BBz movesByPiece(Square sq)
+    inline U64 movesByPiece(Square sq)
     {
-        return movesByPiece<p>(sq, BBz(0));
+        return movesByPiece<p>(sq, 0);
     }
 
-    inline BBz movesByPiece(Square sq, PieceRole p, BBz occupancy)
+    inline U64 movesByPiece(Square sq, PieceRole p, BBz occupancy)
     {
         switch (p)
         {
@@ -116,28 +116,28 @@ namespace MoveGen
             case KING:
                 return movesByPiece<KING>(sq, occupancy);
             default:
-                return BBz(0x0);
+                return 0;
         }
     }
 
-    inline BBz movesByPiece(Square sq, PieceRole p)
+    inline U64 movesByPiece(Square sq, PieceRole p)
     {
-        return movesByPiece(sq, p, BBz(0));
+        return movesByPiece(sq, p, 0);
     }
 
     template<PieceRole p>
-    inline int mobility(BBz bitboard, BBz targets, BBz occ)
+    inline int mobility(U64 bitboard, U64 targets, U64 occ)
     {
         int nmoves = 0;
 
         while (bitboard)
         {
             // Pop lsb bit and clear it from the bitboard
-            Square from = bitboard.lsb();
-            bitboard.clear(from);
+            Square from = BB::lsb(bitboard);
+            bitboard &= G::BITCLEAR[from];
 
-            BBz mobility = movesByPiece<p>(from, occ) & targets;
-            nmoves += mobility.count();
+            U64 mobility = movesByPiece<p>(from, occ) & targets;
+            nmoves += BB::bitCount(mobility);
         }
 
         return nmoves;

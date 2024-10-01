@@ -104,27 +104,25 @@ int Board::eval() const
      */
     Square wking = getKingSq(WHITE),
            bking = getKingSq(BLACK);
-    BBz occ = occupancy();
-    BBz pieces;
-
-    // Determine outposts
-    BBz wHoles = ~wPawns.getFrontAttackSpan<WHITE>() & WHITEHOLES,
-       bHoles = ~bPawns.getFrontAttackSpan<BLACK>() & BLACKHOLES,
-       wOutposts = bHoles & MoveGen::attacksByPawns<WHITE>(wPawns),
-       bOutposts = wHoles & MoveGen::attacksByPawns<BLACK>(bPawns),
-       allOutposts = wOutposts | bOutposts;
+    U64 occ = occupancy(),
+        pieces = 0,
+        wHoles = ~wPawns.getFrontAttackSpan<WHITE>() & WHITEHOLES,
+        bHoles = ~bPawns.getFrontAttackSpan<BLACK>() & BLACKHOLES,
+        wOutposts = bHoles & MoveGen::attacksByPawns<WHITE>(wPawns),
+        bOutposts = wHoles & MoveGen::attacksByPawns<BLACK>(bPawns),
+        allOutposts = wOutposts | bOutposts;
 
     // Knights
     double wKnightScore = 0;
     pieces = getPieces<KNIGHT>(WHITE);
     while (pieces)
     {
-        Square sq = pieces.advanced<WHITE>();
-        pieces.clear(sq);
+        Square sq = BB::advanced<WHITE>(pieces);
+        pieces &= BB::clear(sq);
         wKnightScore += Eval::KNIGHT_TROPISM[G::DISTANCE[bking][sq]];
         if (Types::getRank(sq) == RANK1)
             wKnightScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
-        BBz validOutposts = MoveGen::movesByPiece<KNIGHT>(sq, occ) | sq;
+        U64 validOutposts = MoveGen::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
         if (validOutposts & allOutposts)
             wKnightScore += Eval::MINOR_OUTPOST_BONUS;
     }
@@ -132,12 +130,12 @@ int Board::eval() const
     pieces = getPieces<KNIGHT>(BLACK);
     while (pieces)
     {
-        Square sq = pieces.advanced<BLACK>();
-        pieces.clear(sq);
+        Square sq = BB::advanced<BLACK>(pieces);
+        pieces &= BB::clear(sq);
         bKnightScore += Eval::KNIGHT_TROPISM[G::DISTANCE[wking][sq]];
         if (Types::getRank(sq) == RANK8)
             bKnightScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
-        BBz validOutposts = MoveGen::movesByPiece<KNIGHT>(sq, occ) | sq;
+        U64 validOutposts = MoveGen::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
         if (validOutposts & allOutposts)
             bKnightScore += Eval::MINOR_OUTPOST_BONUS;
     }
@@ -157,12 +155,12 @@ int Board::eval() const
                       + (egPhase * Eval::BishopPairBonus[ENDGAME])) / TOTALPHASE;
     while (pieces)
     {
-        Square sq = pieces.advanced<WHITE>();
-        pieces.clear(sq);
+        Square sq = BB::advanced<WHITE>(pieces);
+        pieces &= BB::clear(sq);
         wBishopScore += Eval::BISHOP_TROPISM[G::DISTANCE[bking][sq]];
         if (Types::getRank(sq) == RANK1)
             wBishopScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
-        BBz validOutposts = MoveGen::movesByPiece<BISHOP>(sq, occ) | sq;
+        U64 validOutposts = MoveGen::movesByPiece<BISHOP>(sq, occ) | BB::set(sq);
         if (validOutposts & allOutposts)
             wBishopScore += Eval::MINOR_OUTPOST_BONUS;
     }
@@ -173,12 +171,12 @@ int Board::eval() const
                       + (egPhase * Eval::BishopPairBonus[ENDGAME])) / TOTALPHASE;
     while (pieces)
     {
-        Square sq = pieces.advanced<BLACK>();
-        pieces.clear(sq);
+        Square sq = BB::advanced<BLACK>(pieces);
+        pieces &= BB::clear(sq);
         bBishopScore += Eval::BISHOP_TROPISM[G::DISTANCE[wking][sq]];
         if (Types::getRank(sq) == RANK8)
             bBishopScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
-        BBz validOutposts = MoveGen::movesByPiece<BISHOP>(sq, occ) | sq;
+        U64 validOutposts = MoveGen::movesByPiece<BISHOP>(sq, occ) | BB::set(sq);
         if (validOutposts & allOutposts)
             bBishopScore += Eval::MINOR_OUTPOST_BONUS;
     }
@@ -195,8 +193,8 @@ int Board::eval() const
     pieces = getPieces<ROOK>(WHITE);
     while (pieces)
     {
-        Square sq = pieces.advanced<WHITE>();
-        pieces.clear(sq);
+        Square sq = BB::advanced<WHITE>(pieces);
+        pieces &= BB::clear(sq);
         wRookScore += Eval::ROOK_TROPISM[G::DISTANCE[bking][sq]];
         wRookScore += Eval::ROOK_TROPISM[G::DISTANCE[wking][sq]] * openingModifier;
         if (Types::getRank(sq) >= RANK7)
@@ -208,8 +206,8 @@ int Board::eval() const
     pieces = getPieces<ROOK>(BLACK);
     while (pieces)
     {
-        Square sq = pieces.advanced<BLACK>();
-        pieces.clear(sq);
+        Square sq = BB::advanced<BLACK>(pieces);
+        pieces &= BB::clear(sq);
         bRookScore += Eval::ROOK_TROPISM[G::DISTANCE[wking][sq]];
         bRookScore += Eval::ROOK_TROPISM[G::DISTANCE[bking][sq]] * openingModifier;
         if (Types::getRank(sq) <= RANK2)
@@ -230,8 +228,8 @@ int Board::eval() const
     pieces = getPieces<QUEEN>(WHITE);
     while (pieces)
     {
-        Square sq = pieces.advanced<WHITE>();
-        pieces.clear(sq);
+        Square sq = BB::advanced<WHITE>(pieces);
+        pieces &= BB::clear(sq);
         wQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[bking][sq]];
         wQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[wking][sq]] * openingModifier;
     }
@@ -239,8 +237,8 @@ int Board::eval() const
     pieces = getPieces<QUEEN>(BLACK);
     while (pieces)
     {
-        Square sq = pieces.advanced<BLACK>();
-        pieces.clear(sq);
+        Square sq = BB::advanced<BLACK>(pieces);
+        pieces &= BB::clear(sq);
         bQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[wking][sq]];
         bQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[bking][sq]] * openingModifier;
     }

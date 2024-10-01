@@ -41,12 +41,12 @@ bool Board::isLegalMove(Move mv) const
         if (mv.type() == CASTLE)
             return true;
         else  // Check if destination sq is attacked by enemy
-            return !attacksTo(to, ~stm, occupancy() ^ from ^ to);
+            return !attacksTo(to, ~stm, occupancy() ^ BB::set(from) ^ BB::set(to));
     }
     else if (mv.type() == ENPASSANT)
     {
         Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
-        BBz occ = (occupancy() ^ from ^ enemyPawn) | to;
+        U64 occ = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
 
         // Check if captured pawn was blocking check
         return !(MoveGen::movesByPiece<BISHOP>(king, occ) & diagonalSliders(~stm))
@@ -57,7 +57,7 @@ bool Board::isLegalMove(Move mv) const
         // Check if moved piece was pinned
         return !state.at(ply).pinnedPieces
             || !(state.at(ply).pinnedPieces & from)
-            || G::BITS_INLINE[from][to] & G::BITSET[king];
+            || BB::bInline(from, to) & BB::set(king);
     }
 }
 
@@ -89,15 +89,15 @@ bool Board::isCheckingMove(Move mv) const
         case PROMOTION:
         {
             // Check if a promotion attacks the enemy king
-            BBz occ = occupancy() ^ from;
-            return MoveGen::movesByPiece(to, mv.promPiece(), occ) & king;
+            BBz occ = occupancy() ^ BB::set(from);
+            return MoveGen::movesByPiece(to, mv.promPiece(), occ) & BB::set(king);
         }
 
         case ENPASSANT:
         {
             // Check if captured pawn was blocking enemy king from attack
             Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, stm);
-            BBz occ = (occupancy() ^ from ^ enemyPawn) | to;
+            BBz occ = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
 
             return MoveGen::movesByPiece<BISHOP>(king, occ) & diagonalSliders(stm)
                 || MoveGen::movesByPiece<ROOK>(king, occ)   & straightSliders(stm);
@@ -113,13 +113,13 @@ bool Board::isCheckingMove(Move mv) const
                 rookFrom = MoveGen::RookOriginOO[stm];
             }
             else {
-                rookTo = Square(from-1);
+                rookTo = Square(from - 1);
                 rookFrom = MoveGen::RookOriginOOO[stm];
             }
 
-            BBz occ = (occupancy() ^ from ^ rookFrom) | to | rookTo;
+            U64 occ = (occupancy() ^ BB::set(from) ^ BB::set(rookFrom)) | BB::set(to) | BB::set(rookTo);
 
-            return MoveGen::movesByPiece<ROOK>(rookTo, occ) & king;
+            return MoveGen::movesByPiece<ROOK>(rookTo, occ) & BB::set(king);
         }
         default:
             return false;
@@ -168,7 +168,7 @@ template<PieceRole pt>
 int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
 {
     int mobilityScore = 0;
-    BBz occ = occupancy();
+    U64 occ = occupancy();
 
     int whitemoves = MoveGen::mobility<pt>(getPieces<pt>(WHITE),
                                           ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);

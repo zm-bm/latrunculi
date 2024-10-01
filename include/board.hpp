@@ -16,7 +16,7 @@ class Board {
         std::vector<State> state;
 
         // Square and piece centric board representations
-        BBz pieces[2][7];
+        U64 pieces[2][7];
         Piece squares[64];
 
         // Convenience variables
@@ -77,9 +77,9 @@ class Board {
         template<PieceRole> U8 count() const;
         int calculatePhase() const;
 
-        BBz attacksTo(Square, Color) const;
-        BBz attacksTo(Square, Color, BBz) const;
-        bool isBitboardAttacked(BBz, Color) const;
+        U64 attacksTo(Square, Color) const;
+        U64 attacksTo(Square, Color, U64) const;
+        bool isBitboardAttacked(U64, Color) const;
 
         bool canCastle(Color) const;
         bool canCastleOO(Color) const;
@@ -90,15 +90,16 @@ class Board {
         void setEnPassant(Square sq);
 
         template<PieceRole p>
-        inline BBz getPieces(Color c) const { return pieces[c][p]; }
+        inline U64 getPieces(Color c) const { return pieces[c][p]; }
 
-        inline BBz occupancy() const { return pieces[WHITE][ALL_PIECE_ROLES] | pieces[BLACK][ALL_PIECE_ROLES]; }
-        inline BBz diagonalSliders(Color c) const {return pieces[c][BISHOP] | pieces[c][QUEEN]; }
-        inline BBz straightSliders(Color c) const {return pieces[c][ROOK] | pieces[c][QUEEN]; }
-        inline BBz getCheckingPieces() const { return state.at(ply).checkingPieces; }
-        inline BBz calculateCheckingPieces(Color c) const { return attacksTo(getKingSq(c), ~c); }
-        inline BBz calculateDiscoveredCheckers(Color c) const { return getCheckBlockers(c, ~c); }
-        inline BBz calculatePinnedPieces(Color c) const { return getCheckBlockers(c, c); }
+        inline U64 occupancy() const { return pieces[WHITE][ALL_PIECE_ROLES] | pieces[BLACK][ALL_PIECE_ROLES]; }
+        inline U64 diagonalSliders(Color c) const { return pieces[c][BISHOP] | pieces[c][QUEEN]; }
+        inline U64 straightSliders(Color c) const { return pieces[c][ROOK] | pieces[c][QUEEN]; }
+
+        inline U64 getCheckingPieces() const { return state.at(ply).checkingPieces; }
+        inline U64 calculateCheckingPieces(Color c) const { return attacksTo(getKingSq(c), ~c); }
+        inline U64 calculateDiscoveredCheckers(Color c) const { return getCheckBlockers(c, ~c); }
+        inline U64 calculatePinnedPieces(Color c) const { return getCheckBlockers(c, c); }
 
         inline Piece getPiece(Square sq) const { return squares[sq]; }
         inline PieceRole getPieceRole(Square sq) const { return Types::getPieceRole(squares[sq]); }
@@ -108,7 +109,7 @@ class Board {
         inline U8 getHmClock() const { return state.at(ply).hmClock; }
         inline U64 getKey() const { return state.at(ply).zkey; }
         inline bool isCheck() const { return getCheckingPieces(); }
-        inline bool isDoubleCheck() const { return getCheckingPieces().moreThanOneSet(); }
+        inline bool isDoubleCheck() const { return BB::moreThanOneSet(getCheckingPieces()); }
         inline int getPieceCount(Color c) const {
             return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) + count<QUEEN>(c);
         }
@@ -121,8 +122,8 @@ template<bool forward>
 inline void Board::addPiece(const Square sq, const Color c, const PieceRole pt)
 {
     // Toggle bitboards and add to square centric board
-    pieces[c][ALL_PIECE_ROLES].toggle(sq);
-    pieces[c][pt].toggle(sq);
+    pieces[c][ALL_PIECE_ROLES] ^= G::BITSET[sq];
+    pieces[c][pt] ^= G::BITSET[sq];
     squares[sq] = Types::makePiece(c, pt);
 
     // Update evaluation helpers
@@ -139,8 +140,8 @@ template<bool forward>
 inline void Board::removePiece(const Square sq, const Color c, const PieceRole pt)
 {
     // Toggle bitboards
-    pieces[c][ALL_PIECE_ROLES].toggle(sq);
-    pieces[c][pt].toggle(sq);
+    pieces[c][ALL_PIECE_ROLES] ^= G::BITSET[sq];
+    pieces[c][pt] ^= G::BITSET[sq];
 
     // Update evaluation helpers
     pieceCount[c][pt]--;
@@ -156,9 +157,9 @@ template<bool forward>
 inline void Board::movePiece(const Square from, const Square to, const Color c, const PieceRole pt)
 {
     // Toggle bitboards and add to square centric board
-    BBz mask = G::BITSET[from] | G::BITSET[to];
-    pieces[c][ALL_PIECE_ROLES].toggle(mask);
-    pieces[c][pt].toggle(mask);
+    U64 mask = G::BITSET[from] | G::BITSET[to];
+    pieces[c][ALL_PIECE_ROLES] ^= mask;
+    pieces[c][pt] ^= mask;
     squares[from] = NO_PIECE;
     squares[to] =  Types::makePiece(c, pt);
 
@@ -192,30 +193,30 @@ inline int Board::calculatePhase() const
 }
 
 // Returns a bitboard of pieces of color c which attacks a square
-inline BBz Board::attacksTo(Square sq, Color c) const
+inline U64 Board::attacksTo(Square sq, Color c) const
 {
     return attacksTo(sq, c, occupancy());
 }
 
 // Returns a bitboard of pieces of color c which attacks a square
-inline BBz Board::attacksTo(Square sq, Color c, BBz occ) const
+inline U64 Board::attacksTo(Square sq, Color c, U64 occ) const
 {
-    BBz piece = BBz(G::BITSET[sq]);
+    U64 piece = BB::set(sq);
 
-    return (getPieces<PAWN>(c)   & MoveGen::attacksByPawns(piece, ~c))
-         | (getPieces<KNIGHT>(c) & MoveGen::movesByPiece<KNIGHT>(sq, occ))
-         | (getPieces<KING>(c)   & MoveGen::movesByPiece<KING>(sq, occ))
-         | (diagonalSliders(c)   & MoveGen::movesByPiece<BISHOP>(sq, occ))
-         | (straightSliders(c)   & MoveGen::movesByPiece<ROOK>(sq, occ));
+    return (getPieces<PAWN>(c)   & (U64)MoveGen::attacksByPawns(piece, ~c))
+         | (getPieces<KNIGHT>(c) & (U64)MoveGen::movesByPiece<KNIGHT>(sq, occ))
+         | (getPieces<KING>(c)   & (U64)MoveGen::movesByPiece<KING>(sq, occ))
+         | (diagonalSliders(c)   & (U64)MoveGen::movesByPiece<BISHOP>(sq, occ))
+         | (straightSliders(c)   & (U64)MoveGen::movesByPiece<ROOK>(sq, occ));
 }
 
 // Determine if any set square of a bitboard is attacked by color c
-inline bool Board::isBitboardAttacked(BBz bitboard, Color c) const
+inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const
 {
     while (bitboard)
     {
-        Square sq = bitboard.lsb();
-        bitboard.clear(sq);
+        Square sq = BB::lsb(bitboard);
+        bitboard &= G::BITCLEAR[sq];
 
         if(attacksTo(sq, c))
             return true;
