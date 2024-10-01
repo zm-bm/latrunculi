@@ -20,10 +20,10 @@ struct State {
     { }
 
     // Check info bitboards
-    BBz checkingPieces = 0;
-    BBz pinnedPieces = 0;
-    BBz discoveredCheckers = 0;
-    BBz checkingSquares[6] = { 0, 0, 0, 0, 0, 0 };
+    U64 checkingPieces = 0;
+    U64 pinnedPieces = 0;
+    U64 discoveredCheckers = 0;
+    U64 checkingSquares[6] = { 0, 0, 0, 0, 0, 0 };
 
     // Hash keys
     U64 zkey = 0;

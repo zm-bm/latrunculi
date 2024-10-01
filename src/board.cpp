@@ -56,7 +56,7 @@ bool Board::isLegalMove(Move mv) const
     {
         // Check if moved piece was pinned
         return !state.at(ply).pinnedPieces
-            || !(state.at(ply).pinnedPieces & from)
+            || !(state.at(ply).pinnedPieces & BB::set(from))
             || BB::bInline(from, to) & BB::set(king);
     }
 }
@@ -69,14 +69,15 @@ bool Board::isCheckingMove(Move mv) const
     PieceRole role = Types::getPieceRole(getPiece(from));
 
     // Check if destination+piece role directly attacks the king
-    if (state[ply].checkingSquares[role] & to)
+    if (state[ply].checkingSquares[role] & BB::set(to)) {
         return true;
+    }
 
     // Check if moved piece was blocking enemy king from attack
     Square king = getKingSq(~stm);
     if (state[ply].discoveredCheckers
-        && (state[ply].discoveredCheckers & from)
-        && !(G::BITS_INLINE[from][to] & G::BITSET[king]))
+        && (state[ply].discoveredCheckers & BB::set(from))
+        && !(G::BITS_INLINE[from][to] & BB::set(king)))
     {
         return true;
     }

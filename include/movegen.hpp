@@ -101,7 +101,7 @@ namespace MoveGen
         return movesByPiece<p>(sq, 0);
     }
 
-    inline U64 movesByPiece(Square sq, PieceRole p, BBz occupancy)
+    inline U64 movesByPiece(Square sq, PieceRole p, U64 occupancy)
     {
         switch (p)
         {

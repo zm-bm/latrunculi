@@ -45,18 +45,20 @@ namespace Eval
     }
 
     template<Color c>
-    inline BBz kingShield(Square sq)
+    inline U64 kingShield(Square sq)
     {
-        BBz bitboard = BBz(G::BITSET[sq]);
-        if (c)
-            return bitboard.shift_nw()
-                 | bitboard.shift_no()
-                 | bitboard.shift_ne();
+        U64 bitboard = BB::set(sq);
+        if (c) {
+            return BB::shift_nw(bitboard)
+                |  BB::shift_no(bitboard)
+                |  BB::shift_ne(bitboard);
+        }
 
-        else
-            return bitboard.shift_sw()
-                 | bitboard.shift_so()
-                 | bitboard.shift_se();
+        else {
+            return BB::shift_sw(bitboard)
+                |  BB::shift_so(bitboard)
+                |  BB::shift_se(bitboard);
+        }
     }
 }
 

@@ -90,9 +90,9 @@ void init() {
     U64 temp = bishopMagicMask[i];
 
     while (temp) {
-      U64 lsb = temp & -temp;
-      squares[numsquares++] = BBz(lsb).lsb();
-      temp ^= lsb;
+      U64 bitboard = temp & -temp;
+      squares[numsquares++] = BB::lsb(bitboard);
+      temp ^= bitboard;
     }
     for (temp = 0; temp < (U64)1 << numsquares; temp++) {
       U64 moves;
@@ -110,9 +110,9 @@ void init() {
     U64 temp = rookMagicMask[i];
 
     while (temp) {
-      U64 lsb = temp & -temp;
-      squares[numsquares++] = BBz(lsb).lsb();
-      temp ^= lsb;
+      U64 bitboard = temp & -temp;
+      squares[numsquares++] = BB::lsb(bitboard);
+      temp ^= bitboard;
     }
     for (temp = 0; temp < (U64)1 << numsquares; temp++) {
       U64 tempoccupied = initOccupied(squares, numsquares, temp);
