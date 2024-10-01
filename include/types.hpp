@@ -104,25 +104,25 @@ inline Square getSquareFromStr(const std::string& square) {
   return getSquare(file, rank);
 }
 
-constexpr Rank getRank(const Square square) { return Rank(square >> 3); }
+inline constexpr Rank getRank(const Square square) { return Rank(square >> 3); }
 
-constexpr File getFile(const Square square) { return File(square & 7); }
+inline constexpr File getFile(const Square square) { return File(square & 7); }
 
-constexpr bool validRank(const Rank rank) {
+inline constexpr bool validRank(const Rank rank) {
   return (RANK1 <= rank) && (rank <= RANK8);
 }
 
-constexpr bool validFile(const File file) {
+inline constexpr bool validFile(const File file) {
   return (FILE1 <= file) && (file <= FILE8);
 }
 
-constexpr Piece makePiece(const Color c, const PieceRole p) {
+inline constexpr Piece makePiece(const Color c, const PieceRole p) {
   return Piece((c << 3) | p);
 }
 
-constexpr PieceRole getPieceRole(const Piece p) { return PieceRole(p & 0x7); }
+inline constexpr PieceRole getPieceRole(const Piece p) { return PieceRole(p & 0x7); }
 
-constexpr Color getPieceColor(const Piece p) { return Color(p >> 3); }
+inline constexpr Color getPieceColor(const Piece p) { return Color(p >> 3); }
 
 template <Color c, PawnMove p, bool forward>
 inline Square pawnMove(const Square sq) {
