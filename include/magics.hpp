@@ -196,23 +196,23 @@ U64 initMagicBishop(int square, U64 occupied);
 U64 initMagicRook(int square, U64 occupied);
 
 constexpr U64 getRookAttacks(Square sq, U64 occ) {
-  auto occupancy = occ & Magics::rookMagicMask[sq];
-  auto index =
-      (occupancy * Magics::rookMagicNum[sq]) >> Magics::rookMagicShift[sq];
-  return Magics::rookAttacks[sq][index];
+    auto occupancy = occ & Magics::rookMagicMask[sq];
+    auto index =
+        (occupancy * Magics::rookMagicNum[sq]) >> Magics::rookMagicShift[sq];
+    return Magics::rookAttacks[sq][index];
 }
 
 constexpr U64 getBishopAttacks(Square sq, U64 occ) {
-  auto occupancy = occ & Magics::bishopMagicMask[sq];
-  auto index =
-      (occupancy * Magics::bishopMagicNum[sq]) >> Magics::bishopMagicShift[sq];
-  return Magics::bishopAttacks[sq][index];
+    auto occupancy = occ & Magics::bishopMagicMask[sq];
+    auto index = (occupancy * Magics::bishopMagicNum[sq]) >>
+                 Magics::bishopMagicShift[sq];
+    return Magics::bishopAttacks[sq][index];
 }
 
 constexpr U64 getQueenAttacks(Square sq, U64 occ) {
-  return getBishopAttacks(sq, occ) | getRookAttacks(sq, occ);
+    return getBishopAttacks(sq, occ) | getRookAttacks(sq, occ);
 }
 
-}  // namespace Magic
+}  // namespace Magics
 
 #endif

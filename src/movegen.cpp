@@ -166,7 +166,7 @@ namespace MoveGen
         while (kingMoves)
         {
             Square to = BB::lsb(kingMoves);
-            kingMoves &= G::BITCLEAR[to];
+            kingMoves &= BB::clear(to);
             moves.push_back(Move(from, to));
         }
 
@@ -184,13 +184,13 @@ namespace MoveGen
         {
             // Pop lsb bit and clear it from the bitboard
             Square from = BB::advanced<c>(bitboard);
-            bitboard &= G::BITCLEAR[from];
+            bitboard &= BB::clear(from);
 
             U64 pieceMoves = movesByPiece<p>(from, occ) & targets;
             while (pieceMoves)
             {
                 Square to = BB::advanced<c>(pieceMoves);
-                pieceMoves &= G::BITCLEAR[to];
+                pieceMoves &= BB::clear(to);
 
                 moves.push_back(Move(from, to));
             }
@@ -211,7 +211,7 @@ namespace MoveGen
 
             // Generate moves which block or capture the checking piece
             // NOTE: generate<EVASIONS> does NOT generate king moves
-            targets = G::BITS_BETWEEN[checker][king] | BB::set(checker);
+            targets = BB::bitsBtwn(checker, king) | BB::set(checker);
             generate<EVASIONS>(targets);
         }
 
@@ -252,7 +252,7 @@ namespace MoveGen
         {
             // Pop lsb bit and clear it from the bitboard
             Square to = BB::advanced<c>(bitboard);
-            bitboard &= G::BITCLEAR[to];
+            bitboard &= BB::clear(to);
 
             // Reverse the move to get the origin square and append move
             Square from = Types::pawnMove<c, p, false>(to);
@@ -267,7 +267,7 @@ namespace MoveGen
         {
             // Pop lsb bit and clear it from the bitboard
             Square to = BB::advanced<c>(bitboard);
-            bitboard &= G::BITCLEAR[to];
+            bitboard &= BB::clear(to);
 
             // Reverse the move to get the origin square and append move(s)
             Square from = Types::pawnMove<c, p, false>(to);

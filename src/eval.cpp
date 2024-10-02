@@ -37,23 +37,23 @@ int Board::eval() const
 
     // Evaluate pawn structure
     U64 wPawns = getPieces<PAWN>(WHITE),
-       bPawns = getPieces<PAWN>(BLACK),
-       allPawns = wPawns | bPawns;
+        bPawns = getPieces<PAWN>(BLACK),
+        allPawns = wPawns | bPawns;
 
     // Passed pawns
     U64 wPassedPawns = wPawns & ~BB::getAllFrontSpan<BLACK>(bPawns),
-       bPassedPawns = bPawns & ~BB::getAllFrontSpan<WHITE>(wPawns);
+        bPassedPawns = bPawns & ~BB::getAllFrontSpan<WHITE>(wPawns);
     double passedPawnValue = (opPhase * Eval::PassedPawnBonus[OPENING]
                             + egPhase * Eval::PassedPawnBonus[ENDGAME]) / TOTALPHASE;
     double passedPawnScore = (BB::bitCount(wPassedPawns) - BB::bitCount(bPassedPawns)) * passedPawnValue;
 
     // Doubled+tripled pawns
-    U64 wPawnsAhead  = wPawns & ~BB::getFrontSpan<WHITE>(wPawns),
-        wPawnsBehind = wPawns & ~BB::getBackSpan<WHITE>(wPawns),
+    U64 wPawnsAhead  = wPawns & ~BB::spanFront<WHITE>(wPawns),
+        wPawnsBehind = wPawns & ~BB::spanBack<WHITE>(wPawns),
         wTriplePawns = wPawnsAhead & wPawnsBehind,
         wDoublePawns = (wPawnsAhead | wPawnsBehind) ^ wTriplePawns,
-        bPawnsAhead  = bPawns & ~BB::getFrontSpan<BLACK>(bPawns),
-        bPawnsBehind = bPawns & ~BB::getBackSpan<BLACK>(bPawns),
+        bPawnsAhead  = bPawns & ~BB::spanFront<BLACK>(bPawns),
+        bPawnsBehind = bPawns & ~BB::spanBack<BLACK>(bPawns),
         bTriplePawns = bPawnsAhead & bPawnsBehind,
         bDoublePawns = (bPawnsAhead | bPawnsBehind) ^ bTriplePawns;
     double doublePawnValue = (opPhase * Eval::DoublePawnPenalty[OPENING]
@@ -64,27 +64,28 @@ int Board::eval() const
     double triplePawnScore = (BB::bitCount(wTriplePawns) - BB::bitCount(bTriplePawns)) * triplePawnValue;
 
     // Isolated pawns
-    U64 wIsolatedPawns = (wPawns & ~BB::getWestFill(wPawns))
-                       & (wPawns & ~BB::getEastFill(wPawns));
-    U64 bIsolatedPawns = (bPawns & ~BB::getWestFill(bPawns))
-                       & (bPawns & ~BB::getEastFill(bPawns));
+    U64 wPawnsFill = BB::fillFiles(wPawns),
+        bPawnsFill = BB::fillFiles(bPawns);
+    U64 wIsolatedPawns = (wPawns & ~BB::shiftWest(wPawnsFill))
+                       & (wPawns & ~BB::shiftEast(wPawnsFill));
+    U64 bIsolatedPawns = (bPawns & ~BB::shiftWest(bPawnsFill))
+                       & (bPawns & ~BB::shiftEast(bPawnsFill));
     double isoPawnValue = (opPhase * Eval::IsoPawnPenalty[OPENING]
-                         + egPhase * Eval::IsoPawnPenalty[ENDGAME]) / TOTALPHASE;
+                        + egPhase * Eval::IsoPawnPenalty[ENDGAME]) / TOTALPHASE;
     double isoPawnScore = (BB::bitCount(wIsolatedPawns) - BB::bitCount(bIsolatedPawns)) * isoPawnValue;
     double pawnScore = passedPawnScore + doublePawnScore + triplePawnScore + isoPawnScore;
 
-    if (debug)
-	{
+    if (debug) {
 		std::cout << " Pawns      |      -      |      -      | "
                   << std::setw(6) << pawnScore << std::endl;
 	}
 
     // Give bonuses to queens/rooks on open/half open files
-    U64 openFiles = ~BB::getFill(allPawns),
-       wHalfOpenFiles = ~BB::getFill(wPawns) ^ openFiles,
-       bHalfOpenFiles = ~BB::getFill(bPawns) ^ openFiles,
-       wSliders = straightSliders(WHITE),
-       bSliders = straightSliders(BLACK);
+    U64 openFiles = ~BB::fillFiles(allPawns),
+        wHalfOpenFiles = ~BB::fillFiles(wPawns) ^ openFiles,
+        bHalfOpenFiles = ~BB::fillFiles(bPawns) ^ openFiles,
+        wSliders = straightSliders(WHITE),
+        bSliders = straightSliders(BLACK);
     double openFileValue = (opPhase * Eval::OpenFileBonus[OPENING]
                           + egPhase * Eval::OpenFileBonus[ENDGAME]) / TOTALPHASE;
     double openFileScore = (BB::bitCount(wSliders & openFiles) - BB::bitCount(bSliders & openFiles)) * openFileValue;
@@ -268,8 +269,8 @@ int Board::eval() const
         bShield = Eval::kingShield<BLACK>(bking),
         wShieldStrong = wShield & wPawns,
         bShieldStrong = bShield & bPawns,
-        wShieldWeak = BB::shift_no(wShield) & wPawns,
-        bShieldWeak = BB::shift_so(bShield) & bPawns;
+        wShieldWeak = BB::shiftNorth(wShield) & wPawns,
+        bShieldWeak = BB::shiftSouth(bShield) & bPawns;
     double rawKingScore = Eval::STRONG_KING_SHIELD_BONUS * (BB::bitCount(wShieldStrong) - BB::bitCount(bShieldStrong))
                         + Eval::WEAK_KING_SHIELD_BONUS * (BB::bitCount(wShieldWeak) - BB::bitCount(bShieldWeak));
     double kingScore = rawKingScore * std::min(16, (int)fullMoveCounter) / 16 * openingModifier;

@@ -26,36 +26,21 @@ U64 targetBitboard(std::vector<Square> squares) {
   return target;
 }
 
-TEST(GlobalsTest, knightAttacks) {
-  U64 expected;
-
-  expected = targetBitboard({B3, C2});
-  EXPECT_EQ(G::KNIGHT_ATTACKS[A1], expected);
-  expected = targetBitboard({G3, F2});
-  EXPECT_EQ(G::KNIGHT_ATTACKS[H1], expected);
-  expected = targetBitboard({B6, C7});
-  EXPECT_EQ(G::KNIGHT_ATTACKS[A8], expected);
-  expected = targetBitboard({G6, F7});
-  EXPECT_EQ(G::KNIGHT_ATTACKS[H8], expected);
-  expected = targetBitboard({E1, E3, F4, H4});
-  EXPECT_EQ(G::KNIGHT_ATTACKS[G2], expected);
-  expected = targetBitboard({A5, A7, B4, B8, D4, D8, E5, E7});
-  EXPECT_EQ(G::KNIGHT_ATTACKS[C6], expected);
+TEST(GlobalsTest, KNIGHT_ATTACKS) {
+  EXPECT_EQ(G::KNIGHT_ATTACKS[A1], targetBitboard({B3, C2}));
+  EXPECT_EQ(G::KNIGHT_ATTACKS[H1], targetBitboard({G3, F2}));
+  EXPECT_EQ(G::KNIGHT_ATTACKS[A8], targetBitboard({B6, C7}));
+  EXPECT_EQ(G::KNIGHT_ATTACKS[H8], targetBitboard({G6, F7}));
+  EXPECT_EQ(G::KNIGHT_ATTACKS[G2], targetBitboard({E1, E3, F4, H4}));
+  EXPECT_EQ(G::KNIGHT_ATTACKS[C6], targetBitboard({A5, A7, B4, B8, D4, D8, E5, E7}));
 }
 
-TEST(GlobalsTest, kingAttacks) {
-  U64 expected;
-
-  expected = targetBitboard({A2, B2, B1});
-  EXPECT_EQ(G::KING_ATTACKS[A1], expected);
-  expected = targetBitboard({H2, G2, G1});
-  EXPECT_EQ(G::KING_ATTACKS[H1], expected);
-  expected = targetBitboard({A7, B7, B8});
-  EXPECT_EQ(G::KING_ATTACKS[A8], expected);
-  expected = targetBitboard({H7, G7, G8});
-  EXPECT_EQ(G::KING_ATTACKS[H8], expected);
-  expected = targetBitboard({F1, F2, F3, G1, G3, H1, H2, H3});
-  EXPECT_EQ(G::KING_ATTACKS[G2], expected);
+TEST(GlobalsTest, KING_ATTACKS) {
+  EXPECT_EQ(G::KING_ATTACKS[A1], targetBitboard({A2, B2, B1}));
+  EXPECT_EQ(G::KING_ATTACKS[H1], targetBitboard({H2, G2, G1}));
+  EXPECT_EQ(G::KING_ATTACKS[A8], targetBitboard({A7, B7, B8}));
+  EXPECT_EQ(G::KING_ATTACKS[H8], targetBitboard({H7, G7, G8}));
+  EXPECT_EQ(G::KING_ATTACKS[G2], targetBitboard({F1, F2, F3, G1, G3, H1, H2, H3}));
 }
 
 TEST(GlobalsTest, DISTANCE) {

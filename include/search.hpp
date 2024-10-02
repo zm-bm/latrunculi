@@ -1,16 +1,17 @@
 #ifndef LATRUNCULI_SEARCH_H
 #define LATRUNCULI_SEARCH_H
 
-#include <cstring>
-#include <vector>
 #include <algorithm>
+#include <chrono>
+#include <cstring>
 #include <iterator>
 #include <memory>
-#include <chrono>
-#include "globals.hpp"
-#include "types.hpp"
+#include <vector>
+
 #include "eval.hpp"
+#include "globals.hpp"
 #include "move.hpp"
+#include "types.hpp"
 
 class Board;
 
@@ -19,55 +20,50 @@ struct Killer {
     Move move2;
 };
 
-class Search
-{
-    public:
+class Search {
+   public:
+    Search() = default;
+    Search(Board* board)
+        : bestMove(Move()), _board(board), searchPly(0), nSearched(0) {}
 
-        Search() = default;
-        Search(Board * board)
-        : bestMove(Move()), _board(board), searchPly(0), nSearched(0)
-        { }
+    /*
+     *  search.cpp
+     */
 
-        /*
-         *  search.cpp
-         */
-        
-        void think(int);
-        
-        template<bool>
-        int negamax(int, int, int, bool=true, bool=true);
-        int quiesce(int, int);
+    void think(int);
 
-        template<bool, bool = true>
-        U64 perft(int);
+    template <bool>
+    int negamax(int, int, int, bool = true, bool = true);
+    int quiesce(int, int);
 
-        void reset();
-        void sortMoves(std::vector<Move>&, Move = Move());
+    template <bool, bool = true>
+    U64 perft(int);
 
-        Move bestMove;
-        int bestScore = 0;
-        const static int MAX_DEPTH = 64;
+    void reset();
+    void sortMoves(std::vector<Move>&, Move = Move());
 
-    private:
-        // Board to search
-        Board * _board;
+    Move bestMove;
+    int bestScore = 0;
+    const static int MAX_DEPTH = 64;
 
-        // Main search variables
-        std::vector<Move> pv[MAX_DEPTH];
-        I32 searchPly;
-        U32 history[2][6][64];
-        Killer killers[MAX_DEPTH];
+   private:
+    // Board to search
+    Board* _board;
 
-        // Search statistics variables
-        U32 nSearched;
-        std::chrono::high_resolution_clock::time_point start, stop;
+    // Main search variables
+    std::vector<Move> pv[MAX_DEPTH];
+    I32 searchPly;
+    U32 history[2][6][64];
+    Killer killers[MAX_DEPTH];
 
-        // Helper methods
-        void addToHistory(Move move, int ply);
-        void savePV(Move move);
-        void printPV(int, int, unsigned int);
+    // Search statistics variables
+    U32 nSearched;
+    std::chrono::high_resolution_clock::time_point start, stop;
+
+    // Helper methods
+    void addToHistory(Move move, int ply);
+    void savePV(Move move);
+    void printPV(int, int, unsigned int);
 };
-
-
 
 #endif
