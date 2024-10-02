@@ -36,41 +36,41 @@ int Board::eval() const
 	}
 
     // Evaluate pawn structure
-    BBz wPawns = getPieces<PAWN>(WHITE),
+    U64 wPawns = getPieces<PAWN>(WHITE),
        bPawns = getPieces<PAWN>(BLACK),
        allPawns = wPawns | bPawns;
 
     // Passed pawns
-    BBz wPassedPawns = wPawns & ~bPawns.getAllFrontSpan<BLACK>(),
-       bPassedPawns = bPawns & ~wPawns.getAllFrontSpan<WHITE>();
+    U64 wPassedPawns = wPawns & ~BB::getAllFrontSpan<BLACK>(bPawns),
+       bPassedPawns = bPawns & ~BB::getAllFrontSpan<WHITE>(wPawns);
     double passedPawnValue = (opPhase * Eval::PassedPawnBonus[OPENING]
                             + egPhase * Eval::PassedPawnBonus[ENDGAME]) / TOTALPHASE;
-    double passedPawnScore = (wPassedPawns.count() - bPassedPawns.count()) * passedPawnValue;
+    double passedPawnScore = (BB::bitCount(wPassedPawns) - BB::bitCount(bPassedPawns)) * passedPawnValue;
 
     // Doubled+tripled pawns
-    BBz wPawnsAhead  = wPawns & ~wPawns.getFrontSpan<WHITE>(),
-       wPawnsBehind = wPawns & ~wPawns.getBackSpan< WHITE>(),
-       wTriplePawns = wPawnsAhead & wPawnsBehind,
-       wDoublePawns = (wPawnsAhead | wPawnsBehind) ^ wTriplePawns;
-    BBz bPawnsAhead  = bPawns & ~bPawns.getFrontSpan<BLACK>(),
-       bPawnsBehind = bPawns & ~bPawns.getBackSpan< BLACK>(),
-       bTriplePawns = bPawnsAhead & bPawnsBehind,
-       bDoublePawns = (bPawnsAhead | bPawnsBehind) ^ bTriplePawns;
+    U64 wPawnsAhead  = wPawns & ~BB::getFrontSpan<WHITE>(wPawns),
+        wPawnsBehind = wPawns & ~BB::getBackSpan<WHITE>(wPawns),
+        wTriplePawns = wPawnsAhead & wPawnsBehind,
+        wDoublePawns = (wPawnsAhead | wPawnsBehind) ^ wTriplePawns,
+        bPawnsAhead  = bPawns & ~BB::getFrontSpan<BLACK>(bPawns),
+        bPawnsBehind = bPawns & ~BB::getBackSpan<BLACK>(bPawns),
+        bTriplePawns = bPawnsAhead & bPawnsBehind,
+        bDoublePawns = (bPawnsAhead | bPawnsBehind) ^ bTriplePawns;
     double doublePawnValue = (opPhase * Eval::DoublePawnPenalty[OPENING]
                             + egPhase * Eval::DoublePawnPenalty[ENDGAME]) / TOTALPHASE;
-    double doublePawnScore = (wDoublePawns.count() - bDoublePawns.count()) * doublePawnValue;
+    double doublePawnScore = (BB::bitCount(wDoublePawns) - BB::bitCount(bDoublePawns)) * doublePawnValue;
     double triplePawnValue = (opPhase * Eval::TriplePawnPenalty[OPENING]
                             + egPhase * Eval::TriplePawnPenalty[ENDGAME]) / TOTALPHASE;
-    double triplePawnScore = (wTriplePawns.count() - bTriplePawns.count()) * triplePawnValue;
+    double triplePawnScore = (BB::bitCount(wTriplePawns) - BB::bitCount(bTriplePawns)) * triplePawnValue;
 
     // Isolated pawns
-    BBz wIsolatedPawns   = (wPawns & ~wPawns.getWestFill())
-                        & (wPawns & ~wPawns.getEastFill());
-    BBz bIsolatedPawns   = (bPawns & ~bPawns.getWestFill())
-                        & (bPawns & ~bPawns.getEastFill());
+    U64 wIsolatedPawns = (wPawns & ~BB::getWestFill(wPawns))
+                       & (wPawns & ~BB::getEastFill(wPawns));
+    U64 bIsolatedPawns = (bPawns & ~BB::getWestFill(bPawns))
+                       & (bPawns & ~BB::getEastFill(bPawns));
     double isoPawnValue = (opPhase * Eval::IsoPawnPenalty[OPENING]
                          + egPhase * Eval::IsoPawnPenalty[ENDGAME]) / TOTALPHASE;
-    double isoPawnScore = (wIsolatedPawns.count() - bIsolatedPawns.count()) * isoPawnValue;
+    double isoPawnScore = (BB::bitCount(wIsolatedPawns) - BB::bitCount(bIsolatedPawns)) * isoPawnValue;
     double pawnScore = passedPawnScore + doublePawnScore + triplePawnScore + isoPawnScore;
 
     if (debug)
@@ -80,20 +80,20 @@ int Board::eval() const
 	}
 
     // Give bonuses to queens/rooks on open/half open files
-    BBz openFiles = ~allPawns.getFill(),
-       wHalfOpenFiles = ~wPawns.getFill() ^ openFiles,
-       bHalfOpenFiles = ~bPawns.getFill() ^ openFiles,
+    U64 openFiles = ~BB::getFill(allPawns),
+       wHalfOpenFiles = ~BB::getFill(wPawns) ^ openFiles,
+       bHalfOpenFiles = ~BB::getFill(bPawns) ^ openFiles,
        wSliders = straightSliders(WHITE),
        bSliders = straightSliders(BLACK);
     double openFileValue = (opPhase * Eval::OpenFileBonus[OPENING]
                           + egPhase * Eval::OpenFileBonus[ENDGAME]) / TOTALPHASE;
-    double openFileScore = ((wSliders & openFiles).count() - (bSliders & openFiles).count()) * openFileValue;
+    double openFileScore = (BB::bitCount(wSliders & openFiles) - BB::bitCount(bSliders & openFiles)) * openFileValue;
     double halfOpenFileValue = (opPhase * Eval::HalfOpenFileBonus[OPENING]
                               + egPhase * Eval::HalfOpenFileBonus[ENDGAME]) / TOTALPHASE;
-    double halfOpenFileScore = ((wSliders & wHalfOpenFiles).count() - (bSliders & bHalfOpenFiles).count()) * halfOpenFileValue;
+    double halfOpenFileScore = (BB::bitCount(wSliders & wHalfOpenFiles) - BB::bitCount(bSliders & bHalfOpenFiles)) * halfOpenFileValue;
 
     // As pawns are captured, penalize knights and give bonus to rooks
-    int capturedPawns = 16 - allPawns.count();
+    int capturedPawns = 16 - BB::bitCount(allPawns);
     int knightPen = (count<KNIGHT>(WHITE) - count<KNIGHT>(BLACK))
                   * (capturedPawns * Eval::KNIGHT_PENALTY_PER_PAWN);
     int rookBonus = (count<ROOK>(WHITE) - count<ROOK>(BLACK))
@@ -106,8 +106,8 @@ int Board::eval() const
            bking = getKingSq(BLACK);
     U64 occ = occupancy(),
         pieces = 0,
-        wHoles = ~wPawns.getFrontAttackSpan<WHITE>() & WHITEHOLES,
-        bHoles = ~bPawns.getFrontAttackSpan<BLACK>() & BLACKHOLES,
+        wHoles = ~BB::getFrontAttackSpan<WHITE>(wPawns) & WHITEHOLES,
+        bHoles = ~BB::getFrontAttackSpan<BLACK>(bPawns) & BLACKHOLES,
         wOutposts = bHoles & MoveGen::attacksByPawns<WHITE>(wPawns),
         bOutposts = wHoles & MoveGen::attacksByPawns<BLACK>(bPawns),
         allOutposts = wOutposts | bOutposts;
@@ -264,14 +264,14 @@ int Board::eval() const
 	}
 
     // Kings
-    BBz wShield = Eval::kingShield<WHITE>(wking),
-       bShield = Eval::kingShield<BLACK>(bking);
-    BBz wShieldStrong = wShield & wPawns,
-       bShieldStrong = bShield & bPawns;
-    BBz wShieldWeak = wShield.shift_no() & wPawns,
-       bShieldWeak = bShield.shift_so() & bPawns;
-    double rawKingScore = Eval::STRONG_KING_SHIELD_BONUS * (wShieldStrong.count() - bShieldStrong.count())
-                        + Eval::WEAK_KING_SHIELD_BONUS * (wShieldWeak.count() - bShieldWeak.count());
+    U64 wShield = Eval::kingShield<WHITE>(wking),
+        bShield = Eval::kingShield<BLACK>(bking),
+        wShieldStrong = wShield & wPawns,
+        bShieldStrong = bShield & bPawns,
+        wShieldWeak = BB::shift_no(wShield) & wPawns,
+        bShieldWeak = BB::shift_so(bShield) & bPawns;
+    double rawKingScore = Eval::STRONG_KING_SHIELD_BONUS * (BB::bitCount(wShieldStrong) - BB::bitCount(bShieldStrong))
+                        + Eval::WEAK_KING_SHIELD_BONUS * (BB::bitCount(wShieldWeak) - BB::bitCount(bShieldWeak));
     double kingScore = rawKingScore * std::min(16, (int)fullMoveCounter) / 16 * openingModifier;
     if (debug)
 	{
