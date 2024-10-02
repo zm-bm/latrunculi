@@ -1,6 +1,6 @@
 #include "magics.hpp"
 
-#include "bitboard.hpp"
+#include "bb.hpp"
 #include "types.hpp"
 
 /**

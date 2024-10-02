@@ -4,7 +4,7 @@
 #include <iostream>
 #include <vector>
 
-#include "bitboard.hpp"
+#include "bb.hpp"
 #include "eval.hpp"
 #include "movegen.hpp"
 #include "state.hpp"

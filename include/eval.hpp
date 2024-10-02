@@ -1,7 +1,7 @@
 #ifndef LATRUNCULI_EVAL_H
 #define LATRUNCULI_EVAL_H
 
-#include "bitboard.hpp"
+#include "bb.hpp"
 #include "types.hpp"
 
 namespace Eval {

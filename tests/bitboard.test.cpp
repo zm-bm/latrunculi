@@ -1,4 +1,4 @@
-#include "bitboard.hpp"
+#include "bb.hpp"
 
 #include <gtest/gtest.h>
 

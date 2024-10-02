@@ -1,6 +1,6 @@
 #include "catch.hpp"
 #include "globals.hpp"
-#include "bitboard.hpp"
+#include "bb.hpp"
 
 TEST_CASE( "Bitboard basics", "[bitboard]" )
 {
