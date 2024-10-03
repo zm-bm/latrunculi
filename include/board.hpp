@@ -81,10 +81,6 @@ class Board {
     template <bool>
     void movePiece(Square, Square, Color, PieceRole);
 
-    template <PieceRole>
-    U8 count(Color c) const;
-    template <PieceRole>
-    U8 count() const;
     int calculatePhase() const;
 
     U64 attacksTo(Square, Color) const;
@@ -101,50 +97,104 @@ class Board {
 
     template <PieceRole p>
     inline U64 getPieces(Color c) const {
+        // Return the bitboard of pieces of a specific role for the given color
         return pieces[c][p];
     }
 
     inline U64 occupancy() const {
+        // Return the combined bitboard of all pieces on the board
         return pieces[WHITE][ALL_PIECE_ROLES] | pieces[BLACK][ALL_PIECE_ROLES];
     }
+
     inline U64 diagonalSliders(Color c) const {
+        // Return the bitboard of diagonal sliding pieces (Bishops and Queens) for the given color
         return pieces[c][BISHOP] | pieces[c][QUEEN];
     }
+
     inline U64 straightSliders(Color c) const {
+        // Return the bitboard of straight sliding pieces (Rooks and Queens) for the given color
         return pieces[c][ROOK] | pieces[c][QUEEN];
     }
 
     inline U64 getCheckingPieces() const {
+        // Return the bitboard of pieces that are checking the current player's king
         return state.at(ply).checkingPieces;
     }
+
     inline U64 calculateCheckingPieces(Color c) const {
+        // Calculate and return the bitboard of pieces attacking the enemy king
         return attacksTo(getKingSq(c), ~c);
     }
+
     inline U64 calculateDiscoveredCheckers(Color c) const {
+        // Calculate and return the bitboard of pieces that can give discovered check
         return getCheckBlockers(c, ~c);
     }
+
     inline U64 calculatePinnedPieces(Color c) const {
+        // Calculate and return the bitboard of pieces that are pinned relative to the king
         return getCheckBlockers(c, c);
     }
 
-    inline Piece getPiece(Square sq) const { return squares[sq]; }
-    inline PieceRole getPieceRole(Square sq) const {
-        return Types::getPieceRole(squares[sq]);
-    }
-    inline Color sideToMove() const { return stm; }
-    inline Square getKingSq(Color c) const { return kingSq[c]; }
-    inline Square getEnPassant() const { return state.at(ply).enPassantSq; }
-    inline U8 getHmClock() const { return state.at(ply).hmClock; }
-    inline U64 getKey() const { return state.at(ply).zkey; }
-    inline bool isCheck() const { return getCheckingPieces(); }
-    inline bool isDoubleCheck() const {
-        return BB::moreThanOneSet(getCheckingPieces());
-    }
-    inline int getPieceCount(Color c) const {
-        return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) +
-               count<QUEEN>(c);
+    template <PieceRole pt>
+    inline U8 count(Color c) const {
+        // Return the count of pieces of a specific role for the given color
+        return pieceCount[c][pt];
     }
 
+    template <PieceRole pt>
+    inline U8 count() const {
+        // Return the total count of pieces of a specific role for both colors
+        return count<pt>(WHITE) + count<pt>(BLACK);
+    }
+
+    inline Piece getPiece(Square sq) const {
+        // Return the piece located at a specific square
+        return squares[sq];
+    }
+
+    inline PieceRole getPieceRole(Square sq) const {
+        // Return the role of the piece located at a specific square
+        return Types::getPieceRole(squares[sq]);
+    }
+    inline Color sideToMove() const {
+        // Return the color of the player who is to move
+        return stm;
+    }
+    inline Square getKingSq(Color c) const {
+        // Return the square of the king for the given color
+        return kingSq[c];
+    }
+    inline Square getEnPassant() const {
+        // Return the en passant target square if set
+        return state.at(ply).enPassantSq;
+    }
+
+    inline U8 getHmClock() const {
+        // Return the half-move clock from the current state
+        return state.at(ply).hmClock;
+    }
+
+    inline U64 getKey() const {
+        // Return the Zobrist key for the current board state
+        return state.at(ply).zkey;
+    }
+
+    inline bool isCheck() const {
+        // Return whether the current player's king is in check
+        return getCheckingPieces();
+    }
+
+    inline bool isDoubleCheck() const {
+        // Return whether the current player's king is in double check
+        return BB::moreThanOneSet(getCheckingPieces());
+    }
+
+    inline int getPieceCount(Color c) const {
+        // Return the total count of all major pieces (Knights, Bishops, Rooks, Queens) for the given color
+        return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) + count<QUEEN>(c);
+    }
+    
     friend class MoveGen::Generator;
     friend class Search;
 };
@@ -203,16 +253,6 @@ inline void Board::movePiece(const Square from, const Square to, const Color c,
             Zobrist::psq[c][pt - 1][from] ^ Zobrist::psq[c][pt - 1][to];
 }
 
-template <PieceRole pt>
-inline U8 Board::count(Color c) const {
-    return pieceCount[c][pt];
-}
-
-template <PieceRole pt>
-inline U8 Board::count() const {
-    return count<pt>(WHITE) + count<pt>(BLACK);
-}
-
 inline int Board::calculatePhase() const {
     return PAWNSCORE * count<PAWN>() + KNIGHTSCORE * count<KNIGHT>() +
            BISHOPSCORE * count<BISHOP>() + ROOKSCORE * count<ROOK>() +
@@ -228,12 +268,11 @@ inline U64 Board::attacksTo(Square sq, Color c) const {
 inline U64 Board::attacksTo(Square sq, Color c, U64 occ) const {
     U64 piece = BB::set(sq);
 
-    return (getPieces<PAWN>(c) & (U64)MoveGen::attacksByPawns(piece, ~c)) |
-           (getPieces<KNIGHT>(c) &
-            (U64)MoveGen::movesByPiece<KNIGHT>(sq, occ)) |
-           (getPieces<KING>(c) & (U64)MoveGen::movesByPiece<KING>(sq, occ)) |
-           (diagonalSliders(c) & (U64)MoveGen::movesByPiece<BISHOP>(sq, occ)) |
-           (straightSliders(c) & (U64)MoveGen::movesByPiece<ROOK>(sq, occ));
+    return (getPieces<PAWN>(c) & MoveGen::attacksByPawns(piece, ~c)) |
+           (getPieces<KNIGHT>(c) & MoveGen::movesByPiece<KNIGHT>(sq, occ)) |
+           (getPieces<KING>(c) & MoveGen::movesByPiece<KING>(sq, occ)) |
+           (diagonalSliders(c) & MoveGen::movesByPiece<BISHOP>(sq, occ)) |
+           (straightSliders(c) & MoveGen::movesByPiece<ROOK>(sq, occ));
 }
 
 // Determine if any set square of a bitboard is attacked by color c
