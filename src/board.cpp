@@ -1,10 +1,11 @@
-#include <iostream>
-#include <string>
-#include <sstream>
-#include <vector>
-#include "types.hpp"
 #include "board.hpp"
-#include "movegen.hpp"
+
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "types.hpp"
 
 Board::Board(const std::string& fen) {
     for (int i = 0; i < 7; i++) {
@@ -21,8 +22,7 @@ Board::Board(const std::string& fen) {
     loadFEN(fen);
 }
 
-void Board::loadFEN(const std::string& fen)
-{
+void Board::loadFEN(const std::string& fen) {
     std::string pieces = G::split(fen, ' ').at(0);
 
     auto file = FILE1;
@@ -31,7 +31,7 @@ void Board::loadFEN(const std::string& fen)
     for (auto iter = pieces.begin(); iter != pieces.end(); ++iter) {
         auto ch = *iter;
 
-        if (((int) ch > 48) && ((int) ch < 57)) {
+        if (((int)ch > 48) && ((int)ch < 57)) {
             file += File((int)ch - '0');
         } else {
             Square sq = Types::getSquare(file, rank);
@@ -96,8 +96,7 @@ void Board::loadFEN(const std::string& fen)
     }
 }
 
-std::ostream& operator<<(std::ostream& os, const Board& b)
-{
+std::ostream& operator<<(std::ostream& os, const Board& b) {
     for (Rank rank = RANK8; rank >= RANK1; rank--) {
         os << "   +---+---+---+---+---+---+---+---+\n";
         os << "   |";
@@ -133,12 +132,11 @@ std::ostream& operator<<(std::ostream& os, const Board& b)
 //                                           ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);
 //     mobilityScore += whitemoves * (opPhase * G::MobilityScaling[OPENING][p-1]
 //                                  + egPhase * G::MobilityScaling[ENDGAME][p-1]);
-    
+
 //     int blackmoves = calculateMobility<p>(getPieces<p>(BLACK),
 //                                           ~getPieces<ALL_PIECE_ROLES>(BLACK), occ);
 //     mobilityScore -= blackmoves * (opPhase * G::MobilityScaling[OPENING][p-1]
 //                                  + egPhase * G::MobilityScaling[ENDGAME][p-1]);
-    
 //     return mobilityScore;
 // }
 
