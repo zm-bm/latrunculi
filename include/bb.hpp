@@ -170,6 +170,24 @@ inline U64 getAllFrontSpan(U64 bb) {
     return shiftWest(spanFrontBB) | shiftEast(spanFrontBB) | spanFrontBB;
 }
 
+template <Color c>
+inline U64 kingShield(Square sq) {
+    U64 bitboard = BB::set(sq);
+    if (c) {
+        return (
+            BB::shiftNorthWest(bitboard) |
+            BB::shiftNorth(bitboard) |
+            BB::shiftNorthEast(bitboard)
+        );
+    } else {
+        return (
+            BB::shiftSouthWest(bitboard) |
+            BB::shiftSouth(bitboard) |
+            BB::shiftSouthEast(bitboard)
+        );
+    }
+}
+
 template <PawnMove p, Color c>
 inline U64 movesByPawns(U64 pawns) {
     if (p == PawnMove::LEFT)

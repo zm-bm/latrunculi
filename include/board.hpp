@@ -114,6 +114,14 @@ struct Board {
         // Return the total count of all major pieces (Knights, Bishops, Rooks, Queens) for the given color
         return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) + count<QUEEN>(c);
     }
+
+    inline int psqv(Color c, PieceRole pt, int phase, Square sq) {
+        // Get the piece square value
+        int score = G::PieceSqValues[pt - 1][phase][G::ColorSq[c][sq]];
+        // Return +score for white, -score for black
+        return (2 * c * score) - score;
+    }
+
 };
 
 template <bool forward>
@@ -126,9 +134,9 @@ inline void Board::addPiece(const Square sq, const Color c,
 
     // Update evaluation helpers
     pieceCount[c][pt]++;
-    materialScore += Eval::PieceValues[pt - 1][c];
-    openingScore += Eval::psqv(c, pt, OPENING, sq);
-    endgameScore += Eval::psqv(c, pt, ENDGAME, sq);
+    materialScore += G::PieceValues[pt - 1][c];
+    openingScore += psqv(c, pt, OPENING, sq);
+    endgameScore += psqv(c, pt, ENDGAME, sq);
 
     // if (forward) state.at(ply).zkey ^= Zobrist::psq[c][pt - 1][sq];
 }
@@ -142,9 +150,9 @@ inline void Board::removePiece(const Square sq, const Color c,
 
     // Update evaluation helpers
     pieceCount[c][pt]--;
-    materialScore -= Eval::PieceValues[pt - 1][c];
-    openingScore -= Eval::psqv(c, pt, OPENING, sq);
-    endgameScore -= Eval::psqv(c, pt, ENDGAME, sq);
+    materialScore -= G::PieceValues[pt - 1][c];
+    openingScore -= psqv(c, pt, OPENING, sq);
+    endgameScore -= psqv(c, pt, ENDGAME, sq);
 
     // if (forward) state.at(ply).zkey ^= Zobrist::psq[c][pt - 1][sq];
 }
@@ -161,9 +169,9 @@ inline void Board::movePiece(const Square from, const Square to, const Color c,
 
     // Update evaluation helpers
     openingScore +=
-        Eval::psqv(c, pt, OPENING, to) - Eval::psqv(c, pt, OPENING, from);
+        psqv(c, pt, OPENING, to) - psqv(c, pt, OPENING, from);
     endgameScore +=
-        Eval::psqv(c, pt, ENDGAME, to) - Eval::psqv(c, pt, ENDGAME, from);
+        psqv(c, pt, ENDGAME, to) - psqv(c, pt, ENDGAME, from);
 
     // if (forward)
     //     state.at(ply).zkey ^=

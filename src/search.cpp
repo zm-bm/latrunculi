@@ -409,7 +409,7 @@ void Search::sortMoves(std::vector<Move>& moves, Move hashmove)
     //     PieceRole captPiece = _board->getPieceRole(move.to());
     //     if (captPiece != NO_PIECE_ROLE) {
     //         PieceRole movePiece = _board->getPieceRole(move.from());
-    //         move.score += Eval::PieceValues[captPiece-1][WHITE] - movePiece;
+    //         move.score += G::PieceValues[captPiece-1][WHITE] - movePiece;
     //     }
     //     else {
     //         PieceRole movePiece = _board->getPieceRole(move.from());

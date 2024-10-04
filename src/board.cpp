@@ -158,13 +158,13 @@ int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
 
     int whitemoves = calculateMobility<pt>(getPieces<pt>(WHITE),
                                           ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);
-    mobilityScore += whitemoves * (opPhase * Eval::MobilityScaling[OPENING][pt-1]
-                                 + egPhase * Eval::MobilityScaling[ENDGAME][pt-1]);
+    mobilityScore += whitemoves * (opPhase * G::MobilityScaling[OPENING][pt-1]
+                                 + egPhase * G::MobilityScaling[ENDGAME][pt-1]);
     
     int blackmoves = calculateMobility<pt>(getPieces<pt>(BLACK),
                                           ~getPieces<ALL_PIECE_ROLES>(BLACK), occ);
-    mobilityScore -= blackmoves * (opPhase * Eval::MobilityScaling[OPENING][pt-1]
-                                 + egPhase * Eval::MobilityScaling[ENDGAME][pt-1]);
+    mobilityScore -= blackmoves * (opPhase * G::MobilityScaling[OPENING][pt-1]
+                                 + egPhase * G::MobilityScaling[ENDGAME][pt-1]);
     
     return mobilityScore;
 }

@@ -258,8 +258,8 @@ int Chess::eval() const
     // Passed pawns
     U64 wPassedPawns = wPawns & ~BB::getAllFrontSpan<BLACK>(bPawns),
         bPassedPawns = bPawns & ~BB::getAllFrontSpan<WHITE>(wPawns);
-    double passedPawnValue = (opPhase * Eval::PassedPawnBonus[OPENING]
-                            + egPhase * Eval::PassedPawnBonus[ENDGAME]) / TOTALPHASE;
+    double passedPawnValue = (opPhase * G::PassedPawnBonus[OPENING]
+                            + egPhase * G::PassedPawnBonus[ENDGAME]) / TOTALPHASE;
     double passedPawnScore = (BB::bitCount(wPassedPawns) - BB::bitCount(bPassedPawns)) * passedPawnValue;
 
     // Doubled+tripled pawns
@@ -271,11 +271,11 @@ int Chess::eval() const
         bPawnsBehind = bPawns & ~BB::spanBack<BLACK>(bPawns),
         bTriplePawns = bPawnsAhead & bPawnsBehind,
         bDoublePawns = (bPawnsAhead | bPawnsBehind) ^ bTriplePawns;
-    double doublePawnValue = (opPhase * Eval::DoublePawnPenalty[OPENING]
-                            + egPhase * Eval::DoublePawnPenalty[ENDGAME]) / TOTALPHASE;
+    double doublePawnValue = (opPhase * G::DoublePawnPenalty[OPENING]
+                            + egPhase * G::DoublePawnPenalty[ENDGAME]) / TOTALPHASE;
     double doublePawnScore = (BB::bitCount(wDoublePawns) - BB::bitCount(bDoublePawns)) * doublePawnValue;
-    double triplePawnValue = (opPhase * Eval::TriplePawnPenalty[OPENING]
-                            + egPhase * Eval::TriplePawnPenalty[ENDGAME]) / TOTALPHASE;
+    double triplePawnValue = (opPhase * G::TriplePawnPenalty[OPENING]
+                            + egPhase * G::TriplePawnPenalty[ENDGAME]) / TOTALPHASE;
     double triplePawnScore = (BB::bitCount(wTriplePawns) - BB::bitCount(bTriplePawns)) * triplePawnValue;
 
     // Isolated pawns
@@ -285,8 +285,8 @@ int Chess::eval() const
                        & (wPawns & ~BB::shiftEast(wPawnsFill));
     U64 bIsolatedPawns = (bPawns & ~BB::shiftWest(bPawnsFill))
                        & (bPawns & ~BB::shiftEast(bPawnsFill));
-    double isoPawnValue = (opPhase * Eval::IsoPawnPenalty[OPENING]
-                        + egPhase * Eval::IsoPawnPenalty[ENDGAME]) / TOTALPHASE;
+    double isoPawnValue = (opPhase * G::IsoPawnPenalty[OPENING]
+                        + egPhase * G::IsoPawnPenalty[ENDGAME]) / TOTALPHASE;
     double isoPawnScore = (BB::bitCount(wIsolatedPawns) - BB::bitCount(bIsolatedPawns)) * isoPawnValue;
     double pawnScore = passedPawnScore + doublePawnScore + triplePawnScore + isoPawnScore;
 
@@ -301,19 +301,19 @@ int Chess::eval() const
         bHalfOpenFiles = ~BB::fillFiles(bPawns) ^ openFiles,
         wSliders = board.straightSliders(WHITE),
         bSliders = board.straightSliders(BLACK);
-    double openFileValue = (opPhase * Eval::OpenFileBonus[OPENING]
-                          + egPhase * Eval::OpenFileBonus[ENDGAME]) / TOTALPHASE;
+    double openFileValue = (opPhase * G::OpenFileBonus[OPENING]
+                          + egPhase * G::OpenFileBonus[ENDGAME]) / TOTALPHASE;
     double openFileScore = (BB::bitCount(wSliders & openFiles) - BB::bitCount(bSliders & openFiles)) * openFileValue;
-    double halfOpenFileValue = (opPhase * Eval::HalfOpenFileBonus[OPENING]
-                              + egPhase * Eval::HalfOpenFileBonus[ENDGAME]) / TOTALPHASE;
+    double halfOpenFileValue = (opPhase * G::HalfOpenFileBonus[OPENING]
+                              + egPhase * G::HalfOpenFileBonus[ENDGAME]) / TOTALPHASE;
     double halfOpenFileScore = (BB::bitCount(wSliders & wHalfOpenFiles) - BB::bitCount(bSliders & bHalfOpenFiles)) * halfOpenFileValue;
 
     // As pawns are captured, penalize knights and give bonus to rooks
     int capturedPawns = 16 - BB::bitCount(allPawns);
     int knightPen = (board.count<KNIGHT>(WHITE) - board.count<KNIGHT>(BLACK))
-                  * (capturedPawns * Eval::KNIGHT_PENALTY_PER_PAWN);
+                  * (capturedPawns * G::KNIGHT_PENALTY_PER_PAWN);
     int rookBonus = (board.count<ROOK>(WHITE) - board.count<ROOK>(BLACK))
-                  * (capturedPawns * Eval::ROOK_BONUS_PER_PAWN);
+                  * (capturedPawns * G::ROOK_BONUS_PER_PAWN);
 
     /**
      *  Evaluate individual pieces
@@ -335,12 +335,12 @@ int Chess::eval() const
     {
         Square sq = BB::advanced<WHITE>(pieces);
         pieces &= BB::clear(sq);
-        wKnightScore += Eval::KNIGHT_TROPISM[G::DISTANCE[bking][sq]];
+        wKnightScore += G::KNIGHT_TROPISM[G::DISTANCE[bking][sq]];
         if (Types::getRank(sq) == RANK1)
-            wKnightScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
+            wKnightScore += G::BACK_RANK_MINOR_PENALTY * openingModifier;
         U64 validOutposts = BB::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
         if (validOutposts & allOutposts)
-            wKnightScore += Eval::MINOR_OUTPOST_BONUS;
+            wKnightScore += G::MINOR_OUTPOST_BONUS;
     }
     double bKnightScore = 0;
     pieces = board.getPieces<KNIGHT>(BLACK);
@@ -348,12 +348,12 @@ int Chess::eval() const
     {
         Square sq = BB::advanced<BLACK>(pieces);
         pieces &= BB::clear(sq);
-        bKnightScore += Eval::KNIGHT_TROPISM[G::DISTANCE[wking][sq]];
+        bKnightScore += G::KNIGHT_TROPISM[G::DISTANCE[wking][sq]];
         if (Types::getRank(sq) == RANK8)
-            bKnightScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
+            bKnightScore += G::BACK_RANK_MINOR_PENALTY * openingModifier;
         U64 validOutposts = BB::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
         if (validOutposts & allOutposts)
-            bKnightScore += Eval::MINOR_OUTPOST_BONUS;
+            bKnightScore += G::MINOR_OUTPOST_BONUS;
     }
     if (debug)
 	{
@@ -367,34 +367,34 @@ int Chess::eval() const
     double wBishopScore = 0;
     pieces = board.getPieces<BISHOP>(WHITE);
     if ((pieces & G::WHITESQUARES) && (pieces & G::BLACKSQUARES))
-        wBishopScore += (opPhase * Eval::BishopPairBonus[OPENING]
-                      + (egPhase * Eval::BishopPairBonus[ENDGAME])) / TOTALPHASE;
+        wBishopScore += (opPhase * G::BishopPairBonus[OPENING]
+                      + (egPhase * G::BishopPairBonus[ENDGAME])) / TOTALPHASE;
     while (pieces)
     {
         Square sq = BB::advanced<WHITE>(pieces);
         pieces &= BB::clear(sq);
-        wBishopScore += Eval::BISHOP_TROPISM[G::DISTANCE[bking][sq]];
+        wBishopScore += G::BISHOP_TROPISM[G::DISTANCE[bking][sq]];
         if (Types::getRank(sq) == RANK1)
-            wBishopScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
+            wBishopScore += G::BACK_RANK_MINOR_PENALTY * openingModifier;
         U64 validOutposts = BB::movesByPiece<BISHOP>(sq, occ) | BB::set(sq);
         if (validOutposts & allOutposts)
-            wBishopScore += Eval::MINOR_OUTPOST_BONUS;
+            wBishopScore += G::MINOR_OUTPOST_BONUS;
     }
     double bBishopScore = 0;
     pieces = board.getPieces<BISHOP>(BLACK);
     if ((pieces & G::WHITESQUARES) && (pieces & G::BLACKSQUARES))
-        bBishopScore += (opPhase * Eval::BishopPairBonus[OPENING]
-                      + (egPhase * Eval::BishopPairBonus[ENDGAME])) / TOTALPHASE;
+        bBishopScore += (opPhase * G::BishopPairBonus[OPENING]
+                      + (egPhase * G::BishopPairBonus[ENDGAME])) / TOTALPHASE;
     while (pieces)
     {
         Square sq = BB::advanced<BLACK>(pieces);
         pieces &= BB::clear(sq);
-        bBishopScore += Eval::BISHOP_TROPISM[G::DISTANCE[wking][sq]];
+        bBishopScore += G::BISHOP_TROPISM[G::DISTANCE[wking][sq]];
         if (Types::getRank(sq) == RANK8)
-            bBishopScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
+            bBishopScore += G::BACK_RANK_MINOR_PENALTY * openingModifier;
         U64 validOutposts = BB::movesByPiece<BISHOP>(sq, occ) | BB::set(sq);
         if (validOutposts & allOutposts)
-            bBishopScore += Eval::MINOR_OUTPOST_BONUS;
+            bBishopScore += G::MINOR_OUTPOST_BONUS;
     }
     if (debug)
 	{
@@ -411,12 +411,12 @@ int Chess::eval() const
     {
         Square sq = BB::advanced<WHITE>(pieces);
         pieces &= BB::clear(sq);
-        wRookScore += Eval::ROOK_TROPISM[G::DISTANCE[bking][sq]];
-        wRookScore += Eval::ROOK_TROPISM[G::DISTANCE[wking][sq]] * openingModifier;
+        wRookScore += G::ROOK_TROPISM[G::DISTANCE[bking][sq]];
+        wRookScore += G::ROOK_TROPISM[G::DISTANCE[wking][sq]] * openingModifier;
         if (Types::getRank(sq) >= RANK7)
-            wRookScore += Eval::ROOK_ON_SEVENTH_BONUS * openingModifier;
+            wRookScore += G::ROOK_ON_SEVENTH_BONUS * openingModifier;
         if (BB::movesByPiece<ROOK>(sq, occ) & pieces)
-            wRookScore += Eval::CONNECTED_ROOK_BONUS;
+            wRookScore += G::CONNECTED_ROOK_BONUS;
     }
     double bRookScore = 0;
     pieces = board.getPieces<ROOK>(BLACK);
@@ -424,12 +424,12 @@ int Chess::eval() const
     {
         Square sq = BB::advanced<BLACK>(pieces);
         pieces &= BB::clear(sq);
-        bRookScore += Eval::ROOK_TROPISM[G::DISTANCE[wking][sq]];
-        bRookScore += Eval::ROOK_TROPISM[G::DISTANCE[bking][sq]] * openingModifier;
+        bRookScore += G::ROOK_TROPISM[G::DISTANCE[wking][sq]];
+        bRookScore += G::ROOK_TROPISM[G::DISTANCE[bking][sq]] * openingModifier;
         if (Types::getRank(sq) <= RANK2)
-            bRookScore += Eval::ROOK_ON_SEVENTH_BONUS * openingModifier;
+            bRookScore += G::ROOK_ON_SEVENTH_BONUS * openingModifier;
         if (BB::movesByPiece<ROOK>(sq, occ) & pieces)
-            bRookScore += Eval::CONNECTED_ROOK_BONUS;
+            bRookScore += G::CONNECTED_ROOK_BONUS;
     }
     if (debug)
 	{
@@ -446,8 +446,8 @@ int Chess::eval() const
     {
         Square sq = BB::advanced<WHITE>(pieces);
         pieces &= BB::clear(sq);
-        wQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[bking][sq]];
-        wQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[wking][sq]] * openingModifier;
+        wQueenScore += G::QUEEN_TROPISM[G::DISTANCE[bking][sq]];
+        wQueenScore += G::QUEEN_TROPISM[G::DISTANCE[wking][sq]] * openingModifier;
     }
     double bQueenScore = 0;
     pieces = board.getPieces<QUEEN>(BLACK);
@@ -455,8 +455,8 @@ int Chess::eval() const
     {
         Square sq = BB::advanced<BLACK>(pieces);
         pieces &= BB::clear(sq);
-        bQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[wking][sq]];
-        bQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[bking][sq]] * openingModifier;
+        bQueenScore += G::QUEEN_TROPISM[G::DISTANCE[wking][sq]];
+        bQueenScore += G::QUEEN_TROPISM[G::DISTANCE[bking][sq]] * openingModifier;
     }
     if (debug)
 	{
@@ -480,14 +480,14 @@ int Chess::eval() const
 	}
 
     // Kings
-    U64 wShield = Eval::kingShield<WHITE>(wking),
-        bShield = Eval::kingShield<BLACK>(bking),
+    U64 wShield = BB::kingShield<WHITE>(wking),
+        bShield = BB::kingShield<BLACK>(bking),
         wShieldStrong = wShield & wPawns,
         bShieldStrong = bShield & bPawns,
         wShieldWeak = BB::shiftNorth(wShield) & wPawns,
         bShieldWeak = BB::shiftSouth(bShield) & bPawns;
-    double rawKingScore = Eval::STRONG_KING_SHIELD_BONUS * (BB::bitCount(wShieldStrong) - BB::bitCount(bShieldStrong))
-                        + Eval::WEAK_KING_SHIELD_BONUS * (BB::bitCount(wShieldWeak) - BB::bitCount(bShieldWeak));
+    double rawKingScore = G::STRONG_KING_SHIELD_BONUS * (BB::bitCount(wShieldStrong) - BB::bitCount(bShieldStrong))
+                        + G::WEAK_KING_SHIELD_BONUS * (BB::bitCount(wShieldWeak) - BB::bitCount(bShieldWeak));
     double kingScore = rawKingScore * std::min(16, (int)fullMoveCounter) / 16 * openingModifier;
     if (debug)
 	{
@@ -510,12 +510,12 @@ int Chess::eval() const
                   << " Sub Total  |      -      |      -      | "
                   << std::setw(6) << score << std::endl
                   << " Tempo      |      -      |      -      | "
-                  << std::setw(6) << color * Eval::TEMPO_BONUS << std::endl
+                  << std::setw(6) << color * G::TEMPO_BONUS << std::endl
                   << " Total      |      -      |      -      | "
-                  << std::setw(6) << score + Eval::TEMPO_BONUS << std::endl;
+                  << std::setw(6) << score + G::TEMPO_BONUS << std::endl;
 	}
 
-    return score + Eval::TEMPO_BONUS;
+    return score + G::TEMPO_BONUS;
 }
 
 // Instantiate eval functions
