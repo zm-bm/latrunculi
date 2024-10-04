@@ -46,22 +46,6 @@ class Generator {
     void appendPawnPromotions(U64);
 };
 
-template <PieceRole p>
-inline int mobility(U64 bitboard, U64 targets, U64 occ) {
-    int nmoves = 0;
-
-    while (bitboard) {
-        // Pop lsb bit and clear it from the bitboard
-        Square from = BB::lsb(bitboard);
-        bitboard &= BB::clear(from);
-
-        U64 mobility = BB::movesByPiece<p>(from, occ) & targets;
-        nmoves += BB::bitCount(mobility);
-    }
-
-    return nmoves;
-}
-
 }  // namespace MoveGen
 
 #endif

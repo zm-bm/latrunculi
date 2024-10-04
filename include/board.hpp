@@ -29,22 +29,23 @@ struct Board {
     template <PieceRole>
     int calculateMobilityScore(const int, const int) const;
 
+    template <PieceRole p>
+    int calculateMobility(U64 bitboard, U64 targets, U64 occ) const;
+
     friend std::ostream& operator<<(std::ostream& os, const Board& b);
 
     template <bool>
-    void addPiece(Square, Color, PieceRole);
+    inline void addPiece(Square, Color, PieceRole);
 
     template <bool>
-    void removePiece(Square, Color, PieceRole);
+    inline void removePiece(Square, Color, PieceRole);
 
     template <bool>
-    void movePiece(Square, Square, Color, PieceRole);
+    inline void movePiece(Square, Square, Color, PieceRole);
 
-    int calculatePhase() const;
-
-    U64 attacksTo(Square, Color) const;
-    U64 attacksTo(Square, Color, U64) const;
-    bool isBitboardAttacked(U64, Color) const;
+    inline U64 attacksTo(Square, Color) const;
+    inline U64 attacksTo(Square, Color, U64) const;
+    inline bool isBitboardAttacked(U64, Color) const;
 
     template <PieceRole p>
     inline U64 getPieces(Color c) const {
@@ -168,8 +169,6 @@ inline void Board::movePiece(const Square from, const Square to, const Color c,
     //     state.at(ply).zkey ^=
     //         Zobrist::psq[c][pt - 1][from] ^ Zobrist::psq[c][pt - 1][to];
 }
-
-
 
 // Returns a bitboard of pieces of color c which attacks a square
 inline U64 Board::attacksTo(Square sq, Color c) const {

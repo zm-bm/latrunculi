@@ -268,7 +268,5 @@ namespace MoveGen
         }
     }
 
-    
-
 }
 

@@ -156,15 +156,31 @@ int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
     int mobilityScore = 0;
     U64 occ = occupancy();
 
-    int whitemoves = MoveGen::mobility<pt>(getPieces<pt>(WHITE),
+    int whitemoves = calculateMobility<pt>(getPieces<pt>(WHITE),
                                           ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);
     mobilityScore += whitemoves * (opPhase * Eval::MobilityScaling[OPENING][pt-1]
                                  + egPhase * Eval::MobilityScaling[ENDGAME][pt-1]);
     
-    int blackmoves = MoveGen::mobility<pt>(getPieces<pt>(BLACK),
+    int blackmoves = calculateMobility<pt>(getPieces<pt>(BLACK),
                                           ~getPieces<ALL_PIECE_ROLES>(BLACK), occ);
     mobilityScore -= blackmoves * (opPhase * Eval::MobilityScaling[OPENING][pt-1]
                                  + egPhase * Eval::MobilityScaling[ENDGAME][pt-1]);
     
     return mobilityScore;
+}
+
+template <PieceRole p>
+int Board::calculateMobility(U64 bitboard, U64 targets, U64 occ) const {
+    int nmoves = 0;
+
+    while (bitboard) {
+        // Pop lsb bit and clear it from the bitboard
+        Square from = BB::lsb(bitboard);
+        bitboard &= BB::clear(from);
+
+        U64 mobility = BB::movesByPiece<p>(from, occ) & targets;
+        nmoves += BB::bitCount(mobility);
+    }
+
+    return nmoves;
 }
