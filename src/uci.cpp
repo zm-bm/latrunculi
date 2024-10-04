@@ -9,8 +9,8 @@
 namespace UCI {
 
 Controller::Controller(std::istream& is, std::ostream& os)
-    : board(G::STARTFEN),
-      search(&board),
+    : chess(G::STARTFEN),
+      search(&chess),
       _debug(false),
       istream(is),
       ostream(os) {}
@@ -60,13 +60,13 @@ bool Controller::execute(const std::string& input) {
     moves();
 
   else if (cmd == "d")
-    ostream << board << std::endl;
+    ostream << chess << std::endl;
 
   else if (cmd == "eval")
-    board.eval<true>();
+    chess.eval<true>();
 
   else if (cmd == "tt") {
-    TT::Entry* ttEntry = TT::table.probe(board.getKey());
+    TT::Entry* ttEntry = TT::table.probe(chess.getKey());
     if (ttEntry) ostream << *ttEntry;
   }
 
@@ -95,10 +95,10 @@ void Controller::position(std::vector<std::string>& tokens) {
   tokens.erase(tokens.begin());
 
   if (pos == "startpos") {
-    board = Board(G::STARTFEN);
-    search = Search(&board);
+    chess = Chess(G::STARTFEN);
+    search = Search(&chess);
 
-    if (_debug) ostream << board;
+    if (_debug) ostream << chess;
   } else if (pos == "fen") {
     std::string fen = "";
 
@@ -109,10 +109,10 @@ void Controller::position(std::vector<std::string>& tokens) {
         break;
     }
 
-    board = Board(fen);
-    search = Search(&board);
+    chess = Chess(fen);
+    search = Search(&chess);
 
-    if (_debug) ostream << board;
+    if (_debug) ostream << chess;
   } else
     return;
 
@@ -136,11 +136,11 @@ void Controller::go(std::vector<std::string>& tokens) {
 
 void Controller::move(std::vector<std::string>& tokens) {
   if (tokens.at(0) == "undo") {
-    board.unmake();
+    chess.unmake();
 
-    if (_debug) ostream << board;
+    if (_debug) ostream << chess;
   } else {
-    auto gen = MoveGen::Generator(&board);
+    auto gen = MoveGen::Generator(&chess);
     gen.run();
 
     for (auto& move : gen.moves) {
@@ -148,19 +148,19 @@ void Controller::move(std::vector<std::string>& tokens) {
       oss << move;
 
       if (oss.str() == tokens.at(0)) {
-        board.make(move);
+        chess.make(move);
 
-        if (_debug) ostream << board;
+        if (_debug) ostream << chess;
       }
     }
   }
 }
 
 void Controller::moves() {
-  auto gen = MoveGen::Generator(&board);
+  auto gen = MoveGen::Generator(&chess);
   gen.run();
 
-  TT::Entry* entry = TT::table.probe(board.getKey());
+  TT::Entry* entry = TT::table.probe(chess.getKey());
   if (entry)
     search.sortMoves(gen.moves, entry->best);
   else

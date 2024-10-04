@@ -1,56 +1,48 @@
 #include "movegen.hpp"
-#include "board.hpp"
+#include "chess.hpp"
 
 namespace MoveGen
 {
 
-    void Generator::run()
-    {
+    void Generator::run() {
         moves.clear();
 
-        if (b->isCheck())
+        if (chess->isCheck()) {
             generateEvasions();
-        else
-        {
-            Color enemy = ~b->sideToMove();
-            U64 targets = b->getPieces<ALL_PIECE_ROLES>(enemy);
+        } else {
+            Color enemy = ~chess->stm;
+            U64 targets = chess->board.getPieces<ALL_PIECE_ROLES>(enemy);
             generate<CAPTURES>(targets);
 
-            targets = ~b->occupancy();
+            targets = ~chess->board.occupancy();
             generate<QUIETS>(targets);
         }
     }
 
-    void Generator::runq()
-    {
+    void Generator::runq() {
         moves.clear();
 
-        if (b->isCheck())
+        if (chess->isCheck()) {
             generateEvasions();
-        else
-        {
-            Color enemy = ~b->sideToMove();
-            U64 targets = b->getPieces<ALL_PIECE_ROLES>(enemy);
+        } else {
+            Color enemy = ~chess->stm;
+            U64 targets = chess->board.getPieces<ALL_PIECE_ROLES>(enemy);
             generate<CAPTURES>(targets);
         }
     }
 
 
     template<MoveGenType g>
-    void Generator::generate(const U64 targets)
-    {
-        U64 occ = b->occupancy();
+    void Generator::generate(const U64 targets) {
+        U64 occ = chess->board.occupancy();
         
-        if (b->sideToMove() == WHITE)
-        {
+        if (chess->stm == WHITE) {
             generatePieceMoves<KNIGHT, WHITE>(targets, occ);
             generatePieceMoves<BISHOP, WHITE>(targets, occ);
             generatePieceMoves<ROOK, WHITE>(targets, occ);
             generatePieceMoves<QUEEN, WHITE>(targets, occ);
             generatePawnMoves<g, WHITE>(targets, occ);
-        }
-        else
-        {
+        } else {
             generatePieceMoves<KNIGHT, BLACK>(targets, occ);
             generatePieceMoves<BISHOP, BLACK>(targets, occ);
             generatePieceMoves<ROOK, BLACK>(targets, occ);
@@ -59,76 +51,74 @@ namespace MoveGen
         }
 
         // Skip king moves if in check, generated separately in generateEvasions
-        if (g != EVASIONS)
+        if (g != EVASIONS) {
             generateKingMoves<g>(targets, occ);
+        }
     }
 
     template<MoveGenType g, Color c>
-    void Generator::generatePawnMoves(const U64 targets, const U64 occ)
-    {
+    void Generator::generatePawnMoves(const U64 targets, const U64 occ) {
         // Determine which enemies to target depending on the type of move generation
-        Color enemy = ~b->sideToMove();
+        Color enemy = ~chess->stm;
         U64 enemies, vacancies = ~occ;
-        if (g == EVASIONS)
+        if (g == EVASIONS) {
             // If generating evasions, only attack checking pieces
-            enemies = b->getPieces<ALL_PIECE_ROLES>(enemy) & targets;
-        else if (g == CAPTURES)
+            enemies = chess->board.getPieces<ALL_PIECE_ROLES>(enemy) & targets;
+        } else if (g == CAPTURES) {
             // If generating captures, targets are all enemy pieces
             enemies = targets;
-        else if (g == QUIETS)
+        } else if (g == QUIETS) {
             // If generating quiet moves, get enemy pieces
-            enemies = b->getPieces<ALL_PIECE_ROLES>(enemy);
+            enemies = chess->board.getPieces<ALL_PIECE_ROLES>(enemy);
+        }
 
         // Get 7th rank pawns
-        U64 pawns = b->getPieces<PAWN>(c) & G::rankmask(RANK7, c);
+        U64 pawns = chess->board.getPieces<PAWN>(c) & G::rankmask(RANK7, c);
 
         // Generate pawn promotions, if there are targets attacked by 7th rank pawns
         U64 bitboard;
-        if (pawns && (g != EVASIONS || (targets & G::rankmask(RANK8, c))))
-        {
+        if (pawns && (g != EVASIONS || (targets & G::rankmask(RANK8, c)))) {
             // Generate legal pawn push bitboard
             // If in check, only promote if the move blocks
-            if (g == EVASIONS)
-                bitboard = MoveGen::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies & targets;
-            else
-                bitboard = MoveGen::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies;
+            if (g == EVASIONS) {
+                bitboard = BB::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies & targets;
+            } else {
+                bitboard = BB::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies;
+            }
             appendPawnPromotions<PawnMove::PUSH, c, g>(bitboard);
             
             // Append capturing promotions to move list
-            bitboard = MoveGen::movesByPawns<PawnMove::LEFT, c>(pawns) & enemies;
+            bitboard = BB::movesByPawns<PawnMove::LEFT, c>(pawns) & enemies;
             appendPawnPromotions<PawnMove::LEFT, c, g>(bitboard);
 
-            bitboard = MoveGen::movesByPawns<PawnMove::RIGHT, c>(pawns) & enemies;
+            bitboard = BB::movesByPawns<PawnMove::RIGHT, c>(pawns) & enemies;
             appendPawnPromotions<PawnMove::RIGHT, c, g>(bitboard);
         }
 
         // Get non 7th rank pawns
-        pawns = b->getPieces<PAWN>(c) & ~G::rankmask(RANK7, c);
+        pawns = chess->board.getPieces<PAWN>(c) & ~G::rankmask(RANK7, c);
 
         // Generate captures
-        if (g != QUIETS)
-        {
+        if (g != QUIETS) {
             // Append capturing moves to move list
-            bitboard = MoveGen::movesByPawns<PawnMove::LEFT, c>(pawns) & enemies;
+            bitboard = BB::movesByPawns<PawnMove::LEFT, c>(pawns) & enemies;
             appendPawnMoves<PawnMove::LEFT, c>(bitboard);
-            bitboard = MoveGen::movesByPawns<PawnMove::RIGHT, c>(pawns) & enemies;
+            bitboard = BB::movesByPawns<PawnMove::RIGHT, c>(pawns) & enemies;
             appendPawnMoves<PawnMove::RIGHT, c>(bitboard);
 
             // Generate en passants
-            Square enpassant = b->getEnPassant();
-            if (enpassant != INVALID)
-            {
+            Square enpassant = chess->getEnPassant();
+            if (enpassant != INVALID) {
                 // Only necessary if enemy pawn is targeted, or if in check
                 Square enemyPawn = Types::pawnMove<c, PawnMove::PUSH, false>(enpassant);
-                if (g != EVASIONS || (targets & BB::set(enemyPawn)))
-                {
+                if (g != EVASIONS || (targets & BB::set(enemyPawn))) {
                     // Append en passant captures to move list
-                    bitboard = MoveGen::movesByPawns<PawnMove::LEFT, c>(pawns) & BB::set(enpassant);
+                    bitboard = BB::movesByPawns<PawnMove::LEFT, c>(pawns) & BB::set(enpassant);
                     if (bitboard) {
                         Square from = Types::pawnMove<c, PawnMove::LEFT, false>(enpassant);
                         moves.push_back(Move(from, enpassant, ENPASSANT));
                     }
-                    bitboard = MoveGen::movesByPawns<PawnMove::RIGHT, c>(pawns) & BB::set(enpassant);
+                    bitboard = BB::movesByPawns<PawnMove::RIGHT, c>(pawns) & BB::set(enpassant);
                     if (bitboard) {
                         Square from = Types::pawnMove<c, PawnMove::RIGHT, false>(enpassant);
                         moves.push_back(Move(from, enpassant, ENPASSANT));
@@ -138,11 +128,10 @@ namespace MoveGen
         }
 
         // Generate regular pawn pushes
-        if (g != CAPTURES)
-        {
-            bitboard = MoveGen::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies;
+        if (g != CAPTURES) {
+            bitboard = BB::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies;
             U64 doubleMovePawns = bitboard & G::rankmask(RANK3, c),
-               doubleMoves = MoveGen::movesByPawns<PawnMove::PUSH, c>(doubleMovePawns) & vacancies;
+               doubleMoves = BB::movesByPawns<PawnMove::PUSH, c>(doubleMovePawns) & vacancies;
 
             // If in check, only make moves that block
             if (g == EVASIONS) {
@@ -156,39 +145,35 @@ namespace MoveGen
     }
 
     template<MoveGenType g>
-    void Generator::generateKingMoves(const U64 targets, const U64 occ)
-    {
-        Color stm = b->sideToMove();
-        Square from = b->getKingSq(stm);
+    void Generator::generateKingMoves(const U64 targets, const U64 occ) {
+        Color stm = chess->stm;
+        Square from = chess->board.getKingSq(stm);
 
-        U64 kingMoves = movesByPiece<KING>(from, occ) & targets;
+        U64 kingMoves = BB::movesByPiece<KING>(from, occ) & targets;
 
-        while (kingMoves)
-        {
+        while (kingMoves) {
             Square to = BB::lsb(kingMoves);
             kingMoves &= BB::clear(to);
             moves.push_back(Move(from, to));
         }
 
-        if (g == QUIETS && b->canCastle(stm))
+        if (g == QUIETS && chess->canCastle(stm)) {
             generateCastling();
+        }
     }
 
     template<PieceRole p, Color c>
-    void Generator::generatePieceMoves(const U64 targets, const U64 occ)
-    {
-        Color stm = b->sideToMove();
-        U64 bitboard = b->getPieces<p>(stm);
+    void Generator::generatePieceMoves(const U64 targets, const U64 occ) {
+        Color stm = chess->stm;
+        U64 bitboard = chess->board.getPieces<p>(stm);
 
-        while (bitboard)
-        {
+        while (bitboard) {
             // Pop lsb bit and clear it from the bitboard
             Square from = BB::advanced<c>(bitboard);
             bitboard &= BB::clear(from);
 
-            U64 pieceMoves = movesByPiece<p>(from, occ) & targets;
-            while (pieceMoves)
-            {
+            U64 pieceMoves = BB::movesByPiece<p>(from, occ) & targets;
+            while (pieceMoves) {
                 Square to = BB::advanced<c>(pieceMoves);
                 pieceMoves &= BB::clear(to);
 
@@ -197,17 +182,15 @@ namespace MoveGen
         }
     }
 
-    void Generator::generateEvasions()
-    {
-        Color stm = b->sideToMove();
+    void Generator::generateEvasions() {
+        Color stm = chess->stm;
 
         // If in double check, try to capture the checking piece or block
         U64 targets;
-        if (!b->isDoubleCheck())
-        {
+        if (!chess->isDoubleCheck()) {
             // Get square of the checking piece and checked king
-            Square checker = BB::lsb(b->getCheckingPieces());
-            Square king = b->getKingSq(stm);
+            Square checker = BB::lsb(chess->getCheckingPieces());
+            Square king = chess->board.getKingSq(stm);
 
             // Generate moves which block or capture the checking piece
             // NOTE: generate<EVASIONS> does NOT generate king moves
@@ -216,29 +199,31 @@ namespace MoveGen
         }
 
         // Generate king evasions
-        targets = ~b->getPieces<ALL_PIECE_ROLES>(stm);
-        generateKingMoves<EVASIONS>(targets, b->occupancy());
+        targets = ~chess->board.getPieces<ALL_PIECE_ROLES>(stm);
+        generateKingMoves<EVASIONS>(targets, chess->board.occupancy());
     }
 
     void Generator::generateCastling()
     {
-        Color stm = b->sideToMove();
-        U64 occ = b->occupancy();
+        Color stm = chess->stm;
+        U64 occ = chess->board.occupancy();
         Square from = MoveGen::KingOrigin[stm];
 
-        if (b->canCastleOO(stm) &&
-        !(occ & MoveGen::CastlePathOO[stm]) &&
-        !b->isBitboardAttacked(MoveGen::KingCastlePathOO[stm], ~stm))
-        {
+        if (
+            chess->canCastleOO(stm) &&
+            !(occ & MoveGen::CastlePathOO[stm]) &&
+            !chess->board.isBitboardAttacked(MoveGen::KingCastlePathOO[stm], ~stm)
+        ) {
             Square to = MoveGen::KingDestinationOO[stm];
             Move mv = Move(from, to, CASTLE);
             moves.push_back(mv);
         }
 
-        if (b->canCastleOOO(stm) &&
-        !(occ & MoveGen::CastlePathOOO[stm]) &&
-        !b->isBitboardAttacked(MoveGen::KingCastlePathOOO[stm], ~stm))
-        {
+        if (
+            chess->canCastleOOO(stm) &&
+            !(occ & MoveGen::CastlePathOOO[stm]) &&
+            !chess->board.isBitboardAttacked(MoveGen::KingCastlePathOOO[stm], ~stm)
+        ) {
             Square to = MoveGen::KingDestinationOOO[stm];
             Move mv = Move(from, to, CASTLE);
             moves.push_back(mv);

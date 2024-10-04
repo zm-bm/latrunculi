@@ -7,14 +7,15 @@
 #include "bb.hpp"
 #include "magics.hpp"
 #include "types.hpp"
+#include "move.hpp"
 
-class Board;
+class Chess;
 class Move;
 
 namespace MoveGen {
 class Generator {
    public:
-    Generator(Board* board) : b(board) {}
+    Generator(Chess* chess) : chess(chess) {}
 
     void run();
     void runq();
@@ -22,16 +23,20 @@ class Generator {
     std::vector<Move> moves;
 
    private:
-    Board* b;
+    Chess* chess;
 
     template <MoveGenType>
     void generate(U64);
+
     template <MoveGenType, Color>
     void generatePawnMoves(U64, U64);
+
     template <MoveGenType>
     void generateKingMoves(U64, U64);
+
     template <PieceRole, Color>
     void generatePieceMoves(U64, U64);
+
     void generateEvasions();
     void generateCastling();
 
@@ -40,81 +45,6 @@ class Generator {
     template <PawnMove, Color, MoveGenType>
     void appendPawnPromotions(U64);
 };
-
-template <PawnMove p, Color c>
-inline U64 movesByPawns(U64 pawns) {
-    if (p == PawnMove::LEFT)
-        pawns &= ~G::filemask(FILE1, c);
-    else if (p == PawnMove::RIGHT)
-        pawns &= ~G::filemask(FILE8, c);
-
-    if (c == WHITE)
-        return pawns << static_cast<int>(p);
-    else
-        return pawns >> static_cast<int>(p);
-}
-
-template <PawnMove p>
-inline U64 movesByPawns(U64 pawns, Color c) {
-    if (c == WHITE)
-        return movesByPawns<p, WHITE>(pawns);
-    else
-        return movesByPawns<p, BLACK>(pawns);
-};
-;
-
-template <Color c>
-inline U64 attacksByPawns(U64 pawns) {
-    return movesByPawns<PawnMove::LEFT, c>(pawns) |
-           movesByPawns<PawnMove::RIGHT, c>(pawns);
-}
-
-inline U64 attacksByPawns(U64 pawns, Color c) {
-    return movesByPawns<PawnMove::LEFT>(pawns, c) |
-           movesByPawns<PawnMove::RIGHT>(pawns, c);
-}
-
-template <PieceRole p>
-inline U64 movesByPiece(Square sq, U64 occupancy) {
-    switch (p) {
-        case KNIGHT:
-            return G::KNIGHT_ATTACKS[sq];
-        case BISHOP:
-            return Magics::getBishopAttacks(sq, occupancy);
-        case ROOK:
-            return Magics::getRookAttacks(sq, occupancy);
-        case QUEEN:
-            return Magics::getQueenAttacks(sq, occupancy);
-        case KING:
-            return G::KING_ATTACKS[sq];
-    }
-}
-
-template <PieceRole p>
-inline U64 movesByPiece(Square sq) {
-    return movesByPiece<p>(sq, 0);
-}
-
-inline U64 movesByPiece(Square sq, PieceRole p, U64 occupancy) {
-    switch (p) {
-        case KNIGHT:
-            return movesByPiece<KNIGHT>(sq, occupancy);
-        case BISHOP:
-            return movesByPiece<BISHOP>(sq, occupancy);
-        case ROOK:
-            return movesByPiece<ROOK>(sq, occupancy);
-        case QUEEN:
-            return movesByPiece<QUEEN>(sq, occupancy);
-        case KING:
-            return movesByPiece<KING>(sq, occupancy);
-        default:
-            return 0;
-    }
-}
-
-inline U64 movesByPiece(Square sq, PieceRole p) {
-    return movesByPiece(sq, p, 0);
-}
 
 template <PieceRole p>
 inline int mobility(U64 bitboard, U64 targets, U64 occ) {
@@ -125,7 +55,7 @@ inline int mobility(U64 bitboard, U64 targets, U64 occ) {
         Square from = BB::lsb(bitboard);
         bitboard &= BB::clear(from);
 
-        U64 mobility = movesByPiece<p>(from, occ) & targets;
+        U64 mobility = BB::movesByPiece<p>(from, occ) & targets;
         nmoves += BB::bitCount(mobility);
     }
 

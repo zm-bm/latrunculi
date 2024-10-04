@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "board.hpp"
+#include "chess.hpp"
 #include "globals.hpp"
 #include "search.hpp"
 
@@ -20,8 +20,8 @@ class PerftTest : public ::testing::TestWithParam<
 
 TEST_P(PerftTest, PerftForMultipleDepths) {
     auto [fen, expected_results] = GetParam();
-    Board board(fen);
-    Search search(&board);
+    Chess chess(fen);
+    Search search(&chess);
 
     for (int depth = 1; depth <= expected_results.size(); ++depth) {
         int result = search.perft<true, false>(depth);

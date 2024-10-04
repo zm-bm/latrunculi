@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "globals.hpp"
+#include "magics.hpp"
 #include "types.hpp"
 
 namespace BB {
@@ -167,6 +168,81 @@ inline U64 getAllFrontSpan(U64 bb) {
     // span.
     U64 spanFrontBB = spanFront<c>(bb);
     return shiftWest(spanFrontBB) | shiftEast(spanFrontBB) | spanFrontBB;
+}
+
+template <PawnMove p, Color c>
+inline U64 movesByPawns(U64 pawns) {
+    if (p == PawnMove::LEFT)
+        pawns &= ~G::filemask(FILE1, c);
+    else if (p == PawnMove::RIGHT)
+        pawns &= ~G::filemask(FILE8, c);
+
+    if (c == WHITE)
+        return pawns << static_cast<int>(p);
+    else
+        return pawns >> static_cast<int>(p);
+}
+
+template <PawnMove p>
+inline U64 movesByPawns(U64 pawns, Color c) {
+    if (c == WHITE)
+        return movesByPawns<p, WHITE>(pawns);
+    else
+        return movesByPawns<p, BLACK>(pawns);
+};
+;
+
+template <Color c>
+inline U64 attacksByPawns(U64 pawns) {
+    return movesByPawns<PawnMove::LEFT, c>(pawns) |
+           movesByPawns<PawnMove::RIGHT, c>(pawns);
+}
+
+inline U64 attacksByPawns(U64 pawns, Color c) {
+    return movesByPawns<PawnMove::LEFT>(pawns, c) |
+           movesByPawns<PawnMove::RIGHT>(pawns, c);
+}
+
+template <PieceRole p>
+inline U64 movesByPiece(Square sq, U64 occupancy) {
+    switch (p) {
+        case KNIGHT:
+            return G::KNIGHT_ATTACKS[sq];
+        case BISHOP:
+            return Magics::getBishopAttacks(sq, occupancy);
+        case ROOK:
+            return Magics::getRookAttacks(sq, occupancy);
+        case QUEEN:
+            return Magics::getQueenAttacks(sq, occupancy);
+        case KING:
+            return G::KING_ATTACKS[sq];
+    }
+}
+
+template <PieceRole p>
+inline U64 movesByPiece(Square sq) {
+    return movesByPiece<p>(sq, 0);
+}
+
+inline U64 movesByPiece(Square sq, PieceRole p, U64 occupancy) {
+    switch (p) {
+        case KNIGHT:
+            return movesByPiece<KNIGHT>(sq, occupancy);
+        case BISHOP:
+            return movesByPiece<BISHOP>(sq, occupancy);
+        case ROOK:
+            return movesByPiece<ROOK>(sq, occupancy);
+        case QUEEN:
+            return movesByPiece<QUEEN>(sq, occupancy);
+        case KING:
+            return movesByPiece<KING>(sq, occupancy);
+        default:
+            return 0;
+    }
+}
+
+inline U64 movesByPiece(Square sq, PieceRole p) {
+    return movesByPiece(sq, p, 0);
 }
 
 inline void print(std::ostream& os, const U64& bb) {

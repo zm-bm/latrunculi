@@ -13,7 +13,7 @@
 #include "move.hpp"
 #include "types.hpp"
 
-class Board;
+class Chess;
 
 struct Killer {
     Move move1;
@@ -23,8 +23,8 @@ struct Killer {
 class Search {
    public:
     Search() = default;
-    Search(Board* board)
-        : bestMove(Move()), _board(board), searchPly(0), nSearched(0) {}
+    Search(Chess* chess)
+        : bestMove(Move()), chess(chess), searchPly(0), nSearched(0) {}
 
     /*
      *  search.cpp
@@ -48,7 +48,7 @@ class Search {
 
    private:
     // Board to search
-    Board* _board;
+    Chess* chess;
 
     // Main search variables
     std::vector<Move> pv[MAX_DEPTH];

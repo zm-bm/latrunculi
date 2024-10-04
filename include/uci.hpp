@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "board.hpp"
+#include "chess.hpp"
 #include "search.hpp"
 
 // Universal Chess Interface (UCI)
@@ -17,7 +17,7 @@ class Controller {
     bool execute(const std::string& input);
 
    private:
-    Board board;
+    Chess chess;
     Search search;
     bool _debug;
     std::istream& istream;
