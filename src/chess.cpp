@@ -1,107 +1,63 @@
 #include "chess.hpp"
 
-void Chess::make(Move mv)
-{
-    // First check if move gives check, will save work later
-    bool checkingMove = isCheckingMove(mv);
-    // Get the en passant square before advancing the state
-    Square epsq = getEnPassant();
-
-    // Create new board state and push it onto board state stack
-    state.push_back(State(state[ply], mv));
-    ++ply;
-    ++fullMoveCounter;
-
+void Chess::make(Move mv) {
     // Get basic information about the move
-    Square from = mv.from(),
-           to = mv.to(),
-           capturedPieceSq = to;
-    PieceRole fromPieceRole = Types::getPieceRole(board.getPiece(from)),
-              toPieceRole   = Types::getPieceRole(board.getPiece(to));
+    bool checkingMove = isCheckingMove(mv);
+    Square from = mv.from();
+    Square to = mv.to();
+    Square capturedPieceSq = to;
+    Square epsq = getEnPassant();
+    PieceRole fromPieceRole = Types::getPieceRole(board.getPiece(from));
+    PieceRole toPieceRole = Types::getPieceRole(board.getPiece(to));
     MoveType movetype = mv.type();
-
-    // Make corrections if en passant move
+    Color enemy = ~turn;
     if (movetype == ENPASSANT) {
         toPieceRole = PAWN;
         capturedPieceSq = Types::pawnMove<PawnMove::PUSH, false>(to, turn);
         board.squares[capturedPieceSq] = NO_PIECE;
     }
 
+    // Create new board state and push it onto board state stack
+    state.push_back(State(state[ply], mv));
+    ++ply;
+    ++moveCounter;
+
     // Store the captured piece role for undoing move
     state[ply].captured = toPieceRole;
-
-    Color enemy = ~turn;
-    if (toPieceRole)
-    {
-        // Reset half move clock for capture
-        state[ply].hmClock = 0;
-
-        // Remove captured piece from the board representation
-        removePiece<true>(capturedPieceSq, enemy, toPieceRole);
-
-        // Disable castle rights if captured piece is rook
-        if (canCastle(enemy) && toPieceRole == ROOK)
-        {
-            if (to == G::RookOriginOO[enemy] && canCastleOO(enemy))
-                disableCastleOO(enemy);
-            else if (to == G::RookOriginOOO[enemy] && canCastleOOO(enemy))
-                disableCastleOOO(enemy);
-        }
+    if (toPieceRole) {
+        updateCapturedPieces(capturedPieceSq, enemy, toPieceRole);
     }
 
     // Remove ep square from zobrist key if any
-    if (epsq != INVALID)
+    if (epsq != INVALID) {
         state[ply].zkey ^= Zobrist::ep[Types::getFile(epsq)];
+    }
 
     // Move the piece
-    if (movetype == CASTLE)
+    if (movetype == CASTLE) {
         makeCastle<true>(from, to, turn);
-    else
+    } else {
         movePiece<true>(from, to, turn, fromPieceRole);
+    }
 
     // Handle en passants, promotions, and update castling rights
     switch (fromPieceRole) {
-
-        case PAWN:
-        {
-            // Reset half move clock
-            state[ply].hmClock = 0;
-
-            if ((from - to) == 16 || (to - from) == 16)
-            {
-                // Set en passant square
-                Square epsq = Types::pawnMove<PawnMove::PUSH, false>(to, turn);
-                setEnPassant(epsq);
-            }
-            else if (movetype == PROMOTION)
-            {
-                // Promote the piece by replacing pawn with promotion piece
-                removePiece<true>(to, turn, PAWN);
-                addPiece<true>(to, turn, mv.promPiece());
-            }
+        case PAWN: {
+            handlePawnMoves(from, to, movetype, mv);
             break;
         }
 
-        case KING:
-        {
-            // Update king square
+        case KING: {
             board.kingSq[turn] = to;
-
-            // Disable castling rights
-            if (canCastle(turn))
+            if (canCastle(turn)) {
                 disableCastle(turn);
+            }
             break;
         }
 
-        case ROOK:
-        {
-            // Disable castling rights
-            if (canCastle(turn))
-            {
-                if (from == G::RookOriginOO[turn] && canCastleOO(turn))
-                    disableCastleOO(turn);
-                else if (from == G::RookOriginOOO[turn] && canCastleOOO(turn))
-                    disableCastleOOO(turn);
+        case ROOK: {
+            if (canCastle(turn)) {
+                disableCastle(turn, from);
             }
             break;
         }
@@ -116,80 +72,72 @@ void Chess::make(Move mv)
     updateState(checkingMove);
 }
 
-void Chess::unmake()
-{
+void Chess::unmake() {
     // Get basic move information
     Color enemy = turn;
     Move mv = state[ply].move;
-    Square from = mv.from(),
-           to = mv.to();
+    Square from = mv.from(), to = mv.to();
     PieceRole toPieceRole = state[ply].captured,
               fromPieceRole = Types::getPieceRole(board.getPiece(to));
     MoveType movetype = mv.type();
 
     // Revert to the previous board state
     --ply;
-    --fullMoveCounter;
+    --moveCounter;
     turn = ~turn;
     state.pop_back();
 
     // Make corrections if promotion move
-    if (movetype == PROMOTION)
-    {
+    if (movetype == PROMOTION) {
         removePiece<false>(to, turn, fromPieceRole);
         addPiece<false>(to, turn, PAWN);
         fromPieceRole = PAWN;
     }
 
     // Undo the move
-    if (movetype == CASTLE)
+    if (movetype == CASTLE) {
         makeCastle<false>(from, to, turn);
-    else
-    {
+    } else {
         movePiece<false>(to, from, turn, fromPieceRole);
 
         // Add captured piece
-        if (toPieceRole)
-        {
+        if (toPieceRole) {
             Square capturedPieceSq = to;
-            if (movetype == ENPASSANT)
-                capturedPieceSq = Types::pawnMove<PawnMove::PUSH, false>(to, turn);
+            if (movetype == ENPASSANT) {
+                capturedPieceSq =
+                    Types::pawnMove<PawnMove::PUSH, false>(to, turn);
+            }
 
             addPiece<false>(capturedPieceSq, enemy, toPieceRole);
         }
     }
 
-    if (fromPieceRole == KING)
-        board.kingSq[turn] = from;
+    if (fromPieceRole == KING) board.kingSq[turn] = from;
 }
 
-void Chess::makeNull()
-{
+void Chess::makeNull() {
     Square epsq = getEnPassant();
 
     state.push_back(State(state[ply], Move()));
     turn = ~turn;
-    ++fullMoveCounter;
     ++ply;
 
     state[ply].zkey ^= Zobrist::stm;
-    if (epsq != INVALID)
+    if (epsq != INVALID) {
         state[ply].zkey ^= Zobrist::ep[Types::getFile(epsq)];
+    }
 
     updateState();
 }
 
-void Chess::unmmakeNull()
-{
+void Chess::unmmakeNull() {
     --ply;
-    --fullMoveCounter;
     turn = ~turn;
     state.pop_back();
 }
 
-template<bool forward>
-void Chess::makeCastle(Square from, Square to, Color c)
-{
+template <bool forward>
+void Chess::makeCastle(Square from, Square to, Color c) {
     if (forward)
         movePiece<forward>(from, to, c, KING);
     else
@@ -198,8 +146,7 @@ void Chess::makeCastle(Square from, Square to, Color c)
     if (to > from) {
         to = Square(from + 1);
         from = G::RookOriginOO[c];
-    }
-    else {
+    } else {
         to = Square(from - 1);
         from = G::RookOriginOOO[c];
     }
@@ -210,45 +157,37 @@ void Chess::makeCastle(Square from, Square to, Color c)
         movePiece<forward>(to, from, c, ROOK);
 }
 
-
-
 // Determine if a move is legal for the current board
-bool Chess::isLegalMove(Move mv) const
-{
-    Square from = mv.from(),
-           to = mv.to(),
-           king = board.getKingSq(turn);
+bool Chess::isLegalMove(Move mv) const {
+    Square from = mv.from(), to = mv.to(), king = board.getKingSq(turn);
 
-    if (from == king)
-    {
+    if (from == king) {
         if (mv.type() == CASTLE)
             return true;
         else  // Check if destination sq is attacked by enemy
-            return !board.attacksTo(to, ~turn, board.occupancy() ^ BB::set(from) ^ BB::set(to));
-    }
-    else if (mv.type() == ENPASSANT)
-    {
+            return !board.attacksTo(
+                to, ~turn, board.occupancy() ^ BB::set(from) ^ BB::set(to));
+    } else if (mv.type() == ENPASSANT) {
         Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, turn);
-        U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
+        U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) |
+                  BB::set(to);
 
         // Check if captured pawn was blocking check
-        return !(BB::movesByPiece<BISHOP>(king, occ) & board.diagonalSliders(~turn))
-            && !(BB::movesByPiece<ROOK  >(king, occ) & board.straightSliders(~turn));
-    }
-    else
-    {
+        return !(BB::movesByPiece<BISHOP>(king, occ) &
+                 board.diagonalSliders(~turn)) &&
+               !(BB::movesByPiece<ROOK>(king, occ) &
+                 board.straightSliders(~turn));
+    } else {
         // Check if moved piece was pinned
-        return !state.at(ply).pinnedPieces
-            || !(state.at(ply).pinnedPieces & BB::set(from))
-            || BB::bitsInline(from, to) & BB::set(king);
+        return !state.at(ply).pinnedPieces ||
+               !(state.at(ply).pinnedPieces & BB::set(from)) ||
+               BB::bitsInline(from, to) & BB::set(king);
     }
 }
 
 // Determine if a move gives check for the current board
-bool Chess::isCheckingMove(Move mv) const
-{
-    Square from = mv.from(),
-           to = mv.to();
+bool Chess::isCheckingMove(Move mv) const {
+    Square from = mv.from(), to = mv.to();
     PieceRole role = Types::getPieceRole(board.getPiece(from));
 
     // Check if destination+piece role directly attacks the king
@@ -258,50 +197,48 @@ bool Chess::isCheckingMove(Move mv) const
 
     // Check if moved piece was blocking enemy king from attack
     Square king = board.getKingSq(~turn);
-    if (state[ply].discoveredCheckers
-        && (state[ply].discoveredCheckers & BB::set(from))
-        && !(BB::bitsInline(from, to) & BB::set(king)))
-    {
+    if (state[ply].discoveredCheckers &&
+        (state[ply].discoveredCheckers & BB::set(from)) &&
+        !(BB::bitsInline(from, to) & BB::set(king))) {
         return true;
     }
 
-    switch (mv.type())
-    {
+    switch (mv.type()) {
         case NORMAL:
             return false;
 
-        case PROMOTION:
-        {
+        case PROMOTION: {
             // Check if a promotion attacks the enemy king
             U64 occ = board.occupancy() ^ BB::set(from);
             return BB::movesByPiece(to, mv.promPiece(), occ) & BB::set(king);
         }
 
-        case ENPASSANT:
-        {
+        case ENPASSANT: {
             // Check if captured pawn was blocking enemy king from attack
             Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, turn);
-            U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
+            U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) |
+                      BB::set(to);
 
-            return BB::movesByPiece<BISHOP>(king, occ) & board.diagonalSliders(turn)
-                || BB::movesByPiece<ROOK>(king, occ)   & board.straightSliders(turn);
+            return ((BB::movesByPiece<BISHOP>(king, occ) &
+                     board.diagonalSliders(turn)) ||
+                    (BB::movesByPiece<ROOK>(king, occ) &
+                     board.straightSliders(turn)));
         }
 
-        case CASTLE:
-        {
+        case CASTLE: {
             // Check if rook's destination after castling attacks enemy king
             Square rookFrom, rookTo;
 
             if (to > from) {
                 rookTo = Square(from + 1);
                 rookFrom = G::RookOriginOO[turn];
-            }
-            else {
+            } else {
                 rookTo = Square(from - 1);
                 rookFrom = G::RookOriginOOO[turn];
             }
 
-            U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(rookFrom)) | BB::set(to) | BB::set(rookTo);
+            U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(rookFrom)) |
+                      BB::set(to) | BB::set(rookTo);
 
             return BB::movesByPiece<ROOK>(rookTo, occ) & BB::set(king);
         }
@@ -312,110 +249,8 @@ bool Chess::isCheckingMove(Move mv) const
     return false;
 }
 
-U64 Chess::calculateKey() const
-{
-    U64 zkey = 0x0;
-
-    for (auto sq = A1; sq != INVALID; sq++)
-    {
-        auto piece = board.getPiece(sq);
-
-        if (piece != NO_PIECE)
-        {
-            auto c = Types::getPieceColor(piece);
-            auto p = Types::getPieceRole(piece);
-            zkey ^= Zobrist::psq[c][p-1][sq];
-        }
-    }
-
-    if (turn == BLACK)
-        zkey ^= Zobrist::stm;
-
-    auto sq = getEnPassant();
-    if (sq != INVALID)
-        zkey ^= Zobrist::ep[Types::getFile(sq)];
-
-    if (canCastleOO(WHITE))
-        zkey ^= Zobrist::castle[WHITE][KINGSIDE];
-
-    if (canCastleOOO(WHITE))
-        zkey ^= Zobrist::castle[WHITE][QUEENSIDE];
-
-    if (canCastleOO(BLACK))
-        zkey ^= Zobrist::castle[BLACK][KINGSIDE];
-
-    if (canCastleOOO(BLACK))
-        zkey ^= Zobrist::castle[BLACK][QUEENSIDE];
-
-    return zkey;
-}
-
-std::string Chess::toFEN() const {
-    std::ostringstream oss;
-
-    for (Rank rank = RANK8; rank >= RANK1; rank--)
-    {
-        int emptyCount = 0;
-        for (File file = FILE1; file <= FILE8; file++) {
-
-            Piece p = board.getPiece(Types::getSquare(file, rank));
-            if (p != NO_PIECE) {
-
-                if (emptyCount > 0) {
-                    oss << emptyCount;
-                    emptyCount = 0;
-                }
-                oss << p;
-            }
-            else
-                ++emptyCount;
-        }
-
-        if (emptyCount > 0) {
-            oss << emptyCount;
-            emptyCount = 0;
-        }
-        if (rank != RANK1)
-            oss << '/';
-    }
-
-    if (turn)
-        oss << " w ";
-    else
-        oss << " b ";
-
-    if (canCastle(WHITE) || canCastle(BLACK))
-    {
-        if (canCastleOO(WHITE))
-            oss << "K";
-        if (canCastleOOO(WHITE))
-            oss << "Q";
-        if (canCastleOO(BLACK))
-            oss << "k";
-        if (canCastleOOO(BLACK))
-            oss << "q";
-    } else {
-        oss << "-";
-    }
-    
-    Square enpassant = getEnPassant();
-    if (enpassant != INVALID) {
-        oss << " " << enpassant << " ";
-    } else {
-        oss << " - ";
-    }
-
-    oss << +state.at(ply).hmClock << " " << (fullMoveCounter + 1) / 2;
-
-    return oss.str();
-}
-
 Chess::Chess(const std::string& fen)
-    : state{{ State() }}
-    , board{ Board(fen) }
-    , ply{0}
-    , fullMoveCounter{0}
-{
+    : state{{State()}}, board{Board(fen)}, ply{0}, moveCounter{0} {
     // Constructor using a FEN string
     // See: https://www.chessprogramming.org/Forsyth-Edwards_Notation
     std::vector<std::string> tokens = G::split(fen, ' ');
@@ -458,11 +293,61 @@ Chess::Chess(const std::string& fen)
     }
 
     if (tokens.size() > 5) {
-        fullMoveCounter = 2 * std::stoul(tokens.at(5));
+        moveCounter = 2 * std::stoul(tokens.at(5));
     }
 
     state.at(ply).zkey = calculateKey();
     updateState();
+}
+
+std::string Chess::toFEN() const {
+    std::ostringstream oss;
+
+    for (Rank rank = RANK8; rank >= RANK1; rank--) {
+        int emptyCount = 0;
+        for (File file = FILE1; file <= FILE8; file++) {
+            Piece p = board.getPiece(Types::getSquare(file, rank));
+            if (p != NO_PIECE) {
+                if (emptyCount > 0) {
+                    oss << emptyCount;
+                    emptyCount = 0;
+                }
+                oss << p;
+            } else
+                ++emptyCount;
+        }
+
+        if (emptyCount > 0) {
+            oss << emptyCount;
+            emptyCount = 0;
+        }
+        if (rank != RANK1) oss << '/';
+    }
+
+    if (turn)
+        oss << " w ";
+    else
+        oss << " b ";
+
+    if (canCastle(WHITE) || canCastle(BLACK)) {
+        if (canCastleOO(WHITE)) oss << "K";
+        if (canCastleOOO(WHITE)) oss << "Q";
+        if (canCastleOO(BLACK)) oss << "k";
+        if (canCastleOOO(BLACK)) oss << "q";
+    } else {
+        oss << "-";
+    }
+
+    Square enpassant = getEnPassant();
+    if (enpassant != INVALID) {
+        oss << " " << enpassant << " ";
+    } else {
+        oss << " - ";
+    }
+
+    oss << +state.at(ply).hmClock << " " << (moveCounter + 1) / 2;
+
+    return oss.str();
 }
 
 std::string Chess::DebugString() const {

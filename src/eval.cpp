@@ -267,7 +267,7 @@ int Chess::eval() const
         bShieldWeak = BB::shiftSouth(bShield) & bPawns;
     double rawKingScore = G::STRONG_KING_SHIELD_BONUS * (BB::bitCount(wShieldStrong) - BB::bitCount(bShieldStrong))
                         + G::WEAK_KING_SHIELD_BONUS * (BB::bitCount(wShieldWeak) - BB::bitCount(bShieldWeak));
-    double kingScore = rawKingScore * std::min(16, (int)fullMoveCounter) / 16 * openingModifier;
+    double kingScore = rawKingScore * std::min(16, (int)moveCounter) / 16 * openingModifier;
     if (debug)
 	{
 		std::cout << " King Safety| "

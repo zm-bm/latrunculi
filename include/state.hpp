@@ -11,10 +11,10 @@ struct State {
     State(const State&) = default;
 
     State(const State& state, Move mv)
-        : zkey(state.zkey),
-          move(mv),
-          castle(state.castle),
-          hmClock(state.hmClock + 1) {}
+        : zkey(state.zkey)
+        , move(mv)
+        , castle(state.castle)
+        , hmClock(state.hmClock + 1) {}
 
     // Check info bitboards
     U64 checkingPieces = 0;
