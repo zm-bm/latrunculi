@@ -11,16 +11,15 @@
 #include "zobrist.hpp"
 
 struct Board {
-    U64 pieces[2][7];
-    Piece squares[64];
-    Square kingSq[2];
-    U8 pieceCount[2][7];
-    I32 openingScore;
-    I32 endgameScore;
-    I32 materialScore;
+    U64 pieces[2][7] = {0};
+    Piece squares[64] = {NO_PIECE};
+    Square kingSq[2] = {E1, E8};
+    U8 pieceCount[2][7] = {0};
+    I32 openingScore = 0;
+    I32 endgameScore = 0;
+    I32 materialScore = 0;
 
     explicit Board(const std::string&);
-    void loadFEN(const std::string&);
     friend std::ostream& operator<<(std::ostream& os, const Board& b);
 
     // int calculateMobilityScore(const int, const int) const;

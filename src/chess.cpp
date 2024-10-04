@@ -1,17 +1,5 @@
 #include "chess.hpp"
 
-// Create a board using a FEN string
-// See: https://www.chessprogramming.org/Forsyth-Edwards_Notation
-Chess::Chess(const std::string& fen)
-    : state{{ State() }}
-    , board{ Board(fen) }
-    , ply{0}
-    , fullMoveCounter{0}
-{
-    loadFEN(fen);
-    updateState();
-}
-
 void Chess::make(Move mv)
 {
     // First check if move gives check, will save work later
@@ -335,8 +323,8 @@ U64 Chess::calculateKey() const
         if (piece != NO_PIECE)
         {
             auto c = Types::getPieceColor(piece);
-            auto pt = Types::getPieceRole(piece);
-            zkey ^= Zobrist::psq[c][pt-1][sq];
+            auto p = Types::getPieceRole(piece);
+            zkey ^= Zobrist::psq[c][p-1][sq];
         }
     }
 
@@ -422,7 +410,14 @@ std::string Chess::toFEN() const {
     return oss.str();
 }
 
-void Chess::loadFEN(const std::string& fen) {
+Chess::Chess(const std::string& fen)
+    : state{{ State() }}
+    , board{ Board(fen) }
+    , ply{0}
+    , fullMoveCounter{0}
+{
+    // Constructor using a FEN string
+    // See: https://www.chessprogramming.org/Forsyth-Edwards_Notation
     std::vector<std::string> tokens = G::split(fen, ' ');
 
     if (tokens.size() > 3) {
@@ -430,35 +425,25 @@ void Chess::loadFEN(const std::string& fen) {
             turn = WHITE;
         } else {
             turn = BLACK;
-            state[ply].zkey ^= Zobrist::stm;
         }
 
         state.at(ply).castle = NO_CASTLE;
         std::string castle = tokens.at(2);
-        if (castle.find('-') == std::string::npos)
-        {
-            if (castle.find('K') != std::string::npos)
-            {
+        if (castle.find('-') == std::string::npos) {
+            if (castle.find('K') != std::string::npos) {
                 state.at(ply).castle |= WHITE_OO;
-                state.at(ply).zkey ^= Zobrist::castle[WHITE][KINGSIDE];
             }
 
-            if (castle.find('Q') != std::string::npos)
-            {
+            if (castle.find('Q') != std::string::npos) {
                 state.at(ply).castle |= WHITE_OOO;
-                state.at(ply).zkey ^= Zobrist::castle[WHITE][QUEENSIDE];
             }
 
-            if (castle.find('k') != std::string::npos)
-            {
+            if (castle.find('k') != std::string::npos) {
                 state.at(ply).castle |= BLACK_OO;
-                state.at(ply).zkey ^= Zobrist::castle[BLACK][KINGSIDE];
             }
 
-            if (castle.find('q') != std::string::npos)
-            {
+            if (castle.find('q') != std::string::npos) {
                 state.at(ply).castle |= BLACK_OOO;
-                state.at(ply).zkey ^= Zobrist::castle[BLACK][QUEENSIDE];
             }
         }
 
@@ -475,6 +460,9 @@ void Chess::loadFEN(const std::string& fen) {
     if (tokens.size() > 5) {
         fullMoveCounter = 2 * std::stoul(tokens.at(5));
     }
+
+    state.at(ply).zkey = calculateKey();
+    updateState();
 }
 
 std::string Chess::DebugString() const {

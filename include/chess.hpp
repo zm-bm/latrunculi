@@ -8,11 +8,11 @@
 
 class Chess {
    private:
-    std::vector<State> state;
-    Board board;
-    Color turn;
-    U32 ply;
-    U32 fullMoveCounter;
+    std::vector<State> state = { State() };
+    Board board = Board(G::STARTFEN);
+    Color turn = WHITE;
+    U32 ply = 0;
+    U32 fullMoveCounter = 0;
 
    public:
     explicit Chess(const std::string&);
@@ -57,7 +57,6 @@ class Chess {
     inline void updateState(bool inCheck);
 
     std::string toFEN() const;
-    void loadFEN(const std::string&);
     std::string DebugString() const;
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
     friend class MoveGen;

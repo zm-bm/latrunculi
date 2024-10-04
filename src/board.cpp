@@ -8,21 +8,6 @@
 #include "types.hpp"
 
 Board::Board(const std::string& fen) {
-    for (int i = 0; i < 7; i++) {
-        pieces[BLACK][i] = 0;
-        pieces[WHITE][i] = 0;
-        pieceCount[BLACK][i] = 0;
-        pieceCount[WHITE][i] = 0;
-    }
-
-    for (Square sq = A1; sq < INVALID; sq++) {
-        squares[sq] = NO_PIECE;
-    }
-
-    loadFEN(fen);
-}
-
-void Board::loadFEN(const std::string& fen) {
     std::string pieces = G::split(fen, ' ').at(0);
 
     auto file = FILE1;

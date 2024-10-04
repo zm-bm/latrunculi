@@ -102,6 +102,7 @@ void Controller::position(std::vector<std::string>& tokens) {
   } else if (pos == "fen") {
     std::string fen = "";
 
+    // TODO: implement position [fen] moves ...
     for (auto& token : tokens) {
       if (token != "moves")
         fen += token + " ";
@@ -113,10 +114,9 @@ void Controller::position(std::vector<std::string>& tokens) {
     search = Search(&chess);
 
     if (_debug) ostream << chess;
-  } else
+  } else {
     return;
-
-  ostream << "TODO: moves" << std::endl;
+  }
 }
 
 void Controller::go(std::vector<std::string>& tokens) {

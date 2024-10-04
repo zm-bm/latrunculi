@@ -12,7 +12,6 @@ struct State {
 
     State(const State& state, Move mv)
         : zkey(state.zkey),
-          pawnzkey(state.pawnzkey),
           move(mv),
           castle(state.castle),
           hmClock(state.hmClock + 1) {}
@@ -25,7 +24,6 @@ struct State {
 
     // Hash keys
     U64 zkey = 0;
-    U64 pawnzkey = 0;
 
     // Board state variables
     Move move;
