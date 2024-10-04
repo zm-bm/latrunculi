@@ -83,16 +83,16 @@ struct Board {
         return getCheckBlockers(c, c);
     }
 
-    template <PieceRole pt>
+    template <PieceRole p>
     inline U8 count(Color c) const {
         // Return the count of pieces of a specific role for the given color
-        return pieceCount[c][pt];
+        return pieceCount[c][p];
     }
 
-    template <PieceRole pt>
+    template <PieceRole p>
     inline U8 count() const {
         // Return the total count of pieces of a specific role for both colors
-        return count<pt>(WHITE) + count<pt>(BLACK);
+        return count<p>(WHITE) + count<p>(BLACK);
     }
 
     inline Piece getPiece(Square sq) const {
@@ -115,9 +115,9 @@ struct Board {
         return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) + count<QUEEN>(c);
     }
 
-    inline int psqv(Color c, PieceRole pt, int phase, Square sq) {
+    inline int psqv(Color c, PieceRole p, int phase, Square sq) {
         // Get the piece square value
-        int score = G::PieceSqValues[pt - 1][phase][G::ColorSq[c][sq]];
+        int score = G::PieceSqValues[p - 1][phase][G::ColorSq[c][sq]];
         // Return +score for white, -score for black
         return (2 * c * score) - score;
     }
@@ -125,53 +125,55 @@ struct Board {
 };
 
 template <bool forward>
-inline void Board::addPiece(const Square sq, const Color c,
-                            const PieceRole pt) {
+inline void Board::addPiece(const Square sq,
+                            const Color c,
+                            const PieceRole p) {
     // Toggle bitboards and add to square centric board
     pieces[c][ALL_PIECE_ROLES] ^= BB::set(sq);
-    pieces[c][pt] ^= BB::set(sq);
-    squares[sq] = Types::makePiece(c, pt);
+    pieces[c][p] ^= BB::set(sq);
+    squares[sq] = Types::makePiece(c, p);
 
     // Update evaluation helpers
-    pieceCount[c][pt]++;
-    materialScore += G::PieceValues[pt - 1][c];
-    openingScore += psqv(c, pt, OPENING, sq);
-    endgameScore += psqv(c, pt, ENDGAME, sq);
+    pieceCount[c][p]++;
+    materialScore += G::PieceValues[p - 1][c];
+    openingScore += psqv(c, p, OPENING, sq);
+    endgameScore += psqv(c, p, ENDGAME, sq);
 
-    // if (forward) state.at(ply).zkey ^= Zobrist::psq[c][pt - 1][sq];
+    // if (forward) state.at(ply).zkey ^= Zobrist::psq[c][p - 1][sq];
 }
 
 template <bool forward>
-inline void Board::removePiece(const Square sq, const Color c,
-                               const PieceRole pt) {
+inline void Board::removePiece(const Square sq,
+                               const Color c,
+                               const PieceRole p) {
     // Toggle bitboards
     pieces[c][ALL_PIECE_ROLES] ^= BB::set(sq);
-    pieces[c][pt] ^= BB::set(sq);
+    pieces[c][p] ^= BB::set(sq);
 
     // Update evaluation helpers
-    pieceCount[c][pt]--;
-    materialScore -= G::PieceValues[pt - 1][c];
-    openingScore -= psqv(c, pt, OPENING, sq);
-    endgameScore -= psqv(c, pt, ENDGAME, sq);
+    pieceCount[c][p]--;
+    materialScore -= G::PieceValues[p - 1][c];
+    openingScore -= psqv(c, p, OPENING, sq);
+    endgameScore -= psqv(c, p, ENDGAME, sq);
 
-    // if (forward) state.at(ply).zkey ^= Zobrist::psq[c][pt - 1][sq];
+    // if (forward) state.at(ply).zkey ^= Zobrist::psq[c][p - 1][sq];
 }
 
 template <bool forward>
-inline void Board::movePiece(const Square from, const Square to, const Color c,
-                             const PieceRole pt) {
+inline void Board::movePiece(const Square from,
+                             const Square to,
+                             const Color c,
+                             const PieceRole p) {
     // Toggle bitboards and add to square centric board
     U64 mask = BB::set(from) | BB::set(to);
     pieces[c][ALL_PIECE_ROLES] ^= mask;
-    pieces[c][pt] ^= mask;
+    pieces[c][p] ^= mask;
     squares[from] = NO_PIECE;
-    squares[to] = Types::makePiece(c, pt);
+    squares[to] = Types::makePiece(c, p);
 
     // Update evaluation helpers
-    openingScore +=
-        psqv(c, pt, OPENING, to) - psqv(c, pt, OPENING, from);
-    endgameScore +=
-        psqv(c, pt, ENDGAME, to) - psqv(c, pt, ENDGAME, from);
+    openingScore += psqv(c, p, OPENING, to) - psqv(c, p, OPENING, from);
+    endgameScore += psqv(c, p, ENDGAME, to) - psqv(c, p, ENDGAME, from);
 
     // if (forward)
     //     state.at(ply).zkey ^=
