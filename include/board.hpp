@@ -21,107 +21,45 @@ struct Board {
 
     explicit Board(const std::string&);
     void loadFEN(const std::string&);
-
-    U64 getCheckBlockers(Color, Color) const;
-
-    int calculateMobilityScore(const int, const int) const;
-
-    template <PieceRole>
-    int calculateMobilityScore(const int, const int) const;
-
-    template <PieceRole p>
-    int calculateMobility(U64 bitboard, U64 targets, U64 occ) const;
-
     friend std::ostream& operator<<(std::ostream& os, const Board& b);
 
-    template <bool>
-    inline void addPiece(Square, Color, PieceRole);
+    // int calculateMobilityScore(const int, const int) const;
+    // template <PieceRole>
+    // int calculateMobilityScore(const int, const int) const;
+    // template <PieceRole p>
+    // int calculateMobility(U64 bitboard, U64 targets, U64 occ) const;
 
     template <bool>
-    inline void removePiece(Square, Color, PieceRole);
-
+    void addPiece(Square, Color, PieceRole);
     template <bool>
-    inline void movePiece(Square, Square, Color, PieceRole);
-
-    inline U64 attacksTo(Square, Color) const;
-    inline U64 attacksTo(Square, Color, U64) const;
-    inline bool isBitboardAttacked(U64, Color) const;
+    void removePiece(Square, Color, PieceRole);
+    template <bool>
+    void movePiece(Square, Square, Color, PieceRole);
 
     template <PieceRole p>
-    inline U64 getPieces(Color c) const {
-        // Return the bitboard of pieces of a specific role for the given color
-        return pieces[c][p];
-    }
-
-    inline U64 occupancy() const {
-        // Return the combined bitboard of all pieces on the board
-        return pieces[WHITE][ALL_PIECE_ROLES] | pieces[BLACK][ALL_PIECE_ROLES];
-    }
-
-    inline U64 diagonalSliders(Color c) const {
-        // Return the bitboard of diagonal sliding pieces (Bishops and Queens) for the given color
-        return pieces[c][BISHOP] | pieces[c][QUEEN];
-    }
-
-    inline U64 straightSliders(Color c) const {
-        // Return the bitboard of straight sliding pieces (Rooks and Queens) for the given color
-        return pieces[c][ROOK] | pieces[c][QUEEN];
-    }
-
-    inline U64 calculateCheckingPieces(Color c) const {
-        // Calculate and return the bitboard of pieces attacking the enemy king
-        return attacksTo(getKingSq(c), ~c);
-    }
-
-    inline U64 calculateDiscoveredCheckers(Color c) const {
-        // Calculate and return the bitboard of pieces that can give discovered check
-        return getCheckBlockers(c, ~c);
-    }
-
-    inline U64 calculatePinnedPieces(Color c) const {
-        // Calculate and return the bitboard of pieces that are pinned relative to the king
-        return getCheckBlockers(c, c);
-    }
+    U64 getPieces(Color c) const;
+    U64 occupancy() const;
+    U64 diagonalSliders(Color c) const;
+    U64 straightSliders(Color c) const;
+    U64 attacksTo(Square, Color) const;
+    U64 attacksTo(Square, Color, U64) const;
+    U64 calculateCheckBlockers(Color, Color) const;
+    U64 calculateDiscoveredCheckers(Color c) const;
+    U64 calculatePinnedPieces(Color c) const;
+    U64 calculateCheckingPieces(Color c) const;
 
     template <PieceRole p>
-    inline U8 count(Color c) const {
-        // Return the count of pieces of a specific role for the given color
-        return pieceCount[c][p];
-    }
-
+    int count(Color c) const;
     template <PieceRole p>
-    inline U8 count() const {
-        // Return the total count of pieces of a specific role for both colors
-        return count<p>(WHITE) + count<p>(BLACK);
-    }
+    int count() const;
+    int getPieceCount(Color c) const;
 
-    inline Piece getPiece(Square sq) const {
-        // Return the piece located at a specific square
-        return squares[sq];
-    }
+    Piece getPiece(Square sq) const;
+    PieceRole getPieceRole(Square sq) const;
+    Square getKingSq(Color c) const;
 
-    inline PieceRole getPieceRole(Square sq) const {
-        // Return the role of the piece located at a specific square
-        return Types::getPieceRole(squares[sq]);
-    }
-    
-    inline Square getKingSq(Color c) const {
-        // Return the square of the king for the given color
-        return kingSq[c];
-    }
-    
-    inline int getPieceCount(Color c) const {
-        // Return the total count of all major pieces (Knights, Bishops, Rooks, Queens) for the given color
-        return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) + count<QUEEN>(c);
-    }
-
-    inline int psqv(Color c, PieceRole p, int phase, Square sq) {
-        // Get the piece square value
-        int score = G::PieceSqValues[p - 1][phase][G::ColorSq[c][sq]];
-        // Return +score for white, -score for black
-        return (2 * c * score) - score;
-    }
-
+    bool isBitboardAttacked(U64, Color) const;
+    int psqv(Color c, PieceRole p, int phase, Square sq);
 };
 
 template <bool forward>
@@ -180,13 +118,34 @@ inline void Board::movePiece(const Square from,
     //         Zobrist::psq[c][pt - 1][from] ^ Zobrist::psq[c][pt - 1][to];
 }
 
-// Returns a bitboard of pieces of color c which attacks a square
+template <PieceRole p>
+inline U64 Board::getPieces(Color c) const {
+    // Return the bitboard of pieces of a specific role for the given color
+    return pieces[c][p];
+}
+
+inline U64 Board::occupancy() const {
+    // Return the combined bitboard of all pieces on the board
+    return pieces[WHITE][ALL_PIECE_ROLES] | pieces[BLACK][ALL_PIECE_ROLES];
+}
+
+inline U64 Board::diagonalSliders(Color c) const {
+    // Return the bitboard of diagonal sliding pieces (Bishops and Queens) for the given color
+    return pieces[c][BISHOP] | pieces[c][QUEEN];
+}
+
+inline U64 Board::straightSliders(Color c) const {
+    // Return the bitboard of straight sliding pieces (Rooks and Queens) for the given color
+    return pieces[c][ROOK] | pieces[c][QUEEN];
+}
+
 inline U64 Board::attacksTo(Square sq, Color c) const {
+    // Returns a bitboard of pieces of color c which attacks a square
     return attacksTo(sq, c, occupancy());
 }
 
-// Returns a bitboard of pieces of color c which attacks a square
 inline U64 Board::attacksTo(Square sq, Color c, U64 occ) const {
+    // Returns a bitboard of pieces of color c which attacks a square
     U64 piece = BB::set(sq);
 
     return (getPieces<PAWN>(c) & BB::attacksByPawns(piece, ~c)) |
@@ -196,8 +155,80 @@ inline U64 Board::attacksTo(Square sq, Color c, U64 occ) const {
            (straightSliders(c) & BB::movesByPiece<ROOK>(sq, occ));
 }
 
-// Determine if any set square of a bitboard is attacked by color c
+inline U64 Board::calculateCheckBlockers(Color c, Color kingC) const {
+    // Determine pieces of color c, which block the color kingC from attack by the enemy
+    Color enemy = ~kingC;
+    Square king = getKingSq(kingC);
+
+    // Determine which enemy sliders could check the kingC's king
+    U64 blockers = 0,
+       pinners = (BB::movesByPiece<BISHOP>(king) & diagonalSliders(enemy))
+               | (BB::movesByPiece<ROOK  >(king) & straightSliders(enemy));
+
+    while (pinners) {
+        // For each potential pinning piece
+        Square pinner = BB::lsb(pinners);
+        pinners &= BB::clear(pinner);
+
+        // Check if only one piece separates the slider and the king
+        U64 piecesInBetween = occupancy() & BB::bitsBtwn(king, pinner);
+        if (!BB::moreThanOneSet(piecesInBetween)) {
+            blockers |= piecesInBetween & getPieces<ALL_PIECE_ROLES>(c);
+        }
+    }
+
+    return blockers;
+}
+
+inline U64 Board::calculateDiscoveredCheckers(Color c) const {
+    // Calculate and return the bitboard of pieces that can give discovered check
+    return calculateCheckBlockers(c, ~c);
+}
+
+inline U64 Board::calculatePinnedPieces(Color c) const {
+    // Calculate and return the bitboard of pieces that are pinned relative to the king
+    return calculateCheckBlockers(c, c);
+}
+
+inline U64 Board::calculateCheckingPieces(Color c) const {
+    // Calculate and return the bitboard of pieces attacking the enemy king
+    return attacksTo(getKingSq(c), ~c);
+}
+
+template <PieceRole p>
+inline int Board::count(Color c) const {
+    // Return the count of pieces of a specific role for the given color
+    return pieceCount[c][p];
+}
+
+template <PieceRole p>
+inline int Board::count() const {
+    // Return the total count of pieces of a specific role for both colors
+    return count<p>(WHITE) + count<p>(BLACK);
+}
+
+inline int Board::getPieceCount(Color c) const {
+    // Return the total count of all major pieces (Knights, Bishops, Rooks, Queens) for the given color
+    return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) + count<QUEEN>(c);
+}
+
+inline Piece Board::getPiece(Square sq) const {
+    // Return the piece located at a specific square
+    return squares[sq];
+}
+
+inline PieceRole Board::getPieceRole(Square sq) const {
+    // Return the role of the piece located at a specific square
+    return Types::getPieceRole(squares[sq]);
+}
+
+inline Square Board::getKingSq(Color c) const {
+    // Return the square of the king for the given color
+    return kingSq[c];
+}
+
 inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const {
+    // Determine if any set square of a bitboard is attacked by color c
     while (bitboard) {
         Square sq = BB::lsb(bitboard);
         bitboard &= BB::clear(sq);
@@ -206,6 +237,13 @@ inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const {
     }
 
     return false;
+}
+
+inline int Board::psqv(Color c, PieceRole p, int phase, Square sq) {
+    // Get the piece square value
+    int score = G::PieceSqValues[p - 1][phase][G::ColorSq[c][sq]];
+    // Return +score for white, -score for black
+    return (2 * c * score) - score;
 }
 
 #endif

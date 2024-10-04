@@ -113,74 +113,47 @@ std::ostream& operator<<(std::ostream& os, const Board& b)
     return os;
 }
 
-// Determine pieces of color c, which block the color kingC from attack by the enemy
-U64 Board::getCheckBlockers(Color c, Color kingC) const
-{
-    Color enemy = ~kingC;
-    Square king = getKingSq(kingC);
+// int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
+// {
+//     int score = 0;
+//     score += calculateMobilityScore<KNIGHT>(opPhase, egPhase);
+//     score += calculateMobilityScore<BISHOP>(opPhase, egPhase);
+//     score += calculateMobilityScore<ROOK  >(opPhase, egPhase);
+//     score += calculateMobilityScore<QUEEN >(opPhase, egPhase);
+//     return score;
+// }
 
-    // Determine which enemy sliders could check the kingC's king
-    U64 blockers = 0,
-       pinners = (BB::movesByPiece<BISHOP>(king) & diagonalSliders(enemy))
-               | (BB::movesByPiece<ROOK  >(king) & straightSliders(enemy));
+// template<PieceRole p>
+// int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
+// {
+//     int mobilityScore = 0;
+//     U64 occ = occupancy();
 
-    while (pinners)
-    {
-        // For each potential pinning piece
-        Square pinner = BB::lsb(pinners);
-        pinners &= BB::clear(pinner);
-
-        // Check if only one piece separates the slider and the king
-        U64 piecesInBetween = occupancy() & BB::bitsBtwn(king, pinner);
-        if (!BB::moreThanOneSet(piecesInBetween)) {
-            blockers |= piecesInBetween & getPieces<ALL_PIECE_ROLES>(c);
-        }
-    }
-
-    return blockers;
-}
-
-int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
-{
-    int score = 0;
-    score += calculateMobilityScore<KNIGHT>(opPhase, egPhase);
-    score += calculateMobilityScore<BISHOP>(opPhase, egPhase);
-    score += calculateMobilityScore<ROOK  >(opPhase, egPhase);
-    score += calculateMobilityScore<QUEEN >(opPhase, egPhase);
-    return score;
-}
-
-template<PieceRole p>
-int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
-{
-    int mobilityScore = 0;
-    U64 occ = occupancy();
-
-    int whitemoves = calculateMobility<p>(getPieces<p>(WHITE),
-                                          ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);
-    mobilityScore += whitemoves * (opPhase * G::MobilityScaling[OPENING][p-1]
-                                 + egPhase * G::MobilityScaling[ENDGAME][p-1]);
+//     int whitemoves = calculateMobility<p>(getPieces<p>(WHITE),
+//                                           ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);
+//     mobilityScore += whitemoves * (opPhase * G::MobilityScaling[OPENING][p-1]
+//                                  + egPhase * G::MobilityScaling[ENDGAME][p-1]);
     
-    int blackmoves = calculateMobility<p>(getPieces<p>(BLACK),
-                                          ~getPieces<ALL_PIECE_ROLES>(BLACK), occ);
-    mobilityScore -= blackmoves * (opPhase * G::MobilityScaling[OPENING][p-1]
-                                 + egPhase * G::MobilityScaling[ENDGAME][p-1]);
+//     int blackmoves = calculateMobility<p>(getPieces<p>(BLACK),
+//                                           ~getPieces<ALL_PIECE_ROLES>(BLACK), occ);
+//     mobilityScore -= blackmoves * (opPhase * G::MobilityScaling[OPENING][p-1]
+//                                  + egPhase * G::MobilityScaling[ENDGAME][p-1]);
     
-    return mobilityScore;
-}
+//     return mobilityScore;
+// }
 
-template <PieceRole p>
-int Board::calculateMobility(U64 bitboard, U64 targets, U64 occ) const {
-    int nmoves = 0;
+// template <PieceRole p>
+// int Board::calculateMobility(U64 bitboard, U64 targets, U64 occ) const {
+//     int nmoves = 0;
 
-    while (bitboard) {
-        // Pop lsb bit and clear it from the bitboard
-        Square from = BB::lsb(bitboard);
-        bitboard &= BB::clear(from);
+//     while (bitboard) {
+//         // Pop lsb bit and clear it from the bitboard
+//         Square from = BB::lsb(bitboard);
+//         bitboard &= BB::clear(from);
 
-        U64 mobility = BB::movesByPiece<p>(from, occ) & targets;
-        nmoves += BB::bitCount(mobility);
-    }
+//         U64 mobility = BB::movesByPiece<p>(from, occ) & targets;
+//         nmoves += BB::bitCount(mobility);
+//     }
 
-    return nmoves;
-}
+//     return nmoves;
+// }

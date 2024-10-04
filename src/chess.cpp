@@ -497,7 +497,8 @@ int Chess::eval() const
                   << std::setw(6) << kingScore << std::endl;
 	}
 
-    double mobilityScore = board.calculateMobilityScore(opPhase, egPhase) / TOTALPHASE;
+    // double mobilityScore = board.calculateMobilityScore(opPhase, egPhase) / TOTALPHASE;
+    double mobilityScore = 0;
     int color = 2*stm - 1; // +1 when stm=WHITE, -1 when wtm=BLACK
     double score = color * (board.materialScore + positionScore + pawnScore +
                          pieceScore + kingScore + mobilityScore);
