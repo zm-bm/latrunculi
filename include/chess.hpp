@@ -10,7 +10,7 @@ class Chess {
    private:
     std::vector<State> state;
     Board board;
-    Color stm;
+    Color turn;
     U32 ply;
     U32 fullMoveCounter;
 
@@ -139,16 +139,16 @@ inline void Chess::setEnPassant(Square sq) {
 // After making a move, update the incrementally updated state helper variables
 inline void Chess::updateState(bool inCheck = true) {
     if (inCheck)
-        state[ply].checkingPieces = board.calculateCheckingPieces(stm);
+        state[ply].checkingPieces = board.calculateCheckingPieces(turn);
     else
         state[ply].checkingPieces = 0;
 
-    Color enemy = ~stm;
+    Color enemy = ~turn;
     Square king = board.getKingSq(enemy);
     U64 occ = board.occupancy();
 
-    state[ply].pinnedPieces = board.calculatePinnedPieces(stm);
-    state[ply].discoveredCheckers = board.calculateDiscoveredCheckers(stm);
+    state[ply].pinnedPieces = board.calculatePinnedPieces(turn);
+    state[ply].discoveredCheckers = board.calculateDiscoveredCheckers(turn);
     state[ply].checkingSquares[PAWN] = BB::attacksByPawns(BB::set(king), enemy);
     state[ply].checkingSquares[KNIGHT] = BB::movesByPiece<KNIGHT>(king, occ);
     state[ply].checkingSquares[BISHOP] = BB::movesByPiece<BISHOP>(king, occ);

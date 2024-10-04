@@ -103,7 +103,7 @@ int Search::negamax(int depth, int alpha, int beta, bool isPV, bool isNullAllowe
     //         && depth > R
     //         && !isPV
     //         && !wasInCheck
-    //         && _board->getPieceCount(_board->stm) > 0)
+    //         && _board->getPieceCount(_board->turn) > 0)
     //     {
     //         _board->makeNull();
     //         ++searchPly;
@@ -347,9 +347,9 @@ void Search::addToHistory(Move move, int ply)
 
     //     // Add to history table
     //     PieceRole movePiece = _board->getPieceRole(move.from());
-    //     history[_board->stm][movePiece-1][move.to()] += (U32)1 << (U64)ply; // ply^2
+    //     history[_board->turn][movePiece-1][move.to()] += (U32)1 << (U64)ply; // ply^2
 
-    //     if (history[_board->stm][movePiece-1][move.to()] > 10000)
+    //     if (history[_board->turn][movePiece-1][move.to()] > 10000)
     //     {
     //         for (int c = 0; c < 2; c++) {
     //             for (int p = 0; p < 6; p++) {
@@ -413,7 +413,7 @@ void Search::sortMoves(std::vector<Move>& moves, Move hashmove)
     //     }
     //     else {
     //         PieceRole movePiece = _board->getPieceRole(move.from());
-    //         move.score += (I32)history[_board->stm][movePiece-1][move.to()];
+    //         move.score += (I32)history[_board->turn][movePiece-1][move.to()];
     //     }
 
     //     if (move == killers[searchPly].move1)

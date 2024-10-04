@@ -278,7 +278,7 @@ int Chess::eval() const
 
     // double mobilityScore = board.calculateMobilityScore(opPhase, egPhase) / TOTALPHASE;
     double mobilityScore = 0;
-    int color = 2*stm - 1; // +1 when stm=WHITE, -1 when wtm=BLACK
+    int color = 2*turn - 1; // +1 when turn=WHITE, -1 when turn=BLACK
     double score = color * (board.materialScore + positionScore + pawnScore +
                          pieceScore + kingScore + mobilityScore);
 
