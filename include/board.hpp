@@ -28,11 +28,8 @@ struct Board {
     // template <PieceRole p>
     // int calculateMobility(U64 bitboard, U64 targets, U64 occ) const;
 
-    template <bool>
     void addPiece(Square, Color, PieceRole);
-    template <bool>
     void removePiece(Square, Color, PieceRole);
-    template <bool>
     void movePiece(Square, Square, Color, PieceRole);
 
     template <PieceRole p>
@@ -61,7 +58,6 @@ struct Board {
     int psqv(Color c, PieceRole p, int phase, Square sq);
 };
 
-template <bool forward>
 inline void Board::addPiece(const Square sq, const Color c, const PieceRole p) {
     // Toggle bitboards and add to square centric board
     pieces[c][ALL_PIECE_ROLES] ^= BB::set(sq);
@@ -73,11 +69,8 @@ inline void Board::addPiece(const Square sq, const Color c, const PieceRole p) {
     materialScore += G::PieceValues[p - 1][c];
     openingScore += psqv(c, p, OPENING, sq);
     endgameScore += psqv(c, p, ENDGAME, sq);
-
-    // if (forward) state.at(ply).zkey ^= Zobrist::psq[c][p - 1][sq];
 }
 
-template <bool forward>
 inline void Board::removePiece(const Square sq, const Color c,
                                const PieceRole p) {
     // Toggle bitboards
@@ -89,11 +82,8 @@ inline void Board::removePiece(const Square sq, const Color c,
     materialScore -= G::PieceValues[p - 1][c];
     openingScore -= psqv(c, p, OPENING, sq);
     endgameScore -= psqv(c, p, ENDGAME, sq);
-
-    // if (forward) state.at(ply).zkey ^= Zobrist::psq[c][p - 1][sq];
 }
 
-template <bool forward>
 inline void Board::movePiece(const Square from, const Square to, const Color c,
                              const PieceRole p) {
     // Toggle bitboards and add to square centric board
@@ -106,10 +96,6 @@ inline void Board::movePiece(const Square from, const Square to, const Color c,
     // Update evaluation helpers
     openingScore += psqv(c, p, OPENING, to) - psqv(c, p, OPENING, from);
     endgameScore += psqv(c, p, ENDGAME, to) - psqv(c, p, ENDGAME, from);
-
-    // if (forward)
-    //     state.at(ply).zkey ^=
-    //         Zobrist::psq[c][pt - 1][from] ^ Zobrist::psq[c][pt - 1][to];
 }
 
 template <PieceRole p>

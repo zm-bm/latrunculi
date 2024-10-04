@@ -23,53 +23,53 @@ Board::Board(const std::string& fen) {
 
             switch (ch) {
                 case 'P':
-                    addPiece<true>(sq, WHITE, PAWN);
+                    addPiece(sq, WHITE, PAWN);
                     file++;
                     break;
                 case 'N':
-                    addPiece<true>(sq, WHITE, KNIGHT);
+                    addPiece(sq, WHITE, KNIGHT);
                     file++;
                     break;
                 case 'B':
-                    addPiece<true>(sq, WHITE, BISHOP);
+                    addPiece(sq, WHITE, BISHOP);
                     file++;
                     break;
                 case 'R':
-                    addPiece<true>(sq, WHITE, ROOK);
+                    addPiece(sq, WHITE, ROOK);
                     file++;
                     break;
                 case 'Q':
-                    addPiece<true>(sq, WHITE, QUEEN);
+                    addPiece(sq, WHITE, QUEEN);
                     file++;
                     break;
                 case 'K':
                     kingSq[WHITE] = sq;
-                    addPiece<true>(sq, WHITE, KING);
+                    addPiece(sq, WHITE, KING);
                     file++;
                     break;
                 case 'p':
-                    addPiece<true>(sq, BLACK, PAWN);
+                    addPiece(sq, BLACK, PAWN);
                     file++;
                     break;
                 case 'n':
-                    addPiece<true>(sq, BLACK, KNIGHT);
+                    addPiece(sq, BLACK, KNIGHT);
                     file++;
                     break;
                 case 'b':
-                    addPiece<true>(sq, BLACK, BISHOP);
+                    addPiece(sq, BLACK, BISHOP);
                     file++;
                     break;
                 case 'r':
-                    addPiece<true>(sq, BLACK, ROOK);
+                    addPiece(sq, BLACK, ROOK);
                     file++;
                     break;
                 case 'q':
-                    addPiece<true>(sq, BLACK, QUEEN);
+                    addPiece(sq, BLACK, QUEEN);
                     file++;
                     break;
                 case 'k':
                     kingSq[BLACK] = sq;
-                    addPiece<true>(sq, BLACK, KING);
+                    addPiece(sq, BLACK, KING);
                     file++;
                     break;
                 case '/':

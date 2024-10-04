@@ -37,7 +37,7 @@ void Chess::make(Move mv)
         state[ply].hmClock = 0;
 
         // Remove captured piece from the board representation
-        board.removePiece<true>(capturedPieceSq, enemy, toPieceRole);
+        removePiece<true>(capturedPieceSq, enemy, toPieceRole);
 
         // Disable castle rights if captured piece is rook
         if (canCastle(enemy) && toPieceRole == ROOK)
@@ -57,7 +57,7 @@ void Chess::make(Move mv)
     if (movetype == CASTLE)
         makeCastle<true>(from, to, turn);
     else
-        board.movePiece<true>(from, to, turn, fromPieceRole);
+        movePiece<true>(from, to, turn, fromPieceRole);
 
     // Handle en passants, promotions, and update castling rights
     switch (fromPieceRole) {
@@ -76,8 +76,8 @@ void Chess::make(Move mv)
             else if (movetype == PROMOTION)
             {
                 // Promote the piece by replacing pawn with promotion piece
-                board.removePiece<true>(to, turn, PAWN);
-                board.addPiece<true>(to, turn, mv.promPiece());
+                removePiece<true>(to, turn, PAWN);
+                addPiece<true>(to, turn, mv.promPiece());
             }
             break;
         }
@@ -136,8 +136,8 @@ void Chess::unmake()
     // Make corrections if promotion move
     if (movetype == PROMOTION)
     {
-        board.removePiece<false>(to, turn, fromPieceRole);
-        board.addPiece<false>(to, turn, PAWN);
+        removePiece<false>(to, turn, fromPieceRole);
+        addPiece<false>(to, turn, PAWN);
         fromPieceRole = PAWN;
     }
 
@@ -146,7 +146,7 @@ void Chess::unmake()
         makeCastle<false>(from, to, turn);
     else
     {
-        board.movePiece<false>(to, from, turn, fromPieceRole);
+        movePiece<false>(to, from, turn, fromPieceRole);
 
         // Add captured piece
         if (toPieceRole)
@@ -155,7 +155,7 @@ void Chess::unmake()
             if (movetype == ENPASSANT)
                 capturedPieceSq = Types::pawnMove<PawnMove::PUSH, false>(to, turn);
 
-            board.addPiece<false>(capturedPieceSq, enemy, toPieceRole);
+            addPiece<false>(capturedPieceSq, enemy, toPieceRole);
         }
     }
 
@@ -191,9 +191,9 @@ template<bool forward>
 void Chess::makeCastle(Square from, Square to, Color c)
 {
     if (forward)
-        board.movePiece<forward>(from, to, c, KING);
+        movePiece<forward>(from, to, c, KING);
     else
-        board.movePiece<forward>(to, from, c, KING);
+        movePiece<forward>(to, from, c, KING);
 
     if (to > from) {
         to = Square(from + 1);
@@ -205,9 +205,9 @@ void Chess::makeCastle(Square from, Square to, Color c)
     }
 
     if (forward)
-        board.movePiece<forward>(from, to, c, ROOK);
+        movePiece<forward>(from, to, c, ROOK);
     else
-        board.movePiece<forward>(to, from, c, ROOK);
+        movePiece<forward>(to, from, c, ROOK);
 }
 
 

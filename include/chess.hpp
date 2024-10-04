@@ -8,7 +8,7 @@
 
 class Chess {
    private:
-    std::vector<State> state = { State() };
+    std::vector<State> state = {State()};
     Board board = Board(G::STARTFEN);
     Color turn = WHITE;
     U32 ply = 0;
@@ -32,35 +32,68 @@ class Chess {
     U64 calculateKey() const;
 
     inline int calculatePhase() const {
-        return (
-            PAWNSCORE * board.count<PAWN>() +
-            KNIGHTSCORE * board.count<KNIGHT>() +
-            BISHOPSCORE * board.count<BISHOP>() +
-            ROOKSCORE * board.count<ROOK>() +
-            QUEENSCORE * board.count<QUEEN>()
-        );
+        return (PAWNSCORE * board.count<PAWN>() +
+                KNIGHTSCORE * board.count<KNIGHT>() +
+                BISHOPSCORE * board.count<BISHOP>() +
+                ROOKSCORE * board.count<ROOK>() +
+                QUEENSCORE * board.count<QUEEN>());
     }
 
-    inline U64 getCheckingPieces() const;
-    inline Square getEnPassant() const;
-    inline U8 getHmClock() const;
-    inline U64 getKey() const;
-    inline bool isCheck() const;
-    inline bool isDoubleCheck() const;
-    inline bool canCastle(Color c) const;
-    inline bool canCastleOO(Color c) const;
-    inline bool canCastleOOO(Color c) const;
-    inline void disableCastle(Color c);
-    inline void disableCastleOO(Color c);
-    inline void disableCastleOOO(Color c);
-    inline void setEnPassant(Square sq);
-    inline void updateState(bool inCheck);
+    template <bool>
+    void addPiece(Square, Color, PieceRole);
+    template <bool>
+    void removePiece(Square, Color, PieceRole);
+    template <bool>
+    void movePiece(Square, Square, Color, PieceRole);
+
+    U64 getCheckingPieces() const;
+    Square getEnPassant() const;
+    U8 getHmClock() const;
+    U64 getKey() const;
+    bool isCheck() const;
+    bool isDoubleCheck() const;
+    bool canCastle(Color c) const;
+    bool canCastleOO(Color c) const;
+    bool canCastleOOO(Color c) const;
+    void disableCastle(Color c);
+    void disableCastleOO(Color c);
+    void disableCastleOOO(Color c);
+    void setEnPassant(Square sq);
+    void updateState(bool inCheck);
 
     std::string toFEN() const;
     std::string DebugString() const;
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
     friend class MoveGen;
 };
+
+template <bool forward>
+inline void Chess::addPiece(Square sq, Color c, PieceRole p) {
+    board.addPiece(sq, c, p);
+
+    if (forward) {
+        state.at(ply).zkey ^= Zobrist::psq[c][p - 1][sq];
+    }
+}
+
+template <bool forward>
+inline void Chess::removePiece(Square sq, Color c, PieceRole p) {
+    board.removePiece(sq, c, p);
+
+    if (forward) {
+        state.at(ply).zkey ^= Zobrist::psq[c][p - 1][sq];
+    }
+}
+
+template <bool forward>
+inline void Chess::movePiece(Square from, Square to, Color c, PieceRole p) {
+    board.movePiece(from, to, c, p);
+
+    if (forward) {
+        state.at(ply).zkey ^=
+            Zobrist::psq[c][p - 1][from] ^ Zobrist::psq[c][p - 1][to];
+    }
+}
 
 inline U64 Chess::getCheckingPieces() const {
     // Return the bitboard of pieces that are checking the current player's king
