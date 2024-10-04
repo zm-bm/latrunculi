@@ -55,9 +55,9 @@ void Chess::make(Move mv)
         // Disable castle rights if captured piece is rook
         if (canCastle(enemy) && toPieceRole == ROOK)
         {
-            if (to == MoveGen::RookOriginOO[enemy] && canCastleOO(enemy))
+            if (to == G::RookOriginOO[enemy] && canCastleOO(enemy))
                 disableCastleOO(enemy);
-            else if (to == MoveGen::RookOriginOOO[enemy] && canCastleOOO(enemy))
+            else if (to == G::RookOriginOOO[enemy] && canCastleOOO(enemy))
                 disableCastleOOO(enemy);
         }
     }
@@ -111,9 +111,9 @@ void Chess::make(Move mv)
             // Disable castling rights
             if (canCastle(stm))
             {
-                if (from == MoveGen::RookOriginOO[stm] && canCastleOO(stm))
+                if (from == G::RookOriginOO[stm] && canCastleOO(stm))
                     disableCastleOO(stm);
-                else if (from == MoveGen::RookOriginOOO[stm] && canCastleOOO(stm))
+                else if (from == G::RookOriginOOO[stm] && canCastleOOO(stm))
                     disableCastleOOO(stm);
             }
             break;
@@ -210,11 +210,11 @@ void Chess::makeCastle(Square from, Square to, Color c)
 
     if (to > from) {
         to = Square(from + 1);
-        from = MoveGen::RookOriginOO[c];
+        from = G::RookOriginOO[c];
     }
     else {
         to = Square(from - 1);
-        from = MoveGen::RookOriginOOO[c];
+        from = G::RookOriginOOO[c];
     }
 
     if (forward)
@@ -604,11 +604,11 @@ bool Chess::isCheckingMove(Move mv) const
 
             if (to > from) {
                 rookTo = Square(from + 1);
-                rookFrom = MoveGen::RookOriginOO[stm];
+                rookFrom = G::RookOriginOO[stm];
             }
             else {
                 rookTo = Square(from - 1);
-                rookFrom = MoveGen::RookOriginOOO[stm];
+                rookFrom = G::RookOriginOOO[stm];
             }
 
             U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(rookFrom)) | BB::set(to) | BB::set(rookTo);

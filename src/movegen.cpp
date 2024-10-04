@@ -207,24 +207,24 @@ namespace MoveGen
     {
         Color stm = chess->stm;
         U64 occ = chess->board.occupancy();
-        Square from = MoveGen::KingOrigin[stm];
+        Square from = G::KingOrigin[stm];
 
         if (
             chess->canCastleOO(stm) &&
-            !(occ & MoveGen::CastlePathOO[stm]) &&
-            !chess->board.isBitboardAttacked(MoveGen::KingCastlePathOO[stm], ~stm)
+            !(occ & G::CastlePathOO[stm]) &&
+            !chess->board.isBitboardAttacked(G::KingCastlePathOO[stm], ~stm)
         ) {
-            Square to = MoveGen::KingDestinationOO[stm];
+            Square to = G::KingDestinationOO[stm];
             Move mv = Move(from, to, CASTLE);
             moves.push_back(mv);
         }
 
         if (
             chess->canCastleOOO(stm) &&
-            !(occ & MoveGen::CastlePathOOO[stm]) &&
-            !chess->board.isBitboardAttacked(MoveGen::KingCastlePathOOO[stm], ~stm)
+            !(occ & G::CastlePathOOO[stm]) &&
+            !chess->board.isBitboardAttacked(G::KingCastlePathOOO[stm], ~stm)
         ) {
-            Square to = MoveGen::KingDestinationOOO[stm];
+            Square to = G::KingDestinationOOO[stm];
             Move mv = Move(from, to, CASTLE);
             moves.push_back(mv);
         }
@@ -268,16 +268,7 @@ namespace MoveGen
         }
     }
 
-    const U64 CastlePathOO[3]          = { 0x6000000000000000ull, 0x0000000000000060ull };
-    const U64 CastlePathOOO[2]         = { 0x0E00000000000000ull, 0x000000000000000Eull };
-    const U64 KingCastlePathOO[2]      = { 0x7000000000000000ull, 0x0000000000000070ull };
-    const U64 KingCastlePathOOO[2]     = { 0x1C00000000000000ull, 0x000000000000001Cull };
-
-    const Square KingOrigin[2]        = { E8, E1 };
-    const Square KingDestinationOO[2] = { G8, G1 };
-    const Square KingDestinationOOO[2]= { C8, C1 };
-    const Square RookOriginOO[2]      = { H8, H1 };
-    const Square RookOriginOOO[2]     = { A8, A1 };
+    
 
 }
 

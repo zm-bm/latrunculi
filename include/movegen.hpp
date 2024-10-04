@@ -62,17 +62,6 @@ inline int mobility(U64 bitboard, U64 targets, U64 occ) {
     return nmoves;
 }
 
-extern const U64 CastlePathOO[];
-extern const U64 CastlePathOOO[];
-extern const U64 KingCastlePathOO[];
-extern const U64 KingCastlePathOOO[];
-
-extern const Square KingOrigin[];
-extern const Square KingDestinationOO[];
-extern const Square KingDestinationOOO[];
-extern const Square RookOriginOO[];
-extern const Square RookOriginOOO[];
-
 }  // namespace MoveGen
 
 #endif

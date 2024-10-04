@@ -52,6 +52,17 @@ const U64 BLACKSQUARES = 0xAA55AA55AA55AA55;
 const U64 WHITEHOLES   = 0x0000003CFFFF0000;
 const U64 BLACKHOLES   = 0x0000FFFF3C000000;
 
+const U64 CastlePathOO[2]          = { 0x6000000000000000ull, 0x0000000000000060ull };
+const U64 CastlePathOOO[2]         = { 0x0E00000000000000ull, 0x000000000000000Eull };
+const U64 KingCastlePathOO[2]      = { 0x7000000000000000ull, 0x0000000000000070ull };
+const U64 KingCastlePathOOO[2]     = { 0x1C00000000000000ull, 0x000000000000001Cull };
+
+const Square KingOrigin[2]        = { E8, E1 };
+const Square KingDestinationOO[2] = { G8, G1 };
+const Square KingDestinationOOO[2]= { C8, C1 };
+const Square RookOriginOO[2]      = { H8, H1 };
+const Square RookOriginOOO[2]     = { A8, A1 };
+
 constexpr std::array<U64, NSQUARES> genBITSET() {
     std::array<U64, NSQUARES> arr = {};
     for (int i = 0; i < NSQUARES; ++i) {
