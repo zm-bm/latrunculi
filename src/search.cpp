@@ -118,12 +118,12 @@ int Search::negamax(int depth, int alpha, int beta, bool isPV, bool isNullAllowe
 
     // // Generate and sort moves
     // int nLegalMoves = 0;
-    // auto gen = MoveGen::Generator(_board);
-    // gen.run();
-    // sortMoves(gen.moves, hashMove);
+    // auto movegen = MoveGen(_board);
+    // movegen.run();
+    // sortMoves(movegen.moves, hashMove);
 
     // // For each move
-    // for (auto& move : gen.moves)
+    // for (auto& move : movegen.moves)
     // {
     //     // First check if move is legal
     //     if (!_board->isLegalMove(move))
@@ -240,11 +240,11 @@ int Search::quiesce(int alpha, int beta)
     //     alpha = score;
 
     // int nLegalMoves = 0;
-    // auto gen = MoveGen::Generator(_board);
-    // gen.runq();
-    // sortMoves(gen.moves);
+    // auto movegen = MoveGen(_board);
+    // movegen.runq();
+    // sortMoves(movegen.moves);
 
-    // for (auto& move : gen.moves)
+    // for (auto& move : movegen.moves)
     // {
     //     if (!_board->isLegalMove(move))
     //         continue;
@@ -282,13 +282,13 @@ U64 Search::perft(int depth)
     if (Root && ShowOutput)
         start = high_resolution_clock::now();
 
-    auto gen  = MoveGen::Generator(chess);
-    gen.run();
+    auto movegen = MoveGen(chess);
+    movegen.run();
 
     U64 count = 0,
         nodes = 0;
 
-    for (auto& move : gen.moves)
+    for (auto& move : movegen.moves)
     {
         if (!chess->isLegalMove(move))
             continue;

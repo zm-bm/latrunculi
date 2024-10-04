@@ -60,7 +60,7 @@ class Chess {
     void loadFEN(const std::string&);
     std::string DebugString() const;
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
-    friend class MoveGen::Generator;
+    friend class MoveGen;
 };
 
 inline U64 Chess::getCheckingPieces() const {

@@ -140,10 +140,10 @@ void Controller::move(std::vector<std::string>& tokens) {
 
     if (_debug) ostream << chess;
   } else {
-    auto gen = MoveGen::Generator(&chess);
-    gen.run();
+    auto movegen = MoveGen(&chess);
+    movegen.run();
 
-    for (auto& move : gen.moves) {
+    for (auto& move : movegen.moves) {
       std::ostringstream oss;
       oss << move;
 
@@ -157,16 +157,16 @@ void Controller::move(std::vector<std::string>& tokens) {
 }
 
 void Controller::moves() {
-  auto gen = MoveGen::Generator(&chess);
-  gen.run();
+  auto movegen = MoveGen(&chess);
+  movegen.run();
 
   TT::Entry* entry = TT::table.probe(chess.getKey());
   if (entry)
-    search.sortMoves(gen.moves, entry->best);
+    search.sortMoves(movegen.moves, entry->best);
   else
-    search.sortMoves(gen.moves);
+    search.sortMoves(movegen.moves);
 
-  for (auto& move : gen.moves)
+  for (auto& move : movegen.moves)
     ostream << move << ": " << move.score << std::endl;
 }
 

@@ -12,10 +12,9 @@
 class Chess;
 class Move;
 
-namespace MoveGen {
-class Generator {
+class MoveGen {
    public:
-    Generator(Chess* chess) : chess(chess) {}
+    MoveGen(Chess* chess) : chess(chess) {}
 
     void run();
     void runq();
@@ -45,7 +44,5 @@ class Generator {
     template <PawnMove, Color, MoveGenType>
     void appendPawnPromotions(U64);
 };
-
-}  // namespace MoveGen
 
 #endif
