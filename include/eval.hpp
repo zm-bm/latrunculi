@@ -4,8 +4,5 @@
 #include "bb.hpp"
 #include "types.hpp"
 
-class Eval {
-
-};
 
 #endif
