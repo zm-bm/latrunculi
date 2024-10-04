@@ -7,15 +7,14 @@
 #include "state.hpp"
 
 class Chess {
-
-private:
+   private:
     std::vector<State> state;
     Board board;
     Color stm;
     U32 ply;
     U32 fullMoveCounter;
 
-public:
+   public:
     explicit Chess(const std::string&);
 
     void make(Move);
@@ -40,10 +39,10 @@ public:
     inline bool isDoubleCheck() const;
     inline bool canCastle(Color c) const;
     inline bool canCastleOO(Color c) const;
-    inline bool canCastleOOO(Color c) const; 
+    inline bool canCastleOOO(Color c) const;
     inline void disableCastle(Color c);
-    inline void disableCastleOO(Color c); 
-    inline void disableCastleOOO(Color c); 
+    inline void disableCastleOO(Color c);
+    inline void disableCastleOOO(Color c);
     inline void setEnPassant(Square sq);
     inline void updateState(bool inCheck);
 
@@ -85,55 +84,44 @@ inline bool Chess::isDoubleCheck() const {
 }
 
 inline bool Chess::canCastle(Color c) const {
-    if (c)
-        return state[ply].castle & WHITE_CASTLE;
-    else
-        return state[ply].castle & BLACK_CASTLE;
+    // Check if the specified color can castle
+    return (c ? state[ply].castle & WHITE_CASTLE
+              : state[ply].castle & BLACK_CASTLE);
 }
 
 inline bool Chess::canCastleOO(Color c) const {
-    if (c)
-        return state[ply].castle & WHITE_OO;
-    else
-        return state[ply].castle & BLACK_OO;
+    // Check if the specified color can castle kingside (OO)
+    return (c ? state[ply].castle & WHITE_OO : state[ply].castle & BLACK_OO);
 }
 
 inline bool Chess::canCastleOOO(Color c) const {
-    if (c)
-        return state[ply].castle & WHITE_OOO;
-    else
-        return state[ply].castle & BLACK_OOO;
+    // Check if the specified color can castle queenside (OOO)
+    return (c ? state[ply].castle & WHITE_OOO : state[ply].castle & BLACK_OOO);
 }
 
 inline void Chess::disableCastle(Color c) {
+    // Disable castling for the specified color
     if (canCastleOO(c)) state[ply].zkey ^= Zobrist::castle[c][KINGSIDE];
     if (canCastleOOO(c)) state[ply].zkey ^= Zobrist::castle[c][QUEENSIDE];
 
-    if (c)
-        state[ply].castle &= BLACK_CASTLE;
-    else
-        state[ply].castle &= WHITE_CASTLE;
+    // Update the castle rights based on the color
+    state[ply].castle &= c ? BLACK_CASTLE : WHITE_CASTLE;
 }
 
 inline void Chess::disableCastleOO(Color c) {
+    // Disable kingside castling for the specified color
     state[ply].zkey ^= Zobrist::castle[c][KINGSIDE];
-
-    if (c)
-        state[ply].castle &= CastleRights(0x07);
-    else
-        state[ply].castle &= CastleRights(0x0D);
+    state[ply].castle &= c ? CastleRights(0x07) : CastleRights(0x0D);
 }
 
 inline void Chess::disableCastleOOO(Color c) {
+    // Disable queenside castling for the specified color
     state[ply].zkey ^= Zobrist::castle[c][QUEENSIDE];
-
-    if (c)
-        state[ply].castle &= CastleRights(0x0B);
-    else
-        state[ply].castle &= CastleRights(0x0E);
+    state[ply].castle &= c ? CastleRights(0x0B) : CastleRights(0x0E);
 }
 
 inline void Chess::setEnPassant(Square sq) {
+    // Set the en passant target square and update the hash key
     state.at(ply).enPassantSq = sq;
     state.at(ply).zkey ^= Zobrist::ep[Types::getFile(sq)];
 }
@@ -145,19 +133,15 @@ inline void Chess::updateState(bool inCheck = true) {
     else
         state[ply].checkingPieces = 0;
 
-    state[ply].pinnedPieces = board.calculatePinnedPieces(stm);
-    state[ply].discoveredCheckers = board.calculateDiscoveredCheckers(stm);
-
     Color enemy = ~stm;
     Square king = board.getKingSq(enemy);
     U64 occ = board.occupancy();
 
-    state[ply].checkingSquares[PAWN] =
-        BB::attacksByPawns(BB::set(king), enemy);
-    state[ply].checkingSquares[KNIGHT] =
-        BB::movesByPiece<KNIGHT>(king, occ);
-    state[ply].checkingSquares[BISHOP] =
-        BB::movesByPiece<BISHOP>(king, occ);
+    state[ply].pinnedPieces = board.calculatePinnedPieces(stm);
+    state[ply].discoveredCheckers = board.calculateDiscoveredCheckers(stm);
+    state[ply].checkingSquares[PAWN] = BB::attacksByPawns(BB::set(king), enemy);
+    state[ply].checkingSquares[KNIGHT] = BB::movesByPiece<KNIGHT>(king, occ);
+    state[ply].checkingSquares[BISHOP] = BB::movesByPiece<BISHOP>(king, occ);
     state[ply].checkingSquares[ROOK] = BB::movesByPiece<ROOK>(king, occ);
     state[ply].checkingSquares[QUEEN] =
         state[ply].checkingSquares[BISHOP] | state[ply].checkingSquares[ROOK];

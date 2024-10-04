@@ -25,6 +25,7 @@ struct Board {
     U64 getCheckBlockers(Color, Color) const;
 
     int calculateMobilityScore(const int, const int) const;
+
     template <PieceRole>
     int calculateMobilityScore(const int, const int) const;
 
@@ -32,8 +33,10 @@ struct Board {
 
     template <bool>
     void addPiece(Square, Color, PieceRole);
+
     template <bool>
     void removePiece(Square, Color, PieceRole);
+
     template <bool>
     void movePiece(Square, Square, Color, PieceRole);
 
