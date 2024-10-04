@@ -31,6 +31,16 @@ class Chess {
     bool isCheckingMove(Move) const;
     U64 calculateKey() const;
 
+    inline int calculatePhase() const {
+        return (
+            PAWNSCORE * board.count<PAWN>() +
+            KNIGHTSCORE * board.count<KNIGHT>() +
+            BISHOPSCORE * board.count<BISHOP>() +
+            ROOKSCORE * board.count<ROOK>() +
+            QUEENSCORE * board.count<QUEEN>()
+        );
+    }
+
     inline U64 getCheckingPieces() const;
     inline Square getEnPassant() const;
     inline U8 getHmClock() const;

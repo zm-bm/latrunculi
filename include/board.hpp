@@ -46,14 +46,6 @@ struct Board {
     U64 attacksTo(Square, Color, U64) const;
     bool isBitboardAttacked(U64, Color) const;
 
-    bool canCastle(Color) const;
-    bool canCastleOO(Color) const;
-    bool canCastleOOO(Color) const;
-    void disableCastle(Color);
-    void disableCastleOO(Color);
-    void disableCastleOOO(Color);
-    void setEnPassant(Square sq);
-
     template <PieceRole p>
     inline U64 getPieces(Color c) const {
         // Return the bitboard of pieces of a specific role for the given color
@@ -121,10 +113,6 @@ struct Board {
         // Return the total count of all major pieces (Knights, Bishops, Rooks, Queens) for the given color
         return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) + count<QUEEN>(c);
     }
-    
-    friend class MoveGen::Generator;
-    friend class Search;
-    friend class Chess;
 };
 
 template <bool forward>
@@ -181,11 +169,7 @@ inline void Board::movePiece(const Square from, const Square to, const Color c,
     //         Zobrist::psq[c][pt - 1][from] ^ Zobrist::psq[c][pt - 1][to];
 }
 
-inline int Board::calculatePhase() const {
-    return PAWNSCORE * count<PAWN>() + KNIGHTSCORE * count<KNIGHT>() +
-           BISHOPSCORE * count<BISHOP>() + ROOKSCORE * count<ROOK>() +
-           QUEENSCORE * count<QUEEN>();
-}
+
 
 // Returns a bitboard of pieces of color c which attacks a square
 inline U64 Board::attacksTo(Square sq, Color c) const {

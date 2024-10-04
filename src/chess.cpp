@@ -229,7 +229,7 @@ int Chess::eval() const
     double totalphase = static_cast<double>(TOTALPHASE);
 
     // Taper the eval between opening and endgame values
-    int opPhase = board.calculatePhase();
+    int opPhase = calculatePhase();
     int egPhase = (TOTALPHASE - opPhase);
     double openingModifier = opPhase / totalphase;
 
