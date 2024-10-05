@@ -77,8 +77,8 @@ void Chess::unmake() {
     Color enemy = turn;
     Move mv = state[ply].move;
     Square from = mv.from(), to = mv.to();
-    PieceRole toPieceRole = state[ply].captured,
-              fromPieceRole = Types::getPieceRole(board.getPiece(to));
+    PieceRole toPieceRole = state[ply].captured;
+    PieceRole fromPieceRole = Types::getPieceRole(board.getPiece(to));
     MoveType movetype = mv.type();
 
     // Revert to the previous board state
@@ -99,15 +99,10 @@ void Chess::unmake() {
         makeCastle<false>(from, to, turn);
     } else {
         movePiece<false>(to, from, turn, fromPieceRole);
-
-        // Add captured piece
         if (toPieceRole) {
-            Square capturedPieceSq = to;
-            if (movetype == ENPASSANT) {
-                capturedPieceSq =
-                    Types::pawnMove<PawnMove::PUSH, false>(to, turn);
-            }
-
+            Square capturedPieceSq = (movetype == ENPASSANT)
+                ? Types::pawnMove<PawnMove::PUSH, false>(to, turn)
+                : to;
             addPiece<false>(capturedPieceSq, enemy, toPieceRole);
         }
     }
