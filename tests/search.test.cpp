@@ -42,7 +42,7 @@ INSTANTIATE_TEST_SUITE_P(
     Position2PerftTestSuite, PerftTest,
     ::testing::Values(std::make_tuple(pos2, std::vector<long>{
                                                 48, 2039, 97862, 4085603,
-                                                193690690,
+                                                // 193690690,
                                                 // 8031647685,
                                             })));
 

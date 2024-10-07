@@ -76,6 +76,7 @@ inline void Board::removePiece(const Square sq, const Color c,
     // Toggle bitboards
     pieces[c][ALL_PIECE_ROLES] ^= BB::set(sq);
     pieces[c][p] ^= BB::set(sq);
+    // squares[sq] = NO_PIECE;
 
     // Update evaluation helpers
     pieceCount[c][p]--;

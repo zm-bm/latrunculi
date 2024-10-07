@@ -12,6 +12,7 @@ namespace G {
 
 const std::string STARTFEN =
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const std::string EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
 constexpr U64 RANK_MASK[8] = {
     0x00000000000000FF, 0x000000000000FF00, 0x0000000000FF0000,
