@@ -288,7 +288,7 @@ Chess::Chess(const std::string& fen)
     }
 
     if (tokens.size() > 5) {
-        moveCounter = 2 * std::stoul(tokens.at(5));
+        moveCounter = 2 * (std::stoul(tokens.at(5)) - 1);
     }
 
     state.at(ply).zkey = calculateKey();
@@ -340,7 +340,7 @@ std::string Chess::toFEN() const {
         oss << " - ";
     }
 
-    oss << +state.at(ply).hmClock << " " << (moveCounter + 1) / 2;
+    oss << +state.at(ply).hmClock << " " << (moveCounter / 2) + 1;
 
     return oss.str();
 }
