@@ -177,7 +177,7 @@ inline U64 Board::calculatePinnedPieces(Color c) const {
 }
 
 inline U64 Board::calculateCheckingPieces(Color c) const {
-    // Calculate and return the bitboard of pieces attacking the enemy king
+    // Calculate and return the bitboard of pieces attacking the king
     return attacksTo(getKingSq(c), ~c);
 }
 

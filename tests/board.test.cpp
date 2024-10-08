@@ -10,15 +10,16 @@ class BoardTest : public ::testing::Test {
         Magics::init();
         emptyBoard = new Board(G::EMPTYFEN);
         startBoard = new Board(G::STARTFEN);
+        pinBoard = new Board(G::POS3);
     }
 
     void TearDown() override {
         delete emptyBoard;
         delete startBoard;
+        delete pinBoard;
     }
 
-    Board* emptyBoard;
-    Board* startBoard;
+    Board *emptyBoard, *startBoard, *pinBoard;
 };
 
 TEST_F(BoardTest, GetPieces) {
@@ -33,6 +34,13 @@ TEST_F(BoardTest, Count) {
     EXPECT_EQ(startBoard->count<PAWN>(), 16);
 }
 
+TEST_F(BoardTest, GetPieceCount) {
+    EXPECT_EQ(emptyBoard->getPieceCount(WHITE), 0);
+    EXPECT_EQ(emptyBoard->getPieceCount(BLACK), 0);
+    EXPECT_EQ(startBoard->getPieceCount(WHITE), 7);
+    EXPECT_EQ(startBoard->getPieceCount(BLACK), 7);
+}
+
 TEST_F(BoardTest, Occupancy) {
     EXPECT_EQ(emptyBoard->count<KING>(WHITE), 1);
     EXPECT_EQ(startBoard->occupancy(),
@@ -43,6 +51,20 @@ TEST_F(BoardTest, Occupancy) {
 TEST_F(BoardTest, GetPiece) {
     EXPECT_EQ(emptyBoard->getPiece(E1), Types::makePiece(WHITE, KING));
     EXPECT_EQ(emptyBoard->getPiece(E2), NO_PIECE);
+    EXPECT_EQ(startBoard->getPiece(A2), Types::makePiece(WHITE, PAWN));
+    EXPECT_EQ(startBoard->getPiece(A3), NO_PIECE);
+}
+
+TEST_F(BoardTest, GetPieceRole) {
+    EXPECT_EQ(emptyBoard->getPieceRole(E1), KING);
+    EXPECT_EQ(emptyBoard->getPieceRole(E2), NO_PIECE_ROLE);
+    EXPECT_EQ(startBoard->getPieceRole(A2), PAWN);
+    EXPECT_EQ(startBoard->getPieceRole(A3), NO_PIECE_ROLE);
+}
+
+TEST_F(BoardTest, GetKingSq) {
+    EXPECT_EQ(startBoard->getKingSq(WHITE), E1);
+    EXPECT_EQ(startBoard->getKingSq(BLACK), E8);
 }
 
 TEST_F(BoardTest, AddPiece) {
@@ -85,11 +107,38 @@ TEST_F(BoardTest, AttacksTo) {
     EXPECT_EQ(attackers, BB::set(B2) | BB::set(B1));
 }
 
-// TEST_F(BoardTest, BoardToFEN) {
-//   EXPECT_EQ(startBoard->toFEN(), G::STARTFEN);
+TEST_F(BoardTest, CalculateCheckBlockers) {
+    EXPECT_EQ(startBoard->calculateCheckBlockers(BLACK, BLACK), 0);
+    EXPECT_EQ(startBoard->calculateCheckBlockers(WHITE, WHITE), 0);
+    EXPECT_EQ(pinBoard->calculateCheckBlockers(WHITE, WHITE), BB::set(B5));
+    EXPECT_EQ(pinBoard->calculateCheckBlockers(BLACK, BLACK), BB::set(F4));
+}
 
-//   auto fen =
-//     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 0";
-//   board = Board(fen);
-//   EXPECT_EQ(board.toFEN(), fen);
-// }
+TEST_F(BoardTest, CalculateDiscoveredChecks) {
+    Board b = Board("8/2p5/3p4/Kp5r/1R3P1k/8/4P1P1/8 w - -");
+    EXPECT_EQ(b.calculateDiscoveredCheckers(WHITE), BB::set(F4));
+    EXPECT_EQ(b.calculateDiscoveredCheckers(BLACK), BB::set(B5));
+}
+
+TEST_F(BoardTest, CalculatePinnedPieces) {
+    EXPECT_EQ(startBoard->calculatePinnedPieces(WHITE), 0);
+    EXPECT_EQ(startBoard->calculatePinnedPieces(BLACK), 0);
+    EXPECT_EQ(pinBoard->calculatePinnedPieces(WHITE), BB::set(B5));
+    EXPECT_EQ(pinBoard->calculatePinnedPieces(BLACK), BB::set(F4));
+}
+
+TEST_F(BoardTest, CalculateCheckingPieces) {
+    Board b = Board(G::POS4W);
+    EXPECT_EQ(b.calculateCheckingPieces(WHITE), BB::set(B6));
+    EXPECT_EQ(b.calculateCheckingPieces(BLACK), 0);
+    b = Board(G::POS4B);
+    EXPECT_EQ(b.calculateCheckingPieces(WHITE), 0);
+    EXPECT_EQ(b.calculateCheckingPieces(BLACK), BB::set(B3));
+}
+
+TEST_F(BoardTest, IsBitboardAttacked) {
+    EXPECT_FALSE(pinBoard->isBitboardAttacked(G::FILE_MASK[FILE7], WHITE));
+    EXPECT_TRUE(pinBoard->isBitboardAttacked(G::FILE_MASK[FILE8], WHITE));
+    EXPECT_FALSE(pinBoard->isBitboardAttacked(G::FILE_MASK[FILE1], BLACK));
+    EXPECT_TRUE(pinBoard->isBitboardAttacked(G::FILE_MASK[FILE2], BLACK));
+}
