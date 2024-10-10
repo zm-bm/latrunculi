@@ -100,14 +100,17 @@ void Chess::unmake() {
     } else {
         movePiece<false>(to, from, turn, fromPieceRole);
         if (toPieceRole) {
-            Square capturedPieceSq = (movetype == ENPASSANT)
-                ? Types::pawnMove<PawnMove::PUSH, false>(to, turn)
-                : to;
+            Square capturedPieceSq =
+                (movetype == ENPASSANT)
+                    ? Types::pawnMove<PawnMove::PUSH, false>(to, turn)
+                    : to;
             addPiece<false>(capturedPieceSq, enemy, toPieceRole);
         }
     }
 
-    if (fromPieceRole == KING) board.kingSq[turn] = from;
+    if (fromPieceRole == KING) {
+        board.kingSq[turn] = from;
+    }
 }
 
 void Chess::makeNull() {
@@ -133,10 +136,11 @@ void Chess::unmmakeNull() {
 
 template <bool forward>
 void Chess::makeCastle(Square from, Square to, Color c) {
-    if (forward)
+    if (forward) {
         movePiece<forward>(from, to, c, KING);
-    else
+    } else {
         movePiece<forward>(to, from, c, KING);
+    }
 
     if (to > from) {
         to = Square(from + 1);
@@ -146,22 +150,25 @@ void Chess::makeCastle(Square from, Square to, Color c) {
         from = G::RookOriginOOO[c];
     }
 
-    if (forward)
+    if (forward) {
         movePiece<forward>(from, to, c, ROOK);
-    else
+    } else {
         movePiece<forward>(to, from, c, ROOK);
+    }
 }
 
 // Determine if a move is legal for the current board
-bool Chess::isLegalMove(Move mv) const {
+bool Chess::isPseudoLegalMoveLegal(Move mv) const {
     Square from = mv.from(), to = mv.to(), king = board.getKingSq(turn);
 
     if (from == king) {
-        if (mv.type() == CASTLE)
+        if (mv.type() == CASTLE) {
             return true;
-        else  // Check if destination sq is attacked by enemy
+        } else {
+            // Check if destination sq is attacked by enemy
             return !board.attacksTo(
                 to, ~turn, board.occupancy() ^ BB::set(from) ^ BB::set(to));
+        }
     } else if (mv.type() == ENPASSANT) {
         Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, turn);
         U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) |
@@ -309,8 +316,9 @@ std::string Chess::toFEN() const {
                     emptyCount = 0;
                 }
                 oss << p;
-            } else
+            } else {
                 ++emptyCount;
+            }
         }
 
         if (emptyCount > 0) {
@@ -320,10 +328,11 @@ std::string Chess::toFEN() const {
         if (rank != RANK1) oss << '/';
     }
 
-    if (turn)
+    if (turn) {
         oss << " w ";
-    else
+    } else {
         oss << " b ";
+    }
 
     if (canCastle(WHITE) || canCastle(BLACK)) {
         if (canCastleOO(WHITE)) oss << "K";
@@ -355,7 +364,6 @@ std::string Chess::DebugString() const {
 std::ostream& operator<<(std::ostream& os, const Chess& chess) {
     os << chess.board << std::endl;
     os << chess.toFEN() << std::endl;
-    // os << chess.state[chess.ply].zkey << std::endl;
 
     return os;
 }

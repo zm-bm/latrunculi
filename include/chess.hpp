@@ -24,7 +24,7 @@ class Chess {
     template <bool>
     void makeCastle(Square, Square, Color);
 
-    bool isLegalMove(Move) const;
+    bool isPseudoLegalMoveLegal(Move) const;
     bool isCheckingMove(Move) const;
 
     template <bool>

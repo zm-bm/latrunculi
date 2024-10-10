@@ -13,7 +13,7 @@ void recursiveZobristCheck(Board board, int depth)
 
     for (auto& move : gen.moves)
     {
-        if (!board.isLegalMove(move))
+        if (!board.isPseudoLegalMoveLegal(move))
             continue;
 
         board.make(move);
