@@ -1,17 +1,159 @@
 #include "chess.hpp"
 
 #include <gtest/gtest.h>
-
 #include <memory>
 #include <string>
+#include "zobrist.hpp"
 
 class ChessTest : public ::testing::Test {
    protected:
     void SetUp() override { Magics::init(); }
 };
 
-auto ENPASSANT_FEN = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1",
+auto EMPTY_FEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+     PAWN_FEN = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1",
+     MOVE_FEN = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1",
+     ENPASSANT_FEN = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1",
      PROMOTION_FEN = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
+
+TEST_F(ChessTest, MovePieceForward) {
+    Chess chess = Chess(PAWN_FEN);
+    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
+    chess.movePiece<true>(E2, E4, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key);
+    EXPECT_EQ(chess.toFEN(), MOVE_FEN);
+}
+
+TEST_F(ChessTest, MovePieceBackwards) {
+    Chess chess = Chess(PAWN_FEN);
+    U64 key = chess.getKey();
+    chess.movePiece<false>(E2, E4, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key);
+    EXPECT_EQ(chess.toFEN(), MOVE_FEN);
+}
+
+TEST_F(ChessTest, AddPieceForward) {
+    Chess chess = Chess(EMPTY_FEN);
+    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
+    chess.addPiece<true>(E2, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key);
+    EXPECT_EQ(chess.toFEN(), PAWN_FEN);
+}
+
+TEST_F(ChessTest, AddPieceBackwards) {
+    Chess chess = Chess("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+    U64 key = chess.getKey();
+    chess.addPiece<false>(E2, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key);
+    EXPECT_EQ(chess.toFEN(), PAWN_FEN);
+}
+
+TEST_F(ChessTest, RemovePieceForward) {
+    Chess chess = Chess(PAWN_FEN);
+    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
+    chess.removePiece<true>(E2, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key);
+    // EXPECT_EQ(chess.toFEN(), EMPTY_FEN);
+}
+
+TEST_F(ChessTest, RemovePieceBackwards) {
+    Chess chess = Chess(PAWN_FEN);
+    U64 key = chess.getKey();
+    chess.removePiece<false>(E2, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key);
+    // EXPECT_EQ(chess.toFEN(), EMPTY_FEN);
+}
+
+TEST_F(ChessTest, GetCheckingPiecesW) {
+    Chess c = Chess(G::POS4W);
+    EXPECT_EQ(c.getCheckingPieces(), BB::set(B6));
+}
+
+TEST_F(ChessTest, GetCheckingPiecesB) {
+    Chess c = Chess(G::POS4B);
+    EXPECT_EQ(c.getCheckingPieces(), BB::set(B3));
+}
+
+TEST_F(ChessTest, GetEnPassant) {
+    Chess c = Chess(ENPASSANT_FEN);
+    EXPECT_EQ(c.getEnPassant(), A3);
+}
+
+TEST_F(ChessTest, GetHmClock) {
+    Chess c = Chess("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1");
+    EXPECT_EQ(c.getHmClock(), 7);
+}
+
+TEST_F(ChessTest, GetKeyCalculateKey) {
+    for (auto fen : G::FENS) {
+        Chess c = Chess(fen);
+        EXPECT_EQ(c.getKey(), c.calculateKey());
+    }
+}
+
+TEST_F(ChessTest, IsCheck) {
+    EXPECT_FALSE(Chess(G::STARTFEN).getCheckingPieces());
+    EXPECT_TRUE(Chess(G::POS4W).getCheckingPieces());
+    EXPECT_TRUE(Chess(G::POS4B).getCheckingPieces());
+}
+
+TEST_F(ChessTest, IsDoubleCheck) {
+    EXPECT_FALSE(Chess(G::POS4W).isDoubleCheck());
+    EXPECT_FALSE(Chess(G::POS4B).isDoubleCheck());
+    EXPECT_TRUE(Chess("R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1").isDoubleCheck());
+}
+
+TEST_F(ChessTest, CanCastleTrue) {
+    Chess c = Chess(G::POS2);
+    EXPECT_TRUE(c.canCastle(WHITE));
+    EXPECT_TRUE(c.canCastleOO(WHITE));
+    EXPECT_TRUE(c.canCastleOOO(WHITE));
+    EXPECT_TRUE(c.canCastle(BLACK));
+    EXPECT_TRUE(c.canCastleOO(BLACK));
+    EXPECT_TRUE(c.canCastleOOO(BLACK));
+}
+
+TEST_F(ChessTest, CanCastleFalse) {
+    Chess c = Chess(G::POS3);
+    EXPECT_FALSE(c.canCastle(WHITE));
+    EXPECT_FALSE(c.canCastleOO(WHITE));
+    EXPECT_FALSE(c.canCastleOOO(WHITE));
+    EXPECT_FALSE(c.canCastle(BLACK));
+    EXPECT_FALSE(c.canCastleOO(BLACK));
+    EXPECT_FALSE(c.canCastleOOO(BLACK));
+}
+
+TEST_F(ChessTest, DisableCastle) {
+    Chess c = Chess(G::POS2);
+    c.disableCastle(WHITE);
+    EXPECT_FALSE(c.canCastle(WHITE));
+    c.disableCastle(BLACK);
+    EXPECT_FALSE(c.canCastle(BLACK));
+}
+
+TEST_F(ChessTest, DisableCastleOO) {
+    Chess c = Chess(G::POS2);
+    c.disableCastle(WHITE, H1);
+    EXPECT_TRUE(c.canCastle(WHITE));
+    EXPECT_FALSE(c.canCastleOO(WHITE));
+    EXPECT_TRUE(c.canCastleOOO(WHITE));
+    c.disableCastle(BLACK, H8);
+    EXPECT_TRUE(c.canCastle(BLACK));
+    EXPECT_FALSE(c.canCastleOO(BLACK));
+    EXPECT_TRUE(c.canCastleOOO(BLACK));
+}
+
+TEST_F(ChessTest, DisableCastleOOO) {
+    Chess c = Chess(G::POS2);
+    c.disableCastle(WHITE, A1);
+    EXPECT_TRUE(c.canCastle(WHITE));
+    EXPECT_TRUE(c.canCastleOO(WHITE));
+    EXPECT_FALSE(c.canCastleOOO(WHITE));
+    c.disableCastle(BLACK, A8);
+    EXPECT_TRUE(c.canCastle(BLACK));
+    EXPECT_TRUE(c.canCastleOO(BLACK));
+    EXPECT_FALSE(c.canCastleOOO(BLACK));
+}
 
 TEST_F(ChessTest, ChessToFEN) {
     for (auto fen : G::FENS) {

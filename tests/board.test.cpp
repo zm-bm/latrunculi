@@ -127,11 +127,14 @@ TEST_F(BoardTest, CalculatePinnedPieces) {
     EXPECT_EQ(pinBoard->calculatePinnedPieces(BLACK), BB::set(F4));
 }
 
-TEST_F(BoardTest, CalculateCheckingPieces) {
+TEST_F(BoardTest, CalculateCheckingPiecesW) {
     Board b = Board(G::POS4W);
     EXPECT_EQ(b.calculateCheckingPieces(WHITE), BB::set(B6));
     EXPECT_EQ(b.calculateCheckingPieces(BLACK), 0);
-    b = Board(G::POS4B);
+}
+
+TEST_F(BoardTest, CalculateCheckingPiecesB) {
+    Board b = Board(G::POS4B);
     EXPECT_EQ(b.calculateCheckingPieces(WHITE), 0);
     EXPECT_EQ(b.calculateCheckingPieces(BLACK), BB::set(B3));
 }
