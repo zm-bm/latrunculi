@@ -8,7 +8,7 @@ class BoardTest : public ::testing::Test {
    protected:
     void SetUp() override {
         Magics::init();
-        emptyBoard = new Board(G::EMPTYFEN);
+        emptyBoard = new Board("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
         startBoard = new Board(G::STARTFEN);
         pinBoard = new Board(G::POS3);
     }
