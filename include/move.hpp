@@ -28,12 +28,11 @@ class Move {
 
 inline Move::Move() : value{U16(NULLMOVE << 12)} {}
 
-inline Move::Move(Square from,
-                  Square to,
-                  MoveType mtype = NORMAL,
+inline Move::Move(Square from, Square to, MoveType mtype = NORMAL,
                   PieceRole promPiece = KNIGHT)
     : score(0),
-      value{U16(from | (to << 6) | (mtype << 12) | ((promPiece - KNIGHT) << 14))} {}
+      value{U16(from | (to << 6) | (mtype << 12) |
+                ((promPiece - KNIGHT) << 14))} {}
 
 inline Square Move::from() const { return Square(value & 0x3f); }
 

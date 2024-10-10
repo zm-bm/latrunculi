@@ -1,8 +1,10 @@
 #include "chess.hpp"
 
 #include <gtest/gtest.h>
+
 #include <memory>
 #include <string>
+
 #include "zobrist.hpp"
 
 class ChessTest : public ::testing::Test {
@@ -18,7 +20,8 @@ auto EMPTY_FEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
 
 TEST_F(ChessTest, MovePieceForward) {
     Chess chess = Chess(PAWN_FEN);
-    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
+    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^
+              Zobrist::psq[WHITE][PAWN][E4];
     chess.movePiece<true>(E2, E4, WHITE, PAWN);
     EXPECT_EQ(chess.getKey(), key);
     EXPECT_EQ(chess.toFEN(), MOVE_FEN);
@@ -202,7 +205,7 @@ TEST_F(ChessTest, MakeEnpassantSq) {
 TEST_F(ChessTest, MakeEnpassantCapt) {
     Chess c = Chess(ENPASSANT_FEN);
     c.make(Move(B4, A3, ENPASSANT));
-    EXPECT_EQ(c.toFEN(),  "4k3/8/8/8/8/p7/8/4K3 w - - 0 2");
+    EXPECT_EQ(c.toFEN(), "4k3/8/8/8/8/p7/8/4K3 w - - 0 2");
     c.unmake();
     EXPECT_EQ(c.toFEN(), ENPASSANT_FEN);
 }
@@ -315,7 +318,6 @@ TEST_F(ChessTest, IsCheckingMove) {
     EXPECT_TRUE(c.isCheckingMove(Move(G4, F6)));
     EXPECT_FALSE(c.isCheckingMove(Move(G4, H6)));
 }
-
 
 TEST_F(ChessTest, IsCheckingMoveDiscovered) {
     Chess c = Chess("Q1N1k3/8/2N1N3/8/B7/8/4R3/4K3 w - - 0 1");
