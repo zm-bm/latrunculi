@@ -212,7 +212,7 @@ bool Chess::isCheckingMove(Move mv) const {
         case PROMOTION: {
             // Check if a promotion attacks the enemy king
             U64 occ = board.occupancy() ^ BB::set(from);
-            return BB::movesByPiece(to, mv.promPiece(), occ) & BB::set(king);
+            return BB::movesByPiece(to, mv.promoPiece(), occ) & BB::set(king);
         }
 
         case ENPASSANT: {

@@ -193,7 +193,7 @@ inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype,
         setEnPassant(Types::pawnMove<PawnMove::PUSH, false>(to, turn));
     } else if (movetype == PROMOTION) {
         removePiece<true>(to, turn, PAWN);
-        addPiece<true>(to, turn, mv.promPiece());
+        addPiece<true>(to, turn, mv.promoPiece());
     }
 }
 

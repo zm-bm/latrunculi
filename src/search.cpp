@@ -405,7 +405,7 @@ void Search::sortMoves(std::vector<Move>& moves, Move hashmove)
     //         move.score += 10000;
 
     //     if (move.type() == PROMOTION)
-    //         move.score += 1000 + move.promPiece();
+    //         move.score += 1000 + move.promoPiece();
 
     //     PieceRole captPiece = _board->getPieceRole(move.to());
     //     if (captPiece != NO_PIECE_ROLE) {

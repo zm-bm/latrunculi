@@ -60,7 +60,7 @@ enum CastleRights : U8 {
 
 enum CastleDirection { KINGSIDE, QUEENSIDE };
 
-enum MoveType : U8 { NORMAL, PROMOTION, ENPASSANT, CASTLE, NULLMOVE };
+enum MoveType : U8 { NORMAL, PROMOTION, ENPASSANT, CASTLE };
 
 enum MoveGenType { EVASIONS, CAPTURES, QUIETS };
 
