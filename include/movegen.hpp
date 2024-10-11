@@ -8,9 +8,7 @@
 #include "magics.hpp"
 #include "types.hpp"
 #include "move.hpp"
-
-class Chess;
-class Move;
+#include "chess.hpp"
 
 class MoveGen {
    public:

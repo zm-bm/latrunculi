@@ -5,6 +5,7 @@
 
 #include "board.hpp"
 #include "state.hpp"
+#include "zobrist.hpp"
 
 class Chess {
    private:

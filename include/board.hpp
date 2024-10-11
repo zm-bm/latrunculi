@@ -5,8 +5,6 @@
 #include <vector>
 
 #include "bb.hpp"
-#include "eval.hpp"
-#include "movegen.hpp"
 #include "types.hpp"
 #include "zobrist.hpp"
 

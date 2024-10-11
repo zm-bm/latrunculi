@@ -1,5 +1,7 @@
-#include <gtest/gtest.h>
 #include "move.hpp"
+
+#include <gtest/gtest.h>
+
 #include "types.hpp"
 
 TEST(MoveTest, DefaultConstructor) {
