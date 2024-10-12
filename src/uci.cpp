@@ -140,8 +140,8 @@ void Controller::move(std::vector<std::string>& tokens) {
 
     if (_debug) ostream << chess;
   } else {
-    auto movegen = MoveGen(&chess);
-    movegen.run();
+    auto movegen = MoveGenerator(&chess);
+    movegen.generatePseudoLegalMoves();
 
     for (auto& move : movegen.moves) {
       std::ostringstream oss;
@@ -157,8 +157,8 @@ void Controller::move(std::vector<std::string>& tokens) {
 }
 
 void Controller::moves() {
-  auto movegen = MoveGen(&chess);
-  movegen.run();
+  auto movegen = MoveGenerator(&chess);
+  movegen.generatePseudoLegalMoves();
 
   TT::Entry* entry = TT::table.probe(chess.getKey());
   if (entry)

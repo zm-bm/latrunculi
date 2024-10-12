@@ -62,8 +62,6 @@ enum CastleDirection { KINGSIDE, QUEENSIDE };
 
 enum MoveType : U8 { NORMAL, PROMOTION, ENPASSANT, CASTLE };
 
-enum MoveGenType { EVASIONS, CAPTURES, QUIETS };
-
 enum class PawnMove { LEFT = 7, PUSH = 8, RIGHT = 9, DOUBLE = 16 };
 
 enum Score {

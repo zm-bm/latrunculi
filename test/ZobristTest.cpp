@@ -8,8 +8,8 @@ void recursiveZobristCheck(Board board, int depth)
     if (depth < 0)
         return;
 
-    auto gen  = MoveGen::Generator(&board);
-    gen.run();
+    auto gen  = MoveGenerator::Generator(&board);
+    gen.generatePseudoLegalMoves();
 
     for (auto& move : gen.moves)
     {

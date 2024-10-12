@@ -62,7 +62,7 @@ class Chess {
     std::string DebugString() const;
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
 
-    friend class MoveGen;
+    friend class MoveGenerator;
 };
 
 template <bool forward>
