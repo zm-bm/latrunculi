@@ -17,7 +17,7 @@ class MoveGenerator {
     MoveGenerator(Chess* chess);
 
     void generatePseudoLegalMoves();
-    void generateQuietMoves();
+    void generateCaptures();
 
     std::vector<Move> moves;
 

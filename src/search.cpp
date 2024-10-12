@@ -241,7 +241,7 @@ int Search::quiesce(int alpha, int beta)
 
     // int nLegalMoves = 0;
     // auto movegen = MoveGenerator(_board);
-    // movegen.generateQuietMoves();
+    // movegen.generateCaptures();
     // sortMoves(movegen.moves);
 
     // for (auto& move : movegen.moves)

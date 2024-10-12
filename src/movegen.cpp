@@ -17,7 +17,7 @@ void MoveGenerator::generatePseudoLegalMoves() {
     }
 }
 
-void MoveGenerator::generateQuietMoves() {
+void MoveGenerator::generateCaptures() {
     if (chess->isCheck()) {
         generateEvasions();
     } else {
