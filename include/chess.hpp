@@ -15,6 +15,10 @@ class Chess {
     U32 ply = 0;
     U32 moveCounter = 0;
 
+    I32 openingScore = 0;
+    I32 endgameScore = 0;
+    I32 materialScore = 0;
+
    public:
     explicit Chess(const std::string&);
 
@@ -58,6 +62,12 @@ class Chess {
     template <bool>
     int eval() const;
 
+    template <bool>
+    int evalPosition() const;
+
+    template <bool>
+    int evalDeprecated() const;
+
     std::string toFEN() const;
     std::string DebugString() const;
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
@@ -68,6 +78,9 @@ class Chess {
 template <bool forward>
 inline void Chess::addPiece(Square sq, Color c, PieceRole p) {
     board.addPiece(sq, c, p);
+    materialScore += G::PieceValues[p - 1][c];
+    openingScore += G::psqv(c, p, OPENING, sq);
+    endgameScore += G::psqv(c, p, ENDGAME, sq);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
@@ -77,6 +90,9 @@ inline void Chess::addPiece(Square sq, Color c, PieceRole p) {
 template <bool forward>
 inline void Chess::removePiece(Square sq, Color c, PieceRole p) {
     board.removePiece(sq, c, p);
+    materialScore -= G::PieceValues[p - 1][c];
+    openingScore -= G::psqv(c, p, OPENING, sq);
+    endgameScore -= G::psqv(c, p, ENDGAME, sq);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
@@ -86,6 +102,8 @@ inline void Chess::removePiece(Square sq, Color c, PieceRole p) {
 template <bool forward>
 inline void Chess::movePiece(Square from, Square to, Color c, PieceRole p) {
     board.movePiece(from, to, c, p);
+    openingScore += G::psqv(c, p, OPENING, to) - G::psqv(c, p, OPENING, from);
+    endgameScore += G::psqv(c, p, ENDGAME, to) - G::psqv(c, p, ENDGAME, from);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][from] ^ Zobrist::psq[c][p][to];

@@ -2,8 +2,32 @@
 #include <iomanip>
 #include "eval.hpp"
 
-template<bool debug>
-int Chess::eval() const
+template <bool debug>
+int Chess::eval() const {
+    int score = 0;
+
+    score += materialScore;         // piece values
+    score += evalPosition<debug>(); // piece+square values
+
+    // score relative to side to move
+    score *= ((2 * turn) - 1);
+
+    if (debug) {
+        std::cout << score << std::endl;
+    }
+
+    return score;
+}
+
+template <bool debug>
+int Chess::evalPosition() const {
+    int score = 0;
+    return score;
+}
+
+
+template <bool debug>
+int Chess::evalDeprecated() const
 {
     double totalphase = static_cast<double>(TOTALPHASE);
 
@@ -13,8 +37,8 @@ int Chess::eval() const
     double openingModifier = opPhase / totalphase;
 
     // Determine position score
-    double opening = board.openingScore * opPhase;
-    double endgame = board.endgameScore * egPhase;
+    double opening = openingScore * opPhase;
+    double endgame = endgameScore * egPhase;
     double positionScore = (opening + endgame) / totalphase;
 
     if (debug)
@@ -22,7 +46,7 @@ int Chess::eval() const
 		std::cout << " Term       |   Opening   |   Endgame   |   Total   " << std::endl
 			      << "------------+-------------+-------------+-----------" << std::endl
                   << " Material   |      -      |      -      | "
-                  << std::setw(6) << board.materialScore << std::endl
+                  << std::setw(6) << materialScore << std::endl
                   << " Piece Sq   | " 
                   << std::setw(6) << opening / totalphase << std::setw(8) << " | "
                   << std::setw(6) << endgame / totalphase << std::setw(8) << " | "
@@ -279,7 +303,7 @@ int Chess::eval() const
     // double mobilityScore = board.calculateMobilityScore(opPhase, egPhase) / TOTALPHASE;
     double mobilityScore = 0;
     int color = 2*turn - 1; // +1 when turn=WHITE, -1 when turn=BLACK
-    double score = color * (board.materialScore + positionScore + pawnScore +
+    double score = color * (materialScore + positionScore + pawnScore +
                          pieceScore + kingScore + mobilityScore);
 
     if (debug)

@@ -286,6 +286,12 @@ const std::array<std::array<std::array<int, 64>, 2>, 6> PieceSqValues = {{
     KingSqValues,
 }};
 
+inline int psqv(Color c, PieceRole p, int phase, Square sq) {
+    // Get the piece square value for color c
+    int score = G::PieceSqValues[p - 1][phase][G::ColorSq[c][sq]];
+    return (2 * c * score) - score;
+}
+
 constexpr std::array<U64, NSQUARES> genBITSET() {
     std::array<U64, NSQUARES> arr = {};
     for (int i = 0; i < NSQUARES; ++i) {

@@ -13,9 +13,6 @@ struct Board {
     Piece squares[64] = {NO_PIECE};
     Square kingSq[2] = {E1, E8};
     U8 pieceCount[2][7] = {0};
-    I32 openingScore = 0;
-    I32 endgameScore = 0;
-    I32 materialScore = 0;
 
     explicit Board(const std::string&);
     friend std::ostream& operator<<(std::ostream& os, const Board& b);
@@ -53,7 +50,6 @@ struct Board {
     Square getKingSq(Color c) const;
 
     bool isBitboardAttacked(U64, Color) const;
-    int psqv(Color c, PieceRole p, int phase, Square sq);
 };
 
 inline void Board::addPiece(const Square sq, const Color c, const PieceRole p) {
@@ -61,12 +57,7 @@ inline void Board::addPiece(const Square sq, const Color c, const PieceRole p) {
     pieces[c][ALL_PIECE_ROLES] ^= BB::set(sq);
     pieces[c][p] ^= BB::set(sq);
     squares[sq] = Types::makePiece(c, p);
-
-    // Update evaluation helpers
     pieceCount[c][p]++;
-    materialScore += G::PieceValues[p - 1][c];
-    openingScore += psqv(c, p, OPENING, sq);
-    endgameScore += psqv(c, p, ENDGAME, sq);
 }
 
 inline void Board::removePiece(const Square sq, const Color c,
@@ -75,12 +66,7 @@ inline void Board::removePiece(const Square sq, const Color c,
     pieces[c][ALL_PIECE_ROLES] ^= BB::set(sq);
     pieces[c][p] ^= BB::set(sq);
     // squares[sq] = NO_PIECE;
-
-    // Update evaluation helpers
     pieceCount[c][p]--;
-    materialScore -= G::PieceValues[p - 1][c];
-    openingScore -= psqv(c, p, OPENING, sq);
-    endgameScore -= psqv(c, p, ENDGAME, sq);
 }
 
 inline void Board::movePiece(const Square from, const Square to, const Color c,
@@ -91,10 +77,6 @@ inline void Board::movePiece(const Square from, const Square to, const Color c,
     pieces[c][p] ^= mask;
     squares[from] = NO_PIECE;
     squares[to] = Types::makePiece(c, p);
-
-    // Update evaluation helpers
-    openingScore += psqv(c, p, OPENING, to) - psqv(c, p, OPENING, from);
-    endgameScore += psqv(c, p, ENDGAME, to) - psqv(c, p, ENDGAME, from);
 }
 
 template <PieceRole p>
@@ -223,12 +205,6 @@ inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const {
     }
 
     return false;
-}
-
-inline int Board::psqv(Color c, PieceRole p, int phase, Square sq) {
-    // Get the piece square value for color c
-    int score = G::PieceSqValues[p - 1][phase][G::ColorSq[c][sq]];
-    return (2 * c * score) - score;
 }
 
 #endif
