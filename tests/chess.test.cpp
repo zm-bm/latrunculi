@@ -279,7 +279,8 @@ TEST_F(ChessTest, MakeRookMoveDisableCastleOOORights) {
 TEST_F(ChessTest, MakePromotion) {
     Chess c = Chess(PROMOTION_FEN);
     c.make(Move(A7, A8, PROMOTION, QUEEN));
-    EXPECT_EQ(c.toFEN(), "Q3k3/8/8/8/8/8/8/4K3 b - - 0 1") << "should promote to queen";
+    EXPECT_EQ(c.toFEN(), "Q3k3/8/8/8/8/8/8/4K3 b - - 0 1")
+        << "should promote to queen";
     c.unmake();
     EXPECT_EQ(c.toFEN(), PROMOTION_FEN) << "should undo promotion on undo";
 }
@@ -288,74 +289,98 @@ TEST_F(ChessTest, MakeUnderPromotion) {
     auto fen = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
     Chess c = Chess(fen);
     c.make(Move(A7, A8, PROMOTION, BISHOP));
-    EXPECT_EQ(c.toFEN(), "B3k3/8/8/8/8/8/8/4K3 b - - 0 1") << "should promote to bishop";
+    EXPECT_EQ(c.toFEN(), "B3k3/8/8/8/8/8/8/4K3 b - - 0 1")
+        << "should promote to bishop";
     c.unmake();
     EXPECT_EQ(c.toFEN(), fen) << "should undo promotion on undo";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegal) {
     Chess c = Chess(G::POS3);
-    EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(B4, F4))) << "should allow legal moves";
+    EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(B4, F4)))
+        << "should allow legal moves";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegalPinned) {
     Chess c = Chess(G::POS3);
-    EXPECT_FALSE(c.isPseudoLegalMoveLegal(Move(B5, B6))) << "should not allow moving pins";
+    EXPECT_FALSE(c.isPseudoLegalMoveLegal(Move(B5, B6)))
+        << "should not allow moving pins";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegalKing) {
     Chess c = Chess(G::POS3);
-    EXPECT_FALSE(c.isPseudoLegalMoveLegal(Move(A5, B6))) << "should not allow moving into check";
+    EXPECT_FALSE(c.isPseudoLegalMoveLegal(Move(A5, B6)))
+        << "should not allow moving into check";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegalCastle) {
     Chess c = Chess(G::POS2);
-    EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(E1, G1, CASTLE))) << "should allow castles";
+    EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(E1, G1, CASTLE)))
+        << "should allow castles";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegalEnPassant) {
     Chess c = Chess(ENPASSANT_FEN);
-    EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(B4, A3, ENPASSANT)));
+    EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(B4, A3, ENPASSANT)))
+        << "should allow legal enpassant";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegalEnPassantPinned) {
     Chess c = Chess("8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - e3 0 1");
-    EXPECT_FALSE(c.isPseudoLegalMoveLegal(Move(F4, E3, ENPASSANT)));
+    EXPECT_FALSE(c.isPseudoLegalMoveLegal(Move(F4, E3, ENPASSANT)))
+        << "should not allow capturing pinned enpassant";
 }
 
 TEST_F(ChessTest, IsCheckingMove) {
     Chess c = Chess("4k3/8/8/8/6N1/8/8/RB1QK3 w - - 0 1");
-    EXPECT_TRUE(c.isCheckingMove(Move(A1, A8)));
-    EXPECT_FALSE(c.isCheckingMove(Move(A1, A7)));
-    EXPECT_TRUE(c.isCheckingMove(Move(B1, G6)));
-    EXPECT_FALSE(c.isCheckingMove(Move(B1, H7)));
-    EXPECT_TRUE(c.isCheckingMove(Move(D1, A4)));
-    EXPECT_FALSE(c.isCheckingMove(Move(D1, F3)));
-    EXPECT_TRUE(c.isCheckingMove(Move(G4, F6)));
-    EXPECT_FALSE(c.isCheckingMove(Move(G4, H6)));
+    EXPECT_TRUE(c.isCheckingMove(Move(A1, A8)))
+        << "should identify rook checks";
+    EXPECT_TRUE(c.isCheckingMove(Move(B1, G6)))
+        << "should identify bishop checks";
+    EXPECT_TRUE(c.isCheckingMove(Move(D1, A4)))
+        << "should identify queen checks";
+    EXPECT_TRUE(c.isCheckingMove(Move(G4, F6)))
+        << "should identify knight checks";
+    EXPECT_FALSE(c.isCheckingMove(Move(A1, A7)))
+        << "should identify rook non-checks";
+    EXPECT_FALSE(c.isCheckingMove(Move(B1, H7)))
+        << "should identify bishop non-checks";
+    EXPECT_FALSE(c.isCheckingMove(Move(D1, F3)))
+        << "should identify queen non-checks";
+    EXPECT_FALSE(c.isCheckingMove(Move(G4, H6)))
+        << "should identify knight non-checks";
 }
 
 TEST_F(ChessTest, IsCheckingMoveDiscovered) {
     Chess c = Chess("Q1N1k3/8/2N1N3/8/B7/8/4R3/4K3 w - - 0 1");
-    EXPECT_TRUE(c.isCheckingMove(Move(C8, B6)));
-    EXPECT_TRUE(c.isCheckingMove(Move(C6, B8)));
-    EXPECT_TRUE(c.isCheckingMove(Move(E6, C5)));
+    EXPECT_TRUE(c.isCheckingMove(Move(C8, B6)))
+        << "should identify queen double checks";
+    EXPECT_TRUE(c.isCheckingMove(Move(C6, B8)))
+        << "should identify bishop double checks";
+    EXPECT_TRUE(c.isCheckingMove(Move(E6, C5)))
+        << "should identify rook double checks";
 }
 
 TEST_F(ChessTest, IsCheckingMoveDiscoveredEnPassant) {
     Chess c = Chess("4k3/8/8/1pP5/B7/8/8/4K3 w - b6 0 1");
-    EXPECT_TRUE(c.isCheckingMove(Move(C5, B6, ENPASSANT)));
+    EXPECT_TRUE(c.isCheckingMove(Move(C5, B6, ENPASSANT)))
+        << "should identify enpassant discovered check";
 }
 
 TEST_F(ChessTest, IsCheckingMovePromotion) {
     Chess c = Chess(PROMOTION_FEN);
-    EXPECT_TRUE(c.isCheckingMove(Move(A7, A8, PROMOTION, QUEEN)));
-    EXPECT_TRUE(c.isCheckingMove(Move(A7, A8, PROMOTION, ROOK)));
-    EXPECT_FALSE(c.isCheckingMove(Move(A7, A8, PROMOTION, BISHOP)));
-    EXPECT_FALSE(c.isCheckingMove(Move(A7, A8, PROMOTION, KNIGHT)));
+    EXPECT_TRUE(c.isCheckingMove(Move(A7, A8, PROMOTION, QUEEN)))
+        << "should identify queen prom check";
+    EXPECT_TRUE(c.isCheckingMove(Move(A7, A8, PROMOTION, ROOK)))
+        << "should identify rook prom check";
+    EXPECT_FALSE(c.isCheckingMove(Move(A7, A8, PROMOTION, BISHOP)))
+        << "should identify bishop prom non-check";
+    EXPECT_FALSE(c.isCheckingMove(Move(A7, A8, PROMOTION, KNIGHT)))
+        << "should identify knight prom non-check";
 }
 
 TEST_F(ChessTest, IsCheckingMoveCastle) {
     Chess c = Chess("5k2/8/8/8/8/8/8/4K2R w K - 0 1");
-    EXPECT_TRUE(c.isCheckingMove(Move(E1, G1, CASTLE)));
+    EXPECT_TRUE(c.isCheckingMove(Move(E1, G1, CASTLE)))
+        << "should identify castling checks";
 }
