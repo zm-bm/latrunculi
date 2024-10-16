@@ -23,87 +23,94 @@ TEST_F(ChessTest, MovePieceForward) {
     U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^
               Zobrist::psq[WHITE][PAWN][E4];
     chess.movePiece<true>(E2, E4, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key);
-    EXPECT_EQ(chess.toFEN(), MOVE_FEN);
+    EXPECT_EQ(chess.getKey(), key) << "should xor key";
+    EXPECT_EQ(chess.toFEN(), MOVE_FEN) << "should move piece";
 }
 
 TEST_F(ChessTest, MovePieceBackwards) {
     Chess chess = Chess(PAWN_FEN);
     U64 key = chess.getKey();
     chess.movePiece<false>(E2, E4, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key);
-    EXPECT_EQ(chess.toFEN(), MOVE_FEN);
+    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
+    EXPECT_EQ(chess.toFEN(), MOVE_FEN) << "should move piece";
 }
 
 TEST_F(ChessTest, AddPieceForward) {
     Chess chess = Chess(EMPTY_FEN);
     U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
     chess.addPiece<true>(E2, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key);
-    EXPECT_EQ(chess.toFEN(), PAWN_FEN);
+    EXPECT_EQ(chess.getKey(), key) << "should xor key";
+    EXPECT_EQ(chess.toFEN(), PAWN_FEN) << "should move piece";
 }
 
 TEST_F(ChessTest, AddPieceBackwards) {
     Chess chess = Chess("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
     U64 key = chess.getKey();
     chess.addPiece<false>(E2, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key);
-    EXPECT_EQ(chess.toFEN(), PAWN_FEN);
+    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
+    EXPECT_EQ(chess.toFEN(), PAWN_FEN) << "should move piece";
 }
 
 TEST_F(ChessTest, RemovePieceForward) {
     Chess chess = Chess(PAWN_FEN);
     U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
     chess.removePiece<true>(E2, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key);
-    // EXPECT_EQ(chess.toFEN(), EMPTY_FEN);
+    EXPECT_EQ(chess.getKey(), key) << "should xor key";
+    // EXPECT_EQ(chess.toFEN(), EMPTY_FEN) << "should move piece";
 }
 
 TEST_F(ChessTest, RemovePieceBackwards) {
     Chess chess = Chess(PAWN_FEN);
     U64 key = chess.getKey();
     chess.removePiece<false>(E2, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key);
-    // EXPECT_EQ(chess.toFEN(), EMPTY_FEN);
+    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
+    // EXPECT_EQ(chess.toFEN(), EMPTY_FEN) << "should move piece";
 }
 
 TEST_F(ChessTest, GetCheckingPiecesW) {
     Chess c = Chess(G::POS4W);
-    EXPECT_EQ(c.getCheckingPieces(), BB::set(B6));
+    EXPECT_EQ(c.getCheckingPieces(), BB::set(B6))
+        << "should have a white checker on b6";
 }
 
 TEST_F(ChessTest, GetCheckingPiecesB) {
     Chess c = Chess(G::POS4B);
-    EXPECT_EQ(c.getCheckingPieces(), BB::set(B3));
+    EXPECT_EQ(c.getCheckingPieces(), BB::set(B3))
+        << "should have a black checker on b3";
 }
 
 TEST_F(ChessTest, GetEnPassant) {
     Chess c = Chess(ENPASSANT_FEN);
-    EXPECT_EQ(c.getEnPassant(), A3);
+    EXPECT_EQ(c.getEnPassant(), A3) << "should have a valid enpassant square";
 }
 
 TEST_F(ChessTest, GetHmClock) {
     Chess c = Chess("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1");
-    EXPECT_EQ(c.getHmClock(), 7);
+    EXPECT_EQ(c.getHmClock(), 7) << "should have a half move clock of 7";
 }
 
 TEST_F(ChessTest, GetKeyCalculateKey) {
     for (auto fen : G::FENS) {
         Chess c = Chess(fen);
-        EXPECT_EQ(c.getKey(), c.calculateKey());
+        EXPECT_EQ(c.getKey(), c.calculateKey())
+            << "should calculate correct hash key";
     }
 }
 
 TEST_F(ChessTest, IsCheck) {
-    EXPECT_FALSE(Chess(G::STARTFEN).getCheckingPieces());
-    EXPECT_TRUE(Chess(G::POS4W).getCheckingPieces());
-    EXPECT_TRUE(Chess(G::POS4B).getCheckingPieces());
+    EXPECT_FALSE(Chess(G::STARTFEN).getCheckingPieces())
+        << "should not be in check from start pos";
+    EXPECT_TRUE(Chess(G::POS4W).getCheckingPieces()) << "should be in check";
+    EXPECT_TRUE(Chess(G::POS4B).getCheckingPieces()) << "should be in check";
 }
 
 TEST_F(ChessTest, IsDoubleCheck) {
-    EXPECT_FALSE(Chess(G::POS4W).isDoubleCheck());
-    EXPECT_FALSE(Chess(G::POS4B).isDoubleCheck());
-    EXPECT_TRUE(Chess("R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1").isDoubleCheck());
+    EXPECT_FALSE(Chess(G::POS4W).isDoubleCheck())
+        << "should not be in double check";
+    EXPECT_FALSE(Chess(G::POS4B).isDoubleCheck())
+        << "should not be in double check";
+    EXPECT_TRUE(Chess("R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1").isDoubleCheck())
+        << "should be in double check";
 }
 
 TEST_F(ChessTest, CanCastleTrue) {
@@ -161,7 +168,7 @@ TEST_F(ChessTest, DisableCastleOOO) {
 TEST_F(ChessTest, ChessToFEN) {
     for (auto fen : G::FENS) {
         Chess c = Chess(fen);
-        EXPECT_EQ(c.toFEN(), fen);
+        EXPECT_EQ(c.toFEN(), fen) << "should return identical fen";
     }
 }
 
@@ -169,9 +176,10 @@ TEST_F(ChessTest, Make) {
     Chess c = Chess(G::STARTFEN);
     c.make(Move(G1, F3));
     EXPECT_EQ(c.toFEN(),
-              "rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1");
+              "rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1")
+        << "should move the knight";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), G::STARTFEN);
+    EXPECT_EQ(c.toFEN(), G::STARTFEN) << "should move the knight back";
 }
 
 TEST_F(ChessTest, MakeCapt) {
@@ -179,35 +187,38 @@ TEST_F(ChessTest, MakeCapt) {
     c.make(Move(E2, A6));
     EXPECT_EQ(
         c.toFEN(),
-        "r3k2r/p1ppqpb1/Bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPB1PPP/R3K2R b KQkq - 0 1");
+        "r3k2r/p1ppqpb1/Bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPB1PPP/R3K2R b KQkq - 0 1")
+        << "should capture with the bishop";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), G::POS2);
+    EXPECT_EQ(c.toFEN(), G::POS2) << "should undo the capture";
 }
 
 TEST_F(ChessTest, MakeCaptRook) {
     auto fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 1 1";
     Chess c = Chess(fen);
     c.make(Move(A1, A8));
-    EXPECT_EQ(c.toFEN(), "R3k2r/8/8/8/8/8/8/4K2R b Kk - 0 1");
+    EXPECT_EQ(c.toFEN(), "R3k2r/8/8/8/8/8/8/4K2R b Kk - 0 1")
+        << "should revoke castle rights with rook capture";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), fen);
+    EXPECT_EQ(c.toFEN(), fen) << "should restore castle rights on undo";
 }
 
 TEST_F(ChessTest, MakeEnpassantSq) {
     auto fen = "4k3/8/8/8/1p6/8/P7/4K3 w - - 0 1";
     Chess c = Chess(fen);
     c.make(Move(A2, A4));
-    EXPECT_EQ(c.toFEN(), ENPASSANT_FEN);
+    EXPECT_EQ(c.toFEN(), ENPASSANT_FEN) << "should set enpassant square";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), fen);
+    EXPECT_EQ(c.toFEN(), fen) << "should clear enpassant square on undo";
 }
 
 TEST_F(ChessTest, MakeEnpassantCapt) {
     Chess c = Chess(ENPASSANT_FEN);
     c.make(Move(B4, A3, ENPASSANT));
-    EXPECT_EQ(c.toFEN(), "4k3/8/8/8/8/p7/8/4K3 w - - 0 2");
+    EXPECT_EQ(c.toFEN(), "4k3/8/8/8/8/p7/8/4K3 w - - 0 2")
+        << "should make enpassant captures";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), ENPASSANT_FEN);
+    EXPECT_EQ(c.toFEN(), ENPASSANT_FEN) << "should undo enpassant captures";
 }
 
 TEST_F(ChessTest, MakeCastleOO) {
@@ -215,9 +226,10 @@ TEST_F(ChessTest, MakeCastleOO) {
     c.make(Move(E1, G1, CASTLE));
     EXPECT_EQ(
         c.toFEN(),
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R4RK1 b kq - 1 1");
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R4RK1 b kq - 1 1")
+        << "should castle king side";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), G::POS2);
+    EXPECT_EQ(c.toFEN(), G::POS2) << "should undo king side castle";
 }
 
 TEST_F(ChessTest, MakeCastleOOO) {
@@ -225,9 +237,10 @@ TEST_F(ChessTest, MakeCastleOOO) {
     c.make(Move(E1, C1, CASTLE));
     EXPECT_EQ(
         c.toFEN(),
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2KR3R b kq - 1 1");
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2KR3R b kq - 1 1")
+        << "should castle queen side";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), G::POS2);
+    EXPECT_EQ(c.toFEN(), G::POS2) << "should undo queen side castle";
 }
 
 TEST_F(ChessTest, MakeKingMoveDisableCastleRights) {
@@ -235,9 +248,10 @@ TEST_F(ChessTest, MakeKingMoveDisableCastleRights) {
     c.make(Move(E1, D1));
     EXPECT_EQ(
         c.toFEN(),
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R2K3R b kq - 1 1");
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R2K3R b kq - 1 1")
+        << "should revoke castle rights with king move";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), G::POS2);
+    EXPECT_EQ(c.toFEN(), G::POS2) << "should restore castle rights on undo";
 }
 
 TEST_F(ChessTest, MakeRookMoveDisableCastleOORights) {
@@ -245,9 +259,10 @@ TEST_F(ChessTest, MakeRookMoveDisableCastleOORights) {
     c.make(Move(H1, F1));
     EXPECT_EQ(
         c.toFEN(),
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3KR2 b Qkq - 1 1");
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3KR2 b Qkq - 1 1")
+        << "should revoke castle rights on rook move";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), G::POS2);
+    EXPECT_EQ(c.toFEN(), G::POS2) << "should restore rights on undo";
 }
 
 TEST_F(ChessTest, MakeRookMoveDisableCastleOOORights) {
@@ -255,46 +270,47 @@ TEST_F(ChessTest, MakeRookMoveDisableCastleOOORights) {
     c.make(Move(A1, C1));
     EXPECT_EQ(
         c.toFEN(),
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2R1K2R b Kkq - 1 1");
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2R1K2R b Kkq - 1 1")
+        << "should revoke castle rights on rook move";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), G::POS2);
+    EXPECT_EQ(c.toFEN(), G::POS2) << "should restore rights on undo";
 }
 
 TEST_F(ChessTest, MakePromotion) {
     Chess c = Chess(PROMOTION_FEN);
     c.make(Move(A7, A8, PROMOTION, QUEEN));
-    EXPECT_EQ(c.toFEN(), "Q3k3/8/8/8/8/8/8/4K3 b - - 0 1");
+    EXPECT_EQ(c.toFEN(), "Q3k3/8/8/8/8/8/8/4K3 b - - 0 1") << "should promote to queen";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), PROMOTION_FEN);
+    EXPECT_EQ(c.toFEN(), PROMOTION_FEN) << "should undo promotion on undo";
 }
 
 TEST_F(ChessTest, MakeUnderPromotion) {
     auto fen = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
     Chess c = Chess(fen);
     c.make(Move(A7, A8, PROMOTION, BISHOP));
-    EXPECT_EQ(c.toFEN(), "B3k3/8/8/8/8/8/8/4K3 b - - 0 1");
+    EXPECT_EQ(c.toFEN(), "B3k3/8/8/8/8/8/8/4K3 b - - 0 1") << "should promote to bishop";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), fen);
+    EXPECT_EQ(c.toFEN(), fen) << "should undo promotion on undo";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegal) {
     Chess c = Chess(G::POS3);
-    EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(B4, F4)));
+    EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(B4, F4))) << "should allow legal moves";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegalPinned) {
     Chess c = Chess(G::POS3);
-    EXPECT_FALSE(c.isPseudoLegalMoveLegal(Move(B5, B6)));
+    EXPECT_FALSE(c.isPseudoLegalMoveLegal(Move(B5, B6))) << "should not allow moving pins";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegalKing) {
     Chess c = Chess(G::POS3);
-    EXPECT_FALSE(c.isPseudoLegalMoveLegal(Move(A5, B6)));
+    EXPECT_FALSE(c.isPseudoLegalMoveLegal(Move(A5, B6))) << "should not allow moving into check";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegalCastle) {
     Chess c = Chess(G::POS2);
-    EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(E1, G1, CASTLE)));
+    EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(E1, G1, CASTLE))) << "should allow castles";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegalEnPassant) {
