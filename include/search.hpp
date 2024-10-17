@@ -8,8 +8,8 @@
 #include <memory>
 #include <vector>
 
+#include "defs.hpp"
 #include "eval.hpp"
-#include "globals.hpp"
 #include "move.hpp"
 #include "types.hpp"
 
@@ -23,8 +23,7 @@ struct Killer {
 class Search {
    public:
     Search() = default;
-    Search(Chess* chess)
-        : bestMove(Move()), chess(chess), searchPly(0), nSearched(0) {}
+    Search(Chess* chess) : bestMove(Move()), chess(chess), searchPly(0), nSearched(0) {}
 
     /*
      *  search.cpp

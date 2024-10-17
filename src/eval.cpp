@@ -125,8 +125,8 @@ int Chess::evalDeprecated() const
            bking = board.getKingSq(BLACK);
     U64 occ = board.occupancy(),
         pieces = 0,
-        wHoles = ~BB::getFrontAttackSpan<WHITE>(wPawns) & G::WHITEHOLES,
-        bHoles = ~BB::getFrontAttackSpan<BLACK>(bPawns) & G::BLACKHOLES,
+        wHoles = ~BB::getFrontAttackSpan<WHITE>(wPawns) & BB::WHITEHOLES,
+        bHoles = ~BB::getFrontAttackSpan<BLACK>(bPawns) & BB::BLACKHOLES,
         wOutposts = bHoles & BB::attacksByPawns<WHITE>(wPawns),
         bOutposts = wHoles & BB::attacksByPawns<BLACK>(bPawns),
         allOutposts = wOutposts | bOutposts;
@@ -169,7 +169,7 @@ int Chess::evalDeprecated() const
     // Bishops
     double wBishopScore = 0;
     pieces = board.getPieces<BISHOP>(WHITE);
-    if ((pieces & G::WHITESQUARES) && (pieces & G::BLACKSQUARES))
+    if ((pieces & BB::WHITESQUARES) && (pieces & BB::BLACKSQUARES))
         wBishopScore += (opPhase * G::BishopPairBonus[OPENING]
                       + (egPhase * G::BishopPairBonus[ENDGAME])) / TOTALPHASE;
     while (pieces)
@@ -185,7 +185,7 @@ int Chess::evalDeprecated() const
     }
     double bBishopScore = 0;
     pieces = board.getPieces<BISHOP>(BLACK);
-    if ((pieces & G::WHITESQUARES) && (pieces & G::BLACKSQUARES))
+    if ((pieces & BB::WHITESQUARES) && (pieces & BB::BLACKSQUARES))
         bBishopScore += (opPhase * G::BishopPairBonus[OPENING]
                       + (egPhase * G::BishopPairBonus[ENDGAME])) / TOTALPHASE;
     while (pieces)

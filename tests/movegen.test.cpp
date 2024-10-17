@@ -1,7 +1,7 @@
 #include "movegen.hpp"
 
 #include "chess.hpp"
-#include "globals.hpp"
+#include "defs.hpp"
 #include "gtest/gtest.h"
 
 TEST(MoveGenTest, GeneratePseudoLegalMoves) {

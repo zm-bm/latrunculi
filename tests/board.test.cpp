@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "globals.hpp"
+#include "defs.hpp"
 
 class BoardTest : public ::testing::Test {
    protected:
@@ -25,7 +25,7 @@ class BoardTest : public ::testing::Test {
 TEST_F(BoardTest, GetPieces) {
     EXPECT_EQ(emptyBoard->getPieces<KING>(WHITE), BB::set(E1))
         << "should get piece bitboard of white king";
-    EXPECT_EQ(startBoard->getPieces<PAWN>(WHITE), G::RANK_MASK[RANK2])
+    EXPECT_EQ(startBoard->getPieces<PAWN>(WHITE), BB::RANK_MASK[RANK2])
         << "should get bitboard of white pawns from start board";
 }
 
@@ -50,8 +50,8 @@ TEST_F(BoardTest, GetPieceCount) {
 }
 
 TEST_F(BoardTest, Occupancy) {
-    U64 expected = (G::RANK_MASK[RANK1] | G::RANK_MASK[RANK2] |
-                    G::RANK_MASK[RANK7] | G::RANK_MASK[RANK8]);
+    U64 expected = (BB::RANK_MASK[RANK1] | BB::RANK_MASK[RANK2] |
+                    BB::RANK_MASK[RANK7] | BB::RANK_MASK[RANK8]);
     EXPECT_EQ(startBoard->occupancy(), expected)
         << "should get occupancy of starting board";
 }
@@ -181,12 +181,12 @@ TEST_F(BoardTest, CalculateCheckingPiecesB) {
 }
 
 TEST_F(BoardTest, IsBitboardAttacked) {
-    EXPECT_FALSE(pinBoard->isBitboardAttacked(G::FILE_MASK[FILE7], WHITE))
+    EXPECT_FALSE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE7], WHITE))
         << "white should attack G file";
-    EXPECT_TRUE(pinBoard->isBitboardAttacked(G::FILE_MASK[FILE8], WHITE))
+    EXPECT_TRUE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE8], WHITE))
         << "white should not attack H file";
-    EXPECT_FALSE(pinBoard->isBitboardAttacked(G::FILE_MASK[FILE1], BLACK))
+    EXPECT_FALSE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE1], BLACK))
         << "black should not attack A file";
-    EXPECT_TRUE(pinBoard->isBitboardAttacked(G::FILE_MASK[FILE2], BLACK))
+    EXPECT_TRUE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE2], BLACK))
         << "black should attack B file";
 }

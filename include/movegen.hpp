@@ -97,17 +97,15 @@ inline void MoveGenerator::addEnPassants(U64 pawns, Square enpassant) {
 }
 
 inline bool MoveGenerator::canCastleOO(U64 occ, Color turn) {
-    return (
-        chess->canCastleOO(turn)           // castling rights
-        && !(occ & G::CastlePathOO[turn])  // castle path unoccupied/attacked
-        && !chess->board.isBitboardAttacked(G::KingCastlePathOO[turn], ~turn));
+    return (chess->canCastleOO(turn)            // castling rights
+            && !(occ & BB::CastlePathOO[turn])  // castle path unoccupied/attacked
+            && !chess->board.isBitboardAttacked(BB::KingCastlePathOO[turn], ~turn));
 }
 
 inline bool MoveGenerator::canCastleOOO(U64 occ, Color turn) {
-    return (
-        chess->canCastleOOO(turn)           // castling rights
-        && !(occ & G::CastlePathOOO[turn])  // castle path unoccupied/attacked
-        && !chess->board.isBitboardAttacked(G::KingCastlePathOOO[turn], ~turn));
+    return (chess->canCastleOOO(turn)            // castling rights
+            && !(occ & BB::CastlePathOOO[turn])  // castle path unoccupied/attacked
+            && !chess->board.isBitboardAttacked(BB::KingCastlePathOOO[turn], ~turn));
 }
 
 #endif

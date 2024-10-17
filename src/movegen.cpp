@@ -91,10 +91,10 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
     }
 
     // Get 7th rank pawns
-    U64 pawns = chess->board.getPieces<PAWN>(c) & G::rankmask(RANK7, c);
+    U64 pawns = chess->board.getPieces<PAWN>(c) & BB::rankmask(RANK7, c);
 
     // Generate pawn promotions, if there are targets attacked by 7th rank pawns
-    if (pawns && (g != EVASIONS || (targets & G::rankmask(RANK8, c)))) {
+    if (pawns && (g != EVASIONS || (targets & BB::rankmask(RANK8, c)))) {
         // push / regular move promotions
         bitboard = (g == EVASIONS)
             ? BB::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies & targets
@@ -109,7 +109,7 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
     }
 
     // Get non 7th rank pawns
-    pawns = chess->board.getPieces<PAWN>(c) & ~G::rankmask(RANK7, c);
+    pawns = chess->board.getPieces<PAWN>(c) & ~BB::rankmask(RANK7, c);
 
     if (g != QUIETS) {
         // Generate captures
@@ -135,7 +135,7 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
     // Generate regular pawn pushes
     if (g != CAPTURES) {
         bitboard = BB::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies;
-        U64 doubleMovePawns = bitboard & G::rankmask(RANK3, c),
+        U64 doubleMovePawns = bitboard & BB::rankmask(RANK3, c),
             doubleMoves = BB::movesByPawns<PawnMove::PUSH, c>(doubleMovePawns) &
                           vacancies;
 

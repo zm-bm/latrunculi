@@ -44,8 +44,8 @@ enum PieceRole : U8 {
 };
 // clang-format on
 
-enum File : I8 { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8 };
-enum Rank : I8 { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8 };
+enum File : I8 { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8, NFILES };
+enum Rank : I8 { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8, NRANKS };
 
 enum CastleRights : U8 {
     NO_CASTLE = 0x0,
@@ -71,8 +71,7 @@ enum Score {
     BISHOPSCORE = 330,
     ROOKSCORE = 500,
     QUEENSCORE = 900,
-    TOTALPHASE = 2 * QUEENSCORE + 4 * ROOKSCORE + 4 * BISHOPSCORE +
-                 4 * KNIGHTSCORE + 16 * PAWNSCORE,
+    TOTALPHASE = 2 * QUEENSCORE + 4 * ROOKSCORE + 4 * BISHOPSCORE + 4 * KNIGHTSCORE + 16 * PAWNSCORE,
     KINGSCORE = 20000,
     MATESCORE = 32000,
 };
@@ -91,9 +90,7 @@ enum NodeType : U8 {
 
 namespace Types {
 
-constexpr Square getSquare(const File file, const Rank rank) {
-    return Square(rank * 8 + file);
-}
+constexpr Square getSquare(const File file, const Rank rank) { return Square(rank * 8 + file); }
 
 inline Square getSquareFromStr(const std::string& square) {
     auto file = File((int)square[0] - 'a');
@@ -106,38 +103,27 @@ inline constexpr Rank getRank(const Square square) { return Rank(square >> 3); }
 
 inline constexpr File getFile(const Square square) { return File(square & 7); }
 
-inline constexpr bool validRank(const Rank rank) {
-    return (RANK1 <= rank) && (rank <= RANK8);
-}
+inline constexpr bool validRank(const Rank rank) { return (RANK1 <= rank) && (rank <= RANK8); }
 
-inline constexpr bool validFile(const File file) {
-    return (FILE1 <= file) && (file <= FILE8);
-}
+inline constexpr bool validFile(const File file) { return (FILE1 <= file) && (file <= FILE8); }
 
-inline constexpr Piece makePiece(const Color c, const PieceRole p) {
-    return Piece((c << 3) | p);
-}
+inline constexpr Piece makePiece(const Color c, const PieceRole p) { return Piece((c << 3) | p); }
 
-inline constexpr PieceRole getPieceRole(const Piece p) {
-    return PieceRole(p & 0x7);
-}
+inline constexpr PieceRole getPieceRole(const Piece p) { return PieceRole(p & 0x7); }
 
 inline constexpr Color getPieceColor(const Piece p) { return Color(p >> 3); }
 
 template <Color c, PawnMove p, bool forward>
 inline Square pawnMove(const Square sq) {
-    return (forward == (c == WHITE)) ? Square(sq + static_cast<int>(p))
-                                     : Square(sq - static_cast<int>(p));
+    return (forward == (c == WHITE)) ? Square(sq + static_cast<int>(p)) : Square(sq - static_cast<int>(p));
 }
 
 template <PawnMove p, bool forward>
 inline Square pawnMove(const Square sq, const Color c) {
-    return (c == WHITE) ? pawnMove<WHITE, p, forward>(sq)
-                        : pawnMove<BLACK, p, forward>(sq);
+    return (c == WHITE) ? pawnMove<WHITE, p, forward>(sq) : pawnMove<BLACK, p, forward>(sq);
 }
 
-const char PieceChar[16] = {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ',
-                            ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
+const char PieceChar[16] = {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
 
 }  // namespace Types
 
