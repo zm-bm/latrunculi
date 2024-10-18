@@ -119,8 +119,6 @@ inline Square pawnMove(const Square sq, const Color c) {
     return (c == WHITE) ? pawnMove<WHITE, p, forward>(sq) : pawnMove<BLACK, p, forward>(sq);
 }
 
-const char PieceChar[16] = {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
-
 }  // namespace Types
 
 inline Color operator~(Color c) { return Color(c ^ WHITE); }
@@ -141,7 +139,8 @@ inline std::ostream& operator<<(std::ostream& os, Square sq) {
 }
 
 inline std::ostream& operator<<(std::ostream& os, Piece p) {
-    os << Types::PieceChar[p];
+    constexpr char pieceToChar[16] = {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
+    os << pieceToChar[p];
     return os;
 }
 
