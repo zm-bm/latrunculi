@@ -1,17 +1,19 @@
 #ifndef LATRUNCULI_CHESS_H
 #define LATRUNCULI_CHESS_H
 
+#include <string>
 #include <vector>
 
+#include "constants.hpp"
 #include "board.hpp"
-#include "state.hpp"
 #include "eval.hpp"
+#include "state.hpp"
 #include "zobrist.hpp"
 
 class Chess {
    private:
     std::vector<State> state = {State()};
-    Board board = Board(G::STARTFEN);
+    Board board = Board(LtrnConsts::STARTFEN);
     Color turn = WHITE;
     U32 ply = 0;
     U32 moveCounter = 0;
@@ -20,11 +22,11 @@ class Chess {
     I32 endgameScore = 0;
     I32 materialScore = 0;
 
-    static constexpr Square KingOrigin[2]          = {E8, E1};
-    static constexpr Square KingDestinationOO[2]   = {G8, G1};
-    static constexpr Square KingDestinationOOO[2]  = {C8, C1};
-    static constexpr Square RookOriginOO[2]        = {H8, H1};
-    static constexpr Square RookOriginOOO[2]       = {A8, A1};
+    static constexpr Square KingOrigin[2] = {E8, E1};
+    static constexpr Square KingDestinationOO[2] = {G8, G1};
+    static constexpr Square KingDestinationOOO[2] = {C8, C1};
+    static constexpr Square RookOriginOO[2] = {H8, H1};
+    static constexpr Square RookOriginOOO[2] = {A8, A1};
 
    public:
     explicit Chess(const std::string&);
@@ -145,8 +147,7 @@ inline bool Chess::isDoubleCheck() const {
 
 inline bool Chess::canCastle(Color c) const {
     // Check if the specified color can castle
-    return (c ? state[ply].castle & WHITE_CASTLE
-              : state[ply].castle & BLACK_CASTLE);
+    return (c ? state[ply].castle & WHITE_CASTLE : state[ply].castle & BLACK_CASTLE);
 }
 
 inline bool Chess::canCastleOO(Color c) const {
@@ -206,8 +207,7 @@ inline void Chess::updateCapturedPieces(Square sq, Color c, PieceRole p) {
     }
 }
 
-inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype,
-                                   Move mv) {
+inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype, Move mv) {
     state[ply].hmClock = 0;  // Reset half move clock
 
     auto doubleMove = static_cast<U8>(PawnMove::DOUBLE);
@@ -220,10 +220,8 @@ inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype,
 }
 
 inline int Chess::calculatePhase() const {
-    return (
-        PAWNSCORE * board.count<PAWN>() + KNIGHTSCORE * board.count<KNIGHT>() +
-        BISHOPSCORE * board.count<BISHOP>() + ROOKSCORE * board.count<ROOK>() +
-        QUEENSCORE * board.count<QUEEN>());
+    return (PAWNSCORE * board.count<PAWN>() + KNIGHTSCORE * board.count<KNIGHT>() +
+            BISHOPSCORE * board.count<BISHOP>() + ROOKSCORE * board.count<ROOK>() + QUEENSCORE * board.count<QUEEN>());
 }
 
 inline U64 Chess::calculateKey() const {
@@ -268,8 +266,7 @@ inline void Chess::updateState(bool checkingMove = true) {
     state[ply].checkingSquares[KNIGHT] = BB::movesByPiece<KNIGHT>(king, occ);
     state[ply].checkingSquares[BISHOP] = BB::movesByPiece<BISHOP>(king, occ);
     state[ply].checkingSquares[ROOK] = BB::movesByPiece<ROOK>(king, occ);
-    state[ply].checkingSquares[QUEEN] =
-        state[ply].checkingSquares[BISHOP] | state[ply].checkingSquares[ROOK];
+    state[ply].checkingSquares[QUEEN] = state[ply].checkingSquares[BISHOP] | state[ply].checkingSquares[ROOK];
 }
 
 #endif

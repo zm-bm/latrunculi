@@ -6,7 +6,7 @@
 
 TEST(BitboardTest, Set) {
     for (int i = 0; i < 64; ++i) {
-        U64 result = BB::BITSET[i];
+        U64 result = BB::set(Square(i));
         U64 expected = 1ULL << i;
         ASSERT_EQ(result, expected) << "Failed at index " << i;
     }
@@ -14,7 +14,7 @@ TEST(BitboardTest, Set) {
 
 TEST(BitboardTest, Clear) {
     for (int i = 0; i < 64; ++i) {
-        U64 result = BB::BITCLEAR[i];
+        U64 result = BB::clear(Square(i));
         U64 expected = ~(1ULL << i);
         ASSERT_EQ(result, expected) << "Failed at index " << i;
     }
@@ -23,7 +23,7 @@ TEST(BitboardTest, Clear) {
 U64 targets(std::vector<Square> squares) {
     U64 target = 0ULL;
     for (auto sq : squares) {
-        target |= BB::BITSET[sq];
+        target |= BB::set(sq);
     }
     return target;
 }
@@ -65,6 +65,17 @@ TEST(BitboardTest, KING_ATTACKS) {
     EXPECT_EQ(BB::KING_ATTACKS[A8], targets({A7, B7, B8}));
     EXPECT_EQ(BB::KING_ATTACKS[H8], targets({H7, G7, G8}));
     EXPECT_EQ(BB::KING_ATTACKS[G2], targets({F1, F2, F3, G1, G3, H1, H2, H3}));
+}
+
+TEST(BitboardTest, DISTANCE) {
+    EXPECT_EQ(BB::DISTANCE[A1][A1], 0);
+    EXPECT_EQ(BB::DISTANCE[A1][A2], 1);
+    EXPECT_EQ(BB::DISTANCE[A1][B1], 1);
+    EXPECT_EQ(BB::DISTANCE[A1][B2], 1);
+    EXPECT_EQ(BB::DISTANCE[A1][G7], 6);
+    EXPECT_EQ(BB::DISTANCE[A1][H7], 7);
+    EXPECT_EQ(BB::DISTANCE[A1][G8], 7);
+    EXPECT_EQ(BB::DISTANCE[A1][H8], 7);
 }
 
 TEST(BitboardTest, MoreThanOneSet) {

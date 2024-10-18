@@ -2,6 +2,7 @@
 
 #include <sstream>
 
+#include "defs.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
 #include "tt.hpp"
@@ -9,7 +10,7 @@
 namespace UCI {
 
 Controller::Controller(std::istream& is, std::ostream& os)
-    : chess(G::STARTFEN),
+    : chess(LtrnConsts::STARTFEN),
       search(&chess),
       _debug(false),
       istream(is),
@@ -28,7 +29,7 @@ void Controller::loop() {
 
 bool Controller::execute(const std::string& input) {
   // Split input string to get the UCI command
-  auto tokens = G::split(input, ' ');
+  auto tokens = LtrnDefs::split(input, ' ');
   auto cmd = tokens.at(0);
   tokens.erase(tokens.begin());
 
@@ -95,7 +96,7 @@ void Controller::position(std::vector<std::string>& tokens) {
   tokens.erase(tokens.begin());
 
   if (pos == "startpos") {
-    chess = Chess(G::STARTFEN);
+    chess = Chess(LtrnConsts::STARTFEN);
     search = Search(&chess);
 
     if (_debug) ostream << chess;

@@ -71,20 +71,6 @@ TEST(TypesTest, getFile) {
     EXPECT_EQ(Types::getFile(H8), FILE8);
 }
 
-TEST(TypesTest, validRank) {
-    EXPECT_EQ(Types::validRank(RANK1), true);
-    EXPECT_EQ(Types::validRank(RANK1 - 1), false);
-    EXPECT_EQ(Types::validRank(RANK8), true);
-    EXPECT_EQ(Types::validRank(RANK8 + 1), false);
-}
-
-TEST(TypesTest, validFile) {
-    EXPECT_EQ(Types::validFile(FILE1), true);
-    EXPECT_EQ(Types::validFile(FILE1 - 1), false);
-    EXPECT_EQ(Types::validFile(FILE8), true);
-    EXPECT_EQ(Types::validFile(FILE8 + 1), false);
-}
-
 TEST(TypesTest, makePiece) {
     EXPECT_EQ(Types::makePiece(WHITE, PAWN), W_PAWN);
     EXPECT_EQ(Types::makePiece(WHITE, KNIGHT), W_KNIGHT);

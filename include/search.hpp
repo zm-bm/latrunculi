@@ -8,7 +8,6 @@
 #include <memory>
 #include <vector>
 
-#include "defs.hpp"
 #include "eval.hpp"
 #include "move.hpp"
 #include "types.hpp"

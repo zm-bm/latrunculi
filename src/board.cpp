@@ -6,9 +6,10 @@
 #include <vector>
 
 #include "types.hpp"
+#include "defs.hpp"
 
 Board::Board(const std::string& fen) {
-    std::string pieces = G::split(fen, ' ').at(0);
+    std::string pieces = LtrnDefs::split(fen, ' ').at(0);
 
     auto file = FILE1;
     auto rank = RANK8;

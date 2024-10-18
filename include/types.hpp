@@ -103,10 +103,6 @@ inline constexpr Rank getRank(const Square square) { return Rank(square >> 3); }
 
 inline constexpr File getFile(const Square square) { return File(square & 7); }
 
-inline constexpr bool validRank(const Rank rank) { return (RANK1 <= rank) && (rank <= RANK8); }
-
-inline constexpr bool validFile(const File file) { return (FILE1 <= file) && (file <= FILE8); }
-
 inline constexpr Piece makePiece(const Color c, const PieceRole p) { return Piece((c << 3) | p); }
 
 inline constexpr PieceRole getPieceRole(const Piece p) { return PieceRole(p & 0x7); }

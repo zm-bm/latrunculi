@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "defs.hpp"
+#include "constants.hpp"
 #include "bb.hpp"
 
 class MagicsTest : public ::testing::Test {
@@ -53,7 +53,7 @@ TEST_F(MagicsTest, BishopEdgeOfBoardWithObstacles) {
 
 TEST_F(MagicsTest, RookMiddleOfBoardNoObstacles) {
     U64 expectedAttacks =
-        (BB::rankmask(RANK4, WHITE) | BB::filemask(FILE5, WHITE)) ^ BB::BITSET[E4];
+        (BB::rankmask(RANK4, WHITE) | BB::filemask(FILE5, WHITE)) ^ BB::set(E4);
 
     EXPECT_EQ(Magics::getRookAttacks(E4, 0), expectedAttacks)
         << "should attack fully both ranks and files";
@@ -77,7 +77,7 @@ TEST_F(MagicsTest, RookSurroundedByPieces) {
 
 TEST_F(MagicsTest, RookEdgeOfBoardNoObstacles) {
     U64 expectedAttacks =
-        (BB::rankmask(RANK1, WHITE) | BB::filemask(FILE1, WHITE)) ^ BB::BITSET[A1];
+        (BB::rankmask(RANK1, WHITE) | BB::filemask(FILE1, WHITE)) ^ BB::set(A1);
 
     EXPECT_EQ(Magics::getRookAttacks(A1, 0), expectedAttacks)
         << "should attack fully both ranks and files";

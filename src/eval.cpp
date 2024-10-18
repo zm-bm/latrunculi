@@ -115,7 +115,7 @@
 //     {
 //         Square sq = BB::advanced<WHITE>(pieces);
 //         pieces &= BB::clear(sq);
-//         wKnightScore += Eval::KNIGHT_TROPISM[G::DISTANCE[bking][sq]];
+//         wKnightScore += Eval::KNIGHT_TROPISM[BB::DISTANCE[bking][sq]];
 //         if (Types::getRank(sq) == RANK1)
 //             wKnightScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
 //         U64 validOutposts = BB::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
@@ -128,7 +128,7 @@
 //     {
 //         Square sq = BB::advanced<BLACK>(pieces);
 //         pieces &= BB::clear(sq);
-//         bKnightScore += Eval::KNIGHT_TROPISM[G::DISTANCE[wking][sq]];
+//         bKnightScore += Eval::KNIGHT_TROPISM[BB::DISTANCE[wking][sq]];
 //         if (Types::getRank(sq) == RANK8)
 //             bKnightScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
 //         U64 validOutposts = BB::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
@@ -153,7 +153,7 @@
 //     {
 //         Square sq = BB::advanced<WHITE>(pieces);
 //         pieces &= BB::clear(sq);
-//         wBishopScore += Eval::BISHOP_TROPISM[G::DISTANCE[bking][sq]];
+//         wBishopScore += Eval::BISHOP_TROPISM[BB::DISTANCE[bking][sq]];
 //         if (Types::getRank(sq) == RANK1)
 //             wBishopScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
 //         U64 validOutposts = BB::movesByPiece<BISHOP>(sq, occ) | BB::set(sq);
@@ -169,7 +169,7 @@
 //     {
 //         Square sq = BB::advanced<BLACK>(pieces);
 //         pieces &= BB::clear(sq);
-//         bBishopScore += Eval::BISHOP_TROPISM[G::DISTANCE[wking][sq]];
+//         bBishopScore += Eval::BISHOP_TROPISM[BB::DISTANCE[wking][sq]];
 //         if (Types::getRank(sq) == RANK8)
 //             bBishopScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
 //         U64 validOutposts = BB::movesByPiece<BISHOP>(sq, occ) | BB::set(sq);
@@ -191,8 +191,8 @@
 //     {
 //         Square sq = BB::advanced<WHITE>(pieces);
 //         pieces &= BB::clear(sq);
-//         wRookScore += Eval::ROOK_TROPISM[G::DISTANCE[bking][sq]];
-//         wRookScore += Eval::ROOK_TROPISM[G::DISTANCE[wking][sq]] * openingModifier;
+//         wRookScore += Eval::ROOK_TROPISM[BB::DISTANCE[bking][sq]];
+//         wRookScore += Eval::ROOK_TROPISM[BB::DISTANCE[wking][sq]] * openingModifier;
 //         if (Types::getRank(sq) >= RANK7)
 //             wRookScore += Eval::ROOK_ON_SEVENTH_BONUS * openingModifier;
 //         if (BB::movesByPiece<ROOK>(sq, occ) & pieces)
@@ -204,8 +204,8 @@
 //     {
 //         Square sq = BB::advanced<BLACK>(pieces);
 //         pieces &= BB::clear(sq);
-//         bRookScore += Eval::ROOK_TROPISM[G::DISTANCE[wking][sq]];
-//         bRookScore += Eval::ROOK_TROPISM[G::DISTANCE[bking][sq]] * openingModifier;
+//         bRookScore += Eval::ROOK_TROPISM[BB::DISTANCE[wking][sq]];
+//         bRookScore += Eval::ROOK_TROPISM[BB::DISTANCE[bking][sq]] * openingModifier;
 //         if (Types::getRank(sq) <= RANK2)
 //             bRookScore += Eval::ROOK_ON_SEVENTH_BONUS * openingModifier;
 //         if (BB::movesByPiece<ROOK>(sq, occ) & pieces)
@@ -226,8 +226,8 @@
 //     {
 //         Square sq = BB::advanced<WHITE>(pieces);
 //         pieces &= BB::clear(sq);
-//         wQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[bking][sq]];
-//         wQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[wking][sq]] * openingModifier;
+//         wQueenScore += Eval::QUEEN_TROPISM[BB::DISTANCE[bking][sq]];
+//         wQueenScore += Eval::QUEEN_TROPISM[BB::DISTANCE[wking][sq]] * openingModifier;
 //     }
 //     double bQueenScore = 0;
 //     pieces = board.getPieces<QUEEN>(BLACK);
@@ -235,8 +235,8 @@
 //     {
 //         Square sq = BB::advanced<BLACK>(pieces);
 //         pieces &= BB::clear(sq);
-//         bQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[wking][sq]];
-//         bQueenScore += Eval::QUEEN_TROPISM[G::DISTANCE[bking][sq]] * openingModifier;
+//         bQueenScore += Eval::QUEEN_TROPISM[BB::DISTANCE[wking][sq]];
+//         bQueenScore += Eval::QUEEN_TROPISM[BB::DISTANCE[bking][sq]] * openingModifier;
 //     }
 //     if (debug)
 // 	{
