@@ -5,6 +5,7 @@
 
 #include "board.hpp"
 #include "state.hpp"
+#include "eval.hpp"
 #include "zobrist.hpp"
 
 class Chess {
@@ -18,6 +19,12 @@ class Chess {
     I32 openingScore = 0;
     I32 endgameScore = 0;
     I32 materialScore = 0;
+
+    static constexpr Square KingOrigin[2]          = {E8, E1};
+    static constexpr Square KingDestinationOO[2]   = {G8, G1};
+    static constexpr Square KingDestinationOOO[2]  = {C8, C1};
+    static constexpr Square RookOriginOO[2]        = {H8, H1};
+    static constexpr Square RookOriginOOO[2]       = {A8, A1};
 
    public:
     explicit Chess(const std::string&);
@@ -61,12 +68,8 @@ class Chess {
 
     template <bool>
     int eval() const;
-
     template <bool>
     int evalPosition() const;
-
-    template <bool>
-    int evalDeprecated() const;
 
     std::string toFEN() const;
     std::string DebugString() const;
@@ -78,9 +81,9 @@ class Chess {
 template <bool forward>
 inline void Chess::addPiece(Square sq, Color c, PieceRole p) {
     board.addPiece(sq, c, p);
-    materialScore += G::PieceValues[p - 1][c];
-    openingScore += G::psqv(c, p, OPENING, sq);
-    endgameScore += G::psqv(c, p, ENDGAME, sq);
+    materialScore += Eval::PieceValues[p - 1][c];
+    openingScore += Eval::psqv(c, p, MIDGAME, sq);
+    endgameScore += Eval::psqv(c, p, ENDGAME, sq);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
@@ -90,9 +93,9 @@ inline void Chess::addPiece(Square sq, Color c, PieceRole p) {
 template <bool forward>
 inline void Chess::removePiece(Square sq, Color c, PieceRole p) {
     board.removePiece(sq, c, p);
-    materialScore -= G::PieceValues[p - 1][c];
-    openingScore -= G::psqv(c, p, OPENING, sq);
-    endgameScore -= G::psqv(c, p, ENDGAME, sq);
+    materialScore -= Eval::PieceValues[p - 1][c];
+    openingScore -= Eval::psqv(c, p, MIDGAME, sq);
+    endgameScore -= Eval::psqv(c, p, ENDGAME, sq);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
@@ -102,8 +105,8 @@ inline void Chess::removePiece(Square sq, Color c, PieceRole p) {
 template <bool forward>
 inline void Chess::movePiece(Square from, Square to, Color c, PieceRole p) {
     board.movePiece(from, to, c, p);
-    openingScore += G::psqv(c, p, OPENING, to) - G::psqv(c, p, OPENING, from);
-    endgameScore += G::psqv(c, p, ENDGAME, to) - G::psqv(c, p, ENDGAME, from);
+    openingScore += Eval::psqv(c, p, MIDGAME, to) - Eval::psqv(c, p, MIDGAME, from);
+    endgameScore += Eval::psqv(c, p, ENDGAME, to) - Eval::psqv(c, p, ENDGAME, from);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][from] ^ Zobrist::psq[c][p][to];
@@ -167,9 +170,9 @@ inline void Chess::disableCastle(Color c) {
 
 inline void Chess::disableCastle(Color c, Square sq) {
     // Disable casting for the specified color and side
-    if (sq == G::RookOriginOO[c] && canCastleOO(c)) {
+    if (sq == RookOriginOO[c] && canCastleOO(c)) {
         disableCastleOO(c);
-    } else if (sq == G::RookOriginOOO[c] && canCastleOOO(c)) {
+    } else if (sq == RookOriginOOO[c] && canCastleOOO(c)) {
         disableCastleOOO(c);
     }
 }

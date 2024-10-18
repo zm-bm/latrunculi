@@ -77,7 +77,7 @@ enum Score {
 };
 
 enum Phase {
-    OPENING = 0,
+    MIDGAME = 0,
     ENDGAME = 1,
 };
 

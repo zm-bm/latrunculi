@@ -115,13 +115,13 @@ std::ostream& operator<<(std::ostream& os, const Board& b) {
 
 //     int whitemoves = calculateMobility<p>(getPieces<p>(WHITE),
 //                                           ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);
-//     mobilityScore += whitemoves * (opPhase * G::MobilityScaling[OPENING][p-1]
-//                                  + egPhase * G::MobilityScaling[ENDGAME][p-1]);
+//     mobilityScore += whitemoves * (opPhase * Eval::MobilityScaling[MIDGAME][p-1]
+//                                  + egPhase * Eval::MobilityScaling[ENDGAME][p-1]);
 
 //     int blackmoves = calculateMobility<p>(getPieces<p>(BLACK),
 //                                           ~getPieces<ALL_PIECE_ROLES>(BLACK), occ);
-//     mobilityScore -= blackmoves * (opPhase * G::MobilityScaling[OPENING][p-1]
-//                                  + egPhase * G::MobilityScaling[ENDGAME][p-1]);
+//     mobilityScore -= blackmoves * (opPhase * Eval::MobilityScaling[MIDGAME][p-1]
+//                                  + egPhase * Eval::MobilityScaling[ENDGAME][p-1]);
 //     return mobilityScore;
 // }
 

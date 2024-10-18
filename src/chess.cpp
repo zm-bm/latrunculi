@@ -1,4 +1,41 @@
 #include "chess.hpp"
+#include "eval.hpp"
+
+/*
+    EVAL
+*/
+
+template <bool debug>
+int Chess::eval() const {
+    int score = 0;
+
+    score += materialScore;         // piece values
+    score += evalPosition<debug>(); // piece+square values
+
+    // score relative to side to move
+    score *= ((2 * turn) - 1);
+
+    if (debug) {
+        std::cout << score << std::endl;
+    }
+
+    return score;
+}
+
+template int Chess::eval<true>() const;
+template int Chess::eval<false>() const;
+
+template <bool debug>
+int Chess::evalPosition() const {
+    int score = 0;
+
+    return score;
+}
+
+
+/*
+    MOVE GENERATION
+*/
 
 void Chess::make(Move mv) {
     // Get basic information about the move
@@ -144,10 +181,10 @@ void Chess::makeCastle(Square from, Square to, Color c) {
 
     if (to > from) {
         to = Square(from + 1);
-        from = G::RookOriginOO[c];
+        from = RookOriginOO[c];
     } else {
         to = Square(from - 1);
-        from = G::RookOriginOOO[c];
+        from = RookOriginOOO[c];
     }
 
     if (forward) {
@@ -233,10 +270,10 @@ bool Chess::isCheckingMove(Move mv) const {
 
             if (to > from) {
                 rookTo = Square(from + 1);
-                rookFrom = G::RookOriginOO[turn];
+                rookFrom = RookOriginOO[turn];
             } else {
                 rookTo = Square(from - 1);
-                rookFrom = G::RookOriginOOO[turn];
+                rookFrom = RookOriginOOO[turn];
             }
 
             U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(rookFrom)) |

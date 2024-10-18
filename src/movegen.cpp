@@ -164,16 +164,16 @@ void MoveGenerator::generateKingMoves(const U64 targets, const U64 occ) {
     }
 
     if (g == QUIETS && chess->canCastle(turn)) {
-        Square from = G::KingOrigin[turn];
+        Square from = chess->KingOrigin[turn];
 
         if (canCastleOO(occ, turn)) {
-            Square to = G::KingDestinationOO[turn];
+            Square to = chess->KingDestinationOO[turn];
             Move mv = Move(from, to, CASTLE);
             moves.push_back(mv);
         }
 
         if (canCastleOOO(occ, turn)) {
-            Square to = G::KingDestinationOOO[turn];
+            Square to = chess->KingDestinationOOO[turn];
             Move mv = Move(from, to, CASTLE);
             moves.push_back(mv);
         }
