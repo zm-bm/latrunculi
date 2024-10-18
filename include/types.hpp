@@ -30,7 +30,12 @@ enum Square : U8 {
   INVALID = 64,
   NSQUARES = 64
 };
+// clang-format on
 
+
+
+
+// clang-format off
 enum Piece : U8 {
   NO_PIECE = 0,
   B_PAWN = 1, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,

@@ -6,14 +6,14 @@
 #include "constants.hpp"
 
 TEST(MoveGenTest, GeneratePseudoLegalMoves) {
-    Chess chess{LtrnConsts::STARTFEN};
+    Chess chess{STARTFEN};
     MoveGenerator moveGen{&chess};
     moveGen.generatePseudoLegalMoves();
     EXPECT_EQ(moveGen.moves.size(), 20) << "should have 20 moves";
 }
 
 TEST(MoveGenTest, GenerateCaptures) {
-    Chess chess{LtrnConsts::POS2};
+    Chess chess{POS2};
     MoveGenerator moveGen{&chess};
     moveGen.generateCaptures();
     EXPECT_EQ(moveGen.moves.size(), 8) << "should have 8 legal captures";

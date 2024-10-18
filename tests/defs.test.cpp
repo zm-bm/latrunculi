@@ -7,7 +7,7 @@ TEST(DefsTest, split) {
     char delimiter = ',';
     std::vector<std::string> expected = {"a", "b", "c"};
 
-    EXPECT_EQ(LtrnDefs::split(input, delimiter), expected);
+    EXPECT_EQ(Defs::split(input, delimiter), expected);
 }
 
 TEST(DefsTest, splitWithConsecutiveDelimiters) {
@@ -15,7 +15,7 @@ TEST(DefsTest, splitWithConsecutiveDelimiters) {
     char delimiter = ',';
     std::vector<std::string> expected = {"a", "", "b", "c"};
 
-    EXPECT_EQ(LtrnDefs::split(input, delimiter), expected);
+    EXPECT_EQ(Defs::split(input, delimiter), expected);
 }
 
 TEST(DefsTest, splitWithoutDelimiter) {
@@ -23,7 +23,7 @@ TEST(DefsTest, splitWithoutDelimiter) {
     char delimiter = ',';
     std::vector<std::string> expected = {"abc"};
 
-    EXPECT_EQ(LtrnDefs::split(input, delimiter), expected);
+    EXPECT_EQ(Defs::split(input, delimiter), expected);
 }
 
 TEST(DefsTest, splitEmptyString) {
@@ -31,7 +31,7 @@ TEST(DefsTest, splitEmptyString) {
     char delimiter = ',';
     std::vector<std::string> expected = {};
 
-    EXPECT_EQ(LtrnDefs::split(input, delimiter), expected);
+    EXPECT_EQ(Defs::split(input, delimiter), expected);
 }
 
 TEST(DefsTest, splitWithSpecialCharacters) {
@@ -39,5 +39,5 @@ TEST(DefsTest, splitWithSpecialCharacters) {
     char delimiter = '@';
     std::vector<std::string> expected = {"a!b", "c#d$"};
 
-    EXPECT_EQ(LtrnDefs::split(input, delimiter), expected);
+    EXPECT_EQ(Defs::split(input, delimiter), expected);
 }

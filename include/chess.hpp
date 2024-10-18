@@ -13,7 +13,7 @@
 class Chess {
    private:
     std::vector<State> state = {State()};
-    Board board = Board(LtrnConsts::STARTFEN);
+    Board board = Board(STARTFEN);
     Color turn = WHITE;
     U32 ply = 0;
     U32 moveCounter = 0;

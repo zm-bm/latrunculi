@@ -10,7 +10,7 @@
 namespace UCI {
 
 Controller::Controller(std::istream& is, std::ostream& os)
-    : chess(LtrnConsts::STARTFEN),
+    : chess(STARTFEN),
       search(&chess),
       _debug(false),
       istream(is),
@@ -29,7 +29,7 @@ void Controller::loop() {
 
 bool Controller::execute(const std::string& input) {
   // Split input string to get the UCI command
-  auto tokens = LtrnDefs::split(input, ' ');
+  auto tokens = Defs::split(input, ' ');
   auto cmd = tokens.at(0);
   tokens.erase(tokens.begin());
 
@@ -96,7 +96,7 @@ void Controller::position(std::vector<std::string>& tokens) {
   tokens.erase(tokens.begin());
 
   if (pos == "startpos") {
-    chess = Chess(LtrnConsts::STARTFEN);
+    chess = Chess(STARTFEN);
     search = Search(&chess);
 
     if (_debug) ostream << chess;

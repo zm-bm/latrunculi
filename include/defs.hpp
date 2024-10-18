@@ -8,7 +8,7 @@
 
 #include "types.hpp"
 
-namespace LtrnDefs {
+namespace Defs {
 
 constexpr U64 target(File file, Rank rank) {
     if (FILE1 <= file && file <= FILE8 && RANK1 <= rank && rank <= RANK8) {
@@ -141,6 +141,6 @@ inline std::vector<std::string> split(const std::string& s, char delim) {
     return tokens;
 }
 
-}  // namespace LtrnDefs
+}  // namespace Defs
 
 #endif

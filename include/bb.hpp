@@ -54,7 +54,7 @@ constexpr std::array<U64, NSQUARES> BITCLEAR = [] {
 constexpr std::array<U64, NSQUARES> KNIGHT_ATTACKS = [] {
     std::array<U64, NSQUARES> arr = {};
     for (auto sq = 0; sq < NSQUARES; ++sq) {
-        arr[sq] = LtrnDefs::computeKnightAttacks(sq);
+        arr[sq] = Defs::computeKnightAttacks(sq);
     }
     return arr;
 }();
@@ -62,7 +62,7 @@ constexpr std::array<U64, NSQUARES> KNIGHT_ATTACKS = [] {
 constexpr std::array<U64, NSQUARES> KING_ATTACKS = [] {
     std::array<U64, NSQUARES> arr = {};
     for (auto sq = 0; sq < NSQUARES; ++sq) {
-        arr[sq] = LtrnDefs::computeKingAttacks(sq);
+        arr[sq] = Defs::computeKingAttacks(sq);
     }
     return arr;
 }();
@@ -71,7 +71,7 @@ constexpr std::array<std::array<U64, NSQUARES>, NSQUARES> BITS_INLINE = [] {
     std::array<std::array<U64, NSQUARES>, NSQUARES> table = {};
     for (auto sq1 = 0; sq1 < NSQUARES; ++sq1) {
         for (int sq2 = 0; sq2 < NSQUARES; ++sq2) {
-            table[sq1][sq2] = LtrnDefs::computeBitsInline(sq1, sq2);
+            table[sq1][sq2] = Defs::computeBitsInline(sq1, sq2);
         }
     }
     return table;
@@ -81,7 +81,7 @@ constexpr std::array<std::array<U64, NSQUARES>, NSQUARES> BITS_BETWEEN = [] {
     std::array<std::array<U64, NSQUARES>, NSQUARES> table = {};
     for (auto sq1 = 0; sq1 < NSQUARES; ++sq1) {
         for (int sq2 = 0; sq2 < NSQUARES; ++sq2) {
-            table[sq1][sq2] = LtrnDefs::computeBitsBetween(sq1, sq2);
+            table[sq1][sq2] = Defs::computeBitsBetween(sq1, sq2);
         }
     }
     return table;
@@ -91,7 +91,7 @@ constexpr std::array<std::array<int, NSQUARES>, NSQUARES> DISTANCE = [] {
     std::array<std::array<int, NSQUARES>, NSQUARES> table = {};
     for (int sq1 = 0; sq1 < NSQUARES; ++sq1) {
         for (int sq2 = 0; sq2 < NSQUARES; ++sq2) {
-            table[sq1][sq2] = LtrnDefs::computeDistance(sq1, sq2);
+            table[sq1][sq2] = Defs::computeDistance(sq1, sq2);
         }
     }
     return table;

@@ -9,8 +9,8 @@ class BoardTest : public ::testing::Test {
     void SetUp() override {
         Magics::init();
         emptyBoard = new Board("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
-        startBoard = new Board(LtrnConsts::STARTFEN);
-        pinBoard = new Board(LtrnConsts::POS3);
+        startBoard = new Board(STARTFEN);
+        pinBoard = new Board(POS3);
     }
 
     void TearDown() override {
@@ -127,13 +127,13 @@ TEST_F(BoardTest, CalculatePinnedPieces) {
 }
 
 TEST_F(BoardTest, CalculateCheckingPiecesW) {
-    Board b = Board(LtrnConsts::POS4W);
+    Board b = Board(POS4W);
     EXPECT_EQ(b.calculateCheckingPieces(WHITE), BB::set(B6)) << "should have a white checker on b6";
     EXPECT_EQ(b.calculateCheckingPieces(BLACK), 0) << "should have no checking piece";
 }
 
 TEST_F(BoardTest, CalculateCheckingPiecesB) {
-    Board b = Board(LtrnConsts::POS4B);
+    Board b = Board(POS4B);
     EXPECT_EQ(b.calculateCheckingPieces(WHITE), 0) << "should have no checking piece";
     EXPECT_EQ(b.calculateCheckingPieces(BLACK), BB::set(B3)) << "should have a black checker on b3";
 }

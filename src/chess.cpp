@@ -293,7 +293,7 @@ Chess::Chess(const std::string& fen)
     : state{{State()}}, board{Board(fen)}, ply{0}, moveCounter{0} {
     // Constructor using a FEN string
     // See: https://www.chessprogramming.org/Forsyth-Edwards_Notation
-    std::vector<std::string> tokens = LtrnDefs::split(fen, ' ');
+    std::vector<std::string> tokens = Defs::split(fen, ' ');
 
     if (tokens.size() > 3) {
         if (tokens.at(1)[0] == 'w') {
