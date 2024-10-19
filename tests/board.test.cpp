@@ -23,7 +23,8 @@ class BoardTest : public ::testing::Test {
 };
 
 TEST_F(BoardTest, GetPieces) {
-    EXPECT_EQ(emptyBoard->getPieces<KING>(WHITE), BB::set(E1)) << "should get piece bitboard of white king";
+    EXPECT_EQ(emptyBoard->getPieces<KING>(WHITE), BB::set(E1))
+        << "should get piece bitboard of white king";
     EXPECT_EQ(startBoard->getPieces<PAWN>(WHITE), BB::RANK_MASK[RANK2])
         << "should get bitboard of white pawns from start board";
 }
@@ -43,14 +44,17 @@ TEST_F(BoardTest, GetPieceCount) {
 }
 
 TEST_F(BoardTest, Occupancy) {
-    U64 expected = (BB::RANK_MASK[RANK1] | BB::RANK_MASK[RANK2] | BB::RANK_MASK[RANK7] | BB::RANK_MASK[RANK8]);
+    U64 expected =
+        (BB::RANK_MASK[RANK1] | BB::RANK_MASK[RANK2] | BB::RANK_MASK[RANK7] | BB::RANK_MASK[RANK8]);
     EXPECT_EQ(startBoard->occupancy(), expected) << "should get occupancy of starting board";
 }
 
 TEST_F(BoardTest, GetPiece) {
-    EXPECT_EQ(emptyBoard->getPiece(E1), Defs::makePiece(WHITE, KING)) << "should have a white king on e1";
+    EXPECT_EQ(emptyBoard->getPiece(E1), Defs::makePiece(WHITE, KING))
+        << "should have a white king on e1";
     EXPECT_EQ(emptyBoard->getPiece(E2), NO_PIECE) << "should have an empty e2";
-    EXPECT_EQ(startBoard->getPiece(A2), Defs::makePiece(WHITE, PAWN)) << "should have a white pawn on a1";
+    EXPECT_EQ(startBoard->getPiece(A2), Defs::makePiece(WHITE, PAWN))
+        << "should have a white pawn on a1";
     EXPECT_EQ(startBoard->getPiece(A3), NO_PIECE) << "should have an empty a3";
 }
 
@@ -68,10 +72,12 @@ TEST_F(BoardTest, GetKingSq) {
 
 TEST_F(BoardTest, AddPiece) {
     emptyBoard->addPiece(E2, WHITE, PAWN);
-    EXPECT_EQ(emptyBoard->getPiece(E2), Defs::makePiece(WHITE, PAWN)) << "should add a white pawn on e2";
+    EXPECT_EQ(emptyBoard->getPiece(E2), Defs::makePiece(WHITE, PAWN))
+        << "should add a white pawn on e2";
     EXPECT_EQ(emptyBoard->getPieces<PAWN>(WHITE), BB::set(E2)) << "should add a white pawn on e2";
     EXPECT_EQ(emptyBoard->count<PAWN>(WHITE), 1) << "should add 1 white pawn";
-    EXPECT_EQ(emptyBoard->occupancy(), BB::set(E8) | BB::set(E2) | BB::set(E1)) << "should add to occupancy";
+    EXPECT_EQ(emptyBoard->occupancy(), BB::set(E8) | BB::set(E2) | BB::set(E1))
+        << "should add to occupancy";
 }
 
 TEST_F(BoardTest, RemovePiece) {
@@ -88,17 +94,20 @@ TEST_F(BoardTest, MovePiece) {
     EXPECT_EQ(emptyBoard->count<KING>(WHITE), 1) << "should have 1 white king";
     EXPECT_EQ(emptyBoard->occupancy(), BB::set(E8) | BB::set(D1)) << "should have occupancy on d1";
     EXPECT_EQ(emptyBoard->getPiece(E1), NO_PIECE) << "should have empty e1 square";
-    EXPECT_EQ(emptyBoard->getPiece(D1), Defs::makePiece(WHITE, KING)) << "should have white pawn on d1";
+    EXPECT_EQ(emptyBoard->getPiece(D1), Defs::makePiece(WHITE, KING))
+        << "should have white pawn on d1";
 }
 
 TEST_F(BoardTest, DiagonalSliders) {
     U64 diagonalSliders = startBoard->diagonalSliders(WHITE);
-    EXPECT_EQ(diagonalSliders, BB::set(C1) | BB::set(D1) | BB::set(F1)) << "should have diag sliders on c1, d1, f1";
+    EXPECT_EQ(diagonalSliders, BB::set(C1) | BB::set(D1) | BB::set(F1))
+        << "should have diag sliders on c1, d1, f1";
 }
 
 TEST_F(BoardTest, StraightSliders) {
     U64 straightSliders = startBoard->straightSliders(WHITE);
-    EXPECT_EQ(straightSliders, BB::set(A1) | BB::set(D1) | BB::set(H1)) << "should have straight sliders on a1, d1, h1";
+    EXPECT_EQ(straightSliders, BB::set(A1) | BB::set(D1) | BB::set(H1))
+        << "should have straight sliders on a1, d1, h1";
 }
 
 TEST_F(BoardTest, AttacksTo) {
@@ -107,16 +116,22 @@ TEST_F(BoardTest, AttacksTo) {
 }
 
 TEST_F(BoardTest, CalculateCheckBlockers) {
-    EXPECT_EQ(startBoard->calculateCheckBlockers(BLACK, BLACK), 0) << "start board should have no pins";
-    EXPECT_EQ(startBoard->calculateCheckBlockers(WHITE, WHITE), 0) << "start board should have no pins";
-    EXPECT_EQ(pinBoard->calculateCheckBlockers(WHITE, WHITE), BB::set(B5)) << "should have a pin on b5";
-    EXPECT_EQ(pinBoard->calculateCheckBlockers(BLACK, BLACK), BB::set(F4)) << "should have a pin on f4";
+    EXPECT_EQ(startBoard->calculateCheckBlockers(BLACK, BLACK), 0)
+        << "start board should have no pins";
+    EXPECT_EQ(startBoard->calculateCheckBlockers(WHITE, WHITE), 0)
+        << "start board should have no pins";
+    EXPECT_EQ(pinBoard->calculateCheckBlockers(WHITE, WHITE), BB::set(B5))
+        << "should have a pin on b5";
+    EXPECT_EQ(pinBoard->calculateCheckBlockers(BLACK, BLACK), BB::set(F4))
+        << "should have a pin on f4";
 }
 
 TEST_F(BoardTest, CalculateDiscoveredChecks) {
     Board b = Board("8/2p5/3p4/Kp5r/1R3P1k/8/4P1P1/8 w - -");
-    EXPECT_EQ(b.calculateDiscoveredCheckers(WHITE), BB::set(F4)) << "should have a discovered check on f4";
-    EXPECT_EQ(b.calculateDiscoveredCheckers(BLACK), BB::set(B5)) << "should have a discovered check on b5";
+    EXPECT_EQ(b.calculateDiscoveredCheckers(WHITE), BB::set(F4))
+        << "should have a discovered check on f4";
+    EXPECT_EQ(b.calculateDiscoveredCheckers(BLACK), BB::set(B5))
+        << "should have a discovered check on b5";
 }
 
 TEST_F(BoardTest, CalculatePinnedPieces) {
@@ -139,8 +154,12 @@ TEST_F(BoardTest, CalculateCheckingPiecesB) {
 }
 
 TEST_F(BoardTest, IsBitboardAttacked) {
-    EXPECT_FALSE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE7], WHITE)) << "white should attack G file";
-    EXPECT_TRUE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE8], WHITE)) << "white should not attack H file";
-    EXPECT_FALSE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE1], BLACK)) << "black should not attack A file";
-    EXPECT_TRUE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE2], BLACK)) << "black should attack B file";
+    EXPECT_FALSE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE7], WHITE))
+        << "white should attack G file";
+    EXPECT_TRUE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE8], WHITE))
+        << "white should not attack H file";
+    EXPECT_FALSE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE1], BLACK))
+        << "black should not attack A file";
+    EXPECT_TRUE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE2], BLACK))
+        << "black should attack B file";
 }

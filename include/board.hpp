@@ -17,12 +17,6 @@ struct Board {
     explicit Board(const std::string&);
     friend std::ostream& operator<<(std::ostream& os, const Board& b);
 
-    // int calculateMobilityScore(const int, const int) const;
-    // template <PieceRole>
-    // int calculateMobilityScore(const int, const int) const;
-    // template <PieceRole p>
-    // int calculateMobility(U64 bitboard, U64 targets, U64 occ) const;
-
     void addPiece(Square, Color, PieceRole);
     void removePiece(Square, Color, PieceRole);
     void movePiece(Square, Square, Color, PieceRole);
@@ -60,8 +54,7 @@ inline void Board::addPiece(const Square sq, const Color c, const PieceRole p) {
     pieceCount[c][p]++;
 }
 
-inline void Board::removePiece(const Square sq, const Color c,
-                               const PieceRole p) {
+inline void Board::removePiece(const Square sq, const Color c, const PieceRole p) {
     // Toggle bitboards
     pieces[c][ALL_PIECE_ROLES] ^= BB::set(sq);
     pieces[c][p] ^= BB::set(sq);
@@ -69,8 +62,7 @@ inline void Board::removePiece(const Square sq, const Color c,
     pieceCount[c][p]--;
 }
 
-inline void Board::movePiece(const Square from, const Square to, const Color c,
-                             const PieceRole p) {
+inline void Board::movePiece(const Square from, const Square to, const Color c, const PieceRole p) {
     // Toggle bitboards and add to square centric board
     U64 mask = BB::set(from) | BB::set(to);
     pieces[c][ALL_PIECE_ROLES] ^= mask;
@@ -125,8 +117,8 @@ inline U64 Board::calculateCheckBlockers(Color c, Color kingC) const {
     Square king = getKingSq(kingC);
 
     // Determine which enemy sliders could check the kingC's king
-    U64 blockers = 0,
-        pinners = (BB::movesByPiece<BISHOP>(king) & diagonalSliders(enemy)) |
+    U64 blockers = 0;
+    U64 pinners = (BB::movesByPiece<BISHOP>(king) & diagonalSliders(enemy)) |
                   (BB::movesByPiece<ROOK>(king) & straightSliders(enemy));
 
     while (pinners) {
@@ -176,8 +168,7 @@ inline int Board::count() const {
 inline int Board::getPieceCount(Color c) const {
     // Return the total count of all major pieces (Knights, Bishops, Rooks,
     // Queens) for the given color
-    return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) +
-           count<QUEEN>(c);
+    return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) + count<QUEEN>(c);
 }
 
 inline Piece Board::getPiece(Square sq) const {

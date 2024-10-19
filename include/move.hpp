@@ -13,10 +13,7 @@ struct Move {
     I16 score = 0;
 
     constexpr Move() : score{0}, value{0} {}
-    constexpr Move(Square from,
-                   Square to,
-                   MoveType mtype = NORMAL,
-                   PieceRole promoPiece = KNIGHT)
+    constexpr Move(Square from, Square to, MoveType mtype = NORMAL, PieceRole promoPiece = KNIGHT)
         : score(0), value{pack(from, to, mtype, promoPiece)} {}
 
     inline Square from() const { return unpackFrom(value); }
@@ -28,17 +25,14 @@ struct Move {
     inline bool operator<(const Move& rhs) const { return score < rhs.score; }
     inline bool operator==(const Move& rhs) const { return value == rhs.value; }
 
-    static constexpr U16 pack(Square from,
-                              Square to,
-                              MoveType mtype,
-                              PieceRole promoPiece) {
+    static constexpr U16 pack(Square from, Square to, MoveType mtype, PieceRole promoPiece) {
         return (from & 0x3F) |                          // 6 bits for from
                ((to & 0x3F) << 6) |                     // 6 bits for to
                ((mtype & 0x03) << 12) |                 // 2 bits for move type
                (((promoPiece - KNIGHT) & 0x03) << 14);  // 2 bits for promos
     }
     static constexpr Square unpackFrom(U16 packed) {
-        return static_cast<Square>(packed & 0x3F);
+        return static_cast<Square>((packed >> 0) & 0x3F);
     }
     static constexpr Square unpackTo(U16 packed) {
         return static_cast<Square>((packed >> 6) & 0x3F);

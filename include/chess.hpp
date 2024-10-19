@@ -4,8 +4,8 @@
 #include <string>
 #include <vector>
 
-#include "constants.hpp"
 #include "board.hpp"
+#include "constants.hpp"
 #include "eval.hpp"
 #include "state.hpp"
 #include "zobrist.hpp"
@@ -221,7 +221,8 @@ inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype, Mo
 
 inline int Chess::calculatePhase() const {
     return (PAWNSCORE * board.count<PAWN>() + KNIGHTSCORE * board.count<KNIGHT>() +
-            BISHOPSCORE * board.count<BISHOP>() + ROOKSCORE * board.count<ROOK>() + QUEENSCORE * board.count<QUEEN>());
+            BISHOPSCORE * board.count<BISHOP>() + ROOKSCORE * board.count<ROOK>() +
+            QUEENSCORE * board.count<QUEEN>());
 }
 
 inline U64 Chess::calculateKey() const {
@@ -266,7 +267,8 @@ inline void Chess::updateState(bool checkingMove = true) {
     state[ply].checkingSquares[KNIGHT] = BB::movesByPiece<KNIGHT>(king, occ);
     state[ply].checkingSquares[BISHOP] = BB::movesByPiece<BISHOP>(king, occ);
     state[ply].checkingSquares[ROOK] = BB::movesByPiece<ROOK>(king, occ);
-    state[ply].checkingSquares[QUEEN] = state[ply].checkingSquares[BISHOP] | state[ply].checkingSquares[ROOK];
+    state[ply].checkingSquares[QUEEN] =
+        state[ply].checkingSquares[BISHOP] | state[ply].checkingSquares[ROOK];
 }
 
 #endif

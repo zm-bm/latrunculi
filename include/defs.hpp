@@ -41,7 +41,6 @@ inline constexpr Color getPieceColor(const Piece p) {
 
 template <Color c, PawnMove p, bool forward>
 inline Square pawnMove(const Square sq) {
-    //
     return (forward == (c == WHITE)) ? Square(sq + static_cast<int>(p))
                                      : Square(sq - static_cast<int>(p));
 }

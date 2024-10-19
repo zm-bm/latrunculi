@@ -225,4 +225,54 @@ inline int psqv(Color c, PieceRole p, int phase, Square sq) {
 
 }
 
+// int calculateMobilityScore(const int, const int) const;
+// template <PieceRole>
+// int calculateMobilityScore(const int, const int) const;
+// template <PieceRole p>
+// int calculateMobility(U64 bitboard, U64 targets, U64 occ) const;
+
+// int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
+// {
+//     int score = 0;
+//     score += calculateMobilityScore<KNIGHT>(opPhase, egPhase);
+//     score += calculateMobilityScore<BISHOP>(opPhase, egPhase);
+//     score += calculateMobilityScore<ROOK  >(opPhase, egPhase);
+//     score += calculateMobilityScore<QUEEN >(opPhase, egPhase);
+//     return score;
+// }
+
+// template<PieceRole p>
+// int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
+// {
+//     int mobilityScore = 0;
+//     U64 occ = occupancy();
+
+//     int whitemoves = calculateMobility<p>(getPieces<p>(WHITE),
+//                                           ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);
+//     mobilityScore += whitemoves * (opPhase * Eval::MobilityScaling[MIDGAME][p-1]
+//                                  + egPhase * Eval::MobilityScaling[ENDGAME][p-1]);
+
+//     int blackmoves = calculateMobility<p>(getPieces<p>(BLACK),
+//                                           ~getPieces<ALL_PIECE_ROLES>(BLACK), occ);
+//     mobilityScore -= blackmoves * (opPhase * Eval::MobilityScaling[MIDGAME][p-1]
+//                                  + egPhase * Eval::MobilityScaling[ENDGAME][p-1]);
+//     return mobilityScore;
+// }
+
+// template <PieceRole p>
+// int Board::calculateMobility(U64 bitboard, U64 targets, U64 occ) const {
+//     int nmoves = 0;
+
+//     while (bitboard) {
+//         // Pop lsb bit and clear it from the bitboard
+//         Square from = BB::lsb(bitboard);
+//         bitboard &= BB::clear(from);
+
+//         U64 mobility = BB::movesByPiece<p>(from, occ) & targets;
+//         nmoves += BB::bitCount(mobility);
+//     }
+
+//     return nmoves;
+// }
+
 #endif

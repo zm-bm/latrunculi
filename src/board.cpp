@@ -5,8 +5,8 @@
 #include <string>
 #include <vector>
 
-#include "types.hpp"
 #include "defs.hpp"
+#include "types.hpp"
 
 Board::Board(const std::string& fen) {
     std::string pieces = Defs::split(fen, ' ').at(0);
@@ -97,47 +97,3 @@ std::ostream& operator<<(std::ostream& os, const Board& b) {
 
     return os;
 }
-
-// int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
-// {
-//     int score = 0;
-//     score += calculateMobilityScore<KNIGHT>(opPhase, egPhase);
-//     score += calculateMobilityScore<BISHOP>(opPhase, egPhase);
-//     score += calculateMobilityScore<ROOK  >(opPhase, egPhase);
-//     score += calculateMobilityScore<QUEEN >(opPhase, egPhase);
-//     return score;
-// }
-
-// template<PieceRole p>
-// int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
-// {
-//     int mobilityScore = 0;
-//     U64 occ = occupancy();
-
-//     int whitemoves = calculateMobility<p>(getPieces<p>(WHITE),
-//                                           ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);
-//     mobilityScore += whitemoves * (opPhase * Eval::MobilityScaling[MIDGAME][p-1]
-//                                  + egPhase * Eval::MobilityScaling[ENDGAME][p-1]);
-
-//     int blackmoves = calculateMobility<p>(getPieces<p>(BLACK),
-//                                           ~getPieces<ALL_PIECE_ROLES>(BLACK), occ);
-//     mobilityScore -= blackmoves * (opPhase * Eval::MobilityScaling[MIDGAME][p-1]
-//                                  + egPhase * Eval::MobilityScaling[ENDGAME][p-1]);
-//     return mobilityScore;
-// }
-
-// template <PieceRole p>
-// int Board::calculateMobility(U64 bitboard, U64 targets, U64 occ) const {
-//     int nmoves = 0;
-
-//     while (bitboard) {
-//         // Pop lsb bit and clear it from the bitboard
-//         Square from = BB::lsb(bitboard);
-//         bitboard &= BB::clear(from);
-
-//         U64 mobility = BB::movesByPiece<p>(from, occ) & targets;
-//         nmoves += BB::bitCount(mobility);
-//     }
-
-//     return nmoves;
-// }
