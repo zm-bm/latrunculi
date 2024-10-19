@@ -48,9 +48,9 @@ TEST_F(BoardTest, Occupancy) {
 }
 
 TEST_F(BoardTest, GetPiece) {
-    EXPECT_EQ(emptyBoard->getPiece(E1), Types::makePiece(WHITE, KING)) << "should have a white king on e1";
+    EXPECT_EQ(emptyBoard->getPiece(E1), Defs::makePiece(WHITE, KING)) << "should have a white king on e1";
     EXPECT_EQ(emptyBoard->getPiece(E2), NO_PIECE) << "should have an empty e2";
-    EXPECT_EQ(startBoard->getPiece(A2), Types::makePiece(WHITE, PAWN)) << "should have a white pawn on a1";
+    EXPECT_EQ(startBoard->getPiece(A2), Defs::makePiece(WHITE, PAWN)) << "should have a white pawn on a1";
     EXPECT_EQ(startBoard->getPiece(A3), NO_PIECE) << "should have an empty a3";
 }
 
@@ -68,7 +68,7 @@ TEST_F(BoardTest, GetKingSq) {
 
 TEST_F(BoardTest, AddPiece) {
     emptyBoard->addPiece(E2, WHITE, PAWN);
-    EXPECT_EQ(emptyBoard->getPiece(E2), Types::makePiece(WHITE, PAWN)) << "should add a white pawn on e2";
+    EXPECT_EQ(emptyBoard->getPiece(E2), Defs::makePiece(WHITE, PAWN)) << "should add a white pawn on e2";
     EXPECT_EQ(emptyBoard->getPieces<PAWN>(WHITE), BB::set(E2)) << "should add a white pawn on e2";
     EXPECT_EQ(emptyBoard->count<PAWN>(WHITE), 1) << "should add 1 white pawn";
     EXPECT_EQ(emptyBoard->occupancy(), BB::set(E8) | BB::set(E2) | BB::set(E1)) << "should add to occupancy";
@@ -88,7 +88,7 @@ TEST_F(BoardTest, MovePiece) {
     EXPECT_EQ(emptyBoard->count<KING>(WHITE), 1) << "should have 1 white king";
     EXPECT_EQ(emptyBoard->occupancy(), BB::set(E8) | BB::set(D1)) << "should have occupancy on d1";
     EXPECT_EQ(emptyBoard->getPiece(E1), NO_PIECE) << "should have empty e1 square";
-    EXPECT_EQ(emptyBoard->getPiece(D1), Types::makePiece(WHITE, KING)) << "should have white pawn on d1";
+    EXPECT_EQ(emptyBoard->getPiece(D1), Defs::makePiece(WHITE, KING)) << "should have white pawn on d1";
 }
 
 TEST_F(BoardTest, DiagonalSliders) {

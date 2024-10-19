@@ -45,13 +45,13 @@ void Chess::make(Move mv) {
     Square to = mv.to();
     Square capturedPieceSq = to;
     Square epsq = getEnPassant();
-    PieceRole fromPieceRole = Types::getPieceRole(board.getPiece(from));
-    PieceRole toPieceRole = Types::getPieceRole(board.getPiece(to));
+    PieceRole fromPieceRole = Defs::getPieceRole(board.getPiece(from));
+    PieceRole toPieceRole = Defs::getPieceRole(board.getPiece(to));
     MoveType movetype = mv.type();
     Color enemy = ~turn;
     if (movetype == ENPASSANT) {
         toPieceRole = PAWN;
-        capturedPieceSq = Types::pawnMove<PawnMove::PUSH, false>(to, turn);
+        capturedPieceSq = Defs::pawnMove<PawnMove::PUSH, false>(to, turn);
         board.squares[capturedPieceSq] = NO_PIECE;
     }
 
@@ -68,7 +68,7 @@ void Chess::make(Move mv) {
 
     // Remove ep square from zobrist key if any
     if (epsq != INVALID) {
-        state[ply].zkey ^= Zobrist::ep[Types::getFile(epsq)];
+        state[ply].zkey ^= Zobrist::ep[Defs::fileFromSq(epsq)];
     }
 
     // Move the piece
@@ -116,7 +116,7 @@ void Chess::unmake() {
     Move mv = state[ply].move;
     Square from = mv.from(), to = mv.to();
     PieceRole toPieceRole = state[ply].captured;
-    PieceRole fromPieceRole = Types::getPieceRole(board.getPiece(to));
+    PieceRole fromPieceRole = Defs::getPieceRole(board.getPiece(to));
     MoveType movetype = mv.type();
 
     // Revert to the previous board state
@@ -140,7 +140,7 @@ void Chess::unmake() {
         if (toPieceRole) {
             Square capturedPieceSq =
                 (movetype == ENPASSANT)
-                    ? Types::pawnMove<PawnMove::PUSH, false>(to, turn)
+                    ? Defs::pawnMove<PawnMove::PUSH, false>(to, turn)
                     : to;
             addPiece<false>(capturedPieceSq, enemy, toPieceRole);
         }
@@ -160,7 +160,7 @@ void Chess::makeNull() {
 
     state[ply].zkey ^= Zobrist::stm;
     if (epsq != INVALID) {
-        state[ply].zkey ^= Zobrist::ep[Types::getFile(epsq)];
+        state[ply].zkey ^= Zobrist::ep[Defs::fileFromSq(epsq)];
     }
 
     updateState();
@@ -208,7 +208,7 @@ bool Chess::isPseudoLegalMoveLegal(Move mv) const {
                 to, ~turn, board.occupancy() ^ BB::set(from) ^ BB::set(to));
         }
     } else if (mv.type() == ENPASSANT) {
-        Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, turn);
+        Square enemyPawn = Defs::pawnMove<PawnMove::PUSH, false>(to, turn);
         U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) |
                   BB::set(to);
 
@@ -228,7 +228,7 @@ bool Chess::isPseudoLegalMoveLegal(Move mv) const {
 // Determine if a move gives check for the current board
 bool Chess::isCheckingMove(Move mv) const {
     Square from = mv.from(), to = mv.to();
-    PieceRole role = Types::getPieceRole(board.getPiece(from));
+    PieceRole role = Defs::getPieceRole(board.getPiece(from));
 
     // Check if destination+piece role directly attacks the king
     if (state[ply].checkingSquares[role] & BB::set(to)) {
@@ -255,7 +255,7 @@ bool Chess::isCheckingMove(Move mv) const {
 
         case ENPASSANT: {
             // Check if captured pawn was blocking enemy king from attack
-            Square enemyPawn = Types::pawnMove<PawnMove::PUSH, false>(to, turn);
+            Square enemyPawn = Defs::pawnMove<PawnMove::PUSH, false>(to, turn);
             U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) |
                       BB::set(to);
 
@@ -324,7 +324,7 @@ Chess::Chess(const std::string& fen)
 
         std::string square = tokens.at(3);
         if (square.compare("-") != 0) {
-            setEnPassant(Types::getSquareFromStr(square));
+            setEnPassant(Defs::sqFromString(square));
         }
     }
 
@@ -347,7 +347,7 @@ std::string Chess::toFEN() const {
     for (Rank rank = RANK8; rank >= RANK1; rank--) {
         int emptyCount = 0;
         for (File file = FILE1; file <= FILE8; file++) {
-            Piece p = board.getPiece(Types::getSquare(file, rank));
+            Piece p = board.getPiece(Defs::sqFromCoords(file, rank));
             if (p != NO_PIECE) {
                 if (emptyCount > 0) {
                     oss << emptyCount;

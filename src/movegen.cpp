@@ -123,7 +123,7 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
         if (enpassant != INVALID) {
             // Only necessary if enemy pawn is targeted, or if in check
             Square enemyPawn =
-                Types::pawnMove<c, PawnMove::PUSH, false>(enpassant);
+                Defs::pawnMove<c, PawnMove::PUSH, false>(enpassant);
             if (g != EVASIONS || (targets & BB::set(enemyPawn))) {
                 // Append en passant captures to move list
                 addEnPassants<PawnMove::LEFT, c>(pawns, enpassant);

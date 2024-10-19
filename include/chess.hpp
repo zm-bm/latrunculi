@@ -193,7 +193,7 @@ inline void Chess::disableCastleOOO(Color c) {
 inline void Chess::setEnPassant(Square sq) {
     // Set the en passant target square and update the hash key
     state.at(ply).enPassantSq = sq;
-    state.at(ply).zkey ^= Zobrist::ep[Types::getFile(sq)];
+    state.at(ply).zkey ^= Zobrist::ep[Defs::fileFromSq(sq)];
 }
 
 inline void Chess::updateCapturedPieces(Square sq, Color c, PieceRole p) {
@@ -212,7 +212,7 @@ inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype, Mo
 
     auto doubleMove = static_cast<U8>(PawnMove::DOUBLE);
     if ((from - to) == doubleMove || (to - from) == doubleMove) {
-        setEnPassant(Types::pawnMove<PawnMove::PUSH, false>(to, turn));
+        setEnPassant(Defs::pawnMove<PawnMove::PUSH, false>(to, turn));
     } else if (movetype == PROMOTION) {
         removePiece<true>(to, turn, PAWN);
         addPiece<true>(to, turn, mv.promoPiece());
@@ -232,14 +232,14 @@ inline U64 Chess::calculateKey() const {
         auto piece = board.getPiece(sq);
 
         if (piece != NO_PIECE) {
-            auto c = Types::getPieceColor(piece);
-            auto p = Types::getPieceRole(piece);
+            auto c = Defs::getPieceColor(piece);
+            auto p = Defs::getPieceRole(piece);
             zkey ^= Zobrist::psq[c][p][sq];
         }
     }
 
     if (turn == BLACK) zkey ^= Zobrist::stm;
-    if (sq != INVALID) zkey ^= Zobrist::ep[Types::getFile(sq)];
+    if (sq != INVALID) zkey ^= Zobrist::ep[Defs::fileFromSq(sq)];
     if (canCastleOO(WHITE)) zkey ^= Zobrist::castle[WHITE][KINGSIDE];
     if (canCastleOOO(WHITE)) zkey ^= Zobrist::castle[WHITE][QUEENSIDE];
     if (canCastleOO(BLACK)) zkey ^= Zobrist::castle[BLACK][KINGSIDE];

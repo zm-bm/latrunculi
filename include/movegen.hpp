@@ -59,7 +59,7 @@ inline void MoveGenerator::addPawnMoves(U64 bitboard) {
         bitboard &= BB::clear(to);
 
         // Reverse the move to get the origin square and append move
-        Square from = Types::pawnMove<c, p, false>(to);
+        Square from = Defs::pawnMove<c, p, false>(to);
         moves.push_back(Move(from, to));
     }
 };
@@ -72,7 +72,7 @@ inline void MoveGenerator::addPawnPromotions(U64 bitboard) {
         bitboard &= BB::clear(to);
 
         // Reverse the move to get the origin square and append moves
-        Square from = Types::pawnMove<c, p, false>(to);
+        Square from = Defs::pawnMove<c, p, false>(to);
 
         if (g != QUIETS) {
             moves.push_back(Move(from, to, PROMOTION, QUEEN));
@@ -91,7 +91,7 @@ inline void MoveGenerator::addEnPassants(U64 pawns, Square enpassant) {
     U64 bitboard = BB::movesByPawns<p, c>(pawns) & BB::set(enpassant);
 
     if (bitboard) {
-        Square from = Types::pawnMove<c, p, false>(enpassant);
+        Square from = Defs::pawnMove<c, p, false>(enpassant);
         moves.push_back(Move(from, enpassant, ENPASSANT));
     }
 }

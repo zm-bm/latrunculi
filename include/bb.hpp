@@ -362,7 +362,7 @@ inline void print(std::ostream& os, const U64& bb) {
         os << "  ";
 
         for (int file = 0; file < 8; file++) {
-            os << output[Types::getSquare(File(file), Rank(rank))];
+            os << output[Defs::sqFromCoords(File(file), Rank(rank))];
         }
 
         os << " " << (rank + 1) << "\n";

@@ -56,7 +56,7 @@ inline void Board::addPiece(const Square sq, const Color c, const PieceRole p) {
     // Toggle bitboards and add to square centric board
     pieces[c][ALL_PIECE_ROLES] ^= BB::set(sq);
     pieces[c][p] ^= BB::set(sq);
-    squares[sq] = Types::makePiece(c, p);
+    squares[sq] = Defs::makePiece(c, p);
     pieceCount[c][p]++;
 }
 
@@ -76,7 +76,7 @@ inline void Board::movePiece(const Square from, const Square to, const Color c,
     pieces[c][ALL_PIECE_ROLES] ^= mask;
     pieces[c][p] ^= mask;
     squares[from] = NO_PIECE;
-    squares[to] = Types::makePiece(c, p);
+    squares[to] = Defs::makePiece(c, p);
 }
 
 template <PieceRole p>
@@ -187,7 +187,7 @@ inline Piece Board::getPiece(Square sq) const {
 
 inline PieceRole Board::getPieceRole(Square sq) const {
     // Return the role of the piece located at a specific square
-    return Types::getPieceRole(squares[sq]);
+    return Defs::getPieceRole(squares[sq]);
 }
 
 inline Square Board::getKingSq(Color c) const {

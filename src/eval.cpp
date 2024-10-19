@@ -116,7 +116,7 @@
 //         Square sq = BB::advanced<WHITE>(pieces);
 //         pieces &= BB::clear(sq);
 //         wKnightScore += Eval::KNIGHT_TROPISM[BB::DISTANCE[bking][sq]];
-//         if (Types::getRank(sq) == RANK1)
+//         if (Defs::rankFromSq(sq) == RANK1)
 //             wKnightScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
 //         U64 validOutposts = BB::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
 //         if (validOutposts & allOutposts)
@@ -129,7 +129,7 @@
 //         Square sq = BB::advanced<BLACK>(pieces);
 //         pieces &= BB::clear(sq);
 //         bKnightScore += Eval::KNIGHT_TROPISM[BB::DISTANCE[wking][sq]];
-//         if (Types::getRank(sq) == RANK8)
+//         if (Defs::rankFromSq(sq) == RANK8)
 //             bKnightScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
 //         U64 validOutposts = BB::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
 //         if (validOutposts & allOutposts)
@@ -154,7 +154,7 @@
 //         Square sq = BB::advanced<WHITE>(pieces);
 //         pieces &= BB::clear(sq);
 //         wBishopScore += Eval::BISHOP_TROPISM[BB::DISTANCE[bking][sq]];
-//         if (Types::getRank(sq) == RANK1)
+//         if (Defs::rankFromSq(sq) == RANK1)
 //             wBishopScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
 //         U64 validOutposts = BB::movesByPiece<BISHOP>(sq, occ) | BB::set(sq);
 //         if (validOutposts & allOutposts)
@@ -170,7 +170,7 @@
 //         Square sq = BB::advanced<BLACK>(pieces);
 //         pieces &= BB::clear(sq);
 //         bBishopScore += Eval::BISHOP_TROPISM[BB::DISTANCE[wking][sq]];
-//         if (Types::getRank(sq) == RANK8)
+//         if (Defs::rankFromSq(sq) == RANK8)
 //             bBishopScore += Eval::BACK_RANK_MINOR_PENALTY * openingModifier;
 //         U64 validOutposts = BB::movesByPiece<BISHOP>(sq, occ) | BB::set(sq);
 //         if (validOutposts & allOutposts)
@@ -193,7 +193,7 @@
 //         pieces &= BB::clear(sq);
 //         wRookScore += Eval::ROOK_TROPISM[BB::DISTANCE[bking][sq]];
 //         wRookScore += Eval::ROOK_TROPISM[BB::DISTANCE[wking][sq]] * openingModifier;
-//         if (Types::getRank(sq) >= RANK7)
+//         if (Defs::rankFromSq(sq) >= RANK7)
 //             wRookScore += Eval::ROOK_ON_SEVENTH_BONUS * openingModifier;
 //         if (BB::movesByPiece<ROOK>(sq, occ) & pieces)
 //             wRookScore += Eval::CONNECTED_ROOK_BONUS;
@@ -206,7 +206,7 @@
 //         pieces &= BB::clear(sq);
 //         bRookScore += Eval::ROOK_TROPISM[BB::DISTANCE[wking][sq]];
 //         bRookScore += Eval::ROOK_TROPISM[BB::DISTANCE[bking][sq]] * openingModifier;
-//         if (Types::getRank(sq) <= RANK2)
+//         if (Defs::rankFromSq(sq) <= RANK2)
 //             bRookScore += Eval::ROOK_ON_SEVENTH_BONUS * openingModifier;
 //         if (BB::movesByPiece<ROOK>(sq, occ) & pieces)
 //             bRookScore += Eval::CONNECTED_ROOK_BONUS;

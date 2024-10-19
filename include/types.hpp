@@ -32,9 +32,6 @@ enum Square : U8 {
 };
 // clang-format on
 
-
-
-
 // clang-format off
 enum Piece : U8 {
   NO_PIECE = 0,
@@ -76,7 +73,8 @@ enum Score {
     BISHOPSCORE = 330,
     ROOKSCORE = 500,
     QUEENSCORE = 900,
-    TOTALPHASE = 2 * QUEENSCORE + 4 * ROOKSCORE + 4 * BISHOPSCORE + 4 * KNIGHTSCORE + 16 * PAWNSCORE,
+    TOTALPHASE =
+        2 * QUEENSCORE + 4 * ROOKSCORE + 4 * BISHOPSCORE + 4 * KNIGHTSCORE + 16 * PAWNSCORE,
     KINGSCORE = 20000,
     MATESCORE = 32000,
 };
@@ -93,39 +91,6 @@ enum NodeType : U8 {
     TT_BETA,
 };
 
-namespace Types {
-
-constexpr Square getSquare(const File file, const Rank rank) { return Square(rank * 8 + file); }
-
-inline Square getSquareFromStr(const std::string& square) {
-    auto file = File((int)square[0] - 'a');
-    auto rank = Rank(((int)square[1] - '1'));
-
-    return getSquare(file, rank);
-}
-
-inline constexpr Rank getRank(const Square square) { return Rank(square >> 3); }
-
-inline constexpr File getFile(const Square square) { return File(square & 7); }
-
-inline constexpr Piece makePiece(const Color c, const PieceRole p) { return Piece((c << 3) | p); }
-
-inline constexpr PieceRole getPieceRole(const Piece p) { return PieceRole(p & 0x7); }
-
-inline constexpr Color getPieceColor(const Piece p) { return Color(p >> 3); }
-
-template <Color c, PawnMove p, bool forward>
-inline Square pawnMove(const Square sq) {
-    return (forward == (c == WHITE)) ? Square(sq + static_cast<int>(p)) : Square(sq - static_cast<int>(p));
-}
-
-template <PawnMove p, bool forward>
-inline Square pawnMove(const Square sq, const Color c) {
-    return (c == WHITE) ? pawnMove<WHITE, p, forward>(sq) : pawnMove<BLACK, p, forward>(sq);
-}
-
-}  // namespace Types
-
 inline Color operator~(Color c) { return Color(c ^ WHITE); }
 
 inline std::ostream& operator<<(std::ostream& os, File file) {
@@ -139,12 +104,13 @@ inline std::ostream& operator<<(std::ostream& os, Rank rank) {
 }
 
 inline std::ostream& operator<<(std::ostream& os, Square sq) {
-    os << Types::getFile(sq) << Types::getRank(sq);
+    os << File(sq & 7) << Rank(sq >> 3);
     return os;
 }
 
 inline std::ostream& operator<<(std::ostream& os, Piece p) {
-    constexpr char pieceToChar[16] = {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
+    constexpr char pieceToChar[16] =
+        {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
     os << pieceToChar[p];
     return os;
 }

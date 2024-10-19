@@ -20,7 +20,7 @@ Board::Board(const std::string& fen) {
         if (((int)ch > 48) && ((int)ch < 57)) {
             file += File((int)ch - '0');
         } else {
-            Square sq = Types::getSquare(file, rank);
+            Square sq = Defs::sqFromCoords(file, rank);
 
             switch (ch) {
                 case 'P':
@@ -87,7 +87,7 @@ std::ostream& operator<<(std::ostream& os, const Board& b) {
         os << "   +---+---+---+---+---+---+---+---+\n";
         os << "   |";
         for (File file = FILE1; file <= FILE8; file++) {
-            os << " " << b.getPiece(Types::getSquare(file, rank)) << " |";
+            os << " " << b.getPiece(Defs::sqFromCoords(file, rank)) << " |";
         }
         os << " " << rank << '\n';
     }
