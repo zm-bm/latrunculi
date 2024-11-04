@@ -7,6 +7,7 @@
 
 #include "constants.hpp"
 #include "zobrist.hpp"
+#include "eval.hpp"
 
 class ChessTest : public ::testing::Test {
    protected:
@@ -18,6 +19,12 @@ auto EMPTY_FEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",        // two kings
     MOVE_FEN = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1",        // pawn on e4
     ENPASSANT_FEN = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1",  // enp on a3
     PROMOTION_FEN = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";    // pawn on a7
+
+TEST_F(ChessTest, EvalSTM) {
+    Chess chess = Chess(PAWN_FEN);
+    auto wPawnScore = Eval::PieceValues[PAWN-1][WHITE];
+    EXPECT_EQ(chess.eval<false>(), wPawnScore);
+}
 
 TEST_F(ChessTest, MovePieceForward) {
     Chess chess = Chess(PAWN_FEN);
