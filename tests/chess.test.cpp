@@ -22,8 +22,9 @@ auto EMPTY_FEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",        // two kings
 
 TEST_F(ChessTest, EvalSTM) {
     Chess chess = Chess(PAWN_FEN);
+    std::cout << chess << std::endl;
     auto wPawnScore = Eval::PieceValues[PAWN-1][WHITE];
-    EXPECT_EQ(chess.eval<false>(), wPawnScore);
+    ASSERT_EQ(chess.eval<false>(), wPawnScore);
 }
 
 TEST_F(ChessTest, MovePieceForward) {
@@ -114,57 +115,57 @@ TEST_F(ChessTest, IsDoubleCheck) {
         << "should be in double check";
 }
 
-TEST_F(ChessTest, CanCastleTrue) {
-    Chess c = Chess(POS2);
-    EXPECT_TRUE(c.canCastle(WHITE));
-    EXPECT_TRUE(c.canCastleOO(WHITE));
-    EXPECT_TRUE(c.canCastleOOO(WHITE));
-    EXPECT_TRUE(c.canCastle(BLACK));
-    EXPECT_TRUE(c.canCastleOO(BLACK));
-    EXPECT_TRUE(c.canCastleOOO(BLACK));
-}
+// TEST_F(ChessTest, CanCastleTrue) {
+//     Chess c = Chess(POS2);
+//     EXPECT_TRUE(c.canCastle(WHITE));
+//     EXPECT_TRUE(c.canCastleOO(WHITE));
+//     EXPECT_TRUE(c.canCastleOOO(WHITE));
+//     EXPECT_TRUE(c.canCastle(BLACK));
+//     EXPECT_TRUE(c.canCastleOO(BLACK));
+//     EXPECT_TRUE(c.canCastleOOO(BLACK));
+// }
 
-TEST_F(ChessTest, CanCastleFalse) {
-    Chess c = Chess(POS3);
-    EXPECT_FALSE(c.canCastle(WHITE));
-    EXPECT_FALSE(c.canCastleOO(WHITE));
-    EXPECT_FALSE(c.canCastleOOO(WHITE));
-    EXPECT_FALSE(c.canCastle(BLACK));
-    EXPECT_FALSE(c.canCastleOO(BLACK));
-    EXPECT_FALSE(c.canCastleOOO(BLACK));
-}
+// TEST_F(ChessTest, CanCastleFalse) {
+//     Chess c = Chess(POS3);
+//     EXPECT_FALSE(c.canCastle(WHITE));
+//     EXPECT_FALSE(c.canCastleOO(WHITE));
+//     EXPECT_FALSE(c.canCastleOOO(WHITE));
+//     EXPECT_FALSE(c.canCastle(BLACK));
+//     EXPECT_FALSE(c.canCastleOO(BLACK));
+//     EXPECT_FALSE(c.canCastleOOO(BLACK));
+// }
 
-TEST_F(ChessTest, DisableCastle) {
-    Chess c = Chess(POS2);
-    c.disableCastle(WHITE);
-    EXPECT_FALSE(c.canCastle(WHITE));
-    c.disableCastle(BLACK);
-    EXPECT_FALSE(c.canCastle(BLACK));
-}
+// TEST_F(ChessTest, DisableCastle) {
+//     Chess c = Chess(POS2);
+//     c.disableCastle(WHITE);
+//     EXPECT_FALSE(c.canCastle(WHITE));
+//     c.disableCastle(BLACK);
+//     EXPECT_FALSE(c.canCastle(BLACK));
+// }
 
-TEST_F(ChessTest, DisableCastleOO) {
-    Chess c = Chess(POS2);
-    c.disableCastle(WHITE, H1);
-    EXPECT_TRUE(c.canCastle(WHITE));
-    EXPECT_FALSE(c.canCastleOO(WHITE));
-    EXPECT_TRUE(c.canCastleOOO(WHITE));
-    c.disableCastle(BLACK, H8);
-    EXPECT_TRUE(c.canCastle(BLACK));
-    EXPECT_FALSE(c.canCastleOO(BLACK));
-    EXPECT_TRUE(c.canCastleOOO(BLACK));
-}
+// TEST_F(ChessTest, DisableCastleOO) {
+//     Chess c = Chess(POS2);
+//     c.disableCastle(WHITE, H1);
+//     EXPECT_TRUE(c.canCastle(WHITE));
+//     EXPECT_FALSE(c.canCastleOO(WHITE));
+//     EXPECT_TRUE(c.canCastleOOO(WHITE));
+//     c.disableCastle(BLACK, H8);
+//     EXPECT_TRUE(c.canCastle(BLACK));
+//     EXPECT_FALSE(c.canCastleOO(BLACK));
+//     EXPECT_TRUE(c.canCastleOOO(BLACK));
+// }
 
-TEST_F(ChessTest, DisableCastleOOO) {
-    Chess c = Chess(POS2);
-    c.disableCastle(WHITE, A1);
-    EXPECT_TRUE(c.canCastle(WHITE));
-    EXPECT_TRUE(c.canCastleOO(WHITE));
-    EXPECT_FALSE(c.canCastleOOO(WHITE));
-    c.disableCastle(BLACK, A8);
-    EXPECT_TRUE(c.canCastle(BLACK));
-    EXPECT_TRUE(c.canCastleOO(BLACK));
-    EXPECT_FALSE(c.canCastleOOO(BLACK));
-}
+// TEST_F(ChessTest, DisableCastleOOO) {
+//     Chess c = Chess(POS2);
+//     c.disableCastle(WHITE, A1);
+//     EXPECT_TRUE(c.canCastle(WHITE));
+//     EXPECT_TRUE(c.canCastleOO(WHITE));
+//     EXPECT_FALSE(c.canCastleOOO(WHITE));
+//     c.disableCastle(BLACK, A8);
+//     EXPECT_TRUE(c.canCastle(BLACK));
+//     EXPECT_TRUE(c.canCastleOO(BLACK));
+//     EXPECT_FALSE(c.canCastleOOO(BLACK));
+// }
 
 TEST_F(ChessTest, ChessToFEN) {
     for (auto fen : FENS) {

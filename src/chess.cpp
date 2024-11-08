@@ -2,6 +2,7 @@
 
 #include "defs.hpp"
 #include "eval.hpp"
+#include "fen.hpp"
 
 /*
     EVAL
@@ -87,15 +88,15 @@ void Chess::make(Move mv) {
 
         case KING: {
             board.kingSq[turn] = to;
-            if (canCastle(turn)) {
-                disableCastle(turn);
+            if (state.at(ply).canCastle(turn)) {
+                state.at(ply).disableCastle(turn);
             }
             break;
         }
 
         case ROOK: {
-            if (canCastle(turn)) {
-                disableCastle(turn, from);
+            if (state.at(ply).canCastle(turn)) {
+                state.at(ply).disableCastle(turn, from);
             }
             break;
         }
@@ -274,6 +275,20 @@ bool Chess::isCheckingMove(Move mv) const {
     return false;
 }
 
+// Chess::Chess(const std::string& fen) : state{{State()}}, board{Board(fen)}, ply{0}, moveCounter{0} {
+//     FenParser parser(fen);
+
+//     turn = parser.getActiveColor();
+//     state.at(ply).castle = parser.getCastlingRights();
+//     state.at(ply).enPassantSq = parser.getEnPassantTarget();
+//     state.at(ply).hmClock = parser.getEnPassantTarget();
+//     state.at(ply).zkey = parser.getKey();
+//     moveCounter = parser.getFullmoveNumber();
+    
+//     // state.at(ply).zkey = calculateKey();
+//     updateState();
+// }
+
 Chess::Chess(const std::string& fen) : state{{State()}}, board{Board(fen)}, ply{0}, moveCounter{0} {
     // Constructor using a FEN string
     // See: https://www.chessprogramming.org/Forsyth-Edwards_Notation
@@ -355,11 +370,11 @@ std::string Chess::toFEN() const {
         oss << " b ";
     }
 
-    if (canCastle(WHITE) || canCastle(BLACK)) {
-        if (canCastleOO(WHITE)) oss << "K";
-        if (canCastleOOO(WHITE)) oss << "Q";
-        if (canCastleOO(BLACK)) oss << "k";
-        if (canCastleOOO(BLACK)) oss << "q";
+    if (state.at(ply).canCastle(WHITE) || state.at(ply).canCastle(BLACK)) {
+        if (state.at(ply).canCastleOO(WHITE)) oss << "K";
+        if (state.at(ply).canCastleOOO(WHITE)) oss << "Q";
+        if (state.at(ply).canCastleOO(BLACK)) oss << "k";
+        if (state.at(ply).canCastleOOO(BLACK)) oss << "q";
     } else {
         oss << "-";
     }

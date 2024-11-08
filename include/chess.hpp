@@ -22,12 +22,6 @@ class Chess {
     I32 endgameScore = 0;
     I32 materialScore = 0;
 
-    static constexpr Square KingOrigin[2] = {E8, E1};
-    static constexpr Square KingDestinationOO[2] = {G8, G1};
-    static constexpr Square KingDestinationOOO[2] = {C8, C1};
-    static constexpr Square RookOriginOO[2] = {H8, H1};
-    static constexpr Square RookOriginOOO[2] = {A8, A1};
-
    public:
     explicit Chess(const std::string&);
 
@@ -54,13 +48,6 @@ class Chess {
     U64 getKey() const;
     bool isCheck() const;
     bool isDoubleCheck() const;
-    bool canCastle(Color c) const;
-    bool canCastleOO(Color c) const;
-    bool canCastleOOO(Color c) const;
-    void disableCastle(Color c);
-    void disableCastle(Color c, Square sq);
-    void disableCastleOO(Color c);
-    void disableCastleOOO(Color c);
     void setEnPassant(Square sq);
     void updateCapturedPieces(Square sq, Color c, PieceRole p);
     void handlePawnMoves(Square from, Square to, MoveType movetype, Move mv);
@@ -145,51 +132,6 @@ inline bool Chess::isDoubleCheck() const {
     return BB::moreThanOneSet(getCheckingPieces());
 }
 
-inline bool Chess::canCastle(Color c) const {
-    // Check if the specified color can castle
-    return (c ? state[ply].castle & WHITE_CASTLE : state[ply].castle & BLACK_CASTLE);
-}
-
-inline bool Chess::canCastleOO(Color c) const {
-    // Check if the specified color can castle kingside (OO)
-    return (c ? state[ply].castle & WHITE_OO : state[ply].castle & BLACK_OO);
-}
-
-inline bool Chess::canCastleOOO(Color c) const {
-    // Check if the specified color can castle queenside (OOO)
-    return (c ? state[ply].castle & WHITE_OOO : state[ply].castle & BLACK_OOO);
-}
-
-inline void Chess::disableCastle(Color c) {
-    // Disable castling for the specified color
-    if (canCastleOO(c)) state[ply].zkey ^= Zobrist::castle[c][KINGSIDE];
-    if (canCastleOOO(c)) state[ply].zkey ^= Zobrist::castle[c][QUEENSIDE];
-
-    // Update the castle rights based on the color
-    state[ply].castle &= c ? BLACK_CASTLE : WHITE_CASTLE;
-}
-
-inline void Chess::disableCastle(Color c, Square sq) {
-    // Disable casting for the specified color and side
-    if (sq == RookOriginOO[c] && canCastleOO(c)) {
-        disableCastleOO(c);
-    } else if (sq == RookOriginOOO[c] && canCastleOOO(c)) {
-        disableCastleOOO(c);
-    }
-}
-
-inline void Chess::disableCastleOO(Color c) {
-    // Disable kingside castling for the specified color
-    state[ply].zkey ^= Zobrist::castle[c][KINGSIDE];
-    state[ply].castle &= c ? CastleRights(0x07) : CastleRights(0x0D);
-}
-
-inline void Chess::disableCastleOOO(Color c) {
-    // Disable queenside castling for the specified color
-    state[ply].zkey ^= Zobrist::castle[c][QUEENSIDE];
-    state[ply].castle &= c ? CastleRights(0x0B) : CastleRights(0x0E);
-}
-
 inline void Chess::setEnPassant(Square sq) {
     // Set the en passant target square and update the hash key
     state.at(ply).enPassantSq = sq;
@@ -202,8 +144,8 @@ inline void Chess::updateCapturedPieces(Square sq, Color c, PieceRole p) {
     removePiece<true>(sq, c, p);
 
     // Disable castle rights if captured piece is rook
-    if (canCastle(c) && p == ROOK) {
-        disableCastle(c, sq);
+    if (state.at(ply).canCastle(c) && p == ROOK) {
+        state.at(ply).disableCastle(c, sq);
     }
 }
 
@@ -241,10 +183,10 @@ inline U64 Chess::calculateKey() const {
 
     if (turn == BLACK) zkey ^= Zobrist::stm;
     if (sq != INVALID) zkey ^= Zobrist::ep[Defs::fileFromSq(sq)];
-    if (canCastleOO(WHITE)) zkey ^= Zobrist::castle[WHITE][KINGSIDE];
-    if (canCastleOOO(WHITE)) zkey ^= Zobrist::castle[WHITE][QUEENSIDE];
-    if (canCastleOO(BLACK)) zkey ^= Zobrist::castle[BLACK][KINGSIDE];
-    if (canCastleOOO(BLACK)) zkey ^= Zobrist::castle[BLACK][QUEENSIDE];
+    if (state.at(ply).canCastleOO(WHITE)) zkey ^= Zobrist::castle[WHITE][KINGSIDE];
+    if (state.at(ply).canCastleOOO(WHITE)) zkey ^= Zobrist::castle[WHITE][QUEENSIDE];
+    if (state.at(ply).canCastleOO(BLACK)) zkey ^= Zobrist::castle[BLACK][KINGSIDE];
+    if (state.at(ply).canCastleOOO(BLACK)) zkey ^= Zobrist::castle[BLACK][QUEENSIDE];
 
     return zkey;
 }

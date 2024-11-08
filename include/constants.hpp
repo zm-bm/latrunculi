@@ -17,4 +17,10 @@ const std::string STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq
 
 const std::string FENS[6] = {STARTFEN, POS2, POS3, POS4W, POS4B, POS5};
 
+const Square KingOrigin[2] = {E8, E1};
+const Square KingDestinationOO[2] = {G8, G1};
+const Square KingDestinationOOO[2] = {C8, C1};
+const Square RookOriginOO[2] = {H8, H1};
+const Square RookOriginOOO[2] = {A8, A1};
+
 #endif
