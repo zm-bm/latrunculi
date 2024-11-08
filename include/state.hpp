@@ -4,6 +4,7 @@
 #include "move.hpp"
 #include "types.hpp"
 #include "constants.hpp"
+#include "zobrist.hpp"
 
 class Board;
 
