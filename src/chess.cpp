@@ -275,66 +275,24 @@ bool Chess::isCheckingMove(Move mv) const {
     return false;
 }
 
-// Chess::Chess(const std::string& fen) : state{{State()}}, board{Board(fen)}, ply{0}, moveCounter{0} {
-//     FenParser parser(fen);
+Chess::Chess(const std::string& fen) : state{{State()}}, board{Board()}, ply{0}, moveCounter{0} {
+    FenParser parser(fen);
 
-//     turn = parser.getActiveColor();
-//     state.at(ply).castle = parser.getCastlingRights();
-//     state.at(ply).enPassantSq = parser.getEnPassantTarget();
-//     state.at(ply).hmClock = parser.getEnPassantTarget();
-//     state.at(ply).zkey = parser.getKey();
-//     moveCounter = parser.getFullmoveNumber();
+    auto piece_placement = parser.getPiecePlacement();
+    for (auto piece = piece_placement.begin(); piece != piece_placement.end(); ++piece) {
+        addPiece<true>(piece->square, piece->color, piece->role);
+
+        if (piece->role == KING) {
+            board.kingSq[piece->color] = piece->square;
+        }
+    }
+
+    turn = parser.getActiveColor();
+    state.at(ply).castle = parser.getCastlingRights();
+    state.at(ply).enPassantSq = parser.getEnPassantTarget();
+    state.at(ply).hmClock = parser.getHalfmoveClock();
+    moveCounter = parser.getFullmoveNumber();
     
-//     // state.at(ply).zkey = calculateKey();
-//     updateState();
-// }
-
-Chess::Chess(const std::string& fen) : state{{State()}}, board{Board(fen)}, ply{0}, moveCounter{0} {
-    // Constructor using a FEN string
-    // See: https://www.chessprogramming.org/Forsyth-Edwards_Notation
-    std::vector<std::string> tokens = Defs::split(fen, ' ');
-
-    if (tokens.size() > 3) {
-        if (tokens.at(1)[0] == 'w') {
-            turn = WHITE;
-        } else {
-            turn = BLACK;
-        }
-
-        state.at(ply).castle = NO_CASTLE;
-        std::string castle = tokens.at(2);
-        if (castle.find('-') == std::string::npos) {
-            if (castle.find('K') != std::string::npos) {
-                state.at(ply).castle |= WHITE_OO;
-            }
-
-            if (castle.find('Q') != std::string::npos) {
-                state.at(ply).castle |= WHITE_OOO;
-            }
-
-            if (castle.find('k') != std::string::npos) {
-                state.at(ply).castle |= BLACK_OO;
-            }
-
-            if (castle.find('q') != std::string::npos) {
-                state.at(ply).castle |= BLACK_OOO;
-            }
-        }
-
-        std::string square = tokens.at(3);
-        if (square.compare("-") != 0) {
-            setEnPassant(Defs::sqFromString(square));
-        }
-    }
-
-    if (tokens.size() > 4) {
-        state.at(ply).hmClock = std::stoi(tokens.at(4));
-    }
-
-    if (tokens.size() > 5) {
-        moveCounter = 2 * (std::stoul(tokens.at(5)) - 1) + (turn == WHITE ? 0 : 1);
-    }
-
     state.at(ply).zkey = calculateKey();
     updateState();
 }

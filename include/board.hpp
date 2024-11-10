@@ -5,8 +5,10 @@
 #include <vector>
 
 #include "bb.hpp"
+#include "defs.hpp"
 #include "types.hpp"
 #include "zobrist.hpp"
+#include "fen.hpp"
 
 struct Board {
     U64 pieces[2][7] = {0};
@@ -14,6 +16,7 @@ struct Board {
     Square kingSq[2] = {E1, E8};
     U8 pieceCount[2][7] = {0};
 
+    Board() = default;
     explicit Board(const std::string&);
     friend std::ostream& operator<<(std::ostream& os, const Board& b);
 
@@ -45,6 +48,19 @@ struct Board {
 
     bool isBitboardAttacked(U64, Color) const;
 };
+
+inline Board::Board(const std::string& fen) {
+    FenParser parser(fen);
+
+    auto piece_placement = parser.getPiecePlacement();
+    for (auto piece = piece_placement.begin(); piece != piece_placement.end(); ++piece) {
+        addPiece(piece->square, piece->color, piece->role);
+
+        if (piece->role == KING) {
+            kingSq[piece->color] = piece->square;
+        }
+    }
+}
 
 inline void Board::addPiece(const Square sq, const Color c, const PieceRole p) {
     // Toggle bitboards and add to square centric board
@@ -196,6 +212,22 @@ inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const {
     }
 
     return false;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const Board& b) {
+    for (Rank rank = RANK8; rank >= RANK1; rank--) {
+        os << "   +---+---+---+---+---+---+---+---+\n";
+        os << "   |";
+        for (File file = FILE1; file <= FILE8; file++) {
+            os << " " << b.getPiece(Defs::sqFromCoords(file, rank)) << " |";
+        }
+        os << " " << rank << '\n';
+    }
+
+    os << "   +---+---+---+---+---+---+---+---+\n";
+    os << "     a   b   c   d   e   f   g   h\n\n";
+
+    return os;
 }
 
 #endif

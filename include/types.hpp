@@ -46,6 +46,12 @@ enum PieceRole : U8 {
 };
 // clang-format on
 
+struct PieceSquare {
+    Color color;
+    PieceRole role;
+    Square square;
+};
+
 enum File : I8 { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8, NFILES };
 enum Rank : I8 { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8, NRANKS };
 

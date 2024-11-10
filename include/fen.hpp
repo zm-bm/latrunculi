@@ -13,24 +13,21 @@ class FenParser {
     explicit FenParser(const std::string& fen);
     void parse();
 
-    std::string getPiecePlacement() const;
+    std::vector<PieceSquare> getPiecePlacement() const;
     Color getActiveColor() const;
     CastleRights getCastlingRights() const;
     Square getEnPassantTarget() const;
     U8 getHalfmoveClock() const;
     U32 getFullmoveNumber() const;
-    U64 getKey() const;
 
    private:
     std::string fen;
-
-    std::string piece_placement_;
-    Color active_color_;
-    CastleRights castling_rights_ = ALL_CASTLE;
-    Square en_passant_target_;
-    U8 halfmove_clock_;
-    U32 fullmove_number_;
-    U64 zkey_;
+    std::vector<PieceSquare> piece_placement_;
+    Color active_color_ = WHITE;
+    CastleRights castling_rights_ = NO_CASTLE;
+    Square en_passant_target_ = INVALID;
+    U8 halfmove_clock_ = 0;
+    U32 fullmove_number_ = 0;
 
     void parsePiecePlacement(const std::string& section);
     void parseActiveColor(const std::string& section);
