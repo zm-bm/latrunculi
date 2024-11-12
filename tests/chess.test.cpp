@@ -21,8 +21,7 @@ auto EMPTY_FEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",        // two kings
     PROMOTION_FEN = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";    // pawn on a7
 
 TEST_F(ChessTest, EvalSTM) {
-    Chess chess = Chess(PAWN_FEN);
-    std::cout << chess << std::endl;
+    Chess chess(PAWN_FEN);
     auto wPawnScore = Eval::PieceValues[PAWN-1][WHITE];
     ASSERT_EQ(chess.eval<false>(), wPawnScore);
 }

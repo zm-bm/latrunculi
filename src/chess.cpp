@@ -8,32 +8,35 @@
     EVAL
 */
 
-template <bool debug>
+template <bool debug = false>
 int Chess::eval() const {
-    int score = 0;
+    int mg = eval_mg<debug>();
+    int eg = eval_eg<debug>();
+    int p = phase();
 
-    score += materialScore;          // piece values
-    score += evalPosition<debug>();  // piece+square values
+    int score = mg;
 
-    // score relative to side to move
+    // return score relative to side to move
     score *= ((2 * turn) - 1);
-
-    if (debug) {
-        std::cout << score << std::endl;
-    }
-
     return score;
+}
+
+template <bool debug>
+int Chess::eval_mg() const {
+    return materialScore;
+}
+
+template <bool debug>
+int Chess::eval_eg() const {
+    return 0;
+}
+
+int Chess::phase() const {
+    return 0;
 }
 
 template int Chess::eval<true>() const;
 template int Chess::eval<false>() const;
-
-template <bool debug>
-int Chess::evalPosition() const {
-    int score = 0;
-
-    return score;
-}
 
 /*
     MOVE GENERATION

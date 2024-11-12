@@ -228,7 +228,7 @@ int Search::negamax(int depth, int alpha, int beta, bool isPV, bool isNullAllowe
 
 int Search::quiesce(int alpha, int beta)
 {
-    // int score = _board->eval<false>();
+    // int score = _board->eval();
     
     // if (score >= beta)
     //     return beta;

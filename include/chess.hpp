@@ -57,8 +57,13 @@ class Chess {
 
     template <bool>
     int eval() const;
+
     template <bool>
-    int evalPosition() const;
+    int eval_mg() const;
+    template <bool>
+    int eval_eg() const;
+
+    int phase() const;
 
     std::string toFEN() const;
     std::string DebugString() const;
