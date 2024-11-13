@@ -22,14 +22,14 @@ struct State {
     U64 checkingPieces = 0;
     U64 pinnedPieces = 0;
     U64 discoveredCheckers = 0;
-    U64 checkingSquares[6] = {0, 0, 0, 0, 0, 0};
+    U64 checkingSquares[N_PIECE_TYPES] = {0, 0, 0, 0, 0, 0};
 
     // Hash keys
     U64 zkey = 0;
 
     // Board state variables
     Move move;
-    PieceRole captured = NO_PIECE_ROLE;
+    PieceType captured = NO_PIECE_TYPE;
     CastleRights castle = ALL_CASTLE;
     Square enPassantSq = INVALID;
     U8 hmClock = 0;

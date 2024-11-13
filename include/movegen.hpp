@@ -35,7 +35,7 @@ class MoveGenerator {
     template <GenType>
     void generateKingMoves(U64, U64);
 
-    template <PieceRole, Color>
+    template <PieceType, Color>
     void generatePieceMoves(U64, U64);
 
     void generateCastling(U64, Color);

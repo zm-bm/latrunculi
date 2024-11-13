@@ -39,16 +39,16 @@ enum Piece : U8 {
   W_PAWN = 9, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
 };
 
-enum PieceRole : U8 {
-  NO_PIECE_ROLE = 0, ALL_PIECE_ROLES = 0,
+enum PieceType : U8 {
+  NO_PIECE_TYPE = 0, ALL_PIECE_TYPES = 0,
   PAWN = 1, KNIGHT, BISHOP, ROOK, QUEEN, KING,
-  N_PIECES = 6
+  N_PIECE_TYPES = 6
 };
 // clang-format on
 
 struct PieceSquare {
     Color color;
-    PieceRole role;
+    PieceType role;
     Square square;
 };
 

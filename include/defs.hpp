@@ -24,14 +24,14 @@ inline constexpr Rank rankFromSq(const Square square) { return Rank(square >> 3)
 
 inline constexpr File fileFromSq(const Square square) { return File(square & 7); }
 
-inline constexpr Piece makePiece(const Color c, const PieceRole p) {
+inline constexpr Piece makePiece(const Color c, const PieceType p) {
     // create piece from color+role
     return Piece((c << 3) | p);
 }
 
-inline constexpr PieceRole getPieceRole(const Piece p) {
+inline constexpr PieceType getPieceType(const Piece p) {
     // get the role from a piece
-    return PieceRole(p & 0x7);
+    return PieceType(p & 0x7);
 }
 
 inline constexpr Color getPieceColor(const Piece p) {

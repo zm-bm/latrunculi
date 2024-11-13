@@ -36,11 +36,11 @@ class Chess {
     bool isCheckingMove(Move) const;
 
     template <bool>
-    void addPiece(Square, Color, PieceRole);
+    void addPiece(Square, Color, PieceType);
     template <bool>
-    void removePiece(Square, Color, PieceRole);
+    void removePiece(Square, Color, PieceType);
     template <bool>
-    void movePiece(Square, Square, Color, PieceRole);
+    void movePiece(Square, Square, Color, PieceType);
 
     U64 getCheckingPieces() const;
     Square getEnPassant() const;
@@ -49,7 +49,7 @@ class Chess {
     bool isCheck() const;
     bool isDoubleCheck() const;
     void setEnPassant(Square sq);
-    void updateCapturedPieces(Square sq, Color c, PieceRole p);
+    void updateCapturedPieces(Square sq, Color c, PieceType p);
     void handlePawnMoves(Square from, Square to, MoveType movetype, Move mv);
     int calculatePhase() const;
     U64 calculateKey() const;
@@ -64,6 +64,7 @@ class Chess {
     int eval_eg() const;
 
     int phase() const;
+    int non_pawn_material(Color) const;
 
     std::string toFEN() const;
     std::string DebugString() const;
@@ -73,11 +74,11 @@ class Chess {
 };
 
 template <bool forward>
-inline void Chess::addPiece(Square sq, Color c, PieceRole p) {
+inline void Chess::addPiece(Square sq, Color c, PieceType p) {
     board.addPiece(sq, c, p);
-    materialScore += Eval::PieceValues[p - 1][c];
-    openingScore += Eval::psqv(c, p, MIDGAME, sq);
-    endgameScore += Eval::psqv(c, p, ENDGAME, sq);
+    // materialScore += Eval::PieceValues[p][c];
+    // openingScore += Eval::psqv(c, p, MIDGAME, sq);
+    // endgameScore += Eval::psqv(c, p, ENDGAME, sq);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
@@ -85,11 +86,11 @@ inline void Chess::addPiece(Square sq, Color c, PieceRole p) {
 }
 
 template <bool forward>
-inline void Chess::removePiece(Square sq, Color c, PieceRole p) {
+inline void Chess::removePiece(Square sq, Color c, PieceType p) {
     board.removePiece(sq, c, p);
-    materialScore -= Eval::PieceValues[p - 1][c];
-    openingScore -= Eval::psqv(c, p, MIDGAME, sq);
-    endgameScore -= Eval::psqv(c, p, ENDGAME, sq);
+    // materialScore -= Eval::PieceValues[p][c];
+    // openingScore -= Eval::psqv(c, p, MIDGAME, sq);
+    // endgameScore -= Eval::psqv(c, p, ENDGAME, sq);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
@@ -97,10 +98,10 @@ inline void Chess::removePiece(Square sq, Color c, PieceRole p) {
 }
 
 template <bool forward>
-inline void Chess::movePiece(Square from, Square to, Color c, PieceRole p) {
+inline void Chess::movePiece(Square from, Square to, Color c, PieceType p) {
     board.movePiece(from, to, c, p);
-    openingScore += Eval::psqv(c, p, MIDGAME, to) - Eval::psqv(c, p, MIDGAME, from);
-    endgameScore += Eval::psqv(c, p, ENDGAME, to) - Eval::psqv(c, p, ENDGAME, from);
+    // openingScore += Eval::psqv(c, p, MIDGAME, to) - Eval::psqv(c, p, MIDGAME, from);
+    // endgameScore += Eval::psqv(c, p, ENDGAME, to) - Eval::psqv(c, p, ENDGAME, from);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][from] ^ Zobrist::psq[c][p][to];
@@ -143,7 +144,7 @@ inline void Chess::setEnPassant(Square sq) {
     state.at(ply).zkey ^= Zobrist::ep[Defs::fileFromSq(sq)];
 }
 
-inline void Chess::updateCapturedPieces(Square sq, Color c, PieceRole p) {
+inline void Chess::updateCapturedPieces(Square sq, Color c, PieceType p) {
     // Reset half move clock for capture
     state[ply].hmClock = 0;
     removePiece<true>(sq, c, p);
@@ -181,7 +182,7 @@ inline U64 Chess::calculateKey() const {
 
         if (piece != NO_PIECE) {
             auto c = Defs::getPieceColor(piece);
-            auto p = Defs::getPieceRole(piece);
+            auto p = Defs::getPieceType(piece);
             zkey ^= Zobrist::psq[c][p][sq];
         }
     }

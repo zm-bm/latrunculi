@@ -317,7 +317,7 @@ inline U64 attacksByPawns(U64 pawns, Color c) {
     return movesByPawns<PawnMove::LEFT>(pawns, c) | movesByPawns<PawnMove::RIGHT>(pawns, c);
 }
 
-template <PieceRole p>
+template <PieceType p>
 inline U64 movesByPiece(Square sq, U64 occupancy) {
     switch (p) {
         case KNIGHT: return KNIGHT_ATTACKS[sq];
@@ -328,12 +328,12 @@ inline U64 movesByPiece(Square sq, U64 occupancy) {
     }
 }
 
-template <PieceRole p>
+template <PieceType p>
 inline U64 movesByPiece(Square sq) {
     return movesByPiece<p>(sq, 0);
 }
 
-inline U64 movesByPiece(Square sq, PieceRole p, U64 occupancy) {
+inline U64 movesByPiece(Square sq, PieceType p, U64 occupancy) {
     switch (p) {
         case KNIGHT: return movesByPiece<KNIGHT>(sq, occupancy);
         case BISHOP: return movesByPiece<BISHOP>(sq, occupancy);
@@ -344,7 +344,7 @@ inline U64 movesByPiece(Square sq, PieceRole p, U64 occupancy) {
     }
 }
 
-inline U64 movesByPiece(Square sq, PieceRole p) { return movesByPiece(sq, p, 0); }
+inline U64 movesByPiece(Square sq, PieceType p) { return movesByPiece(sq, p, 0); }
 
 inline void print(std::ostream& os, const U64& bb) {
     // Prints the bitboard in a human-readable chessboard format.

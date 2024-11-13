@@ -49,12 +49,12 @@ void Chess::make(Move mv) {
     Square to = mv.to();
     Square capturedPieceSq = to;
     Square epsq = getEnPassant();
-    PieceRole fromPieceRole = Defs::getPieceRole(board.getPiece(from));
-    PieceRole toPieceRole = Defs::getPieceRole(board.getPiece(to));
+    PieceType fromPieceType = Defs::getPieceType(board.getPiece(from));
+    PieceType toPieceType = Defs::getPieceType(board.getPiece(to));
     MoveType movetype = mv.type();
     Color enemy = ~turn;
     if (movetype == ENPASSANT) {
-        toPieceRole = PAWN;
+        toPieceType = PAWN;
         capturedPieceSq = Defs::pawnMove<PawnMove::PUSH, false>(to, turn);
         board.squares[capturedPieceSq] = NO_PIECE;
     }
@@ -65,9 +65,9 @@ void Chess::make(Move mv) {
     ++moveCounter;
 
     // Store the captured piece role for undoing move
-    state[ply].captured = toPieceRole;
-    if (toPieceRole) {
-        updateCapturedPieces(capturedPieceSq, enemy, toPieceRole);
+    state[ply].captured = toPieceType;
+    if (toPieceType) {
+        updateCapturedPieces(capturedPieceSq, enemy, toPieceType);
     }
 
     // Remove ep square from zobrist key if any
@@ -79,11 +79,11 @@ void Chess::make(Move mv) {
     if (movetype == CASTLE) {
         makeCastle<true>(from, to, turn);
     } else {
-        movePiece<true>(from, to, turn, fromPieceRole);
+        movePiece<true>(from, to, turn, fromPieceType);
     }
 
     // Handle en passants, promotions, and update castling rights
-    switch (fromPieceRole) {
+    switch (fromPieceType) {
         case PAWN: {
             handlePawnMoves(from, to, movetype, mv);
             break;
@@ -118,8 +118,8 @@ void Chess::unmake() {
     Color enemy = turn;
     Move mv = state[ply].move;
     Square from = mv.from(), to = mv.to();
-    PieceRole toPieceRole = state[ply].captured;
-    PieceRole fromPieceRole = Defs::getPieceRole(board.getPiece(to));
+    PieceType toPieceType = state[ply].captured;
+    PieceType fromPieceType = Defs::getPieceType(board.getPiece(to));
     MoveType movetype = mv.type();
 
     // Revert to the previous board state
@@ -130,24 +130,24 @@ void Chess::unmake() {
 
     // Make corrections if promotion move
     if (movetype == PROMOTION) {
-        removePiece<false>(to, turn, fromPieceRole);
+        removePiece<false>(to, turn, fromPieceType);
         addPiece<false>(to, turn, PAWN);
-        fromPieceRole = PAWN;
+        fromPieceType = PAWN;
     }
 
     // Undo the move
     if (movetype == CASTLE) {
         makeCastle<false>(from, to, turn);
     } else {
-        movePiece<false>(to, from, turn, fromPieceRole);
-        if (toPieceRole) {
+        movePiece<false>(to, from, turn, fromPieceType);
+        if (toPieceType) {
             Square capturedPieceSq =
                 (movetype == ENPASSANT) ? Defs::pawnMove<PawnMove::PUSH, false>(to, turn) : to;
-            addPiece<false>(capturedPieceSq, enemy, toPieceRole);
+            addPiece<false>(capturedPieceSq, enemy, toPieceType);
         }
     }
 
-    if (fromPieceRole == KING) {
+    if (fromPieceType == KING) {
         board.kingSq[turn] = from;
     }
 }
@@ -226,7 +226,7 @@ bool Chess::isPseudoLegalMoveLegal(Move mv) const {
 // Determine if a move gives check for the current board
 bool Chess::isCheckingMove(Move mv) const {
     Square from = mv.from(), to = mv.to();
-    PieceRole role = Defs::getPieceRole(board.getPiece(from));
+    PieceType role = Defs::getPieceType(board.getPiece(from));
 
     // Check if destination+piece role directly attacks the king
     if (state[ply].checkingSquares[role] & BB::set(to)) {

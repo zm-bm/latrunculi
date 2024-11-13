@@ -9,7 +9,7 @@ void MoveGenerator::generatePseudoLegalMoves() {
         generateEvasions();
     } else {
         Color enemy = ~chess->turn;
-        U64 targets = chess->board.getPieces<ALL_PIECE_ROLES>(enemy);
+        U64 targets = chess->board.getPieces<ALL_PIECE_TYPES>(enemy);
         generateMovesToTarget<CAPTURES>(targets);
 
         targets = ~chess->board.occupancy();
@@ -22,7 +22,7 @@ void MoveGenerator::generateCaptures() {
         generateEvasions();
     } else {
         Color enemy = ~chess->turn;
-        U64 targets = chess->board.getPieces<ALL_PIECE_ROLES>(enemy);
+        U64 targets = chess->board.getPieces<ALL_PIECE_TYPES>(enemy);
         generateMovesToTarget<CAPTURES>(targets);
     }
 }
@@ -44,7 +44,7 @@ void MoveGenerator::generateEvasions() {
     }
 
     // Generate king evasions
-    targets = ~chess->board.getPieces<ALL_PIECE_ROLES>(turn);
+    targets = ~chess->board.getPieces<ALL_PIECE_TYPES>(turn);
     generateKingMoves<EVASIONS>(targets, chess->board.occupancy());
 }
 
@@ -81,13 +81,13 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
     // generation
     if (g == EVASIONS) {
         // If generating evasions, only attack checking pieces
-        enemies = chess->board.getPieces<ALL_PIECE_ROLES>(enemy) & targets;
+        enemies = chess->board.getPieces<ALL_PIECE_TYPES>(enemy) & targets;
     } else if (g == CAPTURES) {
         // If generating captures, targets are all enemy pieces
         enemies = targets;
     } else if (g == QUIETS) {
         // If generating quiet moves, get enemy pieces
-        enemies = chess->board.getPieces<ALL_PIECE_ROLES>(enemy);
+        enemies = chess->board.getPieces<ALL_PIECE_TYPES>(enemy);
     }
 
     // Get 7th rank pawns
@@ -178,7 +178,7 @@ void MoveGenerator::generateKingMoves(const U64 targets, const U64 occ) {
     }
 }
 
-template <PieceRole p, Color c>
+template <PieceType p, Color c>
 void MoveGenerator::generatePieceMoves(const U64 targets, const U64 occ) {
     Color turn = chess->turn;
     U64 bitboard = chess->board.getPieces<p>(turn);

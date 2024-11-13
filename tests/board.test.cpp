@@ -36,13 +36,6 @@ TEST_F(BoardTest, Count) {
     EXPECT_EQ(startBoard->count<PAWN>(), 16) << "should count 16 pawns on start board";
 }
 
-TEST_F(BoardTest, GetPieceCount) {
-    EXPECT_EQ(emptyBoard->getPieceCount(WHITE), 0) << "should count 0 white pieces on empty board";
-    EXPECT_EQ(emptyBoard->getPieceCount(BLACK), 0) << "should count 0 black pieces on empty board";
-    EXPECT_EQ(startBoard->getPieceCount(WHITE), 7) << "should count 7 white pieces on start board";
-    EXPECT_EQ(startBoard->getPieceCount(BLACK), 7) << "should count 7 black pieces on start board";
-}
-
 TEST_F(BoardTest, Occupancy) {
     U64 expected =
         (BB::RANK_MASK[RANK1] | BB::RANK_MASK[RANK2] | BB::RANK_MASK[RANK7] | BB::RANK_MASK[RANK8]);
@@ -52,17 +45,18 @@ TEST_F(BoardTest, Occupancy) {
 TEST_F(BoardTest, GetPiece) {
     EXPECT_EQ(emptyBoard->getPiece(E1), Defs::makePiece(WHITE, KING))
         << "should have a white king on e1";
+    std::cout << "val: " << emptyBoard->getPiece(E2) << std::endl;
     EXPECT_EQ(emptyBoard->getPiece(E2), NO_PIECE) << "should have an empty e2";
     EXPECT_EQ(startBoard->getPiece(A2), Defs::makePiece(WHITE, PAWN))
         << "should have a white pawn on a1";
     EXPECT_EQ(startBoard->getPiece(A3), NO_PIECE) << "should have an empty a3";
 }
 
-TEST_F(BoardTest, GetPieceRole) {
-    EXPECT_EQ(emptyBoard->getPieceRole(E1), KING) << "should have a king on e1";
-    EXPECT_EQ(emptyBoard->getPieceRole(E2), NO_PIECE_ROLE) << "should have an empty e2";
-    EXPECT_EQ(startBoard->getPieceRole(A2), PAWN) << "should have a pawn on a2";
-    EXPECT_EQ(startBoard->getPieceRole(A3), NO_PIECE_ROLE) << "should have an empty a3";
+TEST_F(BoardTest, GetPieceType) {
+    EXPECT_EQ(emptyBoard->getPieceType(E1), KING) << "should have a king on e1";
+    EXPECT_EQ(emptyBoard->getPieceType(E2), NO_PIECE_TYPE) << "should have an empty e2";
+    EXPECT_EQ(startBoard->getPieceType(A2), PAWN) << "should have a pawn on a2";
+    EXPECT_EQ(startBoard->getPieceType(A3), NO_PIECE_TYPE) << "should have an empty a3";
 }
 
 TEST_F(BoardTest, GetKingSq) {

@@ -6,53 +6,8 @@
 
 namespace Eval {
 
-const int MobilityScaling[2][6] = {
-    {0, 6, 2, 0, 0, 0},
-    {2, 3, 1, 1, 1, 1}
-};
-
-const int PassedPawnBonus[2]    = {  30,  200 };
-const int DoublePawnPenalty[2]  = { -30, -100 };
-const int TriplePawnPenalty[2]  = { -45, -100 };
-const int IsoPawnPenalty[2]     = { -30,  -40 };
-const int OpenFileBonus[2]      = {  20,   10 };
-const int HalfOpenFileBonus[2]  = {  10,    0 };
-const int BishopPairBonus[2]    = {  20,   60 };
-
-const int TEMPO_BONUS                 = 25;
-const int KNIGHT_PENALTY_PER_PAWN     = -2;
-const int ROOK_BONUS_PER_PAWN         = 2;
-const int CONNECTED_ROOK_BONUS        = 15;
-const int ROOK_ON_SEVENTH_BONUS       = 20;
-const int BACK_RANK_MINOR_PENALTY     = -6;
-const int MINOR_OUTPOST_BONUS         = 10;
-const int STRONG_KING_SHIELD_BONUS    = 10;
-const int WEAK_KING_SHIELD_BONUS      = 5;
-
-const int PieceValues[6][2] = {
-    { -PAWNSCORE,   PAWNSCORE },
-    { -KNIGHTSCORE, KNIGHTSCORE },
-    { -BISHOPSCORE, BISHOPSCORE },
-    { -ROOKSCORE,   ROOKSCORE },
-    { -QUEENSCORE,  QUEENSCORE },
-    { -KINGSCORE,   KINGSCORE }
-};
-
-const int KNIGHT_TROPISM[8] = {
-    0, 5, 4, 2, 0, 0, -1, -3
-};
-const int BISHOP_TROPISM[8] = {
-    0, 5, 4, 3, 2, 1, 0, 0
-};
-const int ROOK_TROPISM[8] = {
-    0, 6, 5, 3, 2, 1, 0, 0
-};
-const int QUEEN_TROPISM[8] = {
-    0, 12, 10, 6, 4, 2, 0, -2
-};
-const int QUEEN_EARLY_DEV_PENALTY[4] = {
-    0, -2, -8, -24
-};
+const int midgameLimit = 15258;
+const int endgameLimit = 3915;
 
 const Square ColorSq[2][64] = {
     {
@@ -76,159 +31,159 @@ const Square ColorSq[2][64] = {
     }
 };
 
-const std::array<std::array<int, 64>, 2> PawnSqValues = {{
-    {
-        0,  0,  0,  0,  0,  0,  0,  0,
-        50, 50, 50, 50, 50, 50, 50, 50,
-        10, 10, 20, 30, 30, 20, 10, 10,
-        5,  5, 10, 25, 25, 10,  5,  5,
-        0,  0,  0, 20, 20,  0,  0,  0,
-        5, -5,-10,  0,  0,-10, -5,  5,
-        5, 10, 10,-20,-20, 10, 10,  5,
-        0,  0,  0,  0,  0,  0,  0,  0
-    }, {
-        0,  0,  0,  0,  0,  0,  0,  0,
-        115,125,125,125,125,125,125,125,
-        85, 95, 95,105,105, 95, 95, 85,
-        75, 85, 90,100,100, 90, 85, 65,
-        65, 80, 80, 95, 95, 80, 80, 65,
-        55, 75, 75, 75, 75, 75, 75, 55,
-        50, 70, 70, 70, 70, 70, 70, 50,
-        0,  0,  0,  0,  0,  0,  0,  0
-    }
-}};
+// const std::array<std::array<int, 64>, 2> PawnSqValues = {{
+//     {
+//         0,  0,  0,  0,  0,  0,  0,  0,
+//         50, 50, 50, 50, 50, 50, 50, 50,
+//         10, 10, 20, 30, 30, 20, 10, 10,
+//         5,  5, 10, 25, 25, 10,  5,  5,
+//         0,  0,  0, 20, 20,  0,  0,  0,
+//         5, -5,-10,  0,  0,-10, -5,  5,
+//         5, 10, 10,-20,-20, 10, 10,  5,
+//         0,  0,  0,  0,  0,  0,  0,  0
+//     }, {
+//         0,  0,  0,  0,  0,  0,  0,  0,
+//         115,125,125,125,125,125,125,125,
+//         85, 95, 95,105,105, 95, 95, 85,
+//         75, 85, 90,100,100, 90, 85, 65,
+//         65, 80, 80, 95, 95, 80, 80, 65,
+//         55, 75, 75, 75, 75, 75, 75, 55,
+//         50, 70, 70, 70, 70, 70, 70, 50,
+//         0,  0,  0,  0,  0,  0,  0,  0
+//     }
+// }};
 
-const std::array<std::array<int, 64>, 2> KnightSqValues = {{
-    {
-        -50,-40,-30,-30,-30,-30,-40,-50,
-        -40,-20,  0,  0,  0,  0,-20,-40,
-        -30,  0, 10, 15, 15, 10,  0,-30,
-        -30,  5, 15, 20, 20, 15,  5,-30,
-        -30,  0, 15, 20, 20, 15,  0,-30,
-        -30,  5, 10, 15, 15, 10,  5,-30,
-        -40,-20,  0,  5,  5,  0,-20,-40,
-        -50,-40,-30,-30,-30,-30,-40,-50,
-    }, {
-        -50,-40,-30,-30,-30,-30,-40,-50,
-        -40,-20,  0,  0,  0,  0,-20,-40,
-        -30,  0, 10, 15, 15, 10,  0,-30,
-        -30,  5, 15, 20, 20, 15,  5,-30,
-        -30,  0, 15, 20, 20, 15,  0,-30,
-        -30,  5, 10, 15, 15, 10,  5,-30,
-        -40,-20,  0,  5,  5,  0,-20,-40,
-        -50,-40,-30,-30,-30,-30,-40,-50,
-    }
-}};
+// const std::array<std::array<int, 64>, 2> KnightSqValues = {{
+//     {
+//         -50,-40,-30,-30,-30,-30,-40,-50,
+//         -40,-20,  0,  0,  0,  0,-20,-40,
+//         -30,  0, 10, 15, 15, 10,  0,-30,
+//         -30,  5, 15, 20, 20, 15,  5,-30,
+//         -30,  0, 15, 20, 20, 15,  0,-30,
+//         -30,  5, 10, 15, 15, 10,  5,-30,
+//         -40,-20,  0,  5,  5,  0,-20,-40,
+//         -50,-40,-30,-30,-30,-30,-40,-50,
+//     }, {
+//         -50,-40,-30,-30,-30,-30,-40,-50,
+//         -40,-20,  0,  0,  0,  0,-20,-40,
+//         -30,  0, 10, 15, 15, 10,  0,-30,
+//         -30,  5, 15, 20, 20, 15,  5,-30,
+//         -30,  0, 15, 20, 20, 15,  0,-30,
+//         -30,  5, 10, 15, 15, 10,  5,-30,
+//         -40,-20,  0,  5,  5,  0,-20,-40,
+//         -50,-40,-30,-30,-30,-30,-40,-50,
+//     }
+// }};
 
-const std::array<std::array<int, 64>, 2> BishopSqValues = {{
-    {
-        -20,-10,-10,-10,-10,-10,-10,-20,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -10,  0,  5, 10, 10,  5,  0,-10,
-        -10,  5,  5, 10, 10,  5,  5,-10,
-        -10,  0, 10, 10, 10, 10,  0,-10,
-        -10, 10, 10, 10, 10, 10, 10,-10,
-        -10, 10,  0,  0,  0,  0, 10,-10,
-        -20,-10,-10,-10,-10,-10,-10,-20
-    }, {
-        -20,-10,-10,-10,-10,-10,-10,-20,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -10,  0,  5, 10, 10,  5,  0,-10,
-        -10,  5,  5, 10, 10,  5,  5,-10,
-        -10,  0, 10, 10, 10, 10,  0,-10,
-        -10, 10, 10, 10, 10, 10, 10,-10,
-        -10,  5,  0,  0,  0,  0,  5,-10,
-        -20,-10,-10,-10,-10,-10,-10,-20
-    }
-}};
+// const std::array<std::array<int, 64>, 2> BishopSqValues = {{
+//     {
+//         -20,-10,-10,-10,-10,-10,-10,-20,
+//         -10,  0,  0,  0,  0,  0,  0,-10,
+//         -10,  0,  5, 10, 10,  5,  0,-10,
+//         -10,  5,  5, 10, 10,  5,  5,-10,
+//         -10,  0, 10, 10, 10, 10,  0,-10,
+//         -10, 10, 10, 10, 10, 10, 10,-10,
+//         -10, 10,  0,  0,  0,  0, 10,-10,
+//         -20,-10,-10,-10,-10,-10,-10,-20
+//     }, {
+//         -20,-10,-10,-10,-10,-10,-10,-20,
+//         -10,  0,  0,  0,  0,  0,  0,-10,
+//         -10,  0,  5, 10, 10,  5,  0,-10,
+//         -10,  5,  5, 10, 10,  5,  5,-10,
+//         -10,  0, 10, 10, 10, 10,  0,-10,
+//         -10, 10, 10, 10, 10, 10, 10,-10,
+//         -10,  5,  0,  0,  0,  0,  5,-10,
+//         -20,-10,-10,-10,-10,-10,-10,-20
+//     }
+// }};
 
-const std::array<std::array<int, 64>, 2> RookSqValues = {{
-    {
-        0,  0,  0,  0,  0,  0,  0,  0,
-        5, 10, 10, 10, 10, 10, 10,  5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        0,  0,  0,  5,  5,  0,  0,  0
-    }, {
-        0,  0,  0,  0,  0,  0,  0,  0,
-        5, 10, 10, 10, 10, 10, 10,  5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        -5,  0,  0,  0,  0,  0,  0, -5,
-        0,  0,  0,  5,  5,  0,  0,  0
-    }
-}};
+// const std::array<std::array<int, 64>, 2> RookSqValues = {{
+//     {
+//         0,  0,  0,  0,  0,  0,  0,  0,
+//         5, 10, 10, 10, 10, 10, 10,  5,
+//         -5,  0,  0,  0,  0,  0,  0, -5,
+//         -5,  0,  0,  0,  0,  0,  0, -5,
+//         -5,  0,  0,  0,  0,  0,  0, -5,
+//         -5,  0,  0,  0,  0,  0,  0, -5,
+//         -5,  0,  0,  0,  0,  0,  0, -5,
+//         0,  0,  0,  5,  5,  0,  0,  0
+//     }, {
+//         0,  0,  0,  0,  0,  0,  0,  0,
+//         5, 10, 10, 10, 10, 10, 10,  5,
+//         -5,  0,  0,  0,  0,  0,  0, -5,
+//         -5,  0,  0,  0,  0,  0,  0, -5,
+//         -5,  0,  0,  0,  0,  0,  0, -5,
+//         -5,  0,  0,  0,  0,  0,  0, -5,
+//         -5,  0,  0,  0,  0,  0,  0, -5,
+//         0,  0,  0,  5,  5,  0,  0,  0
+//     }
+// }};
 
-const std::array<std::array<int, 64>, 2> QueenSqValues = {{
-    {
-        -20,-10,-10, -5, -5,-10,-10,-20,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -10,  0,  5,  5,  5,  5,  0,-10,
-        -5,  0,  5,  5,  5,  5,  0, -5,
-        0,  0,  5,  5,  5,  5,  0, -5,
-        -10,  5,  5,  5,  5,  5,  0,-10,
-        -10,  0,  5,  0,  0,  0,  0,-10,
-        -20,-10,-10, -5, -5,-10,-10,-20
-    }, {
-        -20,-10,-10, -5, -5,-10,-10,-20,
-        -10,  0,  0,  0,  0,  0,  0,-10,
-        -10,  0,  5,  5,  5,  5,  0,-10,
-        -5,  0,  5,  5,  5,  5,  0, -5,
-        0,  0,  5,  5,  5,  5,  0, -5,
-        -10,  5,  5,  5,  5,  5,  0,-10,
-        -10,  0,  5,  0,  0,  0,  0,-10,
-        -20,-10,-10, -5, -5,-10,-10,-20
-    }
-}};
+// const std::array<std::array<int, 64>, 2> QueenSqValues = {{
+//     {
+//         -20,-10,-10, -5, -5,-10,-10,-20,
+//         -10,  0,  0,  0,  0,  0,  0,-10,
+//         -10,  0,  5,  5,  5,  5,  0,-10,
+//         -5,  0,  5,  5,  5,  5,  0, -5,
+//         0,  0,  5,  5,  5,  5,  0, -5,
+//         -10,  5,  5,  5,  5,  5,  0,-10,
+//         -10,  0,  5,  0,  0,  0,  0,-10,
+//         -20,-10,-10, -5, -5,-10,-10,-20
+//     }, {
+//         -20,-10,-10, -5, -5,-10,-10,-20,
+//         -10,  0,  0,  0,  0,  0,  0,-10,
+//         -10,  0,  5,  5,  5,  5,  0,-10,
+//         -5,  0,  5,  5,  5,  5,  0, -5,
+//         0,  0,  5,  5,  5,  5,  0, -5,
+//         -10,  5,  5,  5,  5,  5,  0,-10,
+//         -10,  0,  5,  0,  0,  0,  0,-10,
+//         -20,-10,-10, -5, -5,-10,-10,-20
+//     }
+// }};
 
-const std::array<std::array<int, 64>, 2> KingSqValues = {{
-    {
-        30,-40,-40,-50,-50,-40,-40,-30,
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -30,-40,-40,-50,-50,-40,-40,-30,
-        -20,-30,-30,-40,-40,-30,-30,-20,
-        -10,-20,-20,-20,-20,-20,-20,-10,
-        20, 20,  0,  0,  0,  0, 20, 20,
-        20, 30, 10,  0,  0, 10, 30, 20
-    }, {
-        -50,-40,-30,-20,-20,-30,-40,-50,
-        -30,-20,-10,  0,  0,-10,-20,-30,
-        -30,-10, 20, 30, 30, 20,-10,-30,
-        -30,-10, 30, 40, 40, 30,-10,-30,
-        -30,-10, 30, 40, 40, 30,-10,-30,
-        -30,-10, 20, 30, 30, 20,-10,-30,
-        -30,-30,  0,  0,  0,  0,-30,-30,
-        -50,-30,-30,-30,-30,-30,-30,-50
-    }
-}};
+// const std::array<std::array<int, 64>, 2> KingSqValues = {{
+//     {
+//         30,-40,-40,-50,-50,-40,-40,-30,
+//         -30,-40,-40,-50,-50,-40,-40,-30,
+//         -30,-40,-40,-50,-50,-40,-40,-30,
+//         -30,-40,-40,-50,-50,-40,-40,-30,
+//         -20,-30,-30,-40,-40,-30,-30,-20,
+//         -10,-20,-20,-20,-20,-20,-20,-10,
+//         20, 20,  0,  0,  0,  0, 20, 20,
+//         20, 30, 10,  0,  0, 10, 30, 20
+//     }, {
+//         -50,-40,-30,-20,-20,-30,-40,-50,
+//         -30,-20,-10,  0,  0,-10,-20,-30,
+//         -30,-10, 20, 30, 30, 20,-10,-30,
+//         -30,-10, 30, 40, 40, 30,-10,-30,
+//         -30,-10, 30, 40, 40, 30,-10,-30,
+//         -30,-10, 20, 30, 30, 20,-10,-30,
+//         -30,-30,  0,  0,  0,  0,-30,-30,
+//         -50,-30,-30,-30,-30,-30,-30,-50
+//     }
+// }};
 
-const std::array<std::array<std::array<int, 64>, 2>, 6> PieceSqValues = {{
-    PawnSqValues,
-    KnightSqValues,
-    BishopSqValues,
-    RookSqValues,
-    QueenSqValues,
-    KingSqValues,
-}};
+// const std::array<std::array<std::array<int, 64>, 2>, 6> PieceSqValues = {{
+//     PawnSqValues,
+//     KnightSqValues,
+//     BishopSqValues,
+//     RookSqValues,
+//     QueenSqValues,
+//     KingSqValues,
+// }};
 
-inline int psqv(Color c, PieceRole p, int phase, Square sq) {
-    // Get the piece square value for color c
-    int score = PieceSqValues[p - 1][phase][ColorSq[c][sq]];
-    return (2 * c * score) - score;
-}
+// inline int psqv(Color c, PieceType p, int phase, Square sq) {
+//     // Get the piece square value for color c
+//     int score = PieceSqValues[p - 1][phase][ColorSq[c][sq]];
+//     return (2 * c * score) - score;
+// }
 
 }
 
 // int calculateMobilityScore(const int, const int) const;
-// template <PieceRole>
+// template <PieceType>
 // int calculateMobilityScore(const int, const int) const;
-// template <PieceRole p>
+// template <PieceType p>
 // int calculateMobility(U64 bitboard, U64 targets, U64 occ) const;
 
 // int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
@@ -241,25 +196,25 @@ inline int psqv(Color c, PieceRole p, int phase, Square sq) {
 //     return score;
 // }
 
-// template<PieceRole p>
+// template<PieceType p>
 // int Board::calculateMobilityScore(const int opPhase, const int egPhase) const
 // {
 //     int mobilityScore = 0;
 //     U64 occ = occupancy();
 
 //     int whitemoves = calculateMobility<p>(getPieces<p>(WHITE),
-//                                           ~getPieces<ALL_PIECE_ROLES>(WHITE), occ);
-//     mobilityScore += whitemoves * (opPhase * Eval::MobilityScaling[MIDGAME][p-1]
-//                                  + egPhase * Eval::MobilityScaling[ENDGAME][p-1]);
+//                                           ~getPieces<ALL_PIECE_TYPES>(WHITE), occ);
+//     mobilityScore += whitemoves * (opPhase * Eval::MobilityScaling[MIDGAME][p]
+//                                  + egPhase * Eval::MobilityScaling[ENDGAME][p]);
 
 //     int blackmoves = calculateMobility<p>(getPieces<p>(BLACK),
-//                                           ~getPieces<ALL_PIECE_ROLES>(BLACK), occ);
-//     mobilityScore -= blackmoves * (opPhase * Eval::MobilityScaling[MIDGAME][p-1]
-//                                  + egPhase * Eval::MobilityScaling[ENDGAME][p-1]);
+//                                           ~getPieces<ALL_PIECE_TYPES>(BLACK), occ);
+//     mobilityScore -= blackmoves * (opPhase * Eval::MobilityScaling[MIDGAME][p]
+//                                  + egPhase * Eval::MobilityScaling[ENDGAME][p]);
 //     return mobilityScore;
 // }
 
-// template <PieceRole p>
+// template <PieceType p>
 // int Board::calculateMobility(U64 bitboard, U64 targets, U64 occ) const {
 //     int nmoves = 0;
 

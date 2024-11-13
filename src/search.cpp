@@ -146,7 +146,7 @@ int Search::negamax(int depth, int alpha, int beta, bool isPV, bool isNullAllowe
     //             && nLegalMoves > 3
     //             && !wasInCheck
     //             && !_board->isCheck()
-    //             && _board->state[_board->ply].captured == NO_PIECE_ROLE
+    //             && _board->state[_board->ply].captured == NO_PIECE_TYPE
     //             && move.type() != PROMOTION)
     //         {
     //             if (nLegalMoves > 8)
@@ -339,18 +339,18 @@ void Search::reset()
 
 void Search::addToHistory(Move move, int ply)
 {
-    // PieceRole captPiece = _board->getPieceRole(move.to());
-    // if (captPiece == NO_PIECE_ROLE && move.type() != PROMOTION)
+    // PieceRole captPiece = _board->getPieceType(move.to());
+    // if (captPiece == NO_PIECE_TYPE && move.type() != PROMOTION)
     // {
     //     // Add to killer moves
     //     killers[ply].move2 = killers[ply].move1;
     //     killers[ply].move1 = move;
 
     //     // Add to history table
-    //     PieceRole movePiece = _board->getPieceRole(move.from());
-    //     history[_board->turn][movePiece-1][move.to()] += (U32)1 << (U64)ply; // ply^2
+    //     PieceRole movePiece = _board->getPieceType(move.from());
+    //     history[_board->turn][movePiece][move.to()] += (U32)1 << (U64)ply; // ply^2
 
-    //     if (history[_board->turn][movePiece-1][move.to()] > 10000)
+    //     if (history[_board->turn][movePiece][move.to()] > 10000)
     //     {
     //         for (int c = 0; c < 2; c++) {
     //             for (int p = 0; p < 6; p++) {
@@ -407,14 +407,14 @@ void Search::sortMoves(std::vector<Move>& moves, Move hashmove)
     //     if (move.type() == PROMOTION)
     //         move.score += 1000 + move.promoPiece();
 
-    //     PieceRole captPiece = _board->getPieceRole(move.to());
-    //     if (captPiece != NO_PIECE_ROLE) {
-    //         PieceRole movePiece = _board->getPieceRole(move.from());
-    //         move.score += Eval::PieceValues[captPiece-1][WHITE] - movePiece;
+    //     PieceRole captPiece = _board->getPieceType(move.to());
+    //     if (captPiece != NO_PIECE_TYPE) {
+    //         PieceRole movePiece = _board->getPieceType(move.from());
+    //         move.score += Eval::PieceValues[captPiece][WHITE] - movePiece;
     //     }
     //     else {
-    //         PieceRole movePiece = _board->getPieceRole(move.from());
-    //         move.score += (I32)history[_board->turn][movePiece-1][move.to()];
+    //         PieceRole movePiece = _board->getPieceType(move.from());
+    //         move.score += (I32)history[_board->turn][movePiece][move.to()];
     //     }
 
     //     if (move == killers[searchPly].move1)

@@ -51,19 +51,19 @@ TEST(DefsTest, makePiece) {
     EXPECT_EQ(Defs::makePiece(BLACK, KING), B_KING);
 }
 
-TEST(DefsTest, getPieceRole) {
-    EXPECT_EQ(Defs::getPieceRole(W_PAWN), PAWN);
-    EXPECT_EQ(Defs::getPieceRole(W_KNIGHT), KNIGHT);
-    EXPECT_EQ(Defs::getPieceRole(W_BISHOP), BISHOP);
-    EXPECT_EQ(Defs::getPieceRole(W_ROOK), ROOK);
-    EXPECT_EQ(Defs::getPieceRole(W_QUEEN), QUEEN);
-    EXPECT_EQ(Defs::getPieceRole(W_KING), KING);
-    EXPECT_EQ(Defs::getPieceRole(B_PAWN), PAWN);
-    EXPECT_EQ(Defs::getPieceRole(B_KNIGHT), KNIGHT);
-    EXPECT_EQ(Defs::getPieceRole(B_BISHOP), BISHOP);
-    EXPECT_EQ(Defs::getPieceRole(B_ROOK), ROOK);
-    EXPECT_EQ(Defs::getPieceRole(B_QUEEN), QUEEN);
-    EXPECT_EQ(Defs::getPieceRole(B_KING), KING);
+TEST(DefsTest, getPieceType) {
+    EXPECT_EQ(Defs::getPieceType(W_PAWN), PAWN);
+    EXPECT_EQ(Defs::getPieceType(W_KNIGHT), KNIGHT);
+    EXPECT_EQ(Defs::getPieceType(W_BISHOP), BISHOP);
+    EXPECT_EQ(Defs::getPieceType(W_ROOK), ROOK);
+    EXPECT_EQ(Defs::getPieceType(W_QUEEN), QUEEN);
+    EXPECT_EQ(Defs::getPieceType(W_KING), KING);
+    EXPECT_EQ(Defs::getPieceType(B_PAWN), PAWN);
+    EXPECT_EQ(Defs::getPieceType(B_KNIGHT), KNIGHT);
+    EXPECT_EQ(Defs::getPieceType(B_BISHOP), BISHOP);
+    EXPECT_EQ(Defs::getPieceType(B_ROOK), ROOK);
+    EXPECT_EQ(Defs::getPieceType(B_QUEEN), QUEEN);
+    EXPECT_EQ(Defs::getPieceType(B_KING), KING);
 }
 
 TEST(DefsTest, getPieceColor) {

@@ -7,7 +7,7 @@ namespace Zobrist {
 
 void init();
 
-extern U64 psq[NCOLORS][N_PIECES][NSQUARES];
+extern U64 psq[NCOLORS][N_PIECE_TYPES][NSQUARES];
 extern U64 stm;
 extern U64 ep[8];
 extern U64 castle[NCOLORS][2];

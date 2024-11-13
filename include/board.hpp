@@ -20,11 +20,11 @@ struct Board {
     explicit Board(const std::string&);
     friend std::ostream& operator<<(std::ostream& os, const Board& b);
 
-    void addPiece(Square, Color, PieceRole);
-    void removePiece(Square, Color, PieceRole);
-    void movePiece(Square, Square, Color, PieceRole);
+    void addPiece(Square, Color, PieceType);
+    void removePiece(Square, Color, PieceType);
+    void movePiece(Square, Square, Color, PieceType);
 
-    template <PieceRole p>
+    template <PieceType p>
     U64 getPieces(Color c) const;
     U64 occupancy() const;
     U64 diagonalSliders(Color c) const;
@@ -36,14 +36,13 @@ struct Board {
     U64 calculatePinnedPieces(Color c) const;
     U64 calculateCheckingPieces(Color c) const;
 
-    template <PieceRole p>
+    template <PieceType p>
     int count(Color c) const;
-    template <PieceRole p>
+    template <PieceType p>
     int count() const;
-    int getPieceCount(Color c) const;
 
     Piece getPiece(Square sq) const;
-    PieceRole getPieceRole(Square sq) const;
+    PieceType getPieceType(Square sq) const;
     Square getKingSq(Color c) const;
 
     bool isBitboardAttacked(U64, Color) const;
@@ -62,32 +61,32 @@ inline Board::Board(const std::string& fen) {
     }
 }
 
-inline void Board::addPiece(const Square sq, const Color c, const PieceRole p) {
+inline void Board::addPiece(const Square sq, const Color c, const PieceType p) {
     // Toggle bitboards and add to square centric board
-    pieces[c][ALL_PIECE_ROLES] ^= BB::set(sq);
+    pieces[c][ALL_PIECE_TYPES] ^= BB::set(sq);
     pieces[c][p] ^= BB::set(sq);
     squares[sq] = Defs::makePiece(c, p);
     pieceCount[c][p]++;
 }
 
-inline void Board::removePiece(const Square sq, const Color c, const PieceRole p) {
+inline void Board::removePiece(const Square sq, const Color c, const PieceType p) {
     // Toggle bitboards
-    pieces[c][ALL_PIECE_ROLES] ^= BB::set(sq);
+    pieces[c][ALL_PIECE_TYPES] ^= BB::set(sq);
     pieces[c][p] ^= BB::set(sq);
     // squares[sq] = NO_PIECE;
     pieceCount[c][p]--;
 }
 
-inline void Board::movePiece(const Square from, const Square to, const Color c, const PieceRole p) {
+inline void Board::movePiece(const Square from, const Square to, const Color c, const PieceType p) {
     // Toggle bitboards and add to square centric board
     U64 mask = BB::set(from) | BB::set(to);
-    pieces[c][ALL_PIECE_ROLES] ^= mask;
+    pieces[c][ALL_PIECE_TYPES] ^= mask;
     pieces[c][p] ^= mask;
     squares[from] = NO_PIECE;
     squares[to] = Defs::makePiece(c, p);
 }
 
-template <PieceRole p>
+template <PieceType p>
 inline U64 Board::getPieces(Color c) const {
     // Return the bitboard of pieces of a specific role for the given color
     return pieces[c][p];
@@ -95,7 +94,7 @@ inline U64 Board::getPieces(Color c) const {
 
 inline U64 Board::occupancy() const {
     // Return the combined bitboard of all pieces on the board
-    return pieces[WHITE][ALL_PIECE_ROLES] | pieces[BLACK][ALL_PIECE_ROLES];
+    return pieces[WHITE][ALL_PIECE_TYPES] | pieces[BLACK][ALL_PIECE_TYPES];
 }
 
 inline U64 Board::diagonalSliders(Color c) const {
@@ -145,7 +144,7 @@ inline U64 Board::calculateCheckBlockers(Color c, Color kingC) const {
         // Check if only one piece separates the slider and the king
         U64 piecesInBetween = occupancy() & BB::bitsBtwn(king, pinner);
         if (!BB::moreThanOneSet(piecesInBetween)) {
-            blockers |= piecesInBetween & getPieces<ALL_PIECE_ROLES>(c);
+            blockers |= piecesInBetween & getPieces<ALL_PIECE_TYPES>(c);
         }
     }
 
@@ -169,22 +168,16 @@ inline U64 Board::calculateCheckingPieces(Color c) const {
     return attacksTo(getKingSq(c), ~c);
 }
 
-template <PieceRole p>
+template <PieceType p>
 inline int Board::count(Color c) const {
     // Return the count of pieces of a specific role for the given color
     return pieceCount[c][p];
 }
 
-template <PieceRole p>
+template <PieceType p>
 inline int Board::count() const {
     // Return the total count of pieces of a specific role for both colors
     return count<p>(WHITE) + count<p>(BLACK);
-}
-
-inline int Board::getPieceCount(Color c) const {
-    // Return the total count of all major pieces (Knights, Bishops, Rooks,
-    // Queens) for the given color
-    return count<KNIGHT>(c) + count<BISHOP>(c) + count<ROOK>(c) + count<QUEEN>(c);
 }
 
 inline Piece Board::getPiece(Square sq) const {
@@ -192,9 +185,9 @@ inline Piece Board::getPiece(Square sq) const {
     return squares[sq];
 }
 
-inline PieceRole Board::getPieceRole(Square sq) const {
+inline PieceType Board::getPieceType(Square sq) const {
     // Return the role of the piece located at a specific square
-    return Defs::getPieceRole(squares[sq]);
+    return Defs::getPieceType(squares[sq]);
 }
 
 inline Square Board::getKingSq(Color c) const {

@@ -13,19 +13,19 @@ struct Move {
     I16 score = 0;
 
     constexpr Move() : score{0}, value{0} {}
-    constexpr Move(Square from, Square to, MoveType mtype = NORMAL, PieceRole promoPiece = KNIGHT)
+    constexpr Move(Square from, Square to, MoveType mtype = NORMAL, PieceType promoPiece = KNIGHT)
         : score(0), value{pack(from, to, mtype, promoPiece)} {}
 
     inline Square from() const { return unpackFrom(value); }
     inline Square to() const { return unpackTo(value); }
     inline MoveType type() const { return unpackType(value); }
-    inline PieceRole promoPiece() const { return unpackPromoPiece(value); }
+    inline PieceType promoPiece() const { return unpackPromoPiece(value); }
 
     inline bool isNullMove() const { return value == 0; }
     inline bool operator<(const Move& rhs) const { return score < rhs.score; }
     inline bool operator==(const Move& rhs) const { return value == rhs.value; }
 
-    static constexpr U16 pack(Square from, Square to, MoveType mtype, PieceRole promoPiece) {
+    static constexpr U16 pack(Square from, Square to, MoveType mtype, PieceType promoPiece) {
         return (from & 0x3F) |                          // 6 bits for from
                ((to & 0x3F) << 6) |                     // 6 bits for to
                ((mtype & 0x03) << 12) |                 // 2 bits for move type
@@ -40,8 +40,8 @@ struct Move {
     static constexpr MoveType unpackType(U16 packed) {
         return static_cast<MoveType>((packed >> 12) & 0x03);
     }
-    static constexpr PieceRole unpackPromoPiece(U16 packed) {
-        return static_cast<PieceRole>(((packed >> 14) & 0x03) + KNIGHT);
+    static constexpr PieceType unpackPromoPiece(U16 packed) {
+        return static_cast<PieceType>(((packed >> 14) & 0x03) + KNIGHT);
     }
 
     std::string DebugString() const;
