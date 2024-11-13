@@ -51,7 +51,6 @@ class Chess {
     void setEnPassant(Square sq);
     void updateCapturedPieces(Square sq, Color c, PieceType p);
     void handlePawnMoves(Square from, Square to, MoveType movetype, Move mv);
-    int calculatePhase() const;
     U64 calculateKey() const;
     void updateState(bool);
 
@@ -167,11 +166,7 @@ inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype, Mo
     }
 }
 
-inline int Chess::calculatePhase() const {
-    return (PAWNSCORE * board.count<PAWN>() + KNIGHTSCORE * board.count<KNIGHT>() +
-            BISHOPSCORE * board.count<BISHOP>() + ROOKSCORE * board.count<ROOK>() +
-            QUEENSCORE * board.count<QUEEN>());
-}
+
 
 inline U64 Chess::calculateKey() const {
     U64 zkey = 0x0;

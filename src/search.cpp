@@ -7,6 +7,8 @@
 
 using namespace std::chrono;
 
+int MATESCORE = 32000;
+
 void Search::think(int depth)
 {
     reset();

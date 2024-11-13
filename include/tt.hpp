@@ -6,6 +6,13 @@
 #include "move.hpp"
 #include "types.hpp"
 
+enum NodeType : U8 {
+    TT_NONE,
+    TT_EXACT,
+    TT_ALPHA,
+    TT_BETA,
+};
+
 namespace TT {
 
 struct Entry {

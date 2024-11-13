@@ -15,7 +15,7 @@ using I32 = int32_t;
 using I16 = int16_t;
 using I8 = int8_t;
 
-enum Color : U8 { BLACK, WHITE, NCOLORS = 2 };
+enum Color : U8 { BLACK, WHITE, N_COLORS = 2 };
 
 // clang-format off
 enum Square : U8 {
@@ -28,7 +28,7 @@ enum Square : U8 {
   A7, B7, C7, D7, E7, F7, G7, H7,
   A8, B8, C8, D8, E8, F8, G8, H8,
   INVALID = 64,
-  NSQUARES = 64
+  N_SQUARES = 64
 };
 // clang-format on
 
@@ -42,7 +42,7 @@ enum Piece : U8 {
 enum PieceType : U8 {
   NO_PIECE_TYPE = 0, ALL_PIECE_TYPES = 0,
   PAWN = 1, KNIGHT, BISHOP, ROOK, QUEEN, KING,
-  N_PIECE_TYPES = 6
+  N_PIECE_TYPES = 7
 };
 // clang-format on
 
@@ -52,8 +52,8 @@ struct PieceSquare {
     Square square;
 };
 
-enum File : I8 { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8, NFILES };
-enum Rank : I8 { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8, NRANKS };
+enum File : I8 { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8, N_FILES };
+enum Rank : I8 { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8, N_RANKS };
 
 enum CastleRights : U8 {
     NO_CASTLE = 0x0,
@@ -71,31 +71,6 @@ enum CastleDirection { KINGSIDE, QUEENSIDE };
 enum MoveType : U8 { NORMAL, PROMOTION, ENPASSANT, CASTLE };
 
 enum class PawnMove { LEFT = 7, PUSH = 8, RIGHT = 9, DOUBLE = 16 };
-
-enum Score {
-    DRAWSCORE = 0,
-    PAWNSCORE = 100,
-    KNIGHTSCORE = 320,
-    BISHOPSCORE = 330,
-    ROOKSCORE = 500,
-    QUEENSCORE = 900,
-    TOTALPHASE =
-        2 * QUEENSCORE + 4 * ROOKSCORE + 4 * BISHOPSCORE + 4 * KNIGHTSCORE + 16 * PAWNSCORE,
-    KINGSCORE = 20000,
-    MATESCORE = 32000,
-};
-
-enum Phase {
-    MIDGAME = 0,
-    ENDGAME = 1,
-};
-
-enum NodeType : U8 {
-    TT_NONE,
-    TT_EXACT,
-    TT_ALPHA,
-    TT_BETA,
-};
 
 inline Color operator~(Color c) { return Color(c ^ WHITE); }
 
@@ -144,7 +119,6 @@ ENABLE_OPERATORS(Square)
 ENABLE_OPERATORS(File)
 ENABLE_OPERATORS(Rank)
 ENABLE_OPERATORS(CastleRights)
-ENABLE_OPERATORS(Score)
 
 #undef ENABLE_OPERATORS
 

@@ -11,10 +11,10 @@
 #include "fen.hpp"
 
 struct Board {
-    U64 pieces[2][7] = {0};
-    Piece squares[64] = {NO_PIECE};
-    Square kingSq[2] = {E1, E8};
-    U8 pieceCount[2][7] = {0};
+    U64 pieces[N_COLORS][N_PIECE_TYPES] = {0};
+    Piece squares[N_SQUARES] = {NO_PIECE};
+    Square kingSq[N_COLORS] = {E1, E8};
+    U8 pieceCount[N_COLORS][N_PIECE_TYPES] = {0};
 
     Board() = default;
     explicit Board(const std::string&);
@@ -40,6 +40,12 @@ struct Board {
     int count(Color c) const;
     template <PieceType p>
     int count() const;
+
+    // inline int calculatePhase() const {
+    //     return (PAWNSCORE * count<PAWN>() + KNIGHTSCORE * board.count<KNIGHT>() +
+    //             BISHOPSCORE * count<BISHOP>() + ROOKSCORE * board.count<ROOK>() +
+    //             QUEENSCORE * count<QUEEN>());
+    // }
 
     Piece getPiece(Square sq) const;
     PieceType getPieceType(Square sq) const;

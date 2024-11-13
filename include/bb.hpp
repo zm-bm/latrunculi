@@ -13,7 +13,7 @@ namespace BB {
 
 // Defines a set of constants and inline functions for working with bitboards.
 
-constexpr U64 RANK_MASK[NRANKS] = {
+constexpr U64 RANK_MASK[N_RANKS] = {
     0x00000000000000FF,
     0x000000000000FF00,
     0x0000000000FF0000,
@@ -24,7 +24,7 @@ constexpr U64 RANK_MASK[NRANKS] = {
     0xFF00000000000000,
 };
 
-constexpr U64 FILE_MASK[NFILES] = {
+constexpr U64 FILE_MASK[N_FILES] = {
     0x0101010101010101,
     0x0202020202020202,
     0x0404040404040404,
@@ -35,62 +35,62 @@ constexpr U64 FILE_MASK[NFILES] = {
     0x8080808080808080,
 };
 
-constexpr std::array<U64, NSQUARES> BITSET = [] {
-    std::array<U64, NSQUARES> arr = {};
-    for (auto sq = 0; sq < NSQUARES; ++sq) {
+constexpr std::array<U64, N_SQUARES> BITSET = [] {
+    std::array<U64, N_SQUARES> arr = {};
+    for (auto sq = 0; sq < N_SQUARES; ++sq) {
         arr[sq] = 1ull << sq;
     }
     return arr;
 }();
 
-constexpr std::array<U64, NSQUARES> BITCLEAR = [] {
-    std::array<U64, NSQUARES> arr = {};
-    for (auto sq = 0; sq < NSQUARES; ++sq) {
+constexpr std::array<U64, N_SQUARES> BITCLEAR = [] {
+    std::array<U64, N_SQUARES> arr = {};
+    for (auto sq = 0; sq < N_SQUARES; ++sq) {
         arr[sq] = ~(1ull << sq);
     }
     return arr;
 }();
 
-constexpr std::array<U64, NSQUARES> KNIGHT_ATTACKS = [] {
-    std::array<U64, NSQUARES> arr = {};
-    for (auto sq = 0; sq < NSQUARES; ++sq) {
+constexpr std::array<U64, N_SQUARES> KNIGHT_ATTACKS = [] {
+    std::array<U64, N_SQUARES> arr = {};
+    for (auto sq = 0; sq < N_SQUARES; ++sq) {
         arr[sq] = Defs::computeKnightAttacks(sq);
     }
     return arr;
 }();
 
-constexpr std::array<U64, NSQUARES> KING_ATTACKS = [] {
-    std::array<U64, NSQUARES> arr = {};
-    for (auto sq = 0; sq < NSQUARES; ++sq) {
+constexpr std::array<U64, N_SQUARES> KING_ATTACKS = [] {
+    std::array<U64, N_SQUARES> arr = {};
+    for (auto sq = 0; sq < N_SQUARES; ++sq) {
         arr[sq] = Defs::computeKingAttacks(sq);
     }
     return arr;
 }();
 
-constexpr std::array<std::array<U64, NSQUARES>, NSQUARES> BITS_INLINE = [] {
-    std::array<std::array<U64, NSQUARES>, NSQUARES> table = {};
-    for (auto sq1 = 0; sq1 < NSQUARES; ++sq1) {
-        for (int sq2 = 0; sq2 < NSQUARES; ++sq2) {
+constexpr std::array<std::array<U64, N_SQUARES>, N_SQUARES> BITS_INLINE = [] {
+    std::array<std::array<U64, N_SQUARES>, N_SQUARES> table = {};
+    for (auto sq1 = 0; sq1 < N_SQUARES; ++sq1) {
+        for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
             table[sq1][sq2] = Defs::computeBitsInline(sq1, sq2);
         }
     }
     return table;
 }();
 
-constexpr std::array<std::array<U64, NSQUARES>, NSQUARES> BITS_BETWEEN = [] {
-    std::array<std::array<U64, NSQUARES>, NSQUARES> table = {};
-    for (auto sq1 = 0; sq1 < NSQUARES; ++sq1) {
-        for (int sq2 = 0; sq2 < NSQUARES; ++sq2) {
+constexpr std::array<std::array<U64, N_SQUARES>, N_SQUARES> BITS_BETWEEN = [] {
+    std::array<std::array<U64, N_SQUARES>, N_SQUARES> table = {};
+    for (auto sq1 = 0; sq1 < N_SQUARES; ++sq1) {
+        for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
             table[sq1][sq2] = Defs::computeBitsBetween(sq1, sq2);
         }
     }
     return table;
 }();
 
-constexpr std::array<std::array<int, NSQUARES>, NSQUARES> DISTANCE = [] {
-    std::array<std::array<int, NSQUARES>, NSQUARES> table = {};
-    for (int sq1 = 0; sq1 < NSQUARES; ++sq1) {
-        for (int sq2 = 0; sq2 < NSQUARES; ++sq2) {
+constexpr std::array<std::array<int, N_SQUARES>, N_SQUARES> DISTANCE = [] {
+    std::array<std::array<int, N_SQUARES>, N_SQUARES> table = {};
+    for (int sq1 = 0; sq1 < N_SQUARES; ++sq1) {
+        for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
             table[sq1][sq2] = Defs::computeDistance(sq1, sq2);
         }
     }
@@ -102,18 +102,18 @@ const U64 BLACKSQUARES = 0xAA55AA55AA55AA55;
 const U64 WHITEHOLES = 0x0000003CFFFF0000;
 const U64 BLACKHOLES = 0x0000FFFF3C000000;
 
-const U64 CastlePathOO[NCOLORS] = {0x6000000000000000ull, 0x0000000000000060ull};
-const U64 CastlePathOOO[NCOLORS] = {0x0E00000000000000ull, 0x000000000000000Eull};
-const U64 KingCastlePathOO[NCOLORS] = {0x7000000000000000ull, 0x0000000000000070ull};
-const U64 KingCastlePathOOO[NCOLORS] = {0x1C00000000000000ull, 0x000000000000001Cull};
+const U64 CastlePathOO[N_COLORS] = {0x6000000000000000ull, 0x0000000000000060ull};
+const U64 CastlePathOOO[N_COLORS] = {0x0E00000000000000ull, 0x000000000000000Eull};
+const U64 KingCastlePathOO[N_COLORS] = {0x7000000000000000ull, 0x0000000000000070ull};
+const U64 KingCastlePathOOO[N_COLORS] = {0x1C00000000000000ull, 0x000000000000001Cull};
 
-constexpr Rank RANK_BY_COLOR[NCOLORS][NRANKS] = {
+constexpr Rank RANK_BY_COLOR[N_COLORS][N_RANKS] = {
     {RANK8, RANK7, RANK6, RANK5, RANK4, RANK3, RANK2, RANK1},
     {RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8},
 };
 inline U64 rankmask(Rank r, Color c) { return RANK_MASK[RANK_BY_COLOR[c][r]]; }
 
-constexpr File FILE_BY_COLOR[NCOLORS][NFILES] = {
+constexpr File FILE_BY_COLOR[N_COLORS][N_FILES] = {
     {FILE8, FILE7, FILE6, FILE5, FILE4, FILE3, FILE2, FILE1},
     {FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8},
 };

@@ -50,7 +50,7 @@ class Search {
     // Main search variables
     std::vector<Move> pv[MAX_DEPTH];
     I32 searchPly;
-    U32 history[2][N_PIECE_TYPES][64];
+    U32 history[2][N_PIECE_TYPES-1][64];
     Killer killers[MAX_DEPTH];
 
     // Search statistics variables
