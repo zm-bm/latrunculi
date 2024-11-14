@@ -44,11 +44,12 @@ class Chess {
     void handlePawnMoves(Square from, Square to, MoveType movetype, Move mv);
 
     int phase() const;
+    int scaleFactor() const;
 
     template <bool>
-    int eval_mg() const;
+    int mgEval() const;
     template <bool>
-    int eval_eg() const;
+    int egEval() const;
     template <bool>
     int eval() const;
 

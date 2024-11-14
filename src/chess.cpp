@@ -4,12 +4,49 @@
 #include "eval.hpp"
 #include "fen.hpp"
 
+int Chess::phase() const {
+    int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
+    npm = std::max(Eval::egLimit, std::min(npm, Eval::mgLimit));
+    return ((npm - Eval::egLimit) * 128) / (Eval::mgLimit - Eval::egLimit);
+}
 
+int Chess::scaleFactor() const {
+    Color enemy = ~turn;
+    int sf = 64;
+    int pcT = board.count<PAWN>(turn);
+    int pcE = board.count<PAWN>(enemy);
+    int npmT = board.nonPawnMaterial(turn);
+    int npmE = board.nonPawnMaterial(enemy);
+
+    if (pcT == 0 && npmT - npmE <= Eval::mgPieceValue[BISHOP]) {
+        if (npmT < Eval::mgPieceValue[ROOK]) {
+            return 0;
+        } else if (npmE <= Eval::mgPieceValue[BISHOP]) {
+            return 4;
+        } else {
+            return 14;
+        }
+    } else {
+        // TODO: finish scale factor
+        return 0;
+    }
+}
+
+template <bool debug>
+int Chess::mgEval() const {
+    return -1;
+}
+
+template <bool debug>
+int Chess::egEval() const {
+    return 1;
+}
 
 template <bool debug = false>
 int Chess::eval() const {
-    int mg = eval_mg<debug>();
-    int eg = eval_eg<debug>();
+    int mg = mgEval<debug>();
+    int eg = egEval<debug>();
+    eg *= scaleFactor() / 64;
     int p = phase();
 
     int score = mg;
@@ -17,22 +54,6 @@ int Chess::eval() const {
     // return score relative to side to move
     score *= ((2 * turn) - 1);
     return score;
-}
-
-template <bool debug>
-int Chess::eval_mg() const {
-    return materialScore;
-}
-
-template <bool debug>
-int Chess::eval_eg() const {
-    return 0;
-}
-
-int Chess::phase() const {
-    int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
-    npm = std::max(Eval::egLimit, std::min(npm, Eval::mgLimit));
-    return ((npm - Eval::egLimit) * 128) / (Eval::mgLimit - Eval::egLimit);
 }
 
 template int Chess::eval<true>() const;
@@ -295,7 +316,7 @@ Chess::Chess(const std::string& fen) : state{{State()}}, board{Board()}, ply{0},
     state.at(ply).enPassantSq = parser.getEnPassantTarget();
     state.at(ply).hmClock = parser.getHalfmoveClock();
     moveCounter = parser.getFullmoveNumber();
-    
+
     state.at(ply).zkey = calculateKey();
     updateState();
 }

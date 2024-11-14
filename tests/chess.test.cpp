@@ -27,6 +27,13 @@ TEST_F(ChessTest, Phase) {
     ASSERT_EQ(Chess("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/4K3 w KQkq - 0 1").phase(), 49);
     ASSERT_EQ(Chess(STARTFEN).phase(), 128);
 }
+
+TEST_F(ChessTest, ScaleFactor) {
+    ASSERT_EQ(Chess("3bk3/8/8/8/8/8/8/4K3 w - - 0 1").scaleFactor(), 0);
+    ASSERT_EQ(Chess("3bk3/8/8/8/8/8/8/3RK3 w - - 0 1").scaleFactor(), 4);
+    ASSERT_EQ(Chess("3bkb2/8/8/8/8/8/8/3RK3 w - - 0 1").scaleFactor(), 14);
+}
+
 // end eval tests
 
 TEST_F(ChessTest, AddPieceForward) {
@@ -38,7 +45,7 @@ TEST_F(ChessTest, AddPieceForward) {
 }
 
 TEST_F(ChessTest, AddPieceBackwards) {
-    Chess chess = Chess("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+    Chess chess = Chess(EMPTY_FEN);
     U64 key = chess.getKey();
     chess.addPiece<false>(E2, WHITE, PAWN);
     EXPECT_EQ(chess.getKey(), key) << "should not xor key";
