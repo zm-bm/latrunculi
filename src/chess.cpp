@@ -4,9 +4,7 @@
 #include "eval.hpp"
 #include "fen.hpp"
 
-/*
-    EVAL
-*/
+
 
 template <bool debug = false>
 int Chess::eval() const {

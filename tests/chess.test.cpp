@@ -6,8 +6,8 @@
 #include <string>
 
 #include "constants.hpp"
-#include "zobrist.hpp"
 #include "eval.hpp"
+#include "zobrist.hpp"
 
 class ChessTest : public ::testing::Test {
    protected:
@@ -20,28 +20,14 @@ auto EMPTY_FEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",        // two kings
     ENPASSANT_FEN = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1",  // enp on a3
     PROMOTION_FEN = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";    // pawn on a7
 
-TEST_F(ChessTest, EvalSTM) {
-    Chess chess(PAWN_FEN);
-    // auto wPawnScore = Eval::PieceValues[PAWN][WHITE];
-    auto wPawnScore = 0;
-    ASSERT_EQ(chess.eval<false>(), wPawnScore);
-}
+// eval tests
 
-TEST_F(ChessTest, MovePieceForward) {
-    Chess chess = Chess(PAWN_FEN);
-    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
-    chess.movePiece<true>(E2, E4, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should xor key";
-    EXPECT_EQ(chess.toFEN(), MOVE_FEN) << "should move piece";
+TEST_F(ChessTest, Phase) {
+    ASSERT_EQ(Chess(PAWN_FEN).phase(), 0);
+    ASSERT_EQ(Chess("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/4K3 w KQkq - 0 1").phase(), 49);
+    ASSERT_EQ(Chess(STARTFEN).phase(), 128);
 }
-
-TEST_F(ChessTest, MovePieceBackwards) {
-    Chess chess = Chess(PAWN_FEN);
-    U64 key = chess.getKey();
-    chess.movePiece<false>(E2, E4, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
-    EXPECT_EQ(chess.toFEN(), MOVE_FEN) << "should move piece";
-}
+// end eval tests
 
 TEST_F(ChessTest, AddPieceForward) {
     Chess chess = Chess(EMPTY_FEN);
@@ -75,6 +61,29 @@ TEST_F(ChessTest, RemovePieceBackwards) {
     // EXPECT_EQ(chess.toFEN(), EMPTY_FEN) << "should move piece";
 }
 
+TEST_F(ChessTest, MovePieceForward) {
+    Chess chess = Chess(PAWN_FEN);
+    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
+    chess.movePiece<true>(E2, E4, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key) << "should xor key";
+    EXPECT_EQ(chess.toFEN(), MOVE_FEN) << "should move piece";
+}
+
+TEST_F(ChessTest, MovePieceBackwards) {
+    Chess chess = Chess(PAWN_FEN);
+    U64 key = chess.getKey();
+    chess.movePiece<false>(E2, E4, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
+    EXPECT_EQ(chess.toFEN(), MOVE_FEN) << "should move piece";
+}
+
+TEST_F(ChessTest, GetKeyCalculateKey) {
+    for (auto fen : FENS) {
+        Chess c = Chess(fen);
+        EXPECT_EQ(c.getKey(), c.calculateKey()) << "should calculate correct hash key";
+    }
+}
+
 TEST_F(ChessTest, GetCheckingPiecesW) {
     Chess c = Chess(POS4W);
     EXPECT_EQ(c.getCheckingPieces(), BB::set(B6)) << "should have a white checker on b6";
@@ -95,13 +104,6 @@ TEST_F(ChessTest, GetHmClock) {
     EXPECT_EQ(c.getHmClock(), 7) << "should have a half move clock of 7";
 }
 
-TEST_F(ChessTest, GetKeyCalculateKey) {
-    for (auto fen : FENS) {
-        Chess c = Chess(fen);
-        EXPECT_EQ(c.getKey(), c.calculateKey()) << "should calculate correct hash key";
-    }
-}
-
 TEST_F(ChessTest, IsCheck) {
     EXPECT_FALSE(Chess(STARTFEN).getCheckingPieces()) << "should not be in check from start pos";
     EXPECT_TRUE(Chess(POS4W).getCheckingPieces()) << "should be in check";
@@ -115,12 +117,7 @@ TEST_F(ChessTest, IsDoubleCheck) {
         << "should be in double check";
 }
 
-TEST_F(ChessTest, ChessToFEN) {
-    for (auto fen : FENS) {
-        Chess c = Chess(fen);
-        EXPECT_EQ(c.toFEN(), fen) << "should return identical fen";
-    }
-}
+// TODO: move eval tests here
 
 TEST_F(ChessTest, Make) {
     Chess c = Chess(STARTFEN);
@@ -301,4 +298,11 @@ TEST_F(ChessTest, IsCheckingMovePromotion) {
 TEST_F(ChessTest, IsCheckingMoveCastle) {
     Chess c = Chess("5k2/8/8/8/8/8/8/4K2R w K - 0 1");
     EXPECT_TRUE(c.isCheckingMove(Move(E1, G1, CASTLE))) << "should identify castling checks";
+}
+
+TEST_F(ChessTest, ChessToFEN) {
+    for (auto fen : FENS) {
+        Chess c = Chess(fen);
+        EXPECT_EQ(c.toFEN(), fen) << "should return identical fen";
+    }
 }

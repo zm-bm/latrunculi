@@ -25,44 +25,41 @@ class Chess {
    public:
     explicit Chess(const std::string&);
 
-    void make(Move);
-    void unmake();
-    void makeNull();
-    void unmmakeNull();
-    template <bool>
-    void makeCastle(Square, Square, Color);
-
-    bool isPseudoLegalMoveLegal(Move) const;
-    bool isCheckingMove(Move) const;
-
     template <bool>
     void addPiece(Square, Color, PieceType);
     template <bool>
     void removePiece(Square, Color, PieceType);
     template <bool>
     void movePiece(Square, Square, Color, PieceType);
-
+    void updateState(bool);
+    U64 getKey() const;
+    U64 calculateKey() const;
     U64 getCheckingPieces() const;
     Square getEnPassant() const;
     U8 getHmClock() const;
-    U64 getKey() const;
     bool isCheck() const;
     bool isDoubleCheck() const;
     void setEnPassant(Square sq);
     void updateCapturedPieces(Square sq, Color c, PieceType p);
     void handlePawnMoves(Square from, Square to, MoveType movetype, Move mv);
-    U64 calculateKey() const;
-    void updateState(bool);
 
-    template <bool>
-    int eval() const;
+    int phase() const;
+
     template <bool>
     int eval_mg() const;
     template <bool>
     int eval_eg() const;
+    template <bool>
+    int eval() const;
 
-    int phase() const;
-
+    void make(Move);
+    void unmake();
+    void makeNull();
+    void unmmakeNull();
+    template <bool>
+    void makeCastle(Square, Square, Color);
+    bool isPseudoLegalMoveLegal(Move) const;
+    bool isCheckingMove(Move) const;
     std::string toFEN() const;
     std::string DebugString() const;
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
@@ -105,6 +102,55 @@ inline void Chess::movePiece(Square from, Square to, Color c, PieceType p) {
     }
 }
 
+inline void Chess::updateState(bool checkingMove = true) {
+    // Update the incrementally updated state helper variables
+    if (checkingMove) {
+        state[ply].checkingPieces = board.calculateCheckingPieces(turn);
+    } else {
+        state[ply].checkingPieces = 0;
+    }
+
+    Color enemy = ~turn;
+    Square king = board.getKingSq(enemy);
+    U64 occ = board.occupancy();
+
+    state[ply].pinnedPieces = board.calculatePinnedPieces(turn);
+    state[ply].discoveredCheckers = board.calculateDiscoveredCheckers(turn);
+    state[ply].checkingSquares[PAWN] = BB::attacksByPawns(BB::set(king), enemy);
+    state[ply].checkingSquares[KNIGHT] = BB::movesByPiece<KNIGHT>(king, occ);
+    state[ply].checkingSquares[BISHOP] = BB::movesByPiece<BISHOP>(king, occ);
+    state[ply].checkingSquares[ROOK] = BB::movesByPiece<ROOK>(king, occ);
+    state[ply].checkingSquares[QUEEN] =
+        state[ply].checkingSquares[BISHOP] | state[ply].checkingSquares[ROOK];
+}
+
+inline U64 Chess::getKey() const {
+    // Return the Zobrist key for the current board state
+    return state.at(ply).zkey;
+}
+
+inline U64 Chess::calculateKey() const {
+    // Calculate the Zobrist key for the current board state
+    U64 zkey = 0x0;
+
+    for (auto sq = A1; sq != INVALID; sq++) {
+        auto piece = board.getPiece(sq);
+        if (piece != NO_PIECE) {
+            zkey ^= Zobrist::psq[Defs::getPieceColor(piece)][Defs::getPieceType(piece)][sq];
+        }
+    }
+
+    if (turn == BLACK) zkey ^= Zobrist::stm;
+    if (state.at(ply).canCastleOO(WHITE)) zkey ^= Zobrist::castle[WHITE][KINGSIDE];
+    if (state.at(ply).canCastleOOO(WHITE)) zkey ^= Zobrist::castle[WHITE][QUEENSIDE];
+    if (state.at(ply).canCastleOO(BLACK)) zkey ^= Zobrist::castle[BLACK][KINGSIDE];
+    if (state.at(ply).canCastleOOO(BLACK)) zkey ^= Zobrist::castle[BLACK][QUEENSIDE];
+    auto sq = getEnPassant();
+    if (sq != INVALID) zkey ^= Zobrist::ep[Defs::fileFromSq(sq)];
+
+    return zkey;
+}
+
 inline U64 Chess::getCheckingPieces() const {
     // Return the bitboard of pieces that are checking the current player's king
     return state.at(ply).checkingPieces;
@@ -118,11 +164,6 @@ inline Square Chess::getEnPassant() const {
 inline U8 Chess::getHmClock() const {
     // Return the half-move clock from the current state
     return state.at(ply).hmClock;
-}
-
-inline U64 Chess::getKey() const {
-    // Return the Zobrist key for the current board state
-    return state.at(ply).zkey;
 }
 
 inline bool Chess::isCheck() const {
@@ -162,54 +203,6 @@ inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype, Mo
         removePiece<true>(to, turn, PAWN);
         addPiece<true>(to, turn, mv.promoPiece());
     }
-}
-
-
-
-inline U64 Chess::calculateKey() const {
-    U64 zkey = 0x0;
-    auto sq = getEnPassant();
-
-    for (auto sq = A1; sq != INVALID; sq++) {
-        auto piece = board.getPiece(sq);
-
-        if (piece != NO_PIECE) {
-            auto c = Defs::getPieceColor(piece);
-            auto p = Defs::getPieceType(piece);
-            zkey ^= Zobrist::psq[c][p][sq];
-        }
-    }
-
-    if (turn == BLACK) zkey ^= Zobrist::stm;
-    if (sq != INVALID) zkey ^= Zobrist::ep[Defs::fileFromSq(sq)];
-    if (state.at(ply).canCastleOO(WHITE)) zkey ^= Zobrist::castle[WHITE][KINGSIDE];
-    if (state.at(ply).canCastleOOO(WHITE)) zkey ^= Zobrist::castle[WHITE][QUEENSIDE];
-    if (state.at(ply).canCastleOO(BLACK)) zkey ^= Zobrist::castle[BLACK][KINGSIDE];
-    if (state.at(ply).canCastleOOO(BLACK)) zkey ^= Zobrist::castle[BLACK][QUEENSIDE];
-
-    return zkey;
-}
-
-// After making a move, update the incrementally updated state helper variables
-inline void Chess::updateState(bool checkingMove = true) {
-    if (checkingMove) {
-        state[ply].checkingPieces = board.calculateCheckingPieces(turn);
-    } else {
-        state[ply].checkingPieces = 0;
-    }
-
-    Color enemy = ~turn;
-    Square king = board.getKingSq(enemy);
-    U64 occ = board.occupancy();
-
-    state[ply].pinnedPieces = board.calculatePinnedPieces(turn);
-    state[ply].discoveredCheckers = board.calculateDiscoveredCheckers(turn);
-    state[ply].checkingSquares[PAWN] = BB::attacksByPawns(BB::set(king), enemy);
-    state[ply].checkingSquares[KNIGHT] = BB::movesByPiece<KNIGHT>(king, occ);
-    state[ply].checkingSquares[BISHOP] = BB::movesByPiece<BISHOP>(king, occ);
-    state[ply].checkingSquares[ROOK] = BB::movesByPiece<ROOK>(king, occ);
-    state[ply].checkingSquares[QUEEN] =
-        state[ply].checkingSquares[BISHOP] | state[ply].checkingSquares[ROOK];
 }
 
 #endif
