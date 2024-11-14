@@ -32,7 +32,9 @@ int Chess::eval_eg() const {
 }
 
 int Chess::phase() const {
-    return 0;
+    int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
+    npm = std::max(Eval::egLimit, std::min(npm, Eval::mgLimit));
+    return ((npm - Eval::egLimit) * 128) / (Eval::mgLimit - Eval::egLimit);
 }
 
 template int Chess::eval<true>() const;

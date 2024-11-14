@@ -6,9 +6,10 @@
 
 #include "bb.hpp"
 #include "defs.hpp"
-#include "types.hpp"
-#include "zobrist.hpp"
 #include "fen.hpp"
+#include "types.hpp"
+#include "eval.hpp"
+#include "zobrist.hpp"
 
 struct Board {
     U64 pieces[N_COLORS][N_PIECE_TYPES] = {0};
@@ -26,6 +27,10 @@ struct Board {
 
     template <PieceType p>
     U64 getPieces(Color c) const;
+    Piece getPiece(Square sq) const;
+    PieceType getPieceType(Square sq) const;
+    Square getKingSq(Color c) const;
+
     U64 occupancy() const;
     U64 diagonalSliders(Color c) const;
     U64 straightSliders(Color c) const;
@@ -35,23 +40,15 @@ struct Board {
     U64 calculateDiscoveredCheckers(Color c) const;
     U64 calculatePinnedPieces(Color c) const;
     U64 calculateCheckingPieces(Color c) const;
+    bool isBitboardAttacked(U64, Color) const;
 
     template <PieceType p>
     int count(Color c) const;
     template <PieceType p>
     int count() const;
 
-    // inline int calculatePhase() const {
-    //     return (PAWNSCORE * count<PAWN>() + KNIGHTSCORE * board.count<KNIGHT>() +
-    //             BISHOPSCORE * count<BISHOP>() + ROOKSCORE * board.count<ROOK>() +
-    //             QUEENSCORE * count<QUEEN>());
-    // }
+    int nonPawnMaterial(Color) const;
 
-    Piece getPiece(Square sq) const;
-    PieceType getPieceType(Square sq) const;
-    Square getKingSq(Color c) const;
-
-    bool isBitboardAttacked(U64, Color) const;
 };
 
 inline Board::Board(const std::string& fen) {
@@ -96,6 +93,21 @@ template <PieceType p>
 inline U64 Board::getPieces(Color c) const {
     // Return the bitboard of pieces of a specific role for the given color
     return pieces[c][p];
+}
+
+inline Piece Board::getPiece(Square sq) const {
+    // Return the piece located at a specific square
+    return squares[sq];
+}
+
+inline PieceType Board::getPieceType(Square sq) const {
+    // Return the role of the piece located at a specific square
+    return Defs::getPieceType(squares[sq]);
+}
+
+inline Square Board::getKingSq(Color c) const {
+    // Return the square of the king for the given color
+    return kingSq[c];
 }
 
 inline U64 Board::occupancy() const {
@@ -174,6 +186,18 @@ inline U64 Board::calculateCheckingPieces(Color c) const {
     return attacksTo(getKingSq(c), ~c);
 }
 
+inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const {
+    // Determine if any set square of a bitboard is attacked by color c
+    while (bitboard) {
+        Square sq = BB::lsb(bitboard);
+        bitboard &= BB::clear(sq);
+
+        if (attacksTo(sq, c)) return true;
+    }
+
+    return false;
+}
+
 template <PieceType p>
 inline int Board::count(Color c) const {
     // Return the count of pieces of a specific role for the given color
@@ -186,31 +210,11 @@ inline int Board::count() const {
     return count<p>(WHITE) + count<p>(BLACK);
 }
 
-inline Piece Board::getPiece(Square sq) const {
-    // Return the piece located at a specific square
-    return squares[sq];
-}
-
-inline PieceType Board::getPieceType(Square sq) const {
-    // Return the role of the piece located at a specific square
-    return Defs::getPieceType(squares[sq]);
-}
-
-inline Square Board::getKingSq(Color c) const {
-    // Return the square of the king for the given color
-    return kingSq[c];
-}
-
-inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const {
-    // Determine if any set square of a bitboard is attacked by color c
-    while (bitboard) {
-        Square sq = BB::lsb(bitboard);
-        bitboard &= BB::clear(sq);
-
-        if (attacksTo(sq, c)) return true;
-    }
-
-    return false;
+inline int Board::nonPawnMaterial(Color c) const {
+    return (count<KNIGHT>(c) * Eval::mgPieceValue[KNIGHT] +
+            count<BISHOP>(c) * Eval::mgPieceValue[BISHOP] +
+            count<ROOK>(c) * Eval::mgPieceValue[ROOK] +
+            count<QUEEN>(c) * Eval::mgPieceValue[QUEEN]);
 }
 
 inline std::ostream& operator<<(std::ostream& os, const Board& b) {

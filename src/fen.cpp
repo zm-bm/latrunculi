@@ -41,64 +41,50 @@ void FenParser::parsePiecePlacement(const std::string& section) {
             switch (ch) {
                 case 'P':
                     piece_placement_.emplace_back(PieceSquare{WHITE, PAWN, sq});
-                    // addPiece(sq, WHITE, PAWN);
                     file++;
                     break;
                 case 'N':
                     piece_placement_.emplace_back(PieceSquare{WHITE, KNIGHT, sq});
-                    // addPiece(sq, WHITE, KNIGHT);
                     file++;
                     break;
                 case 'B':
                     piece_placement_.emplace_back(PieceSquare{WHITE, BISHOP, sq});
-                    // addPiece(sq, WHITE, BISHOP);
                     file++;
                     break;
                 case 'R':
                     piece_placement_.emplace_back(PieceSquare{WHITE, ROOK, sq});
-                    // addPiece(sq, WHITE, ROOK);
                     file++;
                     break;
                 case 'Q':
                     piece_placement_.emplace_back(PieceSquare{WHITE, QUEEN, sq});
-                    // addPiece(sq, WHITE, QUEEN);
                     file++;
                     break;
                 case 'K':
                     piece_placement_.emplace_back(PieceSquare{WHITE, KING, sq});
-                    // kingSq[WHITE] = sq;
-                    // addPiece(sq, WHITE, KING);
                     file++;
                     break;
                 case 'p':
                     piece_placement_.emplace_back(PieceSquare{BLACK, PAWN, sq});
-                    // addPiece(sq, BLACK, PAWN);
                     file++;
                     break;
                 case 'n':
                     piece_placement_.emplace_back(PieceSquare{BLACK, KNIGHT, sq});
-                    // addPiece(sq, BLACK, KNIGHT);
                     file++;
                     break;
                 case 'b':
                     piece_placement_.emplace_back(PieceSquare{BLACK, BISHOP, sq});
-                    // addPiece(sq, BLACK, BISHOP);
                     file++;
                     break;
                 case 'r':
                     piece_placement_.emplace_back(PieceSquare{BLACK, ROOK, sq});
-                    // addPiece(sq, BLACK, ROOK);
                     file++;
                     break;
                 case 'q':
                     piece_placement_.emplace_back(PieceSquare{BLACK, QUEEN, sq});
-                    // addPiece(sq, BLACK, QUEEN);
                     file++;
                     break;
                 case 'k':
                     piece_placement_.emplace_back(PieceSquare{BLACK, KING, sq});
-                    // kingSq[BLACK] = sq;
-                    // addPiece(sq, BLACK, KING);
                     file++;
                     break;
                 case '/':

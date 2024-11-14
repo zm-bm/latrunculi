@@ -22,48 +22,6 @@ class BoardTest : public ::testing::Test {
     Board *emptyBoard, *startBoard, *pinBoard;
 };
 
-TEST_F(BoardTest, GetPieces) {
-    EXPECT_EQ(emptyBoard->getPieces<KING>(WHITE), BB::set(E1))
-        << "should get piece bitboard of white king";
-    EXPECT_EQ(startBoard->getPieces<PAWN>(WHITE), BB::RANK_MASK[RANK2])
-        << "should get bitboard of white pawns from start board";
-}
-
-TEST_F(BoardTest, Count) {
-    EXPECT_EQ(emptyBoard->count<KING>(WHITE), 1) << "should count 1 white king";
-    EXPECT_EQ(startBoard->count<PAWN>(WHITE), 8) << "should count 8 white pawns on start board";
-    EXPECT_EQ(emptyBoard->count<KING>(), 2) << "should count 2 kings";
-    EXPECT_EQ(startBoard->count<PAWN>(), 16) << "should count 16 pawns on start board";
-}
-
-TEST_F(BoardTest, Occupancy) {
-    U64 expected =
-        (BB::RANK_MASK[RANK1] | BB::RANK_MASK[RANK2] | BB::RANK_MASK[RANK7] | BB::RANK_MASK[RANK8]);
-    EXPECT_EQ(startBoard->occupancy(), expected) << "should get occupancy of starting board";
-}
-
-TEST_F(BoardTest, GetPiece) {
-    EXPECT_EQ(emptyBoard->getPiece(E1), Defs::makePiece(WHITE, KING))
-        << "should have a white king on e1";
-    std::cout << "val: " << emptyBoard->getPiece(E2) << std::endl;
-    EXPECT_EQ(emptyBoard->getPiece(E2), NO_PIECE) << "should have an empty e2";
-    EXPECT_EQ(startBoard->getPiece(A2), Defs::makePiece(WHITE, PAWN))
-        << "should have a white pawn on a1";
-    EXPECT_EQ(startBoard->getPiece(A3), NO_PIECE) << "should have an empty a3";
-}
-
-TEST_F(BoardTest, GetPieceType) {
-    EXPECT_EQ(emptyBoard->getPieceType(E1), KING) << "should have a king on e1";
-    EXPECT_EQ(emptyBoard->getPieceType(E2), NO_PIECE_TYPE) << "should have an empty e2";
-    EXPECT_EQ(startBoard->getPieceType(A2), PAWN) << "should have a pawn on a2";
-    EXPECT_EQ(startBoard->getPieceType(A3), NO_PIECE_TYPE) << "should have an empty a3";
-}
-
-TEST_F(BoardTest, GetKingSq) {
-    EXPECT_EQ(startBoard->getKingSq(WHITE), E1) << "should have white king on e1";
-    EXPECT_EQ(startBoard->getKingSq(BLACK), E8) << "should have black king on e8";
-}
-
 TEST_F(BoardTest, AddPiece) {
     emptyBoard->addPiece(E2, WHITE, PAWN);
     EXPECT_EQ(emptyBoard->getPiece(E2), Defs::makePiece(WHITE, PAWN))
@@ -90,6 +48,43 @@ TEST_F(BoardTest, MovePiece) {
     EXPECT_EQ(emptyBoard->getPiece(E1), NO_PIECE) << "should have empty e1 square";
     EXPECT_EQ(emptyBoard->getPiece(D1), Defs::makePiece(WHITE, KING))
         << "should have white pawn on d1";
+}
+
+TEST_F(BoardTest, GetPieces) {
+    EXPECT_EQ(emptyBoard->getPieces<KING>(WHITE), BB::set(E1))
+        << "should get piece bitboard of white king";
+    EXPECT_EQ(startBoard->getPieces<PAWN>(WHITE), BB::RANK_MASK[RANK2])
+        << "should get bitboard of white pawns from start board";
+}
+
+TEST_F(BoardTest, GetPiece) {
+    EXPECT_EQ(emptyBoard->getPiece(E1), Defs::makePiece(WHITE, KING))
+        << "should have a white king on e1";
+    std::cout << "val: " << emptyBoard->getPiece(E2) << std::endl;
+    EXPECT_EQ(emptyBoard->getPiece(E2), NO_PIECE) << "should have an empty e2";
+    EXPECT_EQ(startBoard->getPiece(A2), Defs::makePiece(WHITE, PAWN))
+        << "should have a white pawn on a1";
+    EXPECT_EQ(startBoard->getPiece(A3), NO_PIECE) << "should have an empty a3";
+}
+
+TEST_F(BoardTest, GetPieceType) {
+    EXPECT_EQ(emptyBoard->getPieceType(E1), KING) << "should have a king on e1";
+    EXPECT_EQ(emptyBoard->getPieceType(E2), NO_PIECE_TYPE) << "should have an empty e2";
+    EXPECT_EQ(startBoard->getPieceType(A2), PAWN) << "should have a pawn on a2";
+    EXPECT_EQ(startBoard->getPieceType(A3), NO_PIECE_TYPE) << "should have an empty a3";
+}
+
+TEST_F(BoardTest, GetKingSq) {
+    EXPECT_EQ(startBoard->getKingSq(WHITE), E1) << "should have white king on e1";
+    EXPECT_EQ(startBoard->getKingSq(BLACK), E8) << "should have black king on e8";
+}
+
+
+
+TEST_F(BoardTest, Occupancy) {
+    U64 expected =
+        (BB::RANK_MASK[RANK1] | BB::RANK_MASK[RANK2] | BB::RANK_MASK[RANK7] | BB::RANK_MASK[RANK8]);
+    EXPECT_EQ(startBoard->occupancy(), expected) << "should get occupancy of starting board";
 }
 
 TEST_F(BoardTest, DiagonalSliders) {
@@ -156,4 +151,20 @@ TEST_F(BoardTest, IsBitboardAttacked) {
         << "black should not attack A file";
     EXPECT_TRUE(pinBoard->isBitboardAttacked(BB::FILE_MASK[FILE2], BLACK))
         << "black should attack B file";
+}
+
+TEST_F(BoardTest, Count) {
+    EXPECT_EQ(emptyBoard->count<KING>(WHITE), 1) << "should count 1 white king";
+    EXPECT_EQ(startBoard->count<PAWN>(WHITE), 8) << "should count 8 white pawns on start board";
+    EXPECT_EQ(emptyBoard->count<KING>(), 2) << "should count 2 kings";
+    EXPECT_EQ(startBoard->count<PAWN>(), 16) << "should count 16 pawns on start board";
+}
+
+TEST_F(BoardTest, NonPawnMaterial) {
+    EXPECT_EQ(emptyBoard->nonPawnMaterial(WHITE), 0);
+    EXPECT_EQ(emptyBoard->nonPawnMaterial(BLACK), 0);
+    int mat = (2 * Eval::mgPieceValue[KNIGHT] + 2 * Eval::mgPieceValue[BISHOP] +
+               2 * Eval::mgPieceValue[ROOK] + Eval::mgPieceValue[QUEEN]);
+    EXPECT_EQ(startBoard->nonPawnMaterial(WHITE), mat);
+    EXPECT_EQ(startBoard->nonPawnMaterial(BLACK), mat);
 }

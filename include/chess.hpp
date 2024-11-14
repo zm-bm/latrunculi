@@ -56,14 +56,12 @@ class Chess {
 
     template <bool>
     int eval() const;
-
     template <bool>
     int eval_mg() const;
     template <bool>
     int eval_eg() const;
 
     int phase() const;
-    int non_pawn_material(Color) const;
 
     std::string toFEN() const;
     std::string DebugString() const;
