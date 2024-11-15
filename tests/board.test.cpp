@@ -79,8 +79,6 @@ TEST_F(BoardTest, GetKingSq) {
     EXPECT_EQ(startBoard->getKingSq(BLACK), E8) << "should have black king on e8";
 }
 
-
-
 TEST_F(BoardTest, Occupancy) {
     U64 expected =
         (BB::RANK_MASK[RANK1] | BB::RANK_MASK[RANK2] | BB::RANK_MASK[RANK7] | BB::RANK_MASK[RANK8]);
@@ -161,10 +159,21 @@ TEST_F(BoardTest, Count) {
 }
 
 TEST_F(BoardTest, NonPawnMaterial) {
-    EXPECT_EQ(emptyBoard->nonPawnMaterial(WHITE), 0);
-    EXPECT_EQ(emptyBoard->nonPawnMaterial(BLACK), 0);
+    EXPECT_EQ(emptyBoard->nonPawnMaterial(WHITE), 0) << "empty board has 0 white non pawn material";
+    EXPECT_EQ(emptyBoard->nonPawnMaterial(BLACK), 0) << "empty board has 0 black non pawn material";
     int mat = (2 * Eval::mgPieceValue[KNIGHT] + 2 * Eval::mgPieceValue[BISHOP] +
                2 * Eval::mgPieceValue[ROOK] + Eval::mgPieceValue[QUEEN]);
-    EXPECT_EQ(startBoard->nonPawnMaterial(WHITE), mat);
-    EXPECT_EQ(startBoard->nonPawnMaterial(BLACK), mat);
+    EXPECT_EQ(startBoard->nonPawnMaterial(WHITE), mat)
+        << "start board has correct white non pawn material";
+    EXPECT_EQ(startBoard->nonPawnMaterial(BLACK), mat)
+        << "start board has correct black non pawn material";
+}
+
+TEST_F(BoardTest, OppositeBishops) {
+    EXPECT_EQ(emptyBoard->oppositeBishops(), false) << "empty board does not have opposite bishops";
+    EXPECT_EQ(startBoard->oppositeBishops(), false) << "start board does not have opposite bishops";
+    EXPECT_EQ(Board("3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1").oppositeBishops(), false)
+        << "same color bishops do not have opposite bishops";
+    EXPECT_EQ(Board("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1").oppositeBishops(), true)
+        << "different color bishops have opposite bishops";
 }

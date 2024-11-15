@@ -6,9 +6,9 @@
 
 #include "bb.hpp"
 #include "defs.hpp"
+#include "eval.hpp"
 #include "fen.hpp"
 #include "types.hpp"
-#include "eval.hpp"
 #include "zobrist.hpp"
 
 struct Board {
@@ -48,7 +48,7 @@ struct Board {
     int count() const;
 
     int nonPawnMaterial(Color) const;
-
+    bool oppositeBishops() const;
 };
 
 inline Board::Board(const std::string& fen) {
@@ -215,6 +215,16 @@ inline int Board::nonPawnMaterial(Color c) const {
             count<BISHOP>(c) * Eval::mgPieceValue[BISHOP] +
             count<ROOK>(c) * Eval::mgPieceValue[ROOK] +
             count<QUEEN>(c) * Eval::mgPieceValue[QUEEN]);
+}
+
+inline bool Board::oppositeBishops() const {
+    if (count<BISHOP>(WHITE) != 1 || count<BISHOP>(BLACK) != 1) {
+        return false;
+    }
+    U64 wBishops = getPieces<BISHOP>(WHITE);
+    U64 bBishops = getPieces<BISHOP>(BLACK);
+    return (((wBishops & Eval::WHITESQUARES) && (bBishops & Eval::BLACKSQUARES)) ||
+            ((wBishops & Eval::BLACKSQUARES) && (bBishops & Eval::WHITESQUARES)));
 }
 
 inline std::ostream& operator<<(std::ostream& os, const Board& b) {

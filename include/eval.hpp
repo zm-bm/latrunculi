@@ -12,6 +12,11 @@ const int egLimit = 3915;
 const int mgPieceValue[N_PIECE_TYPES-1] = {0, 124, 781, 825, 1276, 2538};
 const int egPieceValue[N_PIECE_TYPES-1] = {0, 206, 854, 915, 1380, 2682};
 
+const U64 WHITESQUARES = 0x55AA55AA55AA55AA;
+const U64 BLACKSQUARES = 0xAA55AA55AA55AA55;
+const U64 WHITEHOLES = 0x0000003CFFFF0000;
+const U64 BLACKHOLES = 0x0000FFFF3C000000;
+
 // const std::array<std::array<int, 64>, 2> PawnSqValues = {{
 //     {
 //         0,  0,  0,  0,  0,  0,  0,  0,
