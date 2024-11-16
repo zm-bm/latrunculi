@@ -22,7 +22,7 @@ struct State {
     U64 checkingPieces = 0;
     U64 pinnedPieces = 0;
     U64 discoveredCheckers = 0;
-    U64 checkingSquares[N_PIECE_TYPES-1] = {0, 0, 0, 0, 0, 0};
+    U64 checkingSquares[N_PIECES-1] = {0, 0, 0, 0, 0, 0};
 
     // Hash keys
     U64 zkey = 0;

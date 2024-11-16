@@ -40,9 +40,9 @@ enum Piece : U8 {
 };
 
 enum PieceType : U8 {
-  NO_PIECE_TYPE = 0, ALL_PIECE_TYPES = 0,
+  NO_PIECE_TYPE = 0, ALL_PIECES = 0,
   PAWN = 1, KNIGHT, BISHOP, ROOK, QUEEN, KING,
-  N_PIECE_TYPES = 7
+  N_PIECES = 7
 };
 // clang-format on
 

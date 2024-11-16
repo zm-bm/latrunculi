@@ -12,10 +12,10 @@
 #include "zobrist.hpp"
 
 struct Board {
-    U64 pieces[N_COLORS][N_PIECE_TYPES] = {0};
+    U64 pieces[N_COLORS][N_PIECES] = {0};
     Piece squares[N_SQUARES] = {NO_PIECE};
     Square kingSq[N_COLORS] = {E1, E8};
-    U8 pieceCount[N_COLORS][N_PIECE_TYPES] = {0};
+    U8 pieceCount[N_COLORS][N_PIECES] = {0};
 
     Board() = default;
     explicit Board(const std::string&);
@@ -68,7 +68,7 @@ inline Board::Board(const std::string& fen) {
 
 inline void Board::addPiece(const Square sq, const Color c, const PieceType p) {
     // Toggle bitboards and add to square centric board
-    pieces[c][ALL_PIECE_TYPES] ^= BB::set(sq);
+    pieces[c][ALL_PIECES] ^= BB::set(sq);
     pieces[c][p] ^= BB::set(sq);
     squares[sq] = Defs::makePiece(c, p);
     pieceCount[c][p]++;
@@ -76,7 +76,7 @@ inline void Board::addPiece(const Square sq, const Color c, const PieceType p) {
 
 inline void Board::removePiece(const Square sq, const Color c, const PieceType p) {
     // Toggle bitboards
-    pieces[c][ALL_PIECE_TYPES] ^= BB::set(sq);
+    pieces[c][ALL_PIECES] ^= BB::set(sq);
     pieces[c][p] ^= BB::set(sq);
     // squares[sq] = NO_PIECE;
     pieceCount[c][p]--;
@@ -85,7 +85,7 @@ inline void Board::removePiece(const Square sq, const Color c, const PieceType p
 inline void Board::movePiece(const Square from, const Square to, const Color c, const PieceType p) {
     // Toggle bitboards and add to square centric board
     U64 mask = BB::set(from) | BB::set(to);
-    pieces[c][ALL_PIECE_TYPES] ^= mask;
+    pieces[c][ALL_PIECES] ^= mask;
     pieces[c][p] ^= mask;
     squares[from] = NO_PIECE;
     squares[to] = Defs::makePiece(c, p);
@@ -114,7 +114,7 @@ inline Square Board::getKingSq(Color c) const {
 
 inline U64 Board::occupancy() const {
     // Return the combined bitboard of all pieces on the board
-    return pieces[WHITE][ALL_PIECE_TYPES] | pieces[BLACK][ALL_PIECE_TYPES];
+    return pieces[WHITE][ALL_PIECES] | pieces[BLACK][ALL_PIECES];
 }
 
 inline U64 Board::diagonalSliders(Color c) const {
@@ -164,7 +164,7 @@ inline U64 Board::calculateCheckBlockers(Color c, Color kingC) const {
         // Check if only one piece separates the slider and the king
         U64 piecesInBetween = occupancy() & BB::bitsBtwn(king, pinner);
         if (!BB::moreThanOneSet(piecesInBetween)) {
-            blockers |= piecesInBetween & getPieces<ALL_PIECE_TYPES>(c);
+            blockers |= piecesInBetween & getPieces<ALL_PIECES>(c);
         }
     }
 

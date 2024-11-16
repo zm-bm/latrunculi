@@ -9,11 +9,13 @@ namespace Eval {
 const int mgLimit = 15258;
 const int egLimit = 3915;
 
-const int mgPieceValue[N_PIECE_TYPES-1] = {0, 124, 781, 825, 1276, 2538};
-const int egPieceValue[N_PIECE_TYPES-1] = {0, 206, 854, 915, 1380, 2682};
+const int mgPieceValue[N_PIECES-1] = {0, 124, 781, 825, 1276, 2538};
+const int egPieceValue[N_PIECES-1] = {0, 206, 854, 915, 1380, 2682};
 
 const U64 WHITESQUARES = 0x55AA55AA55AA55AA;
 const U64 BLACKSQUARES = 0xAA55AA55AA55AA55;
+const U64 LEFTFLANK = 0x0F0F0F0F0F0F0F0FULL;
+const U64 RIGHTFLANK = 0xF0F0F0F0F0F0F0F0ULL;
 const U64 WHITEHOLES = 0x0000003CFFFF0000;
 const U64 BLACKHOLES = 0x0000FFFF3C000000;
 

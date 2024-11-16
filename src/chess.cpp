@@ -13,28 +13,48 @@ int Chess::phase() const {
 int Chess::scaleFactor() const {
     Color enemy = ~turn;
     int sf = 64;
-    int pcT = board.count<PAWN>(turn);
-    int pcE = board.count<PAWN>(enemy);
-    int npmT = board.nonPawnMaterial(turn);
-    int npmE = board.nonPawnMaterial(enemy);
+    int pawnCount = board.count<PAWN>(turn);
+    int pawnCountEnemy = board.count<PAWN>(enemy);
+    int nonPawnMat = board.nonPawnMaterial(turn);
+    int nonPawnMatEnemy = board.nonPawnMaterial(enemy);
 
-    if (pcT == 0 && npmT - npmE <= Eval::mgPieceValue[BISHOP]) {
-        if (npmT < Eval::mgPieceValue[ROOK]) {
+    if (pawnCount == 0 && nonPawnMat - nonPawnMatEnemy <= Eval::mgPieceValue[BISHOP]) {
+        if (nonPawnMat < Eval::mgPieceValue[ROOK]) {
             return 0;
-        } else if (npmE <= Eval::mgPieceValue[BISHOP]) {
+        } else if (nonPawnMatEnemy <= Eval::mgPieceValue[BISHOP]) {
             return 4;
         } else {
             return 14;
         }
     } else {
         bool opBishops = board.oppositeBishops();
-        if (opBishops && npmT == Eval::mgPieceValue[BISHOP] && npmE == Eval::mgPieceValue[BISHOP]) {
+        if (opBishops && nonPawnMat == Eval::mgPieceValue[BISHOP] &&
+            nonPawnMatEnemy == Eval::mgPieceValue[BISHOP]) {
             return 22 + 4 * BB::bitCount(board.candidatePassedPawns(turn));
+        } else if (opBishops) {
+            return 22 + 3 * BB::bitCount(board.getPieces<ALL_PIECES>(turn));
         } else {
-            return 0;
+            if (nonPawnMat == Eval::mgPieceValue[ROOK] &&
+                nonPawnMatEnemy == Eval::mgPieceValue[ROOK] &&
+                pawnCount - pawnCountEnemy <= 1) {
+                U64 pawns = board.getPieces<PAWN>(turn);
+                U64 enemyKingNearPawn =
+                    board.getPieces<PAWN>(enemy) & BB::KING_ATTACKS[board.getKingSq(enemy)];
+                if ((pawns & Eval::LEFTFLANK) != (pawns & Eval::RIGHTFLANK) && enemyKingNearPawn) {
+                    return 36;
+                }
+            }
+            int queenCount = board.count<QUEEN>(turn);
+            if (queenCount + board.count<QUEEN>(enemy) == 1) {
+                return 37 + 3 * (queenCount == 1
+                                     ? board.count<BISHOP>(enemy) + board.count<KNIGHT>(enemy)
+                                     : board.count<BISHOP>(turn) + board.count<KNIGHT>(turn));
+            } else {
+                return std::min(64, 36 + 7 * pawnCount);
+            }
         }
     }
-    return 0;
+    return 64;
 }
 
 template <bool debug>
