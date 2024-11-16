@@ -49,6 +49,8 @@ struct Board {
 
     int nonPawnMaterial(Color) const;
     bool oppositeBishops() const;
+    U64 candidatePassedPawns(Color) const;
+    U64 passedPawns(Color) const;
 };
 
 inline Board::Board(const std::string& fen) {
@@ -225,6 +227,18 @@ inline bool Board::oppositeBishops() const {
     U64 bBishops = getPieces<BISHOP>(BLACK);
     return (((wBishops & Eval::WHITESQUARES) && (bBishops & Eval::BLACKSQUARES)) ||
             ((wBishops & Eval::BLACKSQUARES) && (bBishops & Eval::WHITESQUARES)));
+}
+
+inline U64 Board::candidatePassedPawns(Color c) const {
+    // TODO: add candidate passers
+    return passedPawns(c);
+}
+
+inline U64 Board::passedPawns(Color c) const {
+    U64 enemyPawns = getPieces<PAWN>(~c);
+    U64 blockers = (c == WHITE) ? BB::getAllFrontSpan<BLACK>(enemyPawns)
+                                : BB::getAllFrontSpan<WHITE>(enemyPawns);
+    return getPieces<PAWN>(c) & ~blockers;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const Board& b) {

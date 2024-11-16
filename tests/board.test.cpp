@@ -60,7 +60,6 @@ TEST_F(BoardTest, GetPieces) {
 TEST_F(BoardTest, GetPiece) {
     EXPECT_EQ(emptyBoard->getPiece(E1), Defs::makePiece(WHITE, KING))
         << "should have a white king on e1";
-    std::cout << "val: " << emptyBoard->getPiece(E2) << std::endl;
     EXPECT_EQ(emptyBoard->getPiece(E2), NO_PIECE) << "should have an empty e2";
     EXPECT_EQ(startBoard->getPiece(A2), Defs::makePiece(WHITE, PAWN))
         << "should have a white pawn on a1";
@@ -176,4 +175,26 @@ TEST_F(BoardTest, OppositeBishops) {
         << "same color bishops do not have opposite bishops";
     EXPECT_EQ(Board("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1").oppositeBishops(), true)
         << "different color bishops have opposite bishops";
+}
+
+TEST_F(BoardTest, CandidatePassedPawns) {
+    EXPECT_EQ(startBoard->candidatePassedPawns(WHITE), 0);
+    EXPECT_EQ(startBoard->candidatePassedPawns(BLACK), 0);
+    auto fen = "4k3/p2p4/8/8/8/8/P1P5/4K3 w - - 0 1";
+    EXPECT_EQ(Board(fen).candidatePassedPawns(WHITE), 0);
+    EXPECT_EQ(Board(fen).candidatePassedPawns(BLACK), 0);
+    fen = "4k3/p3p3/8/8/8/8/P1P5/4K3 w - - 0 1";
+    EXPECT_EQ(Board(fen).candidatePassedPawns(WHITE), BB::set(C2));
+    EXPECT_EQ(Board(fen).candidatePassedPawns(BLACK), BB::set(E7));
+}
+
+TEST_F(BoardTest, PassedPawns) {
+    EXPECT_EQ(startBoard->passedPawns(WHITE), 0);
+    EXPECT_EQ(startBoard->passedPawns(BLACK), 0);
+    auto fen = "4k3/p2p4/8/8/8/8/P1P5/4K3 w - - 0 1";
+    EXPECT_EQ(Board(fen).passedPawns(WHITE), 0);
+    EXPECT_EQ(Board(fen).passedPawns(BLACK), 0);
+    fen = "4k3/p3p3/8/8/8/8/P1P5/4K3 w - - 0 1";
+    EXPECT_EQ(Board(fen).passedPawns(WHITE), BB::set(C2));
+    EXPECT_EQ(Board(fen).passedPawns(BLACK), BB::set(E7));
 }

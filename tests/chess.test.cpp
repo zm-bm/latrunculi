@@ -32,6 +32,8 @@ TEST_F(ChessTest, ScaleFactor) {
     ASSERT_EQ(Chess("3bk3/8/8/8/8/8/8/4K3 w - - 0 1").scaleFactor(), 0);
     ASSERT_EQ(Chess("3bk3/8/8/8/8/8/8/3RK3 w - - 0 1").scaleFactor(), 4);
     ASSERT_EQ(Chess("3bkb2/8/8/8/8/8/8/3RK3 w - - 0 1").scaleFactor(), 14);
+    ASSERT_EQ(Chess("4kb2/p2p4/8/8/8/8/P1P5/4KB2 w - - 0 1").scaleFactor(), 22);
+    ASSERT_EQ(Chess("4kb2/p3p3/8/8/8/8/P1P5/4KB2 w - - 0 1").scaleFactor(), 26);
 }
 
 // end eval tests
@@ -123,8 +125,6 @@ TEST_F(ChessTest, IsDoubleCheck) {
     EXPECT_TRUE(Chess("R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1").isDoubleCheck())
         << "should be in double check";
 }
-
-// TODO: move eval tests here
 
 TEST_F(ChessTest, Make) {
     Chess c = Chess(STARTFEN);

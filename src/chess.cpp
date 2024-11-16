@@ -27,9 +27,14 @@ int Chess::scaleFactor() const {
             return 14;
         }
     } else {
-        // TODO: finish scale factor
-        return 0;
+        bool opBishops = board.oppositeBishops();
+        if (opBishops && npmT == Eval::mgPieceValue[BISHOP] && npmE == Eval::mgPieceValue[BISHOP]) {
+            return 22 + 4 * BB::bitCount(board.candidatePassedPawns(turn));
+        } else {
+            return 0;
+        }
     }
+    return 0;
 }
 
 template <bool debug>
