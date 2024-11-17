@@ -185,6 +185,21 @@ TEST_F(BoardTest, EndGameMaterial) {
     EXPECT_EQ(Board("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1").egMaterial(), Eval::egPieceValue[QUEEN]-Eval::egPieceValue[ROOK]);
 }
 
+TEST_F(BoardTest, PieceSquareBonus) {
+    U64 pieces = startBoard->getPieces<PAWN>(BLACK);
+    while (pieces) {
+        Square sq = BB::advanced<BLACK>(pieces);
+
+        std::cout << Eval::pawnBonusMg[Eval::ColorSq[BLACK][sq]] << " ";
+
+        pieces &= BB::clear(sq);
+    }
+
+    std::cout << std::endl;
+
+    EXPECT_EQ(true, false);
+}
+
 TEST_F(BoardTest, OppositeBishops) {
     EXPECT_EQ(emptyBoard->oppositeBishops(), false) << "empty board does not have opposite bishops";
     EXPECT_EQ(startBoard->oppositeBishops(), false) << "start board does not have opposite bishops";

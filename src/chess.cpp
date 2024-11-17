@@ -72,6 +72,10 @@ int Chess::eval() const {
     // tempo bonus
     score += Eval::tempoBonus(turn);
 
+    if constexpr (debug) {
+        std::cout << "score: " << score << std::endl;
+    }
+
     // make score relative to side to move
     score *= ((2 * turn) - 1);
 
