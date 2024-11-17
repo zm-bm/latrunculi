@@ -22,27 +22,30 @@ auto EMPTY_FEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",        // two kings
 
 // eval tests
 
-TEST_F(ChessTest, Phase) {
-    ASSERT_EQ(Chess(PAWN_FEN).phase(), 0);
-    ASSERT_EQ(Chess("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/4K3 w KQkq - 0 1").phase(), 49);
-    ASSERT_EQ(Chess(STARTFEN).phase(), 128);
-}
-
 TEST_F(ChessTest, ScaleFactor) {
     // Drawish scenarios
-    ASSERT_EQ(Chess(EMPTY_FEN).scaleFactor(), 0);
-    ASSERT_EQ(Chess("3bk3/8/8/8/8/8/8/3NK3 w - - 0 1").scaleFactor(), 0);
-    ASSERT_EQ(Chess("2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1").scaleFactor(), 16);
+    EXPECT_EQ(Chess(EMPTY_FEN).scaleFactor(), 0);
+    EXPECT_EQ(Chess("3bk3/8/8/8/8/8/8/3NK3 w - - 0 1").scaleFactor(), 0);
+    EXPECT_EQ(Chess("2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1").scaleFactor(), 16);
     // Opposite bishops endings
-    ASSERT_EQ(Chess("3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1").scaleFactor(), 36);
-    ASSERT_EQ(Chess("3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1").scaleFactor(), 40);
-    ASSERT_EQ(Chess("3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1").scaleFactor(), 44);
+    EXPECT_EQ(Chess("3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1").scaleFactor(), 36);
+    EXPECT_EQ(Chess("3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1").scaleFactor(), 40);
+    EXPECT_EQ(Chess("3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1").scaleFactor(), 44);
     // Single queen scenarios
-    ASSERT_EQ(Chess("3qk3/8/8/8/8/8/8/4K3 w - - 0 1").scaleFactor(), 36);
-    ASSERT_EQ(Chess("3qk3/8/8/8/8/8/8/3BK3 w - - 0 1").scaleFactor(), 40);
-    ASSERT_EQ(Chess("3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1").scaleFactor(), 44);
+    EXPECT_EQ(Chess("3qk3/8/8/8/8/8/8/4K3 w - - 0 1").scaleFactor(), 36);
+    EXPECT_EQ(Chess("3qk3/8/8/8/8/8/8/3BK3 w - - 0 1").scaleFactor(), 40);
+    EXPECT_EQ(Chess("3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1").scaleFactor(), 44);
     // Default
-    ASSERT_EQ(Chess(STARTFEN).scaleFactor(), 64);
+    EXPECT_EQ(Chess(STARTFEN).scaleFactor(), 64);
+}
+
+TEST_F(ChessTest, Eval) {
+    Chess c(EMPTY_FEN);
+    EXPECT_EQ(c.eval<false>(), c.egEval<false>() + Eval::TEMPO_BONUS);
+    c = Chess(STARTFEN);
+    EXPECT_EQ(c.eval<false>(), c.mgEval<false>() + Eval::TEMPO_BONUS);
+    c = Chess(POS4B);
+    EXPECT_EQ(c.eval<false>(), -c.mgEval<false>() + Eval::TEMPO_BONUS);
 }
 
 // end eval tests

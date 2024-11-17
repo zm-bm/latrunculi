@@ -43,7 +43,6 @@ class Chess {
     void updateCapturedPieces(Square sq, Color c, PieceType p);
     void handlePawnMoves(Square from, Square to, MoveType movetype, Move mv);
 
-    int phase() const;
     int scaleFactor() const;
 
     template <bool>

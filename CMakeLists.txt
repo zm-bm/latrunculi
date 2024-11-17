@@ -28,6 +28,7 @@ add_subdirectory(third_party/googletest)
 
 # Include Google Test directories
 include_directories(third_party/googletest/googletest/include)
+include_directories(third_party/googletest/googlemock/include)
 
 # Test files
 file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp")
@@ -36,7 +37,7 @@ file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp")
 add_executable(runTests ${TEST_SOURCES})
 
 # Link GTest to the test executable
-target_link_libraries(runTests LatrunculiLib gtest gtest_main pthread)
+target_link_libraries(runTests LatrunculiLib gtest gmock gtest_main pthread)
 
 # Add tests
 add_test(NAME LatrunculiTests COMMAND runTests)

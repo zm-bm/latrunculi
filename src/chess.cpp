@@ -4,12 +4,6 @@
 #include "eval.hpp"
 #include "fen.hpp"
 
-int Chess::phase() const {
-    int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
-    npm = std::max(Eval::egLimit, std::min(npm, Eval::mgLimit));
-    return ((npm - Eval::egLimit) * 128) / (Eval::mgLimit - Eval::egLimit);
-}
-
 int Chess::scaleFactor() const {
     Color enemy = ~turn;
     int pawnCount = board.count<PAWN>(turn);
@@ -46,28 +40,35 @@ int Chess::mgEval() const {
     return -1;
 }
 
+template int Chess::mgEval<true>() const;
+template int Chess::mgEval<false>() const;
+
 template <bool debug>
 int Chess::egEval() const {
-    return 1;
+    int score = 1;
+
+    // scale down score for draw-ish positions
+    return score * (scaleFactor() / 64);
 }
+
+template int Chess::egEval<true>() const;
+template int Chess::egEval<false>() const;
 
 template <bool debug = false>
 int Chess::eval() const {
-    // evaluate midgame
     int mg = mgEval<debug>();
+    int eg = egEval<debug>();
 
-    // evaluate endgame and scale down draw-ish position
-    int eg = egEval<debug>() * (scaleFactor() / 64);
+    // tapered eval based on remaining non pawn material
+    int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
+    int score = Eval::taperScore(mg, eg, Eval::calculatePhase(npm));
 
-    // tapered eval
-    int p = phase();
-    int score = (mg * p + (eg * (128 - p))) / 128;
+    // tempo bonus
+    score += Eval::tempoBonus(turn);
 
-    // tempo
-    score += (turn == WHITE ? +25 : -25);
-
-    // return score relative to side to move
+    // make score relative to side to move
     score *= ((2 * turn) - 1);
+
     return score;
 }
 

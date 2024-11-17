@@ -6,18 +6,31 @@
 
 namespace Eval {
 
-const int mgLimit = 15258;
-const int egLimit = 3915;
+const int PHASE_LIMIT = 128;
+const int MG_LIMIT = 15258;
+const int EG_LIMIT = 3915;
+const int TEMPO_BONUS = 25;
 
-const int mgPieceValue[N_PIECES-1] = {0, 124, 781, 825, 1276, 2538};
-const int egPieceValue[N_PIECES-1] = {0, 206, 854, 915, 1380, 2682};
+const int mgPieceValue[N_PIECES - 1] = {0, 124, 781, 825, 1276, 2538};
+const int egPieceValue[N_PIECES - 1] = {0, 206, 854, 915, 1380, 2682};
 
 const U64 WHITESQUARES = 0x55AA55AA55AA55AA;
 const U64 BLACKSQUARES = 0xAA55AA55AA55AA55;
-const U64 LEFTFLANK = 0x0F0F0F0F0F0F0F0FULL;
-const U64 RIGHTFLANK = 0xF0F0F0F0F0F0F0F0ULL;
 const U64 WHITEHOLES = 0x0000003CFFFF0000;
 const U64 BLACKHOLES = 0x0000FFFF3C000000;
+
+inline int taperScore(int mgScore, int egScore, int phase) {
+    return (mgScore * phase + egScore * (PHASE_LIMIT - phase)) / PHASE_LIMIT;
+}
+
+inline int calculatePhase(int nonPawnMaterial) {
+    nonPawnMaterial = std::clamp(nonPawnMaterial, Eval::EG_LIMIT, Eval::MG_LIMIT);
+    return ((nonPawnMaterial - Eval::EG_LIMIT) * PHASE_LIMIT) / (Eval::MG_LIMIT - Eval::EG_LIMIT);
+}
+
+inline int tempoBonus(Color c) {
+    return c == WHITE ? TEMPO_BONUS : -TEMPO_BONUS;
+}
 
 // const std::array<std::array<int, 64>, 2> PawnSqValues = {{
 //     {
@@ -166,7 +179,7 @@ const U64 BLACKHOLES = 0x0000FFFF3C000000;
 //     return (2 * c * score) - score;
 // }
 
-}
+}  // namespace Eval
 
 // int calculateMobilityScore(const int, const int) const;
 // template <PieceType>
