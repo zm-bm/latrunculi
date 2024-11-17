@@ -29,19 +29,19 @@ TEST_F(ChessTest, Phase) {
 }
 
 TEST_F(ChessTest, ScaleFactor) {
-    ASSERT_EQ(Chess("3bk3/8/8/8/8/8/8/4K3 w - - 0 1").scaleFactor(), 0);
-    ASSERT_EQ(Chess("3bk3/8/8/8/8/8/8/3RK3 w - - 0 1").scaleFactor(), 4);
-    ASSERT_EQ(Chess("3bkb2/8/8/8/8/8/8/3RK3 w - - 0 1").scaleFactor(), 14);
-    ASSERT_EQ(Chess("4kb2/p2p4/8/8/8/8/P1P5/4KB2 w - - 0 1").scaleFactor(), 22);
-    ASSERT_EQ(Chess("4kb2/p3p3/8/8/8/8/P1P5/4KB2 w - - 0 1").scaleFactor(), 26);
-    ASSERT_EQ(Chess("4kb2/8/8/8/8/8/8/2NNKB2 w - - 0 1").scaleFactor(), 34);
-    ASSERT_EQ(Chess("4kb2/8/8/8/8/8/4P3/2NNKB2 w - - 0 1").scaleFactor(), 37);
-    ASSERT_EQ(Chess("3kr3/3p4/8/8/8/8/6PP/6RK w - - 0 1").scaleFactor(), 36);
-    ASSERT_EQ(Chess("3nk3/8/8/8/8/8/8/4KQ2 w - - 0 1").scaleFactor(), 40);
-    ASSERT_EQ(Chess("3nkn2/8/8/8/8/8/8/4KQ2 w - - 0 1").scaleFactor(), 43);
-    ASSERT_EQ(Chess("3qk3/8/8/8/8/8/2BNKQ2/8 w - - 0 1").scaleFactor(), 36);
-    ASSERT_EQ(Chess("3qk3/8/8/8/8/8/2PNKQ2/8 w - - 0 1").scaleFactor(), 43);
-    ASSERT_EQ(Chess("3qk3/8/8/8/8/8/2PNKQP1/8 w - - 0 1").scaleFactor(), 50);
+    // Drawish scenarios
+    ASSERT_EQ(Chess(EMPTY_FEN).scaleFactor(), 0);
+    ASSERT_EQ(Chess("3bk3/8/8/8/8/8/8/3NK3 w - - 0 1").scaleFactor(), 0);
+    ASSERT_EQ(Chess("2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1").scaleFactor(), 16);
+    // Opposite bishops endings
+    ASSERT_EQ(Chess("3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1").scaleFactor(), 36);
+    ASSERT_EQ(Chess("3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1").scaleFactor(), 40);
+    ASSERT_EQ(Chess("3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1").scaleFactor(), 44);
+    // Single queen scenarios
+    ASSERT_EQ(Chess("3qk3/8/8/8/8/8/8/4K3 w - - 0 1").scaleFactor(), 36);
+    ASSERT_EQ(Chess("3qk3/8/8/8/8/8/8/3BK3 w - - 0 1").scaleFactor(), 40);
+    ASSERT_EQ(Chess("3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1").scaleFactor(), 44);
+    // Default
     ASSERT_EQ(Chess(STARTFEN).scaleFactor(), 64);
 }
 

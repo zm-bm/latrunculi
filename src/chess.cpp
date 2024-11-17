@@ -12,49 +12,33 @@ int Chess::phase() const {
 
 int Chess::scaleFactor() const {
     Color enemy = ~turn;
-    int sf = 64;
     int pawnCount = board.count<PAWN>(turn);
     int pawnCountEnemy = board.count<PAWN>(enemy);
     int nonPawnMat = board.nonPawnMaterial(turn);
     int nonPawnMatEnemy = board.nonPawnMaterial(enemy);
+    int nonPawnMatDiff = std::abs(nonPawnMat - nonPawnMatEnemy);
 
-    if (pawnCount == 0 && nonPawnMat - nonPawnMatEnemy <= Eval::mgPieceValue[BISHOP]) {
-        if (nonPawnMat < Eval::mgPieceValue[ROOK]) {
-            return 0;
-        } else if (nonPawnMatEnemy <= Eval::mgPieceValue[BISHOP]) {
-            return 4;
-        } else {
-            return 14;
-        }
-    } else {
-        bool opBishops = board.oppositeBishops();
-        if (opBishops && nonPawnMat == Eval::mgPieceValue[BISHOP] &&
-            nonPawnMatEnemy == Eval::mgPieceValue[BISHOP]) {
-            return 22 + 4 * BB::bitCount(board.candidatePassedPawns(turn));
-        } else if (opBishops) {
-            return 22 + 3 * BB::bitCount(board.getPieces<ALL_PIECES>(turn));
-        } else {
-            if (nonPawnMat == Eval::mgPieceValue[ROOK] &&
-                nonPawnMatEnemy == Eval::mgPieceValue[ROOK] &&
-                pawnCount - pawnCountEnemy <= 1) {
-                U64 pawns = board.getPieces<PAWN>(turn);
-                U64 enemyKingNearPawn =
-                    board.getPieces<PAWN>(enemy) & BB::KING_ATTACKS[board.getKingSq(enemy)];
-                if ((pawns & Eval::LEFTFLANK) != (pawns & Eval::RIGHTFLANK) && enemyKingNearPawn) {
-                    return 36;
-                }
-            }
-            int queenCount = board.count<QUEEN>(turn);
-            if (queenCount + board.count<QUEEN>(enemy) == 1) {
-                return 37 + 3 * (queenCount == 1
-                                     ? board.count<BISHOP>(enemy) + board.count<KNIGHT>(enemy)
-                                     : board.count<BISHOP>(turn) + board.count<KNIGHT>(turn));
-            } else {
-                return std::min(64, 36 + 7 * pawnCount);
-            }
-        }
+    // Check for drawish scenarios with no pawns and equal material
+    if (pawnCount == 0 && pawnCountEnemy == 0 && nonPawnMatDiff <= Eval::mgPieceValue[BISHOP]) {
+        return nonPawnMat < Eval::mgPieceValue[ROOK] ? 0 : 16;
     }
-    return 64;
+
+    // Opposite-colored bishops often lead to draws
+    if (board.oppositeBishops()) {
+        return std::min(64, 36 + 4 * BB::bitCount(board.candidatePassedPawns(turn)));
+    }
+
+    // Single queen scenarios with minor pieces
+    int queenCount = board.count<QUEEN>(turn);
+    if (queenCount + board.count<QUEEN>(enemy) == 1) {
+        int minorPieceCount = queenCount == 1
+                                  ? board.count<BISHOP>(enemy) + board.count<KNIGHT>(enemy)
+                                  : board.count<BISHOP>(turn) + board.count<KNIGHT>(turn);
+        return std::min(64, 36 + 4 * minorPieceCount);
+    }
+
+    // Default: scale proportionally with pawns
+    return std::min(64, 36 + 5 * pawnCount);
 }
 
 template <bool debug>
@@ -69,12 +53,18 @@ int Chess::egEval() const {
 
 template <bool debug = false>
 int Chess::eval() const {
+    // evaluate midgame
     int mg = mgEval<debug>();
-    int eg = egEval<debug>();
-    eg *= scaleFactor() / 64;
-    int p = phase();
 
-    int score = mg;
+    // evaluate endgame and scale down draw-ish position
+    int eg = egEval<debug>() * (scaleFactor() / 64);
+
+    // tapered eval
+    int p = phase();
+    int score = (mg * p + (eg * (128 - p))) / 128;
+
+    // tempo
+    score += (turn == WHITE ? +25 : -25);
 
     // return score relative to side to move
     score *= ((2 * turn) - 1);
