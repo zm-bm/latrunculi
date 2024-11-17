@@ -153,8 +153,11 @@ TEST_F(BoardTest, IsBitboardAttacked) {
 TEST_F(BoardTest, Count) {
     EXPECT_EQ(emptyBoard->count<KING>(WHITE), 1) << "should count 1 white king";
     EXPECT_EQ(startBoard->count<PAWN>(WHITE), 8) << "should count 8 white pawns on start board";
-    EXPECT_EQ(emptyBoard->count<KING>(), 2) << "should count 2 kings";
-    EXPECT_EQ(startBoard->count<PAWN>(), 16) << "should count 16 pawns on start board";
+}
+
+TEST_F(BoardTest, CountDiff) {
+    EXPECT_EQ(emptyBoard->countDiff<KING>(), 0) << "should count 2 kings";
+    EXPECT_EQ(startBoard->countDiff<PAWN>(), 0) << "should count 16 pawns on start board";
 }
 
 TEST_F(BoardTest, NonPawnMaterial) {
@@ -166,6 +169,20 @@ TEST_F(BoardTest, NonPawnMaterial) {
         << "start board has correct white non pawn material";
     EXPECT_EQ(startBoard->nonPawnMaterial(BLACK), mat)
         << "start board has correct black non pawn material";
+}
+
+TEST_F(BoardTest, MidGameMaterial) {
+    EXPECT_EQ(Board("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1").mgMaterial(), Eval::mgPieceValue[PAWN]);
+    EXPECT_EQ(Board("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1").mgMaterial(), Eval::mgPieceValue[KNIGHT]);
+    EXPECT_EQ(Board("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1").mgMaterial(), -Eval::mgPieceValue[BISHOP]);
+    EXPECT_EQ(Board("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1").mgMaterial(), Eval::mgPieceValue[QUEEN]-Eval::mgPieceValue[ROOK]);
+}
+
+TEST_F(BoardTest, EndGameMaterial) {
+    EXPECT_EQ(Board("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1").egMaterial(), Eval::egPieceValue[PAWN]);
+    EXPECT_EQ(Board("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1").egMaterial(), Eval::egPieceValue[KNIGHT]);
+    EXPECT_EQ(Board("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1").egMaterial(), -Eval::egPieceValue[BISHOP]);
+    EXPECT_EQ(Board("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1").egMaterial(), Eval::egPieceValue[QUEEN]-Eval::egPieceValue[ROOK]);
 }
 
 TEST_F(BoardTest, OppositeBishops) {

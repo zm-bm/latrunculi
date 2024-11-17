@@ -45,9 +45,11 @@ struct Board {
     template <PieceType p>
     int count(Color c) const;
     template <PieceType p>
-    int count() const;
+    int countDiff() const;
 
     int nonPawnMaterial(Color) const;
+    int mgMaterial() const;
+    int egMaterial() const;
     bool oppositeBishops() const;
     U64 candidatePassedPawns(Color) const;
     U64 passedPawns(Color) const;
@@ -202,14 +204,14 @@ inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const {
 
 template <PieceType p>
 inline int Board::count(Color c) const {
-    // Return the count of pieces of a specific role for the given color
+    // Return the count of pieces of a specific type for the given color
     return pieceCount[c][p];
 }
 
 template <PieceType p>
-inline int Board::count() const {
-    // Return the total count of pieces of a specific role for both colors
-    return count<p>(WHITE) + count<p>(BLACK);
+inline int Board::countDiff() const {
+    // Return the differnce of pieces of a specific type between colors
+    return count<p>(WHITE) - count<p>(BLACK);
 }
 
 inline int Board::nonPawnMaterial(Color c) const {
@@ -217,6 +219,22 @@ inline int Board::nonPawnMaterial(Color c) const {
             count<BISHOP>(c) * Eval::mgPieceValue[BISHOP] +
             count<ROOK>(c) * Eval::mgPieceValue[ROOK] +
             count<QUEEN>(c) * Eval::mgPieceValue[QUEEN]);
+}
+
+inline int Board::mgMaterial() const {
+    return (countDiff<PAWN>() * Eval::mgPieceValue[PAWN] +
+            countDiff<KNIGHT>() * Eval::mgPieceValue[KNIGHT] +
+            countDiff<BISHOP>() * Eval::mgPieceValue[BISHOP] +
+            countDiff<ROOK>() * Eval::mgPieceValue[ROOK] +
+            countDiff<QUEEN>() * Eval::mgPieceValue[QUEEN]);
+}
+
+inline int Board::egMaterial() const {
+    return (countDiff<PAWN>() * Eval::egPieceValue[PAWN] +
+            countDiff<KNIGHT>() * Eval::egPieceValue[KNIGHT] +
+            countDiff<BISHOP>() * Eval::egPieceValue[BISHOP] +
+            countDiff<ROOK>() * Eval::egPieceValue[ROOK] +
+            countDiff<QUEEN>() * Eval::egPieceValue[QUEEN]);
 }
 
 inline bool Board::oppositeBishops() const {

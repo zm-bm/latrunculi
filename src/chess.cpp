@@ -37,7 +37,11 @@ int Chess::scaleFactor() const {
 
 template <bool debug>
 int Chess::mgEval() const {
-    return -1;
+    int score = 0;
+
+    score += board.mgMaterial();
+
+    return score;
 }
 
 template int Chess::mgEval<true>() const;
@@ -45,7 +49,9 @@ template int Chess::mgEval<false>() const;
 
 template <bool debug>
 int Chess::egEval() const {
-    int score = 1;
+    int score = 0;
+
+    score += board.egMaterial();
 
     // scale down score for draw-ish positions
     return score * (scaleFactor() / 64);
