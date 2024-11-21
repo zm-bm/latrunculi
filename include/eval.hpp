@@ -13,13 +13,12 @@ const int MG_LIMIT = 15258;
 const int EG_LIMIT = 3915;
 const int TEMPO_BONUS = 25;
 
-const int mgPieceValue[N_PIECES - 1] = {0, 124, 781, 825, 1276, 2538};
-const int egPieceValue[N_PIECES - 1] = {0, 206, 854, 915, 1380, 2682};
-
 const U64 WHITESQUARES = 0x55AA55AA55AA55AA;
 const U64 BLACKSQUARES = 0xAA55AA55AA55AA55;
 const U64 WHITEHOLES = 0x0000003CFFFF0000;
 const U64 BLACKHOLES = 0x0000FFFF3C000000;
+
+inline int tempoBonus(Color c) { return c == WHITE ? TEMPO_BONUS : -TEMPO_BONUS; }
 
 inline int taperScore(int mgScore, int egScore, int phase) {
     return (mgScore * phase + egScore * (PHASE_LIMIT - phase)) / PHASE_LIMIT;
@@ -30,12 +29,32 @@ inline int calculatePhase(int nonPawnMaterial) {
     return ((nonPawnMaterial - Eval::EG_LIMIT) * PHASE_LIMIT) / (Eval::MG_LIMIT - Eval::EG_LIMIT);
 }
 
-inline int tempoBonus(Color c) {
-    return c == WHITE ? TEMPO_BONUS : -TEMPO_BONUS;
+const std::array<std::array<std::array<int, N_PIECES>, N_COLORS>, N_PHASES> pieceValueArray = {
+    {{{
+         // mg values
+         {{-124, -781, -825, -1276, -2538, 0}},  // black pieces
+         {{124, 781, 825, 1276, 2538, 0}}        // white pieces
+     }},
+     {{
+         // eg values
+         {{-206, -854, -915, -1380, -2682, 0}},  // black pieces
+         {{206, 854, 915, 1380, 2682, 0}}        // white pieces
+     }}}};
+
+inline int pieceValue(Phase ph, Color c, PieceType pt) {
+    return pieceValueArray[ph][c][pt-1];
+}
+
+inline int mgPieceValue(PieceType pt) {
+    return pieceValueArray[MIDGAME][WHITE][pt-1];
+}
+
+inline int egPieceValue(PieceType pt) {
+    return pieceValueArray[ENDGAME][WHITE][pt-1];
 }
 
 // clang-format off
-constexpr std::array<int, 64> pawnBonusMg = {{
+constexpr ScoreArray pawnBonusMg = {{
      0,   0,   0,   0,   0,   0,   0,   0,
      3,   3,  10,  19,  16,  19,   7,  -5,
     -9, -15,  11,  15,  32,  22,   5, -22,
@@ -46,7 +65,18 @@ constexpr std::array<int, 64> pawnBonusMg = {{
      0,   0,   0,   0,   0,   0,   0,   0
 }};
 
-constexpr std::array<int, 64> knightBonusMg = {{
+constexpr ScoreArray pawnBonusEg = {{
+     0,   0,   0,   0,   0,   0,   0,   0,
+   -10,  -6,  10,   0,  14,   7,  -5, -19,
+   -10, -10, -10,   4,   4,   3,  -6,  -4,
+     6,  -2,  -8,  -4, -13, -12, -10,  -9,
+    10,   5,   4,  -5,  -5,  -5,  14,   9,
+    28,  20,  21,  28,  30,   7,   6,  13,
+     0, -11,  12,  21,  25,  19,   4,   7,
+     0,   0,   0,   0,   0,   0,   0,   0
+}};
+
+constexpr ScoreArray knightBonusMg = {{
    -175, -92, -74, -73, -73, -74, -92, -175,
     -77, -41, -27, -15, -15, -27, -41,  -77,
     -61, -17,   6,  12,  12,   6, -17,  -61,
@@ -57,7 +87,18 @@ constexpr std::array<int, 64> knightBonusMg = {{
    -201, -83, -56, -26, -26, -56, -83, -201
 }};
 
-constexpr std::array<int, 64> bishopBonusMg = {{
+constexpr ScoreArray knightBonusEg = {{
+    -96, -65, -49, -21, -21, -49, -65, -96,
+    -67, -54, -18,   8,   8, -18, -54, -67,
+    -40, -27,  -8,  29,  29,  -8, -27, -40,
+    -35,  -2,  13,  28,  28,  13,  -2, -35,
+    -45, -16,   9,  39,  39,   9, -16, -45,
+    -51, -44, -16,  17,  17, -16, -44, -51,
+    -69, -50, -51,  12,  12, -51, -50, -69,
+   -100, -88, -56, -17, -17, -56, -88, -100
+}};
+
+constexpr ScoreArray bishopBonusMg = {{
     -53,  -5,  -8, -23, -23,  -8,  -5, -53,
     -15,   8,  19,   4,   4,  19,   8, -15,
      -7,  21,  -5,  17,  17,  -5,  21,  -7,
@@ -68,7 +109,18 @@ constexpr std::array<int, 64> bishopBonusMg = {{
     -48,   1, -14, -23, -23, -14,   1, -48
 }};
 
-constexpr std::array<int, 64> rookBonusMg = {{
+constexpr ScoreArray bishopBonusEg = {{
+    -57, -30, -37, -12, -12, -37, -30, -57,
+    -37, -13, -17,   1,   1, -17, -13, -37,
+    -16,  -1,  -2,  10,  10,  -2,  -1, -16,
+    -20,  -6,   0,  17,  17,   0,  -6, -20,
+    -17,  -1, -14,  15,  15, -14,  -1, -17,
+    -30,   6,   4,   6,   6,   4,   6, -30,
+    -31, -20,  -1,   1,   1,  -1, -20, -31,
+    -46, -42, -37, -24, -24, -37, -42, -46
+}};
+
+constexpr ScoreArray rookBonusMg = {{
     -31, -20, -14,  -5,  -5, -14, -20, -31,
     -21, -13,  -8,   6,   6,  -8, -13, -21,
     -25, -11,  -1,   3,   3,  -1, -11, -25,
@@ -79,7 +131,18 @@ constexpr std::array<int, 64> rookBonusMg = {{
     -17, -19,  -1,   9,   9,  -1, -19, -17
 }};
 
-constexpr std::array<int, 64> queenBonusMg = {{
+constexpr ScoreArray rookBonusEg = {{
+     -9, -13, -10,  -9,  -9, -10, -13,  -9,
+    -12,  -9,  -1,  -2,  -2,  -1,  -9, -12,
+      6,  -8,  -2,  -6,  -6,  -2,  -8,   6,
+     -6,   1,  -9,   7,   7,  -9,   1,  -6,
+     -5,   8,   7,  -6,  -6,   7,   8,  -5,
+      6,   1,  -7,  10,  10,  -7,   1,   6,
+      4,   5,  20,  -5,  -5,  20,   5,   4,
+     18,   0,  19,  13,  13,  19,   0,  18
+}};
+
+constexpr ScoreArray queenBonusMg = {{
       3,  -5,  -5,   4,   4,  -5,  -5,   3,
      -3,   5,   8,  12,  12,   8,   5,  -3,
      -3,   6,  13,   7,   7,  13,   6,  -3,
@@ -90,7 +153,18 @@ constexpr std::array<int, 64> queenBonusMg = {{
      -2,  -2,   1,  -2,  -2,   1,  -2,  -2
 }};
 
-constexpr std::array<int, 64> kingBonusMg = {{
+constexpr ScoreArray queenBonusEg = {{
+    -69, -57, -47, -26, -26, -47, -57, -69,
+    -55, -31, -22,  -4,  -4, -22, -31, -55,
+    -39, -18,  -9,   3,   3,  -9, -18, -39,
+    -23,  -3,  13,  24,  24,  13,  -3, -23,
+    -29,  -6,   9,  21,  21,   9,  -6, -29,
+    -38, -18, -12,   1,   1, -12, -18, -38,
+    -50, -27, -24,  -8,  -8, -24, -27, -50,
+    -75, -52, -43, -36, -36, -43, -52, -75
+}};
+
+constexpr ScoreArray kingBonusMg = {{
     271, 327, 271, 198, 198, 271, 327, 271,
     278, 303, 234, 179, 179, 234, 303, 278,
     195, 258, 169, 120, 120, 169, 258, 195,
@@ -99,6 +173,17 @@ constexpr std::array<int, 64> kingBonusMg = {{
     123, 145,  81,  31,  31,  81, 145, 123,
      88, 120,  65,  33,  33,  65, 120,  88,
      59,  89,  45,  -1,  -1,  45,  89,  59
+}};
+
+constexpr ScoreArray kingBonusEg = {{
+      1,  45,  85,  76,  76,  85,  45,   1,
+     53, 100, 133, 135, 135, 133, 100,  53,
+     88, 130, 169, 175, 175, 169, 130,  88,
+    103, 156, 172, 172, 172, 172, 156, 103,
+     96, 166, 199, 199, 199, 199, 166,  96,
+     92, 172, 184, 191, 191, 184, 172,  92,
+     47, 121, 116, 131, 131, 116, 121,  47,
+     11,  59,  73,  78,  78,  73,  59,  11
 }};
 
 const Square ColorSq[2][64] = {
@@ -123,9 +208,24 @@ const Square ColorSq[2][64] = {
     }
 };
 
-// clang-format off
+// clang-format on
 
-// const std::array<std::array<int, 64>, 2> PawnSqValues = {{
+const std::array<ScoreArray, 2> pawnBonus = {{pawnBonusMg, pawnBonusEg}};
+const std::array<ScoreArray, 2> knightBonus = {{knightBonusMg, knightBonusEg}};
+const std::array<ScoreArray, 2> bishopBonus = {{bishopBonusMg, bishopBonusEg}};
+const std::array<ScoreArray, 2> rookBonus = {{rookBonusMg, rookBonusEg}};
+const std::array<ScoreArray, 2> queenBonus = {{queenBonusMg, queenBonusEg}};
+const std::array<ScoreArray, 2> kingBonus = {{kingBonusMg, kingBonusEg}};
+const std::array<std::array<ScoreArray, 2>, 6> pieceBonus = {
+    {pawnBonus, knightBonus, bishopBonus, rookBonus, queenBonus, kingBonus}};
+
+inline int pieceSqBonus(Color c, PieceType p, int phase, Square sq) {
+    // Get the piece square value for color c
+    int score = pieceBonus[p - 1][phase][ColorSq[c][sq]];
+    return (2 * c * score) - score;
+}
+
+// const std::array<ScoreArray, 2> PawnSqValues = {{
 //     {
 //         0,  0,  0,  0,  0,  0,  0,  0,
 //         50, 50, 50, 50, 50, 50, 50, 50,
@@ -147,7 +247,7 @@ const Square ColorSq[2][64] = {
 //     }
 // }};
 
-// const std::array<std::array<int, 64>, 2> KnightSqValues = {{
+// const std::array<ScoreArray, 2> KnightSqValues = {{
 //     {
 //         -50,-40,-30,-30,-30,-30,-40,-50,
 //         -40,-20,  0,  0,  0,  0,-20,-40,
@@ -169,7 +269,7 @@ const Square ColorSq[2][64] = {
 //     }
 // }};
 
-// const std::array<std::array<int, 64>, 2> BishopSqValues = {{
+// const std::array<ScoreArray, 2> BishopSqValues = {{
 //     {
 //         -20,-10,-10,-10,-10,-10,-10,-20,
 //         -10,  0,  0,  0,  0,  0,  0,-10,
@@ -191,7 +291,7 @@ const Square ColorSq[2][64] = {
 //     }
 // }};
 
-// const std::array<std::array<int, 64>, 2> RookSqValues = {{
+// const std::array<ScoreArray, 2> RookSqValues = {{
 //     {
 //         0,  0,  0,  0,  0,  0,  0,  0,
 //         5, 10, 10, 10, 10, 10, 10,  5,
@@ -213,7 +313,7 @@ const Square ColorSq[2][64] = {
 //     }
 // }};
 
-// const std::array<std::array<int, 64>, 2> QueenSqValues = {{
+// const std::array<ScoreArray, 2> QueenSqValues = {{
 //     {
 //         -20,-10,-10, -5, -5,-10,-10,-20,
 //         -10,  0,  0,  0,  0,  0,  0,-10,
@@ -235,7 +335,7 @@ const Square ColorSq[2][64] = {
 //     }
 // }};
 
-// const std::array<std::array<int, 64>, 2> KingSqValues = {{
+// const std::array<ScoreArray, 2> KingSqValues = {{
 //     {
 //         30,-40,-40,-50,-50,-40,-40,-30,
 //         -30,-40,-40,-50,-50,-40,-40,-30,
@@ -256,21 +356,6 @@ const Square ColorSq[2][64] = {
 //         -50,-30,-30,-30,-30,-30,-30,-50
 //     }
 // }};
-
-// const std::array<std::array<std::array<int, 64>, 2>, 6> PieceSqValues = {{
-//     PawnSqValues,
-//     KnightSqValues,
-//     BishopSqValues,
-//     RookSqValues,
-//     QueenSqValues,
-//     KingSqValues,
-// }};
-
-// inline int psqv(Color c, PieceType p, int phase, Square sq) {
-//     // Get the piece square value for color c
-//     int score = PieceSqValues[p - 1][phase][ColorSq[c][sq]];
-//     return (2 * c * score) - score;
-// }
 
 }  // namespace Eval
 

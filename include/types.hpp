@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <array>
 
 using U64 = uint64_t;
 using U32 = uint32_t;
@@ -14,6 +15,7 @@ using I64 = int64_t;
 using I32 = int32_t;
 using I16 = int16_t;
 using I8 = int8_t;
+using ScoreArray = std::array<int, 64>;
 
 enum Color : U8 { BLACK, WHITE, N_COLORS = 2 };
 
@@ -71,6 +73,10 @@ enum CastleDirection { KINGSIDE, QUEENSIDE };
 enum MoveType : U8 { NORMAL, PROMOTION, ENPASSANT, CASTLE };
 
 enum class PawnMove { LEFT = 7, PUSH = 8, RIGHT = 9, DOUBLE = 16 };
+
+enum Phase { MIDGAME, ENDGAME, N_PHASES };
+
+// Operators
 
 inline Color operator~(Color c) { return Color(c ^ WHITE); }
 

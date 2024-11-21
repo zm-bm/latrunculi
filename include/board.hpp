@@ -215,26 +215,10 @@ inline int Board::countDiff() const {
 }
 
 inline int Board::nonPawnMaterial(Color c) const {
-    return (count<KNIGHT>(c) * Eval::mgPieceValue[KNIGHT] +
-            count<BISHOP>(c) * Eval::mgPieceValue[BISHOP] +
-            count<ROOK>(c) * Eval::mgPieceValue[ROOK] +
-            count<QUEEN>(c) * Eval::mgPieceValue[QUEEN]);
-}
-
-inline int Board::mgMaterial() const {
-    return (countDiff<PAWN>() * Eval::mgPieceValue[PAWN] +
-            countDiff<KNIGHT>() * Eval::mgPieceValue[KNIGHT] +
-            countDiff<BISHOP>() * Eval::mgPieceValue[BISHOP] +
-            countDiff<ROOK>() * Eval::mgPieceValue[ROOK] +
-            countDiff<QUEEN>() * Eval::mgPieceValue[QUEEN]);
-}
-
-inline int Board::egMaterial() const {
-    return (countDiff<PAWN>() * Eval::egPieceValue[PAWN] +
-            countDiff<KNIGHT>() * Eval::egPieceValue[KNIGHT] +
-            countDiff<BISHOP>() * Eval::egPieceValue[BISHOP] +
-            countDiff<ROOK>() * Eval::egPieceValue[ROOK] +
-            countDiff<QUEEN>() * Eval::egPieceValue[QUEEN]);
+    return (count<KNIGHT>(c) * Eval::mgPieceValue(KNIGHT) +
+            count<BISHOP>(c) * Eval::mgPieceValue(BISHOP) +
+            count<ROOK>(c) * Eval::mgPieceValue(ROOK) +
+            count<QUEEN>(c) * Eval::mgPieceValue(QUEEN));
 }
 
 inline bool Board::oppositeBishops() const {

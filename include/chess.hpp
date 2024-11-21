@@ -18,9 +18,10 @@ class Chess {
     U32 ply = 0;
     U32 moveCounter = 0;
 
-    I32 openingScore = 0;
-    I32 endgameScore = 0;
-    I32 materialScore = 0;
+    int mgMaterialScore = 0;
+    int egMaterialScore = 0;
+    int mgPieceBonus = 0;
+    int egPieceBonus = 0;
 
    public:
     explicit Chess(const std::string&);
@@ -42,6 +43,9 @@ class Chess {
     void setEnPassant(Square sq);
     void updateCapturedPieces(Square sq, Color c, PieceType p);
     void handlePawnMoves(Square from, Square to, MoveType movetype, Move mv);
+
+    int mgMaterial() const;
+    int egMaterial() const;
 
     int scaleFactor() const;
 
@@ -70,7 +74,9 @@ class Chess {
 template <bool forward>
 inline void Chess::addPiece(Square sq, Color c, PieceType p) {
     board.addPiece(sq, c, p);
-    // materialScore += Eval::PieceValues[p][c];
+    mgMaterialScore += Eval::pieceValue(MIDGAME, c, p);
+    egMaterialScore += Eval::pieceValue(ENDGAME, c, p);
+
     // openingScore += Eval::psqv(c, p, MIDGAME, sq);
     // endgameScore += Eval::psqv(c, p, ENDGAME, sq);
 
@@ -82,7 +88,9 @@ inline void Chess::addPiece(Square sq, Color c, PieceType p) {
 template <bool forward>
 inline void Chess::removePiece(Square sq, Color c, PieceType p) {
     board.removePiece(sq, c, p);
-    // materialScore -= Eval::PieceValues[p][c];
+    mgMaterialScore -= Eval::pieceValue(MIDGAME, c, p);
+    egMaterialScore -= Eval::pieceValue(ENDGAME, c, p);
+
     // openingScore -= Eval::psqv(c, p, MIDGAME, sq);
     // endgameScore -= Eval::psqv(c, p, ENDGAME, sq);
 
@@ -203,6 +211,14 @@ inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype, Mo
         removePiece<true>(to, turn, PAWN);
         addPiece<true>(to, turn, mv.promoPiece());
     }
+}
+
+inline int Chess::mgMaterial() const {
+    return mgMaterialScore;
+}
+
+inline int Chess::egMaterial() const {
+    return egMaterialScore;
 }
 
 #endif

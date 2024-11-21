@@ -163,41 +163,12 @@ TEST_F(BoardTest, CountDiff) {
 TEST_F(BoardTest, NonPawnMaterial) {
     EXPECT_EQ(emptyBoard->nonPawnMaterial(WHITE), 0) << "empty board has 0 white non pawn material";
     EXPECT_EQ(emptyBoard->nonPawnMaterial(BLACK), 0) << "empty board has 0 black non pawn material";
-    int mat = (2 * Eval::mgPieceValue[KNIGHT] + 2 * Eval::mgPieceValue[BISHOP] +
-               2 * Eval::mgPieceValue[ROOK] + Eval::mgPieceValue[QUEEN]);
+    int mat = (2 * Eval::mgPieceValue(KNIGHT) + 2 * Eval::mgPieceValue(BISHOP) +
+               2 * Eval::mgPieceValue(ROOK) + Eval::mgPieceValue(QUEEN));
     EXPECT_EQ(startBoard->nonPawnMaterial(WHITE), mat)
         << "start board has correct white non pawn material";
     EXPECT_EQ(startBoard->nonPawnMaterial(BLACK), mat)
         << "start board has correct black non pawn material";
-}
-
-TEST_F(BoardTest, MidGameMaterial) {
-    EXPECT_EQ(Board("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1").mgMaterial(), Eval::mgPieceValue[PAWN]);
-    EXPECT_EQ(Board("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1").mgMaterial(), Eval::mgPieceValue[KNIGHT]);
-    EXPECT_EQ(Board("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1").mgMaterial(), -Eval::mgPieceValue[BISHOP]);
-    EXPECT_EQ(Board("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1").mgMaterial(), Eval::mgPieceValue[QUEEN]-Eval::mgPieceValue[ROOK]);
-}
-
-TEST_F(BoardTest, EndGameMaterial) {
-    EXPECT_EQ(Board("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1").egMaterial(), Eval::egPieceValue[PAWN]);
-    EXPECT_EQ(Board("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1").egMaterial(), Eval::egPieceValue[KNIGHT]);
-    EXPECT_EQ(Board("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1").egMaterial(), -Eval::egPieceValue[BISHOP]);
-    EXPECT_EQ(Board("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1").egMaterial(), Eval::egPieceValue[QUEEN]-Eval::egPieceValue[ROOK]);
-}
-
-TEST_F(BoardTest, PieceSquareBonus) {
-    U64 pieces = startBoard->getPieces<PAWN>(BLACK);
-    while (pieces) {
-        Square sq = BB::advanced<BLACK>(pieces);
-
-        std::cout << Eval::pawnBonusMg[Eval::ColorSq[BLACK][sq]] << " ";
-
-        pieces &= BB::clear(sq);
-    }
-
-    std::cout << std::endl;
-
-    EXPECT_EQ(true, false);
 }
 
 TEST_F(BoardTest, OppositeBishops) {

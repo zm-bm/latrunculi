@@ -13,8 +13,8 @@ int Chess::scaleFactor() const {
     int nonPawnMatDiff = std::abs(nonPawnMat - nonPawnMatEnemy);
 
     // Check for drawish scenarios with no pawns and equal material
-    if (pawnCount == 0 && pawnCountEnemy == 0 && nonPawnMatDiff <= Eval::mgPieceValue[BISHOP]) {
-        return nonPawnMat < Eval::mgPieceValue[ROOK] ? 0 : 16;
+    if (pawnCount == 0 && pawnCountEnemy == 0 && nonPawnMatDiff <= Eval::mgPieceValue(BISHOP)) {
+        return nonPawnMat < Eval::mgPieceValue(ROOK) ? 0 : 16;
     }
 
     // Opposite-colored bishops often lead to draws
@@ -39,7 +39,7 @@ template <bool debug>
 int Chess::mgEval() const {
     int score = 0;
 
-    score += board.mgMaterial();
+    score += mgMaterial();
 
     return score;
 }
@@ -51,7 +51,7 @@ template <bool debug>
 int Chess::egEval() const {
     int score = 0;
 
-    score += board.egMaterial();
+    score += egMaterial();
 
     // scale down score for draw-ish positions
     return score * (scaleFactor() / 64);
