@@ -23,6 +23,7 @@ auto EMPTY_FEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",        // two kings
 // eval tests
 
 TEST_F(ChessTest, MidGameMaterial) {
+    EXPECT_EQ(Chess(STARTFEN).mgMaterial(), 0);
     EXPECT_EQ(Chess("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1").mgMaterial(), Eval::mgPieceValue(PAWN));
     EXPECT_EQ(Chess("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1").mgMaterial(), Eval::mgPieceValue(KNIGHT));
     EXPECT_EQ(Chess("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1").mgMaterial(), -Eval::mgPieceValue(BISHOP));
@@ -30,10 +31,23 @@ TEST_F(ChessTest, MidGameMaterial) {
 }
 
 TEST_F(ChessTest, EndGameMaterial) {
+    EXPECT_EQ(Chess(STARTFEN).egMaterial(), 0);
     EXPECT_EQ(Chess("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1").egMaterial(), Eval::egPieceValue(PAWN));
     EXPECT_EQ(Chess("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1").egMaterial(), Eval::egPieceValue(KNIGHT));
     EXPECT_EQ(Chess("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1").egMaterial(), -Eval::egPieceValue(BISHOP));
     EXPECT_EQ(Chess("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1").egMaterial(), Eval::egPieceValue(QUEEN)-Eval::egPieceValue(ROOK));
+}
+
+TEST_F(ChessTest, MidGamePieceSqBonus) {
+    EXPECT_EQ(Chess(STARTFEN).mgPieceSqBonus(), 0);
+    EXPECT_EQ(Chess(EMPTY_FEN).mgPieceSqBonus(), 0);
+    EXPECT_EQ(Chess(PAWN_FEN).mgPieceSqBonus(), Eval::pieceSqBonus(MIDGAME, WHITE, PAWN, E2));
+}
+
+TEST_F(ChessTest, EndGamePieceSqBonus) {
+    EXPECT_EQ(Chess(STARTFEN).egPieceSqBonus(), 0);
+    EXPECT_EQ(Chess(EMPTY_FEN).egPieceSqBonus(), 0);
+    EXPECT_EQ(Chess(PAWN_FEN).egPieceSqBonus(), Eval::pieceSqBonus(ENDGAME, WHITE, PAWN, E2));
 }
 
 TEST_F(ChessTest, ScaleFactor) {

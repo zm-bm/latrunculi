@@ -20,8 +20,8 @@ class Chess {
 
     int mgMaterialScore = 0;
     int egMaterialScore = 0;
-    int mgPieceBonus = 0;
-    int egPieceBonus = 0;
+    int mgPieceSqScore = 0;
+    int egPieceSqScore = 0;
 
    public:
     explicit Chess(const std::string&);
@@ -46,6 +46,8 @@ class Chess {
 
     int mgMaterial() const;
     int egMaterial() const;
+    int mgPieceSqBonus() const;
+    int egPieceSqBonus() const;
 
     int scaleFactor() const;
 
@@ -72,41 +74,41 @@ class Chess {
 };
 
 template <bool forward>
-inline void Chess::addPiece(Square sq, Color c, PieceType p) {
-    board.addPiece(sq, c, p);
-    mgMaterialScore += Eval::pieceValue(MIDGAME, c, p);
-    egMaterialScore += Eval::pieceValue(ENDGAME, c, p);
-
-    // openingScore += Eval::psqv(c, p, MIDGAME, sq);
-    // endgameScore += Eval::psqv(c, p, ENDGAME, sq);
+inline void Chess::addPiece(Square sq, Color c, PieceType pt) {
+    board.addPiece(sq, c, pt);
+    mgMaterialScore += Eval::pieceValue(MIDGAME, c, pt);
+    egMaterialScore += Eval::pieceValue(ENDGAME, c, pt);
+    mgPieceSqScore += Eval::pieceSqBonus(MIDGAME, c, pt, sq);
+    egPieceSqScore += Eval::pieceSqBonus(ENDGAME, c, pt, sq);
 
     if (forward) {
-        state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
+        state.at(ply).zkey ^= Zobrist::psq[c][pt][sq];
     }
 }
 
 template <bool forward>
-inline void Chess::removePiece(Square sq, Color c, PieceType p) {
-    board.removePiece(sq, c, p);
-    mgMaterialScore -= Eval::pieceValue(MIDGAME, c, p);
-    egMaterialScore -= Eval::pieceValue(ENDGAME, c, p);
-
-    // openingScore -= Eval::psqv(c, p, MIDGAME, sq);
-    // endgameScore -= Eval::psqv(c, p, ENDGAME, sq);
+inline void Chess::removePiece(Square sq, Color c, PieceType pt) {
+    board.removePiece(sq, c, pt);
+    mgMaterialScore -= Eval::pieceValue(MIDGAME, c, pt);
+    egMaterialScore -= Eval::pieceValue(ENDGAME, c, pt);
+    mgPieceSqScore -= Eval::pieceSqBonus(MIDGAME, c, pt, sq);
+    egPieceSqScore -= Eval::pieceSqBonus(ENDGAME, c, pt, sq);
 
     if (forward) {
-        state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
+        state.at(ply).zkey ^= Zobrist::psq[c][pt][sq];
     }
 }
 
 template <bool forward>
-inline void Chess::movePiece(Square from, Square to, Color c, PieceType p) {
-    board.movePiece(from, to, c, p);
-    // openingScore += Eval::psqv(c, p, MIDGAME, to) - Eval::psqv(c, p, MIDGAME, from);
-    // endgameScore += Eval::psqv(c, p, ENDGAME, to) - Eval::psqv(c, p, ENDGAME, from);
+inline void Chess::movePiece(Square from, Square to, Color c, PieceType pt) {
+    board.movePiece(from, to, c, pt);
+    mgPieceSqScore +=
+        Eval::pieceSqBonus(MIDGAME, c, pt, to) - Eval::pieceSqBonus(MIDGAME, c, pt, from);
+    egPieceSqScore +=
+        Eval::pieceSqBonus(ENDGAME, c, pt, to) - Eval::pieceSqBonus(ENDGAME, c, pt, from);
 
     if (forward) {
-        state.at(ply).zkey ^= Zobrist::psq[c][p][from] ^ Zobrist::psq[c][p][to];
+        state.at(ply).zkey ^= Zobrist::psq[c][pt][from] ^ Zobrist::psq[c][pt][to];
     }
 }
 
@@ -213,12 +215,9 @@ inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype, Mo
     }
 }
 
-inline int Chess::mgMaterial() const {
-    return mgMaterialScore;
-}
-
-inline int Chess::egMaterial() const {
-    return egMaterialScore;
-}
+inline int Chess::mgMaterial() const { return mgMaterialScore; }
+inline int Chess::egMaterial() const { return egMaterialScore; }
+inline int Chess::mgPieceSqBonus() const { return mgPieceSqScore; }
+inline int Chess::egPieceSqBonus() const { return egPieceSqScore; }
 
 #endif

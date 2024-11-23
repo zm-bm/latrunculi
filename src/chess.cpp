@@ -4,6 +4,58 @@
 #include "eval.hpp"
 #include "fen.hpp"
 
+template <bool debug>
+int Chess::mgEval() const {
+    int score = 0;
+
+    score += mgMaterial();
+    score += mgPieceSqBonus();
+
+    return score;
+}
+
+template int Chess::mgEval<true>() const;
+template int Chess::mgEval<false>() const;
+
+template <bool debug>
+int Chess::egEval() const {
+    int score = 0;
+
+    score += egMaterial();
+    score += egPieceSqBonus();
+
+    // scale down score for draw-ish positions
+    return score * (scaleFactor() / 64);
+}
+template int Chess::egEval<true>() const;
+template int Chess::egEval<false>() const;
+
+template <bool debug = false>
+int Chess::eval() const {
+    int mg = mgEval<debug>();
+    int eg = egEval<debug>();
+
+    // tapered eval based on remaining non pawn material
+    int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
+    int score = Eval::taperScore(mg, eg, Eval::calculatePhase(npm));
+
+    // tempo bonus
+    score += Eval::tempoBonus(turn);
+
+    if constexpr (debug) {
+        std::cout << "ph: " << Eval::calculatePhase(npm) << std::endl;
+        std::cout << "mg: " << mg << std::endl;
+        std::cout << "eg: " << eg << std::endl;
+        std::cout << "score: " << score << std::endl;
+    }
+
+    // return score relative to side to move
+    score *= ((2 * turn) - 1);
+    return score;
+}
+template int Chess::eval<true>() const;
+template int Chess::eval<false>() const;
+
 int Chess::scaleFactor() const {
     Color enemy = ~turn;
     int pawnCount = board.count<PAWN>(turn);
@@ -34,60 +86,6 @@ int Chess::scaleFactor() const {
     // Default: scale proportionally with pawns
     return std::min(64, 36 + 5 * pawnCount);
 }
-
-template <bool debug>
-int Chess::mgEval() const {
-    int score = 0;
-
-    score += mgMaterial();
-
-    return score;
-}
-
-template int Chess::mgEval<true>() const;
-template int Chess::mgEval<false>() const;
-
-template <bool debug>
-int Chess::egEval() const {
-    int score = 0;
-
-    score += egMaterial();
-
-    // scale down score for draw-ish positions
-    return score * (scaleFactor() / 64);
-}
-
-template int Chess::egEval<true>() const;
-template int Chess::egEval<false>() const;
-
-template <bool debug = false>
-int Chess::eval() const {
-    int mg = mgEval<debug>();
-    int eg = egEval<debug>();
-
-    // tapered eval based on remaining non pawn material
-    int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
-    int score = Eval::taperScore(mg, eg, Eval::calculatePhase(npm));
-
-    // tempo bonus
-    score += Eval::tempoBonus(turn);
-
-    if constexpr (debug) {
-        std::cout << "score: " << score << std::endl;
-    }
-
-    // make score relative to side to move
-    score *= ((2 * turn) - 1);
-
-    return score;
-}
-
-template int Chess::eval<true>() const;
-template int Chess::eval<false>() const;
-
-/*
-    MOVE GENERATION
-*/
 
 void Chess::make(Move mv) {
     // Get basic information about the move
