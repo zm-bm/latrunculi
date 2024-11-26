@@ -230,6 +230,13 @@ inline int calculatePhase(int nonPawnMaterial) {
     return ((nonPawnMaterial - Eval::EG_LIMIT) * PHASE_LIMIT) / (Eval::MG_LIMIT - Eval::EG_LIMIT);
 }
 
+inline int isolatedPawns(U64 pawns) {
+    U64 pawnsFill = BB::fillFiles(pawns);
+    U64 isolatedPawns = (pawns & ~BB::shiftWest(pawnsFill))
+                      & (pawns & ~BB::shiftEast(pawnsFill));
+    return BB::bitCount(isolatedPawns);
+}
+
 }  // namespace Eval
 
 // int calculateMobilityScore(const int, const int) const;

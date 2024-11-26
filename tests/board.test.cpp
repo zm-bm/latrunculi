@@ -180,10 +180,6 @@ TEST_F(BoardTest, OppositeBishops) {
         << "different color bishops have opposite bishops";
 }
 
-TEST_F(BoardTest, DoubledIsolatedPawns) {
-    EXPECT_EQ(startBoard->doubledIsolatedPawns(), 0);
-}
-
 TEST_F(BoardTest, CandidatePassedPawns) {
     EXPECT_EQ(startBoard->candidatePassedPawns(WHITE), 0);
     EXPECT_EQ(startBoard->candidatePassedPawns(BLACK), 0);

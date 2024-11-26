@@ -231,10 +231,6 @@ inline bool Board::oppositeBishops() const {
             ((wBishops & Eval::BLACKSQUARES) && (bBishops & Eval::WHITESQUARES)));
 }
 
-inline int Board::doubledIsolatedPawns() const {
-    return 0;
-}
-
 inline U64 Board::candidatePassedPawns(Color c) const {
     // TODO: add candidate passers
     return passedPawns(c);

@@ -26,6 +26,11 @@ TEST(EvalTest, PieceSqBonus) {
     }
 }
 
+TEST(EvalTest, TempoBonus) {
+    EXPECT_EQ(Eval::tempoBonus(WHITE), Eval::TEMPO_BONUS);
+    EXPECT_EQ(Eval::tempoBonus(BLACK), -Eval::TEMPO_BONUS);
+}
+
 TEST(EvalTest, TaperScore) {
     EXPECT_EQ(Eval::taperScore(100, 50, Eval::PHASE_LIMIT), 100);
     EXPECT_EQ(Eval::taperScore(100, 50, Eval::PHASE_LIMIT / 2), 75);
@@ -41,7 +46,11 @@ TEST(EvalTest, CalculatePhase) {
     EXPECT_EQ(Eval::calculatePhase(b.nonPawnMaterial(BLACK) * 2), Eval::PHASE_LIMIT);
 }
 
-TEST(EvalTest, TempoBonus) {
-    EXPECT_EQ(Eval::tempoBonus(WHITE), Eval::TEMPO_BONUS);
-    EXPECT_EQ(Eval::tempoBonus(BLACK), -Eval::TEMPO_BONUS);
+TEST(EvalTest, IsolatedPawns) {
+    Board b(STARTFEN);
+    EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(WHITE)), 0);
+    EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(BLACK)), 0);
+    b = Board("k7/p7/8/P7/8/P7/P7/K7 w KQkq - 0 1");
+    EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(WHITE)), 3);
+    EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(BLACK)), 1);
 }
