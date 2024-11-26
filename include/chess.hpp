@@ -48,13 +48,12 @@ class Chess {
     int egMaterial() const;
     int mgPieceSqBonus() const;
     int egPieceSqBonus() const;
-
     int scaleFactor() const;
 
-    template <bool>
+    int pawnsEval(Phase) const;
     int mgEval() const;
-    template <bool>
     int egEval() const;
+
     template <bool>
     int eval() const;
 

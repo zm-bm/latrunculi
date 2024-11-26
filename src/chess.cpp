@@ -4,7 +4,12 @@
 #include "eval.hpp"
 #include "fen.hpp"
 
-template <bool debug>
+int Chess::pawnsEval(Phase ph) const {
+    int score = 0;   
+
+    return score;
+}
+
 int Chess::mgEval() const {
     int score = 0;
 
@@ -14,10 +19,6 @@ int Chess::mgEval() const {
     return score;
 }
 
-template int Chess::mgEval<true>() const;
-template int Chess::mgEval<false>() const;
-
-template <bool debug>
 int Chess::egEval() const {
     int score = 0;
 
@@ -27,13 +28,11 @@ int Chess::egEval() const {
     // scale down score for draw-ish positions
     return score * (scaleFactor() / 64);
 }
-template int Chess::egEval<true>() const;
-template int Chess::egEval<false>() const;
 
 template <bool debug = false>
 int Chess::eval() const {
-    int mg = mgEval<debug>();
-    int eg = egEval<debug>();
+    int mg = mgEval();
+    int eg = egEval();
 
     // tapered eval based on remaining non pawn material
     int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
@@ -43,9 +42,6 @@ int Chess::eval() const {
     score += Eval::tempoBonus(turn);
 
     if constexpr (debug) {
-        std::cout << "ph: " << Eval::calculatePhase(npm) << std::endl;
-        std::cout << "mg: " << mg << std::endl;
-        std::cout << "eg: " << eg << std::endl;
         std::cout << "score: " << score << std::endl;
     }
 
