@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include "bb.hpp"
 #include "board.hpp"
 #include "constants.hpp"
 
@@ -50,7 +51,50 @@ TEST(EvalTest, IsolatedPawns) {
     Board b(STARTFEN);
     EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(WHITE)), 0);
     EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(BLACK)), 0);
+
+    b.removePiece(B2, WHITE, PAWN);
+    b.removePiece(F7, BLACK, PAWN);
+    b.removePiece(H7, BLACK, PAWN);
+    EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(WHITE)), BB::set(A2));
+    EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(BLACK)), BB::set(G7));
+
     b = Board("k7/p7/8/P7/8/P7/P7/K7 w KQkq - 0 1");
-    EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(WHITE)), 3);
-    EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(BLACK)), 1);
+    EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(WHITE)),
+              BB::set(A2) | BB::set(A3) | BB::set(A5));
+    EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(BLACK)), BB::set(A7));
 }
+
+TEST(EvalTest, BackwardsPawns) {
+    Board b(STARTFEN);
+    // U64 res = Eval::backwardsPawns<WHITE, BLACK>(b.getPieces<PAWN>(WHITE), b.getPieces<PAWN>(BLACK));
+    // EXPECT_EQ(res, 0);
+
+    b = Board("4k3/2p5/1p6/1P6/P7/8/8/4K3 w - c6 0 2");
+    // res = Eval::backwardsPawns<WHITE, BLACK>(b.getPieces<PAWN>(WHITE), b.getPieces<PAWN>(BLACK));
+    // BB::print(std::cout, res);
+    // EXPECT_EQ(res, BB::set(A4));
+
+    U64 res = Eval::backwardsPawns<BLACK, WHITE>(b.getPieces<PAWN>(BLACK), b.getPieces<PAWN>(WHITE));
+    BB::print(std::cout, res);
+    EXPECT_EQ(res, BB::set(C7));
+}
+
+TEST(EvalTest, OppositeBishops) {
+    Board b(EMPTYFEN);
+    bool result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
+    EXPECT_EQ(result, false) << "empty board does not have opposite bishops";
+
+    b = Board(STARTFEN);
+    result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
+    EXPECT_EQ(result, true) << "start board have opposite bishops";
+
+    b = Board("3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1");
+    result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
+    EXPECT_EQ(result, false)
+        << "same color bishops do not have opposite bishops";
+
+    b = Board("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1");
+    result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
+    EXPECT_EQ(result, true) << "different color bishops have opposite bishops";
+}
+       

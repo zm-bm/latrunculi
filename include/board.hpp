@@ -48,7 +48,7 @@ struct Board {
     int countDiff() const;
 
     int nonPawnMaterial(Color) const;
-    bool oppositeBishops() const;
+    bool oppositeBishopsEndGame() const;
     int doubledIsolatedPawns() const;
 
     U64 candidatePassedPawns(Color) const;
@@ -221,14 +221,11 @@ inline int Board::nonPawnMaterial(Color c) const {
             count<QUEEN>(c) * Eval::mgPieceValue(QUEEN));
 }
 
-inline bool Board::oppositeBishops() const {
+inline bool Board::oppositeBishopsEndGame() const {
     if (count<BISHOP>(WHITE) != 1 || count<BISHOP>(BLACK) != 1) {
         return false;
     }
-    U64 wBishops = getPieces<BISHOP>(WHITE);
-    U64 bBishops = getPieces<BISHOP>(BLACK);
-    return (((wBishops & Eval::WHITESQUARES) && (bBishops & Eval::BLACKSQUARES)) ||
-            ((wBishops & Eval::BLACKSQUARES) && (bBishops & Eval::WHITESQUARES)));
+    return Eval::oppositeBishops(getPieces<BISHOP>(WHITE), getPieces<BISHOP>(BLACK));
 }
 
 inline U64 Board::candidatePassedPawns(Color c) const {

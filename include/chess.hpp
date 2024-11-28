@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <tuple>
 
 #include "board.hpp"
 #include "constants.hpp"
@@ -32,6 +33,7 @@ class Chess {
     void removePiece(Square, Color, PieceType);
     template <bool>
     void movePiece(Square, Square, Color, PieceType);
+
     void updateState(bool);
     U64 getKey() const;
     U64 calculateKey() const;
@@ -50,9 +52,9 @@ class Chess {
     int egPieceSqBonus() const;
     int scaleFactor() const;
 
-    int pawnsEval(Phase) const;
-    int mgEval() const;
-    int egEval() const;
+    std::tuple<int, int> pawnsEval() const;
+    int mgEval(int) const;
+    int egEval(int) const;
 
     template <bool>
     int eval() const;

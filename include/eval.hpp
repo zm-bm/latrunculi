@@ -12,6 +12,7 @@ const int PHASE_LIMIT = 128;
 const int MG_LIMIT = 15258;
 const int EG_LIMIT = 3915;
 const int TEMPO_BONUS = 25;
+const int ISO_PAWN_PENALTY[N_PHASES] = {-5, -15};
 
 const U64 WHITESQUARES = 0x55AA55AA55AA55AA;
 const U64 BLACKSQUARES = 0xAA55AA55AA55AA55;
@@ -19,23 +20,15 @@ const U64 WHITEHOLES = 0x0000003CFFFF0000;
 const U64 BLACKHOLES = 0x0000FFFF3C000000;
 
 // clang-format off
-
-const int pieceValueArray[N_PHASES][N_COLORS][N_PIECES] = {
-    // midgame
-    {
-        // black pieces
-        {0, -124, -781, -825, -1276, -2538, 0},
-        // white pieces
-        {0, 124, 781, 825, 1276, 2538, 0}       
-    },
-    // endgame
-    {
-        // black pieces
-        {0, -206, -854, -915, -1380, -2682, 0},
-        // white pieces
-        {0, 206, 854, 915, 1380, 2682, 0}
-    }
-};
+const int pieceValueArray[N_PHASES][N_COLORS][N_PIECES] = {{
+    // midgame (black, white)
+    {0, -124, -781, -825, -1276, -2538, 0},
+    {0, 124, 781, 825, 1276, 2538, 0}       
+}, {
+    // endgame (black, white)
+    {0, -206, -854, -915, -1380, -2682, 0},
+    {0, 206, 854, 915, 1380, 2682, 0}
+}};
 
 constexpr ScoreArray pawnBonusMg = {{
      0,   0,   0,   0,   0,   0,   0,   0,
@@ -169,40 +162,30 @@ constexpr ScoreArray kingBonusEg = {{
      11,  59,  73,  78,  78,  73,  59,  11
 }};
 
-const Square squareMap[N_COLORS][N_SQUARES] = {
-    {
-        H8, G8, F8, E8, D8, C8, B8, A8,
-        H7, G7, F7, E7, D7, C7, B7, A7,
-        H6, G6, F6, E6, D6, C6, B6, A6,
-        H5, G5, F5, E5, D5, C5, B5, A5,
-        H4, G4, F4, E4, D4, C4, B4, A4,
-        H3, G3, F3, E3, D3, C3, B3, A3,
-        H2, G2, F2, E2, D2, C2, B2, A2,
-        H1, G1, F1, E1, D1, C1, B1, A1,
-    }, {
-        A1, B1, C1, D1, E1, F1, G1, H1,
-        A2, B2, C2, D2, E2, F2, G2, H2,
-        A3, B3, C3, D3, E3, F3, G3, H3,
-        A4, B4, C4, D4, E4, F4, G4, H4,
-        A5, B5, C5, D5, E5, F5, G5, H5,
-        A6, B6, C6, D6, E6, F6, G6, H6,
-        A7, B7, C7, D7, E7, F7, G7, H7,
-        A8, B8, C8, D8, E8, F8, G8, H8,
-    }
-};
+const Square squareMap[N_COLORS][N_SQUARES] = {{
+    H8, G8, F8, E8, D8, C8, B8, A8,
+    H7, G7, F7, E7, D7, C7, B7, A7,
+    H6, G6, F6, E6, D6, C6, B6, A6,
+    H5, G5, F5, E5, D5, C5, B5, A5,
+    H4, G4, F4, E4, D4, C4, B4, A4,
+    H3, G3, F3, E3, D3, C3, B3, A3,
+    H2, G2, F2, E2, D2, C2, B2, A2,
+    H1, G1, F1, E1, D1, C1, B1, A1,
+}, {
+    A1, B1, C1, D1, E1, F1, G1, H1,
+    A2, B2, C2, D2, E2, F2, G2, H2,
+    A3, B3, C3, D3, E3, F3, G3, H3,
+    A4, B4, C4, D4, E4, F4, G4, H4,
+    A5, B5, C5, D5, E5, F5, G5, H5,
+    A6, B6, C6, D6, E6, F6, G6, H6,
+    A7, B7, C7, D7, E7, F7, G7, H7,
+    A8, B8, C8, D8, E8, F8, G8, H8,
+}};
 // clang-format on
 
-inline int pieceValue(Phase ph, Color c, PieceType pt) {
-    return pieceValueArray[ph][c][pt];
-}
-
-inline int mgPieceValue(PieceType pt) {
-    return pieceValueArray[MIDGAME][WHITE][pt];
-}
-
-inline int egPieceValue(PieceType pt) {
-    return pieceValueArray[ENDGAME][WHITE][pt];
-}
+inline int pieceValue(Phase ph, Color c, PieceType pt) { return pieceValueArray[ph][c][pt]; }
+inline int mgPieceValue(PieceType pt) { return pieceValueArray[MIDGAME][WHITE][pt]; }
+inline int egPieceValue(PieceType pt) { return pieceValueArray[ENDGAME][WHITE][pt]; }
 
 const std::array<ScoreArray, N_PHASES> pawnBonus = {{pawnBonusMg, pawnBonusEg}};
 const std::array<ScoreArray, N_PHASES> knightBonus = {{knightBonusMg, knightBonusEg}};
@@ -230,11 +213,25 @@ inline int calculatePhase(int nonPawnMaterial) {
     return ((nonPawnMaterial - Eval::EG_LIMIT) * PHASE_LIMIT) / (Eval::MG_LIMIT - Eval::EG_LIMIT);
 }
 
-inline int isolatedPawns(U64 pawns) {
+inline U64 isolatedPawns(U64 pawns) {
     U64 pawnsFill = BB::fillFiles(pawns);
-    U64 isolatedPawns = (pawns & ~BB::shiftWest(pawnsFill))
-                      & (pawns & ~BB::shiftEast(pawnsFill));
-    return BB::bitCount(isolatedPawns);
+    return (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
+}
+
+template <Color color, Color enemy>
+inline U64 backwardsPawns(U64 pawns, U64 enemyPawns) {
+    U64 stops = BB::movesByPawns<PawnMove::PUSH, color>(pawns);
+    U64 attackSpan = BB::getFrontAttackSpan<color>(pawns);
+    U64 enemyAttacks = BB::attacksByPawns<enemy>(enemyPawns);
+    BB::print(std::cout, stops);
+    BB::print(std::cout, attackSpan);
+    BB::print(std::cout, enemyAttacks);
+    return BB::movesByPawns<PawnMove::PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
+}
+
+inline bool oppositeBishops(U64 wBishops, U64 bBishops) {
+    return (((wBishops & Eval::WHITESQUARES) && (bBishops & Eval::BLACKSQUARES)) ||
+            ((wBishops & Eval::BLACKSQUARES) && (bBishops & Eval::WHITESQUARES)));
 }
 
 }  // namespace Eval

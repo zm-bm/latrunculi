@@ -4,26 +4,40 @@
 #include "eval.hpp"
 #include "fen.hpp"
 
-int Chess::pawnsEval(Phase ph) const {
-    int score = 0;   
+std::tuple<int, int> Chess::pawnsEval() const {
+    int mgScore = 0;
+    int egScore = 0;
+
+    U64 wPawns = board.getPieces<PAWN>(WHITE);
+    U64 bPawns = board.getPieces<PAWN>(BLACK);
+    U64 allPawns = wPawns | bPawns;
+
+    U64 wIsolatedPawns = Eval::isolatedPawns(wPawns);
+    U64 bIsolatedPawns = Eval::isolatedPawns(bPawns);
+
+    int nIsolatedPawns = BB::bitCount(wIsolatedPawns) - BB::bitCount(bIsolatedPawns);
+    mgScore += nIsolatedPawns * Eval::ISO_PAWN_PENALTY[MIDGAME];
+    egScore += nIsolatedPawns * Eval::ISO_PAWN_PENALTY[ENDGAME];
+
+    return std::make_tuple(mgScore, egScore);
+}
+
+int Chess::mgEval(int pawnScore) const {
+    int score = 0;
+
+    score += mgMaterialScore;
+    score += mgPieceSqScore;
+    score += pawnScore;
 
     return score;
 }
 
-int Chess::mgEval() const {
+int Chess::egEval(int pawnScore) const {
     int score = 0;
 
-    score += mgMaterial();
-    score += mgPieceSqBonus();
-
-    return score;
-}
-
-int Chess::egEval() const {
-    int score = 0;
-
-    score += egMaterial();
-    score += egPieceSqBonus();
+    score += egMaterialScore;
+    score += egPieceSqScore;
+    score += pawnScore;
 
     // scale down score for draw-ish positions
     return score * (scaleFactor() / 64);
@@ -31,8 +45,9 @@ int Chess::egEval() const {
 
 template <bool debug = false>
 int Chess::eval() const {
-    int mg = mgEval();
-    int eg = egEval();
+    auto [mgPawns, egPawns] = pawnsEval();
+    int mg = mgEval(mgPawns);
+    int eg = egEval(egPawns);
 
     // tapered eval based on remaining non pawn material
     int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
@@ -66,7 +81,7 @@ int Chess::scaleFactor() const {
     }
 
     // Opposite-colored bishops often lead to draws
-    if (board.oppositeBishops()) {
+    if (board.oppositeBishopsEndGame()) {
         return std::min(64, 36 + 4 * BB::bitCount(board.candidatePassedPawns(turn)));
     }
 

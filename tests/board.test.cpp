@@ -172,11 +172,13 @@ TEST_F(BoardTest, NonPawnMaterial) {
 }
 
 TEST_F(BoardTest, OppositeBishops) {
-    EXPECT_EQ(emptyBoard->oppositeBishops(), false) << "empty board does not have opposite bishops";
-    EXPECT_EQ(startBoard->oppositeBishops(), false) << "start board does not have opposite bishops";
-    EXPECT_EQ(Board("3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1").oppositeBishops(), false)
+    EXPECT_EQ(emptyBoard->oppositeBishopsEndGame(), false)
+        << "empty board does not have opposite bishops";
+    EXPECT_EQ(startBoard->oppositeBishopsEndGame(), false)
+        << "start board does not have opposite bishops";
+    EXPECT_EQ(Board("3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1").oppositeBishopsEndGame(), false)
         << "same color bishops do not have opposite bishops";
-    EXPECT_EQ(Board("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1").oppositeBishops(), true)
+    EXPECT_EQ(Board("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1").oppositeBishopsEndGame(), true)
         << "different color bishops have opposite bishops";
 }
 

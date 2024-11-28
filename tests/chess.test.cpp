@@ -14,12 +14,6 @@ class ChessTest : public ::testing::Test {
     void SetUp() override { Magics::init(); }
 };
 
-auto EMPTY_FEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",        // two kings
-    PAWN_FEN = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1",        // pawn on e2
-    MOVE_FEN = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1",        // pawn on e4
-    ENPASSANT_FEN = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1",  // enp on a3
-    PROMOTION_FEN = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";    // pawn on a7
-
 // eval tests
 
 TEST_F(ChessTest, MidGameMaterial) {
@@ -46,19 +40,19 @@ TEST_F(ChessTest, EndGameMaterial) {
 
 TEST_F(ChessTest, MidGamePieceSqBonus) {
     EXPECT_EQ(Chess(STARTFEN).mgPieceSqBonus(), 0);
-    EXPECT_EQ(Chess(EMPTY_FEN).mgPieceSqBonus(), 0);
-    EXPECT_EQ(Chess(PAWN_FEN).mgPieceSqBonus(), Eval::pieceSqBonus(MIDGAME, WHITE, PAWN, E2));
+    EXPECT_EQ(Chess(EMPTYFEN).mgPieceSqBonus(), 0);
+    EXPECT_EQ(Chess(E2PAWN).mgPieceSqBonus(), Eval::pieceSqBonus(MIDGAME, WHITE, PAWN, E2));
 }
 
 TEST_F(ChessTest, EndGamePieceSqBonus) {
     EXPECT_EQ(Chess(STARTFEN).egPieceSqBonus(), 0);
-    EXPECT_EQ(Chess(EMPTY_FEN).egPieceSqBonus(), 0);
-    EXPECT_EQ(Chess(PAWN_FEN).egPieceSqBonus(), Eval::pieceSqBonus(ENDGAME, WHITE, PAWN, E2));
+    EXPECT_EQ(Chess(EMPTYFEN).egPieceSqBonus(), 0);
+    EXPECT_EQ(Chess(E2PAWN).egPieceSqBonus(), Eval::pieceSqBonus(ENDGAME, WHITE, PAWN, E2));
 }
 
 TEST_F(ChessTest, ScaleFactor) {
     // Drawish scenarios
-    EXPECT_EQ(Chess(EMPTY_FEN).scaleFactor(), 0);
+    EXPECT_EQ(Chess(EMPTYFEN).scaleFactor(), 0);
     EXPECT_EQ(Chess("3bk3/8/8/8/8/8/8/3NK3 w - - 0 1").scaleFactor(), 0);
     EXPECT_EQ(Chess("2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1").scaleFactor(), 16);
     // Opposite bishops endings
@@ -74,65 +68,66 @@ TEST_F(ChessTest, ScaleFactor) {
 }
 
 TEST_F(ChessTest, Eval) {
-    Chess c(EMPTY_FEN);
-    EXPECT_EQ(c.eval<false>(), c.egEval() + Eval::TEMPO_BONUS)
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.eval<false>(), c.egEval(0) + Eval::TEMPO_BONUS)
         << "empty board eval should equal endgame eval + tempo";
     c = Chess(STARTFEN);
-    EXPECT_EQ(c.eval<false>(), c.mgEval() + Eval::TEMPO_BONUS)
+    EXPECT_EQ(c.eval<false>(), c.mgEval(0) + Eval::TEMPO_BONUS)
         << "start board eval should equal midgame eval + tempo";
     c = Chess(POS4B);
-    EXPECT_EQ(c.eval<false>(), -c.mgEval() + Eval::TEMPO_BONUS)
+    auto [mgPawns, egPawns] = c.pawnsEval();
+    EXPECT_EQ(c.eval<false>(), -c.mgEval(mgPawns) + Eval::TEMPO_BONUS)
         << "black to move should invert eval";
 }
 
 // end eval tests
 
 TEST_F(ChessTest, AddPieceForward) {
-    Chess chess = Chess(EMPTY_FEN);
+    Chess chess = Chess(EMPTYFEN);
     U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
     chess.addPiece<true>(E2, WHITE, PAWN);
     EXPECT_EQ(chess.getKey(), key) << "should xor key";
-    EXPECT_EQ(chess.toFEN(), PAWN_FEN) << "should move piece";
+    EXPECT_EQ(chess.toFEN(), E2PAWN) << "should move piece";
 }
 
 TEST_F(ChessTest, AddPieceBackwards) {
-    Chess chess = Chess(EMPTY_FEN);
+    Chess chess = Chess(EMPTYFEN);
     U64 key = chess.getKey();
     chess.addPiece<false>(E2, WHITE, PAWN);
     EXPECT_EQ(chess.getKey(), key) << "should not xor key";
-    EXPECT_EQ(chess.toFEN(), PAWN_FEN) << "should move piece";
+    EXPECT_EQ(chess.toFEN(), E2PAWN) << "should move piece";
 }
 
 TEST_F(ChessTest, RemovePieceForward) {
-    Chess chess = Chess(PAWN_FEN);
+    Chess chess = Chess(E2PAWN);
     U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
     chess.removePiece<true>(E2, WHITE, PAWN);
     EXPECT_EQ(chess.getKey(), key) << "should xor key";
-    // EXPECT_EQ(chess.toFEN(), EMPTY_FEN) << "should move piece";
+    // EXPECT_EQ(chess.toFEN(), EMPTYFEN) << "should move piece";
 }
 
 TEST_F(ChessTest, RemovePieceBackwards) {
-    Chess chess = Chess(PAWN_FEN);
+    Chess chess = Chess(E2PAWN);
     U64 key = chess.getKey();
     chess.removePiece<false>(E2, WHITE, PAWN);
     EXPECT_EQ(chess.getKey(), key) << "should not xor key";
-    // EXPECT_EQ(chess.toFEN(), EMPTY_FEN) << "should move piece";
+    // EXPECT_EQ(chess.toFEN(), EMPTYFEN) << "should move piece";
 }
 
 TEST_F(ChessTest, MovePieceForward) {
-    Chess chess = Chess(PAWN_FEN);
+    Chess chess = Chess(E2PAWN);
     U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
     chess.movePiece<true>(E2, E4, WHITE, PAWN);
     EXPECT_EQ(chess.getKey(), key) << "should xor key";
-    EXPECT_EQ(chess.toFEN(), MOVE_FEN) << "should move piece";
+    EXPECT_EQ(chess.toFEN(), E4PAWN) << "should move piece";
 }
 
 TEST_F(ChessTest, MovePieceBackwards) {
-    Chess chess = Chess(PAWN_FEN);
+    Chess chess = Chess(E2PAWN);
     U64 key = chess.getKey();
     chess.movePiece<false>(E2, E4, WHITE, PAWN);
     EXPECT_EQ(chess.getKey(), key) << "should not xor key";
-    EXPECT_EQ(chess.toFEN(), MOVE_FEN) << "should move piece";
+    EXPECT_EQ(chess.toFEN(), E4PAWN) << "should move piece";
 }
 
 TEST_F(ChessTest, GetKeyCalculateKey) {
@@ -153,7 +148,7 @@ TEST_F(ChessTest, GetCheckingPiecesB) {
 }
 
 TEST_F(ChessTest, GetEnPassant) {
-    Chess c = Chess(ENPASSANT_FEN);
+    Chess c = Chess(A3ENPASSANT);
     EXPECT_EQ(c.getEnPassant(), A3) << "should have a valid enpassant square";
 }
 
@@ -207,17 +202,17 @@ TEST_F(ChessTest, MakeEnpassantSq) {
     auto fen = "4k3/8/8/8/1p6/8/P7/4K3 w - - 0 1";
     Chess c = Chess(fen);
     c.make(Move(A2, A4));
-    EXPECT_EQ(c.toFEN(), ENPASSANT_FEN) << "should set enpassant square";
+    EXPECT_EQ(c.toFEN(), A3ENPASSANT) << "should set enpassant square";
     c.unmake();
     EXPECT_EQ(c.toFEN(), fen) << "should clear enpassant square on undo";
 }
 
 TEST_F(ChessTest, MakeEnpassantCapt) {
-    Chess c = Chess(ENPASSANT_FEN);
+    Chess c = Chess(A3ENPASSANT);
     c.make(Move(B4, A3, ENPASSANT));
     EXPECT_EQ(c.toFEN(), "4k3/8/8/8/8/p7/8/4K3 w - - 0 2") << "should make enpassant captures";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), ENPASSANT_FEN) << "should undo enpassant captures";
+    EXPECT_EQ(c.toFEN(), A3ENPASSANT) << "should undo enpassant captures";
 }
 
 TEST_F(ChessTest, MakeCastleOO) {
@@ -266,11 +261,11 @@ TEST_F(ChessTest, MakeRookMoveDisableCastleOOORights) {
 }
 
 TEST_F(ChessTest, MakePromotion) {
-    Chess c = Chess(PROMOTION_FEN);
+    Chess c = Chess(A7PAWN);
     c.make(Move(A7, A8, PROMOTION, QUEEN));
     EXPECT_EQ(c.toFEN(), "Q3k3/8/8/8/8/8/8/4K3 b - - 0 1") << "should promote to queen";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), PROMOTION_FEN) << "should undo promotion on undo";
+    EXPECT_EQ(c.toFEN(), A7PAWN) << "should undo promotion on undo";
 }
 
 TEST_F(ChessTest, MakeUnderPromotion) {
@@ -303,7 +298,7 @@ TEST_F(ChessTest, IsPseudoLegalMoveLegalCastle) {
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegalEnPassant) {
-    Chess c = Chess(ENPASSANT_FEN);
+    Chess c = Chess(A3ENPASSANT);
     EXPECT_TRUE(c.isPseudoLegalMoveLegal(Move(B4, A3, ENPASSANT)))
         << "should allow legal enpassant";
 }
@@ -340,7 +335,7 @@ TEST_F(ChessTest, IsCheckingMoveDiscoveredEnPassant) {
 }
 
 TEST_F(ChessTest, IsCheckingMovePromotion) {
-    Chess c = Chess(PROMOTION_FEN);
+    Chess c = Chess(A7PAWN);
     EXPECT_TRUE(c.isCheckingMove(Move(A7, A8, PROMOTION, QUEEN)))
         << "should identify queen prom check";
     EXPECT_TRUE(c.isCheckingMove(Move(A7, A8, PROMOTION, ROOK)))
