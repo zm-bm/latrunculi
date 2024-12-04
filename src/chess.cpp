@@ -46,6 +46,7 @@ int Chess::egEval(int pawnScore) const {
 template <bool debug = false>
 int Chess::eval() const {
     auto [mgPawns, egPawns] = pawnsEval();
+
     int mg = mgEval(mgPawns);
     int eg = egEval(egPawns);
 

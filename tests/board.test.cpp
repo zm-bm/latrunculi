@@ -155,11 +155,6 @@ TEST_F(BoardTest, Count) {
     EXPECT_EQ(startBoard->count<PAWN>(WHITE), 8) << "should count 8 white pawns on start board";
 }
 
-TEST_F(BoardTest, CountDiff) {
-    EXPECT_EQ(emptyBoard->countDiff<KING>(), 0) << "should count 2 kings";
-    EXPECT_EQ(startBoard->countDiff<PAWN>(), 0) << "should count 16 pawns on start board";
-}
-
 TEST_F(BoardTest, NonPawnMaterial) {
     EXPECT_EQ(emptyBoard->nonPawnMaterial(WHITE), 0) << "empty board has 0 white non pawn material";
     EXPECT_EQ(emptyBoard->nonPawnMaterial(BLACK), 0) << "empty board has 0 black non pawn material";

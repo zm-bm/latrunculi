@@ -223,9 +223,6 @@ inline U64 backwardsPawns(U64 pawns, U64 enemyPawns) {
     U64 stops = BB::movesByPawns<PawnMove::PUSH, color>(pawns);
     U64 attackSpan = BB::getFrontAttackSpan<color>(pawns);
     U64 enemyAttacks = BB::attacksByPawns<enemy>(enemyPawns);
-    BB::print(std::cout, stops);
-    BB::print(std::cout, attackSpan);
-    BB::print(std::cout, enemyAttacks);
     return BB::movesByPawns<PawnMove::PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
 }
 

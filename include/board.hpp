@@ -44,8 +44,6 @@ struct Board {
 
     template <PieceType p>
     int count(Color c) const;
-    template <PieceType p>
-    int countDiff() const;
 
     int nonPawnMaterial(Color) const;
     bool oppositeBishopsEndGame() const;
@@ -206,12 +204,6 @@ template <PieceType p>
 inline int Board::count(Color c) const {
     // Return the count of pieces of a specific type for the given color
     return pieceCount[c][p];
-}
-
-template <PieceType p>
-inline int Board::countDiff() const {
-    // Return the differnce of pieces of a specific type between colors
-    return count<p>(WHITE) - count<p>(BLACK);
 }
 
 inline int Board::nonPawnMaterial(Color c) const {
