@@ -12,12 +12,26 @@ std::tuple<int, int> Chess::pawnsEval() const {
     U64 bPawns = board.getPieces<PAWN>(BLACK);
     U64 allPawns = wPawns | bPawns;
 
+    // isolated pawns
     U64 wIsolatedPawns = Eval::isolatedPawns(wPawns);
     U64 bIsolatedPawns = Eval::isolatedPawns(bPawns);
-
     int nIsolatedPawns = BB::bitCount(wIsolatedPawns) - BB::bitCount(bIsolatedPawns);
     mgScore += nIsolatedPawns * Eval::ISO_PAWN_PENALTY[MIDGAME];
     egScore += nIsolatedPawns * Eval::ISO_PAWN_PENALTY[ENDGAME];
+
+    // backwards pawns
+    U64 wBackwardsPawns = Eval::backwardsPawns<WHITE, BLACK>(wPawns, bPawns);
+    U64 bBackwardsPawns = Eval::backwardsPawns<BLACK, WHITE>(bPawns, wPawns);
+    int nBackwardsPawns = BB::bitCount(wBackwardsPawns) - BB::bitCount(bBackwardsPawns);
+    mgScore += nBackwardsPawns * Eval::BACKWARD_PAWN_PENALTY[MIDGAME];
+    egScore += nBackwardsPawns * Eval::BACKWARD_PAWN_PENALTY[ENDGAME];
+
+    // doubled pawns
+    U64 wDoubledPawns = Eval::doubledPawns<WHITE>(wPawns);
+    U64 bDoubledPawns = Eval::doubledPawns<BLACK>(bPawns);
+    int nDoubledPawns = BB::bitCount(wDoubledPawns) - BB::bitCount(bDoubledPawns);
+    mgScore += nDoubledPawns * Eval::DOUBLED_PAWN_PENALTY[MIDGAME];
+    egScore += nDoubledPawns * Eval::DOUBLED_PAWN_PENALTY[ENDGAME];
 
     return std::make_tuple(mgScore, egScore);
 }

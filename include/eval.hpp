@@ -13,6 +13,8 @@ const int MG_LIMIT = 15258;
 const int EG_LIMIT = 3915;
 const int TEMPO_BONUS = 25;
 const int ISO_PAWN_PENALTY[N_PHASES] = {-5, -15};
+const int BACKWARD_PAWN_PENALTY[N_PHASES] = {-9, -25};
+const int DOUBLED_PAWN_PENALTY[N_PHASES] = {-11, -56};
 
 const U64 WHITESQUARES = 0x55AA55AA55AA55AA;
 const U64 BLACKSQUARES = 0xAA55AA55AA55AA55;
@@ -224,6 +226,13 @@ inline U64 backwardsPawns(U64 pawns, U64 enemyPawns) {
     U64 attackSpan = BB::getFrontAttackSpan<color>(pawns);
     U64 enemyAttacks = BB::attacksByPawns<enemy>(enemyPawns);
     return BB::movesByPawns<PawnMove::PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
+}
+
+template <Color color>
+inline U64 doubledPawns(U64 pawns) {
+    U64 pawnsBehind = pawns & BB::spanFront<color>(pawns);
+    U64 supported = BB::attacksByPawns<color>(pawns);
+    return pawnsBehind & ~supported;
 }
 
 inline bool oppositeBishops(U64 wBishops, U64 bBishops) {

@@ -68,13 +68,28 @@ TEST(EvalTest, BackwardsPawns) {
     Board b(STARTFEN);
     U64 res = Eval::backwardsPawns<WHITE, BLACK>(b.getPieces<PAWN>(WHITE), b.getPieces<PAWN>(BLACK));
     EXPECT_EQ(res, 0);
+    res = Eval::backwardsPawns<BLACK, WHITE>(b.getPieces<PAWN>(BLACK), b.getPieces<PAWN>(WHITE));
+    EXPECT_EQ(res, 0);
 
-    b = Board("4k3/2p5/1p6/1P6/P7/8/8/4K3 w - c6 0 2");
+    b = Board("4k3/2p5/1p6/1P6/P7/8/8/4K3 w - - 0 1");
     res = Eval::backwardsPawns<WHITE, BLACK>(b.getPieces<PAWN>(WHITE), b.getPieces<PAWN>(BLACK));
     EXPECT_EQ(res, BB::set(A4));
-
     res = Eval::backwardsPawns<BLACK, WHITE>(b.getPieces<PAWN>(BLACK), b.getPieces<PAWN>(WHITE));
     EXPECT_EQ(res, BB::set(C7));
+}
+
+TEST(EvalTest, DoubledPawns) {
+    Board b(STARTFEN);
+    U64 res = Eval::doubledPawns<WHITE>(b.getPieces<PAWN>(WHITE));
+    EXPECT_EQ(res, 0);
+    res = Eval::doubledPawns<BLACK>(b.getPieces<PAWN>(BLACK));
+    EXPECT_EQ(res, 0);
+
+    b = Board("4k3/8/pp6/p7/P7/8/P7/4K3 w - - 0 1");
+    res = Eval::doubledPawns<WHITE>(b.getPieces<PAWN>(WHITE));
+    EXPECT_EQ(res, BB::set(A4));
+    res = Eval::doubledPawns<BLACK>(b.getPieces<PAWN>(BLACK));
+    EXPECT_EQ(res, 0);
 }
 
 TEST(EvalTest, OppositeBishops) {
