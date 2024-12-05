@@ -69,7 +69,7 @@ class Chess {
     int mgPieceSqBonus() const { return mgPieceSqScore; }
     int egPieceSqBonus() const { return egPieceSqScore; }
 
-    // move helpers
+    // other helpers
     U64 calculateKey() const;
     bool isPseudoLegalMoveLegal(Move) const;
     bool isCheckingMove(Move) const;
@@ -198,8 +198,8 @@ inline U64 Chess::calculateKey() const {
 inline int Chess::mgEval(int pawnScore = 0) const {
     int score = 0;
 
-    score += mgMaterialScore;
-    score += mgPieceSqScore;
+    score += mgMaterial();
+    score += mgPieceSqBonus();
     score += pawnScore;
 
     return score;
@@ -208,8 +208,8 @@ inline int Chess::mgEval(int pawnScore = 0) const {
 inline int Chess::egEval(int pawnScore = 0) const {
     int score = 0;
 
-    score += egMaterialScore;
-    score += egPieceSqScore;
+    score += egMaterial();
+    score += egPieceSqBonus();
     score += pawnScore;
 
     // scale down score for draw-ish positions

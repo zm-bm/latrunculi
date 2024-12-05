@@ -78,94 +78,6 @@ TEST_F(ChessTest, ScaleFactor) {
     EXPECT_EQ(Chess(STARTFEN).scaleFactor(), 64);
 }
 
-TEST_F(ChessTest, AddPieceForward) {
-    Chess chess = Chess(EMPTYFEN);
-    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
-    chess.addPiece<true>(E2, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should xor key";
-    EXPECT_EQ(chess.toFEN(), E2PAWN) << "should move piece";
-}
-
-TEST_F(ChessTest, AddPieceBackwards) {
-    Chess chess = Chess(EMPTYFEN);
-    U64 key = chess.getKey();
-    chess.addPiece<false>(E2, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
-    EXPECT_EQ(chess.toFEN(), E2PAWN) << "should move piece";
-}
-
-TEST_F(ChessTest, RemovePieceForward) {
-    Chess chess = Chess(E2PAWN);
-    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
-    chess.removePiece<true>(E2, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should xor key";
-    // EXPECT_EQ(chess.toFEN(), EMPTYFEN) << "should move piece";
-}
-
-TEST_F(ChessTest, RemovePieceBackwards) {
-    Chess chess = Chess(E2PAWN);
-    U64 key = chess.getKey();
-    chess.removePiece<false>(E2, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
-    // EXPECT_EQ(chess.toFEN(), EMPTYFEN) << "should move piece";
-}
-
-TEST_F(ChessTest, MovePieceForward) {
-    Chess chess = Chess(E2PAWN);
-    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
-    chess.movePiece<true>(E2, E4, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should xor key";
-    EXPECT_EQ(chess.toFEN(), E4PAWN) << "should move piece";
-}
-
-TEST_F(ChessTest, MovePieceBackwards) {
-    Chess chess = Chess(E2PAWN);
-    U64 key = chess.getKey();
-    chess.movePiece<false>(E2, E4, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
-    EXPECT_EQ(chess.toFEN(), E4PAWN) << "should move piece";
-}
-
-TEST_F(ChessTest, GetKeyCalculateKey) {
-    for (auto fen : FENS) {
-        Chess c = Chess(fen);
-        EXPECT_EQ(c.getKey(), c.calculateKey()) << "should calculate correct hash key";
-    }
-}
-
-TEST_F(ChessTest, GetCheckingPiecesW) {
-    Chess c = Chess(POS4W);
-    EXPECT_EQ(c.getCheckingPieces(), BB::set(B6)) << "should have a white checker on b6";
-}
-
-TEST_F(ChessTest, GetCheckingPiecesB) {
-    Chess c = Chess(POS4B);
-    EXPECT_EQ(c.getCheckingPieces(), BB::set(B3)) << "should have a black checker on b3";
-}
-
-TEST_F(ChessTest, GetEnPassant) {
-    Chess c = Chess(A3ENPASSANT);
-    EXPECT_EQ(c.getEnPassant(), A3) << "should have a valid enpassant square";
-}
-
-TEST_F(ChessTest, GetHmClock) {
-    Chess c = Chess("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1");
-    EXPECT_EQ(c.getHmClock(), 7) << "should have a half move clock of 7";
-}
-
-TEST_F(ChessTest, IsCheck) {
-    EXPECT_FALSE(Chess(STARTFEN).getCheckingPieces()) << "should not be in check from start pos";
-    EXPECT_TRUE(Chess(POS4W).getCheckingPieces()) << "should be in check";
-    EXPECT_TRUE(Chess(POS4B).getCheckingPieces()) << "should be in check";
-}
-
-TEST_F(ChessTest, IsDoubleCheck) {
-    EXPECT_FALSE(Chess(POS4W).isDoubleCheck()) << "should not be in double check";
-    EXPECT_FALSE(Chess(POS4B).isDoubleCheck()) << "should not be in double check";
-    EXPECT_TRUE(Chess("R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1").isDoubleCheck())
-        << "should be in double check";
-}
-
 TEST_F(ChessTest, Make) {
     Chess c = Chess(STARTFEN);
     c.make(Move(G1, F3));
@@ -271,6 +183,94 @@ TEST_F(ChessTest, MakeUnderPromotion) {
     EXPECT_EQ(c.toFEN(), "B3k3/8/8/8/8/8/8/4K3 b - - 0 1") << "should promote to bishop";
     c.unmake();
     EXPECT_EQ(c.toFEN(), fen) << "should undo promotion on undo";
+}
+
+TEST_F(ChessTest, AddPieceForward) {
+    Chess chess = Chess(EMPTYFEN);
+    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
+    chess.addPiece<true>(E2, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key) << "should xor key";
+    EXPECT_EQ(chess.toFEN(), E2PAWN) << "should move piece";
+}
+
+TEST_F(ChessTest, AddPieceBackwards) {
+    Chess chess = Chess(EMPTYFEN);
+    U64 key = chess.getKey();
+    chess.addPiece<false>(E2, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
+    EXPECT_EQ(chess.toFEN(), E2PAWN) << "should move piece";
+}
+
+TEST_F(ChessTest, RemovePieceForward) {
+    Chess chess = Chess(E2PAWN);
+    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
+    chess.removePiece<true>(E2, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key) << "should xor key";
+    // EXPECT_EQ(chess.toFEN(), EMPTYFEN) << "should move piece";
+}
+
+TEST_F(ChessTest, RemovePieceBackwards) {
+    Chess chess = Chess(E2PAWN);
+    U64 key = chess.getKey();
+    chess.removePiece<false>(E2, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
+    // EXPECT_EQ(chess.toFEN(), EMPTYFEN) << "should move piece";
+}
+
+TEST_F(ChessTest, MovePieceForward) {
+    Chess chess = Chess(E2PAWN);
+    U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
+    chess.movePiece<true>(E2, E4, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key) << "should xor key";
+    EXPECT_EQ(chess.toFEN(), E4PAWN) << "should move piece";
+}
+
+TEST_F(ChessTest, MovePieceBackwards) {
+    Chess chess = Chess(E2PAWN);
+    U64 key = chess.getKey();
+    chess.movePiece<false>(E2, E4, WHITE, PAWN);
+    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
+    EXPECT_EQ(chess.toFEN(), E4PAWN) << "should move piece";
+}
+
+TEST_F(ChessTest, GetKeyCalculateKey) {
+    for (auto fen : FENS) {
+        Chess c = Chess(fen);
+        EXPECT_EQ(c.getKey(), c.calculateKey()) << "should calculate correct hash key";
+    }
+}
+
+TEST_F(ChessTest, GetCheckingPiecesW) {
+    Chess c = Chess(POS4W);
+    EXPECT_EQ(c.getCheckingPieces(), BB::set(B6)) << "should have a white checker on b6";
+}
+
+TEST_F(ChessTest, GetCheckingPiecesB) {
+    Chess c = Chess(POS4B);
+    EXPECT_EQ(c.getCheckingPieces(), BB::set(B3)) << "should have a black checker on b3";
+}
+
+TEST_F(ChessTest, GetEnPassant) {
+    Chess c = Chess(A3ENPASSANT);
+    EXPECT_EQ(c.getEnPassant(), A3) << "should have a valid enpassant square";
+}
+
+TEST_F(ChessTest, GetHmClock) {
+    Chess c = Chess("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1");
+    EXPECT_EQ(c.getHmClock(), 7) << "should have a half move clock of 7";
+}
+
+TEST_F(ChessTest, IsCheck) {
+    EXPECT_FALSE(Chess(STARTFEN).getCheckingPieces()) << "should not be in check from start pos";
+    EXPECT_TRUE(Chess(POS4W).getCheckingPieces()) << "should be in check";
+    EXPECT_TRUE(Chess(POS4B).getCheckingPieces()) << "should be in check";
+}
+
+TEST_F(ChessTest, IsDoubleCheck) {
+    EXPECT_FALSE(Chess(POS4W).isDoubleCheck()) << "should not be in double check";
+    EXPECT_FALSE(Chess(POS4B).isDoubleCheck()) << "should not be in double check";
+    EXPECT_TRUE(Chess("R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1").isDoubleCheck())
+        << "should be in double check";
 }
 
 TEST_F(ChessTest, IsPseudoLegalMoveLegal) {
