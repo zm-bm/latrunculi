@@ -14,7 +14,18 @@ class ChessTest : public ::testing::Test {
     void SetUp() override { Magics::init(); }
 };
 
-// eval tests
+TEST_F(ChessTest, Eval) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.eval<false>(), c.egEval(0) + Eval::TEMPO_BONUS)
+        << "empty board eval should equal endgame eval + tempo";
+    c = Chess(STARTFEN);
+    EXPECT_EQ(c.eval<false>(), c.mgEval(0) + Eval::TEMPO_BONUS)
+        << "start board eval should equal midgame eval + tempo";
+    c = Chess(POS4B);
+    auto [mgPawns, egPawns] = c.pawnsEval();
+    EXPECT_EQ(c.eval<false>(), -c.mgEval(mgPawns) + Eval::TEMPO_BONUS)
+        << "black to move should invert eval";
+}
 
 TEST_F(ChessTest, MidGameMaterial) {
     EXPECT_EQ(Chess(STARTFEN).mgMaterial(), 0);
@@ -66,21 +77,6 @@ TEST_F(ChessTest, ScaleFactor) {
     // Default
     EXPECT_EQ(Chess(STARTFEN).scaleFactor(), 64);
 }
-
-TEST_F(ChessTest, Eval) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(c.eval<false>(), c.egEval(0) + Eval::TEMPO_BONUS)
-        << "empty board eval should equal endgame eval + tempo";
-    c = Chess(STARTFEN);
-    EXPECT_EQ(c.eval<false>(), c.mgEval(0) + Eval::TEMPO_BONUS)
-        << "start board eval should equal midgame eval + tempo";
-    c = Chess(POS4B);
-    auto [mgPawns, egPawns] = c.pawnsEval();
-    EXPECT_EQ(c.eval<false>(), -c.mgEval(mgPawns) + Eval::TEMPO_BONUS)
-        << "black to move should invert eval";
-}
-
-// end eval tests
 
 TEST_F(ChessTest, AddPieceForward) {
     Chess chess = Chess(EMPTYFEN);

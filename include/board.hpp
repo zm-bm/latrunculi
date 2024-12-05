@@ -21,16 +21,21 @@ struct Board {
     explicit Board(const std::string&);
     friend std::ostream& operator<<(std::ostream& os, const Board& b);
 
+    // mutators
     void addPiece(Square, Color, PieceType);
     void removePiece(Square, Color, PieceType);
     void movePiece(Square, Square, Color, PieceType);
 
+    // accessors
+    template <PieceType p>
+    int count(Color c) const;
     template <PieceType p>
     U64 getPieces(Color c) const;
     Piece getPiece(Square sq) const;
     PieceType getPieceType(Square sq) const;
     Square getKingSq(Color c) const;
 
+    // movegen helpers
     U64 occupancy() const;
     U64 diagonalSliders(Color c) const;
     U64 straightSliders(Color c) const;
@@ -42,14 +47,9 @@ struct Board {
     U64 calculateCheckingPieces(Color c) const;
     bool isBitboardAttacked(U64, Color) const;
 
-    template <PieceType p>
-    int count(Color c) const;
-
+    // eval helpers
     int nonPawnMaterial(Color) const;
     bool oppositeBishopsEndGame() const;
-    int doubledIsolatedPawns() const;
-
-    U64 candidatePassedPawns(Color) const;
     U64 passedPawns(Color) const;
 };
 
@@ -89,6 +89,12 @@ inline void Board::movePiece(const Square from, const Square to, const Color c, 
     pieces[c][p] ^= mask;
     squares[from] = NO_PIECE;
     squares[to] = Defs::makePiece(c, p);
+}
+
+template <PieceType p>
+inline int Board::count(Color c) const {
+    // Return the count of pieces of a specific type for the given color
+    return pieceCount[c][p];
 }
 
 template <PieceType p>
@@ -200,12 +206,6 @@ inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const {
     return false;
 }
 
-template <PieceType p>
-inline int Board::count(Color c) const {
-    // Return the count of pieces of a specific type for the given color
-    return pieceCount[c][p];
-}
-
 inline int Board::nonPawnMaterial(Color c) const {
     return (count<KNIGHT>(c) * Eval::mgPieceValue(KNIGHT) +
             count<BISHOP>(c) * Eval::mgPieceValue(BISHOP) +
@@ -218,11 +218,6 @@ inline bool Board::oppositeBishopsEndGame() const {
         return false;
     }
     return Eval::oppositeBishops(getPieces<BISHOP>(WHITE), getPieces<BISHOP>(BLACK));
-}
-
-inline U64 Board::candidatePassedPawns(Color c) const {
-    // TODO: add candidate passers
-    return passedPawns(c);
 }
 
 inline U64 Board::passedPawns(Color c) const {

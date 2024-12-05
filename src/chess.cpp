@@ -22,27 +22,6 @@ std::tuple<int, int> Chess::pawnsEval() const {
     return std::make_tuple(mgScore, egScore);
 }
 
-int Chess::mgEval(int pawnScore) const {
-    int score = 0;
-
-    score += mgMaterialScore;
-    score += mgPieceSqScore;
-    score += pawnScore;
-
-    return score;
-}
-
-int Chess::egEval(int pawnScore) const {
-    int score = 0;
-
-    score += egMaterialScore;
-    score += egPieceSqScore;
-    score += pawnScore;
-
-    // scale down score for draw-ish positions
-    return score * (scaleFactor() / 64);
-}
-
 template <bool debug = false>
 int Chess::eval() const {
     auto [mgPawns, egPawns] = pawnsEval();
@@ -83,7 +62,8 @@ int Chess::scaleFactor() const {
 
     // Opposite-colored bishops often lead to draws
     if (board.oppositeBishopsEndGame()) {
-        return std::min(64, 36 + 4 * BB::bitCount(board.candidatePassedPawns(turn)));
+        // todo: use candidate passed pawns
+        return std::min(64, 36 + 4 * BB::bitCount(board.passedPawns(turn)));
     }
 
     // Single queen scenarios with minor pieces
@@ -124,7 +104,7 @@ void Chess::make(Move mv) {
     // Store the captured piece role for undoing move
     state[ply].captured = toPieceType;
     if (toPieceType) {
-        updateCapturedPieces(capturedPieceSq, enemy, toPieceType);
+        handlePieceCapture(capturedPieceSq, enemy, toPieceType);
     }
 
     // Remove ep square from zobrist key if any
@@ -134,7 +114,7 @@ void Chess::make(Move mv) {
 
     // Move the piece
     if (movetype == CASTLE) {
-        makeCastle<true>(from, to, turn);
+        moveCastle<true>(from, to, turn);
     } else {
         movePiece<true>(from, to, turn, fromPieceType);
     }
@@ -194,7 +174,7 @@ void Chess::unmake() {
 
     // Undo the move
     if (movetype == CASTLE) {
-        makeCastle<false>(from, to, turn);
+        moveCastle<false>(from, to, turn);
     } else {
         movePiece<false>(to, from, turn, fromPieceType);
         if (toPieceType) {
@@ -231,7 +211,7 @@ void Chess::unmmakeNull() {
 }
 
 template <bool forward>
-void Chess::makeCastle(Square from, Square to, Color c) {
+void Chess::moveCastle(Square from, Square to, Color c) {
     if (forward) {
         movePiece<forward>(from, to, c, KING);
     } else {

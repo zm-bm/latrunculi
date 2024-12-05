@@ -2,8 +2,8 @@
 #define LATRUNCULI_CHESS_H
 
 #include <string>
-#include <vector>
 #include <tuple>
+#include <vector>
 
 #include "board.hpp"
 #include "constants.hpp"
@@ -27,46 +27,54 @@ class Chess {
    public:
     explicit Chess(const std::string&);
 
+    // eval
+    std::tuple<int, int> pawnsEval() const;
+    template <bool>
+    int eval() const;
+
+    // eval helpers
+    int mgEval(int) const;
+    int egEval(int) const;
+    int scaleFactor() const;
+
+    // make move / mutators
+    void make(Move);
+    void unmake();
+    void makeNull();
+    void unmmakeNull();
+
+    // make move helpers
     template <bool>
     void addPiece(Square, Color, PieceType);
     template <bool>
     void removePiece(Square, Color, PieceType);
     template <bool>
     void movePiece(Square, Square, Color, PieceType);
-
+    template <bool>
+    void moveCastle(Square, Square, Color);
     void updateState(bool);
-    U64 getKey() const;
-    U64 calculateKey() const;
-    U64 getCheckingPieces() const;
-    Square getEnPassant() const;
-    U8 getHmClock() const;
-    bool isCheck() const;
-    bool isDoubleCheck() const;
-    void setEnPassant(Square sq);
-    void updateCapturedPieces(Square sq, Color c, PieceType p);
+    void handlePieceCapture(Square sq, Color c, PieceType p);
     void handlePawnMoves(Square from, Square to, MoveType movetype, Move mv);
+    void setEnPassant(Square sq);
 
-    int mgMaterial() const;
-    int egMaterial() const;
-    int mgPieceSqBonus() const;
-    int egPieceSqBonus() const;
-    int scaleFactor() const;
+    // accessors
+    U64 getKey() const { return state.at(ply).zkey; }
+    U64 getCheckingPieces() const { return state.at(ply).checkingPieces; }
+    Square getEnPassant() const { return state.at(ply).enPassantSq; }
+    U8 getHmClock() const { return state.at(ply).hmClock; }
+    bool isCheck() const { return getCheckingPieces(); }
+    bool isDoubleCheck() const { return BB::moreThanOneSet(getCheckingPieces()); }
+    int mgMaterial() const { return mgMaterialScore; }
+    int egMaterial() const { return egMaterialScore; }
+    int mgPieceSqBonus() const { return mgPieceSqScore; }
+    int egPieceSqBonus() const { return egPieceSqScore; }
 
-    std::tuple<int, int> pawnsEval() const;
-    int mgEval(int) const;
-    int egEval(int) const;
-
-    template <bool>
-    int eval() const;
-
-    void make(Move);
-    void unmake();
-    void makeNull();
-    void unmmakeNull();
-    template <bool>
-    void makeCastle(Square, Square, Color);
+    // move helpers
+    U64 calculateKey() const;
     bool isPseudoLegalMoveLegal(Move) const;
     bool isCheckingMove(Move) const;
+
+    // string helpers
     std::string toFEN() const;
     std::string DebugString() const;
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
@@ -135,9 +143,34 @@ inline void Chess::updateState(bool checkingMove = true) {
         state[ply].checkingSquares[BISHOP] | state[ply].checkingSquares[ROOK];
 }
 
-inline U64 Chess::getKey() const {
-    // Return the Zobrist key for the current board state
-    return state.at(ply).zkey;
+inline void Chess::handlePieceCapture(Square sq, Color c, PieceType p) {
+    // Reset half move clock for capture
+    state[ply].hmClock = 0;
+    removePiece<true>(sq, c, p);
+
+    // Disable castle rights if captured piece is rook
+    if (state.at(ply).canCastle(c) && p == ROOK) {
+        state.at(ply).disableCastle(c, sq);
+    }
+}
+
+inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype, Move mv) {
+    // Reset half move clock for pawn move
+    state[ply].hmClock = 0;
+
+    auto doubleMove = static_cast<U8>(PawnMove::DOUBLE);
+    if ((from - to) == doubleMove || (to - from) == doubleMove) {
+        setEnPassant(Defs::pawnMove<PawnMove::PUSH, false>(to, turn));
+    } else if (movetype == PROMOTION) {
+        removePiece<true>(to, turn, PAWN);
+        addPiece<true>(to, turn, mv.promoPiece());
+    }
+}
+
+inline void Chess::setEnPassant(Square sq) {
+    // Set the en passant target square and update the hash key
+    state.at(ply).enPassantSq = sq;
+    state.at(ply).zkey ^= Zobrist::ep[Defs::fileFromSq(sq)];
 }
 
 inline U64 Chess::calculateKey() const {
@@ -162,63 +195,25 @@ inline U64 Chess::calculateKey() const {
     return zkey;
 }
 
-inline U64 Chess::getCheckingPieces() const {
-    // Return the bitboard of pieces that are checking the current player's king
-    return state.at(ply).checkingPieces;
+inline int Chess::mgEval(int pawnScore = 0) const {
+    int score = 0;
+
+    score += mgMaterialScore;
+    score += mgPieceSqScore;
+    score += pawnScore;
+
+    return score;
 }
 
-inline Square Chess::getEnPassant() const {
-    // Return the en passant target square if set
-    return state.at(ply).enPassantSq;
+inline int Chess::egEval(int pawnScore = 0) const {
+    int score = 0;
+
+    score += egMaterialScore;
+    score += egPieceSqScore;
+    score += pawnScore;
+
+    // scale down score for draw-ish positions
+    return score * (scaleFactor() / 64);
 }
-
-inline U8 Chess::getHmClock() const {
-    // Return the half-move clock from the current state
-    return state.at(ply).hmClock;
-}
-
-inline bool Chess::isCheck() const {
-    // Return whether the current player's king is in check
-    return getCheckingPieces();
-}
-
-inline bool Chess::isDoubleCheck() const {
-    // Return whether the current player's king is in double check
-    return BB::moreThanOneSet(getCheckingPieces());
-}
-
-inline void Chess::setEnPassant(Square sq) {
-    // Set the en passant target square and update the hash key
-    state.at(ply).enPassantSq = sq;
-    state.at(ply).zkey ^= Zobrist::ep[Defs::fileFromSq(sq)];
-}
-
-inline void Chess::updateCapturedPieces(Square sq, Color c, PieceType p) {
-    // Reset half move clock for capture
-    state[ply].hmClock = 0;
-    removePiece<true>(sq, c, p);
-
-    // Disable castle rights if captured piece is rook
-    if (state.at(ply).canCastle(c) && p == ROOK) {
-        state.at(ply).disableCastle(c, sq);
-    }
-}
-
-inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype, Move mv) {
-    state[ply].hmClock = 0;  // Reset half move clock
-
-    auto doubleMove = static_cast<U8>(PawnMove::DOUBLE);
-    if ((from - to) == doubleMove || (to - from) == doubleMove) {
-        setEnPassant(Defs::pawnMove<PawnMove::PUSH, false>(to, turn));
-    } else if (movetype == PROMOTION) {
-        removePiece<true>(to, turn, PAWN);
-        addPiece<true>(to, turn, mv.promoPiece());
-    }
-}
-
-inline int Chess::mgMaterial() const { return mgMaterialScore; }
-inline int Chess::egMaterial() const { return egMaterialScore; }
-inline int Chess::mgPieceSqBonus() const { return mgPieceSqScore; }
-inline int Chess::egPieceSqBonus() const { return egPieceSqScore; }
 
 #endif

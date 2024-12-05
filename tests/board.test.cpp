@@ -177,17 +177,6 @@ TEST_F(BoardTest, OppositeBishops) {
         << "different color bishops have opposite bishops";
 }
 
-TEST_F(BoardTest, CandidatePassedPawns) {
-    EXPECT_EQ(startBoard->candidatePassedPawns(WHITE), 0);
-    EXPECT_EQ(startBoard->candidatePassedPawns(BLACK), 0);
-    auto fen = "4k3/p2p4/8/8/8/8/P1P5/4K3 w - - 0 1";
-    EXPECT_EQ(Board(fen).candidatePassedPawns(WHITE), 0);
-    EXPECT_EQ(Board(fen).candidatePassedPawns(BLACK), 0);
-    fen = "4k3/p3p3/8/8/8/8/P1P5/4K3 w - - 0 1";
-    EXPECT_EQ(Board(fen).candidatePassedPawns(WHITE), BB::set(C2));
-    EXPECT_EQ(Board(fen).candidatePassedPawns(BLACK), BB::set(E7));
-}
-
 TEST_F(BoardTest, PassedPawns) {
     EXPECT_EQ(startBoard->passedPawns(WHITE), 0);
     EXPECT_EQ(startBoard->passedPawns(BLACK), 0);
