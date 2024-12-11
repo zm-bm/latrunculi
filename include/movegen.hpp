@@ -41,14 +41,16 @@ class MoveGenerator {
     void generateCastling(U64, Color);
 
     template <PawnMove, Color>
-    inline void addPawnMoves(U64);
+    void addPawnMoves(U64);
+
     template <PawnMove, Color, GenType>
-    inline void addPawnPromotions(U64);
+    void addPawnPromotions(U64);
+
     template <PawnMove, Color>
     void addEnPassants(U64, Square);
 
-    inline bool canCastleOO(U64 occ, Color turn);
-    inline bool canCastleOOO(U64 occ, Color turn);
+    bool canCastleOO(U64 occ, Color turn);
+    bool canCastleOOO(U64 occ, Color turn);
 };
 
 template <PawnMove p, Color c>
@@ -97,14 +99,14 @@ inline void MoveGenerator::addEnPassants(U64 pawns, Square enpassant) {
 }
 
 inline bool MoveGenerator::canCastleOO(U64 occ, Color turn) {
-    return (chess->state.at(chess->ply).canCastleOO(turn)            // castling rights
-            && !(occ & BB::CastlePathOO[turn])  // castle path unoccupied/attacked
+    return (chess->state.at(chess->ply).canCastleOO(turn)  // castling rights
+            && !(occ & BB::CastlePathOO[turn])             // castle path unoccupied/attacked
             && !chess->board.isBitboardAttacked(BB::KingCastlePathOO[turn], ~turn));
 }
 
 inline bool MoveGenerator::canCastleOOO(U64 occ, Color turn) {
-    return (chess->state.at(chess->ply).canCastleOOO(turn)            // castling rights
-            && !(occ & BB::CastlePathOOO[turn])  // castle path unoccupied/attacked
+    return (chess->state.at(chess->ply).canCastleOOO(turn)  // castling rights
+            && !(occ & BB::CastlePathOOO[turn])             // castle path unoccupied/attacked
             && !chess->board.isBitboardAttacked(BB::KingCastlePathOOO[turn], ~turn));
 }
 

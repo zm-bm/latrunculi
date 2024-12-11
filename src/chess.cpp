@@ -39,9 +39,10 @@ std::tuple<int, int> Chess::pawnsEval() const {
 template <bool debug = false>
 int Chess::eval() const {
     auto [mgPawns, egPawns] = pawnsEval();
+    auto [mgPieces, egPieces] = pawnsEval();
 
-    int mg = mgEval(mgPawns);
-    int eg = egEval(egPawns);
+    int mg = phaseEval<MIDGAME>(mgPawns, mgPieces);
+    int eg = phaseEval<ENDGAME>(egPawns, egPieces);
 
     // tapered eval based on remaining non pawn material
     int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);

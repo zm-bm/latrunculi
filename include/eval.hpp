@@ -230,6 +230,7 @@ inline U64 backwardsPawns(U64 pawns, U64 enemyPawns) {
 
 template <Color color>
 inline U64 doubledPawns(U64 pawns) {
+    // pawns that have friendly pawns behind them that aren't supported
     U64 pawnsBehind = pawns & BB::spanFront<color>(pawns);
     U64 supported = BB::attacksByPawns<color>(pawns);
     return pawnsBehind & ~supported;

@@ -18,23 +18,21 @@ class Chess {
     Color turn = WHITE;
     U32 ply = 0;
     U32 moveCounter = 0;
-
-    int mgMaterialScore = 0;
-    int egMaterialScore = 0;
-    int mgPieceSqScore = 0;
-    int egPieceSqScore = 0;
+    int material[2] = {0, 0};
+    int pieceSquares[2] = {0, 0};
 
    public:
     explicit Chess(const std::string&);
 
     // eval
-    std::tuple<int, int> pawnsEval() const;
     template <bool>
     int eval() const;
 
     // eval helpers
-    int mgEval(int) const;
-    int egEval(int) const;
+    template <Phase>
+    int phaseEval(int, int) const;
+    std::tuple<int, int> pawnsEval() const;
+    std::tuple<int, int> piecesEval() const;
     int scaleFactor() const;
 
     // make move / mutators
@@ -64,10 +62,10 @@ class Chess {
     U8 getHmClock() const { return state.at(ply).hmClock; }
     bool isCheck() const { return getCheckingPieces(); }
     bool isDoubleCheck() const { return BB::moreThanOneSet(getCheckingPieces()); }
-    int mgMaterial() const { return mgMaterialScore; }
-    int egMaterial() const { return egMaterialScore; }
-    int mgPieceSqBonus() const { return mgPieceSqScore; }
-    int egPieceSqBonus() const { return egPieceSqScore; }
+    template <Phase ph>
+    int materialScore() const { return material[ph]; }
+    template <Phase ph>
+    int pieceSqScore() const { return pieceSquares[ph]; }
 
     // other helpers
     U64 calculateKey() const;
@@ -85,10 +83,10 @@ class Chess {
 template <bool forward>
 inline void Chess::addPiece(Square sq, Color c, PieceType pt) {
     board.addPiece(sq, c, pt);
-    mgMaterialScore += Eval::pieceValue(MIDGAME, c, pt);
-    egMaterialScore += Eval::pieceValue(ENDGAME, c, pt);
-    mgPieceSqScore += Eval::pieceSqBonus(MIDGAME, c, pt, sq);
-    egPieceSqScore += Eval::pieceSqBonus(ENDGAME, c, pt, sq);
+    material[MIDGAME] += Eval::pieceValue(MIDGAME, c, pt);
+    material[ENDGAME] += Eval::pieceValue(ENDGAME, c, pt);
+    pieceSquares[MIDGAME] += Eval::pieceSqBonus(MIDGAME, c, pt, sq);
+    pieceSquares[ENDGAME] += Eval::pieceSqBonus(ENDGAME, c, pt, sq);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][pt][sq];
@@ -98,10 +96,10 @@ inline void Chess::addPiece(Square sq, Color c, PieceType pt) {
 template <bool forward>
 inline void Chess::removePiece(Square sq, Color c, PieceType pt) {
     board.removePiece(sq, c, pt);
-    mgMaterialScore -= Eval::pieceValue(MIDGAME, c, pt);
-    egMaterialScore -= Eval::pieceValue(ENDGAME, c, pt);
-    mgPieceSqScore -= Eval::pieceSqBonus(MIDGAME, c, pt, sq);
-    egPieceSqScore -= Eval::pieceSqBonus(ENDGAME, c, pt, sq);
+    material[MIDGAME] -= Eval::pieceValue(MIDGAME, c, pt);
+    material[ENDGAME] -= Eval::pieceValue(ENDGAME, c, pt);
+    pieceSquares[MIDGAME] -= Eval::pieceSqBonus(MIDGAME, c, pt, sq);
+    pieceSquares[ENDGAME] -= Eval::pieceSqBonus(ENDGAME, c, pt, sq);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][pt][sq];
@@ -111,9 +109,9 @@ inline void Chess::removePiece(Square sq, Color c, PieceType pt) {
 template <bool forward>
 inline void Chess::movePiece(Square from, Square to, Color c, PieceType pt) {
     board.movePiece(from, to, c, pt);
-    mgPieceSqScore +=
+    pieceSquares[MIDGAME] +=
         Eval::pieceSqBonus(MIDGAME, c, pt, to) - Eval::pieceSqBonus(MIDGAME, c, pt, from);
-    egPieceSqScore +=
+    pieceSquares[ENDGAME] +=
         Eval::pieceSqBonus(ENDGAME, c, pt, to) - Eval::pieceSqBonus(ENDGAME, c, pt, from);
 
     if (forward) {
@@ -195,25 +193,20 @@ inline U64 Chess::calculateKey() const {
     return zkey;
 }
 
-inline int Chess::mgEval(int pawnScore = 0) const {
+template <Phase ph>
+inline int Chess::phaseEval(int pawnScore, int pieceScore) const {
     int score = 0;
 
-    score += mgMaterial();
-    score += mgPieceSqBonus();
+    score += materialScore<ph>();
+    score += pieceSqScore<ph>();
     score += pawnScore;
+    score += pieceScore;
+
+    if constexpr (ph == ENDGAME) {
+        score *= (scaleFactor() / 64);
+    }
 
     return score;
-}
-
-inline int Chess::egEval(int pawnScore = 0) const {
-    int score = 0;
-
-    score += egMaterial();
-    score += egPieceSqBonus();
-    score += pawnScore;
-
-    // scale down score for draw-ish positions
-    return score * (scaleFactor() / 64);
 }
 
 #endif

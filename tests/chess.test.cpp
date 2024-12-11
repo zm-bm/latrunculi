@@ -14,51 +14,83 @@ class ChessTest : public ::testing::Test {
     void SetUp() override { Magics::init(); }
 };
 
-TEST_F(ChessTest, Eval) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(c.eval<false>(), c.egEval(0) + Eval::TEMPO_BONUS)
-        << "empty board eval should equal endgame eval + tempo";
-    c = Chess(STARTFEN);
-    EXPECT_EQ(c.eval<false>(), c.mgEval(0) + Eval::TEMPO_BONUS)
+TEST_F(ChessTest, PawnsEvalIsoPawn) {
+    Chess c(E2PAWN);
+    auto [mg, eg] = c.pawnsEval();
+    EXPECT_LT(mg, 0) << "midgame evaluation should penalize iso pawns";
+    EXPECT_LT(eg, 0) << "endgame evaluation should penalize iso pawns";
+}
+
+TEST_F(ChessTest, PawnsEvalBackwardsPawn) {
+    Chess c("4k3/8/1pp5/1P6/P7/8/8/4K3 w - - 0 1");
+    auto [mg, eg] = c.pawnsEval();
+    EXPECT_LT(mg, 0) << "midgame evaluation should penalize backwards pawns";
+    EXPECT_LT(eg, 0) << "endgame evaluation should penalize backwards pawns";
+}
+
+TEST_F(ChessTest, PawnsEvalDoubledPawn) {
+    Chess c("4k3/8/8/8/P7/P7/8/4K3 w - - 0 1");
+    auto [mg, eg] = c.pawnsEval();
+    EXPECT_LT(mg, 0) << "midgame evaluation should penalize doubled pawns";
+    EXPECT_LT(eg, 0) << "endgame evaluation should penalize doubled pawns";
+}
+
+TEST_F(ChessTest, EvalStartBoard) {
+    Chess c(STARTFEN);
+    int mg = c.phaseEval<MIDGAME>(0, 0);
+    EXPECT_EQ(c.eval<false>(), mg + Eval::TEMPO_BONUS)
         << "start board eval should equal midgame eval + tempo";
-    c = Chess(POS4B);
+}
+
+TEST_F(ChessTest, EvalEmptyBoard) {
+    Chess c(EMPTYFEN);
+    int eg = c.phaseEval<ENDGAME>(0, 0);
+    EXPECT_EQ(c.eval<false>(), eg + Eval::TEMPO_BONUS)
+        << "empty board eval should equal endgame eval + tempo";
+}
+
+TEST_F(ChessTest, EvalBlackToMove) {
+    Chess c(POS4B);
     auto [mgPawns, egPawns] = c.pawnsEval();
-    EXPECT_EQ(c.eval<false>(), -c.mgEval(mgPawns) + Eval::TEMPO_BONUS)
+    auto [mgPieces, egPieces] = c.pawnsEval();
+    int score = -c.phaseEval<MIDGAME>(mgPawns, mgPieces);
+
+    EXPECT_EQ(c.eval<false>(), score + Eval::TEMPO_BONUS)
         << "black to move should invert eval";
 }
 
 TEST_F(ChessTest, MidGameMaterial) {
-    EXPECT_EQ(Chess(STARTFEN).mgMaterial(), 0);
-    EXPECT_EQ(Chess("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1").mgMaterial(), Eval::mgPieceValue(PAWN));
-    EXPECT_EQ(Chess("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1").mgMaterial(),
+    EXPECT_EQ(Chess(STARTFEN).materialScore<MIDGAME>(), 0);
+    EXPECT_EQ(Chess("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1").materialScore<MIDGAME>(), Eval::mgPieceValue(PAWN));
+    EXPECT_EQ(Chess("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1").materialScore<MIDGAME>(),
               Eval::mgPieceValue(KNIGHT));
-    EXPECT_EQ(Chess("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1").mgMaterial(),
+    EXPECT_EQ(Chess("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1").materialScore<MIDGAME>(),
               -Eval::mgPieceValue(BISHOP));
-    EXPECT_EQ(Chess("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1").mgMaterial(),
+    EXPECT_EQ(Chess("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1").materialScore<MIDGAME>(),
               Eval::mgPieceValue(QUEEN) - Eval::mgPieceValue(ROOK));
 }
 
 TEST_F(ChessTest, EndGameMaterial) {
-    EXPECT_EQ(Chess(STARTFEN).egMaterial(), 0);
-    EXPECT_EQ(Chess("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1").egMaterial(), Eval::egPieceValue(PAWN));
-    EXPECT_EQ(Chess("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1").egMaterial(),
+    EXPECT_EQ(Chess(STARTFEN).materialScore<ENDGAME>(), 0);
+    EXPECT_EQ(Chess("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1").materialScore<ENDGAME>(), Eval::egPieceValue(PAWN));
+    EXPECT_EQ(Chess("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1").materialScore<ENDGAME>(),
               Eval::egPieceValue(KNIGHT));
-    EXPECT_EQ(Chess("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1").egMaterial(),
+    EXPECT_EQ(Chess("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1").materialScore<ENDGAME>(),
               -Eval::egPieceValue(BISHOP));
-    EXPECT_EQ(Chess("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1").egMaterial(),
+    EXPECT_EQ(Chess("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1").materialScore<ENDGAME>(),
               Eval::egPieceValue(QUEEN) - Eval::egPieceValue(ROOK));
 }
 
 TEST_F(ChessTest, MidGamePieceSqBonus) {
-    EXPECT_EQ(Chess(STARTFEN).mgPieceSqBonus(), 0);
-    EXPECT_EQ(Chess(EMPTYFEN).mgPieceSqBonus(), 0);
-    EXPECT_EQ(Chess(E2PAWN).mgPieceSqBonus(), Eval::pieceSqBonus(MIDGAME, WHITE, PAWN, E2));
+    EXPECT_EQ(Chess(STARTFEN).pieceSqScore<MIDGAME>(), 0);
+    EXPECT_EQ(Chess(EMPTYFEN).pieceSqScore<MIDGAME>(), 0);
+    EXPECT_EQ(Chess(E2PAWN).pieceSqScore<MIDGAME>(), Eval::pieceSqBonus(MIDGAME, WHITE, PAWN, E2));
 }
 
 TEST_F(ChessTest, EndGamePieceSqBonus) {
-    EXPECT_EQ(Chess(STARTFEN).egPieceSqBonus(), 0);
-    EXPECT_EQ(Chess(EMPTYFEN).egPieceSqBonus(), 0);
-    EXPECT_EQ(Chess(E2PAWN).egPieceSqBonus(), Eval::pieceSqBonus(ENDGAME, WHITE, PAWN, E2));
+    EXPECT_EQ(Chess(STARTFEN).pieceSqScore<ENDGAME>(), 0);
+    EXPECT_EQ(Chess(EMPTYFEN).pieceSqScore<ENDGAME>(), 0);
+    EXPECT_EQ(Chess(E2PAWN).pieceSqScore<ENDGAME>(), Eval::pieceSqBonus(ENDGAME, WHITE, PAWN, E2));
 }
 
 TEST_F(ChessTest, ScaleFactor) {
