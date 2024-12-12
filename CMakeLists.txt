@@ -35,4 +35,5 @@ add_executable(LatrunculiTests ${TEST_SOURCES})
 target_link_libraries(LatrunculiTests LatrunculiLib gtest gmock gtest_main pthread)
 
 # Add tests
+include(CTest)
 add_test(NAME LatrunculiTests COMMAND LatrunculiTests)
