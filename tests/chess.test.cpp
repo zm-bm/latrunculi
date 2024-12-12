@@ -35,17 +35,21 @@ TEST_F(ChessTest, PawnsEvalDoubledPawn) {
     EXPECT_LT(eg, 0) << "endgame evaluation should penalize doubled pawns";
 }
 
+TEST_F(ChessTest, PiecesEval) {
+
+}
+
 TEST_F(ChessTest, EvalStartBoard) {
     Chess c(STARTFEN);
     int mg = c.phaseEval<MIDGAME>(0, 0);
-    EXPECT_EQ(c.eval<false>(), mg + Eval::TEMPO_BONUS)
+    EXPECT_EQ(c.eval<false>(), mg + TEMPO_BONUS)
         << "start board eval should equal midgame eval + tempo";
 }
 
 TEST_F(ChessTest, EvalEmptyBoard) {
     Chess c(EMPTYFEN);
     int eg = c.phaseEval<ENDGAME>(0, 0);
-    EXPECT_EQ(c.eval<false>(), eg + Eval::TEMPO_BONUS)
+    EXPECT_EQ(c.eval<false>(), eg + TEMPO_BONUS)
         << "empty board eval should equal endgame eval + tempo";
 }
 
@@ -55,7 +59,7 @@ TEST_F(ChessTest, EvalBlackToMove) {
     auto [mgPieces, egPieces] = c.pawnsEval();
     int score = -c.phaseEval<MIDGAME>(mgPawns, mgPieces);
 
-    EXPECT_EQ(c.eval<false>(), score + Eval::TEMPO_BONUS)
+    EXPECT_EQ(c.eval<false>(), score + TEMPO_BONUS)
         << "black to move should invert eval";
 }
 

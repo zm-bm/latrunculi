@@ -3,6 +3,35 @@
 #include "defs.hpp"
 #include "eval.hpp"
 #include "fen.hpp"
+#include "score.hpp"
+
+std::tuple<int, int> Chess::piecesEval() const {
+    int mgScore = 0;
+    int egScore = 0;
+
+    U64 pieces = 0;
+    U64 occ = board.occupancy();
+    U64 wPawns = board.getPieces<PAWN>(WHITE);
+    U64 bPawns = board.getPieces<PAWN>(BLACK);
+
+    U64 wHoles = ~BB::getFrontAttackSpan<WHITE>(wPawns) & WHITE_OUTPOSTS;
+    U64 bHoles = ~BB::getFrontAttackSpan<BLACK>(bPawns) & BLACK_OUTPOSTS;
+    U64 wOutposts = bHoles & BB::attacksByPawns<WHITE>(wPawns);
+    U64 bOutposts = wHoles & BB::attacksByPawns<BLACK>(bPawns);
+
+    pieces = board.getPieces<KNIGHT>(WHITE);
+    while (pieces) {
+        Square sq = BB::advanced<WHITE>(pieces);
+        pieces &= BB::clear(sq);
+
+
+        // U64 validOutposts = BB::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
+        // if (validOutposts & allOutposts)
+        //     wKnightScore += Eval::MINOR_OUTPOST_BONUS;
+    }
+
+    return std::make_tuple(mgScore, egScore);
+}
 
 std::tuple<int, int> Chess::pawnsEval() const {
     int mgScore = 0;
@@ -16,22 +45,22 @@ std::tuple<int, int> Chess::pawnsEval() const {
     U64 wIsolatedPawns = Eval::isolatedPawns(wPawns);
     U64 bIsolatedPawns = Eval::isolatedPawns(bPawns);
     int nIsolatedPawns = BB::bitCount(wIsolatedPawns) - BB::bitCount(bIsolatedPawns);
-    mgScore += nIsolatedPawns * Eval::ISO_PAWN_PENALTY[MIDGAME];
-    egScore += nIsolatedPawns * Eval::ISO_PAWN_PENALTY[ENDGAME];
+    mgScore += nIsolatedPawns * ISO_PAWN_PENALTY[MIDGAME];
+    egScore += nIsolatedPawns * ISO_PAWN_PENALTY[ENDGAME];
 
     // backwards pawns
     U64 wBackwardsPawns = Eval::backwardsPawns<WHITE, BLACK>(wPawns, bPawns);
     U64 bBackwardsPawns = Eval::backwardsPawns<BLACK, WHITE>(bPawns, wPawns);
     int nBackwardsPawns = BB::bitCount(wBackwardsPawns) - BB::bitCount(bBackwardsPawns);
-    mgScore += nBackwardsPawns * Eval::BACKWARD_PAWN_PENALTY[MIDGAME];
-    egScore += nBackwardsPawns * Eval::BACKWARD_PAWN_PENALTY[ENDGAME];
+    mgScore += nBackwardsPawns * BACKWARD_PAWN_PENALTY[MIDGAME];
+    egScore += nBackwardsPawns * BACKWARD_PAWN_PENALTY[ENDGAME];
 
     // doubled pawns
     U64 wDoubledPawns = Eval::doubledPawns<WHITE>(wPawns);
     U64 bDoubledPawns = Eval::doubledPawns<BLACK>(bPawns);
     int nDoubledPawns = BB::bitCount(wDoubledPawns) - BB::bitCount(bDoubledPawns);
-    mgScore += nDoubledPawns * Eval::DOUBLED_PAWN_PENALTY[MIDGAME];
-    egScore += nDoubledPawns * Eval::DOUBLED_PAWN_PENALTY[ENDGAME];
+    mgScore += nDoubledPawns * DOUBLED_PAWN_PENALTY[MIDGAME];
+    egScore += nDoubledPawns * DOUBLED_PAWN_PENALTY[ENDGAME];
 
     return std::make_tuple(mgScore, egScore);
 }
@@ -39,25 +68,25 @@ std::tuple<int, int> Chess::pawnsEval() const {
 template <bool debug = false>
 int Chess::eval() const {
     auto [mgPawns, egPawns] = pawnsEval();
-    auto [mgPieces, egPieces] = pawnsEval();
+    auto [mgPieces, egPieces] = piecesEval();
 
     int mg = phaseEval<MIDGAME>(mgPawns, mgPieces);
     int eg = phaseEval<ENDGAME>(egPawns, egPieces);
+    Score score{mg, eg};
 
     // tapered eval based on remaining non pawn material
-    int npm = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
-    int score = Eval::taperScore(mg, eg, Eval::calculatePhase(npm));
+    int phase = Eval::calculatePhase(board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK));
+    int result = score.taper(phase);
 
     // tempo bonus
-    score += Eval::tempoBonus(turn);
+    result += Eval::tempoBonus(turn);
 
     if constexpr (debug) {
-        std::cout << "score: " << score << std::endl;
+        std::cout << "score: " << result << std::endl;
     }
 
     // return score relative to side to move
-    score *= ((2 * turn) - 1);
-    return score;
+    return result * ((2 * turn) - 1);
 }
 template int Chess::eval<true>() const;
 template int Chess::eval<false>() const;

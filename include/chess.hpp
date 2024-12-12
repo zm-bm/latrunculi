@@ -18,8 +18,8 @@ class Chess {
     Color turn = WHITE;
     U32 ply = 0;
     U32 moveCounter = 0;
-    int material[2] = {0, 0};
-    int pieceSquares[2] = {0, 0};
+    int material[N_PHASES] = {0, 0};
+    int pieceSquares[N_PHASES] = {0, 0};
 
    public:
     explicit Chess(const std::string&);
