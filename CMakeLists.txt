@@ -4,7 +4,6 @@ project(Latrunculi)
 # Specify C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_BUILD_TYPE Release)
 
 # Include directories
 include_directories(include)
@@ -26,18 +25,14 @@ enable_testing()
 # Add Google Test submodule
 add_subdirectory(third_party/googletest)
 
-# Include Google Test directories
-include_directories(third_party/googletest/googletest/include)
-include_directories(third_party/googletest/googlemock/include)
-
 # Test files
 file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp")
 
 # Create test executable
-add_executable(runTests ${TEST_SOURCES})
+add_executable(LatrunculiTests ${TEST_SOURCES})
 
 # Link GTest to the test executable
-target_link_libraries(runTests LatrunculiLib gtest gmock gtest_main pthread)
+target_link_libraries(LatrunculiTests LatrunculiLib gtest gmock gtest_main pthread)
 
 # Add tests
-add_test(NAME LatrunculiTests COMMAND runTests)
+add_test(NAME LatrunculiTests COMMAND LatrunculiTests)
