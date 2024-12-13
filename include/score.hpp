@@ -1,3 +1,6 @@
+#ifndef LATRUNCULI_SCORE_H
+#define LATRUNCULI_SCORE_H
+
 #include "constants.hpp"
 
 struct Score {
@@ -32,3 +35,5 @@ struct Score {
         return *this;
     }
 };
+
+#endif

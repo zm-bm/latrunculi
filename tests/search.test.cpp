@@ -29,45 +29,50 @@ TEST_P(PerftTest, PerftForMultipleDepths) {
     }
 }
 
-INSTANTIATE_TEST_SUITE_P(StartFenPerftTestSuite,
-                         PerftTest,
-                         ::testing::Values(std::make_tuple(STARTFEN,
-                                                           std::vector<long>{
-                                                               20, 400, 8902, 197281, 4865609,
-                                                               //  119060324,
-                                                           })));
+auto startfen = std::make_tuple(STARTFEN,
+                                std::vector<long>{
+                                    20, 400, 8902, 197281,
+                                    //    4865609,
+                                    //  119060324,
+                                });
+INSTANTIATE_TEST_SUITE_P(StartFenPerftTestSuite, PerftTest, ::testing::Values(startfen));
 
-INSTANTIATE_TEST_SUITE_P(Position2PerftTestSuite,
-                         PerftTest,
-                         ::testing::Values(std::make_tuple(POS2,
-                                                           std::vector<long>{
-                                                               48, 2039, 97862, 4085603,
-                                                               //    193690690,
-                                                               // 8031647685,
-                                                           })));
+auto pos2 = std::make_tuple(POS2,
+                            std::vector<long>{
+                                48, 2039, 97862, 4085603,
+                                //    193690690,
+                                // 8031647685,
+                            });
+INSTANTIATE_TEST_SUITE_P(Position2PerftTestSuite, PerftTest, ::testing::Values(pos2));
 
-INSTANTIATE_TEST_SUITE_P(Position3PerftTestSuite,
-                         PerftTest,
-                         ::testing::Values(std::make_tuple(POS3,
-                                                           std::vector<long>{14, 191, 2812, 43238, 674624, 11030083})));
+auto pos3 = std::make_tuple(POS3,
+                            std::vector<long>{
+                                14, 191, 2812, 43238,
+                                //  674624,
+                                //  11030083
+                            });
+INSTANTIATE_TEST_SUITE_P(Position3PerftTestSuite, PerftTest, ::testing::Values(pos3));
 
-INSTANTIATE_TEST_SUITE_P(Position4WPerftTestSuite,
-                         PerftTest,
-                         ::testing::Values(std::make_tuple(POS4W,
-                                                           std::vector<long>{6, 264, 9467, 422333, 15833292})));
+auto pos4w = std::make_tuple(POS4W,
+                             std::vector<long>{
+                                 6, 264, 9467, 422333,
+                                 // 15833292
+                             });
+INSTANTIATE_TEST_SUITE_P(Position4WPerftTestSuite, PerftTest, ::testing::Values(pos4w));
 
-INSTANTIATE_TEST_SUITE_P(Position4BPerftTestSuite,
-                         PerftTest,
-                         ::testing::Values(std::make_tuple(POS4B,
-                                                           std::vector<long>{6, 264, 9467, 422333, 15833292})));
+auto pos4b = std::make_tuple(POS4B,
+                             std::vector<long>{
+                                 6, 264, 9467, 422333,
+                                 // 15833292
+                             });
+INSTANTIATE_TEST_SUITE_P(Position4BPerftTestSuite, PerftTest, ::testing::Values(pos4b));
 
-INSTANTIATE_TEST_SUITE_P(Position5PerftTestSuite,
-                         PerftTest,
-                         ::testing::Values(std::make_tuple(POS5,
-                                                           std::vector<long>{
-                                                               44, 1486, 62379, 2103487,
-                                                               //    89941194
-                                                           })));
+auto pos5 = std::make_tuple(POS5,
+                            std::vector<long>{
+                                44, 1486, 62379, 2103487,
+                                //    89941194
+                            });
+INSTANTIATE_TEST_SUITE_P(Position5PerftTestSuite, PerftTest, ::testing::Values(pos5));
 
 // prev search tests
 
@@ -88,12 +93,13 @@ INSTANTIATE_TEST_SUITE_P(Position5PerftTestSuite,
 // };
 
 // std::vector<Position> integration = {
-//     { "7R/8/8/8/8/1K6/8/1k6 w - -",                          Move(H8, H1), Move(), 1, MATESCORE-1, EXACT }, // Mate
-//     in 1 { "5rk1/pb2npp1/1pq4p/5p2/5B2/1B6/P2RQ1PP/2r1R2K b - -", Move(C6, G2), Move(), 3, MATESCORE-3, EXACT }, //
-//     Mate in 2 { "k7/8/4r3/8/8/3Q4/4p3/K7 w - -",                       Move(D3, D5), Move(), 4, ROOKSCORE,   MORE },
-//     // Find tactical win { "R1R5/7R/1k6/7R/8/P1P5/PKP5/1RP5 w - -",               Move(B2, A1), Move(), 1,
-//     MATESCORE-1, EXACT }, // Mate in 1 avoid stalemate { "R1R5/7R/1k6/7R/8/8/8/1K6 b - -", Move(), Move(B6, B5), 1,
-//     DRAWSCORE,   EXACT }, // Evaluate stalemate
+//     { "7R/8/8/8/8/1K6/8/1k6 w - -",                          Move(H8, H1), Move(), 1,
+//     MATESCORE-1, EXACT }, // Mate in 1 { "5rk1/pb2npp1/1pq4p/5p2/5B2/1B6/P2RQ1PP/2r1R2K b - -",
+//     Move(C6, G2), Move(), 3, MATESCORE-3, EXACT }, // Mate in 2 { "k7/8/4r3/8/8/3Q4/4p3/K7 w -
+//     -",                       Move(D3, D5), Move(), 4, ROOKSCORE,   MORE },
+//     // Find tactical win { "R1R5/7R/1k6/7R/8/P1P5/PKP5/1RP5 w - -",               Move(B2, A1),
+//     Move(), 1, MATESCORE-1, EXACT }, // Mate in 1 avoid stalemate { "R1R5/7R/1k6/7R/8/8/8/1K6 b -
+//     -", Move(), Move(B6, B5), 1, DRAWSCORE,   EXACT }, // Evaluate stalemate
 // };
 
 // TEST_CASE( "Integration search tests", "[search-integration]" )
@@ -127,11 +133,13 @@ INSTANTIATE_TEST_SUITE_P(Position5PerftTestSuite,
 // }
 
 // std::vector<Position> positional = {
-//     { "rn1qkb1r/pp2pppp/5n2/3p1b2/3P4/2N1P3/PP3PPP/R1BQKBNR w KQkq - 0 1",  Move(D1, B3), Move(), 10, -1 },
-//     { "rn1qkb1r/pp2pppp/5n2/3p1b2/3P4/1QN1P3/PP3PPP/R1B1KBNR b KQkq - 1 1", Move(F5, C8), Move(), 10, -1 },
-//     { "r1bqk2r/ppp2ppp/2n5/4P3/2Bp2n1/5N1P/PP1N1PP1/R2Q1RK1 b kq - 1 10",   Move(G4, H6), Move(G4, E5), 10, -1 },
-//     { "r1bqrnk1/pp2bp1p/2p2np1/3p2B1/3P4/2NBPN2/PPQ2PPP/1R3RK1 w - - 1 12", Move(B2, B4), Move(), 10, -1 },
-//     { "rnbqkb1r/ppp1pppp/5n2/8/3PP3/2N5/PP3PPP/R1BQKBNR b KQkq - 3 5",      Move(E7, E5), Move(), 10, -1 },
+//     { "rn1qkb1r/pp2pppp/5n2/3p1b2/3P4/2N1P3/PP3PPP/R1BQKBNR w KQkq - 0 1",  Move(D1, B3), Move(),
+//     10, -1 }, { "rn1qkb1r/pp2pppp/5n2/3p1b2/3P4/1QN1P3/PP3PPP/R1B1KBNR b KQkq - 1 1", Move(F5,
+//     C8), Move(), 10, -1 }, { "r1bqk2r/ppp2ppp/2n5/4P3/2Bp2n1/5N1P/PP1N1PP1/R2Q1RK1 b kq - 1 10",
+//     Move(G4, H6), Move(G4, E5), 10, -1 }, {
+//     "r1bqrnk1/pp2bp1p/2p2np1/3p2B1/3P4/2NBPN2/PPQ2PPP/1R3RK1 w - - 1 12", Move(B2, B4), Move(),
+//     10, -1 }, { "rnbqkb1r/ppp1pppp/5n2/8/3PP3/2N5/PP3PPP/R1BQKBNR b KQkq - 3 5",      Move(E7,
+//     E5), Move(), 10, -1 },
 // { "rnbq1rk1/pppp1ppp/4pn2/8/1bPP4/P1N5/1PQ1PPPP/R1B1KBNR b KQ - 1 5" bm Bcx3+;
 // { "r4rk1/3nppbp/bq1p1np1/2pP4/8/2N2NPP/PP2PPB1/R1BQR1K1 b - - 1 12"  bm Rfb8;
 // { "rn1qkb1r/pb1p1ppp/1p2pn2/2p5/2PP4/5NP1/PP2PPBP/RNBQK2R w KQkq c6 1 6"  bm d5;

@@ -41,26 +41,21 @@ TEST_F(ChessTest, PiecesEval) {
 
 TEST_F(ChessTest, EvalStartBoard) {
     Chess c(STARTFEN);
-    int mg = c.phaseEval<MIDGAME>(0, 0);
-    EXPECT_EQ(c.eval<false>(), mg + TEMPO_BONUS)
-        << "start board eval should equal midgame eval + tempo";
+    EXPECT_EQ(c.eval<false>(), TEMPO_BONUS)
+        << "start board eval should equal tempo bonus";
 }
 
-TEST_F(ChessTest, EvalEmptyBoard) {
-    Chess c(EMPTYFEN);
-    int eg = c.phaseEval<ENDGAME>(0, 0);
-    EXPECT_EQ(c.eval<false>(), eg + TEMPO_BONUS)
-        << "empty board eval should equal endgame eval + tempo";
+TEST_F(ChessTest, EvalE2Pawn) {
+    Chess c(E2PAWN);
+    EXPECT_GT(c.eval<false>(), 0)
+        << "eval with white pawn on e2 should be positive";
 }
 
-TEST_F(ChessTest, EvalBlackToMove) {
-    Chess c(POS4B);
-    auto [mgPawns, egPawns] = c.pawnsEval();
-    auto [mgPieces, egPieces] = c.pawnsEval();
-    int score = -c.phaseEval<MIDGAME>(mgPawns, mgPieces);
-
-    EXPECT_EQ(c.eval<false>(), score + TEMPO_BONUS)
-        << "black to move should invert eval";
+TEST_F(ChessTest, EvalE2PawnBlackToMove) {
+    Chess c(E2PAWN);
+    c.makeNull();
+    EXPECT_LT(c.eval<false>(), 0)
+        << "eval with white pawn and black to move should be negative";
 }
 
 TEST_F(ChessTest, MidGameMaterial) {

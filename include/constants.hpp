@@ -18,10 +18,12 @@ const auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 const std::string FENS[6] = {STARTFEN, POS2, POS3, POS4W, POS4B, POS5};
 
 // more testing FENs
-const auto EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1", E2PAWN = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1",
-           E4PAWN = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1",
-           A3ENPASSANT = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1",
-           A7PAWN = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1", BLACKMOVE = "4k3/8/8/8/8/8/8/4K3 b - - 0 1";
+const auto EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
+const auto E2PAWN = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
+const auto E4PAWN = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
+const auto A3ENPASSANT = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
+const auto A7PAWN = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
+const auto BLACKMOVE = "4k3/8/8/8/8/8/8/4K3 b - - 0 1";
 
 // move gen constants
 const Square KingOrigin[2] = {E8, E1};

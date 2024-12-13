@@ -9,6 +9,7 @@
 #include "constants.hpp"
 #include "eval.hpp"
 #include "state.hpp"
+#include "score.hpp"
 #include "zobrist.hpp"
 
 class Chess {
@@ -29,10 +30,8 @@ class Chess {
     int eval() const;
 
     // eval helpers
-    template <Phase>
-    int phaseEval(int, int) const;
-    std::tuple<int, int> pawnsEval() const;
-    std::tuple<int, int> piecesEval() const;
+    Score pawnsEval() const;
+    Score piecesEval() const;
     int scaleFactor() const;
 
     // make move / mutators
@@ -191,22 +190,6 @@ inline U64 Chess::calculateKey() const {
     if (sq != INVALID) zkey ^= Zobrist::ep[Defs::fileFromSq(sq)];
 
     return zkey;
-}
-
-template <Phase ph>
-inline int Chess::phaseEval(int pawnScore, int pieceScore) const {
-    int score = 0;
-
-    score += materialScore<ph>();
-    score += pieceSqScore<ph>();
-    score += pawnScore;
-    score += pieceScore;
-
-    if constexpr (ph == ENDGAME) {
-        score *= (scaleFactor() / 64);
-    }
-
-    return score;
 }
 
 #endif

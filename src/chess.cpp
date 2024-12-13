@@ -5,7 +5,7 @@
 #include "fen.hpp"
 #include "score.hpp"
 
-std::tuple<int, int> Chess::piecesEval() const {
+Score Chess::piecesEval() const {
     int mgScore = 0;
     int egScore = 0;
 
@@ -30,10 +30,10 @@ std::tuple<int, int> Chess::piecesEval() const {
         //     wKnightScore += Eval::MINOR_OUTPOST_BONUS;
     }
 
-    return std::make_tuple(mgScore, egScore);
+    return Score{mgScore, egScore};
 }
 
-std::tuple<int, int> Chess::pawnsEval() const {
+Score Chess::pawnsEval() const {
     int mgScore = 0;
     int egScore = 0;
 
@@ -62,17 +62,19 @@ std::tuple<int, int> Chess::pawnsEval() const {
     mgScore += nDoubledPawns * DOUBLED_PAWN_PENALTY[MIDGAME];
     egScore += nDoubledPawns * DOUBLED_PAWN_PENALTY[ENDGAME];
 
-    return std::make_tuple(mgScore, egScore);
+    return Score{mgScore, egScore};
 }
 
 template <bool debug = false>
 int Chess::eval() const {
-    auto [mgPawns, egPawns] = pawnsEval();
-    auto [mgPieces, egPieces] = piecesEval();
+    Score score{0, 0};
 
-    int mg = phaseEval<MIDGAME>(mgPawns, mgPieces);
-    int eg = phaseEval<ENDGAME>(egPawns, egPieces);
-    Score score{mg, eg};
+    score += Score{materialScore<MIDGAME>(), materialScore<ENDGAME>()};
+    score += Score{pieceSqScore<MIDGAME>(), pieceSqScore<ENDGAME>()};
+    score += pawnsEval();
+    score += piecesEval();
+
+    score.eg *= scaleFactor() / 64.0;
 
     // tapered eval based on remaining non pawn material
     int phase = Eval::calculatePhase(board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK));
