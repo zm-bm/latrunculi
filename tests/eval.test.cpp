@@ -120,3 +120,13 @@ TEST(Eval_outpost_square, black_outpost_on_d4) {
     EXPECT_EQ(Eval::outpost_square<WHITE>(wPawns, bPawns), 0);
     EXPECT_EQ(Eval::outpost_square<BLACK>(bPawns, wPawns), BB::set(D4));
 }
+
+TEST(Eval_outpost_square, no_ouposts_on_7th_rank) {
+    Board b("r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::outpost_square<WHITE>(wPawns, bPawns), 0);
+    EXPECT_EQ(Eval::outpost_square<BLACK>(bPawns, wPawns), 0);
+
+
+}
