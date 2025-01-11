@@ -60,15 +60,15 @@ TEST(EvalTest, IsolatedPawns) {
 
 TEST(EvalTest, BackwardsPawns) {
     Board b(STARTFEN);
-    U64 res = Eval::backwardsPawns<WHITE, BLACK>(b.getPieces<PAWN>(WHITE), b.getPieces<PAWN>(BLACK));
+    U64 res = Eval::backwardsPawns<WHITE>(b.getPieces<PAWN>(WHITE), b.getPieces<PAWN>(BLACK));
     EXPECT_EQ(res, 0);
-    res = Eval::backwardsPawns<BLACK, WHITE>(b.getPieces<PAWN>(BLACK), b.getPieces<PAWN>(WHITE));
+    res = Eval::backwardsPawns<BLACK>(b.getPieces<PAWN>(BLACK), b.getPieces<PAWN>(WHITE));
     EXPECT_EQ(res, 0);
 
     b = Board("4k3/2p5/1p6/1P6/P7/8/8/4K3 w - - 0 1");
-    res = Eval::backwardsPawns<WHITE, BLACK>(b.getPieces<PAWN>(WHITE), b.getPieces<PAWN>(BLACK));
+    res = Eval::backwardsPawns<WHITE>(b.getPieces<PAWN>(WHITE), b.getPieces<PAWN>(BLACK));
     EXPECT_EQ(res, BB::set(A4));
-    res = Eval::backwardsPawns<BLACK, WHITE>(b.getPieces<PAWN>(BLACK), b.getPieces<PAWN>(WHITE));
+    res = Eval::backwardsPawns<BLACK>(b.getPieces<PAWN>(BLACK), b.getPieces<PAWN>(WHITE));
     EXPECT_EQ(res, BB::set(C7));
 }
 
@@ -105,3 +105,18 @@ TEST(EvalTest, OppositeBishops) {
     EXPECT_EQ(result, true) << "different color bishops have opposite bishops";
 }
        
+TEST(Eval_outpost_square, white_outpost_on_d5) {
+    Board b("r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::outpost_square<WHITE>(wPawns, bPawns), BB::set(D5));
+    EXPECT_EQ(Eval::outpost_square<BLACK>(bPawns, wPawns), 0);
+}
+
+TEST(Eval_outpost_square, black_outpost_on_d4) {
+    Board b("r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::outpost_square<WHITE>(wPawns, bPawns), 0);
+    EXPECT_EQ(Eval::outpost_square<BLACK>(bPawns, wPawns), BB::set(D4));
+}

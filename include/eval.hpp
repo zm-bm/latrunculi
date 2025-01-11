@@ -40,19 +40,20 @@ inline U64 isolatedPawns(U64 pawns) {
     return (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
 }
 
-template <Color color, Color enemy>
+template <Color c>
 inline U64 backwardsPawns(U64 pawns, U64 enemyPawns) {
-    U64 stops = BB::movesByPawns<PawnMove::PUSH, color>(pawns);
-    U64 attackSpan = BB::getFrontAttackSpan<color>(pawns);
+    constexpr Color enemy = ~c;
+    U64 stops = BB::movesByPawns<PawnMove::PUSH, c>(pawns);
+    U64 attackSpan = BB::getFrontAttackSpan<c>(pawns);
     U64 enemyAttacks = BB::attacksByPawns<enemy>(enemyPawns);
     return BB::movesByPawns<PawnMove::PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
 }
 
-template <Color color>
+template <Color c>
 inline U64 doubledPawns(U64 pawns) {
     // pawns that have friendly pawns behind them that aren't supported
-    U64 pawnsBehind = pawns & BB::spanFront<color>(pawns);
-    U64 supported = BB::attacksByPawns<color>(pawns);
+    U64 pawnsBehind = pawns & BB::spanFront<c>(pawns);
+    U64 supported = BB::attacksByPawns<c>(pawns);
     return pawnsBehind & ~supported;
 }
 
@@ -64,6 +65,14 @@ inline bool oppositeBishops(U64 wBishops, U64 bBishops) {
 inline bool knightOutpost(Square sq) {
     U64 outposts = BB::movesByPiece<KNIGHT>(sq);
     return true;
+}
+
+template <Color c>
+inline U64 outpost_square(U64 pawns, U64 enemyPawns) {
+    constexpr U64 mask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
+    constexpr Color enemy = ~c;
+    U64 holes = ~BB::getFrontAttackSpan<enemy>(enemyPawns) & mask;
+    return holes & BB::attacksByPawns<c>(pawns);
 }
 
 }  // namespace Eval

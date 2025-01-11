@@ -24,7 +24,6 @@ Score Chess::piecesEval() const {
         Square sq = BB::advanced<WHITE>(pieces);
         pieces &= BB::clear(sq);
 
-
         // U64 validOutposts = BB::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
         // if (validOutposts & allOutposts)
         //     wKnightScore += Eval::MINOR_OUTPOST_BONUS;
@@ -49,8 +48,8 @@ Score Chess::pawnsEval() const {
     egScore += nIsolatedPawns * ISO_PAWN_PENALTY[ENDGAME];
 
     // backwards pawns
-    U64 wBackwardsPawns = Eval::backwardsPawns<WHITE, BLACK>(wPawns, bPawns);
-    U64 bBackwardsPawns = Eval::backwardsPawns<BLACK, WHITE>(bPawns, wPawns);
+    U64 wBackwardsPawns = Eval::backwardsPawns<WHITE>(wPawns, bPawns);
+    U64 bBackwardsPawns = Eval::backwardsPawns<BLACK>(bPawns, wPawns);
     int nBackwardsPawns = BB::bitCount(wBackwardsPawns) - BB::bitCount(bBackwardsPawns);
     mgScore += nBackwardsPawns * BACKWARD_PAWN_PENALTY[MIDGAME];
     egScore += nBackwardsPawns * BACKWARD_PAWN_PENALTY[ENDGAME];

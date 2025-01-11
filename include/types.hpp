@@ -78,7 +78,7 @@ enum Phase { MIDGAME, ENDGAME, N_PHASES };
 
 // Operators
 
-inline Color operator~(Color c) { return Color(c ^ WHITE); }
+inline constexpr Color operator~(Color c) { return Color(c ^ WHITE); }
 
 inline std::ostream& operator<<(std::ostream& os, File file) {
     os << static_cast<char>('a' + file);
