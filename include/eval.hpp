@@ -62,11 +62,6 @@ inline bool oppositeBishops(U64 wBishops, U64 bBishops) {
             ((wBishops & BLACK_SQUARES) && (bBishops & WHITE_SQUARES)));
 }
 
-inline bool knightOutpost(Square sq) {
-    U64 outposts = BB::movesByPiece<KNIGHT>(sq);
-    return true;
-}
-
 template <Color c>
 inline U64 outpostSquare(U64 pawns, U64 enemyPawns) {
     constexpr U64 mask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;

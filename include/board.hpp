@@ -49,7 +49,7 @@ struct Board {
 
     // eval helpers
     int nonPawnMaterial(Color) const;
-    bool oppositeBishopsEndGame() const;
+    bool oppositeBishops() const;
     U64 passedPawns(Color) const;
 };
 
@@ -213,7 +213,7 @@ inline int Board::nonPawnMaterial(Color c) const {
             count<QUEEN>(c) * Eval::mgPieceValue(QUEEN));
 }
 
-inline bool Board::oppositeBishopsEndGame() const {
+inline bool Board::oppositeBishops() const {
     if (count<BISHOP>(WHITE) != 1 || count<BISHOP>(BLACK) != 1) {
         return false;
     }

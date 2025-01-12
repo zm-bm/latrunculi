@@ -106,9 +106,9 @@ int Chess::scaleFactor() const {
     }
 
     // Opposite-colored bishops often lead to draws
-    if (board.oppositeBishopsEndGame()) {
+    if (board.oppositeBishops()) {
         // todo: use candidate passed pawns
-        return std::min(64, 36 + 4 * BB::bitCount(board.passedPawns(turn)));
+        return std::min(SCALE_LIMIT, 36 + 4 * BB::bitCount(board.passedPawns(turn)));
     }
 
     // Single queen scenarios with minor pieces
@@ -117,7 +117,7 @@ int Chess::scaleFactor() const {
         int minorPieceCount = queenCount == 1
                                   ? board.count<BISHOP>(enemy) + board.count<KNIGHT>(enemy)
                                   : board.count<BISHOP>(turn) + board.count<KNIGHT>(turn);
-        return std::min(64, 36 + 4 * minorPieceCount);
+        return std::min(SCALE_LIMIT, 36 + 4 * minorPieceCount);
     }
 
     // Default: scale proportionally with pawns

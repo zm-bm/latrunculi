@@ -10,13 +10,7 @@
 // Perft positions and results
 // https://www.chessprogramming.org/Perft_Results
 
-class PerftTest : public ::testing::TestWithParam<std::tuple<std::string, std::vector<long>>> {
-   protected:
-    void SetUp() override {
-        Magics::init();
-        Zobrist::init();
-    }
-};
+class PerftTest : public ::testing::TestWithParam<std::tuple<std::string, std::vector<long>>> {};
 
 TEST_P(PerftTest, PerftForMultipleDepths) {
     auto [fen, expected_results] = GetParam();
