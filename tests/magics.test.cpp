@@ -10,7 +10,7 @@ class MagicsTest : public ::testing::Test {
     static void SetUpTestSuite() { Magics::init(); }
 };
 
-U64 targets(std::vector<Square> squares);
+U64 targets(const std::vector<Square>& squares);
 
 TEST_F(MagicsTest, BishopMiddleOfBoardNoObstacles) {
     U64 expectedAttacks = targets(
