@@ -121,7 +121,7 @@ int Chess::scaleFactor() const {
     }
 
     // Default: scale proportionally with pawns
-    return std::min(64, 36 + 5 * pawnCount);
+    return std::min(SCALE_LIMIT, 36 + 5 * pawnCount);
 }
 
 void Chess::make(Move mv) {
@@ -279,7 +279,7 @@ void Chess::moveCastle(Square from, Square to, Color c) {
 }
 
 // Determine if a move is legal for the current board
-bool Chess::isPseudoLegalMoveLegal(Move mv) const {
+bool Chess::isLegalMove(Move mv) const {
     Square from = mv.from();
     Square to = mv.to();
     Square king = board.getKingSq(turn);

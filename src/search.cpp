@@ -128,7 +128,7 @@ int Search::negamax(int depth, int alpha, int beta, bool isPV, bool isNullAllowe
     // for (auto& move : movegen.moves)
     // {
     //     // First check if move is legal
-    //     if (!_board->isPseudoLegalMoveLegal(move))
+    //     if (!_board->isLegalMove(move))
     //         continue;
     //     else {
     //         nSearched++;
@@ -248,7 +248,7 @@ int Search::quiesce(int alpha, int beta)
 
     // for (auto& move : movegen.moves)
     // {
-    //     if (!_board->isPseudoLegalMoveLegal(move))
+    //     if (!_board->isLegalMove(move))
     //         continue;
     //     else
     //         nLegalMoves++;
@@ -293,7 +293,7 @@ U64 Search::perft(int depth)
 
     for (auto& move : movegen.moves)
     {
-        if (!chess->isPseudoLegalMoveLegal(move))
+        if (!chess->isLegalMove(move))
             continue;
 
         chess->make(move);

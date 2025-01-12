@@ -33,6 +33,7 @@ const Square RookOriginOO[2] = {H8, H1};
 const Square RookOriginOOO[2] = {A8, A1};
 
 // eval constants
+const int SCALE_LIMIT = 64;
 const int PHASE_LIMIT = 128;
 const int MG_LIMIT = 15258;
 const int EG_LIMIT = 3915;

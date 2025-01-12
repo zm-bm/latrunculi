@@ -196,7 +196,7 @@ INSTANTIATE_TEST_SUITE_P(Position5PerftTestSuite, PerftTest, ::testing::Values(p
 
 //     for (auto& move : gen.moves)
 //     {
-//         if (!board.isPseudoLegalMoveLegal(move))
+//         if (!board.isLegalMove(move))
 //             continue;
 
 //         board.make(move);

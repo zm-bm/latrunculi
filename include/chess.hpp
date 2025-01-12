@@ -68,7 +68,7 @@ class Chess {
 
     // other helpers
     U64 calculateKey() const;
-    bool isPseudoLegalMoveLegal(Move) const;
+    bool isLegalMove(Move) const;
     bool isCheckingMove(Move) const;
 
     // string helpers
