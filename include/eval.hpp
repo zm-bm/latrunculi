@@ -68,7 +68,7 @@ inline bool knightOutpost(Square sq) {
 }
 
 template <Color c>
-inline U64 outpost_square(U64 pawns, U64 enemyPawns) {
+inline U64 outpostSquare(U64 pawns, U64 enemyPawns) {
     constexpr U64 mask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
     constexpr Color enemy = ~c;
     U64 holes = ~BB::getFrontAttackSpan<enemy>(enemyPawns) & mask;

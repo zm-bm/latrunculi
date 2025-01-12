@@ -6,7 +6,7 @@
 #include "board.hpp"
 #include "constants.hpp"
 
-TEST(EvalTest, PieceValue) {
+TEST(EvalTest, ValuesMirrored) {
     for (int ph = MIDGAME; ph < N_PHASES; ++ph) {
         for (int pt = PAWN; pt < N_PIECES; ++pt) {
             EXPECT_EQ(Eval::pieceValue(Phase(ph), WHITE, PieceType(pt)),
@@ -15,7 +15,7 @@ TEST(EvalTest, PieceValue) {
     }
 }
 
-TEST(EvalTest, PieceSqBonus) {
+TEST(Eval_pieceSqBonus, ValuesMirror) {
     for (int ph = MIDGAME; ph < N_PHASES; ++ph) {
         for (int pt = PAWN; pt < N_PIECES; ++pt) {
             for (int sq = A1; sq < N_SQUARES; ++sq) {
@@ -27,106 +27,124 @@ TEST(EvalTest, PieceSqBonus) {
     }
 }
 
-TEST(EvalTest, TempoBonus) {
+TEST(Eval_tempoBonus, CorrectSignage) {
     EXPECT_EQ(Eval::tempoBonus(WHITE), TEMPO_BONUS);
     EXPECT_EQ(Eval::tempoBonus(BLACK), -TEMPO_BONUS);
 }
 
-TEST(EvalTest, CalculatePhase) {
-    Board b = Board(STARTFEN);
+TEST(Eval_calculatePhase, LimitsAreDefault) {
     EXPECT_EQ(Eval::calculatePhase(0), 0);
     EXPECT_EQ(Eval::calculatePhase(EG_LIMIT), 0);
-    EXPECT_EQ(Eval::calculatePhase(b.nonPawnMaterial(BLACK)), 49);
     EXPECT_EQ(Eval::calculatePhase(MG_LIMIT), PHASE_LIMIT);
+}
+
+TEST(Eval_calculatePhase, CorrectInterpolation) {
+    Board b = Board(STARTFEN);
+    EXPECT_EQ(Eval::calculatePhase(b.nonPawnMaterial(BLACK)), 49);
     EXPECT_EQ(Eval::calculatePhase(b.nonPawnMaterial(BLACK) * 2), PHASE_LIMIT);
 }
 
-TEST(EvalTest, IsolatedPawns) {
+TEST(Eval_isolatedPawns, StartPositionNoIsolatedPawns) {
     Board b(STARTFEN);
     EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(WHITE)), 0);
     EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(BLACK)), 0);
+}
 
-    b.removePiece(B2, WHITE, PAWN);
-    b.removePiece(F7, BLACK, PAWN);
-    b.removePiece(H7, BLACK, PAWN);
+TEST(Eval_isolatedPawns, IsolatedPawnsOnA2AndG7) {
+    Board b("rnbqkbnr/ppppp1p1/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1");
     EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(WHITE)), BB::set(A2));
     EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(BLACK)), BB::set(G7));
+}
 
-    b = Board("k7/p7/8/P7/8/P7/P7/K7 w KQkq - 0 1");
+TEST(Eval_isolatedPawns, IsolatedPawnsIncludesAllPawnsOnFile) {
+    Board b("k7/p7/8/P7/8/P7/P7/K7 w KQkq - 0 1");
     EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(WHITE)),
               BB::set(A2) | BB::set(A3) | BB::set(A5));
     EXPECT_EQ(Eval::isolatedPawns(b.getPieces<PAWN>(BLACK)), BB::set(A7));
 }
 
-TEST(EvalTest, BackwardsPawns) {
+TEST(Eval_backwardsPawns, StartPositionNoBackwardsPawns) {
     Board b(STARTFEN);
-    U64 res = Eval::backwardsPawns<WHITE>(b.getPieces<PAWN>(WHITE), b.getPieces<PAWN>(BLACK));
-    EXPECT_EQ(res, 0);
-    res = Eval::backwardsPawns<BLACK>(b.getPieces<PAWN>(BLACK), b.getPieces<PAWN>(WHITE));
-    EXPECT_EQ(res, 0);
-
-    b = Board("4k3/2p5/1p6/1P6/P7/8/8/4K3 w - - 0 1");
-    res = Eval::backwardsPawns<WHITE>(b.getPieces<PAWN>(WHITE), b.getPieces<PAWN>(BLACK));
-    EXPECT_EQ(res, BB::set(A4));
-    res = Eval::backwardsPawns<BLACK>(b.getPieces<PAWN>(BLACK), b.getPieces<PAWN>(WHITE));
-    EXPECT_EQ(res, BB::set(C7));
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::backwardsPawns<WHITE>(wPawns, bPawns), 0);
+    EXPECT_EQ(Eval::backwardsPawns<BLACK>(bPawns, wPawns), 0);
 }
 
-TEST(EvalTest, DoubledPawns) {
-    Board b(STARTFEN);
-    U64 res = Eval::doubledPawns<WHITE>(b.getPieces<PAWN>(WHITE));
-    EXPECT_EQ(res, 0);
-    res = Eval::doubledPawns<BLACK>(b.getPieces<PAWN>(BLACK));
-    EXPECT_EQ(res, 0);
-
-    b = Board("4k3/8/pp6/p7/P7/8/P7/4K3 w - - 0 1");
-    res = Eval::doubledPawns<WHITE>(b.getPieces<PAWN>(WHITE));
-    EXPECT_EQ(res, BB::set(A4));
-    res = Eval::doubledPawns<BLACK>(b.getPieces<PAWN>(BLACK));
-    EXPECT_EQ(res, 0);
+TEST(Eval_backwardsPawns, BackwardsPawns) {
+    Board b("4k3/2p5/1p6/1P6/P7/8/8/4K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::backwardsPawns<WHITE>(wPawns, bPawns), BB::set(A4));
+    EXPECT_EQ(Eval::backwardsPawns<BLACK>(bPawns, wPawns), BB::set(C7));
 }
 
-TEST(EvalTest, OppositeBishops) {
+TEST(Eval_doubledPawns, StartPositionNoDoubledPawns) {
+    Board b(STARTFEN);
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+
+    EXPECT_EQ(Eval::doubledPawns<WHITE>(wPawns), 0)
+        << "No doubled pawns for White in the starting position";
+    EXPECT_EQ(Eval::doubledPawns<BLACK>(bPawns), 0)
+        << "No doubled pawns for Black in the starting position";
+}
+
+TEST(Eval_doubledPawns, WhiteDoubledPawnOnA4) {
+    Board b("4k3/8/pp6/p7/P7/8/P7/4K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+
+    EXPECT_EQ(Eval::doubledPawns<WHITE>(wPawns), BB::set(A4)) << "White has a doubled pawn on A4";
+    EXPECT_EQ(Eval::doubledPawns<BLACK>(bPawns), 0) << "Black has no doubled pawns";
+}
+
+TEST(Eval_oppositeBishops, EmptyBoardNoOppositeBishops) {
     Board b(EMPTYFEN);
     bool result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
-    EXPECT_EQ(result, false) << "empty board does not have opposite bishops";
-
-    b = Board(STARTFEN);
-    result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
-    EXPECT_EQ(result, true) << "start board have opposite bishops";
-
-    b = Board("3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1");
-    result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
-    EXPECT_EQ(result, false)
-        << "same color bishops do not have opposite bishops";
-
-    b = Board("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1");
-    result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
-    EXPECT_EQ(result, true) << "different color bishops have opposite bishops";
+    EXPECT_EQ(result, false) << "Empty board does not have opposite bishops";
 }
-       
-TEST(Eval_outpost_square, white_outpost_on_d5) {
+
+TEST(Eval_oppositeBishops, StartPositionNoOppositeBishops) {
+    Board b(STARTFEN);
+    bool result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
+    EXPECT_EQ(result, true) << "Start board should have opposite bishops";
+}
+
+TEST(Eval_oppositeBishops, SameColorBishops) {
+    Board b("3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1");
+    bool result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
+    EXPECT_EQ(result, false) << "Same color bishops should not be opposite bishops";
+}
+
+TEST(Eval_oppositeBishops, OppositeColorBishops) {
+    Board b("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1");
+    bool result = Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK));
+    EXPECT_EQ(result, true) << "Different color bishops should be opposite bishops";
+}
+
+TEST(Eval_outpostSquare, WhiteOutpostOnD5) {
     Board b("r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1");
     U64 wPawns = b.getPieces<PAWN>(WHITE);
     U64 bPawns = b.getPieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::outpost_square<WHITE>(wPawns, bPawns), BB::set(D5));
-    EXPECT_EQ(Eval::outpost_square<BLACK>(bPawns, wPawns), 0);
+    EXPECT_EQ(Eval::outpostSquare<WHITE>(wPawns, bPawns), BB::set(D5)) << "has white outpost on d5";
+    EXPECT_EQ(Eval::outpostSquare<BLACK>(bPawns, wPawns), 0) << "has no black outpost";
 }
 
-TEST(Eval_outpost_square, black_outpost_on_d4) {
+TEST(Eval_outpostSquare, BlackOutpostOnD4) {
     Board b("r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1");
     U64 wPawns = b.getPieces<PAWN>(WHITE);
     U64 bPawns = b.getPieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::outpost_square<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::outpost_square<BLACK>(bPawns, wPawns), BB::set(D4));
+    EXPECT_EQ(Eval::outpostSquare<WHITE>(wPawns, bPawns), 0) << "has no white outpost";
+    EXPECT_EQ(Eval::outpostSquare<BLACK>(bPawns, wPawns), BB::set(D4)) << "has black outpost on d4";
 }
 
-TEST(Eval_outpost_square, no_ouposts_on_7th_rank) {
+TEST(Eval_outpostSquare, NoOupostOn7thRank) {
     Board b("r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1");
     U64 wPawns = b.getPieces<PAWN>(WHITE);
     U64 bPawns = b.getPieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::outpost_square<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::outpost_square<BLACK>(bPawns, wPawns), 0);
-
-
+    EXPECT_EQ(Eval::outpostSquare<WHITE>(wPawns, bPawns), 0)
+        << "white outpost on a7 is ignored bc mask";
+    EXPECT_EQ(Eval::outpostSquare<BLACK>(bPawns, wPawns), 0)
+        << "black outpost on b7 is ignored bc mask";
 }
