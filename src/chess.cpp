@@ -51,6 +51,14 @@ Score Chess::piecesEval() const {
     // forEach<BLACK>(pieces, [&](Square sq) {
     // });
 
+    // all minor pieces
+    pieces = board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE);
+    score += Eval::MINOR_BEHIND_PAWN_BONUS *
+             BB::bitCount(BB::movesByPawns<PawnMove::PUSH, WHITE>(pieces) & wPawns);
+    pieces = board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK);
+    score -= Eval::MINOR_BEHIND_PAWN_BONUS *
+             BB::bitCount(BB::movesByPawns<PawnMove::PUSH, BLACK>(pieces) & bPawns);
+
     return score;
 }
 

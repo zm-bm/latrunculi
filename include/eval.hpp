@@ -16,6 +16,7 @@ const Score DOUBLED_PAWN_PENALTY = {-11, -56};
 const Score REACHABLE_OUTPOST_BONUS = {31, 22};
 const Score BISHOP_OUTPOST_BONUS = {30, 23};
 const Score KNIGHT_OUTPOST_BONUS = {56, 36};
+const Score MINOR_BEHIND_PAWN_BONUS = {18, 3};
 
 inline int pieceValue(Phase ph, Color c, PieceType pt) { return PIECE_VALUES[ph][c][pt]; }
 inline int mgPieceValue(PieceType pt) { return PIECE_VALUES[MIDGAME][WHITE][pt]; }

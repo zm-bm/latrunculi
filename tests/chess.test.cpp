@@ -55,6 +55,17 @@ TEST(Chess_piecesEval, BishopOutpost) {
     EXPECT_EQ(b.piecesEval(), -Eval::BISHOP_OUTPOST_BONUS);
 }
 
+TEST(Chess_piecesEval, MinorBehindPawn) {
+    Chess wn("6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1");
+    EXPECT_EQ(wn.piecesEval(), Eval::MINOR_BEHIND_PAWN_BONUS);
+    Chess wb("6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 1");
+    EXPECT_EQ(wb.piecesEval(), Eval::MINOR_BEHIND_PAWN_BONUS);
+    Chess bn("6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 1");
+    EXPECT_EQ(bn.piecesEval(), -Eval::MINOR_BEHIND_PAWN_BONUS);
+    Chess bb("6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1");
+    EXPECT_EQ(bb.piecesEval(), -Eval::MINOR_BEHIND_PAWN_BONUS);
+}
+
 TEST(Chess_eval, StartPosition) {
     Chess c(STARTFEN);
     EXPECT_EQ(c.eval<false>(), TEMPO_BONUS) << "start board eval should equal tempo bonus";
