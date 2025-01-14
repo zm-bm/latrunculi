@@ -16,6 +16,7 @@ void forEach(U64 bitboard, Func action) {
 
 Score Chess::piecesEval() const {
     Score score = {0, 0};
+    U64 pieces;
     U64 occ = board.occupancy();
     U64 wPawns = board.getPieces<PAWN>(WHITE);
     U64 bPawns = board.getPieces<PAWN>(BLACK);
@@ -23,28 +24,32 @@ Score Chess::piecesEval() const {
     U64 bOutposts = Eval::outpostSquares<BLACK>(bPawns, wPawns);
 
     // white knights
-    forEach<WHITE>(board.getPieces<KNIGHT>(WHITE), [&](Square sq) {
-        score += Eval::KNIGHT_OUTPOST_BONUS * BB::bitCount(BB::set(sq) & wOutposts);
+    pieces = board.getPieces<KNIGHT>(WHITE);
+    score += Eval::KNIGHT_OUTPOST_BONUS * BB::bitCount(pieces & wOutposts);
+    forEach<WHITE>(pieces, [&](Square sq) {
         score += Eval::REACHABLE_OUTPOST_BONUS *
                  BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & wOutposts);
     });
 
     // black knights
-    forEach<BLACK>(board.getPieces<KNIGHT>(BLACK), [&](Square sq) {
-        score -= Eval::KNIGHT_OUTPOST_BONUS * BB::bitCount(BB::set(sq) & bOutposts);
+    pieces = board.getPieces<KNIGHT>(BLACK);
+    score -= Eval::KNIGHT_OUTPOST_BONUS * BB::bitCount(pieces & bOutposts);
+    forEach<BLACK>(pieces, [&](Square sq) {
         score -= Eval::REACHABLE_OUTPOST_BONUS *
                  BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & bOutposts);
     });
 
     // white bishops
-    forEach<WHITE>(board.getPieces<BISHOP>(WHITE), [&](Square sq) {
-        score += Eval::BISHOP_OUTPOST_BONUS * BB::bitCount(BB::set(sq) & wOutposts);
-    });
+    pieces = board.getPieces<BISHOP>(WHITE);
+    score += Eval::BISHOP_OUTPOST_BONUS * BB::bitCount(pieces & wOutposts);
+    // forEach<WHITE>(pieces, [&](Square sq) {
+    // });
 
     // black bishops
-    forEach<BLACK>(board.getPieces<BISHOP>(BLACK), [&](Square sq) {
-        score -= Eval::BISHOP_OUTPOST_BONUS * BB::bitCount(BB::set(sq) & bOutposts);
-    });
+    pieces = board.getPieces<BISHOP>(BLACK);
+    score -= Eval::BISHOP_OUTPOST_BONUS * BB::bitCount(pieces & bOutposts);
+    // forEach<BLACK>(pieces, [&](Square sq) {
+    // });
 
     return score;
 }
