@@ -6,8 +6,16 @@
 #include "bb.hpp"
 #include "types.hpp"
 #include "constants.hpp"
+#include "score.hpp"
 
 namespace Eval {
+
+const Score ISO_PAWN_PENALTY = {-5, -15};
+const Score BACKWARD_PAWN_PENALTY = {-9, -25};
+const Score DOUBLED_PAWN_PENALTY = {-11, -56};
+const Score REACHABLE_OUTPOST_BONUS = {31, 22};
+const Score BISHOP_OUTPOST_BONUS = {30, 23};
+const Score KNIGHT_OUTPOST_BONUS = {56, 36};
 
 inline int pieceValue(Phase ph, Color c, PieceType pt) { return PIECE_VALUES[ph][c][pt]; }
 inline int mgPieceValue(PieceType pt) { return PIECE_VALUES[MIDGAME][WHITE][pt]; }
@@ -63,7 +71,7 @@ inline bool oppositeBishops(U64 wBishops, U64 bBishops) {
 }
 
 template <Color c>
-inline U64 outpostSquare(U64 pawns, U64 enemyPawns) {
+inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
     constexpr U64 mask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
     constexpr Color enemy = ~c;
     U64 holes = ~BB::getFrontAttackSpan<enemy>(enemyPawns) & mask;

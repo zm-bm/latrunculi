@@ -5,36 +5,52 @@
 #include "fen.hpp"
 #include "score.hpp"
 
-Score Chess::piecesEval() const {
-    int mgScore = 0;
-    int egScore = 0;
+template <Color c, typename Func>
+void forEach(U64 bitboard, Func action) {
+    while (bitboard) {
+        Square sq = BB::advanced<WHITE>(bitboard);
+        action(sq);
+        bitboard &= BB::clear(sq);
+    }
+}
 
-    U64 pieces = 0;
+Score Chess::piecesEval() const {
+    Score score = {0, 0};
     U64 occ = board.occupancy();
     U64 wPawns = board.getPieces<PAWN>(WHITE);
     U64 bPawns = board.getPieces<PAWN>(BLACK);
+    U64 wOutposts = Eval::outpostSquares<WHITE>(wPawns, bPawns);
+    U64 bOutposts = Eval::outpostSquares<BLACK>(bPawns, wPawns);
 
-    U64 wHoles = ~BB::getFrontAttackSpan<WHITE>(wPawns) & WHITE_OUTPOSTS;
-    U64 bHoles = ~BB::getFrontAttackSpan<BLACK>(bPawns) & BLACK_OUTPOSTS;
-    U64 wOutposts = bHoles & BB::attacksByPawns<WHITE>(wPawns);
-    U64 bOutposts = wHoles & BB::attacksByPawns<BLACK>(bPawns);
+    // white knights
+    forEach<WHITE>(board.getPieces<KNIGHT>(WHITE), [&](Square sq) {
+        score += Eval::KNIGHT_OUTPOST_BONUS * BB::bitCount(BB::set(sq) & wOutposts);
+        score += Eval::REACHABLE_OUTPOST_BONUS *
+                 BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & wOutposts);
+    });
 
-    pieces = board.getPieces<KNIGHT>(WHITE);
-    while (pieces) {
-        Square sq = BB::advanced<WHITE>(pieces);
-        pieces &= BB::clear(sq);
+    // black knights
+    forEach<BLACK>(board.getPieces<KNIGHT>(BLACK), [&](Square sq) {
+        score -= Eval::KNIGHT_OUTPOST_BONUS * BB::bitCount(BB::set(sq) & bOutposts);
+        score -= Eval::REACHABLE_OUTPOST_BONUS *
+                 BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & bOutposts);
+    });
 
-        // U64 validOutposts = BB::movesByPiece<KNIGHT>(sq, occ) | BB::set(sq);
-        // if (validOutposts & allOutposts)
-        //     wKnightScore += Eval::MINOR_OUTPOST_BONUS;
-    }
+    // white bishops
+    forEach<WHITE>(board.getPieces<BISHOP>(WHITE), [&](Square sq) {
+        score += Eval::BISHOP_OUTPOST_BONUS * BB::bitCount(BB::set(sq) & wOutposts);
+    });
 
-    return Score{mgScore, egScore};
+    // black bishops
+    forEach<BLACK>(board.getPieces<BISHOP>(BLACK), [&](Square sq) {
+        score -= Eval::BISHOP_OUTPOST_BONUS * BB::bitCount(BB::set(sq) & bOutposts);
+    });
+
+    return score;
 }
 
 Score Chess::pawnsEval() const {
-    int mgScore = 0;
-    int egScore = 0;
+    Score score = {0, 0};
 
     U64 wPawns = board.getPieces<PAWN>(WHITE);
     U64 bPawns = board.getPieces<PAWN>(BLACK);
@@ -44,24 +60,21 @@ Score Chess::pawnsEval() const {
     U64 wIsolatedPawns = Eval::isolatedPawns(wPawns);
     U64 bIsolatedPawns = Eval::isolatedPawns(bPawns);
     int nIsolatedPawns = BB::bitCount(wIsolatedPawns) - BB::bitCount(bIsolatedPawns);
-    mgScore += nIsolatedPawns * ISO_PAWN_PENALTY[MIDGAME];
-    egScore += nIsolatedPawns * ISO_PAWN_PENALTY[ENDGAME];
+    score += Eval::ISO_PAWN_PENALTY * nIsolatedPawns;
 
     // backwards pawns
     U64 wBackwardsPawns = Eval::backwardsPawns<WHITE>(wPawns, bPawns);
     U64 bBackwardsPawns = Eval::backwardsPawns<BLACK>(bPawns, wPawns);
     int nBackwardsPawns = BB::bitCount(wBackwardsPawns) - BB::bitCount(bBackwardsPawns);
-    mgScore += nBackwardsPawns * BACKWARD_PAWN_PENALTY[MIDGAME];
-    egScore += nBackwardsPawns * BACKWARD_PAWN_PENALTY[ENDGAME];
+    score += Eval::BACKWARD_PAWN_PENALTY * nBackwardsPawns;
 
     // doubled pawns
     U64 wDoubledPawns = Eval::doubledPawns<WHITE>(wPawns);
     U64 bDoubledPawns = Eval::doubledPawns<BLACK>(bPawns);
     int nDoubledPawns = BB::bitCount(wDoubledPawns) - BB::bitCount(bDoubledPawns);
-    mgScore += nDoubledPawns * DOUBLED_PAWN_PENALTY[MIDGAME];
-    egScore += nDoubledPawns * DOUBLED_PAWN_PENALTY[ENDGAME];
+    score += Eval::DOUBLED_PAWN_PENALTY * nDoubledPawns;
 
-    return Score{mgScore, egScore};
+    return score;
 }
 
 template <bool debug = false>

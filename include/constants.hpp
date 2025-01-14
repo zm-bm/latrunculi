@@ -19,18 +19,13 @@ const std::string FENS[6] = {STARTFEN, POS2, POS3, POS4W, POS4B, POS5};
 
 // more testing FENs
 const auto EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
-const auto E2PAWN = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
-const auto E4PAWN = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
-const auto A3ENPASSANT = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
-const auto A7PAWN = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
-const auto BLACKMOVE = "4k3/8/8/8/8/8/8/4K3 b - - 0 1";
 
 // move gen constants
-const Square KingOrigin[2] = {E8, E1};
-const Square KingDestinationOO[2] = {G8, G1};
-const Square KingDestinationOOO[2] = {C8, C1};
-const Square RookOriginOO[2] = {H8, H1};
-const Square RookOriginOOO[2] = {A8, A1};
+const Square KingOrigin[N_COLORS] = {E8, E1};
+const Square KingDestinationOO[N_COLORS] = {G8, G1};
+const Square KingDestinationOOO[N_COLORS] = {C8, C1};
+const Square RookOriginOO[N_COLORS] = {H8, H1};
+const Square RookOriginOOO[N_COLORS] = {A8, A1};
 
 // eval constants
 const int SCALE_LIMIT = 64;
@@ -38,9 +33,6 @@ const int PHASE_LIMIT = 128;
 const int MG_LIMIT = 15258;
 const int EG_LIMIT = 3915;
 const int TEMPO_BONUS = 25;
-const int ISO_PAWN_PENALTY[N_PHASES] = {-5, -15};
-const int BACKWARD_PAWN_PENALTY[N_PHASES] = {-9, -25};
-const int DOUBLED_PAWN_PENALTY[N_PHASES] = {-11, -56};
 
 const U64 WHITE_SQUARES = 0x55AA55AA55AA55AA;
 const U64 BLACK_SQUARES = 0xAA55AA55AA55AA55;

@@ -15,23 +15,23 @@ TEST(Board_addPiece, AddE2WhitePawn) {
 }
 
 TEST(Board_removePiece, RemoveE2WhitePawn) {
-    Board emptyBoard(E2PAWN);
-    emptyBoard.removePiece(E2, WHITE, PAWN);
+    Board b("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
+    b.removePiece(E2, WHITE, PAWN);
 
-    EXPECT_EQ(emptyBoard.getPieces<PAWN>(WHITE), 0x0);
-    EXPECT_EQ(emptyBoard.count<PAWN>(WHITE), 0);
-    EXPECT_EQ(emptyBoard.occupancy(), BB::set(E8) | BB::set(E1));
+    EXPECT_EQ(b.getPieces<PAWN>(WHITE), 0x0);
+    EXPECT_EQ(b.count<PAWN>(WHITE), 0);
+    EXPECT_EQ(b.occupancy(), BB::set(E8) | BB::set(E1));
 }
 
 TEST(Board_movePiece, MoveWhiteKing) {
-    Board emptyBoard(EMPTYFEN);
-    emptyBoard.movePiece(E1, D1, WHITE, KING);
+    Board b(EMPTYFEN);
+    b.movePiece(E1, D1, WHITE, KING);
 
-    EXPECT_EQ(emptyBoard.getPieces<KING>(WHITE), BB::set(D1));
-    EXPECT_EQ(emptyBoard.count<KING>(WHITE), 1);
-    EXPECT_EQ(emptyBoard.occupancy(), BB::set(E8) | BB::set(D1));
-    EXPECT_EQ(emptyBoard.getPiece(E1), NO_PIECE);
-    EXPECT_EQ(emptyBoard.getPiece(D1), Defs::makePiece(WHITE, KING));
+    EXPECT_EQ(b.getPieces<KING>(WHITE), BB::set(D1));
+    EXPECT_EQ(b.count<KING>(WHITE), 1);
+    EXPECT_EQ(b.occupancy(), BB::set(E8) | BB::set(D1));
+    EXPECT_EQ(b.getPiece(E1), NO_PIECE);
+    EXPECT_EQ(b.getPiece(D1), Defs::makePiece(WHITE, KING));
 }
 
 TEST(Board_getPieces, EmptyPosition) {

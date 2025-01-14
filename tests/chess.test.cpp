@@ -9,6 +9,10 @@
 #include "eval.hpp"
 #include "zobrist.hpp"
 
+const auto E2PAWN = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
+const auto E4PAWN = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
+const auto A3ENPASSANT = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
+
 TEST(Chess_pawnsEval, IsoPawn) {
     Chess c(E2PAWN);
     auto [mg, eg] = c.pawnsEval();
@@ -30,7 +34,26 @@ TEST(Chess_pawnsEval, DoubledPawn) {
     EXPECT_LT(eg, 0) << "endgame evaluation should penalize doubled pawns";
 }
 
-TEST(Chess_piecesEval, Outpost) {}
+TEST(Chess_piecesEval, ReachableKnightOutpost) {
+    Chess w("6k1/8/8/4p3/4P3/2N5/8/6K1 w - - 0 1");
+    EXPECT_EQ(w.piecesEval(), Eval::REACHABLE_OUTPOST_BONUS);
+    Chess b("6k1/8/2n5/4p3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(b.piecesEval(), -Eval::REACHABLE_OUTPOST_BONUS);
+}
+
+TEST(Chess_piecesEval, KnightOutpost) {
+    Chess w("6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(w.piecesEval(), Eval::KNIGHT_OUTPOST_BONUS);
+    Chess b("6k1/8/8/4p3/3nP3/8/8/6K1 w - - 1 1");
+    EXPECT_EQ(b.piecesEval(), -Eval::KNIGHT_OUTPOST_BONUS);
+}
+
+TEST(Chess_piecesEval, BishopOutpost) {
+    Chess w("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(w.piecesEval(), Eval::BISHOP_OUTPOST_BONUS);
+    Chess b("6k1/8/8/4p3/3bP3/8/8/6K1 w - - 1 1");
+    EXPECT_EQ(b.piecesEval(), -Eval::BISHOP_OUTPOST_BONUS);
+}
 
 TEST(Chess_eval, StartPosition) {
     Chess c(STARTFEN);
@@ -139,6 +162,8 @@ TEST(Chess_make, RookCaptureDisablesCastleRights) {
     EXPECT_EQ(c.toFEN(), fen) << "should restore castle rights on undo";
 }
 
+
+
 TEST(Chess_make, PawnDoublePushSetsEnpassantSq) {
     auto fen = "4k3/8/8/8/1p6/8/P7/4K3 w - - 0 1";
     Chess c = Chess(fen);
@@ -202,11 +227,12 @@ TEST(Chess_make, RookMoveDisablesCastleOOORights) {
 }
 
 TEST(Chess_make, QueenPromotion) {
-    Chess c = Chess(A7PAWN);
+    auto fen = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
+    Chess c = Chess(fen);
     c.make(Move(A7, A8, PROMOTION, QUEEN));
     EXPECT_EQ(c.toFEN(), "Q3k3/8/8/8/8/8/8/4K3 b - - 0 1") << "should promote to queen";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), A7PAWN) << "should undo promotion on undo";
+    EXPECT_EQ(c.toFEN(), fen) << "should undo promotion on undo";
 }
 
 TEST(Chess_make, UnderPromotion) {
@@ -375,7 +401,7 @@ TEST(Chess_isCheckingMove, DiscoveredEnPassant) {
 }
 
 TEST(Chess_isCheckingMove, Promotions) {
-    Chess c = Chess(A7PAWN);
+    Chess c = Chess("4k3/P7/8/8/8/8/8/4K3 w - - 0 1");
     EXPECT_TRUE(c.isCheckingMove(Move(A7, A8, PROMOTION, QUEEN)))
         << "should identify queen prom check";
     EXPECT_TRUE(c.isCheckingMove(Move(A7, A8, PROMOTION, ROOK)))
