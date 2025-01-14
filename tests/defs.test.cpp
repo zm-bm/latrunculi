@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-TEST(DefsTest, sqFromCoords) {
+TEST(Defs_sqFromCoords, CorrectValues) {
     EXPECT_EQ(Defs::sqFromCoords(FILE1, RANK1), A1);
     EXPECT_EQ(Defs::sqFromCoords(FILE1, RANK8), A8);
     EXPECT_EQ(Defs::sqFromCoords(FILE8, RANK1), H1);
@@ -10,7 +10,7 @@ TEST(DefsTest, sqFromCoords) {
     EXPECT_EQ(Defs::sqFromCoords(FILE4, RANK4), D4);
 }
 
-TEST(DefsTest, sqFromString) {
+TEST(Defs_sqFromString, CorrectValues) {
     EXPECT_EQ(Defs::sqFromString("a1"), A1);
     EXPECT_EQ(Defs::sqFromString("a8"), A8);
     EXPECT_EQ(Defs::sqFromString("h1"), H1);
@@ -18,7 +18,7 @@ TEST(DefsTest, sqFromString) {
     EXPECT_EQ(Defs::sqFromString("d4"), D4);
 }
 
-TEST(TypesTest, rankFromSq) {
+TEST(Types_rankFromSq, CorrectValues) {
     EXPECT_EQ(Defs::rankFromSq(A1), RANK1);
     EXPECT_EQ(Defs::rankFromSq(H1), RANK1);
     EXPECT_EQ(Defs::rankFromSq(A4), RANK4);
@@ -27,7 +27,7 @@ TEST(TypesTest, rankFromSq) {
     EXPECT_EQ(Defs::rankFromSq(H8), RANK8);
 }
 
-TEST(TypesTest, fileFromSq) {
+TEST(Types_fileFromSq, CorrectValues) {
     EXPECT_EQ(Defs::fileFromSq(A1), FILE1);
     EXPECT_EQ(Defs::fileFromSq(A8), FILE1);
     EXPECT_EQ(Defs::fileFromSq(D1), FILE4);
@@ -36,7 +36,7 @@ TEST(TypesTest, fileFromSq) {
     EXPECT_EQ(Defs::fileFromSq(H8), FILE8);
 }
 
-TEST(DefsTest, makePiece) {
+TEST(Defs_makePiece, CorrectValues) {
     EXPECT_EQ(Defs::makePiece(WHITE, PAWN), W_PAWN);
     EXPECT_EQ(Defs::makePiece(WHITE, KNIGHT), W_KNIGHT);
     EXPECT_EQ(Defs::makePiece(WHITE, BISHOP), W_BISHOP);
@@ -51,7 +51,7 @@ TEST(DefsTest, makePiece) {
     EXPECT_EQ(Defs::makePiece(BLACK, KING), B_KING);
 }
 
-TEST(DefsTest, getPieceType) {
+TEST(Defs_getPieceType, CorrectValues) {
     EXPECT_EQ(Defs::getPieceType(W_PAWN), PAWN);
     EXPECT_EQ(Defs::getPieceType(W_KNIGHT), KNIGHT);
     EXPECT_EQ(Defs::getPieceType(W_BISHOP), BISHOP);
@@ -66,7 +66,7 @@ TEST(DefsTest, getPieceType) {
     EXPECT_EQ(Defs::getPieceType(B_KING), KING);
 }
 
-TEST(DefsTest, getPieceColor) {
+TEST(Defs_getPieceColor, CorrectValues) {
     EXPECT_EQ(Defs::getPieceColor(W_PAWN), WHITE);
     EXPECT_EQ(Defs::getPieceColor(W_KNIGHT), WHITE);
     EXPECT_EQ(Defs::getPieceColor(W_BISHOP), WHITE);
@@ -81,7 +81,7 @@ TEST(DefsTest, getPieceColor) {
     EXPECT_EQ(Defs::getPieceColor(B_KING), BLACK);
 }
 
-TEST(DefsTest, pawnMovePush) {
+TEST(Defs_pawnMovePush, CorrectValues) {
     Square sq = Defs::pawnMove<WHITE, PawnMove::PUSH, true>(E4);
     EXPECT_EQ(sq, E5);
     sq = Defs::pawnMove<WHITE, PawnMove::PUSH, false>(E5);
@@ -93,7 +93,7 @@ TEST(DefsTest, pawnMovePush) {
     EXPECT_EQ(sq, E5);
 }
 
-TEST(DefsTest, pawnMoveRight) {
+TEST(Defs_pawnMoveRight, CorrectValues) {
     Square sq = Defs::pawnMove<WHITE, PawnMove::RIGHT, true>(D4);
     EXPECT_EQ(sq, E5);
     sq = Defs::pawnMove<WHITE, PawnMove::RIGHT, false>(E5);
@@ -105,8 +105,9 @@ TEST(DefsTest, pawnMoveRight) {
     EXPECT_EQ(sq, E5);
 }
 
-TEST(DefsTest, pawnMoveLeft) {
-    Square sq = Defs::pawnMove<WHITE, PawnMove::LEFT, true>(E4);
+TEST(Defs_pawnMoveLeft, CorrectValues) {
+    Square sq;
+    sq = Defs::pawnMove<WHITE, PawnMove::LEFT, true>(E4);
     EXPECT_EQ(sq, D5);
     sq = Defs::pawnMove<WHITE, PawnMove::LEFT, false>(D5);
     EXPECT_EQ(sq, E4);
@@ -117,15 +118,13 @@ TEST(DefsTest, pawnMoveLeft) {
     EXPECT_EQ(sq, D5);
 }
 
-TEST(DefsTest, split) {
+TEST(Defs_split, ValidInputs) {
     std::string input = "a,b,c";
-    char delimiter = ',';
     std::vector<std::string> expected = {"a", "b", "c"};
-
-    EXPECT_EQ(Defs::split(input, delimiter), expected);
+    EXPECT_EQ(Defs::split(input, ','), expected);
 }
 
-TEST(DefsTest, splitWithConsecutiveDelimiters) {
+TEST(Defs_split, ConsecutiveDelimiters) {
     std::string input = "a,,b,c";
     char delimiter = ',';
     std::vector<std::string> expected = {"a", "", "b", "c"};
@@ -133,7 +132,7 @@ TEST(DefsTest, splitWithConsecutiveDelimiters) {
     EXPECT_EQ(Defs::split(input, delimiter), expected);
 }
 
-TEST(DefsTest, splitWithoutDelimiter) {
+TEST(Defs_split, WithoutDelimiter) {
     std::string input = "abc";
     char delimiter = ',';
     std::vector<std::string> expected = {"abc"};
@@ -141,7 +140,7 @@ TEST(DefsTest, splitWithoutDelimiter) {
     EXPECT_EQ(Defs::split(input, delimiter), expected);
 }
 
-TEST(DefsTest, splitEmptyString) {
+TEST(Defs_split, EmptyString) {
     std::string input = "";
     char delimiter = ',';
     std::vector<std::string> expected = {};
@@ -149,7 +148,7 @@ TEST(DefsTest, splitEmptyString) {
     EXPECT_EQ(Defs::split(input, delimiter), expected);
 }
 
-TEST(DefsTest, splitWithSpecialCharacters) {
+TEST(Defs_split, SpecialCharacters) {
     std::string input = "a!b@c#d$";
     char delimiter = '@';
     std::vector<std::string> expected = {"a!b", "c#d$"};
