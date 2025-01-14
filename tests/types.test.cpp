@@ -2,26 +2,26 @@
 
 #include <gtest/gtest.h>
 
-TEST(TypesTest, Color) { EXPECT_EQ(WHITE, ~BLACK); }
+TEST(Types_Color, InvertFlipsColor) { EXPECT_EQ(WHITE, ~BLACK); }
 
-TEST(TypesTest, Square) {
+TEST(Types_Square, Arithmetic) {
     EXPECT_EQ(A1 + 1, B1);
     EXPECT_EQ(A1, B1 - 1);
     EXPECT_EQ(A1 + 8, A2);
     EXPECT_EQ(A1, A2 - 8);
 }
 
-TEST(TypesTest, File) {
+TEST(Types_File, Arithmetic) {
     EXPECT_EQ(FILE1 + 1, FILE2);
     EXPECT_EQ(FILE1, FILE2 - 1);
 }
 
-TEST(TypesTest, Rank) {
+TEST(Types_Rank, Arithmetic) {
     EXPECT_EQ(RANK1 + 1, RANK2);
     EXPECT_EQ(RANK1, RANK2 - 1);
 }
 
-TEST(TypesTest, CastleRights) {
+TEST(Types_CastleRights, LogicOperators) {
     EXPECT_EQ(ALL_CASTLE & WHITE_CASTLE, WHITE_CASTLE);
     EXPECT_EQ(ALL_CASTLE ^ WHITE_CASTLE, BLACK_CASTLE);
     EXPECT_EQ(ALL_CASTLE ^ WHITE_OOO, BLACK_CASTLE | WHITE_OO);
