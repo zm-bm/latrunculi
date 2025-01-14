@@ -20,6 +20,8 @@ Score Chess::piecesEval() const {
     U64 occ = board.occupancy();
     U64 wPawns = board.getPieces<PAWN>(WHITE);
     U64 bPawns = board.getPieces<PAWN>(BLACK);
+    U64 wBlockedPawns = Eval::blockedPawns<WHITE>(wPawns, bPawns);
+    U64 bBlockedPawns = Eval::blockedPawns<BLACK>(bPawns, wPawns);
     U64 wOutposts = Eval::outpostSquares<WHITE>(wPawns, bPawns);
     U64 bOutposts = Eval::outpostSquares<BLACK>(bPawns, wPawns);
 

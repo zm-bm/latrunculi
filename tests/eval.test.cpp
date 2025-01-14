@@ -96,6 +96,22 @@ TEST(Eval_doubledPawns, WhiteDoubledPawnOnA4) {
     EXPECT_EQ(Eval::doubledPawns<BLACK>(bPawns), 0);
 }
 
+TEST(Eval_blockedPawns, Blocked) {
+    Board b("4k3/8/8/p7/P7/8/8/4K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::blockedPawns<WHITE>(wPawns, bPawns), BB::set(A4));
+    EXPECT_EQ(Eval::blockedPawns<BLACK>(bPawns, wPawns), BB::set(A5));
+}
+
+TEST(Eval_blockedPawns, NotBlocked) {
+    Board b("4k3/8/8/p7/8/P7/8/4K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::blockedPawns<WHITE>(wPawns, bPawns), 0);
+    EXPECT_EQ(Eval::blockedPawns<BLACK>(bPawns, wPawns), 0);
+}
+
 TEST(Eval_oppositeBishops, EmptyBoardNoOppositeBishops) {
     Board b(EMPTYFEN);
     EXPECT_FALSE(Eval::oppositeBishops(b.getPieces<BISHOP>(WHITE), b.getPieces<BISHOP>(BLACK)));

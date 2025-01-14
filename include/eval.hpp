@@ -4,9 +4,9 @@
 #include <array>
 
 #include "bb.hpp"
-#include "types.hpp"
 #include "constants.hpp"
 #include "score.hpp"
+#include "types.hpp"
 
 namespace Eval {
 
@@ -17,6 +17,7 @@ const Score REACHABLE_OUTPOST_BONUS = {31, 22};
 const Score BISHOP_OUTPOST_BONUS = {30, 23};
 const Score KNIGHT_OUTPOST_BONUS = {56, 36};
 const Score MINOR_BEHIND_PAWN_BONUS = {18, 3};
+const Score BISHOP_PAWNS_PENALTY = {3, 7};
 
 inline int pieceValue(Phase ph, Color c, PieceType pt) { return PIECE_VALUES[ph][c][pt]; }
 inline int mgPieceValue(PieceType pt) { return PIECE_VALUES[MIDGAME][WHITE][pt]; }
@@ -66,9 +67,28 @@ inline U64 doubledPawns(U64 pawns) {
     return pawnsBehind & ~supported;
 }
 
+template <Color c>
+inline U64 blockedPawns(U64 pawns, U64 enemyPawns) {
+    constexpr Color enemy = ~c;
+    return pawns & BB::movesByPawns<PawnMove::PUSH, enemy>(enemyPawns);
+}
+
 inline bool oppositeBishops(U64 wBishops, U64 bBishops) {
-    return (((wBishops & WHITE_SQUARES) && (bBishops & BLACK_SQUARES)) ||
-            ((wBishops & BLACK_SQUARES) && (bBishops & WHITE_SQUARES)));
+    return (((wBishops & LIGHT_SQUARES) && (bBishops & DARK_SQUARES)) ||
+            ((wBishops & DARK_SQUARES) && (bBishops & LIGHT_SQUARES)));
+}
+
+template <Color c>
+inline int bishopPawns(U64 bishops, U64 pawns, U64 enemyPawns) {
+    U64 lightBishops = bishops & LIGHT_SQUARES;
+    U64 darkBishops = bishops & DARK_SQUARES;
+    int lightPawnCount = BB::bitCount(pawns & LIGHT_SQUARES);
+    int darkPawnCount = BB::bitCount(pawns & DARK_SQUARES);
+    U64 blockedCount = BB::bitCount(blockedPawns<c>(pawns, enemyPawns) & CENTER_FILES);
+    int light_score = BB::bitCount(lightBishops) * lightPawnCount * (blockedCount + 1);
+    int dark_score  = BB::bitCount(darkBishops)  * darkPawnCount  * (blockedCount + 1);
+
+    return light_score + dark_score;
 }
 
 template <Color c>
@@ -92,10 +112,12 @@ inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
 //         bSliders = board.straightSliders(BLACK);
 //     double openFileValue = (opPhase * Eval::OpenFileBonus[MIDGAME]
 //                           + egPhase * Eval::OpenFileBonus[ENDGAME]) / TOTALPHASE;
-//     double openFileScore = (BB::bitCount(wSliders & openFiles) - BB::bitCount(bSliders & openFiles)) * openFileValue;
-//     double halfOpenFileValue = (opPhase * Eval::HalfOpenFileBonus[MIDGAME]
+//     double openFileScore = (BB::bitCount(wSliders & openFiles) - BB::bitCount(bSliders &
+//     openFiles)) * openFileValue; double halfOpenFileValue = (opPhase *
+//     Eval::HalfOpenFileBonus[MIDGAME]
 //                               + egPhase * Eval::HalfOpenFileBonus[ENDGAME]) / TOTALPHASE;
-//     double halfOpenFileScore = (BB::bitCount(wSliders & wHalfOpenFiles) - BB::bitCount(bSliders & bHalfOpenFiles)) * halfOpenFileValue;
+//     double halfOpenFileScore = (BB::bitCount(wSliders & wHalfOpenFiles) - BB::bitCount(bSliders &
+//     bHalfOpenFiles)) * halfOpenFileValue;
 
 //     // As pawns are captured, penalize knights and give bonus to rooks
 //     int capturedPawns = 16 - BB::bitCount(allPawns);
@@ -275,8 +297,10 @@ inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
 //         bShieldStrong = bShield & bPawns,
 //         wShieldWeak = BB::shiftNorth(wShield) & wPawns,
 //         bShieldWeak = BB::shiftSouth(bShield) & bPawns;
-//     double rawKingScore = Eval::STRONG_KING_SHIELD_BONUS * (BB::bitCount(wShieldStrong) - BB::bitCount(bShieldStrong))
-//                         + Eval::WEAK_KING_SHIELD_BONUS * (BB::bitCount(wShieldWeak) - BB::bitCount(bShieldWeak));
+//     double rawKingScore = Eval::STRONG_KING_SHIELD_BONUS * (BB::bitCount(wShieldStrong) -
+//     BB::bitCount(bShieldStrong))
+//                         + Eval::WEAK_KING_SHIELD_BONUS * (BB::bitCount(wShieldWeak) -
+//                         BB::bitCount(bShieldWeak));
 //     double kingScore = rawKingScore * std::min(16, (int)moveCounter) / 16 * openingModifier;
 //     if (debug)
 // 	{
@@ -307,7 +331,6 @@ inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
 
 //     return score + TEMPO_BONUS;
 // }
-
 
 // int calculateMobilityScore(const int, const int) const;
 // template <PieceType>
