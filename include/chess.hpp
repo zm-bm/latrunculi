@@ -34,6 +34,7 @@ class Chess {
 
     // eval helpers
     int nonPawnMaterial(Color) const;
+    int minorsBehindPawns() const;
     bool oppositeBishops() const;
     U64 passedPawns(Color) const;
 
@@ -85,6 +86,14 @@ inline int Chess::nonPawnMaterial(Color c) const {
             board.count<BISHOP>(c) * Eval::mgPieceValue(BISHOP) +
             board.count<ROOK>(c) * Eval::mgPieceValue(ROOK) +
             board.count<QUEEN>(c) * Eval::mgPieceValue(QUEEN));
+}
+
+inline int Chess::minorsBehindPawns() const {
+    U64 wMinorsBehind = BB::movesByPawns<PawnMove::PUSH, BLACK>(board.getPieces<PAWN>(WHITE)) &
+                        (board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE));
+    U64 bMinorsBehind = BB::movesByPawns<PawnMove::PUSH, WHITE>(board.getPieces<PAWN>(BLACK)) &
+                        (board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK));
+    return BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
 }
 
 inline bool Chess::oppositeBishops() const {

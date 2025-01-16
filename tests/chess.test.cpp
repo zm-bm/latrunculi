@@ -13,6 +13,69 @@ const auto E2PAWN = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
 const auto E4PAWN = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
 const auto A3ENPASSANT = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
 
+TEST(Chess_nonPawnMaterial, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.nonPawnMaterial(WHITE), 0);
+    EXPECT_EQ(c.nonPawnMaterial(BLACK), 0);
+}
+
+TEST(Chess_nonPawnMaterial, StartPosition) {
+    Chess c(STARTFEN);
+    int mat = (2 * Eval::mgPieceValue(KNIGHT) + 2 * Eval::mgPieceValue(BISHOP) +
+               2 * Eval::mgPieceValue(ROOK) + Eval::mgPieceValue(QUEEN));
+    EXPECT_EQ(c.nonPawnMaterial(WHITE), mat);
+    EXPECT_EQ(c.nonPawnMaterial(BLACK), mat);
+}
+
+TEST(Chess_minorsBehindPawns, EmptyFEN) {
+    EXPECT_EQ(Chess(EMPTYFEN).minorsBehindPawns(), 0);
+}
+
+TEST(Chess_minorsBehindPawns, StartFEN) {
+    EXPECT_EQ(Chess(STARTFEN).minorsBehindPawns(), 0);
+}
+
+TEST(Chess_minorsBehindPawns, WhiteMinorBehindPawn) {
+    EXPECT_EQ(Chess("4k3/8/8/4p3/4P3/4N3/8/4K3 w - - 0 1").minorsBehindPawns(), 1);
+}
+
+TEST(Chess_minorsBehindPawns, BlackMinorBehindPawn) {
+    EXPECT_EQ(Chess("4k3/8/4b3/4p3/4P3/8/8/4K3 w - - 0 1").minorsBehindPawns(), -1);
+}
+TEST(Chess_oppositeBishops, EmptyPosition) {
+    EXPECT_FALSE(Chess(EMPTYFEN).oppositeBishops());
+}
+
+TEST(Chess_oppositeBishops, StartPosition) {
+    EXPECT_FALSE(Chess(STARTFEN).oppositeBishops());
+}
+
+TEST(Chess_oppositeBishops, NonOppositeBishops) {
+    EXPECT_FALSE(Chess("3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1").oppositeBishops());
+}
+
+TEST(Chess_oppositeBishops, HasOppositeBishops) {
+    EXPECT_TRUE(Chess("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1").oppositeBishops());
+}
+
+TEST(Chess_passedPawns, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.passedPawns(WHITE), 0);
+    EXPECT_EQ(c.passedPawns(BLACK), 0);
+}
+
+TEST(Chess_passedPawns, NoPassedPawns) {
+    Chess c("4k3/p2p4/8/8/8/8/P1P5/4K3 w - - 0 1");
+    EXPECT_EQ(c.passedPawns(WHITE), 0);
+    EXPECT_EQ(c.passedPawns(BLACK), 0);
+}
+
+TEST(Chess_passedPawns, HasPassedPawns) {
+    Chess c("4k3/p3p3/8/8/8/8/P1P5/4K3 w - - 0 1");
+    EXPECT_EQ(c.passedPawns(WHITE), BB::set(C2));
+    EXPECT_EQ(c.passedPawns(BLACK), BB::set(E7));
+}
+
 TEST(Chess_pawnsEval, IsoPawn) {
     Chess c(E2PAWN);
     auto [mg, eg] = c.pawnsEval();

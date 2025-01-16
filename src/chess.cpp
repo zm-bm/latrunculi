@@ -51,15 +51,8 @@ Score Chess::piecesEval() const {
     // forEach<BLACK>(pieces, [&](Square sq) {
     // });
 
-    // minor behind pawn bonus
-    U64 wMinorsBehind = BB::movesByPawns<PawnMove::PUSH, BLACK>(wPawns) &
-                        (board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE));
-    U64 bMinorsBehind = BB::movesByPawns<PawnMove::PUSH, WHITE>(bPawns) &
-                        (board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK));
-    int minorBehindCount = BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
-    score += Eval::MINOR_BEHIND_PAWN_BONUS * minorBehindCount;
-
-
+    // minor pieces behind pawn bonus
+    score += Eval::MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
 
     return score;
 }
