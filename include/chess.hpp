@@ -28,15 +28,21 @@ class Chess {
     // evaluation
     template <bool>
     int eval() const;
+
     Score pawnsEval() const;
     Score piecesEval() const;
     int scaleFactor() const;
 
     // eval helpers
-    int nonPawnMaterial(Color) const;
-    int minorsBehindPawns() const;
-    bool hasOppositeBishops() const;
     U64 passedPawns(Color) const;
+    template <Color c>
+    U64 outpostSquares() const;
+    int knightOutposts(U64 wOutposts, U64 bOutposts) const;
+    int bishopOutposts(U64 wOutposts, U64 bOutposts) const;
+    int bishopPawnsScore() const;
+    int minorsBehindPawns() const;
+    int nonPawnMaterial(Color) const;
+    bool hasOppositeBishops() const;
 
     // make move / mutators
     void make(Move);
@@ -47,12 +53,16 @@ class Chess {
     // make move helpers
     template <bool>
     void addPiece(Square, Color, PieceType);
+
     template <bool>
     void removePiece(Square, Color, PieceType);
+
     template <bool>
     void movePiece(Square, Square, Color, PieceType);
+
     template <bool>
     void moveCastle(Square, Square, Color);
+
     void updateState(bool);
     void handlePieceCapture(Square sq, Color c, PieceType p);
     void handlePawnMoves(Square from, Square to, MoveType movetype, Move mv);
@@ -81,6 +91,46 @@ class Chess {
     friend class MoveGenerator;
 };
 
+inline U64 Chess::passedPawns(Color c) const {
+    U64 enemyPawns = board.getPieces<PAWN>(~c);
+    U64 blockers = (c == WHITE) ? BB::getAllFrontSpan<BLACK>(enemyPawns)
+                                : BB::getAllFrontSpan<WHITE>(enemyPawns);
+    return board.getPieces<PAWN>(c) & ~blockers;
+}
+
+template <Color c>
+inline U64 Chess::outpostSquares() const {
+    constexpr Color enemy = ~c;
+    return Eval::outpostSquares<c>(board.getPieces<PAWN>(c), board.getPieces<PAWN>(enemy));
+}
+
+inline int Chess::knightOutposts(U64 wOutposts, U64 bOutposts) const {
+    return BB::bitCount(board.getPieces<KNIGHT>(WHITE) & wOutposts) -
+           BB::bitCount(board.getPieces<KNIGHT>(BLACK) & bOutposts);
+}
+
+inline int Chess::bishopOutposts(U64 wOutposts, U64 bOutposts) const {
+    return BB::bitCount(board.getPieces<BISHOP>(WHITE) & wOutposts) -
+           BB::bitCount(board.getPieces<BISHOP>(BLACK) & bOutposts);
+}
+
+inline int Chess::bishopPawnsScore() const {
+    U64 wPawns = board.getPieces<PAWN>(WHITE);
+    U64 bPawns = board.getPieces<PAWN>(BLACK);
+    return Eval::bishopPawns<WHITE>(board.getPieces<BISHOP>(WHITE), wPawns, bPawns) -
+           Eval::bishopPawns<BLACK>(board.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+}
+
+inline int Chess::minorsBehindPawns() const {
+    U64 wPawnsInFront = BB::movesByPawns<PawnMove::PUSH, BLACK>(board.getPieces<PAWN>(WHITE));
+    U64 bPawnsInFront = BB::movesByPawns<PawnMove::PUSH, WHITE>(board.getPieces<PAWN>(BLACK));
+    U64 wMinors = board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE);
+    U64 bMinors = board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK);
+    U64 wMinorsBehind = wMinors & wPawnsInFront;
+    U64 bMinorsBehind = bMinors & bPawnsInFront;
+    return BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
+}
+
 inline int Chess::nonPawnMaterial(Color c) const {
     return (board.count<KNIGHT>(c) * Eval::mgPieceValue(KNIGHT) +
             board.count<BISHOP>(c) * Eval::mgPieceValue(BISHOP) +
@@ -88,26 +138,11 @@ inline int Chess::nonPawnMaterial(Color c) const {
             board.count<QUEEN>(c) * Eval::mgPieceValue(QUEEN));
 }
 
-inline int Chess::minorsBehindPawns() const {
-    U64 wMinorsBehind = BB::movesByPawns<PawnMove::PUSH, BLACK>(board.getPieces<PAWN>(WHITE)) &
-                        (board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE));
-    U64 bMinorsBehind = BB::movesByPawns<PawnMove::PUSH, WHITE>(board.getPieces<PAWN>(BLACK)) &
-                        (board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK));
-    return BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
-}
-
 inline bool Chess::hasOppositeBishops() const {
     if (board.count<BISHOP>(WHITE) != 1 || board.count<BISHOP>(BLACK) != 1) {
         return false;
     }
     return Eval::oppositeBishops(board.getPieces<BISHOP>(WHITE), board.getPieces<BISHOP>(BLACK));
-}
-
-inline U64 Chess::passedPawns(Color c) const {
-    U64 enemyPawns = board.getPieces<PAWN>(~c);
-    U64 blockers = (c == WHITE) ? BB::getAllFrontSpan<BLACK>(enemyPawns)
-                                : BB::getAllFrontSpan<WHITE>(enemyPawns);
-    return board.getPieces<PAWN>(c) & ~blockers;
 }
 
 template <bool forward>

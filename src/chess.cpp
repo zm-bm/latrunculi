@@ -18,41 +18,35 @@ Score Chess::piecesEval() const {
     Score score = {0, 0};
     U64 pieces;
     U64 occ = board.occupancy();
-    U64 wPawns = board.getPieces<PAWN>(WHITE);
-    U64 bPawns = board.getPieces<PAWN>(BLACK);
-    U64 wOutposts = Eval::outpostSquares<WHITE>(wPawns, bPawns);
-    U64 bOutposts = Eval::outpostSquares<BLACK>(bPawns, wPawns);
+    U64 wOutposts = outpostSquares<WHITE>();
+    U64 bOutposts = outpostSquares<BLACK>();
+
+    score += Eval::KNIGHT_OUTPOST_BONUS * knightOutposts(wOutposts, bOutposts);
+    score += Eval::BISHOP_OUTPOST_BONUS * bishopOutposts(wOutposts, bOutposts);
+    score += Eval::MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
+    // score += Eval::BISHOP_PAWNS_PENALTY * bishopPawnsScore();
 
     // white knights
-    pieces = board.getPieces<KNIGHT>(WHITE);
-    score += Eval::KNIGHT_OUTPOST_BONUS * BB::bitCount(pieces & wOutposts);
-    forEach<WHITE>(pieces, [&](Square sq) {
+    forEach<WHITE>(board.getPieces<KNIGHT>(WHITE), [&](Square sq) {
         score += Eval::REACHABLE_OUTPOST_BONUS *
                  BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & wOutposts);
     });
 
     // black knights
-    pieces = board.getPieces<KNIGHT>(BLACK);
-    score -= Eval::KNIGHT_OUTPOST_BONUS * BB::bitCount(pieces & bOutposts);
-    forEach<BLACK>(pieces, [&](Square sq) {
+    forEach<BLACK>(board.getPieces<KNIGHT>(BLACK), [&](Square sq) {
         score -= Eval::REACHABLE_OUTPOST_BONUS *
                  BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & bOutposts);
     });
 
     // white bishops
-    pieces = board.getPieces<BISHOP>(WHITE);
-    score += Eval::BISHOP_OUTPOST_BONUS * BB::bitCount(pieces & wOutposts);
+    // pieces = board.getPieces<BISHOP>(WHITE);
     // forEach<WHITE>(pieces, [&](Square sq) {
     // });
 
     // black bishops
-    pieces = board.getPieces<BISHOP>(BLACK);
-    score -= Eval::BISHOP_OUTPOST_BONUS * BB::bitCount(pieces & bOutposts);
+    // pieces = board.getPieces<BISHOP>(BLACK);
     // forEach<BLACK>(pieces, [&](Square sq) {
     // });
-
-    // minor pieces behind pawn bonus
-    score += Eval::MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
 
     return score;
 }
