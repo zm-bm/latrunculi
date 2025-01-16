@@ -127,7 +127,7 @@ int Chess::scaleFactor() const {
     }
 
     // Opposite-colored bishops often lead to draws
-    if (oppositeBishops()) {
+    if (hasOppositeBishops()) {
         // todo: use candidate passed pawns
         return std::min(SCALE_LIMIT, 36 + 4 * BB::bitCount(passedPawns(turn)));
     }

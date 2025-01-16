@@ -42,20 +42,20 @@ TEST(Chess_minorsBehindPawns, WhiteMinorBehindPawn) {
 TEST(Chess_minorsBehindPawns, BlackMinorBehindPawn) {
     EXPECT_EQ(Chess("4k3/8/4b3/4p3/4P3/8/8/4K3 w - - 0 1").minorsBehindPawns(), -1);
 }
-TEST(Chess_oppositeBishops, EmptyPosition) {
-    EXPECT_FALSE(Chess(EMPTYFEN).oppositeBishops());
+TEST(Chess_hasOppositeBishops, EmptyPosition) {
+    EXPECT_FALSE(Chess(EMPTYFEN).hasOppositeBishops());
 }
 
-TEST(Chess_oppositeBishops, StartPosition) {
-    EXPECT_FALSE(Chess(STARTFEN).oppositeBishops());
+TEST(Chess_hasOppositeBishops, StartPosition) {
+    EXPECT_FALSE(Chess(STARTFEN).hasOppositeBishops());
 }
 
-TEST(Chess_oppositeBishops, NonOppositeBishops) {
-    EXPECT_FALSE(Chess("3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1").oppositeBishops());
+TEST(Chess_hasOppositeBishops, NonOppositeBishops) {
+    EXPECT_FALSE(Chess("3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1").hasOppositeBishops());
 }
 
-TEST(Chess_oppositeBishops, HasOppositeBishops) {
-    EXPECT_TRUE(Chess("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1").oppositeBishops());
+TEST(Chess_hasOppositeBishops, HasOppositeBishops) {
+    EXPECT_TRUE(Chess("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1").hasOppositeBishops());
 }
 
 TEST(Chess_passedPawns, StartPosition) {
