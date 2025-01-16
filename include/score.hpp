@@ -37,5 +37,10 @@ struct Score {
         eg *= scalar;
         return *this;
     }
+
+    friend std::ostream& operator<<(std::ostream& os, const Score& score) {
+        os << "Score(mg: " << score.mg << ", eg: " << score.eg << ")";
+        return os;
+    }
 };
 #endif
