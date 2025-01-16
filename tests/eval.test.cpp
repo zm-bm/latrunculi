@@ -16,13 +16,13 @@ TEST(EvalTest, ValuesMirrored) {
     }
 }
 
-TEST(Eval_pieceSqBonus, ValuesMirror) {
+TEST(Eval_psqValue, ValuesMirror) {
     for (int ph = MIDGAME; ph < N_PHASES; ++ph) {
         for (int pt = PAWN; pt < N_PIECES; ++pt) {
             for (int sq = A1; sq < N_SQUARES; ++sq) {
                 int bsq = N_SQUARES - 1 - sq;
-                EXPECT_EQ(Eval::pieceSqBonus(Phase(ph), WHITE, PieceType(pt), Square(sq)),
-                          -Eval::pieceSqBonus(Phase(ph), BLACK, PieceType(pt), Square(bsq)));
+                EXPECT_EQ(Eval::psqValue(Phase(ph), WHITE, PieceType(pt), Square(sq)),
+                          -Eval::psqValue(Phase(ph), BLACK, PieceType(pt), Square(bsq)));
             }
         }
     }

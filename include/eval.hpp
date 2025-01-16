@@ -32,7 +32,7 @@ const std::array<ScoreArray, N_PHASES> kingBonus = {{KING_BONUS_MG, KING_BONUS_E
 const std::array<std::array<ScoreArray, N_PHASES>, 6> pieceBonus = {
     {pawnBonus, knightBonus, bishopBonus, rookBonus, queenBonus, kingBonus}};
 
-inline int pieceSqBonus(Phase ph, Color c, PieceType pt, Square sq) {
+inline int psqValue(Phase ph, Color c, PieceType pt, Square sq) {
     // Get the piece square value for color c
     int score = pieceBonus[pt - 1][ph][SQUARE_MAP[c][sq]];
     return (2 * c * score) - score;

@@ -96,8 +96,8 @@ template <bool debug = false>
 int Chess::eval() const {
     Score score{0, 0};
 
-    score += Score{materialScore<MIDGAME>(), materialScore<ENDGAME>()};
-    score += Score{pieceSqScore<MIDGAME>(), pieceSqScore<ENDGAME>()};
+    score += materialScore();
+    score += psqBonusScore();
     score += pawnsEval();
     score += piecesEval();
 

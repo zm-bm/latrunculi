@@ -83,44 +83,39 @@ TEST(Chess_eval, NegativeEvalWithWhitePawnBlackToMove) {
 }
 
 TEST(Chess_materialScore, StartPosition) {
-    EXPECT_EQ(Chess(STARTFEN).materialScore<MIDGAME>(), 0);
-    EXPECT_EQ(Chess(STARTFEN).materialScore<ENDGAME>(), 0);
+    EXPECT_EQ(Chess(STARTFEN).materialScore().mg, 0);
+    EXPECT_EQ(Chess(STARTFEN).materialScore().eg, 0);
 }
 
 TEST(Chess_materialScore, WhitePawn) {
     Chess c("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1");
-    EXPECT_EQ(c.materialScore<MIDGAME>(), Eval::mgPieceValue(PAWN));
-    EXPECT_EQ(c.materialScore<ENDGAME>(), Eval::egPieceValue(PAWN));
+    EXPECT_EQ(c.materialScore().mg, Eval::mgPieceValue(PAWN));
+    EXPECT_EQ(c.materialScore().eg, Eval::egPieceValue(PAWN));
 }
 
 TEST(Chess_materialScore, WhiteKnight) {
     Chess c("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1");
-    EXPECT_EQ(c.materialScore<MIDGAME>(), Eval::mgPieceValue(KNIGHT));
-    EXPECT_EQ(c.materialScore<ENDGAME>(), Eval::egPieceValue(KNIGHT));
+    EXPECT_EQ(c.materialScore().mg, Eval::mgPieceValue(KNIGHT));
+    EXPECT_EQ(c.materialScore().eg, Eval::egPieceValue(KNIGHT));
 }
 
 TEST(Chess_materialScore, BlackBishop) {
     Chess c("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1");
-    EXPECT_EQ(c.materialScore<MIDGAME>(), -Eval::mgPieceValue(BISHOP));
-    EXPECT_EQ(c.materialScore<ENDGAME>(), -Eval::egPieceValue(BISHOP));
+    EXPECT_EQ(c.materialScore().mg, -Eval::mgPieceValue(BISHOP));
+    EXPECT_EQ(c.materialScore().eg, -Eval::egPieceValue(BISHOP));
 }
 
 TEST(Chess_materialScore, WhiteQueenBlackRook) {
     Chess c("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1");
-    EXPECT_EQ(c.materialScore<MIDGAME>(), Eval::mgPieceValue(QUEEN) - Eval::mgPieceValue(ROOK));
-    EXPECT_EQ(c.materialScore<ENDGAME>(), Eval::egPieceValue(QUEEN) - Eval::egPieceValue(ROOK));
+    EXPECT_EQ(c.materialScore().mg, Eval::mgPieceValue(QUEEN) - Eval::mgPieceValue(ROOK));
+    EXPECT_EQ(c.materialScore().eg, Eval::egPieceValue(QUEEN) - Eval::egPieceValue(ROOK));
 }
 
-TEST(Chess_pieceSqScore, MidGamePieceSqScore) {
-    EXPECT_EQ(Chess(STARTFEN).pieceSqScore<MIDGAME>(), 0);
-    EXPECT_EQ(Chess(EMPTYFEN).pieceSqScore<MIDGAME>(), 0);
-    EXPECT_EQ(Chess(E2PAWN).pieceSqScore<MIDGAME>(), Eval::pieceSqBonus(MIDGAME, WHITE, PAWN, E2));
-}
-
-TEST(Chess_pieceSqScore, EndGamePieceSqScore) {
-    EXPECT_EQ(Chess(STARTFEN).pieceSqScore<ENDGAME>(), 0);
-    EXPECT_EQ(Chess(EMPTYFEN).pieceSqScore<ENDGAME>(), 0);
-    EXPECT_EQ(Chess(E2PAWN).pieceSqScore<ENDGAME>(), Eval::pieceSqBonus(ENDGAME, WHITE, PAWN, E2));
+TEST(Chess_psqBonusScore, CorrectValues) {
+    EXPECT_EQ(Chess(STARTFEN).psqBonusScore().mg, 0);
+    EXPECT_EQ(Chess(STARTFEN).psqBonusScore().eg, 0);
+    EXPECT_EQ(Chess(E2PAWN).psqBonusScore().mg, Eval::psqValue(MIDGAME, WHITE, PAWN, E2));
+    EXPECT_EQ(Chess(E2PAWN).psqBonusScore().eg, Eval::psqValue(ENDGAME, WHITE, PAWN, E2));
 }
 
 TEST(Chess_scaleFactor, DrawScenarios) {
@@ -172,8 +167,6 @@ TEST(Chess_make, RookCaptureDisablesCastleRights) {
     c.unmake();
     EXPECT_EQ(c.toFEN(), fen) << "should restore castle rights on undo";
 }
-
-
 
 TEST(Chess_make, PawnDoublePushSetsEnpassantSq) {
     auto fen = "4k3/8/8/8/1p6/8/P7/4K3 w - - 0 1";
@@ -376,8 +369,7 @@ TEST(Chess_isLegalMove, Castling) {
 
 TEST(Chess_isLegalMove, EnPassant) {
     Chess c = Chess(A3ENPASSANT);
-    EXPECT_TRUE(c.isLegalMove(Move(B4, A3, ENPASSANT)))
-        << "should allow legal enpassant";
+    EXPECT_TRUE(c.isLegalMove(Move(B4, A3, ENPASSANT))) << "should allow legal enpassant";
 }
 
 TEST(Chess_isLegalMove, PinnedEnPassant) {
@@ -434,10 +426,3 @@ TEST(Chess_toFen, CorrectValues) {
         EXPECT_EQ(c.toFEN(), fen) << "should return identical fen";
     }
 }
-
-
-
-
-
-
-

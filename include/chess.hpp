@@ -8,8 +8,8 @@
 #include "board.hpp"
 #include "constants.hpp"
 #include "eval.hpp"
-#include "state.hpp"
 #include "score.hpp"
+#include "state.hpp"
 #include "zobrist.hpp"
 
 class Chess {
@@ -19,8 +19,8 @@ class Chess {
     Color turn = WHITE;
     U32 ply = 0;
     U32 moveCounter = 0;
-    int material[N_PHASES] = {0, 0};
-    int pieceSquares[N_PHASES] = {0, 0};
+    Score material = {0, 0};
+    Score psqBonus = {0, 0};
 
    public:
     explicit Chess(const std::string&);
@@ -64,10 +64,8 @@ class Chess {
     U8 getHmClock() const { return state.at(ply).hmClock; }
     bool isCheck() const { return getCheckingPieces(); }
     bool isDoubleCheck() const { return BB::moreThanOneSet(getCheckingPieces()); }
-    template <Phase ph>
-    int materialScore() const { return material[ph]; }
-    template <Phase ph>
-    int pieceSqScore() const { return pieceSquares[ph]; }
+    Score materialScore() const { return material; }
+    Score psqBonusScore() const { return psqBonus; }
 
     // other helpers
     U64 calculateKey() const;
@@ -106,10 +104,8 @@ inline U64 Chess::passedPawns(Color c) const {
 template <bool forward>
 inline void Chess::addPiece(Square sq, Color c, PieceType pt) {
     board.addPiece(sq, c, pt);
-    material[MIDGAME] += Eval::pieceValue(MIDGAME, c, pt);
-    material[ENDGAME] += Eval::pieceValue(ENDGAME, c, pt);
-    pieceSquares[MIDGAME] += Eval::pieceSqBonus(MIDGAME, c, pt, sq);
-    pieceSquares[ENDGAME] += Eval::pieceSqBonus(ENDGAME, c, pt, sq);
+    material += Score{Eval::pieceValue(MIDGAME, c, pt), Eval::pieceValue(ENDGAME, c, pt)};
+    psqBonus += Score{Eval::psqValue(MIDGAME, c, pt, sq), Eval::psqValue(ENDGAME, c, pt, sq)};
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][pt][sq];
@@ -119,10 +115,8 @@ inline void Chess::addPiece(Square sq, Color c, PieceType pt) {
 template <bool forward>
 inline void Chess::removePiece(Square sq, Color c, PieceType pt) {
     board.removePiece(sq, c, pt);
-    material[MIDGAME] -= Eval::pieceValue(MIDGAME, c, pt);
-    material[ENDGAME] -= Eval::pieceValue(ENDGAME, c, pt);
-    pieceSquares[MIDGAME] -= Eval::pieceSqBonus(MIDGAME, c, pt, sq);
-    pieceSquares[ENDGAME] -= Eval::pieceSqBonus(ENDGAME, c, pt, sq);
+    material -= Score{Eval::pieceValue(MIDGAME, c, pt), Eval::pieceValue(ENDGAME, c, pt)};
+    psqBonus -= Score{Eval::psqValue(MIDGAME, c, pt, sq), Eval::psqValue(ENDGAME, c, pt, sq)};
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][pt][sq];
@@ -132,10 +126,8 @@ inline void Chess::removePiece(Square sq, Color c, PieceType pt) {
 template <bool forward>
 inline void Chess::movePiece(Square from, Square to, Color c, PieceType pt) {
     board.movePiece(from, to, c, pt);
-    pieceSquares[MIDGAME] +=
-        Eval::pieceSqBonus(MIDGAME, c, pt, to) - Eval::pieceSqBonus(MIDGAME, c, pt, from);
-    pieceSquares[ENDGAME] +=
-        Eval::pieceSqBonus(ENDGAME, c, pt, to) - Eval::pieceSqBonus(ENDGAME, c, pt, from);
+    psqBonus += Score{Eval::psqValue(MIDGAME, c, pt, to) - Eval::psqValue(MIDGAME, c, pt, from),
+                      Eval::psqValue(ENDGAME, c, pt, to) - Eval::psqValue(ENDGAME, c, pt, from)};
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][pt][from] ^ Zobrist::psq[c][pt][to];
