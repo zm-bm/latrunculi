@@ -17,7 +17,7 @@ const Score REACHABLE_OUTPOST_BONUS = {31, 22};
 const Score BISHOP_OUTPOST_BONUS = {30, 23};
 const Score KNIGHT_OUTPOST_BONUS = {56, 36};
 const Score MINOR_BEHIND_PAWN_BONUS = {18, 3};
-const Score BISHOP_PAWNS_PENALTY = {3, 7};
+const Score BISHOP_PAWNS_PENALTY = {-3, -7};
 
 inline int pieceValue(Phase ph, Color c, PieceType pt) { return PIECE_VALUES[ph][c][pt]; }
 inline int mgPieceValue(PieceType pt) { return PIECE_VALUES[MIDGAME][WHITE][pt]; }
@@ -78,17 +78,28 @@ inline bool oppositeBishops(U64 wBishops, U64 bBishops) {
             ((wBishops & DARK_SQUARES) && (bBishops & LIGHT_SQUARES)));
 }
 
+/**
+ * @brief Computes the score based on the number of pawns on the same color 
+ *        square as the bishop. This value is multiplied by one plus the number 
+ *        of blocked pawns in the central files (C, D, E, F).
+ *
+ * @tparam c The color of the bishops (WHITE or BLACK).
+ * @param bishops A bitboard representing the positions of the bishops.
+ * @param pawns A bitboard representing the positions of the pawns.
+ * @param enemyPawns A bitboard representing the positions of the opponent's pawns.
+ * @return An integer score derived from the alignment of pawns and bishops
+ *         plus the impact of blocked central pawns.
+ */
 template <Color c>
 inline int bishopPawns(U64 bishops, U64 pawns, U64 enemyPawns) {
-    U64 lightBishops = bishops & LIGHT_SQUARES;
-    U64 darkBishops = bishops & DARK_SQUARES;
-    int lightPawnCount = BB::bitCount(pawns & LIGHT_SQUARES);
-    int darkPawnCount = BB::bitCount(pawns & DARK_SQUARES);
-    U64 blockedCount = BB::bitCount(blockedPawns<c>(pawns, enemyPawns) & CENTER_FILES);
-    int light_score = BB::bitCount(lightBishops) * lightPawnCount * (blockedCount + 1);
-    int dark_score  = BB::bitCount(darkBishops)  * darkPawnCount  * (blockedCount + 1);
-
-    return light_score + dark_score;
+    int lightBishops = BB::bitCount(bishops & LIGHT_SQUARES);
+    int darkBishops = BB::bitCount(bishops & DARK_SQUARES);
+    int lightPawns = BB::bitCount(pawns & LIGHT_SQUARES);
+    int darkPawns = BB::bitCount(pawns & DARK_SQUARES);
+    int blocked = BB::bitCount(blockedPawns<c>(pawns, enemyPawns) & CENTER_FILES);
+    int lightScore = lightBishops * lightPawns;
+    int darkScore = darkBishops * darkPawns;
+    return (lightScore + darkScore) * (1 + blocked);
 }
 
 template <Color c>

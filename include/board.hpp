@@ -46,11 +46,6 @@ struct Board {
     U64 calculatePinnedPieces(Color c) const;
     U64 calculateCheckingPieces(Color c) const;
     bool isBitboardAttacked(U64, Color) const;
-
-    // eval helpers
-    int nonPawnMaterial(Color) const;
-    bool oppositeBishops() const;
-    U64 passedPawns(Color) const;
 };
 
 inline Board::Board(const std::string& fen) {
@@ -204,27 +199,6 @@ inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const {
     }
 
     return false;
-}
-
-inline int Board::nonPawnMaterial(Color c) const {
-    return (count<KNIGHT>(c) * Eval::mgPieceValue(KNIGHT) +
-            count<BISHOP>(c) * Eval::mgPieceValue(BISHOP) +
-            count<ROOK>(c) * Eval::mgPieceValue(ROOK) +
-            count<QUEEN>(c) * Eval::mgPieceValue(QUEEN));
-}
-
-inline bool Board::oppositeBishops() const {
-    if (count<BISHOP>(WHITE) != 1 || count<BISHOP>(BLACK) != 1) {
-        return false;
-    }
-    return Eval::oppositeBishops(getPieces<BISHOP>(WHITE), getPieces<BISHOP>(BLACK));
-}
-
-inline U64 Board::passedPawns(Color c) const {
-    U64 enemyPawns = getPieces<PAWN>(~c);
-    U64 blockers = (c == WHITE) ? BB::getAllFrontSpan<BLACK>(enemyPawns)
-                                : BB::getAllFrontSpan<WHITE>(enemyPawns);
-    return getPieces<PAWN>(c) & ~blockers;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const Board& b) {

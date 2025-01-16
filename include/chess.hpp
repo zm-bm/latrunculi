@@ -25,14 +25,17 @@ class Chess {
    public:
     explicit Chess(const std::string&);
 
-    // eval
+    // evaluation
     template <bool>
     int eval() const;
-
-    // eval helpers
     Score pawnsEval() const;
     Score piecesEval() const;
     int scaleFactor() const;
+
+    // eval helpers
+    int nonPawnMaterial(Color) const;
+    bool oppositeBishops() const;
+    U64 passedPawns(Color) const;
 
     // make move / mutators
     void make(Move);
@@ -78,6 +81,27 @@ class Chess {
 
     friend class MoveGenerator;
 };
+
+inline int Chess::nonPawnMaterial(Color c) const {
+    return (board.count<KNIGHT>(c) * Eval::mgPieceValue(KNIGHT) +
+            board.count<BISHOP>(c) * Eval::mgPieceValue(BISHOP) +
+            board.count<ROOK>(c) * Eval::mgPieceValue(ROOK) +
+            board.count<QUEEN>(c) * Eval::mgPieceValue(QUEEN));
+}
+
+inline bool Chess::oppositeBishops() const {
+    if (board.count<BISHOP>(WHITE) != 1 || board.count<BISHOP>(BLACK) != 1) {
+        return false;
+    }
+    return Eval::oppositeBishops(board.getPieces<BISHOP>(WHITE), board.getPieces<BISHOP>(BLACK));
+}
+
+inline U64 Chess::passedPawns(Color c) const {
+    U64 enemyPawns = board.getPieces<PAWN>(~c);
+    U64 blockers = (c == WHITE) ? BB::getAllFrontSpan<BLACK>(enemyPawns)
+                                : BB::getAllFrontSpan<WHITE>(enemyPawns);
+    return board.getPieces<PAWN>(c) & ~blockers;
+}
 
 template <bool forward>
 inline void Chess::addPiece(Square sq, Color c, PieceType pt) {

@@ -434,3 +434,10 @@ TEST(Chess_toFen, CorrectValues) {
         EXPECT_EQ(c.toFEN(), fen) << "should return identical fen";
     }
 }
+
+
+
+
+
+
+

@@ -20,8 +20,6 @@ Score Chess::piecesEval() const {
     U64 occ = board.occupancy();
     U64 wPawns = board.getPieces<PAWN>(WHITE);
     U64 bPawns = board.getPieces<PAWN>(BLACK);
-    U64 wBlockedPawns = Eval::blockedPawns<WHITE>(wPawns, bPawns);
-    U64 bBlockedPawns = Eval::blockedPawns<BLACK>(bPawns, wPawns);
     U64 wOutposts = Eval::outpostSquares<WHITE>(wPawns, bPawns);
     U64 bOutposts = Eval::outpostSquares<BLACK>(bPawns, wPawns);
 
@@ -53,13 +51,15 @@ Score Chess::piecesEval() const {
     // forEach<BLACK>(pieces, [&](Square sq) {
     // });
 
-    // all minor pieces
-    pieces = board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE);
-    score += Eval::MINOR_BEHIND_PAWN_BONUS *
-             BB::bitCount(BB::movesByPawns<PawnMove::PUSH, WHITE>(pieces) & wPawns);
-    pieces = board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK);
-    score -= Eval::MINOR_BEHIND_PAWN_BONUS *
-             BB::bitCount(BB::movesByPawns<PawnMove::PUSH, BLACK>(pieces) & bPawns);
+    // minor behind pawn bonus
+    U64 wMinorsBehind = BB::movesByPawns<PawnMove::PUSH, BLACK>(wPawns) &
+                        (board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE));
+    U64 bMinorsBehind = BB::movesByPawns<PawnMove::PUSH, WHITE>(bPawns) &
+                        (board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK));
+    int minorBehindCount = BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
+    score += Eval::MINOR_BEHIND_PAWN_BONUS * minorBehindCount;
+
+
 
     return score;
 }
@@ -104,7 +104,7 @@ int Chess::eval() const {
     score.eg *= scaleFactor() / 64.0;
 
     // tapered eval based on remaining non pawn material
-    int phase = Eval::calculatePhase(board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK));
+    int phase = Eval::calculatePhase(nonPawnMaterial(WHITE) + nonPawnMaterial(BLACK));
     int result = score.taper(phase);
 
     // tempo bonus
@@ -124,8 +124,8 @@ int Chess::scaleFactor() const {
     Color enemy = ~turn;
     int pawnCount = board.count<PAWN>(turn);
     int pawnCountEnemy = board.count<PAWN>(enemy);
-    int nonPawnMat = board.nonPawnMaterial(turn);
-    int nonPawnMatEnemy = board.nonPawnMaterial(enemy);
+    int nonPawnMat = nonPawnMaterial(turn);
+    int nonPawnMatEnemy = nonPawnMaterial(enemy);
     int nonPawnMatDiff = std::abs(nonPawnMat - nonPawnMatEnemy);
 
     // Check for drawish scenarios with no pawns and equal material
@@ -134,9 +134,9 @@ int Chess::scaleFactor() const {
     }
 
     // Opposite-colored bishops often lead to draws
-    if (board.oppositeBishops()) {
+    if (oppositeBishops()) {
         // todo: use candidate passed pawns
-        return std::min(SCALE_LIMIT, 36 + 4 * BB::bitCount(board.passedPawns(turn)));
+        return std::min(SCALE_LIMIT, 36 + 4 * BB::bitCount(passedPawns(turn)));
     }
 
     // Single queen scenarios with minor pieces

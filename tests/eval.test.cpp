@@ -4,6 +4,7 @@
 
 #include "bb.hpp"
 #include "board.hpp"
+#include "chess.hpp"
 #include "constants.hpp"
 
 TEST(EvalTest, ValuesMirrored) {
@@ -39,9 +40,9 @@ TEST(Eval_calculatePhase, LimitsAreDefault) {
 }
 
 TEST(Eval_calculatePhase, CorrectInterpolation) {
-    Board b = Board(STARTFEN);
-    EXPECT_EQ(Eval::calculatePhase(b.nonPawnMaterial(BLACK)), 49);
-    EXPECT_EQ(Eval::calculatePhase(b.nonPawnMaterial(BLACK) * 2), PHASE_LIMIT);
+    Chess c = Chess(STARTFEN);
+    EXPECT_EQ(Eval::calculatePhase(c.nonPawnMaterial(BLACK)), 49);
+    EXPECT_EQ(Eval::calculatePhase(c.nonPawnMaterial(BLACK) * 2), PHASE_LIMIT);
 }
 
 TEST(Eval_isolatedPawns, StartPositionNoIsolatedPawns) {
