@@ -10,39 +10,11 @@
 
 namespace Eval {
 
-const Score ISO_PAWN_PENALTY = {-5, -15};
-const Score BACKWARD_PAWN_PENALTY = {-9, -25};
-const Score DOUBLED_PAWN_PENALTY = {-11, -56};
-const Score REACHABLE_OUTPOST_BONUS = {31, 22};
-const Score BISHOP_OUTPOST_BONUS = {30, 23};
-const Score KNIGHT_OUTPOST_BONUS = {56, 36};
-const Score MINOR_BEHIND_PAWN_BONUS = {18, 3};
-const Score BISHOP_PAWNS_PENALTY = {-3, -7};
-
 inline int pieceValue(Phase ph, Color c, PieceType pt) { return PIECE_VALUES[ph][c][pt]; }
-inline int mgPieceValue(PieceType pt) { return PIECE_VALUES[MIDGAME][WHITE][pt]; }
-inline int egPieceValue(PieceType pt) { return PIECE_VALUES[ENDGAME][WHITE][pt]; }
-
-const std::array<ScoreArray, N_PHASES> pawnBonus = {{PAWN_BONUS_MG, PAWN_BONUS_EG}};
-const std::array<ScoreArray, N_PHASES> knightBonus = {{KNIGHT_BONUS_MG, KNIGHT_BONUS_EG}};
-const std::array<ScoreArray, N_PHASES> bishopBonus = {{BISHOP_BONUS_MG, BISHOP_BONUS_EG}};
-const std::array<ScoreArray, N_PHASES> rookBonus = {{ROOK_BONUS_MG, ROOK_BONUS_EG}};
-const std::array<ScoreArray, N_PHASES> queenBonus = {{QUEEN_BONUS_MG, QUEEN_BONUS_EG}};
-const std::array<ScoreArray, N_PHASES> kingBonus = {{KING_BONUS_MG, KING_BONUS_EG}};
-const std::array<std::array<ScoreArray, N_PHASES>, 6> pieceBonus = {
-    {pawnBonus, knightBonus, bishopBonus, rookBonus, queenBonus, kingBonus}};
 
 inline int psqValue(Phase ph, Color c, PieceType pt, Square sq) {
-    // Get the piece square value for color c
-    int score = pieceBonus[pt - 1][ph][SQUARE_MAP[c][sq]];
+    int score = PSQ_VALUES[pt - 1][ph][SQUARE_MAP[c][sq]];
     return (2 * c * score) - score;
-}
-
-inline int tempoBonus(Color c) { return c == WHITE ? TEMPO_BONUS : -TEMPO_BONUS; }
-
-inline int calculatePhase(int nonPawnMaterial) {
-    nonPawnMaterial = std::clamp(nonPawnMaterial, EG_LIMIT, MG_LIMIT);
-    return ((nonPawnMaterial - EG_LIMIT) * PHASE_LIMIT) / (MG_LIMIT - EG_LIMIT);
 }
 
 inline U64 isolatedPawns(U64 pawns) {
@@ -73,14 +45,9 @@ inline U64 blockedPawns(U64 pawns, U64 enemyPawns) {
     return pawns & BB::movesByPawns<PawnMove::PUSH, enemy>(enemyPawns);
 }
 
-inline bool oppositeBishops(U64 wBishops, U64 bBishops) {
-    return (((wBishops & LIGHT_SQUARES) && (bBishops & DARK_SQUARES)) ||
-            ((wBishops & DARK_SQUARES) && (bBishops & LIGHT_SQUARES)));
-}
-
 /**
- * @brief Computes the score based on the number of pawns on the same color 
- *        square as the bishop. This value is multiplied by one plus the number 
+ * @brief Computes the score based on the number of pawns on the same color
+ *        square as the bishop. This value is multiplied by one plus the number
  *        of blocked pawns in the central files (C, D, E, F).
  *
  * @tparam c The color of the bishops (WHITE or BLACK).

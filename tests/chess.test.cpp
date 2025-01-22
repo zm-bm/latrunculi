@@ -13,87 +13,147 @@ const auto E2PAWN = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
 const auto E4PAWN = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
 const auto A3ENPASSANT = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
 
+// --- Tests for Chess::eval---
+TEST(Chess_eval, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.eval<false>(), TEMPO_BONUS) << "white to move should be tempo bonus";
+    c.makeNull();
+    EXPECT_EQ(c.eval<false>(), -TEMPO_BONUS) << "black to move should be -tempo";
+}
+TEST(Chess_eval, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.eval<false>(), TEMPO_BONUS) << "white to move should be tempo bonus";
+    c.makeNull();
+    EXPECT_EQ(c.eval<false>(), -TEMPO_BONUS) << "black to move should be -tempo";
+}
+TEST(Chess_eval, WhitePawnOnE2) {
+    Chess c(E2PAWN);
+    EXPECT_GT(c.eval<false>(), 0) << "white to move should be positive";
+    c.makeNull();
+    EXPECT_LT(c.eval<false>(), 0) << "black to move should be negative";
+}
+// --- End tests for Chess::eval---
+
+// --- Tests for Chess::pawnsEval---
+TEST(Chess_pawnsEval, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    auto [mg, eg] = c.pawnsEval();
+    EXPECT_EQ(mg, 0) << "midgame evaluation should equal 0";
+    EXPECT_EQ(eg, 0) << "endgame evaluation should equal 0";
+}
+TEST(Chess_pawnsEval, StartPosition) {
+    Chess c(STARTFEN);
+    auto [mg, eg] = c.pawnsEval();
+    EXPECT_EQ(mg, 0) << "midgame evaluation should equal 0";
+    EXPECT_EQ(eg, 0) << "endgame evaluation should equal 0";
+}
+TEST(Chess_pawnsEval, IsoPawn) {
+    Chess c(E2PAWN);
+    auto [mg, eg] = c.pawnsEval();
+    EXPECT_LT(mg, 0) << "midgame evaluation should penalize iso pawns";
+    EXPECT_LT(eg, 0) << "endgame evaluation should penalize iso pawns";
+}
+TEST(Chess_pawnsEval, BackwardsPawn) {
+    Chess c("4k3/8/1pp5/1P6/P7/8/8/4K3 w - - 0 1");
+    auto [mg, eg] = c.pawnsEval();
+    EXPECT_LT(mg, 0) << "midgame evaluation should penalize backwards pawns";
+    EXPECT_LT(eg, 0) << "endgame evaluation should penalize backwards pawns";
+}
+TEST(Chess_pawnsEval, DoubledPawn) {
+    Chess c("4k3/8/8/8/P7/P7/8/4K3 w - - 0 1");
+    auto [mg, eg] = c.pawnsEval();
+    EXPECT_LT(mg, 0) << "midgame evaluation should penalize doubled pawns";
+    EXPECT_LT(eg, 0) << "endgame evaluation should penalize doubled pawns";
+}
+// --- End tests for Chess::pawnsEval---
+
+// --- Tests for Chess::phase---
+TEST(Chess_phase, StartPosition) { EXPECT_EQ(Chess(STARTFEN).phase(), PHASE_LIMIT); }
+TEST(Chess_phase, EmptyPosition) { EXPECT_EQ(Chess(EMPTYFEN).phase(), 0); }
+TEST(Chess_phase, CorrectInterpolation) {
+    Chess c = Chess("4k3/8/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    EXPECT_EQ(c.phase(), 49);
+}
+// --- End tests for Chess::phase---
+
+// --- Tests for Chess::passedPawn---
 TEST(Chess_passedPawns, StartPosition) {
     Chess c(STARTFEN);
     EXPECT_EQ(c.passedPawns(WHITE), 0);
     EXPECT_EQ(c.passedPawns(BLACK), 0);
 }
-
 TEST(Chess_passedPawns, NoPassedPawns) {
     Chess c("4k3/p2p4/8/8/8/8/P1P5/4K3 w - - 0 1");
     EXPECT_EQ(c.passedPawns(WHITE), 0);
     EXPECT_EQ(c.passedPawns(BLACK), 0);
 }
-
 TEST(Chess_passedPawns, HasPassedPawns) {
     Chess c("4k3/p3p3/8/8/8/8/P1P5/4K3 w - - 0 1");
     EXPECT_EQ(c.passedPawns(WHITE), BB::set(C2));
     EXPECT_EQ(c.passedPawns(BLACK), BB::set(E7));
 }
+// --- End tests for Chess::passedPawn ---
 
+// --- Tests for Chess::outpostSquare---
 TEST(Chess_outpostSquare, EmptyPosition) {
     Chess c(EMPTYFEN);
     EXPECT_EQ(c.outpostSquares<WHITE>(), 0);
     EXPECT_EQ(c.outpostSquares<BLACK>(), 0);
 }
-
 TEST(Chess_outpostSquare, StartPosition) {
     Chess c(STARTFEN);
     EXPECT_EQ(c.outpostSquares<WHITE>(), 0);
     EXPECT_EQ(c.outpostSquares<BLACK>(), 0);
 }
-
 TEST(Chess_outpostSquare, WhiteOutpostOnD5) {
     Chess c("r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1");
     EXPECT_EQ(c.outpostSquares<WHITE>(), BB::set(D5));
     EXPECT_EQ(c.outpostSquares<BLACK>(), 0);
 }
-
 TEST(Chess_outpostSquare, BlackOutpostOnD4) {
     Chess c("r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1");
     EXPECT_EQ(c.outpostSquares<WHITE>(), 0);
     EXPECT_EQ(c.outpostSquares<BLACK>(), BB::set(D4));
 }
+// --- End tests for Chess::outpostSquare---
 
-TEST(Chess_knightOutposts, NoOutpost) {
+// --- Tests for Chess::knightOutpostCount ---
+TEST(Chess_knightOutpostCount, NoOutpost) {
     Chess c("6k1/8/8/4p3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(c.knightOutposts(c.outpostSquares<WHITE>(), c.outpostSquares<BLACK>()), 0);
+    EXPECT_EQ(c.knightOutpostCount(), 0);
 }
-
-TEST(Chess_knightOutposts, BothOutpost) {
+TEST(Chess_knightOutpostCount, BothOutpost) {
     Chess c("6k1/8/8/3Np3/3nP3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(c.knightOutposts(c.outpostSquares<WHITE>(), c.outpostSquares<BLACK>()), 0);
+    EXPECT_EQ(c.knightOutpostCount(), 0);
 }
-
-TEST(Chess_knightOutposts, WhiteOutpost) {
+TEST(Chess_knightOutpostCount, WhiteOutpost) {
     Chess c("6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(c.knightOutposts(c.outpostSquares<WHITE>(), c.outpostSquares<BLACK>()), 1);
+    EXPECT_EQ(c.knightOutpostCount(), 1);
 }
-
-TEST(Chess_knightOutposts, BlackOutpost) {
+TEST(Chess_knightOutpostCount, BlackOutpost) {
     Chess c("6k1/8/8/4p3/3nP3/8/8/6K1 w - - 1 1");
-    EXPECT_EQ(c.knightOutposts(c.outpostSquares<WHITE>(), c.outpostSquares<BLACK>()), -1);
+    EXPECT_EQ(c.knightOutpostCount(), -1);
 }
+// --- Tests for Chess::knightOutpostCount ---
 
-TEST(Chess_bishopOutposts, NoOutpost) {
+// --- Tests for Chess::bishopOutpostCount ---
+TEST(Chess_bishopOutpostCount, NoOutpost) {
     Chess c("6k1/8/8/4p3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(c.bishopOutposts(c.outpostSquares<WHITE>(), c.outpostSquares<BLACK>()), 0);
+    EXPECT_EQ(c.bishopOutpostCount(), 0);
 }
-
-TEST(Chess_bishopOutposts, BothOutpost) {
+TEST(Chess_bishopOutpostCount, BothOutpost) {
     Chess c("6k1/8/8/3Bp3/3bP3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(c.bishopOutposts(c.outpostSquares<WHITE>(), c.outpostSquares<BLACK>()), 0);
+    EXPECT_EQ(c.bishopOutpostCount(), 0);
 }
-
-TEST(Chess_bishopOutposts, WhiteOutpost) {
+TEST(Chess_bishopOutpostCount, WhiteOutpost) {
     Chess c("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(c.bishopOutposts(c.outpostSquares<WHITE>(), c.outpostSquares<BLACK>()), 1);
+    EXPECT_EQ(c.bishopOutpostCount(), 1);
 }
-
-TEST(Chess_bishopOutposts, BlackOutpost) {
+TEST(Chess_bishopOutpostCount, BlackOutpost) {
     Chess c("6k1/8/8/4p3/3bP3/8/8/6K1 w - - 1 1");
-    EXPECT_EQ(c.bishopOutposts(c.outpostSquares<WHITE>(), c.outpostSquares<BLACK>()), -1);
+    EXPECT_EQ(c.bishopOutpostCount(), -1);
 }
+// --- Tests for Chess::bishopOutpostCount ---
 
 // TEST(Chess_bishopPawnsScore, Tests) {
 // }
@@ -101,33 +161,33 @@ TEST(Chess_bishopOutposts, BlackOutpost) {
 // --- Tests for Chess::minorsBehindPawns ---
 TEST(Chess_minorsBehindPawns, EmptyPosition) { EXPECT_EQ(Chess(EMPTYFEN).minorsBehindPawns(), 0); }
 TEST(Chess_minorsBehindPawns, StartPosition) { EXPECT_EQ(Chess(STARTFEN).minorsBehindPawns(), 0); }
-TEST(Chess_minorsBehindPawns, WhiteMinorsBehindPawn) {
-    Chess wn("6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1");
-    EXPECT_EQ(wn.piecesEval(), Eval::MINOR_BEHIND_PAWN_BONUS);
-    Chess wb("6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 1");
-    EXPECT_EQ(wb.piecesEval(), Eval::MINOR_BEHIND_PAWN_BONUS);
-}
-TEST(Chess_minorsBehindPawns, BlackMinorsBehindPawn) {
-    Chess bn("6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 1");
-    EXPECT_EQ(bn.piecesEval(), -Eval::MINOR_BEHIND_PAWN_BONUS);
-    Chess bb("6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1");
-    EXPECT_EQ(bb.piecesEval(), -Eval::MINOR_BEHIND_PAWN_BONUS);
-}
-// --- End of tests for Chess::minorsBehindPawns ---
-
-TEST(Chess_piecesEval, ReachableKnightOutpost) {
-    Chess w("6k1/8/8/4p3/4P3/2N5/8/6K1 w - - 0 1");
-    EXPECT_EQ(w.piecesEval(), Eval::REACHABLE_OUTPOST_BONUS);
-    Chess b("6k1/8/2n5/4p3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(b.piecesEval(), -Eval::REACHABLE_OUTPOST_BONUS);
-}
-
 TEST(Chess_minorsBehindPawns, WhiteMinorBehindPawn) {
     EXPECT_EQ(Chess("4k3/8/8/4p3/4P3/4N3/8/4K3 w - - 0 1").minorsBehindPawns(), 1);
 }
 
 TEST(Chess_minorsBehindPawns, BlackMinorBehindPawn) {
     EXPECT_EQ(Chess("4k3/8/4b3/4p3/4P3/8/8/4K3 w - - 0 1").minorsBehindPawns(), -1);
+}
+// --- End tests for Chess::minorsBehindPawns ---
+
+TEST(Chess_minorsBehindPawns, WhiteMinorsBehindPawn) {
+    Chess wn("6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1");
+    EXPECT_EQ(wn.piecesEval(), MINOR_BEHIND_PAWN_BONUS);
+    Chess wb("6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 1");
+    EXPECT_EQ(wb.piecesEval(), MINOR_BEHIND_PAWN_BONUS);
+}
+TEST(Chess_minorsBehindPawns, BlackMinorsBehindPawn) {
+    Chess bn("6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 1");
+    EXPECT_EQ(bn.piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
+    Chess bb("6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1");
+    EXPECT_EQ(bb.piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
+}
+
+TEST(Chess_piecesEval, ReachableKnightOutpost) {
+    Chess w("6k1/8/8/4p3/4P3/2N5/8/6K1 w - - 0 1");
+    EXPECT_EQ(w.piecesEval(), REACHABLE_OUTPOST_BONUS);
+    Chess b("6k1/8/2n5/4p3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(b.piecesEval(), -REACHABLE_OUTPOST_BONUS);
 }
 
 TEST(Chess_nonPawnMaterial, EmptyPosition) {
@@ -138,8 +198,10 @@ TEST(Chess_nonPawnMaterial, EmptyPosition) {
 
 TEST(Chess_nonPawnMaterial, StartPosition) {
     Chess c(STARTFEN);
-    int mat = (2 * Eval::mgPieceValue(KNIGHT) + 2 * Eval::mgPieceValue(BISHOP) +
-               2 * Eval::mgPieceValue(ROOK) + Eval::mgPieceValue(QUEEN));
+    int mat = (2 * Eval::pieceValue(MIDGAME, WHITE, KNIGHT)) +
+              (2 * Eval::pieceValue(MIDGAME, WHITE, BISHOP)) +
+              (2 * Eval::pieceValue(MIDGAME, WHITE, ROOK)) +
+              Eval::pieceValue(MIDGAME, WHITE, QUEEN);
     EXPECT_EQ(c.nonPawnMaterial(WHITE), mat);
     EXPECT_EQ(c.nonPawnMaterial(BLACK), mat);
 }
@@ -160,100 +222,63 @@ TEST(Chess_hasOppositeBishops, HasOppositeBishops) {
     EXPECT_TRUE(Chess("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1").hasOppositeBishops());
 }
 
-TEST(Chess_pawnsEval, IsoPawn) {
-    Chess c(E2PAWN);
-    auto [mg, eg] = c.pawnsEval();
-    EXPECT_LT(mg, 0) << "midgame evaluation should penalize iso pawns";
-    EXPECT_LT(eg, 0) << "endgame evaluation should penalize iso pawns";
-}
-
-TEST(Chess_pawnsEval, BackwardsPawn) {
-    Chess c("4k3/8/1pp5/1P6/P7/8/8/4K3 w - - 0 1");
-    auto [mg, eg] = c.pawnsEval();
-    EXPECT_LT(mg, 0) << "midgame evaluation should penalize backwards pawns";
-    EXPECT_LT(eg, 0) << "endgame evaluation should penalize backwards pawns";
-}
-
-TEST(Chess_pawnsEval, DoubledPawn) {
-    Chess c("4k3/8/8/8/P7/P7/8/4K3 w - - 0 1");
-    auto [mg, eg] = c.pawnsEval();
-    EXPECT_LT(mg, 0) << "midgame evaluation should penalize doubled pawns";
-    EXPECT_LT(eg, 0) << "endgame evaluation should penalize doubled pawns";
-}
-
-TEST(Chess_eval, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(c.eval<false>(), TEMPO_BONUS) << "start board eval should equal tempo bonus";
-}
-
-TEST(Chess_eval, PositiveEvalWithWhitePawn) {
-    Chess c(E2PAWN);
-    EXPECT_GT(c.eval<false>(), 0) << "eval with white pawn on e2 should be positive";
-}
-
-TEST(Chess_eval, NegativeEvalWithWhitePawnBlackToMove) {
-    Chess c(E2PAWN);
-    c.makeNull();
-    EXPECT_LT(c.eval<false>(), 0) << "eval with white pawn and black to move should be negative";
-}
-
+// --- Tests for Chess::materialScore ---
 TEST(Chess_materialScore, StartPosition) {
-    EXPECT_EQ(Chess(STARTFEN).materialScore().mg, 0);
-    EXPECT_EQ(Chess(STARTFEN).materialScore().eg, 0);
+    Score score{0, 0};
+    EXPECT_EQ(Chess(STARTFEN).materialScore(), score);
 }
-
 TEST(Chess_materialScore, WhitePawn) {
     Chess c("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1");
-    EXPECT_EQ(c.materialScore().mg, Eval::mgPieceValue(PAWN));
-    EXPECT_EQ(c.materialScore().eg, Eval::egPieceValue(PAWN));
+    Score score(Eval::pieceValue(MIDGAME, WHITE, PAWN), Eval::pieceValue(ENDGAME, WHITE, PAWN));
+    EXPECT_EQ(c.materialScore(), score);
 }
-
 TEST(Chess_materialScore, WhiteKnight) {
     Chess c("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1");
-    EXPECT_EQ(c.materialScore().mg, Eval::mgPieceValue(KNIGHT));
-    EXPECT_EQ(c.materialScore().eg, Eval::egPieceValue(KNIGHT));
+    Score score(Eval::pieceValue(MIDGAME, WHITE, KNIGHT), Eval::pieceValue(ENDGAME, WHITE, KNIGHT));
+    EXPECT_EQ(c.materialScore(), score);
 }
-
 TEST(Chess_materialScore, BlackBishop) {
     Chess c("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1");
-    EXPECT_EQ(c.materialScore().mg, -Eval::mgPieceValue(BISHOP));
-    EXPECT_EQ(c.materialScore().eg, -Eval::egPieceValue(BISHOP));
+    Score score(Eval::pieceValue(MIDGAME, BLACK, BISHOP), Eval::pieceValue(ENDGAME, BLACK, BISHOP));
+    EXPECT_EQ(c.materialScore(), score);
 }
-
 TEST(Chess_materialScore, WhiteQueenBlackRook) {
     Chess c("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1");
-    EXPECT_EQ(c.materialScore().mg, Eval::mgPieceValue(QUEEN) - Eval::mgPieceValue(ROOK));
-    EXPECT_EQ(c.materialScore().eg, Eval::egPieceValue(QUEEN) - Eval::egPieceValue(ROOK));
+    Score score(Eval::pieceValue(MIDGAME, WHITE, QUEEN) + Eval::pieceValue(MIDGAME, BLACK, ROOK),
+                Eval::pieceValue(ENDGAME, WHITE, QUEEN) + Eval::pieceValue(ENDGAME, BLACK, ROOK));
+    EXPECT_EQ(c.materialScore(), score);
 }
+// --- End tests for Chess::materialScore ---
 
-TEST(Chess_psqBonusScore, CorrectValues) {
-    EXPECT_EQ(Chess(STARTFEN).psqBonusScore().mg, 0);
-    EXPECT_EQ(Chess(STARTFEN).psqBonusScore().eg, 0);
-    EXPECT_EQ(Chess(E2PAWN).psqBonusScore().mg, Eval::psqValue(MIDGAME, WHITE, PAWN, E2));
-    EXPECT_EQ(Chess(E2PAWN).psqBonusScore().eg, Eval::psqValue(ENDGAME, WHITE, PAWN, E2));
+// --- Tests for Chess::psqBonusScore ---
+TEST(Chess_psqBonusScore, StartPosition) {
+    Score score{0, 0};
+    EXPECT_EQ(Chess(STARTFEN).psqBonusScore(), score);
 }
+TEST(Chess_psqBonusScore, WhiteE2Pawn) {
+    Score score(Eval::psqValue(MIDGAME, WHITE, PAWN, E2), Eval::psqValue(ENDGAME, WHITE, PAWN, E2));
+    EXPECT_EQ(Chess(E2PAWN).psqBonusScore(), score);
+}
+// --- End tests for Chess::psqBonusScore ---
 
+// --- End tests for Chess::scaleFactor ---
+TEST(Chess_scaleFactor, StartPosition) { EXPECT_EQ(Chess(STARTFEN).scaleFactor(), SCALE_LIMIT); }
 TEST(Chess_scaleFactor, DrawScenarios) {
     EXPECT_EQ(Chess(EMPTYFEN).scaleFactor(), 0);
     EXPECT_EQ(Chess("3bk3/8/8/8/8/8/8/3NK3 w - - 0 1").scaleFactor(), 0);
     EXPECT_EQ(Chess("2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1").scaleFactor(), 16);
 }
-
 TEST(Chess_scaleFactor, OppositeBishopEndings) {
-    // Opposite bishops endings
     EXPECT_EQ(Chess("3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1").scaleFactor(), 36);
     EXPECT_EQ(Chess("3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1").scaleFactor(), 40);
     EXPECT_EQ(Chess("3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1").scaleFactor(), 44);
 }
-
 TEST(Chess_scaleFactor, OneQueenScenarios) {
-    // Single queen scenarios
     EXPECT_EQ(Chess("3qk3/8/8/8/8/8/8/4K3 w - - 0 1").scaleFactor(), 36);
     EXPECT_EQ(Chess("3qk3/8/8/8/8/8/8/3BK3 w - - 0 1").scaleFactor(), 40);
     EXPECT_EQ(Chess("3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1").scaleFactor(), 44);
 }
-
-TEST(Chess_scaleFactor, Limit) { EXPECT_EQ(Chess(STARTFEN).scaleFactor(), SCALE_LIMIT); }
+// --- End tests for Chess::scaleFactor ---
 
 TEST(Chess_make, KnightMove) {
     Chess c = Chess(STARTFEN);

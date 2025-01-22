@@ -5,6 +5,46 @@
 #include "fen.hpp"
 #include "score.hpp"
 
+template <bool debug = false>
+int Chess::eval() const {
+    Score score{0, 0};
+
+    score += materialScore();
+    score += psqBonusScore();
+    score += pawnsEval();
+    score += piecesEval();
+
+    score.eg *= scaleFactor() / 64.0;
+
+    // tapered eval based on remaining non pawn material
+    int result = score.taper(phase());
+
+    // return score relative to side to move with tempo bonus
+    if (turn == WHITE) {
+        result = result + TEMPO_BONUS;
+    } else {
+        result = -result - TEMPO_BONUS;
+    }
+
+    if constexpr (debug) {
+        std::cout << "score: " << result << std::endl;
+    }
+
+    return result;
+}
+template int Chess::eval<true>() const;
+template int Chess::eval<false>() const;
+
+Score Chess::pawnsEval() const {
+    Score score = {0, 0};
+
+    score += ISO_PAWN_PENALTY * isolatedPawnsCount();
+    score += BACKWARD_PAWN_PENALTY * backwardsPawnsCount();
+    score += DOUBLED_PAWN_PENALTY * doubledPawnsCount();
+
+    return score;
+}
+
 template <Color c, typename Func>
 void forEach(U64 bitboard, Func action) {
     while (bitboard) {
@@ -21,91 +61,25 @@ Score Chess::piecesEval() const {
     U64 wOutposts = outpostSquares<WHITE>();
     U64 bOutposts = outpostSquares<BLACK>();
 
-    score += Eval::KNIGHT_OUTPOST_BONUS * knightOutposts(wOutposts, bOutposts);
-    score += Eval::BISHOP_OUTPOST_BONUS * bishopOutposts(wOutposts, bOutposts);
-    score += Eval::MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
-    // score += Eval::BISHOP_PAWNS_PENALTY * bishopPawnsScore();
+    score += KNIGHT_OUTPOST_BONUS * knightOutpostCount();
+    score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
+    score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
+    // score += BISHOP_PAWNS_PENALTY * bishopPawnsScore();
 
     // white knights
     forEach<WHITE>(board.getPieces<KNIGHT>(WHITE), [&](Square sq) {
-        score += Eval::REACHABLE_OUTPOST_BONUS *
-                 BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & wOutposts);
+        score +=
+            REACHABLE_OUTPOST_BONUS * BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & wOutposts);
     });
 
     // black knights
     forEach<BLACK>(board.getPieces<KNIGHT>(BLACK), [&](Square sq) {
-        score -= Eval::REACHABLE_OUTPOST_BONUS *
-                 BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & bOutposts);
+        score -=
+            REACHABLE_OUTPOST_BONUS * BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & bOutposts);
     });
 
-    // white bishops
-    // pieces = board.getPieces<BISHOP>(WHITE);
-    // forEach<WHITE>(pieces, [&](Square sq) {
-    // });
-
-    // black bishops
-    // pieces = board.getPieces<BISHOP>(BLACK);
-    // forEach<BLACK>(pieces, [&](Square sq) {
-    // });
-
     return score;
 }
-
-Score Chess::pawnsEval() const {
-    Score score = {0, 0};
-
-    U64 wPawns = board.getPieces<PAWN>(WHITE);
-    U64 bPawns = board.getPieces<PAWN>(BLACK);
-    U64 allPawns = wPawns | bPawns;
-
-    // isolated pawns
-    U64 wIsolatedPawns = Eval::isolatedPawns(wPawns);
-    U64 bIsolatedPawns = Eval::isolatedPawns(bPawns);
-    int nIsolatedPawns = BB::bitCount(wIsolatedPawns) - BB::bitCount(bIsolatedPawns);
-    score += Eval::ISO_PAWN_PENALTY * nIsolatedPawns;
-
-    // backwards pawns
-    U64 wBackwardsPawns = Eval::backwardsPawns<WHITE>(wPawns, bPawns);
-    U64 bBackwardsPawns = Eval::backwardsPawns<BLACK>(bPawns, wPawns);
-    int nBackwardsPawns = BB::bitCount(wBackwardsPawns) - BB::bitCount(bBackwardsPawns);
-    score += Eval::BACKWARD_PAWN_PENALTY * nBackwardsPawns;
-
-    // doubled pawns
-    U64 wDoubledPawns = Eval::doubledPawns<WHITE>(wPawns);
-    U64 bDoubledPawns = Eval::doubledPawns<BLACK>(bPawns);
-    int nDoubledPawns = BB::bitCount(wDoubledPawns) - BB::bitCount(bDoubledPawns);
-    score += Eval::DOUBLED_PAWN_PENALTY * nDoubledPawns;
-
-    return score;
-}
-
-template <bool debug = false>
-int Chess::eval() const {
-    Score score{0, 0};
-
-    score += materialScore();
-    score += psqBonusScore();
-    score += pawnsEval();
-    score += piecesEval();
-
-    score.eg *= scaleFactor() / 64.0;
-
-    // tapered eval based on remaining non pawn material
-    int phase = Eval::calculatePhase(nonPawnMaterial(WHITE) + nonPawnMaterial(BLACK));
-    int result = score.taper(phase);
-
-    // tempo bonus
-    result += Eval::tempoBonus(turn);
-
-    if constexpr (debug) {
-        std::cout << "score: " << result << std::endl;
-    }
-
-    // return score relative to side to move
-    return result * ((2 * turn) - 1);
-}
-template int Chess::eval<true>() const;
-template int Chess::eval<false>() const;
 
 int Chess::scaleFactor() const {
     Color enemy = ~turn;
@@ -116,8 +90,9 @@ int Chess::scaleFactor() const {
     int nonPawnMatDiff = std::abs(nonPawnMat - nonPawnMatEnemy);
 
     // Check for drawish scenarios with no pawns and equal material
-    if (pawnCount == 0 && pawnCountEnemy == 0 && nonPawnMatDiff <= Eval::mgPieceValue(BISHOP)) {
-        return nonPawnMat < Eval::mgPieceValue(ROOK) ? 0 : 16;
+    if (pawnCount == 0 && pawnCountEnemy == 0 &&
+        nonPawnMatDiff <= Eval::pieceValue(MIDGAME, WHITE, BISHOP)) {
+        return nonPawnMat < Eval::pieceValue(MIDGAME, WHITE, ROOK) ? 0 : 16;
     }
 
     // Opposite-colored bishops often lead to draws

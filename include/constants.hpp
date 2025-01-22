@@ -192,6 +192,15 @@ const ScoreArray KING_BONUS_EG = {{
      11,  59,  73,  78,  78,  73,  59,  11
 }};
 
+const std::array<std::array<ScoreArray, N_PHASES>, 6> PSQ_VALUES = {{
+    {PAWN_BONUS_MG, PAWN_BONUS_EG},
+    {KNIGHT_BONUS_MG, KNIGHT_BONUS_EG},
+    {BISHOP_BONUS_MG, BISHOP_BONUS_EG},
+    {ROOK_BONUS_MG, ROOK_BONUS_EG},
+    {QUEEN_BONUS_MG, QUEEN_BONUS_EG},
+    {KING_BONUS_MG, KING_BONUS_EG}
+}};
+
 const Square SQUARE_MAP[N_COLORS][N_SQUARES] = {{
     H8, G8, F8, E8, D8, C8, B8, A8,
     H7, G7, F7, E7, D7, C7, B7, A7,
