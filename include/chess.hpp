@@ -11,6 +11,7 @@
 #include "score.hpp"
 #include "state.hpp"
 #include "zobrist.hpp"
+#include "move.hpp"
 
 class Chess {
    private:
@@ -25,67 +26,8 @@ class Chess {
    public:
     explicit Chess(const std::string&);
 
-    // evaluation
     template <bool>
     int eval() const;
-
-    Score pawnsEval() const;
-    Score piecesEval() const;
-    int scaleFactor() const;
-
-    // eval helpers
-    int phase() const {
-        int mat = std::clamp(nonPawnMaterial(WHITE) + nonPawnMaterial(BLACK), EG_LIMIT, MG_LIMIT);
-        return ((mat - EG_LIMIT) * PHASE_LIMIT) / (MG_LIMIT - EG_LIMIT);
-    }
-
-    int isolatedPawnsCount() const {
-        U64 wIsolatedPawns = Eval::isolatedPawns(board.getPieces<PAWN>(WHITE));
-        U64 bIsolatedPawns = Eval::isolatedPawns(board.getPieces<PAWN>(BLACK));
-        return BB::bitCount(wIsolatedPawns) - BB::bitCount(bIsolatedPawns);
-    }
-
-    int backwardsPawnsCount() const {
-        U64 wPawns = board.getPieces<PAWN>(WHITE);
-        U64 bPawns = board.getPieces<PAWN>(BLACK);
-        U64 wBackwardsPawns = Eval::backwardsPawns<WHITE>(wPawns, bPawns);
-        U64 bBackwardsPawns = Eval::backwardsPawns<BLACK>(bPawns, bPawns);
-        return BB::bitCount(wBackwardsPawns) - BB::bitCount(bBackwardsPawns);
-    }
-
-    int doubledPawnsCount() const {
-        U64 wDoubledPawns = Eval::doubledPawns<WHITE>(board.getPieces<PAWN>(WHITE));
-        U64 bDoubledPawns = Eval::doubledPawns<BLACK>(board.getPieces<PAWN>(BLACK));
-        return BB::bitCount(wDoubledPawns) - BB::bitCount(bDoubledPawns);
-    }
-
-    int knightOutpostCount() const {
-        U64 wOutposts = outpostSquares<WHITE>();
-        U64 bOutposts = outpostSquares<BLACK>();
-        return BB::bitCount(board.getPieces<KNIGHT>(WHITE) & wOutposts) -
-            BB::bitCount(board.getPieces<KNIGHT>(BLACK) & bOutposts);
-    }
-
-    int bishopOutpostCount() const {
-        U64 wOutposts = outpostSquares<WHITE>();
-        U64 bOutposts = outpostSquares<BLACK>();
-        return BB::bitCount(board.getPieces<BISHOP>(WHITE) & wOutposts) -
-            BB::bitCount(board.getPieces<BISHOP>(BLACK) & bOutposts);
-    }
-
-    int bishopPawnsScore() const {
-        U64 wPawns = board.getPieces<PAWN>(WHITE);
-        U64 bPawns = board.getPieces<PAWN>(BLACK);
-        return Eval::bishopPawns<WHITE>(board.getPieces<BISHOP>(WHITE), wPawns, bPawns) -
-            Eval::bishopPawns<BLACK>(board.getPieces<BISHOP>(BLACK), bPawns, wPawns);
-    }
-
-    U64 passedPawns(Color) const;
-    template <Color c>
-    U64 outpostSquares() const;
-    int minorsBehindPawns() const;
-    int nonPawnMaterial(Color) const;
-    bool hasOppositeBishops() const;
 
     // make move / mutators
     void make(Move);
@@ -132,48 +74,8 @@ class Chess {
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
 
     friend class MoveGenerator;
+    friend class Evaluator;
 };
-
-inline U64 Chess::passedPawns(Color c) const {
-    U64 enemyPawns = board.getPieces<PAWN>(~c);
-    U64 blockers = (c == WHITE) ? BB::getAllFrontSpan<BLACK>(enemyPawns)
-                                : BB::getAllFrontSpan<WHITE>(enemyPawns);
-    return board.getPieces<PAWN>(c) & ~blockers;
-}
-
-template <Color c>
-inline U64 Chess::outpostSquares() const {
-    constexpr Color enemy = ~c;
-    return Eval::outpostSquares<c>(board.getPieces<PAWN>(c), board.getPieces<PAWN>(enemy));
-}
-
-
-inline int Chess::minorsBehindPawns() const {
-    U64 wPawnsInFront = BB::movesByPawns<PawnMove::PUSH, BLACK>(board.getPieces<PAWN>(WHITE));
-    U64 bPawnsInFront = BB::movesByPawns<PawnMove::PUSH, WHITE>(board.getPieces<PAWN>(BLACK));
-    U64 wMinors = board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE);
-    U64 bMinors = board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK);
-    U64 wMinorsBehind = wMinors & wPawnsInFront;
-    U64 bMinorsBehind = bMinors & bPawnsInFront;
-    return BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
-}
-
-inline int Chess::nonPawnMaterial(Color c) const {
-    return (board.count<KNIGHT>(c) * Eval::pieceValue(MIDGAME, WHITE, KNIGHT) +
-            board.count<BISHOP>(c) * Eval::pieceValue(MIDGAME, WHITE, BISHOP) +
-            board.count<ROOK>(c) * Eval::pieceValue(MIDGAME, WHITE, ROOK) +
-            board.count<QUEEN>(c) * Eval::pieceValue(MIDGAME, WHITE, QUEEN));
-}
-
-inline bool Chess::hasOppositeBishops() const {
-    if (board.count<BISHOP>(WHITE) != 1 || board.count<BISHOP>(BLACK) != 1) {
-        return false;
-    }
-    U64 wBishops = board.getPieces<BISHOP>(WHITE);
-    U64 bBishops = board.getPieces<BISHOP>(BLACK);
-    return (((wBishops & LIGHT_SQUARES) && (bBishops & DARK_SQUARES)) ||
-            ((wBishops & DARK_SQUARES) && (bBishops & LIGHT_SQUARES)));
-}
 
 template <bool forward>
 inline void Chess::addPiece(Square sq, Color c, PieceType pt) {

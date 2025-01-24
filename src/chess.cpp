@@ -1,118 +1,18 @@
 #include "chess.hpp"
 
 #include "defs.hpp"
-#include "eval.hpp"
+#include "evaluator.hpp"
 #include "fen.hpp"
 #include "score.hpp"
 
-template <bool debug = false>
+template <bool debug>
 int Chess::eval() const {
-    Score score{0, 0};
-
-    score += materialScore();
-    score += psqBonusScore();
-    score += pawnsEval();
-    score += piecesEval();
-
-    score.eg *= scaleFactor() / 64.0;
-
-    // tapered eval based on remaining non pawn material
-    int result = score.taper(phase());
-
-    // return score relative to side to move with tempo bonus
-    if (turn == WHITE) {
-        result = result + TEMPO_BONUS;
-    } else {
-        result = -result - TEMPO_BONUS;
-    }
-
-    if constexpr (debug) {
-        std::cout << "score: " << result << std::endl;
-    }
-
-    return result;
+    Evaluator evaluator(*this);
+    return evaluator.eval<debug>();
 }
+
 template int Chess::eval<true>() const;
 template int Chess::eval<false>() const;
-
-Score Chess::pawnsEval() const {
-    Score score = {0, 0};
-
-    score += ISO_PAWN_PENALTY * isolatedPawnsCount();
-    score += BACKWARD_PAWN_PENALTY * backwardsPawnsCount();
-    score += DOUBLED_PAWN_PENALTY * doubledPawnsCount();
-
-    return score;
-}
-
-template <Color c, typename Func>
-void forEach(U64 bitboard, Func action) {
-    while (bitboard) {
-        Square sq = BB::advanced<WHITE>(bitboard);
-        action(sq);
-        bitboard &= BB::clear(sq);
-    }
-}
-
-Score Chess::piecesEval() const {
-    Score score = {0, 0};
-    U64 pieces;
-    U64 occ = board.occupancy();
-    U64 wOutposts = outpostSquares<WHITE>();
-    U64 bOutposts = outpostSquares<BLACK>();
-
-    score += KNIGHT_OUTPOST_BONUS * knightOutpostCount();
-    score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
-    score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
-    // score += BISHOP_PAWNS_PENALTY * bishopPawnsScore();
-
-    // white knights
-    forEach<WHITE>(board.getPieces<KNIGHT>(WHITE), [&](Square sq) {
-        score +=
-            REACHABLE_OUTPOST_BONUS * BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & wOutposts);
-    });
-
-    // black knights
-    forEach<BLACK>(board.getPieces<KNIGHT>(BLACK), [&](Square sq) {
-        score -=
-            REACHABLE_OUTPOST_BONUS * BB::bitCount(BB::movesByPiece<KNIGHT>(sq, occ) & bOutposts);
-    });
-
-    return score;
-}
-
-int Chess::scaleFactor() const {
-    Color enemy = ~turn;
-    int pawnCount = board.count<PAWN>(turn);
-    int pawnCountEnemy = board.count<PAWN>(enemy);
-    int nonPawnMat = nonPawnMaterial(turn);
-    int nonPawnMatEnemy = nonPawnMaterial(enemy);
-    int nonPawnMatDiff = std::abs(nonPawnMat - nonPawnMatEnemy);
-
-    // Check for drawish scenarios with no pawns and equal material
-    if (pawnCount == 0 && pawnCountEnemy == 0 &&
-        nonPawnMatDiff <= Eval::pieceValue(MIDGAME, WHITE, BISHOP)) {
-        return nonPawnMat < Eval::pieceValue(MIDGAME, WHITE, ROOK) ? 0 : 16;
-    }
-
-    // Opposite-colored bishops often lead to draws
-    if (hasOppositeBishops()) {
-        // todo: use candidate passed pawns
-        return std::min(SCALE_LIMIT, 36 + 4 * BB::bitCount(passedPawns(turn)));
-    }
-
-    // Single queen scenarios with minor pieces
-    int queenCount = board.count<QUEEN>(turn);
-    if (queenCount + board.count<QUEEN>(enemy) == 1) {
-        int minorPieceCount = queenCount == 1
-                                  ? board.count<BISHOP>(enemy) + board.count<KNIGHT>(enemy)
-                                  : board.count<BISHOP>(turn) + board.count<KNIGHT>(turn);
-        return std::min(SCALE_LIMIT, 36 + 4 * minorPieceCount);
-    }
-
-    // Default: scale proportionally with pawns
-    return std::min(SCALE_LIMIT, 36 + 5 * pawnCount);
-}
 
 void Chess::make(Move mv) {
     // Get basic information about the move

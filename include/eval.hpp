@@ -17,6 +17,12 @@ inline int psqValue(Phase ph, Color c, PieceType pt, Square sq) {
     return (2 * c * score) - score;
 }
 
+template <Color c>
+inline U64 passedPawns(U64 pawns, U64 enemyPawns) {
+    constexpr Color enemy = ~c;
+    return pawns & ~BB::getAllFrontSpan<enemy>(enemyPawns);
+}
+
 inline U64 isolatedPawns(U64 pawns) {
     U64 pawnsFill = BB::fillFiles(pawns);
     return (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
@@ -45,6 +51,14 @@ inline U64 blockedPawns(U64 pawns, U64 enemyPawns) {
     return pawns & BB::movesByPawns<PawnMove::PUSH, enemy>(enemyPawns);
 }
 
+template <Color c>
+inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
+    constexpr U64 mask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
+    constexpr Color enemy = ~c;
+    U64 holes = ~BB::getFrontAttackSpan<enemy>(enemyPawns) & mask;
+    return holes & BB::attacksByPawns<c>(pawns);
+}
+
 /**
  * @brief Computes the score based on the number of pawns on the same color
  *        square as the bishop. This value is multiplied by one plus the number
@@ -67,14 +81,6 @@ inline int bishopPawns(U64 bishops, U64 pawns, U64 enemyPawns) {
     int lightScore = lightBishops * lightPawns;
     int darkScore = darkBishops * darkPawns;
     return (lightScore + darkScore) * (1 + blocked);
-}
-
-template <Color c>
-inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
-    constexpr U64 mask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
-    constexpr Color enemy = ~c;
-    U64 holes = ~BB::getFrontAttackSpan<enemy>(enemyPawns) & mask;
-    return holes & BB::attacksByPawns<c>(pawns);
 }
 
 }  // namespace Eval

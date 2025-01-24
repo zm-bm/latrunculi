@@ -6,7 +6,6 @@
 
 #include "bb.hpp"
 #include "defs.hpp"
-#include "eval.hpp"
 #include "fen.hpp"
 #include "types.hpp"
 #include "zobrist.hpp"

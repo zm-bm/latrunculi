@@ -5,6 +5,7 @@
 #include "defs.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
+#include "chess.hpp"
 #include "tt.hpp"
 
 namespace UCI {

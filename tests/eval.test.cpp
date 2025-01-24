@@ -29,6 +29,30 @@ TEST(Eval_psqValue, WhiteSquaresMirrorBlackSquares) {
 }
 // --- End tests for piece / square values ---
 
+// --- Tests for Eval::passedPawn---
+TEST(Eval_passedPawns, StartPosition) {
+    Board b(STARTFEN);
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::passedPawns<WHITE>(wPawns, bPawns), 0);
+    EXPECT_EQ(Eval::passedPawns<BLACK>(bPawns, wPawns), 0);
+}
+TEST(Eval_passedPawns, NoPassedPawns) {
+    Board b("4k3/p2p4/8/8/8/8/P1P5/4K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::passedPawns<WHITE>(wPawns, bPawns), 0);
+    EXPECT_EQ(Eval::passedPawns<BLACK>(bPawns, wPawns), 0);
+}
+TEST(Eval_passedPawns, HasPassedPawns) {
+    Board b("4k3/p3p3/8/8/8/8/P1P5/4K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::passedPawns<WHITE>(wPawns, bPawns), BB::set(C2));
+    EXPECT_EQ(Eval::passedPawns<BLACK>(bPawns, wPawns), BB::set(E7));
+}
+// --- End tests for Eval::passedPawn ---
+
 // --- Tests for Eval::isolatedPawns ---
 TEST(Eval_isolatedPawns, StartPositionNoIsolatedPawns) {
     Board b(STARTFEN);
@@ -97,14 +121,7 @@ TEST(Eval_blockedPawns, NotBlocked) {
 }
 // --- End tests for Eval::blockedPawns ---
 
-TEST(Eval_outpostSquare, EmptyPosition) {
-    Board b(EMPTYFEN);
-    U64 wPawns = b.getPieces<PAWN>(WHITE);
-    U64 bPawns = b.getPieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
-}
-
+// --- Tests for Eval::outpostSquares---
 TEST(Eval_outpostSquare, StartPosition) {
     Board b(STARTFEN);
     U64 wPawns = b.getPieces<PAWN>(WHITE);
@@ -112,7 +129,13 @@ TEST(Eval_outpostSquare, StartPosition) {
     EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
     EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
 }
-
+TEST(Eval_outpostSquare, EmptyPosition) {
+    Board b(EMPTYFEN);
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
+    EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
+}
 TEST(Eval_outpostSquare, WhiteOutpostOnD5) {
     Board b("r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1");
     U64 wPawns = b.getPieces<PAWN>(WHITE);
@@ -120,7 +143,6 @@ TEST(Eval_outpostSquare, WhiteOutpostOnD5) {
     EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), BB::set(D5));
     EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
 }
-
 TEST(Eval_outpostSquare, BlackOutpostOnD4) {
     Board b("r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1");
     U64 wPawns = b.getPieces<PAWN>(WHITE);
@@ -128,7 +150,6 @@ TEST(Eval_outpostSquare, BlackOutpostOnD4) {
     EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
     EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), BB::set(D4));
 }
-
 TEST(Eval_outpostSquare, NoOupostOn7thRank) {
     Board b("r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1");
     U64 wPawns = b.getPieces<PAWN>(WHITE);
@@ -136,3 +157,7 @@ TEST(Eval_outpostSquare, NoOupostOn7thRank) {
     EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
     EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
 }
+// --- End tests for Eval::oupostSquares---
+
+// --- Tests for Eval::bishopPawns---
+// --- End tests for Eval::bishopPawns---
