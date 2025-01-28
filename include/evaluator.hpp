@@ -28,7 +28,7 @@ class Evaluator {
     int knightOutpostCount() const;
     int bishopOutpostCount() const;
     int minorsBehindPawns() const;
-    // int bishopPawnsScore() const;
+    int bishopPawnBlockers() const;
 
     template <Color c>
     U64 outpostSquares() const;
@@ -57,7 +57,7 @@ inline Score Evaluator::piecesEval() const {
     score += knightEval<BLACK>();
     score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
     score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
-    // score += BISHOP_PAWNS_PENALTY * bishopPawnsScore();
+    score += BISHOP_PAWN_BLOCKER_PENALTY * bishopPawnBlockers();
     return score;
 }
 
@@ -132,6 +132,13 @@ inline int Evaluator::minorsBehindPawns() const {
     return BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
 }
 
+inline int Evaluator::bishopPawnBlockers() const {
+    U64 wPawns = board.getPieces<PAWN>(WHITE);
+    U64 bPawns = board.getPieces<PAWN>(BLACK);
+    return (Eval::bishopPawnBlockers<WHITE>(board.getPieces<BISHOP>(WHITE), wPawns, bPawns) -
+            Eval::bishopPawnBlockers<BLACK>(board.getPieces<BISHOP>(BLACK), bPawns, wPawns));
+}
+
 template <Color c>
 inline U64 Evaluator::outpostSquares() const {
     constexpr Color enemy = ~c;
@@ -160,14 +167,5 @@ inline int Evaluator::nonPawnMaterial(Color c) const {
             board.count<ROOK>(c) * Eval::pieceValue(MIDGAME, WHITE, ROOK) +
             board.count<QUEEN>(c) * Eval::pieceValue(MIDGAME, WHITE, QUEEN));
 }
-
-
-
-// inline int Evaluator::bishopPawnsScore() const {
-//     U64 wPawns = board.getPieces<PAWN>(WHITE);
-//     U64 bPawns = board.getPieces<PAWN>(BLACK);
-//     return (Eval::bishopPawns<WHITE>(board.getPieces<BISHOP>(WHITE), wPawns, bPawns) -
-//             Eval::bishopPawns<BLACK>(board.getPieces<BISHOP>(BLACK), bPawns, wPawns));
-// }
 
 #endif

@@ -35,10 +35,6 @@ TEST(Chess_eval, WhitePawnOnE2) {
 }
 // --- End tests for Chess::eval---
 
-
-// TEST(Chess_bishopPawnsScore, Tests) {
-// }
-
 // --- Tests for Chess::materialScore ---
 TEST(Chess_materialScore, StartPosition) {
     Score score{0, 0};

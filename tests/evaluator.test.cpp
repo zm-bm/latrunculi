@@ -121,7 +121,7 @@ TEST(Evaluator_piecesEval, ReachableKnightOutpost) {
 }
 TEST(Evaluator_piecesEval, BishopOutpost) {
     Chess c("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).piecesEval(), BISHOP_OUTPOST_BONUS);
+    EXPECT_EQ(Evaluator(c).piecesEval(), BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY);
 }
 TEST(Evaluator_piecesEval, KnightBehindPawn) {
     Chess c("6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1");
@@ -130,6 +130,14 @@ TEST(Evaluator_piecesEval, KnightBehindPawn) {
 TEST(Evaluator_piecesEval, BishopBehindPawn) {
     Chess c("6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1");
     EXPECT_EQ(Evaluator(c).piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
+}
+TEST(Evaluator_piecesEval, PawnBishopBlockerWithBlocked) {
+    Chess c("4k3/8/8/4p3/4P3/8/4B3/4K3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).piecesEval(), (BISHOP_PAWN_BLOCKER_PENALTY * 2));
+}
+TEST(Evaluator_piecesEval, PawnBishopBlockerWithoutBlocked) {
+    Chess c("4k3/8/5b2/4p3/8/8/8/4K3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).piecesEval(), -BISHOP_PAWN_BLOCKER_PENALTY);
 }
 // --- End tests for Evaluator::piecesEval ---
 
@@ -273,7 +281,30 @@ TEST(Evaluator_minorsBehindPawns, BlackMinorBehindPawn) {
 }
 // --- End tests for Evaluator::minorsBehindPawns ---
 
-// --- Tests for Evaluator:outpostSquares:
+// --- Tests for Evaluator:bishopPawnBlockers ---
+TEST(Evaluator_bishopPawnBlockers, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(Evaluator(c).bishopPawnBlockers(), 0);
+}
+TEST(Evaluator_bishopPawnBlockers, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(Evaluator(c).bishopPawnBlockers(), 0);
+}
+TEST(Evaluator_bishopPawnBlockers, MixedWithoutBlockers) {
+    Chess c("rn1qkbnr/ppp1pppp/3p4/8/8/4P3/PPPP1PPP/RN1QKBNR w KQkq - 0 1");
+    EXPECT_EQ(Evaluator(c).bishopPawnBlockers(), -2);
+}
+TEST(Evaluator_bishopPawnBlockers, MixedWithBlockers) {
+    Chess c("4kb2/5p1p/pp2p1p1/2pp4/2PP4/1P2PP1P/P5P1/4KB2 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).bishopPawnBlockers(), 12);
+}
+TEST(Evaluator_bishopPawnBlockers, DefendedWithBlocker) {
+    Chess c("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).bishopPawnBlockers(), 1);
+}
+// --- End tests for Evaluator::bishopPawnBlockers ---
+
+// --- Tests for Evaluator:outpostSquares ---
 TEST(Evaluator_outpostSquares, StartPosition) {
     Chess c(STARTFEN);
     Evaluator ev(c);

@@ -60,27 +60,48 @@ inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
 }
 
 /**
- * @brief Computes the score based on the number of pawns on the same color
- *        square as the bishop. This value is multiplied by one plus the number
- *        of blocked pawns in the central files (C, D, E, F).
+ * @brief Evaluates the alignment of pawns and bishops on the board along with the influence of
+ * blocked central pawns.
+ *
+ * This function calculates a score based on the alignment of the current player's pawns and
+ * bishops. If there are pawns on the same color squares as the bishops, they can hinder the
+ * bishop's movement. The score is further adjusted by the number of blocked pawns in the central
+ * files (C, D, E, F).
  *
  * @tparam c The color of the bishops (WHITE or BLACK).
  * @param bishops A bitboard representing the positions of the bishops.
  * @param pawns A bitboard representing the positions of the pawns.
  * @param enemyPawns A bitboard representing the positions of the opponent's pawns.
- * @return An integer score derived from the alignment of pawns and bishops
- *         plus the impact of blocked central pawns.
+ * @return An integer score derived from the alignment of friendly pawns and bishops
+ *         adjusted by the number of blocked central pawns.
  */
 template <Color c>
-inline int bishopPawns(U64 bishops, U64 pawns, U64 enemyPawns) {
-    int lightBishops = BB::bitCount(bishops & LIGHT_SQUARES);
-    int darkBishops = BB::bitCount(bishops & DARK_SQUARES);
-    int lightPawns = BB::bitCount(pawns & LIGHT_SQUARES);
-    int darkPawns = BB::bitCount(pawns & DARK_SQUARES);
+inline int bishopPawnBlockers(U64 bishops, U64 pawns, U64 enemyPawns) {
+    // Calculate the attack coverage of pawns for the current player using a bitboard.
+    U64 pawnAttacks = BB::attacksByPawns<c>(pawns);
+
+    // Determine the number of blocked pawns on central files.
     int blocked = BB::bitCount(blockedPawns<c>(pawns, enemyPawns) & CENTER_FILES);
-    int lightScore = lightBishops * lightPawns;
-    int darkScore = darkBishops * darkPawns;
-    return (lightScore + darkScore) * (1 + blocked);
+
+    // Separate bishops into light-squared and dark-squared groups.
+    U64 lightBishops = bishops & LIGHT_SQUARES;
+    U64 darkBishops = bishops & DARK_SQUARES;
+
+    // Count pawns on light squares and dark squares.
+    int lightPawnCount = BB::bitCount(pawns & LIGHT_SQUARES);
+    int darkPawnCount = BB::bitCount(pawns & DARK_SQUARES);
+
+    // Calculate the factor for score adjustment, influenced by the presence
+    // of pawn attacks on the same color bishop's path and blocked central pawns.
+    int lightPawnFactor = (pawnAttacks & lightBishops ? 0 : 1) + blocked;
+    int darkPawnFactor = (pawnAttacks & darkBishops ? 0 : 1) + blocked;
+
+    // Compute scores for light and dark bishops based on their interaction with pawns.
+    int lightScore = BB::bitCount(lightBishops) * lightPawnCount * lightPawnFactor;
+    int darkScore = BB::bitCount(darkBishops) * darkPawnCount * darkPawnFactor;
+
+    // Return the total score, accounting for both light and dark bishop interactions.
+    return lightScore + darkScore;
 }
 
 }  // namespace Eval

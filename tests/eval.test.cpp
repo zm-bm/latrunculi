@@ -121,7 +121,7 @@ TEST(Eval_blockedPawns, NotBlocked) {
 }
 // --- End tests for Eval::blockedPawns ---
 
-// --- Tests for Eval::outpostSquares---
+// --- Tests for Eval::outpostSquares ---
 TEST(Eval_outpostSquares, StartPosition) {
     Board b(STARTFEN);
     U64 wPawns = b.getPieces<PAWN>(WHITE);
@@ -157,7 +157,133 @@ TEST(Eval_outpostSquares, NoOupostOn7thRank) {
     EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
     EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
 }
-// --- End tests for Eval::oupostSquares---
+// --- End tests for Eval::oupostSquares ---
 
-// --- Tests for Eval::bishopPawns---
-// --- End tests for Eval::bishopPawns---
+// --- Tests for Eval::bishopPawnBlockers ---
+TEST(Eval_bishopPawnBlockers, StartPosition) {
+    Board b(STARTFEN);
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 8);
+    EXPECT_EQ(bBlockers, 8);
+}
+TEST(Eval_bishopPawnBlockers, EmptyPosition) {
+    Board b(EMPTYFEN);
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 0);
+    EXPECT_EQ(bBlockers, 0);
+}
+TEST(Eval_bishopPawnBlockers, DarkSquareBishopsDefaultPawns) {
+    Board b("4kb2/pppppppp/8/8/8/8/PPPPPPPP/2B1K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 4);
+    EXPECT_EQ(bBlockers, 4);
+}
+TEST(Eval_bishopPawnBlockers, LightSquareBishopsDefaultPawns) {
+    Board b("2b1k3/pppppppp/8/8/8/8/PPPPPPPP/4KB2 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 4);
+    EXPECT_EQ(bBlockers, 4);
+}
+TEST(Eval_bishopPawnBlockers, LightSquareBishopsDarkSquarePawns) {
+    Board b("2b1k3/p1p1p1p1/1p1p1p1p/8/8/P1P1P1P1/1P1P1P1P/4KB2 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 0);
+    EXPECT_EQ(bBlockers, 0);
+}
+TEST(Eval_bishopPawnBlockers, DarkSquareBishopsDarkSquarePawns) {
+    Board b("4kb2/p1p1p1p1/1p1p1p1p/8/8/P1P1P1P1/1P1P1P1P/2B1K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 8);
+    EXPECT_EQ(bBlockers, 8);
+}
+TEST(Eval_bishopPawnBlockers, DarkSquareBishopsLightSquarePawns) {
+    Board b("4kb2/1p1p1p1p/p1p1p1p1/8/8/1P1P1P1P/P1P1P1P1/2B1K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 0);
+    EXPECT_EQ(bBlockers, 0);
+}
+TEST(Eval_bishopPawnBlockers, LightSquareBishopsLightSquarePawns) {
+    Board b("2b1k3/1p1p1p1p/p1p1p1p1/8/8/1P1P1P1P/P1P1P1P1/4KB2 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 8);
+    EXPECT_EQ(bBlockers, 8);
+}
+TEST(Eval_bishopPawnBlockers, BlockedCentralPawn) {
+    Board b("4k3/4b3/8/4p3/4P3/8/4B3/4K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 2);
+    EXPECT_EQ(bBlockers, 2);
+}
+TEST(Eval_bishopPawnBlockers, BlockedOutsidePawn) {
+    Board b("4k3/6b1/8/6p1/6P1/8/6B1/4K3 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 1);
+    EXPECT_EQ(bBlockers, 1);
+}
+TEST(Eval_bishopPawnBlockers, MixedWithoutBlockers) {
+    Board b("rn1qkbnr/ppp1pppp/3p4/8/8/4P3/PPPP1PPP/RN1QKBNR w KQkq - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 3);
+    EXPECT_EQ(bBlockers, 5);
+}
+TEST(Eval_bishopPawnBlockers, MixedWithBlockers) {
+    Board b("4kb2/5p1p/pp2p1p1/2pp4/2PP4/1P2PP1P/P5P1/4KB2 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 18);
+    EXPECT_EQ(bBlockers, 6);
+}
+TEST(Eval_bishopPawnBlockers, DefendedWithBlocked) {
+    Board b("6k1/8/8/3Bp3/3bP3/8/8/6K1 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 1);
+    EXPECT_EQ(bBlockers, 1);
+}
+TEST(Eval_bishopPawnBlockers, DefendedWithNotBlocked) {
+    Board b("6k1/8/8/3Bp3/2Pb4/8/8/6K1 w - - 0 1");
+    U64 wPawns = b.getPieces<PAWN>(WHITE);
+    U64 bPawns = b.getPieces<PAWN>(BLACK);
+    U64 wBlockers = Eval::bishopPawnBlockers<WHITE>(b.getPieces<BISHOP>(WHITE), wPawns, bPawns);
+    U64 bBlockers = Eval::bishopPawnBlockers<BLACK>(b.getPieces<BISHOP>(BLACK), bPawns, wPawns);
+    EXPECT_EQ(wBlockers, 0);
+    EXPECT_EQ(bBlockers, 0);
+}
+// --- End tests for Eval::bishopPawnBlockers ---
