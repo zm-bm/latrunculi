@@ -35,48 +35,6 @@ TEST(Chess_eval, WhitePawnOnE2) {
 }
 // --- End tests for Chess::eval---
 
-// --- Tests for Chess::outpostSquare---
-// TEST(Chess_outpostSquare, EmptyPosition) {
-//     Chess c(EMPTYFEN);
-//     EXPECT_EQ(c.outpostSquares<WHITE>(), 0);
-//     EXPECT_EQ(c.outpostSquares<BLACK>(), 0);
-// }
-// TEST(Chess_outpostSquare, StartPosition) {
-//     Chess c(STARTFEN);
-//     EXPECT_EQ(c.outpostSquares<WHITE>(), 0);
-//     EXPECT_EQ(c.outpostSquares<BLACK>(), 0);
-// }
-// TEST(Chess_outpostSquare, WhiteOutpostOnD5) {
-//     Chess c("r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1");
-//     EXPECT_EQ(c.outpostSquares<WHITE>(), BB::set(D5));
-//     EXPECT_EQ(c.outpostSquares<BLACK>(), 0);
-// }
-// TEST(Chess_outpostSquare, BlackOutpostOnD4) {
-//     Chess c("r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1");
-//     EXPECT_EQ(c.outpostSquares<WHITE>(), 0);
-//     EXPECT_EQ(c.outpostSquares<BLACK>(), BB::set(D4));
-// }
-// --- End tests for Chess::outpostSquare---
-
-// --- Tests for Chess::knightOutpostCount ---
-// TEST(Chess_knightOutpostCount, NoOutpost) {
-//     Chess c("6k1/8/8/4p3/4P3/8/8/6K1 w - - 0 1");
-//     EXPECT_EQ(c.knightOutpostCount(), 0);
-// }
-// TEST(Chess_knightOutpostCount, BothOutpost) {
-//     Chess c("6k1/8/8/3Np3/3nP3/8/8/6K1 w - - 0 1");
-//     EXPECT_EQ(c.knightOutpostCount(), 0);
-// }
-// TEST(Chess_knightOutpostCount, WhiteOutpost) {
-//     Chess c("6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1");
-//     EXPECT_EQ(c.knightOutpostCount(), 1);
-// }
-// TEST(Chess_knightOutpostCount, BlackOutpost) {
-//     Chess c("6k1/8/8/4p3/3nP3/8/8/6K1 w - - 1 1");
-//     EXPECT_EQ(c.knightOutpostCount(), -1);
-// }
-// --- Tests for Chess::knightOutpostCount ---
-
 // --- Tests for Chess::bishopOutpostCount ---
 // TEST(Chess_bishopOutpostCount, NoOutpost) {
 //     Chess c("6k1/8/8/4p3/4P3/8/8/6K1 w - - 0 1");
@@ -108,26 +66,10 @@ TEST(Chess_eval, WhitePawnOnE2) {
 // TEST(Chess_minorsBehindPawns, BlackMinorBehindPawn) {
 //     EXPECT_EQ(Chess("4k3/8/4b3/4p3/4P3/8/8/4K3 w - - 0 1").minorsBehindPawns(), -1);
 // }
-// TEST(Chess_minorsBehindPawns, WhiteMinorsBehindPawn) {
-//     Chess wn("6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1");
-//     EXPECT_EQ(wn.piecesEval(), MINOR_BEHIND_PAWN_BONUS);
-//     Chess wb("6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 1");
-//     EXPECT_EQ(wb.piecesEval(), MINOR_BEHIND_PAWN_BONUS);
-// }
-// TEST(Chess_minorsBehindPawns, BlackMinorsBehindPawn) {
-//     Chess bn("6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 1");
-//     EXPECT_EQ(bn.piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
-//     Chess bb("6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1");
-//     EXPECT_EQ(bb.piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
-// }
+
 // --- End tests for Chess::minorsBehindPawns ---
 
-// TEST(Chess_piecesEval, ReachableKnightOutpost) {
-//     Chess w("6k1/8/8/4p3/4P3/2N5/8/6K1 w - - 0 1");
-//     EXPECT_EQ(w.piecesEval(), REACHABLE_OUTPOST_BONUS);
-//     Chess b("6k1/8/2n5/4p3/4P3/8/8/6K1 w - - 0 1");
-//     EXPECT_EQ(b.piecesEval(), -REACHABLE_OUTPOST_BONUS);
-// }
+
 
 // --- Tests for Chess::materialScore ---
 TEST(Chess_materialScore, StartPosition) {

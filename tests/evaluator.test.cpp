@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "chess.hpp"
+#include "score.hpp"
 
 // --- Tests for Evaluator::eval---
 TEST(Evaluator_eval, StartPosition) {
@@ -24,6 +25,49 @@ TEST(Evaluator_eval, WhitePawnOnE2) {
     EXPECT_LT(Evaluator(c).eval<false>(), 0) << "black to move should be negative";
 }
 // --- End tests for Evaluator::eval---
+
+// --- End tests for Evaluator::scaleFactor ---
+TEST(Evaluator_scaleFactor, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(Evaluator(c).scaleFactor(), SCALE_LIMIT);
+}
+TEST(Evaluator_scaleFactor, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(Evaluator(c).scaleFactor(), 0);
+}
+TEST(Evaluator_scaleFactor, DrawScenario1) {
+    Chess c("3bk3/8/8/8/8/8/8/3NK3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).scaleFactor(), 0);
+}
+TEST(Evaluator_scaleFactor, DrawScenario2) {
+    Chess c("2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).scaleFactor(), 16);
+}
+TEST(Evaluator_scaleFactor, OppositeBishopEnding1) {
+    Chess c("3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).scaleFactor(), 36);
+}
+TEST(Evaluator_scaleFactor, OppositeBishopEnding2) {
+    Chess c("3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).scaleFactor(), 40);
+}
+TEST(Evaluator_scaleFactor, OppositeBishopEnding3) {
+    Chess c("3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).scaleFactor(), 44);
+}
+TEST(Evaluator_scaleFactor, OneQueenScenario1) {
+    Chess c("3qk3/8/8/8/8/8/8/4K3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).scaleFactor(), 36);
+}
+TEST(Evaluator_scaleFactor, OneQueenScenario2) {
+    Chess c("3qk3/8/8/8/8/8/8/3BK3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).scaleFactor(), 40);
+}
+TEST(Evaluator_scaleFactor, OneQueenScenario3) {
+    Chess c("3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).scaleFactor(), 44);
+}
+// --- End tests for Evaluator::scaleFactor ---
 
 // --- Tests for Evaluator::pawnsEval---
 TEST(Evaluator_pawnsEval, EmptyPosition) {
@@ -56,7 +100,56 @@ TEST(Evaluator_pawnsEval, DoubledPawn) {
     EXPECT_LT(mg, 0) << "midgame evaluation should penalize doubled pawns";
     EXPECT_LT(eg, 0) << "endgame evaluation should penalize doubled pawns";
 }
-// --- End tests for Evaluator::pawnsEval---
+// --- End tests for Evaluator::pawnsEval ---
+
+// --- Tests for Evaluator::piecesEval ---
+TEST(Evaluator_piecesEval, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(Evaluator(c).piecesEval(), (Score{0, 0}));
+}
+TEST(Evaluator_piecesEval, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(Evaluator(c).piecesEval(), (Score{0, 0}));
+}
+TEST(Evaluator_piecesEval, KnightOutpost) {
+    Chess c("6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).piecesEval(), KNIGHT_OUTPOST_BONUS);
+}
+TEST(Evaluator_piecesEval, ReachableKnightOutpost) {
+    Chess c("6k1/8/4n3/4p3/4P3/2P5/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).piecesEval(), -REACHABLE_OUTPOST_BONUS);
+}
+// TEST(Evaluator_piecesEval, WhiteMinorsBehindPawn) {
+//     Chess wn("6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1");
+//     EXPECT_EQ(wn.piecesEval(), MINOR_BEHIND_PAWN_BONUS);
+//     Chess wb("6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 1");
+//     EXPECT_EQ(wb.piecesEval(), MINOR_BEHIND_PAWN_BONUS);
+// }
+// TEST(Evaluator_piecesEval, BlackMinorsBehindPawn) {
+//     Chess bn("6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 1");
+//     EXPECT_EQ(bn.piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
+//     Chess bb("6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1");
+//     EXPECT_EQ(bb.piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
+// }
+// --- End tests for Evaluator::piecesEval ---
+
+// --- Tests for Evaluator::knightEval ---
+TEST(Evaluator_knightEval, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(Evaluator(c).knightEval<WHITE>(), (Score{0, 0}));
+    EXPECT_EQ(Evaluator(c).knightEval<BLACK>(), (Score{0, 0}));
+}
+TEST(Evaluator_knightEval, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(Evaluator(c).knightEval<WHITE>(), (Score{0, 0}));
+    EXPECT_EQ(Evaluator(c).knightEval<BLACK>(), (Score{0, 0}));
+}
+TEST(Evaluator_knightEval, ReachableOutposts) {
+    Chess c("6k1/8/2p1n3/4p3/4P3/2P1N3/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).knightEval<WHITE>(), REACHABLE_OUTPOST_BONUS);
+    EXPECT_EQ(Evaluator(c).knightEval<BLACK>(), -REACHABLE_OUTPOST_BONUS);
+}
+// --- End tests for Evaluator::knightEval ---
 
 // --- Tests for Evaluator::isolatedPawnsCount ---
 TEST(Evaluator_isolatedPawns, StartPosition) {
@@ -123,48 +216,57 @@ TEST(Evaluator_doubledPawnsCount, BlackDoubled) {
 }
 // --- End tests for Evaluator::doubledPawnsCount ---
 
-// --- End tests for Evaluator::scaleFactor ---
-TEST(Evaluator_scaleFactor, StartPosition) {
+// --- Tests for Evaluator::knightOutpostCount ---
+TEST(Chess_knightOutpostCount, NoOutpost) {
+    Chess c("6k1/8/8/4p3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).knightOutpostCount(), 0);
+}
+TEST(Evaluator_knightOutpostCount, BothOutpost) {
+    Chess c("6k1/8/8/3Np3/3nP3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).knightOutpostCount(), 0);
+}
+TEST(Evaluator_knightOutpostCount, WhiteOutpost) {
+    Chess c("6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).knightOutpostCount(), 1);
+}
+TEST(Evaluator_knightOutpostCount, BlackOutpost) {
+    Chess c("6k1/8/8/4p3/3nP3/8/8/6K1 w - - 1 1");
+    EXPECT_EQ(Evaluator(c).knightOutpostCount(), -1);
+}
+// --- Tests for Evaluator::knightOutpostCount ---
+
+// --- Tests for Evaluator:outpostSquares:
+TEST(Evaluator_outpostSquares, StartPosition) {
     Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).scaleFactor(), SCALE_LIMIT);
+    Evaluator ev(c);
+    EXPECT_EQ(ev.outpostSquares<WHITE>(), 0);
+    EXPECT_EQ(ev.outpostSquares<BLACK>(), 0);
 }
-TEST(Evaluator_scaleFactor, EmptyPosition) {
+TEST(Evaluator_outpostSquares, EmptyPosition) {
     Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 0);
+    Evaluator ev(c);
+    EXPECT_EQ(ev.outpostSquares<WHITE>(), 0);
+    EXPECT_EQ(ev.outpostSquares<BLACK>(), 0);
 }
-TEST(Evaluator_scaleFactor, DrawScenario1) {
-    Chess c("3bk3/8/8/8/8/8/8/3NK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 0);
+TEST(Evaluator_outpostSquares, WhiteOutpostOnD5) {
+    Chess c("r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1");
+    Evaluator ev(c);
+    EXPECT_EQ(ev.outpostSquares<WHITE>(), BB::set(D5));
+    EXPECT_EQ(ev.outpostSquares<BLACK>(), 0);
 }
-TEST(Evaluator_scaleFactor, DrawScenario2) {
-    Chess c("2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 16);
+TEST(Evaluator_outpostSquares, BlackOutpostOnD4) {
+    Chess c("r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1");
+    Evaluator ev(c);
+    EXPECT_EQ(ev.outpostSquares<WHITE>(), 0);
+    EXPECT_EQ(ev.outpostSquares<BLACK>(), BB::set(D4));
 }
-TEST(Evaluator_scaleFactor, OppositeBishopEnding1) {
-    Chess c("3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 36);
+TEST(Evaluator_outpostSquares, NoOutpostOn7thRank) {
+    Chess c("r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1");
+    Evaluator ev(c);
+    EXPECT_EQ(ev.outpostSquares<WHITE>(), 0);
+    EXPECT_EQ(ev.outpostSquares<BLACK>(), 0);
 }
-TEST(Evaluator_scaleFactor, OppositeBishopEnding2) {
-    Chess c("3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 40);
-}
-TEST(Evaluator_scaleFactor, OppositeBishopEnding3) {
-    Chess c("3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 44);
-}
-TEST(Evaluator_scaleFactor, OneQueenScenario1) {
-    Chess c("3qk3/8/8/8/8/8/8/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 36);
-}
-TEST(Evaluator_scaleFactor, OneQueenScenario2) {
-    Chess c("3qk3/8/8/8/8/8/8/3BK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 40);
-}
-TEST(Evaluator_scaleFactor, OneQueenScenario3) {
-    Chess c("3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 44);
-}
-// --- End tests for Evaluator::scaleFactor ---
+// --- End tests for Evaluator::outpostSquares ---
 
 // --- Tests for Evaluator::oppositeBishops
 TEST(Evaluator_oppositeBishops, EmptyPosition) {

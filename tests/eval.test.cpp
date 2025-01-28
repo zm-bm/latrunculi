@@ -122,35 +122,35 @@ TEST(Eval_blockedPawns, NotBlocked) {
 // --- End tests for Eval::blockedPawns ---
 
 // --- Tests for Eval::outpostSquares---
-TEST(Eval_outpostSquare, StartPosition) {
+TEST(Eval_outpostSquares, StartPosition) {
     Board b(STARTFEN);
     U64 wPawns = b.getPieces<PAWN>(WHITE);
     U64 bPawns = b.getPieces<PAWN>(BLACK);
     EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
     EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
 }
-TEST(Eval_outpostSquare, EmptyPosition) {
+TEST(Eval_outpostSquares, EmptyPosition) {
     Board b(EMPTYFEN);
     U64 wPawns = b.getPieces<PAWN>(WHITE);
     U64 bPawns = b.getPieces<PAWN>(BLACK);
     EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
     EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
 }
-TEST(Eval_outpostSquare, WhiteOutpostOnD5) {
+TEST(Eval_outpostSquares, WhiteOutpostOnD5) {
     Board b("r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1");
     U64 wPawns = b.getPieces<PAWN>(WHITE);
     U64 bPawns = b.getPieces<PAWN>(BLACK);
     EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), BB::set(D5));
     EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
 }
-TEST(Eval_outpostSquare, BlackOutpostOnD4) {
+TEST(Eval_outpostSquares, BlackOutpostOnD4) {
     Board b("r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1");
     U64 wPawns = b.getPieces<PAWN>(WHITE);
     U64 bPawns = b.getPieces<PAWN>(BLACK);
     EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
     EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), BB::set(D4));
 }
-TEST(Eval_outpostSquare, NoOupostOn7thRank) {
+TEST(Eval_outpostSquares, NoOupostOn7thRank) {
     Board b("r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1");
     U64 wPawns = b.getPieces<PAWN>(WHITE);
     U64 bPawns = b.getPieces<PAWN>(BLACK);
