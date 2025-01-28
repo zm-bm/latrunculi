@@ -26,7 +26,7 @@ class Evaluator {
     int doubledPawnsCount() const;
 
     int knightOutpostCount() const;
-    // int bishopOutpostCount() const;
+    int bishopOutpostCount() const;
     // int bishopPawnsScore() const;
     // int minorsBehindPawns() const;
 
@@ -55,7 +55,7 @@ inline Score Evaluator::piecesEval() const {
     score += KNIGHT_OUTPOST_BONUS * knightOutpostCount();
     score += knightEval<WHITE>();
     score += knightEval<BLACK>();
-    // score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
+    score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
     // score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
     // score += BISHOP_PAWNS_PENALTY * bishopPawnsScore();
     return score;
@@ -115,6 +115,13 @@ inline int Evaluator::knightOutpostCount() const {
             BB::bitCount(board.getPieces<KNIGHT>(BLACK) & bOutposts));
 }
 
+inline int Evaluator::bishopOutpostCount() const {
+    U64 wOutposts = outpostSquares<WHITE>();
+    U64 bOutposts = outpostSquares<BLACK>();
+    return (BB::bitCount(board.getPieces<BISHOP>(WHITE) & wOutposts) -
+            BB::bitCount(board.getPieces<BISHOP>(BLACK) & bOutposts));
+}
+
 template <Color c>
 inline U64 Evaluator::outpostSquares() const {
     constexpr Color enemy = ~c;
@@ -154,12 +161,7 @@ inline int Evaluator::nonPawnMaterial(Color c) const {
 //     return BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
 // }
 
-// inline int Evaluator::bishopOutpostCount() const {
-//     U64 wOutposts = outpostSquares<WHITE>();
-//     U64 bOutposts = outpostSquares<BLACK>();
-//     return (BB::bitCount(board.getPieces<BISHOP>(WHITE) & wOutposts) -
-//             BB::bitCount(board.getPieces<BISHOP>(BLACK) & bOutposts));
-// }
+
 
 // inline int Evaluator::bishopPawnsScore() const {
 //     U64 wPawns = board.getPieces<PAWN>(WHITE);

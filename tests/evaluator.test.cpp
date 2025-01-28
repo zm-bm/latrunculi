@@ -119,6 +119,10 @@ TEST(Evaluator_piecesEval, ReachableKnightOutpost) {
     Chess c("6k1/8/4n3/4p3/4P3/2P5/8/6K1 w - - 0 1");
     EXPECT_EQ(Evaluator(c).piecesEval(), -REACHABLE_OUTPOST_BONUS);
 }
+TEST(Evaluator_piecesEval, BishopOutpost) {
+    Chess c("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).piecesEval(), BISHOP_OUTPOST_BONUS);
+}
 // TEST(Evaluator_piecesEval, WhiteMinorsBehindPawn) {
 //     Chess wn("6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1");
 //     EXPECT_EQ(wn.piecesEval(), MINOR_BEHIND_PAWN_BONUS);
@@ -234,6 +238,25 @@ TEST(Evaluator_knightOutpostCount, BlackOutpost) {
     EXPECT_EQ(Evaluator(c).knightOutpostCount(), -1);
 }
 // --- Tests for Evaluator::knightOutpostCount ---
+
+// --- Tests for Chess::bishopOutpostCount ---
+TEST(Evaluator_bishopOutpostCount, NoOutpost) {
+    Chess c("6k1/8/8/4p3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).bishopOutpostCount(), 0);
+}
+TEST(Evaluator_bishopOutpostCount, BothOutpost) {
+    Chess c("6k1/8/8/3Bp3/3bP3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).bishopOutpostCount(), 0);
+}
+TEST(Evaluator_bishopOutpostCount, WhiteOutpost) {
+    Chess c("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).bishopOutpostCount(), 1);
+}
+TEST(Evaluator_bishopOutpostCount, BlackOutpost) {
+    Chess c("6k1/8/8/4p3/3bP3/8/8/6K1 w - - 1 1");
+    EXPECT_EQ(Evaluator(c).bishopOutpostCount(), -1);
+}
+// --- Tests for Chess::bishopOutpostCount ---
 
 // --- Tests for Evaluator:outpostSquares:
 TEST(Evaluator_outpostSquares, StartPosition) {

@@ -35,24 +35,6 @@ TEST(Chess_eval, WhitePawnOnE2) {
 }
 // --- End tests for Chess::eval---
 
-// --- Tests for Chess::bishopOutpostCount ---
-// TEST(Chess_bishopOutpostCount, NoOutpost) {
-//     Chess c("6k1/8/8/4p3/4P3/8/8/6K1 w - - 0 1");
-//     EXPECT_EQ(c.bishopOutpostCount(), 0);
-// }
-// TEST(Chess_bishopOutpostCount, BothOutpost) {
-//     Chess c("6k1/8/8/3Bp3/3bP3/8/8/6K1 w - - 0 1");
-//     EXPECT_EQ(c.bishopOutpostCount(), 0);
-// }
-// TEST(Chess_bishopOutpostCount, WhiteOutpost) {
-//     Chess c("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
-//     EXPECT_EQ(c.bishopOutpostCount(), 1);
-// }
-// TEST(Chess_bishopOutpostCount, BlackOutpost) {
-//     Chess c("6k1/8/8/4p3/3bP3/8/8/6K1 w - - 1 1");
-//     EXPECT_EQ(c.bishopOutpostCount(), -1);
-// }
-// --- Tests for Chess::bishopOutpostCount ---
 
 // TEST(Chess_bishopPawnsScore, Tests) {
 // }
@@ -68,8 +50,6 @@ TEST(Chess_eval, WhitePawnOnE2) {
 // }
 
 // --- End tests for Chess::minorsBehindPawns ---
-
-
 
 // --- Tests for Chess::materialScore ---
 TEST(Chess_materialScore, StartPosition) {
