@@ -39,18 +39,6 @@ TEST(Chess_eval, WhitePawnOnE2) {
 // TEST(Chess_bishopPawnsScore, Tests) {
 // }
 
-// --- Tests for Chess::minorsBehindPawns ---
-// TEST(Chess_minorsBehindPawns, EmptyPosition) { EXPECT_EQ(Chess(EMPTYFEN).minorsBehindPawns(), 0); }
-// TEST(Chess_minorsBehindPawns, StartPosition) { EXPECT_EQ(Chess(STARTFEN).minorsBehindPawns(), 0); }
-// TEST(Chess_minorsBehindPawns, WhiteMinorBehindPawn) {
-//     EXPECT_EQ(Chess("4k3/8/8/4p3/4P3/4N3/8/4K3 w - - 0 1").minorsBehindPawns(), 1);
-// }
-// TEST(Chess_minorsBehindPawns, BlackMinorBehindPawn) {
-//     EXPECT_EQ(Chess("4k3/8/4b3/4p3/4P3/8/8/4K3 w - - 0 1").minorsBehindPawns(), -1);
-// }
-
-// --- End tests for Chess::minorsBehindPawns ---
-
 // --- Tests for Chess::materialScore ---
 TEST(Chess_materialScore, StartPosition) {
     Score score{0, 0};

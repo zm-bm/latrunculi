@@ -116,25 +116,21 @@ TEST(Evaluator_piecesEval, KnightOutpost) {
     EXPECT_EQ(Evaluator(c).piecesEval(), KNIGHT_OUTPOST_BONUS);
 }
 TEST(Evaluator_piecesEval, ReachableKnightOutpost) {
-    Chess c("6k1/8/4n3/4p3/4P3/2P5/8/6K1 w - - 0 1");
+    Chess c("6k1/8/6n1/4p3/4P3/2P5/8/6K1 w - - 0 1");
     EXPECT_EQ(Evaluator(c).piecesEval(), -REACHABLE_OUTPOST_BONUS);
 }
 TEST(Evaluator_piecesEval, BishopOutpost) {
     Chess c("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
     EXPECT_EQ(Evaluator(c).piecesEval(), BISHOP_OUTPOST_BONUS);
 }
-// TEST(Evaluator_piecesEval, WhiteMinorsBehindPawn) {
-//     Chess wn("6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1");
-//     EXPECT_EQ(wn.piecesEval(), MINOR_BEHIND_PAWN_BONUS);
-//     Chess wb("6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 1");
-//     EXPECT_EQ(wb.piecesEval(), MINOR_BEHIND_PAWN_BONUS);
-// }
-// TEST(Evaluator_piecesEval, BlackMinorsBehindPawn) {
-//     Chess bn("6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 1");
-//     EXPECT_EQ(bn.piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
-//     Chess bb("6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1");
-//     EXPECT_EQ(bb.piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
-// }
+TEST(Evaluator_piecesEval, KnightBehindPawn) {
+    Chess c("6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).piecesEval(), MINOR_BEHIND_PAWN_BONUS);
+}
+TEST(Evaluator_piecesEval, BishopBehindPawn) {
+    Chess c("6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
+}
 // --- End tests for Evaluator::piecesEval ---
 
 // --- Tests for Evaluator::knightEval ---
@@ -239,7 +235,7 @@ TEST(Evaluator_knightOutpostCount, BlackOutpost) {
 }
 // --- Tests for Evaluator::knightOutpostCount ---
 
-// --- Tests for Chess::bishopOutpostCount ---
+// --- Tests for Evaluator::bishopOutpostCount ---
 TEST(Evaluator_bishopOutpostCount, NoOutpost) {
     Chess c("6k1/8/8/4p3/4P3/8/8/6K1 w - - 0 1");
     EXPECT_EQ(Evaluator(c).bishopOutpostCount(), 0);
@@ -256,7 +252,26 @@ TEST(Evaluator_bishopOutpostCount, BlackOutpost) {
     Chess c("6k1/8/8/4p3/3bP3/8/8/6K1 w - - 1 1");
     EXPECT_EQ(Evaluator(c).bishopOutpostCount(), -1);
 }
-// --- Tests for Chess::bishopOutpostCount ---
+// --- Tests for Evaluator::bishopOutpostCount ---
+
+// --- Tests for Evaluator::minorsBehindPawns ---
+TEST(Evaluator_minorsBehindPawns, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(Evaluator(c).minorsBehindPawns(), 0);
+}
+TEST(Evaluator_minorsBehindPawns, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(Evaluator(c).minorsBehindPawns(), 0);
+}
+TEST(Evaluator_minorsBehindPawns, WhiteMinorBehindPawn) {
+    Chess c("4k3/8/8/4p3/4P3/4N3/8/4K3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).minorsBehindPawns(), 1);
+}
+TEST(Evaluator_minorsBehindPawns, BlackMinorBehindPawn) {
+    Chess c("4k3/8/4b3/4p3/4P3/8/8/4K3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).minorsBehindPawns(), -1);
+}
+// --- End tests for Evaluator::minorsBehindPawns ---
 
 // --- Tests for Evaluator:outpostSquares:
 TEST(Evaluator_outpostSquares, StartPosition) {

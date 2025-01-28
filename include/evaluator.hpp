@@ -27,8 +27,8 @@ class Evaluator {
 
     int knightOutpostCount() const;
     int bishopOutpostCount() const;
+    int minorsBehindPawns() const;
     // int bishopPawnsScore() const;
-    // int minorsBehindPawns() const;
 
     template <Color c>
     U64 outpostSquares() const;
@@ -56,7 +56,7 @@ inline Score Evaluator::piecesEval() const {
     score += knightEval<WHITE>();
     score += knightEval<BLACK>();
     score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
-    // score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
+    score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
     // score += BISHOP_PAWNS_PENALTY * bishopPawnsScore();
     return score;
 }
@@ -122,6 +122,16 @@ inline int Evaluator::bishopOutpostCount() const {
             BB::bitCount(board.getPieces<BISHOP>(BLACK) & bOutposts));
 }
 
+inline int Evaluator::minorsBehindPawns() const {
+    U64 wPawnsInFront = BB::movesByPawns<PawnMove::PUSH, BLACK>(board.getPieces<PAWN>(WHITE));
+    U64 bPawnsInFront = BB::movesByPawns<PawnMove::PUSH, WHITE>(board.getPieces<PAWN>(BLACK));
+    U64 wMinors = board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE);
+    U64 bMinors = board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK);
+    U64 wMinorsBehind = wMinors & wPawnsInFront;
+    U64 bMinorsBehind = bMinors & bPawnsInFront;
+    return BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
+}
+
 template <Color c>
 inline U64 Evaluator::outpostSquares() const {
     constexpr Color enemy = ~c;
@@ -150,16 +160,6 @@ inline int Evaluator::nonPawnMaterial(Color c) const {
             board.count<ROOK>(c) * Eval::pieceValue(MIDGAME, WHITE, ROOK) +
             board.count<QUEEN>(c) * Eval::pieceValue(MIDGAME, WHITE, QUEEN));
 }
-
-// inline int Evaluator::minorsBehindPawns() const {
-//     U64 wPawnsInFront = BB::movesByPawns<PawnMove::PUSH, BLACK>(board.getPieces<PAWN>(WHITE));
-//     U64 bPawnsInFront = BB::movesByPawns<PawnMove::PUSH, WHITE>(board.getPieces<PAWN>(BLACK));
-//     U64 wMinors = board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE);
-//     U64 bMinors = board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK);
-//     U64 wMinorsBehind = wMinors & wPawnsInFront;
-//     U64 bMinorsBehind = bMinors & bPawnsInFront;
-//     return BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
-// }
 
 
 
