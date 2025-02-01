@@ -244,13 +244,21 @@ inline U64 spanSouth(U64 bb) {
 template <Color c>
 inline U64 spanFront(U64 bb) {
     // Returns the span in the front direction for the given color.
-    return (c == WHITE) ? spanNorth(bb) : spanSouth(bb);
+    if constexpr (c == WHITE) {
+        return spanNorth(bb);
+    } else {
+        return spanSouth(bb);
+    }
 }
 
 template <Color c>
 inline U64 spanBack(U64 bb) {
     // Returns the span in the back direction for the given color.
-    return (c == WHITE) ? spanSouth(bb) : spanNorth(bb);
+    if constexpr (c == WHITE) {
+        return spanSouth(bb);
+    } else {
+        return spanNorth(bb);
+    }
 }
 
 template <Color c>
@@ -271,7 +279,7 @@ inline U64 getAllFrontSpan(U64 bb) {
 template <Color c>
 inline U64 kingShield(Square sq) {
     U64 bitboard = BB::set(sq);
-    if (c) {
+    if constexpr (c == WHITE) {
         return (BB::shiftNorthWest(bitboard) | BB::shiftNorth(bitboard) | BB::shiftNorthEast(bitboard));
     } else {
         return (BB::shiftSouthWest(bitboard) | BB::shiftSouth(bitboard) | BB::shiftSouthEast(bitboard));
@@ -280,13 +288,13 @@ inline U64 kingShield(Square sq) {
 
 template <PawnMove p, Color c>
 inline U64 movesByPawns(U64 pawns) {
-    if (p == PawnMove::LEFT) {
+    if constexpr (p == PawnMove::LEFT) {
         pawns &= ~filemask(FILE1, c);
-    } else if (p == PawnMove::RIGHT) {
+    } else if constexpr (p == PawnMove::RIGHT) {
         pawns &= ~filemask(FILE8, c);
     }
 
-    if (c == WHITE) {
+    if constexpr (c == WHITE) {
         return pawns << static_cast<int>(p);
     } else {
         return pawns >> static_cast<int>(p);
