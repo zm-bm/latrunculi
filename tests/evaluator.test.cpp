@@ -155,9 +155,27 @@ TEST(Evaluator_knightEval, EmptyPosition) {
 TEST(Evaluator_knightEval, ReachableOutposts) {
     Chess c("6k1/8/2p1n3/4p3/4P3/2P1N3/8/6K1 w - - 0 1");
     EXPECT_EQ(Evaluator(c).knightEval<WHITE>(), REACHABLE_OUTPOST_BONUS);
-    EXPECT_EQ(Evaluator(c).knightEval<BLACK>(), -REACHABLE_OUTPOST_BONUS);
+    EXPECT_EQ(Evaluator(c).knightEval<BLACK>(), REACHABLE_OUTPOST_BONUS);
 }
 // --- End tests for Evaluator::knightEval ---
+
+// --- Tests for Evaluator::bishopEval ---
+TEST(Evaluator_bishopEval, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(Evaluator(c).bishopEval<WHITE>(), (Score{0, 0}));
+    EXPECT_EQ(Evaluator(c).bishopEval<BLACK>(), (Score{0, 0}));
+}
+TEST(Evaluator_bishopEval, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(Evaluator(c).bishopEval<WHITE>(), (Score{0, 0}));
+    EXPECT_EQ(Evaluator(c).bishopEval<BLACK>(), (Score{0, 0}));
+}
+TEST(Evaluator_bishopEval, BishopPawnXrays) {
+    Chess c("4k3/1p4p1/5n2/2b1pb2/8/8/1B3PB1/4K3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).bishopEval<WHITE>(), BISHOP_PAWN_XRAY_PENALTY * 3);
+    EXPECT_EQ(Evaluator(c).bishopEval<BLACK>(), BISHOP_PAWN_XRAY_PENALTY);
+}
+// --- End tests for Evaluator::bishopEval ---
 
 // --- Tests for Evaluator::isolatedPawnsCount ---
 TEST(Evaluator_isolatedPawns, StartPosition) {

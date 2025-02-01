@@ -7,7 +7,7 @@ int Evaluator::eval() const {
     score += chess.materialScore();
     score += chess.psqBonusScore();
     score += pawnsEval();
-    // score += piecesEval();
+    score += piecesEval();
 
     score.eg *= scaleFactor() / 64.0;
 

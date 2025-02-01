@@ -20,6 +20,8 @@ class Evaluator {
 
     template <Color>
     Score knightEval() const;
+    template <Color>
+    Score bishopEval() const;
 
     int isolatedPawnsCount() const;
     int backwardsPawnsCount() const;
@@ -53,11 +55,11 @@ inline Score Evaluator::pawnsEval() const {
 inline Score Evaluator::piecesEval() const {
     Score score = {0, 0};
     score += KNIGHT_OUTPOST_BONUS * knightOutpostCount();
-    score += knightEval<WHITE>();
-    score += knightEval<BLACK>();
+    score += knightEval<WHITE>() - knightEval<BLACK>();
     score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
     score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
     score += BISHOP_PAWN_BLOCKER_PENALTY * bishopPawnBlockers();
+    score += bishopEval<WHITE>() - bishopEval<BLACK>();
     return score;
 }
 
@@ -76,13 +78,22 @@ inline Score Evaluator::knightEval() const {
     U64 outposts = outpostSquares<c>();
 
     forEachPiece<c>(board.getPieces<KNIGHT>(c), [&](Square sq) {
-        U64 reachable = BB::movesByPiece<KNIGHT>(sq, 0) & outposts;
-        Score bonus = REACHABLE_OUTPOST_BONUS * BB::bitCount(reachable);
-        if constexpr (c == WHITE) {
-            score += bonus;
-        } else {
-            score -= bonus;
-        }
+        U64 reachableOutposts = BB::movesByPiece<KNIGHT>(sq, 0) & outposts;
+        score += REACHABLE_OUTPOST_BONUS * BB::bitCount(reachableOutposts);
+    });
+
+    return score;
+}
+
+template <Color c>
+inline Score Evaluator::bishopEval() const {
+    constexpr Color enemy = ~c;
+    Score score = {0, 0};
+    U64 enemyPawns = board.getPieces<PAWN>(enemy);
+
+    forEachPiece<c>(board.getPieces<BISHOP>(c), [&](Square sq) {
+        U64 xray = BB::movesByPiece<BISHOP>(sq, 0);
+        score += BISHOP_PAWN_XRAY_PENALTY * BB::bitCount(xray & enemyPawns);
     });
 
     return score;
