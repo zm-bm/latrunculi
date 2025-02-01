@@ -53,5 +53,6 @@ const Score KNIGHT_OUTPOST_BONUS = {56, 36};
 const Score MINOR_BEHIND_PAWN_BONUS = {18, 3};
 const Score BISHOP_PAWN_BLOCKER_PENALTY = {-3, -7};
 const Score BISHOP_PAWN_XRAY_PENALTY = {-4, -5};
+const Score ROOK_ON_QUEEN_FILE_BONUS = {6, 11};
 
 #endif

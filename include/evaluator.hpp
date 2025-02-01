@@ -7,6 +7,7 @@
 #include "chess.hpp"
 #include "eval.hpp"
 #include "score.hpp"
+#include "bb.hpp"
 
 class Evaluator {
    public:
@@ -22,6 +23,8 @@ class Evaluator {
     Score knightEval() const;
     template <Color>
     Score bishopEval() const;
+    template <Color>
+    Score queenEval() const;
 
     int isolatedPawnsCount() const;
     int backwardsPawnsCount() const;
@@ -60,6 +63,8 @@ inline Score Evaluator::piecesEval() const {
     score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
     score += BISHOP_PAWN_BLOCKER_PENALTY * bishopPawnBlockers();
     score += bishopEval<WHITE>() - bishopEval<BLACK>();
+    score += queenEval<WHITE>() - queenEval<BLACK>();
+
     return score;
 }
 
@@ -92,9 +97,25 @@ inline Score Evaluator::bishopEval() const {
     U64 enemyPawns = board.getPieces<PAWN>(enemy);
 
     forEachPiece<c>(board.getPieces<BISHOP>(c), [&](Square sq) {
-        U64 xray = BB::movesByPiece<BISHOP>(sq, 0);
-        score += BISHOP_PAWN_XRAY_PENALTY * BB::bitCount(xray & enemyPawns);
+        U64 moves = BB::movesByPiece<BISHOP>(sq, 0);
+        score += BISHOP_PAWN_XRAY_PENALTY * BB::bitCount(moves & enemyPawns);
     });
+
+    return score;
+}
+
+template <Color c>
+inline Score Evaluator::queenEval() const {
+    Score score = {0, 0};
+    U64 rooksOnQueenFile = 0;
+
+    forEachPiece<c>(board.getPieces<QUEEN>(c), [&](Square sq) {
+        File f = Defs::fileFromSq(sq);
+        U64 mask = BB::filemask(f, WHITE);
+        rooksOnQueenFile |= mask & board.getPieces<ROOK>(c);
+    });
+
+    score += ROOK_ON_QUEEN_FILE_BONUS * BB::bitCount(rooksOnQueenFile);
 
     return score;
 }

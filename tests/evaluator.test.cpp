@@ -171,11 +171,34 @@ TEST(Evaluator_bishopEval, EmptyPosition) {
     EXPECT_EQ(Evaluator(c).bishopEval<BLACK>(), (Score{0, 0}));
 }
 TEST(Evaluator_bishopEval, BishopPawnXrays) {
-    Chess c("4k3/1p4p1/5n2/2b1pb2/8/8/1B3PB1/4K3 w - - 0 1");
+    Chess c("4k3/ppp3p1/5n2/2b1pb2/8/1PP5/1B3PB1/4K3 w - - 0 1");
     EXPECT_EQ(Evaluator(c).bishopEval<WHITE>(), BISHOP_PAWN_XRAY_PENALTY * 3);
     EXPECT_EQ(Evaluator(c).bishopEval<BLACK>(), BISHOP_PAWN_XRAY_PENALTY);
 }
 // --- End tests for Evaluator::bishopEval ---
+
+// --- Tests for Evaluator::queenEval ---
+TEST(Evaluator_queenEval, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(Evaluator(c).queenEval<WHITE>(), (Score{0, 0}));
+    EXPECT_EQ(Evaluator(c).queenEval<BLACK>(), (Score{0, 0}));
+}
+TEST(Evaluator_queenEval, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(Evaluator(c).queenEval<WHITE>(), (Score{0, 0}));
+    EXPECT_EQ(Evaluator(c).queenEval<BLACK>(), (Score{0, 0}));
+}
+TEST(Evaluator_queenEval, RookOnQueenFile) {
+    Chess c("q3k3/r7/8/8/8/R7/R7/Q3K3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).queenEval<WHITE>(), ROOK_ON_QUEEN_FILE_BONUS * 2);
+    EXPECT_EQ(Evaluator(c).queenEval<BLACK>(), ROOK_ON_QUEEN_FILE_BONUS);
+}
+TEST(Evaluator_queenEval, RookOnQueenFileDoesNotDoubleCount) {
+    Chess c("qr2k3/r7/8/8/8/R7/Q7/QR2K3 w - - 0 1");
+    EXPECT_EQ(Evaluator(c).queenEval<WHITE>(), ROOK_ON_QUEEN_FILE_BONUS);
+    EXPECT_EQ(Evaluator(c).queenEval<BLACK>(), ROOK_ON_QUEEN_FILE_BONUS);
+}
+// --- End tests for Evaluator::queenEval ---
 
 // --- Tests for Evaluator::isolatedPawnsCount ---
 TEST(Evaluator_isolatedPawns, StartPosition) {
