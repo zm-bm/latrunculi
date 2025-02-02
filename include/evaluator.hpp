@@ -16,8 +16,6 @@ class Evaluator {
     template <bool>
     int eval() const;
 
-    Score pawnsEval() const;
-    Score piecesEval() const;
 
     template <Color>
     Score knightEval() const;
@@ -42,6 +40,9 @@ class Evaluator {
     int nonPawnMaterial(Color) const;
 
    private:
+    Score pawnsEval() const;
+    Score piecesEval() const;
+
     int scaleFactor() const;
 
     const Chess& chess;

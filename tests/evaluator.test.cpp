@@ -31,7 +31,19 @@ class EvaluatorTest : public ::testing::Test {
     void testScaleFactor(const std::string& fen, int expected) {
         Chess chess(fen);
         Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.scaleFactor(), expected);
+        EXPECT_EQ(evaluator.scaleFactor(), expected) << fen;
+    }
+
+    void testPawnsEval(const std::string& fen, Score expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.pawnsEval(), expected) << fen;
+    }
+
+    void testPiecesEval(const std::string& fen, Score expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.piecesEval(), expected) << fen;
     }
 };
 
@@ -54,77 +66,37 @@ TEST_F(EvaluatorTest, ScaleFactor) {
     }
 }
 
-// --- Tests for Evaluator::pawnsEval---
-TEST(Evaluator_pawnsEval, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    auto [mg, eg] = Evaluator(c).pawnsEval();
-    EXPECT_EQ(mg, 0) << "midgame evaluation should equal 0";
-    EXPECT_EQ(eg, 0) << "endgame evaluation should equal 0";
-}
-TEST(Evaluator_pawnsEval, StartPosition) {
-    Chess c(STARTFEN);
-    auto [mg, eg] = Evaluator(c).pawnsEval();
-    EXPECT_EQ(mg, 0) << "midgame evaluation should equal 0";
-    EXPECT_EQ(eg, 0) << "endgame evaluation should equal 0";
-}
-TEST(Evaluator_pawnsEval, IsoPawn) {
-    Chess c("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
-    auto [mg, eg] = Evaluator(c).pawnsEval();
-    EXPECT_LT(mg, 0) << "midgame evaluation should penalize iso pawns";
-    EXPECT_LT(eg, 0) << "endgame evaluation should penalize iso pawns";
-}
-TEST(Evaluator_pawnsEval, BackwardsPawn) {
-    Chess c("4k3/8/1pp5/1P6/P7/8/8/4K3 w - - 0 1");
-    auto [mg, eg] = Evaluator(c).pawnsEval();
-    EXPECT_LT(mg, 0) << "midgame evaluation should penalize backwards pawns";
-    EXPECT_LT(eg, 0) << "endgame evaluation should penalize backwards pawns";
-}
-TEST(Evaluator_pawnsEval, DoubledPawn) {
-    Chess c("4k3/8/8/8/P7/P7/8/4K3 w - - 0 1");
-    auto [mg, eg] = Evaluator(c).pawnsEval();
-    EXPECT_LT(mg, 0) << "midgame evaluation should penalize doubled pawns";
-    EXPECT_LT(eg, 0) << "endgame evaluation should penalize doubled pawns";
-}
-// --- End tests for Evaluator::pawnsEval ---
+TEST_F(EvaluatorTest, PawnsEval) {
+    std::vector<std::pair<std::string, Score>> testCases = {
+        {STARTFEN, Score{0, 0}},
+        {EMPTYFEN, Score{0, 0}},
+        {"4k3/8/8/8/8/8/4P3/4K3 w - - 0 1", ISO_PAWN_PENALTY},
+        {"4k3/8/1pp5/1P6/P7/8/8/4K3 w - - 0 1", BACKWARD_PAWN_PENALTY},
+        {"4k3/8/8/8/PP6/P7/8/4K3 w - - 0 1", DOUBLED_PAWN_PENALTY},
+    };
 
-// --- Tests for Evaluator::piecesEval ---
-TEST(Evaluator_piecesEval, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).piecesEval(), (Score{0, 0}));
+    for (const auto& [fen, expected] : testCases) {
+        testPawnsEval(fen, expected);
+    }
 }
-TEST(Evaluator_piecesEval, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).piecesEval(), (Score{0, 0}));
+
+TEST_F(EvaluatorTest, PiecesEval) {
+    std::vector<std::pair<std::string, Score>> testCases = {
+        {STARTFEN, Score{0, 0}},
+        {EMPTYFEN, Score{0, 0}},
+        {"6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1", KNIGHT_OUTPOST_BONUS},
+        {"6k1/8/6n1/4p3/4P3/2P5/8/6K1 w - - 0 1", -REACHABLE_OUTPOST_BONUS},
+        {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY},
+        {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1", MINOR_BEHIND_PAWN_BONUS},
+        {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1", -MINOR_BEHIND_PAWN_BONUS},
+        {"4k3/8/8/4p3/4P3/8/4B3/4K3 w - - 0 1", (BISHOP_PAWN_BLOCKER_PENALTY * 2)},
+        {"4k3/8/5b2/4p3/8/8/8/4K3 w - - 0 1", -BISHOP_PAWN_BLOCKER_PENALTY},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testPiecesEval(fen, expected);
+    }
 }
-TEST(Evaluator_piecesEval, KnightOutpost) {
-    Chess c("6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).piecesEval(), KNIGHT_OUTPOST_BONUS);
-}
-TEST(Evaluator_piecesEval, ReachableKnightOutpost) {
-    Chess c("6k1/8/6n1/4p3/4P3/2P5/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).piecesEval(), -REACHABLE_OUTPOST_BONUS);
-}
-TEST(Evaluator_piecesEval, BishopOutpost) {
-    Chess c("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).piecesEval(), BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY);
-}
-TEST(Evaluator_piecesEval, KnightBehindPawn) {
-    Chess c("6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).piecesEval(), MINOR_BEHIND_PAWN_BONUS);
-}
-TEST(Evaluator_piecesEval, BishopBehindPawn) {
-    Chess c("6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).piecesEval(), -MINOR_BEHIND_PAWN_BONUS);
-}
-TEST(Evaluator_piecesEval, PawnBishopBlockerWithBlocked) {
-    Chess c("4k3/8/8/4p3/4P3/8/4B3/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).piecesEval(), (BISHOP_PAWN_BLOCKER_PENALTY * 2));
-}
-TEST(Evaluator_piecesEval, PawnBishopBlockerWithoutBlocked) {
-    Chess c("4k3/8/5b2/4p3/8/8/8/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).piecesEval(), -BISHOP_PAWN_BLOCKER_PENALTY);
-}
-// --- End tests for Evaluator::piecesEval ---
 
 // --- Tests for Evaluator::knightEval ---
 TEST(Evaluator_knightEval, StartPosition) {
