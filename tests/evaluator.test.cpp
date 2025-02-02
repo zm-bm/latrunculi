@@ -45,117 +45,65 @@ class EvaluatorTest : public ::testing::Test {
         Evaluator evaluator(chess);
         EXPECT_EQ(evaluator.piecesEval(), expected) << fen;
     }
+
+    void testKnightEval(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.knightEval<WHITE>(), expectedWhite) << fen;
+        EXPECT_EQ(evaluator.knightEval<BLACK>(), expectedBlack) << fen;
+    }
+
+    void testBishopEval(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.bishopEval<WHITE>(), expectedWhite) << fen;
+        EXPECT_EQ(evaluator.bishopEval<BLACK>(), expectedBlack) << fen;
+    }
+
+    void testQueenEval(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.queenEval<WHITE>(), expectedWhite) << fen;
+        EXPECT_EQ(evaluator.queenEval<BLACK>(), expectedBlack) << fen;
+    }
 };
 
-TEST_F(EvaluatorTest, ScaleFactor) {
-    std::vector<std::pair<std::string, int>> testCases = {
-        {STARTFEN, SCALE_LIMIT},
-        {EMPTYFEN, 0},
-        {"3bk3/8/8/8/8/8/8/3NK3 w - - 0 1", 0},
-        {"2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1", 16},
-        {"3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1", 36},
-        {"3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1", 40},
-        {"3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1", 44},
-        {"3qk3/8/8/8/8/8/8/4K3 w - - 0 1", 36},
-        {"3qk3/8/8/8/8/8/8/3BK3 w - - 0 1", 40},
-        {"3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1", 44},
+TEST_F(EvaluatorTest, KnightEval) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {STARTFEN, Score{0, 0}, Score{0, 0}},
+        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
+        {"6k1/8/2p1n3/4p3/4P3/2P1N3/8/6K1 w - - 0 1", REACHABLE_OUTPOST_BONUS, REACHABLE_OUTPOST_BONUS}
     };
 
-    for (const auto& [fen, expected] : testCases) {
-        testScaleFactor(fen, expected);
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testKnightEval(fen, expectedWhite, expectedBlack);
     }
 }
 
-TEST_F(EvaluatorTest, PawnsEval) {
-    std::vector<std::pair<std::string, Score>> testCases = {
-        {STARTFEN, Score{0, 0}},
-        {EMPTYFEN, Score{0, 0}},
-        {"4k3/8/8/8/8/8/4P3/4K3 w - - 0 1", ISO_PAWN_PENALTY},
-        {"4k3/8/1pp5/1P6/P7/8/8/4K3 w - - 0 1", BACKWARD_PAWN_PENALTY},
-        {"4k3/8/8/8/PP6/P7/8/4K3 w - - 0 1", DOUBLED_PAWN_PENALTY},
+TEST_F(EvaluatorTest, BishopEval) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {STARTFEN, Score{0, 0}, Score{0, 0}},
+        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
+        {"4k3/ppp3p1/5n2/2b1pb2/8/1PP5/1B3PB1/4K3 w - - 0 1", BISHOP_PAWN_XRAY_PENALTY * 3, BISHOP_PAWN_XRAY_PENALTY}
     };
 
-    for (const auto& [fen, expected] : testCases) {
-        testPawnsEval(fen, expected);
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testBishopEval(fen, expectedWhite, expectedBlack);
     }
 }
 
-TEST_F(EvaluatorTest, PiecesEval) {
-    std::vector<std::pair<std::string, Score>> testCases = {
-        {STARTFEN, Score{0, 0}},
-        {EMPTYFEN, Score{0, 0}},
-        {"6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1", KNIGHT_OUTPOST_BONUS},
-        {"6k1/8/6n1/4p3/4P3/2P5/8/6K1 w - - 0 1", -REACHABLE_OUTPOST_BONUS},
-        {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY},
-        {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1", MINOR_BEHIND_PAWN_BONUS},
-        {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1", -MINOR_BEHIND_PAWN_BONUS},
-        {"4k3/8/8/4p3/4P3/8/4B3/4K3 w - - 0 1", (BISHOP_PAWN_BLOCKER_PENALTY * 2)},
-        {"4k3/8/5b2/4p3/8/8/8/4K3 w - - 0 1", -BISHOP_PAWN_BLOCKER_PENALTY},
+TEST_F(EvaluatorTest, QueenEval) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {STARTFEN, Score{0, 0}, Score{0, 0}},
+        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
+        {"q3k3/r7/8/8/8/R7/R7/Q3K3 w - - 0 1", ROOK_ON_QUEEN_FILE_BONUS * 2, ROOK_ON_QUEEN_FILE_BONUS},
+        {"qr2k3/r7/8/8/8/R7/Q7/QR2K3 w - - 0 1", ROOK_ON_QUEEN_FILE_BONUS, ROOK_ON_QUEEN_FILE_BONUS},
     };
 
-    for (const auto& [fen, expected] : testCases) {
-        testPiecesEval(fen, expected);
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testQueenEval(fen, expectedWhite, expectedBlack);
     }
 }
-
-// --- Tests for Evaluator::knightEval ---
-TEST(Evaluator_knightEval, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).knightEval<WHITE>(), (Score{0, 0}));
-    EXPECT_EQ(Evaluator(c).knightEval<BLACK>(), (Score{0, 0}));
-}
-TEST(Evaluator_knightEval, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).knightEval<WHITE>(), (Score{0, 0}));
-    EXPECT_EQ(Evaluator(c).knightEval<BLACK>(), (Score{0, 0}));
-}
-TEST(Evaluator_knightEval, ReachableOutposts) {
-    Chess c("6k1/8/2p1n3/4p3/4P3/2P1N3/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).knightEval<WHITE>(), REACHABLE_OUTPOST_BONUS);
-    EXPECT_EQ(Evaluator(c).knightEval<BLACK>(), REACHABLE_OUTPOST_BONUS);
-}
-// --- End tests for Evaluator::knightEval ---
-
-// --- Tests for Evaluator::bishopEval ---
-TEST(Evaluator_bishopEval, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).bishopEval<WHITE>(), (Score{0, 0}));
-    EXPECT_EQ(Evaluator(c).bishopEval<BLACK>(), (Score{0, 0}));
-}
-TEST(Evaluator_bishopEval, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).bishopEval<WHITE>(), (Score{0, 0}));
-    EXPECT_EQ(Evaluator(c).bishopEval<BLACK>(), (Score{0, 0}));
-}
-TEST(Evaluator_bishopEval, BishopPawnXrays) {
-    Chess c("4k3/ppp3p1/5n2/2b1pb2/8/1PP5/1B3PB1/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).bishopEval<WHITE>(), BISHOP_PAWN_XRAY_PENALTY * 3);
-    EXPECT_EQ(Evaluator(c).bishopEval<BLACK>(), BISHOP_PAWN_XRAY_PENALTY);
-}
-// --- End tests for Evaluator::bishopEval ---
-
-// --- Tests for Evaluator::queenEval ---
-TEST(Evaluator_queenEval, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).queenEval<WHITE>(), (Score{0, 0}));
-    EXPECT_EQ(Evaluator(c).queenEval<BLACK>(), (Score{0, 0}));
-}
-TEST(Evaluator_queenEval, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).queenEval<WHITE>(), (Score{0, 0}));
-    EXPECT_EQ(Evaluator(c).queenEval<BLACK>(), (Score{0, 0}));
-}
-TEST(Evaluator_queenEval, RookOnQueenFile) {
-    Chess c("q3k3/r7/8/8/8/R7/R7/Q3K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).queenEval<WHITE>(), ROOK_ON_QUEEN_FILE_BONUS * 2);
-    EXPECT_EQ(Evaluator(c).queenEval<BLACK>(), ROOK_ON_QUEEN_FILE_BONUS);
-}
-TEST(Evaluator_queenEval, RookOnQueenFileDoesNotDoubleCount) {
-    Chess c("qr2k3/r7/8/8/8/R7/Q7/QR2K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).queenEval<WHITE>(), ROOK_ON_QUEEN_FILE_BONUS);
-    EXPECT_EQ(Evaluator(c).queenEval<BLACK>(), ROOK_ON_QUEEN_FILE_BONUS);
-}
-// --- End tests for Evaluator::queenEval ---
 
 // --- Tests for Evaluator::isolatedPawnsCount ---
 TEST(Evaluator_isolatedPawns, StartPosition) {
@@ -385,3 +333,54 @@ TEST(Evaluator_nonPawnMaterial, EmptyPosition) {
     EXPECT_EQ(Evaluator(c).nonPawnMaterial(BLACK), 0);
 }
 // --- End tests for Evaluator::nonPawnMaterial---
+
+TEST_F(EvaluatorTest, ScaleFactor) {
+    std::vector<std::pair<std::string, int>> testCases = {
+        {STARTFEN, SCALE_LIMIT},
+        {EMPTYFEN, 0},
+        {"3bk3/8/8/8/8/8/8/3NK3 w - - 0 1", 0},
+        {"2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1", 16},
+        {"3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1", 36},
+        {"3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1", 40},
+        {"3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1", 44},
+        {"3qk3/8/8/8/8/8/8/4K3 w - - 0 1", 36},
+        {"3qk3/8/8/8/8/8/8/3BK3 w - - 0 1", 40},
+        {"3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1", 44},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testScaleFactor(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, PawnsEval) {
+    std::vector<std::pair<std::string, Score>> testCases = {
+        {STARTFEN, Score{0, 0}},
+        {EMPTYFEN, Score{0, 0}},
+        {"4k3/8/8/8/8/8/4P3/4K3 w - - 0 1", ISO_PAWN_PENALTY},
+        {"4k3/8/1pp5/1P6/P7/8/8/4K3 w - - 0 1", BACKWARD_PAWN_PENALTY},
+        {"4k3/8/8/8/PP6/P7/8/4K3 w - - 0 1", DOUBLED_PAWN_PENALTY},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testPawnsEval(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, PiecesEval) {
+    std::vector<std::pair<std::string, Score>> testCases = {
+        {STARTFEN, Score{0, 0}},
+        {EMPTYFEN, Score{0, 0}},
+        {"6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1", KNIGHT_OUTPOST_BONUS},
+        {"6k1/8/6n1/4p3/4P3/2P5/8/6K1 w - - 0 1", -REACHABLE_OUTPOST_BONUS},
+        {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY},
+        {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1", MINOR_BEHIND_PAWN_BONUS},
+        {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1", -MINOR_BEHIND_PAWN_BONUS},
+        {"4k3/8/8/4p3/4P3/8/4B3/4K3 w - - 0 1", BISHOP_PAWN_BLOCKER_PENALTY * 2},
+        {"4k3/8/5b2/4p3/8/8/8/4K3 w - - 0 1", -BISHOP_PAWN_BLOCKER_PENALTY},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testPiecesEval(fen, expected);
+    }
+}

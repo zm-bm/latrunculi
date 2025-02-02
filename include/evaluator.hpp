@@ -16,14 +16,6 @@ class Evaluator {
     template <bool>
     int eval() const;
 
-
-    template <Color>
-    Score knightEval() const;
-    template <Color>
-    Score bishopEval() const;
-    template <Color>
-    Score queenEval() const;
-
     int isolatedPawnsCount() const;
     int backwardsPawnsCount() const;
     int doubledPawnsCount() const;
@@ -42,6 +34,13 @@ class Evaluator {
    private:
     Score pawnsEval() const;
     Score piecesEval() const;
+
+    template <Color>
+    Score knightEval() const;
+    template <Color>
+    Score bishopEval() const;
+    template <Color>
+    Score queenEval() const;
 
     int scaleFactor() const;
 
