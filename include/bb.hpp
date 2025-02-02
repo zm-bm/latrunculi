@@ -309,7 +309,6 @@ inline U64 movesByPawns(U64 pawns, Color c) {
         return movesByPawns<p, BLACK>(pawns);
     }
 };
-;
 
 template <Color c>
 inline U64 attacksByPawns(U64 pawns) {

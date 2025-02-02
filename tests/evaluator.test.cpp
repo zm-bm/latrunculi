@@ -26,48 +26,33 @@ TEST(Evaluator_eval, WhitePawnOnE2) {
 }
 // --- End tests for Evaluator::eval---
 
-// --- End tests for Evaluator::scaleFactor ---
-TEST(Evaluator_scaleFactor, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).scaleFactor(), SCALE_LIMIT);
+class EvaluatorTest : public ::testing::Test {
+  protected:
+    void testScaleFactor(const std::string& fen, int expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.scaleFactor(), expected);
+    }
+};
+
+TEST_F(EvaluatorTest, ScaleFactor) {
+    std::vector<std::pair<std::string, int>> testCases = {
+        {STARTFEN, SCALE_LIMIT},
+        {EMPTYFEN, 0},
+        {"3bk3/8/8/8/8/8/8/3NK3 w - - 0 1", 0},
+        {"2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1", 16},
+        {"3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1", 36},
+        {"3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1", 40},
+        {"3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1", 44},
+        {"3qk3/8/8/8/8/8/8/4K3 w - - 0 1", 36},
+        {"3qk3/8/8/8/8/8/8/3BK3 w - - 0 1", 40},
+        {"3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1", 44},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testScaleFactor(fen, expected);
+    }
 }
-TEST(Evaluator_scaleFactor, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 0);
-}
-TEST(Evaluator_scaleFactor, DrawScenario1) {
-    Chess c("3bk3/8/8/8/8/8/8/3NK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 0);
-}
-TEST(Evaluator_scaleFactor, DrawScenario2) {
-    Chess c("2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 16);
-}
-TEST(Evaluator_scaleFactor, OppositeBishopEnding1) {
-    Chess c("3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 36);
-}
-TEST(Evaluator_scaleFactor, OppositeBishopEnding2) {
-    Chess c("3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 40);
-}
-TEST(Evaluator_scaleFactor, OppositeBishopEnding3) {
-    Chess c("3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 44);
-}
-TEST(Evaluator_scaleFactor, OneQueenScenario1) {
-    Chess c("3qk3/8/8/8/8/8/8/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 36);
-}
-TEST(Evaluator_scaleFactor, OneQueenScenario2) {
-    Chess c("3qk3/8/8/8/8/8/8/3BK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 40);
-}
-TEST(Evaluator_scaleFactor, OneQueenScenario3) {
-    Chess c("3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).scaleFactor(), 44);
-}
-// --- End tests for Evaluator::scaleFactor ---
 
 // --- Tests for Evaluator::pawnsEval---
 TEST(Evaluator_pawnsEval, EmptyPosition) {

@@ -40,11 +40,14 @@ class Evaluator {
     bool oppositeBishops() const;
     int phase() const;
     int nonPawnMaterial(Color) const;
-    int scaleFactor() const;
 
    private:
+    int scaleFactor() const;
+
     const Chess& chess;
     const Board& board;
+
+    friend class EvaluatorTest;
 };
 
 inline Score Evaluator::pawnsEval() const {
