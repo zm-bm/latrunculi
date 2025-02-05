@@ -5,27 +5,6 @@
 #include "chess.hpp"
 #include "score.hpp"
 
-// --- Tests for Evaluator::eval---
-TEST(Evaluator_eval, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).eval<false>(), TEMPO_BONUS) << "white to move should be tempo bonus";
-    c.makeNull();
-    EXPECT_EQ(Evaluator(c).eval<false>(), -TEMPO_BONUS) << "black to move should be -tempo";
-}
-TEST(Evaluator_eval, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).eval<false>(), TEMPO_BONUS) << "white to move should be tempo bonus";
-    c.makeNull();
-    EXPECT_EQ(Evaluator(c).eval<false>(), -TEMPO_BONUS) << "black to move should be -tempo";
-}
-TEST(Evaluator_eval, WhitePawnOnE2) {
-    Chess c("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
-    EXPECT_GT(Evaluator(c).eval<false>(), 0) << "white to move should be positive";
-    c.makeNull();
-    EXPECT_LT(Evaluator(c).eval<false>(), 0) << "black to move should be negative";
-}
-// --- End tests for Evaluator::eval---
-
 class EvaluatorTest : public ::testing::Test {
    protected:
     void testScaleFactor(const std::string& fen, int expected) {
@@ -135,6 +114,30 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(evaluator.nonPawnMaterial(c), expected);
     }
 };
+
+TEST_F(EvaluatorTest, Eval) {
+    std::vector<std::tuple<std::string, int, bool>> testCases = {
+        {STARTFEN, 0, true},
+        {EMPTYFEN, 0, true},
+        {"4k3/8/8/8/8/8/4P3/4K3 w - - 0 1", 0, false},
+    };
+
+    for (const auto& [fen, expected, exact] : testCases) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        if (exact) {
+            EXPECT_EQ(evaluator.eval<false>(), expected + TEMPO_BONUS) << fen;
+        } else {
+            EXPECT_GT(evaluator.eval<false>(), expected + TEMPO_BONUS) << fen;
+        }
+        chess.makeNull();
+        if (exact) {
+            EXPECT_EQ(evaluator.eval<false>(), expected - TEMPO_BONUS) << fen;
+        } else {
+            EXPECT_LT(evaluator.eval<false>(), expected - TEMPO_BONUS) << fen;
+        }
+    }
+}
 
 TEST_F(EvaluatorTest, ScaleFactor) {
     std::vector<std::pair<std::string, int>> testCases = {
