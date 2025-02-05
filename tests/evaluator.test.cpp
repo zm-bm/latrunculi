@@ -27,7 +27,7 @@ TEST(Evaluator_eval, WhitePawnOnE2) {
 // --- End tests for Evaluator::eval---
 
 class EvaluatorTest : public ::testing::Test {
-  protected:
+   protected:
     void testScaleFactor(const std::string& fen, int expected) {
         Chess chess(fen);
         Evaluator evaluator(chess);
@@ -66,273 +66,75 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(evaluator.queenEval<WHITE>(), expectedWhite) << fen;
         EXPECT_EQ(evaluator.queenEval<BLACK>(), expectedBlack) << fen;
     }
+
+    void testIsolatedPawnsCount(const std::string& fen, int expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.isolatedPawnsCount(), expected) << fen;
+    }
+
+    void testBackwardsPawnsCount(const std::string& fen, int expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.backwardsPawnsCount(), expected) << fen;
+    }
+
+    void testDoubledPawnsCount(const std::string& fen, int expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.doubledPawnsCount(), expected) << fen;
+    }
+
+    void testKnightOutpostCount(const std::string& fen, int expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.knightOutpostCount(), expected) << fen;
+    }
+
+    void testBishopOutpostCount(const std::string& fen, int expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.bishopOutpostCount(), expected) << fen;
+    }
+
+    void testMinorsBehindPawns(const std::string& fen, int expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.minorsBehindPawns(), expected) << fen;
+    }
+
+    void testBishopPawnBlockers(const std::string& fen, int expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.bishopPawnBlockers(), expected) << fen;
+    }
+
+    void testOutpostSquares(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.outpostSquares<WHITE>(), expectedWhite) << fen;
+        EXPECT_EQ(evaluator.outpostSquares<BLACK>(), expectedBlack) << fen;
+    }
+
+    void testHasOppositeBishops(const std::string& fen, bool expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.hasOppositeBishops(), expected);
+    }
+
+    void testPhase(const std::string& fen, int expected, int tolerance) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        int phaseValue = evaluator.phase();
+        EXPECT_LE(std::abs(phaseValue - expected), tolerance) << fen;
+    }
+
+    void testNonPawnMaterial(const std::string& fen, Color c, int expected) {
+        Chess chess(fen);
+        Evaluator evaluator(chess);
+        EXPECT_EQ(evaluator.nonPawnMaterial(c), expected);
+    }
 };
-
-TEST_F(EvaluatorTest, KnightEval) {
-    std::vector<std::tuple<std::string, Score, Score>> testCases = {
-        {STARTFEN, Score{0, 0}, Score{0, 0}},
-        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
-        {"6k1/8/2p1n3/4p3/4P3/2P1N3/8/6K1 w - - 0 1", REACHABLE_OUTPOST_BONUS, REACHABLE_OUTPOST_BONUS}
-    };
-
-    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testKnightEval(fen, expectedWhite, expectedBlack);
-    }
-}
-
-TEST_F(EvaluatorTest, BishopEval) {
-    std::vector<std::tuple<std::string, Score, Score>> testCases = {
-        {STARTFEN, Score{0, 0}, Score{0, 0}},
-        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
-        {"4k3/ppp3p1/5n2/2b1pb2/8/1PP5/1B3PB1/4K3 w - - 0 1", BISHOP_PAWN_XRAY_PENALTY * 3, BISHOP_PAWN_XRAY_PENALTY}
-    };
-
-    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testBishopEval(fen, expectedWhite, expectedBlack);
-    }
-}
-
-TEST_F(EvaluatorTest, QueenEval) {
-    std::vector<std::tuple<std::string, Score, Score>> testCases = {
-        {STARTFEN, Score{0, 0}, Score{0, 0}},
-        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
-        {"q3k3/r7/8/8/8/R7/R7/Q3K3 w - - 0 1", ROOK_ON_QUEEN_FILE_BONUS * 2, ROOK_ON_QUEEN_FILE_BONUS},
-        {"qr2k3/r7/8/8/8/R7/Q7/QR2K3 w - - 0 1", ROOK_ON_QUEEN_FILE_BONUS, ROOK_ON_QUEEN_FILE_BONUS},
-    };
-
-    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testQueenEval(fen, expectedWhite, expectedBlack);
-    }
-}
-
-// --- Tests for Evaluator::isolatedPawnsCount ---
-TEST(Evaluator_isolatedPawns, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).isolatedPawnsCount(), 0);
-}
-TEST(Evaluator_isolatedPawns, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).isolatedPawnsCount(), 0);
-}
-TEST(Evaluator_isolatedPawns, WhiteIsoPawn) {
-    Chess c("rnbqkbnr/ppppp1pp/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1");
-    EXPECT_EQ(Evaluator(c).isolatedPawnsCount(), 1);
-}
-TEST(Evaluator_isolatedPawns, BlackIsoPawn) {
-    Chess c("rnbqkbnr/pppppp1p/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    EXPECT_EQ(Evaluator(c).isolatedPawnsCount(), -1);
-}
-TEST(Evaluator_isolatedPawns, MultipleIsoPawns) {
-    Chess c("k7/p7/8/P7/8/P7/P7/K7 w KQkq - 0 1");
-    EXPECT_EQ(Evaluator(c).isolatedPawnsCount(), 2);
-}
-// --- End tests for Evaluator::isolatedPawnsCount ---
-
-// --- Tests for Evaluator::backwardsPawnsCount ---
-TEST(Evaluator_backwardsPawnsCount, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).backwardsPawnsCount(), 0);
-}
-TEST(Evaluator_backwardsPawnsCount, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).backwardsPawnsCount(), 0);
-}
-TEST(Evaluator_backwardsPawnsCount, WhiteBackwardPawn) {
-    Chess c("4k3/3pp3/2p5/2P5/1P6/8/8/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).backwardsPawnsCount(), 1);
-}
-TEST(Evaluator_backwardsPawnsCount, DoubledPawnsNotBackward) {
-    Chess c("4k3/3pp3/2p5/2P5/1P6/1P6/8/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).backwardsPawnsCount(), 1);
-}
-TEST(Evaluator_backwardsPawnsCount, BlackBackwardPawn) {
-    Chess c("4k3/3p4/2p5/2P5/PP6/8/8/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).backwardsPawnsCount(), -1);
-}
-// --- End tests for Evaluator::backwardsPawnsCount ---
-
-// --- Tests for Evaluator::doubledPawnsCount ---
-TEST(Evaluator_doubledPawnsCount, StartPostion) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).doubledPawnsCount(), 0);
-}
-TEST(Evaluator_doubledPawnsCount, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).doubledPawnsCount(), 0);
-}
-TEST(Evaluator_doubledPawnsCount, WhiteDoubled) {
-    Chess c("4k3/8/pp6/p7/P7/8/P7/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).doubledPawnsCount(), 1);
-}
-TEST(Evaluator_doubledPawnsCount, BlackDoubled) {
-    Chess c("5k2/8/p7/p7/P7/PP6/8/4K3 b - - 0 1");
-    EXPECT_EQ(Evaluator(c).doubledPawnsCount(), -1);
-}
-// --- End tests for Evaluator::doubledPawnsCount ---
-
-// --- Tests for Evaluator::knightOutpostCount ---
-TEST(Chess_knightOutpostCount, NoOutpost) {
-    Chess c("6k1/8/8/4p3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).knightOutpostCount(), 0);
-}
-TEST(Evaluator_knightOutpostCount, BothOutpost) {
-    Chess c("6k1/8/8/3Np3/3nP3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).knightOutpostCount(), 0);
-}
-TEST(Evaluator_knightOutpostCount, WhiteOutpost) {
-    Chess c("6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).knightOutpostCount(), 1);
-}
-TEST(Evaluator_knightOutpostCount, BlackOutpost) {
-    Chess c("6k1/8/8/4p3/3nP3/8/8/6K1 w - - 1 1");
-    EXPECT_EQ(Evaluator(c).knightOutpostCount(), -1);
-}
-// --- Tests for Evaluator::knightOutpostCount ---
-
-// --- Tests for Evaluator::bishopOutpostCount ---
-TEST(Evaluator_bishopOutpostCount, NoOutpost) {
-    Chess c("6k1/8/8/4p3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).bishopOutpostCount(), 0);
-}
-TEST(Evaluator_bishopOutpostCount, BothOutpost) {
-    Chess c("6k1/8/8/3Bp3/3bP3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).bishopOutpostCount(), 0);
-}
-TEST(Evaluator_bishopOutpostCount, WhiteOutpost) {
-    Chess c("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).bishopOutpostCount(), 1);
-}
-TEST(Evaluator_bishopOutpostCount, BlackOutpost) {
-    Chess c("6k1/8/8/4p3/3bP3/8/8/6K1 w - - 1 1");
-    EXPECT_EQ(Evaluator(c).bishopOutpostCount(), -1);
-}
-// --- Tests for Evaluator::bishopOutpostCount ---
-
-// --- Tests for Evaluator::minorsBehindPawns ---
-TEST(Evaluator_minorsBehindPawns, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).minorsBehindPawns(), 0);
-}
-TEST(Evaluator_minorsBehindPawns, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).minorsBehindPawns(), 0);
-}
-TEST(Evaluator_minorsBehindPawns, WhiteMinorBehindPawn) {
-    Chess c("4k3/8/8/4p3/4P3/4N3/8/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).minorsBehindPawns(), 1);
-}
-TEST(Evaluator_minorsBehindPawns, BlackMinorBehindPawn) {
-    Chess c("4k3/8/4b3/4p3/4P3/8/8/4K3 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).minorsBehindPawns(), -1);
-}
-// --- End tests for Evaluator::minorsBehindPawns ---
-
-// --- Tests for Evaluator:bishopPawnBlockers ---
-TEST(Evaluator_bishopPawnBlockers, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).bishopPawnBlockers(), 0);
-}
-TEST(Evaluator_bishopPawnBlockers, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).bishopPawnBlockers(), 0);
-}
-TEST(Evaluator_bishopPawnBlockers, MixedWithoutBlockers) {
-    Chess c("rn1qkbnr/ppp1pppp/3p4/8/8/4P3/PPPP1PPP/RN1QKBNR w KQkq - 0 1");
-    EXPECT_EQ(Evaluator(c).bishopPawnBlockers(), -2);
-}
-TEST(Evaluator_bishopPawnBlockers, MixedWithBlockers) {
-    Chess c("4kb2/5p1p/pp2p1p1/2pp4/2PP4/1P2PP1P/P5P1/4KB2 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).bishopPawnBlockers(), 12);
-}
-TEST(Evaluator_bishopPawnBlockers, DefendedWithBlocker) {
-    Chess c("6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1");
-    EXPECT_EQ(Evaluator(c).bishopPawnBlockers(), 1);
-}
-// --- End tests for Evaluator::bishopPawnBlockers ---
-
-// --- Tests for Evaluator:outpostSquares ---
-TEST(Evaluator_outpostSquares, StartPosition) {
-    Chess c(STARTFEN);
-    Evaluator ev(c);
-    EXPECT_EQ(ev.outpostSquares<WHITE>(), 0);
-    EXPECT_EQ(ev.outpostSquares<BLACK>(), 0);
-}
-TEST(Evaluator_outpostSquares, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    Evaluator ev(c);
-    EXPECT_EQ(ev.outpostSquares<WHITE>(), 0);
-    EXPECT_EQ(ev.outpostSquares<BLACK>(), 0);
-}
-TEST(Evaluator_outpostSquares, WhiteOutpostOnD5) {
-    Chess c("r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1");
-    Evaluator ev(c);
-    EXPECT_EQ(ev.outpostSquares<WHITE>(), BB::set(D5));
-    EXPECT_EQ(ev.outpostSquares<BLACK>(), 0);
-}
-TEST(Evaluator_outpostSquares, BlackOutpostOnD4) {
-    Chess c("r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1");
-    Evaluator ev(c);
-    EXPECT_EQ(ev.outpostSquares<WHITE>(), 0);
-    EXPECT_EQ(ev.outpostSquares<BLACK>(), BB::set(D4));
-}
-TEST(Evaluator_outpostSquares, NoOutpostOn7thRank) {
-    Chess c("r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1");
-    Evaluator ev(c);
-    EXPECT_EQ(ev.outpostSquares<WHITE>(), 0);
-    EXPECT_EQ(ev.outpostSquares<BLACK>(), 0);
-}
-// --- End tests for Evaluator::outpostSquares ---
-
-// --- Tests for Evaluator::oppositeBishops
-TEST(Evaluator_oppositeBishops, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_FALSE(Evaluator(c).oppositeBishops());
-}
-TEST(Evaluator_oppositeBishops, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_FALSE(Evaluator(c).oppositeBishops());
-}
-TEST(Evaluator_oppositeBishops, NonOppositeBishops) {
-    Chess c("3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1");
-    EXPECT_FALSE(Evaluator(c).oppositeBishops());
-}
-TEST(Evaluator_oppositeBishops, HasOppositeBishops) {
-    Chess c("3bk3/8/8/8/8/8/8/3BK3 w - - 0 1");
-    EXPECT_TRUE(Evaluator(c).oppositeBishops());
-}
-// --- End tests for Evaluator::oppositeBishops
-
-// --- Tests for Evaluator::phase---
-TEST(Evaluator_phase, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(Evaluator(c).phase(), PHASE_LIMIT);
-}
-TEST(Evaluator_phase, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).phase(), 0);
-}
-TEST(Evaluator_phase, CorrectInterpolation) {
-    Chess c("4k3/8/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    EXPECT_EQ(Evaluator(c).phase(), 49);
-}
-// --- End tests for Evaluator::phase---
-
-// --- Tests for Evaluator::nonPawnMaterial---
-TEST(Evaluator_nonPawnMaterial, StartPosition) {
-    Chess c(STARTFEN);
-    int mat = (2 * Eval::pieceValue(MIDGAME, WHITE, KNIGHT)) +
-              (2 * Eval::pieceValue(MIDGAME, WHITE, BISHOP)) +
-              (2 * Eval::pieceValue(MIDGAME, WHITE, ROOK)) +
-              Eval::pieceValue(MIDGAME, WHITE, QUEEN);
-    EXPECT_EQ(Evaluator(c).nonPawnMaterial(WHITE), mat);
-    EXPECT_EQ(Evaluator(c).nonPawnMaterial(BLACK), mat);
-}
-TEST(Evaluator_nonPawnMaterial, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(Evaluator(c).nonPawnMaterial(WHITE), 0);
-    EXPECT_EQ(Evaluator(c).nonPawnMaterial(BLACK), 0);
-}
-// --- End tests for Evaluator::nonPawnMaterial---
 
 TEST_F(EvaluatorTest, ScaleFactor) {
     std::vector<std::pair<std::string, int>> testCases = {
@@ -382,5 +184,198 @@ TEST_F(EvaluatorTest, PiecesEval) {
 
     for (const auto& [fen, expected] : testCases) {
         testPiecesEval(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, KnightEval) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {STARTFEN, Score{0, 0}, Score{0, 0}},
+        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
+        {"6k1/8/2p1n3/4p3/4P3/2P1N3/8/6K1 w - - 0 1",
+         REACHABLE_OUTPOST_BONUS,
+         REACHABLE_OUTPOST_BONUS}};
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testKnightEval(fen, expectedWhite, expectedBlack);
+    }
+}
+
+TEST_F(EvaluatorTest, BishopEval) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {STARTFEN, Score{0, 0}, Score{0, 0}},
+        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
+        {"4k3/ppp3p1/5n2/2b1pb2/8/1PP5/1B3PB1/4K3 w - - 0 1",
+         BISHOP_PAWN_XRAY_PENALTY * 3,
+         BISHOP_PAWN_XRAY_PENALTY}};
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testBishopEval(fen, expectedWhite, expectedBlack);
+    }
+}
+
+TEST_F(EvaluatorTest, QueenEval) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {STARTFEN, Score{0, 0}, Score{0, 0}},
+        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
+        {"q3k3/r7/8/8/8/R7/R7/Q3K3 w - - 0 1",
+         ROOK_ON_QUEEN_FILE_BONUS * 2,
+         ROOK_ON_QUEEN_FILE_BONUS},
+        {"qr2k3/r7/8/8/8/R7/Q7/QR2K3 w - - 0 1",
+         ROOK_ON_QUEEN_FILE_BONUS,
+         ROOK_ON_QUEEN_FILE_BONUS},
+    };
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testQueenEval(fen, expectedWhite, expectedBlack);
+    }
+}
+
+TEST_F(EvaluatorTest, IsolatedPawnsCount) {
+    std::vector<std::tuple<std::string, int>> testCases = {
+        {STARTFEN, 0},
+        {EMPTYFEN, 0},
+        {"rnbqkbnr/ppppp1pp/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1", 1},
+        {"rnbqkbnr/pppppp1p/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", -1},
+        {"k7/p7/8/P7/8/P7/P7/K7 w KQkq - 0 1", 2},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testIsolatedPawnsCount(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, BackwardsPawnsCount) {
+    std::vector<std::tuple<std::string, int>> testCases = {
+        {STARTFEN, 0},
+        {EMPTYFEN, 0},
+        {"4k3/3pp3/2p5/2P5/1P6/8/8/4K3 w - - 0 1", 1},
+        {"4k3/3pp3/2p5/2P5/1P6/1P6/8/4K3 w - - 0 1", 1},
+        {"4k3/3p4/2p5/2P5/PP6/8/8/4K3 w - - 0 1", -1},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testBackwardsPawnsCount(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, DoubledPawnsCount) {
+    std::vector<std::tuple<std::string, int>> testCases = {
+        {STARTFEN, 0},
+        {EMPTYFEN, 0},
+        {"4k3/8/pp6/p7/P7/8/P7/4K3 w - - 0 1", 1},
+        {"5k2/8/p7/p7/P7/PP6/8/4K3 b - - 0 1", -1},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testDoubledPawnsCount(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, KnightOutpostCount) {
+    std::vector<std::tuple<std::string, int>> testCases = {
+        {STARTFEN, 0},
+        {EMPTYFEN, 0},
+        {"6k1/8/8/3Np3/3nP3/8/8/6K1 w - - 0 1", 0},
+        {"6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1", 1},
+        {"6k1/8/8/4p3/3nP3/8/8/6K1 w - - 0 1", -1},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testKnightOutpostCount(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, BishopOutpostCount) {
+    std::vector<std::tuple<std::string, int>> testCases = {
+        {STARTFEN, 0},
+        {EMPTYFEN, 0},
+        {"6k1/8/8/3Bp3/3bP3/8/8/6K1 w - - 0 1", 0},
+        {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", 1},
+        {"6k1/8/8/4p3/3bP3/8/8/6K1 w - - 1 1", -1},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testBishopOutpostCount(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, MinorsBehindPawns) {
+    std::vector<std::tuple<std::string, int>> testCases = {
+        {STARTFEN, 0},
+        {EMPTYFEN, 0},
+        {"4k3/8/8/4p3/4P3/4N3/8/4K3 w - - 0 1", 1},
+        {"4k3/8/4b3/4p3/4P3/8/8/4K3 w - - 0 1", -1},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testMinorsBehindPawns(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, BishopPawnBlockers) {
+    std::vector<std::tuple<std::string, int>> testCases = {
+        {STARTFEN, 0},
+        {EMPTYFEN, 0},
+        {"rn1qkbnr/ppp1pppp/3p4/8/8/4P3/PPPP1PPP/RN1QKBNR w KQkq - 0 1", -2},
+        {"4kb2/5p1p/pp2p1p1/2pp4/2PP4/1P2PP1P/P5P1/4KB2 w - - 0 1", 12},
+        {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", 1},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testBishopPawnBlockers(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, OutpostSquares) {
+    std::vector<std::tuple<std::string, U64, U64>> testCases = {
+        {STARTFEN, 0, 0},
+        {EMPTYFEN, 0, 0},
+        {"r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1", 0, 0},
+        {"r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1", BB::set(D5), 0},
+        {"r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1", 0, BB::set(D4)},
+    };
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testOutpostSquares(fen, expectedWhite, expectedBlack);
+    }
+}
+
+TEST_F(EvaluatorTest, HasOpppositeBishops) {
+    std::vector<std::tuple<std::string, bool>> testCases = {
+        {STARTFEN, false},
+        {EMPTYFEN, false},
+        {"3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1", false},
+        {"3bk3/8/8/8/8/8/8/3BK3 w - - 0 1", true},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testHasOppositeBishops(fen, expected);
+    }
+}
+
+TEST_F(EvaluatorTest, Phase) {
+    std::vector<std::tuple<std::string, int, int>> testCases = {
+        {STARTFEN, PHASE_LIMIT, 0},
+        {EMPTYFEN, 0, 0},
+        {"r1n1k2r/8/8/8/8/8/8/R2QKB2 w Kkq - 0 1", 50, 10},
+        {"r1n1k3/8/8/8/8/8/8/4KB1R w Kkq - 0 1", 0, 0},
+    };
+
+    for (const auto& [fen, expected, tolerance] : testCases) {
+        testPhase(fen, expected, tolerance);
+    }
+}
+
+TEST_F(EvaluatorTest, NonPawnMaterial) {
+    int mat = 2 * KNIGHT_VALUE_MG + 2 * BISHOP_VALUE_MG + 2 * ROOK_VALUE_MG + QUEEN_VALUE_MG;
+    std::vector<std::tuple<std::string, Color, int>> testCases = {
+        {EMPTYFEN, WHITE, 0},
+        {EMPTYFEN, BLACK, 0},
+        {STARTFEN, WHITE, mat},
+        {STARTFEN, BLACK, mat},
+    };
+
+    for (const auto& [fen, expected, tolerance] : testCases) {
+        testNonPawnMaterial(fen, expected, tolerance);
     }
 }

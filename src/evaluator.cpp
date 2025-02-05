@@ -45,7 +45,7 @@ int Evaluator::scaleFactor() const {
     }
 
     // Opposite-colored bishops often lead to draws
-    if (oppositeBishops()) {
+    if (hasOppositeBishops()) {
         // todo: use candidate passed pawns
         U64 wPawns = board.getPieces<PAWN>(WHITE);
         U64 bPawns = board.getPieces<PAWN>(BLACK);

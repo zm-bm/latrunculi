@@ -16,21 +16,6 @@ class Evaluator {
     template <bool>
     int eval() const;
 
-    int isolatedPawnsCount() const;
-    int backwardsPawnsCount() const;
-    int doubledPawnsCount() const;
-
-    int knightOutpostCount() const;
-    int bishopOutpostCount() const;
-    int minorsBehindPawns() const;
-    int bishopPawnBlockers() const;
-
-    template <Color c>
-    U64 outpostSquares() const;
-    bool oppositeBishops() const;
-    int phase() const;
-    int nonPawnMaterial(Color) const;
-
    private:
     Score pawnsEval() const;
     Score piecesEval() const;
@@ -43,6 +28,21 @@ class Evaluator {
     Score queenEval() const;
 
     int scaleFactor() const;
+
+    int isolatedPawnsCount() const;
+    int backwardsPawnsCount() const;
+    int doubledPawnsCount() const;
+
+    int knightOutpostCount() const;
+    int bishopOutpostCount() const;
+    int minorsBehindPawns() const;
+    int bishopPawnBlockers() const;
+
+    template <Color c>
+    U64 outpostSquares() const;
+    bool hasOppositeBishops() const;
+    int phase() const;
+    int nonPawnMaterial(Color) const;
 
     const Chess& chess;
     const Board& board;
@@ -180,7 +180,7 @@ inline U64 Evaluator::outpostSquares() const {
     return Eval::outpostSquares<c>(board.getPieces<PAWN>(c), board.getPieces<PAWN>(enemy));
 }
 
-inline bool Evaluator::oppositeBishops() const {
+inline bool Evaluator::hasOppositeBishops() const {
     if (board.count<BISHOP>(WHITE) != 1 || board.count<BISHOP>(BLACK) != 1) {
         return false;
     }
