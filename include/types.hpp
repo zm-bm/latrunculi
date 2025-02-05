@@ -15,7 +15,6 @@ using I64 = int64_t;
 using I32 = int32_t;
 using I16 = int16_t;
 using I8 = int8_t;
-using ScoreArray = std::array<int, 64>;
 
 enum Color : U8 { BLACK, WHITE, N_COLORS = 2 };
 
