@@ -74,6 +74,8 @@ class Chess {
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
 
     friend class MoveGenerator;
+
+    template <bool debug>
     friend class Evaluator;
 };
 

@@ -126,15 +126,15 @@ TEST_F(EvaluatorTest, Eval) {
         Chess chess(fen);
         Evaluator evaluator(chess);
         if (exact) {
-            EXPECT_EQ(evaluator.eval<false>(), expected + TEMPO_BONUS) << fen;
+            EXPECT_EQ(evaluator.eval(), expected + TEMPO_BONUS) << fen;
         } else {
-            EXPECT_GT(evaluator.eval<false>(), expected + TEMPO_BONUS) << fen;
+            EXPECT_GT(evaluator.eval(), expected + TEMPO_BONUS) << fen;
         }
         chess.makeNull();
         if (exact) {
-            EXPECT_EQ(evaluator.eval<false>(), expected - TEMPO_BONUS) << fen;
+            EXPECT_EQ(evaluator.eval(), expected - TEMPO_BONUS) << fen;
         } else {
-            EXPECT_LT(evaluator.eval<false>(), expected - TEMPO_BONUS) << fen;
+            EXPECT_LT(evaluator.eval(), expected - TEMPO_BONUS) << fen;
         }
     }
 }

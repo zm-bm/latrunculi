@@ -7,8 +7,7 @@
 
 template <bool debug>
 int Chess::eval() const {
-    Evaluator evaluator(*this);
-    return evaluator.eval<debug>();
+    return Evaluator<debug>(*this).eval();
 }
 
 template int Chess::eval<true>() const;
