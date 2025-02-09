@@ -1,6 +1,7 @@
 #ifndef LATRUNCULI_EVALUATOR_H
 #define LATRUNCULI_EVALUATOR_H
 
+#include <optional>
 #include <string>
 
 #include "bb.hpp"
@@ -9,10 +10,11 @@
 #include "eval.hpp"
 #include "score.hpp"
 
-enum EvalTerms {
+enum EvalTerm {
     TERM_MATERIAL,
     TERM_PIECE_SQ,
     TERM_PAWNS,
+    TERM_PIECES,
     N_EVAL_TERMS,
 };
 
@@ -21,16 +23,42 @@ class Evaluator {
    public:
     Evaluator() = delete;
     Evaluator(const Chess& c) : chess{c}, board{c.board} {}
-
-    int eval() const;
+    int eval();
 
    private:
     const Chess& chess;
     const Board& board;
-    Score scores[N_EVAL_TERMS][N_COLORS];
 
-    // private methods
+    using ScoresDetail =
+        typename std::conditional<debug, Score[N_EVAL_TERMS][N_COLORS], std::nullptr_t>::type;
+    ScoresDetail scores{};
+
+    template <EvalTerm, Color>
+    Score evalTerm();
+
+    template <Color>
     Score pawnsEval() const;
+
+    friend class EvaluatorTest;
+
+    struct EvalTermLine {
+        std::string name;
+        Score whiteScore;
+        std::optional<Score> blackScore;
+
+        friend std::ostream& operator<<(std::ostream& os, const EvalTermLine& line) {
+            os << std::setw(12) << line.name << " | ";
+            if (line.blackScore) {
+                os << line.whiteScore << " | " << *line.blackScore << " | "
+                   << line.whiteScore - *line.blackScore << '\n';
+            } else {
+                os << "----- ----- | ----- ----- | " << line.whiteScore << '\n';
+            }
+            return os;
+        }
+    };
+
+    // old code
     Score piecesEval() const;
 
     template <Color>
@@ -39,12 +67,6 @@ class Evaluator {
     Score bishopEval() const;
     template <Color>
     Score queenEval() const;
-
-    int scaleFactor() const;
-
-    int isolatedPawnsCount() const;
-    int backwardsPawnsCount() const;
-    int doubledPawnsCount() const;
 
     int knightOutpostCount() const;
     int bishopOutpostCount() const;
@@ -57,21 +79,99 @@ class Evaluator {
     int phase() const;
     int nonPawnMaterial(Color) const;
 
-    friend class EvaluatorTest;
+    int scaleFactor() const;
 };
 
 template <bool debug>
+template <EvalTerm term, Color c>
+Score Evaluator<debug>::evalTerm() {
+    Score score;
+
+    switch (term) {
+        case TERM_MATERIAL: score = chess.materialScore(); break;
+        case TERM_PIECE_SQ: score = chess.psqBonusScore(); break;
+        case TERM_PAWNS: score = pawnsEval<c>(); break;
+        default: score = Score{0}; break;
+    }
+
+    if constexpr (debug) {
+        scores[term][c] = score;
+    }
+
+    return score;
+}
+
+template <bool debug>
+int Evaluator<debug>::eval() {
+    Score score{0, 0};
+
+    score += evalTerm<TERM_MATERIAL, WHITE>();
+    score += evalTerm<TERM_PIECE_SQ, WHITE>();
+    score += evalTerm<TERM_PAWNS, WHITE>() - evalTerm<TERM_PAWNS, BLACK>();
+
+    score.eg *= scaleFactor() / 64.0;
+
+    // tapered eval based on remaining non pawn material
+    int result = score.taper(phase());
+
+    // return score relative to side to move with tempo bonus
+    if (chess.turn == WHITE) {
+        result = result + TEMPO_BONUS;
+    } else {
+        result = -result - TEMPO_BONUS;
+    }
+
+    if constexpr (debug) {
+        std::cout << std::showpoint << std::noshowpos << std::fixed << std::setprecision(2)
+                  << "     Term    |    White    |    Black    |    Total   \n"
+                  << "             |   MG    EG  |   MG    EG  |   MG    EG \n"
+                  << " ------------+-------------+-------------+------------\n"
+                  << EvalTermLine{"Material", scores[TERM_MATERIAL][WHITE]}
+                  << EvalTermLine{"Piece Sq.", scores[TERM_PIECE_SQ][WHITE]}
+                  << EvalTermLine{"Pawns", scores[TERM_PAWNS][WHITE], scores[TERM_PAWNS][BLACK]}
+                  << " ------------+-------------+-------------+------------\n"
+                  << EvalTermLine{"Total", score} << '\n'
+                  << "Evaluation: "
+                  << (double(chess.turn == WHITE ? result : -result) / PAWN_VALUE_MG) << '\n';
+    }
+
+    return result;
+}
+
+template <Color c, typename Func>
+void forEachPiece(U64 bitboard, Func action) {
+    while (bitboard) {
+        Square sq = BB::advanced<c>(bitboard);
+        action(sq);
+        bitboard &= BB::clear(sq);
+    }
+}
+
+template <bool debug>
+template <Color c>
 inline Score Evaluator<debug>::pawnsEval() const {
+    constexpr Color enemy = ~c;
+    U64 pawns = board.getPieces<PAWN>(c);
+    U64 enemyPawns = board.getPieces<PAWN>(enemy);
+
     Score score = {0, 0};
-    score += ISO_PAWN_PENALTY * isolatedPawnsCount();
-    score += BACKWARD_PAWN_PENALTY * backwardsPawnsCount();
-    score += DOUBLED_PAWN_PENALTY * doubledPawnsCount();
+
+    U64 isolatedPawns = Eval::isolatedPawns(pawns);
+    score += ISO_PAWN_PENALTY * BB::bitCount(isolatedPawns);
+
+    U64 backwardsPawns = Eval::backwardsPawns<c>(pawns, enemyPawns);
+    score += BACKWARD_PAWN_PENALTY * BB::bitCount(backwardsPawns);
+
+    U64 doubledPawns = Eval::doubledPawns<c>(pawns);
+    score += DOUBLED_PAWN_PENALTY * BB::bitCount(doubledPawns);
+
     return score;
 }
 
 template <bool debug>
 inline Score Evaluator<debug>::piecesEval() const {
     Score score = {0, 0};
+
     score += KNIGHT_OUTPOST_BONUS * knightOutpostCount();
     score += knightEval<WHITE>() - knightEval<BLACK>();
     score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
@@ -81,15 +181,6 @@ inline Score Evaluator<debug>::piecesEval() const {
     score += queenEval<WHITE>() - queenEval<BLACK>();
 
     return score;
-}
-
-template <Color c, typename Func>
-void forEachPiece(U64 bitboard, Func action) {
-    while (bitboard) {
-        Square sq = BB::advanced<WHITE>(bitboard);
-        action(sq);
-        bitboard &= BB::clear(sq);
-    }
 }
 
 template <bool debug>
@@ -136,29 +227,6 @@ inline Score Evaluator<debug>::queenEval() const {
     score += ROOK_ON_QUEEN_FILE_BONUS * BB::bitCount(rooksOnQueenFile);
 
     return score;
-}
-
-template <bool debug>
-inline int Evaluator<debug>::isolatedPawnsCount() const {
-    U64 wIsolatedPawns = Eval::isolatedPawns(board.getPieces<PAWN>(WHITE));
-    U64 bIsolatedPawns = Eval::isolatedPawns(board.getPieces<PAWN>(BLACK));
-    return BB::bitCount(wIsolatedPawns) - BB::bitCount(bIsolatedPawns);
-}
-
-template <bool debug>
-inline int Evaluator<debug>::backwardsPawnsCount() const {
-    U64 wPawns = board.getPieces<PAWN>(WHITE);
-    U64 bPawns = board.getPieces<PAWN>(BLACK);
-    U64 wBackwardsPawns = Eval::backwardsPawns<WHITE>(wPawns, bPawns);
-    U64 bBackwardsPawns = Eval::backwardsPawns<BLACK>(bPawns, wPawns);
-    return BB::bitCount(wBackwardsPawns) - BB::bitCount(bBackwardsPawns);
-}
-
-template <bool debug>
-inline int Evaluator<debug>::doubledPawnsCount() const {
-    U64 wDoubledPawns = Eval::doubledPawns<WHITE>(board.getPieces<PAWN>(WHITE));
-    U64 bDoubledPawns = Eval::doubledPawns<BLACK>(board.getPieces<PAWN>(BLACK));
-    return BB::bitCount(wDoubledPawns) - BB::bitCount(bDoubledPawns);
 }
 
 template <bool debug>
@@ -230,34 +298,6 @@ inline int Evaluator<debug>::nonPawnMaterial(Color c) const {
 }
 
 template <bool debug>
-int Evaluator<debug>::eval() const {
-    Score score{0, 0};
-
-    score += chess.materialScore();
-    score += chess.psqBonusScore();
-    score += pawnsEval();
-    score += piecesEval();
-
-    score.eg *= scaleFactor() / 64.0;
-
-    // tapered eval based on remaining non pawn material
-    int result = score.taper(phase());
-
-    // return score relative to side to move with tempo bonus
-    if (chess.turn == WHITE) {
-        result = result + TEMPO_BONUS;
-    } else {
-        result = -result - TEMPO_BONUS;
-    }
-
-    if constexpr (debug) {
-        std::cout << "score: " << result << std::endl;
-    }
-
-    return result;
-}
-
-template <bool debug>
 int Evaluator<debug>::scaleFactor() const {
     Color enemy = ~chess.turn;
     int pawnCount = board.count<PAWN>(chess.turn);
@@ -293,7 +333,5 @@ int Evaluator<debug>::scaleFactor() const {
     // Default: scale proportionally with pawns
     return std::min(SCALE_LIMIT, 36 + 5 * pawnCount);
 }
-
-
 
 #endif

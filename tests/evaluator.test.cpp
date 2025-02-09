@@ -13,10 +13,11 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(evaluator.scaleFactor(), expected) << fen;
     }
 
-    void testPawnsEval(const std::string& fen, Score expected) {
+    void testPawnsEval(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
         Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.pawnsEval(), expected) << fen;
+        EXPECT_EQ(evaluator.pawnsEval<WHITE>(), expectedWhite) << fen;
+        EXPECT_EQ(evaluator.pawnsEval<BLACK>(), expectedBlack) << fen;
     }
 
     void testPiecesEval(const std::string& fen, Score expected) {
@@ -44,24 +45,6 @@ class EvaluatorTest : public ::testing::Test {
         Evaluator evaluator(chess);
         EXPECT_EQ(evaluator.queenEval<WHITE>(), expectedWhite) << fen;
         EXPECT_EQ(evaluator.queenEval<BLACK>(), expectedBlack) << fen;
-    }
-
-    void testIsolatedPawnsCount(const std::string& fen, int expected) {
-        Chess chess(fen);
-        Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.isolatedPawnsCount(), expected) << fen;
-    }
-
-    void testBackwardsPawnsCount(const std::string& fen, int expected) {
-        Chess chess(fen);
-        Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.backwardsPawnsCount(), expected) << fen;
-    }
-
-    void testDoubledPawnsCount(const std::string& fen, int expected) {
-        Chess chess(fen);
-        Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.doubledPawnsCount(), expected) << fen;
     }
 
     void testKnightOutpostCount(const std::string& fen, int expected) {
@@ -159,23 +142,35 @@ TEST_F(EvaluatorTest, ScaleFactor) {
 }
 
 TEST_F(EvaluatorTest, PawnsEval) {
-    std::vector<std::pair<std::string, Score>> testCases = {
-        {STARTFEN, Score{0, 0}},
-        {EMPTYFEN, Score{0, 0}},
-        {"4k3/8/8/8/8/8/4P3/4K3 w - - 0 1", ISO_PAWN_PENALTY},
-        {"4k3/8/1pp5/1P6/P7/8/8/4K3 w - - 0 1", BACKWARD_PAWN_PENALTY},
-        {"4k3/8/8/8/PP6/P7/8/4K3 w - - 0 1", DOUBLED_PAWN_PENALTY},
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        // sanity check
+        {STARTFEN, Score{0}, Score{0}},
+        {EMPTYFEN, Score{0}, Score{0}},
+        // isolated pawns
+        {"4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1", ISO_PAWN_PENALTY, ISO_PAWN_PENALTY},
+        {"rnbqkbnr/ppppp1pp/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 2", ISO_PAWN_PENALTY, Score{0}},
+        {"rnbqkbnr/pppppp1p/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 3", Score{0}, ISO_PAWN_PENALTY},
+        // backwards pawns
+        {"4k3/8/3p4/2p5/2P5/1P6/8/4K3 w - - 0 4", BACKWARD_PAWN_PENALTY, BACKWARD_PAWN_PENALTY},
+        {"4k3/8/8/2pp4/2P5/1P6/8/4K3 w - - 0 5", BACKWARD_PAWN_PENALTY, Score{0}},
+        {"4k3/8/3p4/2p5/1PP5/8/8/4K3 w - - 0 6", Score{0}, BACKWARD_PAWN_PENALTY},
+        // doubled pawns
+        {"4k3/5pp1/4p3/3pp3/3PP3/4P3/5PP1/4K3 w - - 0 7", DOUBLED_PAWN_PENALTY, DOUBLED_PAWN_PENALTY},
+        {"4k3/5pp1/4p3/3p4/3PP3/4P3/5PP1/4K3 w - - 0 8", DOUBLED_PAWN_PENALTY, Score{0}},
+        {"4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 9", Score{0}, DOUBLED_PAWN_PENALTY},
+        // more complex
+        {"k7/8/8/8/8/P7/P7/K7 w KQkq - 0 10", ISO_PAWN_PENALTY * 2 + DOUBLED_PAWN_PENALTY, Score{0}},
     };
 
-    for (const auto& [fen, expected] : testCases) {
-        testPawnsEval(fen, expected);
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testPawnsEval(fen, expectedWhite, expectedBlack);
     }
 }
 
 TEST_F(EvaluatorTest, PiecesEval) {
     std::vector<std::pair<std::string, Score>> testCases = {
-        {STARTFEN, Score{0, 0}},
-        {EMPTYFEN, Score{0, 0}},
+        {STARTFEN, Score{0}},
+        {EMPTYFEN, Score{0}},
         {"6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1", KNIGHT_OUTPOST_BONUS},
         {"6k1/8/6n1/4p3/4P3/2P5/8/6K1 w - - 0 1", -REACHABLE_OUTPOST_BONUS},
         {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY},
@@ -192,8 +187,8 @@ TEST_F(EvaluatorTest, PiecesEval) {
 
 TEST_F(EvaluatorTest, KnightEval) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
-        {STARTFEN, Score{0, 0}, Score{0, 0}},
-        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
+        {STARTFEN, Score{0}, Score{0}},
+        {EMPTYFEN, Score{0}, Score{0}},
         {"6k1/8/2p1n3/4p3/4P3/2P1N3/8/6K1 w - - 0 1",
          REACHABLE_OUTPOST_BONUS,
          REACHABLE_OUTPOST_BONUS}};
@@ -205,8 +200,8 @@ TEST_F(EvaluatorTest, KnightEval) {
 
 TEST_F(EvaluatorTest, BishopEval) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
-        {STARTFEN, Score{0, 0}, Score{0, 0}},
-        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
+        {STARTFEN, Score{0}, Score{0}},
+        {EMPTYFEN, Score{0}, Score{0}},
         {"4k3/ppp3p1/5n2/2b1pb2/8/1PP5/1B3PB1/4K3 w - - 0 1",
          BISHOP_PAWN_XRAY_PENALTY * 3,
          BISHOP_PAWN_XRAY_PENALTY}};
@@ -218,8 +213,8 @@ TEST_F(EvaluatorTest, BishopEval) {
 
 TEST_F(EvaluatorTest, QueenEval) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
-        {STARTFEN, Score{0, 0}, Score{0, 0}},
-        {EMPTYFEN, Score{0, 0}, Score{0, 0}},
+        {STARTFEN, Score{0}, Score{0}},
+        {EMPTYFEN, Score{0}, Score{0}},
         {"q3k3/r7/8/8/8/R7/R7/Q3K3 w - - 0 1",
          ROOK_ON_QUEEN_FILE_BONUS * 2,
          ROOK_ON_QUEEN_FILE_BONUS},
@@ -230,47 +225,6 @@ TEST_F(EvaluatorTest, QueenEval) {
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
         testQueenEval(fen, expectedWhite, expectedBlack);
-    }
-}
-
-TEST_F(EvaluatorTest, IsolatedPawnsCount) {
-    std::vector<std::tuple<std::string, int>> testCases = {
-        {STARTFEN, 0},
-        {EMPTYFEN, 0},
-        {"rnbqkbnr/ppppp1pp/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1", 1},
-        {"rnbqkbnr/pppppp1p/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", -1},
-        {"k7/p7/8/P7/8/P7/P7/K7 w KQkq - 0 1", 2},
-    };
-
-    for (const auto& [fen, expected] : testCases) {
-        testIsolatedPawnsCount(fen, expected);
-    }
-}
-
-TEST_F(EvaluatorTest, BackwardsPawnsCount) {
-    std::vector<std::tuple<std::string, int>> testCases = {
-        {STARTFEN, 0},
-        {EMPTYFEN, 0},
-        {"4k3/3pp3/2p5/2P5/1P6/8/8/4K3 w - - 0 1", 1},
-        {"4k3/3pp3/2p5/2P5/1P6/1P6/8/4K3 w - - 0 1", 1},
-        {"4k3/3p4/2p5/2P5/PP6/8/8/4K3 w - - 0 1", -1},
-    };
-
-    for (const auto& [fen, expected] : testCases) {
-        testBackwardsPawnsCount(fen, expected);
-    }
-}
-
-TEST_F(EvaluatorTest, DoubledPawnsCount) {
-    std::vector<std::tuple<std::string, int>> testCases = {
-        {STARTFEN, 0},
-        {EMPTYFEN, 0},
-        {"4k3/8/pp6/p7/P7/8/P7/4K3 w - - 0 1", 1},
-        {"5k2/8/p7/p7/P7/PP6/8/4K3 b - - 0 1", -1},
-    };
-
-    for (const auto& [fen, expected] : testCases) {
-        testDoubledPawnsCount(fen, expected);
     }
 }
 

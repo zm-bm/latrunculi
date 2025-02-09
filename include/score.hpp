@@ -1,6 +1,8 @@
 #ifndef LATRUNCULI_SCORE_H
 #define LATRUNCULI_SCORE_H
 
+#include <iomanip>
+
 #include "constants.hpp"
 
 struct Score {
@@ -39,7 +41,8 @@ struct Score {
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Score& score) {
-        os << "Score(mg: " << score.mg << ", eg: " << score.eg << ")";
+        os << std::setw(5) << double(score.mg) / PAWN_VALUE_MG << " " << std::setw(5)
+           << double(score.eg) / PAWN_VALUE_MG;
         return os;
     }
 };
