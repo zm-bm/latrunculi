@@ -83,11 +83,11 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(evaluator.bishopPawnBlockers(), expected) << fen;
     }
 
-    void testOutpostSquares(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
+    void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Chess chess(fen);
         Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.outpostSquares<WHITE>(), expectedWhite) << fen;
-        EXPECT_EQ(evaluator.outpostSquares<BLACK>(), expectedBlack) << fen;
+        EXPECT_EQ(evaluator.outposts[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(evaluator.outposts[BLACK], expectedBlack) << fen;
     }
 
     void testHasOppositeBishops(const std::string& fen, bool expected) {
@@ -316,7 +316,7 @@ TEST_F(EvaluatorTest, OutpostSquares) {
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testOutpostSquares(fen, expectedWhite, expectedBlack);
+        testOutposts(fen, expectedWhite, expectedBlack);
     }
 }
 

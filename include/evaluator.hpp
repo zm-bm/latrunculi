@@ -9,6 +9,7 @@
 #include "chess.hpp"
 #include "eval.hpp"
 #include "score.hpp"
+#include "types.hpp"
 
 enum Term {
     TERM_MATERIAL,
@@ -51,16 +52,24 @@ template <bool debug = false>
 class Evaluator {
    public:
     Evaluator() = delete;
-    Evaluator(const Chess& c) : chess{c}, board{c.board} {}
+    Evaluator(const Chess& c) : chess{c}, board{c.board} {
+        initialize<WHITE>();
+        initialize<BLACK>();
+    }
     int eval();
 
    private:
     const Chess& chess;
     const Board& board;
 
+    U64 outposts[N_COLORS] = {0};
+
     using ScoresDetail =
         typename std::conditional<debug, Score[N_TERMS][N_COLORS], std::nullptr_t>::type;
     ScoresDetail scores{};
+
+    template <Color>
+    void initialize();
 
     template <Term, Color = WHITE>
     Score evaluateTerm();
@@ -85,14 +94,21 @@ class Evaluator {
     int minorsBehindPawns() const;
     int bishopPawnBlockers() const;
 
-    template <Color c>
-    U64 outpostSquares() const;
     bool hasOppositeBishops() const;
     int phase() const;
     int nonPawnMaterial(Color) const;
 
     int scaleFactor() const;
 };
+
+template <bool debug>
+template <Color c>
+void Evaluator<debug>::initialize() {
+    constexpr Color enemy = ~c;
+    U64 pawns = board.getPieces<PAWN>(c);
+    U64 enemyPawns = board.getPieces<PAWN>(enemy);
+    outposts[c] = Eval::outpostSquares<c>(pawns, enemyPawns);
+}
 
 template <bool debug>
 template <Term term, Color c>
@@ -189,13 +205,11 @@ Score Evaluator<debug>::piecesScore() const {
     constexpr Color enemy = ~c;
     Score score = {0, 0};
 
-    U64 outposts = outpostSquares<c>();
-
     forEachPiece<c>(board.getPieces<p>(c), [&](Square sq) {
 
         if constexpr (p == KNIGHT || p == BISHOP) {
             // minor pieces
-            U64 reachableOutposts = BB::movesByPiece<p>(sq, 0) & outposts;
+            U64 reachableOutposts = BB::movesByPiece<p>(sq, 0) & outposts[c];
             score += REACHABLE_OUTPOST_BONUS * BB::bitCount(reachableOutposts);
         }
     });
@@ -222,10 +236,9 @@ template <bool debug>
 template <Color c>
 inline Score Evaluator<debug>::knightEval() const {
     Score score = {0, 0};
-    U64 outposts = outpostSquares<c>();
 
     forEachPiece<c>(board.getPieces<KNIGHT>(c), [&](Square sq) {
-        U64 reachableOutposts = BB::movesByPiece<KNIGHT>(sq, 0) & outposts;
+        U64 reachableOutposts = BB::movesByPiece<KNIGHT>(sq, 0) & outposts[c];
         score += REACHABLE_OUTPOST_BONUS * BB::bitCount(reachableOutposts);
     });
 
@@ -266,18 +279,14 @@ inline Score Evaluator<debug>::queenEval() const {
 
 template <bool debug>
 inline int Evaluator<debug>::knightOutpostCount() const {
-    U64 wOutposts = outpostSquares<WHITE>();
-    U64 bOutposts = outpostSquares<BLACK>();
-    return (BB::bitCount(board.getPieces<KNIGHT>(WHITE) & wOutposts) -
-            BB::bitCount(board.getPieces<KNIGHT>(BLACK) & bOutposts));
+    return (BB::bitCount(board.getPieces<KNIGHT>(WHITE) & outposts[WHITE]) -
+            BB::bitCount(board.getPieces<KNIGHT>(BLACK) & outposts[BLACK]));
 }
 
 template <bool debug>
 inline int Evaluator<debug>::bishopOutpostCount() const {
-    U64 wOutposts = outpostSquares<WHITE>();
-    U64 bOutposts = outpostSquares<BLACK>();
-    return (BB::bitCount(board.getPieces<BISHOP>(WHITE) & wOutposts) -
-            BB::bitCount(board.getPieces<BISHOP>(BLACK) & bOutposts));
+    return (BB::bitCount(board.getPieces<BISHOP>(WHITE) & outposts[WHITE]) -
+            BB::bitCount(board.getPieces<BISHOP>(BLACK) & outposts[BLACK]));
 }
 
 template <bool debug>
@@ -297,13 +306,6 @@ inline int Evaluator<debug>::bishopPawnBlockers() const {
     U64 bPawns = board.getPieces<PAWN>(BLACK);
     return (Eval::bishopPawnBlockers<WHITE>(board.getPieces<BISHOP>(WHITE), wPawns, bPawns) -
             Eval::bishopPawnBlockers<BLACK>(board.getPieces<BISHOP>(BLACK), bPawns, wPawns));
-}
-
-template <bool debug>
-template <Color c>
-inline U64 Evaluator<debug>::outpostSquares() const {
-    constexpr Color enemy = ~c;
-    return Eval::outpostSquares<c>(board.getPieces<PAWN>(c), board.getPieces<PAWN>(enemy));
 }
 
 template <bool debug>
