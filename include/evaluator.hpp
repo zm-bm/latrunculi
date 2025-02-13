@@ -10,12 +10,41 @@
 #include "eval.hpp"
 #include "score.hpp"
 
-enum EvalTerm {
+enum Term {
     TERM_MATERIAL,
     TERM_PIECE_SQ,
     TERM_PAWNS,
-    TERM_PIECES,
-    N_EVAL_TERMS,
+    TERM_KNIGHTS,
+    TERM_BISHOPS,
+    TERM_ROOKS,
+    TERM_QUEENS,
+    TERM_KINGS,
+    // tbd
+    TERM_MOBILITY,
+    TERM_THREATS,
+    TERM_SPACE,
+    TERM_INITIATIVE,
+    N_TERMS,
+
+};
+
+struct TermOutput {
+    std::string name;
+    const Score* scores;
+    std::optional<Score> total;
+
+    friend std::ostream& operator<<(std::ostream& os, const TermOutput& term) {
+        os << std::setw(12) << term.name << " | ";
+        if (term.total) {
+            os << " ----  ---- |  ----  ---- | " << *term.total;
+        } else if (term.scores) {
+            os << term.scores[WHITE] << " | ";
+            os << term.scores[BLACK] << " | ";
+            os << term.scores[WHITE] - term.scores[BLACK];
+        }
+        os << '\n';
+        return os;
+    }
 };
 
 template <bool debug = false>
@@ -30,37 +59,20 @@ class Evaluator {
     const Board& board;
 
     using ScoresDetail =
-        typename std::conditional<debug, Score[N_EVAL_TERMS][N_COLORS], std::nullptr_t>::type;
+        typename std::conditional<debug, Score[N_TERMS][N_COLORS], std::nullptr_t>::type;
     ScoresDetail scores{};
 
-    template <EvalTerm, Color>
-    Score evalTerm();
+    template <Term, Color = WHITE>
+    Score evaluateTerm();
 
     template <Color>
-    Score pawnsEval() const;
+    Score pawnsScore() const;
+    template <Color, PieceType>
+    Score piecesScore() const;
 
     friend class EvaluatorTest;
 
-    struct EvalTermLine {
-        std::string name;
-        Score whiteScore;
-        std::optional<Score> blackScore;
-
-        friend std::ostream& operator<<(std::ostream& os, const EvalTermLine& line) {
-            os << std::setw(12) << line.name << " | ";
-            if (line.blackScore) {
-                os << line.whiteScore << " | " << *line.blackScore << " | "
-                   << line.whiteScore - *line.blackScore << '\n';
-            } else {
-                os << "----- ----- | ----- ----- | " << line.whiteScore << '\n';
-            }
-            return os;
-        }
-    };
-
     // old code
-    Score piecesEval() const;
-
     template <Color>
     Score knightEval() const;
     template <Color>
@@ -83,15 +95,18 @@ class Evaluator {
 };
 
 template <bool debug>
-template <EvalTerm term, Color c>
-Score Evaluator<debug>::evalTerm() {
+template <Term term, Color c>
+inline Score Evaluator<debug>::evaluateTerm() {
     Score score;
 
-    switch (term) {
-        case TERM_MATERIAL: score = chess.materialScore(); break;
-        case TERM_PIECE_SQ: score = chess.psqBonusScore(); break;
-        case TERM_PAWNS: score = pawnsEval<c>(); break;
-        default: score = Score{0}; break;
+    if constexpr (term == TERM_MATERIAL) {
+        score = chess.materialScore();
+    } else if constexpr (term == TERM_PIECE_SQ) {
+        score = chess.psqBonusScore();
+    } else if constexpr (term == TERM_PAWNS) {
+        score = pawnsScore<c>();
+    } else if constexpr (term == TERM_KNIGHTS) {
+        score = piecesScore<c, KNIGHT>();
     }
 
     if constexpr (debug) {
@@ -105,9 +120,10 @@ template <bool debug>
 int Evaluator<debug>::eval() {
     Score score{0, 0};
 
-    score += evalTerm<TERM_MATERIAL, WHITE>();
-    score += evalTerm<TERM_PIECE_SQ, WHITE>();
-    score += evalTerm<TERM_PAWNS, WHITE>() - evalTerm<TERM_PAWNS, BLACK>();
+    score += evaluateTerm<TERM_MATERIAL>();
+    score += evaluateTerm<TERM_PIECE_SQ>();
+    score += evaluateTerm<TERM_PAWNS, WHITE>() - evaluateTerm<TERM_PAWNS, BLACK>();
+    score += evaluateTerm<TERM_KNIGHTS, WHITE>() - evaluateTerm<TERM_KNIGHTS, BLACK>();
 
     score.eg *= scaleFactor() / 64.0;
 
@@ -126,12 +142,12 @@ int Evaluator<debug>::eval() {
                   << "     Term    |    White    |    Black    |    Total   \n"
                   << "             |   MG    EG  |   MG    EG  |   MG    EG \n"
                   << " ------------+-------------+-------------+------------\n"
-                  << EvalTermLine{"Material", scores[TERM_MATERIAL][WHITE]}
-                  << EvalTermLine{"Piece Sq.", scores[TERM_PIECE_SQ][WHITE]}
-                  << EvalTermLine{"Pawns", scores[TERM_PAWNS][WHITE], scores[TERM_PAWNS][BLACK]}
+                  << TermOutput{"Material", nullptr, scores[TERM_MATERIAL][WHITE]}
+                  << TermOutput{"Piece Sq.", nullptr, scores[TERM_PIECE_SQ][WHITE]}
+                  << TermOutput{"Pawns", scores[TERM_PAWNS], std::nullopt}
                   << " ------------+-------------+-------------+------------\n"
-                  << EvalTermLine{"Total", score} << '\n'
-                  << "Evaluation: "
+                  << TermOutput{"Total", nullptr, score} << '\n'
+                  << "Evaluation: \t"
                   << (double(chess.turn == WHITE ? result : -result) / PAWN_VALUE_MG) << '\n';
     }
 
@@ -149,12 +165,11 @@ void forEachPiece(U64 bitboard, Func action) {
 
 template <bool debug>
 template <Color c>
-inline Score Evaluator<debug>::pawnsEval() const {
+inline Score Evaluator<debug>::pawnsScore() const {
     constexpr Color enemy = ~c;
+    Score score = {0, 0};
     U64 pawns = board.getPieces<PAWN>(c);
     U64 enemyPawns = board.getPieces<PAWN>(enemy);
-
-    Score score = {0, 0};
 
     U64 isolatedPawns = Eval::isolatedPawns(pawns);
     score += ISO_PAWN_PENALTY * BB::bitCount(isolatedPawns);
@@ -169,19 +184,39 @@ inline Score Evaluator<debug>::pawnsEval() const {
 }
 
 template <bool debug>
-inline Score Evaluator<debug>::piecesEval() const {
+template <Color c, PieceType p>
+Score Evaluator<debug>::piecesScore() const {
+    constexpr Color enemy = ~c;
     Score score = {0, 0};
 
-    score += KNIGHT_OUTPOST_BONUS * knightOutpostCount();
-    score += knightEval<WHITE>() - knightEval<BLACK>();
-    score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
-    score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
-    score += BISHOP_PAWN_BLOCKER_PENALTY * bishopPawnBlockers();
-    score += bishopEval<WHITE>() - bishopEval<BLACK>();
-    score += queenEval<WHITE>() - queenEval<BLACK>();
+    U64 outposts = outpostSquares<c>();
+
+    forEachPiece<c>(board.getPieces<p>(c), [&](Square sq) {
+
+        if constexpr (p == KNIGHT || p == BISHOP) {
+            // minor pieces
+            U64 reachableOutposts = BB::movesByPiece<p>(sq, 0) & outposts;
+            score += REACHABLE_OUTPOST_BONUS * BB::bitCount(reachableOutposts);
+        }
+    });
 
     return score;
 }
+
+// template <bool debug>
+// inline Score Evaluator<debug>::piecesEval() const {
+//     Score score = {0, 0};
+
+//     score += KNIGHT_OUTPOST_BONUS * knightOutpostCount();
+//     score += knightEval<WHITE>() - knightEval<BLACK>();
+//     score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
+//     score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
+//     score += BISHOP_PAWN_BLOCKER_PENALTY * bishopPawnBlockers();
+//     score += bishopEval<WHITE>() - bishopEval<BLACK>();
+//     score += queenEval<WHITE>() - queenEval<BLACK>();
+
+//     return score;
+// }
 
 template <bool debug>
 template <Color c>

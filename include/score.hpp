@@ -41,8 +41,8 @@ struct Score {
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Score& score) {
-        os << std::setw(5) << double(score.mg) / PAWN_VALUE_MG << " " << std::setw(5)
-           << double(score.eg) / PAWN_VALUE_MG;
+        os << std::setw(5) << double(score.mg) / PAWN_VALUE_MG << " ";
+        os << std::setw(5) << double(score.eg) / PAWN_VALUE_MG;
         return os;
     }
 };

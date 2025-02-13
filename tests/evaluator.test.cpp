@@ -3,7 +3,9 @@
 #include <gtest/gtest.h>
 
 #include "chess.hpp"
+#include "evaluator.hpp"
 #include "score.hpp"
+#include "types.hpp"
 
 class EvaluatorTest : public ::testing::Test {
    protected:
@@ -13,18 +15,28 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(evaluator.scaleFactor(), expected) << fen;
     }
 
-    void testPawnsEval(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+    void testPawnsScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
         Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.pawnsEval<WHITE>(), expectedWhite) << fen;
-        EXPECT_EQ(evaluator.pawnsEval<BLACK>(), expectedBlack) << fen;
+        EXPECT_EQ(evaluator.pawnsScore<WHITE>(), expectedWhite) << fen;
+        EXPECT_EQ(evaluator.pawnsScore<BLACK>(), expectedBlack) << fen;
     }
 
-    void testPiecesEval(const std::string& fen, Score expected) {
+    template <PieceType p>
+    void testPiecesScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
-        Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.piecesEval(), expected) << fen;
+        Evaluator<false> evaluator(chess);
+        Score wScore = evaluator.piecesScore<WHITE, p>();
+        Score bScore = evaluator.piecesScore<BLACK, p>();
+        EXPECT_EQ(wScore, expectedWhite) << fen;
+        EXPECT_EQ(bScore, expectedBlack) << fen;
     }
+
+    // void testPiecesEval(const std::string& fen, Score expected) {
+    //     Chess chess(fen);
+    //     Evaluator evaluator(chess);
+    //     EXPECT_EQ(evaluator.piecesEval(), expected) << fen;
+    // }
 
     void testKnightEval(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
@@ -141,7 +153,7 @@ TEST_F(EvaluatorTest, ScaleFactor) {
     }
 }
 
-TEST_F(EvaluatorTest, PawnsEval) {
+TEST_F(EvaluatorTest, PawnsScore) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         // sanity check
         {STARTFEN, Score{0}, Score{0}},
@@ -163,27 +175,38 @@ TEST_F(EvaluatorTest, PawnsEval) {
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testPawnsEval(fen, expectedWhite, expectedBlack);
+        testPawnsScore(fen, expectedWhite, expectedBlack);
     }
 }
 
-TEST_F(EvaluatorTest, PiecesEval) {
-    std::vector<std::pair<std::string, Score>> testCases = {
-        {STARTFEN, Score{0}},
-        {EMPTYFEN, Score{0}},
-        {"6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1", KNIGHT_OUTPOST_BONUS},
-        {"6k1/8/6n1/4p3/4P3/2P5/8/6K1 w - - 0 1", -REACHABLE_OUTPOST_BONUS},
-        {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY},
-        {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1", MINOR_BEHIND_PAWN_BONUS},
-        {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1", -MINOR_BEHIND_PAWN_BONUS},
-        {"4k3/8/8/4p3/4P3/8/4B3/4K3 w - - 0 1", BISHOP_PAWN_BLOCKER_PENALTY * 2},
-        {"4k3/8/5b2/4p3/8/8/8/4K3 w - - 0 1", -BISHOP_PAWN_BLOCKER_PENALTY},
+TEST_F(EvaluatorTest, KnightsScore) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {STARTFEN, Score{0}, Score{0}},
+        {EMPTYFEN, Score{0}, Score{0}},
     };
 
-    for (const auto& [fen, expected] : testCases) {
-        testPiecesEval(fen, expected);
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testPiecesScore<KNIGHT>(fen, expectedWhite, expectedBlack);
     }
 }
+
+// TEST_F(EvaluatorTest, PiecesEval) {
+//     std::vector<std::pair<std::string, Score>> testCases = {
+//         {STARTFEN, Score{0}},
+//         {EMPTYFEN, Score{0}},
+//         {"6k1/8/8/3Np3/4P3/8/8/6K1 w - - 0 1", KNIGHT_OUTPOST_BONUS},
+//         {"6k1/8/6n1/4p3/4P3/2P5/8/6K1 w - - 0 1", -REACHABLE_OUTPOST_BONUS},
+//         {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY},
+//         {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 1", MINOR_BEHIND_PAWN_BONUS},
+//         {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 1", -MINOR_BEHIND_PAWN_BONUS},
+//         {"4k3/8/8/4p3/4P3/8/4B3/4K3 w - - 0 1", BISHOP_PAWN_BLOCKER_PENALTY * 2},
+//         {"4k3/8/5b2/4p3/8/8/8/4K3 w - - 0 1", -BISHOP_PAWN_BLOCKER_PENALTY},
+//     };
+
+//     for (const auto& [fen, expected] : testCases) {
+//         testPiecesEval(fen, expected);
+//     }
+// }
 
 TEST_F(EvaluatorTest, KnightEval) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {

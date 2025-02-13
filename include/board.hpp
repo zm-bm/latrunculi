@@ -171,6 +171,31 @@ inline U64 Board::calculateCheckBlockers(Color c, Color kingC) const {
     return blockers;
 }
 
+// Bitboard Position::slider_blockers(Bitboard sliders, Square s, Bitboard& pinners) const {
+
+//   Bitboard blockers = 0;
+//   pinners = 0;
+
+//   // Snipers are sliders that attack 's' when a piece and other snipers are removed
+//   Bitboard snipers = (  (attacks_bb<  ROOK>(s) & pieces(QUEEN, ROOK))
+//                       | (attacks_bb<BISHOP>(s) & pieces(QUEEN, BISHOP))) & sliders;
+//   Bitboard occupancy = pieces() ^ snipers;
+
+//   while (snipers)
+//   {
+//     Square sniperSq = pop_lsb(snipers);
+//     Bitboard b = between_bb(s, sniperSq) & occupancy;
+
+//     if (b && !more_than_one(b))
+//     {
+//         blockers |= b;
+//         if (b & pieces(color_of(piece_on(s))))
+//             pinners |= sniperSq;
+//     }
+//   }
+//   return blockers;
+// }
+
 inline U64 Board::calculateDiscoveredCheckers(Color c) const {
     // Calculate and return the bitboard of pieces that can give discovered
     // check
