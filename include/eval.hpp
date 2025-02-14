@@ -53,9 +53,9 @@ inline U64 blockedPawns(U64 pawns, U64 enemyPawns) {
 
 template <Color c>
 inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
-    constexpr U64 mask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
+    constexpr U64 rankMask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
     constexpr Color enemy = ~c;
-    U64 holes = ~BB::getFrontAttackSpan<enemy>(enemyPawns) & mask;
+    U64 holes = ~BB::getFrontAttackSpan<enemy>(enemyPawns) & rankMask;
     return holes & BB::attacksByPawns<c>(pawns);
 }
 

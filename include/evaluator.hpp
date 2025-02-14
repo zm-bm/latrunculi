@@ -83,15 +83,10 @@ class Evaluator {
 
     // old code
     template <Color>
-    Score knightEval() const;
-    template <Color>
     Score bishopEval() const;
     template <Color>
     Score queenEval() const;
 
-    int knightOutpostCount() const;
-    int bishopOutpostCount() const;
-    int minorsBehindPawns() const;
     int bishopPawnBlockers() const;
 
     bool hasOppositeBishops() const;
@@ -123,6 +118,8 @@ inline Score Evaluator<debug>::evaluateTerm() {
         score = pawnsScore<c>();
     } else if constexpr (term == TERM_KNIGHTS) {
         score = piecesScore<c, KNIGHT>();
+    } else if constexpr (term == TERM_BISHOPS) {
+        score = piecesScore<c, BISHOP>();
     }
 
     if constexpr (debug) {
@@ -140,6 +137,7 @@ int Evaluator<debug>::eval() {
     score += evaluateTerm<TERM_PIECE_SQ>();
     score += evaluateTerm<TERM_PAWNS, WHITE>() - evaluateTerm<TERM_PAWNS, BLACK>();
     score += evaluateTerm<TERM_KNIGHTS, WHITE>() - evaluateTerm<TERM_KNIGHTS, BLACK>();
+    score += evaluateTerm<TERM_BISHOPS, WHITE>() - evaluateTerm<TERM_BISHOPS, BLACK>();
 
     score.eg *= scaleFactor() / 64.0;
 
@@ -161,6 +159,8 @@ int Evaluator<debug>::eval() {
                   << TermOutput{"Material", nullptr, scores[TERM_MATERIAL][WHITE]}
                   << TermOutput{"Piece Sq.", nullptr, scores[TERM_PIECE_SQ][WHITE]}
                   << TermOutput{"Pawns", scores[TERM_PAWNS], std::nullopt}
+                  << TermOutput{"Knights", scores[TERM_KNIGHTS], std::nullopt}
+                  << TermOutput{"Bishops", scores[TERM_BISHOPS], std::nullopt}
                   << " ------------+-------------+-------------+------------\n"
                   << TermOutput{"Total", nullptr, score} << '\n'
                   << "Evaluation: \t"
@@ -204,13 +204,27 @@ template <Color c, PieceType p>
 Score Evaluator<debug>::piecesScore() const {
     constexpr Color enemy = ~c;
     Score score = {0, 0};
+    U64 occ = board.occupancy();
+    U64 enemyPawns = board.getPieces<PAWN>(enemy);
 
     forEachPiece<c>(board.getPieces<p>(c), [&](Square sq) {
-
+        // minor pieces
         if constexpr (p == KNIGHT || p == BISHOP) {
-            // minor pieces
-            U64 reachableOutposts = BB::movesByPiece<p>(sq, 0) & outposts[c];
-            score += REACHABLE_OUTPOST_BONUS * BB::bitCount(reachableOutposts);
+            // bonus for minor piece outposts, reachable knight outposts
+            if (BB::set(sq) & outposts[c]) {
+                score += OUTPOST_BONUS[p == KNIGHT];
+            } else if (p == KNIGHT && BB::movesByPiece<p>(sq, occ) & outposts[c]) {
+                score += REACHABLE_OUTPOST_BONUS;
+            }
+
+            // bonus for pawn in front of minor piece
+            if (BB::set(sq) & BB::movesByPawns<PawnMove::PUSH, enemy>(board.getPieces<PAWN>(c))) {
+                score += MINOR_BEHIND_PAWN_BONUS;
+            }
+
+            if constexpr (p == BISHOP) {
+                // TODO: long diagonal
+            }
         }
     });
 
@@ -221,44 +235,12 @@ Score Evaluator<debug>::piecesScore() const {
 // inline Score Evaluator<debug>::piecesEval() const {
 //     Score score = {0, 0};
 
-//     score += KNIGHT_OUTPOST_BONUS * knightOutpostCount();
-//     score += knightEval<WHITE>() - knightEval<BLACK>();
-//     score += BISHOP_OUTPOST_BONUS * bishopOutpostCount();
-//     score += MINOR_BEHIND_PAWN_BONUS * minorsBehindPawns();
 //     score += BISHOP_PAWN_BLOCKER_PENALTY * bishopPawnBlockers();
 //     score += bishopEval<WHITE>() - bishopEval<BLACK>();
 //     score += queenEval<WHITE>() - queenEval<BLACK>();
 
 //     return score;
 // }
-
-template <bool debug>
-template <Color c>
-inline Score Evaluator<debug>::knightEval() const {
-    Score score = {0, 0};
-
-    forEachPiece<c>(board.getPieces<KNIGHT>(c), [&](Square sq) {
-        U64 reachableOutposts = BB::movesByPiece<KNIGHT>(sq, 0) & outposts[c];
-        score += REACHABLE_OUTPOST_BONUS * BB::bitCount(reachableOutposts);
-    });
-
-    return score;
-}
-
-template <bool debug>
-template <Color c>
-inline Score Evaluator<debug>::bishopEval() const {
-    constexpr Color enemy = ~c;
-    Score score = {0, 0};
-    U64 enemyPawns = board.getPieces<PAWN>(enemy);
-
-    forEachPiece<c>(board.getPieces<BISHOP>(c), [&](Square sq) {
-        U64 moves = BB::movesByPiece<BISHOP>(sq, 0);
-        score += BISHOP_PAWN_XRAY_PENALTY * BB::bitCount(moves & enemyPawns);
-    });
-
-    return score;
-}
 
 template <bool debug>
 template <Color c>
@@ -275,29 +257,6 @@ inline Score Evaluator<debug>::queenEval() const {
     score += ROOK_ON_QUEEN_FILE_BONUS * BB::bitCount(rooksOnQueenFile);
 
     return score;
-}
-
-template <bool debug>
-inline int Evaluator<debug>::knightOutpostCount() const {
-    return (BB::bitCount(board.getPieces<KNIGHT>(WHITE) & outposts[WHITE]) -
-            BB::bitCount(board.getPieces<KNIGHT>(BLACK) & outposts[BLACK]));
-}
-
-template <bool debug>
-inline int Evaluator<debug>::bishopOutpostCount() const {
-    return (BB::bitCount(board.getPieces<BISHOP>(WHITE) & outposts[WHITE]) -
-            BB::bitCount(board.getPieces<BISHOP>(BLACK) & outposts[BLACK]));
-}
-
-template <bool debug>
-inline int Evaluator<debug>::minorsBehindPawns() const {
-    U64 wPawnsInFront = BB::movesByPawns<PawnMove::PUSH, BLACK>(board.getPieces<PAWN>(WHITE));
-    U64 bPawnsInFront = BB::movesByPawns<PawnMove::PUSH, WHITE>(board.getPieces<PAWN>(BLACK));
-    U64 wMinors = board.getPieces<KNIGHT>(WHITE) | board.getPieces<BISHOP>(WHITE);
-    U64 bMinors = board.getPieces<KNIGHT>(BLACK) | board.getPieces<BISHOP>(BLACK);
-    U64 wMinorsBehind = wMinors & wPawnsInFront;
-    U64 bMinorsBehind = bMinors & bPawnsInFront;
-    return BB::bitCount(wMinorsBehind) - BB::bitCount(bMinorsBehind);
 }
 
 template <bool debug>
