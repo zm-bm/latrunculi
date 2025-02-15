@@ -175,6 +175,9 @@ TEST_F(EvaluatorTest, BishopsScore) {
         // behind pawn
         {"6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 3", MINOR_BEHIND_PAWN_BONUS, Score{0}},
         {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 4", Score{0}, MINOR_BEHIND_PAWN_BONUS},
+        // long diagonal
+        {"6k1/6b1/8/3P4/3p4/8/6B1/6K1 w - - 0 5", BISHOP_LONG_DIAG_BONUS, BISHOP_LONG_DIAG_BONUS},
+        {"6k1/6b1/8/4p3/4P3/8/6B1/6K1 w - - 0 6", Score{0}, Score{0}},
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {

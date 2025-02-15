@@ -223,7 +223,10 @@ Score Evaluator<debug>::piecesScore() const {
             }
 
             if constexpr (p == BISHOP) {
-                // TODO: long diagonal
+                if (BB::moreThanOneSet(CENTER_SQUARES &
+                                       BB::movesByPiece<p>(sq, board.getPieces<PAWN>(c)))) {
+                    score += BISHOP_LONG_DIAG_BONUS;
+                }
             }
         }
     });
