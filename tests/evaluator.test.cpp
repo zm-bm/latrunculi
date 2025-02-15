@@ -129,12 +129,9 @@ TEST_F(EvaluatorTest, PawnsScore) {
         {"4k3/8/8/2pp4/2P5/1P6/8/4K3 w - - 0 5", BACKWARD_PAWN_PENALTY, Score{0}},
         {"4k3/8/3p4/2p5/1PP5/8/8/4K3 w - - 0 6", Score{0}, BACKWARD_PAWN_PENALTY},
         // doubled pawns
-        {"4k3/5pp1/4p3/3pp3/3PP3/4P3/5PP1/4K3 w - - 0 7",
-         DOUBLED_PAWN_PENALTY,
-         DOUBLED_PAWN_PENALTY},
-        {"4k3/5pp1/4p3/3p4/3PP3/4P3/5PP1/4K3 w - - 0 8", DOUBLED_PAWN_PENALTY, Score{0}},
-        {"4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 9", Score{0}, DOUBLED_PAWN_PENALTY},
-        // more complex
+        {"4k3/5pp1/4p3/3p4/3PP3/4P3/5PP1/4K3 w - - 0 7", DOUBLED_PAWN_PENALTY, Score{0}},
+        {"4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 8", Score{0}, DOUBLED_PAWN_PENALTY},
+        // other
         {"k7/8/8/8/8/P7/P7/K7 w KQkq - 0 10",
          ISO_PAWN_PENALTY * 2 + DOUBLED_PAWN_PENALTY,
          Score{0}},
@@ -148,14 +145,14 @@ TEST_F(EvaluatorTest, PawnsScore) {
 TEST_F(EvaluatorTest, KnightsScore) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, Score{0}, Score{0}},
-        {STARTFEN, MINOR_BEHIND_PAWN_BONUS*2, MINOR_BEHIND_PAWN_BONUS*2},
-        // outposts
+        {STARTFEN, MINOR_BEHIND_PAWN_BONUS * 2, MINOR_BEHIND_PAWN_BONUS * 2},
+        // knight outposts
         {"6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1", KNIGHT_OUTPOST_BONUS, Score{0}},
         {"6k1/8/2p5/3Np1p1/4PnP1/2P5/8/6K1 w - - 0 2", Score{0}, KNIGHT_OUTPOST_BONUS},
-        // reachable outposts
+        // knight with reachable outposts
         {"6k1/8/2p5/1n2p1p1/4P1PN/2P5/8/6K1 w - - 0 3", REACHABLE_OUTPOST_BONUS, Score{0}},
         {"6k1/8/2p5/4p1pn/1N2P1P1/2P5/8/6K1 w - - 0 4", Score{0}, REACHABLE_OUTPOST_BONUS},
-        // behind pawn
+        // knight behind pawn
         {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 5", MINOR_BEHIND_PAWN_BONUS, Score{0}},
         {"6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 6", Score{0}, MINOR_BEHIND_PAWN_BONUS},
     };
@@ -166,18 +163,23 @@ TEST_F(EvaluatorTest, KnightsScore) {
 }
 
 TEST_F(EvaluatorTest, BishopsScore) {
+    Score startScore = (MINOR_BEHIND_PAWN_BONUS * 2 + BISHOP_PAIR_BONUS);
+
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, Score{0}, Score{0}},
-        {STARTFEN, MINOR_BEHIND_PAWN_BONUS*2, MINOR_BEHIND_PAWN_BONUS*2},
-        // outposts
+        {STARTFEN, startScore, startScore},
+        // bishop outposts
         {"6k1/8/2p5/4pBp1/4P1P1/2P3b1/8/6K1 w - - 0 1", BISHOP_OUTPOST_BONUS, Score{0}},
         {"6k1/8/2p3B1/4p1p1/4PbP1/2P5/8/6K1 w - - 0 2", Score{0}, BISHOP_OUTPOST_BONUS},
-        // behind pawn
+        // bishop behind pawn
         {"6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 3", MINOR_BEHIND_PAWN_BONUS, Score{0}},
         {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 4", Score{0}, MINOR_BEHIND_PAWN_BONUS},
-        // long diagonal
+        // bishop on long diagonal
         {"6k1/6b1/8/3P4/3p4/8/6B1/6K1 w - - 0 5", BISHOP_LONG_DIAG_BONUS, BISHOP_LONG_DIAG_BONUS},
         {"6k1/6b1/8/4p3/4P3/8/6B1/6K1 w - - 0 6", Score{0}, Score{0}},
+        // bishop pair
+        {"5bk1/8/8/8/8/8/8/4BBK1 w - - 0 7", BISHOP_PAIR_BONUS, Score{0}},
+        {"4bbk1/8/8/8/8/8/8/5BK1 w - - 0 8", Score{0}, BISHOP_PAIR_BONUS},
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {

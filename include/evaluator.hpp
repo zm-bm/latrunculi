@@ -207,22 +207,30 @@ Score Evaluator<debug>::piecesScore() const {
     U64 occ = board.occupancy();
     U64 enemyPawns = board.getPieces<PAWN>(enemy);
 
+    // bonus for bishop pair
+    if constexpr (p == BISHOP) {
+        if (board.count<BISHOP>(c) > 1) {
+            score += BISHOP_PAIR_BONUS;
+        }
+    }
+
     forEachPiece<c>(board.getPieces<p>(c), [&](Square sq) {
         // minor pieces
         if constexpr (p == KNIGHT || p == BISHOP) {
-            // bonus for minor piece outposts, reachable knight outposts
+            // bonus for minor piece outposts,  reachable knight outposts
             if (BB::set(sq) & outposts[c]) {
                 score += OUTPOST_BONUS[p == KNIGHT];
             } else if (p == KNIGHT && BB::movesByPiece<p>(sq, occ) & outposts[c]) {
                 score += REACHABLE_OUTPOST_BONUS;
             }
 
-            // bonus for pawn in front of minor piece
+            // bonus minor piece guarded by pawn
             if (BB::set(sq) & BB::movesByPawns<PawnMove::PUSH, enemy>(board.getPieces<PAWN>(c))) {
                 score += MINOR_BEHIND_PAWN_BONUS;
             }
 
             if constexpr (p == BISHOP) {
+                // bonus for bishop on long diagonal
                 if (BB::moreThanOneSet(CENTER_SQUARES &
                                        BB::movesByPiece<p>(sq, board.getPieces<PAWN>(c)))) {
                     score += BISHOP_LONG_DIAG_BONUS;
