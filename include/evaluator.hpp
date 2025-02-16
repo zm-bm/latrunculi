@@ -244,16 +244,29 @@ Score Evaluator<debug>::piecesScore() const {
     return score;
 }
 
+/**
+ * @brief Evaluates the alignment of the current player's pawns and bishops relative to the blocked central pawns.
+ *
+ * This function calculates a score based on the interaction of the current player's pawns and
+ * a specific bishop color (light or dark) specified by the bitboard `bb`. The score is adjusted by the
+ * number of blocked pawns in the central files (C, D, E, F) and whether the bishop's path is clear from
+ * friendly pawn attacks.
+ *
+ * @tparam debug A boolean flag for enabling debug mode.
+ * @tparam c The color of the player (WHITE or BLACK).
+ * @param bb A bitboard indicating the squares occupied by the player's bishops of a specific color.
+ * @return An integer score representing the influence of pawns on the given bishops, adjusted by
+ *         the number of blocked central pawns.
+ */
 template <bool debug>
 template <Color c>
 inline int Evaluator<debug>::bishopPawnBlockers(U64 bb) const {
     constexpr Color enemy = ~c;
     U64 pawns = board.getPieces<PAWN>(c);
-    U64 blockedPawns =
-        pawns & BB::movesByPawns<PawnMove::PUSH, enemy>(board.occupancy());
+    U64 blockedPawns = pawns & BB::movesByPawns<PawnMove::PUSH, enemy>(board.occupancy());
     U64 sameColorSquares = (bb & DARK_SQUARES) ? DARK_SQUARES : LIGHT_SQUARES;
-    int pawnFactor = BB::bitCount(blockedPawns & CENTER_FILES) +
-                        !(BB::attacksByPawns<c>(pawns) & bb);
+    int pawnFactor =
+        BB::bitCount(blockedPawns & CENTER_FILES) + !(BB::attacksByPawns<c>(pawns) & bb);
     return pawnFactor * BB::bitCount(pawns & sameColorSquares);
 }
 

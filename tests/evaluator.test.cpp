@@ -39,12 +39,6 @@ class EvaluatorTest : public ::testing::Test {
     //     EXPECT_EQ(evaluator.queenEval<BLACK>(), expectedBlack) << fen;
     // }
 
-    // void testBishopPawnBlockers(const std::string& fen, int expected) {
-    //     Chess chess(fen);
-    //     Evaluator evaluator(chess);
-    //     EXPECT_EQ(evaluator.bishopPawnBlockers(), expected) << fen;
-    // }
-
     void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Chess chess(fen);
         Evaluator evaluator(chess);
@@ -227,20 +221,6 @@ TEST_F(EvaluatorTest, BishopsScore) {
 
 //     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
 //         testQueenEval(fen, expectedWhite, expectedBlack);
-//     }
-// }
-
-// TEST_F(EvaluatorTest, BishopPawnBlockers) {
-//     std::vector<std::tuple<std::string, int>> testCases = {
-//         {STARTFEN, 0},
-//         {EMPTYFEN, 0},
-//         {"rn1qkbnr/ppp1pppp/3p4/8/8/4P3/PPPP1PPP/RN1QKBNR w KQkq - 0 1", -2},
-//         {"4kb2/5p1p/pp2p1p1/2pp4/2PP4/1P2PP1P/P5P1/4KB2 w - - 0 1", 12},
-//         {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", 1},
-//     };
-
-//     for (const auto& [fen, expected] : testCases) {
-//         testBishopPawnBlockers(fen, expected);
 //     }
 // }
 
