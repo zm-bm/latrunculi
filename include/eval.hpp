@@ -46,9 +46,9 @@ inline U64 doubledPawns(U64 pawns) {
 }
 
 template <Color c>
-inline U64 blockedPawns(U64 pawns, U64 enemyPawns) {
+inline U64 blockedPawns(U64 pawns, U64 occupancy) {
     constexpr Color enemy = ~c;
-    return pawns & BB::movesByPawns<PawnMove::PUSH, enemy>(enemyPawns);
+    return pawns & BB::movesByPawns<PawnMove::PUSH, enemy>(occupancy);
 }
 
 template <Color c>
@@ -71,17 +71,17 @@ inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
  * @tparam c The color of the bishops (WHITE or BLACK).
  * @param bishops A bitboard representing the positions of the bishops.
  * @param pawns A bitboard representing the positions of the pawns.
- * @param enemyPawns A bitboard representing the positions of the opponent's pawns.
+ * @param occupancy A bitboard representing the occupancy of board.
  * @return An integer score derived from the alignment of friendly pawns and bishops
  *         adjusted by the number of blocked central pawns.
  */
 template <Color c>
-inline int bishopPawnBlockers(U64 bishops, U64 pawns, U64 enemyPawns) {
+inline int bishopPawnBlockers(U64 bishops, U64 pawns, U64 occupancy) {
     // Calculate the attack coverage of pawns for the current player using a bitboard.
     U64 pawnAttacks = BB::attacksByPawns<c>(pawns);
 
     // Determine the number of blocked pawns on central files.
-    int blocked = BB::bitCount(blockedPawns<c>(pawns, enemyPawns) & CENTER_FILES);
+    int blocked = BB::bitCount(blockedPawns<c>(pawns, occupancy) & CENTER_FILES);
 
     // Separate bishops into light-squared and dark-squared groups.
     U64 lightBishops = bishops & LIGHT_SQUARES;

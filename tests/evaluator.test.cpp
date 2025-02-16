@@ -32,18 +32,18 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(bScore, expectedBlack) << fen;
     }
 
-    void testQueenEval(const std::string& fen, Score expectedWhite, Score expectedBlack) {
-        Chess chess(fen);
-        Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.queenEval<WHITE>(), expectedWhite) << fen;
-        EXPECT_EQ(evaluator.queenEval<BLACK>(), expectedBlack) << fen;
-    }
+    // void testQueenEval(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+    //     Chess chess(fen);
+    //     Evaluator evaluator(chess);
+    //     EXPECT_EQ(evaluator.queenEval<WHITE>(), expectedWhite) << fen;
+    //     EXPECT_EQ(evaluator.queenEval<BLACK>(), expectedBlack) << fen;
+    // }
 
-    void testBishopPawnBlockers(const std::string& fen, int expected) {
-        Chess chess(fen);
-        Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.bishopPawnBlockers(), expected) << fen;
-    }
+    // void testBishopPawnBlockers(const std::string& fen, int expected) {
+    //     Chess chess(fen);
+    //     Evaluator evaluator(chess);
+    //     EXPECT_EQ(evaluator.bishopPawnBlockers(), expected) << fen;
+    // }
 
     void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Chess chess(fen);
@@ -163,23 +163,36 @@ TEST_F(EvaluatorTest, KnightsScore) {
 }
 
 TEST_F(EvaluatorTest, BishopsScore) {
-    Score startScore = (MINOR_BEHIND_PAWN_BONUS * 2 + BISHOP_PAIR_BONUS);
+    Score startScore =
+              (MINOR_BEHIND_PAWN_BONUS * 2 + BISHOP_PAIR_BONUS + BISHOP_PAWN_BLOCKER_PENALTY * 8),
+          hasOutpost = BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY * 2,
+          noOutpost = BISHOP_PAWN_BLOCKER_PENALTY * 4,
+          hasLongDiag = BISHOP_LONG_DIAG_BONUS + BISHOP_PAWN_BLOCKER_PENALTY,
+          noLongDiag = BISHOP_PAWN_BLOCKER_PENALTY * 2,
+          twoPawnsDefended = BISHOP_PAWN_BLOCKER_PENALTY * 2 + BISHOP_OUTPOST_BONUS,
+          twoPawnsOneBlocked = BISHOP_PAWN_BLOCKER_PENALTY * 4,
+          twoPawnsTwoBlocked = BISHOP_PAWN_BLOCKER_PENALTY * 6;
 
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, Score{0}, Score{0}},
         {STARTFEN, startScore, startScore},
         // bishop outposts
-        {"6k1/8/2p5/4pBp1/4P1P1/2P3b1/8/6K1 w - - 0 1", BISHOP_OUTPOST_BONUS, Score{0}},
-        {"6k1/8/2p3B1/4p1p1/4PbP1/2P5/8/6K1 w - - 0 2", Score{0}, BISHOP_OUTPOST_BONUS},
+        {"6k1/8/2p5/4pBp1/4P1P1/2P3b1/8/6K1 w - - 0 1", hasOutpost, noOutpost},
+        {"6k1/8/2p3B1/4p1p1/4PbP1/2P5/8/6K1 w - - 0 2", noOutpost, hasOutpost},
         // bishop behind pawn
         {"6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 3", MINOR_BEHIND_PAWN_BONUS, Score{0}},
         {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 4", Score{0}, MINOR_BEHIND_PAWN_BONUS},
         // bishop on long diagonal
-        {"6k1/6b1/8/3P4/3p4/8/6B1/6K1 w - - 0 5", BISHOP_LONG_DIAG_BONUS, BISHOP_LONG_DIAG_BONUS},
-        {"6k1/6b1/8/4p3/4P3/8/6B1/6K1 w - - 0 6", Score{0}, Score{0}},
+        {"6k1/6b1/8/3P4/3p4/8/6B1/6K1 w - - 0 5", hasLongDiag, hasLongDiag},
+        {"6k1/6b1/8/4p3/4P3/8/6B1/6K1 w - - 0 6", noLongDiag, noLongDiag},
         // bishop pair
         {"5bk1/8/8/8/8/8/8/4BBK1 w - - 0 7", BISHOP_PAIR_BONUS, Score{0}},
         {"4bbk1/8/8/8/8/8/8/5BK1 w - - 0 8", Score{0}, BISHOP_PAIR_BONUS},
+        // bishop/pawn penalty
+        {"4k3/8/8/2BPp3/2bpP3/8/8/4K3 w - - 0 9", Score{0}, Score{0}},
+        {"4k3/8/8/2bPp3/2BpP3/8/8/4K3 w - - 0 10", twoPawnsOneBlocked, twoPawnsOneBlocked},
+        {"4k3/8/8/3PpB2/3pPb2/8/8/4K3 w - - 0 11", twoPawnsDefended, twoPawnsDefended},
+        {"4k3/4b3/8/4p3/3pP3/3P4/4B3/4K3 w - - 0 12", twoPawnsTwoBlocked, twoPawnsTwoBlocked},
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
@@ -200,36 +213,36 @@ TEST_F(EvaluatorTest, BishopsScore) {
 //     }
 // }
 
-TEST_F(EvaluatorTest, QueenEval) {
-    std::vector<std::tuple<std::string, Score, Score>> testCases = {
-        {STARTFEN, Score{0}, Score{0}},
-        {EMPTYFEN, Score{0}, Score{0}},
-        {"q3k3/r7/8/8/8/R7/R7/Q3K3 w - - 0 1",
-         ROOK_ON_QUEEN_FILE_BONUS * 2,
-         ROOK_ON_QUEEN_FILE_BONUS},
-        {"qr2k3/r7/8/8/8/R7/Q7/QR2K3 w - - 0 1",
-         ROOK_ON_QUEEN_FILE_BONUS,
-         ROOK_ON_QUEEN_FILE_BONUS},
-    };
+// TEST_F(EvaluatorTest, QueenEval) {
+//     std::vector<std::tuple<std::string, Score, Score>> testCases = {
+//         {STARTFEN, Score{0}, Score{0}},
+//         {EMPTYFEN, Score{0}, Score{0}},
+//         {"q3k3/r7/8/8/8/R7/R7/Q3K3 w - - 0 1",
+//          ROOK_ON_QUEEN_FILE_BONUS * 2,
+//          ROOK_ON_QUEEN_FILE_BONUS},
+//         {"qr2k3/r7/8/8/8/R7/Q7/QR2K3 w - - 0 1",
+//          ROOK_ON_QUEEN_FILE_BONUS,
+//          ROOK_ON_QUEEN_FILE_BONUS},
+//     };
 
-    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testQueenEval(fen, expectedWhite, expectedBlack);
-    }
-}
+//     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+//         testQueenEval(fen, expectedWhite, expectedBlack);
+//     }
+// }
 
-TEST_F(EvaluatorTest, BishopPawnBlockers) {
-    std::vector<std::tuple<std::string, int>> testCases = {
-        {STARTFEN, 0},
-        {EMPTYFEN, 0},
-        {"rn1qkbnr/ppp1pppp/3p4/8/8/4P3/PPPP1PPP/RN1QKBNR w KQkq - 0 1", -2},
-        {"4kb2/5p1p/pp2p1p1/2pp4/2PP4/1P2PP1P/P5P1/4KB2 w - - 0 1", 12},
-        {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", 1},
-    };
+// TEST_F(EvaluatorTest, BishopPawnBlockers) {
+//     std::vector<std::tuple<std::string, int>> testCases = {
+//         {STARTFEN, 0},
+//         {EMPTYFEN, 0},
+//         {"rn1qkbnr/ppp1pppp/3p4/8/8/4P3/PPPP1PPP/RN1QKBNR w KQkq - 0 1", -2},
+//         {"4kb2/5p1p/pp2p1p1/2pp4/2PP4/1P2PP1P/P5P1/4KB2 w - - 0 1", 12},
+//         {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", 1},
+//     };
 
-    for (const auto& [fen, expected] : testCases) {
-        testBishopPawnBlockers(fen, expected);
-    }
-}
+//     for (const auto& [fen, expected] : testCases) {
+//         testBishopPawnBlockers(fen, expected);
+//     }
+// }
 
 TEST_F(EvaluatorTest, Outposts) {
     std::vector<std::tuple<std::string, U64, U64>> testCases = {

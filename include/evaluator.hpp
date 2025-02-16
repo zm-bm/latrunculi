@@ -82,12 +82,9 @@ class Evaluator {
     friend class EvaluatorTest;
 
     // old code
-    template <Color>
-    Score bishopEval() const;
-    template <Color>
-    Score queenEval() const;
 
-    int bishopPawnBlockers() const;
+    template <Color>
+    int bishopPawnBlockers(U64) const;
 
     bool hasOppositeBishops() const;
     int phase() const;
@@ -205,6 +202,7 @@ Score Evaluator<debug>::piecesScore() const {
     constexpr Color enemy = ~c;
     Score score = {0, 0};
     U64 occ = board.occupancy();
+    U64 pawns = board.getPieces<PAWN>(c);
     U64 enemyPawns = board.getPieces<PAWN>(enemy);
 
     // bonus for bishop pair
@@ -215,31 +213,48 @@ Score Evaluator<debug>::piecesScore() const {
     }
 
     forEachPiece<c>(board.getPieces<p>(c), [&](Square sq) {
+        U64 bb = BB::set(sq);
+
         // minor pieces
         if constexpr (p == KNIGHT || p == BISHOP) {
             // bonus for minor piece outposts,  reachable knight outposts
-            if (BB::set(sq) & outposts[c]) {
+            if (bb & outposts[c]) {
                 score += OUTPOST_BONUS[p == KNIGHT];
             } else if (p == KNIGHT && BB::movesByPiece<p>(sq, occ) & outposts[c]) {
                 score += REACHABLE_OUTPOST_BONUS;
             }
 
             // bonus minor piece guarded by pawn
-            if (BB::set(sq) & BB::movesByPawns<PawnMove::PUSH, enemy>(board.getPieces<PAWN>(c))) {
+            if (bb & BB::movesByPawns<PawnMove::PUSH, enemy>(pawns)) {
                 score += MINOR_BEHIND_PAWN_BONUS;
             }
 
             if constexpr (p == BISHOP) {
                 // bonus for bishop on long diagonal
-                if (BB::moreThanOneSet(CENTER_SQUARES &
-                                       BB::movesByPiece<p>(sq, board.getPieces<PAWN>(c)))) {
+                if (BB::moreThanOneSet(CENTER_SQUARES & BB::movesByPiece<p>(sq, pawns))) {
                     score += BISHOP_LONG_DIAG_BONUS;
                 }
+
+                // penalty for bishop / pawns
+                score += BISHOP_PAWN_BLOCKER_PENALTY * bishopPawnBlockers<c>(bb);
             }
         }
     });
 
     return score;
+}
+
+template <bool debug>
+template <Color c>
+inline int Evaluator<debug>::bishopPawnBlockers(U64 bb) const {
+    constexpr Color enemy = ~c;
+    U64 pawns = board.getPieces<PAWN>(c);
+    U64 blockedPawns =
+        pawns & BB::movesByPawns<PawnMove::PUSH, enemy>(board.occupancy());
+    U64 sameColorSquares = (bb & DARK_SQUARES) ? DARK_SQUARES : LIGHT_SQUARES;
+    int pawnFactor = BB::bitCount(blockedPawns & CENTER_FILES) +
+                        !(BB::attacksByPawns<c>(pawns) & bb);
+    return pawnFactor * BB::bitCount(pawns & sameColorSquares);
 }
 
 // template <bool debug>
@@ -253,30 +268,22 @@ Score Evaluator<debug>::piecesScore() const {
 //     return score;
 // }
 
-template <bool debug>
-template <Color c>
-inline Score Evaluator<debug>::queenEval() const {
-    Score score = {0, 0};
-    U64 rooksOnQueenFile = 0;
+// template <bool debug>
+// template <Color c>
+// inline Score Evaluator<debug>::queenEval() const {
+//     Score score = {0, 0};
+//     U64 rooksOnQueenFile = 0;
 
-    forEachPiece<c>(board.getPieces<QUEEN>(c), [&](Square sq) {
-        File f = Defs::fileFromSq(sq);
-        U64 mask = BB::filemask(f, WHITE);
-        rooksOnQueenFile |= mask & board.getPieces<ROOK>(c);
-    });
+//     forEachPiece<c>(board.getPieces<QUEEN>(c), [&](Square sq) {
+//         File f = Defs::fileFromSq(sq);
+//         U64 mask = BB::filemask(f, WHITE);
+//         rooksOnQueenFile |= mask & board.getPieces<ROOK>(c);
+//     });
 
-    score += ROOK_ON_QUEEN_FILE_BONUS * BB::bitCount(rooksOnQueenFile);
+//     score += ROOK_ON_QUEEN_FILE_BONUS * BB::bitCount(rooksOnQueenFile);
 
-    return score;
-}
-
-template <bool debug>
-inline int Evaluator<debug>::bishopPawnBlockers() const {
-    U64 wPawns = board.getPieces<PAWN>(WHITE);
-    U64 bPawns = board.getPieces<PAWN>(BLACK);
-    return (Eval::bishopPawnBlockers<WHITE>(board.getPieces<BISHOP>(WHITE), wPawns, bPawns) -
-            Eval::bishopPawnBlockers<BLACK>(board.getPieces<BISHOP>(BLACK), bPawns, wPawns));
-}
+//     return score;
+// }
 
 template <bool debug>
 inline bool Evaluator<debug>::hasOppositeBishops() const {
