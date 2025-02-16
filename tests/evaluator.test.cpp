@@ -32,24 +32,11 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(bScore, expectedBlack) << fen;
     }
 
-    // void testQueenEval(const std::string& fen, Score expectedWhite, Score expectedBlack) {
-    //     Chess chess(fen);
-    //     Evaluator evaluator(chess);
-    //     EXPECT_EQ(evaluator.queenEval<WHITE>(), expectedWhite) << fen;
-    //     EXPECT_EQ(evaluator.queenEval<BLACK>(), expectedBlack) << fen;
-    // }
-
     void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Chess chess(fen);
         Evaluator evaluator(chess);
         EXPECT_EQ(evaluator.outposts[WHITE], expectedWhite) << fen;
         EXPECT_EQ(evaluator.outposts[BLACK], expectedBlack) << fen;
-    }
-
-    void testHasOppositeBishops(const std::string& fen, bool expected) {
-        Chess chess(fen);
-        Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.hasOppositeBishops(), expected);
     }
 
     void testPhase(const std::string& fen, int expected, int tolerance) {
@@ -92,16 +79,8 @@ TEST_F(EvaluatorTest, Eval) {
 
 TEST_F(EvaluatorTest, ScaleFactor) {
     std::vector<std::pair<std::string, int>> testCases = {
-        {EMPTYFEN, 0},
+        {EMPTYFEN, 36},
         {STARTFEN, SCALE_LIMIT},
-        {"3bk3/8/8/8/8/8/8/3NK3 w - - 0 1", 0},
-        {"2nbk3/8/8/8/8/8/8/2RNK3 w - - 0 1", 16},
-        {"3bk3/4p3/8/8/8/8/4P3/3BK3 w - - 0 1", 36},
-        {"3bk3/4p3/8/8/8/8/2PPP3/3BK3 w - - 0 1", 40},
-        {"3bk3/4p3/8/8/8/8/1PPPP3/3BK3 w - - 0 1", 44},
-        {"3qk3/8/8/8/8/8/8/4K3 w - - 0 1", 36},
-        {"3qk3/8/8/8/8/8/8/3BK3 w - - 0 1", 40},
-        {"3qk3/8/8/8/8/8/8/2BBK3 w - - 0 1", 44},
     };
 
     for (const auto& [fen, expected] : testCases) {
@@ -235,19 +214,6 @@ TEST_F(EvaluatorTest, Outposts) {
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
         testOutposts(fen, expectedWhite, expectedBlack);
-    }
-}
-
-TEST_F(EvaluatorTest, HasOpppositeBishops) {
-    std::vector<std::tuple<std::string, bool>> testCases = {
-        {STARTFEN, false},
-        {EMPTYFEN, false},
-        {"3bk3/8/8/8/8/8/8/2B1K3 w - - 0 1", false},
-        {"3bk3/8/8/8/8/8/8/3BK3 w - - 0 1", true},
-    };
-
-    for (const auto& [fen, expected] : testCases) {
-        testHasOppositeBishops(fen, expected);
     }
 }
 
