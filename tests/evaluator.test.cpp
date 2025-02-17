@@ -187,6 +187,23 @@ TEST_F(EvaluatorTest, RookScore) {
     }
 }
 
+TEST_F(EvaluatorTest, QueenScore) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {STARTFEN, Score{0}, Score{0}},
+        {EMPTYFEN, Score{0}, Score{0}},
+        // bishop discovered attack
+        {"3qk3/2P5/1P6/B7/b7/1p6/8/3QK3 w - - 0 1", DISCOVERED_ATTACK_ON_QUEEN_PENALTY, Score{0}},
+        {"3qk3/8/1P6/B7/b7/1p6/2p5/3QK3 w - - 0 2", Score{0}, DISCOVERED_ATTACK_ON_QUEEN_PENALTY},
+        // rook discovered attack
+        {"RNNqk3/8/8/8/8/8/8/rn1QK3 w - - 0 3", DISCOVERED_ATTACK_ON_QUEEN_PENALTY, Score{0}},
+        {"RN1qk3/8/8/8/8/8/8/rnnQK3 w - - 0 4", Score{0}, DISCOVERED_ATTACK_ON_QUEEN_PENALTY},
+    };
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testPiecesScore<QUEEN>(fen, expectedWhite, expectedBlack);
+    }
+}
+
 TEST_F(EvaluatorTest, Outposts) {
     std::vector<std::tuple<std::string, U64, U64>> testCases = {
         {STARTFEN, 0, 0},

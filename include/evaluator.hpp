@@ -81,15 +81,13 @@ class Evaluator {
 
     friend class EvaluatorTest;
 
-    // old code
-
     template <Color>
     int bishopPawnBlockers(U64) const;
+    template <Color>
+    bool discoveredAttackOnQueen(Square, U64) const;
 
-    bool hasOppositeBishops() const;
     int phase() const;
     int nonPawnMaterial(Color) const;
-
     int scaleFactor() const;
 };
 
@@ -119,6 +117,8 @@ inline Score Evaluator<debug>::evaluateTerm() {
         score = piecesScore<c, BISHOP>();
     } else if constexpr (term == TERM_ROOKS) {
         score = piecesScore<c, ROOK>();
+    } else if constexpr (term == TERM_QUEENS) {
+        score = piecesScore<c, QUEEN>();
     }
 
     if constexpr (debug) {
@@ -138,6 +138,7 @@ int Evaluator<debug>::eval() {
     score += evaluateTerm<TERM_KNIGHTS, WHITE>() - evaluateTerm<TERM_KNIGHTS, BLACK>();
     score += evaluateTerm<TERM_BISHOPS, WHITE>() - evaluateTerm<TERM_BISHOPS, BLACK>();
     score += evaluateTerm<TERM_ROOKS, WHITE>() - evaluateTerm<TERM_ROOKS, BLACK>();
+    score += evaluateTerm<TERM_QUEENS, WHITE>() - evaluateTerm<TERM_QUEENS, BLACK>();
 
     score.eg *= scaleFactor() / float(SCALE_LIMIT);
 
@@ -162,6 +163,7 @@ int Evaluator<debug>::eval() {
                   << TermOutput{"Knights", scores[TERM_KNIGHTS], std::nullopt}
                   << TermOutput{"Bishops", scores[TERM_BISHOPS], std::nullopt}
                   << TermOutput{"Rooks", scores[TERM_ROOKS], std::nullopt}
+                  << TermOutput{"Queens", scores[TERM_QUEENS], std::nullopt}
                   << " ------------+-------------+-------------+------------\n"
                   << TermOutput{"Total", nullptr, score} << '\n'
                   << "Evaluation: \t"
@@ -257,10 +259,41 @@ Score Evaluator<debug>::piecesScore() const {
 
         if constexpr (p == QUEEN) {
             // penalty for discovered attacks on queen
+            if (discoveredAttackOnQueen<c>(sq, occ)) {
+                score += DISCOVERED_ATTACK_ON_QUEEN_PENALTY;
+            }
         }
     });
 
     return score;
+}
+
+
+template <bool debug>
+template <Color c>
+inline bool Evaluator<debug>::discoveredAttackOnQueen(Square sq, U64 occ) const {
+    constexpr Color enemy = ~c;
+    bool attacked = false;
+
+    U64 attackingBishops = BB::movesByPiece<BISHOP>(sq, 0) & board.getPieces<BISHOP>(enemy);
+    forEachPiece<c>(attackingBishops, [&](Square bishopSq) {
+        U64 piecesBetween = BB::bitsBtwn(sq, bishopSq) & occ;
+        if (piecesBetween && !BB::moreThanOneSet(piecesBetween)) {
+            attacked = true;
+        }
+    });
+
+    U64 attackingRooks = BB::movesByPiece<ROOK>(sq, 0) & board.getPieces<ROOK>(enemy);
+    BB::print(std::cout, attackingRooks);
+    forEachPiece<c>(attackingRooks, [&](Square rookSq) {
+        U64 piecesBetween = BB::bitsBtwn(sq, rookSq) & occ;
+        BB::print(std::cout, piecesBetween);
+        if (piecesBetween && !BB::moreThanOneSet(piecesBetween)) {
+            attacked = true;
+        }
+    });
+
+    return attacked;
 }
 
 /**
