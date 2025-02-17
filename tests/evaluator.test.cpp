@@ -173,35 +173,19 @@ TEST_F(EvaluatorTest, BishopsScore) {
     }
 }
 
-// TEST_F(EvaluatorTest, PiecesEval) {
-//     std::vector<std::pair<std::string, Score>> testCases = {
-//         {"6k1/8/8/3Bp3/4P3/8/8/6K1 w - - 0 1", BISHOP_OUTPOST_BONUS +
-//         BISHOP_PAWN_BLOCKER_PENALTY},
-//         {"4k3/8/8/4p3/4P3/8/4B3/4K3 w - - 0 1", BISHOP_PAWN_BLOCKER_PENALTY * 2},
-//         {"4k3/8/5b2/4p3/8/8/8/4K3 w - - 0 1", -BISHOP_PAWN_BLOCKER_PENALTY},
-//     };
+TEST_F(EvaluatorTest, RookScore) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {STARTFEN, Score{0}, Score{0}},
+        {EMPTYFEN, Score{0}, Score{0}},
+        {"6kr/8/8/8/8/8/8/RK6 w - - 0 1", ROOK_FULL_OPEN_FILE_BONUS, ROOK_FULL_OPEN_FILE_BONUS},
+        {"6kr/p7/8/8/8/8/7P/RK6 w - - 0 2", ROOK_SEMI_OPEN_FILE_BONUS, ROOK_SEMI_OPEN_FILE_BONUS},
+        {"rk6/8/8/p7/P7/8/8/RK6 w - - 0 3", ROOK_CLOSED_FILE_PENALTY, ROOK_CLOSED_FILE_PENALTY},
+    };
 
-//     for (const auto& [fen, expected] : testCases) {
-//         testPiecesEval(fen, expected);
-//     }
-// }
-
-// TEST_F(EvaluatorTest, QueenEval) {
-//     std::vector<std::tuple<std::string, Score, Score>> testCases = {
-//         {STARTFEN, Score{0}, Score{0}},
-//         {EMPTYFEN, Score{0}, Score{0}},
-//         {"q3k3/r7/8/8/8/R7/R7/Q3K3 w - - 0 1",
-//          ROOK_ON_QUEEN_FILE_BONUS * 2,
-//          ROOK_ON_QUEEN_FILE_BONUS},
-//         {"qr2k3/r7/8/8/8/R7/Q7/QR2K3 w - - 0 1",
-//          ROOK_ON_QUEEN_FILE_BONUS,
-//          ROOK_ON_QUEEN_FILE_BONUS},
-//     };
-
-//     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-//         testQueenEval(fen, expectedWhite, expectedBlack);
-//     }
-// }
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testPiecesScore<ROOK>(fen, expectedWhite, expectedBlack);
+    }
+}
 
 TEST_F(EvaluatorTest, Outposts) {
     std::vector<std::tuple<std::string, U64, U64>> testCases = {

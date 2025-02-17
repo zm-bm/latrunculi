@@ -112,6 +112,7 @@ constexpr File FILE_BY_COLOR[N_COLORS][N_FILES] = {
     {FILE8, FILE7, FILE6, FILE5, FILE4, FILE3, FILE2, FILE1},
     {FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8},
 };
+inline U64 filemask(File f) { return FILE_MASK[FILE_BY_COLOR[WHITE][f]]; }
 inline U64 filemask(File f, Color c) { return FILE_MASK[FILE_BY_COLOR[c][f]]; }
 
 inline constexpr U64 set(const Square sq) {

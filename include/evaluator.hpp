@@ -117,6 +117,8 @@ inline Score Evaluator<debug>::evaluateTerm() {
         score = piecesScore<c, KNIGHT>();
     } else if constexpr (term == TERM_BISHOPS) {
         score = piecesScore<c, BISHOP>();
+    } else if constexpr (term == TERM_ROOKS) {
+        score = piecesScore<c, ROOK>();
     }
 
     if constexpr (debug) {
@@ -135,6 +137,7 @@ int Evaluator<debug>::eval() {
     score += evaluateTerm<TERM_PAWNS, WHITE>() - evaluateTerm<TERM_PAWNS, BLACK>();
     score += evaluateTerm<TERM_KNIGHTS, WHITE>() - evaluateTerm<TERM_KNIGHTS, BLACK>();
     score += evaluateTerm<TERM_BISHOPS, WHITE>() - evaluateTerm<TERM_BISHOPS, BLACK>();
+    score += evaluateTerm<TERM_ROOKS, WHITE>() - evaluateTerm<TERM_ROOKS, BLACK>();
 
     score.eg *= scaleFactor() / float(SCALE_LIMIT);
 
@@ -158,6 +161,7 @@ int Evaluator<debug>::eval() {
                   << TermOutput{"Pawns", scores[TERM_PAWNS], std::nullopt}
                   << TermOutput{"Knights", scores[TERM_KNIGHTS], std::nullopt}
                   << TermOutput{"Bishops", scores[TERM_BISHOPS], std::nullopt}
+                  << TermOutput{"Rooks", scores[TERM_ROOKS], std::nullopt}
                   << " ------------+-------------+-------------+------------\n"
                   << TermOutput{"Total", nullptr, score} << '\n'
                   << "Evaluation: \t"
@@ -240,6 +244,15 @@ Score Evaluator<debug>::piecesScore() const {
         }
 
         if constexpr (p == ROOK) {
+            // bonus for rook on open file, penalty for closed file w blocked pawn
+            U64 filemask = BB::filemask(Defs::fileFromSq(sq));
+            if (!(pawns & filemask)) {
+                score += ROOK_OPEN_FILE_BONUS[!(enemyPawns & filemask)];
+            } else {
+                if (pawns & filemask & BB::movesByPawns<PawnMove::PUSH, enemy>(occ)) {
+                    score += ROOK_CLOSED_FILE_PENALTY;
+                }
+            }
         }
 
         if constexpr (p == QUEEN) {
