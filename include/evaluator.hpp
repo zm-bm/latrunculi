@@ -268,7 +268,20 @@ Score Evaluator<debug>::piecesScore() const {
     return score;
 }
 
-
+/**
+ * @brief Determines if the queen at the given square is vulnerable to a discovered attack.
+ *
+ * This function evaluates whether there is an enemy bishop or rook on the same diagonal, rank, or
+ * file as the specified square, such that a discovered attack on the queen could occur. A discovered
+ * attack happens when there is exactly one piece between the enemy attacker and the square in question,
+ * and that piece is moved to reveal the attack.
+ *
+ * @tparam debug A boolean flag for enabling debug mode.
+ * @tparam c The color of the player to check for discovered attacks (WHITE or BLACK).
+ * @param sq The square occupied by the queen that is potentially subject to a discovered attack.
+ * @param occ The current occupancy bitboard indicating all occupied squares.
+ * @return true if a discovered attack on the queen is possible, false otherwise.
+ */
 template <bool debug>
 template <Color c>
 inline bool Evaluator<debug>::discoveredAttackOnQueen(Square sq, U64 occ) const {
