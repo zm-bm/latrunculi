@@ -64,4 +64,36 @@ const Score ROOK_OPEN_FILE_BONUS[2] = {ROOK_SEMI_OPEN_FILE_BONUS, ROOK_FULL_OPEN
 const Score ROOK_CLOSED_FILE_PENALTY = {-10, -5};
 const Score DISCOVERED_ATTACK_ON_QUEEN_PENALTY = {-50, -25};
 
+// clang-format off
+constexpr Score KNIGHT_MOBILITY[] = {
+    {-50, -60}, {-40, -45}, {-10, -25}, {-2, -14}, {2, 6},
+    {10, 10},   {15, 15},   {20, 18},   {30, 20}
+};
+constexpr Score BISHOP_MOBILITY[] = {
+    {-40, -50}, {-20, -20}, {10, -5},   {20, 10},   {30, 20},
+    {40, 30},   {40, 45},   {50, 45},   {50, 50},   {55, 60},
+    {60, 60},   {70, 70},   {70, 70},   {80, 80}
+};
+constexpr Score ROOK_MOBILITY[] = {
+    {-50, -70}, {-20, -10}, {0, 15},    {0, 35},    {5, 55},
+    {10, 80},   {15, 80},   {25, 100},  {35, 110},  {35, 110},
+    {35, 120},  {40, 130},  {45, 135},  {50, 140},  {55, 150}
+};
+constexpr Score QUEEN_MOBILITY[] = {
+    {-25, -40}, {-15, -25}, {-5, -5},   {-5, 15},   {15, 30},   {20, 45},   {20, 50},
+    {30, 60},   {35, 60},   {45, 75},   {50, 75},   {55, 80},   {55, 100},  {60, 100},
+    {60, 110},  {60, 110},  {60, 110},  {60, 115},  {65, 120},  {70, 120},  {75, 125},
+    {85, 135},  {85, 140},  {85, 140},  {90, 145},  {90, 150},  {95, 155},  {100, 175}
+};
+// clang-format on
+
+constexpr const Score* MOBILITY_BONUS[] = {
+    nullptr,
+    nullptr,
+    KNIGHT_MOBILITY,
+    BISHOP_MOBILITY,
+    ROOK_MOBILITY,
+    QUEEN_MOBILITY,
+};
+
 #endif

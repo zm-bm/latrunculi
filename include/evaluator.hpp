@@ -20,13 +20,12 @@ enum Term {
     TERM_ROOKS,
     TERM_QUEENS,
     TERM_KINGS,
-    // tbd
+    TERM_KING_SAFETY,
     TERM_MOBILITY,
     TERM_THREATS,
     TERM_SPACE,
     TERM_INITIATIVE,
     N_TERMS,
-
 };
 
 struct TermOutput {
@@ -62,7 +61,10 @@ class Evaluator {
     const Chess& chess;
     const Board& board;
 
-    U64 outposts[N_COLORS] = {0};
+    U64 outposts[N_COLORS] = {0, 0};
+    U64 mobilityArea[N_COLORS] = {0, 0};
+
+    Score mobility[N_COLORS] = {{0, 0}, {0, 0}};
 
     using ScoresDetail =
         typename std::conditional<debug, Score[N_TERMS][N_COLORS], std::nullptr_t>::type;
@@ -75,9 +77,9 @@ class Evaluator {
     Score evaluateTerm();
 
     template <Color>
-    Score pawnsScore() const;
+    Score pawnsScore();
     template <Color, PieceType>
-    Score piecesScore() const;
+    Score piecesScore();
 
     friend class EvaluatorTest;
 
@@ -97,7 +99,15 @@ void Evaluator<debug>::initialize() {
     constexpr Color enemy = ~c;
     U64 pawns = board.getPieces<PAWN>(c);
     U64 enemyPawns = board.getPieces<PAWN>(enemy);
+
+
     outposts[c] = Eval::outpostSquares<c>(pawns, enemyPawns);
+
+    U64 blockedPawns = Eval::blockedPawns<c>(pawns, enemyPawns);
+    U64 enemyPawnAttacks = BB::attacksByPawns<enemy>(enemyPawns);
+
+    mobilityArea[c] = ~(blockedPawns | (pawns & BB::rankmask(RANK2, c)));
+    BB::print(std::cout, mobilityArea[c]);
 }
 
 template <bool debug>
@@ -119,6 +129,8 @@ inline Score Evaluator<debug>::evaluateTerm() {
         score = piecesScore<c, ROOK>();
     } else if constexpr (term == TERM_QUEENS) {
         score = piecesScore<c, QUEEN>();
+    } else if constexpr (term == TERM_MOBILITY) {
+        score = mobility[c];
     }
 
     if constexpr (debug) {
@@ -140,9 +152,11 @@ int Evaluator<debug>::eval() {
     score += evaluateTerm<TERM_ROOKS, WHITE>() - evaluateTerm<TERM_ROOKS, BLACK>();
     score += evaluateTerm<TERM_QUEENS, WHITE>() - evaluateTerm<TERM_QUEENS, BLACK>();
 
-    score.eg *= scaleFactor() / float(SCALE_LIMIT);
+    // more complex eval terms require pieces to be evaluated first
+    score += evaluateTerm<TERM_MOBILITY, WHITE>() - evaluateTerm<TERM_MOBILITY, BLACK>();
 
-    // tapered eval based on remaining non pawn material
+    // scale eg and taper mg/eg to produce final eval
+    score.eg *= scaleFactor() / float(SCALE_LIMIT);
     int result = score.taper(phase());
 
     // return score relative to side to move with tempo bonus
@@ -164,6 +178,7 @@ int Evaluator<debug>::eval() {
                   << TermOutput{"Bishops", scores[TERM_BISHOPS], std::nullopt}
                   << TermOutput{"Rooks", scores[TERM_ROOKS], std::nullopt}
                   << TermOutput{"Queens", scores[TERM_QUEENS], std::nullopt}
+                  << TermOutput{"Mobility", scores[TERM_MOBILITY], std::nullopt}
                   << " ------------+-------------+-------------+------------\n"
                   << TermOutput{"Total", nullptr, score} << '\n'
                   << "Evaluation: \t"
@@ -184,7 +199,7 @@ void forEachPiece(U64 bitboard, Func action) {
 
 template <bool debug>
 template <Color c>
-inline Score Evaluator<debug>::pawnsScore() const {
+inline Score Evaluator<debug>::pawnsScore() {
     constexpr Color enemy = ~c;
     Score score = {0, 0};
     U64 pawns = board.getPieces<PAWN>(c);
@@ -204,7 +219,7 @@ inline Score Evaluator<debug>::pawnsScore() const {
 
 template <bool debug>
 template <Color c, PieceType p>
-Score Evaluator<debug>::piecesScore() const {
+Score Evaluator<debug>::piecesScore() {
     constexpr Color enemy = ~c;
     Score score = {0, 0};
     U64 occ = board.occupancy();
@@ -220,12 +235,17 @@ Score Evaluator<debug>::piecesScore() const {
 
     forEachPiece<c>(board.getPieces<p>(c), [&](Square sq) {
         U64 bb = BB::set(sq);
+        U64 moves = BB::movesByPiece<p>(sq, occ);
+
+        U64 nMoves = BB::bitCount(moves & mobilityArea[c]);
+        std::cout << Piece(p) << " moves #: " << nMoves << std::endl;
+        mobility[c] += MOBILITY_BONUS[p][nMoves];
 
         if constexpr (p == KNIGHT || p == BISHOP) {
             // bonus for minor piece outposts,  reachable knight outposts
             if (bb & outposts[c]) {
                 score += OUTPOST_BONUS[p == KNIGHT];
-            } else if (p == KNIGHT && BB::movesByPiece<p>(sq, occ) & outposts[c]) {
+            } else if (p == KNIGHT && moves & outposts[c]) {
                 score += REACHABLE_OUTPOST_BONUS;
             }
 
@@ -297,7 +317,6 @@ inline bool Evaluator<debug>::discoveredAttackOnQueen(Square sq, U64 occ) const 
     });
 
     U64 attackingRooks = BB::movesByPiece<ROOK>(sq, 0) & board.getPieces<ROOK>(enemy);
-    BB::print(std::cout, attackingRooks);
     forEachPiece<c>(attackingRooks, [&](Square rookSq) {
         U64 piecesBetween = BB::bitsBtwn(sq, rookSq) & occ;
         BB::print(std::cout, piecesBetween);
