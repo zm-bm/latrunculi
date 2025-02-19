@@ -100,14 +100,8 @@ void Evaluator<debug>::initialize() {
     U64 pawns = board.getPieces<PAWN>(c);
     U64 enemyPawns = board.getPieces<PAWN>(enemy);
 
-
     outposts[c] = Eval::outpostSquares<c>(pawns, enemyPawns);
-
-    U64 blockedPawns = Eval::blockedPawns<c>(pawns, enemyPawns);
-    U64 enemyPawnAttacks = BB::attacksByPawns<enemy>(enemyPawns);
-
-    mobilityArea[c] = ~(blockedPawns | (pawns & BB::rankmask(RANK2, c)));
-    BB::print(std::cout, mobilityArea[c]);
+    mobilityArea[c] = ~((pawns & BB::rankmask(RANK2, c)) | BB::attacksByPawns<enemy>(enemyPawns));
 }
 
 template <bool debug>
@@ -131,6 +125,8 @@ inline Score Evaluator<debug>::evaluateTerm() {
         score = piecesScore<c, QUEEN>();
     } else if constexpr (term == TERM_MOBILITY) {
         score = mobility[c];
+    } else {
+        score = Score{0};
     }
 
     if constexpr (debug) {
@@ -238,7 +234,6 @@ Score Evaluator<debug>::piecesScore() {
         U64 moves = BB::movesByPiece<p>(sq, occ);
 
         U64 nMoves = BB::bitCount(moves & mobilityArea[c]);
-        std::cout << Piece(p) << " moves #: " << nMoves << std::endl;
         mobility[c] += MOBILITY_BONUS[p][nMoves];
 
         if constexpr (p == KNIGHT || p == BISHOP) {
@@ -292,9 +287,9 @@ Score Evaluator<debug>::piecesScore() {
  * @brief Determines if the queen at the given square is vulnerable to a discovered attack.
  *
  * This function evaluates whether there is an enemy bishop or rook on the same diagonal, rank, or
- * file as the specified square, such that a discovered attack on the queen could occur. A discovered
- * attack happens when there is exactly one piece between the enemy attacker and the square in question,
- * and that piece is moved to reveal the attack.
+ * file as the specified square, such that a discovered attack on the queen could occur. A
+ * discovered attack happens when there is exactly one piece between the enemy attacker and the
+ * square in question, and that piece is moved to reveal the attack.
  *
  * @tparam debug A boolean flag for enabling debug mode.
  * @tparam c The color of the player to check for discovered attacks (WHITE or BLACK).
@@ -319,7 +314,6 @@ inline bool Evaluator<debug>::discoveredAttackOnQueen(Square sq, U64 occ) const 
     U64 attackingRooks = BB::movesByPiece<ROOK>(sq, 0) & board.getPieces<ROOK>(enemy);
     forEachPiece<c>(attackingRooks, [&](Square rookSq) {
         U64 piecesBetween = BB::bitsBtwn(sq, rookSq) & occ;
-        BB::print(std::cout, piecesBetween);
         if (piecesBetween && !BB::moreThanOneSet(piecesBetween)) {
             attacked = true;
         }

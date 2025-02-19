@@ -32,6 +32,21 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(bScore, expectedBlack) << fen;
     }
 
+    void testMobility(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+        Chess chess(fen);
+        Evaluator<false> evaluator(chess);
+        evaluator.eval();
+        EXPECT_EQ(evaluator.mobility[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(evaluator.mobility[BLACK], expectedBlack) << fen;
+    }
+    
+    void testMobilityArea(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
+        Chess chess(fen);
+        Evaluator<false> evaluator(chess);
+        EXPECT_EQ(evaluator.mobilityArea[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(evaluator.mobilityArea[BLACK], expectedBlack) << fen;
+    }
+
     void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Chess chess(fen);
         Evaluator evaluator(chess);
@@ -201,6 +216,40 @@ TEST_F(EvaluatorTest, QueenScore) {
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
         testPiecesScore<QUEEN>(fen, expectedWhite, expectedBlack);
+    }
+}
+
+TEST_F(EvaluatorTest, Mobility) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {EMPTYFEN, {0}, {0}},
+        // no mobility area restriction
+        {"3nk3/8/8/8/8/8/8/3NK3 w - - 0 1", KNIGHT_MOBILITY[4], KNIGHT_MOBILITY[4]},
+        {"3bk3/8/8/8/8/8/8/3BK3 w - - 0 2", BISHOP_MOBILITY[7], BISHOP_MOBILITY[7]},
+        {"3rk3/8/8/8/8/8/8/3RK3 w - - 0 3", ROOK_MOBILITY[11], ROOK_MOBILITY[11]},
+        {"3qk3/8/8/8/8/8/8/3QK3 w - - 0 4", QUEEN_MOBILITY[18], QUEEN_MOBILITY[18]},
+        // with mobility area restriction
+        {"3nk3/1p6/8/3P4/3p4/8/1P6/3NK3 w - - 0 5", KNIGHT_MOBILITY[1], KNIGHT_MOBILITY[1]},
+        {"3bk3/4p3/8/1p6/1P6/8/4P3/3BK3 w - - 0 6", BISHOP_MOBILITY[2], BISHOP_MOBILITY[2]},
+        {"3rk3/P2p4/8/8/8/8/p2P4/3RK3 w - - 0 7", ROOK_MOBILITY[3], ROOK_MOBILITY[3]},
+        {"3qk3/P2pp3/8/1p6/1P6/8/p2PP3/3QK3 w - - 0 8", QUEEN_MOBILITY[5], QUEEN_MOBILITY[5]},
+
+    };
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testMobility(fen, expectedWhite, expectedBlack);
+    }
+}
+
+TEST_F(EvaluatorTest, MobilityArea) {
+    U64 white = BB::rankmask(RANK2, WHITE) | BB::rankmask(RANK3, BLACK);
+    U64 black = BB::rankmask(RANK2, BLACK) | BB::rankmask(RANK3, WHITE);
+    std::vector<std::tuple<std::string, U64, U64>> testCases = {
+        {STARTFEN, ~white, ~black},
+        {EMPTYFEN, ~U64(0), ~U64(0)},
+    };
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testMobilityArea(fen, expectedWhite, expectedBlack);
     }
 }
 
