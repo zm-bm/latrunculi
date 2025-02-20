@@ -11,9 +11,9 @@
 #include "zobrist.hpp"
 
 struct Board {
-    U64 pieces[N_COLORS][N_PIECES] = {0};
+    U64 piecesBB[N_COLORS][N_PIECES] = {0};
     Piece squares[N_SQUARES] = {NO_PIECE};
-    Square kingSq[N_COLORS] = {E1, E8};
+    Square kingSquare[N_COLORS] = {E1, E8};
     U8 pieceCount[N_COLORS][N_PIECES] = {0};
 
     Board() = default;
@@ -29,10 +29,10 @@ struct Board {
     template <PieceType p>
     int count(Color c) const;
     template <PieceType p>
-    U64 getPieces(Color c) const;
-    Piece getPiece(Square sq) const;
-    PieceType getPieceType(Square sq) const;
-    Square getKingSq(Color c) const;
+    U64 pieces(Color c) const;
+    Piece pieceOn(Square sq) const;
+    PieceType pieceTypeOn(Square sq) const;
+    Square kingSq(Color c) const;
 
     // movegen helpers
     U64 occupancy() const;
@@ -55,23 +55,23 @@ inline Board::Board(const std::string& fen) {
         addPiece(piece->square, piece->color, piece->role);
 
         if (piece->role == KING) {
-            kingSq[piece->color] = piece->square;
+            kingSquare[piece->color] = piece->square;
         }
     }
 }
 
 inline void Board::addPiece(const Square sq, const Color c, const PieceType p) {
     // Toggle bitboards and add to square centric board
-    pieces[c][ALL_PIECES] ^= BB::set(sq);
-    pieces[c][p] ^= BB::set(sq);
-    squares[sq] = Defs::makePiece(c, p);
+    piecesBB[c][ALL_PIECES] ^= BB::set(sq);
+    piecesBB[c][p] ^= BB::set(sq);
+    squares[sq] = makePiece(c, p);
     pieceCount[c][p]++;
 }
 
 inline void Board::removePiece(const Square sq, const Color c, const PieceType p) {
     // Toggle bitboards
-    pieces[c][ALL_PIECES] ^= BB::set(sq);
-    pieces[c][p] ^= BB::set(sq);
+    piecesBB[c][ALL_PIECES] ^= BB::set(sq);
+    piecesBB[c][p] ^= BB::set(sq);
     // squares[sq] = NO_PIECE;
     pieceCount[c][p]--;
 }
@@ -79,10 +79,10 @@ inline void Board::removePiece(const Square sq, const Color c, const PieceType p
 inline void Board::movePiece(const Square from, const Square to, const Color c, const PieceType p) {
     // Toggle bitboards and add to square centric board
     U64 mask = BB::set(from) | BB::set(to);
-    pieces[c][ALL_PIECES] ^= mask;
-    pieces[c][p] ^= mask;
+    piecesBB[c][ALL_PIECES] ^= mask;
+    piecesBB[c][p] ^= mask;
     squares[from] = NO_PIECE;
-    squares[to] = Defs::makePiece(c, p);
+    squares[to] = makePiece(c, p);
 }
 
 template <PieceType p>
@@ -92,41 +92,41 @@ inline int Board::count(Color c) const {
 }
 
 template <PieceType p>
-inline U64 Board::getPieces(Color c) const {
+inline U64 Board::pieces(Color c) const {
     // Return the bitboard of pieces of a specific role for the given color
-    return pieces[c][p];
+    return piecesBB[c][p];
 }
 
-inline Piece Board::getPiece(Square sq) const {
+inline Piece Board::pieceOn(Square sq) const {
     // Return the piece located at a specific square
     return squares[sq];
 }
 
-inline PieceType Board::getPieceType(Square sq) const {
+inline PieceType Board::pieceTypeOn(Square sq) const {
     // Return the role of the piece located at a specific square
-    return Defs::getPieceType(squares[sq]);
+    return pieceTypeOf(squares[sq]);
 }
 
-inline Square Board::getKingSq(Color c) const {
+inline Square Board::kingSq(Color c) const {
     // Return the square of the king for the given color
-    return kingSq[c];
+    return kingSquare[c];
 }
 
 inline U64 Board::occupancy() const {
     // Return the combined bitboard of all pieces on the board
-    return pieces[WHITE][ALL_PIECES] | pieces[BLACK][ALL_PIECES];
+    return piecesBB[WHITE][ALL_PIECES] | piecesBB[BLACK][ALL_PIECES];
 }
 
 inline U64 Board::diagonalSliders(Color c) const {
     // Return the bitboard of diagonal sliding pieces (Bishops and Queens) for
     // the given color
-    return pieces[c][BISHOP] | pieces[c][QUEEN];
+    return piecesBB[c][BISHOP] | piecesBB[c][QUEEN];
 }
 
 inline U64 Board::straightSliders(Color c) const {
     // Return the bitboard of straight sliding pieces (Rooks and Queens) for the
     // given color
-    return pieces[c][ROOK] | pieces[c][QUEEN];
+    return piecesBB[c][ROOK] | piecesBB[c][QUEEN];
 }
 
 inline U64 Board::attacksTo(Square sq, Color c) const {
@@ -138,9 +138,9 @@ inline U64 Board::attacksTo(Square sq, Color c, U64 occ) const {
     // Returns a bitboard of pieces of color c which attacks a square
     U64 piece = BB::set(sq);
 
-    return (getPieces<PAWN>(c) & BB::pawnAttacks(piece, ~c)) |
-           (getPieces<KNIGHT>(c) & BB::pieceMoves<KNIGHT>(sq, occ)) |
-           (getPieces<KING>(c) & BB::pieceMoves<KING>(sq, occ)) |
+    return (pieces<PAWN>(c) & BB::pawnAttacks(piece, ~c)) |
+           (pieces<KNIGHT>(c) & BB::pieceMoves<KNIGHT>(sq, occ)) |
+           (pieces<KING>(c) & BB::pieceMoves<KING>(sq, occ)) |
            (diagonalSliders(c) & BB::pieceMoves<BISHOP>(sq, occ)) |
            (straightSliders(c) & BB::pieceMoves<ROOK>(sq, occ));
 }
@@ -149,7 +149,7 @@ inline U64 Board::calculateCheckBlockers(Color c, Color kingC) const {
     // Determine pieces of color c, which block the color kingC from attack by
     // the enemy
     Color enemy = ~kingC;
-    Square king = getKingSq(kingC);
+    Square king = kingSq(kingC);
 
     // Determine which enemy sliders could check the kingC's king
     U64 blockers = 0;
@@ -164,7 +164,7 @@ inline U64 Board::calculateCheckBlockers(Color c, Color kingC) const {
         // Check if only one piece separates the slider and the king
         U64 piecesInBetween = occupancy() & BB::betweenBB(king, pinner);
         if (!BB::hasMoreThanOne(piecesInBetween)) {
-            blockers |= piecesInBetween & getPieces<ALL_PIECES>(c);
+            blockers |= piecesInBetween & pieces<ALL_PIECES>(c);
         }
     }
 
@@ -185,7 +185,7 @@ inline U64 Board::calculatePinnedPieces(Color c) const {
 
 inline U64 Board::calculateCheckingPieces(Color c) const {
     // Calculate and return the bitboard of pieces attacking the king
-    return attacksTo(getKingSq(c), ~c);
+    return attacksTo(kingSq(c), ~c);
 }
 
 inline bool Board::isBitboardAttacked(U64 bitboard, Color c) const {
@@ -205,7 +205,7 @@ inline std::ostream& operator<<(std::ostream& os, const Board& b) {
         os << "   +---+---+---+---+---+---+---+---+\n";
         os << "   |";
         for (File file = FILE1; file <= FILE8; file++) {
-            os << " " << b.getPiece(Defs::sqFromCoords(file, rank)) << " |";
+            os << " " << b.pieceOn(sqFromCoords(file, rank)) << " |";
         }
         os << " " << rank << '\n';
     }

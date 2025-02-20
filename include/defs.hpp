@@ -8,8 +8,6 @@
 
 #include "types.hpp"
 
-namespace Defs {
-
 inline constexpr Square sqFromCoords(const File file, const Rank rank) {
     return static_cast<Square>(rank * 8 + file);
 }
@@ -20,21 +18,21 @@ inline Square sqFromString(const std::string& square) {
     return sqFromCoords(file, rank);
 }
 
-inline constexpr Rank rankFromSq(const Square square) { return Rank(square >> 3); }
+inline constexpr Rank rankOf(const Square square) { return Rank(square >> 3); }
 
-inline constexpr File fileFromSq(const Square square) { return File(square & 7); }
+inline constexpr File fileOf(const Square square) { return File(square & 7); }
 
 inline constexpr Piece makePiece(const Color c, const PieceType p) {
     // create piece from color+role
     return Piece((c << 3) | p);
 }
 
-inline constexpr PieceType getPieceType(const Piece p) {
+inline constexpr PieceType pieceTypeOf(const Piece p) {
     // get the role from a piece
     return PieceType(p & 0x7);
 }
 
-inline constexpr Color getPieceColor(const Piece p) {
+inline constexpr Color pieceColorOf(const Piece p) {
     // get the color of a piece
     return Color(p >> 3);
 }
@@ -50,7 +48,7 @@ inline Square pawnMove(const Square sq, const Color c) {
     return (c == WHITE) ? pawnMove<WHITE, p, forward>(sq) : pawnMove<BLACK, p, forward>(sq);
 }
 
-constexpr U64 target(File file, Rank rank) {
+static constexpr U64 _target(File file, Rank rank) {
     if (FILE1 <= file && file <= FILE8 && RANK1 <= rank && rank <= RANK8) {
         auto sq = rank * 8 + file;
         return 1ULL << sq;
@@ -60,31 +58,31 @@ constexpr U64 target(File file, Rank rank) {
 
 constexpr U64 computeKnightAttacks(int sq) {
     U64 mask = 0;
-    auto file = Defs::fileFromSq(Square(sq));
-    auto rank = Defs::rankFromSq(Square(sq));
-    mask |= target(file + 2, rank + 1);
-    mask |= target(file + 2, rank - 1);
-    mask |= target(file - 2, rank + 1);
-    mask |= target(file - 2, rank - 1);
-    mask |= target(file + 1, rank + 2);
-    mask |= target(file - 1, rank + 2);
-    mask |= target(file + 1, rank - 2);
-    mask |= target(file - 1, rank - 2);
+    auto file = fileOf(Square(sq));
+    auto rank = rankOf(Square(sq));
+    mask |= _target(file + 2, rank + 1);
+    mask |= _target(file + 2, rank - 1);
+    mask |= _target(file - 2, rank + 1);
+    mask |= _target(file - 2, rank - 1);
+    mask |= _target(file + 1, rank + 2);
+    mask |= _target(file - 1, rank + 2);
+    mask |= _target(file + 1, rank - 2);
+    mask |= _target(file - 1, rank - 2);
     return mask;
 }
 
 constexpr U64 computeKingAttacks(int sq) {
     U64 mask = 0;
-    auto file = Defs::fileFromSq(Square(sq));
-    auto rank = Defs::rankFromSq(Square(sq));
-    mask |= target(file - 1, rank - 1);
-    mask |= target(file - 1, rank + 1);
-    mask |= target(file + 1, rank - 1);
-    mask |= target(file + 1, rank + 1);
-    mask |= target(file, rank - 1);
-    mask |= target(file, rank + 1);
-    mask |= target(file - 1, rank);
-    mask |= target(file + 1, rank);
+    auto file = fileOf(Square(sq));
+    auto rank = rankOf(Square(sq));
+    mask |= _target(file - 1, rank - 1);
+    mask |= _target(file - 1, rank + 1);
+    mask |= _target(file + 1, rank - 1);
+    mask |= _target(file + 1, rank + 1);
+    mask |= _target(file, rank - 1);
+    mask |= _target(file, rank + 1);
+    mask |= _target(file - 1, rank);
+    mask |= _target(file + 1, rank);
     return mask;
 }
 
@@ -169,7 +167,7 @@ constexpr U64 computeBitsBetween(int sq1, int sq2) {
     return mask;
 }
 
-inline std::vector<std::string> split(const std::string& s, char delim) {
+inline std::vector<std::string> splitStr(const std::string& s, char delim) {
     std::vector<std::string> tokens;
     std::string token;
     std::stringstream ss(s);
@@ -180,7 +178,5 @@ inline std::vector<std::string> split(const std::string& s, char delim) {
 
     return tokens;
 }
-
-}  // namespace Defs
 
 #endif

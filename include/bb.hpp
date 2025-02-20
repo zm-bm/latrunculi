@@ -54,7 +54,7 @@ constexpr std::array<U64, N_SQUARES> BITCLEAR = [] {
 constexpr std::array<U64, N_SQUARES> KNIGHT_ATTACKS = [] {
     std::array<U64, N_SQUARES> arr = {};
     for (auto sq = 0; sq < N_SQUARES; ++sq) {
-        arr[sq] = Defs::computeKnightAttacks(sq);
+        arr[sq] = computeKnightAttacks(sq);
     }
     return arr;
 }();
@@ -62,7 +62,7 @@ constexpr std::array<U64, N_SQUARES> KNIGHT_ATTACKS = [] {
 constexpr std::array<U64, N_SQUARES> KING_ATTACKS = [] {
     std::array<U64, N_SQUARES> arr = {};
     for (auto sq = 0; sq < N_SQUARES; ++sq) {
-        arr[sq] = Defs::computeKingAttacks(sq);
+        arr[sq] = computeKingAttacks(sq);
     }
     return arr;
 }();
@@ -71,7 +71,7 @@ constexpr std::array<std::array<U64, N_SQUARES>, N_SQUARES> BITS_INLINE = [] {
     std::array<std::array<U64, N_SQUARES>, N_SQUARES> table = {};
     for (auto sq1 = 0; sq1 < N_SQUARES; ++sq1) {
         for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
-            table[sq1][sq2] = Defs::computeBitsInline(sq1, sq2);
+            table[sq1][sq2] = computeBitsInline(sq1, sq2);
         }
     }
     return table;
@@ -81,7 +81,7 @@ constexpr std::array<std::array<U64, N_SQUARES>, N_SQUARES> BITS_BETWEEN = [] {
     std::array<std::array<U64, N_SQUARES>, N_SQUARES> table = {};
     for (auto sq1 = 0; sq1 < N_SQUARES; ++sq1) {
         for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
-            table[sq1][sq2] = Defs::computeBitsBetween(sq1, sq2);
+            table[sq1][sq2] = computeBitsBetween(sq1, sq2);
         }
     }
     return table;
@@ -91,7 +91,7 @@ constexpr std::array<std::array<int, N_SQUARES>, N_SQUARES> DISTANCE = [] {
     std::array<std::array<int, N_SQUARES>, N_SQUARES> table = {};
     for (int sq1 = 0; sq1 < N_SQUARES; ++sq1) {
         for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
-            table[sq1][sq2] = Defs::computeDistance(sq1, sq2);
+            table[sq1][sq2] = computeDistance(sq1, sq2);
         }
     }
     return table;
@@ -367,7 +367,7 @@ struct Bitboard {
             os << "  ";
 
             for (int file = 0; file < 8; file++) {
-                os << output[Defs::sqFromCoords(File(file), Rank(rank))];
+                os << output[sqFromCoords(File(file), Rank(rank))];
             }
 
             os << " " << (rank + 1) << "\n";

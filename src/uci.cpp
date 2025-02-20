@@ -30,7 +30,7 @@ void Controller::loop() {
 
 bool Controller::execute(const std::string& input) {
   // Split input string to get the UCI command
-  auto tokens = Defs::split(input, ' ');
+  auto tokens = splitStr(input, ' ');
   auto cmd = tokens.at(0);
   tokens.erase(tokens.begin());
 

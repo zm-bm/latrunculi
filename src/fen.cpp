@@ -5,7 +5,7 @@ FenParser::FenParser(const std::string& fen) : fen(fen) {
 }
 
 void FenParser::parse() {
-    std::vector<std::string> sections = Defs::split(fen, ' ');
+    std::vector<std::string> sections = splitStr(fen, ' ');
 
     if (sections.size() < 4) {
         throw std::invalid_argument("Invalid FEN: must have at least 4 sections");
@@ -36,7 +36,7 @@ void FenParser::parsePiecePlacement(const std::string& section) {
         if (((int)ch > 48) && ((int)ch < 57)) {
             file += File((int)ch - '0');
         } else {
-            Square sq = Defs::sqFromCoords(file, rank);
+            Square sq = sqFromCoords(file, rank);
 
             switch (ch) {
                 case 'P':
@@ -122,7 +122,7 @@ void FenParser::parseCastlingRights(const std::string& section) {
 
 void FenParser::parseEnPassantTarget(const std::string& section) {
     if (section.compare("-") != 0) {
-        en_passant_target_ = Defs::sqFromString(section);
+        en_passant_target_ = sqFromString(section);
     }
 }
 

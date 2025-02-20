@@ -9,7 +9,7 @@ void MoveGenerator::generatePseudoLegalMoves() {
         generateEvasions();
     } else {
         Color enemy = ~chess->turn;
-        U64 targets = chess->board.getPieces<ALL_PIECES>(enemy);
+        U64 targets = chess->board.pieces<ALL_PIECES>(enemy);
         generateMovesToTarget<CAPTURES>(targets);
 
         targets = ~chess->board.occupancy();
@@ -22,7 +22,7 @@ void MoveGenerator::generateCaptures() {
         generateEvasions();
     } else {
         Color enemy = ~chess->turn;
-        U64 targets = chess->board.getPieces<ALL_PIECES>(enemy);
+        U64 targets = chess->board.pieces<ALL_PIECES>(enemy);
         generateMovesToTarget<CAPTURES>(targets);
     }
 }
@@ -35,7 +35,7 @@ void MoveGenerator::generateEvasions() {
     if (!chess->isDoubleCheck()) {
         // Get square of the checking piece and checked king
         Square checker = BB::lsb(chess->getCheckingPieces());
-        Square king = chess->board.getKingSq(turn);
+        Square king = chess->board.kingSq(turn);
 
         // Generate moves which block or capture the checking piece
         // NOTE: generateMovesToTarget<EVASIONS> does NOT generate king moves
@@ -44,7 +44,7 @@ void MoveGenerator::generateEvasions() {
     }
 
     // Generate king evasions
-    targets = ~chess->board.getPieces<ALL_PIECES>(turn);
+    targets = ~chess->board.pieces<ALL_PIECES>(turn);
     generateKingMoves<EVASIONS>(targets, chess->board.occupancy());
 }
 
@@ -81,17 +81,17 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
     // generation
     if (g == EVASIONS) {
         // If generating evasions, only attack checking pieces
-        enemies = chess->board.getPieces<ALL_PIECES>(enemy) & targets;
+        enemies = chess->board.pieces<ALL_PIECES>(enemy) & targets;
     } else if (g == CAPTURES) {
         // If generating captures, targets are all enemy pieces
         enemies = targets;
     } else if (g == QUIETS) {
         // If generating quiet moves, get enemy pieces
-        enemies = chess->board.getPieces<ALL_PIECES>(enemy);
+        enemies = chess->board.pieces<ALL_PIECES>(enemy);
     }
 
     // Get 7th rank pawns
-    U64 pawns = chess->board.getPieces<PAWN>(c) & BB::rank(RANK7, c);
+    U64 pawns = chess->board.pieces<PAWN>(c) & BB::rank(RANK7, c);
 
     // Generate pawn promotions, if there are targets attacked by 7th rank pawns
     if (pawns && (g != EVASIONS || (targets & BB::rank(RANK8, c)))) {
@@ -109,7 +109,7 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
     }
 
     // Get non 7th rank pawns
-    pawns = chess->board.getPieces<PAWN>(c) & ~BB::rank(RANK7, c);
+    pawns = chess->board.pieces<PAWN>(c) & ~BB::rank(RANK7, c);
 
     if (g != QUIETS) {
         // Generate captures
@@ -123,7 +123,7 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
         if (enpassant != INVALID) {
             // Only necessary if enemy pawn is targeted, or if in check
             Square enemyPawn =
-                Defs::pawnMove<c, PUSH, false>(enpassant);
+                pawnMove<c, PUSH, false>(enpassant);
             if (g != EVASIONS || (targets & BB::set(enemyPawn))) {
                 // Append en passant captures to move list
                 addEnPassants<LEFT, c>(pawns, enpassant);
@@ -153,7 +153,7 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
 template <GenType g>
 void MoveGenerator::generateKingMoves(const U64 targets, const U64 occ) {
     Color turn = chess->turn;
-    Square from = chess->board.getKingSq(turn);
+    Square from = chess->board.kingSq(turn);
 
     U64 kingMoves = BB::pieceMoves<KING>(from) & targets;
 
@@ -181,7 +181,7 @@ void MoveGenerator::generateKingMoves(const U64 targets, const U64 occ) {
 template <PieceType p, Color c>
 void MoveGenerator::generatePieceMoves(const U64 targets, const U64 occ) {
     Color turn = chess->turn;
-    U64 bitboard = chess->board.getPieces<p>(turn);
+    U64 bitboard = chess->board.pieces<p>(turn);
 
     while (bitboard) {
         // Pop lsb bit and clear it from the bitboard
