@@ -19,7 +19,6 @@ enum Term {
     TERM_BISHOPS,
     TERM_ROOKS,
     TERM_QUEENS,
-    TERM_KINGS,
     TERM_KING_SAFETY,
     TERM_MOBILITY,
     TERM_THREATS,
@@ -63,6 +62,7 @@ class Evaluator {
 
     U64 outposts[N_COLORS] = {0, 0};
     U64 mobilityArea[N_COLORS] = {0, 0};
+    U64 kingArea[N_COLORS] = {0, 0};
 
     Score mobility[N_COLORS] = {{0, 0}, {0, 0}};
 
@@ -78,6 +78,8 @@ class Evaluator {
 
     template <Color>
     Score pawnsScore();
+    template <Color>
+    Score kingSafetyScore();
     template <Color, PieceType>
     Score piecesScore();
 
@@ -102,6 +104,7 @@ void Evaluator<debug>::initialize() {
 
     outposts[c] = Eval::outpostSquares<c>(pawns, enemyPawns);
     mobilityArea[c] = ~((pawns & BB::rankmask(RANK2, c)) | BB::attacksByPawns<enemy>(enemyPawns));
+    kingArea[c] = BB::movesByPiece<KING>(board.kingSq[c]);
 }
 
 template <bool debug>
@@ -123,6 +126,8 @@ inline Score Evaluator<debug>::evaluateTerm() {
         score = piecesScore<c, ROOK>();
     } else if constexpr (term == TERM_QUEENS) {
         score = piecesScore<c, QUEEN>();
+    } else if constexpr (term == TERM_KING_SAFETY) {
+        score = kingSafetyScore<c>();
     } else if constexpr (term == TERM_MOBILITY) {
         score = mobility[c];
     } else {
@@ -147,6 +152,7 @@ int Evaluator<debug>::eval() {
     score += evaluateTerm<TERM_BISHOPS, WHITE>() - evaluateTerm<TERM_BISHOPS, BLACK>();
     score += evaluateTerm<TERM_ROOKS, WHITE>() - evaluateTerm<TERM_ROOKS, BLACK>();
     score += evaluateTerm<TERM_QUEENS, WHITE>() - evaluateTerm<TERM_QUEENS, BLACK>();
+    score += evaluateTerm<TERM_KING_SAFETY, WHITE>() - evaluateTerm<TERM_KING_SAFETY, BLACK>();
 
     // more complex eval terms require pieces to be evaluated first
     score += evaluateTerm<TERM_MOBILITY, WHITE>() - evaluateTerm<TERM_MOBILITY, BLACK>();
@@ -173,6 +179,7 @@ int Evaluator<debug>::eval() {
                   << TermOutput{"Knights", scores[TERM_KNIGHTS], std::nullopt}
                   << TermOutput{"Bishops", scores[TERM_BISHOPS], std::nullopt}
                   << TermOutput{"Rooks", scores[TERM_ROOKS], std::nullopt}
+                  << TermOutput{"Queens", scores[TERM_QUEENS], std::nullopt}
                   << TermOutput{"Queens", scores[TERM_QUEENS], std::nullopt}
                   << TermOutput{"Mobility", scores[TERM_MOBILITY], std::nullopt}
                   << " ------------+-------------+-------------+------------\n"
@@ -209,6 +216,15 @@ inline Score Evaluator<debug>::pawnsScore() {
 
     U64 doubledPawns = Eval::doubledPawns<c>(pawns);
     score += DOUBLED_PAWN_PENALTY * BB::bitCount(doubledPawns);
+
+    return score;
+}
+
+template <bool debug>
+template <Color c>
+inline Score Evaluator<debug>::kingSafetyScore() {
+    constexpr Color enemy = ~c;
+    Score score = {0, 0};
 
     return score;
 }
