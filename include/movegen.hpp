@@ -90,7 +90,7 @@ inline void MoveGenerator::addPawnPromotions(U64 bitboard) {
 
 template <PawnMove p, Color c>
 inline void MoveGenerator::addEnPassants(U64 pawns, Square enpassant) {
-    U64 bitboard = BB::movesByPawns<p, c>(pawns) & BB::set(enpassant);
+    U64 bitboard = BB::pawnMoves<p, c>(pawns) & BB::set(enpassant);
 
     if (bitboard) {
         Square from = Defs::pawnMove<c, p, false>(enpassant);

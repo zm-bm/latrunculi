@@ -59,7 +59,7 @@ class Chess {
     Square getEnPassant() const { return state.at(ply).enPassantSq; }
     U8 getHmClock() const { return state.at(ply).hmClock; }
     bool isCheck() const { return getCheckingPieces(); }
-    bool isDoubleCheck() const { return BB::moreThanOneSet(getCheckingPieces()); }
+    bool isDoubleCheck() const { return BB::hasMoreThanOne(getCheckingPieces()); }
     Score materialScore() const { return material; }
     Score psqBonusScore() const { return psqBonus; }
 
@@ -126,10 +126,10 @@ inline void Chess::updateState(bool checkingMove = true) {
 
     state[ply].pinnedPieces = board.calculatePinnedPieces(turn);
     state[ply].discoveredCheckers = board.calculateDiscoveredCheckers(turn);
-    state[ply].checkingSquares[PAWN] = BB::attacksByPawns(BB::set(king), enemy);
-    state[ply].checkingSquares[KNIGHT] = BB::movesByPiece<KNIGHT>(king, occ);
-    state[ply].checkingSquares[BISHOP] = BB::movesByPiece<BISHOP>(king, occ);
-    state[ply].checkingSquares[ROOK] = BB::movesByPiece<ROOK>(king, occ);
+    state[ply].checkingSquares[PAWN] = BB::pawnAttacks(BB::set(king), enemy);
+    state[ply].checkingSquares[KNIGHT] = BB::pieceMoves<KNIGHT>(king, occ);
+    state[ply].checkingSquares[BISHOP] = BB::pieceMoves<BISHOP>(king, occ);
+    state[ply].checkingSquares[ROOK] = BB::pieceMoves<ROOK>(king, occ);
     state[ply].checkingSquares[QUEEN] =
         state[ply].checkingSquares[BISHOP] | state[ply].checkingSquares[ROOK];
 }

@@ -103,8 +103,8 @@ void Evaluator<debug>::initialize() {
     U64 enemyPawns = board.getPieces<PAWN>(enemy);
 
     outposts[c] = Eval::outpostSquares<c>(pawns, enemyPawns);
-    mobilityArea[c] = ~((pawns & BB::rankmask(RANK2, c)) | BB::attacksByPawns<enemy>(enemyPawns));
-    kingArea[c] = BB::movesByPiece<KING>(board.kingSq[c]);
+    mobilityArea[c] = ~((pawns & BB::rank(RANK2, c)) | BB::pawnAttacks<enemy>(enemyPawns));
+    kingArea[c] = BB::pieceMoves<KING>(board.kingSq[c]);
 }
 
 template <bool debug>
@@ -209,13 +209,13 @@ inline Score Evaluator<debug>::pawnsScore() {
     U64 enemyPawns = board.getPieces<PAWN>(enemy);
 
     U64 isolatedPawns = Eval::isolatedPawns(pawns);
-    score += ISO_PAWN_PENALTY * BB::bitCount(isolatedPawns);
+    score += ISO_PAWN_PENALTY * BB::count(isolatedPawns);
 
     U64 backwardsPawns = Eval::backwardsPawns<c>(pawns, enemyPawns);
-    score += BACKWARD_PAWN_PENALTY * BB::bitCount(backwardsPawns);
+    score += BACKWARD_PAWN_PENALTY * BB::count(backwardsPawns);
 
     U64 doubledPawns = Eval::doubledPawns<c>(pawns);
-    score += DOUBLED_PAWN_PENALTY * BB::bitCount(doubledPawns);
+    score += DOUBLED_PAWN_PENALTY * BB::count(doubledPawns);
 
     return score;
 }
@@ -247,9 +247,9 @@ Score Evaluator<debug>::piecesScore() {
 
     forEachPiece<c>(board.getPieces<p>(c), [&](Square sq) {
         U64 bb = BB::set(sq);
-        U64 moves = BB::movesByPiece<p>(sq, occ);
+        U64 moves = BB::pieceMoves<p>(sq, occ);
 
-        U64 nMoves = BB::bitCount(moves & mobilityArea[c]);
+        U64 nMoves = BB::count(moves & mobilityArea[c]);
         mobility[c] += MOBILITY_BONUS[p][nMoves];
 
         if constexpr (p == KNIGHT || p == BISHOP) {
@@ -261,13 +261,13 @@ Score Evaluator<debug>::piecesScore() {
             }
 
             // bonus minor piece guarded by pawn
-            if (bb & BB::movesByPawns<PUSH, enemy>(pawns)) {
+            if (bb & BB::pawnMoves<PUSH, enemy>(pawns)) {
                 score += MINOR_BEHIND_PAWN_BONUS;
             }
 
             if constexpr (p == BISHOP) {
                 // bonus for bishop on long diagonal
-                if (BB::moreThanOneSet(CENTER_SQUARES & BB::movesByPiece<p>(sq, pawns))) {
+                if (BB::hasMoreThanOne(CENTER_SQUARES & BB::pieceMoves<p>(sq, pawns))) {
                     score += BISHOP_LONG_DIAG_BONUS;
                 }
 
@@ -278,11 +278,11 @@ Score Evaluator<debug>::piecesScore() {
 
         if constexpr (p == ROOK) {
             // bonus for rook on open file, penalty for closed file w blocked pawn
-            U64 filemask = BB::filemask(Defs::fileFromSq(sq));
-            if (!(pawns & filemask)) {
-                score += ROOK_OPEN_FILE_BONUS[!(enemyPawns & filemask)];
+            U64 fileBB = BB::file(Defs::fileFromSq(sq));
+            if (!(pawns & fileBB)) {
+                score += ROOK_OPEN_FILE_BONUS[!(enemyPawns & fileBB)];
             } else {
-                if (pawns & filemask & BB::movesByPawns<PUSH, enemy>(occ)) {
+                if (pawns & fileBB & BB::pawnMoves<PUSH, enemy>(occ)) {
                     score += ROOK_CLOSED_FILE_PENALTY;
                 }
             }
@@ -319,18 +319,18 @@ inline bool Evaluator<debug>::discoveredAttackOnQueen(Square sq, U64 occ) const 
     constexpr Color enemy = ~c;
     bool attacked = false;
 
-    U64 attackingBishops = BB::movesByPiece<BISHOP>(sq, 0) & board.getPieces<BISHOP>(enemy);
+    U64 attackingBishops = BB::pieceMoves<BISHOP>(sq, 0) & board.getPieces<BISHOP>(enemy);
     forEachPiece<c>(attackingBishops, [&](Square bishopSq) {
-        U64 piecesBetween = BB::bitsBtwn(sq, bishopSq) & occ;
-        if (piecesBetween && !BB::moreThanOneSet(piecesBetween)) {
+        U64 piecesBetween = BB::betweenBB(sq, bishopSq) & occ;
+        if (piecesBetween && !BB::hasMoreThanOne(piecesBetween)) {
             attacked = true;
         }
     });
 
-    U64 attackingRooks = BB::movesByPiece<ROOK>(sq, 0) & board.getPieces<ROOK>(enemy);
+    U64 attackingRooks = BB::pieceMoves<ROOK>(sq, 0) & board.getPieces<ROOK>(enemy);
     forEachPiece<c>(attackingRooks, [&](Square rookSq) {
-        U64 piecesBetween = BB::bitsBtwn(sq, rookSq) & occ;
-        if (piecesBetween && !BB::moreThanOneSet(piecesBetween)) {
+        U64 piecesBetween = BB::betweenBB(sq, rookSq) & occ;
+        if (piecesBetween && !BB::hasMoreThanOne(piecesBetween)) {
             attacked = true;
         }
     });
@@ -358,11 +358,11 @@ template <Color c>
 inline int Evaluator<debug>::bishopPawnBlockers(U64 bb) const {
     constexpr Color enemy = ~c;
     U64 pawns = board.getPieces<PAWN>(c);
-    U64 blockedPawns = pawns & BB::movesByPawns<PUSH, enemy>(board.occupancy());
+    U64 blockedPawns = pawns & BB::pawnMoves<PUSH, enemy>(board.occupancy());
     U64 sameColorSquares = (bb & DARK_SQUARES) ? DARK_SQUARES : LIGHT_SQUARES;
     int pawnFactor =
-        BB::bitCount(blockedPawns & CENTER_FILES) + !(BB::attacksByPawns<c>(pawns) & bb);
-    return pawnFactor * BB::bitCount(pawns & sameColorSquares);
+        BB::count(blockedPawns & CENTER_FILES) + !(BB::pawnAttacks<c>(pawns) & bb);
+    return pawnFactor * BB::count(pawns & sameColorSquares);
 }
 
 template <bool debug>

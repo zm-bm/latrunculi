@@ -106,14 +106,14 @@ constexpr Rank RANK_BY_COLOR[N_COLORS][N_RANKS] = {
     {RANK8, RANK7, RANK6, RANK5, RANK4, RANK3, RANK2, RANK1},
     {RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8},
 };
-inline U64 rankmask(Rank r, Color c) { return RANK_MASK[RANK_BY_COLOR[c][r]]; }
+inline U64 rank(Rank r, Color c) { return RANK_MASK[RANK_BY_COLOR[c][r]]; }
 
 constexpr File FILE_BY_COLOR[N_COLORS][N_FILES] = {
     {FILE8, FILE7, FILE6, FILE5, FILE4, FILE3, FILE2, FILE1},
     {FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8},
 };
-inline U64 filemask(File f) { return FILE_MASK[FILE_BY_COLOR[WHITE][f]]; }
-inline U64 filemask(File f, Color c) { return FILE_MASK[FILE_BY_COLOR[c][f]]; }
+inline U64 file(File f) { return FILE_MASK[FILE_BY_COLOR[WHITE][f]]; }
+inline U64 file(File f, Color c) { return FILE_MASK[FILE_BY_COLOR[c][f]]; }
 
 inline constexpr U64 set(const Square sq) {
     // Returns a bitboard with a single bit set corresponding to the given square.
@@ -125,24 +125,24 @@ inline constexpr U64 clear(const Square sq) {
     return BB::BITCLEAR[sq];
 }
 
-inline constexpr U64 bitsInline(const Square from, const Square to) {
+inline constexpr U64 inlineBB(const Square from, const Square to) {
     // Returns a bitboard representing all squares in a straight line
     // of the 'from' and 'to' squares.
     return BITS_INLINE[from][to];
 }
 
-inline constexpr U64 bitsBtwn(const Square from, const Square to) {
+inline constexpr U64 betweenBB(const Square from, const Square to) {
     // Returns a bitboard representing all squares between the 'from'
     // and 'to' squares, exclusive of the endpoints.
     return BITS_BETWEEN[from][to];
 }
 
-inline U64 moreThanOneSet(U64 bb) {
+inline U64 hasMoreThanOne(U64 bb) {
     // Returns non-zero if more than one bit is set in bb.
     return bb & (bb - 1);
 }
 
-inline int bitCount(U64 bb) {
+inline int count(U64 bb) {
     // Returns the count of set bits (1's) in bb.
     return __builtin_popcountll(bb);
 }
@@ -288,11 +288,11 @@ inline U64 kingShield(Square sq) {
 }
 
 template <PawnMove p, Color c>
-inline U64 movesByPawns(U64 pawns) {
+inline U64 pawnMoves(U64 pawns) {
     if constexpr (p == LEFT) {
-        pawns &= ~filemask(FILE1, c);
+        pawns &= ~file(FILE1, c);
     } else if constexpr (p == RIGHT) {
-        pawns &= ~filemask(FILE8, c);
+        pawns &= ~file(FILE8, c);
     }
 
     if constexpr (c == WHITE) {
@@ -303,25 +303,25 @@ inline U64 movesByPawns(U64 pawns) {
 }
 
 template <PawnMove p>
-inline U64 movesByPawns(U64 pawns, Color c) {
+inline U64 pawnMoves(U64 pawns, Color c) {
     if (c == WHITE) {
-        return movesByPawns<p, WHITE>(pawns);
+        return pawnMoves<p, WHITE>(pawns);
     } else {
-        return movesByPawns<p, BLACK>(pawns);
+        return pawnMoves<p, BLACK>(pawns);
     }
 };
 
 template <Color c>
-inline U64 attacksByPawns(U64 pawns) {
-    return movesByPawns<LEFT, c>(pawns) | movesByPawns<RIGHT, c>(pawns);
+inline U64 pawnAttacks(U64 pawns) {
+    return pawnMoves<LEFT, c>(pawns) | pawnMoves<RIGHT, c>(pawns);
 }
 
-inline U64 attacksByPawns(U64 pawns, Color c) {
-    return movesByPawns<LEFT>(pawns, c) | movesByPawns<RIGHT>(pawns, c);
+inline U64 pawnAttacks(U64 pawns, Color c) {
+    return pawnMoves<LEFT>(pawns, c) | pawnMoves<RIGHT>(pawns, c);
 }
 
 template <PieceType p>
-inline U64 movesByPiece(Square sq, U64 occupancy) {
+inline U64 pieceMoves(Square sq, U64 occupancy) {
     switch (p) {
         case KNIGHT: return KNIGHT_ATTACKS[sq];
         case BISHOP: return Magics::getBishopAttacks(sq, occupancy);
@@ -332,47 +332,51 @@ inline U64 movesByPiece(Square sq, U64 occupancy) {
 }
 
 template <PieceType p>
-inline U64 movesByPiece(Square sq) {
-    return movesByPiece<p>(sq, 0);
+inline U64 pieceMoves(Square sq) {
+    return pieceMoves<p>(sq, 0);
 }
 
-inline U64 movesByPiece(Square sq, PieceType p, U64 occupancy) {
+inline U64 pieceMoves(Square sq, PieceType p, U64 occupancy) {
     switch (p) {
-        case KNIGHT: return movesByPiece<KNIGHT>(sq, occupancy);
-        case BISHOP: return movesByPiece<BISHOP>(sq, occupancy);
-        case ROOK: return movesByPiece<ROOK>(sq, occupancy);
-        case QUEEN: return movesByPiece<QUEEN>(sq, occupancy);
-        case KING: return movesByPiece<KING>(sq, occupancy);
+        case KNIGHT: return pieceMoves<KNIGHT>(sq, occupancy);
+        case BISHOP: return pieceMoves<BISHOP>(sq, occupancy);
+        case ROOK: return pieceMoves<ROOK>(sq, occupancy);
+        case QUEEN: return pieceMoves<QUEEN>(sq, occupancy);
+        case KING: return pieceMoves<KING>(sq, occupancy);
         default: return 0;
     }
 }
 
-inline U64 movesByPiece(Square sq, PieceType p) { return movesByPiece(sq, p, 0); }
+inline U64 pieceMoves(Square sq, PieceType p) { return pieceMoves(sq, p, 0); }
 
-inline void print(std::ostream& os, const U64& bb) {
-    // Prints the bitboard in a human-readable chessboard format.
-    char output[64];
+struct Bitboard {
+    U64 value;
 
-    // Generate visual representation of the bitboard.
-    for (unsigned i = 0; i < 64; i++) {
-        output[i] = (bb & BB::BITSET[i]) ? '1' : '.';
-    }
+    friend std::ostream& operator<<(std::ostream& os, const Bitboard& bb) {
+        char output[64];
 
-    os << "\n  abcdefgh\n";
-
-    // Print each rank of the chessboard.
-    for (int rank = 7; rank >= 0; rank--) {
-        os << "  ";
-
-        for (int file = 0; file < 8; file++) {
-            os << output[Defs::sqFromCoords(File(file), Rank(rank))];
+        // Generate visual representation of the bitboard.
+        for (unsigned i = 0; i < 64; i++) {
+                output[i] = (bb.value & BB::BITSET[i]) ? '1' : '.';
         }
 
-        os << " " << (rank + 1) << "\n";
-    }
+        os << "\n  abcdefgh\n";
 
-    os << std::endl;
-}
+        // Print each rank of the chessboard.
+        for (int rank = 7; rank >= 0; rank--) {
+            os << "  ";
+
+            for (int file = 0; file < 8; file++) {
+                os << output[Defs::sqFromCoords(File(file), Rank(rank))];
+            }
+
+            os << " " << (rank + 1) << "\n";
+        }
+
+        os << std::endl;
+            return os;
+    }
+};
 
 }  // namespace BB
 

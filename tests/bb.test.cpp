@@ -25,24 +25,24 @@ U64 targets(const std::vector<Square>& squares) {
     return std::accumulate(squares.begin(), squares.end(), 0ULL, [](U64 acc, Square sq) { return acc | BB::set(sq); });
 }
 
-TEST(BB_bitsInline, CorrectBitsInlineValues) {
-    EXPECT_EQ(BB::bitsInline(B2, D2), BB::RANK_MASK[RANK2]);
-    EXPECT_EQ(BB::bitsInline(D2, B2), BB::RANK_MASK[RANK2]);
-    EXPECT_EQ(BB::bitsInline(B2, B4), BB::FILE_MASK[FILE2]);
-    EXPECT_EQ(BB::bitsInline(B4, B2), BB::FILE_MASK[FILE2]);
-    EXPECT_EQ(BB::bitsInline(A1, H8), targets({A1, B2, C3, D4, E5, F6, G7, H8}));
-    EXPECT_EQ(BB::bitsInline(H8, A1), targets({A1, B2, C3, D4, E5, F6, G7, H8}));
-    EXPECT_EQ(BB::bitsInline(B2, C4), 0);
-    EXPECT_EQ(BB::bitsInline(C4, B2), 0);
+TEST(BB_inline, CorrectBitsInlineValues) {
+    EXPECT_EQ(BB::inlineBB(B2, D2), BB::RANK_MASK[RANK2]);
+    EXPECT_EQ(BB::inlineBB(D2, B2), BB::RANK_MASK[RANK2]);
+    EXPECT_EQ(BB::inlineBB(B2, B4), BB::FILE_MASK[FILE2]);
+    EXPECT_EQ(BB::inlineBB(B4, B2), BB::FILE_MASK[FILE2]);
+    EXPECT_EQ(BB::inlineBB(A1, H8), targets({A1, B2, C3, D4, E5, F6, G7, H8}));
+    EXPECT_EQ(BB::inlineBB(H8, A1), targets({A1, B2, C3, D4, E5, F6, G7, H8}));
+    EXPECT_EQ(BB::inlineBB(B2, C4), 0);
+    EXPECT_EQ(BB::inlineBB(C4, B2), 0);
 }
 
 TEST(BB_bitsBtwn, CorrectBitsBtwnValues) {
-    EXPECT_EQ(BB::bitsBtwn(B2, D2), BB::set(C2));
-    EXPECT_EQ(BB::bitsBtwn(D2, B2), BB::set(C2));
-    EXPECT_EQ(BB::bitsBtwn(B2, B4), BB::set(B3));
-    EXPECT_EQ(BB::bitsBtwn(B4, B2), BB::set(B3));
-    EXPECT_EQ(BB::bitsBtwn(B2, C4), 0);
-    EXPECT_EQ(BB::bitsBtwn(C4, B2), 0);
+    EXPECT_EQ(BB::betweenBB(B2, D2), BB::set(C2));
+    EXPECT_EQ(BB::betweenBB(D2, B2), BB::set(C2));
+    EXPECT_EQ(BB::betweenBB(B2, B4), BB::set(B3));
+    EXPECT_EQ(BB::betweenBB(B4, B2), BB::set(B3));
+    EXPECT_EQ(BB::betweenBB(B2, C4), 0);
+    EXPECT_EQ(BB::betweenBB(C4, B2), 0);
 }
 
 TEST(BB_KNIGHT_ATTACKS, CorrectKnightAttacks) {
@@ -73,16 +73,16 @@ TEST(BB_DISTANCE, CorrectDistanceValues) {
     EXPECT_EQ(BB::DISTANCE[A1][H8], 7);
 }
 
-TEST(BB_moreThanOneSet, CorrectMoreThanOneValues) {
-    EXPECT_EQ(BB::moreThanOneSet(0b100), 0);
-    EXPECT_NE(BB::moreThanOneSet(0b110), 0);
+TEST(BB_hasMoreThanOne, CorrectMoreThanOneValues) {
+    EXPECT_EQ(BB::hasMoreThanOne(0b100), 0);
+    EXPECT_NE(BB::hasMoreThanOne(0b110), 0);
 }
 
 TEST(BB_bitCount, CorrectBitCount) {
-    EXPECT_EQ(BB::bitCount(0b0), 0);
-    EXPECT_EQ(BB::bitCount(0b1000), 1);
-    EXPECT_EQ(BB::bitCount(0b1010), 2);
-    EXPECT_EQ(BB::bitCount(0b1011), 3);
+    EXPECT_EQ(BB::count(0b0), 0);
+    EXPECT_EQ(BB::count(0b1000), 1);
+    EXPECT_EQ(BB::count(0b1010), 2);
+    EXPECT_EQ(BB::count(0b1011), 3);
 }
 
 TEST(BB_lsb, CorrectLeastSignificantBit) {

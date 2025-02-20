@@ -185,12 +185,12 @@ bool Chess::isLegalMove(Move mv) const {
         // Check if captured pawn was blocking check
         Square enemyPawn = Defs::pawnMove<PUSH, false>(to, turn);
         U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
-        return !(BB::movesByPiece<BISHOP>(king, occ) & board.diagonalSliders(~turn)) &&
-               !(BB::movesByPiece<ROOK>(king, occ) & board.straightSliders(~turn));
+        return !(BB::pieceMoves<BISHOP>(king, occ) & board.diagonalSliders(~turn)) &&
+               !(BB::pieceMoves<ROOK>(king, occ) & board.straightSliders(~turn));
     } else {
         // Check if moved piece was pinned
         return !state.at(ply).pinnedPieces || !(state.at(ply).pinnedPieces & BB::set(from)) ||
-               BB::bitsInline(from, to) & BB::set(king);
+               BB::inlineBB(from, to) & BB::set(king);
     }
 }
 
@@ -207,7 +207,7 @@ bool Chess::isCheckingMove(Move mv) const {
     // Check if moved piece was blocking enemy king from attack
     Square king = board.getKingSq(~turn);
     if (state[ply].discoveredCheckers && (state[ply].discoveredCheckers & BB::set(from)) &&
-        !(BB::bitsInline(from, to) & BB::set(king))) {
+        !(BB::inlineBB(from, to) & BB::set(king))) {
         return true;
     }
 
@@ -217,15 +217,15 @@ bool Chess::isCheckingMove(Move mv) const {
         case PROMOTION: {
             // Check if a promotion attacks the enemy king
             U64 occ = board.occupancy() ^ BB::set(from);
-            return BB::movesByPiece(to, mv.promoPiece(), occ) & BB::set(king);
+            return BB::pieceMoves(to, mv.promoPiece(), occ) & BB::set(king);
         }
 
         case ENPASSANT: {
             // Check if captured pawn was blocking enemy king from attack
             Square enemyPawn = Defs::pawnMove<PUSH, false>(to, turn);
             U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
-            return ((BB::movesByPiece<BISHOP>(king, occ) & board.diagonalSliders(turn)) ||
-                    (BB::movesByPiece<ROOK>(king, occ) & board.straightSliders(turn)));
+            return ((BB::pieceMoves<BISHOP>(king, occ) & board.diagonalSliders(turn)) ||
+                    (BB::pieceMoves<ROOK>(king, occ) & board.straightSliders(turn)));
         }
 
         case CASTLE: {
@@ -241,7 +241,7 @@ bool Chess::isCheckingMove(Move mv) const {
 
             U64 occ =
                 (board.occupancy() ^ BB::set(from) ^ BB::set(rFrom)) | BB::set(to) | BB::set(rTo);
-            return BB::movesByPiece<ROOK>(rTo, occ) & BB::set(king);
+            return BB::pieceMoves<ROOK>(rTo, occ) & BB::set(king);
         }
         default: return false;
     }

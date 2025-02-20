@@ -39,7 +39,7 @@ void MoveGenerator::generateEvasions() {
 
         // Generate moves which block or capture the checking piece
         // NOTE: generateMovesToTarget<EVASIONS> does NOT generate king moves
-        targets = BB::bitsBtwn(checker, king) | BB::set(checker);
+        targets = BB::betweenBB(checker, king) | BB::set(checker);
         generateMovesToTarget<EVASIONS>(targets);
     }
 
@@ -91,31 +91,31 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
     }
 
     // Get 7th rank pawns
-    U64 pawns = chess->board.getPieces<PAWN>(c) & BB::rankmask(RANK7, c);
+    U64 pawns = chess->board.getPieces<PAWN>(c) & BB::rank(RANK7, c);
 
     // Generate pawn promotions, if there are targets attacked by 7th rank pawns
-    if (pawns && (g != EVASIONS || (targets & BB::rankmask(RANK8, c)))) {
+    if (pawns && (g != EVASIONS || (targets & BB::rank(RANK8, c)))) {
         // push / regular move promotions
         bitboard = (g == EVASIONS)
-            ? BB::movesByPawns<PUSH, c>(pawns) & vacancies & targets
-            : BB::movesByPawns<PUSH, c>(pawns) & vacancies;
+            ? BB::pawnMoves<PUSH, c>(pawns) & vacancies & targets
+            : BB::pawnMoves<PUSH, c>(pawns) & vacancies;
         addPawnPromotions<PUSH, c, g>(bitboard);
 
         // capture promotions
-        bitboard = BB::movesByPawns<LEFT, c>(pawns) & enemies;
+        bitboard = BB::pawnMoves<LEFT, c>(pawns) & enemies;
         addPawnPromotions<LEFT, c, g>(bitboard);
-        bitboard = BB::movesByPawns<RIGHT, c>(pawns) & enemies;
+        bitboard = BB::pawnMoves<RIGHT, c>(pawns) & enemies;
         addPawnPromotions<RIGHT, c, g>(bitboard);
     }
 
     // Get non 7th rank pawns
-    pawns = chess->board.getPieces<PAWN>(c) & ~BB::rankmask(RANK7, c);
+    pawns = chess->board.getPieces<PAWN>(c) & ~BB::rank(RANK7, c);
 
     if (g != QUIETS) {
         // Generate captures
-        bitboard = BB::movesByPawns<LEFT, c>(pawns) & enemies;
+        bitboard = BB::pawnMoves<LEFT, c>(pawns) & enemies;
         addPawnMoves<LEFT, c>(bitboard);
-        bitboard = BB::movesByPawns<RIGHT, c>(pawns) & enemies;
+        bitboard = BB::pawnMoves<RIGHT, c>(pawns) & enemies;
         addPawnMoves<RIGHT, c>(bitboard);
 
         // Generate en passants
@@ -134,9 +134,9 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
 
     // Generate regular pawn pushes
     if (g != CAPTURES) {
-        bitboard = BB::movesByPawns<PUSH, c>(pawns) & vacancies;
-        U64 doubleMovePawns = bitboard & BB::rankmask(RANK3, c),
-            doubleMoves = BB::movesByPawns<PUSH, c>(doubleMovePawns) &
+        bitboard = BB::pawnMoves<PUSH, c>(pawns) & vacancies;
+        U64 doubleMovePawns = bitboard & BB::rank(RANK3, c),
+            doubleMoves = BB::pawnMoves<PUSH, c>(doubleMovePawns) &
                           vacancies;
 
         // If in check, only make moves that block
@@ -155,7 +155,7 @@ void MoveGenerator::generateKingMoves(const U64 targets, const U64 occ) {
     Color turn = chess->turn;
     Square from = chess->board.getKingSq(turn);
 
-    U64 kingMoves = BB::movesByPiece<KING>(from) & targets;
+    U64 kingMoves = BB::pieceMoves<KING>(from) & targets;
 
     while (kingMoves) {
         Square to = BB::lsb(kingMoves);
@@ -188,7 +188,7 @@ void MoveGenerator::generatePieceMoves(const U64 targets, const U64 occ) {
         Square from = BB::advanced<c>(bitboard);
         bitboard &= BB::clear(from);
 
-        U64 pieceMoves = BB::movesByPiece<p>(from, occ) & targets;
+        U64 pieceMoves = BB::pieceMoves<p>(from, occ) & targets;
         while (pieceMoves) {
             Square to = BB::advanced<c>(pieceMoves);
             pieceMoves &= BB::clear(to);

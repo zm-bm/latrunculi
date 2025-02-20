@@ -48,7 +48,7 @@ TEST(Magics_getBishopAttacks, BoardEdgeWithObstacles) {
 
 TEST(Magics_getRookAttacks, BoardCenterNoObstacles) {
     U64 expectedAttacks =
-        (BB::rankmask(RANK4, WHITE) | BB::filemask(FILE5, WHITE)) ^ BB::set(E4);
+        (BB::rank(RANK4, WHITE) | BB::file(FILE5, WHITE)) ^ BB::set(E4);
 
     EXPECT_EQ(Magics::getRookAttacks(E4, 0), expectedAttacks)
         << "should attack fully both ranks and files";
@@ -72,7 +72,7 @@ TEST(Magics_getRookAttacks, BoardCenterSurrounded) {
 
 TEST(Magics_getRookAttacks, BoardEdgeNoObstacles) {
     U64 expectedAttacks =
-        (BB::rankmask(RANK1, WHITE) | BB::filemask(FILE1, WHITE)) ^ BB::set(A1);
+        (BB::rank(RANK1, WHITE) | BB::file(FILE1, WHITE)) ^ BB::set(A1);
 
     EXPECT_EQ(Magics::getRookAttacks(A1, 0), expectedAttacks)
         << "should attack fully both ranks and files";

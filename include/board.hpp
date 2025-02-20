@@ -138,11 +138,11 @@ inline U64 Board::attacksTo(Square sq, Color c, U64 occ) const {
     // Returns a bitboard of pieces of color c which attacks a square
     U64 piece = BB::set(sq);
 
-    return (getPieces<PAWN>(c) & BB::attacksByPawns(piece, ~c)) |
-           (getPieces<KNIGHT>(c) & BB::movesByPiece<KNIGHT>(sq, occ)) |
-           (getPieces<KING>(c) & BB::movesByPiece<KING>(sq, occ)) |
-           (diagonalSliders(c) & BB::movesByPiece<BISHOP>(sq, occ)) |
-           (straightSliders(c) & BB::movesByPiece<ROOK>(sq, occ));
+    return (getPieces<PAWN>(c) & BB::pawnAttacks(piece, ~c)) |
+           (getPieces<KNIGHT>(c) & BB::pieceMoves<KNIGHT>(sq, occ)) |
+           (getPieces<KING>(c) & BB::pieceMoves<KING>(sq, occ)) |
+           (diagonalSliders(c) & BB::pieceMoves<BISHOP>(sq, occ)) |
+           (straightSliders(c) & BB::pieceMoves<ROOK>(sq, occ));
 }
 
 inline U64 Board::calculateCheckBlockers(Color c, Color kingC) const {
@@ -153,8 +153,8 @@ inline U64 Board::calculateCheckBlockers(Color c, Color kingC) const {
 
     // Determine which enemy sliders could check the kingC's king
     U64 blockers = 0;
-    U64 pinners = (BB::movesByPiece<BISHOP>(king) & diagonalSliders(enemy)) |
-                  (BB::movesByPiece<ROOK>(king) & straightSliders(enemy));
+    U64 pinners = (BB::pieceMoves<BISHOP>(king) & diagonalSliders(enemy)) |
+                  (BB::pieceMoves<ROOK>(king) & straightSliders(enemy));
 
     while (pinners) {
         // For each potential pinning piece
@@ -162,8 +162,8 @@ inline U64 Board::calculateCheckBlockers(Color c, Color kingC) const {
         pinners &= BB::clear(pinner);
 
         // Check if only one piece separates the slider and the king
-        U64 piecesInBetween = occupancy() & BB::bitsBtwn(king, pinner);
-        if (!BB::moreThanOneSet(piecesInBetween)) {
+        U64 piecesInBetween = occupancy() & BB::betweenBB(king, pinner);
+        if (!BB::hasMoreThanOne(piecesInBetween)) {
             blockers |= piecesInBetween & getPieces<ALL_PIECES>(c);
         }
     }
