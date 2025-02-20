@@ -31,10 +31,10 @@ inline U64 isolatedPawns(U64 pawns) {
 template <Color c>
 inline U64 backwardsPawns(U64 pawns, U64 enemyPawns) {
     constexpr Color enemy = ~c;
-    U64 stops = BB::movesByPawns<PawnMove::PUSH, c>(pawns);
+    U64 stops = BB::movesByPawns<PUSH, c>(pawns);
     U64 attackSpan = BB::getFrontAttackSpan<c>(pawns);
     U64 enemyAttacks = BB::attacksByPawns<enemy>(enemyPawns);
-    return BB::movesByPawns<PawnMove::PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
+    return BB::movesByPawns<PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
 }
 
 template <Color c>
@@ -48,7 +48,7 @@ inline U64 doubledPawns(U64 pawns) {
 template <Color c>
 inline U64 blockedPawns(U64 pawns, U64 occupancy) {
     constexpr Color enemy = ~c;
-    return pawns & BB::movesByPawns<PawnMove::PUSH, enemy>(occupancy);
+    return pawns & BB::movesByPawns<PUSH, enemy>(occupancy);
 }
 
 template <Color c>

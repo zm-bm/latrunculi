@@ -26,7 +26,7 @@ void Chess::make(Move mv) {
     Color enemy = ~turn;
     if (movetype == ENPASSANT) {
         toPieceType = PAWN;
-        capturedPieceSq = Defs::pawnMove<PawnMove::PUSH, false>(to, turn);
+        capturedPieceSq = Defs::pawnMove<PUSH, false>(to, turn);
         board.squares[capturedPieceSq] = NO_PIECE;
     }
 
@@ -113,7 +113,7 @@ void Chess::unmake() {
         movePiece<false>(to, from, turn, fromPieceType);
         if (toPieceType) {
             Square capturedPieceSq =
-                (movetype == ENPASSANT) ? Defs::pawnMove<PawnMove::PUSH, false>(to, turn) : to;
+                (movetype == ENPASSANT) ? Defs::pawnMove<PUSH, false>(to, turn) : to;
             addPiece<false>(capturedPieceSq, enemy, toPieceType);
         }
     }
@@ -183,7 +183,7 @@ bool Chess::isLegalMove(Move mv) const {
         }
     } else if (mv.type() == ENPASSANT) {
         // Check if captured pawn was blocking check
-        Square enemyPawn = Defs::pawnMove<PawnMove::PUSH, false>(to, turn);
+        Square enemyPawn = Defs::pawnMove<PUSH, false>(to, turn);
         U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
         return !(BB::movesByPiece<BISHOP>(king, occ) & board.diagonalSliders(~turn)) &&
                !(BB::movesByPiece<ROOK>(king, occ) & board.straightSliders(~turn));
@@ -222,7 +222,7 @@ bool Chess::isCheckingMove(Move mv) const {
 
         case ENPASSANT: {
             // Check if captured pawn was blocking enemy king from attack
-            Square enemyPawn = Defs::pawnMove<PawnMove::PUSH, false>(to, turn);
+            Square enemyPawn = Defs::pawnMove<PUSH, false>(to, turn);
             U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
             return ((BB::movesByPiece<BISHOP>(king, occ) & board.diagonalSliders(turn)) ||
                     (BB::movesByPiece<ROOK>(king, occ) & board.straightSliders(turn)));

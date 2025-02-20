@@ -82,39 +82,39 @@ TEST(Defs_getPieceColor, CorrectValues) {
 }
 
 TEST(Defs_pawnMovePush, CorrectValues) {
-    Square sq = Defs::pawnMove<WHITE, PawnMove::PUSH, true>(E4);
+    Square sq = Defs::pawnMove<WHITE, PUSH, true>(E4);
     EXPECT_EQ(sq, E5);
-    sq = Defs::pawnMove<WHITE, PawnMove::PUSH, false>(E5);
+    sq = Defs::pawnMove<WHITE, PUSH, false>(E5);
     EXPECT_EQ(sq, E4);
 
-    sq = Defs::pawnMove<BLACK, PawnMove::PUSH, true>(E5);
+    sq = Defs::pawnMove<BLACK, PUSH, true>(E5);
     EXPECT_EQ(sq, E4);
-    sq = Defs::pawnMove<BLACK, PawnMove::PUSH, false>(E4);
+    sq = Defs::pawnMove<BLACK, PUSH, false>(E4);
     EXPECT_EQ(sq, E5);
 }
 
 TEST(Defs_pawnMoveRight, CorrectValues) {
-    Square sq = Defs::pawnMove<WHITE, PawnMove::RIGHT, true>(D4);
+    Square sq = Defs::pawnMove<WHITE, RIGHT, true>(D4);
     EXPECT_EQ(sq, E5);
-    sq = Defs::pawnMove<WHITE, PawnMove::RIGHT, false>(E5);
+    sq = Defs::pawnMove<WHITE, RIGHT, false>(E5);
     EXPECT_EQ(sq, D4);
 
-    sq = Defs::pawnMove<BLACK, PawnMove::RIGHT, true>(E5);
+    sq = Defs::pawnMove<BLACK, RIGHT, true>(E5);
     EXPECT_EQ(sq, D4);
-    sq = Defs::pawnMove<BLACK, PawnMove::RIGHT, false>(D4);
+    sq = Defs::pawnMove<BLACK, RIGHT, false>(D4);
     EXPECT_EQ(sq, E5);
 }
 
 TEST(Defs_pawnMoveLeft, CorrectValues) {
     Square sq;
-    sq = Defs::pawnMove<WHITE, PawnMove::LEFT, true>(E4);
+    sq = Defs::pawnMove<WHITE, LEFT, true>(E4);
     EXPECT_EQ(sq, D5);
-    sq = Defs::pawnMove<WHITE, PawnMove::LEFT, false>(D5);
+    sq = Defs::pawnMove<WHITE, LEFT, false>(D5);
     EXPECT_EQ(sq, E4);
 
-    sq = Defs::pawnMove<BLACK, PawnMove::LEFT, true>(D5);
+    sq = Defs::pawnMove<BLACK, LEFT, true>(D5);
     EXPECT_EQ(sq, E4);
-    sq = Defs::pawnMove<BLACK, PawnMove::LEFT, false>(E4);
+    sq = Defs::pawnMove<BLACK, LEFT, false>(E4);
     EXPECT_EQ(sq, D5);
 }
 

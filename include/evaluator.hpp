@@ -261,7 +261,7 @@ Score Evaluator<debug>::piecesScore() {
             }
 
             // bonus minor piece guarded by pawn
-            if (bb & BB::movesByPawns<PawnMove::PUSH, enemy>(pawns)) {
+            if (bb & BB::movesByPawns<PUSH, enemy>(pawns)) {
                 score += MINOR_BEHIND_PAWN_BONUS;
             }
 
@@ -282,7 +282,7 @@ Score Evaluator<debug>::piecesScore() {
             if (!(pawns & filemask)) {
                 score += ROOK_OPEN_FILE_BONUS[!(enemyPawns & filemask)];
             } else {
-                if (pawns & filemask & BB::movesByPawns<PawnMove::PUSH, enemy>(occ)) {
+                if (pawns & filemask & BB::movesByPawns<PUSH, enemy>(occ)) {
                     score += ROOK_CLOSED_FILE_PENALTY;
                 }
             }
@@ -358,7 +358,7 @@ template <Color c>
 inline int Evaluator<debug>::bishopPawnBlockers(U64 bb) const {
     constexpr Color enemy = ~c;
     U64 pawns = board.getPieces<PAWN>(c);
-    U64 blockedPawns = pawns & BB::movesByPawns<PawnMove::PUSH, enemy>(board.occupancy());
+    U64 blockedPawns = pawns & BB::movesByPawns<PUSH, enemy>(board.occupancy());
     U64 sameColorSquares = (bb & DARK_SQUARES) ? DARK_SQUARES : LIGHT_SQUARES;
     int pawnFactor =
         BB::bitCount(blockedPawns & CENTER_FILES) + !(BB::attacksByPawns<c>(pawns) & bb);

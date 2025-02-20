@@ -97,15 +97,15 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
     if (pawns && (g != EVASIONS || (targets & BB::rankmask(RANK8, c)))) {
         // push / regular move promotions
         bitboard = (g == EVASIONS)
-            ? BB::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies & targets
-            : BB::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies;
-        addPawnPromotions<PawnMove::PUSH, c, g>(bitboard);
+            ? BB::movesByPawns<PUSH, c>(pawns) & vacancies & targets
+            : BB::movesByPawns<PUSH, c>(pawns) & vacancies;
+        addPawnPromotions<PUSH, c, g>(bitboard);
 
         // capture promotions
-        bitboard = BB::movesByPawns<PawnMove::LEFT, c>(pawns) & enemies;
-        addPawnPromotions<PawnMove::LEFT, c, g>(bitboard);
-        bitboard = BB::movesByPawns<PawnMove::RIGHT, c>(pawns) & enemies;
-        addPawnPromotions<PawnMove::RIGHT, c, g>(bitboard);
+        bitboard = BB::movesByPawns<LEFT, c>(pawns) & enemies;
+        addPawnPromotions<LEFT, c, g>(bitboard);
+        bitboard = BB::movesByPawns<RIGHT, c>(pawns) & enemies;
+        addPawnPromotions<RIGHT, c, g>(bitboard);
     }
 
     // Get non 7th rank pawns
@@ -113,30 +113,30 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
 
     if (g != QUIETS) {
         // Generate captures
-        bitboard = BB::movesByPawns<PawnMove::LEFT, c>(pawns) & enemies;
-        addPawnMoves<PawnMove::LEFT, c>(bitboard);
-        bitboard = BB::movesByPawns<PawnMove::RIGHT, c>(pawns) & enemies;
-        addPawnMoves<PawnMove::RIGHT, c>(bitboard);
+        bitboard = BB::movesByPawns<LEFT, c>(pawns) & enemies;
+        addPawnMoves<LEFT, c>(bitboard);
+        bitboard = BB::movesByPawns<RIGHT, c>(pawns) & enemies;
+        addPawnMoves<RIGHT, c>(bitboard);
 
         // Generate en passants
         Square enpassant = chess->getEnPassant();
         if (enpassant != INVALID) {
             // Only necessary if enemy pawn is targeted, or if in check
             Square enemyPawn =
-                Defs::pawnMove<c, PawnMove::PUSH, false>(enpassant);
+                Defs::pawnMove<c, PUSH, false>(enpassant);
             if (g != EVASIONS || (targets & BB::set(enemyPawn))) {
                 // Append en passant captures to move list
-                addEnPassants<PawnMove::LEFT, c>(pawns, enpassant);
-                addEnPassants<PawnMove::RIGHT, c>(pawns, enpassant);
+                addEnPassants<LEFT, c>(pawns, enpassant);
+                addEnPassants<RIGHT, c>(pawns, enpassant);
             }
         }
     }
 
     // Generate regular pawn pushes
     if (g != CAPTURES) {
-        bitboard = BB::movesByPawns<PawnMove::PUSH, c>(pawns) & vacancies;
+        bitboard = BB::movesByPawns<PUSH, c>(pawns) & vacancies;
         U64 doubleMovePawns = bitboard & BB::rankmask(RANK3, c),
-            doubleMoves = BB::movesByPawns<PawnMove::PUSH, c>(doubleMovePawns) &
+            doubleMoves = BB::movesByPawns<PUSH, c>(doubleMovePawns) &
                           vacancies;
 
         // If in check, only make moves that block
@@ -145,8 +145,8 @@ void MoveGenerator::generatePawnMoves(const U64 targets, const U64 occ) {
             bitboard &= targets;
         }
 
-        addPawnMoves<PawnMove::DOUBLE, c>(doubleMoves);
-        addPawnMoves<PawnMove::PUSH, c>(bitboard);
+        addPawnMoves<DOUBLE, c>(doubleMoves);
+        addPawnMoves<PUSH, c>(bitboard);
     }
 }
 

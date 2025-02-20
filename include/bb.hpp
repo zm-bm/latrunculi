@@ -289,9 +289,9 @@ inline U64 kingShield(Square sq) {
 
 template <PawnMove p, Color c>
 inline U64 movesByPawns(U64 pawns) {
-    if constexpr (p == PawnMove::LEFT) {
+    if constexpr (p == LEFT) {
         pawns &= ~filemask(FILE1, c);
-    } else if constexpr (p == PawnMove::RIGHT) {
+    } else if constexpr (p == RIGHT) {
         pawns &= ~filemask(FILE8, c);
     }
 
@@ -313,11 +313,11 @@ inline U64 movesByPawns(U64 pawns, Color c) {
 
 template <Color c>
 inline U64 attacksByPawns(U64 pawns) {
-    return movesByPawns<PawnMove::LEFT, c>(pawns) | movesByPawns<PawnMove::RIGHT, c>(pawns);
+    return movesByPawns<LEFT, c>(pawns) | movesByPawns<RIGHT, c>(pawns);
 }
 
 inline U64 attacksByPawns(U64 pawns, Color c) {
-    return movesByPawns<PawnMove::LEFT>(pawns, c) | movesByPawns<PawnMove::RIGHT>(pawns, c);
+    return movesByPawns<LEFT>(pawns, c) | movesByPawns<RIGHT>(pawns, c);
 }
 
 template <PieceType p>

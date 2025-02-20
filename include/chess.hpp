@@ -149,9 +149,9 @@ inline void Chess::handlePawnMoves(Square from, Square to, MoveType movetype, Mo
     // Reset half move clock for pawn move
     state[ply].hmClock = 0;
 
-    auto doubleMove = static_cast<U8>(PawnMove::DOUBLE);
+    auto doubleMove = static_cast<U8>(DOUBLE);
     if ((from - to) == doubleMove || (to - from) == doubleMove) {
-        setEnPassant(Defs::pawnMove<PawnMove::PUSH, false>(to, turn));
+        setEnPassant(Defs::pawnMove<PUSH, false>(to, turn));
     } else if (movetype == PROMOTION) {
         removePiece<true>(to, turn, PAWN);
         addPiece<true>(to, turn, mv.promoPiece());

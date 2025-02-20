@@ -71,7 +71,7 @@ enum CastleDirection { KINGSIDE, QUEENSIDE };
 
 enum MoveType : U8 { NORMAL, PROMOTION, ENPASSANT, CASTLE };
 
-enum class PawnMove { LEFT = 7, PUSH = 8, RIGHT = 9, DOUBLE = 16 };
+enum PawnMove { LEFT = 7, PUSH = 8, RIGHT = 9, DOUBLE = 16 };
 
 enum Phase { MIDGAME, ENDGAME, N_PHASES };
 
