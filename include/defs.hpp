@@ -20,6 +20,13 @@ inline Square sqFromString(const std::string& square) {
 
 inline constexpr Rank rankOf(const Square square) { return Rank(square >> 3); }
 
+inline constexpr Rank relativeRank(const Rank rank, const Color color) {
+    return Rank(rank ^ (~color * 7));
+}
+inline constexpr Rank relativeRank(const Square square, const Color color) {
+    return Rank(rankOf(square) ^ (~color * 7));
+}
+
 inline constexpr File fileOf(const Square square) { return File(square & 7); }
 
 inline constexpr Piece makePiece(const Color c, const PieceType p) {

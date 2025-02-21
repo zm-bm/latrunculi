@@ -107,6 +107,7 @@ constexpr Rank RANK_BY_COLOR[N_COLORS][N_RANKS] = {
     {RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8},
 };
 inline U64 rank(Rank r, Color c) { return RANK_MASK[RANK_BY_COLOR[c][r]]; }
+inline U64 rank(Rank r) { return RANK_MASK[RANK_BY_COLOR[WHITE][r]]; }
 
 constexpr File FILE_BY_COLOR[N_COLORS][N_FILES] = {
     {FILE8, FILE7, FILE6, FILE5, FILE4, FILE3, FILE2, FILE1},
@@ -159,13 +160,13 @@ inline Square msb(U64 bb) {
 
 inline Square (*const advanced_fn[2])(U64) = {lsb, msb};
 
-inline Square advanced(Color c, U64 bb) {
+inline Square advancedSq(Color c, U64 bb) {
     // Calls the appropriate advanced function (lsb or msb) based on the color.
     return advanced_fn[static_cast<Color>(c)](bb);
 }
 
 template <Color c>
-inline Square advanced(U64 bb) {
+inline Square advancedSq(U64 bb) {
     // Calls the appropriate advanced function (lsb or msb) based on the color.
     return advanced_fn[static_cast<Color>(c)](bb);
 }
@@ -263,16 +264,17 @@ inline U64 spanBack(U64 bb) {
 }
 
 template <Color c>
-inline U64 getFrontAttackSpan(U64 bb) {
-    // Returns the front attack span based on the given color's front span.
+inline U64 pawnAttackSpan(U64 bb) {
+    // Returns the attack span for pawns, covering the diagonal squares in front
+    // of the bitboard to the left and right, based on the color.
     U64 spanFrontBB = spanFront<c>(bb);
     return shiftWest(spanFrontBB) | shiftEast(spanFrontBB);
 }
 
 template <Color c>
-inline U64 getAllFrontSpan(U64 bb) {
-    // Returns all front span including attacks based on the given color's front
-    // span.
+inline U64 pawnFullSpan(U64 bb) {
+    // Returns the full pawn span, including both the forward moves and attacks
+    // to the left and right diagonals, based on the color.
     U64 spanFrontBB = spanFront<c>(bb);
     return shiftWest(spanFrontBB) | shiftEast(spanFrontBB) | spanFrontBB;
 }

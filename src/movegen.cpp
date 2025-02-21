@@ -185,12 +185,12 @@ void MoveGenerator::generatePieceMoves(const U64 targets, const U64 occ) {
 
     while (bitboard) {
         // Pop lsb bit and clear it from the bitboard
-        Square from = BB::advanced<c>(bitboard);
+        Square from = BB::advancedSq<c>(bitboard);
         bitboard &= BB::clear(from);
 
         U64 pieceMoves = BB::pieceMoves<p>(from, occ) & targets;
         while (pieceMoves) {
-            Square to = BB::advanced<c>(pieceMoves);
+            Square to = BB::advancedSq<c>(pieceMoves);
             pieceMoves &= BB::clear(to);
 
             moves.push_back(Move(from, to));

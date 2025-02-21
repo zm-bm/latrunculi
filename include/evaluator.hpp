@@ -180,7 +180,7 @@ int Evaluator<debug>::eval() {
                   << TermOutput{"Bishops", scores[TERM_BISHOPS], std::nullopt}
                   << TermOutput{"Rooks", scores[TERM_ROOKS], std::nullopt}
                   << TermOutput{"Queens", scores[TERM_QUEENS], std::nullopt}
-                  << TermOutput{"Queens", scores[TERM_QUEENS], std::nullopt}
+                  << TermOutput{"King Safety", scores[TERM_KING_SAFETY], std::nullopt}
                   << TermOutput{"Mobility", scores[TERM_MOBILITY], std::nullopt}
                   << " ------------+-------------+-------------+------------\n"
                   << TermOutput{"Total", nullptr, score} << '\n'
@@ -194,7 +194,7 @@ int Evaluator<debug>::eval() {
 template <Color c, typename Func>
 void forEachPiece(U64 bitboard, Func action) {
     while (bitboard) {
-        Square sq = BB::advanced<c>(bitboard);
+        Square sq = BB::advancedSq<c>(bitboard);
         action(sq);
         bitboard &= BB::clear(sq);
     }
@@ -224,9 +224,34 @@ template <bool debug>
 template <Color c>
 inline Score Evaluator<debug>::kingSafetyScore() {
     constexpr Color enemy = ~c;
-    Score score = {0, 0};
 
-    return score;
+    Square kingSq = board.kingSq(c);
+    U64 pawnMask = BB::spanFront<c>(BB::rank(rankOf(kingSq)));
+
+    U64 enemyPawns = board.pieces<PAWN>(enemy) & pawnMask;
+    U64 pawns = board.pieces<PAWN>(c) & pawnMask;
+
+    auto evaluateFile = [&](File f) -> Score {
+        U64 bb;
+        Score score = {0, 0};
+
+        bb = pawns & BB::file(f);
+        Rank rank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
+        score += PAWN_SHELTER_BONUS[rank];
+
+        bb = enemyPawns & BB::file(f);
+        Rank enemyRank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
+        if (rank && (rank + 1 == enemyRank)) {
+            score += BLOCKED_STORM_PENALTY[enemyRank];
+        } else {
+            score += PAWN_STORM_PENALTY[enemyRank];
+        }
+
+        return score;
+    };
+
+    File kingFile = std::clamp(fileOf(kingSq), FILE2, FILE7);
+    return evaluateFile(kingFile - 1) + evaluateFile(kingFile) + evaluateFile(kingFile + 1);
 }
 
 template <bool debug>
@@ -360,8 +385,7 @@ inline int Evaluator<debug>::bishopPawnBlockers(U64 bb) const {
     U64 pawns = board.pieces<PAWN>(c);
     U64 blockedPawns = pawns & BB::pawnMoves<PUSH, enemy>(board.occupancy());
     U64 sameColorSquares = (bb & DARK_SQUARES) ? DARK_SQUARES : LIGHT_SQUARES;
-    int pawnFactor =
-        BB::count(blockedPawns & CENTER_FILES) + !(BB::pawnAttacks<c>(pawns) & bb);
+    int pawnFactor = BB::count(blockedPawns & CENTER_FILES) + !(BB::pawnAttacks<c>(pawns) & bb);
     return pawnFactor * BB::count(pawns & sameColorSquares);
 }
 

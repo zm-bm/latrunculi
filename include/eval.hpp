@@ -20,7 +20,7 @@ inline int psqValue(Phase ph, Color c, PieceType pt, Square sq) {
 template <Color c>
 inline U64 passedPawns(U64 pawns, U64 enemyPawns) {
     constexpr Color enemy = ~c;
-    return pawns & ~BB::getAllFrontSpan<enemy>(enemyPawns);
+    return pawns & ~BB::pawnFullSpan<enemy>(enemyPawns);
 }
 
 inline U64 isolatedPawns(U64 pawns) {
@@ -32,7 +32,7 @@ template <Color c>
 inline U64 backwardsPawns(U64 pawns, U64 enemyPawns) {
     constexpr Color enemy = ~c;
     U64 stops = BB::pawnMoves<PUSH, c>(pawns);
-    U64 attackSpan = BB::getFrontAttackSpan<c>(pawns);
+    U64 attackSpan = BB::pawnAttackSpan<c>(pawns);
     U64 enemyAttacks = BB::pawnAttacks<enemy>(enemyPawns);
     return BB::pawnMoves<PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
 }
@@ -55,7 +55,7 @@ template <Color c>
 inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
     constexpr U64 rankMask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
     constexpr Color enemy = ~c;
-    U64 holes = ~BB::getFrontAttackSpan<enemy>(enemyPawns) & rankMask;
+    U64 holes = ~BB::pawnAttackSpan<enemy>(enemyPawns) & rankMask;
     return holes & BB::pawnAttacks<c>(pawns);
 }
 

@@ -64,6 +64,19 @@ const Score ROOK_OPEN_FILE_BONUS[2] = {ROOK_SEMI_OPEN_FILE_BONUS, ROOK_FULL_OPEN
 const Score ROOK_CLOSED_FILE_PENALTY = {-10, -5};
 const Score DISCOVERED_ATTACK_ON_QUEEN_PENALTY = {-50, -25};
 
+// Bonus for friendly pawn at each rank. Index 0 when there is no pawn.
+constexpr Score PAWN_SHELTER_BONUS[] = {
+    {-30, 0}, {60, 0}, {35, 0}, {-20, 0}, {-5, 0}, {-20, 0}, {-80, 0}};
+
+// Penalty for unblocked enemy pawns at each rank. Index 0 when there is no pawn.
+// No end game values bc unblocked pawns evaluated dynamically through search
+constexpr Score PAWN_STORM_PENALTY[] = {
+    {0, 0}, {-20, 0}, {-120, 0}, {-60, 0}, {-45, 0}, {-20, 0}, {-10, 0}};
+
+// Penalty for blocked enemy pawns at each rank. Index 0 when there is no pawn.
+constexpr Score BLOCKED_STORM_PENALTY[] = {
+    {0, 0}, {0, 0}, {-60, -60}, {0, -20}, {5, -15}, {10, -10}, {15, -5}};
+
 // clang-format off
 constexpr Score KNIGHT_MOBILITY[] = {
     {-50, -60}, {-40, -45}, {-10, -25}, {-2, -14}, {2, 6},

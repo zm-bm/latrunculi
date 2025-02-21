@@ -57,7 +57,7 @@ template <PawnMove p, Color c>
 inline void MoveGenerator::addPawnMoves(U64 bitboard) {
     while (bitboard) {
         // Pop lsb bit and clear it from the bitboard
-        Square to = BB::advanced<c>(bitboard);
+        Square to = BB::advancedSq<c>(bitboard);
         bitboard &= BB::clear(to);
 
         // Reverse the move to get the origin square and append move
@@ -70,7 +70,7 @@ template <PawnMove p, Color c, GenType g>
 inline void MoveGenerator::addPawnPromotions(U64 bitboard) {
     while (bitboard) {
         // Pop lsb bit and clear it from the bitboard
-        Square to = BB::advanced<c>(bitboard);
+        Square to = BB::advancedSq<c>(bitboard);
         bitboard &= BB::clear(to);
 
         // Reverse the move to get the origin square and append moves
