@@ -254,9 +254,11 @@ inline Score Evaluator<debug>::kingSafetyScore() {
     File file = std::clamp(kingFile, FILE2, FILE7);
     Score score = evaluateFile(file - 1) + evaluateFile(file) + evaluateFile(file + 1);
 
+    score += KING_FILE_BONUS[kingFile];
+
     bool friendlyOpenFile = !(board.pieces<PAWN>(c) & BB::file(kingFile));
     bool enemyOpenFile = !(board.pieces<PAWN>(enemy) & BB::file(kingFile));
-    score += KING_FILE_BONUS[friendlyOpenFile][enemyOpenFile];
+    score += KING_OPEN_FILE_BONUS[friendlyOpenFile][enemyOpenFile];
 
     return score;
 }

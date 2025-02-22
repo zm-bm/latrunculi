@@ -77,12 +77,15 @@ constexpr Score PAWN_STORM_PENALTY[] = {
 constexpr Score BLOCKED_STORM_PENALTY[] = {
     {0, 0}, {0, 0}, {-60, -60}, {0, -20}, {5, -15}, {10, -10}, {15, -5}};
 
-// KING_FILE_BONUS[friendly open file][enemy open file] bonus for king located on a
+// KING_OPEN_FILE_BONUS[friendly open file][enemy open file] bonus for king located on a
 // closed, semi-open, or open file
-constexpr Score KING_FILE_BONUS[2][2] = {
-    {{20, -10}, { 10, 5}},
-    {{ 0,   0}, {-10, 5}},
+constexpr Score KING_OPEN_FILE_BONUS[2][2] = {
+    {{20, -10}, {10, 5}},
+    {{0, 0}, {-10, 5}},
 };
+
+constexpr Score KING_FILE_BONUS[] = {
+    {20, 0}, {5, 0}, {-15, 0}, {-30, 0}, {-30, 0}, {-15, 0}, {5, 0}, {20, 0}};
 
 // clang-format off
 constexpr Score KNIGHT_MOBILITY[] = {

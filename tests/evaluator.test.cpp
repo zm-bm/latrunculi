@@ -227,21 +227,24 @@ TEST_F(EvaluatorTest, QueenScore) {
 }
 
 TEST_F(EvaluatorTest, KingSafety) {
-    Score empty = PAWN_SHELTER_BONUS[0] * 3 + KING_FILE_BONUS[true][true];
+    Score empty =
+        PAWN_SHELTER_BONUS[0] * 3 + KING_FILE_BONUS[FILE5] + KING_OPEN_FILE_BONUS[true][true];
     Score start = PAWN_SHELTER_BONUS[RANK2] * 3 + PAWN_STORM_PENALTY[RANK7] * 3 +
-                  KING_FILE_BONUS[false][false];
+                  KING_FILE_BONUS[FILE5] + KING_OPEN_FILE_BONUS[false][false];
     Score blockedPawn = PAWN_SHELTER_BONUS[RANK3] + PAWN_SHELTER_BONUS[RANK4] +
                         PAWN_SHELTER_BONUS[RANK5] + PAWN_STORM_PENALTY[RANK6] +
                         BLOCKED_STORM_PENALTY[RANK5] + PAWN_STORM_PENALTY[RANK4] +
-                        KING_FILE_BONUS[false][false];
-    Score semiOpenFile1 = PAWN_SHELTER_BONUS[RANK2] * 3 + PAWN_STORM_PENALTY[0] * 3 + KING_FILE_BONUS[false][true];
-    Score semiOpenFile2 = PAWN_SHELTER_BONUS[0] * 3 + PAWN_STORM_PENALTY[RANK7] * 3 + KING_FILE_BONUS[true][false];
+                        KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[false][false];
+    Score semiOpenFile1 = PAWN_SHELTER_BONUS[RANK2] * 3 + PAWN_STORM_PENALTY[0] * 3 +
+                          KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[false][true];
+    Score semiOpenFile2 = PAWN_SHELTER_BONUS[0] * 3 + PAWN_STORM_PENALTY[RANK7] * 3 +
+                          KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[true][false];
     Score attackedPawn = PAWN_SHELTER_BONUS[RANK2] * 2 + PAWN_SHELTER_BONUS[RANK3] +
                          PAWN_STORM_PENALTY[RANK7] * 2 + PAWN_STORM_PENALTY[RANK6] +
-                         KING_FILE_BONUS[false][false];
+                         KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[false][false];
     Score kingOnRank2 = PAWN_SHELTER_BONUS[0] * 2 + PAWN_SHELTER_BONUS[RANK3] +
                         PAWN_STORM_PENALTY[RANK7] * 2 + PAWN_STORM_PENALTY[RANK6] +
-                        KING_FILE_BONUS[false][false];
+                        KING_FILE_BONUS[FILE2] + KING_OPEN_FILE_BONUS[false][false];
 
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, empty, empty},
