@@ -233,24 +233,19 @@ inline Score Evaluator<debug>::kingSafetyScore() {
     U64 enemyPawns = board.pieces<PAWN>(enemy) & pawnsInFront;
     U64 pawns = board.pieces<PAWN>(c) & pawnsInFront & ~BB::pawnAttacks<enemy>(enemyPawns);
 
-    std::cout << std::endl;
-
     auto evaluateFile = [&](File f) -> Score {
         Score score = {0, 0};
 
         U64 bb = pawns & BB::file(f);
         Rank rank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
         score += PAWN_SHELTER_BONUS[rank];
-        std::cout << "shelter=" << rank << std::endl;
 
         bb = enemyPawns & BB::file(f);
         Rank enemyRank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
         if (rank && (rank + 1 == enemyRank)) {
             score += BLOCKED_STORM_PENALTY[enemyRank];
-            std::cout << "blocked=" << enemyRank << std::endl;
         } else {
             score += PAWN_STORM_PENALTY[enemyRank];
-            std::cout << "storm=" << enemyRank << std::endl;
         }
 
         return score;
