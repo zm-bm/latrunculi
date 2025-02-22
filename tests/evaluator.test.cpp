@@ -32,6 +32,13 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(bScore, expectedBlack) << fen;
     }
 
+    void testKingSafety(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+        Chess chess(fen);
+        Evaluator<false> evaluator(chess);
+        EXPECT_EQ(evaluator.kingSafetyScore<WHITE>(), expectedWhite) << fen;
+        EXPECT_EQ(evaluator.kingSafetyScore<BLACK>(), expectedBlack) << fen;
+    }
+
     void testMobility(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
         Evaluator<false> evaluator(chess);
@@ -39,7 +46,7 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(evaluator.mobility[WHITE], expectedWhite) << fen;
         EXPECT_EQ(evaluator.mobility[BLACK], expectedBlack) << fen;
     }
-    
+
     void testMobilityArea(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Chess chess(fen);
         Evaluator<false> evaluator(chess);
@@ -216,6 +223,38 @@ TEST_F(EvaluatorTest, QueenScore) {
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
         testPiecesScore<QUEEN>(fen, expectedWhite, expectedBlack);
+    }
+}
+
+TEST_F(EvaluatorTest, KingSafety) {
+    Score empty = PAWN_SHELTER_BONUS[0] * 3 + KING_FILE_BONUS[true][true];
+    Score start = PAWN_SHELTER_BONUS[RANK2] * 3 + PAWN_STORM_PENALTY[RANK7] * 3 +
+                  KING_FILE_BONUS[false][false];
+    Score blockedPawn = PAWN_SHELTER_BONUS[RANK3] + PAWN_SHELTER_BONUS[RANK4] +
+                        PAWN_SHELTER_BONUS[RANK5] + PAWN_STORM_PENALTY[RANK6] +
+                        BLOCKED_STORM_PENALTY[RANK5] + PAWN_STORM_PENALTY[RANK4] +
+                        KING_FILE_BONUS[false][false];
+    Score semiOpenFile1 = PAWN_SHELTER_BONUS[RANK2] * 3 + PAWN_STORM_PENALTY[0] * 3 + KING_FILE_BONUS[false][true];
+    Score semiOpenFile2 = PAWN_SHELTER_BONUS[0] * 3 + PAWN_STORM_PENALTY[RANK7] * 3 + KING_FILE_BONUS[true][false];
+    Score attackedPawn = PAWN_SHELTER_BONUS[RANK2] * 2 + PAWN_SHELTER_BONUS[RANK3] +
+                         PAWN_STORM_PENALTY[RANK7] * 2 + PAWN_STORM_PENALTY[RANK6] +
+                         KING_FILE_BONUS[false][false];
+    Score kingOnRank2 = PAWN_SHELTER_BONUS[0] * 2 + PAWN_SHELTER_BONUS[RANK3] +
+                        PAWN_STORM_PENALTY[RANK7] * 2 + PAWN_STORM_PENALTY[RANK6] +
+                        KING_FILE_BONUS[false][false];
+
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {EMPTYFEN, empty, empty},
+        {STARTFEN, start, start},
+        {"k7/8/p7/1pP5/1Pp5/P7/8/K7 w - - 0 1", blockedPawn, blockedPawn},
+        {"7k/5ppp/8/8/8/8/PPP5/K7 w - - 0 2", semiOpenFile1, semiOpenFile1},
+        {"k7/5ppp/8/8/8/8/PPP5/7K w - - 0 3", semiOpenFile2, semiOpenFile2},
+        {"7k/5ppp/4Pp2/8/8/4pP2/5PPP/7K w - - 0 4", attackedPawn, attackedPawn},
+        {"8/5pkp/6p1/8/8/6P1/5PKP/8 w - - 0 5", kingOnRank2, kingOnRank2},
+    };
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testKingSafety(fen, expectedWhite, expectedBlack);
     }
 }
 

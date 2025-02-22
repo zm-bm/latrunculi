@@ -226,32 +226,44 @@ inline Score Evaluator<debug>::kingSafetyScore() {
     constexpr Color enemy = ~c;
 
     Square kingSq = board.kingSq(c);
-    U64 pawnMask = BB::spanFront<c>(BB::rank(rankOf(kingSq)));
+    File kingFile = fileOf(kingSq);
+    Rank kingRank = rankOf(kingSq);
 
-    U64 enemyPawns = board.pieces<PAWN>(enemy) & pawnMask;
-    U64 pawns = board.pieces<PAWN>(c) & pawnMask;
+    U64 pawnsInFront = BB::spanFront<c>(BB::rank(kingRank));
+    U64 enemyPawns = board.pieces<PAWN>(enemy) & pawnsInFront;
+    U64 pawns = board.pieces<PAWN>(c) & pawnsInFront & ~BB::pawnAttacks<enemy>(enemyPawns);
+
+    std::cout << std::endl;
 
     auto evaluateFile = [&](File f) -> Score {
-        U64 bb;
         Score score = {0, 0};
 
-        bb = pawns & BB::file(f);
+        U64 bb = pawns & BB::file(f);
         Rank rank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
         score += PAWN_SHELTER_BONUS[rank];
+        std::cout << "shelter=" << rank << std::endl;
 
         bb = enemyPawns & BB::file(f);
         Rank enemyRank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
         if (rank && (rank + 1 == enemyRank)) {
             score += BLOCKED_STORM_PENALTY[enemyRank];
+            std::cout << "blocked=" << enemyRank << std::endl;
         } else {
             score += PAWN_STORM_PENALTY[enemyRank];
+            std::cout << "storm=" << enemyRank << std::endl;
         }
 
         return score;
     };
 
-    File kingFile = std::clamp(fileOf(kingSq), FILE2, FILE7);
-    return evaluateFile(kingFile - 1) + evaluateFile(kingFile) + evaluateFile(kingFile + 1);
+    File file = std::clamp(kingFile, FILE2, FILE7);
+    Score score = evaluateFile(file - 1) + evaluateFile(file) + evaluateFile(file + 1);
+
+    bool friendlyOpenFile = !(board.pieces<PAWN>(c) & BB::file(kingFile));
+    bool enemyOpenFile = !(board.pieces<PAWN>(enemy) & BB::file(kingFile));
+    score += KING_FILE_BONUS[friendlyOpenFile][enemyOpenFile];
+
+    return score;
 }
 
 template <bool debug>
