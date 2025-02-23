@@ -9,15 +9,31 @@
 
 class EvaluatorTest : public ::testing::Test {
    protected:
-    void testScaleFactor(const std::string& fen, int expected) {
+    void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Chess chess(fen);
-        Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.scaleFactor(), expected) << fen;
+        Evaluator<false> evaluator(chess);
+        EXPECT_EQ(evaluator.outposts[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(evaluator.outposts[BLACK], expectedBlack) << fen;
+    }
+
+    void testMobilityArea(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
+        Chess chess(fen);
+        Evaluator<false> evaluator(chess);
+        EXPECT_EQ(evaluator.mobilityArea[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(evaluator.mobilityArea[BLACK], expectedBlack) << fen;
+    }
+
+    void testMobility(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+        Chess chess(fen);
+        Evaluator<false> evaluator(chess);
+        evaluator.eval();
+        EXPECT_EQ(evaluator.mobility[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(evaluator.mobility[BLACK], expectedBlack) << fen;
     }
 
     void testPawnsScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
-        Evaluator evaluator(chess);
+        Evaluator<false> evaluator(chess);
         EXPECT_EQ(evaluator.pawnsScore<WHITE>(), expectedWhite) << fen;
         EXPECT_EQ(evaluator.pawnsScore<BLACK>(), expectedBlack) << fen;
     }
@@ -32,33 +48,32 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(bScore, expectedBlack) << fen;
     }
 
-    void testKingSafety(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+    void testKingSafetyScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
         Evaluator<false> evaluator(chess);
         EXPECT_EQ(evaluator.kingSafetyScore<WHITE>(), expectedWhite) << fen;
         EXPECT_EQ(evaluator.kingSafetyScore<BLACK>(), expectedBlack) << fen;
     }
 
-    void testMobility(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+    void testKingShelter(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
         Evaluator<false> evaluator(chess);
-        evaluator.eval();
-        EXPECT_EQ(evaluator.mobility[WHITE], expectedWhite) << fen;
-        EXPECT_EQ(evaluator.mobility[BLACK], expectedBlack) << fen;
+        Board b(fen);
+        EXPECT_EQ(evaluator.kingShelter<WHITE>(b.kingSq(WHITE)), expectedWhite) << fen;
+        EXPECT_EQ(evaluator.kingShelter<BLACK>(b.kingSq(BLACK)), expectedBlack) << fen;
     }
 
-    void testMobilityArea(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
+    void testFileShelter(const std::string& fen,
+                         Score expectedWhite,
+                         Score expectedBlack,
+                         File file) {
         Chess chess(fen);
         Evaluator<false> evaluator(chess);
-        EXPECT_EQ(evaluator.mobilityArea[WHITE], expectedWhite) << fen;
-        EXPECT_EQ(evaluator.mobilityArea[BLACK], expectedBlack) << fen;
-    }
-
-    void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
-        Chess chess(fen);
-        Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.outposts[WHITE], expectedWhite) << fen;
-        EXPECT_EQ(evaluator.outposts[BLACK], expectedBlack) << fen;
+        Board b(fen);
+        U64 wPawns = b.pieces<PAWN>(WHITE);
+        U64 bPawns = b.pieces<PAWN>(BLACK);
+        EXPECT_EQ(evaluator.fileShelter<WHITE>(wPawns, bPawns, file), expectedWhite) << fen;
+        EXPECT_EQ(evaluator.fileShelter<BLACK>(bPawns, wPawns, file), expectedBlack) << fen;
     }
 
     void testPhase(const std::string& fen, int expected, int tolerance) {
@@ -72,6 +87,12 @@ class EvaluatorTest : public ::testing::Test {
         Chess chess(fen);
         Evaluator evaluator(chess);
         EXPECT_EQ(evaluator.nonPawnMaterial(c), expected);
+    }
+
+    void testScaleFactor(const std::string& fen, int expected) {
+        Chess chess(fen);
+        Evaluator<false> evaluator(chess);
+        EXPECT_EQ(evaluator.scaleFactor(), expected) << fen;
     }
 };
 
@@ -99,14 +120,51 @@ TEST_F(EvaluatorTest, Eval) {
     }
 }
 
-TEST_F(EvaluatorTest, ScaleFactor) {
-    std::vector<std::pair<std::string, int>> testCases = {
-        {EMPTYFEN, 36},
-        {STARTFEN, SCALE_LIMIT},
+TEST_F(EvaluatorTest, Outposts) {
+    std::vector<std::tuple<std::string, U64, U64>> testCases = {
+        {STARTFEN, 0, 0},
+        {EMPTYFEN, 0, 0},
+        {"r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1", 0, 0},
+        {"r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1", BB::set(D5), 0},
+        {"r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1", 0, BB::set(D4)},
     };
 
-    for (const auto& [fen, expected] : testCases) {
-        testScaleFactor(fen, expected);
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testOutposts(fen, expectedWhite, expectedBlack);
+    }
+}
+
+TEST_F(EvaluatorTest, MobilityArea) {
+    U64 white = BB::rank(RANK2, WHITE) | BB::rank(RANK3, BLACK);
+    U64 black = BB::rank(RANK2, BLACK) | BB::rank(RANK3, WHITE);
+    std::vector<std::tuple<std::string, U64, U64>> testCases = {
+        {STARTFEN, ~white, ~black},
+        {EMPTYFEN, ~U64(0), ~U64(0)},
+    };
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testMobilityArea(fen, expectedWhite, expectedBlack);
+    }
+}
+
+TEST_F(EvaluatorTest, Mobility) {
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {EMPTYFEN, {0}, {0}},
+        // no mobility area restriction
+        {"3nk3/8/8/8/8/8/8/3NK3 w - - 0 1", KNIGHT_MOBILITY[4], KNIGHT_MOBILITY[4]},
+        {"3bk3/8/8/8/8/8/8/3BK3 w - - 0 2", BISHOP_MOBILITY[7], BISHOP_MOBILITY[7]},
+        {"3rk3/8/8/8/8/8/8/3RK3 w - - 0 3", ROOK_MOBILITY[11], ROOK_MOBILITY[11]},
+        {"3qk3/8/8/8/8/8/8/3QK3 w - - 0 4", QUEEN_MOBILITY[18], QUEEN_MOBILITY[18]},
+        // with mobility area restriction
+        {"3nk3/1p6/8/3P4/3p4/8/1P6/3NK3 w - - 0 5", KNIGHT_MOBILITY[1], KNIGHT_MOBILITY[1]},
+        {"3bk3/4p3/8/1p6/1P6/8/4P3/3BK3 w - - 0 6", BISHOP_MOBILITY[2], BISHOP_MOBILITY[2]},
+        {"3rk3/P2p4/8/8/8/8/p2P4/3RK3 w - - 0 7", ROOK_MOBILITY[3], ROOK_MOBILITY[3]},
+        {"3qk3/P2pp3/8/1p6/1P6/8/p2PP3/3QK3 w - - 0 8", QUEEN_MOBILITY[5], QUEEN_MOBILITY[5]},
+
+    };
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testMobility(fen, expectedWhite, expectedBlack);
     }
 }
 
@@ -226,25 +284,47 @@ TEST_F(EvaluatorTest, QueenScore) {
     }
 }
 
-TEST_F(EvaluatorTest, KingSafety) {
-    Score empty =
-        PAWN_SHELTER_BONUS[0] * 3 + KING_FILE_BONUS[FILE5] + KING_OPEN_FILE_BONUS[true][true];
-    Score start = PAWN_SHELTER_BONUS[RANK2] * 3 + PAWN_STORM_PENALTY[RANK7] * 3 +
+Score calculateShelter(const std::vector<int>& shelterRanks,
+                       const std::vector<int>& stormRanks,
+                       const std::vector<int>& blockedRanks) {
+    Score score{0, 0};
+    for (int r : shelterRanks) score += PAWN_SHELTER_BONUS[r];
+    for (int r : stormRanks) score += PAWN_STORM_PENALTY[r];
+    for (int r : blockedRanks) score += BLOCKED_STORM_PENALTY[r];
+    return score;
+}
+
+TEST_F(EvaluatorTest, KingSafetyScore) {
+    Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + KING_FILE_BONUS[FILE5] +
+                  KING_OPEN_FILE_BONUS[true][true];
+    Score start = calculateShelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
+                  KING_FILE_BONUS[FILE7] + KING_OPEN_FILE_BONUS[false][false];
+
+    std::vector<std::tuple<std::string, Score, Score>> testCases = {
+        {EMPTYFEN, empty, empty},
+        {STARTFEN, start, start},
+    };
+
+    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
+        testKingSafetyScore(fen, expectedWhite, expectedBlack);
+    }
+}
+
+TEST_F(EvaluatorTest, KingShelter) {
+    Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + KING_FILE_BONUS[FILE5] +
+                  KING_OPEN_FILE_BONUS[true][true];
+    Score start = calculateShelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
                   KING_FILE_BONUS[FILE5] + KING_OPEN_FILE_BONUS[false][false];
-    Score blockedPawn = PAWN_SHELTER_BONUS[RANK3] + PAWN_SHELTER_BONUS[RANK4] +
-                        PAWN_SHELTER_BONUS[RANK5] + PAWN_STORM_PENALTY[RANK6] +
-                        BLOCKED_STORM_PENALTY[RANK5] + PAWN_STORM_PENALTY[RANK4] +
+    Score blockedPawn = calculateShelter({RANK3, RANK4, RANK5}, {RANK6, RANK4}, {RANK5}) +
                         KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[false][false];
-    Score semiOpenFile1 = PAWN_SHELTER_BONUS[RANK2] * 3 + PAWN_STORM_PENALTY[0] * 3 +
+    Score semiOpenFile1 = calculateShelter({RANK2, RANK2, RANK2}, {0, 0, 0}, {}) +
                           KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[false][true];
-    Score semiOpenFile2 = PAWN_SHELTER_BONUS[0] * 3 + PAWN_STORM_PENALTY[RANK7] * 3 +
+    Score semiOpenFile2 = calculateShelter({0, 0, 0}, {RANK7, RANK7, RANK7}, {}) +
                           KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[true][false];
-    Score attackedPawn = PAWN_SHELTER_BONUS[RANK2] * 2 + PAWN_SHELTER_BONUS[RANK3] +
-                         PAWN_STORM_PENALTY[RANK7] * 2 + PAWN_STORM_PENALTY[RANK6] +
-                         KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[false][false];
-    Score kingOnRank2 = PAWN_SHELTER_BONUS[0] * 2 + PAWN_SHELTER_BONUS[RANK3] +
-                        PAWN_STORM_PENALTY[RANK7] * 2 + PAWN_STORM_PENALTY[RANK6] +
+    Score kingOnRank2 = calculateShelter({0, 0, RANK3}, {RANK7, RANK7, RANK6}, {}) +
                         KING_FILE_BONUS[FILE2] + KING_OPEN_FILE_BONUS[false][false];
+    Score attackedPawn = calculateShelter({RANK2, RANK2, 0}, {RANK7, RANK7, RANK7}, {}) +
+                         KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[false][false];
 
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, empty, empty},
@@ -252,60 +332,28 @@ TEST_F(EvaluatorTest, KingSafety) {
         {"k7/8/p7/1pP5/1Pp5/P7/8/K7 w - - 0 1", blockedPawn, blockedPawn},
         {"7k/5ppp/8/8/8/8/PPP5/K7 w - - 0 2", semiOpenFile1, semiOpenFile1},
         {"k7/5ppp/8/8/8/8/PPP5/7K w - - 0 3", semiOpenFile2, semiOpenFile2},
-        {"7k/5ppp/4Pp2/8/8/4pP2/5PPP/7K w - - 0 4", attackedPawn, attackedPawn},
-        {"8/5pkp/6p1/8/8/6P1/5PKP/8 w - - 0 5", kingOnRank2, kingOnRank2},
+        {"8/5pkp/6p1/8/8/6P1/5PKP/8 w - - 0 4", kingOnRank2, kingOnRank2},
+        {"k7/ppp5/3P4/8/8/3p4/PPP5/K7 w - - 0 5", attackedPawn, attackedPawn},
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testKingSafety(fen, expectedWhite, expectedBlack);
+        testKingShelter(fen, expectedWhite, expectedBlack);
     }
 }
 
-TEST_F(EvaluatorTest, Mobility) {
-    std::vector<std::tuple<std::string, Score, Score>> testCases = {
-        {EMPTYFEN, {0}, {0}},
-        // no mobility area restriction
-        {"3nk3/8/8/8/8/8/8/3NK3 w - - 0 1", KNIGHT_MOBILITY[4], KNIGHT_MOBILITY[4]},
-        {"3bk3/8/8/8/8/8/8/3BK3 w - - 0 2", BISHOP_MOBILITY[7], BISHOP_MOBILITY[7]},
-        {"3rk3/8/8/8/8/8/8/3RK3 w - - 0 3", ROOK_MOBILITY[11], ROOK_MOBILITY[11]},
-        {"3qk3/8/8/8/8/8/8/3QK3 w - - 0 4", QUEEN_MOBILITY[18], QUEEN_MOBILITY[18]},
-        // with mobility area restriction
-        {"3nk3/1p6/8/3P4/3p4/8/1P6/3NK3 w - - 0 5", KNIGHT_MOBILITY[1], KNIGHT_MOBILITY[1]},
-        {"3bk3/4p3/8/1p6/1P6/8/4P3/3BK3 w - - 0 6", BISHOP_MOBILITY[2], BISHOP_MOBILITY[2]},
-        {"3rk3/P2p4/8/8/8/8/p2P4/3RK3 w - - 0 7", ROOK_MOBILITY[3], ROOK_MOBILITY[3]},
-        {"3qk3/P2pp3/8/1p6/1P6/8/p2PP3/3QK3 w - - 0 8", QUEEN_MOBILITY[5], QUEEN_MOBILITY[5]},
+TEST_F(EvaluatorTest, FileShelter) {
+    Score empty = calculateShelter({0}, {0}, {});
+    Score start = calculateShelter({RANK2}, {RANK7}, {});
+    Score blockedPawn = calculateShelter({RANK4}, {}, {RANK5});
 
+    std::vector<std::tuple<std::string, Score, Score, File>> testCases = {
+        {EMPTYFEN, empty, empty, FILE5},
+        {STARTFEN, start, start, FILE5},
+        {"1k6/8/8/1p6/1P6/8/8/1K6 w - - 0 1", blockedPawn, blockedPawn, FILE2},
     };
 
-    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testMobility(fen, expectedWhite, expectedBlack);
-    }
-}
-
-TEST_F(EvaluatorTest, MobilityArea) {
-    U64 white = BB::rank(RANK2, WHITE) | BB::rank(RANK3, BLACK);
-    U64 black = BB::rank(RANK2, BLACK) | BB::rank(RANK3, WHITE);
-    std::vector<std::tuple<std::string, U64, U64>> testCases = {
-        {STARTFEN, ~white, ~black},
-        {EMPTYFEN, ~U64(0), ~U64(0)},
-    };
-
-    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testMobilityArea(fen, expectedWhite, expectedBlack);
-    }
-}
-
-TEST_F(EvaluatorTest, Outposts) {
-    std::vector<std::tuple<std::string, U64, U64>> testCases = {
-        {STARTFEN, 0, 0},
-        {EMPTYFEN, 0, 0},
-        {"r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1", 0, 0},
-        {"r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1", BB::set(D5), 0},
-        {"r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1", 0, BB::set(D4)},
-    };
-
-    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testOutposts(fen, expectedWhite, expectedBlack);
+    for (const auto& [fen, expectedWhite, expectedBlack, file] : testCases) {
+        testFileShelter(fen, expectedWhite, expectedBlack, file);
     }
 }
 
@@ -333,5 +381,16 @@ TEST_F(EvaluatorTest, NonPawnMaterial) {
 
     for (const auto& [fen, expected, tolerance] : testCases) {
         testNonPawnMaterial(fen, expected, tolerance);
+    }
+}
+
+TEST_F(EvaluatorTest, ScaleFactor) {
+    std::vector<std::pair<std::string, int>> testCases = {
+        {EMPTYFEN, 36},
+        {STARTFEN, SCALE_LIMIT},
+    };
+
+    for (const auto& [fen, expected] : testCases) {
+        testScaleFactor(fen, expected);
     }
 }

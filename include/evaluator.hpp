@@ -78,21 +78,29 @@ class Evaluator {
 
     template <Color>
     Score pawnsScore();
-    template <Color>
-    Score kingSafetyScore();
     template <Color, PieceType>
     Score piecesScore();
+    template <Color>
+    Score kingSafetyScore();
 
-    friend class EvaluatorTest;
+    // king safety score helpers
+    template <Color>
+    Score kingShelter(Square);
+    template <Color>
+    Score fileShelter(U64, U64, File);
 
+    // pieces score helpers
     template <Color>
     int bishopPawnBlockers(U64) const;
     template <Color>
     bool discoveredAttackOnQueen(Square, U64) const;
 
+    // main eval helpers
     int phase() const;
     int nonPawnMaterial(Color) const;
     int scaleFactor() const;
+
+    friend class EvaluatorTest;
 };
 
 template <bool debug>
@@ -221,49 +229,6 @@ inline Score Evaluator<debug>::pawnsScore() {
 }
 
 template <bool debug>
-template <Color c>
-inline Score Evaluator<debug>::kingSafetyScore() {
-    constexpr Color enemy = ~c;
-
-    Square kingSq = board.kingSq(c);
-    File kingFile = fileOf(kingSq);
-    Rank kingRank = rankOf(kingSq);
-
-    U64 pawnsInFront = BB::spanFront<c>(BB::rank(kingRank));
-    U64 enemyPawns = board.pieces<PAWN>(enemy) & pawnsInFront;
-    U64 pawns = board.pieces<PAWN>(c) & pawnsInFront & ~BB::pawnAttacks<enemy>(enemyPawns);
-
-    auto evaluateFile = [&](File f) -> Score {
-        Score score = {0, 0};
-
-        U64 bb = pawns & BB::file(f);
-        Rank rank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
-        score += PAWN_SHELTER_BONUS[rank];
-
-        bb = enemyPawns & BB::file(f);
-        Rank enemyRank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
-        if (rank && (rank + 1 == enemyRank)) {
-            score += BLOCKED_STORM_PENALTY[enemyRank];
-        } else {
-            score += PAWN_STORM_PENALTY[enemyRank];
-        }
-
-        return score;
-    };
-
-    File file = std::clamp(kingFile, FILE2, FILE7);
-    Score score = evaluateFile(file - 1) + evaluateFile(file) + evaluateFile(file + 1);
-
-    score += KING_FILE_BONUS[kingFile];
-
-    bool friendlyOpenFile = !(board.pieces<PAWN>(c) & BB::file(kingFile));
-    bool enemyOpenFile = !(board.pieces<PAWN>(enemy) & BB::file(kingFile));
-    score += KING_OPEN_FILE_BONUS[friendlyOpenFile][enemyOpenFile];
-
-    return score;
-}
-
-template <bool debug>
 template <Color c, PieceType p>
 Score Evaluator<debug>::piecesScore() {
     constexpr Color enemy = ~c;
@@ -329,6 +294,67 @@ Score Evaluator<debug>::piecesScore() {
             }
         }
     });
+
+    return score;
+}
+
+template <bool debug>
+template <Color c>
+inline Score Evaluator<debug>::kingSafetyScore() {
+    Square kingSq = board.kingSq(c);
+    Score score = kingShelter<c>(kingSq);
+
+    if (chess.state.at(chess.ply).canCastleOO(c)) {
+        score = std::max(score, kingShelter<c>(KingDestinationOO[c]));
+    }
+    if (chess.state.at(chess.ply).canCastleOOO(c)) {
+        score = std::max(score, kingShelter<c>(KingDestinationOOO[c]));
+    }
+
+    return score;
+}
+
+template <bool debug>
+template <Color c>
+inline Score Evaluator<debug>::kingShelter(Square kingSq) {
+    constexpr Color enemy = ~c;
+
+    File kingFile = fileOf(kingSq);
+    Rank kingRank = rankOf(kingSq);
+
+    U64 pawnsInFront = BB::spanFront<c>(BB::rank(kingRank));
+    U64 enemyPawns = board.pieces<PAWN>(enemy) & pawnsInFront;
+    U64 pawns = board.pieces<PAWN>(c) & pawnsInFront & ~BB::pawnAttacks<enemy>(enemyPawns);
+
+    File file = std::clamp(kingFile, FILE2, FILE7);
+    Score score = fileShelter<c>(pawns, enemyPawns, file - 1) +
+                  fileShelter<c>(pawns, enemyPawns, file) +
+                  fileShelter<c>(pawns, enemyPawns, file + 1);
+
+    score += KING_FILE_BONUS[kingFile];
+
+    bool friendlyOpenFile = !(board.pieces<PAWN>(c) & BB::file(kingFile));
+    bool enemyOpenFile = !(board.pieces<PAWN>(enemy) & BB::file(kingFile));
+    score += KING_OPEN_FILE_BONUS[friendlyOpenFile][enemyOpenFile];
+
+    return score;
+}
+
+template <bool debug>
+template <Color c>
+inline Score Evaluator<debug>::fileShelter(U64 pawns, U64 enemyPawns, File file) {
+    constexpr Color enemy = ~c;
+
+    Score score = {0, 0};
+
+    U64 bb = pawns & BB::file(file);
+    Rank rank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
+    score += PAWN_SHELTER_BONUS[rank];
+
+    bb = enemyPawns & BB::file(file);
+    Rank enemyRank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
+    score += (rank && (rank + 1) == enemyRank) ? BLOCKED_STORM_PENALTY[enemyRank]
+                                               : PAWN_STORM_PENALTY[enemyRank];
 
     return score;
 }

@@ -54,6 +54,7 @@ class Chess {
     void setEnPassant(Square sq);
 
     // accessors
+    State& getState() { return state.at(ply); }
     U64 getKey() const { return state.at(ply).zkey; }
     U64 getCheckingPieces() const { return state.at(ply).checkingPieces; }
     Square getEnPassant() const { return state.at(ply).enPassantSq; }

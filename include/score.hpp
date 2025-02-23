@@ -21,6 +21,7 @@ struct Score {
     Score operator-() const { return Score{-mg, -eg}; }
     bool operator==(const Score& other) const { return mg == other.mg && eg == other.eg; }
     bool operator!=(const Score& other) const { return !(*this == other); }
+    bool operator<(const Score& other) const { return mg < other.mg; }
 
     Score& operator+=(const Score& other) {
         mg += other.mg;
