@@ -277,7 +277,7 @@ std::string Chess::toFEN() const {
     for (Rank rank = RANK8; rank >= RANK1; rank--) {
         int emptyCount = 0;
         for (File file = FILE1; file <= FILE8; file++) {
-            Piece p = board.pieceOn(sqFromCoords(file, rank));
+            Piece p = board.pieceOn(makeSquare(file, rank));
             if (p != NO_PIECE) {
                 if (emptyCount > 0) {
                     oss << emptyCount;

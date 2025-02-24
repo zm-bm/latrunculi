@@ -36,7 +36,7 @@ void FenParser::parsePiecePlacement(const std::string& section) {
         if (((int)ch > 48) && ((int)ch < 57)) {
             file += File((int)ch - '0');
         } else {
-            Square sq = sqFromCoords(file, rank);
+            Square sq = makeSquare(file, rank);
 
             switch (ch) {
                 case 'P':
@@ -122,7 +122,7 @@ void FenParser::parseCastlingRights(const std::string& section) {
 
 void FenParser::parseEnPassantTarget(const std::string& section) {
     if (section.compare("-") != 0) {
-        en_passant_target_ = sqFromString(section);
+        en_passant_target_ = makeSquare(section);
     }
 }
 

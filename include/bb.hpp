@@ -369,7 +369,7 @@ struct Bitboard {
             os << "  ";
 
             for (int file = 0; file < 8; file++) {
-                os << output[sqFromCoords(File(file), Rank(rank))];
+                os << output[makeSquare(File(file), Rank(rank))];
             }
 
             os << " " << (rank + 1) << "\n";

@@ -3,19 +3,19 @@
 #include <gtest/gtest.h>
 
 TEST(Defs_sqFromCoords, CorrectValues) {
-    EXPECT_EQ(sqFromCoords(FILE1, RANK1), A1);
-    EXPECT_EQ(sqFromCoords(FILE1, RANK8), A8);
-    EXPECT_EQ(sqFromCoords(FILE8, RANK1), H1);
-    EXPECT_EQ(sqFromCoords(FILE8, RANK8), H8);
-    EXPECT_EQ(sqFromCoords(FILE4, RANK4), D4);
+    EXPECT_EQ(makeSquare(FILE1, RANK1), A1);
+    EXPECT_EQ(makeSquare(FILE1, RANK8), A8);
+    EXPECT_EQ(makeSquare(FILE8, RANK1), H1);
+    EXPECT_EQ(makeSquare(FILE8, RANK8), H8);
+    EXPECT_EQ(makeSquare(FILE4, RANK4), D4);
 }
 
 TEST(Defs_sqFromString, CorrectValues) {
-    EXPECT_EQ(sqFromString("a1"), A1);
-    EXPECT_EQ(sqFromString("a8"), A8);
-    EXPECT_EQ(sqFromString("h1"), H1);
-    EXPECT_EQ(sqFromString("h8"), H8);
-    EXPECT_EQ(sqFromString("d4"), D4);
+    EXPECT_EQ(makeSquare("a1"), A1);
+    EXPECT_EQ(makeSquare("a8"), A8);
+    EXPECT_EQ(makeSquare("h1"), H1);
+    EXPECT_EQ(makeSquare("h8"), H8);
+    EXPECT_EQ(makeSquare("d4"), D4);
 }
 
 TEST(Types_rankFromSq, CorrectValues) {

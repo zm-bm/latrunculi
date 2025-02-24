@@ -205,7 +205,7 @@ inline std::ostream& operator<<(std::ostream& os, const Board& b) {
         os << "   +---+---+---+---+---+---+---+---+\n";
         os << "   |";
         for (File file = FILE1; file <= FILE8; file++) {
-            os << " " << b.pieceOn(sqFromCoords(file, rank)) << " |";
+            os << " " << b.pieceOn(makeSquare(file, rank)) << " |";
         }
         os << " " << rank << '\n';
     }

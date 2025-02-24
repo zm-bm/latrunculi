@@ -8,14 +8,14 @@
 
 #include "types.hpp"
 
-inline constexpr Square sqFromCoords(const File file, const Rank rank) {
-    return static_cast<Square>(rank * 8 + file);
+inline constexpr Square makeSquare(const File file, const Rank rank) {
+    return static_cast<Square>((rank << 3) + file);
 }
 
-inline Square sqFromString(const std::string& square) {
+inline Square makeSquare(const std::string& square) {
     auto file = File((int)square[0] - 'a');
     auto rank = Rank(((int)square[1] - '1'));
-    return sqFromCoords(file, rank);
+    return makeSquare(file, rank);
 }
 
 inline constexpr Rank rankOf(const Square square) { return Rank(square >> 3); }

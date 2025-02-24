@@ -48,11 +48,12 @@ class EvaluatorTest : public ::testing::Test {
         EXPECT_EQ(bScore, expectedBlack) << fen;
     }
 
-    void testKingSafetyScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+    void testKingScore(const std::string& fen, Score expected) {
         Chess chess(fen);
         Evaluator<false> evaluator(chess);
-        EXPECT_EQ(evaluator.kingSafetyScore<WHITE>(), expectedWhite) << fen;
-        EXPECT_EQ(evaluator.kingSafetyScore<BLACK>(), expectedBlack) << fen;
+        evaluator.eval();
+        EXPECT_EQ(evaluator.kingScore<WHITE>(), expected) << fen;
+        EXPECT_EQ(evaluator.kingScore<BLACK>(), expected) << fen;
     }
 
     void testKingShelter(const std::string& fen, Score expectedWhite, Score expectedBlack) {
@@ -294,19 +295,23 @@ Score calculateShelter(const std::vector<int>& shelterRanks,
     return score;
 }
 
-TEST_F(EvaluatorTest, KingSafetyScore) {
+TEST_F(EvaluatorTest, KingScore) {
     Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + KING_FILE_BONUS[FILE5] +
                   KING_OPEN_FILE_BONUS[true][true];
     Score start = calculateShelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
                   KING_FILE_BONUS[FILE7] + KING_OPEN_FILE_BONUS[false][false];
 
-    std::vector<std::tuple<std::string, Score, Score>> testCases = {
-        {EMPTYFEN, empty, empty},
-        {STARTFEN, start, start},
+    std::vector<std::tuple<std::string, Score>> testCases = {
+        {EMPTYFEN, empty},
+        {STARTFEN, start},
+        {"1N2k3/8/8/8/8/8/8/1n2K3 w - - 0 1", empty + KING_DANGER[KNIGHT]},
+        {"1B2k3/8/8/8/8/8/8/1b2K3 w - - 0 1", empty + KING_DANGER[BISHOP]},
+        {"1R1nk3/8/8/8/8/8/8/1r1NK3 w - - 0 1", empty + KING_DANGER[ROOK]},
+        {"1Q1nk3/8/8/8/8/8/8/1q1NK3 w - - 0 1", empty + KING_DANGER[QUEEN] * 2},
     };
 
-    for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testKingSafetyScore(fen, expectedWhite, expectedBlack);
+    for (const auto& [fen, expected] : testCases) {
+        testKingScore(fen, expected);
     }
 }
 

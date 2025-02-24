@@ -88,6 +88,16 @@ constexpr Score KING_OPEN_FILE_BONUS[2][2] = {
 constexpr Score KING_FILE_BONUS[] = {
     {20, 0}, {5, 0}, {-15, 0}, {-30, 0}, {-30, 0}, {-15, 0}, {5, 0}, {20, 0}};
 
+constexpr Score KING_DANGER[] = {
+    {0, 0},
+    {-12, -6},   // pawn
+    {-6, -3},    // knight
+    {-8, -4},    // bishop
+    {-16, -10},  // rook
+    {-24, -12},  // queen
+    {0, -10},   // king
+};
+
 // clang-format off
 constexpr Score KNIGHT_MOBILITY[] = {
     {-50, -60}, {-40, -45}, {-10, -25}, {-2, -14}, {2, 6},

@@ -19,7 +19,7 @@ enum Term {
     TERM_BISHOPS,
     TERM_ROOKS,
     TERM_QUEENS,
-    TERM_KING_SAFETY,
+    TERM_KING,
     TERM_MOBILITY,
     TERM_THREATS,
     TERM_SPACE,
@@ -60,10 +60,12 @@ class Evaluator {
     const Chess& chess;
     const Board& board;
 
+    U64 attacks[N_COLORS][N_PIECES] = {};
     U64 outposts[N_COLORS] = {0, 0};
     U64 mobilityArea[N_COLORS] = {0, 0};
-    U64 kingArea[N_COLORS] = {0, 0};
+    U64 kingZone[N_COLORS] = {0, 0};
 
+    Score kingDanger[N_COLORS] = {{0, 0}, {0, 0}};
     Score mobility[N_COLORS] = {{0, 0}, {0, 0}};
 
     using ScoresDetail =
@@ -81,7 +83,7 @@ class Evaluator {
     template <Color, PieceType>
     Score piecesScore();
     template <Color>
-    Score kingSafetyScore();
+    Score kingScore();
 
     // king safety score helpers
     template <Color>
@@ -112,7 +114,11 @@ void Evaluator<debug>::initialize() {
 
     outposts[c] = Eval::outpostSquares<c>(pawns, enemyPawns);
     mobilityArea[c] = ~((pawns & BB::rank(RANK2, c)) | BB::pawnAttacks<enemy>(enemyPawns));
-    kingArea[c] = BB::pieceMoves<KING>(board.kingSquare[c]);
+
+    Square kingSq = board.kingSquare[c];
+    Square center = makeSquare(std::clamp(fileOf(kingSq), FILE2, FILE7),
+                               std::clamp(rankOf(kingSq), RANK2, RANK7));
+    kingZone[c] = BB::pieceMoves<KING>(center) | BB::set(center);
 }
 
 template <bool debug>
@@ -134,8 +140,8 @@ inline Score Evaluator<debug>::evaluateTerm() {
         score = piecesScore<c, ROOK>();
     } else if constexpr (term == TERM_QUEENS) {
         score = piecesScore<c, QUEEN>();
-    } else if constexpr (term == TERM_KING_SAFETY) {
-        score = kingSafetyScore<c>();
+    } else if constexpr (term == TERM_KING) {
+        score = kingScore<c>();
     } else if constexpr (term == TERM_MOBILITY) {
         score = mobility[c];
     } else {
@@ -160,7 +166,7 @@ int Evaluator<debug>::eval() {
     score += evaluateTerm<TERM_BISHOPS, WHITE>() - evaluateTerm<TERM_BISHOPS, BLACK>();
     score += evaluateTerm<TERM_ROOKS, WHITE>() - evaluateTerm<TERM_ROOKS, BLACK>();
     score += evaluateTerm<TERM_QUEENS, WHITE>() - evaluateTerm<TERM_QUEENS, BLACK>();
-    score += evaluateTerm<TERM_KING_SAFETY, WHITE>() - evaluateTerm<TERM_KING_SAFETY, BLACK>();
+    score += evaluateTerm<TERM_KING, WHITE>() - evaluateTerm<TERM_KING, BLACK>();
 
     // more complex eval terms require pieces to be evaluated first
     score += evaluateTerm<TERM_MOBILITY, WHITE>() - evaluateTerm<TERM_MOBILITY, BLACK>();
@@ -188,7 +194,7 @@ int Evaluator<debug>::eval() {
                   << TermOutput{"Bishops", scores[TERM_BISHOPS], std::nullopt}
                   << TermOutput{"Rooks", scores[TERM_ROOKS], std::nullopt}
                   << TermOutput{"Queens", scores[TERM_QUEENS], std::nullopt}
-                  << TermOutput{"King Safety", scores[TERM_KING_SAFETY], std::nullopt}
+                  << TermOutput{"King", scores[TERM_KING], std::nullopt}
                   << TermOutput{"Mobility", scores[TERM_MOBILITY], std::nullopt}
                   << " ------------+-------------+-------------+------------\n"
                   << TermOutput{"Total", nullptr, score} << '\n'
@@ -214,7 +220,12 @@ inline Score Evaluator<debug>::pawnsScore() {
     constexpr Color enemy = ~c;
     Score score = {0, 0};
     U64 pawns = board.pieces<PAWN>(c);
+    U64 pawnAttacks = BB::pawnAttacks<c>(pawns);
     U64 enemyPawns = board.pieces<PAWN>(enemy);
+
+    attacks[c][ALL_PIECES] |= pawnAttacks;
+    attacks[c][PAWN] |= pawnAttacks;
+    kingDanger[enemy] += KING_DANGER[PAWN] * BB::count(pawnAttacks & kingZone[enemy]);
 
     U64 isolatedPawns = Eval::isolatedPawns(pawns);
     score += ISO_PAWN_PENALTY * BB::count(isolatedPawns);
@@ -247,6 +258,11 @@ Score Evaluator<debug>::piecesScore() {
     forEachPiece<c>(board.pieces<p>(c), [&](Square sq) {
         U64 bb = BB::set(sq);
         U64 moves = BB::pieceMoves<p>(sq, occ);
+
+        attacks[c][ALL_PIECES] |= moves;
+        attacks[c][p] |= moves;
+
+        kingDanger[enemy] += KING_DANGER[p] * BB::count(moves & kingZone[enemy]);
 
         U64 nMoves = BB::count(moves & mobilityArea[c]);
         mobility[c] += MOBILITY_BONUS[p][nMoves];
@@ -300,7 +316,7 @@ Score Evaluator<debug>::piecesScore() {
 
 template <bool debug>
 template <Color c>
-inline Score Evaluator<debug>::kingSafetyScore() {
+inline Score Evaluator<debug>::kingScore() {
     Square kingSq = board.kingSq(c);
     Score score = kingShelter<c>(kingSq);
 
@@ -310,6 +326,8 @@ inline Score Evaluator<debug>::kingSafetyScore() {
     if (chess.state.at(chess.ply).canCastleOOO(c)) {
         score = std::max(score, kingShelter<c>(KingDestinationOOO[c]));
     }
+
+    score += kingDanger[c];
 
     return score;
 }
