@@ -10,24 +10,25 @@
 // http://wbec-ridderkerk.nl/html/UCIProtocol.html
 namespace UCI {
 
-class Controller {
+class Engine {
    public:
-    Controller(std::istream&, std::ostream&);
+    Engine(std::istream&, std::ostream&);
     void loop();
-    bool execute(const std::string& input);
+    bool execute(const std::string&);
 
    private:
     Chess chess;
-    Search search;
-    bool _debug;
+    bool debug;
+
     std::istream& istream;
     std::ostream& ostream;
 
     void uci();
-    void setdebug(std::vector<std::string>& tokens);
-    void position(std::vector<std::string>& tokens);
-    void go(std::vector<std::string>& tokens);
-    void move(std::vector<std::string>& tokens);
+    void setdebug(std::istringstream& iss);
+    void position(std::istringstream& iss);
+    void perft(std::istringstream& iss);
+    void go(std::istringstream& iss);
+    void move(std::istringstream& iss);
     void moves();
 };
 

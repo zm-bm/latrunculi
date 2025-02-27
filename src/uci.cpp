@@ -2,174 +2,154 @@
 
 #include <sstream>
 
+#include "chess.hpp"
 #include "defs.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
-#include "chess.hpp"
 #include "tt.hpp"
 
 namespace UCI {
 
-Controller::Controller(std::istream& is, std::ostream& os)
-    : chess(STARTFEN),
-      search(&chess),
-      _debug(false),
-      istream(is),
-      ostream(os) {}
+Engine::Engine(std::istream& is, std::ostream& os)
+    : chess(STARTFEN), debug(false), istream(is), ostream(os) {}
 
-void Controller::loop() {
-  std::string line;
-
-  uci();
-
-  while (std::getline(istream, line)) {
-    // Break out of the game loop if execution fails
-    if (!execute(line)) break;
-  }
-}
-
-bool Controller::execute(const std::string& input) {
-  // Split input string to get the UCI command
-  auto tokens = splitStr(input, ' ');
-  auto cmd = tokens.at(0);
-  tokens.erase(tokens.begin());
-
-  if (cmd == "uci")
+void Engine::loop() {
+    std::string line;
     uci();
 
-  else if (cmd == "debug")
-    setdebug(tokens);
-
-  else if (cmd == "isready")
-    ostream << "readyok" << std::endl;
-
-  else if (cmd == "setoption")
-    ostream << "TODO: implement uci options" << std::endl;
-
-  else if (cmd == "ucinewgame")
-    ostream << "TODO: clear transposition table" << std::endl;
-
-  else if (cmd == "position")
-    position(tokens);
-
-  else if (cmd == "go")
-    go(tokens);
-
-  else if (cmd == "move")
-    move(tokens);
-
-  else if (cmd == "moves")
-    moves();
-
-  else if (cmd == "d")
-    ostream << chess << std::endl;
-
-  else if (cmd == "eval")
-    chess.eval<true>();
-
-  else if (cmd == "tt") {
-    TT::Entry* ttEntry = TT::table.probe(chess.getKey());
-    if (ttEntry) ostream << *ttEntry;
-  }
-
-  else if (cmd == "quit" || cmd == "exit")
-    return false;
-
-  return true;
+    while (std::getline(istream, line)) {
+        if (!execute(line)) break;
+    }
 }
 
-void Controller::uci() {
-  // Identify the engine
-  ostream << "id name Latrunculi 0.1.0" << std::endl;
-  ostream << "id author Eric VanderHelm" << std::endl;
-  ostream << "uciok" << std::endl;
+bool Engine::execute(const std::string& line) {
+    std::istringstream iss(line);
+    std::string token;
+    iss >> token;
+
+    if (token == "uci") {
+        uci();
+    } else if (token == "debug") {
+        setdebug(iss);
+    } else if (token == "isready") {
+        ostream << "readyok" << std::endl;
+    } else if (token == "setoption") {
+        ostream << "to be implemented" << std::endl;
+    } else if (token == "ucinewgame") {
+        ostream << "to be implemented" << std::endl;
+    } else if (token == "position") {
+        position(iss);
+    } else if (token == "go") {
+        go(iss);
+    } else if (token == "stop") {
+        ostream << "to be implemented" << std::endl;
+    } else if (token == "ponderhit") {
+        ostream << "to be implemented" << std::endl;
+    } else if (token == "quit" || token == "exit") {
+        return false;
+    }
+
+    if (token == "perft") {
+        perft(iss);
+    } else if (token == "move") {
+        move(iss);
+    } else if (token == "moves") {
+        moves();
+    } else if (token == "d") {
+        ostream << chess << std::endl;
+    } else if (token == "eval") {
+        chess.eval<true>();
+    } else if (token == "tt") {
+        TT::Entry* ttEntry = TT::table.probe(chess.getKey());
+        if (ttEntry) ostream << *ttEntry;
+    }
+
+    return true;
 }
 
-void Controller::setdebug(std::vector<std::string>& tokens) {
-  if (tokens.at(0) == "on")
-    _debug = true;
-  else if (tokens.at(0) == "off")
-    _debug = false;
+void Engine::uci() {
+    ostream << "id name Latrunculi 0.1.0" << std::endl;
+    ostream << "id author Eric VanderHelm" << std::endl;
+    ostream << "uciok" << std::endl;
 }
 
-void Controller::position(std::vector<std::string>& tokens) {
-  std::string pos = tokens.at(0);
-  tokens.erase(tokens.begin());
+void Engine::setdebug(std::istringstream& iss) {
+    std::string token;
+    iss >> token;
 
-  if (pos == "startpos") {
-    chess = Chess(STARTFEN);
-    search = Search(&chess);
+    if (token == "on") {
+        debug = true;
+    } else if (token == "off") {
+        debug = false;
+    }
+}
 
-    if (_debug) ostream << chess;
-  } else if (pos == "fen") {
-    std::string fen = "";
+void Engine::position(std::istringstream& iss) {
+    std::string token, fen;
+    iss >> token;
 
-    // TODO: implement position [fen] moves ...
-    for (auto& token : tokens) {
-      if (token != "moves")
-        fen += token + " ";
-      else
-        break;
+    if (token == "startpos") {
+        fen = STARTFEN;
+    } else if (token == "fen") {
+        while(iss >> token && token != "moves") {
+            fen += token + " ";
+        }
+    } else {
+        return;
     }
 
     chess = Chess(fen);
-    search = Search(&chess);
-
-    if (_debug) ostream << chess;
-  } else {
-    return;
-  }
+    // search = Search(&chess);
 }
 
-void Controller::go(std::vector<std::string>& tokens) {
-  std::string mode = tokens.at(0);
-  tokens.erase(tokens.begin());
+void Engine::perft(std::istringstream& iss) {
+    std::string token;
+    iss >> token;
 
-  if (mode == "perft") {
-    auto depth = std::stoi(tokens.at(0));
-    search.perft<true>(depth);
-  }
-
-  else if (mode == "depth") {
-    auto depth = std::stoi(tokens.at(0));
-    search.think(depth);
-  }
+    auto val = std::stoi(token);
+    // search.perft<true>(val);
 }
 
-void Controller::move(std::vector<std::string>& tokens) {
-  if (tokens.at(0) == "undo") {
-    chess.unmake();
+void Engine::go(std::istringstream& iss) {
+    std::string token;
+    iss >> token;
 
-    if (_debug) ostream << chess;
-  } else {
+    auto val = std::stoi(token);
+    // search.think(val);
+}
+
+void Engine::move(std::istringstream& iss) {
+    std::string token;
+    iss >> token;
+
+    if (token == "undo") {
+        chess.unmake();
+    } else {
+        auto movegen = MoveGenerator(&chess);
+        movegen.generatePseudoLegalMoves();
+
+        for (auto& move : movegen.moves) {
+            std::ostringstream oss;
+            oss << move;
+
+            if (oss.str() == token) {
+                chess.make(move);
+            }
+        }
+    }
+}
+
+void Engine::moves() {
     auto movegen = MoveGenerator(&chess);
     movegen.generatePseudoLegalMoves();
 
-    for (auto& move : movegen.moves) {
-      std::ostringstream oss;
-      oss << move;
+    // TT::Entry* entry = TT::table.probe(chess.getKey());
+    // if (entry)
+    //     search.sortMoves(movegen.moves, entry->best);
+    // else
+    //     search.sortMoves(movegen.moves);
 
-      if (oss.str() == tokens.at(0)) {
-        chess.make(move);
-
-        if (_debug) ostream << chess;
-      }
-    }
-  }
-}
-
-void Controller::moves() {
-  auto movegen = MoveGenerator(&chess);
-  movegen.generatePseudoLegalMoves();
-
-  TT::Entry* entry = TT::table.probe(chess.getKey());
-  if (entry)
-    search.sortMoves(movegen.moves, entry->best);
-  else
-    search.sortMoves(movegen.moves);
-
-  for (auto& move : movegen.moves)
-    ostream << move << ": " << move.score << std::endl;
+    for (auto& move : movegen.moves) ostream << move << ": " << move.score << std::endl;
 }
 
 }  // namespace UCI

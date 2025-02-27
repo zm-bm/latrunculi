@@ -8,8 +8,8 @@ int main()
     Magics::init();
     Zobrist::init();
 
-	UCI::Controller controller(std::cin, std::cout);
-	controller.loop();
+	UCI::Engine engine(std::cin, std::cout);
+	engine.loop();
 
 	return 0;
 }

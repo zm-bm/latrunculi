@@ -21,9 +21,6 @@ enum Term {
     TERM_QUEENS,
     TERM_KING,
     TERM_MOBILITY,
-    TERM_THREATS,
-    TERM_SPACE,
-    TERM_INITIATIVE,
     N_TERMS,
 };
 
