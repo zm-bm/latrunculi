@@ -3,7 +3,6 @@
 #include <sstream>
 
 #include "chess.hpp"
-#include "defs.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"

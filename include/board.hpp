@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "bb.hpp"
-#include "defs.hpp"
 #include "fen.hpp"
 #include "types.hpp"
 #include "zobrist.hpp"

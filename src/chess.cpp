@@ -1,6 +1,5 @@
 #include "chess.hpp"
 
-#include "defs.hpp"
 #include "evaluator.hpp"
 #include "fen.hpp"
 #include "score.hpp"

@@ -2,9 +2,8 @@
 
 #include <string>
 #include <vector>
-#include <stdexcept>
+#include <sstream>
 #include "types.hpp"
-#include "defs.hpp"
 
 // https://www.chessprogramming.org/Forsyth-Edwards_Notation
 class FenParser {

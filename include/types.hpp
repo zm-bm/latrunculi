@@ -103,6 +103,57 @@ inline std::ostream& operator<<(std::ostream& os, Piece p) {
     return os;
 }
 
+// Helpers
+
+inline constexpr Square makeSquare(const File file, const Rank rank) {
+    return static_cast<Square>((rank << 3) + file);
+}
+
+inline Square makeSquare(const std::string& square) {
+    auto file = File((int)square[0] - 'a');
+    auto rank = Rank(((int)square[1] - '1'));
+    return makeSquare(file, rank);
+}
+
+inline constexpr Rank rankOf(const Square square) { return Rank(square >> 3); }
+
+inline constexpr Rank relativeRank(const Rank rank, const Color color) {
+    return Rank(rank ^ (~color * 7));
+}
+inline constexpr Rank relativeRank(const Square square, const Color color) {
+    return Rank(rankOf(square) ^ (~color * 7));
+}
+
+inline constexpr File fileOf(const Square square) { return File(square & 7); }
+
+inline constexpr Piece makePiece(const Color c, const PieceType p) {
+    // create piece from color+role
+    return Piece((c << 3) | p);
+}
+
+inline constexpr PieceType pieceTypeOf(const Piece p) {
+    // get the role from a piece
+    return PieceType(p & 0x7);
+}
+
+inline constexpr Color pieceColorOf(const Piece p) {
+    // get the color of a piece
+    return Color(p >> 3);
+}
+
+template <Color c, PawnMove p, bool forward>
+inline Square pawnMove(const Square sq) {
+    return (forward == (c == WHITE)) ? Square(sq + static_cast<int>(p))
+                                     : Square(sq - static_cast<int>(p));
+}
+
+template <PawnMove p, bool forward>
+inline Square pawnMove(const Square sq, const Color c) {
+    return (c == WHITE) ? pawnMove<WHITE, p, forward>(sq) : pawnMove<BLACK, p, forward>(sq);
+}
+
+
+
 // Enable arithmetic and bitwise operators
 #define ENABLE_OPERATORS(T)                                                   \
     inline constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
@@ -126,5 +177,6 @@ ENABLE_OPERATORS(Square)
 ENABLE_OPERATORS(File)
 ENABLE_OPERATORS(Rank)
 ENABLE_OPERATORS(CastleRights)
+
 
 #undef ENABLE_OPERATORS
