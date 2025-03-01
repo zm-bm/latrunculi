@@ -6,12 +6,13 @@
 #include "defs.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
+#include "thread.hpp"
 #include "tt.hpp"
 
 namespace UCI {
 
 Engine::Engine(std::istream& is, std::ostream& os)
-    : chess(STARTFEN), debug(false), istream(is), ostream(os) {}
+    : chess(STARTFEN), threads(3), debug(false), istream(is), ostream(os) {}
 
 void Engine::loop() {
     std::string line;
@@ -42,7 +43,7 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "go") {
         go(iss);
     } else if (token == "stop") {
-        ostream << "to be implemented" << std::endl;
+        threads.stopAll();
     } else if (token == "ponderhit") {
         ostream << "to be implemented" << std::endl;
     } else if (token == "quit" || token == "exit") {
@@ -99,7 +100,7 @@ void Engine::position(std::istringstream& iss) {
     }
 
     chess = Chess(fen);
-    // search = Search(&chess);
+
 }
 
 void Engine::perft(std::istringstream& iss) {
@@ -112,10 +113,16 @@ void Engine::perft(std::istringstream& iss) {
 
 void Engine::go(std::istringstream& iss) {
     std::string token;
-    iss >> token;
+    int depth;
 
-    auto val = std::stoi(token);
-    // search.think(val);
+    while (iss >> token) {
+        if (token == "depth") {
+            iss >> token;
+            depth = std::stoi(token);
+        }
+    }
+
+    threads.startAll();
 }
 
 void Engine::move(std::istringstream& iss) {

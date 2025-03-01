@@ -5,6 +5,7 @@
 
 #include "chess.hpp"
 #include "search.hpp"
+#include "thread.hpp"
 
 // Universal Chess Interface (UCI)
 // http://wbec-ridderkerk.nl/html/UCIProtocol.html
@@ -18,6 +19,7 @@ class Engine {
 
    private:
     Chess chess;
+    ThreadPool threads;
     bool debug;
 
     std::istream& istream;
