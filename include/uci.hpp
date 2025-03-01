@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_UCI_H
-#define LATRUNCULI_UCI_H
+#pragma once
 
 #include <string>
 
@@ -35,5 +34,3 @@ class Engine {
 };
 
 }  // namespace UCI
-
-#endif

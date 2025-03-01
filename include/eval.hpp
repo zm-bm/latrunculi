@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_EVAL_H
-#define LATRUNCULI_EVAL_H
+#pragma once
 
 #include <array>
 
@@ -60,5 +59,3 @@ inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
 }
 
 }  // namespace Eval
-
-#endif

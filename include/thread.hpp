@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_THREAD_H
-#define LATRUNCULI_THREAD_H
+#pragma once
 
 #include <atomic>
 #include <chrono>
@@ -70,5 +69,3 @@ class Logger {
    private:
     static inline std::mutex mutex_;
 };
-
-#endif  // LATRUNCULI_THREAD_H

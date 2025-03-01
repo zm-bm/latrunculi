@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_SEARCH_H
-#define LATRUNCULI_SEARCH_H
+#pragma once
 
 #include <algorithm>
 #include <chrono>
@@ -62,5 +61,3 @@ class Search {
     void savePV(Move move);
     void printPV(int, int, unsigned int);
 };
-
-#endif

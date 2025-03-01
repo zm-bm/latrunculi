@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_MAGICS_H
-#define LATRUNCULI_MAGICS_H
+#pragma once
 
 #include "types.hpp"
 
@@ -214,5 +213,3 @@ constexpr U64 getQueenAttacks(Square sq, U64 occ) {
 }
 
 }  // namespace Magics
-
-#endif

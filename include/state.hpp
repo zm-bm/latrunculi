@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_STATE_H
-#define LATRUNCULI_STATE_H
+#pragma once
 
 #include "move.hpp"
 #include "types.hpp"
@@ -79,5 +78,3 @@ struct State {
         castle &= c ? CastleRights(0x0B) : CastleRights(0x0E);
     }
 };
-
-#endif

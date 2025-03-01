@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_MOVEGEN_H
-#define LATRUNCULI_MOVEGEN_H
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -109,5 +108,3 @@ inline bool MoveGenerator::canCastleOOO(U64 occ, Color turn) {
             && !(occ & BB::CastlePathOOO[turn])             // castle path unoccupied/attacked
             && !chess->board.isBitboardAttacked(BB::KingCastlePathOOO[turn], ~turn));
 }
-
-#endif

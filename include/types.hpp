@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_TYPES_H
-#define LATRUNCULI_TYPES_H
+#pragma once
 
 #include <cstdint>
 #include <iostream>
@@ -131,5 +130,3 @@ ENABLE_OPERATORS(Rank)
 ENABLE_OPERATORS(CastleRights)
 
 #undef ENABLE_OPERATORS
-
-#endif

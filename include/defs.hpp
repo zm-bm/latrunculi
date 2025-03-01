@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_DEFS_H
-#define LATRUNCULI_DEFS_H
+#pragma once
 
 #include <array>
 #include <sstream>
@@ -185,5 +184,3 @@ inline std::vector<std::string> splitStr(const std::string& s, char delim) {
 
     return tokens;
 }
-
-#endif

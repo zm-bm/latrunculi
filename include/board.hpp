@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_BOARD_H
-#define LATRUNCULI_BOARD_H
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -215,5 +214,3 @@ inline std::ostream& operator<<(std::ostream& os, const Board& b) {
 
     return os;
 }
-
-#endif

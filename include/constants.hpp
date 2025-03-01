@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_CONSTANTS_H
-#define LATRUNCULI_CONSTANTS_H
+#pragma once
 
 #include <array>
 #include <sstream>
@@ -223,5 +222,3 @@ const Square SQUARE_MAP[N_COLORS][N_SQUARES] = {{
     A8, B8, C8, D8, E8, F8, G8, H8,
 }};
 // clang-format on
-
-#endif

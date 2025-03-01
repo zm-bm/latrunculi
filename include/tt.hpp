@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_TT_H
-#define LATRUNCULI_TT_H
+#pragma once
 
 #include <iostream>
 
@@ -66,5 +65,3 @@ extern Table table;
 // }
 
 }  // namespace TT
-
-#endif

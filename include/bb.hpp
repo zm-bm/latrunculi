@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_BITBOARD_H
-#define LATRUNCULI_BITBOARD_H
+#pragma once
 
 #include <array>
 #include <iostream>
@@ -379,5 +378,3 @@ struct Bitboard {
 };
 
 }  // namespace BB
-
-#endif

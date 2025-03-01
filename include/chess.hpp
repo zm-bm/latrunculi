@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_CHESS_H
-#define LATRUNCULI_CHESS_H
+#pragma once
 
 #include <string>
 #include <tuple>
@@ -186,5 +185,3 @@ inline U64 Chess::calculateKey() const {
 
     return zkey;
 }
-
-#endif

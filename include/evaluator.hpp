@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_EVALUATOR_H
-#define LATRUNCULI_EVALUATOR_H
+#pragma once
 
 #include <optional>
 #include <string>
@@ -460,5 +459,3 @@ int Evaluator<debug>::scaleFactor() const {
     int pawnCount = board.count<PAWN>(chess.turn);
     return std::min(SCALE_LIMIT, 36 + 5 * pawnCount);
 }
-
-#endif

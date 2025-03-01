@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_ZOBRIST_H
-#define LATRUNCULI_ZOBRIST_H
+#pragma once
 
 #include "types.hpp"
 
@@ -13,5 +12,3 @@ extern U64 ep[8];
 extern U64 castle[N_COLORS][2];
 
 }  // namespace Zobrist
-
-#endif

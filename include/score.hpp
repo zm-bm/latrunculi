@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_SCORE_H
-#define LATRUNCULI_SCORE_H
+#pragma once
 
 #include <iomanip>
 
@@ -129,5 +128,3 @@ constexpr const Score* MOBILITY_BONUS[] = {
     ROOK_MOBILITY,
     QUEEN_MOBILITY,
 };
-
-#endif

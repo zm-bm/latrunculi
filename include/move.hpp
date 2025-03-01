@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_MOVE_H
-#define LATRUNCULI_MOVE_H
+#pragma once
 
 #include <sstream>
 
@@ -66,5 +65,3 @@ inline std::string Move::DebugString() const {
     oss << *this;
     return oss.str();
 }
-
-#endif

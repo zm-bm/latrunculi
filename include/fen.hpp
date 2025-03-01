@@ -1,5 +1,4 @@
-#ifndef LATRUNCULI_FEN_H
-#define LATRUNCULI_FEN_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -36,5 +35,3 @@ class FenParser {
     void parseHalfmove(const std::string& section);
     void parseFullmove(const std::string& section, Color turn);
 };
-
-#endif  // LATRUNCULI_FEN_H
