@@ -12,7 +12,7 @@
 namespace UCI {
 
 Engine::Engine(std::istream& is, std::ostream& os)
-    : chess(STARTFEN), threads(3), debug(false), istream(is), ostream(os) {}
+    : chess(STARTFEN), threads(1), debug(false), istream(is), ostream(os) {}
 
 void Engine::loop() {
     std::string line;

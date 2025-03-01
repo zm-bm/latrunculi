@@ -11,8 +11,6 @@
 
 namespace BB {
 
-// Defines a set of constants and inline functions for working with bitboards.
-
 constexpr U64 RANK_MASK[N_RANKS] = {
     0x00000000000000FF,
     0x000000000000FF00,

@@ -11,25 +11,7 @@
 #include <thread>
 #include <vector>
 
-class Logger {
-   public:
-    Logger() { mutex_.lock(); }     // Lock when object is created
-    ~Logger() { mutex_.unlock(); }  // Unlock when object is destroyed
-
-    template <typename T>
-    Logger& operator<<(const T& value) {
-        std::cout << value;
-        return *this;
-    }
-
-    Logger& operator<<(std::ostream& (*manip)(std::ostream&)) {
-        std::cout << manip;  // Handle std::endl, std::flush, etc.
-        return *this;
-    }
-
-   private:
-    static inline std::mutex mutex_;
-};
+#include "chess.hpp"
 
 class SearchThread {
    public:
@@ -42,6 +24,8 @@ class SearchThread {
    private:
     void loop();
     void search();
+
+    Chess chess{STARTFEN};
 
     std::mutex mutex;
     std::condition_variable condition;
@@ -65,6 +49,26 @@ class ThreadPool {
 
    private:
     std::vector<std::unique_ptr<SearchThread>> searchThreads;
+};
+
+class Logger {
+   public:
+    Logger() { mutex_.lock(); }     // Lock when object is created
+    ~Logger() { mutex_.unlock(); }  // Unlock when object is destroyed
+
+    template <typename T>
+    Logger& operator<<(const T& value) {
+        std::cout << value;
+        return *this;
+    }
+
+    Logger& operator<<(std::ostream& (*manip)(std::ostream&)) {
+        std::cout << manip;  // Handle std::endl, std::flush, etc.
+        return *this;
+    }
+
+   private:
+    static inline std::mutex mutex_;
 };
 
 #endif  // LATRUNCULI_THREAD_H

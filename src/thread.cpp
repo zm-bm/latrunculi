@@ -1,7 +1,5 @@
 #include "thread.hpp"
 
-#define sync_cout Logger()
-
 SearchThread::~SearchThread() {
     stop();
     if (thread.joinable()) {
@@ -23,14 +21,14 @@ void SearchThread::stop() {
         exitThread = true;
     }
     condition.notify_one();
-    sync_cout << threadId << " stopping" << std::endl;
+    Logger() << threadId << " stopping" << std::endl;
 }
 
 void SearchThread::loop() {
     while (true) {
         {
             std::unique_lock<std::mutex> lock(mutex);
-            sync_cout << threadId << " waiting" << std::endl;
+            Logger() << threadId << " waiting" << std::endl;
             condition.wait(lock, [this]() { return runThread || exitThread; });
 
             if (exitThread) return;
@@ -46,7 +44,7 @@ void SearchThread::loop() {
 void SearchThread::search() {
     while (!ThreadPool::stopThreads) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        sync_cout << threadId << " searching" << std::endl;
+        Logger() << threadId << " searching" << std::endl;
     }
 }
 
