@@ -173,14 +173,3 @@ constexpr U64 computeBitsBetween(int sq1, int sq2) {
     return mask;
 }
 
-inline std::vector<std::string> splitStr(const std::string& s, char delim) {
-    std::vector<std::string> tokens;
-    std::string token;
-    std::stringstream ss(s);
-
-    while (std::getline(ss, token, delim)) {
-        tokens.push_back(token);
-    }
-
-    return tokens;
-}
