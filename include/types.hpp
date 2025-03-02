@@ -152,8 +152,6 @@ inline Square pawnMove(const Square sq, const Color c) {
     return (c == WHITE) ? pawnMove<WHITE, p, forward>(sq) : pawnMove<BLACK, p, forward>(sq);
 }
 
-
-
 // Enable arithmetic and bitwise operators
 #define ENABLE_OPERATORS(T)                                                   \
     inline constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
@@ -177,6 +175,5 @@ ENABLE_OPERATORS(Square)
 ENABLE_OPERATORS(File)
 ENABLE_OPERATORS(Rank)
 ENABLE_OPERATORS(CastleRights)
-
 
 #undef ENABLE_OPERATORS

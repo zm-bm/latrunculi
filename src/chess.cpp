@@ -251,8 +251,8 @@ bool Chess::isCheckingMove(Move mv) const {
 Chess::Chess(const std::string& fen) : state{{State()}}, board{Board()}, ply{0}, moveCounter{0} {
     FenParser parser(fen);
 
-    auto piece_placement = parser.getPiecePlacement();
-    for (auto piece = piece_placement.begin(); piece != piece_placement.end(); ++piece) {
+    auto pieces = parser.pieces;
+    for (auto piece = pieces.begin(); piece != pieces.end(); ++piece) {
         addPiece<true>(piece->square, piece->color, piece->role);
 
         if (piece->role == KING) {
@@ -260,11 +260,11 @@ Chess::Chess(const std::string& fen) : state{{State()}}, board{Board()}, ply{0},
         }
     }
 
-    turn = parser.getActiveColor();
-    state.at(ply).castle = parser.getCastlingRights();
-    state.at(ply).enPassantSq = parser.getEnPassantTarget();
-    state.at(ply).hmClock = parser.getHalfmoveClock();
-    moveCounter = parser.getFullmoveNumber();
+    turn = parser.turn;
+    state.at(ply).castle = parser.castle;
+    state.at(ply).enPassantSq = parser.enPassantSq;
+    state.at(ply).hmClock = parser.hmClock;
+    moveCounter = parser.moveCounter;
 
     state.at(ply).zkey = calculateKey();
     updateState();

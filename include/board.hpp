@@ -48,8 +48,8 @@ struct Board {
 inline Board::Board(const std::string& fen) {
     FenParser parser(fen);
 
-    auto piece_placement = parser.getPiecePlacement();
-    for (auto piece = piece_placement.begin(); piece != piece_placement.end(); ++piece) {
+    auto pieces = parser.pieces;
+    for (auto piece = pieces.begin(); piece != pieces.end(); ++piece) {
         addPiece(piece->square, piece->color, piece->role);
 
         if (piece->role == KING) {

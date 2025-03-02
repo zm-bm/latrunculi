@@ -69,12 +69,12 @@ struct State {
     inline void disableCastleOO(Color c) {
         // Disable kingside castling for the specified color
         zkey ^= Zobrist::castle[c][KINGSIDE];
-        castle &= c ? CastleRights(0x07) : CastleRights(0x0D);
+        castle &= CastleRights(~static_cast<int>(c ? WHITE_OO : BLACK_OO));
     }
 
     inline void disableCastleOOO(Color c) {
         // Disable queenside castling for the specified color
         zkey ^= Zobrist::castle[c][QUEENSIDE];
-        castle &= c ? CastleRights(0x0B) : CastleRights(0x0E);
+        castle &= CastleRights(~static_cast<int>(c ? WHITE_OOO : BLACK_OOO));
     }
 };
