@@ -4,18 +4,6 @@ FenParser::FenParser(const std::string& fen) : fen(fen) {
     parse();
 }
 
-std::vector<std::string> splitStr(const std::string& s, char delim) {
-    std::vector<std::string> tokens;
-    std::string token;
-    std::stringstream ss(s);
-
-    while (std::getline(ss, token, delim)) {
-        tokens.push_back(token);
-    }
-
-    return tokens;
-}
-
 void FenParser::parse() {
     std::istringstream fenStream(fen);
     std::string piecePlacement, activeColor, castlingRights, enPassantTarget;
