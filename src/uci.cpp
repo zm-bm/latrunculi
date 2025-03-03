@@ -121,7 +121,7 @@ void Engine::go(std::istringstream& iss) {
         }
     }
 
-    threads.startAll();
+    threads.startAll(chess);
 }
 
 void Engine::move(std::istringstream& iss) {

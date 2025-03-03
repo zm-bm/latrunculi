@@ -1,3 +1,4 @@
+#include <memory>
 #include "thread.hpp"
 
 SearchThread::~SearchThread() {
@@ -24,6 +25,13 @@ void SearchThread::stop() {
     Logger() << threadId << " stopping" << std::endl;
 }
 
+void SearchThread::set(const std::string& fen) {
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        chess = Chess(fen);
+    }
+}
+
 void SearchThread::loop() {
     while (true) {
         {
@@ -45,6 +53,7 @@ void SearchThread::search() {
     while (!ThreadPool::stopThreads) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         Logger() << threadId << " searching" << std::endl;
+        Logger() << chess << std::endl;
     }
 }
 
@@ -58,9 +67,10 @@ ThreadPool::~ThreadPool() {
     stopAll();
 }
 
-void ThreadPool::startAll() {
+void ThreadPool::startAll(Chess& chess) {
     stopThreads = false;
     for (auto& searchThread : searchThreads) {
+        searchThread->set(chess.toFEN());
         searchThread->start();
     }
 }

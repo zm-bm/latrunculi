@@ -19,6 +19,7 @@ class SearchThread {
 
     void start();
     void stop();
+    void set(const std::string&);
 
    private:
     void loop();
@@ -41,7 +42,7 @@ class ThreadPool {
     ThreadPool(size_t numThreads);
     ~ThreadPool();
 
-    void startAll();
+    void startAll(Chess& chess);
     void stopAll();
 
     static inline std::atomic<bool> stopThreads{false};
