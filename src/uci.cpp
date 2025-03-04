@@ -7,6 +7,7 @@
 #include "movegen.hpp"
 #include "thread.hpp"
 #include "tt.hpp"
+#include "search.hpp"
 
 namespace UCI {
 
@@ -107,7 +108,7 @@ void Engine::perft(std::istringstream& iss) {
     iss >> token;
 
     auto val = std::stoi(token);
-    // search.perft<true>(val);
+    Search::perft<true>(val, chess);
 }
 
 void Engine::go(std::istringstream& iss) {

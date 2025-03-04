@@ -53,7 +53,6 @@ void SearchThread::search() {
     while (!ThreadPool::stopThreads) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         Logger() << threadId << " searching" << std::endl;
-        Logger() << chess << std::endl;
     }
 }
 

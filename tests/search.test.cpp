@@ -4,8 +4,8 @@
 
 #include <memory>
 
-#include "chess.hpp"
 #include "constants.hpp"
+#include "search.hpp"
 
 // Perft positions and results
 // https://www.chessprogramming.org/Perft_Results
@@ -15,10 +15,9 @@ class PerftTest : public ::testing::TestWithParam<std::tuple<std::string, std::v
 TEST_P(PerftTest, PerftForMultipleDepths) {
     auto [fen, expected_results] = GetParam();
     Chess chess(fen);
-    Search search(&chess);
 
     for (int depth = 1; depth <= expected_results.size(); ++depth) {
-        long result = search.perft<true, false>(depth);
+        long result = Search::perft<true, false>(depth, chess);
         EXPECT_EQ(result, expected_results[depth - 1]) << "Failed at depth " << depth;
     }
 }
@@ -26,24 +25,23 @@ TEST_P(PerftTest, PerftForMultipleDepths) {
 auto startfen = std::make_tuple(STARTFEN,
                                 std::vector<long>{
                                     20, 400, 8902, 197281,
-                                    //    4865609,
-                                    //  119060324,
+                                    // 4865609,
+                                    // 119060324,
                                 });
 INSTANTIATE_TEST_SUITE_P(StartFenPerftTestSuite, PerftTest, ::testing::Values(startfen));
 
 auto pos2 = std::make_tuple(POS2,
                             std::vector<long>{
                                 48, 2039, 97862, 4085603,
-                                //    193690690,
+                                // 193690690,
                                 // 8031647685,
                             });
 INSTANTIATE_TEST_SUITE_P(Position2PerftTestSuite, PerftTest, ::testing::Values(pos2));
 
 auto pos3 = std::make_tuple(POS3,
                             std::vector<long>{
-                                14, 191, 2812, 43238,
-                                //  674624,
-                                //  11030083
+                                14, 191, 2812, 43238, 674624,
+                                // 11030083
                             });
 INSTANTIATE_TEST_SUITE_P(Position3PerftTestSuite, PerftTest, ::testing::Values(pos3));
 
@@ -64,7 +62,7 @@ INSTANTIATE_TEST_SUITE_P(Position4BPerftTestSuite, PerftTest, ::testing::Values(
 auto pos5 = std::make_tuple(POS5,
                             std::vector<long>{
                                 44, 1486, 62379, 2103487,
-                                //    89941194
+                                // 89941194
                             });
 INSTANTIATE_TEST_SUITE_P(Position5PerftTestSuite, PerftTest, ::testing::Values(pos5));
 
