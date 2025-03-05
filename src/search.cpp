@@ -10,6 +10,7 @@
 namespace Search {
 
 U64 nodeCount = 0;
+std::chrono::high_resolution_clock::time_point startTime;
 
 int quiescence(Chess& chess, int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
@@ -90,12 +91,7 @@ Result negamax(Chess& chess, int alpha, int beta, int depth) {
             bestResult.pv.insert(bestResult.pv.end(), result.pv.begin(), result.pv.end());
 
             if constexpr (root) {
-                std::cout << "info nodes " << nodeCount;
-                std::cout << " score " << bestResult.score << " ";
-                for (auto& move : bestResult.pv) {
-                    std::cout << move << " ";
-                }
-                std::cout << std::endl;
+                std::cout << generateUCILine(depth, bestResult) << std::endl;
             }
         }
 
@@ -114,12 +110,28 @@ Result negamax(Chess& chess, int alpha, int beta, int depth) {
 template Result negamax<true>(Chess&, int, int, int);
 template Result negamax<false>(Chess&, int, int, int);
 
+std::string generateUCILine(int depth, Result result) {
+    auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(
+                        std::chrono::high_resolution_clock::now() - startTime)
+                        .count();
+    int nps = (duration > 0) ? nodeCount / duration : 0;
+
+    auto info = ("info depth " + std::to_string(depth) + " score cp " +
+                 std::to_string(result.score) + " time " + std::to_string(duration) + " nodes " +
+                 std::to_string(nodeCount) + " nps " + std::to_string(nps) + " pv");
+
+    for (auto& move : result.pv) {
+        info += " " + move.DebugString();
+    }
+
+    return info;
+}
+
 template <bool Root, bool ShowOutput = true>
 U64 perft(int depth, Chess& chess) {
     if (depth == 0) return 1;
 
-    std::chrono::high_resolution_clock::time_point start, stop;
-    if constexpr (Root && ShowOutput) start = std::chrono::high_resolution_clock::now();
+    if constexpr (Root && ShowOutput) startTime = std::chrono::high_resolution_clock::now();
 
     auto movegen = MoveGenerator(&chess);
     movegen.generatePseudoLegalMoves();
@@ -140,12 +152,7 @@ U64 perft(int depth, Chess& chess) {
     }
 
     if constexpr (Root && ShowOutput) {
-        stop = std::chrono::high_resolution_clock::now();
-
-        auto d = std::chrono::duration_cast<std::chrono::duration<double>>(stop - start);
-        std::cout << "TOTAL TIME OF SEARCH: " << d.count() << std::endl;
-        std::cout << "TOTAL NODES SEARCHED: " << nodes << std::endl;
-        std::cout << "NODES PER SECOND    : " << nodes / d.count() << std::endl;
+        std::cout << "NODES: " << nodes << std::endl;
     }
 
     return nodes;

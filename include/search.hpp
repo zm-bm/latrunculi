@@ -14,6 +14,7 @@
 namespace Search {
 
 extern U64 nodeCount;
+extern std::chrono::high_resolution_clock::time_point startTime;
 
 struct Result {
     int score;
@@ -22,6 +23,8 @@ struct Result {
 
 template <bool>
 Result negamax(Chess&, int, int, int);
+
+std::string generateUCILine(int depth, Result result);
 
 template <bool, bool = true>
 U64 perft(int, Chess&);

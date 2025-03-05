@@ -50,16 +50,12 @@ void SearchThread::loop() {
 }
 
 void SearchThread::search() {
+    Search::startTime = std::chrono::high_resolution_clock::now();
+
     Search::Result result = Search::negamax<true>(chess, -MATESCORE, MATESCORE, searchDepth);
 
-    Logger logger;
-    logger << "info nodes " << Search::nodeCount;
-    logger << " score " << result.score << " ";
-    for (auto& move : result.pv) {
-        logger << move << " ";
-    }
-    logger << std::endl;
-    logger << "bestmove " << result.pv.at(0) << " " << result.score << std::endl;
+    std::cout << Search::generateUCILine(searchDepth, result) << std::endl;
+    std::cout << "bestmove " << result.pv.at(0) << " " << result.score << std::endl;
 
     // while (!ThreadPool::stopThreads) {}
 }
