@@ -19,13 +19,14 @@ class SearchThread {
 
     void start();
     void stop();
-    void set(const std::string&);
+    void set(const std::string&, int);
 
    private:
     void loop();
     void search();
 
     Chess chess{STARTFEN};
+    int searchDepth;
 
     std::mutex mutex;
     std::condition_variable condition;
@@ -42,7 +43,7 @@ class ThreadPool {
     ThreadPool(size_t numThreads);
     ~ThreadPool();
 
-    void startAll(Chess& chess);
+    void startAll(Chess&, int);
     void stopAll();
 
     static inline std::atomic<bool> stopThreads{false};

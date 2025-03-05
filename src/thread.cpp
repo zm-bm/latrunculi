@@ -1,5 +1,6 @@
 #include <memory>
 #include "thread.hpp"
+#include "search.hpp"
 
 SearchThread::~SearchThread() {
     stop();
@@ -22,13 +23,13 @@ void SearchThread::stop() {
         exitThread = true;
     }
     condition.notify_one();
-    Logger() << threadId << " stopping" << std::endl;
 }
 
-void SearchThread::set(const std::string& fen) {
+void SearchThread::set(const std::string& fen, int depth) {
     {
         std::lock_guard<std::mutex> lock(mutex);
         chess = Chess(fen);
+        searchDepth = depth;
     }
 }
 
@@ -36,7 +37,6 @@ void SearchThread::loop() {
     while (true) {
         {
             std::unique_lock<std::mutex> lock(mutex);
-            Logger() << threadId << " waiting" << std::endl;
             condition.wait(lock, [this]() { return runThread || exitThread; });
 
             if (exitThread) return;
@@ -50,10 +50,18 @@ void SearchThread::loop() {
 }
 
 void SearchThread::search() {
-    while (!ThreadPool::stopThreads) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        Logger() << threadId << " searching" << std::endl;
+    Search::Result result = Search::negamax<true>(chess, -MATESCORE, MATESCORE, searchDepth);
+
+    Logger logger;
+    logger << "info nodes " << Search::nodeCount;
+    logger << " score " << result.score << " ";
+    for (auto& move : result.pv) {
+        logger << move << " ";
     }
+    logger << std::endl;
+    logger << "bestmove " << result.pv.at(0) << " " << result.score << std::endl;
+
+    // while (!ThreadPool::stopThreads) {}
 }
 
 ThreadPool::ThreadPool(size_t numThreads) {
@@ -66,10 +74,10 @@ ThreadPool::~ThreadPool() {
     stopAll();
 }
 
-void ThreadPool::startAll(Chess& chess) {
+void ThreadPool::startAll(Chess& chess, int depth) {
     stopThreads = false;
     for (auto& searchThread : searchThreads) {
-        searchThread->set(chess.toFEN());
+        searchThread->set(chess.toFEN(), depth);
         searchThread->start();
     }
 }

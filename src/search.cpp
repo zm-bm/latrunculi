@@ -3,10 +3,116 @@
 #include <algorithm>
 #include <cstdlib>
 
+#include "chess.hpp"
 #include "movegen.hpp"
 #include "tt.hpp"
 
 namespace Search {
+
+U64 nodeCount = 0;
+
+int quiescence(Chess& chess, int alpha, int beta) {
+    // 1. Evaluate the current position (stand-pat).
+    int standPat = chess.eval<false>();
+
+    // If our evaluation already beats beta, we can cut off.
+    if (standPat >= beta) {
+        return beta;
+    }
+
+    // Otherwise, raise alpha if this position is already better than alpha.
+    if (standPat > alpha) {
+        alpha = standPat;
+    }
+
+    // 2. Generate only forcing moves
+    MoveGenerator movegen(&chess);
+    movegen.generateCaptures();
+    if (movegen.moves.empty()) return standPat;
+
+    for (auto& move : movegen.moves) {
+        if (!chess.isLegalMove(move)) continue;
+
+        chess.make(move);
+        nodeCount += 1;
+        int score = -quiescence(chess, -beta, -alpha);
+        chess.unmake();
+
+        if (score >= beta) {
+            return beta;  // Beta cutoff
+        }
+        if (score > alpha) {
+            alpha = score;
+        }
+    }
+
+    // TODO: handle no legal moves, 50 move rule, draw by repetition, etc
+    return alpha;
+}
+
+template <bool root>
+Result negamax(Chess& chess, int alpha, int beta, int depth) {
+    // 1. Base case: leaf node or no moves
+    if (depth == 0) {
+        return {quiescence(chess, alpha, beta), {}};
+    }
+
+    MoveGenerator movegen(&chess);
+    movegen.generatePseudoLegalMoves();
+    if (movegen.moves.empty()) return {chess.eval<false>(), {}};
+
+    // 2. Initialize the best result
+    Result bestResult;
+    bestResult.score = -MATESCORE;
+
+    // 3. Loop over moves
+    for (auto& move : movegen.moves) {
+        if (!chess.isLegalMove(move)) continue;
+
+        // Make the move
+        chess.make(move);
+        nodeCount += 1;
+
+        // Recursively search
+        Result result = negamax<false>(chess, -beta, -alpha, depth - 1);
+        result.score = -result.score;
+
+        // Unmake the move
+        chess.unmake();
+
+        // 4. If we found a better move, update our bestResult
+        if (result.score > bestResult.score) {
+            bestResult.score = result.score;
+
+            // Build the new principal variation:
+            bestResult.pv.clear();
+            bestResult.pv.push_back(move);
+            bestResult.pv.insert(bestResult.pv.end(), result.pv.begin(), result.pv.end());
+
+            if constexpr (root) {
+                std::cout << "info nodes " << nodeCount;
+                std::cout << " score " << bestResult.score << " ";
+                for (auto& move : bestResult.pv) {
+                    std::cout << move << " ";
+                }
+                std::cout << std::endl;
+            }
+        }
+
+        // 5. Alpha-beta pruning
+        alpha = std::max(alpha, result.score);
+        if (alpha >= beta) {
+            // Beta cut-off
+            break;
+        }
+    }
+
+    // TODO: handle no legal moves, 50 move rule, draw by repetition, etc
+    return bestResult;
+}
+
+template Result negamax<true>(Chess&, int, int, int);
+template Result negamax<false>(Chess&, int, int, int);
 
 template <bool Root, bool ShowOutput = true>
 U64 perft(int depth, Chess& chess) {
@@ -25,7 +131,7 @@ U64 perft(int depth, Chess& chess) {
 
         chess.make(move);
 
-        count = perft<false>(depth - 1, chess);
+        count = perft<false, false>(depth - 1, chess);
         nodes += count;
 
         if (Root && ShowOutput) std::cout << move << ": " << count << std::endl;
@@ -33,7 +139,7 @@ U64 perft(int depth, Chess& chess) {
         chess.unmake();
     }
 
-    if (Root && ShowOutput) {
+    if constexpr (Root && ShowOutput) {
         stop = std::chrono::high_resolution_clock::now();
 
         auto d = std::chrono::duration_cast<std::chrono::duration<double>>(stop - start);
@@ -49,8 +155,6 @@ template U64 perft<true>(int, Chess&);
 template U64 perft<true, false>(int, Chess&);
 
 }  // namespace Search
-
-// int MATESCORE = 32000;
 
 // void Search::think(int depth) {
 //     reset();
@@ -262,52 +366,6 @@ template U64 perft<true, false>(int, Chess&);
 
 //     // Save search results in the transposition table
 //     TT::table.save(_board->getKey(), depth, alpha, ttType, bestMoveSoFar);
-
-//     return alpha;
-// }
-
-// int Search::quiesce(int alpha, int beta) {
-//     int score = _board->eval();
-
-//     if (score >= beta)
-//         return beta;
-
-//     if (searchPly > MAX_DEPTH)
-//         return score;
-
-//     if (score > alpha)
-//         alpha = score;
-
-//     int nLegalMoves = 0;
-//     auto movegen = MoveGenerator(_board);
-//     movegen.generateCaptures();
-//     sortMoves(movegen.moves);
-
-//     for (auto& move : movegen.moves)
-//     {
-//         if (!_board->isLegalMove(move))
-//             continue;
-//         else
-//             nLegalMoves++;
-
-//         _board->make(move);
-//         searchPly++;
-
-//         score = -quiesce(-beta, -alpha);
-
-//         searchPly--;
-//         _board->unmake();
-
-//         if (score >= beta)
-//             return beta;
-//         if (score > alpha)
-//             alpha = score;
-//     }
-
-//     if (nLegalMoves == 0 && _board->isCheck())
-//         return -MATESCORE + searchPly;
-//     else if (_board->getHmClock() >= 100)
-//         return DRAWSCORE;
 
 //     return alpha;
 // }

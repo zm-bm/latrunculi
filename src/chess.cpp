@@ -4,7 +4,7 @@
 #include "fen.hpp"
 #include "score.hpp"
 
-template <bool debug>
+template <bool debug = false>
 int Chess::eval() const {
     return Evaluator<debug>(*this).eval();
 }

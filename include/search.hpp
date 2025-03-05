@@ -13,6 +13,16 @@
 
 namespace Search {
 
+extern U64 nodeCount;
+
+struct Result {
+    int score;
+    std::vector<Move> pv;
+};
+
+template <bool>
+Result negamax(Chess&, int, int, int);
+
 template <bool, bool = true>
 U64 perft(int, Chess&);
 

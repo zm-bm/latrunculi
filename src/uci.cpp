@@ -113,7 +113,7 @@ void Engine::perft(std::istringstream& iss) {
 
 void Engine::go(std::istringstream& iss) {
     std::string token;
-    int depth;
+    int depth = 8;
 
     while (iss >> token) {
         if (token == "depth") {
@@ -122,7 +122,7 @@ void Engine::go(std::istringstream& iss) {
         }
     }
 
-    threads.startAll(chess);
+    threads.startAll(chess, depth);
 }
 
 void Engine::move(std::istringstream& iss) {
