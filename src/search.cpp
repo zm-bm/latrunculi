@@ -1,16 +1,18 @@
 #include "search.hpp"
 
 #include <algorithm>
-#include <cstdlib>
+// #include <cstdlib>
 
 #include "chess.hpp"
 #include "movegen.hpp"
 #include "tt.hpp"
 
+using namespace std::chrono;
+
 namespace Search {
 
 U64 nodeCount = 0;
-std::chrono::high_resolution_clock::time_point startTime;
+high_resolution_clock::time_point startTime;
 
 int quiescence(Chess& chess, int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
@@ -111,27 +113,25 @@ template Result negamax<true>(Chess&, int, int, int);
 template Result negamax<false>(Chess&, int, int, int);
 
 std::string generateUCILine(int depth, Result result) {
-    auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(
-                        std::chrono::high_resolution_clock::now() - startTime)
-                        .count();
-    int nps = (duration > 0) ? nodeCount / duration : 0;
+    std::ostringstream oss;
+    auto dur = high_resolution_clock::now() - startTime;
+    auto sec = duration_cast<duration<double>>(dur).count();
+    auto nps = (sec > 0) ? nodeCount / sec : 0;
 
-    auto info = ("info depth " + std::to_string(depth) + " score cp " +
-                 std::to_string(result.score) + " time " + std::to_string(duration) + " nodes " +
-                 std::to_string(nodeCount) + " nps " + std::to_string(nps) + " pv");
+    oss << "info depth " << depth;
+    oss << " score cp " << result.score;
+    oss << " time " << std::fixed << std::setprecision(1) << sec;
+    oss << " nodes " << nodeCount;
+    oss << " nps " << std::setprecision(0) << nps;
+    oss << " pv";
+    for (auto& move : result.pv) oss << " " << move;
 
-    for (auto& move : result.pv) {
-        info += " " + move.DebugString();
-    }
-
-    return info;
+    return oss.str();
 }
 
 template <bool Root, bool ShowOutput = true>
 U64 perft(int depth, Chess& chess) {
     if (depth == 0) return 1;
-
-    if constexpr (Root && ShowOutput) startTime = std::chrono::high_resolution_clock::now();
 
     auto movegen = MoveGenerator(&chess);
     movegen.generatePseudoLegalMoves();
