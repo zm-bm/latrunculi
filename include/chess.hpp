@@ -12,6 +12,9 @@
 #include "zobrist.hpp"
 #include "move.hpp"
 
+template <GenType T>
+class MoveGenerator;
+
 class Chess {
    private:
     std::vector<State> state = {State()};
@@ -47,7 +50,7 @@ class Chess {
     template <bool>
     void moveCastle(Square, Square, Color);
 
-    void updateState(bool);
+    void updateState();
     void handlePieceCapture(Square sq, Color c, PieceType p);
     void handlePawnMoves(Square from, Square to, MoveType movetype, Move mv);
     void setEnPassant(Square sq);
@@ -73,7 +76,8 @@ class Chess {
     std::string DebugString() const;
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
 
-    friend class MoveGenerator;
+    friend class MoveGenerator<GenType::Legal>;
+    friend class MoveGenerator<GenType::Captures>;
 
     template <bool debug>
     friend class Evaluator;
@@ -112,20 +116,17 @@ inline void Chess::movePiece(Square from, Square to, Color c, PieceType pt) {
     }
 }
 
-inline void Chess::updateState(bool checkingMove = true) {
-    // Update the incrementally updated state helper variables
-    if (checkingMove) {
-        state[ply].checkingPieces = board.calculateCheckingPieces(turn);
-    } else {
-        state[ply].checkingPieces = 0;
-    }
-
+inline void Chess::updateState() {
     Color enemy = ~turn;
     Square king = board.kingSq(enemy);
     U64 occ = board.occupancy();
 
-    state[ply].pinnedPieces = board.calculatePinnedPieces(turn);
-    state[ply].discoveredCheckers = board.calculateDiscoveredCheckers(turn);
+    state[ply].blockers[WHITE] = board.calculatePinnedPieces(WHITE);
+    state[ply].blockers[BLACK] = board.calculatePinnedPieces(BLACK);
+    state[ply].pinners[WHITE] = board.calculateDiscoveredCheckers(WHITE);
+    state[ply].pinners[BLACK] = board.calculateDiscoveredCheckers(BLACK);
+
+    state[ply].checkingPieces = board.calculateCheckingPieces(turn);
     state[ply].checkingSquares[PAWN] = BB::pawnAttacks(BB::set(king), enemy);
     state[ply].checkingSquares[KNIGHT] = BB::pieceMoves<KNIGHT>(king, occ);
     state[ply].checkingSquares[BISHOP] = BB::pieceMoves<BISHOP>(king, occ);

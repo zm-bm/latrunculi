@@ -14,7 +14,6 @@ template int Chess::eval<false>() const;
 
 void Chess::make(Move mv) {
     // Get basic information about the move
-    bool checkingMove = isCheckingMove(mv);
     Square from = mv.from();
     Square to = mv.to();
     Square capturedPieceSq = to;
@@ -80,7 +79,7 @@ void Chess::make(Move mv) {
     turn = enemy;
     state[ply].zkey ^= Zobrist::stm;
 
-    updateState(checkingMove);
+    updateState();
 }
 
 void Chess::unmake() {
@@ -111,8 +110,7 @@ void Chess::unmake() {
     } else {
         movePiece<false>(to, from, turn, fromPieceType);
         if (toPieceType) {
-            Square capturedPieceSq =
-                (movetype == ENPASSANT) ? pawnMove<PUSH, false>(to, turn) : to;
+            Square capturedPieceSq = (movetype == ENPASSANT) ? pawnMove<PUSH, false>(to, turn) : to;
             addPiece<false>(capturedPieceSq, enemy, toPieceType);
         }
     }
@@ -188,7 +186,7 @@ bool Chess::isLegalMove(Move mv) const {
                !(BB::pieceMoves<ROOK>(king, occ) & board.straightSliders(~turn));
     } else {
         // Check if moved piece was pinned
-        return !state.at(ply).pinnedPieces || !(state.at(ply).pinnedPieces & BB::set(from)) ||
+        return !state.at(ply).blockers[turn] || !(state.at(ply).blockers[turn] & BB::set(from)) ||
                BB::inlineBB(from, to) & BB::set(king);
     }
 }
@@ -205,8 +203,8 @@ bool Chess::isCheckingMove(Move mv) const {
 
     // Check if moved piece was blocking enemy king from attack
     Square king = board.kingSq(~turn);
-    if (state[ply].discoveredCheckers && (state[ply].discoveredCheckers & BB::set(from)) &&
-        !(BB::inlineBB(from, to) & BB::set(king))) {
+    U64 pinners = state[ply].pinners[turn];
+    if (pinners && (pinners & BB::set(from)) && !(BB::inlineBB(from, to) & BB::set(king))) {
         return true;
     }
 

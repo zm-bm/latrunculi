@@ -1,7 +1,6 @@
 #include "search.hpp"
 
 #include <algorithm>
-// #include <cstdlib>
 
 #include "chess.hpp"
 #include "movegen.hpp"
@@ -29,11 +28,10 @@ int quiescence(Chess& chess, int alpha, int beta) {
     }
 
     // 2. Generate only forcing moves
-    MoveGenerator movegen(&chess);
-    movegen.generateCaptures();
-    if (movegen.moves.empty()) return standPat;
+    MoveGenerator<GenType::Captures> moves(&chess);
+    if (moves.empty()) return standPat;
 
-    for (auto& move : movegen.moves) {
+    for (auto& move : moves) {
         if (!chess.isLegalMove(move)) continue;
 
         chess.make(move);
@@ -60,16 +58,15 @@ Result negamax(Chess& chess, int alpha, int beta, int depth) {
         return {quiescence(chess, alpha, beta), {}};
     }
 
-    MoveGenerator movegen(&chess);
-    movegen.generatePseudoLegalMoves();
-    if (movegen.moves.empty()) return {chess.eval<false>(), {}};
+    MoveGenerator<GenType::Legal> moves(&chess);
+    if (moves.empty()) return {chess.eval<false>(), {}};
 
     // 2. Initialize the best result
     Result bestResult;
     bestResult.score = -MATESCORE;
 
     // 3. Loop over moves
-    for (auto& move : movegen.moves) {
+    for (auto& move : moves) {
         if (!chess.isLegalMove(move)) continue;
 
         // Make the move
@@ -133,12 +130,11 @@ template <bool Root, bool ShowOutput = true>
 U64 perft(int depth, Chess& chess) {
     if (depth == 0) return 1;
 
-    auto movegen = MoveGenerator(&chess);
-    movegen.generatePseudoLegalMoves();
+    MoveGenerator<GenType::Legal> moves(&chess);
 
     U64 count = 0, nodes = 0;
 
-    for (auto& move : movegen.moves) {
+    for (auto& move : moves) {
         if (!chess.isLegalMove(move)) continue;
 
         chess.make(move);

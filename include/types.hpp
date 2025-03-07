@@ -15,6 +15,8 @@ using I32 = int32_t;
 using I16 = int16_t;
 using I8 = int8_t;
 
+enum class GenType { Legal, Captures, Evasions, Quiets };
+
 enum Color : U8 { BLACK, WHITE, N_COLORS = 2 };
 
 // clang-format off
@@ -66,7 +68,7 @@ enum CastleRights : U8 {
 
 enum CastleDirection { KINGSIDE, QUEENSIDE };
 
-enum MoveType : U8 { NORMAL, PROMOTION, ENPASSANT, CASTLE };
+enum MoveType { NORMAL, PROMOTION, ENPASSANT, CASTLE };
 
 enum PawnMove { LEFT = 7, PUSH = 8, RIGHT = 9, DOUBLE = 16 };
 

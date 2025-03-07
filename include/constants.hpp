@@ -19,6 +19,9 @@ const std::string FENS[6] = {STARTFEN, POS2, POS3, POS4W, POS4B, POS5};
 // more testing FENs
 const auto EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
+// movegen constants
+const int MAX_MOVES = 256;
+
 // search constants
 const int MAX_DEPTH = 64;
 const int MATESCORE = 16384;

@@ -132,10 +132,9 @@ void Engine::move(std::istringstream& iss) {
     if (token == "undo") {
         chess.unmake();
     } else {
-        auto movegen = MoveGenerator(&chess);
-        movegen.generatePseudoLegalMoves();
+        MoveGenerator<GenType::Legal> moves(&chess);
 
-        for (auto& move : movegen.moves) {
+        for (auto& move : moves) {
             std::ostringstream oss;
             oss << move;
 
@@ -147,8 +146,7 @@ void Engine::move(std::istringstream& iss) {
 }
 
 void Engine::moves() {
-    auto movegen = MoveGenerator(&chess);
-    movegen.generatePseudoLegalMoves();
+    MoveGenerator<GenType::Legal> moves(&chess);
 
     // TT::Entry* entry = TT::table.probe(chess.getKey());
     // if (entry)
@@ -156,7 +154,7 @@ void Engine::moves() {
     // else
     //     search.sortMoves(movegen.moves);
 
-    for (auto& move : movegen.moves) ostream << move << ": " << move.score << std::endl;
+    for (auto& move : moves) ostream << move << ": " << move.score << std::endl;
 }
 
 }  // namespace UCI

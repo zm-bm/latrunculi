@@ -5,18 +5,16 @@
 #include "chess.hpp"
 #include "constants.hpp"
 
-TEST(MoveGenTest, GeneratePseudoLegalMoves) {
+TEST(MoveGenTest, Legal) {
     Chess chess{STARTFEN};
-    MoveGenerator moveGen{&chess};
-    moveGen.generatePseudoLegalMoves();
-    EXPECT_EQ(moveGen.moves.size(), 20) << "should have 20 moves";
+    MoveGenerator<GenType::Legal> moves{&chess};
+    EXPECT_EQ(moves.size(), 20) << "should have 20 moves";
 }
 
-TEST(MoveGenTest, GenerateCaptures) {
+TEST(MoveGenTest, Captures) {
     Chess chess{POS2};
-    MoveGenerator moveGen{&chess};
-    moveGen.generateCaptures();
-    EXPECT_EQ(moveGen.moves.size(), 8) << "should have 8 legal captures";
+    MoveGenerator<GenType::Captures> moves{&chess};
+    EXPECT_EQ(moves.size(), 8) << "should have 8 legal captures";
 }
 
 // PerftTest in search.test.cpp used to test movegen correctness

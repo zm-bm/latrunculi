@@ -25,15 +25,15 @@ TEST_P(PerftTest, PerftForMultipleDepths) {
 auto startfen = std::make_tuple(STARTFEN,
                                 std::vector<long>{
                                     20, 400, 8902, 197281,
-                                    // 4865609,
-                                    // 119060324,
+                                    4865609,
+                                    119060324,
                                 });
 INSTANTIATE_TEST_SUITE_P(StartFenPerftTestSuite, PerftTest, ::testing::Values(startfen));
 
 auto pos2 = std::make_tuple(POS2,
                             std::vector<long>{
                                 48, 2039, 97862, 4085603,
-                                // 193690690,
+                                193690690,
                                 // 8031647685,
                             });
 INSTANTIATE_TEST_SUITE_P(Position2PerftTestSuite, PerftTest, ::testing::Values(pos2));
@@ -41,28 +41,28 @@ INSTANTIATE_TEST_SUITE_P(Position2PerftTestSuite, PerftTest, ::testing::Values(p
 auto pos3 = std::make_tuple(POS3,
                             std::vector<long>{
                                 14, 191, 2812, 43238, 674624,
-                                // 11030083
+                                11030083
                             });
 INSTANTIATE_TEST_SUITE_P(Position3PerftTestSuite, PerftTest, ::testing::Values(pos3));
 
 auto pos4w = std::make_tuple(POS4W,
                              std::vector<long>{
                                  6, 264, 9467, 422333,
-                                 // 15833292
+                                 15833292
                              });
 INSTANTIATE_TEST_SUITE_P(Position4WPerftTestSuite, PerftTest, ::testing::Values(pos4w));
 
 auto pos4b = std::make_tuple(POS4B,
                              std::vector<long>{
                                  6, 264, 9467, 422333,
-                                 // 15833292
+                                 15833292
                              });
 INSTANTIATE_TEST_SUITE_P(Position4BPerftTestSuite, PerftTest, ::testing::Values(pos4b));
 
 auto pos5 = std::make_tuple(POS5,
                             std::vector<long>{
                                 44, 1486, 62379, 2103487,
-                                // 89941194
+                                89941194
                             });
 INSTANTIATE_TEST_SUITE_P(Position5PerftTestSuite, PerftTest, ::testing::Values(pos5));
 
