@@ -59,9 +59,8 @@ class EvaluatorTest : public ::testing::Test {
     void testKingShelter(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
         Evaluator<false> evaluator(chess);
-        Board b(fen);
-        EXPECT_EQ(evaluator.kingShelter<WHITE>(b.kingSq(WHITE)), expectedWhite) << fen;
-        EXPECT_EQ(evaluator.kingShelter<BLACK>(b.kingSq(BLACK)), expectedBlack) << fen;
+        EXPECT_EQ(evaluator.kingShelter<WHITE>(chess.kingSq(WHITE)), expectedWhite) << fen;
+        EXPECT_EQ(evaluator.kingShelter<BLACK>(chess.kingSq(BLACK)), expectedBlack) << fen;
     }
 
     void testFileShelter(const std::string& fen,
@@ -70,9 +69,8 @@ class EvaluatorTest : public ::testing::Test {
                          File file) {
         Chess chess(fen);
         Evaluator<false> evaluator(chess);
-        Board b(fen);
-        U64 wPawns = b.pieces<PAWN>(WHITE);
-        U64 bPawns = b.pieces<PAWN>(BLACK);
+        U64 wPawns = chess.pieces<PAWN>(WHITE);
+        U64 bPawns = chess.pieces<PAWN>(BLACK);
         EXPECT_EQ(evaluator.fileShelter<WHITE>(wPawns, bPawns, file), expectedWhite) << fen;
         EXPECT_EQ(evaluator.fileShelter<BLACK>(bPawns, wPawns, file), expectedBlack) << fen;
     }

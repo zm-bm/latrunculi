@@ -5,8 +5,6 @@
 #include "constants.hpp"
 #include "zobrist.hpp"
 
-class Board;
-
 struct State {
     State() = default;
     State(const State&) = default;

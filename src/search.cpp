@@ -4,6 +4,7 @@
 
 #include "chess.hpp"
 #include "movegen.hpp"
+#include "thread.hpp"
 #include "tt.hpp"
 
 using namespace std::chrono;
@@ -13,9 +14,9 @@ namespace Search {
 U64 nodeCount = 0;
 high_resolution_clock::time_point startTime;
 
-int quiescence(Chess& chess, int alpha, int beta) {
+int quiescence(SearchThread& th, int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
-    int standPat = chess.eval<false>();
+    int standPat = th.chess.eval<false>();
 
     // If our evaluation already beats beta, we can cut off.
     if (standPat >= beta) {
@@ -28,16 +29,17 @@ int quiescence(Chess& chess, int alpha, int beta) {
     }
 
     // 2. Generate only forcing moves
-    MoveGenerator<GenType::Captures> moves(&chess);
+    MoveGenerator<GenType::Captures> moves(&th.chess);
     if (moves.empty()) return standPat;
+    moves.order(th);
 
     for (auto& move : moves) {
-        if (!chess.isLegalMove(move)) continue;
+        if (!th.chess.isLegalMove(move)) continue;
 
-        chess.make(move);
+        th.chess.make(move);
         nodeCount += 1;
-        int score = -quiescence(chess, -beta, -alpha);
-        chess.unmake();
+        int score = -quiescence(th, -beta, -alpha);
+        th.chess.unmake();
 
         if (score >= beta) {
             return beta;  // Beta cutoff
@@ -52,14 +54,17 @@ int quiescence(Chess& chess, int alpha, int beta) {
 }
 
 template <bool root>
-Result negamax(Chess& chess, int alpha, int beta, int depth) {
+Result negamax(SearchThread& th, int alpha, int beta, int depth) {
+    Chess& chess = th.chess;
+
     // 1. Base case: leaf node or no moves
     if (depth == 0) {
-        return {quiescence(chess, alpha, beta), {}};
+        return {quiescence(th, alpha, beta), {}};
     }
 
     MoveGenerator<GenType::Legal> moves(&chess);
     if (moves.empty()) return {chess.eval<false>(), {}};
+    moves.order(th);
 
     // 2. Initialize the best result
     Result bestResult;
@@ -74,7 +79,7 @@ Result negamax(Chess& chess, int alpha, int beta, int depth) {
         nodeCount += 1;
 
         // Recursively search
-        Result result = negamax<false>(chess, -beta, -alpha, depth - 1);
+        Result result = negamax<false>(th, -beta, -alpha, depth - 1);
         result.score = -result.score;
 
         // Unmake the move
@@ -98,6 +103,12 @@ Result negamax(Chess& chess, int alpha, int beta, int depth) {
         alpha = std::max(alpha, result.score);
         if (alpha >= beta) {
             // Beta cut-off
+
+            if (chess.pieceOn(move.to()) == Piece::NONE) {
+                // update history table
+                th.history.update(chess.turn, move.from(), move.to(), th.searchDepth - depth);
+            }
+
             break;
         }
     }
@@ -106,8 +117,8 @@ Result negamax(Chess& chess, int alpha, int beta, int depth) {
     return bestResult;
 }
 
-template Result negamax<true>(Chess&, int, int, int);
-template Result negamax<false>(Chess&, int, int, int);
+template Result negamax<true>(SearchThread&, int, int, int);
+template Result negamax<false>(SearchThread&, int, int, int);
 
 std::string generateUCILine(int depth, Result result) {
     std::ostringstream oss;

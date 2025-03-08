@@ -18,14 +18,14 @@ void Chess::make(Move mv) {
     Square to = mv.to();
     Square capturedPieceSq = to;
     Square epsq = getEnPassant();
-    PieceType fromPieceType = board.pieceTypeOn(from);
-    PieceType toPieceType = board.pieceTypeOn(to);
+    PieceType fromPieceType = pieceTypeOn(from);
+    PieceType toPieceType = pieceTypeOn(to);
     MoveType movetype = mv.type();
     Color enemy = ~turn;
     if (movetype == ENPASSANT) {
         toPieceType = PAWN;
         capturedPieceSq = pawnMove<PUSH, false>(to, turn);
-        board.squares[capturedPieceSq] = Piece::NONE;
+        squares[capturedPieceSq] = Piece::NONE;
     }
 
     // Create new board state and push it onto board state stack
@@ -59,7 +59,7 @@ void Chess::make(Move mv) {
         }
 
         case KING: {
-            board.kingSquare[turn] = to;
+            kingSquare[turn] = to;
             if (state.at(ply).canCastle(turn)) {
                 state.at(ply).disableCastle(turn);
             }
@@ -88,7 +88,7 @@ void Chess::unmake() {
     Move mv = state[ply].move;
     Square from = mv.from(), to = mv.to();
     PieceType toPieceType = state[ply].captured;
-    PieceType fromPieceType = pieceTypeOf(board.pieceOn(to));
+    PieceType fromPieceType = pieceTypeOf(pieceOn(to));
     MoveType movetype = mv.type();
 
     // Revert to the previous board state
@@ -116,7 +116,7 @@ void Chess::unmake() {
     }
 
     if (fromPieceType == KING) {
-        board.kingSquare[turn] = from;
+        kingSquare[turn] = from;
     }
 }
 
@@ -143,7 +143,7 @@ void Chess::unmmakeNull() {
 
 template <bool forward>
 void Chess::moveCastle(Square from, Square to, Color c) {
-    if (forward) {
+    if constexpr (forward) {
         movePiece<forward>(from, to, c, KING);
     } else {
         movePiece<forward>(to, from, c, KING);
@@ -157,7 +157,7 @@ void Chess::moveCastle(Square from, Square to, Color c) {
         from = RookOriginOOO[c];
     }
 
-    if (forward) {
+    if constexpr (forward) {
         movePiece<forward>(from, to, c, ROOK);
     } else {
         movePiece<forward>(to, from, c, ROOK);
@@ -168,22 +168,22 @@ void Chess::moveCastle(Square from, Square to, Color c) {
 bool Chess::isLegalMove(Move mv) const {
     Square from = mv.from();
     Square to = mv.to();
-    Square king = board.kingSq(turn);
+    Square king = kingSq(turn);
 
     if (from == king) {
         if (mv.type() == CASTLE) {
             return true;
         } else {
             // Check if destination sq is attacked by enemy
-            U64 occ = board.occupancy() ^ BB::set(from) ^ BB::set(to);
-            return !board.attacksTo(to, ~turn, occ);
+            U64 occ = occupancy() ^ BB::set(from) ^ BB::set(to);
+            return !attacksTo(to, ~turn, occ);
         }
     } else if (mv.type() == ENPASSANT) {
         // Check if captured pawn was blocking check
         Square enemyPawn = pawnMove<PUSH, false>(to, turn);
-        U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
-        return !(BB::pieceMoves<BISHOP>(king, occ) & board.diagonalSliders(~turn)) &&
-               !(BB::pieceMoves<ROOK>(king, occ) & board.straightSliders(~turn));
+        U64 occ = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
+        return !(BB::pieceMoves<BISHOP>(king, occ) & diagonalSliders(~turn)) &&
+               !(BB::pieceMoves<ROOK>(king, occ) & straightSliders(~turn));
     } else {
         // Check if moved piece was pinned
         return !state.at(ply).blockers[turn] || !(state.at(ply).blockers[turn] & BB::set(from)) ||
@@ -194,7 +194,7 @@ bool Chess::isLegalMove(Move mv) const {
 // Determine if a move gives check for the current board
 bool Chess::isCheckingMove(Move mv) const {
     Square from = mv.from(), to = mv.to();
-    PieceType pieceType = pieceTypeOf(board.pieceOn(from));
+    PieceType pieceType = pieceTypeOf(pieceOn(from));
 
     // Check if destination+piece type directly attacks the king
     if (state[ply].checkingSquares[pieceType] & BB::set(to)) {
@@ -202,7 +202,7 @@ bool Chess::isCheckingMove(Move mv) const {
     }
 
     // Check if moved piece was blocking enemy king from attack
-    Square king = board.kingSq(~turn);
+    Square king = kingSq(~turn);
     U64 pinners = state[ply].pinners[turn];
     if (pinners && (pinners & BB::set(from)) && !(BB::inlineBB(from, to) & BB::set(king))) {
         return true;
@@ -213,16 +213,16 @@ bool Chess::isCheckingMove(Move mv) const {
 
         case PROMOTION: {
             // Check if a promotion attacks the enemy king
-            U64 occ = board.occupancy() ^ BB::set(from);
+            U64 occ = occupancy() ^ BB::set(from);
             return BB::pieceMoves(to, mv.promoPiece(), occ) & BB::set(king);
         }
 
         case ENPASSANT: {
             // Check if captured pawn was blocking enemy king from attack
             Square enemyPawn = pawnMove<PUSH, false>(to, turn);
-            U64 occ = (board.occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
-            return ((BB::pieceMoves<BISHOP>(king, occ) & board.diagonalSliders(turn)) ||
-                    (BB::pieceMoves<ROOK>(king, occ) & board.straightSliders(turn)));
+            U64 occ = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
+            return ((BB::pieceMoves<BISHOP>(king, occ) & diagonalSliders(turn)) ||
+                    (BB::pieceMoves<ROOK>(king, occ) & straightSliders(turn)));
         }
 
         case CASTLE: {
@@ -237,7 +237,7 @@ bool Chess::isCheckingMove(Move mv) const {
             }
 
             U64 occ =
-                (board.occupancy() ^ BB::set(from) ^ BB::set(rFrom)) | BB::set(to) | BB::set(rTo);
+                (occupancy() ^ BB::set(from) ^ BB::set(rFrom)) | BB::set(to) | BB::set(rTo);
             return BB::pieceMoves<ROOK>(rTo, occ) & BB::set(king);
         }
         default: return false;
@@ -246,13 +246,13 @@ bool Chess::isCheckingMove(Move mv) const {
     return false;
 }
 
-Chess::Chess(const std::string& fen) : state{{State()}}, board{Board()}, ply{0}, moveCounter{0} {
+Chess::Chess(const std::string& fen) : state{{State()}}, ply{0}, moveCounter{0} {
     FenParser parser(fen);
 
     auto pieces = parser.pieces;
     for (auto p = pieces.begin(); p != pieces.end(); ++p) {
         addPiece<true>(p->square, p->color, p->type);
-        if (p->type == KING) board.kingSquare[p->color] = p->square;
+        if (p->type == KING) kingSquare[p->color] = p->square;
     }
 
     turn = parser.turn;
@@ -271,7 +271,7 @@ std::string Chess::toFEN() const {
     for (Rank rank = RANK8; rank >= RANK1; rank--) {
         int emptyCount = 0;
         for (File file = FILE1; file <= FILE8; file++) {
-            Piece p = board.pieceOn(makeSquare(file, rank));
+            Piece p = pieceOn(makeSquare(file, rank));
             if (p != Piece::NONE) {
                 if (emptyCount > 0) {
                     oss << emptyCount;
@@ -324,7 +324,17 @@ std::string Chess::DebugString() const {
 }
 
 std::ostream& operator<<(std::ostream& os, const Chess& chess) {
-    os << chess.board << std::endl;
+    for (Rank rank = RANK8; rank >= RANK1; rank--) {
+        os << "   +---+---+---+---+---+---+---+---+\n";
+        os << "   |";
+        for (File file = FILE1; file <= FILE8; file++) {
+            os << " " << chess.pieceOn(makeSquare(file, rank)) << " |";
+        }
+        os << " " << rank << '\n';
+    }
+
+    os << "   +---+---+---+---+---+---+---+---+\n";
+    os << "     a   b   c   d   e   f   g   h\n\n";
     os << chess.toFEN() << std::endl;
 
     return os;

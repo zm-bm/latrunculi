@@ -1,7 +1,7 @@
 #include "chess.hpp"
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include <memory>
 #include <string>
@@ -11,10 +11,271 @@
 #include "score.hpp"
 #include "zobrist.hpp"
 
-const auto E2PAWN = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
-const auto E4PAWN = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
-const auto A3ENPASSANT = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
+const auto PAWN_E2 = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
+const auto PAWN_E4 = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
+const auto ENPASSANT_A3 = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
 const std::string FENS[6] = {STARTFEN, POS2, POS3, POS4W, POS4B, POS5};
+
+TEST(Chess_getPieces, EmptyPosition) {
+    Chess c(EMPTYFEN);
+
+    EXPECT_EQ(c.pieces<KING>(WHITE), BB::set(E1));
+    EXPECT_EQ(c.pieces<KING>(BLACK), BB::set(E8));
+    EXPECT_EQ(c.pieces<PAWN>(WHITE), 0x0);
+    EXPECT_EQ(c.pieces<PAWN>(BLACK), 0x0);
+    EXPECT_EQ(c.pieces<KNIGHT>(WHITE), 0x0);
+    EXPECT_EQ(c.pieces<KNIGHT>(BLACK), 0x0);
+    EXPECT_EQ(c.pieces<BISHOP>(WHITE), 0x0);
+    EXPECT_EQ(c.pieces<BISHOP>(BLACK), 0x0);
+    EXPECT_EQ(c.pieces<ROOK>(WHITE), 0x0);
+    EXPECT_EQ(c.pieces<ROOK>(BLACK), 0x0);
+    EXPECT_EQ(c.pieces<QUEEN>(WHITE), 0x0);
+    EXPECT_EQ(c.pieces<QUEEN>(BLACK), 0x0);
+}
+
+TEST(Chess_getPieces, StartPosition) {
+    Chess c(STARTFEN);
+
+    EXPECT_EQ(c.pieces<KING>(WHITE), BB::set(E1));
+    EXPECT_EQ(c.pieces<KING>(BLACK), BB::set(E8));
+    EXPECT_EQ(c.pieces<PAWN>(WHITE), BB::RANK_MASK[RANK2]);
+    EXPECT_EQ(c.pieces<PAWN>(BLACK), BB::RANK_MASK[RANK7]);
+    EXPECT_EQ(c.pieces<KNIGHT>(WHITE), BB::set(B1) | BB::set(G1));
+    EXPECT_EQ(c.pieces<KNIGHT>(BLACK), BB::set(B8) | BB::set(G8));
+    EXPECT_EQ(c.pieces<BISHOP>(WHITE), BB::set(C1) | BB::set(F1));
+    EXPECT_EQ(c.pieces<BISHOP>(BLACK), BB::set(C8) | BB::set(F8));
+    EXPECT_EQ(c.pieces<ROOK>(WHITE), BB::set(A1) | BB::set(H1));
+    EXPECT_EQ(c.pieces<ROOK>(BLACK), BB::set(A8) | BB::set(H8));
+    EXPECT_EQ(c.pieces<QUEEN>(WHITE), BB::set(D1));
+    EXPECT_EQ(c.pieces<QUEEN>(BLACK), BB::set(D8));
+}
+
+TEST(Chess_getPiece, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.pieceOn(E1), makePiece(WHITE, KING));
+    EXPECT_EQ(c.pieceOn(E2), Piece::NONE);
+}
+
+TEST(Chess_getPiece, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.pieceOn(A2), makePiece(WHITE, PAWN));
+    EXPECT_EQ(c.pieceOn(A3), Piece::NONE);
+}
+
+TEST(Chess_getPieceType, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.pieceTypeOn(E1), KING);
+    EXPECT_EQ(c.pieceTypeOn(E2), NO_PIECE_TYPE);
+}
+
+TEST(Chess_getPieceType, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.pieceTypeOn(A2), PAWN);
+    EXPECT_EQ(c.pieceTypeOn(A3), NO_PIECE_TYPE);
+}
+
+TEST(Chess_getKingSq, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.kingSq(WHITE), E1);
+    EXPECT_EQ(c.kingSq(BLACK), E8);
+}
+
+TEST(Chess_getKingSq, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.kingSq(WHITE), E1);
+    EXPECT_EQ(c.kingSq(BLACK), E8);
+}
+
+TEST(Chess_occupancy, EmptyPosition) {
+    U64 expected = BB::set(E1) | BB::set(E8);
+    EXPECT_EQ(Chess(EMPTYFEN).occupancy(), expected);
+}
+
+TEST(Chess_occupancy, StartPosition) {
+    U64 expected =
+        (BB::RANK_MASK[RANK1] | BB::RANK_MASK[RANK2] | BB::RANK_MASK[RANK7] | BB::RANK_MASK[RANK8]);
+    EXPECT_EQ(Chess(STARTFEN).occupancy(), expected);
+}
+
+TEST(Chess_diagonalSliders, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.diagonalSliders(WHITE), 0);
+    EXPECT_EQ(c.diagonalSliders(BLACK), 0);
+}
+
+TEST(Chess_diagonalSliders, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.diagonalSliders(WHITE), BB::set(C1) | BB::set(D1) | BB::set(F1));
+    EXPECT_EQ(c.diagonalSliders(BLACK), BB::set(C8) | BB::set(D8) | BB::set(F8));
+}
+
+TEST(Chess_straightSliders, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.straightSliders(WHITE), 0);
+    EXPECT_EQ(c.straightSliders(BLACK), 0);
+}
+
+TEST(Chess_straightSliders, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.straightSliders(WHITE), BB::set(A1) | BB::set(D1) | BB::set(H1));
+    EXPECT_EQ(c.straightSliders(BLACK), BB::set(A8) | BB::set(D8) | BB::set(H8));
+}
+
+TEST(Chess_attacksTo, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.attacksTo(A2, WHITE), 0);
+    EXPECT_EQ(c.attacksTo(A3, WHITE), 0);
+    EXPECT_EQ(c.attacksTo(A4, WHITE), 0);
+    EXPECT_EQ(c.attacksTo(B2, WHITE), 0);
+    EXPECT_EQ(c.attacksTo(B3, WHITE), 0);
+    EXPECT_EQ(c.attacksTo(B4, WHITE), 0);
+}
+
+TEST(Chess_attacksTo, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.attacksTo(A2, WHITE), BB::set(A1));
+    EXPECT_EQ(c.attacksTo(A3, WHITE), BB::set(B2) | BB::set(B1));
+    EXPECT_EQ(c.attacksTo(A4, WHITE), 0);
+    EXPECT_EQ(c.attacksTo(B2, WHITE), BB::set(C1));
+    EXPECT_EQ(c.attacksTo(B3, WHITE), BB::set(A2) | BB::set(C2));
+    EXPECT_EQ(c.attacksTo(B4, WHITE), 0);
+}
+
+TEST(Chess_calculateCheckBlockers, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.calculateCheckBlockers(BLACK, BLACK), 0);
+    EXPECT_EQ(c.calculateCheckBlockers(WHITE, WHITE), 0);
+}
+
+TEST(Chess_calculateCheckBlockers, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.calculateCheckBlockers(BLACK, BLACK), 0);
+    EXPECT_EQ(c.calculateCheckBlockers(WHITE, WHITE), 0);
+}
+
+TEST(Chess_calculateCheckBlockers, PinnedPosition) {
+    Chess c(POS3);
+    EXPECT_EQ(c.calculateCheckBlockers(WHITE, WHITE), BB::set(B5));
+    EXPECT_EQ(c.calculateCheckBlockers(BLACK, BLACK), BB::set(F4));
+}
+
+TEST(Chess_calculateDiscoveredCheckers, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.calculateDiscoveredCheckers(WHITE), 0);
+    EXPECT_EQ(c.calculateDiscoveredCheckers(BLACK), 0);
+}
+
+TEST(Chess_calculateDiscoveredCheckers, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.calculateDiscoveredCheckers(WHITE), 0);
+    EXPECT_EQ(c.calculateDiscoveredCheckers(BLACK), 0);
+}
+
+TEST(Chess_calculateDiscoveredCheckers, DiscoveredChecksPosition) {
+    Chess c("8/2p5/3p4/Kp5r/1R3P1k/8/4P1P1/8 w - -");
+    EXPECT_EQ(c.calculateDiscoveredCheckers(WHITE), BB::set(F4));
+    EXPECT_EQ(c.calculateDiscoveredCheckers(BLACK), BB::set(B5));
+}
+
+TEST(Chess_calculatePinnedPieces, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.calculatePinnedPieces(WHITE), 0);
+    EXPECT_EQ(c.calculatePinnedPieces(BLACK), 0);
+}
+
+TEST(Chess_calculatePinnedPieces, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.calculatePinnedPieces(WHITE), 0);
+    EXPECT_EQ(c.calculatePinnedPieces(BLACK), 0);
+}
+
+TEST(Chess_calculatePinnedPieces, PinnedPosition) {
+    Chess c(POS3);
+    EXPECT_EQ(c.calculatePinnedPieces(WHITE), BB::set(B5));
+    EXPECT_EQ(c.calculatePinnedPieces(BLACK), BB::set(F4));
+}
+
+TEST(Chess_calculateCheckingPieces, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.calculateCheckingPieces(WHITE), 0);
+    EXPECT_EQ(c.calculateCheckingPieces(BLACK), 0);
+}
+
+TEST(Chess_calculateCheckingPieces, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.calculateCheckingPieces(WHITE), 0);
+    EXPECT_EQ(c.calculateCheckingPieces(BLACK), 0);
+}
+
+TEST(Chess_calculateCheckingPieces, WhiteCheckPosition) {
+    Chess c(POS4W);
+    EXPECT_EQ(c.calculateCheckingPieces(WHITE), BB::set(B6));
+    EXPECT_EQ(c.calculateCheckingPieces(BLACK), 0);
+}
+
+TEST(Chess_calculateCheckingPieces, BlackCheckPosition) {
+    Chess c(POS4B);
+    EXPECT_EQ(c.calculateCheckingPieces(WHITE), 0);
+    EXPECT_EQ(c.calculateCheckingPieces(BLACK), BB::set(B3));
+}
+
+TEST(Chess_isBitboardAttacked, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_TRUE(c.isBitboardAttacked(BB::RANK_MASK[RANK1], WHITE));
+    EXPECT_FALSE(c.isBitboardAttacked(BB::RANK_MASK[RANK3], WHITE));
+    EXPECT_TRUE(c.isBitboardAttacked(BB::RANK_MASK[FILE8], BLACK));
+    EXPECT_FALSE(c.isBitboardAttacked(BB::RANK_MASK[RANK6], BLACK));
+}
+
+TEST(Chess_isBitboardAttacked, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_TRUE(c.isBitboardAttacked(BB::RANK_MASK[RANK1], WHITE));
+    EXPECT_TRUE(c.isBitboardAttacked(BB::RANK_MASK[RANK3], WHITE));
+    EXPECT_FALSE(c.isBitboardAttacked(BB::RANK_MASK[RANK4], WHITE));
+    EXPECT_TRUE(c.isBitboardAttacked(BB::RANK_MASK[RANK8], BLACK));
+    EXPECT_TRUE(c.isBitboardAttacked(BB::RANK_MASK[RANK6], BLACK));
+    EXPECT_FALSE(c.isBitboardAttacked(BB::RANK_MASK[RANK5], BLACK));
+}
+
+TEST(Chess_isBitboardAttacked, PinnedPosition) {
+    Chess c(POS3);
+    EXPECT_TRUE(c.isBitboardAttacked(BB::FILE_MASK[FILE8], WHITE));
+    EXPECT_FALSE(c.isBitboardAttacked(BB::FILE_MASK[FILE7], WHITE));
+    EXPECT_TRUE(c.isBitboardAttacked(BB::FILE_MASK[FILE2], BLACK));
+    EXPECT_FALSE(c.isBitboardAttacked(BB::FILE_MASK[FILE1], BLACK));
+}
+
+TEST(Chess_count, EmptyPosition) {
+    Chess c(EMPTYFEN);
+    EXPECT_EQ(c.count<KING>(WHITE), 1);
+    EXPECT_EQ(c.count<KING>(BLACK), 1);
+    EXPECT_EQ(c.count<PAWN>(WHITE), 0);
+    EXPECT_EQ(c.count<PAWN>(BLACK), 0);
+    EXPECT_EQ(c.count<KNIGHT>(WHITE), 0);
+    EXPECT_EQ(c.count<KNIGHT>(BLACK), 0);
+    EXPECT_EQ(c.count<BISHOP>(WHITE), 0);
+    EXPECT_EQ(c.count<BISHOP>(BLACK), 0);
+    EXPECT_EQ(c.count<ROOK>(WHITE), 0);
+    EXPECT_EQ(c.count<ROOK>(BLACK), 0);
+    EXPECT_EQ(c.count<QUEEN>(WHITE), 0);
+    EXPECT_EQ(c.count<QUEEN>(BLACK), 0);
+}
+
+TEST(Chess_count, StartPosition) {
+    Chess c(STARTFEN);
+    EXPECT_EQ(c.count<KING>(WHITE), 1);
+    EXPECT_EQ(c.count<KING>(BLACK), 1);
+    EXPECT_EQ(c.count<PAWN>(WHITE), 8);
+    EXPECT_EQ(c.count<PAWN>(BLACK), 8);
+    EXPECT_EQ(c.count<KNIGHT>(WHITE), 2);
+    EXPECT_EQ(c.count<KNIGHT>(BLACK), 2);
+    EXPECT_EQ(c.count<BISHOP>(WHITE), 2);
+    EXPECT_EQ(c.count<BISHOP>(BLACK), 2);
+    EXPECT_EQ(c.count<ROOK>(WHITE), 2);
+    EXPECT_EQ(c.count<ROOK>(BLACK), 2);
+    EXPECT_EQ(c.count<QUEEN>(WHITE), 1);
+    EXPECT_EQ(c.count<QUEEN>(BLACK), 1);
+}
 
 // --- Tests for Chess::eval---
 TEST(Chess_eval, EmptyPosition) {
@@ -30,7 +291,7 @@ TEST(Chess_eval, StartPosition) {
     EXPECT_EQ(c.eval<false>(), -TEMPO_BONUS) << "black to move should be -tempo";
 }
 TEST(Chess_eval, WhitePawnOnE2) {
-    Chess c(E2PAWN);
+    Chess c(PAWN_E2);
     EXPECT_GT(c.eval<false>(), 0) << "white to move should be positive";
     c.makeNull();
     EXPECT_LT(c.eval<false>(), 0) << "black to move should be negative";
@@ -67,7 +328,7 @@ TEST(Chess_psqBonusScore, StartPosition) {
 }
 TEST(Chess_psqBonusScore, WhiteE2Pawn) {
     Score score(Eval::psqValue(MIDGAME, WHITE, PAWN, E2), Eval::psqValue(ENDGAME, WHITE, PAWN, E2));
-    EXPECT_EQ(Chess(E2PAWN).psqBonusScore(), score);
+    EXPECT_EQ(Chess(PAWN_E2).psqBonusScore(), score);
 }
 // --- End tests for Chess::psqBonusScore ---
 
@@ -103,17 +364,17 @@ TEST(Chess_make, PawnDoublePushSetsEnpassantSq) {
     auto fen = "4k3/8/8/8/1p6/8/P7/4K3 w - - 0 1";
     Chess c = Chess(fen);
     c.make(Move(A2, A4));
-    EXPECT_EQ(c.toFEN(), A3ENPASSANT) << "should set enpassant square";
+    EXPECT_EQ(c.toFEN(), ENPASSANT_A3) << "should set enpassant square";
     c.unmake();
     EXPECT_EQ(c.toFEN(), fen) << "should clear enpassant square on undo";
 }
 
 TEST(Chess_make, EnpassantCapt) {
-    Chess c = Chess(A3ENPASSANT);
+    Chess c = Chess(ENPASSANT_A3);
     c.make(Move(B4, A3, ENPASSANT));
     EXPECT_EQ(c.toFEN(), "4k3/8/8/8/8/p7/8/4K3 w - - 0 2") << "should make enpassant captures";
     c.unmake();
-    EXPECT_EQ(c.toFEN(), A3ENPASSANT) << "should undo enpassant captures";
+    EXPECT_EQ(c.toFEN(), ENPASSANT_A3) << "should undo enpassant captures";
 }
 
 TEST(Chess_make, CastleOO) {
@@ -179,52 +440,44 @@ TEST(Chess_make, UnderPromotion) {
     EXPECT_EQ(c.toFEN(), fen) << "should undo promotion on undo";
 }
 
-TEST(Chess_addPiece, AddPieceForward) {
+TEST(Chess_addPiece, AddE2Pawn) {
     Chess chess = Chess(EMPTYFEN);
     U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
     chess.addPiece<true>(E2, WHITE, PAWN);
+
+    EXPECT_EQ(chess.pieceOn(E2), makePiece(WHITE, PAWN));
+    EXPECT_EQ(chess.pieces<PAWN>(WHITE), BB::set(E2));
+    EXPECT_EQ(chess.count<PAWN>(WHITE), 1);
+    EXPECT_EQ(chess.occupancy(), BB::set(E8) | BB::set(E2) | BB::set(E1));
     EXPECT_EQ(chess.getKey(), key) << "should xor key";
-    EXPECT_EQ(chess.toFEN(), E2PAWN) << "should move piece";
+    EXPECT_EQ(chess.toFEN(), PAWN_E2) << "should move piece";
 }
 
-TEST(Chess_addPiece, AddPieceBackwards) {
-    Chess chess = Chess(EMPTYFEN);
-    U64 key = chess.getKey();
-    chess.addPiece<false>(E2, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
-    EXPECT_EQ(chess.toFEN(), E2PAWN) << "should move piece";
-}
-
-TEST(Chess_removePiece, RemovePieceForwards) {
-    Chess chess = Chess(E2PAWN);
+TEST(Chess_removePiece, RemoveE2Pawn) {
+    Chess chess = Chess(PAWN_E2);
     U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
     chess.removePiece<true>(E2, WHITE, PAWN);
+
+    // EXPECT_EQ(chess.pieceOn(E2), Piece::NONE);
+    EXPECT_EQ(chess.pieces<PAWN>(WHITE), 0x0);
+    EXPECT_EQ(chess.count<PAWN>(WHITE), 0);
+    EXPECT_EQ(chess.occupancy(), BB::set(E8) | BB::set(E1));
     EXPECT_EQ(chess.getKey(), key) << "should xor key";
     // EXPECT_EQ(chess.toFEN(), EMPTYFEN) << "should move piece";
 }
 
-TEST(Chess_removePiece, RemovePieceBackwards) {
-    Chess chess = Chess(E2PAWN);
-    U64 key = chess.getKey();
-    chess.removePiece<false>(E2, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
-    // EXPECT_EQ(chess.toFEN(), EMPTYFEN) << "should move piece";
-}
-
-TEST(Chess_movePiece, MovePieceForward) {
-    Chess chess = Chess(E2PAWN);
+TEST(Chess_movePiece, MovePieceE2E4) {
+    Chess chess = Chess(PAWN_E2);
     U64 key = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
     chess.movePiece<true>(E2, E4, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should xor key";
-    EXPECT_EQ(chess.toFEN(), E4PAWN) << "should move piece";
-}
 
-TEST(Chess_movePiece, MovePieceBackwards) {
-    Chess chess = Chess(E2PAWN);
-    U64 key = chess.getKey();
-    chess.movePiece<false>(E2, E4, WHITE, PAWN);
-    EXPECT_EQ(chess.getKey(), key) << "should not xor key";
-    EXPECT_EQ(chess.toFEN(), E4PAWN) << "should move piece";
+    EXPECT_EQ(chess.pieceOn(E2), Piece::NONE);
+    EXPECT_EQ(chess.pieceOn(E4), makePiece(WHITE, PAWN));
+    EXPECT_EQ(chess.pieces<PAWN>(WHITE), BB::set(E4));
+    EXPECT_EQ(chess.count<PAWN>(WHITE), 1);
+    EXPECT_EQ(chess.occupancy(), BB::set(E8) | BB::set(E1) | BB::set(E4));
+    EXPECT_EQ(chess.getKey(), key) << "should xor key";
+    EXPECT_EQ(chess.toFEN(), PAWN_E4) << "should move piece";
 }
 
 TEST(Chess_getKey_calculateKey, GetKeyEqualsCalculateKey) {
@@ -255,7 +508,7 @@ TEST(Chess_getEnPassant, StartPosition) {
 }
 
 TEST(Chess_getEnPassant, ValidEnPassantSq) {
-    Chess c = Chess(A3ENPASSANT);
+    Chess c = Chess(ENPASSANT_A3);
     EXPECT_EQ(c.getEnPassant(), A3) << "should have a valid enpassant square";
 }
 
@@ -299,7 +552,7 @@ TEST(Chess_isLegalMove, Castling) {
 }
 
 TEST(Chess_isLegalMove, EnPassant) {
-    Chess c = Chess(A3ENPASSANT);
+    Chess c = Chess(ENPASSANT_A3);
     EXPECT_TRUE(c.isLegalMove(Move(B4, A3, ENPASSANT))) << "should allow legal enpassant";
 }
 

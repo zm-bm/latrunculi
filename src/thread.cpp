@@ -52,7 +52,7 @@ void SearchThread::loop() {
 void SearchThread::search() {
     Search::startTime = std::chrono::high_resolution_clock::now();
 
-    Search::Result result = Search::negamax<true>(chess, -MATESCORE, MATESCORE, searchDepth);
+    Search::Result result = Search::negamax<true>(*this, -MATESCORE, MATESCORE, searchDepth);
 
     std::cout << Search::generateUCILine(searchDepth, result) << std::endl;
     std::cout << "bestmove " << result.pv.at(0) << " " << result.score << std::endl;

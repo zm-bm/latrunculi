@@ -4,7 +4,7 @@
 #include <string>
 
 #include "bb.hpp"
-#include "board.hpp"
+#include "chess.hpp"
 #include "chess.hpp"
 #include "eval.hpp"
 #include "score.hpp"
@@ -46,7 +46,7 @@ template <bool debug = false>
 class Evaluator {
    public:
     Evaluator() = delete;
-    Evaluator(const Chess& c) : chess{c}, board{c.board} {
+    Evaluator(const Chess& c) : chess{c} {
         initialize<WHITE>();
         initialize<BLACK>();
     }
@@ -54,7 +54,6 @@ class Evaluator {
 
    private:
     const Chess& chess;
-    const Board& board;
 
     U64 attacks[N_COLORS][N_PIECES] = {};
     U64 outposts[N_COLORS] = {0, 0};
@@ -107,13 +106,13 @@ void Evaluator<debug>::initialize() {
     constexpr Color enemy = ~c;
     constexpr U64 rank2 = (c == WHITE) ? BB::rank(RANK2) : BB::rank(RANK7);
 
-    U64 pawns = board.pieces<PAWN>(c);
-    U64 enemyPawns = board.pieces<PAWN>(enemy);
+    U64 pawns = chess.pieces<PAWN>(c);
+    U64 enemyPawns = chess.pieces<PAWN>(enemy);
 
     outposts[c] = Eval::outpostSquares<c>(pawns, enemyPawns);
     mobilityArea[c] = ~((pawns & rank2) | BB::pawnAttacks<enemy>(enemyPawns));
 
-    Square kingSq = board.kingSquare[c];
+    Square kingSq = chess.kingSquare[c];
     Square center = makeSquare(std::clamp(fileOf(kingSq), FILE2, FILE7),
                                std::clamp(rankOf(kingSq), RANK2, RANK7));
     kingZone[c] = BB::pieceMoves<KING>(center) | BB::set(center);
@@ -217,9 +216,9 @@ template <Color c>
 inline Score Evaluator<debug>::pawnsScore() {
     constexpr Color enemy = ~c;
     Score score = {0, 0};
-    U64 pawns = board.pieces<PAWN>(c);
+    U64 pawns = chess.pieces<PAWN>(c);
     U64 pawnAttacks = BB::pawnAttacks<c>(pawns);
-    U64 enemyPawns = board.pieces<PAWN>(enemy);
+    U64 enemyPawns = chess.pieces<PAWN>(enemy);
 
     attacks[c][ALL_PIECES] |= pawnAttacks;
     attacks[c][PAWN] |= pawnAttacks;
@@ -242,18 +241,18 @@ template <Color c, PieceType p>
 Score Evaluator<debug>::piecesScore() {
     constexpr Color enemy = ~c;
     Score score = {0, 0};
-    U64 occ = board.occupancy();
-    U64 pawns = board.pieces<PAWN>(c);
-    U64 enemyPawns = board.pieces<PAWN>(enemy);
+    U64 occ = chess.occupancy();
+    U64 pawns = chess.pieces<PAWN>(c);
+    U64 enemyPawns = chess.pieces<PAWN>(enemy);
 
     // bonus for bishop pair
     if constexpr (p == BISHOP) {
-        if (board.count<BISHOP>(c) > 1) {
+        if (chess.count<BISHOP>(c) > 1) {
             score += BISHOP_PAIR_BONUS;
         }
     }
 
-    forEachPiece<c>(board.pieces<p>(c), [&](Square sq) {
+    forEachPiece<c>(chess.pieces<p>(c), [&](Square sq) {
         U64 bb = BB::set(sq);
         U64 moves = BB::pieceMoves<p>(sq, occ);
 
@@ -315,7 +314,7 @@ Score Evaluator<debug>::piecesScore() {
 template <bool debug>
 template <Color c>
 inline Score Evaluator<debug>::kingScore() {
-    Square kingSq = board.kingSq(c);
+    Square kingSq = chess.kingSq(c);
     Score score = kingShelter<c>(kingSq);
 
     if (chess.state.at(chess.ply).canCastleOO(c)) {
@@ -339,8 +338,8 @@ inline Score Evaluator<debug>::kingShelter(Square kingSq) {
     Rank kingRank = rankOf(kingSq);
 
     U64 pawnsInFront = BB::spanFront<c>(BB::rank(kingRank));
-    U64 enemyPawns = board.pieces<PAWN>(enemy) & pawnsInFront;
-    U64 pawns = board.pieces<PAWN>(c) & pawnsInFront & ~BB::pawnAttacks<enemy>(enemyPawns);
+    U64 enemyPawns = chess.pieces<PAWN>(enemy) & pawnsInFront;
+    U64 pawns = chess.pieces<PAWN>(c) & pawnsInFront & ~BB::pawnAttacks<enemy>(enemyPawns);
 
     File file = std::clamp(kingFile, FILE2, FILE7);
     Score score = fileShelter<c>(pawns, enemyPawns, file - 1) +
@@ -349,8 +348,8 @@ inline Score Evaluator<debug>::kingShelter(Square kingSq) {
 
     score += KING_FILE_BONUS[kingFile];
 
-    bool friendlyOpenFile = !(board.pieces<PAWN>(c) & BB::file(kingFile));
-    bool enemyOpenFile = !(board.pieces<PAWN>(enemy) & BB::file(kingFile));
+    bool friendlyOpenFile = !(chess.pieces<PAWN>(c) & BB::file(kingFile));
+    bool enemyOpenFile = !(chess.pieces<PAWN>(enemy) & BB::file(kingFile));
     score += KING_OPEN_FILE_BONUS[friendlyOpenFile][enemyOpenFile];
 
     return score;
@@ -395,7 +394,7 @@ inline bool Evaluator<debug>::discoveredAttackOnQueen(Square sq, U64 occ) const 
     constexpr Color enemy = ~c;
     bool attacked = false;
 
-    U64 attackingBishops = BB::pieceMoves<BISHOP>(sq, 0) & board.pieces<BISHOP>(enemy);
+    U64 attackingBishops = BB::pieceMoves<BISHOP>(sq, 0) & chess.pieces<BISHOP>(enemy);
     forEachPiece<c>(attackingBishops, [&](Square bishopSq) {
         U64 piecesBetween = BB::betweenBB(sq, bishopSq) & occ;
         if (piecesBetween && !BB::hasMoreThanOne(piecesBetween)) {
@@ -403,7 +402,7 @@ inline bool Evaluator<debug>::discoveredAttackOnQueen(Square sq, U64 occ) const 
         }
     });
 
-    U64 attackingRooks = BB::pieceMoves<ROOK>(sq, 0) & board.pieces<ROOK>(enemy);
+    U64 attackingRooks = BB::pieceMoves<ROOK>(sq, 0) & chess.pieces<ROOK>(enemy);
     forEachPiece<c>(attackingRooks, [&](Square rookSq) {
         U64 piecesBetween = BB::betweenBB(sq, rookSq) & occ;
         if (piecesBetween && !BB::hasMoreThanOne(piecesBetween)) {
@@ -433,8 +432,8 @@ template <bool debug>
 template <Color c>
 inline int Evaluator<debug>::bishopPawnBlockers(U64 bb) const {
     constexpr Color enemy = ~c;
-    U64 pawns = board.pieces<PAWN>(c);
-    U64 blockedPawns = pawns & BB::pawnMoves<PUSH, enemy>(board.occupancy());
+    U64 pawns = chess.pieces<PAWN>(c);
+    U64 blockedPawns = pawns & BB::pawnMoves<PUSH, enemy>(chess.occupancy());
     U64 sameColorSquares = (bb & DARK_SQUARES) ? DARK_SQUARES : LIGHT_SQUARES;
     int pawnFactor = BB::count(blockedPawns & CENTER_FILES) + !(BB::pawnAttacks<c>(pawns) & bb);
     return pawnFactor * BB::count(pawns & sameColorSquares);
@@ -449,13 +448,13 @@ inline int Evaluator<debug>::phase() const {
 
 template <bool debug>
 inline int Evaluator<debug>::nonPawnMaterial(Color c) const {
-    return (board.count<KNIGHT>(c) * KNIGHT_VALUE_MG + board.count<BISHOP>(c) * BISHOP_VALUE_MG +
-            board.count<ROOK>(c) * ROOK_VALUE_MG + board.count<QUEEN>(c) * QUEEN_VALUE_MG);
+    return (chess.count<KNIGHT>(c) * KNIGHT_VALUE_MG + chess.count<BISHOP>(c) * BISHOP_VALUE_MG +
+            chess.count<ROOK>(c) * ROOK_VALUE_MG + chess.count<QUEEN>(c) * QUEEN_VALUE_MG);
 }
 
 template <bool debug>
 int Evaluator<debug>::scaleFactor() const {
     // place holder, scale proportionally with pawns
-    int pawnCount = board.count<PAWN>(chess.turn);
+    int pawnCount = chess.count<PAWN>(chess.turn);
     return std::min(SCALE_LIMIT, 36 + 5 * pawnCount);
 }

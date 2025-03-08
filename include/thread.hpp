@@ -11,6 +11,19 @@
 #include <vector>
 
 #include "chess.hpp"
+#include "types.hpp"
+
+struct HistoryTable {
+    int history[N_COLORS][N_SQUARES][N_SQUARES] = {0};
+
+    inline void update(Color c, Square from, Square to, int depth) {
+        history[c][from][to] += (1 << depth);
+    }
+
+    inline int get(Color c, Square from, Square to) const {
+        return history[c][from][to];
+    }
+};
 
 class SearchThread {
    public:
@@ -21,12 +34,13 @@ class SearchThread {
     void stop();
     void set(const std::string&, int);
 
+    Chess chess{STARTFEN};
+    HistoryTable history;
+    int searchDepth;
+
    private:
     void loop();
     void search();
-
-    Chess chess{STARTFEN};
-    int searchDepth;
 
     std::mutex mutex;
     std::condition_variable condition;

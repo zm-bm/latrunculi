@@ -9,7 +9,7 @@
 
 #include "move.hpp"
 #include "types.hpp"
-#include "chess.hpp"
+#include "thread.hpp"
 
 namespace Search {
 
@@ -22,7 +22,7 @@ struct Result {
 };
 
 template <bool>
-Result negamax(Chess&, int, int, int);
+Result negamax(SearchThread&, int, int, int);
 
 std::string generateUCILine(int depth, Result result);
 
