@@ -13,11 +13,8 @@ const auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
            POS3 = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
            POS4W = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
            POS4B = "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1",
-           POS5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
-const std::string FENS[6] = {STARTFEN, POS2, POS3, POS4W, POS4B, POS5};
-
-// more testing FENs
-const auto EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
+           POS5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+           EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
 // movegen constants
 const int MAX_MOVES = 256;
@@ -32,6 +29,10 @@ const Square KingDestinationOO[N_COLORS] = {G8, G1};
 const Square KingDestinationOOO[N_COLORS] = {C8, C1};
 const Square RookOriginOO[N_COLORS] = {H8, H1};
 const Square RookOriginOOO[N_COLORS] = {A8, A1};
+const U64 CastlePathOO[N_COLORS] = {0x6000000000000000ull, 0x0000000000000060ull};
+const U64 CastlePathOOO[N_COLORS] = {0x0E00000000000000ull, 0x000000000000000Eull};
+const U64 KingCastlePathOO[N_COLORS] = {0x7000000000000000ull, 0x0000000000000070ull};
+const U64 KingCastlePathOOO[N_COLORS] = {0x1C00000000000000ull, 0x000000000000001Cull};
 
 // eval constants
 const U64 LIGHT_SQUARES = 0x55AA55AA55AA55AA;

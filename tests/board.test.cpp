@@ -30,7 +30,7 @@ TEST(Board_movePiece, MoveWhiteKing) {
     EXPECT_EQ(b.pieces<KING>(WHITE), BB::set(D1));
     EXPECT_EQ(b.count<KING>(WHITE), 1);
     EXPECT_EQ(b.occupancy(), BB::set(E8) | BB::set(D1));
-    EXPECT_EQ(b.pieceOn(E1), NO_PIECE);
+    EXPECT_EQ(b.pieceOn(E1), Piece::NONE);
     EXPECT_EQ(b.pieceOn(D1), makePiece(WHITE, KING));
 }
 
@@ -71,13 +71,13 @@ TEST(Board_getPieces, StartPosition) {
 TEST(Board_getPiece, EmptyPosition) {
     Board b(EMPTYFEN);
     EXPECT_EQ(b.pieceOn(E1), makePiece(WHITE, KING));
-    EXPECT_EQ(b.pieceOn(E2), NO_PIECE);
+    EXPECT_EQ(b.pieceOn(E2), Piece::NONE);
 }
 
 TEST(Board_getPiece, StartPosition) {
     Board b(STARTFEN);
     EXPECT_EQ(b.pieceOn(A2), makePiece(WHITE, PAWN));
-    EXPECT_EQ(b.pieceOn(A3), NO_PIECE);
+    EXPECT_EQ(b.pieceOn(A3), Piece::NONE);
 }
 
 TEST(Board_getPieceType, EmptyPosition) {

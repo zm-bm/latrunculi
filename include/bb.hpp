@@ -170,11 +170,6 @@ constexpr BitboardMatrix BITBTWN = [] {
     return table;
 }();
 
-const U64 CastlePathOO[N_COLORS] = {0x6000000000000000ull, 0x0000000000000060ull};
-const U64 CastlePathOOO[N_COLORS] = {0x0E00000000000000ull, 0x000000000000000Eull};
-const U64 KingCastlePathOO[N_COLORS] = {0x7000000000000000ull, 0x0000000000000070ull};
-const U64 KingCastlePathOOO[N_COLORS] = {0x1C00000000000000ull, 0x000000000000001Cull};
-
 inline constexpr U64 rank(Rank r) { return RANK_MASK[r]; }
 inline constexpr U64 file(File f) { return FILE_MASK[f]; }
 inline constexpr U64 set(const Square sq) { return BB::BITSET[sq]; }
@@ -266,13 +261,12 @@ inline U64 pawnAttacks(U64 pawns, Color c) {
 
 template <PieceType p>
 inline U64 pieceMoves(Square sq, U64 occupancy) {
-    switch (p) {
-        case KNIGHT: return KNIGHT_ATTACKS[sq];
-        case BISHOP: return Magics::getBishopAttacks(sq, occupancy);
-        case ROOK: return Magics::getRookAttacks(sq, occupancy);
-        case QUEEN: return Magics::getQueenAttacks(sq, occupancy);
-        case KING: return KING_ATTACKS[sq];
-    }
+    if constexpr (p == KNIGHT) return KNIGHT_ATTACKS[sq];
+    else if constexpr (p == BISHOP) return Magics::getBishopAttacks(sq, occupancy);
+    else if constexpr (p == ROOK) return Magics::getRookAttacks(sq, occupancy);
+    else if constexpr (p == QUEEN) return Magics::getQueenAttacks(sq, occupancy);
+    else if constexpr (p == KING) return KING_ATTACKS[sq];
+    else return 0;
 }
 
 inline U64 pieceMoves(Square sq, PieceType p, U64 occupancy) {

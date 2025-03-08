@@ -268,13 +268,13 @@ inline void MoveGenerator<T>::addEnPassants(U64 pawns, Square enpassant) {
 template <GenType T>
 inline bool MoveGenerator<T>::canCastleOO(U64 occ, Color turn) {
     return (chess->state.at(chess->ply).canCastleOO(turn)  // castling rights
-            && !(occ & BB::CastlePathOO[turn])             // castle path unoccupied/attacked
-            && !chess->board.isBitboardAttacked(BB::KingCastlePathOO[turn], ~turn));
+            && !(occ & CastlePathOO[turn])             // castle path unoccupied/attacked
+            && !chess->board.isBitboardAttacked(KingCastlePathOO[turn], ~turn));
 }
 
 template <GenType T>
 inline bool MoveGenerator<T>::canCastleOOO(U64 occ, Color turn) {
     return (chess->state.at(chess->ply).canCastleOOO(turn)  // castling rights
-            && !(occ & BB::CastlePathOOO[turn])             // castle path unoccupied/attacked
-            && !chess->board.isBitboardAttacked(BB::KingCastlePathOOO[turn], ~turn));
+            && !(occ & CastlePathOOO[turn])             // castle path unoccupied/attacked
+            && !chess->board.isBitboardAttacked(KingCastlePathOOO[turn], ~turn));
 }

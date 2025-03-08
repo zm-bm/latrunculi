@@ -1,10 +1,10 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <iostream>
 #include <string>
 #include <vector>
-#include <array>
 
 using U64 = uint64_t;
 using U32 = uint32_t;
@@ -14,8 +14,6 @@ using I64 = int64_t;
 using I32 = int32_t;
 using I16 = int16_t;
 using I8 = int8_t;
-
-enum class GenType { Legal, Captures, Evasions, Quiets };
 
 enum Color : U8 { BLACK, WHITE, N_COLORS = 2 };
 
@@ -33,8 +31,8 @@ enum Square : U8 {
   N_SQUARES = 64
 };
 
-enum Piece : U8 {
-  NO_PIECE = 0,
+enum class Piece : U8 {
+  NONE = 0,
   B_PAWN = 1, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
   W_PAWN = 9, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
 };
@@ -46,16 +44,10 @@ enum PieceType : U8 {
 };
 // clang-format on
 
-struct PieceSquare {
-    Color color;
-    PieceType role;
-    Square square;
-};
-
 enum File : I8 { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8, N_FILES };
 enum Rank : I8 { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8, N_RANKS };
 
-enum CastleRights : U8 {
+enum CastleRights {
     NO_CASTLE = 0x0,
     BLACK_OOO = 0x1,
     BLACK_OO = 0x2,
@@ -73,6 +65,14 @@ enum MoveType { NORMAL, PROMOTION, ENPASSANT, CASTLE };
 enum PawnMove { LEFT = 7, PUSH = 8, RIGHT = 9, DOUBLE = 16 };
 
 enum Phase { MIDGAME, ENDGAME, N_PHASES };
+
+enum class GenType { Legal, Captures, Evasions, Quiets };
+
+struct PieceSquare {
+    Color color;
+    PieceType type;
+    Square square;
+};
 
 // Operators
 
@@ -101,7 +101,7 @@ inline std::ostream& operator<<(std::ostream& os, Square sq) {
 inline std::ostream& operator<<(std::ostream& os, Piece p) {
     constexpr char pieceToChar[16] =
         {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
-    os << pieceToChar[p];
+    os << pieceToChar[static_cast<int>(p)];
     return os;
 }
 
@@ -112,8 +112,8 @@ inline constexpr Square makeSquare(const File file, const Rank rank) {
 }
 
 inline Square makeSquare(const std::string& square) {
-    auto file = File((int)square[0] - 'a');
-    auto rank = Rank(((int)square[1] - '1'));
+    auto file = File(static_cast<int>(square[0]) - 'a');
+    auto rank = Rank(static_cast<int>(square[1]) - '1');
     return makeSquare(file, rank);
 }
 
@@ -129,18 +129,18 @@ inline constexpr Rank relativeRank(const Square square, const Color color) {
 inline constexpr File fileOf(const Square square) { return File(square & 7); }
 
 inline constexpr Piece makePiece(const Color c, const PieceType p) {
-    // create piece from color+role
-    return Piece((c << 3) | p);
+    // create piece from color and piece type
+    return static_cast<Piece>((c << 3) | static_cast<int>(p));
 }
 
 inline constexpr PieceType pieceTypeOf(const Piece p) {
-    // get the role from a piece
-    return PieceType(p & 0x7);
+    // get the piece type from a piece
+    return PieceType(static_cast<int>(p) & 0x7);
 }
 
 inline constexpr Color pieceColorOf(const Piece p) {
     // get the color of a piece
-    return Color(p >> 3);
+    return Color(static_cast<int>(p) >> 3);
 }
 
 template <Color c, PawnMove p, bool forward>

@@ -25,10 +25,11 @@ struct Move {
     inline bool operator==(const Move& rhs) const { return value == rhs.value; }
 
     static constexpr U16 pack(Square from, Square to, MoveType mtype, PieceType promoPiece) {
-        return (from & 0x3F) |                          // 6 bits for from
-               ((to & 0x3F) << 6) |                     // 6 bits for to
-               ((mtype & 0x03) << 12) |                 // 2 bits for move type
-               (((promoPiece - KNIGHT) & 0x03) << 14);  // 2 bits for promos
+        auto promo = promoPiece - KNIGHT;
+        return (from & 0x3F) |           // 6 bits for from
+               ((to & 0x3F) << 6) |      // 6 bits for to
+               ((mtype & 0x03) << 12) |  // 2 bits for move type
+               ((promo & 0x03) << 14);   // 2 bits for promos
     }
     static constexpr Square unpackFrom(U16 packed) {
         return static_cast<Square>((packed >> 0) & 0x3F);

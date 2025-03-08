@@ -10,7 +10,7 @@
 
 struct Board {
     U64 piecesBB[N_COLORS][N_PIECES] = {0};
-    Piece squares[N_SQUARES] = {NO_PIECE};
+    Piece squares[N_SQUARES] = {Piece::NONE};
     Square kingSquare[N_COLORS] = {E1, E8};
     U8 pieceCount[N_COLORS][N_PIECES] = {0};
 
@@ -50,9 +50,9 @@ inline Board::Board(const std::string& fen) {
 
     auto pieces = parser.pieces;
     for (auto piece = pieces.begin(); piece != pieces.end(); ++piece) {
-        addPiece(piece->square, piece->color, piece->role);
+        addPiece(piece->square, piece->color, piece->type);
 
-        if (piece->role == KING) {
+        if (piece->type == KING) {
             kingSquare[piece->color] = piece->square;
         }
     }
@@ -70,7 +70,7 @@ inline void Board::removePiece(const Square sq, const Color c, const PieceType p
     // Toggle bitboards
     piecesBB[c][ALL_PIECES] ^= BB::set(sq);
     piecesBB[c][p] ^= BB::set(sq);
-    // squares[sq] = NO_PIECE;
+    // squares[sq] = Piece::NONE;
     pieceCount[c][p]--;
 }
 
@@ -79,7 +79,7 @@ inline void Board::movePiece(const Square from, const Square to, const Color c, 
     U64 mask = BB::set(from) | BB::set(to);
     piecesBB[c][ALL_PIECES] ^= mask;
     piecesBB[c][p] ^= mask;
-    squares[from] = NO_PIECE;
+    squares[from] = Piece::NONE;
     squares[to] = makePiece(c, p);
 }
 
@@ -91,7 +91,7 @@ inline int Board::count(Color c) const {
 
 template <PieceType p>
 inline U64 Board::pieces(Color c) const {
-    // Return the bitboard of pieces of a specific role for the given color
+    // Return the bitboard of pieces of a specific piece type for the given color
     return piecesBB[c][p];
 }
 
@@ -101,7 +101,7 @@ inline Piece Board::pieceOn(Square sq) const {
 }
 
 inline PieceType Board::pieceTypeOn(Square sq) const {
-    // Return the role of the piece located at a specific square
+    // Return the type of the piece located at a specific square
     return pieceTypeOf(squares[sq]);
 }
 

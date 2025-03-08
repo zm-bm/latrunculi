@@ -171,7 +171,7 @@ inline U64 Chess::calculateKey() const {
 
     for (auto sq = A1; sq != INVALID; sq++) {
         auto piece = board.pieceOn(sq);
-        if (piece != NO_PIECE) {
+        if (piece != Piece::NONE) {
             zkey ^= Zobrist::psq[pieceColorOf(piece)][pieceTypeOf(piece)][sq];
         }
     }

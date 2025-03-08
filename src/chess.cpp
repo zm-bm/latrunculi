@@ -25,7 +25,7 @@ void Chess::make(Move mv) {
     if (movetype == ENPASSANT) {
         toPieceType = PAWN;
         capturedPieceSq = pawnMove<PUSH, false>(to, turn);
-        board.squares[capturedPieceSq] = NO_PIECE;
+        board.squares[capturedPieceSq] = Piece::NONE;
     }
 
     // Create new board state and push it onto board state stack
@@ -33,7 +33,7 @@ void Chess::make(Move mv) {
     ++ply;
     ++moveCounter;
 
-    // Store the captured piece role for undoing move
+    // Store the captured piece type for undoing move
     state[ply].captured = toPieceType;
     if (toPieceType) {
         handlePieceCapture(capturedPieceSq, enemy, toPieceType);
@@ -194,10 +194,10 @@ bool Chess::isLegalMove(Move mv) const {
 // Determine if a move gives check for the current board
 bool Chess::isCheckingMove(Move mv) const {
     Square from = mv.from(), to = mv.to();
-    PieceType role = pieceTypeOf(board.pieceOn(from));
+    PieceType pieceType = pieceTypeOf(board.pieceOn(from));
 
-    // Check if destination+piece role directly attacks the king
-    if (state[ply].checkingSquares[role] & BB::set(to)) {
+    // Check if destination+piece type directly attacks the king
+    if (state[ply].checkingSquares[pieceType] & BB::set(to)) {
         return true;
     }
 
@@ -250,12 +250,9 @@ Chess::Chess(const std::string& fen) : state{{State()}}, board{Board()}, ply{0},
     FenParser parser(fen);
 
     auto pieces = parser.pieces;
-    for (auto piece = pieces.begin(); piece != pieces.end(); ++piece) {
-        addPiece<true>(piece->square, piece->color, piece->role);
-
-        if (piece->role == KING) {
-            board.kingSquare[piece->color] = piece->square;
-        }
+    for (auto p = pieces.begin(); p != pieces.end(); ++p) {
+        addPiece<true>(p->square, p->color, p->type);
+        if (p->type == KING) board.kingSquare[p->color] = p->square;
     }
 
     turn = parser.turn;
@@ -275,7 +272,7 @@ std::string Chess::toFEN() const {
         int emptyCount = 0;
         for (File file = FILE1; file <= FILE8; file++) {
             Piece p = board.pieceOn(makeSquare(file, rank));
-            if (p != NO_PIECE) {
+            if (p != Piece::NONE) {
                 if (emptyCount > 0) {
                     oss << emptyCount;
                     emptyCount = 0;

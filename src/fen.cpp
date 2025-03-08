@@ -34,8 +34,8 @@ void FenParser::parsePieces(const std::string& section) {
     for (auto iter = section.begin(); iter != section.end(); ++iter) {
         auto ch = *iter;
 
-        if (((int)ch > 48) && ((int)ch < 57)) {
-            file += File((int)ch - '0');
+        if ((ch >= '1') && (ch <= '8')) {
+            file += File(ch - '0');
         } else {
             Square sq = makeSquare(file, rank);
 
