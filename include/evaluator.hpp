@@ -105,11 +105,13 @@ template <bool debug>
 template <Color c>
 void Evaluator<debug>::initialize() {
     constexpr Color enemy = ~c;
+    constexpr U64 rank2 = (c == WHITE) ? BB::rank(RANK2) : BB::rank(RANK7);
+
     U64 pawns = board.pieces<PAWN>(c);
     U64 enemyPawns = board.pieces<PAWN>(enemy);
 
     outposts[c] = Eval::outpostSquares<c>(pawns, enemyPawns);
-    mobilityArea[c] = ~((pawns & BB::rank(RANK2, c)) | BB::pawnAttacks<enemy>(enemyPawns));
+    mobilityArea[c] = ~((pawns & rank2) | BB::pawnAttacks<enemy>(enemyPawns));
 
     Square kingSq = board.kingSquare[c];
     Square center = makeSquare(std::clamp(fileOf(kingSq), FILE2, FILE7),

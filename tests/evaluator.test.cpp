@@ -136,8 +136,8 @@ TEST_F(EvaluatorTest, Outposts) {
 }
 
 TEST_F(EvaluatorTest, MobilityArea) {
-    U64 white = BB::rank(RANK2, WHITE) | BB::rank(RANK3, BLACK);
-    U64 black = BB::rank(RANK2, BLACK) | BB::rank(RANK3, WHITE);
+    U64 white = BB::rank(RANK2) | BB::rank(RANK6);
+    U64 black = BB::rank(RANK7) | BB::rank(RANK3);
     std::vector<std::tuple<std::string, U64, U64>> testCases = {
         {STARTFEN, ~white, ~black},
         {EMPTYFEN, ~U64(0), ~U64(0)},

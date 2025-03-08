@@ -9,204 +9,162 @@
 
 namespace BB {
 
-static constexpr U64 _target(File file, Rank rank) {
-    if (FILE1 <= file && file <= FILE8 && RANK1 <= rank && rank <= RANK8) {
-        auto sq = rank * 8 + file;
-        return 1ULL << sq;
+using BitboardTable = std::array<U64, N_SQUARES>;
+using BitboardMatrix = std::array<std::array<U64, N_SQUARES>, N_SQUARES>;
+
+constexpr std::array<U64, N_RANKS> RANK_MASK = [] {
+    std::array<U64, N_RANKS> arr = {};
+    for (int i = 0; i < N_RANKS; ++i) {
+        arr[i] = 0xFFULL << (8 * i);
     }
-    return 0ULL;
-}
+    return arr;
+}();
 
-constexpr U64 computeKnightAttacks(int sq) {
-    U64 mask = 0;
-    auto file = fileOf(Square(sq));
-    auto rank = rankOf(Square(sq));
-    mask |= _target(file + 2, rank + 1);
-    mask |= _target(file + 2, rank - 1);
-    mask |= _target(file - 2, rank + 1);
-    mask |= _target(file - 2, rank - 1);
-    mask |= _target(file + 1, rank + 2);
-    mask |= _target(file - 1, rank + 2);
-    mask |= _target(file + 1, rank - 2);
-    mask |= _target(file - 1, rank - 2);
-    return mask;
-}
-
-constexpr U64 computeKingAttacks(int sq) {
-    U64 mask = 0;
-    auto file = fileOf(Square(sq));
-    auto rank = rankOf(Square(sq));
-    mask |= _target(file - 1, rank - 1);
-    mask |= _target(file - 1, rank + 1);
-    mask |= _target(file + 1, rank - 1);
-    mask |= _target(file + 1, rank + 1);
-    mask |= _target(file, rank - 1);
-    mask |= _target(file, rank + 1);
-    mask |= _target(file - 1, rank);
-    mask |= _target(file + 1, rank);
-    return mask;
-}
-
-constexpr U64 computeDistance(int sq1, int sq2) {
-    int rank1 = sq1 / 8, file1 = sq1 % 8;
-    int rank2 = sq2 / 8, file2 = sq2 % 8;
-    return std::max(abs(rank1 - rank2), abs(file1 - file2));
-}
-
-constexpr U64 computeBitsInline(int sq1, int sq2) {
-    U64 mask = 0;
-    int rank1 = sq1 / 8, file1 = sq1 % 8;
-    int rank2 = sq2 / 8, file2 = sq2 % 8;
-
-    if (rank1 == rank2) {
-        mask = 0xffULL << (rank1 * 8);
-    } else if (file1 == file2) {
-        mask = 0x0101010101010101ULL << file1;
-    } else {
-        int rankDiff = rank1 - rank2;
-        int fileDiff = file1 - file2;
-
-        if (rankDiff == fileDiff) {
-            // ↗ diagonal
-            for (int i = 0; rank1 + i < 8 && file1 + i < 8; ++i) {
-                mask |= (1ULL << ((rank1 + i) * 8 + (file1 + i)));
-            }
-            // ↙ diagonal
-            for (int i = 0; rank1 + i >= 0 && file1 + i >= 0; --i) {
-                mask |= (1ULL << ((rank1 + i) * 8 + (file1 + i)));
-            }
-        } else if (rank1 + file1 == rank2 + file2) {
-            // ↘ diagonal
-            for (int i = 0; rank1 + i < 8 && file1 - i >= 0; ++i) {
-                mask |= (1ULL << ((rank1 + i) * 8 + (file1 - i)));
-            }
-            // ↖ diagonal
-            for (int i = 0; rank1 + i >= 0 && file1 - i < 8; --i) {
-                mask |= (1ULL << ((rank1 + i) * 8 + (file1 - i)));
-            }
-        }
+constexpr std::array<U64, N_FILES> FILE_MASK = [] {
+    std::array<U64, N_FILES> arr = {};
+    for (int i = 0; i < N_FILES; ++i) {
+        arr[i] = 0x0101010101010101ULL << i;
     }
+    return arr;
+}();
 
-    return mask;
-}
-
-constexpr U64 computeBitsBetween(int sq1, int sq2) {
-    U64 mask = 0;
-    int rank1 = sq1 / 8, file1 = sq1 % 8;
-    int rank2 = sq2 / 8, file2 = sq2 % 8;
-
-    if (rank1 == rank2) {
-        // Same rank
-        int min_file = std::min(file1, file2);
-        int max_file = std::max(file1, file2);
-        for (int f = min_file + 1; f < max_file; ++f) {
-            mask |= (1ULL << (rank1 * 8 + f));
-        }
-    } else if (file1 == file2) {
-        // Same file
-        int min_rank = std::min(rank1, rank2);
-        int max_rank = std::max(rank1, rank2);
-        for (int r = min_rank + 1; r < max_rank; ++r) {
-            mask |= (1ULL << (r * 8 + file1));
-        }
-    } else if ((rank1 - rank2) == (file1 - file2)) {
-        // Diagonal
-        int min_sq = std::min(sq1, sq2);
-        int max_sq = std::max(sq1, sq2);
-        for (int s = min_sq + 9; s < max_sq; s += 9) {
-            mask |= (1ULL << s);
-        }
-    } else if ((rank1 + file1) == (rank2 + file2)) {
-        // Anti-diagonal
-        int min_sq = std::min(sq1, sq2);
-        int max_sq = std::max(sq1, sq2);
-        for (int s = min_sq + 7; s < max_sq; s += 7) {
-            mask |= (1ULL << s);
-        }
-    }
-
-    return mask;
-}
-
-constexpr U64 RANK_MASK[N_RANKS] = {
-    0x00000000000000FF,
-    0x000000000000FF00,
-    0x0000000000FF0000,
-    0x00000000FF000000,
-    0x000000FF00000000,
-    0x0000FF0000000000,
-    0x00FF000000000000,
-    0xFF00000000000000,
-};
-
-constexpr U64 FILE_MASK[N_FILES] = {
-    0x0101010101010101,
-    0x0202020202020202,
-    0x0404040404040404,
-    0x0808080808080808,
-    0x1010101010101010,
-    0x2020202020202020,
-    0x4040404040404040,
-    0x8080808080808080,
-};
-
-constexpr std::array<U64, N_SQUARES> BITSET = [] {
-    std::array<U64, N_SQUARES> arr = {};
+constexpr BitboardTable BITSET = [] {
+    BitboardTable arr = {};
     for (auto sq = 0; sq < N_SQUARES; ++sq) {
         arr[sq] = 1ull << sq;
     }
     return arr;
 }();
 
-constexpr std::array<U64, N_SQUARES> BITCLEAR = [] {
-    std::array<U64, N_SQUARES> arr = {};
+constexpr BitboardTable BITCLEAR = [] {
+    BitboardTable arr = {};
     for (auto sq = 0; sq < N_SQUARES; ++sq) {
         arr[sq] = ~(1ull << sq);
     }
     return arr;
 }();
 
-constexpr std::array<U64, N_SQUARES> KNIGHT_ATTACKS = [] {
-    std::array<U64, N_SQUARES> arr = {};
-    for (auto sq = 0; sq < N_SQUARES; ++sq) {
-        arr[sq] = computeKnightAttacks(sq);
-    }
-    return arr;
-}();
-
-constexpr std::array<U64, N_SQUARES> KING_ATTACKS = [] {
-    std::array<U64, N_SQUARES> arr = {};
-    for (auto sq = 0; sq < N_SQUARES; ++sq) {
-        arr[sq] = computeKingAttacks(sq);
-    }
-    return arr;
-}();
-
-constexpr std::array<std::array<U64, N_SQUARES>, N_SQUARES> BITS_INLINE = [] {
-    std::array<std::array<U64, N_SQUARES>, N_SQUARES> table = {};
-    for (auto sq1 = 0; sq1 < N_SQUARES; ++sq1) {
-        for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
-            table[sq1][sq2] = computeBitsInline(sq1, sq2);
-        }
-    }
-    return table;
-}();
-
-constexpr std::array<std::array<U64, N_SQUARES>, N_SQUARES> BITS_BETWEEN = [] {
-    std::array<std::array<U64, N_SQUARES>, N_SQUARES> table = {};
-    for (auto sq1 = 0; sq1 < N_SQUARES; ++sq1) {
-        for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
-            table[sq1][sq2] = computeBitsBetween(sq1, sq2);
-        }
-    }
-    return table;
-}();
-
-constexpr std::array<std::array<int, N_SQUARES>, N_SQUARES> DISTANCE = [] {
-    std::array<std::array<int, N_SQUARES>, N_SQUARES> table = {};
+constexpr BitboardMatrix DISTANCE = [] {
+    BitboardMatrix table = {};
     for (int sq1 = 0; sq1 < N_SQUARES; ++sq1) {
         for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
-            table[sq1][sq2] = computeDistance(sq1, sq2);
+            int rank1 = sq1 / 8, file1 = sq1 % 8;
+            int rank2 = sq2 / 8, file2 = sq2 % 8;
+            table[sq1][sq2] = std::max(abs(rank1 - rank2), abs(file1 - file2));
+        }
+    }
+    return table;
+}();
+
+static constexpr U64 addSquare(File file, Rank rank) {
+    return (FILE1 <= file && file <= FILE8 && RANK1 <= rank && rank <= RANK8)
+               ? (1ULL << makeSquare(file, rank))
+               : 0ULL;
+}
+
+constexpr BitboardTable KNIGHT_ATTACKS = [] {
+    BitboardTable table = {};
+    for (auto sq = 0; sq < N_SQUARES; ++sq) {
+        auto file = fileOf(Square(sq));
+        auto rank = rankOf(Square(sq));
+        table[sq] = 0;
+        table[sq] |= addSquare(file + 2, rank + 1);
+        table[sq] |= addSquare(file + 2, rank - 1);
+        table[sq] |= addSquare(file - 2, rank + 1);
+        table[sq] |= addSquare(file - 2, rank - 1);
+        table[sq] |= addSquare(file + 1, rank + 2);
+        table[sq] |= addSquare(file - 1, rank + 2);
+        table[sq] |= addSquare(file + 1, rank - 2);
+        table[sq] |= addSquare(file - 1, rank - 2);
+    }
+    return table;
+}();
+
+constexpr BitboardTable KING_ATTACKS = [] {
+    BitboardTable table = {};
+    for (auto sq = 0; sq < N_SQUARES; ++sq) {
+        auto file = fileOf(Square(sq));
+        auto rank = rankOf(Square(sq));
+        table[sq] = 0;
+        table[sq] |= addSquare(file - 1, rank - 1);
+        table[sq] |= addSquare(file - 1, rank + 1);
+        table[sq] |= addSquare(file + 1, rank - 1);
+        table[sq] |= addSquare(file + 1, rank + 1);
+        table[sq] |= addSquare(file, rank - 1);
+        table[sq] |= addSquare(file, rank + 1);
+        table[sq] |= addSquare(file - 1, rank);
+        table[sq] |= addSquare(file + 1, rank);
+    }
+    return table;
+}();
+
+constexpr BitboardMatrix BITLINE = [] {
+    BitboardMatrix table = {};
+
+    auto populateDiagonal = [](int rank, int file, int rankIncr, int fileIncr) -> U64 {
+        U64 mask = 0;
+        while (0 <= rank && rank < 8 && 0 <= file && file < 8) {
+            mask |= (1ULL << (rank * 8 + file));
+            rank += rankIncr;
+            file += fileIncr;
+        }
+        return mask;
+    };
+
+    for (auto sq1 = 0; sq1 < N_SQUARES; ++sq1) {
+        for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
+            int rank1 = sq1 / 8, file1 = sq1 % 8;
+            int rank2 = sq2 / 8, file2 = sq2 % 8;
+
+            table[sq1][sq2] = 0;
+            if (rank1 == rank2) {
+                table[sq1][sq2] = RANK_MASK[rank1];
+            } else if (file1 == file2) {
+                table[sq1][sq2] = FILE_MASK[file1];
+            } else if ((rank1 - rank2) == (file1 - file2)) {
+                // ↙↗ diagonal
+                table[sq1][sq2] =
+                    populateDiagonal(rank1, file1, 1, 1) | populateDiagonal(rank1, file1, -1, -1);
+            } else if ((rank1 + file1) == (rank2 + file2)) {
+                // ↖↘ diagonal
+                table[sq1][sq2] =
+                    populateDiagonal(rank1, file1, 1, -1) | populateDiagonal(rank1, file1, -1, 1);
+            }
+        }
+    }
+    return table;
+}();
+
+constexpr BitboardMatrix BITBTWN = [] {
+    BitboardMatrix table = {};
+
+    auto setBitsBetween = [](auto& table, int sq1, int sq2, int delta) {
+        int min_sq = std::min(sq1, sq2);
+        int max_sq = std::max(sq1, sq2);
+        for (int s = (min_sq + delta); s < max_sq; s += delta) {
+            table[sq1][sq2] |= (1ULL << s);
+        }
+    };
+
+    for (auto sq1 = 0; sq1 < N_SQUARES; ++sq1) {
+        for (int sq2 = 0; sq2 < N_SQUARES; ++sq2) {
+            int rank1 = sq1 / 8, file1 = sq1 % 8;
+            int rank2 = sq2 / 8, file2 = sq2 % 8;
+
+            table[sq1][sq2] = 0;
+            if (rank1 == rank2) {
+                // Same rank
+                setBitsBetween(table, sq1, sq2, 1);
+            } else if (file1 == file2) {
+                // Same file
+                setBitsBetween(table, sq1, sq2, 8);
+            } else if ((rank1 + file1) == (rank2 + file2)) {
+                // ↙↗ diagonal
+                setBitsBetween(table, sq1, sq2, 7);
+            } else if ((rank1 - rank2) == (file1 - file2)) {
+                // ↖↘ diagonal
+                setBitsBetween(table, sq1, sq2, 9);
+            }
         }
     }
     return table;
@@ -217,77 +175,23 @@ const U64 CastlePathOOO[N_COLORS] = {0x0E00000000000000ull, 0x000000000000000Eul
 const U64 KingCastlePathOO[N_COLORS] = {0x7000000000000000ull, 0x0000000000000070ull};
 const U64 KingCastlePathOOO[N_COLORS] = {0x1C00000000000000ull, 0x000000000000001Cull};
 
-constexpr Rank RANK_BY_COLOR[N_COLORS][N_RANKS] = {
-    {RANK8, RANK7, RANK6, RANK5, RANK4, RANK3, RANK2, RANK1},
-    {RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8},
-};
-inline U64 rank(Rank r, Color c) { return RANK_MASK[RANK_BY_COLOR[c][r]]; }
-inline U64 rank(Rank r) { return RANK_MASK[RANK_BY_COLOR[WHITE][r]]; }
-
-constexpr File FILE_BY_COLOR[N_COLORS][N_FILES] = {
-    {FILE8, FILE7, FILE6, FILE5, FILE4, FILE3, FILE2, FILE1},
-    {FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8},
-};
-inline U64 file(File f) { return FILE_MASK[FILE_BY_COLOR[WHITE][f]]; }
-inline U64 file(File f, Color c) { return FILE_MASK[FILE_BY_COLOR[c][f]]; }
-
-inline constexpr U64 set(const Square sq) {
-    // Returns a bitboard with a single bit set corresponding to the given square.
-    return BB::BITSET[sq];
-}
-
-inline constexpr U64 clear(const Square sq) {
-    // Returns a bitboard with a single bit cleared corresponding to the given square.
-    return BB::BITCLEAR[sq];
-}
-
-inline constexpr U64 inlineBB(const Square from, const Square to) {
-    // Returns a bitboard representing all squares in a straight line
-    // of the 'from' and 'to' squares.
-    return BITS_INLINE[from][to];
-}
-
-inline constexpr U64 betweenBB(const Square from, const Square to) {
-    // Returns a bitboard representing all squares between the 'from'
-    // and 'to' squares, exclusive of the endpoints.
-    return BITS_BETWEEN[from][to];
-}
-
-inline U64 hasMoreThanOne(U64 bb) {
-    // Returns non-zero if more than one bit is set in bb.
-    return bb & (bb - 1);
-}
-
-inline int count(U64 bb) {
-    // Returns the count of set bits (1's) in bb.
-    return __builtin_popcountll(bb);
-}
-
-inline Square lsb(U64 bb) {
-    // Returns the index of the least significant bit set in bb.
-    return static_cast<Square>(__builtin_ctzll(bb));
-}
-
-inline Square msb(U64 bb) {
-    // Returns the index of the most significant bit set in bb.
-    return static_cast<Square>(63 - __builtin_clzll(bb));
-}
-
-inline Square (*const advanced_fn[2])(U64) = {lsb, msb};
-
-inline Square advancedSq(Color c, U64 bb) {
-    // Calls the appropriate advanced function (lsb or msb) based on the color.
-    return advanced_fn[static_cast<Color>(c)](bb);
-}
+inline constexpr U64 rank(Rank r) { return RANK_MASK[r]; }
+inline constexpr U64 file(File f) { return FILE_MASK[f]; }
+inline constexpr U64 set(const Square sq) { return BB::BITSET[sq]; }
+inline constexpr U64 clear(const Square sq) { return BB::BITCLEAR[sq]; }
+inline constexpr U64 inlineBB(const Square sq1, const Square sq2) { return BITLINE[sq1][sq2]; }
+inline constexpr U64 betweenBB(const Square sq1, const Square sq2) { return BITBTWN[sq1][sq2]; }
+inline U64 hasMoreThanOne(U64 bb) { return bb & (bb - 1); }
+inline int count(U64 bb) { return __builtin_popcountll(bb); }
+inline Square lsb(U64 bb) { return static_cast<Square>(__builtin_ctzll(bb)); }
+inline Square msb(U64 bb) { return static_cast<Square>(63 - __builtin_clzll(bb)); }
 
 template <Color c>
 inline Square advancedSq(U64 bb) {
-    // Calls the appropriate advanced function (lsb or msb) based on the color.
-    return advanced_fn[static_cast<Color>(c)](bb);
+    return (c == WHITE) ? msb(bb) : lsb(bb);
 }
 
 inline U64 fillNorth(U64 bb) {
-    // Fills the squares north of bb by shifting and OR'ing the bits.
     bb |= (bb << 8);
     bb |= (bb << 16);
     bb |= (bb << 32);
@@ -295,93 +199,32 @@ inline U64 fillNorth(U64 bb) {
 }
 
 inline U64 fillSouth(U64 bb) {
-    // Fills the squares south of bb by shifting and OR'ing the bits.
     bb |= (bb >> 8);
     bb |= (bb >> 16);
     bb |= (bb >> 32);
     return bb;
 }
 
-inline U64 fillFiles(U64 bb) {
-    // Fills both north and south for the given bitboard.
-    return fillNorth(bb) | fillSouth(bb);
-}
-inline U64 shiftSouth(U64 bb) {
-    // Shifts the bitboard south (down) by 8 squares.
-    return bb >> 8;
-}
-inline U64 shiftNorth(U64 bb) {
-    // Shifts the bitboard north (up) by 8 squares.
-    return bb << 8;
-}
-
-inline U64 shiftEast(U64 bb) {
-    // Shifts the bitboard east (right) by 1 square and masks the invalid bits.
-    return (bb << 1) & ~BB::FILE_MASK[FILE1];
-}
-
-inline U64 shiftNorthEast(U64 bb) {
-    // Shifts the bitboard to the northeast (up-right) by 9 squares and masks
-    // the invalid bits.
-    return (bb << 9) & ~BB::FILE_MASK[FILE1];
-}
-
-inline U64 shiftSouthEast(U64 bb) {
-    // Shifts the bitboard to the southeast (down-right) by 7 squares and masks
-    // the invalid bits.
-    return (bb >> 7) & ~BB::FILE_MASK[FILE1];
-}
-
-inline U64 shiftWest(U64 bb) {
-    // Shifts the bitboard west (left) by 1 square and masks the invalid bits.
-    return (bb >> 1) & ~BB::FILE_MASK[FILE8];
-}
-
-inline U64 shiftSouthWest(U64 bb) {
-    // Shifts the bitboard to the southwest (down-left) by 9 squares and masks
-    // the invalid bits.
-    return (bb >> 9) & ~BB::FILE_MASK[FILE8];
-}
-
-inline U64 shiftNorthWest(U64 bb) {
-    // Shifts the bitboard to the northwest (up-left) by 7 squares and masks the
-    // invalid bits.
-    return (bb << 7) & ~BB::FILE_MASK[FILE8];
-}
-inline U64 spanNorth(U64 bb) {
-    // Fills and shifts the bitboard north to create a span.
-    return shiftNorth(fillNorth(bb));
-}
-
-inline U64 spanSouth(U64 bb) {
-    // Fills and shifts the bitboard south to create a span.
-    return shiftSouth(fillSouth(bb));
-}
+inline U64 fillFiles(U64 bb) { return fillNorth(bb) | fillSouth(bb); }
+inline U64 shiftSouth(U64 bb) { return bb >> 8; }
+inline U64 shiftNorth(U64 bb) { return bb << 8; }
+inline U64 shiftEast(U64 bb) { return (bb << 1) & ~BB::file(FILE1); }
+inline U64 shiftWest(U64 bb) { return (bb >> 1) & ~BB::file(FILE8); }
+inline U64 spanNorth(U64 bb) { return shiftNorth(fillNorth(bb)); }
+inline U64 spanSouth(U64 bb) { return shiftSouth(fillSouth(bb)); }
 
 template <Color c>
 inline U64 spanFront(U64 bb) {
-    // Returns the span in the front direction for the given color.
-    if constexpr (c == WHITE) {
-        return spanNorth(bb);
-    } else {
-        return spanSouth(bb);
-    }
+    return (c == WHITE) ? spanNorth(bb) : spanSouth(bb);
 }
 
 template <Color c>
 inline U64 spanBack(U64 bb) {
-    // Returns the span in the back direction for the given color.
-    if constexpr (c == WHITE) {
-        return spanSouth(bb);
-    } else {
-        return spanNorth(bb);
-    }
+    return (c == WHITE) ? spanSouth(bb) : spanNorth(bb);
 }
 
 template <Color c>
 inline U64 pawnAttackSpan(U64 bb) {
-    // Returns the attack span for pawns, covering the diagonal squares in front
-    // of the bitboard to the left and right, based on the color.
     U64 spanFrontBB = spanFront<c>(bb);
     return shiftWest(spanFrontBB) | shiftEast(spanFrontBB);
 }
@@ -394,38 +237,22 @@ inline U64 pawnFullSpan(U64 bb) {
     return shiftWest(spanFrontBB) | shiftEast(spanFrontBB) | spanFrontBB;
 }
 
-template <Color c>
-inline U64 kingShield(Square sq) {
-    U64 bitboard = BB::set(sq);
-    if constexpr (c == WHITE) {
-        return (BB::shiftNorthWest(bitboard) | BB::shiftNorth(bitboard) | BB::shiftNorthEast(bitboard));
-    } else {
-        return (BB::shiftSouthWest(bitboard) | BB::shiftSouth(bitboard) | BB::shiftSouthEast(bitboard));
-    }
-}
-
 template <PawnMove p, Color c>
 inline U64 pawnMoves(U64 pawns) {
-    if constexpr (p == LEFT) {
-        pawns &= ~file(FILE1, c);
-    } else if constexpr (p == RIGHT) {
-        pawns &= ~file(FILE8, c);
+    if constexpr (p == LEFT || p == RIGHT) {
+        constexpr U64 mask = file((p == LEFT)  // mask left/right side
+                                      ? (c == WHITE ? FILE1 : FILE8)
+                                      : (c == WHITE ? FILE8 : FILE1));
+        pawns &= ~mask;
     }
 
-    if constexpr (c == WHITE) {
-        return pawns << static_cast<int>(p);
-    } else {
-        return pawns >> static_cast<int>(p);
-    }
+    constexpr int shift = static_cast<int>(p);
+    return (c == WHITE) ? (pawns << shift) : (pawns >> shift);
 }
 
 template <PawnMove p>
 inline U64 pawnMoves(U64 pawns, Color c) {
-    if (c == WHITE) {
-        return pawnMoves<p, WHITE>(pawns);
-    } else {
-        return pawnMoves<p, BLACK>(pawns);
-    }
+    return (c == WHITE) ? pawnMoves<p, WHITE>(pawns) : pawnMoves<p, BLACK>(pawns);
 };
 
 template <Color c>
@@ -448,11 +275,6 @@ inline U64 pieceMoves(Square sq, U64 occupancy) {
     }
 }
 
-template <PieceType p>
-inline U64 pieceMoves(Square sq) {
-    return pieceMoves<p>(sq, 0);
-}
-
 inline U64 pieceMoves(Square sq, PieceType p, U64 occupancy) {
     switch (p) {
         case KNIGHT: return pieceMoves<KNIGHT>(sq, occupancy);
@@ -464,17 +286,20 @@ inline U64 pieceMoves(Square sq, PieceType p, U64 occupancy) {
     }
 }
 
-inline U64 pieceMoves(Square sq, PieceType p) { return pieceMoves(sq, p, 0); }
+template <PieceType p>
+inline U64 pieceMoves(Square sq) {
+    return pieceMoves<p>(sq, 0);
+}
 
-struct Bitboard {
+struct Printer {
     U64 value;
 
-    friend std::ostream& operator<<(std::ostream& os, const Bitboard& bb) {
+    friend std::ostream& operator<<(std::ostream& os, const Printer& bb) {
         char output[64];
 
         // Generate visual representation of the bitboard.
         for (unsigned i = 0; i < 64; i++) {
-                output[i] = (bb.value & BB::BITSET[i]) ? '1' : '.';
+            output[i] = (bb.value & BB::BITSET[i]) ? '1' : '.';
         }
 
         os << "\n  abcdefgh\n";
@@ -491,7 +316,7 @@ struct Bitboard {
         }
 
         os << std::endl;
-            return os;
+        return os;
     }
 };
 

@@ -39,16 +39,13 @@ class MoveGenerator {
 
     template <GenType, Color>
     void generatePawnMoves(U64, U64);
-
     template <PieceType, Color>
     void generatePieceMoves(U64, U64);
 
     template <PawnMove, Color>
     void addPawnMoves(U64);
-
     template <PawnMove, Color>
     void addPawnPromotions(U64);
-
     template <PawnMove, Color>
     void addEnPassants(U64, Square);
 
@@ -73,6 +70,24 @@ void MoveGenerator<T>::generate() {
     } else {
         generateMoves<G, BLACK>();
     }
+
+    for (Move* move = moves.data(); move != last; ++move) {
+        int score = 0;
+        auto fromPiece = pieceTypeOf(chess->board.pieceOn(move->from()));
+        auto toPiece = pieceTypeOf(chess->board.pieceOn(move->to()));
+        if (toPiece != NO_PIECE_TYPE) {
+            move->score += 10 * PIECE_VALUES[MIDGAME][WHITE][toPiece] -
+                         PIECE_VALUES[MIDGAME][WHITE][fromPiece];
+        }
+        auto moveType = move->type();
+        auto promoPiece = move->promoPiece();
+        if (moveType == PROMOTION) {
+            move->score += PIECE_VALUES[MIDGAME][WHITE][promoPiece];
+        }
+    }
+
+    auto comp = [](const Move& a, const Move& b) { return a.score > b.score; };
+    std::stable_sort(moves.begin(), last, comp);
 }
 
 template <GenType T>
@@ -123,6 +138,9 @@ template <GenType T>
 template <GenType G, Color C>
 void MoveGenerator<T>::generatePawnMoves(const U64 targets, const U64 occ) {
     constexpr Color enemy = ~C;
+    constexpr U64 rank3 = (C == WHITE) ? BB::rank(RANK3) : BB::rank(RANK6);
+    constexpr U64 rank7 = (C == WHITE) ? BB::rank(RANK7) : BB::rank(RANK2);
+
     U64 moves, vacancies = ~occ;
     U64 enemies = chess->board.pieces<ALL_PIECES>(enemy);
 
@@ -132,7 +150,7 @@ void MoveGenerator<T>::generatePawnMoves(const U64 targets, const U64 occ) {
     }
 
     // Generate pawn promotions
-    U64 pawns = chess->board.pieces<PAWN>(C) & BB::rank(RANK7, C);
+    U64 pawns = chess->board.pieces<PAWN>(C) & rank7;
     if (pawns) {
         // pawn push promotions
         moves = BB::pawnMoves<PUSH, C>(pawns) & vacancies;
@@ -147,7 +165,7 @@ void MoveGenerator<T>::generatePawnMoves(const U64 targets, const U64 occ) {
     }
 
     // Generate captures / enpassant
-    pawns = chess->board.pieces<PAWN>(C) & ~BB::rank(RANK7, C);
+    pawns = chess->board.pieces<PAWN>(C) & ~rank7;
     if constexpr (G != GenType::Quiets) {
         moves = BB::pawnMoves<LEFT, C>(pawns) & enemies;
         addPawnMoves<LEFT, C>(moves);
@@ -169,7 +187,7 @@ void MoveGenerator<T>::generatePawnMoves(const U64 targets, const U64 occ) {
     // Generate regular pawn pushes
     if constexpr (G != GenType::Captures) {
         moves = BB::pawnMoves<PUSH, C>(pawns) & vacancies;
-        U64 doubleMovePawns = moves & BB::rank(RANK3, C),
+        U64 doubleMovePawns = moves & rank3,
             doubleMoves = BB::pawnMoves<PUSH, C>(doubleMovePawns) & vacancies;
 
         // If in check, only make moves that block
