@@ -449,10 +449,8 @@ inline int Evaluator<debug>::phase() const {
 
 template <bool debug>
 inline int Evaluator<debug>::nonPawnMaterial(Color c) const {
-    return (board.count<KNIGHT>(c) * Eval::pieceValue(MIDGAME, WHITE, KNIGHT) +
-            board.count<BISHOP>(c) * Eval::pieceValue(MIDGAME, WHITE, BISHOP) +
-            board.count<ROOK>(c) * Eval::pieceValue(MIDGAME, WHITE, ROOK) +
-            board.count<QUEEN>(c) * Eval::pieceValue(MIDGAME, WHITE, QUEEN));
+    return (board.count<KNIGHT>(c) * KNIGHT_VALUE_MG + board.count<BISHOP>(c) * BISHOP_VALUE_MG +
+            board.count<ROOK>(c) * ROOK_VALUE_MG + board.count<QUEEN>(c) * QUEEN_VALUE_MG);
 }
 
 template <bool debug>

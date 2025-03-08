@@ -86,7 +86,7 @@ class Chess {
 template <bool forward>
 inline void Chess::addPiece(Square sq, Color c, PieceType pt) {
     board.addPiece(sq, c, pt);
-    material += Score{Eval::pieceValue(MIDGAME, c, pt), Eval::pieceValue(ENDGAME, c, pt)};
+    material += pieceScore(pt, c);
     psqBonus += Score{Eval::psqValue(MIDGAME, c, pt, sq), Eval::psqValue(ENDGAME, c, pt, sq)};
 
     if (forward) {
@@ -97,7 +97,7 @@ inline void Chess::addPiece(Square sq, Color c, PieceType pt) {
 template <bool forward>
 inline void Chess::removePiece(Square sq, Color c, PieceType pt) {
     board.removePiece(sq, c, pt);
-    material -= Score{Eval::pieceValue(MIDGAME, c, pt), Eval::pieceValue(ENDGAME, c, pt)};
+    material -= pieceScore(pt, c);
     psqBonus -= Score{Eval::psqValue(MIDGAME, c, pt, sq), Eval::psqValue(ENDGAME, c, pt, sq)};
 
     if (forward) {

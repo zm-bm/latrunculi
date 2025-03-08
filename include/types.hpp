@@ -76,7 +76,7 @@ struct PieceSquare {
 
 // Operators
 
-inline constexpr Color operator~(Color c) { return Color(c ^ WHITE); }
+constexpr Color operator~(Color c) { return Color(c ^ WHITE); }
 
 inline std::ostream& operator<<(std::ostream& os, Color color) {
     os << (color == WHITE ? "white" : "black");
@@ -99,15 +99,15 @@ inline std::ostream& operator<<(std::ostream& os, Square sq) {
 }
 
 inline std::ostream& operator<<(std::ostream& os, Piece p) {
-    constexpr char pieceToChar[16] =
+    static const char pieces[16] =
         {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
-    os << pieceToChar[static_cast<int>(p)];
+    os << pieces[static_cast<int>(p)];
     return os;
 }
 
 // Helpers
 
-inline constexpr Square makeSquare(const File file, const Rank rank) {
+constexpr Square makeSquare(const File file, const Rank rank) {
     return static_cast<Square>((rank << 3) + file);
 }
 
@@ -117,28 +117,28 @@ inline Square makeSquare(const std::string& square) {
     return makeSquare(file, rank);
 }
 
-inline constexpr Rank rankOf(const Square square) { return Rank(square >> 3); }
+constexpr Rank rankOf(const Square square) { return Rank(square >> 3); }
 
-inline constexpr Rank relativeRank(const Rank rank, const Color color) {
+constexpr Rank relativeRank(const Rank rank, const Color color) {
     return Rank(rank ^ (~color * 7));
 }
-inline constexpr Rank relativeRank(const Square square, const Color color) {
+constexpr Rank relativeRank(const Square square, const Color color) {
     return Rank(rankOf(square) ^ (~color * 7));
 }
 
-inline constexpr File fileOf(const Square square) { return File(square & 7); }
+constexpr File fileOf(const Square square) { return File(square & 7); }
 
-inline constexpr Piece makePiece(const Color c, const PieceType p) {
+constexpr Piece makePiece(const Color c, const PieceType p) {
     // create piece from color and piece type
     return static_cast<Piece>((c << 3) | static_cast<int>(p));
 }
 
-inline constexpr PieceType pieceTypeOf(const Piece p) {
+constexpr PieceType pieceTypeOf(const Piece p) {
     // get the piece type from a piece
     return PieceType(static_cast<int>(p) & 0x7);
 }
 
-inline constexpr Color pieceColorOf(const Piece p) {
+constexpr Color pieceColorOf(const Piece p) {
     // get the color of a piece
     return Color(static_cast<int>(p) >> 3);
 }
@@ -156,22 +156,22 @@ inline Square pawnMove(const Square sq, const Color c) {
 
 // Enable arithmetic and bitwise operators
 #define ENABLE_OPERATORS(T)                                                   \
-    inline constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
-    inline constexpr T operator+(T d1, int d2) { return T(int(d1) + d2); }    \
-    inline constexpr T operator-(T d1, T d2) { return T(int(d1) - int(d2)); } \
-    inline constexpr T operator-(T d1, int d2) { return T(int(d1) - d2); }    \
-    inline constexpr T operator*(T d, int i) { return T(int(d) * i); }        \
-    inline constexpr T operator*(int i, T d) { return T(i * int(d)); }        \
-    inline constexpr T operator/(T d1, T d2) { return T(int(d1) / int(d2)); } \
-    inline constexpr T operator/(T d, int i) { return T(int(d) / i); }        \
-    inline constexpr T& operator+=(T& d1, T d2) { return d1 = d1 + d2; }      \
-    inline constexpr T& operator-=(T& d1, T d2) { return d1 = d1 - d2; }      \
-    inline constexpr T& operator*=(T& d, int i) { return d = T(int(d) * i); } \
-    inline constexpr T& operator/=(T& d, int i) { return d = T(int(d) / i); } \
-    inline constexpr T& operator++(T& d, int) { return d = T(int(d) + 1); }   \
-    inline constexpr T& operator--(T& d, int) { return d = T(int(d) - 1); }   \
-    inline constexpr T& operator&=(T& d1, T d2) { return d1 = T(d1 & d2); }   \
-    inline constexpr T& operator|=(T& d1, T d2) { return d1 = T(d1 | d2); }
+    constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
+    constexpr T operator+(T d1, int d2) { return T(int(d1) + d2); }    \
+    constexpr T operator-(T d1, T d2) { return T(int(d1) - int(d2)); } \
+    constexpr T operator-(T d1, int d2) { return T(int(d1) - d2); }    \
+    constexpr T operator*(T d, int i) { return T(int(d) * i); }        \
+    constexpr T operator*(int i, T d) { return T(i * int(d)); }        \
+    constexpr T operator/(T d1, T d2) { return T(int(d1) / int(d2)); } \
+    constexpr T operator/(T d, int i) { return T(int(d) / i); }        \
+    constexpr T& operator+=(T& d1, T d2) { return d1 = d1 + d2; }      \
+    constexpr T& operator-=(T& d1, T d2) { return d1 = d1 - d2; }      \
+    constexpr T& operator*=(T& d, int i) { return d = T(int(d) * i); } \
+    constexpr T& operator/=(T& d, int i) { return d = T(int(d) / i); } \
+    constexpr T& operator++(T& d, int) { return d = T(int(d) + 1); }   \
+    constexpr T& operator--(T& d, int) { return d = T(int(d) - 1); }   \
+    constexpr T& operator&=(T& d1, T d2) { return d1 = T(d1 & d2); }   \
+    constexpr T& operator|=(T& d1, T d2) { return d1 = T(d1 | d2); }
 
 ENABLE_OPERATORS(Square)
 ENABLE_OPERATORS(File)

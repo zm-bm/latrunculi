@@ -170,12 +170,12 @@ constexpr BitboardMatrix BITBTWN = [] {
     return table;
 }();
 
-inline constexpr U64 rank(Rank r) { return RANK_MASK[r]; }
-inline constexpr U64 file(File f) { return FILE_MASK[f]; }
-inline constexpr U64 set(const Square sq) { return BB::BITSET[sq]; }
-inline constexpr U64 clear(const Square sq) { return BB::BITCLEAR[sq]; }
-inline constexpr U64 inlineBB(const Square sq1, const Square sq2) { return BITLINE[sq1][sq2]; }
-inline constexpr U64 betweenBB(const Square sq1, const Square sq2) { return BITBTWN[sq1][sq2]; }
+constexpr U64 rank(Rank r) { return RANK_MASK[r]; }
+constexpr U64 file(File f) { return FILE_MASK[f]; }
+constexpr U64 set(const Square sq) { return BB::BITSET[sq]; }
+constexpr U64 clear(const Square sq) { return BB::BITCLEAR[sq]; }
+constexpr U64 inlineBB(const Square sq1, const Square sq2) { return BITLINE[sq1][sq2]; }
+constexpr U64 betweenBB(const Square sq1, const Square sq2) { return BITBTWN[sq1][sq2]; }
 inline U64 hasMoreThanOne(U64 bb) { return bb & (bb - 1); }
 inline int count(U64 bb) { return __builtin_popcountll(bb); }
 inline Square lsb(U64 bb) { return static_cast<Square>(__builtin_ctzll(bb)); }

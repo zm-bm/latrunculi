@@ -8,6 +8,7 @@
 
 #include "constants.hpp"
 #include "eval.hpp"
+#include "score.hpp"
 #include "zobrist.hpp"
 
 const auto E2PAWN = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
@@ -43,24 +44,19 @@ TEST(Chess_materialScore, StartPosition) {
 }
 TEST(Chess_materialScore, WhitePawn) {
     Chess c("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1");
-    Score score(Eval::pieceValue(MIDGAME, WHITE, PAWN), Eval::pieceValue(ENDGAME, WHITE, PAWN));
-    EXPECT_EQ(c.materialScore(), score);
+    EXPECT_EQ(c.materialScore(), pieceScore(PAWN));
 }
 TEST(Chess_materialScore, WhiteKnight) {
     Chess c("4k3/3np3/8/8/8/8/2NNP3/4K3 w - - 0 1");
-    Score score(Eval::pieceValue(MIDGAME, WHITE, KNIGHT), Eval::pieceValue(ENDGAME, WHITE, KNIGHT));
-    EXPECT_EQ(c.materialScore(), score);
+    EXPECT_EQ(c.materialScore(), pieceScore(KNIGHT));
 }
 TEST(Chess_materialScore, BlackBishop) {
     Chess c("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1");
-    Score score(Eval::pieceValue(MIDGAME, BLACK, BISHOP), Eval::pieceValue(ENDGAME, BLACK, BISHOP));
-    EXPECT_EQ(c.materialScore(), score);
+    EXPECT_EQ(c.materialScore(), pieceScore(BISHOP, BLACK));
 }
 TEST(Chess_materialScore, WhiteQueenBlackRook) {
     Chess c("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1");
-    Score score(Eval::pieceValue(MIDGAME, WHITE, QUEEN) + Eval::pieceValue(MIDGAME, BLACK, ROOK),
-                Eval::pieceValue(ENDGAME, WHITE, QUEEN) + Eval::pieceValue(ENDGAME, BLACK, ROOK));
-    EXPECT_EQ(c.materialScore(), score);
+    EXPECT_EQ(c.materialScore(), pieceScore(QUEEN) + pieceScore(ROOK, BLACK));
 }
 // --- End tests for Chess::materialScore ---
 

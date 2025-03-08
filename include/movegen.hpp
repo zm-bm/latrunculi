@@ -8,6 +8,7 @@
 #include "magics.hpp"
 #include "move.hpp"
 #include "types.hpp"
+#include "eval.hpp"
 
 template <GenType T>
 class MoveGenerator {
@@ -73,16 +74,15 @@ void MoveGenerator<T>::generate() {
 
     for (Move* move = moves.data(); move != last; ++move) {
         int score = 0;
+
         auto fromPiece = pieceTypeOf(chess->board.pieceOn(move->from()));
         auto toPiece = pieceTypeOf(chess->board.pieceOn(move->to()));
         if (toPiece != NO_PIECE_TYPE) {
-            move->score += 10 * PIECE_VALUES[MIDGAME][WHITE][toPiece] -
-                         PIECE_VALUES[MIDGAME][WHITE][fromPiece];
+            move->score += 10 * pieceScore(toPiece).mg - pieceScore(fromPiece).mg;
         }
-        auto moveType = move->type();
-        auto promoPiece = move->promoPiece();
-        if (moveType == PROMOTION) {
-            move->score += PIECE_VALUES[MIDGAME][WHITE][promoPiece];
+
+        if (move->type() == PROMOTION) {
+            move->score += pieceScore(move->promoPiece()).mg;
         }
     }
 

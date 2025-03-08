@@ -8,14 +8,6 @@
 #include "constants.hpp"
 
 // --- Tests for piece / square values ---
-TEST(EvalTest_pieceValue, WhitePiecesMirrorBlackPieces) {
-    for (int ph = MIDGAME; ph < N_PHASES; ++ph) {
-        for (int pt = PAWN; pt < N_PIECES; ++pt) {
-            EXPECT_EQ(Eval::pieceValue(Phase(ph), WHITE, PieceType(pt)),
-                      -Eval::pieceValue(Phase(ph), BLACK, PieceType(pt)));
-        }
-    }
-}
 TEST(Eval_psqValue, WhiteSquaresMirrorBlackSquares) {
     for (int ph = MIDGAME; ph < N_PHASES; ++ph) {
         for (int pt = PAWN; pt < N_PIECES; ++pt) {
@@ -66,8 +58,7 @@ TEST(Eval_isolatedPawns, IsolatedPawnsOnA2AndG7) {
 }
 TEST(Eval_isolatedPawns, IsolatedPawnsIncludesAllPawnsOnFile) {
     Board b("k7/p7/8/P7/8/P7/P7/K7 w KQkq - 0 1");
-    EXPECT_EQ(Eval::isolatedPawns(b.pieces<PAWN>(WHITE)),
-              BB::set(A2) | BB::set(A3) | BB::set(A5));
+    EXPECT_EQ(Eval::isolatedPawns(b.pieces<PAWN>(WHITE)), BB::set(A2) | BB::set(A3) | BB::set(A5));
     EXPECT_EQ(Eval::isolatedPawns(b.pieces<PAWN>(BLACK)), BB::set(A7));
 }
 // --- End tests for Eval::isolatedPawns ---

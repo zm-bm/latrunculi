@@ -8,67 +8,59 @@
 #include "types.hpp"
 
 // FENs
-const auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-           POS2 = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-           POS3 = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
-           POS4W = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
-           POS4B = "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1",
-           POS5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
-           EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
+constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+               POS2 = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+               POS3 = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+               POS4W = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+               POS4B = "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1",
+               POS5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+               EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
 // movegen constants
-const int MAX_MOVES = 256;
+constexpr int MAX_MOVES = 256;
 
 // search constants
-const int MAX_DEPTH = 64;
-const int MATESCORE = 16384;
+constexpr int MAX_DEPTH = 64;
+constexpr int MATESCORE = 16384;
 
 // move gen constants
-const Square KingOrigin[N_COLORS] = {E8, E1};
-const Square KingDestinationOO[N_COLORS] = {G8, G1};
-const Square KingDestinationOOO[N_COLORS] = {C8, C1};
-const Square RookOriginOO[N_COLORS] = {H8, H1};
-const Square RookOriginOOO[N_COLORS] = {A8, A1};
-const U64 CastlePathOO[N_COLORS] = {0x6000000000000000ull, 0x0000000000000060ull};
-const U64 CastlePathOOO[N_COLORS] = {0x0E00000000000000ull, 0x000000000000000Eull};
-const U64 KingCastlePathOO[N_COLORS] = {0x7000000000000000ull, 0x0000000000000070ull};
-const U64 KingCastlePathOOO[N_COLORS] = {0x1C00000000000000ull, 0x000000000000001Cull};
+constexpr Square KingOrigin[N_COLORS] = {E8, E1};
+constexpr Square KingDestinationOO[N_COLORS] = {G8, G1};
+constexpr Square KingDestinationOOO[N_COLORS] = {C8, C1};
+constexpr Square RookOriginOO[N_COLORS] = {H8, H1};
+constexpr Square RookOriginOOO[N_COLORS] = {A8, A1};
+constexpr U64 CastlePathOO[N_COLORS] = {0x6000000000000000ull, 0x0000000000000060ull};
+constexpr U64 CastlePathOOO[N_COLORS] = {0x0E00000000000000ull, 0x000000000000000Eull};
+constexpr U64 KingCastlePathOO[N_COLORS] = {0x7000000000000000ull, 0x0000000000000070ull};
+constexpr U64 KingCastlePathOOO[N_COLORS] = {0x1C00000000000000ull, 0x000000000000001Cull};
 
 // eval constants
-const U64 LIGHT_SQUARES = 0x55AA55AA55AA55AA;
-const U64 DARK_SQUARES = 0xAA55AA55AA55AA55;
-const U64 WHITE_OUTPOSTS = 0x0000FFFFFF000000;
-const U64 BLACK_OUTPOSTS = 0x000000FFFFFF0000;
-const U64 CENTER_FILES = 0x3C3C3C3C3C3C3C3C;
-const U64 CENTER_SQUARES = 0x0000001818000000;
+constexpr U64 LIGHT_SQUARES = 0x55AA55AA55AA55AA;
+constexpr U64 DARK_SQUARES = 0xAA55AA55AA55AA55;
+constexpr U64 WHITE_OUTPOSTS = 0x0000FFFFFF000000;
+constexpr U64 BLACK_OUTPOSTS = 0x000000FFFFFF0000;
+constexpr U64 CENTER_FILES = 0x3C3C3C3C3C3C3C3C;
+constexpr U64 CENTER_SQUARES = 0x0000001818000000;
 
-const int PAWN_VALUE_MG = 100;
-const int KNIGHT_VALUE_MG = 630;
-const int BISHOP_VALUE_MG = 660;
-const int ROOK_VALUE_MG = 1000;
-const int QUEEN_VALUE_MG = 2000;
-const int PAWN_VALUE_EG = 166;
-const int KNIGHT_VALUE_EG = 680;
-const int BISHOP_VALUE_EG = 740;
-const int ROOK_VALUE_EG = 1100;
-const int QUEEN_VALUE_EG = 2150;
+constexpr int PAWN_VALUE_MG = 100;
+constexpr int KNIGHT_VALUE_MG = 630;
+constexpr int BISHOP_VALUE_MG = 660;
+constexpr int ROOK_VALUE_MG = 1000;
+constexpr int QUEEN_VALUE_MG = 2000;
+constexpr int PAWN_VALUE_EG = 166;
+constexpr int KNIGHT_VALUE_EG = 680;
+constexpr int BISHOP_VALUE_EG = 740;
+constexpr int ROOK_VALUE_EG = 1100;
+constexpr int QUEEN_VALUE_EG = 2150;
 
-const int SCALE_LIMIT = 64;
-const int PHASE_LIMIT = 128;
-const int MG_LIMIT =
+constexpr int SCALE_LIMIT = 64;
+constexpr int PHASE_LIMIT = 128;
+constexpr int MG_LIMIT =
     2 * KNIGHT_VALUE_MG + 2 * BISHOP_VALUE_MG + 4 * ROOK_VALUE_MG + 2 * QUEEN_VALUE_MG;
-const int EG_LIMIT = KNIGHT_VALUE_MG + BISHOP_VALUE_MG + 2 * ROOK_VALUE_MG;
-const int TEMPO_BONUS = 25;
+constexpr int EG_LIMIT = KNIGHT_VALUE_MG + BISHOP_VALUE_MG + 2 * ROOK_VALUE_MG;
+constexpr int TEMPO_BONUS = 25;
 
 // clang-format off
-const int PIECE_VALUES[N_PHASES][N_COLORS][N_PIECES] = {{
-    {0, -PAWN_VALUE_MG, -KNIGHT_VALUE_MG, -BISHOP_VALUE_MG, -ROOK_VALUE_MG, -QUEEN_VALUE_MG, 0},
-    {0, PAWN_VALUE_MG, KNIGHT_VALUE_MG, BISHOP_VALUE_MG, ROOK_VALUE_MG, QUEEN_VALUE_MG, 0}       
-}, {
-    {0, -PAWN_VALUE_EG, -KNIGHT_VALUE_EG, -BISHOP_VALUE_EG, -ROOK_VALUE_EG, -QUEEN_VALUE_EG, 0},
-    {0, PAWN_VALUE_EG, KNIGHT_VALUE_EG, BISHOP_VALUE_EG, ROOK_VALUE_EG, QUEEN_VALUE_EG, 0}
-}};
-
 const std::array<int, N_SQUARES> PAWN_BONUS_MG = {
     0,   0,   0,   0,   0,   0,   0,   0,
     2,   2,   8,  15,  13,  15,   6,  -4,

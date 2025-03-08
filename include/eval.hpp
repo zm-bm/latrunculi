@@ -9,8 +9,6 @@
 
 namespace Eval {
 
-inline int pieceValue(Phase ph, Color c, PieceType pt) { return PIECE_VALUES[ph][c][pt]; }
-
 inline int psqValue(Phase ph, Color c, PieceType pt, Square sq) {
     int score = PSQ_VALUES[pt - 1][ph][SQUARE_MAP[c][sq]];
     return (2 * c * score) - score;
