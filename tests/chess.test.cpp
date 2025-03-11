@@ -97,30 +97,6 @@ TEST(Chess_occupancy, StartPosition) {
     EXPECT_EQ(Chess(STARTFEN).occupancy(), expected);
 }
 
-TEST(Chess_diagonalSliders, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(c.diagonalSliders(WHITE), 0);
-    EXPECT_EQ(c.diagonalSliders(BLACK), 0);
-}
-
-TEST(Chess_diagonalSliders, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(c.diagonalSliders(WHITE), BB::set(C1) | BB::set(D1) | BB::set(F1));
-    EXPECT_EQ(c.diagonalSliders(BLACK), BB::set(C8) | BB::set(D8) | BB::set(F8));
-}
-
-TEST(Chess_straightSliders, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(c.straightSliders(WHITE), 0);
-    EXPECT_EQ(c.straightSliders(BLACK), 0);
-}
-
-TEST(Chess_straightSliders, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(c.straightSliders(WHITE), BB::set(A1) | BB::set(D1) | BB::set(H1));
-    EXPECT_EQ(c.straightSliders(BLACK), BB::set(A8) | BB::set(D8) | BB::set(H8));
-}
-
 TEST(Chess_attacksTo, EmptyPosition) {
     Chess c(EMPTYFEN);
     EXPECT_EQ(c.attacksTo(A2, WHITE), 0);

@@ -19,6 +19,9 @@ constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
 // movegen constants
 constexpr int MAX_MOVES = 256;
 
+// move order constants
+constexpr int MAX_HISTORY = 1000;
+
 // search constants
 constexpr int MAX_DEPTH = 64;
 constexpr int MATESCORE = 16384;

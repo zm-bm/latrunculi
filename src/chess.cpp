@@ -3,6 +3,30 @@
 #include "evaluator.hpp"
 #include "fen.hpp"
 #include "score.hpp"
+#include "thread.hpp"
+
+Chess::Chess(const std::string& fen, Thread* thread) : thread(thread) {
+    loadFEN(fen);
+}
+
+void Chess::loadFEN(const std::string& fen) {
+    FenParser parser(fen);
+
+    auto pieces = parser.pieces;
+    for (auto p = pieces.begin(); p != pieces.end(); ++p) {
+        addPiece<true>(p->square, p->color, p->type);
+        if (p->type == KING) kingSquare[p->color] = p->square;
+    }
+
+    turn = parser.turn;
+    state.at(ply).castle = parser.castle;
+    state.at(ply).enPassantSq = parser.enPassantSq;
+    state.at(ply).hmClock = parser.hmClock;
+    moveCounter = parser.moveCounter;
+
+    state.at(ply).zkey = calculateKey();
+    updateState();
+}
 
 template <bool debug = false>
 int Chess::eval() const {
@@ -32,6 +56,7 @@ void Chess::make(Move mv) {
     state.push_back(State(state[ply], mv));
     ++ply;
     ++moveCounter;
+    if (thread) thread->currentDepth++;
 
     // Store the captured piece type for undoing move
     state[ply].captured = toPieceType;
@@ -92,6 +117,7 @@ void Chess::unmake() {
     MoveType movetype = mv.type();
 
     // Revert to the previous board state
+    if (thread) thread->currentDepth--;
     --ply;
     --moveCounter;
     turn = ~turn;
@@ -182,8 +208,8 @@ bool Chess::isLegalMove(Move mv) const {
         // Check if captured pawn was blocking check
         Square enemyPawn = pawnMove<PUSH, false>(to, turn);
         U64 occ = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
-        return !(BB::pieceMoves<BISHOP>(king, occ) & diagonalSliders(~turn)) &&
-               !(BB::pieceMoves<ROOK>(king, occ) & straightSliders(~turn));
+        return !(BB::pieceMoves<BISHOP>(king, occ) & pieces<BISHOP, QUEEN>(~turn)) &&
+               !(BB::pieceMoves<ROOK>(king, occ) & pieces<ROOK, QUEEN>(~turn));
     } else {
         // Check if moved piece was pinned
         return !state.at(ply).blockers[turn] || !(state.at(ply).blockers[turn] & BB::set(from)) ||
@@ -221,8 +247,8 @@ bool Chess::isCheckingMove(Move mv) const {
             // Check if captured pawn was blocking enemy king from attack
             Square enemyPawn = pawnMove<PUSH, false>(to, turn);
             U64 occ = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
-            return ((BB::pieceMoves<BISHOP>(king, occ) & diagonalSliders(turn)) ||
-                    (BB::pieceMoves<ROOK>(king, occ) & straightSliders(turn)));
+            return ((BB::pieceMoves<BISHOP>(king, occ) & pieces<BISHOP, QUEEN>(turn)) ||
+                    (BB::pieceMoves<ROOK>(king, occ) & pieces<ROOK, QUEEN>(turn)));
         }
 
         case CASTLE: {
@@ -246,24 +272,7 @@ bool Chess::isCheckingMove(Move mv) const {
     return false;
 }
 
-Chess::Chess(const std::string& fen) : state{{State()}}, ply{0}, moveCounter{0} {
-    FenParser parser(fen);
 
-    auto pieces = parser.pieces;
-    for (auto p = pieces.begin(); p != pieces.end(); ++p) {
-        addPiece<true>(p->square, p->color, p->type);
-        if (p->type == KING) kingSquare[p->color] = p->square;
-    }
-
-    turn = parser.turn;
-    state.at(ply).castle = parser.castle;
-    state.at(ply).enPassantSq = parser.enPassantSq;
-    state.at(ply).hmClock = parser.hmClock;
-    moveCounter = parser.moveCounter;
-
-    state.at(ply).zkey = calculateKey();
-    updateState();
-}
 
 std::string Chess::toFEN() const {
     std::ostringstream oss;

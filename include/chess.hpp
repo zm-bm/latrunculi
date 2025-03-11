@@ -6,13 +6,15 @@
 
 #include "constants.hpp"
 #include "eval.hpp"
+#include "move.hpp"
 #include "score.hpp"
 #include "state.hpp"
 #include "zobrist.hpp"
-#include "move.hpp"
 
 template <GenType T>
 class MoveGenerator;
+
+class Thread;
 
 class Chess {
    private:
@@ -21,15 +23,17 @@ class Chess {
     Piece squares[N_SQUARES] = {Piece::NONE};
     Square kingSquare[N_COLORS] = {E1, E8};
     U8 pieceCount[N_COLORS][N_PIECES] = {0};
+    Color turn = WHITE;
     U32 ply = 0;
     U32 moveCounter = 0;
     Score material = {0, 0};
     Score psqBonus = {0, 0};
+    Thread* thread;
 
    public:
-    Color turn = WHITE;
-
-    explicit Chess(const std::string&);
+    Chess() = default;
+    explicit Chess(const std::string&, Thread* thread = nullptr);
+    void loadFEN(const std::string&);
 
     template <bool>
     int eval() const;
@@ -58,16 +62,15 @@ class Chess {
     // accessors
     template <PieceType p>
     int count(Color c) const;
-    template <PieceType p>
+    template <PieceType... Ps>
     U64 pieces(Color c) const;
     Piece pieceOn(Square sq) const;
     PieceType pieceTypeOn(Square sq) const;
     Square kingSq(Color c) const;
+    Color sideToMove() const;
 
     // movegen helpers
     U64 occupancy() const;
-    U64 diagonalSliders(Color c) const;
-    U64 straightSliders(Color c) const;
     U64 attacksTo(Square, Color) const;
     U64 attacksTo(Square, Color, U64) const;
     U64 calculateCheckBlockers(Color, Color) const;
@@ -97,9 +100,6 @@ class Chess {
     std::string DebugString() const;
     friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
 
-    friend class MoveGenerator<GenType::Legal>;
-    friend class MoveGenerator<GenType::Captures>;
-
     template <bool debug>
     friend class Evaluator;
 };
@@ -122,7 +122,7 @@ template <bool forward>
 inline void Chess::removePiece(Square sq, Color c, PieceType p) {
     piecesBB[c][ALL_PIECES] ^= BB::set(sq);
     piecesBB[c][p] ^= BB::set(sq);
-    // squares[sq] = Piece::NONE;
+    squares[sq] = Piece::NONE;
     pieceCount[c][p]--;
     material -= pieceScore(p, c);
     psqBonus -= Score{Eval::psqValue(MIDGAME, c, p, sq), Eval::psqValue(ENDGAME, c, p, sq)};
@@ -147,52 +147,37 @@ inline void Chess::movePiece(Square from, Square to, Color c, PieceType p) {
     }
 }
 
+// Return the count of pieces of a specific type for the given color
 template <PieceType p>
 inline int Chess::count(Color c) const {
-    // Return the count of pieces of a specific type for the given color
     return pieceCount[c][p];
 }
 
-template <PieceType p>
+// Return the bitboard of pieces of a specific piece type for the given color
+template <PieceType... Ps>
 inline U64 Chess::pieces(Color c) const {
-    // Return the bitboard of pieces of a specific piece type for the given color
-    return piecesBB[c][p];
+    return (piecesBB[c][Ps] | ...);
 }
 
-inline Piece Chess::pieceOn(Square sq) const {
-    // Return the piece located at a specific square
-    return squares[sq];
-}
+// Return the piece located at a specific square
+inline Piece Chess::pieceOn(Square sq) const { return squares[sq]; }
 
-inline PieceType Chess::pieceTypeOn(Square sq) const {
-    // Return the type of the piece located at a specific square
-    return pieceTypeOf(squares[sq]);
-}
+// Return the type of the piece located at a specific square
+inline PieceType Chess::pieceTypeOn(Square sq) const { return pieceTypeOf(squares[sq]); }
 
-inline Square Chess::kingSq(Color c) const {
-    // Return the square of the king for the given color
-    return kingSquare[c];
-}
+// Return the square of the king for the given color
+inline Square Chess::kingSq(Color c) const { return kingSquare[c]; }
 
+// Return the color of the side to move
+inline Color Chess::sideToMove() const { return turn; }
+
+// Return the combined bitboard of all pieces on the board
 inline U64 Chess::occupancy() const {
-    // Return the combined bitboard of all pieces on the board
-    return piecesBB[WHITE][ALL_PIECES] | piecesBB[BLACK][ALL_PIECES];
+    return pieces<ALL_PIECES>(WHITE) | pieces<ALL_PIECES>(BLACK);
 }
 
-inline U64 Chess::diagonalSliders(Color c) const {
-    // Return the bitboard of diagonal sliding pieces (Bishops and Queens) for
-    // the given color
-    return piecesBB[c][BISHOP] | piecesBB[c][QUEEN];
-}
-
-inline U64 Chess::straightSliders(Color c) const {
-    // Return the bitboard of straight sliding pieces (Rooks and Queens) for the
-    // given color
-    return piecesBB[c][ROOK] | piecesBB[c][QUEEN];
-}
-
+// Returns a bitboard of pieces of color c which attacks a square
 inline U64 Chess::attacksTo(Square sq, Color c) const {
-    // Returns a bitboard of pieces of color c which attacks a square
     return attacksTo(sq, c, occupancy());
 }
 
@@ -203,8 +188,8 @@ inline U64 Chess::attacksTo(Square sq, Color c, U64 occ) const {
     return (pieces<PAWN>(c) & BB::pawnAttacks(piece, ~c)) |
            (pieces<KNIGHT>(c) & BB::pieceMoves<KNIGHT>(sq, occ)) |
            (pieces<KING>(c) & BB::pieceMoves<KING>(sq, occ)) |
-           (diagonalSliders(c) & BB::pieceMoves<BISHOP>(sq, occ)) |
-           (straightSliders(c) & BB::pieceMoves<ROOK>(sq, occ));
+           (pieces<BISHOP, QUEEN>(c) & BB::pieceMoves<BISHOP>(sq, occ)) |
+           (pieces<ROOK, QUEEN>(c) & BB::pieceMoves<ROOK>(sq, occ));
 }
 
 inline U64 Chess::calculateCheckBlockers(Color c, Color kingC) const {
@@ -215,8 +200,8 @@ inline U64 Chess::calculateCheckBlockers(Color c, Color kingC) const {
 
     // Determine which enemy sliders could check the kingC's king
     U64 blockers = 0;
-    U64 pinners = (BB::pieceMoves<BISHOP>(king) & diagonalSliders(enemy)) |
-                  (BB::pieceMoves<ROOK>(king) & straightSliders(enemy));
+    U64 pinners = (BB::pieceMoves<BISHOP>(king) & pieces<BISHOP, QUEEN>(enemy)) |
+                  (BB::pieceMoves<ROOK>(king) & pieces<ROOK, QUEEN>(enemy));
 
     while (pinners) {
         // For each potential pinning piece

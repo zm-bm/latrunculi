@@ -9,7 +9,7 @@ struct Move {
     // | 15-14 | 13-12 | 11-6  | 5-0     |
     // | promo | mtype | to sq | from sq |
     U16 value = 0;
-    I16 score = 0;
+    U16 score = 0;
 
     constexpr Move() : score{0}, value{0} {}
     constexpr Move(Square from, Square to, MoveType mtype = NORMAL, PieceType promoPiece = KNIGHT)

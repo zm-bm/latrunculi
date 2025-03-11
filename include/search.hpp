@@ -22,7 +22,7 @@ struct Result {
 };
 
 template <bool>
-Result negamax(SearchThread&, int, int, int);
+Result negamax(Thread&, int, int, int);
 
 std::string generateUCILine(int depth, Result result);
 
