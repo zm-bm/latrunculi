@@ -56,7 +56,10 @@ void Chess::make(Move mv) {
     state.push_back(State(state[ply], mv));
     ++ply;
     ++moveCounter;
-    if (thread) thread->currentDepth++;
+    if (thread) {
+        thread->currentDepth++;
+        thread->nodeCount++;
+    }
 
     // Store the captured piece type for undoing move
     state[ply].captured = toPieceType;

@@ -24,17 +24,16 @@ int quiescence(Thread& th, int alpha, int beta) {
         alpha = standPat;
     }
 
-    // 2. Generate only forcing moves
+    // 2. Generate and order only forcing moves
     MoveGenerator<GenType::Captures> moves{th.chess};
     if (moves.empty()) return standPat;
+    moves.order(th.killers[th.currentDepth], th.history);
 
     // 3. Loop over moves
-    moves.order(th.killers[th.currentDepth], th.history);
     for (auto& move : moves) {
         if (!th.chess.isLegalMove(move)) continue;
 
         th.chess.make(move);
-        th.nodeCount += 1;
         int score = -quiescence(th, -beta, -alpha);
         th.chess.unmake();
 
@@ -51,75 +50,63 @@ int quiescence(Thread& th, int alpha, int beta) {
 }
 
 template <bool root>
-Result negamax(Thread& th, int alpha, int beta, int depth) {
+int negamax(Thread& th, int alpha, int beta, int depth) {
     Chess& chess = th.chess;
 
     // 1. Base case: leaf node or no moves
     if (depth == 0) {
-        return {quiescence(th, alpha, beta), {}};
+        return quiescence(th, alpha, beta);
     }
 
-    MoveGenerator<GenType::Legal> moves{chess};
-    if (moves.empty()) return {chess.eval<false>(), {}};
-
-    // 2. Initialize the best result
-    Result bestResult;
-    bestResult.score = -MATESCORE;
+    // 2. Generate and order moves
+    MoveGenerator<GenType::All> moves{chess};
+    if (moves.empty()) return chess.eval<false>();
+    moves.order(th.killers[th.currentDepth], th.history);
 
     // 3. Loop over moves
-    moves.order(th.killers[th.currentDepth], th.history);
+    int bestScore = -MATESCORE;
     for (auto& move : moves) {
         if (!chess.isLegalMove(move)) continue;
 
         // Make the move
         chess.make(move);
-        th.nodeCount += 1;
 
         // Recursively search
-        Result result = negamax<false>(th, -beta, -alpha, depth - 1);
-        result.score = -result.score;
+        int score = -negamax<false>(th, -beta, -alpha, depth - 1);
 
         // Unmake the move
         chess.unmake();
 
-        // 4. If we found a better move, update our bestResult
-        if (result.score > bestResult.score) {
-            bestResult.score = result.score;
-
-            // Build the new principal variation:
-            bestResult.pv.clear();
-            bestResult.pv.push_back(move);
-            bestResult.pv.insert(bestResult.pv.end(), result.pv.begin(), result.pv.end());
+        // 4. If we found a better move, update our bestScore and pv
+        if (score > bestScore) {
+            bestScore = score;
+            th.pvTable[th.currentDepth].update(move, th.pvTable[th.currentDepth + 1]);
         }
 
         // 5. Alpha-beta pruning
-        alpha = std::max(alpha, result.score);
+        alpha = std::max(alpha, score);
         if (alpha >= beta) {
-            // Beta cut-off
-
+            // Beta cut-off, update heuristics if quiet move
             if (chess.pieceOn(move.to()) == Piece::NONE) {
-                // update killer moves
                 th.killers[th.currentDepth].update(move);
-                // update history table
                 th.history.update(chess.sideToMove(), move.from(), move.to(), th.currentDepth);
             }
-
             break;
         }
     }
 
     // TODO: handle no legal moves, 50 move rule, draw by repetition, etc
-    return bestResult;
+    return bestScore;
 }
 
-template Result negamax<true>(Thread&, int, int, int);
-template Result negamax<false>(Thread&, int, int, int);
+template int negamax<true>(Thread&, int, int, int);
+template int negamax<false>(Thread&, int, int, int);
 
 template <bool Root, bool ShowOutput = true>
 U64 perft(int depth, Chess& chess) {
     if (depth == 0) return 1;
 
-    MoveGenerator<GenType::Legal> moves{chess};
+    MoveGenerator<GenType::All> moves{chess};
 
     U64 count = 0, nodes = 0;
 

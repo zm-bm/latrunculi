@@ -119,7 +119,7 @@ void MoveGenerator<T>::generateMoves() {
 
     // generate piece moves unless in
     if (G != GenType::Evasions || !chess.isDoubleCheck()) {
-        if constexpr (G == GenType::Legal) {
+        if constexpr (G == GenType::All) {
             targets = ~chess.pieces<ALL_PIECES>(C);
         } else if constexpr (G == GenType::Captures) {
             targets = chess.pieces<ALL_PIECES>(enemy);
@@ -146,7 +146,7 @@ void MoveGenerator<T>::generateMoves() {
         add(kingSq, to);
     }
 
-    if ((G == GenType::Legal || G == GenType::Quiets) && chess.getState().canCastle(C)) {
+    if ((G == GenType::All || G == GenType::Quiets) && chess.getState().canCastle(C)) {
         Square from = KingOrigin[C];
         if (canCastleOO(occupancy, C)) add(from, KingDestinationOO[C], CASTLE);
         if (canCastleOOO(occupancy, C)) add(from, KingDestinationOOO[C], CASTLE);

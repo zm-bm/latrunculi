@@ -5,9 +5,9 @@
 #include "chess.hpp"
 #include "constants.hpp"
 
-TEST(MoveGenTest, Legal) {
+TEST(MoveGenTest, All) {
     Chess chess{STARTFEN};
-    MoveGenerator<GenType::Legal> moves{chess};
+    MoveGenerator<GenType::All> moves{chess};
     EXPECT_EQ(moves.size(), 20) << "should have 20 moves";
 }
 

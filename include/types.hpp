@@ -66,7 +66,7 @@ enum PawnMove { LEFT = 7, PUSH = 8, RIGHT = 9, DOUBLE = 16 };
 
 enum Phase { MIDGAME, ENDGAME, N_PHASES };
 
-enum class GenType { Legal, Captures, Evasions, Quiets };
+enum class GenType { All, Captures, Evasions, Quiets };
 
 struct PieceSquare {
     Color color;

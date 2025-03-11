@@ -132,7 +132,7 @@ void Engine::move(std::istringstream& iss) {
     if (token == "undo") {
         chess.unmake();
     } else {
-        MoveGenerator<GenType::Legal> moves{chess};
+        MoveGenerator<GenType::All> moves{chess};
 
         for (auto& move : moves) {
             std::ostringstream oss;
@@ -146,7 +146,7 @@ void Engine::move(std::istringstream& iss) {
 }
 
 void Engine::moves() {
-    MoveGenerator<GenType::Legal> moves{chess};
+    MoveGenerator<GenType::All> moves{chess};
 
     // TT::Entry* entry = TT::table.probe(chess.getKey());
     // if (entry)

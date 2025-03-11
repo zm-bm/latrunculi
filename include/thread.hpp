@@ -46,6 +46,20 @@ struct KillerMoves {
     inline bool isKiller(Move move) const { return move == killers[0] || move == killers[1]; }
 };
 
+struct PrincipalVariation {
+    std::vector<Move> moves;
+
+    void update(const Move& move, const PrincipalVariation& childPV) {
+        moves.clear();
+        moves.push_back(move);
+        moves.insert(moves.end(), childPV.moves.begin(), childPV.moves.end());
+    }
+
+    void clear() {
+        moves.clear();
+    }
+};
+
 class Thread {
    public:
     explicit Thread(unsigned int id) : threadId(id), thread(&Thread::loop, this) {}
@@ -56,6 +70,7 @@ class Thread {
     void set(const std::string&, int);
 
     Chess chess;
+    std::array<PrincipalVariation, MAX_DEPTH> pvTable;
     HistoryTable history;
     KillerMoves killers[MAX_DEPTH];
 
@@ -67,21 +82,7 @@ class Thread {
     void loop();
     void search();
     void ageHeuristics();
-
-    void printPV(Search::Result result, int depth) {
-        auto dur = std::chrono::high_resolution_clock::now() - startTime;
-        auto sec = std::chrono::duration_cast<std::chrono::duration<double>>(dur).count();
-        auto nps = (sec > 0) ? nodeCount / sec : 0;
-
-        std::cout << "info depth " << depth;
-        std::cout << " score cp " << result.score;
-        std::cout << " time " << std::fixed << std::setprecision(1) << sec;
-        std::cout << " nodes " << nodeCount;
-        std::cout << " nps " << std::setprecision(0) << nps;
-        std::cout << " pv";
-        for (auto& move : result.pv) std::cout << " " << move;
-        std::cout << std::endl;
-    }
+    void printPV(int score);
 
     std::mutex mutex;
     std::condition_variable condition;

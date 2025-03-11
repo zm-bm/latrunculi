@@ -54,34 +54,35 @@ void Thread::loop() {
 void Thread::search() {
     startTime = std::chrono::high_resolution_clock::now();
     nodeCount = 0;
-    Search::Result result;
+    int score = 0;
+    for (auto& pv : pvTable) pv.clear();
 
     // iterative deepening loop
     for (int depth = 1; depth <= searchDepth; ++depth) {
-        result = Search::negamax<true>(*this, -MATESCORE, MATESCORE, depth);
+        score = Search::negamax<true>(*this, -MATESCORE, MATESCORE, depth);
         ageHeuristics();
-        printPV(result, depth);
+        printPV(score);
     }
 
-    std::cout << "bestmove " << result.pv.at(0) << " " << result.score << std::endl;
+    std::cout << "bestmove " << pvTable[0].moves.at(0) << std::endl;
 
     // while (!ThreadPool::stopThreads) {}
 }
 
 void Thread::ageHeuristics() { history.age(); }
 
-void Thread::printPV(Search::Result result, int depth) {
+void Thread::printPV(int score) {
     auto dur = std::chrono::high_resolution_clock::now() - startTime;
     auto sec = std::chrono::duration_cast<std::chrono::duration<double>>(dur).count();
     auto nps = (sec > 0) ? nodeCount / sec : 0;
 
-    std::cout << "info depth " << depth;
-    std::cout << " score cp " << result.score;
+    std::cout << "info depth " << pvTable[0].moves.size();
+    std::cout << " score cp " << score;
     std::cout << " time " << std::fixed << std::setprecision(1) << sec;
     std::cout << " nodes " << nodeCount;
     std::cout << " nps " << std::setprecision(0) << nps;
     std::cout << " pv";
-    for (auto& move : result.pv) std::cout << " " << move;
+    for (auto& move : pvTable[0].moves) std::cout << " " << move;
     std::cout << std::endl;
 }
 

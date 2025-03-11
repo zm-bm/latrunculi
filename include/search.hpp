@@ -15,23 +15,13 @@ class Chess;
 
 namespace Search {
 
-struct Result {
-    int score;
-    std::vector<Move> pv;
-};
-
 template <bool>
-Result negamax(Thread&, int, int, int);
+int negamax(Thread&, int, int, int);
 
 template <bool, bool = true>
 U64 perft(int, Chess&);
 
 }
-
-// struct Killer {
-//     Move move1;
-//     Move move2;
-// };
 
 // class Search {
 //    public:
