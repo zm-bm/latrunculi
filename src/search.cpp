@@ -33,7 +33,7 @@ int quiescence(Thread& th, int alpha, int beta) {
     if (moves.empty()) return standPat;
 
     // 3. Loop over moves
-    moves.order(&th.killers[th.currentDepth], &th.history);
+    moves.order(th.killers[th.currentDepth], th.history);
     for (auto& move : moves) {
         if (!th.chess.isLegalMove(move)) continue;
 
@@ -71,7 +71,7 @@ Result negamax(Thread& th, int alpha, int beta, int depth) {
     bestResult.score = -MATESCORE;
 
     // 3. Loop over moves
-    moves.order(&th.killers[th.currentDepth], &th.history);
+    moves.order(th.killers[th.currentDepth], th.history);
     for (auto& move : moves) {
         if (!chess.isLegalMove(move)) continue;
 

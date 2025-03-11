@@ -21,7 +21,7 @@ class MoveGenerator {
     const bool empty() { return last == moves.data(); }
     const size_t size() { return static_cast<std::size_t>(last - moves.data()); }
 
-    void order(KillerMoves*, HistoryTable*);
+    void order(KillerMoves&, HistoryTable&);
     void add(Square, Square, MoveType = NORMAL, PieceType = KNIGHT);
 
    private:
@@ -69,7 +69,7 @@ inline void MoveGenerator<T>::add(Square from,
 }
 
 template <GenType T>
-inline void MoveGenerator<T>::order(KillerMoves* killers, HistoryTable* history) {
+inline void MoveGenerator<T>::order(KillerMoves& killers, HistoryTable& history) {
     for (Move* move = moves.data(); move != last; ++move) {
         auto from = move->from();
         auto to = move->to();
@@ -79,21 +79,19 @@ inline void MoveGenerator<T>::order(KillerMoves* killers, HistoryTable* history)
         // MVV-LVA
         if (toPiece != NO_PIECE_TYPE) {
             move->score += 10 * pieceScore(toPiece).mg - pieceScore(fromPiece).mg;
+        } else {
+            // Killer moves
+            if (killers.isKiller(*move)) {
+                move->score += 1500;
+            }
+
+            // History heuristic
+            move->score += history.get(chess.sideToMove(), from, to);
         }
 
         // Promotion bonus
         if (move->type() == PROMOTION) {
-            move->score += pieceScore(move->promoPiece()).mg;
-        }
-
-        // Killer moves
-        if (killers && killers->isKiller(*move)) {
-            move->score += 1000;
-        }
-
-        // // History heuristic
-        if (history) {
-            move->score += history->get(chess.sideToMove(), from, to);
+            move->score += 8000 + pieceScore(move->promoPiece()).mg;
         }
     }
 
