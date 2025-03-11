@@ -1,5 +1,7 @@
-#include <memory>
 #include "thread.hpp"
+
+#include <memory>
+
 #include "search.hpp"
 
 Thread::~Thread() {
@@ -50,15 +52,15 @@ void Thread::loop() {
 }
 
 void Thread::search() {
-    Search::startTime = std::chrono::high_resolution_clock::now();
+    startTime = std::chrono::high_resolution_clock::now();
+    nodeCount = 0;
     Search::Result result;
 
     // iterative deepening loop
     for (int depth = 1; depth <= searchDepth; ++depth) {
         result = Search::negamax<true>(*this, -MATESCORE, MATESCORE, depth);
         ageHeuristics();
-
-        std::cout << Search::generateUCILine(depth, result) << std::endl;
+        printPV(result, depth);
     }
 
     std::cout << "bestmove " << result.pv.at(0) << " " << result.score << std::endl;
@@ -66,8 +68,21 @@ void Thread::search() {
     // while (!ThreadPool::stopThreads) {}
 }
 
-void Thread::ageHeuristics() {
-    history.age();
+void Thread::ageHeuristics() { history.age(); }
+
+void Thread::printPV(Search::Result result, int depth) {
+    auto dur = std::chrono::high_resolution_clock::now() - startTime;
+    auto sec = std::chrono::duration_cast<std::chrono::duration<double>>(dur).count();
+    auto nps = (sec > 0) ? nodeCount / sec : 0;
+
+    std::cout << "info depth " << depth;
+    std::cout << " score cp " << result.score;
+    std::cout << " time " << std::fixed << std::setprecision(1) << sec;
+    std::cout << " nodes " << nodeCount;
+    std::cout << " nps " << std::setprecision(0) << nps;
+    std::cout << " pv";
+    for (auto& move : result.pv) std::cout << " " << move;
+    std::cout << std::endl;
 }
 
 ThreadPool::ThreadPool(size_t numThreads) {
@@ -76,9 +91,7 @@ ThreadPool::ThreadPool(size_t numThreads) {
     }
 }
 
-ThreadPool::~ThreadPool() {
-    stopAll();
-}
+ThreadPool::~ThreadPool() { stopAll(); }
 
 void ThreadPool::startAll(Chess& chess, int depth) {
     stopThreads = false;

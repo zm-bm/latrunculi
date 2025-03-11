@@ -13,6 +13,7 @@
 #include "chess.hpp"
 #include "constants.hpp"
 #include "types.hpp"
+#include "search.hpp"
 
 struct HistoryTable {
     int history[N_COLORS][N_SQUARES][N_SQUARES] = {0};
@@ -57,12 +58,30 @@ class Thread {
     Chess chess;
     HistoryTable history;
     KillerMoves killers[MAX_DEPTH];
+
+    std::chrono::high_resolution_clock::time_point startTime;
     int searchDepth, currentDepth;
+    int nodeCount;
 
    private:
     void loop();
     void search();
     void ageHeuristics();
+
+    void printPV(Search::Result result, int depth) {
+        auto dur = std::chrono::high_resolution_clock::now() - startTime;
+        auto sec = std::chrono::duration_cast<std::chrono::duration<double>>(dur).count();
+        auto nps = (sec > 0) ? nodeCount / sec : 0;
+
+        std::cout << "info depth " << depth;
+        std::cout << " score cp " << result.score;
+        std::cout << " time " << std::fixed << std::setprecision(1) << sec;
+        std::cout << " nodes " << nodeCount;
+        std::cout << " nps " << std::setprecision(0) << nps;
+        std::cout << " pv";
+        for (auto& move : result.pv) std::cout << " " << move;
+        std::cout << std::endl;
+    }
 
     std::mutex mutex;
     std::condition_variable condition;

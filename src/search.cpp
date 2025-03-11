@@ -7,12 +7,8 @@
 #include "thread.hpp"
 #include "tt.hpp"
 
-using namespace std::chrono;
 
 namespace Search {
-
-U64 nodeCount = 0;
-high_resolution_clock::time_point startTime;
 
 int quiescence(Thread& th, int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
@@ -38,7 +34,7 @@ int quiescence(Thread& th, int alpha, int beta) {
         if (!th.chess.isLegalMove(move)) continue;
 
         th.chess.make(move);
-        nodeCount += 1;
+        th.nodeCount += 1;
         int score = -quiescence(th, -beta, -alpha);
         th.chess.unmake();
 
@@ -77,7 +73,7 @@ Result negamax(Thread& th, int alpha, int beta, int depth) {
 
         // Make the move
         chess.make(move);
-        nodeCount += 1;
+        th.nodeCount += 1;
 
         // Recursively search
         Result result = negamax<false>(th, -beta, -alpha, depth - 1);
@@ -118,23 +114,6 @@ Result negamax(Thread& th, int alpha, int beta, int depth) {
 
 template Result negamax<true>(Thread&, int, int, int);
 template Result negamax<false>(Thread&, int, int, int);
-
-std::string generateUCILine(int depth, Result result) {
-    std::ostringstream oss;
-    auto dur = high_resolution_clock::now() - startTime;
-    auto sec = duration_cast<duration<double>>(dur).count();
-    auto nps = (sec > 0) ? nodeCount / sec : 0;
-
-    oss << "info depth " << depth;
-    oss << " score cp " << result.score;
-    oss << " time " << std::fixed << std::setprecision(1) << sec;
-    oss << " nodes " << nodeCount;
-    oss << " nps " << std::setprecision(0) << nps;
-    oss << " pv";
-    for (auto& move : result.pv) oss << " " << move;
-
-    return oss.str();
-}
 
 template <bool Root, bool ShowOutput = true>
 U64 perft(int depth, Chess& chess) {

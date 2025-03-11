@@ -6,6 +6,7 @@
 
 #include "constants.hpp"
 #include "search.hpp"
+#include "chess.hpp"
 
 // Perft positions and results
 // https://www.chessprogramming.org/Perft_Results
