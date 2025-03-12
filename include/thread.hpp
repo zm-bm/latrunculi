@@ -81,6 +81,8 @@ class Thread {
    private:
     void loop();
     void search();
+    void reset();
+
     void ageHeuristics();
     void printPV(int score);
 

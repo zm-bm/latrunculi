@@ -154,7 +154,7 @@ void Engine::moves() {
     // else
     //     search.sortMoves(movegen.moves);
 
-    for (auto& move : moves) ostream << move << ": " << move.score << std::endl;
+    for (auto& move : moves) ostream << move << ": " << move.priority << std::endl;
 }
 
 }  // namespace UCI

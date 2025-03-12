@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <sstream>
 
 #include "constants.hpp"
 #include "search.hpp"
@@ -43,9 +44,10 @@ class PerftTest : public ::testing::TestWithParam<PerftParams> {};
 TEST_P(PerftTest, PerftForMultipleDepths) {
     auto [fen, expected_results] = GetParam();
     Chess chess(fen);
+    std::stringstream nullStream;
 
     for (int depth = 1; depth <= expected_results.size(); ++depth) {
-        long result = Search::perft<true, false>(depth, chess);
+        long result = Search::perft<true>(depth, chess, nullStream);
         EXPECT_EQ(result, expected_results[depth - 1]) << "Failed at depth " << depth;
     }
 }

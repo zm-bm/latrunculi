@@ -52,12 +52,11 @@ void Thread::loop() {
 }
 
 void Thread::search() {
+    reset();
     startTime = std::chrono::high_resolution_clock::now();
-    nodeCount = 0;
-    int score = 0;
-    for (auto& pv : pvTable) pv.clear();
 
     // iterative deepening loop
+    int score = 0;
     for (int depth = 1; depth <= searchDepth; ++depth) {
         score = Search::negamax<true>(*this, -MATESCORE, MATESCORE, depth);
         ageHeuristics();
@@ -67,6 +66,12 @@ void Thread::search() {
     std::cout << "bestmove " << pvTable[0].moves.at(0) << std::endl;
 
     // while (!ThreadPool::stopThreads) {}
+}
+
+void Thread::reset() {
+    nodeCount = 0;
+    currentDepth = 0;
+    for (auto& pv : pvTable) pv.clear();
 }
 
 void Thread::ageHeuristics() { history.age(); }

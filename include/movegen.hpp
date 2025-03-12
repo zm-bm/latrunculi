@@ -11,6 +11,51 @@
 #include "thread.hpp"
 #include "types.hpp"
 
+class MovePriority {
+   public:
+    MovePriority(Thread& thread)
+        : chess(thread.chess),
+          killers(thread.killers[thread.currentDepth]),
+          history(thread.history),
+          pv(thread.pvTable[thread.currentDepth]) {};
+
+    inline void prioritize(Move* move, bool isPV) {
+        auto from = move->from();
+        auto to = move->to();
+        auto fromPiece = chess.pieceTypeOn(from);
+        auto toPiece = chess.pieceTypeOn(to);
+
+        // PV moves first
+        if (isPV && !pv.moves.empty() && pv.moves[0] == *move) {
+            move->priority += 50000;
+        }
+
+        // MVV-LVA
+        if (toPiece != NO_PIECE_TYPE) {
+            move->priority += 10 * pieceScore(toPiece).mg - pieceScore(fromPiece).mg;
+        } else {
+            // Killer moves
+            if (killers.isKiller(*move)) {
+                move->priority += 1500;
+            }
+
+            // History heuristic
+            move->priority += history.get(chess.sideToMove(), from, to);
+        }
+
+        // Promotion bonus
+        if (move->type() == PROMOTION) {
+            move->priority += 8000 + pieceScore(move->promoPiece()).mg;
+        }
+    }
+
+   private:
+    Chess& chess;
+    KillerMoves& killers;
+    HistoryTable& history;
+    PrincipalVariation& pv;
+};
+
 template <GenType T>
 class MoveGenerator {
    public:
@@ -21,13 +66,14 @@ class MoveGenerator {
     const bool empty() { return last == moves.data(); }
     const size_t size() { return static_cast<std::size_t>(last - moves.data()); }
 
-    void order(KillerMoves&, HistoryTable&);
-    void add(Square, Square, MoveType = NORMAL, PieceType = KNIGHT);
+    void sort(MovePriority, bool);
 
    private:
     Chess& chess;
     std::array<Move, MAX_MOVES> moves;
     Move* last;
+
+    void add(Square, Square, MoveType = NORMAL, PieceType = KNIGHT);
 
     template <GenType>
     void generate();
@@ -61,41 +107,17 @@ MoveGenerator<T>::MoveGenerator(Chess& chess) : chess(chess), last(moves.data())
 }
 
 template <GenType T>
-inline void MoveGenerator<T>::add(Square from,
-                                  Square to,
-                                  MoveType mtype,
-                                  PieceType promoPiece) {
+inline void MoveGenerator<T>::add(Square from, Square to, MoveType mtype, PieceType promoPiece) {
     new (last++) Move(from, to, mtype, promoPiece);
 }
 
 template <GenType T>
-inline void MoveGenerator<T>::order(KillerMoves& killers, HistoryTable& history) {
+inline void MoveGenerator<T>::sort(MovePriority ordering, bool isPV) {
     for (Move* move = moves.data(); move != last; ++move) {
-        auto from = move->from();
-        auto to = move->to();
-        auto fromPiece = chess.pieceTypeOn(from);
-        auto toPiece = chess.pieceTypeOn(to);
-
-        // MVV-LVA
-        if (toPiece != NO_PIECE_TYPE) {
-            move->score += 10 * pieceScore(toPiece).mg - pieceScore(fromPiece).mg;
-        } else {
-            // Killer moves
-            if (killers.isKiller(*move)) {
-                move->score += 1500;
-            }
-
-            // History heuristic
-            move->score += history.get(chess.sideToMove(), from, to);
-        }
-
-        // Promotion bonus
-        if (move->type() == PROMOTION) {
-            move->score += 8000 + pieceScore(move->promoPiece()).mg;
-        }
+        ordering.prioritize(move, isPV);
     }
 
-    auto comp = [](const Move& a, const Move& b) { return a.score > b.score; };
+    auto comp = [](const Move& a, const Move& b) { return a.priority > b.priority; };
     std::stable_sort(moves.begin(), last, comp);
 }
 
@@ -286,13 +308,13 @@ inline void MoveGenerator<T>::addEnPassants(U64 pawns, Square enpassant) {
 template <GenType T>
 inline bool MoveGenerator<T>::canCastleOO(U64 occ, Color turn) {
     return (chess.getState().canCastleOO(turn)  // castling rights
-            && !(occ & CastlePathOO[turn])                 // castle path unoccupied/attacked
+            && !(occ & CastlePathOO[turn])      // castle path unoccupied/attacked
             && !chess.isBitboardAttacked(KingCastlePathOO[turn], ~turn));
 }
 
 template <GenType T>
 inline bool MoveGenerator<T>::canCastleOOO(U64 occ, Color turn) {
     return (chess.getState().canCastleOOO(turn)  // castling rights
-            && !(occ & CastlePathOOO[turn])                 // castle path unoccupied/attacked
+            && !(occ & CastlePathOOO[turn])      // castle path unoccupied/attacked
             && !chess.isBitboardAttacked(KingCastlePathOOO[turn], ~turn));
 }

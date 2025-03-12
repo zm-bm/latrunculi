@@ -30,16 +30,6 @@ TEST(MoveTest, EqualityOperator) {
     EXPECT_NE(move1, move3) << "should not be equal when squares not equal";
 }
 
-TEST(MoveTest, LessThanOperator) {
-    Move move1(A2, A3);
-    move1.score = 10;
-    Move move2(A2, A3);
-    move2.score = 20;
-
-    EXPECT_TRUE(move1 < move2) << "should be less than when score is <";
-    EXPECT_FALSE(move2 < move1) << "should not be less than when score >";
-}
-
 TEST(MoveTest, PromotionMove) {
     Move move(A7, A8, PROMOTION, QUEEN);
     EXPECT_EQ(move.type(), PROMOTION) << "should create promotion move";
