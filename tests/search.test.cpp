@@ -47,7 +47,7 @@ TEST_P(PerftTest, PerftForMultipleDepths) {
     std::stringstream nullStream;
 
     for (int depth = 1; depth <= expected_results.size(); ++depth) {
-        long result = Search::perft<true>(depth, chess, nullStream);
+        long result = Search::perft(depth, chess, nullStream);
         EXPECT_EQ(result, expected_results[depth - 1]) << "Failed at depth " << depth;
     }
 }

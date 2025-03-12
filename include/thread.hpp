@@ -63,15 +63,26 @@ struct Heuristics {
 };
 
 struct PrincipalVariation {
-    std::vector<Move> moves;
+    using Line = std::vector<Move>;
 
-    void update(const Move& move, const PrincipalVariation& childPV) {
-        moves.clear();
-        moves.push_back(move);
-        moves.insert(moves.end(), childPV.moves.begin(), childPV.moves.end());
+    std::array<Line, MAX_DEPTH> lines;
+
+    Line& operator[](int depth) { return lines[depth]; }
+
+    void update(const Move& move, int depth) {
+        Line& line = lines[depth];
+        Line& prev = lines[depth + 1];
+
+        line.clear();
+        line.push_back(move);
+        line.insert(line.end(), prev.begin(), prev.end());
     }
 
-    void clear() { moves.clear(); }
+    void clear() {
+        for (auto& line : lines) {
+            line.clear();
+        }
+    }
 };
 
 class Thread {
@@ -84,7 +95,7 @@ class Thread {
     void set(const std::string&, int);
 
     Chess chess;
-    std::array<PrincipalVariation, MAX_DEPTH> pvTable;
+    PrincipalVariation pv;
     Heuristics heuristics;
 
     int searchDepth, currentDepth;

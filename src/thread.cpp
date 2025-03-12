@@ -60,18 +60,18 @@ void Thread::search() {
 
     // iterative deepening loop
     while (++depth <= searchDepth && !ThreadPool::stopThreads) {
-        score = Search::negamax<true>(*this, -MATESCORE, MATESCORE, depth);
+        score = Search::search(*this, -MATESCORE, MATESCORE, depth);
         heuristics.age();
         printPV(score);
     }
 
-    std::cout << "bestmove " << pvTable[0].moves.at(0) << std::endl;
+    std::cout << "bestmove " << pv.lines[0].at(0) << std::endl;
 }
 
 void Thread::reset() {
     nodeCount = 0;
     currentDepth = 0;
-    for (auto& pv : pvTable) pv.clear();
+    pv.clear();
 }
 
 void Thread::printPV(int score) {
@@ -79,13 +79,13 @@ void Thread::printPV(int score) {
     auto sec = std::chrono::duration_cast<std::chrono::duration<double>>(dur).count();
     auto nps = (sec > 0) ? nodeCount / sec : 0;
 
-    std::cout << "info depth " << pvTable[0].moves.size();
+    std::cout << "info depth " << pv.lines[0].size();
     std::cout << " score cp " << score;
     std::cout << " time " << std::fixed << std::setprecision(1) << sec;
     std::cout << " nodes " << nodeCount;
     std::cout << " nps " << std::setprecision(0) << nps;
     std::cout << " pv";
-    for (auto& move : pvTable[0].moves) std::cout << " " << move;
+    for (auto& move : pv.lines[0]) std::cout << " " << move;
     std::cout << std::endl;
 }
 

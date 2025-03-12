@@ -105,12 +105,12 @@ void Engine::perft(std::istringstream& iss) {
     iss >> token;
 
     auto val = std::stoi(token);
-    Search::perft<true>(val, chess);
+    Search::perft<Search::NodeType::Root>(val, chess);
 }
 
 void Engine::go(std::istringstream& iss) {
     std::string token;
-    int depth = 8;
+    int depth = 10;
 
     while (iss >> token) {
         if (token == "depth") {

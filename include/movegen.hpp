@@ -2,6 +2,7 @@
 
 #include <array>
 #include <iostream>
+#include <optional>
 
 #include "bb.hpp"
 #include "chess.hpp"
@@ -10,23 +11,26 @@
 #include "move.hpp"
 #include "thread.hpp"
 #include "types.hpp"
+#include "search.hpp"
 
 class MovePriority {
    public:
-    MovePriority(Thread& thread)
-        : chess(thread.chess),
-          heuristics(thread.heuristics),
-          pv(thread.pvTable[thread.currentDepth]),
-          depth(thread.currentDepth) {};
+    MovePriority(Thread& thread, Search::NodeType node)
+        : chess(thread.chess), heuristics(thread.heuristics), depth(thread.currentDepth) {
+        if (node == Search::NodeType::NonPV || thread.pv[depth].empty())
+            pvMove = std::nullopt;
+        else
+            pvMove = thread.pv[depth].at(0);
+    };
 
-    inline void prioritize(Move* move, bool isPV) {
+    inline void prioritize(Move* move) {
         auto from = move->from();
         auto to = move->to();
         auto fromPiece = chess.pieceTypeOn(from);
         auto toPiece = chess.pieceTypeOn(to);
 
         // PV moves first
-        if (isPV && !pv.moves.empty() && pv.moves[0] == *move) {
+        if (pvMove && *pvMove == *move) {
             move->priority += 50000;
         }
 
@@ -52,7 +56,7 @@ class MovePriority {
    private:
     Chess& chess;
     Heuristics& heuristics;
-    PrincipalVariation& pv;
+    std::optional<Move> pvMove;
     int depth;
 };
 
@@ -65,8 +69,8 @@ class MoveGenerator {
     const Move* end() { return last; }
     const bool empty() { return last == moves.data(); }
     const size_t size() { return static_cast<std::size_t>(last - moves.data()); }
-
-    void sort(MovePriority, bool);
+    void sort(MovePriority);
+    Move& operator[](int index) { return moves[index]; }
 
    private:
     Chess& chess;
@@ -112,9 +116,9 @@ inline void MoveGenerator<T>::add(Square from, Square to, MoveType mtype, PieceT
 }
 
 template <GenType T>
-inline void MoveGenerator<T>::sort(MovePriority ordering, bool isPV) {
+inline void MoveGenerator<T>::sort(MovePriority ordering) {
     for (Move* move = moves.data(); move != last; ++move) {
-        ordering.prioritize(move, isPV);
+        ordering.prioritize(move);
     }
 
     auto comp = [](const Move& a, const Move& b) { return a.priority > b.priority; };

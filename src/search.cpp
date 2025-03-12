@@ -25,7 +25,7 @@ int quiescence(Thread& th, int alpha, int beta) {
 
     // 2. Generate only forcing moves and sort by priority
     MoveGenerator<GenType::Captures> moves{th.chess};
-    moves.sort(MovePriority(th), false);
+    moves.sort(MovePriority(th, NodeType::NonPV));
 
     // TODO: handle draws, for now just return standPat
     if (moves.empty()) return standPat;
@@ -53,32 +53,37 @@ int quiescence(Thread& th, int alpha, int beta) {
     return alpha;
 }
 
-template <bool root>
-int negamax(Thread& th, int alpha, int beta, int depth) {
+template <NodeType node>
+int search(Thread& th, int alpha, int beta, int depth) {
     // 1. Base case: quiescence search
     if (depth == 0) {
         return quiescence(th, alpha, beta);
     }
 
+    constexpr bool isPV = (node == NodeType::Root || node == NodeType::PV);
     Chess& chess = th.chess;
-    bool isPV = (beta - alpha > 1);
+    U64 key = chess.getKey();
     int lowerbound = alpha;
     int upperbound = beta;
     int bestScore = -MATESCORE;
     Move bestMove;
 
     // 2. Check the transposition table
-    U64 key = th.chess.getKey();
-    TT::Entry* entry = TT::table.probe(key);
-    if (entry->isValid(key) && entry->depth >= depth) {
-        if (entry->flag == TT::EXACT) return entry->score;
-        if (entry->flag == TT::LOWERBOUND && entry->score >= beta) return entry->score;
-        if (entry->flag == TT::UPPERBOUND && entry->score <= alpha) return entry->score;
+    if constexpr (!isPV) {
+        TT::Entry* entry = TT::table.probe(key);
+        if (entry->isValid(key) && entry->depth >= depth) {
+            if (entry->flag == TT::EXACT) {
+                th.pv.update(entry->bestMove, th.currentDepth);
+                return entry->score;
+            }
+            if (entry->flag == TT::LOWERBOUND && entry->score >= beta) return entry->score;
+            if (entry->flag == TT::UPPERBOUND && entry->score <= alpha) return entry->score;
+        }
     }
 
     // 3. Generate moves and sort by priority
     MoveGenerator<GenType::All> moves{chess};
-    moves.sort(MovePriority(th), isPV);
+    moves.sort(MovePriority(th, node));
 
     // TODO: handle draws, for now just return eval
     if (moves.empty()) return chess.eval();
@@ -89,14 +94,29 @@ int negamax(Thread& th, int alpha, int beta, int depth) {
 
         // 5. Recursively search
         chess.make(move);
-        int score = -negamax<false>(th, -beta, -alpha, depth - 1);
+
+        int score;
+        if constexpr (node == NodeType::Root) {
+            // Root moves always get a full search
+            score = -search<NodeType::PV>(th, -beta, -alpha, depth - 1);
+        } else if (node == NodeType::PV && move == moves[0]) {
+            // First move of a PV node gets a full search
+            score = -search<NodeType::PV>(th, -beta, -alpha, depth - 1);
+        } else {
+            // Null window search, re-search if it fails high
+            score = -search<NodeType::NonPV>(th, -alpha - 1, -alpha, depth - 1);
+            if (score > alpha) {
+                score = -search<node>(th, -beta, -alpha, depth - 1);
+            }
+        }
+
         chess.unmake();
 
         // 6. If we found a better move, update our bestScore/Move and principal variation
         if (score > bestScore) {
             bestScore = score;
             bestMove = move;
-            th.pvTable[th.currentDepth].update(move, th.pvTable[th.currentDepth + 1]);
+            th.pv.update(move, th.currentDepth);
         }
 
         // 7. Alpha-beta pruning
@@ -120,10 +140,9 @@ int negamax(Thread& th, int alpha, int beta, int depth) {
     return bestScore;
 }
 
-template int negamax<true>(Thread&, int, int, int);
-template int negamax<false>(Thread&, int, int, int);
+template int search<NodeType::Root>(Thread&, int, int, int);
 
-template <bool Root>
+template <NodeType node>
 U64 perft(int depth, Chess& chess, std::ostream& oss) {
     if (depth == 0) return 1;
 
@@ -136,22 +155,23 @@ U64 perft(int depth, Chess& chess, std::ostream& oss) {
 
         chess.make(move);
 
-        count = perft<false>(depth - 1, chess);
+        count = perft<NodeType::NonPV>(depth - 1, chess);
         nodes += count;
 
-        if (Root) oss << move << ": " << count << '\n';
+        if constexpr (node == NodeType::Root) {
+            oss << move << ": " << count << '\n';
+        }
 
         chess.unmake();
     }
 
-    if constexpr (Root) {
+    if constexpr (node == NodeType::Root) {
         oss << "NODES: " << nodes << std::endl;
     }
 
     return nodes;
 }
 
-template U64 perft<true>(int, Chess&, std::ostream&);
-// template U64 perft<true, false>(int, Chess&);
+template U64 perft<NodeType::Root>(int, Chess&, std::ostream& = std::cout);
 
 }  // namespace Search
