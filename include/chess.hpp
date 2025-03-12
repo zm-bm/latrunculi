@@ -35,7 +35,7 @@ class Chess {
     explicit Chess(const std::string&, Thread* thread = nullptr);
     void loadFEN(const std::string&);
 
-    template <bool>
+    template <bool = false>
     int eval() const;
 
     // make move / mutators

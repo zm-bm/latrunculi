@@ -11,15 +11,15 @@ namespace Search {
 
 int quiescence(Thread& th, int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
-    int standPat = th.chess.eval<false>();
+    int standPat = th.chess.eval();
 
-    // If our evaluation already beats beta, we can cut off.
     if (standPat >= beta) {
+        // beta cutoff, return upperbound
         return beta;
     }
 
-    // Otherwise, raise alpha if this position is already better than alpha.
     if (standPat > alpha) {
+        // update alpha/lowerbound if position improves it
         alpha = standPat;
     }
 
@@ -27,20 +27,24 @@ int quiescence(Thread& th, int alpha, int beta) {
     MoveGenerator<GenType::Captures> moves{th.chess};
     moves.sort(MovePriority(th), false);
 
+    // TODO: handle draws, for now just return standPat
     if (moves.empty()) return standPat;
 
     // 3. Loop over moves
     for (auto& move : moves) {
         if (!th.chess.isLegalMove(move)) continue;
 
+        // 4. Recursively search
         th.chess.make(move);
         int score = -quiescence(th, -beta, -alpha);
         th.chess.unmake();
 
         if (score >= beta) {
-            return beta;  // Beta cutoff
+            // beta cutoff, return upperbound
+            return beta;
         }
         if (score > alpha) {
+            // update alpha/lowerbound
             alpha = score;
         }
     }
@@ -51,41 +55,51 @@ int quiescence(Thread& th, int alpha, int beta) {
 
 template <bool root>
 int negamax(Thread& th, int alpha, int beta, int depth) {
-    // 1. Base case: leaf node or no moves
+    // 1. Base case: quiescence search
     if (depth == 0) {
         return quiescence(th, alpha, beta);
     }
 
     Chess& chess = th.chess;
     bool isPV = (beta - alpha > 1);
+    int lowerbound = alpha;
+    int upperbound = beta;
+    int bestScore = -MATESCORE;
+    Move bestMove;
 
-    // 2. Generate moves and sort by priority
+    // 2. Check the transposition table
+    U64 key = th.chess.getKey();
+    TT::Entry* entry = TT::table.probe(key);
+    if (entry->isValid(key) && entry->depth >= depth) {
+        if (entry->flag == TT::EXACT) return entry->score;
+        if (entry->flag == TT::LOWERBOUND && entry->score >= beta) return entry->score;
+        if (entry->flag == TT::UPPERBOUND && entry->score <= alpha) return entry->score;
+    }
+
+    // 3. Generate moves and sort by priority
     MoveGenerator<GenType::All> moves{chess};
     moves.sort(MovePriority(th), isPV);
 
-    if (moves.empty()) return chess.eval<false>();
+    // TODO: handle draws, for now just return eval
+    if (moves.empty()) return chess.eval();
 
-    // 3. Loop over moves
-    int bestScore = -MATESCORE;
+    // 4. Loop over moves
     for (auto& move : moves) {
         if (!chess.isLegalMove(move)) continue;
 
-        // Make the move
+        // 5. Recursively search
         chess.make(move);
-
-        // Recursively search
         int score = -negamax<false>(th, -beta, -alpha, depth - 1);
-
-        // Unmake the move
         chess.unmake();
 
-        // 4. If we found a better move, update our bestScore and pv
+        // 6. If we found a better move, update our bestScore/Move and principal variation
         if (score > bestScore) {
             bestScore = score;
+            bestMove = move;
             th.pvTable[th.currentDepth].update(move, th.pvTable[th.currentDepth + 1]);
         }
 
-        // 5. Alpha-beta pruning
+        // 7. Alpha-beta pruning
         alpha = std::max(alpha, score);
         if (alpha >= beta) {
             // Beta cut-off, update heuristics if quiet move
@@ -96,6 +110,14 @@ int negamax(Thread& th, int alpha, int beta, int depth) {
             break;
         }
     }
+
+    // 8. Store result in transposition table
+    TT::NodeType flag = TT::EXACT;
+    if (bestScore <= lowerbound)
+        flag = TT::UPPERBOUND;
+    else if (bestScore >= upperbound)
+        flag = TT::LOWERBOUND;
+    TT::table.store(key, bestMove, bestScore, depth, flag);
 
     // TODO: handle no legal moves, 50 move rule, draw by repetition, etc
     return bestScore;

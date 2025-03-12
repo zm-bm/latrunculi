@@ -1,67 +1,48 @@
 #pragma once
 
-#include <iostream>
+#include <array>
 
 #include "move.hpp"
 #include "types.hpp"
 
-enum NodeType : U8 {
-    TT_NONE,
-    TT_EXACT,
-    TT_ALPHA,
-    TT_BETA,
-};
-
 namespace TT {
 
-struct Entry {
-    U64 zkey;
-    I32 score;
-    Move best;
-    NodeType flag;
-    U8 depth;
-    U8 age;
-
-    Entry() = default;
-
-    Entry(U64 _zkey, int _score, U8 _depth, NodeType _flag, Move _best)
-        : zkey(_zkey),
-          score(_score),
-          best(_best),
-          flag(_flag),
-          depth(_depth),
-          age(0) {}
-
-    friend std::ostream& operator<<(std::ostream&, const Entry&);
-
-    // void update(U64, int, U8, NodeType, Move);
+enum NodeType : U8 {
+    NONE,
+    EXACT,
+    LOWERBOUND,
+    UPPERBOUND,
 };
+
+struct Entry {
+    U64 zobristKey = 0;
+    Move bestMove = {};
+    int score = 0;
+    int depth = 0;
+    NodeType flag = NONE;
+
+    bool isValid(U64 key) const { return zobristKey == key; }
+};
+
+constexpr size_t TT_SIZE = 1 << 20;
 
 class Table {
    private:
-    Entry* _table;
-    U32 _size = 0;
+    std::array<Entry, TT_SIZE> table;
 
    public:
-    void init(U32);
-    void save(U64, U8, int, NodeType, Move);
-    Entry* probe(U64) const;
+    Table() = default;
 
-    Table() { init(16777216); }
+    Entry* probe(U64 key) { return &table[key % TT_SIZE]; }
 
-    ~Table() { delete[] _table; }
+    void store(U64 key, Move move, int score, int depth, NodeType flag) {
+        Entry& entry = table[key % TT_SIZE];
+        if (entry.depth <= depth) {  // Only replace if deeper search
+            entry = {key, move, score, depth, flag};
+        }
+    }
 };
 
 extern Table table;
-
-// inline void Entry::update(U64 _zkey, int _score, U8 _depth, NodeType _flag,
-// Move _best)
-// {
-//     zkey = _zkey;
-//     score = _score;
-//     depth = _depth;
-//     flag = _flag;
-//     best = _best;
-// }
 
 }  // namespace TT

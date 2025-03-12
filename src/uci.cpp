@@ -60,9 +60,6 @@ bool Engine::execute(const std::string& line) {
         ostream << chess << std::endl;
     } else if (token == "eval") {
         chess.eval<true>();
-    } else if (token == "tt") {
-        TT::Entry* ttEntry = TT::table.probe(chess.getKey());
-        if (ttEntry) ostream << *ttEntry;
     }
 
     return true;
