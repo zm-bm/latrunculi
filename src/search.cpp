@@ -103,10 +103,7 @@ int negamax(Thread& th, int alpha, int beta, int depth) {
         alpha = std::max(alpha, score);
         if (alpha >= beta) {
             // Beta cut-off, update heuristics if quiet move
-            if (chess.pieceOn(move.to()) == Piece::NONE) {
-                th.killers[th.currentDepth].update(move);
-                th.history.update(chess.sideToMove(), move.from(), move.to(), th.currentDepth);
-            }
+            th.heuristics.updateBetaCutoff(chess, move, th.currentDepth);
             break;
         }
     }

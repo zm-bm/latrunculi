@@ -15,9 +15,9 @@ class MovePriority {
    public:
     MovePriority(Thread& thread)
         : chess(thread.chess),
-          killers(thread.killers[thread.currentDepth]),
-          history(thread.history),
-          pv(thread.pvTable[thread.currentDepth]) {};
+          heuristics(thread.heuristics),
+          pv(thread.pvTable[thread.currentDepth]),
+          depth(thread.currentDepth) {};
 
     inline void prioritize(Move* move, bool isPV) {
         auto from = move->from();
@@ -35,12 +35,12 @@ class MovePriority {
             move->priority += 10 * pieceScore(toPiece).mg - pieceScore(fromPiece).mg;
         } else {
             // Killer moves
-            if (killers.isKiller(*move)) {
+            if (heuristics.killers.isKiller(*move, depth)) {
                 move->priority += 1500;
             }
 
             // History heuristic
-            move->priority += history.get(chess.sideToMove(), from, to);
+            move->priority += heuristics.history.get(chess.sideToMove(), from, to);
         }
 
         // Promotion bonus
@@ -51,9 +51,9 @@ class MovePriority {
 
    private:
     Chess& chess;
-    KillerMoves& killers;
-    HistoryTable& history;
+    Heuristics& heuristics;
     PrincipalVariation& pv;
+    int depth;
 };
 
 template <GenType T>

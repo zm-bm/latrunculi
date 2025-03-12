@@ -61,7 +61,7 @@ void Thread::search() {
     // iterative deepening loop
     while (++depth <= searchDepth && !ThreadPool::stopThreads) {
         score = Search::negamax<true>(*this, -MATESCORE, MATESCORE, depth);
-        ageHeuristics();
+        heuristics.age();
         printPV(score);
     }
 
@@ -73,8 +73,6 @@ void Thread::reset() {
     currentDepth = 0;
     for (auto& pv : pvTable) pv.clear();
 }
-
-void Thread::ageHeuristics() { history.age(); }
 
 void Thread::printPV(int score) {
     auto dur = std::chrono::high_resolution_clock::now() - startTime;

@@ -12,8 +12,8 @@
 
 #include "chess.hpp"
 #include "constants.hpp"
-#include "types.hpp"
 #include "search.hpp"
+#include "types.hpp"
 
 struct HistoryTable {
     int history[N_COLORS][N_SQUARES][N_SQUARES] = {0};
@@ -34,16 +34,32 @@ struct HistoryTable {
 };
 
 struct KillerMoves {
-    Move killers[2];
+    Move killers[MAX_DEPTH][2];
 
-    inline void update(Move killer) {
-        if (killers[0] != killer) {
-            killers[1] = killers[0];
-            killers[0] = killer;
+    inline void update(Move killer, int depth) {
+        if (killers[depth][0] != killer) {
+            killers[depth][1] = killers[depth][0];
+            killers[depth][0] = killer;
         }
     }
 
-    inline bool isKiller(Move move) const { return move == killers[0] || move == killers[1]; }
+    inline bool isKiller(Move move, int depth) const {
+        return move == killers[depth][0] || move == killers[depth][1];
+    }
+};
+
+struct Heuristics {
+    HistoryTable history;
+    KillerMoves killers;
+
+    inline void updateBetaCutoff(Chess& chess, Move move, int depth) {
+        Square to = move.to();
+        if (chess.pieceOn(to) == Piece::NONE) {
+            killers.update(move, depth);
+            history.update(chess.sideToMove(), move.from(), to, depth);
+        }
+    }
+    inline void age() { history.age(); }
 };
 
 struct PrincipalVariation {
@@ -55,9 +71,7 @@ struct PrincipalVariation {
         moves.insert(moves.end(), childPV.moves.begin(), childPV.moves.end());
     }
 
-    void clear() {
-        moves.clear();
-    }
+    void clear() { moves.clear(); }
 };
 
 class Thread {
@@ -71,10 +85,8 @@ class Thread {
 
     Chess chess;
     std::array<PrincipalVariation, MAX_DEPTH> pvTable;
-    HistoryTable history;
-    KillerMoves killers[MAX_DEPTH];
+    Heuristics heuristics;
 
-    std::chrono::high_resolution_clock::time_point startTime;
     int searchDepth, currentDepth;
     int nodeCount;
 
@@ -83,8 +95,9 @@ class Thread {
     void search();
     void reset();
 
-    void ageHeuristics();
     void printPV(int score);
+
+    std::chrono::high_resolution_clock::time_point startTime;
 
     std::mutex mutex;
     std::condition_variable condition;
