@@ -33,7 +33,7 @@ class Chess {
    public:
     Chess() = default;
     explicit Chess(const std::string&, Thread* thread = nullptr);
-    void loadFEN(const std::string&);
+
 
     template <bool = false>
     int eval() const;
@@ -65,6 +65,7 @@ class Chess {
     template <PieceType... Ps>
     U64 pieces(Color c) const;
     Piece pieceOn(Square sq) const;
+    Piece pieceOn(File, Rank) const;
     PieceType pieceTypeOn(Square sq) const;
     Square kingSq(Color c) const;
     Color sideToMove() const;
@@ -96,14 +97,15 @@ class Chess {
     bool isLegalMove(Move) const;
     bool isCheckingMove(Move) const;
 
-    // string helpers
+    // FEN helpers
+    void loadFEN(const std::string&);
     std::string toFEN() const;
-    std::string DebugString() const;
-    friend std::ostream& operator<<(std::ostream& os, const Chess& chess);
 
     template <bool debug>
     friend class Evaluator;
 };
+
+std::ostream& operator<<(std::ostream& os, const Chess& chess);
 
 template <bool forward>
 inline void Chess::addPiece(Square sq, Color c, PieceType p) {
@@ -162,6 +164,9 @@ inline U64 Chess::pieces(Color c) const {
 
 // Return the piece located at a specific square
 inline Piece Chess::pieceOn(Square sq) const { return squares[sq]; }
+
+// Return the piece located at a specific file and rank
+inline Piece Chess::pieceOn(File file, Rank rank) const { return squares[makeSquare(file, rank)]; }
 
 // Return the type of the piece located at a specific square
 inline PieceType Chess::pieceTypeOn(Square sq) const { return pieceTypeOf(squares[sq]); }

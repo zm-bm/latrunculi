@@ -580,9 +580,8 @@ TEST(Chess_isCheckingMove, Castles) {
     EXPECT_TRUE(c.isCheckingMove(Move(E1, G1, CASTLE))) << "should identify castling checks";
 }
 
-TEST(Chess_toFen, CorrectValues) {
+TEST(Chess_FEN, LoadsAndOutputsCorrectFens) {
     for (auto fen : FENS) {
-        Chess c = Chess(fen);
-        EXPECT_EQ(c.toFEN(), fen) << "should return identical fen";
+        EXPECT_EQ(Chess(fen).toFEN(), fen) << "should return identical fen";
     }
 }

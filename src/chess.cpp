@@ -9,23 +9,23 @@ Chess::Chess(const std::string& fen, Thread* thread) : thread(thread) {
     loadFEN(fen);
 }
 
-void Chess::loadFEN(const std::string& fen) {
-    FenParser parser(fen);
 
-    auto pieces = parser.pieces;
-    for (auto p = pieces.begin(); p != pieces.end(); ++p) {
-        addPiece<true>(p->square, p->color, p->type);
-        if (p->type == KING) kingSquare[p->color] = p->square;
+
+std::ostream& operator<<(std::ostream& os, const Chess& chess) {
+    for (Rank rank = RANK8; rank >= RANK1; rank--) {
+        os << "   +---+---+---+---+---+---+---+---+\n";
+        os << "   |";
+        for (File file = FILE1; file <= FILE8; file++) {
+            os << " " << chess.pieceOn(file, rank) << " |";
+        }
+        os << " " << rank << '\n';
     }
 
-    turn = parser.turn;
-    state.at(ply).castle = parser.castle;
-    state.at(ply).enPassantSq = parser.enPassantSq;
-    state.at(ply).hmClock = parser.hmClock;
-    moveCounter = parser.moveCounter;
+    os << "   +---+---+---+---+---+---+---+---+\n";
+    os << "     a   b   c   d   e   f   g   h\n\n";
+    os << chess.toFEN() << std::endl;
 
-    state.at(ply).zkey = calculateKey();
-    updateState();
+    return os;
 }
 
 template <bool debug = false>
@@ -275,7 +275,24 @@ bool Chess::isCheckingMove(Move mv) const {
     return false;
 }
 
+void Chess::loadFEN(const std::string& fen) {
+    FenParser parser(fen);
 
+    auto pieces = parser.pieces;
+    for (auto p = pieces.begin(); p != pieces.end(); ++p) {
+        addPiece<true>(p->square, p->color, p->type);
+        if (p->type == KING) kingSquare[p->color] = p->square;
+    }
+
+    turn = parser.turn;
+    state.at(ply).castle = parser.castle;
+    state.at(ply).enPassantSq = parser.enPassantSq;
+    state.at(ply).hmClock = parser.hmClock;
+    moveCounter = parser.moveCounter;
+
+    state.at(ply).zkey = calculateKey();
+    updateState();
+}
 
 std::string Chess::toFEN() const {
     std::ostringstream oss;
@@ -283,7 +300,7 @@ std::string Chess::toFEN() const {
     for (Rank rank = RANK8; rank >= RANK1; rank--) {
         int emptyCount = 0;
         for (File file = FILE1; file <= FILE8; file++) {
-            Piece p = pieceOn(makeSquare(file, rank));
+            Piece p = pieceOn(file, rank);
             if (p != Piece::NONE) {
                 if (emptyCount > 0) {
                     oss << emptyCount;
@@ -327,27 +344,4 @@ std::string Chess::toFEN() const {
     oss << +state.at(ply).hmClock << " " << (moveCounter / 2) + 1;
 
     return oss.str();
-}
-
-std::string Chess::DebugString() const {
-    std::ostringstream oss;
-    oss << this;
-    return oss.str();
-}
-
-std::ostream& operator<<(std::ostream& os, const Chess& chess) {
-    for (Rank rank = RANK8; rank >= RANK1; rank--) {
-        os << "   +---+---+---+---+---+---+---+---+\n";
-        os << "   |";
-        for (File file = FILE1; file <= FILE8; file++) {
-            os << " " << chess.pieceOn(makeSquare(file, rank)) << " |";
-        }
-        os << " " << rank << '\n';
-    }
-
-    os << "   +---+---+---+---+---+---+---+---+\n";
-    os << "     a   b   c   d   e   f   g   h\n\n";
-    os << chess.toFEN() << std::endl;
-
-    return os;
 }
