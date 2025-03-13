@@ -9,55 +9,58 @@
 #include "eval.hpp"
 #include "magics.hpp"
 #include "move.hpp"
-#include "thread.hpp"
-#include "types.hpp"
 #include "search.hpp"
+#include "thread.hpp"
+#include "tt.hpp"
+#include "types.hpp"
 
 class MovePriority {
-   public:
-    MovePriority(Thread& thread, Search::NodeType node)
-        : chess(thread.chess), heuristics(thread.heuristics), depth(thread.currentDepth) {
-        if (node == Search::NodeType::NonPV || thread.pv[depth].empty())
-            pvMove = std::nullopt;
-        else
-            pvMove = thread.pv[depth].at(0);
+   private:
+    enum Priority : U16 {
+        PV_MOVE = 1 << 15,
+        HASH_MOVE = 1 << 14,
+        PROM_MOVE = 1 << 13,
+        GOOD_CAPTURE = 1 << 12,
+        KILLER_MOVE = 1 << 11,
+        HISTORY_MOVE = 1 << 10,
     };
 
-    inline void prioritize(Move* move) {
-        auto from = move->from();
-        auto to = move->to();
-        auto fromPiece = chess.pieceTypeOn(from);
-        auto toPiece = chess.pieceTypeOn(to);
-
-        // PV moves first
-        if (pvMove && *pvMove == *move) {
-            move->priority += 50000;
-        }
-
-        // MVV-LVA
-        if (toPiece != NO_PIECE_TYPE) {
-            move->priority += 10 * pieceScore(toPiece).mg - pieceScore(fromPiece).mg;
-        } else {
-            // Killer moves
-            if (heuristics.killers.isKiller(*move, depth)) {
-                move->priority += 1500;
-            }
-
-            // History heuristic
-            move->priority += heuristics.history.get(chess.sideToMove(), from, to);
-        }
-
-        // Promotion bonus
-        if (move->type() == PROMOTION) {
-            move->priority += 8000 + pieceScore(move->promoPiece()).mg;
-        }
-    }
-
-   private:
     Chess& chess;
     Heuristics& heuristics;
-    std::optional<Move> pvMove;
+    Move pvMove;
+    Move hashMove;
     int depth;
+
+   public:
+    MovePriority(Thread& thread, TT::Entry* ttEntry, Search::NodeType node)
+        : chess(thread.chess), heuristics(thread.heuristics), depth(thread.currentDepth) {
+        hashMove = ttEntry ? ttEntry->bestMove : Move();
+        pvMove = (node == Search::NodeType::NonPV || thread.pv[depth].empty())
+                     ? Move()
+                     : thread.pv[depth].at(0);
+    };
+
+    inline U16 scoreMove(const Move& move) {
+        if (move == pvMove) {
+            return Priority::PV_MOVE;
+        }
+        if (move == hashMove) {
+            return Priority::HASH_MOVE;
+        }
+        if (move.type() == PROMOTION) {
+            return PROM_MOVE + pieceScore(move.promoPiece()).mg;
+        }
+        if (chess.isCapture(move)) {
+            auto fromPiece = chess.pieceTypeOn(move.from());
+            auto toPiece = chess.pieceTypeOn(move.to());
+            return GOOD_CAPTURE + pieceScore(toPiece).mg - pieceScore(fromPiece).mg;
+        }
+        if (heuristics.killers.isKiller(move, depth)) {
+            return KILLER_MOVE;
+        }
+
+        return heuristics.history.get(chess.sideToMove(), move.from(), move.to());
+    }
 };
 
 template <GenType T>
@@ -116,9 +119,9 @@ inline void MoveGenerator<T>::add(Square from, Square to, MoveType mtype, PieceT
 }
 
 template <GenType T>
-inline void MoveGenerator<T>::sort(MovePriority ordering) {
+inline void MoveGenerator<T>::sort(MovePriority priority) {
     for (Move* move = moves.data(); move != last; ++move) {
-        ordering.prioritize(move);
+        move->priority = priority.scoreMove(*move);
     }
 
     auto comp = [](const Move& a, const Move& b) { return a.priority > b.priority; };

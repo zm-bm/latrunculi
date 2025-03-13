@@ -25,7 +25,7 @@ int quiescence(Thread& th, int alpha, int beta) {
 
     // 2. Generate only forcing moves and sort by priority
     MoveGenerator<GenType::Captures> moves{th.chess};
-    moves.sort(MovePriority(th, NodeType::NonPV));
+    moves.sort(MovePriority(th, nullptr, NodeType::NonPV));
 
     // TODO: handle draws, for now just return standPat
     if (moves.empty()) return standPat;
@@ -69,8 +69,9 @@ int search(Thread& th, int alpha, int beta, int depth) {
     Move bestMove;
 
     // 2. Check the transposition table
+    TT::Entry* entry;
     if constexpr (!isPV) {
-        TT::Entry* entry = TT::table.probe(key);
+        entry = TT::table.probe(key);
         if (entry->isValid(key) && entry->depth >= depth) {
             if (entry->flag == TT::EXACT) {
                 th.pv.update(entry->bestMove, th.currentDepth);
@@ -83,7 +84,7 @@ int search(Thread& th, int alpha, int beta, int depth) {
 
     // 3. Generate moves and sort by priority
     MoveGenerator<GenType::All> moves{chess};
-    moves.sort(MovePriority(th, node));
+    moves.sort(MovePriority(th, entry, node));
 
     // TODO: handle draws, for now just return eval
     if (moves.empty()) return chess.eval();

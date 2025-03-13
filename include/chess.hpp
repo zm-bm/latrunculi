@@ -92,6 +92,7 @@ class Chess {
 
     // other helpers
     U64 calculateKey() const;
+    bool isCapture(Move) const;
     bool isLegalMove(Move) const;
     bool isCheckingMove(Move) const;
 
@@ -316,4 +317,8 @@ inline U64 Chess::calculateKey() const {
     if (sq != INVALID) zkey ^= Zobrist::ep[fileOf(sq)];
 
     return zkey;
+}
+
+inline bool Chess::isCapture(const Move move) const {
+    return pieceTypeOn(move.to()) != NO_PIECE_TYPE;
 }
