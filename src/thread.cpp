@@ -55,14 +55,43 @@ void Thread::search() {
     reset();
     startTime = std::chrono::high_resolution_clock::now();
 
-    int score = 0;
-    int depth = 0;
+    int prevScore = 0;
+    const int ASP_WIN = 100;
+    const int BIG_STEP = 200;
 
     // iterative deepening loop
-    while (++depth <= searchDepth && !ThreadPool::stopThreads) {
-        score = Search::search(*this, -MATESCORE, MATESCORE, depth);
+    for (int depth = 1; depth <= searchDepth && !ThreadPool::stopThreads; ++depth) {
+        int alpha, beta;
+
+        // 1. Use full bounds for lower depths:
+        if (depth < 7) {
+            alpha = -MATESCORE;
+            beta  =  MATESCORE;
+        } 
+        // 2. Aspiration window from previous score
+        else {
+            alpha = prevScore - ASP_WIN;
+            beta  = prevScore + ASP_WIN;
+        }
+
+        // 3. First search
+        int score = Search::search(*this, alpha, beta, depth);
+
+        // 4. If fail-low or fail-high, re-search with bigger bounds
+        if (score <= alpha) {
+            alpha = -MATESCORE; 
+            beta  = prevScore + BIG_STEP;
+            score = Search::search(*this, alpha, beta, depth);
+        } 
+        else if (score >= beta) {
+            alpha = prevScore - BIG_STEP;
+            beta  = MATESCORE;
+            score = Search::search(*this, alpha, beta, depth);
+        }
+
+        prevScore = score;
         heuristics.age();
-        printPV(score);
+        pv.printInfo(score, nodeCount, startTime);
     }
 
     std::cout << "bestmove " << pv.lines[0].at(0) << std::endl;
@@ -72,21 +101,6 @@ void Thread::reset() {
     nodeCount = 0;
     currentDepth = 0;
     pv.clear();
-}
-
-void Thread::printPV(int score) {
-    auto dur = std::chrono::high_resolution_clock::now() - startTime;
-    auto sec = std::chrono::duration_cast<std::chrono::duration<double>>(dur).count();
-    auto nps = (sec > 0) ? nodeCount / sec : 0;
-
-    std::cout << "info depth " << pv.lines[0].size();
-    std::cout << " score cp " << score;
-    std::cout << " time " << std::fixed << std::setprecision(1) << sec;
-    std::cout << " nodes " << nodeCount;
-    std::cout << " nps " << std::setprecision(0) << nps;
-    std::cout << " pv";
-    for (auto& move : pv.lines[0]) std::cout << " " << move;
-    std::cout << std::endl;
 }
 
 ThreadPool::ThreadPool(size_t numThreads) {

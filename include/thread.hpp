@@ -15,6 +15,8 @@
 #include "search.hpp"
 #include "types.hpp"
 
+using TimePoint = std::chrono::high_resolution_clock::time_point;
+
 struct HistoryTable {
     int history[N_COLORS][N_SQUARES][N_SQUARES] = {0};
 
@@ -83,6 +85,22 @@ struct PrincipalVariation {
             line.clear();
         }
     }
+
+    void printInfo(int score, int nodeCount, TimePoint startTime) {
+        using namespace std::chrono;
+        auto dur = high_resolution_clock::now() - startTime;
+        auto sec = duration_cast<duration<double>>(dur).count();
+        auto nps = (sec > 0) ? nodeCount / sec : 0;
+
+        std::cout << "info depth " << lines[0].size();
+        std::cout << " score cp " << score;
+        std::cout << " time " << std::fixed << std::setprecision(1) << sec;
+        std::cout << " nodes " << nodeCount;
+        std::cout << " nps " << std::setprecision(0) << nps;
+        std::cout << " pv";
+        for (auto& move : lines[0]) std::cout << " " << move;
+        std::cout << std::endl;
+    }
 };
 
 class Thread {
@@ -106,9 +124,7 @@ class Thread {
     void search();
     void reset();
 
-    void printPV(int score);
-
-    std::chrono::high_resolution_clock::time_point startTime;
+    TimePoint startTime;
 
     std::mutex mutex;
     std::condition_variable condition;
