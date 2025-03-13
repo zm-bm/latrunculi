@@ -91,57 +91,18 @@ class Chess {
     Score materialScore() const { return material; }
     Score psqBonusScore() const { return psqBonus; }
 
-    // castle helpers
-    inline bool canCastle(Color c) const {
-        // Check if the specified color can castle
-        return (c ? state.at(ply).castle & WHITE_CASTLE : state.at(ply).castle & BLACK_CASTLE);
-    }
-
-    inline bool canCastleOO(Color c) const {
-        // Check if the specified color can castle kingside (OO)
-        return (c ? state.at(ply).castle & WHITE_OO : state.at(ply).castle & BLACK_OO);
-    }
-
-    inline bool canCastleOOO(Color c) const {
-        // Check if the specified color can castle queenside (OOO)
-        return (c ? state.at(ply).castle & WHITE_OOO : state.at(ply).castle & BLACK_OOO);
-    }
-
-    inline void disableCastle(Color c) {
-        // Disable castling for the specified color
-        if (canCastleOO(c)) state.at(ply).zkey ^= Zobrist::castle[c][KINGSIDE];
-        if (canCastleOOO(c)) state.at(ply).zkey ^= Zobrist::castle[c][QUEENSIDE];
-
-        // Update the castle rights based on the color
-        state.at(ply).castle &= c ? BLACK_CASTLE : WHITE_CASTLE;
-    }
-
-    inline void disableCastle(Color c, Square sq) {
-        // Disable casting for the specified color and side
-        if (sq == RookOriginOO[c] && canCastleOO(c)) {
-            disableCastleOO(c);
-        } else if (sq == RookOriginOOO[c] && canCastleOOO(c)) {
-            disableCastleOOO(c);
-        }
-    }
-
-    inline void disableCastleOO(Color c) {
-        // Disable kingside castling for the specified color
-        state.at(ply).zkey ^= Zobrist::castle[c][KINGSIDE];
-        state.at(ply).castle &= CastleRights(~static_cast<int>(c ? WHITE_OO : BLACK_OO));
-    }
-
-    inline void disableCastleOOO(Color c) {
-        // Disable queenside castling for the specified color
-        state.at(ply).zkey ^= Zobrist::castle[c][QUEENSIDE];
-        state.at(ply).castle &= CastleRights(~static_cast<int>(c ? WHITE_OOO : BLACK_OOO));
-    }
-
     // other helpers
     U64 calculateKey() const;
     bool isCapture(Move) const;
     bool isLegalMove(Move) const;
     bool isCheckingMove(Move) const;
+
+    // castle helpers
+    inline bool canCastle(Color c) const;
+    inline bool canCastleOO(Color c) const;
+    inline bool canCastleOOO(Color c) const;
+    inline void disableCastle(Color c);
+    inline void disableCastle(Color c, Square sq);
 
     // FEN helpers
     void loadFEN(const std::string&);
@@ -369,4 +330,39 @@ inline U64 Chess::calculateKey() const {
 
 inline bool Chess::isCapture(const Move move) const {
     return pieceTypeOn(move.to()) != NO_PIECE_TYPE;
+}
+
+inline bool Chess::canCastle(Color c) const {
+    // Check if the specified color can castle
+    return (c ? state.at(ply).castle & WHITE_CASTLE : state.at(ply).castle & BLACK_CASTLE);
+}
+
+inline bool Chess::canCastleOO(Color c) const {
+    // Check if the specified color can castle kingside (OO)
+    return (c ? state.at(ply).castle & WHITE_OO : state.at(ply).castle & BLACK_OO);
+}
+
+inline bool Chess::canCastleOOO(Color c) const {
+    // Check if the specified color can castle queenside (OOO)
+    return (c ? state.at(ply).castle & WHITE_OOO : state.at(ply).castle & BLACK_OOO);
+}
+
+inline void Chess::disableCastle(Color c) {
+    // Disable castling for the specified color
+    if (canCastleOO(c)) state.at(ply).zkey ^= Zobrist::castle[c][KINGSIDE];
+    if (canCastleOOO(c)) state.at(ply).zkey ^= Zobrist::castle[c][QUEENSIDE];
+
+    // Update the castle rights based on the color
+    state.at(ply).castle &= c ? BLACK_CASTLE : WHITE_CASTLE;
+}
+
+inline void Chess::disableCastle(Color c, Square sq) {
+    // Disable casting for the specified color and side
+    if (sq == RookOriginOO[c] && canCastleOO(c)) {
+        state.at(ply).zkey ^= Zobrist::castle[c][KINGSIDE];
+        state.at(ply).castle &= CastleRights(~static_cast<int>(c ? WHITE_OO : BLACK_OO));
+    } else if (sq == RookOriginOOO[c] && canCastleOOO(c)) {
+        state.at(ply).zkey ^= Zobrist::castle[c][QUEENSIDE];
+        state.at(ply).castle &= CastleRights(~static_cast<int>(c ? WHITE_OOO : BLACK_OOO));
+    }
 }

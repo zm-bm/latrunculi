@@ -575,6 +575,11 @@ TEST(Chess_isCheckingMove, Promotions) {
         << "should identify knight prom non-check";
 }
 
+TEST(Chess_isCheckingMove, Castles) {
+    Chess c = Chess("5k2/8/8/8/8/8/8/4K2R w K - 0 1");
+    EXPECT_TRUE(c.isCheckingMove(Move(E1, G1, CASTLE))) << "should identify castling checks";
+}
+
 TEST(ChessTest, CanCastleTrue) {
     Chess c;
     EXPECT_TRUE(c.canCastle(WHITE));
@@ -627,12 +632,7 @@ TEST(ChessTest, DisableCastleOOO) {
     EXPECT_FALSE(c.canCastleOOO(BLACK));
 }
 
-TEST(Chess_isCheckingMove, Castles) {
-    Chess c = Chess("5k2/8/8/8/8/8/8/4K2R w K - 0 1");
-    EXPECT_TRUE(c.isCheckingMove(Move(E1, G1, CASTLE))) << "should identify castling checks";
-}
-
-TEST(Chess_FEN, LoadsAndOutputsCorrectFens) {
+TEST(ChessTest, LoadsAndOutputsCorrectFens) {
     for (auto fen : FENS) {
         EXPECT_EQ(Chess(fen).toFEN(), fen) << "should return identical fen";
     }
