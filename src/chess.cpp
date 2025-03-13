@@ -5,11 +5,7 @@
 #include "score.hpp"
 #include "thread.hpp"
 
-Chess::Chess(const std::string& fen, Thread* thread) : thread(thread) {
-    loadFEN(fen);
-}
-
-
+Chess::Chess(const std::string& fen, Thread* thread) : thread(thread) { loadFEN(fen); }
 
 std::ostream& operator<<(std::ostream& os, const Chess& chess) {
     for (Rank rank = RANK8; rank >= RANK1; rank--) {
@@ -88,16 +84,12 @@ void Chess::make(Move mv) {
 
         case KING: {
             kingSquare[turn] = to;
-            if (state.at(ply).canCastle(turn)) {
-                state.at(ply).disableCastle(turn);
-            }
+            if (canCastle(turn)) disableCastle(turn);
             break;
         }
 
         case ROOK: {
-            if (state.at(ply).canCastle(turn)) {
-                state.at(ply).disableCastle(turn, from);
-            }
+            if (canCastle(turn)) disableCastle(turn, from);
             break;
         }
 
@@ -265,8 +257,7 @@ bool Chess::isCheckingMove(Move mv) const {
                 rFrom = RookOriginOOO[turn];
             }
 
-            U64 occ =
-                (occupancy() ^ BB::set(from) ^ BB::set(rFrom)) | BB::set(to) | BB::set(rTo);
+            U64 occ = (occupancy() ^ BB::set(from) ^ BB::set(rFrom)) | BB::set(to) | BB::set(rTo);
             return BB::pieceMoves<ROOK>(rTo, occ) & BB::set(king);
         }
         default: return false;
@@ -325,11 +316,11 @@ std::string Chess::toFEN() const {
         oss << " b ";
     }
 
-    if (state.at(ply).canCastle(WHITE) || state.at(ply).canCastle(BLACK)) {
-        if (state.at(ply).canCastleOO(WHITE)) oss << "K";
-        if (state.at(ply).canCastleOOO(WHITE)) oss << "Q";
-        if (state.at(ply).canCastleOO(BLACK)) oss << "k";
-        if (state.at(ply).canCastleOOO(BLACK)) oss << "q";
+    if (canCastle(WHITE) || canCastle(BLACK)) {
+        if (canCastleOO(WHITE)) oss << "K";
+        if (canCastleOOO(WHITE)) oss << "Q";
+        if (canCastleOO(BLACK)) oss << "k";
+        if (canCastleOOO(BLACK)) oss << "q";
     } else {
         oss << "-";
     }

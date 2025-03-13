@@ -175,7 +175,7 @@ void MoveGenerator<T>::generateMoves() {
         add(kingSq, to);
     }
 
-    if ((G == GenType::All || G == GenType::Quiets) && chess.getState().canCastle(C)) {
+    if ((G == GenType::All || G == GenType::Quiets) && chess.canCastle(C)) {
         Square from = KingOrigin[C];
         if (canCastleOO(occupancy, C)) add(from, KingDestinationOO[C], CASTLE);
         if (canCastleOOO(occupancy, C)) add(from, KingDestinationOOO[C], CASTLE);
@@ -314,14 +314,14 @@ inline void MoveGenerator<T>::addEnPassants(U64 pawns, Square enpassant) {
 
 template <GenType T>
 inline bool MoveGenerator<T>::canCastleOO(U64 occ, Color turn) {
-    return (chess.getState().canCastleOO(turn)  // castling rights
-            && !(occ & CastlePathOO[turn])      // castle path unoccupied/attacked
+    return (chess.canCastleOO(turn)         // castling rights
+            && !(occ & CastlePathOO[turn])  // castle path unoccupied/attacked
             && !chess.isBitboardAttacked(KingCastlePathOO[turn], ~turn));
 }
 
 template <GenType T>
 inline bool MoveGenerator<T>::canCastleOOO(U64 occ, Color turn) {
-    return (chess.getState().canCastleOOO(turn)  // castling rights
-            && !(occ & CastlePathOOO[turn])      // castle path unoccupied/attacked
+    return (chess.canCastleOOO(turn)         // castling rights
+            && !(occ & CastlePathOOO[turn])  // castle path unoccupied/attacked
             && !chess.isBitboardAttacked(KingCastlePathOOO[turn], ~turn));
 }

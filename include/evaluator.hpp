@@ -112,7 +112,7 @@ void Evaluator<debug>::initialize() {
     outposts[c] = Eval::outpostSquares<c>(pawns, enemyPawns);
     mobilityArea[c] = ~((pawns & rank2) | BB::pawnAttacks<enemy>(enemyPawns));
 
-    Square kingSq = chess.kingSquare[c];
+    Square kingSq = chess.kingSq(c);
     Square center = makeSquare(std::clamp(fileOf(kingSq), FILE2, FILE7),
                                std::clamp(rankOf(kingSq), RANK2, RANK7));
     kingZone[c] = BB::pieceMoves<KING>(center) | BB::set(center);
@@ -173,7 +173,7 @@ int Evaluator<debug>::eval() {
     int result = score.taper(phase());
 
     // return score relative to side to move with tempo bonus
-    if (chess.turn == WHITE) {
+    if (chess.sideToMove() == WHITE) {
         result = result + TEMPO_BONUS;
     } else {
         result = -result - TEMPO_BONUS;
@@ -196,7 +196,7 @@ int Evaluator<debug>::eval() {
                   << " ------------+-------------+-------------+------------\n"
                   << TermOutput{"Total", nullptr, score} << '\n'
                   << "Evaluation: \t"
-                  << (double(chess.turn == WHITE ? result : -result) / PAWN_VALUE_MG) << '\n';
+                  << (double(chess.sideToMove() == WHITE ? result : -result) / PAWN_VALUE_MG) << '\n';
     }
 
     return result;
@@ -317,10 +317,10 @@ inline Score Evaluator<debug>::kingScore() {
     Square kingSq = chess.kingSq(c);
     Score score = kingShelter<c>(kingSq);
 
-    if (chess.state.at(chess.ply).canCastleOO(c)) {
+    if (chess.canCastleOO(c)) {
         score = std::max(score, kingShelter<c>(KingDestinationOO[c]));
     }
-    if (chess.state.at(chess.ply).canCastleOOO(c)) {
+    if (chess.canCastleOOO(c)) {
         score = std::max(score, kingShelter<c>(KingDestinationOOO[c]));
     }
 
@@ -455,6 +455,6 @@ inline int Evaluator<debug>::nonPawnMaterial(Color c) const {
 template <bool debug>
 int Evaluator<debug>::scaleFactor() const {
     // place holder, scale proportionally with pawns
-    int pawnCount = chess.count<PAWN>(chess.turn);
+    int pawnCount = chess.count<PAWN>(chess.sideToMove());
     return std::min(SCALE_LIMIT, 36 + 5 * pawnCount);
 }
