@@ -10,10 +10,6 @@
 #include "types.hpp"
 #include "chess.hpp"
 
-class EvaluatorTest;
-
-namespace Eval {
-
 enum Term {
     TERM_MATERIAL,
     TERM_PIECE_SQ,
@@ -25,6 +21,11 @@ enum Term {
     TERM_KING,
     TERM_MOBILITY,
     N_TERMS,
+};
+
+enum Verbosity {
+    Verbose,
+    Silent
 };
 
 struct TermOutput {
@@ -52,13 +53,13 @@ inline U64 passedPawns(U64 pawns, U64 enemyPawns) {
     return pawns & ~BB::pawnFullSpan<enemy>(enemyPawns);
 }
 
-inline U64 isolatedPawns(U64 pawns) {
+inline U64 getIsolatedPawns(U64 pawns) {
     U64 pawnsFill = BB::fillFiles(pawns);
     return (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
 }
 
 template <Color c>
-inline U64 backwardsPawns(U64 pawns, U64 enemyPawns) {
+inline U64 getBackwardsPawns(U64 pawns, U64 enemyPawns) {
     constexpr Color enemy = ~c;
     U64 stops = BB::pawnMoves<PUSH, c>(pawns);
     U64 attackSpan = BB::pawnAttackSpan<c>(pawns);
@@ -67,17 +68,11 @@ inline U64 backwardsPawns(U64 pawns, U64 enemyPawns) {
 }
 
 template <Color c>
-inline U64 doubledPawns(U64 pawns) {
+inline U64 getDoubledPawns(U64 pawns) {
     // pawns that have friendly pawns behind them that aren't supported
     U64 pawnsBehind = pawns & BB::spanFront<c>(pawns);
     U64 supported = BB::pawnAttacks<c>(pawns);
     return pawnsBehind & ~supported;
-}
-
-template <Color c>
-inline U64 blockedPawns(U64 pawns, U64 occupancy) {
-    constexpr Color enemy = ~c;
-    return pawns & BB::pawnMoves<PUSH, enemy>(occupancy);
 }
 
 template <Color c>
@@ -88,15 +83,15 @@ inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
     return holes & BB::pawnAttacks<c>(pawns);
 }
 
-template <bool debug = false>
-class Evaluator {
+template <Verbosity mode = Silent>
+class Eval {
    public:
-    Evaluator() = delete;
-    Evaluator(const Chess& c) : chess{c} {
+    Eval() = delete;
+    Eval(const Chess& c) : chess{c} {
         initialize<WHITE>();
         initialize<BLACK>();
     }
-    int eval();
+    int evaluate();
 
    private:
     const Chess& chess;
@@ -110,7 +105,7 @@ class Evaluator {
     Score mobility[N_COLORS] = {{0, 0}, {0, 0}};
 
     using ScoresDetail =
-        typename std::conditional<debug, Score[N_TERMS][N_COLORS], std::nullptr_t>::type;
+        typename std::conditional<mode == Verbose, Score[N_TERMS][N_COLORS], std::nullptr_t>::type;
     ScoresDetail scores{};
 
     template <Color>
@@ -143,19 +138,19 @@ class Evaluator {
     int nonPawnMaterial(Color) const;
     int scaleFactor() const;
 
-    friend class ::EvaluatorTest;
+    friend class EvaluatorTest;
 };
 
-template <bool debug>
+template <Verbosity mode>
 template <Color c>
-void Evaluator<debug>::initialize() {
+void Eval<mode>::initialize() {
     constexpr Color enemy = ~c;
     constexpr U64 rank2 = (c == WHITE) ? BB::rank(RANK2) : BB::rank(RANK7);
 
     U64 pawns = chess.pieces<PAWN>(c);
     U64 enemyPawns = chess.pieces<PAWN>(enemy);
 
-    outposts[c] = Eval::outpostSquares<c>(pawns, enemyPawns);
+    outposts[c] = outpostSquares<c>(pawns, enemyPawns);
     mobilityArea[c] = ~((pawns & rank2) | BB::pawnAttacks<enemy>(enemyPawns));
 
     Square kingSq = chess.kingSq(c);
@@ -164,9 +159,9 @@ void Evaluator<debug>::initialize() {
     kingZone[c] = BB::pieceMoves<KING>(center) | BB::set(center);
 }
 
-template <bool debug>
+template <Verbosity mode>
 template <Term term, Color c>
-inline Score Evaluator<debug>::evaluateTerm() {
+inline Score Eval<mode>::evaluateTerm() {
     Score score;
 
     if constexpr (term == TERM_MATERIAL) {
@@ -191,15 +186,15 @@ inline Score Evaluator<debug>::evaluateTerm() {
         score = Score{0};
     }
 
-    if constexpr (debug) {
+    if constexpr (mode == Verbose) {
         scores[term][c] = score;
     }
 
     return score;
 }
 
-template <bool debug>
-int Evaluator<debug>::eval() {
+template <Verbosity mode>
+int Eval<mode>::evaluate() {
     Score score{0, 0};
 
     score += evaluateTerm<TERM_MATERIAL>();
@@ -225,7 +220,7 @@ int Evaluator<debug>::eval() {
         result = -result - TEMPO_BONUS;
     }
 
-    if constexpr (debug) {
+    if constexpr (mode == Verbose) {
         std::cout << std::showpoint << std::noshowpos << std::fixed << std::setprecision(2)
                   << "     Term    |    White    |    Black    |    Total   \n"
                   << "             |   MG    EG  |   MG    EG  |   MG    EG \n"
@@ -257,9 +252,9 @@ void forEachPiece(U64 bitboard, Func action) {
     }
 }
 
-template <bool debug>
+template <Verbosity mode>
 template <Color c>
-inline Score Evaluator<debug>::pawnsScore() {
+inline Score Eval<mode>::pawnsScore() {
     constexpr Color enemy = ~c;
     Score score = {0, 0};
     U64 pawns = chess.pieces<PAWN>(c);
@@ -270,21 +265,21 @@ inline Score Evaluator<debug>::pawnsScore() {
     attacks[c][PAWN] |= pawnAttacks;
     kingDanger[enemy] += KING_DANGER[PAWN] * BB::count(pawnAttacks & kingZone[enemy]);
 
-    U64 isolatedPawns = Eval::isolatedPawns(pawns);
+    U64 isolatedPawns = getIsolatedPawns(pawns);
     score += ISO_PAWN_PENALTY * BB::count(isolatedPawns);
 
-    U64 backwardsPawns = Eval::backwardsPawns<c>(pawns, enemyPawns);
+    U64 backwardsPawns = getBackwardsPawns<c>(pawns, enemyPawns);
     score += BACKWARD_PAWN_PENALTY * BB::count(backwardsPawns);
 
-    U64 doubledPawns = Eval::doubledPawns<c>(pawns);
+    U64 doubledPawns = getDoubledPawns<c>(pawns);
     score += DOUBLED_PAWN_PENALTY * BB::count(doubledPawns);
 
     return score;
 }
 
-template <bool debug>
+template <Verbosity mode>
 template <Color c, PieceType p>
-Score Evaluator<debug>::piecesScore() {
+Score Eval<mode>::piecesScore() {
     constexpr Color enemy = ~c;
     Score score = {0, 0};
     U64 occ = chess.occupancy();
@@ -357,9 +352,9 @@ Score Evaluator<debug>::piecesScore() {
     return score;
 }
 
-template <bool debug>
+template <Verbosity mode>
 template <Color c>
-inline Score Evaluator<debug>::kingScore() {
+inline Score Eval<mode>::kingScore() {
     Square kingSq = chess.kingSq(c);
     Score score = kingShelter<c>(kingSq);
 
@@ -375,9 +370,9 @@ inline Score Evaluator<debug>::kingScore() {
     return score;
 }
 
-template <bool debug>
+template <Verbosity mode>
 template <Color c>
-inline Score Evaluator<debug>::kingShelter(Square kingSq) {
+inline Score Eval<mode>::kingShelter(Square kingSq) {
     constexpr Color enemy = ~c;
 
     File kingFile = fileOf(kingSq);
@@ -401,9 +396,9 @@ inline Score Evaluator<debug>::kingShelter(Square kingSq) {
     return score;
 }
 
-template <bool debug>
+template <Verbosity mode>
 template <Color c>
-inline Score Evaluator<debug>::fileShelter(U64 pawns, U64 enemyPawns, File file) {
+inline Score Eval<mode>::fileShelter(U64 pawns, U64 enemyPawns, File file) {
     constexpr Color enemy = ~c;
 
     Score score = {0, 0};
@@ -434,9 +429,9 @@ inline Score Evaluator<debug>::fileShelter(U64 pawns, U64 enemyPawns, File file)
  * @param occ The current occupancy bitboard indicating all occupied squares.
  * @return true if a discovered attack on the queen is possible, false otherwise.
  */
-template <bool debug>
+template <Verbosity mode>
 template <Color c>
-inline bool Evaluator<debug>::discoveredAttackOnQueen(Square sq, U64 occ) const {
+inline bool Eval<mode>::discoveredAttackOnQueen(Square sq, U64 occ) const {
     constexpr Color enemy = ~c;
     bool attacked = false;
 
@@ -474,9 +469,9 @@ inline bool Evaluator<debug>::discoveredAttackOnQueen(Square sq, U64 occ) const 
  * @return An integer score representing the influence of pawns on the given bishops, adjusted by
  *         the number of blocked central pawns.
  */
-template <bool debug>
+template <Verbosity mode>
 template <Color c>
-inline int Evaluator<debug>::bishopPawnBlockers(U64 bb) const {
+inline int Eval<mode>::bishopPawnBlockers(U64 bb) const {
     constexpr Color enemy = ~c;
     U64 pawns = chess.pieces<PAWN>(c);
     U64 blockedPawns = pawns & BB::pawnMoves<PUSH, enemy>(chess.occupancy());
@@ -485,31 +480,29 @@ inline int Evaluator<debug>::bishopPawnBlockers(U64 bb) const {
     return pawnFactor * BB::count(pawns & sameColorSquares);
 }
 
-template <bool debug>
-inline int Evaluator<debug>::phase() const {
+template <Verbosity mode>
+inline int Eval<mode>::phase() const {
     int npm = nonPawnMaterial(WHITE) + nonPawnMaterial(BLACK);
     int material = std::clamp(npm, EG_LIMIT, MG_LIMIT);
     return ((material - EG_LIMIT) * PHASE_LIMIT) / (MG_LIMIT - EG_LIMIT);
 }
 
-template <bool debug>
-inline int Evaluator<debug>::nonPawnMaterial(Color c) const {
+template <Verbosity mode>
+inline int Eval<mode>::nonPawnMaterial(Color c) const {
     return (chess.count<KNIGHT>(c) * KNIGHT_VALUE_MG + chess.count<BISHOP>(c) * BISHOP_VALUE_MG +
             chess.count<ROOK>(c) * ROOK_VALUE_MG + chess.count<QUEEN>(c) * QUEEN_VALUE_MG);
 }
 
-template <bool debug>
-int Evaluator<debug>::scaleFactor() const {
+template <Verbosity mode>
+int Eval<mode>::scaleFactor() const {
     // place holder, scale proportionally with pawns
     int pawnCount = chess.count<PAWN>(chess.sideToMove());
     return std::min(SCALE_LIMIT, 36 + 5 * pawnCount);
 }
 
-template <bool debug = false>
+template <Verbosity mode = Silent>
 int eval(const Chess& chess) {
-    return Evaluator<debug>(chess).eval();
+    return Eval<mode>(chess).evaluate();
 }
-template int eval<true>(const Chess&);
-template int eval<false>(const Chess&);
-
-}  // namespace Eval
+template int eval<Silent>(const Chess&);
+template int eval<Verbose>(const Chess&);

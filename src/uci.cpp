@@ -60,7 +60,7 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "d") {
         ostream << chess << std::endl;
     } else if (token == "eval") {
-        Eval::eval<true>(chess);
+        eval<Verbose>(chess);
     }
 
     return true;

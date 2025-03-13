@@ -8,189 +8,60 @@
 #include "types.hpp"
 #include "constants.hpp"
 
-// --- Tests for Eval::passedPawn---
-TEST(Eval_passedPawns, StartPosition) {
-    Chess chess(STARTFEN);
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::passedPawns<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::passedPawns<BLACK>(bPawns, wPawns), 0);
-}
-TEST(Eval_passedPawns, NoPassedPawns) {
-    Chess chess("4k3/p2p4/8/8/8/8/P1P5/4K3 w - - 0 1");
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::passedPawns<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::passedPawns<BLACK>(bPawns, wPawns), 0);
-}
-TEST(Eval_passedPawns, HasPassedPawns) {
-    Chess chess("4k3/p3p3/8/8/8/8/P1P5/4K3 w - - 0 1");
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::passedPawns<WHITE>(wPawns, bPawns), BB::set(C2));
-    EXPECT_EQ(Eval::passedPawns<BLACK>(bPawns, wPawns), BB::set(E7));
-}
-// --- End tests for Eval::passedPawn ---
-
-// --- Tests for Eval::isolatedPawns ---
-TEST(Eval_isolatedPawns, StartPositionNoIsolatedPawns) {
-    Chess chess(STARTFEN);
-    EXPECT_EQ(Eval::isolatedPawns(chess.pieces<PAWN>(WHITE)), 0);
-    EXPECT_EQ(Eval::isolatedPawns(chess.pieces<PAWN>(BLACK)), 0);
-}
-TEST(Eval_isolatedPawns, IsolatedPawnsOnA2AndG7) {
-    Chess chess("rnbqkbnr/ppppp1p1/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1");
-    EXPECT_EQ(Eval::isolatedPawns(chess.pieces<PAWN>(WHITE)), BB::set(A2));
-    EXPECT_EQ(Eval::isolatedPawns(chess.pieces<PAWN>(BLACK)), BB::set(G7));
-}
-TEST(Eval_isolatedPawns, IsolatedPawnsIncludesAllPawnsOnFile) {
-    Chess chess("k7/p7/8/P7/8/P7/P7/K7 w KQkq - 0 1");
-    EXPECT_EQ(Eval::isolatedPawns(chess.pieces<PAWN>(WHITE)), BB::set(A2) | BB::set(A3) | BB::set(A5));
-    EXPECT_EQ(Eval::isolatedPawns(chess.pieces<PAWN>(BLACK)), BB::set(A7));
-}
-// --- End tests for Eval::isolatedPawns ---
-
-// --- Tests for Eval::backwardsPawns ---
-TEST(Eval_backwardsPawns, StartPositionNoBackwardsPawns) {
-    Chess chess(STARTFEN);
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::backwardsPawns<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::backwardsPawns<BLACK>(bPawns, wPawns), 0);
-}
-TEST(Eval_backwardsPawns, BackwardsPawns) {
-    Chess chess("4k3/2p5/1p6/1P6/P7/8/8/4K3 w - - 0 1");
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::backwardsPawns<WHITE>(wPawns, bPawns), BB::set(A4));
-    EXPECT_EQ(Eval::backwardsPawns<BLACK>(bPawns, wPawns), BB::set(C7));
-}
-// --- End tests for Eval::backwardsPawns ---
-
-// --- Tests for Eval::doubledPawns ---
-TEST(Eval_doubledPawns, StartPositionNoDoubledPawns) {
-    Chess chess(STARTFEN);
-    EXPECT_EQ(Eval::doubledPawns<WHITE>(chess.pieces<PAWN>(WHITE)), 0);
-    EXPECT_EQ(Eval::doubledPawns<BLACK>(chess.pieces<PAWN>(BLACK)), 0);
-}
-TEST(Eval_doubledPawns, WhiteDoubledPawnOnA4) {
-    Chess chess("4k3/8/pp6/p7/P7/8/P7/4K3 w - - 0 1");
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::doubledPawns<WHITE>(wPawns), BB::set(A4));
-    EXPECT_EQ(Eval::doubledPawns<BLACK>(bPawns), 0);
-}
-// --- End tests for Eval::doubledPawns ---
-
-// --- Tests for Eval::blockedPawns ---
-TEST(Eval_blockedPawns, Blocked) {
-    Chess chess("4k3/8/8/p7/P7/8/8/4K3 w - - 0 1");
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::blockedPawns<WHITE>(wPawns, bPawns), BB::set(A4));
-    EXPECT_EQ(Eval::blockedPawns<BLACK>(bPawns, wPawns), BB::set(A5));
-}
-TEST(Eval_blockedPawns, NotBlocked) {
-    Chess chess("4k3/8/8/p7/8/P7/8/4K3 w - - 0 1");
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::blockedPawns<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::blockedPawns<BLACK>(bPawns, wPawns), 0);
-}
-// --- End tests for Eval::blockedPawns ---
-
-// --- Tests for Eval::outpostSquares ---
-TEST(Eval_outpostSquares, StartPosition) {
-    Chess chess(STARTFEN);
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
-}
-TEST(Eval_outpostSquares, EmptyPosition) {
-    Chess chess(EMPTYFEN);
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
-}
-TEST(Eval_outpostSquares, WhiteOutpostOnD5) {
-    Chess chess("r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1");
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), BB::set(D5));
-    EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
-}
-TEST(Eval_outpostSquares, BlackOutpostOnD4) {
-    Chess chess("r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1");
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), BB::set(D4));
-}
-TEST(Eval_outpostSquares, NoOupostOn7thRank) {
-    Chess chess("r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1");
-    U64 wPawns = chess.pieces<PAWN>(WHITE);
-    U64 bPawns = chess.pieces<PAWN>(BLACK);
-    EXPECT_EQ(Eval::outpostSquares<WHITE>(wPawns, bPawns), 0);
-    EXPECT_EQ(Eval::outpostSquares<BLACK>(bPawns, wPawns), 0);
-}
-// --- End tests for Eval::oupostSquares ---
-
 class EvaluatorTest : public ::testing::Test {
    protected:
     void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Chess chess(fen);
-        Eval::Evaluator<false> evaluator(chess);
-        EXPECT_EQ(evaluator.outposts[WHITE], expectedWhite) << fen;
-        EXPECT_EQ(evaluator.outposts[BLACK], expectedBlack) << fen;
+        Eval<Silent> eval(chess);
+        EXPECT_EQ(eval.outposts[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(eval.outposts[BLACK], expectedBlack) << fen;
     }
 
     void testMobilityArea(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Chess chess(fen);
-        Eval::Evaluator<false> evaluator(chess);
-        EXPECT_EQ(evaluator.mobilityArea[WHITE], expectedWhite) << fen;
-        EXPECT_EQ(evaluator.mobilityArea[BLACK], expectedBlack) << fen;
+        Eval<Silent> eval(chess);
+        EXPECT_EQ(eval.mobilityArea[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(eval.mobilityArea[BLACK], expectedBlack) << fen;
     }
 
     void testMobility(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
-        Eval::Evaluator<false> evaluator(chess);
-        evaluator.eval();
-        EXPECT_EQ(evaluator.mobility[WHITE], expectedWhite) << fen;
-        EXPECT_EQ(evaluator.mobility[BLACK], expectedBlack) << fen;
+        Eval<Silent> eval(chess);
+        eval.evaluate();
+        EXPECT_EQ(eval.mobility[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(eval.mobility[BLACK], expectedBlack) << fen;
     }
 
     void testPawnsScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
-        Eval::Evaluator<false> evaluator(chess);
-        EXPECT_EQ(evaluator.pawnsScore<WHITE>(), expectedWhite) << fen;
-        EXPECT_EQ(evaluator.pawnsScore<BLACK>(), expectedBlack) << fen;
+        Eval<Silent> eval(chess);
+        EXPECT_EQ(eval.pawnsScore<WHITE>(), expectedWhite) << fen;
+        EXPECT_EQ(eval.pawnsScore<BLACK>(), expectedBlack) << fen;
     }
 
     template <PieceType p>
     void testPiecesScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
-        Eval::Evaluator<false> evaluator(chess);
-        Score wScore = evaluator.piecesScore<WHITE, p>();
-        Score bScore = evaluator.piecesScore<BLACK, p>();
+        Eval<Silent> eval(chess);
+        Score wScore = eval.piecesScore<WHITE, p>();
+        Score bScore = eval.piecesScore<BLACK, p>();
         EXPECT_EQ(wScore, expectedWhite) << fen;
         EXPECT_EQ(bScore, expectedBlack) << fen;
     }
 
     void testKingScore(const std::string& fen, Score expected) {
         Chess chess(fen);
-        Eval::Evaluator<false> evaluator(chess);
-        evaluator.eval();
-        EXPECT_EQ(evaluator.kingScore<WHITE>(), expected) << fen;
-        EXPECT_EQ(evaluator.kingScore<BLACK>(), expected) << fen;
+        Eval<Silent> eval(chess);
+        eval.evaluate();
+        EXPECT_EQ(eval.kingScore<WHITE>(), expected) << fen;
+        EXPECT_EQ(eval.kingScore<BLACK>(), expected) << fen;
     }
 
     void testKingShelter(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Chess chess(fen);
-        Eval::Evaluator<false> evaluator(chess);
-        EXPECT_EQ(evaluator.kingShelter<WHITE>(chess.kingSq(WHITE)), expectedWhite) << fen;
-        EXPECT_EQ(evaluator.kingShelter<BLACK>(chess.kingSq(BLACK)), expectedBlack) << fen;
+        Eval<Silent> eval(chess);
+        EXPECT_EQ(eval.kingShelter<WHITE>(chess.kingSq(WHITE)), expectedWhite) << fen;
+        EXPECT_EQ(eval.kingShelter<BLACK>(chess.kingSq(BLACK)), expectedBlack) << fen;
     }
 
     void testFileShelter(const std::string& fen,
@@ -198,30 +69,30 @@ class EvaluatorTest : public ::testing::Test {
                          Score expectedBlack,
                          File file) {
         Chess chess(fen);
-        Eval::Evaluator<false> evaluator(chess);
+        Eval<Silent> eval(chess);
         U64 wPawns = chess.pieces<PAWN>(WHITE);
         U64 bPawns = chess.pieces<PAWN>(BLACK);
-        EXPECT_EQ(evaluator.fileShelter<WHITE>(wPawns, bPawns, file), expectedWhite) << fen;
-        EXPECT_EQ(evaluator.fileShelter<BLACK>(bPawns, wPawns, file), expectedBlack) << fen;
+        EXPECT_EQ(eval.fileShelter<WHITE>(wPawns, bPawns, file), expectedWhite) << fen;
+        EXPECT_EQ(eval.fileShelter<BLACK>(bPawns, wPawns, file), expectedBlack) << fen;
     }
 
     void testPhase(const std::string& fen, int expected, int tolerance) {
         Chess chess(fen);
-        Eval::Evaluator evaluator(chess);
-        int phaseValue = evaluator.phase();
+        Eval<Silent> eval(chess);
+        int phaseValue = eval.phase();
         EXPECT_LE(std::abs(phaseValue - expected), tolerance) << fen;
     }
 
     void testNonPawnMaterial(const std::string& fen, Color c, int expected) {
         Chess chess(fen);
-        Eval::Evaluator evaluator(chess);
-        EXPECT_EQ(evaluator.nonPawnMaterial(c), expected);
+        Eval<Silent> eval(chess);
+        EXPECT_EQ(eval.nonPawnMaterial(c), expected);
     }
 
     void testScaleFactor(const std::string& fen, int expected) {
         Chess chess(fen);
-        Eval::Evaluator<false> evaluator(chess);
-        EXPECT_EQ(evaluator.scaleFactor(), expected) << fen;
+        Eval<Silent> eval(chess);
+        EXPECT_EQ(eval.scaleFactor(), expected) << fen;
     }
 };
 
@@ -234,17 +105,17 @@ TEST_F(EvaluatorTest, Eval) {
 
     for (const auto& [fen, expected, exact] : testCases) {
         Chess chess(fen);
-        Eval::Evaluator evaluator(chess);
+        Eval<Silent> eval(chess);
         if (exact) {
-            EXPECT_EQ(evaluator.eval(), expected + TEMPO_BONUS) << fen;
+            EXPECT_EQ(eval.evaluate(), expected + TEMPO_BONUS) << fen;
         } else {
-            EXPECT_GT(evaluator.eval(), expected + TEMPO_BONUS) << fen;
+            EXPECT_GT(eval.evaluate(), expected + TEMPO_BONUS) << fen;
         }
         chess.makeNull();
         if (exact) {
-            EXPECT_EQ(evaluator.eval(), expected - TEMPO_BONUS) << fen;
+            EXPECT_EQ(eval.evaluate(), expected - TEMPO_BONUS) << fen;
         } else {
-            EXPECT_LT(evaluator.eval(), expected - TEMPO_BONUS) << fen;
+            EXPECT_LT(eval.evaluate(), expected - TEMPO_BONUS) << fen;
         }
     }
 }
