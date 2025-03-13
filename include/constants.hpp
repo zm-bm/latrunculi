@@ -205,7 +205,7 @@ const std::array<std::array<std::array<int, N_SQUARES>, N_PHASES>, 6> PSQ_VALUES
     {KING_BONUS_MG, KING_BONUS_EG}
 }};
 
-const Square SQUARE_MAP[N_COLORS][N_SQUARES] = {{
+constexpr Square SQUARE_MAP[N_COLORS][N_SQUARES] = {{
     H8, G8, F8, E8, D8, C8, B8, A8,
     H7, G7, F7, E7, D7, C7, B7, A7,
     H6, G6, F6, E6, D6, C6, B6, A6,

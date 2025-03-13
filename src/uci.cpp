@@ -8,6 +8,7 @@
 #include "thread.hpp"
 #include "tt.hpp"
 #include "search.hpp"
+#include "eval.hpp"
 
 namespace UCI {
 
@@ -59,7 +60,7 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "d") {
         ostream << chess << std::endl;
     } else if (token == "eval") {
-        chess.eval<true>();
+        Eval::eval<true>(chess);
     }
 
     return true;

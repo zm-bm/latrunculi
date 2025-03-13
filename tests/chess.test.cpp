@@ -253,27 +253,6 @@ TEST(Chess_count, StartPosition) {
     EXPECT_EQ(c.count<QUEEN>(BLACK), 1);
 }
 
-// --- Tests for Chess::eval---
-TEST(Chess_eval, EmptyPosition) {
-    Chess c(EMPTYFEN);
-    EXPECT_EQ(c.eval<false>(), TEMPO_BONUS) << "white to move should be tempo bonus";
-    c.makeNull();
-    EXPECT_EQ(c.eval<false>(), -TEMPO_BONUS) << "black to move should be -tempo";
-}
-TEST(Chess_eval, StartPosition) {
-    Chess c(STARTFEN);
-    EXPECT_EQ(c.eval<false>(), TEMPO_BONUS) << "white to move should be tempo bonus";
-    c.makeNull();
-    EXPECT_EQ(c.eval<false>(), -TEMPO_BONUS) << "black to move should be -tempo";
-}
-TEST(Chess_eval, WhitePawnOnE2) {
-    Chess c(PAWN_E2);
-    EXPECT_GT(c.eval<false>(), 0) << "white to move should be positive";
-    c.makeNull();
-    EXPECT_LT(c.eval<false>(), 0) << "black to move should be negative";
-}
-// --- End tests for Chess::eval---
-
 // --- Tests for Chess::materialScore ---
 TEST(Chess_materialScore, StartPosition) {
     Score score{0, 0};
@@ -303,7 +282,7 @@ TEST(Chess_psqBonusScore, StartPosition) {
     EXPECT_EQ(Chess(STARTFEN).psqBonusScore(), score);
 }
 TEST(Chess_psqBonusScore, WhiteE2Pawn) {
-    Score score(Eval::psqValue(MIDGAME, WHITE, PAWN, E2), Eval::psqValue(ENDGAME, WHITE, PAWN, E2));
+    Score score = pieceSqScore(PAWN, WHITE, E2);
     EXPECT_EQ(Chess(PAWN_E2).psqBonusScore(), score);
 }
 // --- End tests for Chess::psqBonusScore ---

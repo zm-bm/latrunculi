@@ -143,3 +143,9 @@ constexpr const Score* MOBILITY_BONUS[] = {
     ROOK_MOBILITY,
     QUEEN_MOBILITY,
 };
+
+constexpr Score pieceSqScore(PieceType pt, Color c, Square sq) {
+    sq = SQUARE_MAP[c][sq];
+    Score score{PSQ_VALUES[pt-1][MIDGAME][sq], PSQ_VALUES[pt-1][ENDGAME][sq]};
+    return (score * c * 2) - score;
+}

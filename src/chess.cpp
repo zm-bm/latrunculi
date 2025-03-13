@@ -1,6 +1,5 @@
 #include "chess.hpp"
 
-#include "evaluator.hpp"
 #include "fen.hpp"
 #include "score.hpp"
 #include "thread.hpp"
@@ -23,14 +22,6 @@ std::ostream& operator<<(std::ostream& os, const Chess& chess) {
 
     return os;
 }
-
-template <bool debug = false>
-int Chess::eval() const {
-    return Evaluator<debug>(*this).eval();
-}
-
-template int Chess::eval<true>() const;
-template int Chess::eval<false>() const;
 
 void Chess::make(Move mv) {
     // Get basic information about the move

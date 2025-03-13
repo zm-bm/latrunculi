@@ -4,8 +4,8 @@
 #include <tuple>
 #include <vector>
 
+#include "bb.hpp"
 #include "constants.hpp"
-#include "eval.hpp"
 #include "move.hpp"
 #include "score.hpp"
 #include "state.hpp"
@@ -33,9 +33,6 @@ class Chess {
    public:
     Chess() = default;
     explicit Chess(const std::string&, Thread* thread = nullptr);
-
-    template <bool = false>
-    int eval() const;
 
     // make move / mutators
     void make(Move);
@@ -117,7 +114,7 @@ inline void Chess::addPiece(Square sq, Color c, PieceType p) {
     squares[sq] = makePiece(c, p);
     pieceCount[c][p]++;
     material += pieceScore(p, c);
-    psqBonus += Score{Eval::psqValue(MIDGAME, c, p, sq), Eval::psqValue(ENDGAME, c, p, sq)};
+    psqBonus += pieceSqScore(p, c, sq);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
@@ -131,7 +128,7 @@ inline void Chess::removePiece(Square sq, Color c, PieceType p) {
     squares[sq] = Piece::NONE;
     pieceCount[c][p]--;
     material -= pieceScore(p, c);
-    psqBonus -= Score{Eval::psqValue(MIDGAME, c, p, sq), Eval::psqValue(ENDGAME, c, p, sq)};
+    psqBonus -= pieceSqScore(p, c, sq);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
@@ -145,8 +142,7 @@ inline void Chess::movePiece(Square from, Square to, Color c, PieceType p) {
     piecesBB[c][p] ^= mask;
     squares[from] = Piece::NONE;
     squares[to] = makePiece(c, p);
-    psqBonus += Score{Eval::psqValue(MIDGAME, c, p, to) - Eval::psqValue(MIDGAME, c, p, from),
-                      Eval::psqValue(ENDGAME, c, p, to) - Eval::psqValue(ENDGAME, c, p, from)};
+    psqBonus += pieceSqScore(p, c, to) - pieceSqScore(p, c, from);
 
     if (forward) {
         state.at(ply).zkey ^= Zobrist::psq[c][p][from] ^ Zobrist::psq[c][p][to];

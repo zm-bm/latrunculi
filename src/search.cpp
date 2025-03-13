@@ -6,12 +6,13 @@
 #include "movegen.hpp"
 #include "thread.hpp"
 #include "tt.hpp"
+#include "eval.hpp"
 
 namespace Search {
 
 int quiescence(Thread& th, int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
-    int standPat = th.chess.eval();
+    int standPat = Eval::eval(th.chess);
 
     if (standPat >= beta) {
         // beta cutoff, return upperbound
@@ -87,7 +88,7 @@ int search(Thread& th, int alpha, int beta, int depth) {
     moves.sort(MovePriority(th, entry, node));
 
     // TODO: handle draws, for now just return eval
-    if (moves.empty()) return chess.eval();
+    if (moves.empty()) return Eval::eval(chess);
 
     // 4. Loop over moves
     for (auto& move : moves) {
