@@ -34,7 +34,6 @@ class Chess {
     Chess() = default;
     explicit Chess(const std::string&, Thread* thread = nullptr);
 
-
     template <bool = false>
     int eval() const;
 
@@ -187,9 +186,7 @@ inline U64 Chess::occupancy() const {
 }
 
 // Returns a bitboard of pieces of color c which attacks a square
-inline U64 Chess::attacksTo(Square sq, Color c) const {
-    return attacksTo(sq, c, occupancy());
-}
+inline U64 Chess::attacksTo(Square sq, Color c) const { return attacksTo(sq, c, occupancy()); }
 
 inline U64 Chess::attacksTo(Square sq, Color c, U64 occ) const {
     // Returns a bitboard of pieces of color c which attacks a square
@@ -332,37 +329,35 @@ inline bool Chess::isCapture(const Move move) const {
     return pieceTypeOn(move.to()) != NO_PIECE_TYPE;
 }
 
+// Check if the specified color can castle
 inline bool Chess::canCastle(Color c) const {
-    // Check if the specified color can castle
-    return (c ? state.at(ply).castle & WHITE_CASTLE : state.at(ply).castle & BLACK_CASTLE);
+    return state.at(ply).castle & (c ? WHITE_CASTLE : BLACK_CASTLE);
 }
 
+// Check if the specified color can castle kingside (OO)
 inline bool Chess::canCastleOO(Color c) const {
-    // Check if the specified color can castle kingside (OO)
-    return (c ? state.at(ply).castle & WHITE_OO : state.at(ply).castle & BLACK_OO);
+    return state.at(ply).castle & (c ? WHITE_OO : BLACK_OO);
 }
 
+// Check if the specified color can castle queenside (OOO)
 inline bool Chess::canCastleOOO(Color c) const {
-    // Check if the specified color can castle queenside (OOO)
-    return (c ? state.at(ply).castle & WHITE_OOO : state.at(ply).castle & BLACK_OOO);
+    return state.at(ply).castle & (c ? WHITE_OOO : BLACK_OOO);
 }
 
+// Disable castling for the specified color
 inline void Chess::disableCastle(Color c) {
-    // Disable castling for the specified color
     if (canCastleOO(c)) state.at(ply).zkey ^= Zobrist::castle[c][KINGSIDE];
     if (canCastleOOO(c)) state.at(ply).zkey ^= Zobrist::castle[c][QUEENSIDE];
-
-    // Update the castle rights based on the color
     state.at(ply).castle &= c ? BLACK_CASTLE : WHITE_CASTLE;
 }
 
+// Disable casting for the specified color and side
 inline void Chess::disableCastle(Color c, Square sq) {
-    // Disable casting for the specified color and side
     if (sq == RookOriginOO[c] && canCastleOO(c)) {
         state.at(ply).zkey ^= Zobrist::castle[c][KINGSIDE];
-        state.at(ply).castle &= CastleRights(~static_cast<int>(c ? WHITE_OO : BLACK_OO));
+        state.at(ply).castle &= ~(c ? WHITE_OO : BLACK_OO);
     } else if (sq == RookOriginOOO[c] && canCastleOOO(c)) {
         state.at(ply).zkey ^= Zobrist::castle[c][QUEENSIDE];
-        state.at(ply).castle &= CastleRights(~static_cast<int>(c ? WHITE_OOO : BLACK_OOO));
+        state.at(ply).castle &= ~(c ? WHITE_OOO : BLACK_OOO);
     }
 }

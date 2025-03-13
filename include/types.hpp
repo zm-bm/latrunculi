@@ -48,11 +48,11 @@ enum File : I8 { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8, N_FILES
 enum Rank : I8 { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8, N_RANKS };
 
 enum CastleRights {
-    NO_CASTLE = 0x0,
-    BLACK_OOO = 0x1,
-    BLACK_OO = 0x2,
-    WHITE_OOO = 0x4,
-    WHITE_OO = 0x8,
+    NO_CASTLE = 0,
+    BLACK_OOO = 1,
+    BLACK_OO = 1 << 1,
+    WHITE_OOO = 1 << 2,
+    WHITE_OO = 1 << 3,
     BLACK_CASTLE = BLACK_OO | BLACK_OOO,
     WHITE_CASTLE = WHITE_OO | WHITE_OOO,
     ALL_CASTLE = BLACK_CASTLE | WHITE_CASTLE
@@ -155,7 +155,7 @@ inline Square pawnMove(const Square sq, const Color c) {
 }
 
 // Enable arithmetic and bitwise operators
-#define ENABLE_OPERATORS(T)                                                   \
+#define ENABLE_OPERATORS(T)                                            \
     constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
     constexpr T operator+(T d1, int d2) { return T(int(d1) + d2); }    \
     constexpr T operator-(T d1, T d2) { return T(int(d1) - int(d2)); } \
@@ -164,6 +164,7 @@ inline Square pawnMove(const Square sq, const Color c) {
     constexpr T operator*(int i, T d) { return T(i * int(d)); }        \
     constexpr T operator/(T d1, T d2) { return T(int(d1) / int(d2)); } \
     constexpr T operator/(T d, int i) { return T(int(d) / i); }        \
+    constexpr T operator~(T d) { return T(~int(d)); }                  \
     constexpr T& operator+=(T& d1, T d2) { return d1 = d1 + d2; }      \
     constexpr T& operator-=(T& d1, T d2) { return d1 = d1 - d2; }      \
     constexpr T& operator*=(T& d, int i) { return d = T(int(d) * i); } \
@@ -171,7 +172,7 @@ inline Square pawnMove(const Square sq, const Color c) {
     constexpr T& operator++(T& d, int) { return d = T(int(d) + 1); }   \
     constexpr T& operator--(T& d, int) { return d = T(int(d) - 1); }   \
     constexpr T& operator&=(T& d1, T d2) { return d1 = T(d1 & d2); }   \
-    constexpr T& operator|=(T& d1, T d2) { return d1 = T(d1 | d2); }
+    constexpr T& operator|=(T& d1, T d2) { return d1 = T(d1 | d2); }   \
 
 ENABLE_OPERATORS(Square)
 ENABLE_OPERATORS(File)
