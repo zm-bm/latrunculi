@@ -146,13 +146,9 @@ void Engine::move(std::istringstream& iss) {
 void Engine::moves() {
     MoveGenerator<GenType::All> moves{chess};
 
-    // TT::Entry* entry = TT::table.probe(chess.getKey());
-    // if (entry)
-    //     search.sortMoves(movegen.moves, entry->best);
-    // else
-    //     search.sortMoves(movegen.moves);
-
-    for (auto& move : moves) ostream << move << ": " << move.priority << std::endl;
+    for (auto& move : moves) {
+        ostream << move << ": " << move.priority << std::endl;
+    }
 }
 
 }  // namespace UCI

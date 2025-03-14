@@ -5,10 +5,12 @@
 #include <string>
 
 #include "bb.hpp"
+#include "chess.hpp"
 #include "constants.hpp"
 #include "score.hpp"
 #include "types.hpp"
-#include "chess.hpp"
+
+enum Verbosity { Verbose, Silent };
 
 enum Term {
     TERM_MATERIAL,
@@ -23,78 +25,24 @@ enum Term {
     N_TERMS,
 };
 
-enum Verbosity {
-    Verbose,
-    Silent
+struct TermScores {
+    std::optional<Score> scores[N_COLORS] = {std::nullopt};
+
+    void add(Color color, Score score) { scores[color] = score; }
 };
-
-struct TermOutput {
-    std::string name;
-    const Score* scores;
-    std::optional<Score> total;
-
-    friend std::ostream& operator<<(std::ostream& os, const TermOutput& term) {
-        os << std::setw(12) << term.name << " | ";
-        if (term.total) {
-            os << " ----  ---- |  ----  ---- | " << *term.total;
-        } else if (term.scores) {
-            os << term.scores[WHITE] << " | ";
-            os << term.scores[BLACK] << " | ";
-            os << term.scores[WHITE] - term.scores[BLACK];
-        }
-        os << '\n';
-        return os;
-    }
-};
-
-template <Color c>
-inline U64 passedPawns(U64 pawns, U64 enemyPawns) {
-    constexpr Color enemy = ~c;
-    return pawns & ~BB::pawnFullSpan<enemy>(enemyPawns);
-}
-
-inline U64 getIsolatedPawns(U64 pawns) {
-    U64 pawnsFill = BB::fillFiles(pawns);
-    return (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
-}
-
-template <Color c>
-inline U64 getBackwardsPawns(U64 pawns, U64 enemyPawns) {
-    constexpr Color enemy = ~c;
-    U64 stops = BB::pawnMoves<PUSH, c>(pawns);
-    U64 attackSpan = BB::pawnAttackSpan<c>(pawns);
-    U64 enemyAttacks = BB::pawnAttacks<enemy>(enemyPawns);
-    return BB::pawnMoves<PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
-}
-
-template <Color c>
-inline U64 getDoubledPawns(U64 pawns) {
-    // pawns that have friendly pawns behind them that aren't supported
-    U64 pawnsBehind = pawns & BB::spanFront<c>(pawns);
-    U64 supported = BB::pawnAttacks<c>(pawns);
-    return pawnsBehind & ~supported;
-}
-
-template <Color c>
-inline U64 outpostSquares(U64 pawns, U64 enemyPawns) {
-    constexpr U64 rankMask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
-    constexpr Color enemy = ~c;
-    U64 holes = ~BB::pawnAttackSpan<enemy>(enemyPawns) & rankMask;
-    return holes & BB::pawnAttacks<c>(pawns);
-}
 
 template <Verbosity mode = Silent>
 class Eval {
    public:
     Eval() = delete;
-    Eval(const Chess& c) : chess{c} {
-        initialize<WHITE>();
-        initialize<BLACK>();
-    }
+    Eval(const Chess& c);
     int evaluate();
 
    private:
     const Chess& chess;
+
+    using TermInfo = typename std::conditional<mode == Verbose, TermScores, std::nullptr_t>::type;
+    TermInfo termInfo[N_TERMS];
 
     U64 attacks[N_COLORS][N_PIECES] = {};
     U64 outposts[N_COLORS] = {0, 0};
@@ -103,10 +51,6 @@ class Eval {
 
     Score kingDanger[N_COLORS] = {{0, 0}, {0, 0}};
     Score mobility[N_COLORS] = {{0, 0}, {0, 0}};
-
-    using ScoresDetail =
-        typename std::conditional<mode == Verbose, Score[N_TERMS][N_COLORS], std::nullptr_t>::type;
-    ScoresDetail scores{};
 
     template <Color>
     void initialize();
@@ -138,19 +82,30 @@ class Eval {
     int nonPawnMaterial(Color) const;
     int scaleFactor() const;
 
+    void printEval(double, Score) const;
+
     friend class EvaluatorTest;
 };
+
+template <Verbosity mode>
+Eval<mode>::Eval(const Chess& c) : chess{c} {
+    initialize<WHITE>();
+    initialize<BLACK>();
+}
 
 template <Verbosity mode>
 template <Color c>
 void Eval<mode>::initialize() {
     constexpr Color enemy = ~c;
     constexpr U64 rank2 = (c == WHITE) ? BB::rank(RANK2) : BB::rank(RANK7);
-
+    constexpr U64 outpostMask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
     U64 pawns = chess.pieces<PAWN>(c);
     U64 enemyPawns = chess.pieces<PAWN>(enemy);
 
-    outposts[c] = outpostSquares<c>(pawns, enemyPawns);
+    outposts[c] = (~BB::pawnAttackSpan<enemy>(enemyPawns)  // cannot be attacked by enemy pawns
+                   & BB::pawnAttacks<c>(pawns)             // supported by friendly pawn
+                   & outpostMask);
+
     mobilityArea[c] = ~((pawns & rank2) | BB::pawnAttacks<enemy>(enemyPawns));
 
     Square kingSq = chess.kingSq(c);
@@ -164,30 +119,18 @@ template <Term term, Color c>
 inline Score Eval<mode>::evaluateTerm() {
     Score score;
 
-    if constexpr (term == TERM_MATERIAL) {
-        score = chess.materialScore();
-    } else if constexpr (term == TERM_PIECE_SQ) {
-        score = chess.psqBonusScore();
-    } else if constexpr (term == TERM_PAWNS) {
-        score = pawnsScore<c>();
-    } else if constexpr (term == TERM_KNIGHTS) {
-        score = piecesScore<c, KNIGHT>();
-    } else if constexpr (term == TERM_BISHOPS) {
-        score = piecesScore<c, BISHOP>();
-    } else if constexpr (term == TERM_ROOKS) {
-        score = piecesScore<c, ROOK>();
-    } else if constexpr (term == TERM_QUEENS) {
-        score = piecesScore<c, QUEEN>();
-    } else if constexpr (term == TERM_KING) {
-        score = kingScore<c>();
-    } else if constexpr (term == TERM_MOBILITY) {
-        score = mobility[c];
-    } else {
-        score = Score{0};
-    }
+    if constexpr (term == TERM_MATERIAL) score = chess.materialScore();
+    if constexpr (term == TERM_PIECE_SQ) score = chess.psqBonusScore();
+    if constexpr (term == TERM_PAWNS) score = pawnsScore<c>();
+    if constexpr (term == TERM_KNIGHTS) score = piecesScore<c, KNIGHT>();
+    if constexpr (term == TERM_BISHOPS) score = piecesScore<c, BISHOP>();
+    if constexpr (term == TERM_ROOKS) score = piecesScore<c, ROOK>();
+    if constexpr (term == TERM_QUEENS) score = piecesScore<c, QUEEN>();
+    if constexpr (term == TERM_KING) score = kingScore<c>();
+    if constexpr (term == TERM_MOBILITY) score = mobility[c];
 
     if constexpr (mode == Verbose) {
-        scores[term][c] = score;
+        termInfo[term].add(c, score);
     }
 
     return score;
@@ -197,6 +140,7 @@ template <Verbosity mode>
 int Eval<mode>::evaluate() {
     Score score{0, 0};
 
+    // evaluate basic terms
     score += evaluateTerm<TERM_MATERIAL>();
     score += evaluateTerm<TERM_PIECE_SQ>();
     score += evaluateTerm<TERM_PAWNS, WHITE>() - evaluateTerm<TERM_PAWNS, BLACK>();
@@ -206,39 +150,18 @@ int Eval<mode>::evaluate() {
     score += evaluateTerm<TERM_QUEENS, WHITE>() - evaluateTerm<TERM_QUEENS, BLACK>();
     score += evaluateTerm<TERM_KING, WHITE>() - evaluateTerm<TERM_KING, BLACK>();
 
-    // more complex eval terms require pieces to be evaluated first
+    // more complex terms that require data from evaluating pieces
     score += evaluateTerm<TERM_MOBILITY, WHITE>() - evaluateTerm<TERM_MOBILITY, BLACK>();
 
     // scale eg and taper mg/eg to produce final eval
     score.eg *= scaleFactor() / float(SCALE_LIMIT);
     int result = score.taper(phase());
 
-    // return score relative to side to move with tempo bonus
-    if (chess.sideToMove() == WHITE) {
-        result = result + TEMPO_BONUS;
-    } else {
-        result = -result - TEMPO_BONUS;
-    }
+    result = (chess.sideToMove() == WHITE)  // result relative to side to move + tempo
+                 ? result + TEMPO_BONUS
+                 : -result - TEMPO_BONUS;
 
-    if constexpr (mode == Verbose) {
-        std::cout << std::showpoint << std::noshowpos << std::fixed << std::setprecision(2)
-                  << "     Term    |    White    |    Black    |    Total   \n"
-                  << "             |   MG    EG  |   MG    EG  |   MG    EG \n"
-                  << " ------------+-------------+-------------+------------\n"
-                  << TermOutput{"Material", nullptr, scores[TERM_MATERIAL][WHITE]}
-                  << TermOutput{"Piece Sq.", nullptr, scores[TERM_PIECE_SQ][WHITE]}
-                  << TermOutput{"Pawns", scores[TERM_PAWNS], std::nullopt}
-                  << TermOutput{"Knights", scores[TERM_KNIGHTS], std::nullopt}
-                  << TermOutput{"Bishops", scores[TERM_BISHOPS], std::nullopt}
-                  << TermOutput{"Rooks", scores[TERM_ROOKS], std::nullopt}
-                  << TermOutput{"Queens", scores[TERM_QUEENS], std::nullopt}
-                  << TermOutput{"King", scores[TERM_KING], std::nullopt}
-                  << TermOutput{"Mobility", scores[TERM_MOBILITY], std::nullopt}
-                  << " ------------+-------------+-------------+------------\n"
-                  << TermOutput{"Total", nullptr, score} << '\n'
-                  << "Evaluation: \t"
-                  << (double(chess.sideToMove() == WHITE ? result : -result) / PAWN_VALUE_MG) << '\n';
-    }
+    if constexpr (mode == Verbose) printEval(result, score);
 
     return result;
 }
@@ -265,14 +188,26 @@ inline Score Eval<mode>::pawnsScore() {
     attacks[c][PAWN] |= pawnAttacks;
     kingDanger[enemy] += KING_DANGER[PAWN] * BB::count(pawnAttacks & kingZone[enemy]);
 
-    U64 isolatedPawns = getIsolatedPawns(pawns);
+    // isolated pawns
+    U64 pawnsFill = BB::fillFiles(pawns);
+    U64 isolatedPawns = (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
     score += ISO_PAWN_PENALTY * BB::count(isolatedPawns);
 
-    U64 backwardsPawns = getBackwardsPawns<c>(pawns, enemyPawns);
+    // backwards pawns
+    U64 stops = BB::pawnMoves<PUSH, c>(pawns);
+    U64 attackSpan = BB::pawnAttackSpan<c>(pawns);
+    U64 enemyAttacks = BB::pawnAttacks<enemy>(enemyPawns);
+    U64 backwardsPawns = BB::pawnMoves<PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
     score += BACKWARD_PAWN_PENALTY * BB::count(backwardsPawns);
 
-    U64 doubledPawns = getDoubledPawns<c>(pawns);
+    // doubled pawns (unsupported pawn with friendly pawns behind)
+    U64 pawnsBehind = pawns & BB::spanFront<c>(pawns);
+    U64 supported = BB::pawnAttacks<c>(pawns);
+    U64 doubledPawns = pawnsBehind & ~supported;
     score += DOUBLED_PAWN_PENALTY * BB::count(doubledPawns);
+
+    // passed pawns
+    // U64 passedPawns = pawns & ~BB::pawnFullSpan<enemy>(enemyPawns)
 
     return score;
 }
@@ -498,6 +433,42 @@ int Eval<mode>::scaleFactor() const {
     // place holder, scale proportionally with pawns
     int pawnCount = chess.count<PAWN>(chess.sideToMove());
     return std::min(SCALE_LIMIT, 36 + 5 * pawnCount);
+}
+
+template <Verbosity mode>
+void Eval<mode>::printEval(double result, Score score) const {
+    result = chess.sideToMove() == WHITE ? result : -result;
+    // clang-format off
+    std::cout << std::showpoint << std::noshowpos << std::fixed << std::setprecision(2)
+                << "     Term    |    White    |    Black    |    Total   \n"
+                << "             |   MG    EG  |   MG    EG  |   MG    EG \n"
+                << " ------------+-------------+-------------+------------\n"
+                << std::setw(12) << "Material" << termInfo[TERM_MATERIAL]
+                << std::setw(12) << "Piece Sq." << termInfo[TERM_PIECE_SQ]
+                << std::setw(12) << "Pawns" << termInfo[TERM_PAWNS]
+                << std::setw(12) << "Knights" << termInfo[TERM_KNIGHTS]
+                << std::setw(12) << "Bishops" << termInfo[TERM_BISHOPS]
+                << std::setw(12) << "Rooks" << termInfo[TERM_ROOKS]
+                << std::setw(12) << "Queens" << termInfo[TERM_QUEENS]
+                << std::setw(12) << "Kings" << termInfo[TERM_KING]
+                << std::setw(12) << "Mobility" << termInfo[TERM_MOBILITY]
+                << " ------------+-------------+-------------+------------\n"
+                << std::setw(12) << "Total" << TermScores{{std::nullopt, score}}
+                << "\nEvaluation:\t" << result / PAWN_VALUE_MG << '\n';
+    // clang-format on
+}
+
+inline std::ostream& operator<<(std::ostream& os, const TermScores& term) {
+    os << " | ";
+    if (term.scores[BLACK].has_value()) {
+        os << term.scores[WHITE].value() << " | ";
+        os << term.scores[BLACK].value() << " | ";
+        os << term.scores[WHITE].value() - term.scores[BLACK].value();
+    } else {
+        os << " ----  ---- |  ----  ---- | " << term.scores[WHITE].value();
+    }
+    os << '\n';
+    return os;
 }
 
 template <Verbosity mode = Silent>

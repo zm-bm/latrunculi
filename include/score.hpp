@@ -8,11 +8,6 @@ struct Score {
     int mg = 0;
     int eg = 0;
 
-    int taper(int phase) const {
-        int egPhase = PHASE_LIMIT - phase;
-        return ((mg * phase) + (eg * egPhase)) / PHASE_LIMIT;
-    }
-
     // operators
     constexpr Score operator+(const Score& other) const { return Score{mg + other.mg, eg + other.eg}; }
     constexpr Score operator-(const Score& other) const { return Score{mg - other.mg, eg - other.eg}; }
@@ -38,6 +33,11 @@ struct Score {
         mg *= scalar;
         eg *= scalar;
         return *this;
+    }
+
+    int taper(int phase) const {
+        int egPhase = PHASE_LIMIT - phase;
+        return ((mg * phase) + (eg * egPhase)) / PHASE_LIMIT;
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Score& score) {
