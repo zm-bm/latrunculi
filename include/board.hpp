@@ -36,6 +36,8 @@ class Board {
 
     // accessors
     template <PieceType... Ps>
+    U64 pieces() const;
+    template <PieceType... Ps>
     U64 pieces(Color c) const;
     U64 occupancy() const;
     U8 count(Color c, PieceType p) const;
@@ -53,6 +55,7 @@ class Board {
     U8 halfmove() const;
 
     // move/check properties
+    int see(Move) const;
     bool isLegalMove(Move) const;
     bool isCheckingMove(Move) const;
     bool isCapture(Move move) const;
@@ -60,6 +63,8 @@ class Board {
     bool isDoubleCheck() const;
 
     // attacks to squares/bitboards
+    U64 attacksTo(Square, U64) const;
+    U64 attacksTo(Square) const;
     U64 attacksTo(Square, Color, U64) const;
     U64 attacksTo(Square, Color) const;
     U64 attacksTo(U64, Color) const;
@@ -99,6 +104,11 @@ class Board {
 };
 
 inline Board::Board(const std::string& fen, Thread* thread) : thread(thread) { loadFEN(fen); }
+
+template <PieceType... Ps>
+inline U64 Board::pieces() const {
+    return ((piecesBB[WHITE][Ps] | piecesBB[BLACK][Ps]) | ...);
+};
 
 template <PieceType... Ps>
 inline U64 Board::pieces(Color c) const {
@@ -151,6 +161,19 @@ inline U64 Board::attacksTo(Square sq, Color c, U64 occ) const {
            (pieces<KING>(c) & BB::pieceMoves<KING>(sq, occ)) |
            (pieces<BISHOP, QUEEN>(c) & BB::pieceMoves<BISHOP>(sq, occ)) |
            (pieces<ROOK, QUEEN>(c) & BB::pieceMoves<ROOK>(sq, occ));
+}
+
+// Returns a bitboard of pieces of color c which attacks a square
+inline U64 Board::attacksTo(Square sq) const { return attacksTo(sq, occupancy()); }
+
+// Returns a bitboard of pieces of any which attacks a square
+inline U64 Board::attacksTo(Square sq, U64 occ) const {
+    return (pieces<PAWN>(WHITE) & BB::pawnAttacks(BB::set(sq), BLACK)) |
+           (pieces<PAWN>(BLACK) & BB::pawnAttacks(BB::set(sq), WHITE)) |
+           (pieces<KNIGHT>() & BB::pieceMoves<KNIGHT>(sq, occ)) |
+           (pieces<KING>() & BB::pieceMoves<KING>(sq, occ)) |
+           (pieces<BISHOP, QUEEN>() & BB::pieceMoves<BISHOP>(sq, occ)) |
+           (pieces<ROOK, QUEEN>() & BB::pieceMoves<ROOK>(sq, occ));
 }
 
 // Determine if any set square of a bitboard is attacked by color c

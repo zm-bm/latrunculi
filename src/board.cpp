@@ -4,6 +4,48 @@
 #include "score.hpp"
 #include "thread.hpp"
 
+int Board::see(Move move) const {
+    Square from         = move.from();
+    Square to           = move.to();
+    PieceType fromPiece = pieceTypeOn(from);
+    PieceType toPiece   = pieceTypeOn(to);
+    Color side          = sideToMove();
+
+    int gain[32] = {};
+    int depth    = 0;
+    gain[depth]  = pieceValue(toPiece);
+
+    U64 occupied  = occupancy();
+    U64 attackers = attacksTo(to, occupied);
+    U64 fromBB    = BB::set(from);
+
+    do {
+        depth++;
+        side         = ~side;
+        gain[depth]  = pieceValue(fromPiece) - gain[depth - 1];
+        occupied    ^= fromBB;
+        attackers    = attacksTo(to, occupied) & occupied;
+
+        // get least valuable attacker
+        U64 sideAttackers = attackers & pieces<ALL_PIECES>(side);
+        int least         = INT_MAX;
+        fromBB            = 0;
+        while (sideAttackers) {
+            Square sq = BB::lsbPop(sideAttackers);
+            if (pieceValue(pieceTypeOn(sq)) < least) {
+                fromBB    = BB::set(sq);
+                fromPiece = pieceTypeOn(sq);
+            }
+        }
+    } while (fromBB);
+
+    while (--depth) {
+        gain[depth - 1] = -std::max(-gain[depth - 1], gain[depth]);
+    }
+
+    return gain[0];
+}
+
 // Determine if a move is legal for the current board
 bool Board::isLegalMove(Move mv) const {
     Square from = mv.from();

@@ -168,6 +168,15 @@ TEST(BoardTest, enPassantValid) { EXPECT_EQ(Board(ENPASSANT_A3).enPassantSq(), A
 
 TEST(BoardTest, halfmove) { EXPECT_EQ(Board("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1").halfmove(), 7); }
 
+TEST(BoardTest, seeBasicCapture) {
+    Board b("1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - -");
+    EXPECT_EQ(b.see(Move(E1, E5)), pieceValue(PAWN));
+}
+TEST(BoardTest, seeTradingCaptures) {
+    Board b("1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - -");
+    EXPECT_EQ(b.see(Move(D3, E5)), pieceValue(PAWN) - pieceValue(KNIGHT));
+}
+
 TEST(BoardTest, isLegalMove) { EXPECT_TRUE(Board(POS3).isLegalMove(Move(B4, F4))); }
 TEST(BoardTest, isLegalMovePinnedMove) { EXPECT_FALSE(Board(POS3).isLegalMove(Move(B5, B6))); }
 TEST(BoardTest, isLegalMoveMovingIntoCheck) { EXPECT_FALSE(Board(POS3).isLegalMove(Move(A5, B6))); }

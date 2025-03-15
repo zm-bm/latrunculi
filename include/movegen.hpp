@@ -23,6 +23,7 @@ class MovePriority {
         GOOD_CAPTURE = 1 << 12,
         KILLER_MOVE  = 1 << 11,
         HISTORY_MOVE = 1 << 10,
+        BAD_CAPTURE = 0,
     };
 
     Board& chess;
@@ -42,18 +43,23 @@ class MovePriority {
 
     inline U16 scoreMove(const Move& move) {
         if (move == pvMove) {
-            return Priority::PV_MOVE;
+            return PV_MOVE;
         }
         if (move == hashMove) {
-            return Priority::HASH_MOVE;
+            return HASH_MOVE;
         }
         if (move.type() == PROMOTION) {
             return PROM_MOVE + pieceScore(move.promoPiece()).mg;
         }
         if (chess.isCapture(move)) {
-            auto fromPiece = chess.pieceTypeOn(move.from());
-            auto toPiece   = chess.pieceTypeOn(move.to());
-            return GOOD_CAPTURE + pieceScore(toPiece).mg - pieceScore(fromPiece).mg;
+            int see = chess.see(move);
+            if (see >= 0) {
+                auto fromPiece = chess.pieceTypeOn(move.from());
+                auto toPiece   = chess.pieceTypeOn(move.to());
+                return GOOD_CAPTURE + pieceScore(toPiece).mg - pieceScore(fromPiece).mg;
+            } else {
+                return BAD_CAPTURE;
+            }
         }
         if (heuristics.killers.isKiller(move, depth)) {
             return KILLER_MOVE;

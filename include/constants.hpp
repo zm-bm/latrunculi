@@ -53,6 +53,10 @@ constexpr int BISHOP_VALUE_EG = 740;
 constexpr int ROOK_VALUE_EG   = 1100;
 constexpr int QUEEN_VALUE_EG  = 2150;
 
+constexpr int PIECE_VALUES[N_PIECES - 1] = {
+    PAWN_VALUE_MG, KNIGHT_VALUE_MG, BISHOP_VALUE_MG, ROOK_VALUE_MG, QUEEN_VALUE_MG, 0};
+constexpr int pieceValue(PieceType pieceType) { return PIECE_VALUES[pieceType - 1]; };
+
 constexpr int TEMPO_BONUS = 25;
 constexpr int SCALE_LIMIT = 64;
 constexpr int PHASE_LIMIT = 128;

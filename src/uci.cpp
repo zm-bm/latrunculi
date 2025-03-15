@@ -136,10 +136,7 @@ void Engine::move(std::istringstream& iss) {
             std::ostringstream oss;
             oss << move;
 
-            if (oss.str() == token 
-                && chess.isLegalMove(move)
-            ) {
-                chess.isCheckingMove(move);
+            if (oss.str() == token && chess.isLegalMove(move)) {
                 chess.make(move);
             }
         }
