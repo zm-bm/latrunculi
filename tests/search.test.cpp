@@ -7,7 +7,7 @@
 
 #include "constants.hpp"
 #include "search.hpp"
-#include "chess.hpp"
+#include "board.hpp"
 
 // Perft positions and results
 // https://www.chessprogramming.org/Perft_Results
@@ -43,7 +43,7 @@ using PerftParams = std::tuple<std::string, std::vector<long>>;
 class PerftTest : public ::testing::TestWithParam<PerftParams> {};
 TEST_P(PerftTest, PerftForMultipleDepths) {
     auto [fen, expected_results] = GetParam();
-    Chess chess(fen);
+    Board chess(fen);
     std::stringstream nullStream;
 
     for (int depth = 1; depth <= expected_results.size(); ++depth) {

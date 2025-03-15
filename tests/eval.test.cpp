@@ -3,7 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "bb.hpp"
-#include "chess.hpp"
+#include "board.hpp"
 #include "score.hpp"
 #include "types.hpp"
 #include "constants.hpp"
@@ -11,21 +11,21 @@
 class EvaluatorTest : public ::testing::Test {
    protected:
     void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         EXPECT_EQ(eval.outposts[WHITE], expectedWhite) << fen;
         EXPECT_EQ(eval.outposts[BLACK], expectedBlack) << fen;
     }
 
     void testMobilityArea(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         EXPECT_EQ(eval.mobilityArea[WHITE], expectedWhite) << fen;
         EXPECT_EQ(eval.mobilityArea[BLACK], expectedBlack) << fen;
     }
 
     void testMobility(const std::string& fen, Score expectedWhite, Score expectedBlack) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         eval.evaluate();
         EXPECT_EQ(eval.mobility[WHITE], expectedWhite) << fen;
@@ -33,7 +33,7 @@ class EvaluatorTest : public ::testing::Test {
     }
 
     void testPawnsScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         EXPECT_EQ(eval.pawnsScore<WHITE>(), expectedWhite) << fen;
         EXPECT_EQ(eval.pawnsScore<BLACK>(), expectedBlack) << fen;
@@ -41,7 +41,7 @@ class EvaluatorTest : public ::testing::Test {
 
     template <PieceType p>
     void testPiecesScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         Score wScore = eval.piecesScore<WHITE, p>();
         Score bScore = eval.piecesScore<BLACK, p>();
@@ -50,7 +50,7 @@ class EvaluatorTest : public ::testing::Test {
     }
 
     void testKingScore(const std::string& fen, Score expected) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         eval.evaluate();
         EXPECT_EQ(eval.kingScore<WHITE>(), expected) << fen;
@@ -58,7 +58,7 @@ class EvaluatorTest : public ::testing::Test {
     }
 
     void testKingShelter(const std::string& fen, Score expectedWhite, Score expectedBlack) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         EXPECT_EQ(eval.kingShelter<WHITE>(chess.kingSq(WHITE)), expectedWhite) << fen;
         EXPECT_EQ(eval.kingShelter<BLACK>(chess.kingSq(BLACK)), expectedBlack) << fen;
@@ -68,7 +68,7 @@ class EvaluatorTest : public ::testing::Test {
                          Score expectedWhite,
                          Score expectedBlack,
                          File file) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         U64 wPawns = chess.pieces<PAWN>(WHITE);
         U64 bPawns = chess.pieces<PAWN>(BLACK);
@@ -77,20 +77,20 @@ class EvaluatorTest : public ::testing::Test {
     }
 
     void testPhase(const std::string& fen, int expected, int tolerance) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         int phaseValue = eval.phase();
         EXPECT_LE(std::abs(phaseValue - expected), tolerance) << fen;
     }
 
     void testNonPawnMaterial(const std::string& fen, Color c, int expected) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         EXPECT_EQ(eval.nonPawnMaterial(c), expected);
     }
 
     void testScaleFactor(const std::string& fen, int expected) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         EXPECT_EQ(eval.scaleFactor(), expected) << fen;
     }
@@ -104,7 +104,7 @@ TEST_F(EvaluatorTest, Eval) {
     };
 
     for (const auto& [fen, expected, exact] : testCases) {
-        Chess chess(fen);
+        Board chess(fen);
         Eval<Silent> eval(chess);
         if (exact) {
             EXPECT_EQ(eval.evaluate(), expected + TEMPO_BONUS) << fen;

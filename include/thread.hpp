@@ -10,7 +10,7 @@
 #include <thread>
 #include <vector>
 
-#include "chess.hpp"
+#include "board.hpp"
 #include "constants.hpp"
 #include "search.hpp"
 #include "types.hpp"
@@ -54,7 +54,7 @@ struct Heuristics {
     HistoryTable history;
     KillerMoves killers;
 
-    inline void updateBetaCutoff(Chess& chess, Move move, int depth) {
+    inline void updateBetaCutoff(Board& chess, Move move, int depth) {
         Square to = move.to();
         if (chess.pieceOn(to) == Piece::NONE) {
             killers.update(move, depth);
@@ -112,7 +112,7 @@ class Thread {
     void stop();
     void set(const std::string&, int);
 
-    Chess chess;
+    Board chess;
     PrincipalVariation pv;
     Heuristics heuristics;
 
@@ -141,7 +141,7 @@ class ThreadPool {
     ThreadPool(size_t numThreads);
     ~ThreadPool();
 
-    void startAll(Chess&, int);
+    void startAll(Board&, int);
     void stopAll();
 
     static inline std::atomic<bool> stopThreads{false};

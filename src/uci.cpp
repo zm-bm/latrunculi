@@ -2,7 +2,7 @@
 
 #include <sstream>
 
-#include "chess.hpp"
+#include "board.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"
@@ -97,7 +97,7 @@ void Engine::position(std::istringstream& iss) {
         return;
     }
 
-    chess = Chess(fen);
+    chess = Board(fen);
 
 }
 
@@ -136,7 +136,10 @@ void Engine::move(std::istringstream& iss) {
             std::ostringstream oss;
             oss << move;
 
-            if (oss.str() == token) {
+            if (oss.str() == token 
+                && chess.isLegalMove(move)
+            ) {
+                chess.isCheckingMove(move);
                 chess.make(move);
             }
         }

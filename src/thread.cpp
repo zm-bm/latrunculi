@@ -30,7 +30,7 @@ void Thread::stop() {
 void Thread::set(const std::string& fen, int depth) {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        chess = Chess(fen, this);
+        chess = Board(fen, this);
         searchDepth = depth;
     }
 }
@@ -111,7 +111,7 @@ ThreadPool::ThreadPool(size_t numThreads) {
 
 ThreadPool::~ThreadPool() { stopAll(); }
 
-void ThreadPool::startAll(Chess& chess, int depth) {
+void ThreadPool::startAll(Board& chess, int depth) {
     stopThreads = false;
     for (auto& searchThread : searchThreads) {
         searchThread->set(chess.toFEN(), depth);

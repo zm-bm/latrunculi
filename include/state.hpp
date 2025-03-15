@@ -16,10 +16,10 @@ struct State {
         , hmClock(state.hmClock + 1) {}
 
     // Check info bitboards
+    U64 checkers = 0;
     U64 blockers[N_COLORS] = {0};
     U64 pinners[N_COLORS] = {0};
-    U64 checkingPieces = 0;
-    U64 checkingSquares[N_PIECES-1] = {0};
+    U64 checks[N_PIECES-1] = {0};
 
     // Hash keys
     U64 zkey = 0;

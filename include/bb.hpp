@@ -9,7 +9,7 @@
 
 namespace BB {
 
-using BitboardTable = std::array<U64, N_SQUARES>;
+using BitboardTable  = std::array<U64, N_SQUARES>;
 using BitboardMatrix = std::array<std::array<U64, N_SQUARES>, N_SQUARES>;
 
 constexpr std::array<U64, N_RANKS> RANK_MASK = [] {
@@ -65,9 +65,9 @@ static constexpr U64 addSquare(File file, Rank rank) {
 constexpr BitboardTable KNIGHT_ATTACKS = [] {
     BitboardTable table = {};
     for (auto sq = 0; sq < N_SQUARES; ++sq) {
-        auto file = fileOf(Square(sq));
-        auto rank = rankOf(Square(sq));
-        table[sq] = 0;
+        auto file  = fileOf(Square(sq));
+        auto rank  = rankOf(Square(sq));
+        table[sq]  = 0;
         table[sq] |= addSquare(file + 2, rank + 1);
         table[sq] |= addSquare(file + 2, rank - 1);
         table[sq] |= addSquare(file - 2, rank + 1);
@@ -83,9 +83,9 @@ constexpr BitboardTable KNIGHT_ATTACKS = [] {
 constexpr BitboardTable KING_ATTACKS = [] {
     BitboardTable table = {};
     for (auto sq = 0; sq < N_SQUARES; ++sq) {
-        auto file = fileOf(Square(sq));
-        auto rank = rankOf(Square(sq));
-        table[sq] = 0;
+        auto file  = fileOf(Square(sq));
+        auto rank  = rankOf(Square(sq));
+        table[sq]  = 0;
         table[sq] |= addSquare(file - 1, rank - 1);
         table[sq] |= addSquare(file - 1, rank + 1);
         table[sq] |= addSquare(file + 1, rank - 1);
@@ -176,10 +176,21 @@ constexpr U64 set(const Square sq) { return BB::BITSET[sq]; }
 constexpr U64 clear(const Square sq) { return BB::BITCLEAR[sq]; }
 constexpr U64 inlineBB(const Square sq1, const Square sq2) { return BITLINE[sq1][sq2]; }
 constexpr U64 betweenBB(const Square sq1, const Square sq2) { return BITBTWN[sq1][sq2]; }
-inline U64 hasMoreThanOne(U64 bb) { return bb & (bb - 1); }
+constexpr U64 hasMoreThanOne(U64 bb) { return bb & (bb - 1); }
 inline int count(U64 bb) { return __builtin_popcountll(bb); }
 inline Square lsb(U64 bb) { return static_cast<Square>(__builtin_ctzll(bb)); }
 inline Square msb(U64 bb) { return static_cast<Square>(63 - __builtin_clzll(bb)); }
+inline Square lsbPop(U64& bb) {
+    Square sq = static_cast<Square>(__builtin_ctzll(bb));
+    bb &= ~(1ULL << sq);
+    return sq;
+}
+inline Square msbPop(U64& bb) {
+    Square sq = static_cast<Square>(__builtin_ctzll(bb));
+    bb &= ~(1ULL << sq);
+    return sq;
+}
+
 
 template <Color c>
 inline Square advancedSq(U64 bb) {
@@ -234,11 +245,12 @@ inline U64 pawnFullSpan(U64 bb) {
 
 template <PawnMove p, Color c>
 inline U64 pawnMoves(U64 pawns) {
-    if constexpr (p == LEFT || p == RIGHT) {
-        constexpr U64 mask = file((p == LEFT)  // mask left/right side
-                                      ? (c == WHITE ? FILE1 : FILE8)
-                                      : (c == WHITE ? FILE8 : FILE1));
-        pawns &= ~mask;
+    if constexpr (p == LEFT) {
+        constexpr U64 filemask  = file(c == WHITE ? FILE1 : FILE8);
+        pawns                  &= ~filemask;
+    } else if constexpr (p == RIGHT) {
+        constexpr U64 filemask  = file(c == WHITE ? FILE8 : FILE1);
+        pawns                  &= ~filemask;
     }
 
     constexpr int shift = static_cast<int>(p);
@@ -261,12 +273,18 @@ inline U64 pawnAttacks(U64 pawns, Color c) {
 
 template <PieceType p>
 inline U64 pieceMoves(Square sq, U64 occupancy) {
-    if constexpr (p == KNIGHT) return KNIGHT_ATTACKS[sq];
-    else if constexpr (p == BISHOP) return Magics::getBishopAttacks(sq, occupancy);
-    else if constexpr (p == ROOK) return Magics::getRookAttacks(sq, occupancy);
-    else if constexpr (p == QUEEN) return Magics::getQueenAttacks(sq, occupancy);
-    else if constexpr (p == KING) return KING_ATTACKS[sq];
-    else return 0;
+    if constexpr (p == KNIGHT)
+        return KNIGHT_ATTACKS[sq];
+    else if constexpr (p == BISHOP)
+        return Magics::getBishopAttacks(sq, occupancy);
+    else if constexpr (p == ROOK)
+        return Magics::getRookAttacks(sq, occupancy);
+    else if constexpr (p == QUEEN)
+        return Magics::getQueenAttacks(sq, occupancy);
+    else if constexpr (p == KING)
+        return KING_ATTACKS[sq];
+    else
+        return 0;
 }
 
 inline U64 pieceMoves(Square sq, PieceType p, U64 occupancy) {

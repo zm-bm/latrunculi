@@ -31,6 +31,8 @@ enum Square : U8 {
   N_SQUARES = 64
 };
 
+enum PawnMove : U8 { LEFT = 7, PUSH = 8, RIGHT = 9, DOUBLE = 16 };
+
 enum class Piece : U8 {
   NONE = 0,
   B_PAWN = 1, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
@@ -58,11 +60,9 @@ enum CastleRights {
     ALL_CASTLE = BLACK_CASTLE | WHITE_CASTLE
 };
 
-enum CastleDirection { KINGSIDE, QUEENSIDE };
+enum CastleDirection { KINGSIDE, QUEENSIDE, N_CASTLES };
 
 enum MoveType { NORMAL, PROMOTION, ENPASSANT, CASTLE };
-
-enum PawnMove { LEFT = 7, PUSH = 8, RIGHT = 9, DOUBLE = 16 };
 
 enum Phase { MIDGAME, ENDGAME, N_PHASES };
 

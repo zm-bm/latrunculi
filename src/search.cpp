@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "chess.hpp"
+#include "board.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"
 #include "tt.hpp"
@@ -62,7 +62,7 @@ int search(Thread& th, int alpha, int beta, int depth) {
     }
 
     constexpr bool isPV = (node == NodeType::Root || node == NodeType::PV);
-    Chess& chess = th.chess;
+    Board& chess = th.chess;
     U64 key = chess.getKey();
     int lowerbound = alpha;
     int upperbound = beta;
@@ -145,7 +145,7 @@ int search(Thread& th, int alpha, int beta, int depth) {
 template int search<NodeType::Root>(Thread&, int, int, int);
 
 template <NodeType node>
-U64 perft(int depth, Chess& chess, std::ostream& oss) {
+U64 perft(int depth, Board& chess, std::ostream& oss) {
     if (depth == 0) return 1;
 
     MoveGenerator<GenType::All> moves{chess};
@@ -174,6 +174,6 @@ U64 perft(int depth, Chess& chess, std::ostream& oss) {
     return nodes;
 }
 
-template U64 perft<NodeType::Root>(int, Chess&, std::ostream& = std::cout);
+template U64 perft<NodeType::Root>(int, Board&, std::ostream& = std::cout);
 
 }  // namespace Search

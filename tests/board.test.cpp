@@ -1,0 +1,467 @@
+#include "board.hpp"
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <memory>
+#include <string>
+
+#include "constants.hpp"
+#include "eval.hpp"
+#include "score.hpp"
+#include "zobrist.hpp"
+
+const auto PAWN_E2        = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
+const auto PAWN_E4        = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
+const auto ENPASSANT_A3   = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
+const std::string FENS[6] = {STARTFEN, POS2, POS3, POS4W, POS4B, POS5};
+
+TEST(BoardTest, piecesEmptyBoard) {
+    Board b(EMPTYFEN);
+    EXPECT_EQ(b.pieces<KING>(WHITE), BB::set(E1));
+    EXPECT_EQ(b.pieces<KING>(BLACK), BB::set(E8));
+    EXPECT_EQ(b.pieces<PAWN>(WHITE), 0x0);
+    EXPECT_EQ(b.pieces<PAWN>(BLACK), 0x0);
+    EXPECT_EQ(b.pieces<KNIGHT>(WHITE), 0x0);
+    EXPECT_EQ(b.pieces<KNIGHT>(BLACK), 0x0);
+    EXPECT_EQ(b.pieces<BISHOP>(WHITE), 0x0);
+    EXPECT_EQ(b.pieces<BISHOP>(BLACK), 0x0);
+    EXPECT_EQ(b.pieces<ROOK>(WHITE), 0x0);
+    EXPECT_EQ(b.pieces<ROOK>(BLACK), 0x0);
+    EXPECT_EQ(b.pieces<QUEEN>(WHITE), 0x0);
+    EXPECT_EQ(b.pieces<QUEEN>(BLACK), 0x0);
+}
+
+TEST(BoardTest, pieces_StartBoard) {
+    Board b(STARTFEN);
+    EXPECT_EQ(b.pieces<KING>(WHITE), BB::set(E1));
+    EXPECT_EQ(b.pieces<KING>(BLACK), BB::set(E8));
+    EXPECT_EQ(b.pieces<PAWN>(WHITE), BB::rank(RANK2));
+    EXPECT_EQ(b.pieces<PAWN>(BLACK), BB::rank(RANK7));
+    EXPECT_EQ(b.pieces<KNIGHT>(WHITE), BB::set(B1) | BB::set(G1));
+    EXPECT_EQ(b.pieces<KNIGHT>(BLACK), BB::set(B8) | BB::set(G8));
+    EXPECT_EQ(b.pieces<BISHOP>(WHITE), BB::set(C1) | BB::set(F1));
+    EXPECT_EQ(b.pieces<BISHOP>(BLACK), BB::set(C8) | BB::set(F8));
+    EXPECT_EQ(b.pieces<ROOK>(WHITE), BB::set(A1) | BB::set(H1));
+    EXPECT_EQ(b.pieces<ROOK>(BLACK), BB::set(A8) | BB::set(H8));
+    EXPECT_EQ(b.pieces<QUEEN>(WHITE), BB::set(D1));
+    EXPECT_EQ(b.pieces<QUEEN>(BLACK), BB::set(D8));
+}
+
+TEST(BoardTest, occupancyEmptyBoard) {
+    U64 expected = BB::set(E1) | BB::set(E8);
+    EXPECT_EQ(Board(EMPTYFEN).occupancy(), expected);
+}
+
+TEST(BoardTest, occupancyStartBoard) {
+    U64 expected = BB::rank(RANK1) | BB::rank(RANK2) | BB::rank(RANK7) | BB::rank(RANK8);
+    EXPECT_EQ(Board(STARTFEN).occupancy(), expected);
+}
+
+TEST(BoardTest, countEmptyBoard) {
+    Board b(EMPTYFEN);
+    EXPECT_EQ(b.count(WHITE, KING), 1);
+    EXPECT_EQ(b.count(BLACK, KING), 1);
+    EXPECT_EQ(b.count(WHITE, PAWN), 0);
+    EXPECT_EQ(b.count(BLACK, PAWN), 0);
+    EXPECT_EQ(b.count(WHITE, KNIGHT), 0);
+    EXPECT_EQ(b.count(BLACK, KNIGHT), 0);
+    EXPECT_EQ(b.count(WHITE, BISHOP), 0);
+    EXPECT_EQ(b.count(BLACK, BISHOP), 0);
+    EXPECT_EQ(b.count(WHITE, ROOK), 0);
+    EXPECT_EQ(b.count(BLACK, ROOK), 0);
+    EXPECT_EQ(b.count(WHITE, QUEEN), 0);
+    EXPECT_EQ(b.count(BLACK, QUEEN), 0);
+}
+
+TEST(BoardTest, countStartBoard) {
+    Board b(STARTFEN);
+    EXPECT_EQ(b.count(WHITE, KING), 1);
+    EXPECT_EQ(b.count(BLACK, KING), 1);
+    EXPECT_EQ(b.count(WHITE, PAWN), 8);
+    EXPECT_EQ(b.count(BLACK, PAWN), 8);
+    EXPECT_EQ(b.count(WHITE, KNIGHT), 2);
+    EXPECT_EQ(b.count(BLACK, KNIGHT), 2);
+    EXPECT_EQ(b.count(WHITE, BISHOP), 2);
+    EXPECT_EQ(b.count(BLACK, BISHOP), 2);
+    EXPECT_EQ(b.count(WHITE, ROOK), 2);
+    EXPECT_EQ(b.count(BLACK, ROOK), 2);
+    EXPECT_EQ(b.count(WHITE, QUEEN), 1);
+    EXPECT_EQ(b.count(BLACK, QUEEN), 1);
+}
+
+TEST(BoardTest, pieceOnEmptyBoard) {
+    Board b(EMPTYFEN);
+    EXPECT_EQ(b.pieceOn(E1), Piece::W_KING);
+    EXPECT_EQ(b.pieceOn(FILE5, RANK1), Piece::W_KING);
+    EXPECT_EQ(b.pieceOn(E2), Piece::NONE);
+    EXPECT_EQ(b.pieceOn(FILE5, RANK2), Piece::NONE);
+}
+
+TEST(BoardTest, pieceOnStartBoard) {
+    Board b(STARTFEN);
+    EXPECT_EQ(b.pieceOn(A2), Piece::W_PAWN);
+    EXPECT_EQ(b.pieceOn(FILE1, RANK2), Piece::W_PAWN);
+    EXPECT_EQ(b.pieceOn(A3), Piece::NONE);
+    EXPECT_EQ(b.pieceOn(FILE1, RANK3), Piece::NONE);
+}
+
+TEST(Board_getPieceType, pieceTypeOnEmptyBoard) {
+    Board b(EMPTYFEN);
+    EXPECT_EQ(b.pieceTypeOn(E1), KING);
+    EXPECT_EQ(b.pieceTypeOn(E2), NO_PIECE_TYPE);
+}
+
+TEST(BoardTest, pieceTypeOnStartBoard) {
+    Board b(STARTFEN);
+    EXPECT_EQ(b.pieceTypeOn(A2), PAWN);
+    EXPECT_EQ(b.pieceTypeOn(A3), NO_PIECE_TYPE);
+}
+
+TEST(BoardTest, kingSqEmptyBoard) {
+    Board b(EMPTYFEN);
+    EXPECT_EQ(b.kingSq(WHITE), E1);
+    EXPECT_EQ(b.kingSq(BLACK), E8);
+}
+
+TEST(BoardTest, kingSqStartBoard) {
+    Board b(STARTFEN);
+    EXPECT_EQ(b.kingSq(WHITE), E1);
+    EXPECT_EQ(b.kingSq(BLACK), E8);
+}
+
+TEST(BoardTest, sideToMoveWhite) { EXPECT_EQ(Board(STARTFEN).sideToMove(), WHITE); }
+TEST(BoardTest, sideToMoveBlack) { EXPECT_EQ(Board(POS4B).sideToMove(), BLACK); }
+
+TEST(BoardTest, materialStartBoard) { EXPECT_EQ(Board(STARTFEN).materialScore(), Score{}); }
+TEST(BoardTest, materialWhitePawn) {
+    Board b("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1");
+    EXPECT_EQ(b.materialScore(), pieceScore(PAWN));
+}
+TEST(BoardTest, materialBlackBishop) {
+    Board b("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1");
+    EXPECT_EQ(b.materialScore(), pieceScore(BISHOP, BLACK));
+}
+TEST(BoardTest, materialWhiteQueenBlackRook) {
+    Board b("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1");
+    EXPECT_EQ(b.materialScore(), pieceScore(QUEEN) + pieceScore(ROOK, BLACK));
+}
+
+TEST(BoardTest, psqBonusStartBoard) { EXPECT_EQ(Board(STARTFEN).psqBonusScore(), Score{}); }
+TEST(BoardTest, psqBonusWhiteE2Pawn) {
+    EXPECT_EQ(Board(PAWN_E2).psqBonusScore(), pieceSqScore(PAWN, WHITE, E2));
+}
+TEST(BoardTest, psqBonusBlackD8Queen) {
+    Board b("3qk3/8/8/8/8/8/8/4K3 w - - 0 1");
+    EXPECT_EQ(b.psqBonusScore(), pieceSqScore(QUEEN, BLACK, D8));
+}
+
+TEST(BoardTest, getCastleEmptyBoard) { EXPECT_EQ(Board(EMPTYFEN).castleRights(), NO_CASTLE); }
+TEST(BoardTest, getCastlePos5) { EXPECT_EQ(Board(POS5).castleRights(), WHITE_CASTLE); }
+
+TEST(BoardTest, checkersNone) { EXPECT_EQ(Board(STARTFEN).checkers(), 0); }
+TEST(BoardTest, checkersWhite) { EXPECT_EQ(Board(POS4W).checkers(), BB::set(B6)); }
+TEST(BoardTest, checkersBlack) { EXPECT_EQ(Board(POS4B).checkers(), BB::set(B3)); }
+
+TEST(BoardTest, enPassantInvalid) { EXPECT_EQ(Board(STARTFEN).enPassantSq(), INVALID); }
+TEST(BoardTest, enPassantValid) { EXPECT_EQ(Board(ENPASSANT_A3).enPassantSq(), A3); }
+
+TEST(BoardTest, halfmove) { EXPECT_EQ(Board("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1").halfmove(), 7); }
+
+TEST(BoardTest, isLegalMove) { EXPECT_TRUE(Board(POS3).isLegalMove(Move(B4, F4))); }
+TEST(BoardTest, isLegalMovePinnedMove) { EXPECT_FALSE(Board(POS3).isLegalMove(Move(B5, B6))); }
+TEST(BoardTest, isLegalMoveMovingIntoCheck) { EXPECT_FALSE(Board(POS3).isLegalMove(Move(A5, B6))); }
+TEST(BoardTest, isLegalMoveCastling) { EXPECT_TRUE(Board(POS2).isLegalMove(Move(E1, G1, CASTLE))); }
+TEST(BoardTest, isLegalMoveEnPassant) {
+    EXPECT_TRUE(Board(ENPASSANT_A3).isLegalMove(Move(B4, A3, ENPASSANT)));
+}
+TEST(BoardTest, isLegalMovePinnedEnPassant) {
+    Board b("8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - e3 0 1");
+    EXPECT_FALSE(b.isLegalMove(Move(F4, E3, ENPASSANT)));
+}
+
+TEST(BoardTest, isCheckingMoveRegularChecks) {
+    Board b("4k3/8/8/8/6N1/8/8/RB1QK3 w - - 0 1");
+    EXPECT_TRUE(b.isCheckingMove(Move(A1, A8)));
+    EXPECT_TRUE(b.isCheckingMove(Move(B1, G6)));
+    EXPECT_TRUE(b.isCheckingMove(Move(D1, A4)));
+    EXPECT_TRUE(b.isCheckingMove(Move(G4, F6)));
+    EXPECT_FALSE(b.isCheckingMove(Move(A1, A7)));
+    EXPECT_FALSE(b.isCheckingMove(Move(B1, H7)));
+    EXPECT_FALSE(b.isCheckingMove(Move(D1, F3)));
+    EXPECT_FALSE(b.isCheckingMove(Move(G4, H6)));
+}
+TEST(BoardTest, isCheckingMoveDiscoveredChecks) {
+    Board b("Q1N1k3/8/2N1N3/8/B7/8/4R3/4K3 w - - 0 1");
+    EXPECT_TRUE(b.isCheckingMove(Move(C8, B6)));
+    EXPECT_TRUE(b.isCheckingMove(Move(C6, B8)));
+    EXPECT_TRUE(b.isCheckingMove(Move(E6, C5)));
+}
+TEST(BoardTest, isCheckingMoveDiscoveredEnPassant) {
+    Board b("4k3/8/8/1pP5/B7/8/8/4K3 w - b6 0 1");
+    EXPECT_TRUE(b.isCheckingMove(Move(C5, B6, ENPASSANT)));
+}
+TEST(BoardTest, isCheckingMovePromotions) {
+    Board b("4k3/P7/8/8/8/8/8/4K3 w - - 0 1");
+    EXPECT_TRUE(b.isCheckingMove(Move(A7, A8, PROMOTION, QUEEN)));
+    EXPECT_TRUE(b.isCheckingMove(Move(A7, A8, PROMOTION, ROOK)));
+    EXPECT_FALSE(b.isCheckingMove(Move(A7, A8, PROMOTION, BISHOP)));
+    EXPECT_FALSE(b.isCheckingMove(Move(A7, A8, PROMOTION, KNIGHT)));
+}
+TEST(BoardTEST, isCheckingMoveCastles) {
+    Board b("5k2/8/8/8/8/8/8/4K2R w K - 0 1");
+    EXPECT_TRUE(b.isCheckingMove(Move(E1, G1, CASTLE)));
+}
+
+TEST(BoardTest, isCapture) {
+    Board b(POS2);
+    EXPECT_TRUE(b.isCapture(Move(D5, E6)));
+    EXPECT_TRUE(b.isCapture(Move(F3, F6)));
+    EXPECT_FALSE(b.isCapture(Move(A2, A4)));
+    EXPECT_FALSE(b.isCapture(Move(C3, B5)));
+}
+
+TEST(BoardTest, isCheck) {
+    EXPECT_FALSE(Board(STARTFEN).isCheck());
+    EXPECT_TRUE(Board(POS4W).isCheck());
+    EXPECT_TRUE(Board(POS4B).isCheck());
+}
+
+TEST(BoardTest, isDoubleCheck) {
+    EXPECT_FALSE(Board(POS4W).isDoubleCheck());
+    EXPECT_FALSE(Board(POS4B).isDoubleCheck());
+    EXPECT_TRUE(Board("R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1").isDoubleCheck());
+}
+
+TEST(BoardTest, attacksToStartBoard) {
+    Board b(STARTFEN);
+    EXPECT_EQ(b.attacksTo(A2, WHITE), BB::set(A1));
+    EXPECT_EQ(b.attacksTo(A3, WHITE), BB::set(B2) | BB::set(B1));
+    EXPECT_EQ(b.attacksTo(A4, WHITE), 0);
+    EXPECT_EQ(b.attacksTo(B2, WHITE), BB::set(C1));
+    EXPECT_EQ(b.attacksTo(B3, WHITE), BB::set(A2) | BB::set(C2));
+    EXPECT_EQ(b.attacksTo(B4, WHITE), 0);
+}
+
+TEST(BoardTest, attacksToBBStartBoard) {
+    Board b(STARTFEN);
+    EXPECT_TRUE(b.attacksTo(BB::rank(RANK1), WHITE));
+    EXPECT_TRUE(b.attacksTo(BB::rank(RANK3), WHITE));
+    EXPECT_TRUE(b.attacksTo(BB::rank(RANK8), BLACK));
+    EXPECT_TRUE(b.attacksTo(BB::rank(RANK6), BLACK));
+    EXPECT_FALSE(b.attacksTo(BB::rank(RANK4), WHITE));
+    EXPECT_FALSE(b.attacksTo(BB::rank(RANK5), BLACK));
+}
+
+TEST(BoardTest, attacksToPinnedPosition) {
+    Board b(POS3);
+    EXPECT_TRUE(b.attacksTo(BB::file(FILE8), WHITE));
+    EXPECT_TRUE(b.attacksTo(BB::file(FILE2), BLACK));
+    EXPECT_FALSE(b.attacksTo(BB::file(FILE7), WHITE));
+    EXPECT_FALSE(b.attacksTo(BB::file(FILE1), BLACK));
+}
+
+TEST(BoardTest, addPiece) {
+    Board chess = Board(EMPTYFEN);
+    U64 key     = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
+    chess.addPiece<true>(E2, WHITE, PAWN);
+
+    EXPECT_EQ(chess.pieceOn(E2), makePiece(WHITE, PAWN));
+    EXPECT_EQ(chess.pieces<PAWN>(WHITE), BB::set(E2));
+    EXPECT_EQ(chess.count(WHITE, PAWN), 1);
+    EXPECT_EQ(chess.occupancy(), BB::set(E8) | BB::set(E2) | BB::set(E1));
+    EXPECT_EQ(chess.getKey(), key);
+    EXPECT_EQ(chess.toFEN(), PAWN_E2);
+}
+
+TEST(BoardTest, removePiece) {
+    Board chess = Board(PAWN_E2);
+    U64 key     = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
+    chess.removePiece<true>(E2, WHITE, PAWN);
+
+    EXPECT_EQ(chess.pieceOn(E2), Piece::NONE);
+    EXPECT_EQ(chess.pieces<PAWN>(WHITE), 0x0);
+    EXPECT_EQ(chess.count(WHITE, PAWN), 0);
+    EXPECT_EQ(chess.occupancy(), BB::set(E8) | BB::set(E1));
+    EXPECT_EQ(chess.getKey(), key);
+    EXPECT_EQ(chess.toFEN(), EMPTYFEN);
+}
+
+TEST(BoardTest, movePiece) {
+    Board chess = Board(PAWN_E2);
+    U64 key     = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
+    chess.movePiece<true>(E2, E4, WHITE, PAWN);
+
+    EXPECT_EQ(chess.pieceOn(E2), Piece::NONE);
+    EXPECT_EQ(chess.pieceOn(E4), makePiece(WHITE, PAWN));
+    EXPECT_EQ(chess.pieces<PAWN>(WHITE), BB::set(E4));
+    EXPECT_EQ(chess.count(WHITE, PAWN), 1);
+    EXPECT_EQ(chess.occupancy(), BB::set(E8) | BB::set(E1) | BB::set(E4));
+    EXPECT_EQ(chess.getKey(), key);
+    EXPECT_EQ(chess.toFEN(), PAWN_E4);
+}
+
+TEST(BoardTest, canCastleStartBoard) {
+    Board b(STARTFEN);
+    EXPECT_TRUE(b.canCastle(WHITE));
+    EXPECT_TRUE(b.canCastleOO(WHITE));
+    EXPECT_TRUE(b.canCastleOOO(WHITE));
+    EXPECT_TRUE(b.canCastle(BLACK));
+    EXPECT_TRUE(b.canCastleOO(BLACK));
+    EXPECT_TRUE(b.canCastleOOO(BLACK));
+}
+
+TEST(BoardTest, canCastleEmptyBoard) {
+    Board b(EMPTYFEN);
+    EXPECT_FALSE(b.canCastle(WHITE));
+    EXPECT_FALSE(b.canCastleOO(WHITE));
+    EXPECT_FALSE(b.canCastleOOO(WHITE));
+    EXPECT_FALSE(b.canCastle(BLACK));
+    EXPECT_FALSE(b.canCastleOO(BLACK));
+    EXPECT_FALSE(b.canCastleOOO(BLACK));
+}
+
+TEST(BoardTest, disableCastle) {
+    Board b(STARTFEN);
+    b.disableCastle(WHITE);
+    EXPECT_FALSE(b.canCastle(WHITE));
+    b.disableCastle(BLACK);
+    EXPECT_FALSE(b.canCastle(BLACK));
+}
+
+TEST(BoardTest, disableCastleKingSide) {
+    Board b;
+    b.disableCastle(WHITE, H1);
+    EXPECT_TRUE(b.canCastle(WHITE));
+    EXPECT_FALSE(b.canCastleOO(WHITE));
+    EXPECT_TRUE(b.canCastleOOO(WHITE));
+    b.disableCastle(BLACK, H8);
+    EXPECT_TRUE(b.canCastle(BLACK));
+    EXPECT_FALSE(b.canCastleOO(BLACK));
+    EXPECT_TRUE(b.canCastleOOO(BLACK));
+}
+
+TEST(BoardTest, disableCastleQueenside) {
+    Board b;
+    b.disableCastle(WHITE, A1);
+    EXPECT_TRUE(b.canCastle(WHITE));
+    EXPECT_TRUE(b.canCastleOO(WHITE));
+    EXPECT_FALSE(b.canCastleOOO(WHITE));
+    b.disableCastle(BLACK, A8);
+    EXPECT_TRUE(b.canCastle(BLACK));
+    EXPECT_TRUE(b.canCastleOO(BLACK));
+    EXPECT_FALSE(b.canCastleOOO(BLACK));
+}
+
+TEST(BoardTest, makeKnightMove) {
+    Board b(STARTFEN);
+    b.make(Move(G1, F3));
+    EXPECT_EQ(b.toFEN(), "rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), STARTFEN);
+}
+
+TEST(BoardTest, makeBishopCapture) {
+    Board b(POS2);
+    b.make(Move(E2, A6));
+    EXPECT_EQ(b.toFEN(), "r3k2r/p1ppqpb1/Bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPB1PPP/R3K2R b KQkq - 0 1");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), POS2);
+}
+
+TEST(BoardTest, makeRookCaptureDisablesCastleRights) {
+    auto fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 1 1";
+    Board b  = Board(fen);
+    b.make(Move(A1, A8));
+    EXPECT_EQ(b.toFEN(), "R3k2r/8/8/8/8/8/8/4K2R b Kk - 0 1");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), fen);
+}
+
+TEST(BoardTest, makePawnDoublePushSetsEnpassantSq) {
+    auto fen = "4k3/8/8/8/1p6/8/P7/4K3 w - - 0 1";
+    Board b  = Board(fen);
+    b.make(Move(A2, A4));
+    EXPECT_EQ(b.toFEN(), ENPASSANT_A3);
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), fen);
+}
+
+TEST(BoardTest, makeEnpassantCapture) {
+    Board b(ENPASSANT_A3);
+    b.make(Move(B4, A3, ENPASSANT));
+    EXPECT_EQ(b.toFEN(), "4k3/8/8/8/8/p7/8/4K3 w - - 0 2");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), ENPASSANT_A3);
+}
+
+TEST(BoardTest, makeCastleKingside) {
+    Board b(POS2);
+    b.make(Move(E1, G1, CASTLE));
+    EXPECT_EQ(b.toFEN(), "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R4RK1 b kq - 1 1");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), POS2);
+}
+
+TEST(BoardTest, makeCastleQueenside) {
+    Board b(POS2);
+    b.make(Move(E1, C1, CASTLE));
+    EXPECT_EQ(b.toFEN(), "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2KR3R b kq - 1 1");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), POS2);
+}
+
+TEST(BoardTest, makeKingMoveDisablesCastleRights) {
+    Board b(POS2);
+    b.make(Move(E1, D1));
+    EXPECT_EQ(b.toFEN(), "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R2K3R b kq - 1 1");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), POS2);
+}
+
+TEST(BoardTest, makeRookMoveDisablesCastleOORights) {
+    Board b(POS2);
+    b.make(Move(H1, F1));
+    EXPECT_EQ(b.toFEN(), "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3KR2 b Qkq - 1 1");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), POS2);
+}
+
+TEST(BoardTest, RookMoveDisablesCastleOOORights) {
+    Board b(POS2);
+    b.make(Move(A1, C1));
+    EXPECT_EQ(b.toFEN(), "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2R1K2R b Kkq - 1 1");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), POS2);
+}
+
+TEST(BoardTest, QueenPromotion) {
+    auto fen = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
+    Board b  = Board(fen);
+    b.make(Move(A7, A8, PROMOTION, QUEEN));
+    EXPECT_EQ(b.toFEN(), "Q3k3/8/8/8/8/8/8/4K3 b - - 0 1");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), fen);
+}
+
+TEST(BoardTest, UnderPromotion) {
+    auto fen = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
+    Board b  = Board(fen);
+    b.make(Move(A7, A8, PROMOTION, BISHOP));
+    EXPECT_EQ(b.toFEN(), "B3k3/8/8/8/8/8/8/4K3 b - - 0 1");
+    b.unmake();
+    EXPECT_EQ(b.toFEN(), fen);
+}
+
+TEST(ChessTest, LoadsAndOutputsCorrectFens) {
+    for (auto fen : FENS) {
+        EXPECT_EQ(Board(fen).toFEN(), fen) << "should return identical fen";
+    }
+}
+
+TEST(BoardTest, ZobristKey) {
+    for (auto fen : FENS) {
+        Board b(fen);
+        EXPECT_EQ(b.getKey(), b.calculateKey());
+    }
+}

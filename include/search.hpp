@@ -11,7 +11,7 @@
 #include "types.hpp"
 
 class Thread;
-class Chess;
+class Board;
 
 namespace Search {
 
@@ -26,9 +26,9 @@ inline int search(Thread& thread, int alpha, int beta, int depth) {
 
 
 template <NodeType>
-U64 perft(int, Chess&, std::ostream& = std::cout);
+U64 perft(int, Board&, std::ostream& = std::cout);
 
-inline U64 perft(int depth, Chess& chess, std::ostream& oss = std::cout) {
+inline U64 perft(int depth, Board& chess, std::ostream& oss = std::cout) {
     return perft<NodeType::Root>(depth, chess, oss);
 }
 

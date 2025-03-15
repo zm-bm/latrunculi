@@ -5,7 +5,7 @@
 #include <string>
 
 #include "bb.hpp"
-#include "chess.hpp"
+#include "board.hpp"
 #include "constants.hpp"
 #include "score.hpp"
 #include "types.hpp"
@@ -35,22 +35,22 @@ template <Verbosity mode = Silent>
 class Eval {
    public:
     Eval() = delete;
-    Eval(const Chess& c);
+    Eval(const Board& c);
     int evaluate();
 
    private:
-    const Chess& chess;
+    const Board& chess;
 
     using TermInfo = typename std::conditional<mode == Verbose, TermScores, std::nullptr_t>::type;
     TermInfo termInfo[N_TERMS];
 
     U64 attacks[N_COLORS][N_PIECES] = {};
-    U64 outposts[N_COLORS] = {0, 0};
-    U64 mobilityArea[N_COLORS] = {0, 0};
-    U64 kingZone[N_COLORS] = {0, 0};
+    U64 outposts[N_COLORS]          = {0, 0};
+    U64 mobilityArea[N_COLORS]      = {0, 0};
+    U64 kingZone[N_COLORS]          = {0, 0};
 
     Score kingDanger[N_COLORS] = {{0, 0}, {0, 0}};
-    Score mobility[N_COLORS] = {{0, 0}, {0, 0}};
+    Score mobility[N_COLORS]   = {{0, 0}, {0, 0}};
 
     template <Color>
     void initialize();
@@ -88,7 +88,7 @@ class Eval {
 };
 
 template <Verbosity mode>
-Eval<mode>::Eval(const Chess& c) : chess{c} {
+Eval<mode>::Eval(const Board& c) : chess{c} {
     initialize<WHITE>();
     initialize<BLACK>();
 }
@@ -96,11 +96,11 @@ Eval<mode>::Eval(const Chess& c) : chess{c} {
 template <Verbosity mode>
 template <Color c>
 void Eval<mode>::initialize() {
-    constexpr Color enemy = ~c;
-    constexpr U64 rank2 = (c == WHITE) ? BB::rank(RANK2) : BB::rank(RANK7);
+    constexpr Color enemy     = ~c;
+    constexpr U64 rank2       = (c == WHITE) ? BB::rank(RANK2) : BB::rank(RANK7);
     constexpr U64 outpostMask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
-    U64 pawns = chess.pieces<PAWN>(c);
-    U64 enemyPawns = chess.pieces<PAWN>(enemy);
+    U64 pawns                 = chess.pieces<PAWN>(c);
+    U64 enemyPawns            = chess.pieces<PAWN>(enemy);
 
     outposts[c] = (~BB::pawnAttackSpan<enemy>(enemyPawns)  // cannot be attacked by enemy pawns
                    & BB::pawnAttacks<c>(pawns)             // supported by friendly pawn
@@ -111,7 +111,7 @@ void Eval<mode>::initialize() {
     Square kingSq = chess.kingSq(c);
     Square center = makeSquare(std::clamp(fileOf(kingSq), FILE2, FILE7),
                                std::clamp(rankOf(kingSq), RANK2, RANK7));
-    kingZone[c] = BB::pieceMoves<KING>(center) | BB::set(center);
+    kingZone[c]   = BB::pieceMoves<KING>(center) | BB::set(center);
 }
 
 template <Verbosity mode>
@@ -154,8 +154,8 @@ int Eval<mode>::evaluate() {
     score += evaluateTerm<TERM_MOBILITY, WHITE>() - evaluateTerm<TERM_MOBILITY, BLACK>();
 
     // scale eg and taper mg/eg to produce final eval
-    score.eg *= scaleFactor() / float(SCALE_LIMIT);
-    int result = score.taper(phase());
+    score.eg   *= scaleFactor() / float(SCALE_LIMIT);
+    int result  = score.taper(phase());
 
     result = (chess.sideToMove() == WHITE)  // result relative to side to move + tempo
                  ? result + TEMPO_BONUS
@@ -179,32 +179,32 @@ template <Verbosity mode>
 template <Color c>
 inline Score Eval<mode>::pawnsScore() {
     constexpr Color enemy = ~c;
-    Score score = {0, 0};
-    U64 pawns = chess.pieces<PAWN>(c);
-    U64 pawnAttacks = BB::pawnAttacks<c>(pawns);
-    U64 enemyPawns = chess.pieces<PAWN>(enemy);
+    Score score           = {0, 0};
+    U64 pawns             = chess.pieces<PAWN>(c);
+    U64 pawnAttacks       = BB::pawnAttacks<c>(pawns);
+    U64 enemyPawns        = chess.pieces<PAWN>(enemy);
 
     attacks[c][ALL_PIECES] |= pawnAttacks;
-    attacks[c][PAWN] |= pawnAttacks;
-    kingDanger[enemy] += KING_DANGER[PAWN] * BB::count(pawnAttacks & kingZone[enemy]);
+    attacks[c][PAWN]       |= pawnAttacks;
+    kingDanger[enemy]      += KING_DANGER[PAWN] * BB::count(pawnAttacks & kingZone[enemy]);
 
     // isolated pawns
-    U64 pawnsFill = BB::fillFiles(pawns);
-    U64 isolatedPawns = (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
-    score += ISO_PAWN_PENALTY * BB::count(isolatedPawns);
+    U64 pawnsFill      = BB::fillFiles(pawns);
+    U64 isolatedPawns  = (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
+    score             += ISO_PAWN_PENALTY * BB::count(isolatedPawns);
 
     // backwards pawns
-    U64 stops = BB::pawnMoves<PUSH, c>(pawns);
-    U64 attackSpan = BB::pawnAttackSpan<c>(pawns);
-    U64 enemyAttacks = BB::pawnAttacks<enemy>(enemyPawns);
-    U64 backwardsPawns = BB::pawnMoves<PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
-    score += BACKWARD_PAWN_PENALTY * BB::count(backwardsPawns);
+    U64 stops           = BB::pawnMoves<PUSH, c>(pawns);
+    U64 attackSpan      = BB::pawnAttackSpan<c>(pawns);
+    U64 enemyAttacks    = BB::pawnAttacks<enemy>(enemyPawns);
+    U64 backwardsPawns  = BB::pawnMoves<PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
+    score              += BACKWARD_PAWN_PENALTY * BB::count(backwardsPawns);
 
     // doubled pawns (unsupported pawn with friendly pawns behind)
-    U64 pawnsBehind = pawns & BB::spanFront<c>(pawns);
-    U64 supported = BB::pawnAttacks<c>(pawns);
-    U64 doubledPawns = pawnsBehind & ~supported;
-    score += DOUBLED_PAWN_PENALTY * BB::count(doubledPawns);
+    U64 pawnsBehind   = pawns & BB::spanFront<c>(pawns);
+    U64 supported     = BB::pawnAttacks<c>(pawns);
+    U64 doubledPawns  = pawnsBehind & ~supported;
+    score            += DOUBLED_PAWN_PENALTY * BB::count(doubledPawns);
 
     // passed pawns
     // U64 passedPawns = pawns & ~BB::pawnFullSpan<enemy>(enemyPawns)
@@ -216,28 +216,28 @@ template <Verbosity mode>
 template <Color c, PieceType p>
 Score Eval<mode>::piecesScore() {
     constexpr Color enemy = ~c;
-    Score score = {0, 0};
-    U64 occ = chess.occupancy();
-    U64 pawns = chess.pieces<PAWN>(c);
-    U64 enemyPawns = chess.pieces<PAWN>(enemy);
+    Score score           = {0, 0};
+    U64 occ               = chess.occupancy();
+    U64 pawns             = chess.pieces<PAWN>(c);
+    U64 enemyPawns        = chess.pieces<PAWN>(enemy);
 
     // bonus for bishop pair
     if constexpr (p == BISHOP) {
-        if (chess.count<BISHOP>(c) > 1) {
+        if (chess.count(c, BISHOP) > 1) {
             score += BISHOP_PAIR_BONUS;
         }
     }
 
     forEachPiece<c>(chess.pieces<p>(c), [&](Square sq) {
-        U64 bb = BB::set(sq);
+        U64 bb    = BB::set(sq);
         U64 moves = BB::pieceMoves<p>(sq, occ);
 
         attacks[c][ALL_PIECES] |= moves;
-        attacks[c][p] |= moves;
+        attacks[c][p]          |= moves;
 
         kingDanger[enemy] += KING_DANGER[p] * BB::count(moves & kingZone[enemy]);
 
-        U64 nMoves = BB::count(moves & mobilityArea[c]);
+        U64 nMoves   = BB::count(moves & mobilityArea[c]);
         mobility[c] += MOBILITY_BONUS[p][nMoves];
 
         if constexpr (p == KNIGHT || p == BISHOP) {
@@ -291,7 +291,7 @@ template <Verbosity mode>
 template <Color c>
 inline Score Eval<mode>::kingScore() {
     Square kingSq = chess.kingSq(c);
-    Score score = kingShelter<c>(kingSq);
+    Score score   = kingShelter<c>(kingSq);
 
     if (chess.canCastleOO(c)) {
         score = std::max(score, kingShelter<c>(KingDestinationOO[c]));
@@ -314,19 +314,19 @@ inline Score Eval<mode>::kingShelter(Square kingSq) {
     Rank kingRank = rankOf(kingSq);
 
     U64 pawnsInFront = BB::spanFront<c>(BB::rank(kingRank));
-    U64 enemyPawns = chess.pieces<PAWN>(enemy) & pawnsInFront;
-    U64 pawns = chess.pieces<PAWN>(c) & pawnsInFront & ~BB::pawnAttacks<enemy>(enemyPawns);
+    U64 enemyPawns   = chess.pieces<PAWN>(enemy) & pawnsInFront;
+    U64 pawns        = chess.pieces<PAWN>(c) & pawnsInFront & ~BB::pawnAttacks<enemy>(enemyPawns);
 
-    File file = std::clamp(kingFile, FILE2, FILE7);
+    File file   = std::clamp(kingFile, FILE2, FILE7);
     Score score = fileShelter<c>(pawns, enemyPawns, file - 1) +
                   fileShelter<c>(pawns, enemyPawns, file) +
                   fileShelter<c>(pawns, enemyPawns, file + 1);
 
     score += KING_FILE_BONUS[kingFile];
 
-    bool friendlyOpenFile = !(chess.pieces<PAWN>(c) & BB::file(kingFile));
-    bool enemyOpenFile = !(chess.pieces<PAWN>(enemy) & BB::file(kingFile));
-    score += KING_OPEN_FILE_BONUS[friendlyOpenFile][enemyOpenFile];
+    bool friendlyOpenFile  = !(chess.pieces<PAWN>(c) & BB::file(kingFile));
+    bool enemyOpenFile     = !(chess.pieces<PAWN>(enemy) & BB::file(kingFile));
+    score                 += KING_OPEN_FILE_BONUS[friendlyOpenFile][enemyOpenFile];
 
     return score;
 }
@@ -338,14 +338,14 @@ inline Score Eval<mode>::fileShelter(U64 pawns, U64 enemyPawns, File file) {
 
     Score score = {0, 0};
 
-    U64 bb = pawns & BB::file(file);
-    Rank rank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
-    score += PAWN_SHELTER_BONUS[rank];
+    U64 bb     = pawns & BB::file(file);
+    Rank rank  = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
+    score     += PAWN_SHELTER_BONUS[rank];
 
-    bb = enemyPawns & BB::file(file);
-    Rank enemyRank = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
-    score += (rank && (rank + 1) == enemyRank) ? BLOCKED_STORM_PENALTY[enemyRank]
-                                               : PAWN_STORM_PENALTY[enemyRank];
+    bb              = enemyPawns & BB::file(file);
+    Rank enemyRank  = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
+    score          += (rank && (rank + 1) == enemyRank) ? BLOCKED_STORM_PENALTY[enemyRank]
+                                                        : PAWN_STORM_PENALTY[enemyRank];
 
     return score;
 }
@@ -368,7 +368,7 @@ template <Verbosity mode>
 template <Color c>
 inline bool Eval<mode>::discoveredAttackOnQueen(Square sq, U64 occ) const {
     constexpr Color enemy = ~c;
-    bool attacked = false;
+    bool attacked         = false;
 
     U64 attackingBishops = BB::pieceMoves<BISHOP>(sq, 0) & chess.pieces<BISHOP>(enemy);
     forEachPiece<c>(attackingBishops, [&](Square bishopSq) {
@@ -408,30 +408,31 @@ template <Verbosity mode>
 template <Color c>
 inline int Eval<mode>::bishopPawnBlockers(U64 bb) const {
     constexpr Color enemy = ~c;
-    U64 pawns = chess.pieces<PAWN>(c);
-    U64 blockedPawns = pawns & BB::pawnMoves<PUSH, enemy>(chess.occupancy());
-    U64 sameColorSquares = (bb & DARK_SQUARES) ? DARK_SQUARES : LIGHT_SQUARES;
+    U64 pawns             = chess.pieces<PAWN>(c);
+    U64 blockedPawns      = pawns & BB::pawnMoves<PUSH, enemy>(chess.occupancy());
+    U64 sameColorSquares  = (bb & DARK_SQUARES) ? DARK_SQUARES : LIGHT_SQUARES;
     int pawnFactor = BB::count(blockedPawns & CENTER_FILES) + !(BB::pawnAttacks<c>(pawns) & bb);
     return pawnFactor * BB::count(pawns & sameColorSquares);
 }
 
 template <Verbosity mode>
 inline int Eval<mode>::phase() const {
-    int npm = nonPawnMaterial(WHITE) + nonPawnMaterial(BLACK);
+    int npm      = nonPawnMaterial(WHITE) + nonPawnMaterial(BLACK);
     int material = std::clamp(npm, EG_LIMIT, MG_LIMIT);
     return ((material - EG_LIMIT) * PHASE_LIMIT) / (MG_LIMIT - EG_LIMIT);
 }
 
 template <Verbosity mode>
 inline int Eval<mode>::nonPawnMaterial(Color c) const {
-    return (chess.count<KNIGHT>(c) * KNIGHT_VALUE_MG + chess.count<BISHOP>(c) * BISHOP_VALUE_MG +
-            chess.count<ROOK>(c) * ROOK_VALUE_MG + chess.count<QUEEN>(c) * QUEEN_VALUE_MG);
+    return ((chess.count(c, KNIGHT) * KNIGHT_VALUE_MG) +
+            (chess.count(c, BISHOP) * BISHOP_VALUE_MG) + (chess.count(c, ROOK) * ROOK_VALUE_MG) +
+            (chess.count(c, QUEEN) * QUEEN_VALUE_MG));
 }
 
 template <Verbosity mode>
 int Eval<mode>::scaleFactor() const {
     // place holder, scale proportionally with pawns
-    int pawnCount = chess.count<PAWN>(chess.sideToMove());
+    int pawnCount = chess.count(chess.sideToMove(), PAWN);
     return std::min(SCALE_LIMIT, 36 + 5 * pawnCount);
 }
 
@@ -472,8 +473,8 @@ inline std::ostream& operator<<(std::ostream& os, const TermScores& term) {
 }
 
 template <Verbosity mode = Silent>
-int eval(const Chess& chess) {
+int eval(const Board& chess) {
     return Eval<mode>(chess).evaluate();
 }
-template int eval<Silent>(const Chess&);
-template int eval<Verbose>(const Chess&);
+template int eval<Silent>(const Board&);
+template int eval<Verbose>(const Board&);

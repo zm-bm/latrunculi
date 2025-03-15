@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "chess.hpp"
+#include "board.hpp"
 #include "search.hpp"
 #include "thread.hpp"
 
@@ -17,7 +17,7 @@ class Engine {
     bool execute(const std::string&);
 
    private:
-    Chess chess;
+    Board chess;
     ThreadPool threads;
     bool debug;
 
