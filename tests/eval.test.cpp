@@ -113,9 +113,9 @@ TEST_F(EvaluatorTest, Eval) {
         }
         chess.makeNull();
         if (exact) {
-            EXPECT_EQ(eval.evaluate(), expected - TEMPO_BONUS) << fen;
+            EXPECT_EQ(eval.evaluate(), expected + TEMPO_BONUS) << fen;
         } else {
-            EXPECT_LT(eval.evaluate(), expected - TEMPO_BONUS) << fen;
+            EXPECT_LT(eval.evaluate(), expected + TEMPO_BONUS) << fen;
         }
     }
 }

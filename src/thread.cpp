@@ -30,7 +30,7 @@ void Thread::stop() {
 void Thread::set(const std::string& fen, int depth) {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        chess = Board(fen, this);
+        chess       = Board(fen, this);
         searchDepth = depth;
     }
 }
@@ -56,38 +56,23 @@ void Thread::search() {
     startTime = std::chrono::high_resolution_clock::now();
 
     int prevScore = 0;
-    const int ASP_WIN = 100;
-    const int BIG_STEP = 200;
 
-    // iterative deepening loop
+    // 1. Iterative deepening loop
     for (int depth = 1; depth <= searchDepth && !ThreadPool::stopThreads; ++depth) {
-        int alpha, beta;
-
-        // 1. Use full bounds for lower depths:
-        if (depth < 7) {
-            alpha = -MATESCORE;
-            beta  =  MATESCORE;
-        } 
         // 2. Aspiration window from previous score
-        else {
-            alpha = prevScore - ASP_WIN;
-            beta  = prevScore + ASP_WIN;
-        }
+        int alpha = prevScore - ASP_WINDOW;
+        int beta  = prevScore + ASP_WINDOW;
 
         // 3. First search
         int score = Search::search(*this, alpha, beta, depth);
 
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
-            alpha = -MATESCORE; 
-            beta  = prevScore + BIG_STEP;
-            score = Search::search(*this, alpha, beta, depth);
-        } 
-        else if (score >= beta) {
-            alpha = prevScore - BIG_STEP;
-            beta  = MATESCORE;
-            score = Search::search(*this, alpha, beta, depth);
+            alpha = -MATESCORE;
+        } else if (score >= beta) {
+            beta = MATESCORE;
         }
+        score = Search::search(*this, alpha, beta, depth);
 
         prevScore = score;
         heuristics.age();
@@ -98,7 +83,7 @@ void Thread::search() {
 }
 
 void Thread::reset() {
-    nodeCount = 0;
+    nodeCount    = 0;
     currentDepth = 0;
     pv.clear();
 }

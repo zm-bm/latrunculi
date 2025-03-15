@@ -58,6 +58,7 @@ constexpr int PIECE_VALUES[N_PIECES - 1] = {
 constexpr int pieceValue(PieceType pieceType) { return PIECE_VALUES[pieceType - 1]; };
 
 constexpr int TEMPO_BONUS = 25;
+constexpr int ASP_WINDOW  = 25;
 constexpr int SCALE_LIMIT = 64;
 constexpr int PHASE_LIMIT = 128;
 constexpr int MG_LIMIT    = 4 * BISHOP_VALUE_MG + 4 * ROOK_VALUE_MG + 2 * QUEEN_VALUE_MG;
