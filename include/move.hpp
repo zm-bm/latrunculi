@@ -13,7 +13,7 @@ struct Move {
 
     constexpr Move() = default;
     constexpr Move(Square from, Square to, MoveType mtype = NORMAL, PieceType promoPiece = KNIGHT)
-        : priority(0), value{pack(from, to, mtype, promoPiece)} {}
+        : value{pack(from, to, mtype, promoPiece)} {}
 
     inline Square from() const { return unpackFrom(value); }
     inline Square to() const { return unpackTo(value); }

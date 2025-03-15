@@ -157,10 +157,10 @@ int Eval<mode>::evaluate() {
     score.eg   *= scaleFactor() / float(SCALE_LIMIT);
     int result  = score.taper(phase());
 
-    result = (chess.sideToMove() == WHITE)  // result relative to side to move + tempo
-                 ? result + TEMPO_BONUS
-                 : -result - TEMPO_BONUS;
+    // result is relative to side to move
+    if (chess.sideToMove() == BLACK) result = -result;
 
+    result += TEMPO_BONUS;
     if constexpr (mode == Verbose) printEval(result, score);
 
     return result;

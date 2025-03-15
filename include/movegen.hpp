@@ -23,7 +23,7 @@ class MovePriority {
         GOOD_CAPTURE = 1 << 12,
         KILLER_MOVE  = 1 << 11,
         HISTORY_MOVE = 1 << 10,
-        BAD_CAPTURE = 0,
+        BAD_CAPTURE  = 0,
     };
 
     Board& chess;
@@ -33,33 +33,21 @@ class MovePriority {
     int depth;
 
    public:
-    MovePriority(Thread& thread, TT::Entry* ttEntry, Search::NodeType node)
+    MovePriority(Thread& thread, Search::NodeType node, TT::Entry* ttEntry = nullptr)
         : chess(thread.chess), heuristics(thread.heuristics), depth(thread.currentDepth) {
-        hashMove = ttEntry ? ttEntry->bestMove : Move();
-        pvMove   = (node == Search::NodeType::NonPV || thread.pv[depth].empty())
-                       ? Move()
-                       : thread.pv[depth].at(0);
+        bool hasPvMove = (node != Search::NodeType::NonPV && !thread.pv[depth].empty());
+        pvMove         = hasPvMove ? thread.pv[depth].at(0) : Move();
+        hashMove       = ttEntry ? ttEntry->bestMove : Move();
     };
 
     inline U16 scoreMove(const Move& move) {
-        if (move == pvMove) {
-            return PV_MOVE;
-        }
-        if (move == hashMove) {
-            return HASH_MOVE;
-        }
-        if (move.type() == PROMOTION) {
-            return PROM_MOVE + pieceScore(move.promoPiece()).mg;
-        }
+        if (move == pvMove) return PV_MOVE;
+        if (move == hashMove) return HASH_MOVE;
+        if (move.type() == PROMOTION) return PROM_MOVE;
+
         if (chess.isCapture(move)) {
-            int see = chess.see(move);
-            if (see >= 0) {
-                auto fromPiece = chess.pieceTypeOn(move.from());
-                auto toPiece   = chess.pieceTypeOn(move.to());
-                return GOOD_CAPTURE + pieceScore(toPiece).mg - pieceScore(fromPiece).mg;
-            } else {
-                return BAD_CAPTURE;
-            }
+            int seeScore = chess.see(move);
+            return (seeScore >= 0) ? GOOD_CAPTURE + seeScore : BAD_CAPTURE;
         }
         if (heuristics.killers.isKiller(move, depth)) {
             return KILLER_MOVE;
