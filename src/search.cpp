@@ -3,12 +3,15 @@
 #include <algorithm>
 
 #include "board.hpp"
+#include "eval.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"
 #include "tt.hpp"
-#include "eval.hpp"
 
 namespace Search {
+
+constexpr int FullDepthMoves = 4;
+constexpr int ReductionLimit = 3;
 
 int quiescence(Thread& th, int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
@@ -34,6 +37,7 @@ int quiescence(Thread& th, int alpha, int beta) {
     // 3. Loop over moves
     for (auto& move : moves) {
         if (!th.chess.isLegalMove(move)) continue;
+        if (th.chess.see(move) < 0) continue;
 
         // 4. Recursively search
         th.chess.make(move);
@@ -62,11 +66,11 @@ int search(Thread& th, int alpha, int beta, int depth) {
     }
 
     constexpr bool isPV = (node == NodeType::Root || node == NodeType::PV);
-    Board& chess = th.chess;
-    U64 key = chess.getKey();
-    int lowerbound = alpha;
-    int upperbound = beta;
-    int bestScore = -MATESCORE;
+    Board& chess        = th.chess;
+    U64 key             = chess.getKey();
+    int lowerbound      = alpha;
+    int upperbound      = beta;
+    int bestScore       = -MATESCORE;
     Move bestMove;
 
     // 2. Check the transposition table
@@ -91,33 +95,38 @@ int search(Thread& th, int alpha, int beta, int depth) {
     if (moves.empty()) return eval(chess);
 
     // 4. Loop over moves
+    int movesSearched = 0;
     for (auto& move : moves) {
         if (!chess.isLegalMove(move)) continue;
+        bool isQuiet = !chess.isCapture(move);
 
         // 5. Recursively search
         chess.make(move);
 
         int score;
-        if constexpr (node == NodeType::Root) {
-            // Root moves always get a full search
-            score = -search<NodeType::PV>(th, -beta, -alpha, depth - 1);
-        } else if (node == NodeType::PV && move == moves[0]) {
-            // First move of a PV node gets a full search
+        bool doFullSearch = node == NodeType::Root || (isPV && movesSearched == 0);
+        if (doFullSearch) {
             score = -search<NodeType::PV>(th, -beta, -alpha, depth - 1);
         } else {
-            // Null window search, re-search if it fails high
-            score = -search<NodeType::NonPV>(th, -alpha - 1, -alpha, depth - 1);
+            // LMR + null window search, re-search if it fail-high
+            bool doReduce = (movesSearched >= FullDepthMoves) && (depth >= ReductionLimit);
+            int reduction = (doReduce && !isPV && isQuiet && !chess.isCheck())
+                                ? 1 + std::min(movesSearched / 10, depth / 4)
+                                : 0;
+
+            score = -search<NodeType::NonPV>(th, -alpha - 1, -alpha, depth - 1 - reduction);
             if (score > alpha) {
                 score = -search<node>(th, -beta, -alpha, depth - 1);
             }
         }
+        movesSearched++;
 
         chess.unmake();
 
         // 6. If we found a better move, update our bestScore/Move and principal variation
         if (score > bestScore) {
             bestScore = score;
-            bestMove = move;
+            bestMove  = move;
             th.pv.update(move, th.currentDepth);
         }
 
@@ -157,7 +166,7 @@ U64 perft(int depth, Board& chess, std::ostream& oss) {
 
         chess.make(move);
 
-        count = perft<NodeType::NonPV>(depth - 1, chess);
+        count  = perft<NodeType::NonPV>(depth - 1, chess);
         nodes += count;
 
         if constexpr (node == NodeType::Root) {

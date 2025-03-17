@@ -111,7 +111,7 @@ void Engine::perft(std::istringstream& iss) {
 
 void Engine::go(std::istringstream& iss) {
     std::string token;
-    int depth = 10;
+    int depth = 12;
 
     while (iss >> token) {
         if (token == "depth") {
