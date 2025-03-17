@@ -1,8 +1,9 @@
 #pragma once
 
+#include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
+
 #include "types.hpp"
 
 // https://www.chessprogramming.org/Forsyth-Edwards_Notation
@@ -11,11 +12,11 @@ class FenParser {
     explicit FenParser(const std::string& fen);
 
     std::vector<PieceSquare> pieces;
-    Color turn = WHITE;
+    Color turn          = WHITE;
     CastleRights castle = NO_CASTLE;
-    Square enPassantSq = INVALID;
-    U8 hmClock = 0;
-    U32 moveCounter = 0;
+    Square enPassantSq  = INVALID;
+    U8 hmClock          = 0;
+    U32 moveCounter     = 0;
 
    private:
     std::string fen;

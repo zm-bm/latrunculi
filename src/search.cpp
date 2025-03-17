@@ -14,8 +14,6 @@ constexpr int FullDepthMoves = 4;
 constexpr int ReductionLimit = 3;
 constexpr int FutilityMargin = 300;
 
-
-
 template <NodeType node>
 int search(Thread& th, int alpha, int beta, int depth) {
     // 1. Base case: quiescence search

@@ -3,12 +3,12 @@
 #include <sstream>
 
 #include "board.hpp"
+#include "eval.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
+#include "search.hpp"
 #include "thread.hpp"
 #include "tt.hpp"
-#include "search.hpp"
-#include "eval.hpp"
 
 namespace UCI {
 
@@ -90,7 +90,7 @@ void Engine::position(std::istringstream& iss) {
     if (token == "startpos") {
         fen = STARTFEN;
     } else if (token == "fen") {
-        while(iss >> token && token != "moves") {
+        while (iss >> token && token != "moves") {
             fen += token + " ";
         }
     } else {
@@ -98,7 +98,6 @@ void Engine::position(std::istringstream& iss) {
     }
 
     board = Board(fen);
-
 }
 
 void Engine::perft(std::istringstream& iss) {

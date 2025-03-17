@@ -16,10 +16,10 @@ enum NodeType : U8 {
 
 struct Entry {
     U64 zobristKey = 0;
-    Move bestMove = {};
-    int score = 0;
-    int depth = 0;
-    NodeType flag = NONE;
+    Move bestMove  = {};
+    int score      = 0;
+    int depth      = 0;
+    NodeType flag  = NONE;
 
     bool isValid(U64 key) const { return zobristKey == key; }
 };

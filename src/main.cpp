@@ -1,15 +1,15 @@
 #include <iostream>
-#include "uci.hpp"
+
 #include "magics.hpp"
+#include "uci.hpp"
 #include "zobrist.hpp"
 
-int main()
-{
+int main() {
     Magics::init();
     Zobrist::init();
 
-	UCI::Engine engine(std::cin, std::cout);
-	engine.loop();
+    UCI::Engine engine(std::cin, std::cout);
+    engine.loop();
 
-	return 0;
+    return 0;
 }

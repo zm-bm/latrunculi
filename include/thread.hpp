@@ -21,7 +21,7 @@ struct HistoryTable {
     int history[N_COLORS][N_SQUARES][N_SQUARES] = {0};
 
     inline void update(Color c, Square from, Square to, int depth) {
-        int bonus = std::clamp(1 << depth, -MAX_HISTORY, MAX_HISTORY);
+        int bonus             = std::clamp(1 << depth, -MAX_HISTORY, MAX_HISTORY);
         history[c][from][to] += bonus - (history[c][from][to] * bonus / MAX_HISTORY);
     }
 

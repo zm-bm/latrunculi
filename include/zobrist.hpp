@@ -1,7 +1,7 @@
 #pragma once
 
-#include "types.hpp"
 #include "constants.hpp"
+#include "types.hpp"
 
 namespace Zobrist {
 

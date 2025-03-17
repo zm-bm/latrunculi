@@ -57,15 +57,15 @@ bool Board::isLegalMove(Move mv) const {
             return true;
         } else {
             // Check if destination sq is attacked by enemy
-            U64 occ = occupancy() ^ BB::set(from) ^ BB::set(to);
-            return !attacksTo(to, ~turn, occ);
+            U64 occupied = occupancy() ^ BB::set(from) ^ BB::set(to);
+            return !attacksTo(to, ~turn, occupied);
         }
     } else if (mv.type() == ENPASSANT) {
         // Check if captured pawn was blocking check
         Square enemyPawn = pawnMove<PUSH, false>(to, turn);
-        U64 occ          = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
-        return !(BB::pieceMoves<BISHOP>(king, occ) & pieces<BISHOP, QUEEN>(~turn)) &&
-               !(BB::pieceMoves<ROOK>(king, occ) & pieces<ROOK, QUEEN>(~turn));
+        U64 occupied     = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
+        return !(BB::pieceMoves<BISHOP>(king, occupied) & pieces<BISHOP, QUEEN>(~turn)) &&
+               !(BB::pieceMoves<ROOK>(king, occupied) & pieces<ROOK, QUEEN>(~turn));
     } else {
         U64 blockers = state.at(ply).blockers[turn];
         return (!blockers || !(blockers & BB::set(from))     // piece isn't blocker
@@ -97,16 +97,16 @@ bool Board::isCheckingMove(Move mv) const {
 
         case PROMOTION: {
             // Check if a promotion attacks the enemy king
-            U64 occ = occupancy() ^ BB::set(from);
-            return BB::pieceMoves(to, mv.promoPiece(), occ) & BB::set(enemyKing);
+            U64 occupied = occupancy() ^ BB::set(from);
+            return BB::pieceMoves(to, mv.promoPiece(), occupied) & BB::set(enemyKing);
         }
 
         case ENPASSANT: {
             // Check if captured pawn was blocking enemy king from attack
             Square enemyPawn = pawnMove<PUSH, false>(to, turn);
-            U64 occ          = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
-            return ((BB::pieceMoves<BISHOP>(enemyKing, occ) & pieces<BISHOP, QUEEN>(turn)) ||
-                    (BB::pieceMoves<ROOK>(enemyKing, occ) & pieces<ROOK, QUEEN>(turn)));
+            U64 occupied     = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
+            return ((BB::pieceMoves<BISHOP>(enemyKing, occupied) & pieces<BISHOP, QUEEN>(turn)) ||
+                    (BB::pieceMoves<ROOK>(enemyKing, occupied) & pieces<ROOK, QUEEN>(turn)));
         }
 
         case CASTLE: {
@@ -114,8 +114,9 @@ bool Board::isCheckingMove(Move mv) const {
             CastleDirection dir = to > from ? KINGSIDE : QUEENSIDE;
             Square rFrom        = RookOrigin[dir][turn];
             Square rTo          = RookDestination[dir][turn];
-            U64 occ = occupancy() ^ BB::set(from) ^ BB::set(rFrom) ^ BB::set(to) ^ BB::set(rTo);
-            return BB::pieceMoves<ROOK>(rTo, occ) & BB::set(enemyKing);
+            U64 occupied =
+                occupancy() ^ BB::set(from) ^ BB::set(rFrom) ^ BB::set(to) ^ BB::set(rTo);
+            return BB::pieceMoves<ROOK>(rTo, occupied) & BB::set(enemyKing);
         }
         default: return false;
     }

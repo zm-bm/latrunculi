@@ -155,33 +155,33 @@ inline bool Board::isDoubleCheck() const { return BB::hasMoreThanOne(checkers())
 inline U64 Board::attacksTo(Square sq, Color c) const { return attacksTo(sq, c, occupancy()); }
 
 // Returns a bitboard of pieces of color c which attacks a square
-inline U64 Board::attacksTo(Square sq, Color c, U64 occ) const {
+inline U64 Board::attacksTo(Square sq, Color c, U64 occupied) const {
     return (pieces<PAWN>(c) & BB::pawnAttacks(BB::set(sq), ~c)) |
-           (pieces<KNIGHT>(c) & BB::pieceMoves<KNIGHT>(sq, occ)) |
-           (pieces<KING>(c) & BB::pieceMoves<KING>(sq, occ)) |
-           (pieces<BISHOP, QUEEN>(c) & BB::pieceMoves<BISHOP>(sq, occ)) |
-           (pieces<ROOK, QUEEN>(c) & BB::pieceMoves<ROOK>(sq, occ));
+           (pieces<KNIGHT>(c) & BB::pieceMoves<KNIGHT>(sq, occupied)) |
+           (pieces<KING>(c) & BB::pieceMoves<KING>(sq, occupied)) |
+           (pieces<BISHOP, QUEEN>(c) & BB::pieceMoves<BISHOP>(sq, occupied)) |
+           (pieces<ROOK, QUEEN>(c) & BB::pieceMoves<ROOK>(sq, occupied));
 }
 
 // Returns a bitboard of pieces of color c which attacks a square
 inline U64 Board::attacksTo(Square sq) const { return attacksTo(sq, occupancy()); }
 
 // Returns a bitboard of pieces of any which attacks a square
-inline U64 Board::attacksTo(Square sq, U64 occ) const {
+inline U64 Board::attacksTo(Square sq, U64 occupied) const {
     return (pieces<PAWN>(WHITE) & BB::pawnAttacks(BB::set(sq), BLACK)) |
            (pieces<PAWN>(BLACK) & BB::pawnAttacks(BB::set(sq), WHITE)) |
-           (pieces<KNIGHT>() & BB::pieceMoves<KNIGHT>(sq, occ)) |
-           (pieces<KING>() & BB::pieceMoves<KING>(sq, occ)) |
-           (pieces<BISHOP, QUEEN>() & BB::pieceMoves<BISHOP>(sq, occ)) |
-           (pieces<ROOK, QUEEN>() & BB::pieceMoves<ROOK>(sq, occ));
+           (pieces<KNIGHT>() & BB::pieceMoves<KNIGHT>(sq, occupied)) |
+           (pieces<KING>() & BB::pieceMoves<KING>(sq, occupied)) |
+           (pieces<BISHOP, QUEEN>() & BB::pieceMoves<BISHOP>(sq, occupied)) |
+           (pieces<ROOK, QUEEN>() & BB::pieceMoves<ROOK>(sq, occupied));
 }
 
 // Determine if any set square of a bitboard is attacked by color c
 inline U64 Board::attacksTo(U64 bitboard, Color c) const {
-    U64 attacks = 0;
-    U64 occ     = occupancy();
+    U64 attacks  = 0;
+    U64 occupied = occupancy();
     while (bitboard) {
-        attacks |= attacksTo(BB::lsbPop(bitboard), c, occ);
+        attacks |= attacksTo(BB::lsbPop(bitboard), c, occupied);
     }
     return attacks;
 }
@@ -284,18 +284,18 @@ inline void Board::updatePinInfo(Color c) {
     U64 sliders = (BB::pieceMoves<BISHOP>(king) & pieces<BISHOP, QUEEN>(enemy)) |
                   (BB::pieceMoves<ROOK>(king) & pieces<ROOK, QUEEN>(enemy));
 
-    U64 occ      = occupancy();
+    U64 occupied = occupancy();
     U64 blockers = 0;
     U64 pinners  = 0;
     while (sliders) {
         // For each potential pinning piece
         Square pinner       = BB::lsbPop(sliders);
-        U64 piecesInBetween = occ & BB::betweenBB(king, pinner);
+        U64 piecesInBetween = occupied & BB::betweenBB(king, pinner);
 
         // Check if only one piece separates the slider and the king
         if (!BB::hasMoreThanOne(piecesInBetween)) {
             state[ply].pinners[enemy] |= BB::set(pinner);
-            state[ply].blockers[c]    |= piecesInBetween & occ;
+            state[ply].blockers[c]    |= piecesInBetween & occupied;
         }
     }
 }
@@ -303,13 +303,13 @@ inline void Board::updatePinInfo(Color c) {
 inline void Board::updateCheckInfo() {
     Color enemy      = ~turn;
     Square enemyKing = kingSq(enemy);
-    U64 occ          = occupancy();
+    U64 occupied     = occupancy();
 
     state[ply].checkers       = attacksTo(kingSq(turn), enemy);
     state[ply].checks[PAWN]   = BB::pawnAttacks(BB::set(enemyKing), enemy);
-    state[ply].checks[KNIGHT] = BB::pieceMoves<KNIGHT>(enemyKing, occ);
-    state[ply].checks[BISHOP] = BB::pieceMoves<BISHOP>(enemyKing, occ);
-    state[ply].checks[ROOK]   = BB::pieceMoves<ROOK>(enemyKing, occ);
+    state[ply].checks[KNIGHT] = BB::pieceMoves<KNIGHT>(enemyKing, occupied);
+    state[ply].checks[BISHOP] = BB::pieceMoves<BISHOP>(enemyKing, occupied);
+    state[ply].checks[ROOK]   = BB::pieceMoves<ROOK>(enemyKing, occupied);
     state[ply].checks[QUEEN]  = state[ply].checks[BISHOP] | state[ply].checks[ROOK];
     updatePinInfo(WHITE);
     updatePinInfo(BLACK);

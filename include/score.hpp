@@ -9,10 +9,10 @@ struct Score {
     int eg = 0;
 
     // operators
-    constexpr Score operator+(const Score& other) const { return Score{mg + other.mg, eg + other.eg}; }
-    constexpr Score operator-(const Score& other) const { return Score{mg - other.mg, eg - other.eg}; }
-    constexpr Score operator*(int scalar) const { return Score{mg * scalar, eg * scalar}; }
-    constexpr Score operator-() const { return Score{-mg, -eg}; }
+    constexpr Score operator+(const Score& other) const { return {mg + other.mg, eg + other.eg}; }
+    constexpr Score operator-(const Score& other) const { return {mg - other.mg, eg - other.eg}; }
+    constexpr Score operator*(int scalar) const { return {mg * scalar, eg * scalar}; }
+    constexpr Score operator-() const { return {-mg, -eg}; }
     bool operator==(const Score& other) const { return mg == other.mg && eg == other.eg; }
     bool operator!=(const Score& other) const { return !(*this == other); }
     bool operator<(const Score& other) const { return mg < other.mg; }
@@ -47,36 +47,35 @@ struct Score {
     }
 };
 
-constexpr Score PAWN_SCORE = {PAWN_VALUE_MG, PAWN_VALUE_EG};
+constexpr Score PAWN_SCORE   = {PAWN_VALUE_MG, PAWN_VALUE_EG};
 constexpr Score KNIGHT_SCORE = {KNIGHT_VALUE_MG, KNIGHT_VALUE_EG};
 constexpr Score BISHOP_SCORE = {BISHOP_VALUE_MG, BISHOP_VALUE_EG};
-constexpr Score ROOK_SCORE = {ROOK_VALUE_MG, ROOK_VALUE_EG};
-constexpr Score QUEEN_SCORE = {QUEEN_VALUE_MG, QUEEN_VALUE_EG};
+constexpr Score ROOK_SCORE   = {ROOK_VALUE_MG, ROOK_VALUE_EG};
+constexpr Score QUEEN_SCORE  = {QUEEN_VALUE_MG, QUEEN_VALUE_EG};
 
 constexpr Score PIECE_SCORE[] = {PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE};
-constexpr Score pieceScore(PieceType pt) { return PIECE_SCORE[pt-1]; }
+constexpr Score pieceScore(PieceType pt) { return PIECE_SCORE[pt - 1]; }
 
 constexpr Score PIECE_SCORES[2][6] = {
     {-PAWN_SCORE, -KNIGHT_SCORE, -BISHOP_SCORE, -ROOK_SCORE, -QUEEN_SCORE, {0, 0}},
-    {PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE, {0, 0}}
-};
-constexpr Score pieceScore(PieceType pt, Color c) { return PIECE_SCORES[c][pt-1]; }
+    {PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE, {0, 0}}};
+constexpr Score pieceScore(PieceType pt, Color c) { return PIECE_SCORES[c][pt - 1]; }
 
-const Score ISO_PAWN_PENALTY = {-5, -15};
-const Score BACKWARD_PAWN_PENALTY = {-9, -25};
-const Score DOUBLED_PAWN_PENALTY = {-11, -56};
-const Score REACHABLE_OUTPOST_BONUS = {31, 22};
-const Score BISHOP_OUTPOST_BONUS = {30, 23};
-const Score KNIGHT_OUTPOST_BONUS = {56, 36};
-const Score OUTPOST_BONUS[2] = {BISHOP_OUTPOST_BONUS, KNIGHT_OUTPOST_BONUS};
-const Score MINOR_BEHIND_PAWN_BONUS = {18, 3};
-const Score BISHOP_LONG_DIAG_BONUS = {40, 0};
-const Score BISHOP_PAIR_BONUS = {50, 80};
+const Score ISO_PAWN_PENALTY            = {-5, -15};
+const Score BACKWARD_PAWN_PENALTY       = {-9, -25};
+const Score DOUBLED_PAWN_PENALTY        = {-11, -56};
+const Score REACHABLE_OUTPOST_BONUS     = {31, 22};
+const Score BISHOP_OUTPOST_BONUS        = {30, 23};
+const Score KNIGHT_OUTPOST_BONUS        = {56, 36};
+const Score OUTPOST_BONUS[2]            = {BISHOP_OUTPOST_BONUS, KNIGHT_OUTPOST_BONUS};
+const Score MINOR_BEHIND_PAWN_BONUS     = {18, 3};
+const Score BISHOP_LONG_DIAG_BONUS      = {40, 0};
+const Score BISHOP_PAIR_BONUS           = {50, 80};
 const Score BISHOP_PAWN_BLOCKER_PENALTY = {-3, -7};
-const Score ROOK_FULL_OPEN_FILE_BONUS = {40, 20};
-const Score ROOK_SEMI_OPEN_FILE_BONUS = {20, 10};
-const Score ROOK_OPEN_FILE_BONUS[2] = {ROOK_SEMI_OPEN_FILE_BONUS, ROOK_FULL_OPEN_FILE_BONUS};
-const Score ROOK_CLOSED_FILE_PENALTY = {-10, -5};
+const Score ROOK_FULL_OPEN_FILE_BONUS   = {40, 20};
+const Score ROOK_SEMI_OPEN_FILE_BONUS   = {20, 10};
+const Score ROOK_OPEN_FILE_BONUS[2]     = {ROOK_SEMI_OPEN_FILE_BONUS, ROOK_FULL_OPEN_FILE_BONUS};
+const Score ROOK_CLOSED_FILE_PENALTY    = {-10, -5};
 const Score DISCOVERED_ATTACK_ON_QUEEN_PENALTY = {-50, -25};
 
 // Bonus for friendly pawn at each rank. Index 0 when there is no pawn.
@@ -146,6 +145,6 @@ constexpr const Score* MOBILITY_BONUS[] = {
 
 constexpr Score pieceSqScore(PieceType pt, Color c, Square sq) {
     sq = SQUARE_MAP[c][sq];
-    Score score{PSQ_VALUES[pt-1][MIDGAME][sq], PSQ_VALUES[pt-1][ENDGAME][sq]};
+    Score score{PSQ_VALUES[pt - 1][MIDGAME][sq], PSQ_VALUES[pt - 1][ENDGAME][sq]};
     return (score * c * 2) - score;
 }

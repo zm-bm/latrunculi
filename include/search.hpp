@@ -26,7 +26,6 @@ inline int search(Thread& thread, int alpha, int beta, int depth) {
     return search<NodeType::Root>(thread, alpha, beta, depth);
 }
 
-
 template <NodeType>
 U64 perft(int, Board&, std::ostream& = std::cout);
 
@@ -34,4 +33,4 @@ inline U64 perft(int depth, Board& board, std::ostream& oss = std::cout) {
     return perft<NodeType::Root>(depth, board, oss);
 }
 
-}
+}  // namespace Search

@@ -181,16 +181,15 @@ inline int count(U64 bb) { return __builtin_popcountll(bb); }
 inline Square lsb(U64 bb) { return static_cast<Square>(__builtin_ctzll(bb)); }
 inline Square msb(U64 bb) { return static_cast<Square>(63 - __builtin_clzll(bb)); }
 inline Square lsbPop(U64& bb) {
-    Square sq = static_cast<Square>(__builtin_ctzll(bb));
-    bb &= ~(1ULL << sq);
+    Square sq  = static_cast<Square>(__builtin_ctzll(bb));
+    bb        &= ~(1ULL << sq);
     return sq;
 }
 inline Square msbPop(U64& bb) {
-    Square sq = static_cast<Square>(__builtin_ctzll(bb));
-    bb &= ~(1ULL << sq);
+    Square sq  = static_cast<Square>(__builtin_ctzll(bb));
+    bb        &= ~(1ULL << sq);
     return sq;
 }
-
 
 template <Color c>
 inline Square advancedSq(U64 bb) {

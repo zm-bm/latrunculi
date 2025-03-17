@@ -9,11 +9,11 @@
 using U64 = uint64_t;
 using U32 = uint32_t;
 using U16 = uint16_t;
-using U8 = uint8_t;
+using U8  = uint8_t;
 using I64 = int64_t;
 using I32 = int32_t;
 using I16 = int16_t;
-using I8 = int8_t;
+using I8  = int8_t;
 
 enum Color : U8 { BLACK, WHITE, N_COLORS = 2 };
 
@@ -50,14 +50,14 @@ enum File : I8 { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8, N_FILES
 enum Rank : I8 { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8, N_RANKS };
 
 enum CastleRights {
-    NO_CASTLE = 0,
-    BLACK_OOO = 1,
-    BLACK_OO = 1 << 1,
-    WHITE_OOO = 1 << 2,
-    WHITE_OO = 1 << 3,
+    NO_CASTLE    = 0,
+    BLACK_OOO    = 1,
+    BLACK_OO     = 1 << 1,
+    WHITE_OOO    = 1 << 2,
+    WHITE_OO     = 1 << 3,
     BLACK_CASTLE = BLACK_OO | BLACK_OOO,
     WHITE_CASTLE = WHITE_OO | WHITE_OOO,
-    ALL_CASTLE = BLACK_CASTLE | WHITE_CASTLE
+    ALL_CASTLE   = BLACK_CASTLE | WHITE_CASTLE
 };
 
 enum CastleDirection { KINGSIDE, QUEENSIDE, N_CASTLES };
@@ -172,7 +172,7 @@ inline Square pawnMove(const Square sq, const Color c) {
     constexpr T& operator++(T& d, int) { return d = T(int(d) + 1); }   \
     constexpr T& operator--(T& d, int) { return d = T(int(d) - 1); }   \
     constexpr T& operator&=(T& d1, T d2) { return d1 = T(d1 & d2); }   \
-    constexpr T& operator|=(T& d1, T d2) { return d1 = T(d1 | d2); }   \
+    constexpr T& operator|=(T& d1, T d2) { return d1 = T(d1 | d2); }
 
 ENABLE_OPERATORS(Square)
 ENABLE_OPERATORS(File)

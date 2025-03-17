@@ -1,8 +1,6 @@
 #include "fen.hpp"
 
-FenParser::FenParser(const std::string& fen) : fen(fen) { 
-    parse();
-}
+FenParser::FenParser(const std::string& fen) : fen(fen) { parse(); }
 
 void FenParser::parse() {
     std::istringstream fenStream(fen);
@@ -97,9 +95,7 @@ void FenParser::parsePieces(const std::string& section) {
     }
 }
 
-void FenParser::parseTurn(const std::string& section) {
-    turn = (section == "w") ? WHITE : BLACK;
-}
+void FenParser::parseTurn(const std::string& section) { turn = (section == "w") ? WHITE : BLACK; }
 
 void FenParser::parseCastlingRights(const std::string& section) {
     if (section.find('-') == std::string::npos) {
@@ -127,9 +123,7 @@ void FenParser::parseEnPassantSq(const std::string& section) {
     }
 }
 
-void FenParser::parseHalfmove(const std::string& section) {
-    hmClock = std::stoi(section);
-}
+void FenParser::parseHalfmove(const std::string& section) { hmClock = std::stoi(section); }
 
 void FenParser::parseFullmove(const std::string& section, Color turn) {
     moveCounter = 2 * (std::stoul(section) - 1) + (turn == WHITE ? 0 : 1);

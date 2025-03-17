@@ -217,7 +217,7 @@ template <Color c, PieceType p>
 Score Eval<mode>::piecesScore() {
     constexpr Color enemy = ~c;
     Score score           = {0, 0};
-    U64 occ               = board.occupancy();
+    U64 occupied          = board.occupancy();
     U64 pawns             = board.pieces<PAWN>(c);
     U64 enemyPawns        = board.pieces<PAWN>(enemy);
 
@@ -230,7 +230,7 @@ Score Eval<mode>::piecesScore() {
 
     forEachPiece<c>(board.pieces<p>(c), [&](Square sq) {
         U64 bb    = BB::set(sq);
-        U64 moves = BB::pieceMoves<p>(sq, occ);
+        U64 moves = BB::pieceMoves<p>(sq, occupied);
 
         attacks[c][ALL_PIECES] |= moves;
         attacks[c][p]          |= moves;
@@ -270,7 +270,7 @@ Score Eval<mode>::piecesScore() {
             if (!(pawns & fileBB)) {
                 score += ROOK_OPEN_FILE_BONUS[!(enemyPawns & fileBB)];
             } else {
-                if (pawns & fileBB & BB::pawnMoves<PUSH, enemy>(occ)) {
+                if (pawns & fileBB & BB::pawnMoves<PUSH, enemy>(occupied)) {
                     score += ROOK_CLOSED_FILE_PENALTY;
                 }
             }
@@ -278,7 +278,7 @@ Score Eval<mode>::piecesScore() {
 
         if constexpr (p == QUEEN) {
             // penalty for discovered attacks on queen
-            if (discoveredAttackOnQueen<c>(sq, occ)) {
+            if (discoveredAttackOnQueen<c>(sq, occupied)) {
                 score += DISCOVERED_ATTACK_ON_QUEEN_PENALTY;
             }
         }
@@ -361,18 +361,18 @@ inline Score Eval<mode>::fileShelter(U64 pawns, U64 enemyPawns, File file) {
  * @tparam debug A boolean flag for enabling debug mode.
  * @tparam c The color of the player to check for discovered attacks (WHITE or BLACK).
  * @param sq The square occupied by the queen that is potentially subject to a discovered attack.
- * @param occ The current occupancy bitboard indicating all occupied squares.
+ * @param occupied The current occupancy bitboard indicating all occupied squares.
  * @return true if a discovered attack on the queen is possible, false otherwise.
  */
 template <Verbosity mode>
 template <Color c>
-inline bool Eval<mode>::discoveredAttackOnQueen(Square sq, U64 occ) const {
+inline bool Eval<mode>::discoveredAttackOnQueen(Square sq, U64 occupied) const {
     constexpr Color enemy = ~c;
     bool attacked         = false;
 
     U64 attackingBishops = BB::pieceMoves<BISHOP>(sq, 0) & board.pieces<BISHOP>(enemy);
     forEachPiece<c>(attackingBishops, [&](Square bishopSq) {
-        U64 piecesBetween = BB::betweenBB(sq, bishopSq) & occ;
+        U64 piecesBetween = BB::betweenBB(sq, bishopSq) & occupied;
         if (piecesBetween && !BB::hasMoreThanOne(piecesBetween)) {
             attacked = true;
         }
@@ -380,7 +380,7 @@ inline bool Eval<mode>::discoveredAttackOnQueen(Square sq, U64 occ) const {
 
     U64 attackingRooks = BB::pieceMoves<ROOK>(sq, 0) & board.pieces<ROOK>(enemy);
     forEachPiece<c>(attackingRooks, [&](Square rookSq) {
-        U64 piecesBetween = BB::betweenBB(sq, rookSq) & occ;
+        U64 piecesBetween = BB::betweenBB(sq, rookSq) & occupied;
         if (piecesBetween && !BB::hasMoreThanOne(piecesBetween)) {
             attacked = true;
         }

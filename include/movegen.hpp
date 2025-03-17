@@ -94,8 +94,8 @@ class MoveGenerator {
     template <PawnMove, Color>
     void addEnPassants(U64, Square);
 
-    bool canCastleOO(U64 occ, Color turn);
-    bool canCastleOOO(U64 occ, Color turn);
+    bool canCastleOO(U64 occupied, Color turn);
+    bool canCastleOOO(U64 occupied, Color turn);
 };
 
 template <GenType T>
@@ -178,12 +178,12 @@ void MoveGenerator<T>::generateMoves() {
 
 template <GenType T>
 template <GenType G, Color C>
-void MoveGenerator<T>::generatePawnMoves(const U64 targets, const U64 occ) {
+void MoveGenerator<T>::generatePawnMoves(const U64 targets, const U64 occupied) {
     constexpr Color enemy = ~C;
     constexpr U64 rank3   = (C == WHITE) ? BB::rank(RANK3) : BB::rank(RANK6);
     constexpr U64 rank7   = (C == WHITE) ? BB::rank(RANK7) : BB::rank(RANK2);
 
-    U64 moves, vacancies = ~occ;
+    U64 moves, vacancies = ~occupied;
     U64 enemies = board.pieces<ALL_PIECES>(enemy);
 
     // if generating evasions, only consider enemies that check our king
@@ -245,7 +245,7 @@ void MoveGenerator<T>::generatePawnMoves(const U64 targets, const U64 occ) {
 
 template <GenType T>
 template <PieceType p, Color c>
-void MoveGenerator<T>::generatePieceMoves(const U64 targets, const U64 occ) {
+void MoveGenerator<T>::generatePieceMoves(const U64 targets, const U64 occupied) {
     U64 bitboard = board.pieces<p>(c);
 
     while (bitboard) {
@@ -253,7 +253,7 @@ void MoveGenerator<T>::generatePieceMoves(const U64 targets, const U64 occ) {
         Square from  = BB::advancedSq<c>(bitboard);
         bitboard    &= BB::clear(from);
 
-        U64 pieceMoves = BB::pieceMoves<p>(from, occ) & targets;
+        U64 pieceMoves = BB::pieceMoves<p>(from, occupied) & targets;
         while (pieceMoves) {
             Square to   = BB::advancedSq<c>(pieceMoves);
             pieceMoves &= BB::clear(to);
@@ -307,15 +307,15 @@ inline void MoveGenerator<T>::addEnPassants(U64 pawns, Square enpassant) {
 }
 
 template <GenType T>
-inline bool MoveGenerator<T>::canCastleOO(U64 occ, Color turn) {
-    return (board.canCastleOO(turn)         // castling rights
-            && !(occ & CastlePathOO[turn])  // castle path unoccupied/attacked
+inline bool MoveGenerator<T>::canCastleOO(U64 occupied, Color turn) {
+    return (board.canCastleOO(turn)              // castling rights
+            && !(occupied & CastlePathOO[turn])  // castle path unoccupied/attacked
             && !board.attacksTo(KingCastlePathOO[turn], ~turn));
 }
 
 template <GenType T>
-inline bool MoveGenerator<T>::canCastleOOO(U64 occ, Color turn) {
-    return (board.canCastleOOO(turn)         // castling rights
-            && !(occ & CastlePathOOO[turn])  // castle path unoccupied/attacked
+inline bool MoveGenerator<T>::canCastleOOO(U64 occupied, Color turn) {
+    return (board.canCastleOOO(turn)              // castling rights
+            && !(occupied & CastlePathOOO[turn])  // castle path unoccupied/attacked
             && !board.attacksTo(KingCastlePathOOO[turn], ~turn));
 }
