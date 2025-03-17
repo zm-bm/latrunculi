@@ -13,7 +13,7 @@
 namespace UCI {
 
 Engine::Engine(std::istream& is, std::ostream& os)
-    : chess(STARTFEN), threads(1), debug(false), istream(is), ostream(os) {}
+    : board(STARTFEN), threads(1), debug(false), istream(is), ostream(os) {}
 
 void Engine::loop() {
     std::string line;
@@ -58,9 +58,9 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "moves") {
         moves();
     } else if (token == "d") {
-        ostream << chess << std::endl;
+        ostream << board << std::endl;
     } else if (token == "eval") {
-        eval<Verbose>(chess);
+        eval<Verbose>(board);
     }
 
     return true;
@@ -97,7 +97,7 @@ void Engine::position(std::istringstream& iss) {
         return;
     }
 
-    chess = Board(fen);
+    board = Board(fen);
 
 }
 
@@ -106,7 +106,7 @@ void Engine::perft(std::istringstream& iss) {
     iss >> token;
 
     auto val = std::stoi(token);
-    Search::perft<Search::NodeType::Root>(val, chess);
+    Search::perft<Search::NodeType::Root>(val, board);
 }
 
 void Engine::go(std::istringstream& iss) {
@@ -120,7 +120,7 @@ void Engine::go(std::istringstream& iss) {
         }
     }
 
-    threads.startAll(chess, depth);
+    threads.startAll(board, depth);
 }
 
 void Engine::move(std::istringstream& iss) {
@@ -128,23 +128,23 @@ void Engine::move(std::istringstream& iss) {
     iss >> token;
 
     if (token == "undo") {
-        chess.unmake();
+        board.unmake();
     } else {
-        MoveGenerator<GenType::All> moves{chess};
+        MoveGenerator<GenType::All> moves{board};
 
         for (auto& move : moves) {
             std::ostringstream oss;
             oss << move;
 
-            if (oss.str() == token && chess.isLegalMove(move)) {
-                chess.make(move);
+            if (oss.str() == token && board.isLegalMove(move)) {
+                board.make(move);
             }
         }
     }
 }
 
 void Engine::moves() {
-    MoveGenerator<GenType::All> moves{chess};
+    MoveGenerator<GenType::All> moves{board};
 
     for (auto& move : moves) {
         ostream << move << ": " << move.priority << std::endl;

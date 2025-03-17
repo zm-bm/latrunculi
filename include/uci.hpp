@@ -17,7 +17,7 @@ class Engine {
     bool execute(const std::string&);
 
    private:
-    Board chess;
+    Board board;
     ThreadPool threads;
     bool debug;
 

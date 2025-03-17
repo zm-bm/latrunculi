@@ -315,4 +315,4 @@ inline void Board::updateCheckInfo() {
     updatePinInfo(BLACK);
 }
 
-std::ostream& operator<<(std::ostream& os, const Board& chess);
+std::ostream& operator<<(std::ostream& os, const Board& board);

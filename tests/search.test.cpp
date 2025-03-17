@@ -43,11 +43,11 @@ using PerftParams = std::tuple<std::string, std::vector<long>>;
 class PerftTest : public ::testing::TestWithParam<PerftParams> {};
 TEST_P(PerftTest, PerftForMultipleDepths) {
     auto [fen, expected_results] = GetParam();
-    Board chess(fen);
+    Board board(fen);
     std::stringstream nullStream;
 
     for (int depth = 1; depth <= expected_results.size(); ++depth) {
-        long result = Search::perft(depth, chess, nullStream);
+        long result = Search::perft(depth, board, nullStream);
         EXPECT_EQ(result, expected_results[depth - 1]) << "Failed at depth " << depth;
     }
 }

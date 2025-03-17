@@ -54,11 +54,11 @@ struct Heuristics {
     HistoryTable history;
     KillerMoves killers;
 
-    inline void updateBetaCutoff(Board& chess, Move move, int depth) {
+    inline void updateBetaCutoff(Board& board, Move move, int depth) {
         Square to = move.to();
-        if (chess.pieceOn(to) == Piece::NONE) {
+        if (board.pieceOn(to) == Piece::NONE) {
             killers.update(move, depth);
-            history.update(chess.sideToMove(), move.from(), to, depth);
+            history.update(board.sideToMove(), move.from(), to, depth);
         }
     }
     inline void age() { history.age(); }
@@ -112,7 +112,7 @@ class Thread {
     void stop();
     void set(const std::string&, int);
 
-    Board chess;
+    Board board;
     PrincipalVariation pv;
     Heuristics heuristics;
 

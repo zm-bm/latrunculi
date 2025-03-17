@@ -6,14 +6,14 @@
 #include "constants.hpp"
 
 TEST(MoveGenTest, All) {
-    Board chess{STARTFEN};
-    MoveGenerator<GenType::All> moves{chess};
+    Board board{STARTFEN};
+    MoveGenerator<GenType::All> moves{board};
     EXPECT_EQ(moves.size(), 20) << "should have 20 moves";
 }
 
 TEST(MoveGenTest, Captures) {
-    Board chess{POS2};
-    MoveGenerator<GenType::Captures> moves{chess};
+    Board board{POS2};
+    MoveGenerator<GenType::Captures> moves{board};
     EXPECT_EQ(moves.size(), 8) << "should have 8 legal captures";
 }
 

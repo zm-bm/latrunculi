@@ -271,43 +271,43 @@ TEST(BoardTest, attacksToPinnedPosition) {
 }
 
 TEST(BoardTest, addPiece) {
-    Board chess = Board(EMPTYFEN);
-    U64 key     = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
-    chess.addPiece<true>(E2, WHITE, PAWN);
+    Board board = Board(EMPTYFEN);
+    U64 key     = board.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
+    board.addPiece<true>(E2, WHITE, PAWN);
 
-    EXPECT_EQ(chess.pieceOn(E2), makePiece(WHITE, PAWN));
-    EXPECT_EQ(chess.pieces<PAWN>(WHITE), BB::set(E2));
-    EXPECT_EQ(chess.count(WHITE, PAWN), 1);
-    EXPECT_EQ(chess.occupancy(), BB::set(E8) | BB::set(E2) | BB::set(E1));
-    EXPECT_EQ(chess.getKey(), key);
-    EXPECT_EQ(chess.toFEN(), PAWN_E2);
+    EXPECT_EQ(board.pieceOn(E2), makePiece(WHITE, PAWN));
+    EXPECT_EQ(board.pieces<PAWN>(WHITE), BB::set(E2));
+    EXPECT_EQ(board.count(WHITE, PAWN), 1);
+    EXPECT_EQ(board.occupancy(), BB::set(E8) | BB::set(E2) | BB::set(E1));
+    EXPECT_EQ(board.getKey(), key);
+    EXPECT_EQ(board.toFEN(), PAWN_E2);
 }
 
 TEST(BoardTest, removePiece) {
-    Board chess = Board(PAWN_E2);
-    U64 key     = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
-    chess.removePiece<true>(E2, WHITE, PAWN);
+    Board board = Board(PAWN_E2);
+    U64 key     = board.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
+    board.removePiece<true>(E2, WHITE, PAWN);
 
-    EXPECT_EQ(chess.pieceOn(E2), Piece::NONE);
-    EXPECT_EQ(chess.pieces<PAWN>(WHITE), 0x0);
-    EXPECT_EQ(chess.count(WHITE, PAWN), 0);
-    EXPECT_EQ(chess.occupancy(), BB::set(E8) | BB::set(E1));
-    EXPECT_EQ(chess.getKey(), key);
-    EXPECT_EQ(chess.toFEN(), EMPTYFEN);
+    EXPECT_EQ(board.pieceOn(E2), Piece::NONE);
+    EXPECT_EQ(board.pieces<PAWN>(WHITE), 0x0);
+    EXPECT_EQ(board.count(WHITE, PAWN), 0);
+    EXPECT_EQ(board.occupancy(), BB::set(E8) | BB::set(E1));
+    EXPECT_EQ(board.getKey(), key);
+    EXPECT_EQ(board.toFEN(), EMPTYFEN);
 }
 
 TEST(BoardTest, movePiece) {
-    Board chess = Board(PAWN_E2);
-    U64 key     = chess.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
-    chess.movePiece<true>(E2, E4, WHITE, PAWN);
+    Board board = Board(PAWN_E2);
+    U64 key     = board.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
+    board.movePiece<true>(E2, E4, WHITE, PAWN);
 
-    EXPECT_EQ(chess.pieceOn(E2), Piece::NONE);
-    EXPECT_EQ(chess.pieceOn(E4), makePiece(WHITE, PAWN));
-    EXPECT_EQ(chess.pieces<PAWN>(WHITE), BB::set(E4));
-    EXPECT_EQ(chess.count(WHITE, PAWN), 1);
-    EXPECT_EQ(chess.occupancy(), BB::set(E8) | BB::set(E1) | BB::set(E4));
-    EXPECT_EQ(chess.getKey(), key);
-    EXPECT_EQ(chess.toFEN(), PAWN_E4);
+    EXPECT_EQ(board.pieceOn(E2), Piece::NONE);
+    EXPECT_EQ(board.pieceOn(E4), makePiece(WHITE, PAWN));
+    EXPECT_EQ(board.pieces<PAWN>(WHITE), BB::set(E4));
+    EXPECT_EQ(board.count(WHITE, PAWN), 1);
+    EXPECT_EQ(board.occupancy(), BB::set(E8) | BB::set(E1) | BB::set(E4));
+    EXPECT_EQ(board.getKey(), key);
+    EXPECT_EQ(board.toFEN(), PAWN_E4);
 }
 
 TEST(BoardTest, canCastleStartBoard) {

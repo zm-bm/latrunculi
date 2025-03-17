@@ -17,6 +17,8 @@ namespace Search {
 
 enum class NodeType { Root, PV, NonPV };
 
+int quiescence(Thread& thread, int alpha, int beta);
+
 template <NodeType>
 int search(Thread&, int, int, int);
 
@@ -28,8 +30,8 @@ inline int search(Thread& thread, int alpha, int beta, int depth) {
 template <NodeType>
 U64 perft(int, Board&, std::ostream& = std::cout);
 
-inline U64 perft(int depth, Board& chess, std::ostream& oss = std::cout) {
-    return perft<NodeType::Root>(depth, chess, oss);
+inline U64 perft(int depth, Board& board, std::ostream& oss = std::cout) {
+    return perft<NodeType::Root>(depth, board, oss);
 }
 
 }

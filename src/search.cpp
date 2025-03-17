@@ -14,50 +14,7 @@ constexpr int FullDepthMoves = 4;
 constexpr int ReductionLimit = 3;
 constexpr int FutilityMargin = 300;
 
-int quiescence(Thread& th, int alpha, int beta) {
-    // 1. Evaluate the current position (stand-pat).
-    int standPat = eval(th.chess);
 
-    if (standPat >= beta) {
-        // beta cutoff, return upperbound
-        return beta;
-    }
-
-    if (standPat > alpha) {
-        // update alpha/lowerbound if position improves it
-        alpha = standPat;
-    }
-
-    // 2. Generate only forcing moves and sort by priority
-    MoveGenerator<GenType::Captures> moves{th.chess};
-    moves.sort(MovePriority(th, NodeType::NonPV));
-
-    // TODO: handle draws, for now just return standPat
-    if (moves.empty()) return standPat;
-
-    // 3. Loop over moves
-    for (auto& move : moves) {
-        if (!th.chess.isLegalMove(move)) continue;
-        if (th.chess.see(move) < 0) continue;
-
-        // 4. Recursively search
-        th.chess.make(move);
-        int score = -quiescence(th, -beta, -alpha);
-        th.chess.unmake();
-
-        if (score >= beta) {
-            // beta cutoff, return upperbound
-            return beta;
-        }
-        if (score > alpha) {
-            // update alpha/lowerbound
-            alpha = score;
-        }
-    }
-
-    // TODO: handle no legal moves, 50 move rule, draw by repetition, etc
-    return alpha;
-}
 
 template <NodeType node>
 int search(Thread& th, int alpha, int beta, int depth) {
@@ -68,8 +25,8 @@ int search(Thread& th, int alpha, int beta, int depth) {
 
     constexpr bool isRoot = node == NodeType::Root;
     constexpr bool isPV   = node == NodeType::Root || node == NodeType::PV;
-    Board& chess          = th.chess;
-    U64 key               = chess.getKey();
+    Board& board          = th.board;
+    U64 key               = board.getKey();
     int lowerbound        = alpha;
     int upperbound        = beta;
     int bestScore         = -MATESCORE;
@@ -90,26 +47,26 @@ int search(Thread& th, int alpha, int beta, int depth) {
     }
 
     // 3. Generate moves and sort by priority
-    MoveGenerator<GenType::All> moves{chess};
+    MoveGenerator<GenType::All> moves{board};
     moves.sort(MovePriority(th, node, entry));
 
     // TODO: handle draws, for now just return eval
-    if (moves.empty()) return eval(chess);
+    if (moves.empty()) return eval(board);
 
     // 4. Loop over moves
     int movesSearched = 0;
     for (auto& move : moves) {
-        if (!chess.isLegalMove(move)) continue;
-        bool isQuiet = !chess.isCapture(move) && !chess.isCheckingMove(move);
+        if (!board.isLegalMove(move)) continue;
+        bool isQuiet = !board.isCapture(move) && !board.isCheckingMove(move);
 
         // Futility pruning
         if (depth <= 2 && isQuiet) {
-            int staticEval = eval(chess);
+            int staticEval = eval(board);
             if (staticEval + (FutilityMargin * depth) <= alpha) continue;
         }
 
         // 5. Recursively search
-        chess.make(move);
+        board.make(move);
 
         int score;
         bool doFullSearch = isRoot || (isPV && movesSearched == 0);
@@ -128,7 +85,7 @@ int search(Thread& th, int alpha, int beta, int depth) {
         }
         movesSearched++;
 
-        chess.unmake();
+        board.unmake();
 
         // 6. If we found a better move, update our bestScore/Move and principal variation
         if (score > bestScore) {
@@ -141,7 +98,7 @@ int search(Thread& th, int alpha, int beta, int depth) {
         alpha = std::max(alpha, score);
         if (alpha >= beta) {
             // Beta cut-off, update heuristics if quiet move
-            th.heuristics.updateBetaCutoff(chess, move, th.currentDepth);
+            th.heuristics.updateBetaCutoff(board, move, th.currentDepth);
             break;
         }
     }
@@ -160,27 +117,72 @@ int search(Thread& th, int alpha, int beta, int depth) {
 
 template int search<NodeType::Root>(Thread&, int, int, int);
 
+int quiescence(Thread& th, int alpha, int beta) {
+    // 1. Evaluate the current position (stand-pat).
+    int standPat = eval(th.board);
+
+    if (standPat >= beta) {
+        // beta cutoff, return upperbound
+        return beta;
+    }
+
+    if (standPat > alpha) {
+        // update alpha/lowerbound if position improves it
+        alpha = standPat;
+    }
+
+    // 2. Generate only forcing moves and sort by priority
+    MoveGenerator<GenType::Captures> moves{th.board};
+    moves.sort(MovePriority(th, NodeType::NonPV));
+
+    // TODO: handle draws, for now just return standPat
+    if (moves.empty()) return standPat;
+
+    // 3. Loop over moves
+    for (auto& move : moves) {
+        if (!th.board.isLegalMove(move)) continue;
+        if (th.board.see(move) < 0) continue;
+
+        // 4. Recursively search
+        th.board.make(move);
+        int score = -quiescence(th, -beta, -alpha);
+        th.board.unmake();
+
+        if (score >= beta) {
+            // beta cutoff, return upperbound
+            return beta;
+        }
+        if (score > alpha) {
+            // update alpha/lowerbound
+            alpha = score;
+        }
+    }
+
+    // TODO: handle no legal moves, 50 move rule, draw by repetition, etc
+    return alpha;
+}
+
 template <NodeType node>
-U64 perft(int depth, Board& chess, std::ostream& oss) {
+U64 perft(int depth, Board& board, std::ostream& oss) {
     if (depth == 0) return 1;
 
-    MoveGenerator<GenType::All> moves{chess};
+    MoveGenerator<GenType::All> moves{board};
 
     U64 count = 0, nodes = 0;
 
     for (auto& move : moves) {
-        if (!chess.isLegalMove(move)) continue;
+        if (!board.isLegalMove(move)) continue;
 
-        chess.make(move);
+        board.make(move);
 
-        count  = perft<NodeType::NonPV>(depth - 1, chess);
+        count  = perft<NodeType::NonPV>(depth - 1, board);
         nodes += count;
 
         if constexpr (node == NodeType::Root) {
             oss << move << ": " << count << '\n';
         }
 
-        chess.unmake();
+        board.unmake();
     }
 
     if constexpr (node == NodeType::Root) {

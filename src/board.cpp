@@ -348,19 +348,19 @@ std::string Board::toFEN() const {
     return oss.str();
 }
 
-std::ostream& operator<<(std::ostream& os, const Board& chess) {
+std::ostream& operator<<(std::ostream& os, const Board& board) {
     for (Rank rank = RANK8; rank >= RANK1; rank--) {
         os << "   +---+---+---+---+---+---+---+---+\n";
         os << "   |";
         for (File file = FILE1; file <= FILE8; file++) {
-            os << " " << chess.pieceOn(file, rank) << " |";
+            os << " " << board.pieceOn(file, rank) << " |";
         }
         os << " " << rank << '\n';
     }
 
     os << "   +---+---+---+---+---+---+---+---+\n";
     os << "     a   b   c   d   e   f   g   h\n\n";
-    os << chess.toFEN() << std::endl;
+    os << board.toFEN() << std::endl;
 
     return os;
 }

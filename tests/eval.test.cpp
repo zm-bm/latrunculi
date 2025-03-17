@@ -11,38 +11,38 @@
 class EvaluatorTest : public ::testing::Test {
    protected:
     void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
+        Board board(fen);
+        Eval<Silent> eval(board);
         EXPECT_EQ(eval.outposts[WHITE], expectedWhite) << fen;
         EXPECT_EQ(eval.outposts[BLACK], expectedBlack) << fen;
     }
 
     void testMobilityArea(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
+        Board board(fen);
+        Eval<Silent> eval(board);
         EXPECT_EQ(eval.mobilityArea[WHITE], expectedWhite) << fen;
         EXPECT_EQ(eval.mobilityArea[BLACK], expectedBlack) << fen;
     }
 
     void testMobility(const std::string& fen, Score expectedWhite, Score expectedBlack) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
+        Board board(fen);
+        Eval<Silent> eval(board);
         eval.evaluate();
         EXPECT_EQ(eval.mobility[WHITE], expectedWhite) << fen;
         EXPECT_EQ(eval.mobility[BLACK], expectedBlack) << fen;
     }
 
     void testPawnsScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
+        Board board(fen);
+        Eval<Silent> eval(board);
         EXPECT_EQ(eval.pawnsScore<WHITE>(), expectedWhite) << fen;
         EXPECT_EQ(eval.pawnsScore<BLACK>(), expectedBlack) << fen;
     }
 
     template <PieceType p>
     void testPiecesScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
+        Board board(fen);
+        Eval<Silent> eval(board);
         Score wScore = eval.piecesScore<WHITE, p>();
         Score bScore = eval.piecesScore<BLACK, p>();
         EXPECT_EQ(wScore, expectedWhite) << fen;
@@ -50,48 +50,48 @@ class EvaluatorTest : public ::testing::Test {
     }
 
     void testKingScore(const std::string& fen, Score expected) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
+        Board board(fen);
+        Eval<Silent> eval(board);
         eval.evaluate();
         EXPECT_EQ(eval.kingScore<WHITE>(), expected) << fen;
         EXPECT_EQ(eval.kingScore<BLACK>(), expected) << fen;
     }
 
     void testKingShelter(const std::string& fen, Score expectedWhite, Score expectedBlack) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
-        EXPECT_EQ(eval.kingShelter<WHITE>(chess.kingSq(WHITE)), expectedWhite) << fen;
-        EXPECT_EQ(eval.kingShelter<BLACK>(chess.kingSq(BLACK)), expectedBlack) << fen;
+        Board board(fen);
+        Eval<Silent> eval(board);
+        EXPECT_EQ(eval.kingShelter<WHITE>(board.kingSq(WHITE)), expectedWhite) << fen;
+        EXPECT_EQ(eval.kingShelter<BLACK>(board.kingSq(BLACK)), expectedBlack) << fen;
     }
 
     void testFileShelter(const std::string& fen,
                          Score expectedWhite,
                          Score expectedBlack,
                          File file) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
-        U64 wPawns = chess.pieces<PAWN>(WHITE);
-        U64 bPawns = chess.pieces<PAWN>(BLACK);
+        Board board(fen);
+        Eval<Silent> eval(board);
+        U64 wPawns = board.pieces<PAWN>(WHITE);
+        U64 bPawns = board.pieces<PAWN>(BLACK);
         EXPECT_EQ(eval.fileShelter<WHITE>(wPawns, bPawns, file), expectedWhite) << fen;
         EXPECT_EQ(eval.fileShelter<BLACK>(bPawns, wPawns, file), expectedBlack) << fen;
     }
 
     void testPhase(const std::string& fen, int expected, int tolerance) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
+        Board board(fen);
+        Eval<Silent> eval(board);
         int phaseValue = eval.phase();
         EXPECT_LE(std::abs(phaseValue - expected), tolerance) << fen;
     }
 
     void testNonPawnMaterial(const std::string& fen, Color c, int expected) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
+        Board board(fen);
+        Eval<Silent> eval(board);
         EXPECT_EQ(eval.nonPawnMaterial(c), expected);
     }
 
     void testScaleFactor(const std::string& fen, int expected) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
+        Board board(fen);
+        Eval<Silent> eval(board);
         EXPECT_EQ(eval.scaleFactor(), expected) << fen;
     }
 };
@@ -104,14 +104,14 @@ TEST_F(EvaluatorTest, Eval) {
     };
 
     for (const auto& [fen, expected, exact] : testCases) {
-        Board chess(fen);
-        Eval<Silent> eval(chess);
+        Board board(fen);
+        Eval<Silent> eval(board);
         if (exact) {
             EXPECT_EQ(eval.evaluate(), expected + TEMPO_BONUS) << fen;
         } else {
             EXPECT_GT(eval.evaluate(), expected + TEMPO_BONUS) << fen;
         }
-        chess.makeNull();
+        board.makeNull();
         if (exact) {
             EXPECT_EQ(eval.evaluate(), expected + TEMPO_BONUS) << fen;
         } else {
