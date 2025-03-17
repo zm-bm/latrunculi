@@ -17,10 +17,10 @@ constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
                EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
 // search constants
+constexpr int ASP_WINDOW  = 25;
 constexpr int MAX_DEPTH   = 64;
 constexpr int MAX_MOVES   = 256;
 constexpr int MAX_HISTORY = 1000;
-constexpr int MATESCORE   = 16384;
 
 // move gen constants
 constexpr Square KingOrigin[N_COLORS]                 = {E8, E1};
@@ -51,13 +51,13 @@ constexpr int KNIGHT_VALUE_EG = 680;
 constexpr int BISHOP_VALUE_EG = 740;
 constexpr int ROOK_VALUE_EG   = 1100;
 constexpr int QUEEN_VALUE_EG  = 2150;
+constexpr int MATESCORE       = 16384;
 
 constexpr int PIECE_VALUES[N_PIECES - 1] = {
     PAWN_VALUE_MG, KNIGHT_VALUE_MG, BISHOP_VALUE_MG, ROOK_VALUE_MG, QUEEN_VALUE_MG, 0};
 constexpr int pieceValue(PieceType pieceType) { return PIECE_VALUES[pieceType - 1]; };
 
 constexpr int TEMPO_BONUS = 25;
-constexpr int ASP_WINDOW  = 25;
 constexpr int SCALE_LIMIT = 64;
 constexpr int PHASE_LIMIT = 128;
 constexpr int MG_LIMIT    = 4 * BISHOP_VALUE_MG + 4 * ROOK_VALUE_MG + 2 * QUEEN_VALUE_MG;

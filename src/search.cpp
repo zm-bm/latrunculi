@@ -12,6 +12,7 @@ namespace Search {
 
 constexpr int FullDepthMoves = 4;
 constexpr int ReductionLimit = 3;
+constexpr int FutilityMargin = 300;
 
 int quiescence(Thread& th, int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
@@ -65,12 +66,13 @@ int search(Thread& th, int alpha, int beta, int depth) {
         return quiescence(th, alpha, beta);
     }
 
-    constexpr bool isPV = (node == NodeType::Root || node == NodeType::PV);
-    Board& chess        = th.chess;
-    U64 key             = chess.getKey();
-    int lowerbound      = alpha;
-    int upperbound      = beta;
-    int bestScore       = -MATESCORE;
+    constexpr bool isRoot = node == NodeType::Root;
+    constexpr bool isPV   = node == NodeType::Root || node == NodeType::PV;
+    Board& chess          = th.chess;
+    U64 key               = chess.getKey();
+    int lowerbound        = alpha;
+    int upperbound        = beta;
+    int bestScore         = -MATESCORE;
     Move bestMove;
 
     // 2. Check the transposition table
@@ -98,21 +100,26 @@ int search(Thread& th, int alpha, int beta, int depth) {
     int movesSearched = 0;
     for (auto& move : moves) {
         if (!chess.isLegalMove(move)) continue;
-        bool isQuiet = !chess.isCapture(move);
+        bool isQuiet = !chess.isCapture(move) && !chess.isCheckingMove(move);
+
+        // Futility pruning
+        if (depth <= 2 && isQuiet) {
+            int staticEval = eval(chess);
+            if (staticEval + (FutilityMargin * depth) <= alpha) continue;
+        }
 
         // 5. Recursively search
         chess.make(move);
 
         int score;
-        bool doFullSearch = node == NodeType::Root || (isPV && movesSearched == 0);
+        bool doFullSearch = isRoot || (isPV && movesSearched == 0);
         if (doFullSearch) {
             score = -search<NodeType::PV>(th, -beta, -alpha, depth - 1);
         } else {
             // LMR + null window search, re-search if it fail-high
             bool doReduce = (movesSearched >= FullDepthMoves) && (depth >= ReductionLimit);
-            int reduction = (doReduce && !isPV && isQuiet && !chess.isCheck())
-                                ? 1 + std::min(movesSearched / 10, depth / 4)
-                                : 0;
+            int reduction =
+                (doReduce && !isPV && isQuiet) ? 1 + std::min(movesSearched / 10, depth / 4) : 0;
 
             score = -search<NodeType::NonPV>(th, -alpha - 1, -alpha, depth - 1 - reduction);
             if (score > alpha) {
