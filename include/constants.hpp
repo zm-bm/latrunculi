@@ -17,7 +17,7 @@ constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
                EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
 // search constants
-constexpr int ASP_WINDOW  = 25;
+constexpr int ASP_WINDOW  = 33;
 constexpr int MAX_DEPTH   = 64;
 constexpr int MAX_MOVES   = 256;
 constexpr int MAX_HISTORY = 1000;

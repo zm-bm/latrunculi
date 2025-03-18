@@ -117,7 +117,8 @@ template int search<NodeType::Root>(Thread&, int, int, int);
 
 int quiescence(Thread& th, int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
-    int standPat = eval(th.board);
+    Board& board = th.board;
+    int standPat = eval(board);
 
     if (standPat >= beta) {
         // beta cutoff, return upperbound
@@ -130,7 +131,7 @@ int quiescence(Thread& th, int alpha, int beta) {
     }
 
     // 2. Generate only forcing moves and sort by priority
-    MoveGenerator<GenType::Captures> moves{th.board};
+    MoveGenerator<GenType::Captures> moves{board};
     moves.sort(MovePriority(th, NodeType::NonPV));
 
     // TODO: handle draws, for now just return standPat
@@ -138,13 +139,13 @@ int quiescence(Thread& th, int alpha, int beta) {
 
     // 3. Loop over moves
     for (auto& move : moves) {
-        if (!th.board.isLegalMove(move)) continue;
-        if (th.board.see(move) < 0) continue;
+        if (!board.isLegalMove(move)) continue;
+        if (board.see(move) < 0) continue;
 
         // 4. Recursively search
-        th.board.make(move);
+        board.make(move);
         int score = -quiescence(th, -beta, -alpha);
-        th.board.unmake();
+        board.unmake();
 
         if (score >= beta) {
             // beta cutoff, return upperbound

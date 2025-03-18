@@ -69,10 +69,11 @@ void Thread::search() {
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
             alpha = -MATESCORE;
+            score = Search::search(*this, alpha, beta, depth);
         } else if (score >= beta) {
-            beta = MATESCORE;
+            beta  = MATESCORE;
+            score = Search::search(*this, alpha, beta, depth);
         }
-        score = Search::search(*this, alpha, beta, depth);
 
         prevScore = score;
         heuristics.age();
