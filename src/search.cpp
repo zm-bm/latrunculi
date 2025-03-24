@@ -36,7 +36,7 @@ int search(Thread& thread, int alpha, int beta, int depth) {
     if (thread.options.debug) thread.stats.nodes[thread.depth]++;
 
     // 2. Check the transposition table
-    TT::Entry* entry;
+    TT::Entry* entry = nullptr;
     if constexpr (!isPV) {
         if (thread.options.debug) thread.stats.ttProbes[thread.depth]++;
         entry = TT::table.probe(key);

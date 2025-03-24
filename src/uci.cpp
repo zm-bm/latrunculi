@@ -159,7 +159,7 @@ void printInfo(int score, int depth, SearchStats& stats, PrincipalVariation& pv)
     std::cout << " score cp " << score;
     std::cout << " time " << std::setprecision(1) << sec;
     std::cout << " nodes " << stats.totalNodes;
-    std::cout << " nps " << std::setprecision(0) << nps;
+    std::cout << " nps " << static_cast<int>(nps);
     std::cout << " pv";
     for (auto& move : pv[0]) std::cout << " " << move;
     std::cout << std::endl;
