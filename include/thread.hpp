@@ -113,6 +113,17 @@ struct SearchStats {
     }
 
     void reset() { *this = {}; }
+
+    void resetDepthStats() {
+        nodes         = {};
+        qNodes        = {};
+        cutoffs       = {};
+        failHighEarly = {};
+        failHighLate  = {};
+        ttProbes      = {};
+        ttHits        = {};
+        ttCutoffs     = {};
+    }
 };
 
 class Thread {

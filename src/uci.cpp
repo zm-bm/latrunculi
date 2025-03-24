@@ -168,11 +168,10 @@ void printInfo(int score, int depth, SearchStats& stats, PrincipalVariation& pv)
 void printDebuggingInfo(const SearchStats& stats) {
     std::cerr << "\n"
               << std::setw(5) << "Depth"
-              << " | " << std::setw(9) << "Nodes"
-              << " | " << std::setw(9) << "QNodes"
-              << " | " << std::setw(23) << "Cutoffs (Early/Late%)"
-              << " | " << std::setw(6) << "TT%"
-              << " | " << std::setw(7) << "TTCut%"
+              << " | " << std::setw(18) << "Nodes (QNode%)"
+              << " | " << std::setw(23) << "Cutoffs (Early%/Late%)"
+              << " | " << std::setw(6) << "TTHit%"
+              << " | " << std::setw(6) << "TTCut%"
               << " | " << std::setw(13) << "EBF / Cumul" << "\n";
 
     int maxDepth = stats.maxDepth();
@@ -187,22 +186,23 @@ void printDebuggingInfo(const SearchStats& stats) {
         U64 hits    = stats.ttHits[d];
         U64 cutTT   = stats.ttCutoffs[d];
 
-        double ebf        = prev > 0 ? static_cast<double>(nodes) / prev : 0.0;
-        double cumulative = std::pow(static_cast<double>(nodes), 1.0 / d);
+        double quiesPct   = nodes > 0 ? 100.0 * qnodes / nodes : 0.0;
         double earlyPct   = cutoffs > 0 ? 100.0 * early / cutoffs : 0.0;
         double latePct    = cutoffs > 0 ? 100.0 * late / cutoffs : 0.0;
         double ttHitPct   = probes > 0 ? 100.0 * hits / probes : 0.0;
         double ttCutPct   = hits > 0 ? 100.0 * cutTT / hits : 0.0;
+        double ebf        = prev > 0 ? static_cast<double>(nodes) / prev : 0.0;
+        double cumulative = std::pow(static_cast<double>(nodes), 1.0 / d);
 
         std::cerr << std::fixed;
         std::cerr << std::setw(5) << d << " | ";
-        std::cerr << std::setw(9) << nodes << " | ";
-        std::cerr << std::setw(9) << qnodes << " | ";
+        std::cerr << std::setw(9) << nodes << " (";
+        std::cerr << std::setw(5) << std::setprecision(1) << quiesPct << "%) | ";
         std::cerr << std::setw(8) << cutoffs << " (";
         std::cerr << std::setw(5) << std::setprecision(1) << earlyPct << "/";
         std::cerr << std::setw(5) << std::setprecision(1) << latePct << "%) | ";
         std::cerr << std::setw(5) << std::setprecision(1) << ttHitPct << "% | ";
-        std::cerr << std::setw(6) << std::setprecision(1) << ttCutPct << "% | ";
+        std::cerr << std::setw(5) << std::setprecision(1) << ttCutPct << "% | ";
         std::cerr << std::setw(5) << std::setprecision(1) << ebf << " / ";
         std::cerr << std::setw(5) << std::setprecision(1) << cumulative << "\n";
     }

@@ -59,28 +59,29 @@ void Thread::search() {
 
     // 1. Iterative deepening loop
     int prevScore = 0;
-    for (int searchDepth = 1; searchDepth <= options.depth && !ThreadPool::stopThreads;
-         ++searchDepth) {
+    for (int d = 1; d <= options.depth && !ThreadPool::stopThreads; ++d) {
+        stats.resetDepthStats();
+
         // 2. Aspiration window from previous score
         int alpha = prevScore - AspirationWindow;
         int beta  = prevScore + AspirationWindow;
 
         // 3. First search
-        int score = Search::search(*this, alpha, beta, searchDepth);
+        int score = Search::search(*this, alpha, beta, d);
 
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
             alpha = -MATE_VALUE;
-            score = Search::search(*this, alpha, beta, searchDepth);
+            score = Search::search(*this, alpha, beta, d);
         } else if (score >= beta) {
             beta  = MATE_VALUE;
-            score = Search::search(*this, alpha, beta, searchDepth);
+            score = Search::search(*this, alpha, beta, d);
         }
 
         prevScore = score;
         heuristics.age();
 
-        UCI::printInfo(score, searchDepth, stats, pv);
+        UCI::printInfo(score, d, stats, pv);
     }
 
     std::cout << "bestmove " << pv[0].at(0) << std::endl;
