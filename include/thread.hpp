@@ -17,7 +17,7 @@
 
 struct SearchOptions {
     bool debug = true;
-    int depth  = 11;
+    int depth  = 14;
 };
 
 struct HistoryTable {

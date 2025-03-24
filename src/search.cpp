@@ -13,6 +13,7 @@ namespace Search {
 constexpr int FullDepthMoves = 4;
 constexpr int ReductionLimit = 3;
 constexpr int FutilityMargin = 300;
+constexpr int NullMoveR      = 4;
 
 template <NodeType node>
 int search(Thread& thread, int alpha, int beta, int depth) {
@@ -54,6 +55,14 @@ int search(Thread& thread, int alpha, int beta, int depth) {
                 return entry->score;
             }
         }
+    }
+
+    // Null move pruning
+    if (!isPV && depth >= NullMoveR && !board.isCheck()) {
+        board.makeNull();
+        int score = -search<NodeType::NonPV>(thread, -beta, -beta + 1, depth - NullMoveR);
+        board.unmmakeNull();
+        if (score >= beta) return beta;
     }
 
     // 3. Generate moves and sort by priority

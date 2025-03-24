@@ -205,16 +205,6 @@ void printDebuggingInfo(const SearchStats& stats) {
         std::cerr << std::setw(6) << std::setprecision(1) << ttCutPct << "% | ";
         std::cerr << std::setw(5) << std::setprecision(1) << ebf << " / ";
         std::cerr << std::setw(5) << std::setprecision(1) << cumulative << "\n";
-
-        // std::cerr << std::fixed;
-        // std::cerr << std::setw(5) << d << " | ";
-        // std::cerr << std::setw(9) << nodes << " | ";
-        // std::cerr << std::setw(9) << qnodes << " | ";
-        // std::cerr << std::setw(9) << cutoffs << " | ";
-        // std::cerr << std::setw(5) << std::setprecision(1) << earlyPct << "/";
-        // std::cerr << std::setw(4) << std::setprecision(1) << latePct << "% | ";
-        // std::cerr << std::setw(5) << std::setprecision(1) << ebf << " / ";
-        // std::cerr << std::setw(5) << std::setprecision(1) << cumulative << "\n";
     }
 }
 
