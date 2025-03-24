@@ -3,6 +3,9 @@
 #include <memory>
 
 #include "search.hpp"
+#include "uci.hpp"
+
+constexpr int AspirationWindow = 33;
 
 Thread::~Thread() {
     stop();
@@ -27,11 +30,11 @@ void Thread::stop() {
     condition.notify_one();
 }
 
-void Thread::set(const std::string& fen, int depth) {
+void Thread::set(const std::string& fen, SearchOptions& options) {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        board       = Board(fen, this);
-        searchDepth = depth;
+        board   = Board(fen, this);
+        options = options;
     }
 }
 
@@ -53,39 +56,40 @@ void Thread::loop() {
 
 void Thread::search() {
     reset();
-    startTime = std::chrono::high_resolution_clock::now();
-
-    int prevScore = 0;
 
     // 1. Iterative deepening loop
-    for (int depth = 1; depth <= searchDepth && !ThreadPool::stopThreads; ++depth) {
+    int prevScore = 0;
+    for (int searchDepth = 1; searchDepth <= options.depth && !ThreadPool::stopThreads;
+         ++searchDepth) {
         // 2. Aspiration window from previous score
-        int alpha = prevScore - ASP_WINDOW;
-        int beta  = prevScore + ASP_WINDOW;
+        int alpha = prevScore - AspirationWindow;
+        int beta  = prevScore + AspirationWindow;
 
         // 3. First search
-        int score = Search::search(*this, alpha, beta, depth);
+        int score = Search::search(*this, alpha, beta, searchDepth);
 
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
             alpha = -MATESCORE;
-            score = Search::search(*this, alpha, beta, depth);
+            score = Search::search(*this, alpha, beta, searchDepth);
         } else if (score >= beta) {
             beta  = MATESCORE;
-            score = Search::search(*this, alpha, beta, depth);
+            score = Search::search(*this, alpha, beta, searchDepth);
         }
 
         prevScore = score;
         heuristics.age();
-        pv.printInfo(score, nodeCount, startTime);
+
+        UCI::printInfo(score, searchDepth, stats, pv);
     }
 
-    std::cout << "bestmove " << pv.lines[0].at(0) << std::endl;
+    std::cout << "bestmove " << pv[0].at(0) << std::endl;
+    if (options.debug) UCI::printDebuggingInfo(stats);
 }
 
 void Thread::reset() {
-    nodeCount    = 0;
-    currentDepth = 0;
+    stats.reset();
+    depth = 0;
     pv.clear();
 }
 
@@ -97,10 +101,10 @@ ThreadPool::ThreadPool(size_t numThreads) {
 
 ThreadPool::~ThreadPool() { stopAll(); }
 
-void ThreadPool::startAll(Board& board, int depth) {
+void ThreadPool::startAll(Board& board, SearchOptions& options) {
     stopThreads = false;
     for (auto& searchThread : searchThreads) {
-        searchThread->set(board.toFEN(), depth);
+        searchThread->set(board.toFEN(), options);
         searchThread->start();
     }
 }

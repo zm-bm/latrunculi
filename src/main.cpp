@@ -8,7 +8,7 @@ int main() {
     Magics::init();
     Zobrist::init();
 
-    UCI::Engine engine(std::cin, std::cout);
+    UCI::Engine engine;
     engine.loop();
 
     return 0;

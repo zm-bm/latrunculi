@@ -147,10 +147,7 @@ void Board::make(Move mv) {
     ++ply;
     ++moveCounter;
 
-    if (thread) {
-        thread->currentDepth++;
-        thread->nodeCount++;
-    }
+    if (thread) thread->depth++;
 
     // Handle piece capture
     state[ply].captured = captPieceType;
@@ -224,7 +221,7 @@ void Board::unmake() {
     MoveType movetype       = mv.type();
 
     // Decrement counters
-    if (thread) thread->currentDepth--;
+    if (thread) thread->depth--;
     --ply;
     --moveCounter;
 

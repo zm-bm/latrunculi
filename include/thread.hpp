@@ -15,7 +15,10 @@
 #include "search.hpp"
 #include "types.hpp"
 
-using TimePoint = std::chrono::high_resolution_clock::time_point;
+struct SearchOptions {
+    bool debug = true;
+    int depth  = 11;
+};
 
 struct HistoryTable {
     int history[N_COLORS][N_SQUARES][N_SQUARES] = {0};
@@ -85,22 +88,31 @@ struct PrincipalVariation {
             line.clear();
         }
     }
+};
 
-    void printInfo(int score, int nodeCount, TimePoint startTime) {
-        using namespace std::chrono;
-        auto dur = high_resolution_clock::now() - startTime;
-        auto sec = duration_cast<duration<double>>(dur).count();
-        auto nps = (sec > 0) ? nodeCount / sec : 0;
+struct SearchStats {
+    using TimePoint     = std::chrono::high_resolution_clock::time_point;
+    TimePoint startTime = std::chrono::high_resolution_clock::now();
+    U64 totalNodes      = 0;
+    std::array<U64, MAX_DEPTH> nodes{};
+    std::array<U64, MAX_DEPTH> qNodes{};
+    std::array<U64, MAX_DEPTH> cutoffs{};
+    std::array<U64, MAX_DEPTH> failHighEarly{};
+    std::array<U64, MAX_DEPTH> failHighLate{};
+    std::array<U64, MAX_DEPTH> ttProbes{};
+    std::array<U64, MAX_DEPTH> ttHits{};
+    std::array<U64, MAX_DEPTH> ttCutoffs{};
 
-        std::cout << "info depth " << lines[0].size();
-        std::cout << " score cp " << score;
-        std::cout << " time " << std::fixed << std::setprecision(1) << sec;
-        std::cout << " nodes " << nodeCount;
-        std::cout << " nps " << std::setprecision(0) << nps;
-        std::cout << " pv";
-        for (auto& move : lines[0]) std::cout << " " << move;
-        std::cout << std::endl;
+    int maxDepth() const {
+        for (int d = MAX_DEPTH - 1; d >= 0; --d) {
+            if (nodes[d] > 0 || qNodes[d] > 0) {
+                return d;
+            }
+        }
+        return 0;
     }
+
+    void reset() { *this = {}; }
 };
 
 class Thread {
@@ -110,21 +122,19 @@ class Thread {
 
     void start();
     void stop();
-    void set(const std::string&, int);
+    void set(const std::string&, SearchOptions&);
 
     Board board;
     PrincipalVariation pv;
     Heuristics heuristics;
-
-    int searchDepth, currentDepth;
-    int nodeCount;
+    SearchStats stats;
+    SearchOptions options;
+    int depth;
 
    private:
     void loop();
     void search();
     void reset();
-
-    TimePoint startTime;
 
     std::mutex mutex;
     std::condition_variable condition;
@@ -141,7 +151,7 @@ class ThreadPool {
     ThreadPool(size_t numThreads);
     ~ThreadPool();
 
-    void startAll(Board&, int);
+    void startAll(Board&, SearchOptions&);
     void stopAll();
 
     static inline std::atomic<bool> stopThreads{false};

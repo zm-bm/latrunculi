@@ -15,38 +15,50 @@ constexpr int ReductionLimit = 3;
 constexpr int FutilityMargin = 300;
 
 template <NodeType node>
-int search(Thread& th, int alpha, int beta, int depth) {
-    // 1. Base case: quiescence search
-    if (depth == 0) {
-        return quiescence(th, alpha, beta);
-    }
-
+int search(Thread& thread, int alpha, int beta, int depth) {
     constexpr bool isRoot = node == NodeType::Root;
     constexpr bool isPV   = node == NodeType::Root || node == NodeType::PV;
-    Board& board          = th.board;
-    U64 key               = board.getKey();
-    int lowerbound        = alpha;
-    int upperbound        = beta;
-    int bestScore         = -MATESCORE;
+
+    // 1. Base case: quiescence search
+    if (depth == 0) {
+        return quiescence(thread, alpha, beta);
+    }
+
+    Board& board   = thread.board;
+    U64 key        = board.getKey();
+    int lowerbound = alpha;
+    int upperbound = beta;
+    int bestScore  = -MATESCORE;
     Move bestMove;
+    thread.stats.totalNodes++;
+    if (thread.options.debug) thread.stats.nodes[thread.depth]++;
 
     // 2. Check the transposition table
     TT::Entry* entry;
     if constexpr (!isPV) {
+        if (thread.options.debug) thread.stats.ttProbes[thread.depth]++;
         entry = TT::table.probe(key);
         if (entry->isValid(key) && entry->depth >= depth) {
+            if (thread.options.debug) thread.stats.ttHits[thread.depth]++;
             if (entry->flag == TT::EXACT) {
-                th.pv.update(entry->bestMove, th.currentDepth);
+                thread.pv.update(entry->bestMove, thread.depth);
+                if (thread.options.debug) thread.stats.ttCutoffs[thread.depth]++;
                 return entry->score;
             }
-            if (entry->flag == TT::LOWERBOUND && entry->score >= beta) return entry->score;
-            if (entry->flag == TT::UPPERBOUND && entry->score <= alpha) return entry->score;
+            if (entry->flag == TT::LOWERBOUND && entry->score >= beta) {
+                if (thread.options.debug) thread.stats.ttCutoffs[thread.depth]++;
+                return entry->score;
+            }
+            if (entry->flag == TT::UPPERBOUND && entry->score <= alpha) {
+                if (thread.options.debug) thread.stats.ttCutoffs[thread.depth]++;
+                return entry->score;
+            }
         }
     }
 
     // 3. Generate moves and sort by priority
     MoveGenerator<GenType::All> moves{board};
-    moves.sort(MovePriority(th, node, entry));
+    moves.sort(MovePriority(thread, node, entry));
 
     // TODO: handle draws, for now just return eval
     if (moves.empty()) return eval(board);
@@ -69,16 +81,16 @@ int search(Thread& th, int alpha, int beta, int depth) {
         int score;
         bool doFullSearch = isRoot || (isPV && movesSearched == 0);
         if (doFullSearch) {
-            score = -search<NodeType::PV>(th, -beta, -alpha, depth - 1);
+            score = -search<NodeType::PV>(thread, -beta, -alpha, depth - 1);
         } else {
             // LMR + null window search, re-search if it fail-high
             bool doReduce = (movesSearched >= FullDepthMoves) && (depth >= ReductionLimit);
             int reduction =
                 (doReduce && !isPV && isQuiet) ? 1 + std::min(movesSearched / 10, depth / 4) : 0;
 
-            score = -search<NodeType::NonPV>(th, -alpha - 1, -alpha, depth - 1 - reduction);
+            score = -search<NodeType::NonPV>(thread, -alpha - 1, -alpha, depth - 1 - reduction);
             if (score > alpha) {
-                score = -search<node>(th, -beta, -alpha, depth - 1);
+                score = -search<node>(thread, -beta, -alpha, depth - 1);
             }
         }
         movesSearched++;
@@ -89,14 +101,22 @@ int search(Thread& th, int alpha, int beta, int depth) {
         if (score > bestScore) {
             bestScore = score;
             bestMove  = move;
-            th.pv.update(move, th.currentDepth);
+            thread.pv.update(move, thread.depth);
         }
 
         // 7. Alpha-beta pruning
         alpha = std::max(alpha, score);
         if (alpha >= beta) {
             // Beta cut-off, update heuristics if quiet move
-            th.heuristics.updateBetaCutoff(board, move, th.currentDepth);
+            thread.heuristics.updateBetaCutoff(board, move, thread.depth);
+
+            if (thread.options.debug) {
+                thread.stats.cutoffs[thread.depth]++;
+                if (move == moves[0])
+                    thread.stats.failHighEarly[thread.depth]++;
+                else
+                    thread.stats.failHighLate[thread.depth]++;
+            }
             break;
         }
     }
@@ -115,10 +135,15 @@ int search(Thread& th, int alpha, int beta, int depth) {
 
 template int search<NodeType::Root>(Thread&, int, int, int);
 
-int quiescence(Thread& th, int alpha, int beta) {
+int quiescence(Thread& thread, int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
-    Board& board = th.board;
+    Board& board = thread.board;
     int standPat = eval(board);
+    thread.stats.totalNodes++;
+    if (thread.options.debug) {
+        thread.stats.nodes[thread.depth]++;
+        thread.stats.qNodes[thread.depth]++;
+    }
 
     if (standPat >= beta) {
         // beta cutoff, return upperbound
@@ -132,7 +157,7 @@ int quiescence(Thread& th, int alpha, int beta) {
 
     // 2. Generate only forcing moves and sort by priority
     MoveGenerator<GenType::Captures> moves{board};
-    moves.sort(MovePriority(th, NodeType::NonPV));
+    moves.sort(MovePriority(thread, NodeType::NonPV));
 
     // TODO: handle draws, for now just return standPat
     if (moves.empty()) return standPat;
@@ -144,11 +169,18 @@ int quiescence(Thread& th, int alpha, int beta) {
 
         // 4. Recursively search
         board.make(move);
-        int score = -quiescence(th, -beta, -alpha);
+        int score = -quiescence(thread, -beta, -alpha);
         board.unmake();
 
         if (score >= beta) {
             // beta cutoff, return upperbound
+            if (thread.options.debug) {
+                thread.stats.cutoffs[thread.depth]++;
+                if (move == moves[0])
+                    thread.stats.failHighEarly[thread.depth]++;
+                else
+                    thread.stats.failHighLate[thread.depth]++;
+            }
             return beta;
         }
         if (score > alpha) {

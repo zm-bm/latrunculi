@@ -12,17 +12,15 @@ namespace UCI {
 
 class Engine {
    public:
-    Engine(std::istream&, std::ostream&);
+    Engine() = default;
+
     void loop();
     bool execute(const std::string&);
 
    private:
-    Board board;
-    ThreadPool threads;
-    bool debug;
-
-    std::istream& istream;
-    std::ostream& ostream;
+    Board board           = Board(STARTFEN);
+    ThreadPool threads    = ThreadPool(1);
+    SearchOptions options = {};
 
     void uci();
     void setdebug(std::istringstream& iss);
@@ -32,5 +30,8 @@ class Engine {
     void move(std::istringstream& iss);
     void moves();
 };
+
+void printInfo(int, int, SearchStats&, PrincipalVariation&);
+void printDebuggingInfo(const SearchStats&);
 
 }  // namespace UCI
