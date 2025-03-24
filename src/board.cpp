@@ -1,6 +1,7 @@
 #include "board.hpp"
 
 #include "fen.hpp"
+#include "movegen.hpp"
 #include "score.hpp"
 #include "thread.hpp"
 
@@ -44,6 +45,15 @@ int Board::see(Move move) const {
     }
 
     return gain[0];
+}
+
+// Determine if board is in a drawn position
+bool Board::isDraw() const {
+    MoveGenerator<GenType::All> moves{*this};
+    for (auto& move : moves) {
+        if (isLegalMove(move)) return false;
+    }
+    return true;
 }
 
 // Determine if a move is legal for the current board

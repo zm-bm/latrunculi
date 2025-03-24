@@ -29,8 +29,9 @@ int search(Thread& thread, int alpha, int beta, int depth) {
     U64 key        = board.getKey();
     int lowerbound = alpha;
     int upperbound = beta;
-    int bestScore  = -MATESCORE;
+    int bestScore  = -INF_VALUE;
     Move bestMove;
+
     thread.stats.totalNodes++;
     if (thread.options.debug) thread.stats.nodes[thread.depth]++;
 
@@ -41,18 +42,23 @@ int search(Thread& thread, int alpha, int beta, int depth) {
         entry = TT::table.probe(key);
         if (entry->isValid(key) && entry->depth >= depth) {
             if (thread.options.debug) thread.stats.ttHits[thread.depth]++;
+
+            int score = entry->score;
+            if (score >= MATE_IN_MAX_PLY) score -= thread.depth;
+            if (score <= -MATE_IN_MAX_PLY) score += thread.depth;
+
             if (entry->flag == TT::EXACT) {
                 thread.pv.update(entry->bestMove, thread.depth);
                 if (thread.options.debug) thread.stats.ttCutoffs[thread.depth]++;
-                return entry->score;
+                return score;
             }
-            if (entry->flag == TT::LOWERBOUND && entry->score >= beta) {
+            if (entry->flag == TT::LOWERBOUND && score >= beta) {
                 if (thread.options.debug) thread.stats.ttCutoffs[thread.depth]++;
-                return entry->score;
+                return score;
             }
-            if (entry->flag == TT::UPPERBOUND && entry->score <= alpha) {
+            if (entry->flag == TT::UPPERBOUND && score <= alpha) {
                 if (thread.options.debug) thread.stats.ttCutoffs[thread.depth]++;
-                return entry->score;
+                return score;
             }
         }
     }
@@ -69,13 +75,12 @@ int search(Thread& thread, int alpha, int beta, int depth) {
     MoveGenerator<GenType::All> moves{board};
     moves.sort(MovePriority(thread, node, entry));
 
-    // TODO: handle draws, for now just return eval
-    if (moves.empty()) return eval(board);
-
     // 4. Loop over moves
-    int movesSearched = 0;
+    int searchedMoves = 0;
+    int legalMoves    = 0;
     for (auto& move : moves) {
         if (!board.isLegalMove(move)) continue;
+        legalMoves++;
         bool isQuiet = !board.isCapture(move) && !board.isCheckingMove(move);
 
         // Futility pruning
@@ -88,21 +93,21 @@ int search(Thread& thread, int alpha, int beta, int depth) {
         board.make(move);
 
         int score;
-        bool doFullSearch = isRoot || (isPV && movesSearched == 0);
+        bool doFullSearch = isRoot || (isPV && searchedMoves == 0);
         if (doFullSearch) {
             score = -search<NodeType::PV>(thread, -beta, -alpha, depth - 1);
         } else {
             // LMR + null window search, re-search if it fail-high
-            bool doReduce = (movesSearched >= FullDepthMoves) && (depth >= ReductionLimit);
+            bool doReduce = (searchedMoves >= FullDepthMoves) && (depth >= ReductionLimit);
             int reduction =
-                (doReduce && !isPV && isQuiet) ? 1 + std::min(movesSearched / 10, depth / 4) : 0;
+                (doReduce && !isPV && isQuiet) ? 1 + std::min(searchedMoves / 10, depth / 4) : 0;
 
             score = -search<NodeType::NonPV>(thread, -alpha - 1, -alpha, depth - 1 - reduction);
             if (score > alpha) {
                 score = -search<node>(thread, -beta, -alpha, depth - 1);
             }
         }
-        movesSearched++;
+        searchedMoves++;
 
         board.unmake();
 
@@ -130,6 +135,18 @@ int search(Thread& thread, int alpha, int beta, int depth) {
         }
     }
 
+    // Mate and draw detection
+    if (legalMoves == 0) {
+        if (board.isCheck()) {
+            int score = -MATE_VALUE + thread.depth;
+            TT::table.store(key, Move(), score, depth, TT::EXACT);
+            return score;
+        } else {
+            TT::table.store(key, Move(), 0, depth, TT::EXACT);
+            return 0;
+        }
+    }
+
     // 8. Store result in transposition table
     TT::NodeType flag = TT::EXACT;
     if (bestScore <= lowerbound)
@@ -138,7 +155,6 @@ int search(Thread& thread, int alpha, int beta, int depth) {
         flag = TT::LOWERBOUND;
     TT::table.store(key, bestMove, bestScore, depth, flag);
 
-    // TODO: handle no legal moves, 50 move rule, draw by repetition, etc
     return bestScore;
 }
 
@@ -168,12 +184,13 @@ int quiescence(Thread& thread, int alpha, int beta) {
     MoveGenerator<GenType::Captures> moves{board};
     moves.sort(MovePriority(thread, NodeType::NonPV));
 
-    // TODO: handle draws, for now just return standPat
-    if (moves.empty()) return standPat;
-
     // 3. Loop over moves
+    int legalMoves = 0;
     for (auto& move : moves) {
         if (!board.isLegalMove(move)) continue;
+        legalMoves++;
+
+        // Prune bad captures
         if (board.see(move) < 0) continue;
 
         // 4. Recursively search
@@ -198,7 +215,13 @@ int quiescence(Thread& thread, int alpha, int beta) {
         }
     }
 
-    // TODO: handle no legal moves, 50 move rule, draw by repetition, etc
+    if (legalMoves == 0) {
+        if (board.isCheck())
+            return -MATE_VALUE + thread.depth;
+        else if (board.isDraw())
+            return 0;
+    }
+
     return alpha;
 }
 

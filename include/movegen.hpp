@@ -60,7 +60,7 @@ class MovePriority {
 template <GenType T>
 class MoveGenerator {
    public:
-    MoveGenerator(Board& board);
+    MoveGenerator(const Board& board);
 
     const Move* begin() { return moves.begin(); }
     const Move* end() { return last; }
@@ -70,7 +70,7 @@ class MoveGenerator {
     Move& operator[](int index) { return moves[index]; }
 
    private:
-    Board& board;
+    const Board& board;
     std::array<Move, MAX_MOVES> moves;
     Move* last;
 
@@ -99,7 +99,7 @@ class MoveGenerator {
 };
 
 template <GenType T>
-MoveGenerator<T>::MoveGenerator(Board& board) : board(board), last(moves.data()) {
+MoveGenerator<T>::MoveGenerator(const Board& board) : board(board), last(moves.data()) {
     if (board.isCheck()) {
         generate<GenType::Evasions>();
     } else {
@@ -140,7 +140,7 @@ void MoveGenerator<T>::generateMoves() {
     U64 occupancy         = board.occupancy();
     U64 targets;
 
-    // generate piece moves unless in
+    // generate piece moves unless in double check
     if (G != GenType::Evasions || !board.isDoubleCheck()) {
         if constexpr (G == GenType::All) {
             targets = ~board.pieces<ALL_PIECES>(C);

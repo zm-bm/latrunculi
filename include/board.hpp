@@ -56,6 +56,7 @@ class Board {
 
     // move/check properties
     int see(Move) const;
+    bool isDraw() const;
     bool isLegalMove(Move) const;
     bool isCheckingMove(Move) const;
     bool isCapture(Move move) const;

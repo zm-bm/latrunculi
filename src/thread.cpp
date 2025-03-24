@@ -33,8 +33,8 @@ void Thread::stop() {
 void Thread::set(const std::string& fen, SearchOptions& options) {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        board   = Board(fen, this);
-        options = options;
+        board         = Board(fen, this);
+        this->options = options;
     }
 }
 
@@ -70,10 +70,10 @@ void Thread::search() {
 
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
-            alpha = -MATESCORE;
+            alpha = -MATE_VALUE;
             score = Search::search(*this, alpha, beta, searchDepth);
         } else if (score >= beta) {
-            beta  = MATESCORE;
+            beta  = MATE_VALUE;
             score = Search::search(*this, alpha, beta, searchDepth);
         }
 

@@ -50,7 +50,11 @@ constexpr int KNIGHT_VALUE_EG = 680;
 constexpr int BISHOP_VALUE_EG = 740;
 constexpr int ROOK_VALUE_EG   = 1100;
 constexpr int QUEEN_VALUE_EG  = 2150;
-constexpr int MATESCORE       = 16384;
+
+// mate constants
+constexpr int INF_VALUE       = 100001;
+constexpr int MATE_VALUE      = 100000;
+constexpr int MATE_IN_MAX_PLY = MATE_VALUE - MAX_DEPTH;
 
 constexpr int PIECE_VALUES[N_PIECES - 1] = {
     PAWN_VALUE_MG, KNIGHT_VALUE_MG, BISHOP_VALUE_MG, ROOK_VALUE_MG, QUEEN_VALUE_MG, 0};
