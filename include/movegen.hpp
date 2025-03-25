@@ -36,8 +36,8 @@ class MovePriority {
     MovePriority(Thread& thread, Search::NodeType node, TT::Entry* ttEntry = nullptr)
         : board(thread.board), heuristics(thread.heuristics), depth(thread.depth) {
         bool hasPvMove = (node != Search::NodeType::NonPV && !thread.pv[depth].empty());
-        pvMove         = hasPvMove ? thread.pv[depth].at(0) : Move();
-        hashMove       = ttEntry ? ttEntry->bestMove : Move();
+        pvMove         = hasPvMove ? thread.pv[depth].at(0) : NullMove;
+        hashMove       = ttEntry ? ttEntry->bestMove : NullMove;
     };
 
     inline U16 scoreMove(const Move& move) {

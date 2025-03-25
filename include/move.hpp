@@ -46,15 +46,21 @@ struct Move {
     std::string DebugString() const;
 };
 
+constexpr Move NullMove{};
+
 inline std::ostream& operator<<(std::ostream& os, const Move& mv) {
-    os << mv.from() << mv.to();
-    if (mv.type() == PROMOTION) {
-        switch (mv.promoPiece()) {
-            case QUEEN: os << 'q'; break;
-            case ROOK: os << 'r'; break;
-            case BISHOP: os << 'b'; break;
-            case KNIGHT: os << 'n'; break;
-            default: break;
+    if (mv.isNullMove()) {
+        os << "none";
+    } else {
+        os << mv.from() << mv.to();
+        if (mv.type() == PROMOTION) {
+            switch (mv.promoPiece()) {
+                case QUEEN: os << 'q'; break;
+                case ROOK: os << 'r'; break;
+                case BISHOP: os << 'b'; break;
+                case KNIGHT: os << 'n'; break;
+                default: break;
+            }
         }
     }
     return os;

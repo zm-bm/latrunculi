@@ -71,20 +71,21 @@ void Thread::search() {
 
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
-            alpha = -MATE_VALUE;
+            alpha = -INF_VALUE;
             score = Search::search(*this, alpha, beta, d);
         } else if (score >= beta) {
-            beta  = MATE_VALUE;
+            beta  = INF_VALUE;
             score = Search::search(*this, alpha, beta, d);
         }
 
         prevScore = score;
         heuristics.age();
-
         UCI::printInfo(score, d, stats, pv);
+
+        if (std::abs(score) >= MATE_IN_MAX_PLY) break;
     }
 
-    std::cout << "bestmove " << pv[0].at(0) << std::endl;
+    std::cout << "bestmove " << pv.bestMove() << std::endl;
     if (options.debug) UCI::printDebuggingInfo(stats);
 }
 

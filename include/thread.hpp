@@ -83,6 +83,8 @@ struct PrincipalVariation {
         line.insert(line.end(), prev.begin(), prev.end());
     }
 
+    Move bestMove() const { return !lines[0].empty() ? lines[0][0] : NullMove; }
+
     void clear() {
         for (auto& line : lines) {
             line.clear();
