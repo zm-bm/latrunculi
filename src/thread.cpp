@@ -82,7 +82,7 @@ void Thread::search() {
         heuristics.age();
         UCI::printInfo(score, d, stats, pv);
 
-        if (std::abs(score) >= MATE_IN_MAX_PLY) break;
+        if (isMateScore(score)) break;
     }
 
     std::cout << "bestmove " << pv.bestMove() << std::endl;

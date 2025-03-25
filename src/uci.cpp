@@ -148,6 +148,17 @@ void Engine::moves() {
     }
 }
 
+std::string formatScore(int score) {
+    std::ostringstream oss;
+    if (isMateScore(score)) {
+        int mateInMoves = (MATE_VALUE - std::abs(score) + 1) / 2;
+        oss << "mate " << (score > 0 ? "" : "-") << mateInMoves;
+    } else {
+        oss << "cp " << score;
+    }
+    return oss.str();
+}
+
 void printInfo(int score, int depth, SearchStats& stats, PrincipalVariation& pv) {
     using namespace std::chrono;
     auto dur = high_resolution_clock::now() - stats.startTime;
@@ -156,8 +167,8 @@ void printInfo(int score, int depth, SearchStats& stats, PrincipalVariation& pv)
 
     std::cout << std::fixed;
     std::cout << "info depth " << depth;
-    std::cout << " score cp " << score;
-    std::cout << " time " << std::setprecision(1) << sec;
+    std::cout << " score " << formatScore(score);
+    std::cout << " time " << static_cast<int>(sec * 1000);
     std::cout << " nodes " << stats.totalNodes;
     std::cout << " nps " << static_cast<int>(nps);
     std::cout << " pv";
