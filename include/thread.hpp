@@ -16,7 +16,7 @@
 #include "types.hpp"
 
 struct SearchOptions {
-    bool debug = true;
+    bool debug = false;
     int depth  = 14;
 };
 
@@ -73,6 +73,7 @@ struct PrincipalVariation {
     std::array<Line, MAX_DEPTH> lines;
 
     Line& operator[](int depth) { return lines[depth]; }
+    Move bestMove() const { return !lines[0].empty() ? lines[0][0] : NullMove; }
 
     void update(const Move& move, int depth) {
         Line& line = lines[depth];
@@ -83,7 +84,9 @@ struct PrincipalVariation {
         line.insert(line.end(), prev.begin(), prev.end());
     }
 
-    Move bestMove() const { return !lines[0].empty() ? lines[0][0] : NullMove; }
+    void truncate(int depth, int maxLen) {
+        if (lines[depth].size() > size_t(maxLen)) lines[depth].resize(maxLen);
+    }
 
     void clear() {
         for (auto& line : lines) {

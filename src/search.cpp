@@ -44,8 +44,12 @@ int search(Thread& thread, int alpha, int beta, int depth) {
             if (thread.options.debug) thread.stats.ttHits[thread.depth]++;
 
             int score = entry->score;
-            if (score >= MATE_IN_MAX_PLY) score -= thread.depth;
-            if (score <= -MATE_IN_MAX_PLY) score += thread.depth;
+            if (score >= MATE_IN_MAX_PLY) {
+                score += thread.depth;
+            }
+            if (score <= -MATE_IN_MAX_PLY) {
+                score -= thread.depth;
+            }
 
             if (entry->flag == TT::EXACT) {
                 thread.pv.update(entry->bestMove, thread.depth);
@@ -135,16 +139,23 @@ int search(Thread& thread, int alpha, int beta, int depth) {
         }
     }
 
-    // Mate and draw detection
+    // Draw / mate handling
     if (legalMoves == 0) {
         if (board.isCheck()) {
+            // checkmate
             int score = -MATE_VALUE + thread.depth;
             TT::table.store(key, Move(), score, depth, TT::EXACT);
             return score;
         } else {
+            // draw
             TT::table.store(key, Move(), 0, depth, TT::EXACT);
             return 0;
         }
+    }
+    if (isMateScore(bestScore)) {
+        // truncate pv if mate found
+        int dist = mateDistance(bestScore);
+        thread.pv.truncate(thread.depth, dist);
     }
 
     // 8. Store result in transposition table

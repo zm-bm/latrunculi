@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 
+#include "constants.hpp"
 #include "move.hpp"
 #include "types.hpp"
 
@@ -14,6 +15,10 @@ class Thread;
 class Board;
 
 namespace Search {
+
+constexpr bool isMateScore(int score) { return std::abs(score) > MATE_IN_MAX_PLY; }
+
+constexpr int mateDistance(int score) { return MATE_VALUE - std::abs(score); }
 
 enum class NodeType { Root, PV, NonPV };
 

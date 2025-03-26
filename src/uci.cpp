@@ -150,8 +150,8 @@ void Engine::moves() {
 
 std::string formatScore(int score) {
     std::ostringstream oss;
-    if (isMateScore(score)) {
-        int mateInMoves = (MATE_VALUE - std::abs(score) + 1) / 2;
+    if (Search::isMateScore(score)) {
+        int mateInMoves = (Search::mateDistance(score) + 1) / 2;
         oss << "mate " << (score > 0 ? "" : "-") << mateInMoves;
     } else {
         oss << "cp " << score;
