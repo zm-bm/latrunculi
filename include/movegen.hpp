@@ -30,13 +30,13 @@ class MovePriority {
     Heuristics& heuristics;
     Move pvMove;
     Move hashMove;
-    int depth;
+    int ply;
 
    public:
     MovePriority(Thread& thread, Search::NodeType node, TT::Entry* ttEntry = nullptr)
-        : board(thread.board), heuristics(thread.heuristics), depth(thread.depth) {
-        bool hasPvMove = (node != Search::NodeType::NonPV && !thread.pv[depth].empty());
-        pvMove         = hasPvMove ? thread.pv[depth].at(0) : NullMove;
+        : board(thread.board), heuristics(thread.heuristics), ply(thread.ply) {
+        bool hasPvMove = (node != Search::NodeType::NonPV && !thread.pv[ply].empty());
+        pvMove         = hasPvMove ? thread.pv[ply].at(0) : NullMove;
         hashMove       = ttEntry ? ttEntry->bestMove : NullMove;
     };
 
@@ -49,7 +49,7 @@ class MovePriority {
             int seeScore = board.see(move);
             return (seeScore >= 0) ? GOOD_CAPTURE + seeScore : BAD_CAPTURE;
         }
-        if (heuristics.killers.isKiller(move, depth)) {
+        if (heuristics.killers.isKiller(move, ply)) {
             return KILLER_MOVE;
         }
 

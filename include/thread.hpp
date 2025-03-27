@@ -23,8 +23,8 @@ struct SearchOptions {
 struct HistoryTable {
     int history[N_COLORS][N_SQUARES][N_SQUARES] = {0};
 
-    inline void update(Color c, Square from, Square to, int depth) {
-        int bonus             = std::clamp(1 << depth, -MAX_HISTORY, MAX_HISTORY);
+    inline void update(Color c, Square from, Square to, int ply) {
+        int bonus             = std::clamp(1 << ply, -MAX_HISTORY, MAX_HISTORY);
         history[c][from][to] += bonus - (history[c][from][to] * bonus / MAX_HISTORY);
     }
 
@@ -41,15 +41,15 @@ struct HistoryTable {
 struct KillerMoves {
     Move killers[MAX_DEPTH][2];
 
-    inline void update(Move killer, int depth) {
-        if (killers[depth][0] != killer) {
-            killers[depth][1] = killers[depth][0];
-            killers[depth][0] = killer;
+    inline void update(Move killer, int ply) {
+        if (killers[ply][0] != killer) {
+            killers[ply][1] = killers[ply][0];
+            killers[ply][0] = killer;
         }
     }
 
-    inline bool isKiller(Move move, int depth) const {
-        return move == killers[depth][0] || move == killers[depth][1];
+    inline bool isKiller(Move move, int ply) const {
+        return move == killers[ply][0] || move == killers[ply][1];
     }
 };
 
@@ -57,11 +57,11 @@ struct Heuristics {
     HistoryTable history;
     KillerMoves killers;
 
-    inline void updateBetaCutoff(Board& board, Move move, int depth) {
+    inline void updateBetaCutoff(Board& board, Move move, int ply) {
         Square to = move.to();
         if (board.pieceOn(to) == Piece::NONE) {
-            killers.update(move, depth);
-            history.update(board.sideToMove(), move.from(), to, depth);
+            killers.update(move, ply);
+            history.update(board.sideToMove(), move.from(), to, ply);
         }
     }
     inline void age() { history.age(); }
@@ -72,20 +72,20 @@ struct PrincipalVariation {
 
     std::array<Line, MAX_DEPTH> lines;
 
-    Line& operator[](int depth) { return lines[depth]; }
+    Line& operator[](const int ply) { return lines[ply]; }
     Move bestMove() const { return !lines[0].empty() ? lines[0][0] : NullMove; }
 
-    void update(const Move& move, int depth) {
-        Line& line = lines[depth];
-        Line& prev = lines[depth + 1];
+    void update(const int ply, const Move& move) {
+        Line& line = lines[ply];
+        Line& prev = lines[ply + 1];
 
         line.clear();
         line.push_back(move);
         line.insert(line.end(), prev.begin(), prev.end());
     }
 
-    void truncate(int depth, int maxLen) {
-        if (lines[depth].size() > size_t(maxLen)) lines[depth].resize(maxLen);
+    void truncate(const int ply, const int maxLen) {
+        if (lines[ply].size() > size_t(maxLen)) lines[ply].resize(maxLen);
     }
 
     void clear() {
@@ -145,7 +145,7 @@ class Thread {
     Heuristics heuristics;
     SearchStats stats;
     SearchOptions options;
-    int depth;
+    int ply;
 
    private:
     void loop();

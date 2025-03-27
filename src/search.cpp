@@ -33,35 +33,35 @@ int search(Thread& thread, int alpha, int beta, int depth) {
     Move bestMove;
 
     thread.stats.totalNodes++;
-    if (thread.options.debug) thread.stats.nodes[thread.depth]++;
+    if (thread.options.debug) thread.stats.nodes[thread.ply]++;
 
     // 2. Check the transposition table
     TT::Entry* entry = nullptr;
     if constexpr (!isPV) {
-        if (thread.options.debug) thread.stats.ttProbes[thread.depth]++;
+        if (thread.options.debug) thread.stats.ttProbes[thread.ply]++;
         entry = TT::table.probe(key);
         if (entry->isValid(key) && entry->depth >= depth) {
-            if (thread.options.debug) thread.stats.ttHits[thread.depth]++;
+            if (thread.options.debug) thread.stats.ttHits[thread.ply]++;
 
             int score = entry->score;
             if (score >= MATE_IN_MAX_PLY) {
-                score += thread.depth;
+                score += thread.ply;
             }
             if (score <= -MATE_IN_MAX_PLY) {
-                score -= thread.depth;
+                score -= thread.ply;
             }
 
             if (entry->flag == TT::EXACT) {
-                thread.pv.update(entry->bestMove, thread.depth);
-                if (thread.options.debug) thread.stats.ttCutoffs[thread.depth]++;
+                thread.pv.update(thread.ply, entry->bestMove);
+                if (thread.options.debug) thread.stats.ttCutoffs[thread.ply]++;
                 return score;
             }
             if (entry->flag == TT::LOWERBOUND && score >= beta) {
-                if (thread.options.debug) thread.stats.ttCutoffs[thread.depth]++;
+                if (thread.options.debug) thread.stats.ttCutoffs[thread.ply]++;
                 return score;
             }
             if (entry->flag == TT::UPPERBOUND && score <= alpha) {
-                if (thread.options.debug) thread.stats.ttCutoffs[thread.depth]++;
+                if (thread.options.debug) thread.stats.ttCutoffs[thread.ply]++;
                 return score;
             }
         }
@@ -119,21 +119,21 @@ int search(Thread& thread, int alpha, int beta, int depth) {
         if (score > bestScore) {
             bestScore = score;
             bestMove  = move;
-            thread.pv.update(move, thread.depth);
+            thread.pv.update(thread.ply, move);
         }
 
         // 7. Alpha-beta pruning
         alpha = std::max(alpha, score);
         if (alpha >= beta) {
             // Beta cut-off, update heuristics if quiet move
-            thread.heuristics.updateBetaCutoff(board, move, thread.depth);
+            thread.heuristics.updateBetaCutoff(board, move, thread.ply);
 
             if (thread.options.debug) {
-                thread.stats.cutoffs[thread.depth]++;
+                thread.stats.cutoffs[thread.ply]++;
                 if (move == moves[0])
-                    thread.stats.failHighEarly[thread.depth]++;
+                    thread.stats.failHighEarly[thread.ply]++;
                 else
-                    thread.stats.failHighLate[thread.depth]++;
+                    thread.stats.failHighLate[thread.ply]++;
             }
             break;
         }
@@ -143,9 +143,9 @@ int search(Thread& thread, int alpha, int beta, int depth) {
     if (legalMoves == 0) {
         if (board.isCheck()) {
             // checkmate
-            int score = -MATE_VALUE + thread.depth;
-            TT::table.store(key, Move(), score, depth, TT::EXACT);
-            return score;
+            bestScore = -MATE_VALUE + thread.ply;
+            TT::table.store(key, Move(), bestScore + thread.ply, depth, TT::EXACT);
+            return bestScore;
         } else {
             // draw
             TT::table.store(key, Move(), 0, depth, TT::EXACT);
@@ -155,7 +155,7 @@ int search(Thread& thread, int alpha, int beta, int depth) {
     if (isMateScore(bestScore)) {
         // truncate pv if mate found
         int dist = mateDistance(bestScore);
-        thread.pv.truncate(thread.depth, dist);
+        thread.pv.truncate(thread.ply, dist);
     }
 
     // 8. Store result in transposition table
@@ -177,17 +177,17 @@ int quiescence(Thread& thread, int alpha, int beta) {
     int standPat = eval(board);
     thread.stats.totalNodes++;
     if (thread.options.debug) {
-        thread.stats.nodes[thread.depth]++;
-        thread.stats.qNodes[thread.depth]++;
+        thread.stats.nodes[thread.ply]++;
+        thread.stats.qNodes[thread.ply]++;
     }
 
     if (standPat >= beta) {
-        // beta cutoff, return upperbound
+        // beta cutoff
         return beta;
     }
 
     if (standPat > alpha) {
-        // update alpha/lowerbound if position improves it
+        // update alpha if position improves it
         alpha = standPat;
     }
 
@@ -210,25 +210,26 @@ int quiescence(Thread& thread, int alpha, int beta) {
         board.unmake();
 
         if (score >= beta) {
-            // beta cutoff, return upperbound
+            // beta cutoff
             if (thread.options.debug) {
-                thread.stats.cutoffs[thread.depth]++;
+                thread.stats.cutoffs[thread.ply]++;
                 if (move == moves[0])
-                    thread.stats.failHighEarly[thread.depth]++;
+                    thread.stats.failHighEarly[thread.ply]++;
                 else
-                    thread.stats.failHighLate[thread.depth]++;
+                    thread.stats.failHighLate[thread.ply]++;
             }
             return beta;
         }
         if (score > alpha) {
-            // update alpha/lowerbound
+            // update alpha + principal variation
             alpha = score;
+            thread.pv.update(thread.ply, move);
         }
     }
 
     if (legalMoves == 0) {
         if (board.isCheck())
-            return -MATE_VALUE + thread.depth;
+            return -MATE_VALUE + thread.ply;
         else if (board.isDraw())
             return 0;
     }

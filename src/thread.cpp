@@ -91,7 +91,7 @@ void Thread::search() {
 
 void Thread::reset() {
     stats.reset();
-    depth = 0;
+    ply = 0;
     pv.clear();
 }
 
