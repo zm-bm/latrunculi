@@ -20,6 +20,14 @@ constexpr bool isMateScore(int score) { return std::abs(score) > MATE_IN_MAX_PLY
 
 constexpr int mateDistance(int score) { return MATE_VALUE - std::abs(score); }
 
+constexpr int ttScore(int score, int ply) {
+    if (score >= MATE_IN_MAX_PLY)
+        score += ply;
+    else if (score <= MATE_IN_MAX_PLY)
+        score -= ply;
+    return score;
+}
+
 enum class NodeType { Root, PV, NonPV };
 
 int quiescence(Thread& thread, int alpha, int beta);

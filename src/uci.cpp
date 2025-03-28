@@ -167,7 +167,7 @@ void printInfo(int score, int depth, SearchStats& stats, PrincipalVariation& pv)
 
     std::cout << std::fixed;
     std::cout << "info depth " << depth;
-    std::cout << " score " << formatScore(score);
+    std::cout << " score " << score << "=" << formatScore(score);
     std::cout << " time " << static_cast<int>(sec * 1000);
     std::cout << " nodes " << stats.totalNodes;
     std::cout << " nps " << static_cast<int>(nps);

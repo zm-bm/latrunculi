@@ -33,8 +33,9 @@ void Thread::stop() {
 void Thread::set(const std::string& fen, SearchOptions& options) {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        board         = Board(fen, this);
-        this->options = options;
+        board             = Board(fen, this);
+        this->options     = options;
+        this->stats.debug = options.debug;
     }
 }
 

@@ -33,9 +33,9 @@ class MovePriority {
     int ply;
 
    public:
-    MovePriority(Thread& thread, Search::NodeType node, TT::Entry* ttEntry = nullptr)
+    MovePriority(Thread& thread, bool isPV = false, TT::Entry* ttEntry = nullptr)
         : board(thread.board), heuristics(thread.heuristics), ply(thread.ply) {
-        bool hasPvMove = (node != Search::NodeType::NonPV && !thread.pv[ply].empty());
+        bool hasPvMove = (isPV && !thread.pv[ply].empty());
         pvMove         = hasPvMove ? thread.pv[ply].at(0) : NullMove;
         hashMove       = ttEntry ? ttEntry->bestMove : NullMove;
     };
