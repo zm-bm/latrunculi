@@ -84,7 +84,7 @@ class Eval {
 
     void printEval(double, Score) const;
 
-    friend class EvaluatorTest;
+    friend class EvalTest;
 };
 
 template <Verbosity mode>

@@ -76,6 +76,8 @@ class Thread {
     const unsigned int threadId;
 
     std::thread thread;
+
+    friend class SearchTest;
 };
 
 class ThreadPool {

@@ -233,5 +233,3 @@ int Thread::quiescence(int alpha, int beta) {
 
     return alpha;
 }
-
-namespace Search {}  // namespace Search

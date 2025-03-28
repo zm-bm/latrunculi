@@ -1,36 +1,58 @@
 
 #include <gtest/gtest.h>
 
-#include "board.hpp"
 #include "constants.hpp"
+#include "thread.hpp"
 
 // prev search tests
 
-// enum ScoreType {
-//     NONESCORE,
-//     EXACT,
-//     MORE,
-//     LESS
-// };
+enum ScoreType { NONESCORE, EXACT, MORE, LESS };
 
-// struct Position {
-//     std::string fen;
-//     Move bestMove;
-//     Move avoidMove;
-//     int depth;
-//     Score score;
-//     ScoreType type = NONESCORE;
-// };
+struct Position {
+    std::string fen;
+    Move bestMove;
+    Move avoidMove;
+    int depth;
+    int score;
+    ScoreType type = NONESCORE;
+};
 
-// std::vector<Position> integration = {
-//     { "7R/8/8/8/8/1K6/8/1k6 w - -",                          Move(H8, H1), Move(), 1,
-//     MATESCORE-1, EXACT }, // Mate in 1 { "5rk1/pb2npp1/1pq4p/5p2/5B2/1B6/P2RQ1PP/2r1R2K b - -",
-//     Move(C6, G2), Move(), 3, MATESCORE-3, EXACT }, // Mate in 2 { "k7/8/4r3/8/8/3Q4/4p3/K7 w -
-//     -",                       Move(D3, D5), Move(), 4, ROOKSCORE,   MORE },
-//     // Find tactical win { "R1R5/7R/1k6/7R/8/P1P5/PKP5/1RP5 w - -",               Move(B2, A1),
-//     Move(), 1, MATESCORE-1, EXACT }, // Mate in 1 avoid stalemate { "R1R5/7R/1k6/7R/8/8/8/1K6 b -
-//     -", Move(), Move(B6, B5), 1, DRAWSCORE,   EXACT }, // Evaluate stalemate
-// };
+std::vector<Position> positions = {
+    {"7R/8/8/8/8/1K6/8/1k6 w - -", Move(H8, H1), Move(), 1, MATE_SCORE - 1, EXACT},  // Mate in 1
+    // {"5rk1/pb2npp1/1pq4p/5p2/5B2/1B6/P2RQ1PP/2r1R2K b - -",
+    //  Move(C6, G2),
+    //  Move(),
+    //  3,
+    //  MATE_SCORE - 3,
+    //  EXACT},  // Mate in 2
+    // {"k7/8/4r3/8/8/3Q4/4p3/K7 w - - ", Move(D3, D5), Move(), 4, ROOK_VALUE_MG, MORE},
+    // // Find tactical win
+    // {"R1R5/7R/1k6/7R/8/P1P5/PKP5/1RP5 w - -",
+    //  Move(B2, A1),
+    //  Move(),
+    //  1,
+    //  MATE_SCORE - 1,
+    //  EXACT},  // Mate in 1 avoid stalemate
+    // {"R1R5/7R/1k6/7R/8/8/8/1K6 b - -", Move(), Move(B6, B5), 1, 0, EXACT},  // Evaluate stalemate
+};
+
+class SearchTest : public ::testing::Test {
+   protected:
+    void testSearch(const std::string& fen, int expScore) {
+        auto thread = Thread(1);
+        auto opts   = SearchOptions{false, 12};
+        thread.set(fen, opts);
+        thread.reset();
+        int score = thread.alphabeta<NodeType::Root>(-INF_SCORE, INF_SCORE, 10);
+        EXPECT_EQ(score, expScore);
+    }
+};
+
+TEST_F(SearchTest, basicTests) {
+    for (auto& pos : positions) {
+        testSearch(pos.fen, pos.score);
+    }
+}
 
 // TEST_CASE( "Integration search tests", "[search-integration]" )
 // {
@@ -135,26 +157,3 @@
 //         board.unmake();
 //     }
 // };
-
-// TEST_CASE( "Zobrist hashing", "[zobrist]" )
-// {
-//     G::init();
-
-//     SECTION("Check starting hash validity")
-//     {
-//         auto board = Board(STARTFEN);
-//         REQUIRE(board.calculateKey() == board.getKey());
-//         board = Board(G::KIWIPETE);
-//         REQUIRE(board.calculateKey() == board.getKey());
-//     }
-
-//     SECTION("Check hash validity after making moves")
-//     {
-//         // auto board = Board(STARTFEN);
-//         // recursiveZobristCheck(board, 5);
-//         // board = Board(G::KIWIPETE);
-//         // recursiveZobristCheck(board, 3);
-//         auto board = Board(G::KIWIPETE);
-//         recursiveZobristCheck(board, 2);
-//     }
-// }

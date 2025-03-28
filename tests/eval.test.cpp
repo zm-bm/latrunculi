@@ -4,11 +4,11 @@
 
 #include "bb.hpp"
 #include "board.hpp"
+#include "constants.hpp"
 #include "score.hpp"
 #include "types.hpp"
-#include "constants.hpp"
 
-class EvaluatorTest : public ::testing::Test {
+class EvalTest : public ::testing::Test {
    protected:
     void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Board board(fen);
@@ -96,7 +96,7 @@ class EvaluatorTest : public ::testing::Test {
     }
 };
 
-TEST_F(EvaluatorTest, Eval) {
+TEST_F(EvalTest, Eval) {
     std::vector<std::tuple<std::string, int, bool>> testCases = {
         {EMPTYFEN, 0, true},
         {STARTFEN, 0, true},
@@ -120,7 +120,7 @@ TEST_F(EvaluatorTest, Eval) {
     }
 }
 
-TEST_F(EvaluatorTest, Outposts) {
+TEST_F(EvalTest, Outposts) {
     std::vector<std::tuple<std::string, U64, U64>> testCases = {
         {STARTFEN, 0, 0},
         {EMPTYFEN, 0, 0},
@@ -134,9 +134,9 @@ TEST_F(EvaluatorTest, Outposts) {
     }
 }
 
-TEST_F(EvaluatorTest, MobilityArea) {
-    U64 white = BB::rank(RANK2) | BB::rank(RANK6);
-    U64 black = BB::rank(RANK7) | BB::rank(RANK3);
+TEST_F(EvalTest, MobilityArea) {
+    U64 white                                                = BB::rank(RANK2) | BB::rank(RANK6);
+    U64 black                                                = BB::rank(RANK7) | BB::rank(RANK3);
     std::vector<std::tuple<std::string, U64, U64>> testCases = {
         {STARTFEN, ~white, ~black},
         {EMPTYFEN, ~U64(0), ~U64(0)},
@@ -147,7 +147,7 @@ TEST_F(EvaluatorTest, MobilityArea) {
     }
 }
 
-TEST_F(EvaluatorTest, Mobility) {
+TEST_F(EvalTest, Mobility) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, {0}, {0}},
         // no mobility area restriction
@@ -168,7 +168,7 @@ TEST_F(EvaluatorTest, Mobility) {
     }
 }
 
-TEST_F(EvaluatorTest, PawnsScore) {
+TEST_F(EvalTest, PawnsScore) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         // sanity check
         {EMPTYFEN, Score{0}, Score{0}},
@@ -195,7 +195,7 @@ TEST_F(EvaluatorTest, PawnsScore) {
     }
 }
 
-TEST_F(EvaluatorTest, KnightsScore) {
+TEST_F(EvalTest, KnightsScore) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, Score{0}, Score{0}},
         {STARTFEN, MINOR_BEHIND_PAWN_BONUS * 2, MINOR_BEHIND_PAWN_BONUS * 2},
@@ -215,14 +215,14 @@ TEST_F(EvaluatorTest, KnightsScore) {
     }
 }
 
-TEST_F(EvaluatorTest, BishopsScore) {
+TEST_F(EvalTest, BishopsScore) {
     Score startScore =
               (MINOR_BEHIND_PAWN_BONUS * 2 + BISHOP_PAIR_BONUS + BISHOP_PAWN_BLOCKER_PENALTY * 8),
-          hasOutpost = BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY * 2,
-          noOutpost = BISHOP_PAWN_BLOCKER_PENALTY * 4,
-          hasLongDiag = BISHOP_LONG_DIAG_BONUS + BISHOP_PAWN_BLOCKER_PENALTY,
-          noLongDiag = BISHOP_PAWN_BLOCKER_PENALTY * 2,
-          twoPawnsDefended = BISHOP_PAWN_BLOCKER_PENALTY * 2 + BISHOP_OUTPOST_BONUS,
+          hasOutpost         = BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY * 2,
+          noOutpost          = BISHOP_PAWN_BLOCKER_PENALTY * 4,
+          hasLongDiag        = BISHOP_LONG_DIAG_BONUS + BISHOP_PAWN_BLOCKER_PENALTY,
+          noLongDiag         = BISHOP_PAWN_BLOCKER_PENALTY * 2,
+          twoPawnsDefended   = BISHOP_PAWN_BLOCKER_PENALTY * 2 + BISHOP_OUTPOST_BONUS,
           twoPawnsOneBlocked = BISHOP_PAWN_BLOCKER_PENALTY * 4,
           twoPawnsTwoBlocked = BISHOP_PAWN_BLOCKER_PENALTY * 6;
 
@@ -253,7 +253,7 @@ TEST_F(EvaluatorTest, BishopsScore) {
     }
 }
 
-TEST_F(EvaluatorTest, RookScore) {
+TEST_F(EvalTest, RookScore) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {STARTFEN, Score{0}, Score{0}},
         {EMPTYFEN, Score{0}, Score{0}},
@@ -267,7 +267,7 @@ TEST_F(EvaluatorTest, RookScore) {
     }
 }
 
-TEST_F(EvaluatorTest, QueenScore) {
+TEST_F(EvalTest, QueenScore) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {STARTFEN, Score{0}, Score{0}},
         {EMPTYFEN, Score{0}, Score{0}},
@@ -294,7 +294,7 @@ Score calculateShelter(const std::vector<int>& shelterRanks,
     return score;
 }
 
-TEST_F(EvaluatorTest, KingScore) {
+TEST_F(EvalTest, KingScore) {
     Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + KING_FILE_BONUS[FILE5] +
                   KING_OPEN_FILE_BONUS[true][true];
     Score start = calculateShelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
@@ -314,7 +314,7 @@ TEST_F(EvaluatorTest, KingScore) {
     }
 }
 
-TEST_F(EvaluatorTest, KingShelter) {
+TEST_F(EvalTest, KingShelter) {
     Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + KING_FILE_BONUS[FILE5] +
                   KING_OPEN_FILE_BONUS[true][true];
     Score start = calculateShelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
@@ -345,9 +345,9 @@ TEST_F(EvaluatorTest, KingShelter) {
     }
 }
 
-TEST_F(EvaluatorTest, FileShelter) {
-    Score empty = calculateShelter({0}, {0}, {});
-    Score start = calculateShelter({RANK2}, {RANK7}, {});
+TEST_F(EvalTest, FileShelter) {
+    Score empty       = calculateShelter({0}, {0}, {});
+    Score start       = calculateShelter({RANK2}, {RANK7}, {});
     Score blockedPawn = calculateShelter({RANK4}, {}, {RANK5});
 
     std::vector<std::tuple<std::string, Score, Score, File>> testCases = {
@@ -361,7 +361,7 @@ TEST_F(EvaluatorTest, FileShelter) {
     }
 }
 
-TEST_F(EvaluatorTest, Phase) {
+TEST_F(EvalTest, Phase) {
     std::vector<std::tuple<std::string, int, int>> testCases = {
         {STARTFEN, PHASE_LIMIT, 0},
         {EMPTYFEN, 0, 0},
@@ -374,7 +374,7 @@ TEST_F(EvaluatorTest, Phase) {
     }
 }
 
-TEST_F(EvaluatorTest, NonPawnMaterial) {
+TEST_F(EvalTest, NonPawnMaterial) {
     int mat = 2 * KNIGHT_VALUE_MG + 2 * BISHOP_VALUE_MG + 2 * ROOK_VALUE_MG + QUEEN_VALUE_MG;
     std::vector<std::tuple<std::string, Color, int>> testCases = {
         {EMPTYFEN, WHITE, 0},
@@ -388,7 +388,7 @@ TEST_F(EvaluatorTest, NonPawnMaterial) {
     }
 }
 
-TEST_F(EvaluatorTest, ScaleFactor) {
+TEST_F(EvalTest, ScaleFactor) {
     std::vector<std::pair<std::string, int>> testCases = {
         {EMPTYFEN, 36},
         {STARTFEN, SCALE_LIMIT},
