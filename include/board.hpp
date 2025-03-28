@@ -99,6 +99,10 @@ class Board {
     void makeNull();
     void unmmakeNull();
 
+    // perft
+    template <NodeType = NodeType::Root>
+    U64 perft(int, std::ostream& = std::cout);
+
     // FENs
     void loadFEN(const std::string&);
     std::string toFEN() const;

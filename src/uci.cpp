@@ -8,7 +8,6 @@
 #include "eval.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
-#include "search.hpp"
 #include "thread.hpp"
 #include "tt.hpp"
 
@@ -104,7 +103,7 @@ void Engine::perft(std::istringstream& iss) {
     iss >> token;
 
     auto val = std::stoi(token);
-    Search::perft<Search::NodeType::Root>(val, board);
+    board.perft<NodeType::Root>(val);
 }
 
 void Engine::go(std::istringstream& iss) {
@@ -150,8 +149,8 @@ void Engine::moves() {
 
 std::string formatScore(int score) {
     std::ostringstream oss;
-    if (Search::isMateScore(score)) {
-        int mateInMoves = (Search::mateDistance(score) + 1) / 2;
+    if (isMateScore(score)) {
+        int mateInMoves = (mateDistance(score) + 1) / 2;
         oss << "mate " << (score > 0 ? "" : "-") << mateInMoves;
     } else {
         oss << "cp " << score;

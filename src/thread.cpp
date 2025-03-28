@@ -2,10 +2,7 @@
 
 #include <memory>
 
-#include "search.hpp"
 #include "uci.hpp"
-
-constexpr int AspirationWindow = 33;
 
 Thread::~Thread() {
     stop();
@@ -53,41 +50,6 @@ void Thread::loop() {
             search();
         }
     }
-}
-
-void Thread::search() {
-    reset();
-
-    // 1. Iterative deepening loop
-    int prevScore = 0;
-    for (int d = 1; d <= options.depth && !ThreadPool::stopThreads; ++d) {
-        stats.resetDepthStats();
-
-        // 2. Aspiration window from previous score
-        int alpha = prevScore - AspirationWindow;
-        int beta  = prevScore + AspirationWindow;
-
-        // 3. First search
-        int score = Search::search(*this, alpha, beta, d);
-
-        // 4. If fail-low or fail-high, re-search with bigger bounds
-        if (score <= alpha) {
-            alpha = -INF_VALUE;
-            score = Search::search(*this, alpha, beta, d);
-        } else if (score >= beta) {
-            beta  = INF_VALUE;
-            score = Search::search(*this, alpha, beta, d);
-        }
-
-        prevScore = score;
-        heuristics.age();
-        UCI::printInfo(score, d, stats, pv);
-
-        if (Search::isMateScore(score)) break;
-    }
-
-    std::cout << "bestmove " << pv.bestMove() << std::endl;
-    if (options.debug) UCI::printDebuggingInfo(stats);
 }
 
 void Thread::reset() {

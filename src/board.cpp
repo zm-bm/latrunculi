@@ -372,3 +372,34 @@ std::ostream& operator<<(std::ostream& os, const Board& board) {
 
     return os;
 }
+
+template <NodeType node>
+U64 Board::perft(int depth, std::ostream& oss) {
+    if (depth == 0) return 1;
+
+    MoveGenerator<GenType::All> moves{*this};
+
+    U64 count = 0, nodes = 0;
+
+    for (auto& move : moves) {
+        if (!isLegalMove(move)) continue;
+
+        make(move);
+
+        count  = perft<NodeType::NonPV>(depth - 1);
+        nodes += count;
+
+        if constexpr (node == NodeType::Root) {
+            oss << move << ": " << count << '\n';
+        }
+
+        unmake();
+    }
+
+    if constexpr (node == NodeType::Root) {
+        oss << "NODES: " << nodes << std::endl;
+    }
+
+    return nodes;
+}
+template U64 Board::perft<NodeType::Root>(int, std::ostream& = std::cout);

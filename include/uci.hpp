@@ -3,7 +3,6 @@
 #include <string>
 
 #include "board.hpp"
-#include "search.hpp"
 #include "thread.hpp"
 
 // Universal Chess Interface (UCI)

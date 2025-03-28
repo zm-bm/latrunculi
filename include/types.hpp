@@ -15,6 +15,8 @@ using I32 = int32_t;
 using I16 = int16_t;
 using I8  = int8_t;
 
+enum class NodeType { Root, PV, NonPV };
+
 enum Color : U8 { BLACK, WHITE, N_COLORS = 2 };
 
 // clang-format off

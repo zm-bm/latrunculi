@@ -9,7 +9,6 @@
 #include "board.hpp"
 #include "constants.hpp"
 #include "heuristics.hpp"
-#include "search.hpp"
 #include "stats.hpp"
 #include "types.hpp"
 
@@ -59,9 +58,15 @@ class Thread {
     int ply;
 
    private:
+    // thread.cpp
     void loop();
-    void search();
     void reset();
+
+    // search.cpp
+    void search();
+    template <NodeType = NodeType::Root>
+    int alphabeta(int, int, int);
+    int quiescence(int, int);
 
     std::mutex mutex;
     std::condition_variable condition;

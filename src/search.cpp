@@ -1,5 +1,3 @@
-#include "search.hpp"
-
 #include <algorithm>
 
 #include "board.hpp"
@@ -7,55 +5,87 @@
 #include "movegen.hpp"
 #include "thread.hpp"
 #include "tt.hpp"
+#include "uci.hpp"
 
-namespace Search {
+constexpr int AspirationWindow = 33;
+constexpr int FullDepthMoves   = 4;
+constexpr int ReductionLimit   = 3;
+constexpr int FutilityMargin   = 300;
+constexpr int NullMoveR        = 4;
 
-constexpr int FullDepthMoves = 4;
-constexpr int ReductionLimit = 3;
-constexpr int FutilityMargin = 300;
-constexpr int NullMoveR      = 4;
+void Thread::search() {
+    reset();
+
+    // 1. Iterative deepening loop
+    int prevScore = 0;
+    for (int d = 1; d <= options.depth && !ThreadPool::stopThreads; ++d) {
+        stats.resetDepthStats();
+
+        // 2. Aspiration window from previous score
+        int alpha = prevScore - AspirationWindow;
+        int beta  = prevScore + AspirationWindow;
+
+        // 3. First search
+        int score = alphabeta(alpha, beta, d);
+
+        // 4. If fail-low or fail-high, re-search with bigger bounds
+        if (score <= alpha) {
+            score = alphabeta(-INF_SCORE, beta, d);
+        } else if (score >= beta) {
+            score = alphabeta(alpha, INF_SCORE, d);
+        }
+
+        prevScore = score;
+        heuristics.age();
+        UCI::printInfo(score, d, stats, pv);
+
+        if (isMateScore(score)) break;
+    }
+
+    std::cout << "bestmove " << pv.bestMove() << std::endl;
+    if (options.debug) UCI::printDebuggingInfo(stats);
+}
 
 template <NodeType node>
-int search(Thread& thread, int alpha, int beta, int depth) {
+int Thread::alphabeta(int alpha, int beta, int depth) {
     constexpr bool isRoot   = node == NodeType::Root;
     constexpr bool isPV     = isRoot || node == NodeType::PV;
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
 
     // 1. Base case: quiescence search
     if (depth == 0) {
-        return quiescence(thread, alpha, beta);
+        return quiescence(alpha, beta);
     }
 
-    Board& board   = thread.board;
     U64 key        = board.getKey();
     int lowerbound = alpha;
     int upperbound = beta;
-    int bestScore  = -INF_VALUE;
+    int bestScore  = -INF_SCORE;
     Move bestMove;
 
-    thread.stats.addNode(thread.ply);
+    stats.addNode(ply);
 
     // 2. Check the transposition table
     TT::Entry* entry = nullptr;
     if constexpr (!isPV) {
-        thread.stats.addTTProbe(thread.ply);
+        stats.addTTProbe(ply);
         entry = TT::table.probe(key);
 
         if (entry->isValid(key) && entry->depth >= depth) {
-            thread.stats.addTTHit(thread.ply);
-            int score = ttScore(entry->score, -thread.ply);
+            stats.addTTHit(ply);
+            int score = TT::score(entry->score, -ply);
 
             if (entry->flag == TT::EXACT) {
-                thread.pv.update(thread.ply, entry->bestMove);
-                thread.stats.addTTCutoff(thread.ply);
+                pv.update(ply, entry->bestMove);
+                stats.addTTCutoff(ply);
                 return score;
             }
             if (entry->flag == TT::LOWERBOUND && score >= beta) {
-                thread.stats.addTTCutoff(thread.ply);
+                stats.addTTCutoff(ply);
                 return score;
             }
             if (entry->flag == TT::UPPERBOUND && score <= alpha) {
-                thread.stats.addTTCutoff(thread.ply);
+                stats.addTTCutoff(ply);
                 return score;
             }
         }
@@ -64,14 +94,14 @@ int search(Thread& thread, int alpha, int beta, int depth) {
     // Null move pruning
     if (!isPV && depth >= NullMoveR && !board.isCheck()) {
         board.makeNull();
-        int score = -search<NodeType::NonPV>(thread, -beta, -beta + 1, depth - NullMoveR);
+        int score = -alphabeta<NodeType::NonPV>(-beta, -beta + 1, depth - NullMoveR);
         board.unmmakeNull();
         if (score >= beta) return beta;
     }
 
     // 3. Generate moves and sort by priority
     MoveGenerator<GenType::All> moves{board};
-    moves.sort(MovePriority(thread, isPV, entry));
+    moves.sort(MovePriority(*this, isPV, entry));
 
     // 4. Loop over moves
     int searchedMoves = 0;
@@ -92,7 +122,7 @@ int search(Thread& thread, int alpha, int beta, int depth) {
 
         int score;
         if (isRoot || searchedMoves == 0) {
-            score = -search<nodeType>(thread, -beta, -alpha, depth - 1);
+            score = -alphabeta<nodeType>(-beta, -alpha, depth - 1);
         } else {
             // late move reduction
             bool doReduce = (searchedMoves >= FullDepthMoves) && (depth >= ReductionLimit);
@@ -100,9 +130,9 @@ int search(Thread& thread, int alpha, int beta, int depth) {
                 (doReduce && !isPV && isQuiet) ? 1 + std::min(searchedMoves / 10, depth / 4) : 0;
 
             // null window search, re-search if fail-high in a PV node
-            score = -search<NodeType::NonPV>(thread, -alpha - 1, -alpha, depth - 1 - reduction);
+            score = -alphabeta<NodeType::NonPV>(-alpha - 1, -alpha, depth - 1 - reduction);
             if (score > alpha && isPV) {
-                score = -search<NodeType::PV>(thread, -beta, -alpha, depth - 1);
+                score = -alphabeta<NodeType::PV>(-beta, -alpha, depth - 1);
             }
         }
         searchedMoves++;
@@ -113,15 +143,15 @@ int search(Thread& thread, int alpha, int beta, int depth) {
         if (score > bestScore) {
             bestScore = score;
             bestMove  = move;
-            thread.pv.update(thread.ply, move);
+            pv.update(ply, move);
         }
 
         // 7. Alpha-beta pruning
         alpha = std::max(alpha, score);
         if (alpha >= beta) {
             // Beta cut-off
-            thread.heuristics.addBetaCutoff(board, move, thread.ply);
-            thread.stats.addBetaCutoff(thread.ply, move == moves[0]);
+            heuristics.addBetaCutoff(board, move, ply);
+            stats.addBetaCutoff(ply, move == moves[0]);
             break;
         }
     }
@@ -129,7 +159,7 @@ int search(Thread& thread, int alpha, int beta, int depth) {
     // Draw / mate handling
     if (legalMoves == 0) {
         if (board.isCheck()) {
-            bestScore = -MATE_VALUE + thread.ply;
+            bestScore = -MATE_SCORE + ply;
             bestMove  = Move();
         } else {
             bestScore = 0;
@@ -143,18 +173,17 @@ int search(Thread& thread, int alpha, int beta, int depth) {
         flag = TT::UPPERBOUND;
     else if (bestScore >= upperbound)
         flag = TT::LOWERBOUND;
-    TT::table.store(key, bestMove, ttScore(bestScore, thread.ply), depth, flag);
+    TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
 
     return bestScore;
 }
 
-template int search<NodeType::Root>(Thread&, int, int, int);
+template int Thread::alphabeta<NodeType::Root>(int, int, int);
 
-int quiescence(Thread& thread, int alpha, int beta) {
+int Thread::quiescence(int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
-    Board& board = thread.board;
     int standPat = eval(board);
-    thread.stats.addQNode(thread.ply);
+    stats.addQNode(ply);
 
     if (standPat >= beta) {
         // beta cutoff
@@ -168,7 +197,7 @@ int quiescence(Thread& thread, int alpha, int beta) {
 
     // 2. Generate only forcing moves and sort by priority
     MoveGenerator<GenType::Captures> moves{board};
-    moves.sort(MovePriority(thread));
+    moves.sort(MovePriority(*this));
 
     // 3. Loop over moves
     int legalMoves = 0;
@@ -181,12 +210,12 @@ int quiescence(Thread& thread, int alpha, int beta) {
 
         // 4. Recursively search
         board.make(move);
-        int score = -quiescence(thread, -beta, -alpha);
+        int score = -quiescence(-beta, -alpha);
         board.unmake();
 
         if (score >= beta) {
             // beta cutoff
-            thread.stats.addBetaCutoff(thread.ply, move == moves[0]);
+            stats.addBetaCutoff(ply, move == moves[0]);
             return beta;
         }
         if (score > alpha) {
@@ -197,7 +226,7 @@ int quiescence(Thread& thread, int alpha, int beta) {
 
     if (legalMoves == 0) {
         if (board.isCheck())
-            return -MATE_VALUE + thread.ply;
+            return -MATE_SCORE + ply;
         else if (board.isDraw())
             return 0;
     }
@@ -205,36 +234,4 @@ int quiescence(Thread& thread, int alpha, int beta) {
     return alpha;
 }
 
-template <NodeType node>
-U64 perft(int depth, Board& board, std::ostream& oss) {
-    if (depth == 0) return 1;
-
-    MoveGenerator<GenType::All> moves{board};
-
-    U64 count = 0, nodes = 0;
-
-    for (auto& move : moves) {
-        if (!board.isLegalMove(move)) continue;
-
-        board.make(move);
-
-        count  = perft<NodeType::NonPV>(depth - 1, board);
-        nodes += count;
-
-        if constexpr (node == NodeType::Root) {
-            oss << move << ": " << count << '\n';
-        }
-
-        board.unmake();
-    }
-
-    if constexpr (node == NodeType::Root) {
-        oss << "NODES: " << nodes << std::endl;
-    }
-
-    return nodes;
-}
-
-template U64 perft<NodeType::Root>(int, Board&, std::ostream& = std::cout);
-
-}  // namespace Search
+namespace Search {}  // namespace Search

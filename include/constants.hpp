@@ -52,9 +52,11 @@ constexpr int ROOK_VALUE_EG   = 1100;
 constexpr int QUEEN_VALUE_EG  = 2150;
 
 // mate constants
-constexpr int INF_VALUE       = 100001;
-constexpr int MATE_VALUE      = 100000;
-constexpr int MATE_IN_MAX_PLY = MATE_VALUE - MAX_DEPTH;
+constexpr int INF_SCORE       = 100001;
+constexpr int MATE_SCORE      = 100000;
+constexpr int MATE_IN_MAX_PLY = MATE_SCORE - MAX_DEPTH;
+constexpr bool isMateScore(int score) { return std::abs(score) > MATE_IN_MAX_PLY; }
+constexpr int mateDistance(int score) { return MATE_SCORE - std::abs(score); }
 
 constexpr int PIECE_VALUES[N_PIECES - 1] = {
     PAWN_VALUE_MG, KNIGHT_VALUE_MG, BISHOP_VALUE_MG, ROOK_VALUE_MG, QUEEN_VALUE_MG, 0};

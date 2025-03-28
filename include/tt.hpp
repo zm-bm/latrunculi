@@ -2,10 +2,19 @@
 
 #include <array>
 
+#include "constants.hpp"
 #include "move.hpp"
 #include "types.hpp"
 
 namespace TT {
+
+constexpr int score(int score, int ply) {
+    if (score >= MATE_IN_MAX_PLY)
+        score += ply;
+    else if (score <= MATE_IN_MAX_PLY)
+        score -= ply;
+    return score;
+}
 
 enum NodeType : U8 {
     NONE,
