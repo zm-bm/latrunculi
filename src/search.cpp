@@ -119,8 +119,8 @@ int search(Thread& thread, int alpha, int beta, int depth) {
         // 7. Alpha-beta pruning
         alpha = std::max(alpha, score);
         if (alpha >= beta) {
-            // Beta cut-off, update heuristics if quiet move
-            thread.heuristics.updateBetaCutoff(board, move, thread.ply);
+            // Beta cut-off
+            thread.heuristics.addBetaCutoff(board, move, thread.ply);
             thread.stats.addBetaCutoff(thread.ply, move == moves[0]);
             break;
         }

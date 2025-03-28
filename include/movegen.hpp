@@ -62,12 +62,13 @@ class MoveGenerator {
    public:
     MoveGenerator(const Board& board);
 
+    void sort(MovePriority);
+
+    Move& operator[](int index) { return moves[index]; }
     const Move* begin() { return moves.begin(); }
     const Move* end() { return last; }
     const bool empty() { return last == moves.data(); }
     const size_t size() { return static_cast<std::size_t>(last - moves.data()); }
-    void sort(MovePriority);
-    Move& operator[](int index) { return moves[index]; }
 
    private:
     const Board& board;
@@ -78,15 +79,12 @@ class MoveGenerator {
 
     template <GenType>
     void generate();
-
     template <GenType, Color>
     void generateMoves();
-
     template <GenType, Color>
     void generatePawnMoves(U64, U64);
     template <PieceType, Color>
     void generatePieceMoves(U64, U64);
-
     template <PawnMove, Color>
     void addPawnMoves(U64);
     template <PawnMove, Color>
