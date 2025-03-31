@@ -4,53 +4,70 @@
 #include "constants.hpp"
 #include "thread.hpp"
 
-// prev search tests
-
-enum ScoreType { NONESCORE, EXACT, MORE, LESS };
-
-struct Position {
-    std::string fen;
-    Move bestMove;
-    Move avoidMove;
-    int depth;
-    int score;
-    ScoreType type = NONESCORE;
-};
-
-std::vector<Position> positions = {
-    {"7R/8/8/8/8/1K6/8/1k6 w - -", Move(H8, H1), Move(), 1, MATE_SCORE - 1, EXACT},  // Mate in 1
-    // {"5rk1/pb2npp1/1pq4p/5p2/5B2/1B6/P2RQ1PP/2r1R2K b - -",
-    //  Move(C6, G2),
-    //  Move(),
-    //  3,
-    //  MATE_SCORE - 3,
-    //  EXACT},  // Mate in 2
-    // {"k7/8/4r3/8/8/3Q4/4p3/K7 w - - ", Move(D3, D5), Move(), 4, ROOK_VALUE_MG, MORE},
-    // // Find tactical win
-    // {"R1R5/7R/1k6/7R/8/P1P5/PKP5/1RP5 w - -",
-    //  Move(B2, A1),
-    //  Move(),
-    //  1,
-    //  MATE_SCORE - 1,
-    //  EXACT},  // Mate in 1 avoid stalemate
-    // {"R1R5/7R/1k6/7R/8/8/8/1K6 b - -", Move(), Move(B6, B5), 1, 0, EXACT},  // Evaluate stalemate
-};
-
 class SearchTest : public ::testing::Test {
+   private:
+    bool debug = false;
+    int depth  = 12;
+    SearchOptions options{debug, depth};
+    Thread thread{1};
+
    protected:
-    void testSearch(const std::string& fen, int expScore) {
-        auto thread = Thread(1);
-        auto opts   = SearchOptions{false, 12};
-        thread.set(fen, opts);
-        thread.reset();
-        int score = thread.alphabeta<NodeType::Root>(-INF_SCORE, INF_SCORE, 10);
-        EXPECT_EQ(score, expScore);
+    void testSearch(const std::string& fen, int expectedScore, Move expectedMove) {
+        thread.set(fen, options);
+        EXPECT_EQ(thread.search(), expectedScore) << fen;
+        if (expectedMove != NullMove) EXPECT_EQ(thread.pv.bestMove(), expectedMove) << fen;
+    }
+
+    void testSearchGT(const std::string& fen, int expectedScore, Move expectedMove) {
+        thread.set(fen, options);
+        EXPECT_GT(thread.search(), expectedScore) << fen;
+        if (expectedMove != NullMove) EXPECT_EQ(thread.pv.bestMove(), expectedMove) << fen;
     }
 };
 
-TEST_F(SearchTest, basicTests) {
-    for (auto& pos : positions) {
-        testSearch(pos.fen, pos.score);
+TEST_F(SearchTest, basicMates) {
+    auto searchpos1 = "7R/8/8/8/8/1K6/8/1k6 w - -";
+    auto searchpos2 = "5rk1/pb2npp1/1pq4p/5p2/5B2/1B6/P2RQ1PP/2r1R2K b - -";
+    auto searchpos3 = "5rk1/pb2npp1/1p5p/5p2/5B2/1B6/P2RQ1qP/2r1R2K w - -";
+    auto searchpos4 = "5rk1/pb2npp1/1p5p/5p2/5B2/1B6/P2R2QP/2r1R2K b - -";
+
+    std::vector<std::tuple<std::string, int, Move>> testCases = {
+        {searchpos1, +(MATE_SCORE - 1), Move(H8, H1)},
+        {searchpos2, +(MATE_SCORE - 3), Move(C6, G2)},
+        {searchpos3, -(MATE_SCORE - 2), Move(E2, G2)},
+        {searchpos4, +(MATE_SCORE - 1), Move(C1, E1)},
+    };
+
+    for (auto& [fen, expectedScore, expectedMove] : testCases) {
+        testSearch(fen, expectedScore, expectedMove);
+    }
+}
+
+TEST_F(SearchTest, basicDraws) {
+    auto searchpos1 = "r7/5kPK/7P/8/8/8/8/8 b - -";
+    auto searchpos2 = "1r6/5kPK/7P/8/8/8/8/8 w - -";
+    auto searchpos3 = "1r4Q1/5k1K/7P/8/8/8/8/8 b - -";
+
+    std::vector<std::tuple<std::string, int, Move>> testCases = {
+        {searchpos1, DRAW_SCORE, NullMove},
+        {searchpos2, DRAW_SCORE, Move(G7, G8, PROMOTION, QUEEN)},
+        {searchpos3, DRAW_SCORE, Move(B8, G8)},
+    };
+
+    for (auto& [fen, expectedScore, expectedMove] : testCases) {
+        testSearch(fen, expectedScore, expectedMove);
+    }
+}
+
+TEST_F(SearchTest, basicTactics) {
+    auto searchpos = "k7/4r3/8/8/8/3Q4/4p3/K7 w - -";
+
+    std::vector<std::tuple<std::string, int, Move>> testCases = {
+        {searchpos, pieceValue(ROOK), Move(D3, D8)},
+    };
+
+    for (auto& [fen, expectedScore, expectedMove] : testCases) {
+        testSearchGT(fen, expectedScore, expectedMove);
     }
 }
 
@@ -112,48 +129,4 @@ TEST_F(SearchTest, basicTests) {
 // { "r1bq1rk1/pppnnppp/4p3/3pP3/1b1P4/2NB3N/PPP2PPP/R1BQK2R w KQ - 3 7"  bm Bxh7+;
 // { "r2qkbnr/ppp1pp1p/3p2p1/3Pn3/4P1b1/2N2N2/PPP2PPP/R1BQKB1R w KQkq - 2 6"  bm Nxe5;
 // { "rn2kb1r/pp2pppp/1qP2n2/8/6b1/1Q6/PP1PPPBP/RNB1K1NR b KQkq - 1 6"  am Qxb3;
-// };
-
-// TEST_CASE( "Positional search tests", "[search-position]" )
-// {
-//     G::init();
-
-//     SECTION("Search tests")
-//     {
-//         for (auto& pos : positional)
-//         {
-//             auto board = Board(pos.fen);
-//             Search search(&board);
-//             search.think(pos.depth);
-
-//             if (pos.mateDepth > 0)
-//                 REQUIRE(MATESCORE - pos.mateDepth == search.bestScore);
-
-//             REQUIRE(search.bestMove == pos.bestMove);
-//             REQUIRE(!(search.bestMove == pos.avoidMove));
-//         }
-//     }
-
-// }
-
-// Prev zobrist tests
-
-// void recursiveZobristCheck(Board board, int depth)
-// {
-//     if (depth < 0)
-//         return;
-
-//     auto gen  = MoveGenerator::Generator(&board);
-//     gen.generatePseudoLegalMoves();
-
-//     for (auto& move : gen.moves)
-//     {
-//         if (!board.isLegalMove(move))
-//             continue;
-
-//         board.make(move);
-//         REQUIRE(board.calculateKey() == board.getKey());
-//         recursiveZobristCheck(board, depth-1);
-//         board.unmake();
-//     }
 // };

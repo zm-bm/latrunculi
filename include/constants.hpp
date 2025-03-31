@@ -55,6 +55,8 @@ constexpr int QUEEN_VALUE_EG  = 2150;
 constexpr int INF_SCORE       = 100001;
 constexpr int MATE_SCORE      = 100000;
 constexpr int MATE_IN_MAX_PLY = MATE_SCORE - MAX_DEPTH;
+constexpr int DRAW_SCORE      = 0;
+
 constexpr bool isMateScore(int score) { return std::abs(score) > MATE_IN_MAX_PLY; }
 constexpr int mateDistance(int score) { return MATE_SCORE - std::abs(score); }
 

@@ -63,7 +63,7 @@ class Thread {
     void reset();
 
     // search.cpp
-    void search();
+    int search();
     template <NodeType = NodeType::Root>
     int alphabeta(int, int, int);
     int quiescence(int, int);

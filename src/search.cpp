@@ -13,12 +13,14 @@ constexpr int ReductionLimit   = 3;
 constexpr int FutilityMargin   = 300;
 constexpr int NullMoveR        = 4;
 
-void Thread::search() {
+int Thread::search() {
     reset();
 
-    // 1. Iterative deepening loop
+    int score     = 0;
     int prevScore = 0;
-    for (int d = 1; d <= options.depth && !ThreadPool::stopThreads; ++d) {
+
+    // 1. Iterative deepening loop
+    for (int depth = 1; depth <= options.depth && !ThreadPool::stopThreads; ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
@@ -26,24 +28,26 @@ void Thread::search() {
         int beta  = prevScore + AspirationWindow;
 
         // 3. First search
-        int score = alphabeta(alpha, beta, d);
+        score = alphabeta(alpha, beta, depth);
 
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
-            score = alphabeta(-INF_SCORE, beta, d);
+            score = alphabeta(-INF_SCORE, beta, depth);
         } else if (score >= beta) {
-            score = alphabeta(alpha, INF_SCORE, d);
+            score = alphabeta(alpha, INF_SCORE, depth);
         }
 
         prevScore = score;
         heuristics.age();
-        UCI::printInfo(score, d, stats, pv);
+        UCI::printInfo(score, depth, stats, pv);
 
         if (isMateScore(score)) break;
     }
 
     std::cout << "bestmove " << pv.bestMove() << std::endl;
     if (options.debug) UCI::printDebuggingInfo(stats);
+
+    return score;
 }
 
 template <NodeType node>
@@ -162,7 +166,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             bestScore = -MATE_SCORE + ply;
             bestMove  = Move();
         } else {
-            bestScore = 0;
+            bestScore = DRAW_SCORE;
             bestMove  = Move();
         }
     }
