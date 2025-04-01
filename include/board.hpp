@@ -55,6 +55,7 @@ class Board {
     U8 halfmove() const;
 
     // move/check properties
+    std::string toSAN(Move) const;
     int see(Move) const;
     bool isDraw() const;
     bool isLegalMove(Move) const;
