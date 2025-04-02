@@ -11,7 +11,7 @@ TEST(MoveTest, DefaultConstructor) {
 
 TEST(MoveTest, Constructor) {
     Square from = A2;
-    Square to = A3;
+    Square to   = A3;
 
     Move move(from, to);
 

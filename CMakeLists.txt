@@ -31,14 +31,22 @@ enable_testing()
 add_subdirectory(third_party/googletest)
 
 # Test files
-file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp")
+file(GLOB_RECURSE UNIT_TEST_SOURCES "tests/unit/*.cpp")
+file(GLOB_RECURSE BENCH_TEST_SOURCES "tests/bench/*.cpp")
 
 # Create test executable
-add_executable(tests ${TEST_SOURCES})
+add_executable(unit_tests ${UNIT_TEST_SOURCES})
+add_executable(benchmark_tests ${BENCH_TEST_SOURCES})
 
 # Link GTest to the test executable
-target_link_libraries(tests lib gtest gmock gtest_main pthread)
+target_link_libraries(unit_tests lib gtest gmock gtest_main pthread)
+target_link_libraries(benchmark_tests lib gtest gmock gtest_main pthread)
 
 # Add tests
 include(CTest)
-add_test(NAME tests COMMAND tests)
+add_test(NAME UnitTests COMMAND unit_tests)
+add_test(NAME BenchmarkTests COMMAND benchmark_tests)
+
+# Add test labels
+set_tests_properties(UnitTests PROPERTIES LABELS "unit")
+set_tests_properties(BenchmarkTests PROPERTIES LABELS "bench")

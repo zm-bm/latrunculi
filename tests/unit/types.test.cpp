@@ -118,7 +118,6 @@ TEST(Types_pawnMoveLeft, CorrectValues) {
     EXPECT_EQ(sq, D5);
 }
 
-
 TEST(Types_Color, InvertFlipsColor) { EXPECT_EQ(WHITE, ~BLACK); }
 
 TEST(Types_Square, Arithmetic) {

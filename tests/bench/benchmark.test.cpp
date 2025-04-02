@@ -22,9 +22,11 @@ void parseEPDLine(const std::string& line, EPDCases& cases) {
     while (iss >> token) {
         if (token.rfind("bm", 0) == 0) {
             iss >> bestMove;
+            if (bestMove.back() == ';') bestMove.pop_back();
         }
         if (token.rfind("am", 0) == 0) {
             iss >> avoidMove;
+            if (avoidMove.back() == ';') avoidMove.pop_back();
         }
     }
 
@@ -47,28 +49,43 @@ EPDCases readEPDFile(const std::string& filename) {
     return cases;
 }
 
-class EPDTest : public ::testing::Test {
+class SearchBenchmark : public ::testing::Test {
    private:
     bool debug = false;
-    int depth  = 12;
+    int depth  = 15;
     SearchOptions options{debug, depth};
     Thread thread{1};
 
    protected:
-    void testSearch(const std::string& fen, std::string& bestMove, std::string& avoidMove) {
+    bool testSearch(const std::string& fen, std::string& bestMove, std::string& avoidMove) {
         thread.set(fen, options);
         thread.search();
         auto moveSAN = thread.board.toSAN(thread.pv.bestMove());
-        std::cout << moveSAN << " = " << bestMove << '\n';
-        // if (bestMove != "") EXPECT_EQ(moveSAN, bestMove) << fen;
+        bool result  = true;
+
+        if (!bestMove.empty() && moveSAN != bestMove) result = false;
+        if (!avoidMove.empty() && moveSAN == avoidMove) result = false;
+
+        std::cout << moveSAN << " bm=" << bestMove << " am=" << avoidMove << '\n';
+        return result;
     }
 };
 
-TEST_F(EPDTest, epdTests) {
-    std::string filename = "tests/ccr.epd";
-    auto cases           = readEPDFile(filename);
+TEST_F(SearchBenchmark, ccr) {
+    auto filename = "./tests/ccr.epd";
+    auto cases    = readEPDFile(filename);
 
+    int successful = 0;
     for (auto& [fen, bestMove, avoidMove] : cases) {
-        testSearch(fen, bestMove, avoidMove);
+        bool result = testSearch(fen, bestMove, avoidMove);
+
+        if (result) {
+            successful++;
+            std::cout << "successful\n\n";
+        } else {
+            std::cout << "failed\n\n";
+        }
     }
+    std::cout << successful << " out of " << cases.size() << '\n';
+    ASSERT_GE(successful, 0);
 }

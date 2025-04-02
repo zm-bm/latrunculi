@@ -77,8 +77,8 @@ class Thread {
 
     std::thread thread;
 
-    friend class SearchTest;
-    friend class EPDTest;
+    friend class SearchTests;
+    friend class SearchBenchmark;
 };
 
 class ThreadPool {

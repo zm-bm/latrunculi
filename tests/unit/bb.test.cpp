@@ -1,13 +1,14 @@
 #include "bb.hpp"
 
 #include <gtest/gtest.h>
+
 #include <numeric>
 
 #include "types.hpp"
 
 TEST(BB_set, CorrectSetBit) {
     for (int i = 0; i < 64; ++i) {
-        U64 result = BB::set(Square(i));
+        U64 result   = BB::set(Square(i));
         U64 expected = 1ULL << i;
         ASSERT_EQ(result, expected) << "Failed at index " << i;
     }
@@ -15,14 +16,16 @@ TEST(BB_set, CorrectSetBit) {
 
 TEST(BB_clear, CorrectClearBit) {
     for (int i = 0; i < 64; ++i) {
-        U64 result = BB::clear(Square(i));
+        U64 result   = BB::clear(Square(i));
         U64 expected = ~(1ULL << i);
         ASSERT_EQ(result, expected) << "Failed at index " << i;
     }
 }
 
 U64 targets(const std::vector<Square>& squares) {
-    return std::accumulate(squares.begin(), squares.end(), 0ULL, [](U64 acc, Square sq) { return acc | BB::set(sq); });
+    return std::accumulate(squares.begin(), squares.end(), 0ULL, [](U64 acc, Square sq) {
+        return acc | BB::set(sq);
+    });
 }
 
 TEST(BB_inline, CorrectBitsInlineValues) {

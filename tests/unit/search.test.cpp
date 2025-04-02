@@ -4,7 +4,7 @@
 #include "constants.hpp"
 #include "thread.hpp"
 
-class SearchTest : public ::testing::Test {
+class SearchTests : public ::testing::Test {
    private:
     bool debug = false;
     int depth  = 10;
@@ -25,7 +25,7 @@ class SearchTest : public ::testing::Test {
     }
 };
 
-TEST_F(SearchTest, basicMates) {
+TEST_F(SearchTests, basicMates) {
     auto searchpos1 = "7R/8/8/8/8/1K6/8/1k6 w - -";
     auto searchpos2 = "5rk1/pb2npp1/1pq4p/5p2/5B2/1B6/P2RQ1PP/2r1R2K b - -";
     auto searchpos3 = "5rk1/pb2npp1/1p5p/5p2/5B2/1B6/P2RQ1qP/2r1R2K w - -";
@@ -43,7 +43,7 @@ TEST_F(SearchTest, basicMates) {
     }
 }
 
-TEST_F(SearchTest, basicDraws) {
+TEST_F(SearchTests, basicDraws) {
     auto searchpos1 = "r7/5kPK/7P/8/8/8/8/8 b - -";
     auto searchpos2 = "1r6/5kPK/7P/8/8/8/8/8 w - -";
     auto searchpos3 = "1r4Q1/5k1K/7P/8/8/8/8/8 b - -";
@@ -59,7 +59,7 @@ TEST_F(SearchTest, basicDraws) {
     }
 }
 
-TEST_F(SearchTest, basicTactics) {
+TEST_F(SearchTests, basicTactics) {
     auto searchpos1 = "k7/4r3/8/8/8/3Q4/4p3/K7 w - -";
     auto searchpos2 = "3r4/pbb1qBk1/2p4p/1p2N1p1/3r4/P3Q2P/1P3PP1/2RR2K1 w - -";
 

@@ -1,9 +1,10 @@
 #include <gtest/gtest.h>
+
 #include "magics.hpp"
 #include "zobrist.hpp"
 
 class GlobalTestSetup : public ::testing::Environment {
-public:
+   public:
     void SetUp() override {
         Magics::init();
         Zobrist::init();
