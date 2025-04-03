@@ -114,6 +114,10 @@ void Engine::go(std::istringstream& iss) {
             iss >> token;
             options.depth = std::stoi(token);
         }
+        if (token == "movetime") {
+            iss >> token;
+            options.movetime = std::stoi(token);
+        }
     }
 
     threads.startAll(board, options);

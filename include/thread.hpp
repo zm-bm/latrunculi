@@ -13,8 +13,9 @@
 #include "types.hpp"
 
 struct SearchOptions {
-    bool debug = true;
-    int depth  = 14;
+    bool debug   = true;
+    int depth    = 14;
+    int movetime = INT32_MAX;
 };
 
 struct PrincipalVariation {

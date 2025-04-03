@@ -3,6 +3,8 @@
 
 #include "constants.hpp"
 
+constexpr U64 NodeInterval = 8196;
+
 struct SearchStats {
     using TimePoint     = std::chrono::high_resolution_clock::time_point;
     TimePoint startTime = std::chrono::high_resolution_clock::now();
@@ -17,6 +19,15 @@ struct SearchStats {
     std::array<U64, MAX_DEPTH> ttProbes{};
     std::array<U64, MAX_DEPTH> ttHits{};
     std::array<U64, MAX_DEPTH> ttCutoffs{};
+
+    bool checkTime(int movetime) const {
+        return totalNodes % NodeInterval == 0 && elapsedTime() > movetime;
+    }
+
+    int elapsedTime() const {
+        auto now = std::chrono::high_resolution_clock::now();
+        return std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
+    }
 
     void addNode(int ply) {
         totalNodes++;

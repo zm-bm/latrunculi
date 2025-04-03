@@ -56,6 +56,9 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     constexpr bool isPV     = isRoot || node == NodeType::PV;
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
 
+    // Stop search when time expires
+    if (stats.checkTime(options.movetime)) ThreadPool::stopThreads = true;
+
     // 1. Base case: quiescence search
     if (depth == 0) {
         return quiescence(alpha, beta);
@@ -114,6 +117,12 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         if (!board.isLegalMove(move)) continue;
         legalMoves++;
         bool isQuiet = !board.isCapture(move) && !board.isCheckingMove(move);
+
+        // Return best estimate when search stops
+        if (ThreadPool::stopThreads) {
+            if (bestScore > -INF_SCORE) return bestScore;
+            return eval(board);
+        }
 
         // Futility pruning
         if (depth <= 2 && isQuiet) {
