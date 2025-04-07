@@ -107,6 +107,13 @@ inline std::ostream& operator<<(std::ostream& os, Piece p) {
     return os;
 }
 
+inline std::ostream& operator<<(std::ostream& os, PieceType p) {
+    static constexpr char pieces[] =
+        {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' '};
+    os << pieces[static_cast<int>(p)];
+    return os;
+}
+
 // Helpers
 
 constexpr Square makeSquare(const File file, const Rank rank) {

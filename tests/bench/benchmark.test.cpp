@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "thread.hpp"
+#include "eval.hpp"
 
 using EPDCases = std::vector<std::tuple<std::string, std::string, std::string>>;
 
@@ -51,23 +52,20 @@ EPDCases readEPDFile(const std::string& filename) {
 
 class SearchBenchmark : public ::testing::Test {
    private:
-    bool debug = false;
-    int depth  = 15;
-    SearchOptions options{debug, depth};
+    SearchOptions options{false, 20, 10000};
     Thread thread{1};
 
    protected:
     bool testSearch(const std::string& fen, std::string& bestMove, std::string& avoidMove) {
+        ThreadPool::stopThreads = false;
         thread.set(fen, options);
         thread.search();
         auto moveSAN = thread.board.toSAN(thread.pv.bestMove());
-        bool result  = true;
 
-        if (!bestMove.empty() && moveSAN != bestMove) result = false;
-        if (!avoidMove.empty() && moveSAN == avoidMove) result = false;
+        if (!bestMove.empty() && moveSAN != bestMove) return false;
+        if (!avoidMove.empty() && moveSAN == avoidMove) return false;
 
-        std::cout << moveSAN << " bm=" << bestMove << " am=" << avoidMove << '\n';
-        return result;
+        return true;
     }
 };
 

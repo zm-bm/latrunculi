@@ -39,8 +39,8 @@ add_executable(unit_tests ${UNIT_TEST_SOURCES})
 add_executable(benchmark_tests ${BENCH_TEST_SOURCES})
 
 # Link GTest to the test executable
-target_link_libraries(unit_tests lib gtest gmock gtest_main pthread)
-target_link_libraries(benchmark_tests lib gtest gmock gtest_main pthread)
+target_link_libraries(unit_tests lib gtest gmock pthread)
+target_link_libraries(benchmark_tests lib gtest gmock pthread)
 
 # Add tests
 include(CTest)
