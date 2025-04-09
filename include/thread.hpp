@@ -82,7 +82,7 @@ class Thread {
     std::ostream& output;
     std::thread thread;
 
-    friend class SearchTests;
+    friend class SearchTest;
     friend class SearchBenchmark;
 };
 

@@ -72,7 +72,7 @@ class SearchBenchmark : public ::testing::Test {
 TEST_F(SearchBenchmark, ccr) {
     auto filename = "./tests/ccr.epd";
     auto cases    = readEPDFile(filename);
-    std::string token, engineMove;
+    std::string token, engineMove, engineMoveSAN;
 
     int successful = 0;
     for (auto& [fen, bestMove, avoidMove] : cases) {
@@ -84,18 +84,19 @@ TEST_F(SearchBenchmark, ccr) {
         iss >> engineMove;
 
         MoveGenerator<GenType::All> moves{board};
-        auto move =
-            std::find_if(moves.begin(), moves.end(), [&](Move m) { return m.str() == engineMove; });
-        engineMove = board.toSAN(*move);
+        auto moveMatches = [&](Move m) { return m.str() == engineMove; };
+        auto move        = std::find_if(moves.begin(), moves.end(), moveMatches);
+        engineMoveSAN    = board.toSAN(*move);
 
-        if ((bestMove.empty() || bestMove == engineMove) &&
-            (avoidMove.empty() || avoidMove != engineMove)) {
+        if ((bestMove.empty() || bestMove == engineMoveSAN) &&
+            (avoidMove.empty() || avoidMove != engineMoveSAN)) {
             successful++;
-            std::cout << engineMove << ": successful";
+            std::cout << "SUCCESS\t";
         } else {
-            std::cout << engineMove << ": failed";
+            std::cout << "FAILURE\t";
         }
 
+        std::cout << engineMoveSAN << '\t';
         if (!bestMove.empty()) std::cout << " bm " << bestMove;
         if (!avoidMove.empty()) std::cout << " am " << avoidMove;
         std::cout << "\n";
