@@ -4,12 +4,12 @@
 #include "constants.hpp"
 #include "thread.hpp"
 
+std::ostringstream oss;
+
 class SearchTest : public ::testing::Test {
    private:
-    bool debug = false;
-    int depth  = 10;
-    SearchOptions options{false, 10};
-    Thread thread{1, std::cout};
+    SearchOptions options{false, 10, 2000};
+    Thread thread{1, oss};
 
    protected:
     void testSearch(const std::string& fen, int expectedScore, Move expectedMove) {

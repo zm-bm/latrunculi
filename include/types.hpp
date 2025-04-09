@@ -76,6 +76,19 @@ struct PieceSquare {
     Square square;
 };
 
+// char / string helpers
+inline char toChar(File file) { return static_cast<char>('a' + file); }
+inline char toChar(Rank rank) { return static_cast<char>('1' + rank); }
+
+constexpr char PIECE_CHARS[] = {
+    ' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
+inline char toChar(Piece piece) { return PIECE_CHARS[static_cast<int>(piece)]; }
+inline char toChar(PieceType pt) { return PIECE_CHARS[static_cast<int>(pt)]; }
+
+inline std::string toString(Square sq) {
+    return std::string{toChar(File(sq & 7))} + toChar(Rank(sq >> 3));
+}
+
 // Operators
 
 constexpr Color operator~(Color c) { return Color(c ^ WHITE); }
@@ -86,35 +99,31 @@ inline std::ostream& operator<<(std::ostream& os, Color color) {
 }
 
 inline std::ostream& operator<<(std::ostream& os, File file) {
-    os << static_cast<char>('a' + file);
+    os << toChar(file);
     return os;
 }
 
 inline std::ostream& operator<<(std::ostream& os, Rank rank) {
-    os << static_cast<char>('1' + rank);
+    os << toChar(rank);
     return os;
 }
 
 inline std::ostream& operator<<(std::ostream& os, Square sq) {
-    os << File(sq & 7) << Rank(sq >> 3);
+    os << toString(sq);
     return os;
 }
 
-inline std::ostream& operator<<(std::ostream& os, Piece p) {
-    static const char pieces[16] =
-        {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
-    os << pieces[static_cast<int>(p)];
+inline std::ostream& operator<<(std::ostream& os, Piece piece) {
+    os << toChar(piece);
     return os;
 }
 
-inline std::ostream& operator<<(std::ostream& os, PieceType p) {
-    static constexpr char pieces[] =
-        {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' '};
-    os << pieces[static_cast<int>(p)];
+inline std::ostream& operator<<(std::ostream& os, PieceType pieceType) {
+    os << toChar(pieceType);
     return os;
 }
 
-// Helpers
+// Conversion helpers
 
 constexpr Square makeSquare(const File file, const Rank rank) {
     return static_cast<Square>((rank << 3) + file);
@@ -151,6 +160,8 @@ constexpr Color pieceColorOf(const Piece p) {
     // get the color of a piece
     return Color(static_cast<int>(p) >> 3);
 }
+
+// move helpers
 
 template <Color c, PawnMove p, bool forward>
 inline Square pawnMove(const Square sq) {

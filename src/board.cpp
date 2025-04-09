@@ -6,7 +6,11 @@
 #include "thread.hpp"
 
 std::string Board::toSAN(Move move) const {
-    std::string result = "";
+    std::string result  = "";
+    Square from         = move.from();
+    Square to           = move.to();
+    PieceType pieceType = pieceTypeOn(from);
+
     if (move.type() == CASTLE) {
         if (move.from() < move.to())
             return "O-O";
@@ -14,44 +18,31 @@ std::string Board::toSAN(Move move) const {
             return "O-O-O";
     }
 
-    PieceType pieceType = pieceTypeOn(move.from());
-    switch (pieceType) {
-        case KNIGHT: result += "N"; break;
-        case BISHOP: result += "B"; break;
-        case ROOK: result += "R"; break;
-        case QUEEN: result += "Q"; break;
-        case KING:
-            result += "K";
-            break;
-        defaut:
-            break;
+    if (pieceType != PAWN) result += std::toupper(toChar(pieceType));
+
+    MoveGenerator<GenType::All> moves{*this};
+    auto ambigMove = std::find_if(moves.begin(), moves.end(), [&](Move m) {
+        return m.to() == to && pieceTypeOn(m.from()) == pieceType && m.from() != from &&
+               isLegalMove(m);
+    });
+    if (ambigMove != moves.end()) {
+        bool diffFile = fileOf(ambigMove->from()) != fileOf(from);
+        bool diffRank = rankOf(ambigMove->from()) != rankOf(from);
+
+        if (diffFile)
+            result += toChar(fileOf(from));
+        else if (diffRank)
+            result += toChar(rankOf(from));
     }
 
     if (isCapture(move)) {
-        if (pieceType == PAWN) {
-            result += 'a' + fileOf(move.from());
-        }
+        if (pieceType == PAWN) result += 'a' + fileOf(move.from());
         result += 'x';
     }
 
-    result += 'a' + fileOf(move.to());
-    result += '1' + rankOf(move.to());
-
-    if (move.type() == PROMOTION) {
-        result += '=';
-        result += '=';
-        switch (move.promoPiece()) {
-            case QUEEN: result += 'q'; break;
-            case ROOK: result += 'r'; break;
-            case BISHOP: result += 'b'; break;
-            case KNIGHT: result += 'n'; break;
-            default: break;
-        }
-    }
-
-    if (isCheckingMove(move)) {
-        result += '+';
-    }
+    result += toString(to);
+    if (move.type() == PROMOTION) result += '=' + toChar(move.promoPiece());
+    if (isCheckingMove(move)) result += '+';
 
     return result;
 }
