@@ -43,7 +43,7 @@ struct Move {
         return static_cast<PieceType>(((packed >> 14) & 0x03) + KNIGHT);
     }
 
-    std::string DebugString() const;
+    std::string str() const;
 };
 
 constexpr Move NullMove{};
@@ -66,7 +66,7 @@ inline std::ostream& operator<<(std::ostream& os, const Move& mv) {
     return os;
 }
 
-inline std::string Move::DebugString() const {
+inline std::string Move::str() const {
     std::ostringstream oss;
     oss << *this;
     return oss.str();

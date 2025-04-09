@@ -1,14 +1,15 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <vector>
-#include <chrono>
 #include <thread>
+#include <vector>
 
-#include "thread.hpp"
 #include "eval.hpp"
+#include "movegen.hpp"
+#include "thread.hpp"
 
 using EPDCases = std::vector<std::tuple<std::string, std::string, std::string>>;
 
@@ -52,45 +53,54 @@ EPDCases readEPDFile(const std::string& filename) {
     return cases;
 }
 
-std::ostringstream output;
+std::ostringstream oss;
 
 class SearchBenchmark : public ::testing::Test {
    private:
     SearchOptions options{false, 20, 10000};
-    ThreadPool pool{1, std::cout};
+    ThreadPool pool{1, oss};
 
    protected:
-    bool testSearch(const std::string& fen, std::string& bestMove, std::string& avoidMove) {
-        Board board{fen};
+    void testSearch(Board& board, std::string& bestMove, std::string& avoidMove) {
+        oss.str("");
+        oss.clear();
         pool.startAll(board, options);
         pool.waitAll();
-
-        auto moveSAN = pool.threads[0]->board.toSAN(pool.threads[0]->pv.bestMove());
-        if (!bestMove.empty() && moveSAN != bestMove) return false;
-        if (!avoidMove.empty() && moveSAN == avoidMove) return false;
-
-        return true;
     }
 };
 
 TEST_F(SearchBenchmark, ccr) {
     auto filename = "./tests/ccr.epd";
     auto cases    = readEPDFile(filename);
+    std::string token, engineMove;
 
     int successful = 0;
     for (auto& [fen, bestMove, avoidMove] : cases) {
-        bool result = testSearch(fen, bestMove, avoidMove);
+        Board board{fen};
+        testSearch(board, bestMove, avoidMove);
 
-        if (result) {
+        std::istringstream iss(oss.str());
+        while (iss >> token && token != "bestmove");
+        iss >> engineMove;
+
+        MoveGenerator<GenType::All> moves{board};
+        auto move =
+            std::find_if(moves.begin(), moves.end(), [&](Move m) { return m.str() == engineMove; });
+        engineMove = board.toSAN(*move);
+
+        if ((bestMove.empty() || bestMove == engineMove) &&
+            (avoidMove.empty() || avoidMove != engineMove)) {
             successful++;
-            std::cout << "successful ";
+            std::cout << engineMove << ": successful";
         } else {
-            std::cout << "failed ";
+            std::cout << engineMove << ": failed";
         }
-        if (!bestMove.empty()) std::cout << "bm " << bestMove;
-        if (!avoidMove.empty()) std::cout << "am " << avoidMove;
-        std::cout << "\n\n";
+
+        if (!bestMove.empty()) std::cout << " bm " << bestMove;
+        if (!avoidMove.empty()) std::cout << " am " << avoidMove;
+        std::cout << "\n";
     }
+
     std::cout << successful << " out of " << cases.size() << '\n';
-    ASSERT_GE(successful, 0);
+    EXPECT_GE(successful, 0);
 }

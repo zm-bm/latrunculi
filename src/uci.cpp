@@ -162,31 +162,32 @@ std::string formatScore(int score) {
     return oss.str();
 }
 
-void printInfo(std::ostream& output, int score, int depth, SearchStats& stats, PrincipalVariation& pv) {
+void printInfo(
+    std::ostream& output, int score, int depth, SearchStats& stats, PrincipalVariation& pv) {
     using namespace std::chrono;
     auto dur = high_resolution_clock::now() - stats.startTime;
     auto sec = duration_cast<duration<double>>(dur).count();
     auto nps = (sec > 0) ? stats.totalNodes / sec : 0;
 
-    std::cout << std::fixed;
-    std::cout << "info depth " << depth;
-    std::cout << " score " << formatScore(score);
-    std::cout << " time " << static_cast<int>(sec * 1000);
-    std::cout << " nodes " << stats.totalNodes;
-    std::cout << " nps " << static_cast<int>(nps);
-    std::cout << " pv";
-    for (auto& move : pv[0]) std::cout << " " << move;
-    std::cout << std::endl;
+    output << std::fixed;
+    output << "info depth " << depth;
+    output << " score " << formatScore(score);
+    output << " time " << static_cast<int>(sec * 1000);
+    output << " nodes " << stats.totalNodes;
+    output << " nps " << static_cast<int>(nps);
+    output << " pv";
+    for (auto& move : pv[0]) output << " " << move;
+    output << std::endl;
 }
 
 void printDebuggingInfo(std::ostream& output, const SearchStats& stats) {
-    std::cerr << "\n"
-              << std::setw(5) << "Depth"
-              << " | " << std::setw(18) << "Nodes (QNode%)"
-              << " | " << std::setw(23) << "Cutoffs (Early%/Late%)"
-              << " | " << std::setw(6) << "TTHit%"
-              << " | " << std::setw(6) << "TTCut%"
-              << " | " << std::setw(13) << "EBF / Cumul" << "\n";
+    output << "\n"
+           << std::setw(5) << "Depth"
+           << " | " << std::setw(18) << "Nodes (QNode%)"
+           << " | " << std::setw(23) << "Cutoffs (Early%/Late%)"
+           << " | " << std::setw(6) << "TTHit%"
+           << " | " << std::setw(6) << "TTCut%"
+           << " | " << std::setw(13) << "EBF / Cumul" << "\n";
 
     int maxDepth = stats.maxDepth();
     for (size_t d = 1; d < maxDepth; ++d) {
@@ -208,17 +209,17 @@ void printDebuggingInfo(std::ostream& output, const SearchStats& stats) {
         double ebf        = prev > 0 ? static_cast<double>(nodes) / prev : 0.0;
         double cumulative = std::pow(static_cast<double>(nodes), 1.0 / d);
 
-        std::cerr << std::fixed;
-        std::cerr << std::setw(5) << d << " | ";
-        std::cerr << std::setw(9) << nodes << " (";
-        std::cerr << std::setw(5) << std::setprecision(1) << quiesPct << "%) | ";
-        std::cerr << std::setw(8) << cutoffs << " (";
-        std::cerr << std::setw(5) << std::setprecision(1) << earlyPct << "/";
-        std::cerr << std::setw(5) << std::setprecision(1) << latePct << "%) | ";
-        std::cerr << std::setw(5) << std::setprecision(1) << ttHitPct << "% | ";
-        std::cerr << std::setw(5) << std::setprecision(1) << ttCutPct << "% | ";
-        std::cerr << std::setw(5) << std::setprecision(1) << ebf << " / ";
-        std::cerr << std::setw(5) << std::setprecision(1) << cumulative << "\n";
+        output << std::fixed;
+        output << std::setw(5) << d << " | ";
+        output << std::setw(9) << nodes << " (";
+        output << std::setw(5) << std::setprecision(1) << quiesPct << "%) | ";
+        output << std::setw(8) << cutoffs << " (";
+        output << std::setw(5) << std::setprecision(1) << earlyPct << "/";
+        output << std::setw(5) << std::setprecision(1) << latePct << "%) | ";
+        output << std::setw(5) << std::setprecision(1) << ttHitPct << "% | ";
+        output << std::setw(5) << std::setprecision(1) << ttCutPct << "% | ";
+        output << std::setw(5) << std::setprecision(1) << ebf << " / ";
+        output << std::setw(5) << std::setprecision(1) << cumulative << "\n";
     }
 }
 

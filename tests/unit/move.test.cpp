@@ -39,5 +39,5 @@ TEST(MoveTest, PromotionMove) {
 
 TEST(MoveTest, OutputStreamOperator) {
     Move move(A7, A8, PROMOTION, ROOK);
-    EXPECT_EQ(move.DebugString(), "a7a8r") << "should output move string";
+    EXPECT_EQ(move.str(), "a7a8r") << "should output move string";
 }
