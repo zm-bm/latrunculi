@@ -4,6 +4,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <chrono>
+#include <thread>
 
 #include "thread.hpp"
 #include "eval.hpp"
@@ -50,18 +52,20 @@ EPDCases readEPDFile(const std::string& filename) {
     return cases;
 }
 
+std::ostringstream output;
+
 class SearchBenchmark : public ::testing::Test {
    private:
     SearchOptions options{false, 20, 10000};
-    Thread thread{1};
+    ThreadPool pool{1, std::cout};
 
    protected:
     bool testSearch(const std::string& fen, std::string& bestMove, std::string& avoidMove) {
-        ThreadPool::stopThreads = false;
-        thread.set(fen, options);
-        thread.search();
-        auto moveSAN = thread.board.toSAN(thread.pv.bestMove());
+        Board board{fen};
+        pool.startAll(board, options);
+        pool.waitAll();
 
+        auto moveSAN = pool.threads[0]->board.toSAN(pool.threads[0]->pv.bestMove());
         if (!bestMove.empty() && moveSAN != bestMove) return false;
         if (!avoidMove.empty() && moveSAN == avoidMove) return false;
 
@@ -79,10 +83,13 @@ TEST_F(SearchBenchmark, ccr) {
 
         if (result) {
             successful++;
-            std::cout << "successful\n\n";
+            std::cout << "successful ";
         } else {
-            std::cout << "failed\n\n";
+            std::cout << "failed ";
         }
+        if (!bestMove.empty()) std::cout << "bm " << bestMove;
+        if (!avoidMove.empty()) std::cout << "am " << avoidMove;
+        std::cout << "\n\n";
     }
     std::cout << successful << " out of " << cases.size() << '\n';
     ASSERT_GE(successful, 0);

@@ -20,7 +20,7 @@ int Thread::search() {
     int prevScore = 0;
 
     // 1. Iterative deepening loop
-    for (int depth = 1; depth <= options.depth && !ThreadPool::stopThreads; ++depth) {
+    for (int depth = 1; depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
@@ -39,13 +39,13 @@ int Thread::search() {
 
         prevScore = score;
         heuristics.age();
-        UCI::printInfo(score, depth, stats, pv);
+        UCI::printInfo(output, score, depth, stats, pv);
 
         if (isMateScore(score)) break;
     }
 
-    std::cout << "bestmove " << pv.bestMove() << std::endl;
-    if (options.debug) UCI::printDebuggingInfo(stats);
+    output << "bestmove " << pv.bestMove() << std::endl;
+    if (options.debug) UCI::printDebuggingInfo(output, stats);
 
     return score;
 }
@@ -57,7 +57,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
 
     // Stop search when time expires
-    if (stats.checkTime(options.movetime)) ThreadPool::stopThreads = true;
+    if (stats.checkTime(options.movetime)) ThreadPool::stopSignal = true;
 
     // 1. Base case: quiescence search
     if (depth == 0) {
@@ -119,7 +119,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         bool isQuiet = !board.isCapture(move) && !board.isCheckingMove(move);
 
         // Return best estimate when search stops
-        if (ThreadPool::stopThreads) {
+        if (ThreadPool::stopSignal) {
             if (bestScore > -INF_SCORE) return bestScore;
             return eval(board);
         }

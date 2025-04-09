@@ -14,17 +14,22 @@ Thread::~Thread() {
 void Thread::start() {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        runThread = true;
+        runSignal = true;
     }
-    condition.notify_one();
+    condition.notify_all();
 }
 
 void Thread::stop() {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        exitThread = true;
+        exitSignal = true;
     }
-    condition.notify_one();
+    condition.notify_all();
+}
+
+void Thread::wait() {
+    std::unique_lock<std::mutex> lock(mutex);
+    condition.wait(lock, [&]{ return !runSignal; });
 }
 
 void Thread::set(const std::string& fen, SearchOptions& options) {
@@ -40,14 +45,15 @@ void Thread::loop() {
     while (true) {
         {
             std::unique_lock<std::mutex> lock(mutex);
-            condition.wait(lock, [this]() { return runThread || exitThread; });
+            condition.wait(lock, [&]() { return runSignal || exitSignal; });
 
-            if (exitThread) return;
-            runThread = false;
+            if (exitSignal) return;
+            runSignal = false;
         }
 
-        if (!exitThread) {
+        if (!exitSignal) {
             search();
+            condition.notify_all();
         }
     }
 }
@@ -58,20 +64,26 @@ void Thread::reset() {
     pv.clear();
 }
 
-ThreadPool::ThreadPool(size_t numThreads) {
+ThreadPool::ThreadPool(size_t numThreads, std::ostream& output) {
     for (size_t i = 0; i < numThreads; ++i) {
-        searchThreads.push_back(std::make_unique<Thread>(i + 1));
+        threads.push_back(std::make_unique<Thread>(i + 1, output));
     }
 }
 
 ThreadPool::~ThreadPool() { stopAll(); }
 
 void ThreadPool::startAll(Board& board, SearchOptions& options) {
-    stopThreads = false;
-    for (auto& searchThread : searchThreads) {
-        searchThread->set(board.toFEN(), options);
-        searchThread->start();
+    stopSignal = false;
+    for (auto& thread : threads) {
+        thread->set(board.toFEN(), options);
+        thread->start();
     }
 }
 
-void ThreadPool::stopAll() { stopThreads = true; }
+void ThreadPool::stopAll() { stopSignal = true; }
+
+void ThreadPool::waitAll() {
+    for (auto& thread : threads) {
+        thread->wait();
+    }
+}

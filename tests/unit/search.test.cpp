@@ -9,7 +9,7 @@ class SearchTests : public ::testing::Test {
     bool debug = false;
     int depth  = 10;
     SearchOptions options{debug, depth};
-    Thread thread{1};
+    Thread thread{1, std::cout};
 
    protected:
     void testSearch(const std::string& fen, int expectedScore, Move expectedMove) {

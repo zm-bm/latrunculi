@@ -18,7 +18,7 @@ class Engine {
 
    private:
     Board board           = Board(STARTFEN);
-    ThreadPool threads    = ThreadPool(1);
+    ThreadPool threads    = ThreadPool(1, std::cout);
     SearchOptions options = {};
 
     void uci();
@@ -30,7 +30,7 @@ class Engine {
     void moves();
 };
 
-void printInfo(int, int, SearchStats&, PrincipalVariation&);
-void printDebuggingInfo(const SearchStats&);
+void printInfo(std::ostream&, int, int, SearchStats&, PrincipalVariation&);
+void printDebuggingInfo(std::ostream&, const SearchStats&);
 
 }  // namespace UCI

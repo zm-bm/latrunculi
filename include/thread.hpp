@@ -44,11 +44,13 @@ struct PrincipalVariation {
 
 class Thread {
    public:
-    explicit Thread(unsigned int id) : threadId(id), thread(&Thread::loop, this) {}
+    explicit Thread(unsigned int id, std::ostream& output)
+        : threadId(id), thread(&Thread::loop, this), output(output) {}
     ~Thread();
 
     void start();
     void stop();
+    void wait();
     void set(const std::string&, SearchOptions&);
 
     Board board;
@@ -71,11 +73,13 @@ class Thread {
 
     std::mutex mutex;
     std::condition_variable condition;
+    std::condition_variable condition2;
 
-    std::atomic<bool> exitThread{false};
-    std::atomic<bool> runThread{false};
+    std::atomic<bool> exitSignal{false};
+    std::atomic<bool> runSignal{false};
     const unsigned int threadId;
 
+    std::ostream& output;
     std::thread thread;
 
     friend class SearchTests;
@@ -84,16 +88,18 @@ class Thread {
 
 class ThreadPool {
    public:
-    ThreadPool(size_t numThreads);
+    ThreadPool(size_t numThreads, std::ostream& output);
     ~ThreadPool();
 
     void startAll(Board&, SearchOptions&);
     void stopAll();
+    void waitAll();
 
-    static inline std::atomic<bool> stopThreads{false};
+    static inline std::atomic<bool> stopSignal{false};
+    friend class SearchBenchmark;
 
    private:
-    std::vector<std::unique_ptr<Thread>> searchThreads;
+    std::vector<std::unique_ptr<Thread>> threads;
 };
 
 class Logger {

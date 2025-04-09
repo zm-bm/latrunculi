@@ -162,7 +162,7 @@ std::string formatScore(int score) {
     return oss.str();
 }
 
-void printInfo(int score, int depth, SearchStats& stats, PrincipalVariation& pv) {
+void printInfo(std::ostream& output, int score, int depth, SearchStats& stats, PrincipalVariation& pv) {
     using namespace std::chrono;
     auto dur = high_resolution_clock::now() - stats.startTime;
     auto sec = duration_cast<duration<double>>(dur).count();
@@ -179,7 +179,7 @@ void printInfo(int score, int depth, SearchStats& stats, PrincipalVariation& pv)
     std::cout << std::endl;
 }
 
-void printDebuggingInfo(const SearchStats& stats) {
+void printDebuggingInfo(std::ostream& output, const SearchStats& stats) {
     std::cerr << "\n"
               << std::setw(5) << "Depth"
               << " | " << std::setw(18) << "Nodes (QNode%)"
