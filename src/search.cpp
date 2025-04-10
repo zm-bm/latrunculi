@@ -80,10 +80,14 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
         if (entry->isValid(key) && entry->depth >= depth) {
             stats.addTTHit(ply);
-            int score = TT::score(entry->score, -ply);
+            auto score    = TT::score(entry->score, -ply);
+            auto bestMove = entry->bestMove;
+            auto flag     = entry->flag;
+
+            TT::table.release(key);
 
             if (entry->flag == TT::EXACT) {
-                pv.update(ply, entry->bestMove);
+                pv.update(ply, bestMove);
                 stats.addTTCutoff(ply);
                 return score;
             }
@@ -95,6 +99,8 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
                 stats.addTTCutoff(ply);
                 return score;
             }
+        } else {
+            TT::table.release(key);
         }
     }
 

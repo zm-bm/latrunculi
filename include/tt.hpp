@@ -70,13 +70,11 @@ class Table {
 
     Entry* probe(U64 key) {
         Entry* entry = &table[key % TT_SIZE];
-        // entry->lock.lock();  // Lock the entry
+        entry->lock.lock();
         return entry;
     }
 
-    void release(U64 key) {
-        table[key % TT_SIZE].lock.unlock();  // Unlock the entry
-    }
+    void release(U64 key) { table[key % TT_SIZE].lock.unlock(); }
 
     void store(U64 key, Move move, int score, int depth, NodeType flag) {
         Entry* entry = &table[key % TT_SIZE];
