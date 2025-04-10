@@ -1,12 +1,26 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 
 #include "constants.hpp"
 #include "move.hpp"
 #include "types.hpp"
 
 namespace TT {
+
+class Spinlock {
+    std::atomic_flag flag = ATOMIC_FLAG_INIT;
+
+   public:
+    void lock() {
+        while (flag.test_and_set(std::memory_order_acquire)) {
+            // Spin-wait (busy-wait)
+        }
+    }
+
+    void unlock() { flag.clear(std::memory_order_release); }
+};
 
 constexpr int score(int score, int ply) {
     if (score >= MATE_IN_MAX_PLY)
@@ -29,6 +43,18 @@ struct Entry {
     int score      = 0;
     int depth      = 0;
     NodeType flag  = NONE;
+    Spinlock lock;
+
+    Entry& operator=(const Entry& other) {
+        if (this == &other) return *this;
+        zobristKey = other.zobristKey;
+        bestMove   = other.bestMove;
+        score      = other.score;
+        depth      = other.depth;
+        flag       = other.flag;
+        // Do not copy `lock` to avoid errors
+        return *this;
+    }
 
     bool isValid(U64 key) const { return zobristKey == key; }
 };
@@ -42,13 +68,23 @@ class Table {
    public:
     Table() = default;
 
-    Entry* probe(U64 key) { return &table[key % TT_SIZE]; }
+    Entry* probe(U64 key) {
+        Entry* entry = &table[key % TT_SIZE];
+        // entry->lock.lock();  // Lock the entry
+        return entry;
+    }
+
+    void release(U64 key) {
+        table[key % TT_SIZE].lock.unlock();  // Unlock the entry
+    }
 
     void store(U64 key, Move move, int score, int depth, NodeType flag) {
-        Entry& entry = table[key % TT_SIZE];
-        if (entry.depth <= depth) {  // Only replace if deeper search
-            entry = {key, move, score, depth, flag};
+        Entry* entry = &table[key % TT_SIZE];
+        entry->lock.lock();
+        if (entry->depth <= depth) {
+            *entry = {key, move, score, depth, flag};
         }
+        entry->lock.unlock();
     }
 };
 
