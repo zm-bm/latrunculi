@@ -13,8 +13,8 @@
 #include "types.hpp"
 
 struct SearchOptions {
-    bool debug   = true;
-    int depth    = 14;
+    bool debug   = false;
+    int depth    = 16;
     int movetime = INT32_MAX;
 };
 
@@ -104,7 +104,7 @@ class ThreadPool {
 
 class Logger {
    public:
-    Logger() { mutex_.lock(); }     // Lock when object is created
+    Logger(std::ostream& output) : output(output) { mutex_.lock(); }  // Lock when object is created
     ~Logger() { mutex_.unlock(); }  // Unlock when object is destroyed
 
     template <typename T>
@@ -120,4 +120,5 @@ class Logger {
 
    private:
     static inline std::mutex mutex_;
+    std::ostream& output;
 };

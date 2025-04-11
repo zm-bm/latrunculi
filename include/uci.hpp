@@ -18,7 +18,7 @@ class Engine {
 
    private:
     Board board           = Board(STARTFEN);
-    ThreadPool threads    = ThreadPool(1, std::cout);
+    ThreadPool threads    = ThreadPool(4, std::cout);
     SearchOptions options = {};
 
     void uci();
