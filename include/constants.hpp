@@ -16,6 +16,10 @@ constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
                POS5     = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
                EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
+constexpr int SEARCH_THREADS = 4;
+constexpr int SEARCH_DEPTH   = 16;
+constexpr int SEARCH_DEBUG   = true;
+
 // search constants
 constexpr int MAX_DEPTH   = 64;
 constexpr int MAX_MOVES   = 256;

@@ -3,6 +3,7 @@
 #include <string>
 
 #include "board.hpp"
+#include "constants.hpp"
 #include "thread.hpp"
 
 // Universal Chess Interface (UCI)
@@ -18,7 +19,7 @@ class Engine {
 
    private:
     Board board           = Board(STARTFEN);
-    ThreadPool threads    = ThreadPool(4, std::cout);
+    ThreadPool threads    = ThreadPool(SEARCH_THREADS, std::cout);
     SearchOptions options = {};
 
     void uci();

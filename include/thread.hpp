@@ -13,8 +13,8 @@
 #include "types.hpp"
 
 struct SearchOptions {
-    bool debug   = false;
-    int depth    = 16;
+    bool debug   = SEARCH_DEBUG;
+    int depth    = SEARCH_DEPTH;
     int movetime = INT32_MAX;
 };
 
@@ -109,12 +109,12 @@ class Logger {
 
     template <typename T>
     Logger& operator<<(const T& value) {
-        std::cout << value;
+        output << value;
         return *this;
     }
 
     Logger& operator<<(std::ostream& (*manip)(std::ostream&)) {
-        std::cout << manip;  // Handle std::endl, std::flush, etc.
+        output << manip;  // Handle std::endl, std::flush, etc.
         return *this;
     }
 
