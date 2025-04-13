@@ -13,6 +13,9 @@
 
 using EPDCases = std::vector<std::tuple<std::string, std::string, std::string>>;
 
+SearchOptions options{false, 20, 55000};
+std::ostringstream oss;
+
 void parseEPDLine(const std::string& line, EPDCases& cases) {
     std::istringstream iss(line);
     std::string token, fen, bestMove, avoidMove;
@@ -53,11 +56,8 @@ EPDCases readEPDFile(const std::string& filename) {
     return cases;
 }
 
-std::ostringstream oss;
-
 class SearchBenchmark : public ::testing::Test {
    private:
-    SearchOptions options{false, 20, 10000};
     ThreadPool pool{1, oss};
 
    protected:
@@ -70,7 +70,7 @@ class SearchBenchmark : public ::testing::Test {
 };
 
 TEST_F(SearchBenchmark, ccr) {
-    auto filename = "./tests/ccr.epd";
+    auto filename = "./tests/test.epd";
     auto cases    = readEPDFile(filename);
     std::string token, engineMove, engineMoveSAN;
 
