@@ -17,7 +17,7 @@ constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
                EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
 constexpr int SEARCH_THREADS = 4;
-constexpr int SEARCH_DEPTH   = 16;
+constexpr int SEARCH_DEPTH   = 14;
 constexpr int SEARCH_DEBUG   = true;
 
 // search constants
@@ -77,9 +77,9 @@ constexpr int EG_LIMIT    = KNIGHT_VALUE_MG + BISHOP_VALUE_MG + 2 * ROOK_VALUE_M
 // clang-format off
 const std::array<int, N_SQUARES> PAWN_BONUS_MG = {
     0,   0,   0,   0,   0,   0,   0,   0,
-    2,   2,   8,  15,  13,  15,   6,  -4,
-   -7, -12,   9,  12,  26,  18,   4, -18,
-   -3, -19,   5,  16,  32,  14,   3,  -6,
+    2,   2,   8,  14,  14,  15,   6,  -4,
+   -7, -12,   9,  22,  22,  18,   4, -18,
+   -3, -19,   5,  30,  30,  14,   3,  -6,
    10,   0, -10,   1,   9,  -2, -10,   4,
     4, -10,  -6,  18,  -6,  -4, -12,  -6,
    -6,   6,  -2, -10,   4, -13,   8,  -6,

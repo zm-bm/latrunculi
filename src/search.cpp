@@ -14,31 +14,6 @@ constexpr int ReductionLimit   = 3;
 constexpr int FutilityMargin   = 300;
 constexpr int NullMoveR        = 4;
 
-struct MoveHash {
-    std::size_t operator()(const Move& move) const {
-        uint32_t h  = static_cast<uint32_t>(move.value);
-        h          *= 0x9e3779b1;
-        h          ^= (h >> 16);
-        return static_cast<std::size_t>(h);
-    }
-};
-
-using SearchingMovesMap    = std::unordered_map<U64, std::unordered_set<Move, MoveHash>>;
-static const int NUM_LOCKS = 128;
-static std::mutex searchingMovesLocks[NUM_LOCKS];
-SearchingMovesMap searchingMovesMaps[NUM_LOCKS];
-
-void unlockAbdadaMap(U64 key, Move move) {
-    size_t lockIndex = key % NUM_LOCKS;
-
-    std::lock_guard<std::mutex> lock(searchingMovesLocks[lockIndex]);
-    auto& movesMap = searchingMovesMaps[lockIndex];
-    movesMap[key].erase(move);
-    if (movesMap[key].empty()) {
-        movesMap.erase(key);
-    }
-}
-
 int Thread::search() {
     reset();
 
@@ -65,13 +40,12 @@ int Thread::search() {
 
         prevScore = score;
         heuristics.age();
-        if (threadId == 1) UCI::printInfo(output, score, depth, stats, pv);
 
         if (isMateScore(score)) break;
     }
 
     if (threadId == 1) {
-        output << "bestmove " << pv.bestMove() << std::endl;
+        Logger(output) << "bestmove " << pv.bestMove() << std::endl;
         if (options.debug) UCI::printDebuggingInfo(output, stats);
     }
 
@@ -115,7 +89,6 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             TT::table.release(key);
 
             if (entry->flag == TT::EXACT) {
-                pv.update(ply, bestMove);
                 stats.addTTCutoff(ply);
                 return score;
             }
@@ -147,23 +120,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     // 4. Loop over moves
     int searchedMoves = 0;
     int legalMoves    = 0;
-    int deferredMoves = 0;
-    size_t lockIndex  = key % NUM_LOCKS;
-
     for (size_t i = 0; i < moves.size(); ++i) {
         Move move = moves[i];
         if (!board.isLegalMove(move)) continue;
         legalMoves++;
-
-        {
-            std::lock_guard<std::mutex> lock(searchingMovesLocks[lockIndex]);
-            auto& searchingMoves = searchingMovesMaps[lockIndex][key];
-            if (searchedMoves != 0 && searchingMoves.find(move) != searchingMoves.end()) {
-                std::swap(moves[i], moves[moves.size() - deferredMoves]);
-                deferredMoves++;
-            }
-            searchingMoves.insert(move);
-        }
 
         bool isQuiet = !board.isCapture(move) && !board.isCheckingMove(move);
 
@@ -176,16 +136,14 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         // Futility pruning
         if (depth <= 2 && isQuiet) {
             int staticEval = eval(board);
-            if (staticEval + (FutilityMargin * depth) <= alpha) {
-                unlockAbdadaMap(key, move);
-                continue;
-            }
+            if (staticEval + (FutilityMargin * depth) <= alpha) continue;
         }
 
         // 5. Recursively search
         board.make(move);
 
         int score;
+        pv[ply + 1].clear();
         if (isRoot || searchedMoves == 0) {
             score = -alphabeta<nodeType>(-beta, -alpha, depth - 1);
         } else {
@@ -202,15 +160,16 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         }
         searchedMoves++;
 
-        unlockAbdadaMap(key, move);
-
         board.unmake();
 
         // 6. If we found a better move, update our bestScore/Move and principal variation
         if (score > bestScore) {
             bestScore = score;
             bestMove  = move;
-            pv.update(ply, move);
+            if (isPV && score > alpha) {
+                pv.update(ply, move);
+                if constexpr (isRoot) UCI::printInfo(output, score, depth, stats, pv);
+            }
         }
 
         // 7. Alpha-beta pruning

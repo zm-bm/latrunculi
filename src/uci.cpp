@@ -87,6 +87,7 @@ void Engine::position(std::istringstream& iss) {
 
     if (token == "startpos") {
         fen = STARTFEN;
+        iss >> token;
     } else if (token == "fen") {
         while (iss >> token && token != "moves") {
             fen += token + " ";
@@ -96,6 +97,21 @@ void Engine::position(std::istringstream& iss) {
     }
 
     board = Board(fen);
+
+    if (token == "moves") {
+        while (iss >> token) {
+            MoveGenerator<GenType::All> moves{board};
+
+            for (auto& move : moves) {
+                std::ostringstream oss;
+                oss << move;
+
+                if (oss.str() == token && board.isLegalMove(move)) {
+                    board.make(move);
+                }
+            }
+        }
+    }
 }
 
 void Engine::perft(std::istringstream& iss) {

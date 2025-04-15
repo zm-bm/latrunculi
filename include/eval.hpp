@@ -253,6 +253,12 @@ Score Eval<mode>::piecesScore() {
                 score += MINOR_BEHIND_PAWN_BONUS;
             }
 
+            // bonus for available attacks on enemy queen
+            auto enemyQueen = BB::lsb(board.pieces<QUEEN>(enemy));
+            if (moves & BB::pieceMoves<p>(enemyQueen)) {
+                score += Score{-50, -20};
+            }
+
             if constexpr (p == BISHOP) {
                 // bonus for bishop on long diagonal
                 if (BB::hasMoreThanOne(CENTER_SQUARES & BB::pieceMoves<p>(sq, pawns))) {
