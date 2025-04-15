@@ -65,9 +65,3 @@ inline std::ostream& operator<<(std::ostream& os, const Move& mv) {
     }
     return os;
 }
-
-inline std::string Move::str() const {
-    std::ostringstream oss;
-    oss << *this;
-    return oss.str();
-}
