@@ -111,6 +111,16 @@ constexpr Score KING_DANGER[] = {
     {0, -10},    // king
 };
 
+constexpr Score WEAK_PIECE[] = {
+    {0, 0},
+    {0, 0},       // pawn
+    {-20, -10},   // knight
+    {-25, -15},   // bishop
+    {-50, -25},   // rook
+    {-100, -50},  // queen
+    {0, 0},       // king
+};
+
 // clang-format off
 constexpr Score KNIGHT_MOBILITY[] = {
     {-50, -60}, {-40, -45}, {-10, -25}, {-2, -14}, {2, 6},

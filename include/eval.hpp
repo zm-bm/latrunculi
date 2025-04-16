@@ -22,6 +22,7 @@ enum Term {
     TERM_QUEENS,
     TERM_KING,
     TERM_MOBILITY,
+    TERM_THREATS,
     N_TERMS,
 };
 
@@ -44,13 +45,13 @@ class Eval {
     using TermInfo = typename std::conditional<mode == Verbose, TermScores, std::nullptr_t>::type;
     TermInfo termInfo[N_TERMS];
 
-    U64 attacks[N_COLORS][N_PIECES] = {};
-    U64 outposts[N_COLORS]          = {0, 0};
-    U64 mobilityArea[N_COLORS]      = {0, 0};
-    U64 kingZone[N_COLORS]          = {0, 0};
+    U64 outposts[N_COLORS]     = {0, 0};
+    U64 mobilityArea[N_COLORS] = {0, 0};
+    U64 kingZone[N_COLORS]     = {0, 0};
 
     Score kingDanger[N_COLORS] = {{0, 0}, {0, 0}};
     Score mobility[N_COLORS]   = {{0, 0}, {0, 0}};
+    Score threats[N_COLORS]    = {{0, 0}, {0, 0}};
 
     template <Color>
     void initialize();
@@ -128,6 +129,7 @@ inline Score Eval<mode>::evaluateTerm() {
     if constexpr (term == TERM_QUEENS) score = piecesScore<c, QUEEN>();
     if constexpr (term == TERM_KING) score = kingScore<c>();
     if constexpr (term == TERM_MOBILITY) score = mobility[c];
+    if constexpr (term == TERM_THREATS) score = threats[c];
 
     if constexpr (mode == Verbose) {
         termInfo[term].add(c, score);
@@ -148,10 +150,11 @@ int Eval<mode>::evaluate() {
     score += evaluateTerm<TERM_BISHOPS, WHITE>() - evaluateTerm<TERM_BISHOPS, BLACK>();
     score += evaluateTerm<TERM_ROOKS, WHITE>() - evaluateTerm<TERM_ROOKS, BLACK>();
     score += evaluateTerm<TERM_QUEENS, WHITE>() - evaluateTerm<TERM_QUEENS, BLACK>();
-    score += evaluateTerm<TERM_KING, WHITE>() - evaluateTerm<TERM_KING, BLACK>();
 
     // more complex terms that require data from evaluating pieces
+    score += evaluateTerm<TERM_KING, WHITE>() - evaluateTerm<TERM_KING, BLACK>();
     score += evaluateTerm<TERM_MOBILITY, WHITE>() - evaluateTerm<TERM_MOBILITY, BLACK>();
+    score += evaluateTerm<TERM_THREATS, WHITE>() - evaluateTerm<TERM_THREATS, BLACK>();
 
     // scale eg and taper mg/eg to produce final eval
     score.eg   *= scaleFactor() / float(SCALE_LIMIT);
@@ -184,9 +187,7 @@ inline Score Eval<mode>::pawnsScore() {
     U64 pawnAttacks       = BB::pawnAttacks<c>(pawns);
     U64 enemyPawns        = board.pieces<PAWN>(enemy);
 
-    attacks[c][ALL_PIECES] |= pawnAttacks;
-    attacks[c][PAWN]       |= pawnAttacks;
-    kingDanger[enemy]      += KING_DANGER[PAWN] * BB::count(pawnAttacks & kingZone[enemy]);
+    kingDanger[enemy] += KING_DANGER[PAWN] * BB::count(pawnAttacks & kingZone[enemy]);
 
     // isolated pawns
     U64 pawnsFill      = BB::fillFiles(pawns);
@@ -229,16 +230,24 @@ Score Eval<mode>::piecesScore() {
     }
 
     forEachPiece<c>(board.pieces<p>(c), [&](Square sq) {
-        U64 bb    = BB::set(sq);
-        U64 moves = BB::pieceMoves<p>(sq, occupied);
+        U64 bb        = BB::set(sq);
+        U64 moves     = BB::pieceMoves<p>(sq, occupied);
+        U64 defenders = board.attacksTo(sq, c) & ~pawns;
+        U64 attackers = board.attacksTo(sq, enemy);
 
-        attacks[c][ALL_PIECES] |= moves;
-        attacks[c][p]          |= moves;
-
+        // populate king danger
         kingDanger[enemy] += KING_DANGER[p] * BB::count(moves & kingZone[enemy]);
 
+        // populate mobility
         U64 nMoves   = BB::count(moves & mobilityArea[c]);
         mobility[c] += MOBILITY_BONUS[p][nMoves];
+
+        // populate threats
+        int attCount = BB::count(attackers);
+        int defCount = BB::count(defenders);
+        if (attCount > defCount) {
+            threats[c] += WEAK_PIECE[p];
+        }
 
         if constexpr (p == KNIGHT || p == BISHOP) {
             // bonus for minor piece outposts,  reachable knight outposts
@@ -256,7 +265,7 @@ Score Eval<mode>::piecesScore() {
             // bonus for available attacks on enemy queen
             auto enemyQueen = BB::lsb(board.pieces<QUEEN>(enemy));
             if (moves & BB::pieceMoves<p>(enemyQueen)) {
-                score += Score{-50, -20};
+                score += Score{30, 15};
             }
 
             if constexpr (p == BISHOP) {
@@ -459,6 +468,7 @@ void Eval<mode>::printEval(double result, Score score) const {
                 << std::setw(12) << "Queens" << termInfo[TERM_QUEENS]
                 << std::setw(12) << "Kings" << termInfo[TERM_KING]
                 << std::setw(12) << "Mobility" << termInfo[TERM_MOBILITY]
+                << std::setw(12) << "Threats" << termInfo[TERM_THREATS]
                 << " ------------+-------------+-------------+------------\n"
                 << std::setw(12) << "Total" << TermScores{{std::nullopt, score}}
                 << "\nEvaluation:\t" << result / PAWN_VALUE_MG << '\n';
