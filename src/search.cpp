@@ -8,17 +8,17 @@
 #include "tt.hpp"
 #include "uci.hpp"
 
-constexpr int AspirationWindow = 33;
-constexpr int FullDepthMoves   = 4;
-constexpr int ReductionLimit   = 3;
+constexpr int AspirationWindow = 38;
+constexpr int LmrMoves         = 2;
+constexpr int LmrDepth         = 3;
 constexpr int FutilityMargin   = 300;
-constexpr int NullMoveR        = 4;
+constexpr int NullMoveR        = 3;
 
 int Thread::search() {
     reset();
 
     int score     = 0;
-    int prevScore = 0;
+    int prevScore = eval<Silent>(board);
 
     // 1. Iterative deepening loop
     for (int depth = 1; depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
@@ -106,9 +106,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     }
 
     // Null move pruning
-    if (!isPV && depth >= NullMoveR && !board.isCheck()) {
+    bool inCheck = board.isCheck();
+    if (!isPV && depth > NullMoveR && !inCheck) {
         board.makeNull();
-        int score = -alphabeta<NodeType::NonPV>(-beta, -beta + 1, depth - NullMoveR);
+        int score = -alphabeta<NodeType::NonPV>(-beta, -beta + 1, depth - 1 - NullMoveR);
         board.unmmakeNull();
         if (score >= beta) return beta;
     }
@@ -148,12 +149,15 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             score = -alphabeta<nodeType>(-beta, -alpha, depth - 1);
         } else {
             // late move reduction
-            bool doReduce = (searchedMoves >= FullDepthMoves) && (depth >= ReductionLimit);
-            int reduction =
-                (doReduce && !isPV && isQuiet) ? 1 + std::min(searchedMoves / 10, depth / 4) : 0;
+            int LateMoveR = 0;
+            if constexpr (!isPV) {
+                if ((searchedMoves >= LmrMoves) && (depth >= LmrDepth) && isQuiet) {
+                    LateMoveR = 1 + std::min(searchedMoves / 10, depth / 4);
+                }
+            }
 
             // null window search, re-search if fail-high in a PV node
-            score = -alphabeta<NodeType::NonPV>(-alpha - 1, -alpha, depth - 1 - reduction);
+            score = -alphabeta<NodeType::NonPV>(-alpha - 1, -alpha, depth - 1 - LateMoveR);
             if (score > alpha && isPV) {
                 score = -alphabeta<NodeType::PV>(-beta, -alpha, depth - 1);
             }
