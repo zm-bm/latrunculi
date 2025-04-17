@@ -232,7 +232,7 @@ Score Eval<mode>::piecesScore() {
     forEachPiece<c>(board.pieces<p>(c), [&](Square sq) {
         U64 bb        = BB::set(sq);
         U64 moves     = BB::pieceMoves<p>(sq, occupied);
-        U64 defenders = board.attacksTo(sq, c) & ~pawns;
+        U64 defenders = board.attacksTo(sq, c);
         U64 attackers = board.attacksTo(sq, enemy);
 
         if (board.blockers(c) & bb) {
