@@ -235,6 +235,10 @@ Score Eval<mode>::piecesScore() {
         U64 defenders = board.attacksTo(sq, c) & ~pawns;
         U64 attackers = board.attacksTo(sq, enemy);
 
+        if (board.blockers(c) & bb) {
+            moves &= BB::betweenBB(board.kingSq(c), sq);
+        }
+
         // populate king danger
         kingDanger[enemy] += KING_DANGER[p] * BB::count(moves & kingZone[enemy]);
 

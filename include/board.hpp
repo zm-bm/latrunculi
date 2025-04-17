@@ -51,6 +51,7 @@ class Board {
     State& getState();
     CastleRights castleRights() const;
     U64 checkers() const;
+    U64 blockers(Color c) const;
     Square enPassantSq() const;
     U8 halfmove() const;
 
@@ -146,6 +147,8 @@ inline State& Board::getState() { return state.at(ply); }
 inline CastleRights Board::castleRights() const { return state.at(ply).castle; }
 
 inline U64 Board::checkers() const { return state.at(ply).checkers; }
+
+inline U64 Board::blockers(Color c) const { return state.at(ply).blockers[c]; }
 
 inline Square Board::enPassantSq() const { return state.at(ply).enPassantSq; }
 
