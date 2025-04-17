@@ -278,6 +278,10 @@ Score Eval<mode>::piecesScore() {
                     score += BISHOP_LONG_DIAG_BONUS;
                 }
 
+                if (BB::pieceMoves<p>(sq, pawns) & kingZone[enemy]) {
+                    score += BISHOP_ATTACKING_KING_BONUS;
+                }
+
                 // penalty for bishop blocked by friendly pawns
                 score += BISHOP_PAWN_BLOCKER_PENALTY * bishopPawnBlockers<c>(bb);
             }

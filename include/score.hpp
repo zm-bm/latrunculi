@@ -71,6 +71,7 @@ const Score OUTPOST_BONUS[2]            = {BISHOP_OUTPOST_BONUS, KNIGHT_OUTPOST_
 const Score MINOR_BEHIND_PAWN_BONUS     = {18, 3};
 const Score BISHOP_LONG_DIAG_BONUS      = {40, 0};
 const Score BISHOP_PAIR_BONUS           = {50, 80};
+const Score BISHOP_ATTACKING_KING_BONUS = {20, 0};
 const Score BISHOP_PAWN_BLOCKER_PENALTY = {-3, -7};
 const Score ROOK_FULL_OPEN_FILE_BONUS   = {40, 20};
 const Score ROOK_SEMI_OPEN_FILE_BONUS   = {20, 10};
