@@ -39,19 +39,25 @@ class Eval {
     Eval(const Board&);
     int evaluate();
 
+    static constexpr int KingAttackersValue[N_PIECES] = {0, 0, 50, 35, 30, 10};
+
    private:
     const Board& board;
 
     using TermInfo = typename std::conditional<mode == Verbose, TermScores, std::nullptr_t>::type;
     TermInfo termInfo[N_TERMS];
 
-    U64 outposts[N_COLORS]     = {0, 0};
-    U64 mobilityArea[N_COLORS] = {0, 0};
-    U64 kingZone[N_COLORS]     = {0, 0};
+    U64 attacks[N_COLORS][N_PIECES] = {{0}};
+    U64 attacksByTwo[N_COLORS]      = {0};
+    U64 outposts[N_COLORS]          = {0};
+    U64 mobilityZone[N_COLORS]      = {0};
+    U64 kingZone[N_COLORS]          = {0};
 
-    Score kingDanger[N_COLORS] = {{0, 0}, {0, 0}};
-    Score mobility[N_COLORS]   = {{0, 0}, {0, 0}};
-    Score threats[N_COLORS]    = {{0, 0}, {0, 0}};
+    int kingAttackersCount[N_COLORS] = {0};
+    int kingAttackersValue[N_COLORS] = {0};
+
+    Score mobility[N_COLORS] = {{0, 0}};
+    Score threats[N_COLORS]  = {{0, 0}};
 
     template <Color>
     void initialize();
@@ -67,6 +73,8 @@ class Eval {
     Score kingScore();
 
     // king safety score helpers
+    template <Color>
+    int kingDanger(Square);
     template <Color>
     Score kingShelter(Square);
     template <Color>
@@ -102,17 +110,22 @@ void Eval<mode>::initialize() {
     constexpr U64 outpostMask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
     U64 pawns                 = board.pieces<PAWN>(c);
     U64 enemyPawns            = board.pieces<PAWN>(enemy);
+    Square kingSq             = board.kingSq(c);
 
-    outposts[c] = (~BB::pawnAttackSpan<enemy>(enemyPawns)  // cannot be attacked by enemy pawns
-                   & BB::pawnAttacks<c>(pawns)             // supported by friendly pawn
-                   & outpostMask);
+    attacks[c][KING]       = BB::pieceMoves<KING>(kingSq);
+    attacks[c][ALL_PIECES] = attacks[c][KING];
 
-    mobilityArea[c] = ~((pawns & rank2) | BB::pawnAttacks<enemy>(enemyPawns));
+    outposts[c] = (~BB::pawnAttackSpan<enemy>(enemyPawns) &  // cannot be attacked by enemy pawns
+                   BB::pawnAttacks<c>(pawns) &               // supported by friendly pawn
+                   outpostMask);                             // on file 4-6 relative to side
 
-    Square kingSq = board.kingSq(c);
+    mobilityZone[c] = ~(BB::pawnAttacks<enemy>(enemyPawns) |  // exclude enemy pawn attacks
+                        BB::set(kingSq) |                     // king square
+                        (pawns & rank2));                     // and unmoved pawns
+
     Square center = makeSquare(std::clamp(fileOf(kingSq), FILE2, FILE7),
                                std::clamp(rankOf(kingSq), RANK2, RANK7));
-    kingZone[c]   = BB::pieceMoves<KING>(center) | BB::set(center);
+    kingZone[c]   = BB::pieceMoves<KING>(center) | BB::set(center);  // 3x3 zone around king
 }
 
 template <Verbosity mode>
@@ -185,9 +198,12 @@ inline Score Eval<mode>::pawnsScore() {
     Score score           = {0, 0};
     U64 pawns             = board.pieces<PAWN>(c);
     U64 pawnAttacks       = BB::pawnAttacks<c>(pawns);
+    U64 pawnDoubleAttacks = BB::pawnDoubleAttacks<c>(pawns);
     U64 enemyPawns        = board.pieces<PAWN>(enemy);
 
-    kingDanger[enemy] += KING_DANGER[PAWN] * BB::count(pawnAttacks & kingZone[enemy]);
+    attacksByTwo[c]        |= pawnDoubleAttacks | (attacks[c][ALL_PIECES] & pawnAttacks);
+    attacks[c][ALL_PIECES] |= pawnAttacks;
+    attacks[c][PAWN]       |= pawnAttacks;
 
     // isolated pawns
     U64 pawnsFill      = BB::fillFiles(pawns);
@@ -203,8 +219,7 @@ inline Score Eval<mode>::pawnsScore() {
 
     // doubled pawns (unsupported pawn with friendly pawns behind)
     U64 pawnsBehind   = pawns & BB::spanFront<c>(pawns);
-    U64 supported     = BB::pawnAttacks<c>(pawns);
-    U64 doubledPawns  = pawnsBehind & ~supported;
+    U64 doubledPawns  = pawnsBehind & ~pawnAttacks;
     score            += DOUBLED_PAWN_PENALTY * BB::count(doubledPawns);
 
     // passed pawns
@@ -230,26 +245,32 @@ Score Eval<mode>::piecesScore() {
     }
 
     forEachPiece<c>(board.pieces<p>(c), [&](Square sq) {
-        U64 bb        = BB::set(sq);
-        U64 moves     = BB::pieceMoves<p>(sq, occupied);
-        U64 defenders = board.attacksTo(sq, c);
-        U64 attackers = board.attacksTo(sq, enemy);
+        U64 bb    = BB::set(sq);
+        U64 moves = BB::pieceMoves<p>(sq, occupied);
+        if (board.blockers(c) & bb) moves &= BB::inlineBB(board.kingSq(c), sq);
 
-        if (board.blockers(c) & bb) {
-            moves &= BB::betweenBB(board.kingSq(c), sq);
-        }
+        attacksByTwo[c]        |= (attacks[c][ALL_PIECES] & moves);
+        attacks[c][ALL_PIECES] |= moves;
+        attacks[c][p]          |= moves;
 
         // populate king danger
-        kingDanger[enemy] += KING_DANGER[p] * BB::count(moves & kingZone[enemy]);
+        U64 kingAttacks = moves & kingZone[enemy];
+        if (kingAttacks) {
+            kingAttackersCount[c]++;
+            kingAttackersValue[c] += KingAttackersValue[p];
+        } else if ((p == BISHOP && (BB::pieceMoves<p>(sq, pawns) & kingZone[enemy])) |
+                   (p == ROOK && (BB::pieceMoves<p>(sq) & kingZone[enemy]))) {
+            score += ATTACKING_KING_ZONE_BONUS;
+        }
 
         // populate mobility
-        U64 nMoves   = BB::count(moves & mobilityArea[c]);
+        U64 nMoves   = BB::count(moves & mobilityZone[c]);
         mobility[c] += MOBILITY_BONUS[p][nMoves];
 
         // populate threats
-        int attCount = BB::count(attackers);
-        int defCount = BB::count(defenders);
-        if (attCount > defCount) {
+        U64 defenders = board.attacksTo(sq, c);
+        U64 attackers = board.attacksTo(sq, enemy);
+        if (BB::count(attackers) > BB::count(defenders)) {
             threats[c] += WEAK_PIECE[p];
         }
 
@@ -266,20 +287,10 @@ Score Eval<mode>::piecesScore() {
                 score += MINOR_BEHIND_PAWN_BONUS;
             }
 
-            // bonus for available attacks on enemy queen
-            auto enemyQueen = BB::lsb(board.pieces<QUEEN>(enemy));
-            if (moves & BB::pieceMoves<p>(enemyQueen)) {
-                score += Score{30, 15};
-            }
-
             if constexpr (p == BISHOP) {
                 // bonus for bishop on long diagonal
                 if (BB::hasMoreThanOne(CENTER_SQUARES & BB::pieceMoves<p>(sq, pawns))) {
                     score += BISHOP_LONG_DIAG_BONUS;
-                }
-
-                if (BB::pieceMoves<p>(sq, pawns) & kingZone[enemy]) {
-                    score += BISHOP_ATTACKING_KING_BONUS;
                 }
 
                 // penalty for bishop blocked by friendly pawns
@@ -292,10 +303,8 @@ Score Eval<mode>::piecesScore() {
             U64 fileBB = BB::file(fileOf(sq));
             if (!(pawns & fileBB)) {
                 score += ROOK_OPEN_FILE_BONUS[!(enemyPawns & fileBB)];
-            } else {
-                if (pawns & fileBB & BB::pawnMoves<PUSH, enemy>(occupied)) {
-                    score += ROOK_CLOSED_FILE_PENALTY;
-                }
+            } else if (pawns & fileBB & BB::pawnMoves<PUSH, enemy>(occupied)) {
+                score += ROOK_CLOSED_FILE_PENALTY;
             }
         }
 
@@ -313,19 +322,34 @@ Score Eval<mode>::piecesScore() {
 template <Verbosity mode>
 template <Color c>
 inline Score Eval<mode>::kingScore() {
-    Square kingSq = board.kingSq(c);
-    Score score   = kingShelter<c>(kingSq);
+    constexpr Color enemy = ~c;
+    Square kingSq         = board.kingSq(c);
+    Score score           = kingShelter<c>(kingSq);
 
-    if (board.canCastleOO(c)) {
-        score = std::max(score, kingShelter<c>(KingDestinationOO[c]));
-    }
-    if (board.canCastleOOO(c)) {
-        score = std::max(score, kingShelter<c>(KingDestinationOOO[c]));
-    }
+    if (board.canCastleOO(c)) score = std::max(score, kingShelter<c>(KingDestinationOO[c]));
+    if (board.canCastleOOO(c)) score = std::max(score, kingShelter<c>(KingDestinationOOO[c]));
 
-    score += kingDanger[c];
+    int danger  = kingDanger<c>(kingSq);
+    score      -= {danger * danger / 2048,  // scale mg quadratically
+                   danger / 8};             // scale eg linearly
 
     return score;
+}
+
+template <Verbosity mode>
+template <Color c>
+inline int Eval<mode>::kingDanger(Square kingSq) {
+    constexpr Color enemy = ~c;
+
+    U64 kqDefense = ~attacks[c][ALL_PIECES] | attacks[c][KING] | attacks[c][QUEEN];
+    U64 weak      = (attacks[enemy][ALL_PIECES] & ~attacksByTwo[c] & kqDefense);
+
+    int danger  = 0;
+    danger     += kingAttackersValue[enemy] * kingAttackersCount[enemy];  // king zone attacks
+    danger     += 150 * BB::count(kingZone[c] & weak);                    // king zone weaknesses
+    danger     += 50 * BB::count(board.blockers(c));                      // pinned pieces
+
+    return danger;
 }
 
 template <Verbosity mode>

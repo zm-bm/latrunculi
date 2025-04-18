@@ -270,6 +270,15 @@ inline U64 pawnAttacks(U64 pawns, Color c) {
     return pawnMoves<LEFT>(pawns, c) | pawnMoves<RIGHT>(pawns, c);
 }
 
+template <Color c>
+inline U64 pawnDoubleAttacks(U64 pawns) {
+    return pawnMoves<LEFT, c>(pawns) & pawnMoves<RIGHT, c>(pawns);
+}
+
+inline U64 pawnDoubleAttacks(U64 pawns, Color c) {
+    return pawnMoves<LEFT>(pawns, c) & pawnMoves<RIGHT>(pawns, c);
+}
+
 template <PieceType p>
 inline U64 pieceMoves(Square sq, U64 occupancy) {
     if constexpr (p == KNIGHT)

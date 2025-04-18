@@ -71,12 +71,12 @@ const Score OUTPOST_BONUS[2]            = {BISHOP_OUTPOST_BONUS, KNIGHT_OUTPOST_
 const Score MINOR_BEHIND_PAWN_BONUS     = {18, 3};
 const Score BISHOP_LONG_DIAG_BONUS      = {40, 0};
 const Score BISHOP_PAIR_BONUS           = {50, 80};
-const Score BISHOP_ATTACKING_KING_BONUS = {20, 0};
 const Score BISHOP_PAWN_BLOCKER_PENALTY = {-3, -7};
 const Score ROOK_FULL_OPEN_FILE_BONUS   = {40, 20};
 const Score ROOK_SEMI_OPEN_FILE_BONUS   = {20, 10};
 const Score ROOK_OPEN_FILE_BONUS[2]     = {ROOK_SEMI_OPEN_FILE_BONUS, ROOK_FULL_OPEN_FILE_BONUS};
 const Score ROOK_CLOSED_FILE_PENALTY    = {-10, -5};
+const Score ATTACKING_KING_ZONE_BONUS   = {20, 0};
 const Score DISCOVERED_ATTACK_ON_QUEEN_PENALTY = {-50, -25};
 
 // Bonus for friendly pawn at each rank. Index 0 when there is no pawn.
@@ -101,16 +101,6 @@ constexpr Score KING_OPEN_FILE_BONUS[2][2] = {
 
 constexpr Score KING_FILE_BONUS[] = {
     {20, 0}, {5, 0}, {-15, 0}, {-30, 0}, {-30, 0}, {-15, 0}, {5, 0}, {20, 0}};
-
-constexpr Score KING_DANGER[] = {
-    {0, 0},
-    {-12, -6},   // pawn
-    {-6, -3},    // knight
-    {-8, -4},    // bishop
-    {-16, -10},  // rook
-    {-24, -12},  // queen
-    {0, -10},    // king
-};
 
 constexpr Score WEAK_PIECE[] = {
     {0, 0},
