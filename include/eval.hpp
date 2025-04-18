@@ -40,6 +40,8 @@ class Eval {
     int evaluate();
 
     static constexpr int KingAttackersValue[N_PIECES] = {0, 0, 50, 35, 30, 10};
+    static constexpr int SafeCheckValue[N_PIECES]     = {0, 0, 600, 400, 700, 500};
+    static constexpr int UnsafeCheckValue[N_PIECES]   = {0, 0, 80, 70, 60, 10};
 
    private:
     const Board& board;
@@ -73,6 +75,7 @@ class Eval {
     Score kingScore();
 
     // king safety score helpers
+    int kingChecks(PieceType, U64, U64);
     template <Color>
     int kingDanger(Square);
     template <Color>
@@ -337,17 +340,56 @@ inline Score Eval<mode>::kingScore() {
 }
 
 template <Verbosity mode>
+inline int Eval<mode>::kingChecks(PieceType pieceType, U64 safeChecks, U64 allChecks) {
+    int count = safeChecks ? BB::count(safeChecks) : BB::count(allChecks);
+    int value = safeChecks ? SafeCheckValue[pieceType] : UnsafeCheckValue[pieceType];
+    return (value * (count + 1)) / 2;
+}
+
+template <Verbosity mode>
 template <Color c>
 inline int Eval<mode>::kingDanger(Square kingSq) {
     constexpr Color enemy = ~c;
+    int danger            = 0;
 
-    U64 kqDefense = ~attacks[c][ALL_PIECES] | attacks[c][KING] | attacks[c][QUEEN];
-    U64 weak      = (attacks[enemy][ALL_PIECES] & ~attacksByTwo[c] & kqDefense);
+    // calculate safe, potential checking squares
+    U64 kqOnlyDefense   = ~attacks[c][ALL_PIECES] | attacks[c][KING] | attacks[c][QUEEN];
+    U64 weaklyDefended  = kqOnlyDefense & attacks[enemy][ALL_PIECES] & ~attacksByTwo[c];
+    U64 safeChecks      = ~attacks[c][ALL_PIECES] | (weaklyDefended & attacksByTwo[enemy]);
+    safeChecks         &= ~board.pieces<ALL_PIECES>(enemy);
 
-    int danger  = 0;
-    danger     += kingAttackersValue[enemy] * kingAttackersCount[enemy];  // king zone attacks
-    danger     += 150 * BB::count(kingZone[c] & weak);                    // king zone weaknesses
-    danger     += 50 * BB::count(board.blockers(c));                      // pinned pieces
+    // evaluate knight checks
+    U64 knightChecks      = BB::pieceMoves<KNIGHT>(kingSq) & attacks[c][KNIGHT];
+    U64 safeKnightChecks  = knightChecks & safeChecks;
+    danger               += kingChecks(KNIGHT, safeKnightChecks, knightChecks);
+
+    // calculate sliding
+    U64 straightChecks = BB::pieceMoves<ROOK>(kingSq, board.pieces<ALL_PIECES>());
+    U64 diagonalChecks = BB::pieceMoves<BISHOP>(kingSq, board.pieces<ALL_PIECES>());
+
+    // evaluate rook checks
+    U64 rookChecks      = straightChecks & attacks[enemy][ROOK];
+    U64 safeRookChecks  = rookChecks & safeChecks;
+    danger             += kingChecks(ROOK, safeRookChecks, rookChecks);
+
+    // evaluate queen checks
+    U64 queenChecks      = (straightChecks | diagonalChecks) & attacks[enemy][QUEEN];
+    U64 safeQueenChecks  = queenChecks & safeChecks & ~(rookChecks | attacks[c][QUEEN]);
+    danger              += kingChecks(QUEEN, safeQueenChecks, queenChecks);
+
+    // evaluate bishop checks
+    U64 bishopChecks      = diagonalChecks & attacks[enemy][BISHOP];
+    U64 safeBishopChecks  = bishopChecks & safeChecks & ~queenChecks;
+    danger               += kingChecks(BISHOP, safeBishopChecks, bishopChecks);
+
+    // king zone attacks
+    danger += kingAttackersValue[enemy] * kingAttackersCount[enemy];
+
+    // king zone weaknesses
+    danger += 150 * BB::count(kingZone[c] & weaklyDefended);
+
+    // pinned pieces
+    danger += 50 * BB::count(board.blockers(c));
 
     return danger;
 }
