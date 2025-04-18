@@ -29,7 +29,7 @@ void Thread::stop() {
 
 void Thread::wait() {
     std::unique_lock<std::mutex> lock(mutex);
-    condition.wait(lock, [&]{ return !runSignal; });
+    condition.wait(lock, [&] { return !runSignal; });
 }
 
 void Thread::set(const std::string& fen, SearchOptions& options) {
@@ -77,6 +77,7 @@ void ThreadPool::startAll(Board& board, SearchOptions& options) {
     for (auto& thread : threads) {
         thread->set(board.toFEN(), options);
         thread->start();
+        std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 2));
     }
 }
 
