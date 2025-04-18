@@ -158,8 +158,8 @@ void MoveGenerator<T>::generateMoves() {
     }
 
     // generate king moves
-    U64 moves = BB::pieceMoves<KING>(kingSq) &
-                (G != GenType::Evasions ? targets : ~board.pieces<ALL_PIECES>(C));
+    U64 moves =
+        BB::moves<KING>(kingSq) & (G != GenType::Evasions ? targets : ~board.pieces<ALL_PIECES>(C));
     while (moves) {
         Square to  = BB::lsb(moves);
         moves     &= BB::clear(to);
@@ -250,7 +250,7 @@ void MoveGenerator<T>::generatePieceMoves(const U64 targets, const U64 occupied)
         Square from  = BB::advancedSq<c>(bitboard);
         bitboard    &= BB::clear(from);
 
-        U64 pieceMoves = BB::pieceMoves<p>(from, occupied) & targets;
+        U64 pieceMoves = BB::moves<p>(from, occupied) & targets;
         while (pieceMoves) {
             Square to   = BB::advancedSq<c>(pieceMoves);
             pieceMoves &= BB::clear(to);

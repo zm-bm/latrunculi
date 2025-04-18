@@ -176,7 +176,7 @@ constexpr U64 set(const Square sq) { return BB::BITSET[sq]; }
 constexpr U64 clear(const Square sq) { return BB::BITCLEAR[sq]; }
 constexpr U64 inlineBB(const Square sq1, const Square sq2) { return BITLINE[sq1][sq2]; }
 constexpr U64 betweenBB(const Square sq1, const Square sq2) { return BITBTWN[sq1][sq2]; }
-constexpr U64 hasMoreThanOne(U64 bb) { return bb & (bb - 1); }
+constexpr U64 isMany(U64 bb) { return bb & (bb - 1); }
 inline int count(U64 bb) { return __builtin_popcountll(bb); }
 inline Square lsb(U64 bb) { return static_cast<Square>(__builtin_ctzll(bb)); }
 inline Square msb(U64 bb) { return static_cast<Square>(63 - __builtin_clzll(bb)); }
@@ -280,7 +280,7 @@ inline U64 pawnDoubleAttacks(U64 pawns, Color c) {
 }
 
 template <PieceType p>
-inline U64 pieceMoves(Square sq, U64 occupancy) {
+inline U64 moves(Square sq, U64 occupancy) {
     if constexpr (p == KNIGHT)
         return KNIGHT_ATTACKS[sq];
     else if constexpr (p == BISHOP)
@@ -295,20 +295,20 @@ inline U64 pieceMoves(Square sq, U64 occupancy) {
         return 0;
 }
 
-inline U64 pieceMoves(Square sq, PieceType p, U64 occupancy) {
+inline U64 moves(Square sq, PieceType p, U64 occupancy) {
     switch (p) {
-        case KNIGHT: return pieceMoves<KNIGHT>(sq, occupancy);
-        case BISHOP: return pieceMoves<BISHOP>(sq, occupancy);
-        case ROOK: return pieceMoves<ROOK>(sq, occupancy);
-        case QUEEN: return pieceMoves<QUEEN>(sq, occupancy);
-        case KING: return pieceMoves<KING>(sq, occupancy);
+        case KNIGHT: return moves<KNIGHT>(sq, occupancy);
+        case BISHOP: return moves<BISHOP>(sq, occupancy);
+        case ROOK: return moves<ROOK>(sq, occupancy);
+        case QUEEN: return moves<QUEEN>(sq, occupancy);
+        case KING: return moves<KING>(sq, occupancy);
         default: return 0;
     }
 }
 
 template <PieceType p>
-inline U64 pieceMoves(Square sq) {
-    return pieceMoves<p>(sq, 0);
+inline U64 moves(Square sq) {
+    return moves<p>(sq, 0);
 }
 
 struct Printer {

@@ -76,9 +76,9 @@ TEST(BB_DISTANCE, CorrectDistanceValues) {
     EXPECT_EQ(BB::DISTANCE[A1][H8], 7);
 }
 
-TEST(BB_hasMoreThanOne, CorrectMoreThanOneValues) {
-    EXPECT_EQ(BB::hasMoreThanOne(0b100), 0);
-    EXPECT_NE(BB::hasMoreThanOne(0b110), 0);
+TEST(BB_isMany, CorrectMoreThanOneValues) {
+    EXPECT_EQ(BB::isMany(0b100), 0);
+    EXPECT_NE(BB::isMany(0b110), 0);
 }
 
 TEST(BB_bitCount, CorrectBitCount) {

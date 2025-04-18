@@ -115,7 +115,7 @@ void Eval<mode>::initialize() {
     U64 enemyPawns            = board.pieces<PAWN>(enemy);
     Square kingSq             = board.kingSq(c);
 
-    attacks[c][KING]       = BB::pieceMoves<KING>(kingSq);
+    attacks[c][KING]       = BB::moves<KING>(kingSq);
     attacks[c][ALL_PIECES] = attacks[c][KING];
 
     outposts[c] = (~BB::pawnAttackSpan<enemy>(enemyPawns) &  // cannot be attacked by enemy pawns
@@ -128,7 +128,7 @@ void Eval<mode>::initialize() {
 
     Square center = makeSquare(std::clamp(fileOf(kingSq), FILE2, FILE7),
                                std::clamp(rankOf(kingSq), RANK2, RANK7));
-    kingZone[c]   = BB::pieceMoves<KING>(center) | BB::set(center);  // 3x3 zone around king
+    kingZone[c]   = BB::moves<KING>(center) | BB::set(center);  // 3x3 zone around king
 }
 
 template <Verbosity mode>
@@ -249,7 +249,7 @@ Score Eval<mode>::piecesScore() {
 
     forEachPiece<c>(board.pieces<p>(c), [&](Square sq) {
         U64 bb    = BB::set(sq);
-        U64 moves = BB::pieceMoves<p>(sq, occupied);
+        U64 moves = BB::moves<p>(sq, occupied);
         if (board.blockers(c) & bb) moves &= BB::inlineBB(board.kingSq(c), sq);
 
         attacksByTwo[c]        |= (attacks[c][ALL_PIECES] & moves);
@@ -261,8 +261,8 @@ Score Eval<mode>::piecesScore() {
         if (kingAttacks) {
             kingAttackersCount[c]++;
             kingAttackersValue[c] += KingAttackersValue[p];
-        } else if ((p == BISHOP && (BB::pieceMoves<p>(sq, pawns) & kingZone[enemy])) |
-                   (p == ROOK && (BB::pieceMoves<p>(sq) & kingZone[enemy]))) {
+        } else if ((p == BISHOP && (BB::moves<p>(sq, pawns) & kingZone[enemy])) |
+                   (p == ROOK && (BB::moves<p>(sq) & kingZone[enemy]))) {
             score += ATTACKING_KING_ZONE_BONUS;
         }
 
@@ -292,7 +292,7 @@ Score Eval<mode>::piecesScore() {
 
             if constexpr (p == BISHOP) {
                 // bonus for bishop on long diagonal
-                if (BB::hasMoreThanOne(CENTER_SQUARES & BB::pieceMoves<p>(sq, pawns))) {
+                if (BB::isMany(CENTER_SQUARES & BB::moves<p>(sq, pawns))) {
                     score += BISHOP_LONG_DIAG_BONUS;
                 }
 
@@ -359,13 +359,13 @@ inline int Eval<mode>::kingDanger(Square kingSq) {
     safeChecks         &= ~board.pieces<ALL_PIECES>(enemy);
 
     // evaluate knight checks
-    U64 knightChecks      = BB::pieceMoves<KNIGHT>(kingSq) & attacks[c][KNIGHT];
+    U64 knightChecks      = BB::moves<KNIGHT>(kingSq) & attacks[c][KNIGHT];
     U64 safeKnightChecks  = knightChecks & safeChecks;
     danger               += kingChecks(KNIGHT, safeKnightChecks, knightChecks);
 
     // calculate sliding
-    U64 straightChecks = BB::pieceMoves<ROOK>(kingSq, board.pieces<ALL_PIECES>());
-    U64 diagonalChecks = BB::pieceMoves<BISHOP>(kingSq, board.pieces<ALL_PIECES>());
+    U64 straightChecks = BB::moves<ROOK>(kingSq, board.pieces<ALL_PIECES>());
+    U64 diagonalChecks = BB::moves<BISHOP>(kingSq, board.pieces<ALL_PIECES>());
 
     // evaluate rook checks
     U64 rookChecks      = straightChecks & attacks[enemy][ROOK];
@@ -459,18 +459,18 @@ inline bool Eval<mode>::discoveredAttackOnQueen(Square sq, U64 occupied) const {
     constexpr Color enemy = ~c;
     bool attacked         = false;
 
-    U64 attackingBishops = BB::pieceMoves<BISHOP>(sq, 0) & board.pieces<BISHOP>(enemy);
+    U64 attackingBishops = BB::moves<BISHOP>(sq, 0) & board.pieces<BISHOP>(enemy);
     forEachPiece<c>(attackingBishops, [&](Square bishopSq) {
         U64 piecesBetween = BB::betweenBB(sq, bishopSq) & occupied;
-        if (piecesBetween && !BB::hasMoreThanOne(piecesBetween)) {
+        if (piecesBetween && !BB::isMany(piecesBetween)) {
             attacked = true;
         }
     });
 
-    U64 attackingRooks = BB::pieceMoves<ROOK>(sq, 0) & board.pieces<ROOK>(enemy);
+    U64 attackingRooks = BB::moves<ROOK>(sq, 0) & board.pieces<ROOK>(enemy);
     forEachPiece<c>(attackingRooks, [&](Square rookSq) {
         U64 piecesBetween = BB::betweenBB(sq, rookSq) & occupied;
-        if (piecesBetween && !BB::hasMoreThanOne(piecesBetween)) {
+        if (piecesBetween && !BB::isMany(piecesBetween)) {
             attacked = true;
         }
     });
