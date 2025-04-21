@@ -61,24 +61,6 @@ constexpr Score PIECE_SCORES[2][6] = {
     {PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE, {0, 0}}};
 constexpr Score pieceScore(PieceType pt, Color c) { return PIECE_SCORES[c][pt - 1]; }
 
-const Score ISO_PAWN_PENALTY            = {-5, -15};
-const Score BACKWARD_PAWN_PENALTY       = {-9, -25};
-const Score DOUBLED_PAWN_PENALTY        = {-11, -56};
-const Score REACHABLE_OUTPOST_BONUS     = {31, 22};
-const Score BISHOP_OUTPOST_BONUS        = {30, 23};
-const Score KNIGHT_OUTPOST_BONUS        = {56, 36};
-const Score OUTPOST_BONUS[2]            = {BISHOP_OUTPOST_BONUS, KNIGHT_OUTPOST_BONUS};
-const Score MINOR_BEHIND_PAWN_BONUS     = {18, 3};
-const Score BISHOP_LONG_DIAG_BONUS      = {40, 0};
-const Score BISHOP_PAIR_BONUS           = {50, 80};
-const Score BISHOP_PAWN_BLOCKER_PENALTY = {-3, -7};
-const Score ROOK_FULL_OPEN_FILE_BONUS   = {40, 20};
-const Score ROOK_SEMI_OPEN_FILE_BONUS   = {20, 10};
-const Score ROOK_OPEN_FILE_BONUS[2]     = {ROOK_SEMI_OPEN_FILE_BONUS, ROOK_FULL_OPEN_FILE_BONUS};
-const Score ROOK_CLOSED_FILE_PENALTY    = {-10, -5};
-const Score ATTACKING_KING_ZONE_BONUS   = {20, 0};
-const Score DISCOVERED_ATTACK_ON_QUEEN_PENALTY = {-50, -25};
-
 // Bonus for friendly pawn at each rank. Index 0 when there is no pawn.
 constexpr Score PAWN_SHELTER_BONUS[] = {
     {-30, 0}, {60, 0}, {35, 0}, {-20, 0}, {-5, 0}, {-20, 0}, {-80, 0}};

@@ -26,10 +26,9 @@ enum Term {
     N_TERMS,
 };
 
-struct TermScores {
+struct TermData {
     std::optional<Score> scores[N_COLORS] = {std::nullopt};
-
-    void add(Color color, Score score) { scores[color] = score; }
+    void addScore(Color color, Score score) { scores[color] = score; }
 };
 
 template <Verbosity mode = Silent>
@@ -37,17 +36,35 @@ class Eval {
    public:
     Eval() = delete;
     Eval(const Board&);
+
     int evaluate();
 
     static constexpr int KingAttackersValue[N_PIECES] = {0, 0, 50, 35, 30, 10};
     static constexpr int SafeCheckValue[N_PIECES]     = {0, 0, 600, 400, 700, 500};
     static constexpr int UnsafeCheckValue[N_PIECES]   = {0, 0, 80, 70, 60, 10};
+    static constexpr Score IsoPawnScore               = {-5, -15};
+    static constexpr Score BackwardPawnScore          = {-10, -25};
+    static constexpr Score DoubledPawnScore           = {-10, -50};
+    static constexpr Score ReachableOutpostScore      = {30, 20};
+    static constexpr Score BishopOutpostScore         = {30, 20};
+    static constexpr Score KnightOutpostScore         = {50, 30};
+    static constexpr Score MinorPawnShieldScore       = {20, 5};
+    static constexpr Score BishopLongDiagScore        = {40, 0};
+    static constexpr Score BishopPairScore            = {50, 80};
+    static constexpr Score PawnBlockingBishopScore    = {-2, -6};
+    static constexpr Score RookFullOpenFileScore      = {40, 20};
+    static constexpr Score RookSemiOpenFileScore      = {20, 10};
+    static constexpr Score RookClosedFileScore        = {-10, -5};
+    static constexpr Score KingZoneXrayAttackScore    = {20, 0};
+    static constexpr Score QueenDiscoveredAttackScore = {-50, -25};
+    static constexpr Score OutpostScore[2]            = {BishopOutpostScore, KnightOutpostScore};
+    static constexpr Score OpenFileScore[2] = {RookSemiOpenFileScore, RookFullOpenFileScore};
 
    private:
     const Board& board;
 
-    using TermInfo = typename std::conditional<mode == Verbose, TermScores, std::nullptr_t>::type;
-    TermInfo termInfo[N_TERMS];
+    using TermScores = std::conditional_t<mode == Verbose, TermData, std::nullptr_t>;
+    TermScores termScores[N_TERMS];
 
     U64 attacks[N_COLORS][N_PIECES] = {{0}};
     U64 attacksByTwo[N_COLORS]      = {0};
@@ -148,7 +165,7 @@ inline Score Eval<mode>::evaluateTerm() {
     if constexpr (term == TERM_THREATS) score = threats[c];
 
     if constexpr (mode == Verbose) {
-        termInfo[term].add(c, score);
+        termScores[term].addScore(c, score);
     }
 
     return score;
@@ -211,19 +228,19 @@ inline Score Eval<mode>::pawnsScore() {
     // isolated pawns
     U64 pawnsFill      = BB::fillFiles(pawns);
     U64 isolatedPawns  = (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
-    score             += ISO_PAWN_PENALTY * BB::count(isolatedPawns);
+    score             += IsoPawnScore * BB::count(isolatedPawns);
 
     // backwards pawns
     U64 stops           = BB::pawnMoves<PUSH, c>(pawns);
     U64 attackSpan      = BB::pawnAttackSpan<c>(pawns);
     U64 enemyAttacks    = BB::pawnAttacks<enemy>(enemyPawns);
     U64 backwardsPawns  = BB::pawnMoves<PUSH, enemy>(stops & enemyAttacks & ~attackSpan);
-    score              += BACKWARD_PAWN_PENALTY * BB::count(backwardsPawns);
+    score              += BackwardPawnScore * BB::count(backwardsPawns);
 
     // doubled pawns (unsupported pawn with friendly pawns behind)
     U64 pawnsBehind   = pawns & BB::spanFront<c>(pawns);
     U64 doubledPawns  = pawnsBehind & ~pawnAttacks;
-    score            += DOUBLED_PAWN_PENALTY * BB::count(doubledPawns);
+    score            += DoubledPawnScore * BB::count(doubledPawns);
 
     // passed pawns
     // U64 passedPawns = pawns & ~BB::pawnFullSpan<enemy>(enemyPawns)
@@ -243,7 +260,7 @@ Score Eval<mode>::piecesScore() {
     // bonus for bishop pair
     if constexpr (p == BISHOP) {
         if (board.count(c, BISHOP) > 1) {
-            score += BISHOP_PAIR_BONUS;
+            score += BishopPairScore;
         }
     }
 
@@ -263,7 +280,7 @@ Score Eval<mode>::piecesScore() {
             kingAttackersValue[c] += KingAttackersValue[p];
         } else if ((p == BISHOP && (BB::moves<p>(sq, pawns) & kingZone[enemy])) |
                    (p == ROOK && (BB::moves<p>(sq) & kingZone[enemy]))) {
-            score += ATTACKING_KING_ZONE_BONUS;
+            score += KingZoneXrayAttackScore;
         }
 
         // populate mobility
@@ -280,24 +297,24 @@ Score Eval<mode>::piecesScore() {
         if constexpr (p == KNIGHT || p == BISHOP) {
             // bonus for minor piece outposts,  reachable knight outposts
             if (bb & outposts[c]) {
-                score += OUTPOST_BONUS[p == KNIGHT];
+                score += OutpostScore[p == KNIGHT];
             } else if (p == KNIGHT && moves & outposts[c]) {
-                score += REACHABLE_OUTPOST_BONUS;
+                score += ReachableOutpostScore;
             }
 
             // bonus minor piece guarded by pawn
             if (bb & BB::pawnMoves<PUSH, enemy>(pawns)) {
-                score += MINOR_BEHIND_PAWN_BONUS;
+                score += MinorPawnShieldScore;
             }
 
             if constexpr (p == BISHOP) {
                 // bonus for bishop on long diagonal
                 if (BB::isMany(CENTER_SQUARES & BB::moves<p>(sq, pawns))) {
-                    score += BISHOP_LONG_DIAG_BONUS;
+                    score += BishopLongDiagScore;
                 }
 
                 // penalty for bishop blocked by friendly pawns
-                score += BISHOP_PAWN_BLOCKER_PENALTY * bishopPawnBlockers<c>(bb);
+                score += PawnBlockingBishopScore * bishopPawnBlockers<c>(bb);
             }
         }
 
@@ -305,16 +322,17 @@ Score Eval<mode>::piecesScore() {
             // bonus for rook on open file, penalty for closed file w blocked pawn
             U64 fileBB = BB::file(fileOf(sq));
             if (!(pawns & fileBB)) {
-                score += ROOK_OPEN_FILE_BONUS[!(enemyPawns & fileBB)];
+                bool isFullyOpen  = !(enemyPawns & fileBB);
+                score            += OpenFileScore[isFullyOpen];
             } else if (pawns & fileBB & BB::pawnMoves<PUSH, enemy>(occupied)) {
-                score += ROOK_CLOSED_FILE_PENALTY;
+                score += RookClosedFileScore;
             }
         }
 
         if constexpr (p == QUEEN) {
             // penalty for discovered attacks on queen
             if (discoveredAttackOnQueen<c>(sq, occupied)) {
-                score += DISCOVERED_ATTACK_ON_QUEEN_PENALTY;
+                score += QueenDiscoveredAttackScore;
             }
         }
     });
@@ -533,23 +551,23 @@ void Eval<mode>::printEval(double result, Score score) const {
                 << "     Term    |    White    |    Black    |    Total   \n"
                 << "             |   MG    EG  |   MG    EG  |   MG    EG \n"
                 << " ------------+-------------+-------------+------------\n"
-                << std::setw(12) << "Material" << termInfo[TERM_MATERIAL]
-                << std::setw(12) << "Piece Sq." << termInfo[TERM_PIECE_SQ]
-                << std::setw(12) << "Pawns" << termInfo[TERM_PAWNS]
-                << std::setw(12) << "Knights" << termInfo[TERM_KNIGHTS]
-                << std::setw(12) << "Bishops" << termInfo[TERM_BISHOPS]
-                << std::setw(12) << "Rooks" << termInfo[TERM_ROOKS]
-                << std::setw(12) << "Queens" << termInfo[TERM_QUEENS]
-                << std::setw(12) << "Kings" << termInfo[TERM_KING]
-                << std::setw(12) << "Mobility" << termInfo[TERM_MOBILITY]
-                << std::setw(12) << "Threats" << termInfo[TERM_THREATS]
+                << std::setw(12) << "Material" << termScores[TERM_MATERIAL]
+                << std::setw(12) << "Piece Sq." << termScores[TERM_PIECE_SQ]
+                << std::setw(12) << "Pawns" << termScores[TERM_PAWNS]
+                << std::setw(12) << "Knights" << termScores[TERM_KNIGHTS]
+                << std::setw(12) << "Bishops" << termScores[TERM_BISHOPS]
+                << std::setw(12) << "Rooks" << termScores[TERM_ROOKS]
+                << std::setw(12) << "Queens" << termScores[TERM_QUEENS]
+                << std::setw(12) << "Kings" << termScores[TERM_KING]
+                << std::setw(12) << "Mobility" << termScores[TERM_MOBILITY]
+                << std::setw(12) << "Threats" << termScores[TERM_THREATS]
                 << " ------------+-------------+-------------+------------\n"
-                << std::setw(12) << "Total" << TermScores{{std::nullopt, score}}
+                << std::setw(12) << "Total" << TermData{{std::nullopt, score}}
                 << "\nEvaluation:\t" << result / PAWN_VALUE_MG << '\n';
     // clang-format on
 }
 
-inline std::ostream& operator<<(std::ostream& os, const TermScores& term) {
+inline std::ostream& operator<<(std::ostream& os, const TermData& term) {
     os << " | ";
     if (term.scores[BLACK].has_value()) {
         os << term.scores[WHITE].value() << " | ";

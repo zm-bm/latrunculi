@@ -174,20 +174,28 @@ TEST_F(EvalTest, PawnsScore) {
         // sanity check
         {EMPTYFEN, Score{0}, Score{0}},
         {STARTFEN, Score{0}, Score{0}},
+
         // isolated pawns
-        {"4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1", ISO_PAWN_PENALTY, ISO_PAWN_PENALTY},
-        {"rnbqkbnr/ppppp1pp/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 2", ISO_PAWN_PENALTY, Score{0}},
-        {"rnbqkbnr/pppppp1p/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 3", Score{0}, ISO_PAWN_PENALTY},
+        {"4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1", Eval<>::IsoPawnScore, Eval<>::IsoPawnScore},
+        {"rnbqkbnr/ppppp1pp/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 2",
+         Eval<>::IsoPawnScore,
+         Score{0}},
+        {"rnbqkbnr/pppppp1p/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 3",
+         Score{0},
+         Eval<>::IsoPawnScore},
+
         // backwards pawns
-        {"4k3/8/3p4/2p5/2P5/1P6/8/4K3 w - - 0 4", BACKWARD_PAWN_PENALTY, BACKWARD_PAWN_PENALTY},
-        {"4k3/8/8/2pp4/2P5/1P6/8/4K3 w - - 0 5", BACKWARD_PAWN_PENALTY, Score{0}},
-        {"4k3/8/3p4/2p5/1PP5/8/8/4K3 w - - 0 6", Score{0}, BACKWARD_PAWN_PENALTY},
+        {"4k3/8/3p4/2p5/2P5/1P6/8/4K3 w - - 0 4",
+         Eval<>::BackwardPawnScore,
+         Eval<>::BackwardPawnScore},
+        {"4k3/8/8/2pp4/2P5/1P6/8/4K3 w - - 0 5", Eval<>::BackwardPawnScore, Score{0}},
+        {"4k3/8/3p4/2p5/1PP5/8/8/4K3 w - - 0 6", Score{0}, Eval<>::BackwardPawnScore},
         // doubled pawns
-        {"4k3/5pp1/4p3/3p4/3PP3/4P3/5PP1/4K3 w - - 0 7", DOUBLED_PAWN_PENALTY, Score{0}},
-        {"4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 8", Score{0}, DOUBLED_PAWN_PENALTY},
+        {"4k3/5pp1/4p3/3p4/3PP3/4P3/5PP1/4K3 w - - 0 7", Eval<>::DoubledPawnScore, Score{0}},
+        {"4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 8", Score{0}, Eval<>::DoubledPawnScore},
         // other
         {"k7/8/8/8/8/P7/P7/K7 w KQkq - 0 10",
-         ISO_PAWN_PENALTY * 2 + DOUBLED_PAWN_PENALTY,
+         Eval<>::IsoPawnScore * 2 + Eval<>::DoubledPawnScore,
          Score{0}},
     };
 
@@ -199,16 +207,16 @@ TEST_F(EvalTest, PawnsScore) {
 TEST_F(EvalTest, KnightsScore) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, Score{0}, Score{0}},
-        {STARTFEN, MINOR_BEHIND_PAWN_BONUS * 2, MINOR_BEHIND_PAWN_BONUS * 2},
+        {STARTFEN, Eval<>::MinorPawnShieldScore * 2, Eval<>::MinorPawnShieldScore * 2},
         // knight outposts
-        {"6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1", KNIGHT_OUTPOST_BONUS, Score{0}},
-        {"6k1/8/2p5/3Np1p1/4PnP1/2P5/8/6K1 w - - 0 2", Score{0}, KNIGHT_OUTPOST_BONUS},
+        {"6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1", Eval<>::KnightOutpostScore, Score{0}},
+        {"6k1/8/2p5/3Np1p1/4PnP1/2P5/8/6K1 w - - 0 2", Score{0}, Eval<>::KnightOutpostScore},
         // knight with reachable outposts
-        {"6k1/8/2p5/1n2p1p1/4P1PN/2P5/8/6K1 w - - 0 3", REACHABLE_OUTPOST_BONUS, Score{0}},
-        {"6k1/8/2p5/4p1pn/1N2P1P1/2P5/8/6K1 w - - 0 4", Score{0}, REACHABLE_OUTPOST_BONUS},
+        {"6k1/8/2p5/1n2p1p1/4P1PN/2P5/8/6K1 w - - 0 3", Eval<>::ReachableOutpostScore, Score{0}},
+        {"6k1/8/2p5/4p1pn/1N2P1P1/2P5/8/6K1 w - - 0 4", Score{0}, Eval<>::ReachableOutpostScore},
         // knight behind pawn
-        {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 5", MINOR_BEHIND_PAWN_BONUS, Score{0}},
-        {"6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 6", Score{0}, MINOR_BEHIND_PAWN_BONUS},
+        {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 5", Eval<>::MinorPawnShieldScore, Score{0}},
+        {"6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 6", Score{0}, Eval<>::MinorPawnShieldScore},
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
@@ -217,15 +225,15 @@ TEST_F(EvalTest, KnightsScore) {
 }
 
 TEST_F(EvalTest, BishopsScore) {
-    Score startScore =
-              (MINOR_BEHIND_PAWN_BONUS * 2 + BISHOP_PAIR_BONUS + BISHOP_PAWN_BLOCKER_PENALTY * 8),
-          hasOutpost         = BISHOP_OUTPOST_BONUS + BISHOP_PAWN_BLOCKER_PENALTY * 2,
-          noOutpost          = BISHOP_PAWN_BLOCKER_PENALTY * 4,
-          hasLongDiag        = BISHOP_LONG_DIAG_BONUS + BISHOP_PAWN_BLOCKER_PENALTY,
-          noLongDiag         = BISHOP_PAWN_BLOCKER_PENALTY * 2,
-          twoPawnsDefended   = BISHOP_PAWN_BLOCKER_PENALTY * 2 + BISHOP_OUTPOST_BONUS,
-          twoPawnsOneBlocked = BISHOP_PAWN_BLOCKER_PENALTY * 4,
-          twoPawnsTwoBlocked = BISHOP_PAWN_BLOCKER_PENALTY * 6;
+    Score startScore         = (Eval<>::MinorPawnShieldScore * 2 + Eval<>::BishopPairScore +
+                        Eval<>::PawnBlockingBishopScore * 8),
+          hasOutpost         = Eval<>::BishopOutpostScore + Eval<>::PawnBlockingBishopScore * 2,
+          noOutpost          = Eval<>::PawnBlockingBishopScore * 4,
+          hasLongDiag        = Eval<>::BishopLongDiagScore + Eval<>::PawnBlockingBishopScore,
+          noLongDiag         = Eval<>::PawnBlockingBishopScore * 2,
+          twoPawnsDefended   = Eval<>::PawnBlockingBishopScore * 2 + Eval<>::BishopOutpostScore,
+          twoPawnsOneBlocked = Eval<>::PawnBlockingBishopScore * 4,
+          twoPawnsTwoBlocked = Eval<>::PawnBlockingBishopScore * 6;
 
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, Score{0}, Score{0}},
@@ -234,14 +242,14 @@ TEST_F(EvalTest, BishopsScore) {
         {"6k1/8/2p5/4pBp1/4P1P1/2P3b1/8/6K1 w - - 0 1", hasOutpost, noOutpost},
         {"6k1/8/2p3B1/4p1p1/4PbP1/2P5/8/6K1 w - - 0 2", noOutpost, hasOutpost},
         // bishop behind pawn
-        {"6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 3", MINOR_BEHIND_PAWN_BONUS, Score{0}},
-        {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 4", Score{0}, MINOR_BEHIND_PAWN_BONUS},
+        {"6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 3", Eval<>::MinorPawnShieldScore, Score{0}},
+        {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 4", Score{0}, Eval<>::MinorPawnShieldScore},
         // bishop on long diagonal
         {"6k1/6b1/8/3P4/3p4/8/6B1/6K1 w - - 0 5", hasLongDiag, hasLongDiag},
         {"6k1/6b1/8/4p3/4P3/8/6B1/6K1 w - - 0 6", noLongDiag, noLongDiag},
         // bishop pair
-        {"5bk1/8/8/8/8/8/8/4BBK1 w - - 0 7", BISHOP_PAIR_BONUS, Score{0}},
-        {"4bbk1/8/8/8/8/8/8/5BK1 w - - 0 8", Score{0}, BISHOP_PAIR_BONUS},
+        {"5bk1/8/8/8/8/8/8/4BBK1 w - - 0 7", Eval<>::BishopPairScore, Score{0}},
+        {"4bbk1/8/8/8/8/8/8/5BK1 w - - 0 8", Score{0}, Eval<>::BishopPairScore},
         // bishop/pawn penalty
         {"4k3/8/8/2BPp3/2bpP3/8/8/4K3 w - - 0 9", Score{0}, Score{0}},
         {"4k3/8/8/2bPp3/2BpP3/8/8/4K3 w - - 0 10", twoPawnsOneBlocked, twoPawnsOneBlocked},
@@ -258,9 +266,15 @@ TEST_F(EvalTest, RookScore) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {STARTFEN, Score{0}, Score{0}},
         {EMPTYFEN, Score{0}, Score{0}},
-        {"6kr/8/8/8/8/8/8/RK6 w - - 0 1", ROOK_FULL_OPEN_FILE_BONUS, ROOK_FULL_OPEN_FILE_BONUS},
-        {"6kr/p7/8/8/8/8/7P/RK6 w - - 0 2", ROOK_SEMI_OPEN_FILE_BONUS, ROOK_SEMI_OPEN_FILE_BONUS},
-        {"rn5k/8/8/p7/P7/8/8/RN5K w - - 0 3", ROOK_CLOSED_FILE_PENALTY, ROOK_CLOSED_FILE_PENALTY},
+        {"6kr/8/8/8/8/8/8/RK6 w - - 0 1",
+         Eval<>::RookFullOpenFileScore,
+         Eval<>::RookFullOpenFileScore},
+        {"6kr/p7/8/8/8/8/7P/RK6 w - - 0 2",
+         Eval<>::RookSemiOpenFileScore,
+         Eval<>::RookSemiOpenFileScore},
+        {"rn5k/8/8/p7/P7/8/8/RN5K w - - 0 3",
+         Eval<>::RookClosedFileScore,
+         Eval<>::RookClosedFileScore},
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
@@ -273,11 +287,11 @@ TEST_F(EvalTest, QueenScore) {
         {STARTFEN, Score{0}, Score{0}},
         {EMPTYFEN, Score{0}, Score{0}},
         // bishop discovered attack
-        {"3qk3/2P5/1P6/B7/b7/1p6/8/3QK3 w - - 0 1", DISCOVERED_ATTACK_ON_QUEEN_PENALTY, Score{0}},
-        {"3qk3/8/1P6/B7/b7/1p6/2p5/3QK3 w - - 0 2", Score{0}, DISCOVERED_ATTACK_ON_QUEEN_PENALTY},
+        {"3qk3/2P5/1P6/B7/b7/1p6/8/3QK3 w - - 0 1", Eval<>::QueenDiscoveredAttackScore, Score{0}},
+        {"3qk3/8/1P6/B7/b7/1p6/2p5/3QK3 w - - 0 2", Score{0}, Eval<>::QueenDiscoveredAttackScore},
         // rook discovered attack
-        {"RNNqk3/8/8/8/8/8/8/rn1QK3 w - - 0 3", DISCOVERED_ATTACK_ON_QUEEN_PENALTY, Score{0}},
-        {"RN1qk3/8/8/8/8/8/8/rnnQK3 w - - 0 4", Score{0}, DISCOVERED_ATTACK_ON_QUEEN_PENALTY},
+        {"RNNqk3/8/8/8/8/8/8/rn1QK3 w - - 0 3", Eval<>::QueenDiscoveredAttackScore, Score{0}},
+        {"RN1qk3/8/8/8/8/8/8/rnnQK3 w - - 0 4", Score{0}, Eval<>::QueenDiscoveredAttackScore},
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
