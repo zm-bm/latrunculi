@@ -143,23 +143,31 @@ TEST_F(EvalTest, Mobility) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, {0}, {0}},
         // no mobility area restriction
-        {"3nk3/8/8/8/8/8/8/3NK3 w - - 0 1", Eval<>::KNIGHT_MOBILITY[4], Eval<>::KNIGHT_MOBILITY[4]},
-        {"3bk3/8/8/8/8/8/8/3BK3 w - - 0 2", Eval<>::BISHOP_MOBILITY[7], Eval<>::BISHOP_MOBILITY[7]},
-        {"3rk3/8/8/8/8/8/8/3RK3 w - - 0 3", Eval<>::ROOK_MOBILITY[10], Eval<>::ROOK_MOBILITY[10]},
-        {"3qk3/8/8/8/8/8/8/3QK3 w - - 0 4", Eval<>::QUEEN_MOBILITY[17], Eval<>::QUEEN_MOBILITY[17]},
+        {"3nk3/8/8/8/8/8/8/3NK3 w - - 0 1",
+         Eval<>::Scores::KnightMobility[4],
+         Eval<>::Scores::KnightMobility[4]},
+        {"3bk3/8/8/8/8/8/8/3BK3 w - - 0 2",
+         Eval<>::Scores::BishopMobility[7],
+         Eval<>::Scores::BishopMobility[7]},
+        {"3rk3/8/8/8/8/8/8/3RK3 w - - 0 3",
+         Eval<>::Scores::RookMobility[10],
+         Eval<>::Scores::RookMobility[10]},
+        {"3qk3/8/8/8/8/8/8/3QK3 w - - 0 4",
+         Eval<>::Scores::QueenMobility[17],
+         Eval<>::Scores::QueenMobility[17]},
         // with mobility area restriction
         {"3nk3/1p6/8/3P4/3p4/8/1P6/3NK3 w - - 0 5",
-         Eval<>::KNIGHT_MOBILITY[1],
-         Eval<>::KNIGHT_MOBILITY[1]},
+         Eval<>::Scores::KnightMobility[1],
+         Eval<>::Scores::KnightMobility[1]},
         {"3bk3/4p3/8/1p6/1P6/8/4P3/3BK3 w - - 0 6",
-         Eval<>::BISHOP_MOBILITY[2],
-         Eval<>::BISHOP_MOBILITY[2]},
+         Eval<>::Scores::BishopMobility[2],
+         Eval<>::Scores::BishopMobility[2]},
         {"3rk3/P2p4/8/8/8/8/p2P4/3RK3 w - - 0 7",
-         Eval<>::ROOK_MOBILITY[2],
-         Eval<>::ROOK_MOBILITY[2]},
+         Eval<>::Scores::RookMobility[2],
+         Eval<>::Scores::RookMobility[2]},
         {"3qk3/P2pp3/8/1p6/1P6/8/p2PP3/3QK3 w - - 0 8",
-         Eval<>::QUEEN_MOBILITY[4],
-         Eval<>::QUEEN_MOBILITY[4]},
+         Eval<>::Scores::QueenMobility[4],
+         Eval<>::Scores::QueenMobility[4]},
 
     };
 
@@ -175,26 +183,26 @@ TEST_F(EvalTest, PawnsScore) {
         {STARTFEN, Score{0}, Score{0}},
 
         // isolated pawns
-        {"4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1", Eval<>::IsoPawnScore, Eval<>::IsoPawnScore},
+        {"4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1", Eval<>::Scores::IsoPawn, Eval<>::Scores::IsoPawn},
         {"rnbqkbnr/ppppp1pp/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 2",
-         Eval<>::IsoPawnScore,
+         Eval<>::Scores::IsoPawn,
          Score{0}},
         {"rnbqkbnr/pppppp1p/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 3",
          Score{0},
-         Eval<>::IsoPawnScore},
+         Eval<>::Scores::IsoPawn},
 
         // backwards pawns
         {"4k3/8/3p4/2p5/2P5/1P6/8/4K3 w - - 0 4",
-         Eval<>::BackwardPawnScore,
-         Eval<>::BackwardPawnScore},
-        {"4k3/8/8/2pp4/2P5/1P6/8/4K3 w - - 0 5", Eval<>::BackwardPawnScore, Score{0}},
-        {"4k3/8/3p4/2p5/1PP5/8/8/4K3 w - - 0 6", Score{0}, Eval<>::BackwardPawnScore},
+         Eval<>::Scores::BackwardPawn,
+         Eval<>::Scores::BackwardPawn},
+        {"4k3/8/8/2pp4/2P5/1P6/8/4K3 w - - 0 5", Eval<>::Scores::BackwardPawn, Score{0}},
+        {"4k3/8/3p4/2p5/1PP5/8/8/4K3 w - - 0 6", Score{0}, Eval<>::Scores::BackwardPawn},
         // doubled pawns
-        {"4k3/5pp1/4p3/3p4/3PP3/4P3/5PP1/4K3 w - - 0 7", Eval<>::DoubledPawnScore, Score{0}},
-        {"4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 8", Score{0}, Eval<>::DoubledPawnScore},
+        {"4k3/5pp1/4p3/3p4/3PP3/4P3/5PP1/4K3 w - - 0 7", Eval<>::Scores::DoubledPawn, Score{0}},
+        {"4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 8", Score{0}, Eval<>::Scores::DoubledPawn},
         // other
         {"k7/8/8/8/8/P7/P7/K7 w KQkq - 0 10",
-         Eval<>::IsoPawnScore * 2 + Eval<>::DoubledPawnScore,
+         Eval<>::Scores::IsoPawn * 2 + Eval<>::Scores::DoubledPawn,
          Score{0}},
     };
 
@@ -206,16 +214,16 @@ TEST_F(EvalTest, PawnsScore) {
 TEST_F(EvalTest, KnightsScore) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, Score{0}, Score{0}},
-        {STARTFEN, Eval<>::MinorPawnShieldScore * 2, Eval<>::MinorPawnShieldScore * 2},
+        {STARTFEN, Eval<>::Scores::MinorPawnShield * 2, Eval<>::Scores::MinorPawnShield * 2},
         // knight outposts
-        {"6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1", Eval<>::KnightOutpostScore, Score{0}},
-        {"6k1/8/2p5/3Np1p1/4PnP1/2P5/8/6K1 w - - 0 2", Score{0}, Eval<>::KnightOutpostScore},
+        {"6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1", Eval<>::Scores::KnightOutpost, Score{0}},
+        {"6k1/8/2p5/3Np1p1/4PnP1/2P5/8/6K1 w - - 0 2", Score{0}, Eval<>::Scores::KnightOutpost},
         // knight with reachable outposts
-        {"6k1/8/2p5/1n2p1p1/4P1PN/2P5/8/6K1 w - - 0 3", Eval<>::ReachableOutpostScore, Score{0}},
-        {"6k1/8/2p5/4p1pn/1N2P1P1/2P5/8/6K1 w - - 0 4", Score{0}, Eval<>::ReachableOutpostScore},
+        {"6k1/8/2p5/1n2p1p1/4P1PN/2P5/8/6K1 w - - 0 3", Eval<>::Scores::ReachableOutpost, Score{0}},
+        {"6k1/8/2p5/4p1pn/1N2P1P1/2P5/8/6K1 w - - 0 4", Score{0}, Eval<>::Scores::ReachableOutpost},
         // knight behind pawn
-        {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 5", Eval<>::MinorPawnShieldScore, Score{0}},
-        {"6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 6", Score{0}, Eval<>::MinorPawnShieldScore},
+        {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 5", Eval<>::Scores::MinorPawnShield, Score{0}},
+        {"6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 6", Score{0}, Eval<>::Scores::MinorPawnShield},
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
@@ -224,15 +232,16 @@ TEST_F(EvalTest, KnightsScore) {
 }
 
 TEST_F(EvalTest, BishopsScore) {
-    Score startScore         = (Eval<>::MinorPawnShieldScore * 2 + Eval<>::BishopPairScore +
-                        Eval<>::PawnBlockingBishopScore * 8),
-          hasOutpost         = Eval<>::BishopOutpostScore + Eval<>::PawnBlockingBishopScore * 2,
-          noOutpost          = Eval<>::PawnBlockingBishopScore * 4,
-          hasLongDiag        = Eval<>::BishopLongDiagScore + Eval<>::PawnBlockingBishopScore,
-          noLongDiag         = Eval<>::PawnBlockingBishopScore * 2,
-          twoPawnsDefended   = Eval<>::PawnBlockingBishopScore * 2 + Eval<>::BishopOutpostScore,
-          twoPawnsOneBlocked = Eval<>::PawnBlockingBishopScore * 4,
-          twoPawnsTwoBlocked = Eval<>::PawnBlockingBishopScore * 6;
+    Score startScore  = (Eval<>::Scores::MinorPawnShield * 2 + Eval<>::Scores::BishopPair +
+                        Eval<>::Scores::BishopBlockedByPawn * 8),
+          hasOutpost  = Eval<>::Scores::BishopOutpost + Eval<>::Scores::BishopBlockedByPawn * 2,
+          noOutpost   = Eval<>::Scores::BishopBlockedByPawn * 4,
+          hasLongDiag = Eval<>::Scores::BishopLongDiagonal + Eval<>::Scores::BishopBlockedByPawn,
+          noLongDiag  = Eval<>::Scores::BishopBlockedByPawn * 2,
+          twoPawnsDefended =
+              Eval<>::Scores::BishopBlockedByPawn * 2 + Eval<>::Scores::BishopOutpost,
+          twoPawnsOneBlocked = Eval<>::Scores::BishopBlockedByPawn * 4,
+          twoPawnsTwoBlocked = Eval<>::Scores::BishopBlockedByPawn * 6;
 
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, Score{0}, Score{0}},
@@ -241,14 +250,14 @@ TEST_F(EvalTest, BishopsScore) {
         {"6k1/8/2p5/4pBp1/4P1P1/2P3b1/8/6K1 w - - 0 1", hasOutpost, noOutpost},
         {"6k1/8/2p3B1/4p1p1/4PbP1/2P5/8/6K1 w - - 0 2", noOutpost, hasOutpost},
         // bishop behind pawn
-        {"6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 3", Eval<>::MinorPawnShieldScore, Score{0}},
-        {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 4", Score{0}, Eval<>::MinorPawnShieldScore},
+        {"6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 3", Eval<>::Scores::MinorPawnShield, Score{0}},
+        {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 4", Score{0}, Eval<>::Scores::MinorPawnShield},
         // bishop on long diagonal
         {"6k1/6b1/8/3P4/3p4/8/6B1/6K1 w - - 0 5", hasLongDiag, hasLongDiag},
         {"6k1/6b1/8/4p3/4P3/8/6B1/6K1 w - - 0 6", noLongDiag, noLongDiag},
         // bishop pair
-        {"5bk1/8/8/8/8/8/8/4BBK1 w - - 0 7", Eval<>::BishopPairScore, Score{0}},
-        {"4bbk1/8/8/8/8/8/8/5BK1 w - - 0 8", Score{0}, Eval<>::BishopPairScore},
+        {"5bk1/8/8/8/8/8/8/4BBK1 w - - 0 7", Eval<>::Scores::BishopPair, Score{0}},
+        {"4bbk1/8/8/8/8/8/8/5BK1 w - - 0 8", Score{0}, Eval<>::Scores::BishopPair},
         // bishop/pawn penalty
         {"4k3/8/8/2BPp3/2bpP3/8/8/4K3 w - - 0 9", Score{0}, Score{0}},
         {"4k3/8/8/2bPp3/2BpP3/8/8/4K3 w - - 0 10", twoPawnsOneBlocked, twoPawnsOneBlocked},
@@ -266,14 +275,14 @@ TEST_F(EvalTest, RookScore) {
         {STARTFEN, Score{0}, Score{0}},
         {EMPTYFEN, Score{0}, Score{0}},
         {"6kr/8/8/8/8/8/8/RK6 w - - 0 1",
-         Eval<>::RookOpenFileScore[1],
-         Eval<>::RookOpenFileScore[1]},
+         Eval<>::Scores::RookOpenFile[1],
+         Eval<>::Scores::RookOpenFile[1]},
         {"6kr/p7/8/8/8/8/7P/RK6 w - - 0 2",
-         Eval<>::RookOpenFileScore[0],
-         Eval<>::RookOpenFileScore[0]},
+         Eval<>::Scores::RookOpenFile[0],
+         Eval<>::Scores::RookOpenFile[0]},
         {"rn5k/8/8/p7/P7/8/8/RN5K w - - 0 3",
-         Eval<>::RookClosedFileScore,
-         Eval<>::RookClosedFileScore},
+         Eval<>::Scores::RookClosedFile,
+         Eval<>::Scores::RookClosedFile},
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
@@ -286,11 +295,15 @@ TEST_F(EvalTest, QueenScore) {
         {STARTFEN, Score{0}, Score{0}},
         {EMPTYFEN, Score{0}, Score{0}},
         // bishop discovered attack
-        {"3qk3/2P5/1P6/B7/b7/1p6/8/3QK3 w - - 0 1", Eval<>::QueenDiscoveredAttackScore, Score{0}},
-        {"3qk3/8/1P6/B7/b7/1p6/2p5/3QK3 w - - 0 2", Score{0}, Eval<>::QueenDiscoveredAttackScore},
+        {"3qk3/2P5/1P6/B7/b7/1p6/8/3QK3 w - - 0 1",
+         Eval<>::Scores::QueenDiscoveredAttack,
+         Score{0}},
+        {"3qk3/8/1P6/B7/b7/1p6/2p5/3QK3 w - - 0 2",
+         Score{0},
+         Eval<>::Scores::QueenDiscoveredAttack},
         // rook discovered attack
-        {"RNNqk3/8/8/8/8/8/8/rn1QK3 w - - 0 3", Eval<>::QueenDiscoveredAttackScore, Score{0}},
-        {"RN1qk3/8/8/8/8/8/8/rnnQK3 w - - 0 4", Score{0}, Eval<>::QueenDiscoveredAttackScore},
+        {"RNNqk3/8/8/8/8/8/8/rn1QK3 w - - 0 3", Eval<>::Scores::QueenDiscoveredAttack, Score{0}},
+        {"RN1qk3/8/8/8/8/8/8/rnnQK3 w - - 0 4", Score{0}, Eval<>::Scores::QueenDiscoveredAttack},
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
@@ -302,17 +315,18 @@ Score calculateShelter(const std::vector<int>& shelterRanks,
                        const std::vector<int>& stormRanks,
                        const std::vector<int>& blockedRanks) {
     Score score;
-    for (int r : shelterRanks) score += Eval<>::PawnRankShelterScore[r];
-    for (int r : stormRanks) score += Eval<>::PawnRankStormUnblockedScore[r];
-    for (int r : blockedRanks) score += Eval<>::PawnRankStormBlockedScore[r];
+    for (int r : shelterRanks) score += Eval<>::Scores::PawnRankShelter[r];
+    for (int r : stormRanks) score += Eval<>::Scores::PawnRankStorm[0][r];
+    for (int r : blockedRanks) score += Eval<>::Scores::PawnRankStorm[1][r];
     return score;
 }
 
 // TEST_F(EvalTest, KingScore) {
-//     Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + Eval<>::KingFileScore[FILE5] +
-//                   Eval<>::KingOpenFileScore[true][true];
+//     Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + Eval<>::Scores::KingFile[FILE5] +
+//                   Eval<>::Scores::KingOpenFileScore[true][true];
 //     Score start = calculateShelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
-//                   Eval<>::KingFileScore[FILE7] + Eval<>::KingOpenFileScore[false][false];
+//                   Eval<>::Scores::KingFile[FILE7] +
+//                   Eval<>::Scores::KingOpenFileScore[false][false];
 
 //     std::vector<std::tuple<std::string, Score>> testCases = {
 //         {EMPTYFEN, empty},
@@ -329,20 +343,25 @@ Score calculateShelter(const std::vector<int>& shelterRanks,
 // }
 
 TEST_F(EvalTest, KingShelter) {
-    Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + Eval<>::KingFileScore[FILE5] +
-                  Eval<>::KingOpenFileScore[true][true];
+    Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + Eval<>::Scores::KingFile[FILE5] +
+                  Eval<>::Scores::KingOpenFile[true][true];
     Score start = calculateShelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
-                  Eval<>::KingFileScore[FILE5] + Eval<>::KingOpenFileScore[false][false];
+                  Eval<>::Scores::KingFile[FILE5] + Eval<>::Scores::KingOpenFile[false][false];
     Score blockedPawn = calculateShelter({RANK3, RANK4, RANK5}, {RANK6, RANK4}, {RANK5}) +
-                        Eval<>::KingFileScore[FILE1] + Eval<>::KingOpenFileScore[false][false];
+                        Eval<>::Scores::KingFile[FILE1] +
+                        Eval<>::Scores::KingOpenFile[false][false];
     Score semiOpenFile1 = calculateShelter({RANK2, RANK2, RANK2}, {0, 0, 0}, {}) +
-                          Eval<>::KingFileScore[FILE1] + Eval<>::KingOpenFileScore[false][true];
+                          Eval<>::Scores::KingFile[FILE1] +
+                          Eval<>::Scores::KingOpenFile[false][true];
     Score semiOpenFile2 = calculateShelter({0, 0, 0}, {RANK7, RANK7, RANK7}, {}) +
-                          Eval<>::KingFileScore[FILE1] + Eval<>::KingOpenFileScore[true][false];
+                          Eval<>::Scores::KingFile[FILE1] +
+                          Eval<>::Scores::KingOpenFile[true][false];
     Score kingOnRank2 = calculateShelter({0, 0, RANK3}, {RANK7, RANK7, RANK6}, {}) +
-                        Eval<>::KingFileScore[FILE2] + Eval<>::KingOpenFileScore[false][false];
+                        Eval<>::Scores::KingFile[FILE2] +
+                        Eval<>::Scores::KingOpenFile[false][false];
     Score attackedPawn = calculateShelter({RANK2, RANK2, 0}, {RANK7, RANK7, RANK7}, {}) +
-                         Eval<>::KingFileScore[FILE1] + Eval<>::KingOpenFileScore[false][false];
+                         Eval<>::Scores::KingFile[FILE1] +
+                         Eval<>::Scores::KingOpenFile[false][false];
 
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, empty, empty},
