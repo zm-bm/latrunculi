@@ -57,8 +57,81 @@ class Eval {
     static constexpr Score RookClosedFileScore        = {-10, -5};
     static constexpr Score KingZoneXrayAttackScore    = {20, 0};
     static constexpr Score QueenDiscoveredAttackScore = {-50, -25};
-    static constexpr Score OutpostScore[2]            = {BishopOutpostScore, KnightOutpostScore};
-    static constexpr Score OpenFileScore[2] = {RookSemiOpenFileScore, RookFullOpenFileScore};
+
+    // Bonus for rook on open files: [0] = semi-open, [1] = fully open
+    static constexpr Score RookOpenFileScore[] = {{20, 10}, {40, 20}};
+
+    // Bonus for friendly pawn by rank (index = pawn rank; 0 = no pawn)
+    static constexpr Score PawnRankShelterScore[] = {
+        {-30, 0}, {60, 0}, {35, 0}, {-20, 0}, {-5, 0}, {-20, 0}, {-80, 0}};
+
+    // Penalty for unblocked enemy pawns by rank (index = pawn rank, 0 = no pawn).
+    static constexpr Score PawnRankStormUnblockedScore[] = {
+        {0, 0}, {-20, 0}, {-120, 0}, {-60, 0}, {-45, 0}, {-20, 0}, {-10, 0}};
+
+    // Penalty for blocked enemy pawns by rank (index = pawn rank, 0 = no pawn).
+    static constexpr Score PawnRankStormBlockedScore[] = {
+        {0, 0}, {0, 0}, {-60, -60}, {0, -20}, {5, -15}, {10, -10}, {15, -5}};
+
+    // Pawn storm penalty lookup: [0] = unblocked, [1] = blocked
+    static constexpr const Score* PawnRankStormScore[] = {PawnRankStormUnblockedScore,
+                                                          PawnRankStormBlockedScore};
+
+    // Score for king based on file openness: [friendly file open][enemy file open]
+    // 0 = closed file, 1 = open file
+    static constexpr Score KingOpenFileScore[2][2] = {
+        {{20, -10}, {10, 5}},
+        {{0, 0}, {-10, 5}},
+    };
+
+    // Score for king based on file (index = king file)
+    static constexpr Score KingFileScore[] = {
+        {20, 0}, {5, 0}, {-15, 0}, {-30, 0}, {-30, 0}, {-15, 0}, {5, 0}, {20, 0}};
+
+    // Score for potentially hanging piece
+    static constexpr Score WeakPieceScore[] = {
+        ZERO_SCORE, ZERO_SCORE, {-20, -10}, {-25, -15}, {-50, -25}, {-100, -50}};
+
+    // clang-format off
+
+    // Knight mobility score (index = number of legal moves)
+    static constexpr Score KNIGHT_MOBILITY[] = {
+        {-40, -48}, {-32, -36}, {-8, -20}, {-2, -12}, {2, 6},
+        {8, 8},     {12, 12},   {16, 16},  {24, 16}
+    };
+
+    // Bishop mobility score (index = number of legal moves)
+    static constexpr Score BISHOP_MOBILITY[] = {
+        {-32, -40}, {-16, -16}, {8, -4},   {16, 8},   {24, 16},
+        {32, 24},   {32, 36},   {40, 36},  {40, 40},  {44, 48},
+        {48, 48},   {56, 56},   {56, 56},  {64, 64}
+    };
+
+    // Rook mobility score (index = number of legal moves)
+    static constexpr Score ROOK_MOBILITY[] = {
+        {-40, -56}, {-16, -8}, {0, 12},   {0, 28},   {4, 44},
+        {8, 64},    {12, 64},  {20, 80},  {28, 88},  {28, 88},
+        {28, 96},   {32, 104}, {36, 108}, {40, 112}, {44, 120}
+    };
+
+    // Queen mobility score (index = number of legal moves)
+    static constexpr Score QUEEN_MOBILITY[] = {
+        {-20, -32}, {-12, -20}, {-4, -4},   {-4, 12},   {12, 24},  {16, 36},  {16, 40},
+        {24, 48},   {28, 48},   {36, 60},   {40, 60},   {44, 64},  {44, 80},  {48, 80},
+        {48, 88},   {48, 88},   {48, 88},   {48, 92},   {52, 96},  {56, 96},  {60, 100},
+        {68, 108},  {68, 112},  {68, 112},  {72, 116},  {72, 120}, {76, 124}, {80, 140}
+    };
+    // clang-format on
+
+    // Mobility score lookup by piece type. nullptr for pieces without mobility scoring
+    static constexpr const Score* MOBILITY_BONUS[] = {
+        nullptr,
+        nullptr,
+        KNIGHT_MOBILITY,
+        BISHOP_MOBILITY,
+        ROOK_MOBILITY,
+        QUEEN_MOBILITY,
+    };
 
    private:
     const Board& board;
@@ -75,8 +148,8 @@ class Eval {
     int kingAttackersCount[N_COLORS] = {0};
     int kingAttackersValue[N_COLORS] = {0};
 
-    Score mobility[N_COLORS] = {{0, 0}};
-    Score threats[N_COLORS]  = {{0, 0}};
+    Score mobility[N_COLORS] = {ZERO_SCORE};
+    Score threats[N_COLORS]  = {ZERO_SCORE};
 
     template <Color>
     void initialize();
@@ -173,7 +246,7 @@ inline Score Eval<mode>::evaluateTerm() {
 
 template <Verbosity mode>
 int Eval<mode>::evaluate() {
-    Score score{0, 0};
+    Score score;
 
     // evaluate basic terms
     score += evaluateTerm<TERM_MATERIAL>();
@@ -215,7 +288,8 @@ template <Verbosity mode>
 template <Color c>
 inline Score Eval<mode>::pawnsScore() {
     constexpr Color enemy = ~c;
-    Score score           = {0, 0};
+    Score score;
+
     U64 pawns             = board.pieces<PAWN>(c);
     U64 pawnAttacks       = BB::pawnAttacks<c>(pawns);
     U64 pawnDoubleAttacks = BB::pawnDoubleAttacks<c>(pawns);
@@ -252,10 +326,11 @@ template <Verbosity mode>
 template <Color c, PieceType p>
 Score Eval<mode>::piecesScore() {
     constexpr Color enemy = ~c;
-    Score score           = {0, 0};
-    U64 occupied          = board.occupancy();
-    U64 pawns             = board.pieces<PAWN>(c);
-    U64 enemyPawns        = board.pieces<PAWN>(enemy);
+    Score score;
+
+    U64 occupied   = board.occupancy();
+    U64 pawns      = board.pieces<PAWN>(c);
+    U64 enemyPawns = board.pieces<PAWN>(enemy);
 
     // bonus for bishop pair
     if constexpr (p == BISHOP) {
@@ -265,9 +340,9 @@ Score Eval<mode>::piecesScore() {
     }
 
     forEachPiece<c>(board.pieces<p>(c), [&](Square sq) {
-        U64 bb    = BB::set(sq);
-        U64 moves = BB::moves<p>(sq, occupied);
-        if (board.blockers(c) & bb) moves &= BB::inlineBB(board.kingSq(c), sq);
+        U64 pieceBB = BB::set(sq);
+        U64 moves   = BB::moves<p>(sq, occupied);
+        if (board.blockers(c) & pieceBB) moves &= BB::inlineBB(board.kingSq(c), sq);
 
         attacksByTwo[c]        |= (attacks[c][ALL_PIECES] & moves);
         attacks[c][ALL_PIECES] |= moves;
@@ -291,19 +366,20 @@ Score Eval<mode>::piecesScore() {
         U64 defenders = board.attacksTo(sq, c);
         U64 attackers = board.attacksTo(sq, enemy);
         if (BB::count(attackers) > BB::count(defenders)) {
-            threats[c] += WEAK_PIECE[p];
+            threats[c] += WeakPieceScore[p];
         }
 
         if constexpr (p == KNIGHT || p == BISHOP) {
             // bonus for minor piece outposts,  reachable knight outposts
-            if (bb & outposts[c]) {
-                score += OutpostScore[p == KNIGHT];
+            if (pieceBB & outposts[c]) {
+                if constexpr (p == KNIGHT) score += KnightOutpostScore;
+                if constexpr (p == BISHOP) score += BishopOutpostScore;
             } else if (p == KNIGHT && moves & outposts[c]) {
                 score += ReachableOutpostScore;
             }
 
             // bonus minor piece guarded by pawn
-            if (bb & BB::pawnMoves<PUSH, enemy>(pawns)) {
+            if (pieceBB & BB::pawnMoves<PUSH, enemy>(pawns)) {
                 score += MinorPawnShieldScore;
             }
 
@@ -314,7 +390,7 @@ Score Eval<mode>::piecesScore() {
                 }
 
                 // penalty for bishop blocked by friendly pawns
-                score += PawnBlockingBishopScore * bishopPawnBlockers<c>(bb);
+                score += PawnBlockingBishopScore * bishopPawnBlockers<c>(pieceBB);
             }
         }
 
@@ -323,7 +399,7 @@ Score Eval<mode>::piecesScore() {
             U64 fileBB = BB::file(fileOf(sq));
             if (!(pawns & fileBB)) {
                 bool isFullyOpen  = !(enemyPawns & fileBB);
-                score            += OpenFileScore[isFullyOpen];
+                score            += RookOpenFileScore[isFullyOpen];
             } else if (pawns & fileBB & BB::pawnMoves<PUSH, enemy>(occupied)) {
                 score += RookClosedFileScore;
             }
@@ -429,11 +505,11 @@ inline Score Eval<mode>::kingShelter(Square kingSq) {
                   fileShelter<c>(pawns, enemyPawns, file) +
                   fileShelter<c>(pawns, enemyPawns, file + 1);
 
-    score += KING_FILE_BONUS[kingFile];
+    score += KingFileScore[kingFile];
 
     bool friendlyOpenFile  = !(board.pieces<PAWN>(c) & BB::file(kingFile));
     bool enemyOpenFile     = !(board.pieces<PAWN>(enemy) & BB::file(kingFile));
-    score                 += KING_OPEN_FILE_BONUS[friendlyOpenFile][enemyOpenFile];
+    score                 += KingOpenFileScore[friendlyOpenFile][enemyOpenFile];
 
     return score;
 }
@@ -442,17 +518,18 @@ template <Verbosity mode>
 template <Color c>
 inline Score Eval<mode>::fileShelter(U64 pawns, U64 enemyPawns, File file) {
     constexpr Color enemy = ~c;
+    Score score;
 
-    Score score = {0, 0};
+    // our pawns
+    pawns     &= BB::file(file);
+    Rank rank  = pawns ? relativeRank(BB::advancedSq<enemy>(pawns), c) : RANK1;
+    score     += PawnRankShelterScore[rank];
 
-    U64 bb     = pawns & BB::file(file);
-    Rank rank  = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
-    score     += PAWN_SHELTER_BONUS[rank];
-
-    bb              = enemyPawns & BB::file(file);
-    Rank enemyRank  = bb ? relativeRank(BB::advancedSq<enemy>(bb), c) : RANK1;
-    score          += (rank && (rank + 1) == enemyRank) ? BLOCKED_STORM_PENALTY[enemyRank]
-                                                        : PAWN_STORM_PENALTY[enemyRank];
+    // enemy pawns
+    enemyPawns     &= BB::file(file);
+    Rank enemyRank  = enemyPawns ? relativeRank(BB::advancedSq<enemy>(enemyPawns), c) : RANK1;
+    bool isBlocked  = (rank != 0) && ((rank + 1) == enemyRank);
+    score          += PawnRankStormScore[isBlocked][enemyRank];
 
     return score;
 }

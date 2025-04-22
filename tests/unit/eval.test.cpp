@@ -97,26 +97,17 @@ class EvalTest : public ::testing::Test {
 };
 
 TEST_F(EvalTest, Eval) {
-    std::vector<std::tuple<std::string, int, bool>> testCases = {
-        {EMPTYFEN, 0, true},
-        {STARTFEN, 0, true},
-        {"4k3/8/8/8/8/8/4P3/4K3 w - - 0 1", 0, false},
+    std::vector<std::tuple<std::string, int>> testCases = {
+        {EMPTYFEN, 0},
+        {STARTFEN, 0},
     };
 
-    for (const auto& [fen, expected, exact] : testCases) {
+    for (const auto& [fen, expected] : testCases) {
         Board board(fen);
-        Eval<Silent> eval(board);
-        if (exact) {
-            EXPECT_EQ(eval.evaluate(), expected + TEMPO_BONUS) << fen;
-        } else {
-            EXPECT_GT(eval.evaluate(), expected + TEMPO_BONUS) << fen;
-        }
+        int result = eval(board);
+        EXPECT_EQ(result, expected + TEMPO_BONUS) << fen;
         board.makeNull();
-        if (exact) {
-            EXPECT_EQ(eval.evaluate(), expected + TEMPO_BONUS) << fen;
-        } else {
-            EXPECT_LT(eval.evaluate(), expected + TEMPO_BONUS) << fen;
-        }
+        EXPECT_EQ(result, expected + TEMPO_BONUS) << fen;
     }
 }
 
@@ -152,15 +143,23 @@ TEST_F(EvalTest, Mobility) {
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, {0}, {0}},
         // no mobility area restriction
-        {"3nk3/8/8/8/8/8/8/3NK3 w - - 0 1", KNIGHT_MOBILITY[4], KNIGHT_MOBILITY[4]},
-        {"3bk3/8/8/8/8/8/8/3BK3 w - - 0 2", BISHOP_MOBILITY[7], BISHOP_MOBILITY[7]},
-        {"3rk3/8/8/8/8/8/8/3RK3 w - - 0 3", ROOK_MOBILITY[10], ROOK_MOBILITY[10]},
-        {"3qk3/8/8/8/8/8/8/3QK3 w - - 0 4", QUEEN_MOBILITY[17], QUEEN_MOBILITY[17]},
+        {"3nk3/8/8/8/8/8/8/3NK3 w - - 0 1", Eval<>::KNIGHT_MOBILITY[4], Eval<>::KNIGHT_MOBILITY[4]},
+        {"3bk3/8/8/8/8/8/8/3BK3 w - - 0 2", Eval<>::BISHOP_MOBILITY[7], Eval<>::BISHOP_MOBILITY[7]},
+        {"3rk3/8/8/8/8/8/8/3RK3 w - - 0 3", Eval<>::ROOK_MOBILITY[10], Eval<>::ROOK_MOBILITY[10]},
+        {"3qk3/8/8/8/8/8/8/3QK3 w - - 0 4", Eval<>::QUEEN_MOBILITY[17], Eval<>::QUEEN_MOBILITY[17]},
         // with mobility area restriction
-        {"3nk3/1p6/8/3P4/3p4/8/1P6/3NK3 w - - 0 5", KNIGHT_MOBILITY[1], KNIGHT_MOBILITY[1]},
-        {"3bk3/4p3/8/1p6/1P6/8/4P3/3BK3 w - - 0 6", BISHOP_MOBILITY[2], BISHOP_MOBILITY[2]},
-        {"3rk3/P2p4/8/8/8/8/p2P4/3RK3 w - - 0 7", ROOK_MOBILITY[2], ROOK_MOBILITY[2]},
-        {"3qk3/P2pp3/8/1p6/1P6/8/p2PP3/3QK3 w - - 0 8", QUEEN_MOBILITY[4], QUEEN_MOBILITY[4]},
+        {"3nk3/1p6/8/3P4/3p4/8/1P6/3NK3 w - - 0 5",
+         Eval<>::KNIGHT_MOBILITY[1],
+         Eval<>::KNIGHT_MOBILITY[1]},
+        {"3bk3/4p3/8/1p6/1P6/8/4P3/3BK3 w - - 0 6",
+         Eval<>::BISHOP_MOBILITY[2],
+         Eval<>::BISHOP_MOBILITY[2]},
+        {"3rk3/P2p4/8/8/8/8/p2P4/3RK3 w - - 0 7",
+         Eval<>::ROOK_MOBILITY[2],
+         Eval<>::ROOK_MOBILITY[2]},
+        {"3qk3/P2pp3/8/1p6/1P6/8/p2PP3/3QK3 w - - 0 8",
+         Eval<>::QUEEN_MOBILITY[4],
+         Eval<>::QUEEN_MOBILITY[4]},
 
     };
 
@@ -267,11 +266,11 @@ TEST_F(EvalTest, RookScore) {
         {STARTFEN, Score{0}, Score{0}},
         {EMPTYFEN, Score{0}, Score{0}},
         {"6kr/8/8/8/8/8/8/RK6 w - - 0 1",
-         Eval<>::RookFullOpenFileScore,
-         Eval<>::RookFullOpenFileScore},
+         Eval<>::RookOpenFileScore[1],
+         Eval<>::RookOpenFileScore[1]},
         {"6kr/p7/8/8/8/8/7P/RK6 w - - 0 2",
-         Eval<>::RookSemiOpenFileScore,
-         Eval<>::RookSemiOpenFileScore},
+         Eval<>::RookOpenFileScore[0],
+         Eval<>::RookOpenFileScore[0]},
         {"rn5k/8/8/p7/P7/8/8/RN5K w - - 0 3",
          Eval<>::RookClosedFileScore,
          Eval<>::RookClosedFileScore},
@@ -302,18 +301,18 @@ TEST_F(EvalTest, QueenScore) {
 Score calculateShelter(const std::vector<int>& shelterRanks,
                        const std::vector<int>& stormRanks,
                        const std::vector<int>& blockedRanks) {
-    Score score{0, 0};
-    for (int r : shelterRanks) score += PAWN_SHELTER_BONUS[r];
-    for (int r : stormRanks) score += PAWN_STORM_PENALTY[r];
-    for (int r : blockedRanks) score += BLOCKED_STORM_PENALTY[r];
+    Score score;
+    for (int r : shelterRanks) score += Eval<>::PawnRankShelterScore[r];
+    for (int r : stormRanks) score += Eval<>::PawnRankStormUnblockedScore[r];
+    for (int r : blockedRanks) score += Eval<>::PawnRankStormBlockedScore[r];
     return score;
 }
 
 // TEST_F(EvalTest, KingScore) {
-//     Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + KING_FILE_BONUS[FILE5] +
-//                   KING_OPEN_FILE_BONUS[true][true];
+//     Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + Eval<>::KingFileScore[FILE5] +
+//                   Eval<>::KingOpenFileScore[true][true];
 //     Score start = calculateShelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
-//                   KING_FILE_BONUS[FILE7] + KING_OPEN_FILE_BONUS[false][false];
+//                   Eval<>::KingFileScore[FILE7] + Eval<>::KingOpenFileScore[false][false];
 
 //     std::vector<std::tuple<std::string, Score>> testCases = {
 //         {EMPTYFEN, empty},
@@ -330,20 +329,20 @@ Score calculateShelter(const std::vector<int>& shelterRanks,
 // }
 
 TEST_F(EvalTest, KingShelter) {
-    Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + KING_FILE_BONUS[FILE5] +
-                  KING_OPEN_FILE_BONUS[true][true];
+    Score empty = calculateShelter({0, 0, 0}, {0, 0, 0}, {}) + Eval<>::KingFileScore[FILE5] +
+                  Eval<>::KingOpenFileScore[true][true];
     Score start = calculateShelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
-                  KING_FILE_BONUS[FILE5] + KING_OPEN_FILE_BONUS[false][false];
+                  Eval<>::KingFileScore[FILE5] + Eval<>::KingOpenFileScore[false][false];
     Score blockedPawn = calculateShelter({RANK3, RANK4, RANK5}, {RANK6, RANK4}, {RANK5}) +
-                        KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[false][false];
+                        Eval<>::KingFileScore[FILE1] + Eval<>::KingOpenFileScore[false][false];
     Score semiOpenFile1 = calculateShelter({RANK2, RANK2, RANK2}, {0, 0, 0}, {}) +
-                          KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[false][true];
+                          Eval<>::KingFileScore[FILE1] + Eval<>::KingOpenFileScore[false][true];
     Score semiOpenFile2 = calculateShelter({0, 0, 0}, {RANK7, RANK7, RANK7}, {}) +
-                          KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[true][false];
+                          Eval<>::KingFileScore[FILE1] + Eval<>::KingOpenFileScore[true][false];
     Score kingOnRank2 = calculateShelter({0, 0, RANK3}, {RANK7, RANK7, RANK6}, {}) +
-                        KING_FILE_BONUS[FILE2] + KING_OPEN_FILE_BONUS[false][false];
+                        Eval<>::KingFileScore[FILE2] + Eval<>::KingOpenFileScore[false][false];
     Score attackedPawn = calculateShelter({RANK2, RANK2, 0}, {RANK7, RANK7, RANK7}, {}) +
-                         KING_FILE_BONUS[FILE1] + KING_OPEN_FILE_BONUS[false][false];
+                         Eval<>::KingFileScore[FILE1] + Eval<>::KingOpenFileScore[false][false];
 
     std::vector<std::tuple<std::string, Score, Score>> testCases = {
         {EMPTYFEN, empty, empty},
