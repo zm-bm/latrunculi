@@ -20,8 +20,8 @@ int Thread::search() {
     int prevScore = eval<Silent>(board);
 
     // 1. Iterative deepening loop
-    int initialDepth = 1 + ((threadId - 1) & 1);
-    for (int depth = initialDepth; depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
+    int depth = 1 + (threadId & 1);
+    for (; depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
@@ -44,9 +44,9 @@ int Thread::search() {
         if (isMateScore(score)) break;
     }
 
-    if (threadId == 1) {
-        Logger(output) << "bestmove " << pv.bestMove() << std::endl;
-        if (options.debug) UCI::printDebuggingInfo(output, stats);
+    if (isMainThread() && engine) {
+        engine->bestmove(pv.bestMove());
+        if (options.debug) engine->searchStats(stats);
     }
 
     return score;
@@ -172,7 +172,9 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             if (isPV && score > alpha) {
                 pv.update(ply, move);
             }
-            if constexpr (isRoot) UCI::printInfo(output, score, depth, stats, pv);
+            if constexpr (isRoot) {
+                if (isMainThread() && engine) engine->info(score, depth, stats, pv);
+            }
         }
 
         // 7. Alpha-beta pruning
@@ -204,7 +206,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         flag = TT::LOWERBOUND;
     TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
 
-    if constexpr (isRoot) UCI::printInfo(output, bestScore, depth, stats, pv);
+    if constexpr (isRoot) {
+        if (isMainThread() && engine) engine->info(bestScore, depth, stats, pv);
+    }
+
     return bestScore;
 }
 

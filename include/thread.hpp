@@ -12,6 +12,11 @@
 #include "stats.hpp"
 #include "types.hpp"
 
+// forward declare
+namespace UCI {
+class Engine;
+};
+
 struct SearchOptions {
     bool debug   = SEARCH_DEBUG;
     int depth    = SEARCH_DEPTH;
@@ -42,10 +47,11 @@ struct PrincipalVariation {
     }
 };
 
+class ThreadPool;
+
 class Thread {
    public:
-    explicit Thread(unsigned int id, std::ostream& output)
-        : threadId(id), thread(&Thread::loop, this), output(output) {}
+    Thread(int id, UCI::Engine* engine);
     ~Thread();
 
     void start();
@@ -64,6 +70,7 @@ class Thread {
     // thread.cpp
     void loop();
     void reset();
+    bool isMainThread();
 
     // search.cpp
     int search();
@@ -76,10 +83,10 @@ class Thread {
 
     std::atomic<bool> exitSignal{false};
     std::atomic<bool> runSignal{false};
-    const unsigned int threadId;
+    const int threadId;
 
-    std::ostream& output;
     std::thread thread;
+    UCI::Engine* engine;
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -87,7 +94,7 @@ class Thread {
 
 class ThreadPool {
    public:
-    ThreadPool(size_t numThreads, std::ostream& output);
+    ThreadPool(size_t numThreads, UCI::Engine* engine);
     ~ThreadPool();
 
     void startAll(Board&, SearchOptions&);

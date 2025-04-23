@@ -64,12 +64,6 @@ bool Engine::execute(const std::string& line) {
     return true;
 }
 
-void Engine::uci() {
-    std::cout << "id name Latrunculi 0.1.0" << std::endl;
-    std::cout << "id author Eric VanderHelm" << std::endl;
-    std::cout << "uciok" << std::endl;
-}
-
 void Engine::setdebug(std::istringstream& iss) {
     std::string token;
     iss >> token;
@@ -178,28 +172,36 @@ std::string formatScore(int score) {
     return oss.str();
 }
 
-void printInfo(
-    std::ostream& output, int score, int depth, SearchStats& stats, PrincipalVariation& pv) {
+// output
+
+void Engine::uci() {
+    out << "id name Latrunculi 0.1.0" << std::endl;
+    out << "id author Eric VanderHelm" << std::endl;
+    out << "uciok" << std::endl;
+}
+
+void Engine::bestmove(Move move) { out << "bestmove " << move << std::endl; }
+
+void Engine::info(int score, int depth, SearchStats& stats, PrincipalVariation& pv) {
     using namespace std::chrono;
+
     auto dur = high_resolution_clock::now() - stats.startTime;
     auto sec = duration_cast<duration<double>>(dur).count();
     auto nps = (sec > 0) ? stats.totalNodes / sec : 0;
-    Logger log{output};
 
-    log << std::fixed;
-    log << "info depth " << depth;
-    log << " score " << formatScore(score);
-    log << " time " << static_cast<int>(sec * 1000);
-    log << " nodes " << stats.totalNodes;
-    log << " nps " << static_cast<int>(nps);
-    log << " pv";
-    for (auto& move : pv[0]) log << " " << move;
-    log << std::endl;
+    out << std::fixed;
+    out << "info depth " << depth;
+    out << " score " << formatScore(score);
+    out << " time " << static_cast<int>(sec * 1000);
+    out << " nodes " << stats.totalNodes;
+    out << " nps " << static_cast<int>(nps);
+    out << " pv";
+    for (auto& move : pv[0]) out << " " << move;
+    out << std::endl;
 }
 
-void printDebuggingInfo(std::ostream& output, const SearchStats& stats) {
-    Logger log{output};
-    log << "\n"
+void Engine::searchStats(const SearchStats& stats) {
+    out << "\n"
         << std::setw(5) << "Depth"
         << " | " << std::setw(18) << "Nodes (QNode%)"
         << " | " << std::setw(23) << "Cutoffs (Early%/Late%)"
@@ -227,17 +229,17 @@ void printDebuggingInfo(std::ostream& output, const SearchStats& stats) {
         double ebf        = prev > 0 ? static_cast<double>(nodes) / prev : 0.0;
         double cumulative = std::pow(static_cast<double>(nodes), 1.0 / d);
 
-        log << std::fixed;
-        log << std::setw(5) << d << " | ";
-        log << std::setw(9) << nodes << " (";
-        log << std::setw(5) << std::setprecision(1) << quiesPct << "%) | ";
-        log << std::setw(8) << cutoffs << " (";
-        log << std::setw(5) << std::setprecision(1) << earlyPct << "/";
-        log << std::setw(5) << std::setprecision(1) << latePct << "%) | ";
-        log << std::setw(5) << std::setprecision(1) << ttHitPct << "% | ";
-        log << std::setw(5) << std::setprecision(1) << ttCutPct << "% | ";
-        log << std::setw(5) << std::setprecision(1) << ebf << " / ";
-        log << std::setw(5) << std::setprecision(1) << cumulative << "\n";
+        out << std::fixed;
+        out << std::setw(5) << d << " | ";
+        out << std::setw(9) << nodes << " (";
+        out << std::setw(5) << std::setprecision(1) << quiesPct << "%) | ";
+        out << std::setw(8) << cutoffs << " (";
+        out << std::setw(5) << std::setprecision(1) << earlyPct << "/";
+        out << std::setw(5) << std::setprecision(1) << latePct << "%) | ";
+        out << std::setw(5) << std::setprecision(1) << ttHitPct << "% | ";
+        out << std::setw(5) << std::setprecision(1) << ttCutPct << "% | ";
+        out << std::setw(5) << std::setprecision(1) << ebf << " / ";
+        out << std::setw(5) << std::setprecision(1) << cumulative << "\n";
     }
 }
 

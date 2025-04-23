@@ -4,6 +4,9 @@
 
 #include "uci.hpp"
 
+Thread::Thread(int id, UCI::Engine* engine)
+    : threadId(id), thread(&Thread::loop, this), engine(engine) {}
+
 Thread::~Thread() {
     stop();
     if (thread.joinable()) {
@@ -64,9 +67,11 @@ void Thread::reset() {
     pv.clear();
 }
 
-ThreadPool::ThreadPool(size_t numThreads, std::ostream& output) {
+bool Thread::isMainThread() { return threadId == 0; }
+
+ThreadPool::ThreadPool(size_t numThreads, UCI::Engine* engine) {
     for (size_t i = 0; i < numThreads; ++i) {
-        threads.push_back(std::make_unique<Thread>(i + 1, output));
+        threads.push_back(std::make_unique<Thread>(i, engine));
     }
 }
 

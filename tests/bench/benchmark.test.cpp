@@ -10,11 +10,13 @@
 #include "eval.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"
+#include "uci.hpp"
 
 using EPDCases = std::vector<std::tuple<std::string, std::string, std::string>>;
 
 SearchOptions options{false, 20, 10000};
 std::ostringstream oss;
+std::istringstream iss;
 
 void parseEPDLine(const std::string& line, EPDCases& cases) {
     std::istringstream iss(line);
@@ -58,7 +60,8 @@ EPDCases readEPDFile(const std::string& filename) {
 
 class SearchBenchmark : public ::testing::Test {
    private:
-    ThreadPool pool{1, oss};
+    UCI::Engine engine{oss, iss};
+    ThreadPool pool{1, &engine};
 
    protected:
     void testSearch(Board& board, std::string& bestMove, std::string& avoidMove) {
