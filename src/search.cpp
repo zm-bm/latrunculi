@@ -179,8 +179,8 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             bestMove  = move;
             if (isPV && score > alpha) {
                 pv.update(ply, move);
-                if constexpr (isRoot) UCI::printInfo(output, score, depth, stats, pv);
             }
+            if constexpr (isRoot) UCI::printInfo(output, score, depth, stats, pv);
         }
 
         // 7. Alpha-beta pruning
@@ -212,6 +212,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         flag = TT::LOWERBOUND;
     TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
 
+    if constexpr (isRoot) UCI::printInfo(output, bestScore, depth, stats, pv);
     return bestScore;
 }
 
