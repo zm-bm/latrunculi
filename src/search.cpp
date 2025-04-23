@@ -1,6 +1,4 @@
 #include <algorithm>
-#include <random>
-#include <unordered_set>
 
 #include "board.hpp"
 #include "eval.hpp"
@@ -123,8 +121,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     // 4. Loop over moves
     int searchedMoves = 0;
     int legalMoves    = 0;
-    for (size_t i = 0; i < moves.size(); ++i) {
-        Move move = moves[i];
+    for (auto& move : moves) {
         if (!board.isLegalMove(move)) continue;
         legalMoves++;
 
