@@ -15,12 +15,6 @@ constexpr int LmrDepth         = 3;
 constexpr int FutilityMargin   = 300;
 constexpr int NullMoveR        = 3;
 
-int initialDepth() {
-    static thread_local std::mt19937 rng(std::random_device{}());
-    static std::uniform_int_distribution<int> dist(0, 2);
-    return 1 + dist(rng);
-}
-
 int Thread::search() {
     reset();
 
@@ -28,7 +22,8 @@ int Thread::search() {
     int prevScore = eval<Silent>(board);
 
     // 1. Iterative deepening loop
-    for (int depth = initialDepth(); depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
+    int initialDepth = 1 + ((threadId - 1) & 1);
+    for (int depth = initialDepth; depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score

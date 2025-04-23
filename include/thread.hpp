@@ -73,7 +73,6 @@ class Thread {
 
     std::mutex mutex;
     std::condition_variable condition;
-    std::condition_variable condition2;
 
     std::atomic<bool> exitSignal{false};
     std::atomic<bool> runSignal{false};
