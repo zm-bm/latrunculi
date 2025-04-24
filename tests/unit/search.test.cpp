@@ -15,12 +15,14 @@ class SearchTest : public ::testing::Test {
 
    protected:
     void testSearch(const std::string& fen, int expectedScore, Move expectedMove) {
+        ThreadPool::stopSignal = false;
         thread.set(fen, options);
         EXPECT_EQ(thread.search(), expectedScore) << fen;
         if (expectedMove != NullMove) EXPECT_EQ(thread.pv.bestMove(), expectedMove) << fen;
     }
 
     void testSearchGT(const std::string& fen, int expectedScore, Move expectedMove) {
+        ThreadPool::stopSignal = false;
         thread.set(fen, options);
         EXPECT_GT(thread.search(), expectedScore) << fen;
         if (expectedMove != NullMove) EXPECT_EQ(thread.pv.bestMove(), expectedMove) << fen;
