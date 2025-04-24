@@ -22,7 +22,7 @@ int Thread::search() {
     // 1. Iterative deepening loop
     int depth = 1 + (threadId & 1);
     for (; depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
-        stats.resetDepthStats();
+        engine->pool.stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
         int alpha = prevScore - AspirationWindow;
@@ -46,7 +46,7 @@ int Thread::search() {
 
     if (isMainThread() && engine) {
         engine->bestmove(pv.bestMove());
-        if (options.debug) engine->searchStats(stats);
+        if (options.debug) engine->searchStats();
     }
 
     return score;
@@ -59,7 +59,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
 
     // Stop search when time expires
-    if (stats.checkTime(options.movetime)) ThreadPool::stopSignal = true;
+    if (engine->pool.stats.checkTime(options.movetime)) ThreadPool::stopSignal = true;
 
     // 1. Base case: quiescence search
     if (depth == 0) {
@@ -72,16 +72,16 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     int bestScore  = -INF_SCORE;
     Move bestMove;
 
-    stats.addNode(ply);
+    engine->pool.stats.addNode(ply);
 
     // 2. Check the transposition table
     TT::Entry* entry = nullptr;
     if constexpr (!isPV) {
-        stats.addTTProbe(ply);
+        engine->pool.stats.addTTProbe(ply);
         entry = TT::table.probe(key);
 
         if (entry->isValid(key) && entry->depth >= depth) {
-            stats.addTTHit(ply);
+            engine->pool.stats.addTTHit(ply);
             auto score    = TT::score(entry->score, -ply);
             auto bestMove = entry->bestMove;
             auto flag     = entry->flag;
@@ -89,15 +89,15 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             TT::table.release(key);
 
             if (entry->flag == TT::EXACT) {
-                stats.addTTCutoff(ply);
+                engine->pool.stats.addTTCutoff(ply);
                 return score;
             }
             if (entry->flag == TT::LOWERBOUND && score >= beta) {
-                stats.addTTCutoff(ply);
+                engine->pool.stats.addTTCutoff(ply);
                 return score;
             }
             if (entry->flag == TT::UPPERBOUND && score <= alpha) {
-                stats.addTTCutoff(ply);
+                engine->pool.stats.addTTCutoff(ply);
                 return score;
             }
         } else {
@@ -171,9 +171,9 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             bestMove  = move;
             if (isPV && score > alpha) {
                 pv.update(ply, move);
-            }
-            if constexpr (isRoot) {
-                if (isMainThread() && engine) engine->info(score, depth, stats, pv);
+                if constexpr (isRoot) {
+                    if (isMainThread() && engine) engine->info(score, depth, pv);
+                }
             }
         }
 
@@ -182,7 +182,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         if (alpha >= beta) {
             // Beta cut-off
             heuristics.addBetaCutoff(board, move, ply);
-            stats.addBetaCutoff(ply, move == moves[0]);
+            engine->pool.stats.addBetaCutoff(ply, move == moves[0]);
             break;
         }
     }
@@ -207,7 +207,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
 
     if constexpr (isRoot) {
-        if (isMainThread() && engine) engine->info(bestScore, depth, stats, pv);
+        if (isMainThread() && engine) engine->info(bestScore, depth, pv);
     }
 
     return bestScore;
@@ -218,7 +218,7 @@ template int Thread::alphabeta<NodeType::Root>(int, int, int);
 int Thread::quiescence(int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
     int standPat = eval(board);
-    stats.addQNode(ply);
+    engine->pool.stats.addQNode(ply);
 
     if (standPat >= beta) {
         // beta cutoff
@@ -250,7 +250,7 @@ int Thread::quiescence(int alpha, int beta) {
 
         if (score >= beta) {
             // beta cutoff
-            stats.addBetaCutoff(ply, move == moves[0]);
+            engine->pool.stats.addBetaCutoff(ply, move == moves[0]);
             return beta;
         }
         if (score > alpha) {

@@ -1,4 +1,5 @@
 #include <array>
+#include <atomic>
 #include <chrono>
 
 #include "constants.hpp"
@@ -6,10 +7,11 @@
 constexpr U64 NodeInterval = 8196;
 
 struct SearchStats {
+    bool debug = true;
+
+    std::atomic<U64> totalNodes{0};
     using TimePoint     = std::chrono::high_resolution_clock::time_point;
     TimePoint startTime = std::chrono::high_resolution_clock::now();
-    U64 totalNodes      = 0;
-    bool debug          = true;
 
     std::array<U64, MAX_DEPTH> nodes{};
     std::array<U64, MAX_DEPTH> qNodes{};
@@ -71,7 +73,10 @@ struct SearchStats {
         return 0;
     }
 
-    void reset() { *this = {}; }
+    void reset() {
+        resetDepthStats();
+        totalNodes.store(0);
+    }
 
     void resetDepthStats() {
         nodes         = {};

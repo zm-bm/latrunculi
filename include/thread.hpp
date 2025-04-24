@@ -104,27 +104,8 @@ class ThreadPool {
     static inline std::atomic<bool> stopSignal{false};
     friend class SearchBenchmark;
 
+    SearchStats stats;
+
    private:
     std::vector<std::unique_ptr<Thread>> threads;
-};
-
-class Logger {
-   public:
-    Logger(std::ostream& output) : output(output) { mutex_.lock(); }  // Lock when object is created
-    ~Logger() { mutex_.unlock(); }  // Unlock when object is destroyed
-
-    template <typename T>
-    Logger& operator<<(const T& value) {
-        output << value;
-        return *this;
-    }
-
-    Logger& operator<<(std::ostream& (*manip)(std::ostream&)) {
-        output << manip;  // Handle std::endl, std::flush, etc.
-        return *this;
-    }
-
-   private:
-    static inline std::mutex mutex_;
-    std::ostream& output;
 };

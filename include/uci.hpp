@@ -21,7 +21,7 @@ class Engine {
 
    private:
     Board board           = Board(STARTFEN);
-    ThreadPool threads    = ThreadPool(SEARCH_THREADS, this);
+    ThreadPool pool       = ThreadPool(SEARCH_THREADS, this);
     SearchOptions options = {};
     std::ostream& out;
     std::istream& in;
@@ -37,13 +37,10 @@ class Engine {
     // output
     void uci();
     void bestmove(Move);
-    void info(int, int, SearchStats&, PrincipalVariation&);
-    void searchStats(const SearchStats&);
+    void info(int, int, PrincipalVariation&);
+    void searchStats();
 
     friend class ::Thread;
 };
-
-void printInfo(std::ostream&, int, int, SearchStats&, PrincipalVariation&);
-void printDebuggingInfo(std::ostream&, const SearchStats&);
 
 }  // namespace UCI
