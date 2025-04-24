@@ -7,7 +7,7 @@
 #include "tt.hpp"
 #include "uci.hpp"
 
-constexpr int AspirationWindow = 38;
+constexpr int AspirationWindow = 50;
 constexpr int LmrMoves         = 2;
 constexpr int LmrDepth         = 3;
 constexpr int FutilityMargin   = 300;
