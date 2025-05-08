@@ -1,5 +1,6 @@
-#include <iostream>
 #include <gtest/gtest.h>
+
+#include <iostream>
 
 #include "magics.hpp"
 #include "zobrist.hpp"

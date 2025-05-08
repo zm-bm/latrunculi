@@ -183,15 +183,15 @@ void Engine::bestmove(Move move) { out << "bestmove " << move << std::endl; }
 void Engine::info(int score, int depth, PrincipalVariation& pv) {
     using namespace std::chrono;
 
-    auto dur = high_resolution_clock::now() - pool.stats.startTime;
+    auto dur = high_resolution_clock::now() - stats.startTime;
     auto sec = duration_cast<duration<double>>(dur).count();
-    auto nps = (sec > 0) ? pool.stats.totalNodes / sec : 0;
+    auto nps = (sec > 0) ? stats.totalNodes / sec : 0;
 
     out << std::fixed;
     out << "info depth " << depth;
     out << " score " << formatScore(score);
     out << " time " << static_cast<int>(sec * 1000);
-    out << " nodes " << pool.stats.totalNodes;
+    out << " nodes " << stats.totalNodes;
     out << " nps " << static_cast<int>(nps);
     out << " pv";
     for (auto& move : pv[0]) out << " " << move;
@@ -207,17 +207,17 @@ void Engine::searchStats() {
         << " | " << std::setw(6) << "TTCut%"
         << " | " << std::setw(13) << "EBF / Cumul" << "\n";
 
-    int maxDepth = pool.stats.maxDepth();
+    int maxDepth = stats.maxDepth();
     for (size_t d = 1; d < maxDepth; ++d) {
-        U64 nodes   = pool.stats.nodes[d];
-        U64 prev    = pool.stats.nodes[d - 1];
-        U64 qnodes  = pool.stats.qNodes[d];
-        U64 cutoffs = pool.stats.cutoffs[d];
-        U64 early   = pool.stats.failHighEarly[d];
-        U64 late    = pool.stats.failHighLate[d];
-        U64 probes  = pool.stats.ttProbes[d];
-        U64 hits    = pool.stats.ttHits[d];
-        U64 cutTT   = pool.stats.ttCutoffs[d];
+        U64 nodes   = stats.nodes[d];
+        U64 prev    = stats.nodes[d - 1];
+        U64 qnodes  = stats.qNodes[d];
+        U64 cutoffs = stats.cutoffs[d];
+        U64 early   = stats.failHighEarly[d];
+        U64 late    = stats.failHighLate[d];
+        U64 probes  = stats.ttProbes[d];
+        U64 hits    = stats.ttHits[d];
+        U64 cutTT   = stats.ttCutoffs[d];
 
         double quiesPct   = nodes > 0 ? 100.0 * qnodes / nodes : 0.0;
         double earlyPct   = cutoffs > 0 ? 100.0 * early / cutoffs : 0.0;

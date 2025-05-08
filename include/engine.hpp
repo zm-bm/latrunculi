@@ -4,6 +4,7 @@
 
 #include "board.hpp"
 #include "constants.hpp"
+#include "stats.hpp"
 #include "thread.hpp"
 
 struct Move;
@@ -20,9 +21,12 @@ class Engine {
     bool execute(const std::string&);
 
    private:
-    Board board           = Board(STARTFEN);
-    ThreadPool pool       = ThreadPool(SEARCH_THREADS, this);
-    SearchOptions options = {};
+    Board board     = Board(STARTFEN);
+    ThreadPool pool = ThreadPool(SEARCH_THREADS, this);
+
+    SearchOptions options;
+    SearchStats stats;
+
     std::ostream& out;
     std::istream& in;
 

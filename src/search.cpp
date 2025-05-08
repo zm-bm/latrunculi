@@ -22,7 +22,7 @@ int Thread::search() {
     // 1. Iterative deepening loop
     int depth = 1 + (threadId & 1);
     for (; depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
-        engine->pool.stats.resetDepthStats();
+        engine->stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
         int alpha = prevScore - AspirationWindow;
@@ -59,7 +59,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
 
     // Stop search when time expires
-    if (engine->pool.stats.checkTime(options.movetime)) ThreadPool::stopSignal = true;
+    if (engine->stats.checkTime(options.movetime)) ThreadPool::stopSignal = true;
 
     // 1. Base case: quiescence search
     if (depth == 0) {
@@ -72,16 +72,16 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     int bestScore  = -INF_SCORE;
     Move bestMove;
 
-    engine->pool.stats.addNode(ply);
+    engine->stats.addNode(ply);
 
     // 2. Check the transposition table
     TT::Entry* entry = nullptr;
     if constexpr (!isPV) {
-        engine->pool.stats.addTTProbe(ply);
+        engine->stats.addTTProbe(ply);
         entry = TT::table.probe(key);
 
         if (entry->isValid(key) && entry->depth >= depth) {
-            engine->pool.stats.addTTHit(ply);
+            engine->stats.addTTHit(ply);
             auto score    = TT::score(entry->score, -ply);
             auto bestMove = entry->bestMove;
             auto flag     = entry->flag;
@@ -89,15 +89,15 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             TT::table.release(key);
 
             if (entry->flag == TT::EXACT) {
-                engine->pool.stats.addTTCutoff(ply);
+                engine->stats.addTTCutoff(ply);
                 return score;
             }
             if (entry->flag == TT::LOWERBOUND && score >= beta) {
-                engine->pool.stats.addTTCutoff(ply);
+                engine->stats.addTTCutoff(ply);
                 return score;
             }
             if (entry->flag == TT::UPPERBOUND && score <= alpha) {
-                engine->pool.stats.addTTCutoff(ply);
+                engine->stats.addTTCutoff(ply);
                 return score;
             }
         } else {
@@ -182,7 +182,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         if (alpha >= beta) {
             // Beta cut-off
             heuristics.addBetaCutoff(board, move, ply);
-            engine->pool.stats.addBetaCutoff(ply, move == moves[0]);
+            engine->stats.addBetaCutoff(ply, move == moves[0]);
             break;
         }
     }
@@ -218,7 +218,7 @@ template int Thread::alphabeta<NodeType::Root>(int, int, int);
 int Thread::quiescence(int alpha, int beta) {
     // 1. Evaluate the current position (stand-pat).
     int standPat = eval(board);
-    engine->pool.stats.addQNode(ply);
+    engine->stats.addQNode(ply);
 
     if (standPat >= beta) {
         // beta cutoff
@@ -250,7 +250,7 @@ int Thread::quiescence(int alpha, int beta) {
 
         if (score >= beta) {
             // beta cutoff
-            engine->pool.stats.addBetaCutoff(ply, move == moves[0]);
+            engine->stats.addBetaCutoff(ply, move == moves[0]);
             return beta;
         }
         if (score > alpha) {

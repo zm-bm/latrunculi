@@ -38,9 +38,9 @@ void Thread::wait() {
 void Thread::set(const std::string& fen, SearchOptions& options) {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        board                          = Board(fen, this);
-        this->options                  = options;
-        this->engine->pool.stats.debug = options.debug;
+        board                     = Board(fen, this);
+        this->options             = options;
+        this->engine->stats.debug = options.debug;
     }
 }
 
@@ -62,7 +62,7 @@ void Thread::loop() {
 }
 
 void Thread::reset() {
-    engine->pool.stats.reset();
+    engine->stats.reset();
     ply = 0;
     pv.clear();
 }
