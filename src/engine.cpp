@@ -1,4 +1,4 @@
-#include "uci.hpp"
+#include "engine.hpp"
 
 #include <chrono>
 #include <complex>
@@ -10,8 +10,6 @@
 #include "movegen.hpp"
 #include "thread.hpp"
 #include "tt.hpp"
-
-namespace UCI {
 
 void Engine::loop() {
     uci();
@@ -242,5 +240,3 @@ void Engine::searchStats() {
         out << std::setw(5) << std::setprecision(1) << cumulative << "\n";
     }
 }
-
-}  // namespace UCI

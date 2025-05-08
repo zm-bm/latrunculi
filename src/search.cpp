@@ -1,11 +1,11 @@
 #include <algorithm>
 
 #include "board.hpp"
+#include "engine.hpp"
 #include "eval.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"
 #include "tt.hpp"
-#include "uci.hpp"
 
 constexpr int AspirationWindow = 50;
 constexpr int LmrMoves         = 2;

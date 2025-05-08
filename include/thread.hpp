@@ -13,9 +13,7 @@
 #include "types.hpp"
 
 // forward declare
-namespace UCI {
 class Engine;
-};
 
 struct SearchOptions {
     bool debug   = SEARCH_DEBUG;
@@ -51,7 +49,7 @@ class ThreadPool;
 
 class Thread {
    public:
-    Thread(int id, UCI::Engine* engine);
+    Thread(int id, Engine* engine);
     ~Thread();
 
     void start();
@@ -86,7 +84,7 @@ class Thread {
     const int threadId;
 
     std::thread thread;
-    UCI::Engine* engine;
+    Engine* engine;
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -94,7 +92,7 @@ class Thread {
 
 class ThreadPool {
    public:
-    ThreadPool(size_t numThreads, UCI::Engine* engine);
+    ThreadPool(size_t numThreads, Engine* engine);
     ~ThreadPool();
 
     void startAll(Board&, SearchOptions&);

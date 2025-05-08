@@ -7,10 +7,10 @@
 #include <thread>
 #include <vector>
 
+#include "engine.hpp"
 #include "eval.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"
-#include "uci.hpp"
 
 using EPDCases = std::vector<std::tuple<std::string, std::string, std::string>>;
 
@@ -60,7 +60,7 @@ EPDCases readEPDFile(const std::string& filename) {
 
 class SearchBenchmark : public ::testing::Test {
    private:
-    UCI::Engine engine{oss, iss};
+    Engine engine{oss, iss};
     ThreadPool pool{1, &engine};
 
    protected:

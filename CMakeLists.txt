@@ -27,6 +27,7 @@ target_link_libraries(latrunculi lib)
 # Enable testing
 enable_testing()
 
+
 # Add Google Test submodule
 add_subdirectory(third_party/googletest)
 

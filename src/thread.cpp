@@ -2,9 +2,9 @@
 
 #include <memory>
 
-#include "uci.hpp"
+#include "engine.hpp"
 
-Thread::Thread(int id, UCI::Engine* engine)
+Thread::Thread(int id, Engine* engine)
     : threadId(id), thread(&Thread::loop, this), engine(engine) {}
 
 Thread::~Thread() {
@@ -69,7 +69,7 @@ void Thread::reset() {
 
 bool Thread::isMainThread() { return threadId == 0; }
 
-ThreadPool::ThreadPool(size_t numThreads, UCI::Engine* engine) {
+ThreadPool::ThreadPool(size_t numThreads, Engine* engine) {
     for (size_t i = 0; i < numThreads; ++i) {
         threads.push_back(std::make_unique<Thread>(i, engine));
     }

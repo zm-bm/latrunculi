@@ -2,15 +2,15 @@
 #include <gtest/gtest.h>
 
 #include "constants.hpp"
+#include "engine.hpp"
 #include "thread.hpp"
-#include "uci.hpp"
 
 std::ostringstream oss;
 
 class SearchTest : public ::testing::Test {
    private:
     SearchOptions options{false, 10, 2000};
-    UCI::Engine engine{std::cout, std::cin};
+    Engine engine{std::cout, std::cin};
     Thread thread{0, &engine};
 
    protected:

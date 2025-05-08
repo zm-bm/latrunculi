@@ -8,10 +8,10 @@
 
 struct Move;
 
-// Universal Chess Interface (UCI)
-// http://wbec-ridderkerk.nl/html/UCIProtocol.html
-namespace UCI {
-
+/**
+ * @brief UCI chess engine
+ * http://wbec-ridderkerk.nl/html/UCIProtocol.html
+ */
 class Engine {
    public:
     Engine(std::ostream& out, std::istream& in) : out(out), in(in) {}
@@ -42,5 +42,3 @@ class Engine {
 
     friend class ::Thread;
 };
-
-}  // namespace UCI
