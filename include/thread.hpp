@@ -40,8 +40,6 @@ struct PrincipalVariation {
     }
 };
 
-class ThreadPool;
-
 class Thread {
    public:
     Thread(int id, Engine* engine);
@@ -56,6 +54,7 @@ class Thread {
     PrincipalVariation pv;
     Heuristics heuristics;
     Options options;
+    SearchStats stats;
     int ply;
 
    private:
@@ -94,9 +93,11 @@ class ThreadPool {
     void waitAll();
 
     static inline std::atomic<bool> stopSignal{false};
+    static inline std::chrono::high_resolution_clock::time_point startTime;
+
     friend class SearchBenchmark;
 
-    SearchStats stats;
+    SearchStats aggregateStats() const;
 
    private:
     std::vector<std::unique_ptr<Thread>> threads;

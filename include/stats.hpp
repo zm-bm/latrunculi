@@ -6,32 +6,21 @@
 
 #include "constants.hpp"
 
-constexpr U64 NodeInterval = 8196;
+constexpr U64 NodeInterval = 1000;
 
 struct SearchStats {
     bool debug = true;
 
-    std::atomic<U64> totalNodes{0};
-    using TimePoint     = std::chrono::high_resolution_clock::time_point;
-    TimePoint startTime = std::chrono::high_resolution_clock::now();
+    U64 totalNodes{0};
 
-    std::array<U64, MAX_DEPTH> nodes{};
-    std::array<U64, MAX_DEPTH> qNodes{};
-    std::array<U64, MAX_DEPTH> cutoffs{};
-    std::array<U64, MAX_DEPTH> failHighEarly{};
-    std::array<U64, MAX_DEPTH> failHighLate{};
-    std::array<U64, MAX_DEPTH> ttProbes{};
-    std::array<U64, MAX_DEPTH> ttHits{};
-    std::array<U64, MAX_DEPTH> ttCutoffs{};
-
-    bool checkTime(int movetime) const {
-        return totalNodes % NodeInterval == 0 && elapsedTime() > movetime;
-    }
-
-    int elapsedTime() const {
-        auto now = std::chrono::high_resolution_clock::now();
-        return std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
-    }
+    std::array<U64, MAX_DEPTH> nodes{0};
+    std::array<U64, MAX_DEPTH> qNodes{0};
+    std::array<U64, MAX_DEPTH> cutoffs{0};
+    std::array<U64, MAX_DEPTH> failHighEarly{0};
+    std::array<U64, MAX_DEPTH> failHighLate{0};
+    std::array<U64, MAX_DEPTH> ttProbes{0};
+    std::array<U64, MAX_DEPTH> ttHits{0};
+    std::array<U64, MAX_DEPTH> ttCutoffs{0};
 
     void addNode(int ply) {
         totalNodes++;
@@ -77,7 +66,7 @@ struct SearchStats {
 
     void reset() {
         resetDepthStats();
-        totalNodes.store(0);
+        totalNodes = 0;
     }
 
     void resetDepthStats() {

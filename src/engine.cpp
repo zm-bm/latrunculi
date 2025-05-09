@@ -183,7 +183,10 @@ void Engine::bestmove(Move move) { out << "bestmove " << move << std::endl; }
 void Engine::info(int score, int depth, PrincipalVariation& pv) {
     using namespace std::chrono;
 
-    auto dur = high_resolution_clock::now() - stats.startTime;
+    // Aggregate stats from all threads
+    SearchStats stats = pool.aggregateStats();
+
+    auto dur = high_resolution_clock::now() - pool.startTime;
     auto sec = duration_cast<duration<double>>(dur).count();
     auto nps = (sec > 0) ? stats.totalNodes / sec : 0;
 
@@ -199,6 +202,9 @@ void Engine::info(int score, int depth, PrincipalVariation& pv) {
 }
 
 void Engine::searchStats() {
+    // Aggregate stats from all threads
+    SearchStats stats = pool.aggregateStats();
+
     out << "\n"
         << std::setw(5) << "Depth"
         << " | " << std::setw(18) << "Nodes (QNode%)"

@@ -28,8 +28,6 @@ class Engine {
     void info(int, int, PrincipalVariation&);
     void searchStats();
 
-    SearchStats stats;
-
    private:
     Board board     = Board(STARTFEN);
     ThreadPool pool = ThreadPool(SEARCH_THREADS, this);

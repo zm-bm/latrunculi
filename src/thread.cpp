@@ -38,9 +38,9 @@ void Thread::wait() {
 void Thread::set(const std::string& fen, Options& options) {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        board                     = Board(fen, this);
-        this->options             = options;
-        this->engine->stats.debug = options.debug;
+        board             = Board(fen, this);
+        this->options     = options;
+        this->stats.debug = options.debug;
     }
 }
 
@@ -62,7 +62,7 @@ void Thread::loop() {
 }
 
 void Thread::reset() {
-    engine->stats.reset();
+    stats.reset();
     ply = 0;
     pv.clear();
 }
@@ -79,6 +79,8 @@ ThreadPool::~ThreadPool() { stopAll(); }
 
 void ThreadPool::startAll(Board& board, Options& options) {
     stopSignal = false;
+    startTime  = std::chrono::high_resolution_clock::now();
+
     for (auto& thread : threads) {
         thread->set(board.toFEN(), options);
         thread->start();
@@ -92,4 +94,26 @@ void ThreadPool::waitAll() {
     for (auto& thread : threads) {
         thread->wait();
     }
+}
+
+SearchStats ThreadPool::aggregateStats() const {
+    SearchStats stats;
+
+    for (const auto& thread : threads) {
+        const auto& threadStats = thread->stats;
+
+        stats.totalNodes += threadStats.totalNodes;
+        for (size_t i = 0; i < MAX_DEPTH; ++i) {
+            stats.nodes[i]         += threadStats.nodes[i];
+            stats.qNodes[i]        += threadStats.qNodes[i];
+            stats.cutoffs[i]       += threadStats.cutoffs[i];
+            stats.failHighEarly[i] += threadStats.failHighEarly[i];
+            stats.failHighLate[i]  += threadStats.failHighLate[i];
+            stats.ttProbes[i]      += threadStats.ttProbes[i];
+            stats.ttHits[i]        += threadStats.ttHits[i];
+            stats.ttCutoffs[i]     += threadStats.ttCutoffs[i];
+        }
+    }
+
+    return stats;
 }
