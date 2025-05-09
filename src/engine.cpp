@@ -40,7 +40,7 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "go") {
         go(iss);
     } else if (token == "stop") {
-        pool.stopAll();
+        threadpool.stopAll();
     } else if (token == "ponderhit") {
         std::cout << "to be implemented" << std::endl;
     } else if (token == "quit" || token == "exit") {
@@ -67,9 +67,9 @@ void Engine::setdebug(std::istringstream& iss) {
     iss >> token;
 
     if (token == "on") {
-        options.debug = true;
+        context.debug = true;
     } else if (token == "off") {
-        options.debug = false;
+        context.debug = false;
     }
 }
 
@@ -120,15 +120,16 @@ void Engine::go(std::istringstream& iss) {
     while (iss >> token) {
         if (token == "depth") {
             iss >> token;
-            options.depth = std::stoi(token);
+            context.depth = std::stoi(token);
         }
         if (token == "movetime") {
             iss >> token;
-            options.movetime = std::stoi(token);
+            context.movetime = std::stoi(token);
         }
     }
 
-    pool.startAll(board, options);
+    context.startTime = std::chrono::high_resolution_clock::now();
+    threadpool.startAll(board, context);
 }
 
 void Engine::move(std::istringstream& iss) {
@@ -181,12 +182,10 @@ void Engine::uci() {
 void Engine::bestmove(Move move) { out << "bestmove " << move << std::endl; }
 
 void Engine::info(int score, int depth, PrincipalVariation& pv) {
+    SearchStats stats = threadpool.aggregateStats();
+
     using namespace std::chrono;
-
-    // Aggregate stats from all threads
-    SearchStats stats = pool.aggregateStats();
-
-    auto dur = high_resolution_clock::now() - pool.startTime;
+    auto dur = high_resolution_clock::now() - context.startTime;
     auto sec = duration_cast<duration<double>>(dur).count();
     auto nps = (sec > 0) ? stats.totalNodes / sec : 0;
 
@@ -202,8 +201,7 @@ void Engine::info(int score, int depth, PrincipalVariation& pv) {
 }
 
 void Engine::searchStats() {
-    // Aggregate stats from all threads
-    SearchStats stats = pool.aggregateStats();
+    SearchStats stats = threadpool.aggregateStats();
 
     out << "\n"
         << std::setw(5) << "Depth"

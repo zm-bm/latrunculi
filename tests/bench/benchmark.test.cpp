@@ -14,7 +14,7 @@
 
 using EPDCases = std::vector<std::tuple<std::string, std::string, std::string>>;
 
-Options options{false, 20, 10000};
+SearchContext context{false, 20, 10000};
 std::ostringstream oss;
 std::istringstream iss;
 
@@ -61,14 +61,14 @@ EPDCases readEPDFile(const std::string& filename) {
 class SearchBenchmark : public ::testing::Test {
    private:
     Engine engine{oss, iss};
-    ThreadPool pool{1, &engine};
+    ThreadPool threadpool{1, &engine};
 
    protected:
     void testSearch(Board& board, std::string& bestMove, std::string& avoidMove) {
         oss.str("");
         oss.clear();
-        pool.startAll(board, options);
-        pool.waitAll();
+        threadpool.startAll(board, context);
+        threadpool.waitAll();
     }
 };
 

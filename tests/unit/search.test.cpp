@@ -9,21 +9,25 @@ std::ostringstream oss;
 
 class SearchTest : public ::testing::Test {
    private:
-    Options options{false, 10, 2000};
+    SearchContext context{false, 10, 2000};
     Engine engine{std::cout, std::cin};
     Thread thread{0, &engine};
 
    protected:
     void testSearch(const std::string& fen, int expectedScore, Move expectedMove) {
         ThreadPool::stopSignal = false;
-        thread.set(fen, options);
+        context.startTime      = std::chrono::high_resolution_clock::now();
+        thread.set(fen, context);
+
         EXPECT_EQ(thread.search(), expectedScore) << fen;
         if (expectedMove != NullMove) EXPECT_EQ(thread.pv.bestMove(), expectedMove) << fen;
     }
 
     void testSearchGT(const std::string& fen, int expectedScore, Move expectedMove) {
         ThreadPool::stopSignal = false;
-        thread.set(fen, options);
+        context.startTime      = std::chrono::high_resolution_clock::now();
+        thread.set(fen, context);
+
         EXPECT_GT(thread.search(), expectedScore) << fen;
         if (expectedMove != NullMove) EXPECT_EQ(thread.pv.bestMove(), expectedMove) << fen;
     }

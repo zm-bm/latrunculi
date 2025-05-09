@@ -29,10 +29,9 @@ class Engine {
     void searchStats();
 
    private:
-    Board board     = Board(STARTFEN);
-    ThreadPool pool = ThreadPool(SEARCH_THREADS, this);
-
-    Options options;
+    Board board           = Board(STARTFEN);
+    ThreadPool threadpool = ThreadPool(SEARCH_THREADS, this);
+    SearchContext context;
 
     std::ostream& out;
     std::istream& in;

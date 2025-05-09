@@ -21,7 +21,7 @@ int Thread::search() {
 
     // 1. Iterative deepening loop
     int depth = 1 + (threadId & 1);
-    for (; depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
+    for (; depth <= context.depth && !ThreadPool::stopSignal; ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
@@ -46,7 +46,7 @@ int Thread::search() {
 
     if (isMainThread() && engine) {
         engine->bestmove(pv.bestMove());
-        if (options.debug) engine->searchStats();
+        if (context.debug) engine->searchStats();
     }
 
     return score;
@@ -59,13 +59,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
 
     // Stop search when time expires
-    if (stats.totalNodes % NodeInterval == 0) {
-        auto elapsed = std::chrono::high_resolution_clock::now() - ThreadPool::startTime;
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() >
-            options.movetime) {
-            ThreadPool::stopSignal = true;
-        }
-    }
+    checkTime();
 
     // 1. Base case: quiescence search
     if (depth == 0) {
@@ -273,4 +267,13 @@ int Thread::quiescence(int alpha, int beta) {
     }
 
     return alpha;
+}
+
+void Thread::checkTime() {
+    if (stats.totalNodes % NodeInterval == 0) {
+        using namespace std::chrono;
+        auto now      = high_resolution_clock::now();
+        auto duration = duration_cast<milliseconds>(now - context.startTime).count();
+        if (duration > context.movetime) ThreadPool::stopSignal = true;
+    }
 }

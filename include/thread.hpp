@@ -48,14 +48,15 @@ class Thread {
     void start();
     void stop();
     void wait();
-    void set(const std::string&, Options&);
+    void set(const std::string&, SearchContext&);
 
     Board board;
     PrincipalVariation pv;
     Heuristics heuristics;
-    Options options;
-    SearchStats stats;
     int ply;
+
+    SearchContext context;
+    SearchStats stats;
 
    private:
     // thread.cpp
@@ -68,6 +69,7 @@ class Thread {
     template <NodeType = NodeType::Root>
     int alphabeta(int, int, int);
     int quiescence(int, int);
+    void checkTime();
 
     std::mutex mutex;
     std::condition_variable condition;
@@ -88,16 +90,15 @@ class ThreadPool {
     ThreadPool(size_t numThreads, Engine* engine);
     ~ThreadPool();
 
-    void startAll(Board&, Options&);
+    void startAll(Board&, SearchContext&);
     void stopAll();
     void waitAll();
 
+    SearchStats aggregateStats() const;
+
     static inline std::atomic<bool> stopSignal{false};
-    static inline std::chrono::high_resolution_clock::time_point startTime;
 
     friend class SearchBenchmark;
-
-    SearchStats aggregateStats() const;
 
    private:
     std::vector<std::unique_ptr<Thread>> threads;
