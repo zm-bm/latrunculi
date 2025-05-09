@@ -100,19 +100,7 @@ SearchStats ThreadPool::aggregateStats() const {
     SearchStats stats;
 
     for (const auto& thread : threads) {
-        const auto& threadStats = thread->stats;
-
-        stats.totalNodes += threadStats.totalNodes;
-        for (size_t i = 0; i < MAX_DEPTH; ++i) {
-            stats.nodes[i]         += threadStats.nodes[i];
-            stats.qNodes[i]        += threadStats.qNodes[i];
-            stats.cutoffs[i]       += threadStats.cutoffs[i];
-            stats.failHighEarly[i] += threadStats.failHighEarly[i];
-            stats.failHighLate[i]  += threadStats.failHighLate[i];
-            stats.ttProbes[i]      += threadStats.ttProbes[i];
-            stats.ttHits[i]        += threadStats.ttHits[i];
-            stats.ttCutoffs[i]     += threadStats.ttCutoffs[i];
-        }
+        stats += thread->stats;
     }
 
     return stats;

@@ -22,6 +22,27 @@ struct SearchStats {
     std::array<U64, MAX_DEPTH> ttHits{0};
     std::array<U64, MAX_DEPTH> ttCutoffs{0};
 
+    SearchStats& operator+=(const SearchStats& other) {
+        totalNodes += other.totalNodes;
+        for (size_t i = 0; i < MAX_DEPTH; ++i) {
+            nodes[i]         += other.nodes[i];
+            qNodes[i]        += other.qNodes[i];
+            cutoffs[i]       += other.cutoffs[i];
+            failHighEarly[i] += other.failHighEarly[i];
+            failHighLate[i]  += other.failHighLate[i];
+            ttProbes[i]      += other.ttProbes[i];
+            ttHits[i]        += other.ttHits[i];
+            ttCutoffs[i]     += other.ttCutoffs[i];
+        }
+        return *this;
+    }
+
+    SearchStats operator+(const SearchStats& other) const {
+        SearchStats result  = *this;
+        result             += other;
+        return result;
+    }
+
     void addNode(int ply) {
         totalNodes++;
         if (debug) nodes[ply]++;
