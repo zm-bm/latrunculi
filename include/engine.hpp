@@ -4,9 +4,11 @@
 
 #include "board.hpp"
 #include "constants.hpp"
+#include "options.hpp"
 #include "stats.hpp"
 #include "thread.hpp"
 
+// forward declare
 struct Move;
 
 /**
@@ -20,29 +22,28 @@ class Engine {
     void loop();
     bool execute(const std::string&);
 
+    // UCI output
+    void uci();
+    void bestmove(Move);
+    void info(int, int, PrincipalVariation&);
+    void searchStats();
+
+    SearchStats stats;
+
    private:
     Board board     = Board(STARTFEN);
     ThreadPool pool = ThreadPool(SEARCH_THREADS, this);
 
-    SearchOptions options;
-    SearchStats stats;
+    Options options;
 
     std::ostream& out;
     std::istream& in;
 
-    // input
+    // UCI input
     void setdebug(std::istringstream& iss);
     void position(std::istringstream& iss);
     void perft(std::istringstream& iss);
     void go(std::istringstream& iss);
     void move(std::istringstream& iss);
     void moves();
-
-    // output
-    void uci();
-    void bestmove(Move);
-    void info(int, int, PrincipalVariation&);
-    void searchStats();
-
-    friend class ::Thread;
 };

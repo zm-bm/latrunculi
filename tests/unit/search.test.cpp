@@ -9,7 +9,7 @@ std::ostringstream oss;
 
 class SearchTest : public ::testing::Test {
    private:
-    SearchOptions options{false, 10, 2000};
+    Options options{false, 10, 2000};
     Engine engine{std::cout, std::cin};
     Thread thread{0, &engine};
 

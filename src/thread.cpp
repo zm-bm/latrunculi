@@ -35,7 +35,7 @@ void Thread::wait() {
     condition.wait(lock, [&] { return !runSignal; });
 }
 
-void Thread::set(const std::string& fen, SearchOptions& options) {
+void Thread::set(const std::string& fen, Options& options) {
     {
         std::lock_guard<std::mutex> lock(mutex);
         board                     = Board(fen, this);
@@ -77,7 +77,7 @@ ThreadPool::ThreadPool(size_t numThreads, Engine* engine) {
 
 ThreadPool::~ThreadPool() { stopAll(); }
 
-void ThreadPool::startAll(Board& board, SearchOptions& options) {
+void ThreadPool::startAll(Board& board, Options& options) {
     stopSignal = false;
     for (auto& thread : threads) {
         thread->set(board.toFEN(), options);

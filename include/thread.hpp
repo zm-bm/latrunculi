@@ -9,17 +9,12 @@
 #include "board.hpp"
 #include "constants.hpp"
 #include "heuristics.hpp"
+#include "options.hpp"
 #include "stats.hpp"
 #include "types.hpp"
 
 // forward declare
 class Engine;
-
-struct SearchOptions {
-    bool debug   = SEARCH_DEBUG;
-    int depth    = SEARCH_DEPTH;
-    int movetime = INT32_MAX;
-};
 
 struct PrincipalVariation {
     using Line = std::vector<Move>;
@@ -55,13 +50,12 @@ class Thread {
     void start();
     void stop();
     void wait();
-    void set(const std::string&, SearchOptions&);
+    void set(const std::string&, Options&);
 
     Board board;
     PrincipalVariation pv;
     Heuristics heuristics;
-    SearchStats stats;
-    SearchOptions options;
+    Options options;
     int ply;
 
    private:
@@ -95,7 +89,7 @@ class ThreadPool {
     ThreadPool(size_t numThreads, Engine* engine);
     ~ThreadPool();
 
-    void startAll(Board&, SearchOptions&);
+    void startAll(Board&, Options&);
     void stopAll();
     void waitAll();
 
