@@ -5,7 +5,7 @@
 #include "board.hpp"
 #include "constants.hpp"
 #include "context.hpp"
-#include "stats.hpp"
+#include "statistics.hpp"
 #include "thread.hpp"
 
 // forward declare
@@ -31,7 +31,7 @@ class Engine {
    private:
     Board board           = Board(STARTFEN);
     ThreadPool threadpool = ThreadPool(SEARCH_THREADS, this);
-    SearchContext context;
+    Context context;
 
     std::ostream& out;
     std::istream& in;

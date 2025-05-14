@@ -160,6 +160,16 @@ void Engine::moves() {
     }
 }
 
+// output
+
+void Engine::uci() {
+    out << "id name Latrunculi 0.1.0" << std::endl;
+    out << "id author Eric VanderHelm" << std::endl;
+    out << "uciok" << std::endl;
+}
+
+void Engine::bestmove(Move move) { out << "bestmove " << move << std::endl; }
+
 std::string formatScore(int score) {
     std::ostringstream oss;
     if (isMateScore(score)) {
@@ -171,18 +181,8 @@ std::string formatScore(int score) {
     return oss.str();
 }
 
-// output
-
-void Engine::uci() {
-    out << "id name Latrunculi 0.1.0" << std::endl;
-    out << "id author Eric VanderHelm" << std::endl;
-    out << "uciok" << std::endl;
-}
-
-void Engine::bestmove(Move move) { out << "bestmove " << move << std::endl; }
-
 void Engine::info(int score, int depth, PrincipalVariation& pv) {
-    SearchStats stats = threadpool.aggregateStats();
+    Statistics stats = threadpool.aggregateStats();
 
     using namespace std::chrono;
     auto dur = high_resolution_clock::now() - context.startTime;
@@ -201,7 +201,7 @@ void Engine::info(int score, int depth, PrincipalVariation& pv) {
 }
 
 void Engine::searchStats() {
-    SearchStats stats = threadpool.aggregateStats();
+    Statistics stats = threadpool.aggregateStats();
 
     out << "\n"
         << std::setw(5) << "Depth"

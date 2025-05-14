@@ -5,10 +5,17 @@
 #include "types.hpp"
 
 struct Move {
-    // Bit Layout for U16 'value'
-    // | 15-14 | 13-12 | 11-6  | 5-0     |
-    // | promo | mtype | to sq | from sq |
+    /**
+     * @brief move encoding
+     * @details
+     * 6 bits for from square (0-5)
+     * 6 bits for to square (6-11)
+     * 2 bits for move type (12-13)
+     * 2 bits for promo piece (14-15)
+     */
     U16 value{0};
+
+    /// @brief move priority used for sorting
     U16 priority{0};
 
     constexpr Move() = default;

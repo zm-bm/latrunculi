@@ -35,7 +35,7 @@ void Thread::wait() {
     condition.wait(lock, [&] { return !runSignal; });
 }
 
-void Thread::set(const std::string& fen, SearchContext& context) {
+void Thread::set(const std::string& fen, Context& context) {
     {
         std::lock_guard<std::mutex> lock(mutex);
         board             = Board(fen, this);
@@ -77,7 +77,7 @@ ThreadPool::ThreadPool(size_t numThreads, Engine* engine) {
 
 ThreadPool::~ThreadPool() { stopAll(); }
 
-void ThreadPool::startAll(Board& board, SearchContext& context) {
+void ThreadPool::startAll(Board& board, Context& context) {
     stopSignal = false;
 
     for (auto& thread : threads) {
@@ -95,8 +95,8 @@ void ThreadPool::waitAll() {
     }
 }
 
-SearchStats ThreadPool::aggregateStats() const {
-    SearchStats stats;
+Statistics ThreadPool::aggregateStats() const {
+    Statistics stats;
 
     for (const auto& thread : threads) {
         stats += thread->stats;
