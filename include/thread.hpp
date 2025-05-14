@@ -24,15 +24,16 @@ class Thread {
     void start();
     void stop();
     void wait();
-    void set(const std::string&, Context&);
+    void set(const std::string&, Context&, TimePoint startTime = Clock::now());
 
     Board board;
     PrincipalVariation pv;
     Heuristics heuristics;
+    Statistics stats;
     int ply;
 
     Context context;
-    Statistics stats;
+    TimePoint startTime;
 
    private:
     // thread.cpp
@@ -69,7 +70,6 @@ class ThreadPool {
     void startAll(Board&, Context&);
     void stopAll();
     void waitAll();
-
     Statistics aggregateStats() const;
 
     static inline std::atomic<bool> stopSignal{false};

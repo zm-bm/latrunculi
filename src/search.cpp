@@ -172,7 +172,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             if (isPV && score > alpha) {
                 pv.update(ply, move);
                 if constexpr (isRoot) {
-                    if (isMainThread() && engine) engine->info(score, depth, pv);
+                    // todo: add thread.info
+                    auto dur = Clock::now() - startTime;
+                    auto sec = std::chrono::duration_cast<Duration>(dur).count();
+                    if (isMainThread() && engine) engine->info(score, depth, pv, sec);
                 }
             }
         }
@@ -207,7 +210,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
 
     if constexpr (isRoot) {
-        if (isMainThread() && engine) engine->info(bestScore, depth, pv);
+        // todo: add thread.info
+        auto dur = Clock::now() - startTime;
+        auto sec = std::chrono::duration_cast<Duration>(dur).count();
+        if (isMainThread() && engine) engine->info(bestScore, depth, pv, sec);
     }
 
     return bestScore;
@@ -271,9 +277,8 @@ int Thread::quiescence(int alpha, int beta) {
 
 void Thread::checkTime() {
     if (stats.totalNodes % NodeInterval == 0) {
-        using namespace std::chrono;
-        auto now      = high_resolution_clock::now();
-        auto duration = duration_cast<milliseconds>(now - context.startTime).count();
+        auto dur      = Clock::now() - startTime;
+        auto duration = std::chrono::duration_cast<Milliseconds>(dur).count();
         if (duration > context.movetime) ThreadPool::stopSignal = true;
     }
 }

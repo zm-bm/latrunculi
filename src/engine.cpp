@@ -128,7 +128,6 @@ void Engine::go(std::istringstream& iss) {
         }
     }
 
-    context.startTime = std::chrono::high_resolution_clock::now();
     threadpool.startAll(board, context);
 }
 
@@ -181,18 +180,15 @@ std::string formatScore(int score) {
     return oss.str();
 }
 
-void Engine::info(int score, int depth, PrincipalVariation& pv) {
+void Engine::info(int score, int depth, PrincipalVariation& pv, double seconds) {
     Statistics stats = threadpool.aggregateStats();
 
-    using namespace std::chrono;
-    auto dur = high_resolution_clock::now() - context.startTime;
-    auto sec = duration_cast<duration<double>>(dur).count();
-    auto nps = (sec > 0) ? stats.totalNodes / sec : 0;
+    auto nps = (seconds > 0) ? stats.totalNodes / seconds : 0;
 
     out << std::fixed;
     out << "info depth " << depth;
     out << " score " << formatScore(score);
-    out << " time " << static_cast<int>(sec * 1000);
+    out << " time " << static_cast<int>(seconds * 1000);
     out << " nodes " << stats.totalNodes;
     out << " nps " << static_cast<int>(nps);
     out << " pv";

@@ -16,7 +16,6 @@ class SearchTest : public ::testing::Test {
    protected:
     void testSearch(const std::string& fen, int expectedScore, Move expectedMove) {
         ThreadPool::stopSignal = false;
-        context.startTime      = std::chrono::high_resolution_clock::now();
         thread.set(fen, context);
 
         EXPECT_EQ(thread.search(), expectedScore) << fen;
@@ -25,7 +24,6 @@ class SearchTest : public ::testing::Test {
 
     void testSearchGT(const std::string& fen, int expectedScore, Move expectedMove) {
         ThreadPool::stopSignal = false;
-        context.startTime      = std::chrono::high_resolution_clock::now();
         thread.set(fen, context);
 
         EXPECT_GT(thread.search(), expectedScore) << fen;
