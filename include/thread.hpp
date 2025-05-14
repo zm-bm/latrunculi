@@ -8,8 +8,8 @@
 
 #include "board.hpp"
 #include "constants.hpp"
+#include "context.hpp"
 #include "heuristics.hpp"
-#include "options.hpp"
 #include "stats.hpp"
 #include "types.hpp"
 

@@ -4,7 +4,7 @@
 
 #include "board.hpp"
 #include "constants.hpp"
-#include "options.hpp"
+#include "context.hpp"
 #include "stats.hpp"
 #include "thread.hpp"
 
