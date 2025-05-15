@@ -68,8 +68,6 @@ void Thread::reset() {
     pv.clear();
 }
 
-bool Thread::isMainThread() { return threadId == 0; }
-
 ThreadPool::ThreadPool(size_t numThreads, Engine* engine) {
     for (size_t i = 0; i < numThreads; ++i) {
         threads.push_back(std::make_unique<Thread>(i, engine));

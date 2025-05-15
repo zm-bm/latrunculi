@@ -18,7 +18,6 @@ using I8  = int8_t;
 
 using Clock        = std::chrono::high_resolution_clock;
 using TimePoint    = Clock::time_point;
-using Duration     = std::chrono::duration<double>;
 using Milliseconds = std::chrono::milliseconds;
 
 enum class NodeType { Root, PV, NonPV };

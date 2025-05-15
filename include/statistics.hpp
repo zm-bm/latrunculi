@@ -6,7 +6,7 @@
 
 #include "constants.hpp"
 
-constexpr U64 NodeInterval = 1000;
+constexpr U64 NODE_INTERVAL = 10000;
 
 struct Statistics {
     bool debug = true;
@@ -100,4 +100,6 @@ struct Statistics {
         ttHits        = {};
         ttCutoffs     = {};
     }
+
+    bool isAtNodeInterval() const { return totalNodes % NODE_INTERVAL == 0; }
 };

@@ -180,17 +180,16 @@ std::string formatScore(int score) {
     return oss.str();
 }
 
-void Engine::info(int score, int depth, PrincipalVariation& pv, double seconds) {
+void Engine::info(int score, int depth, Milliseconds searchtime, PrincipalVariation& pv) {
     Statistics stats = threadpool.aggregateStats();
-
-    auto nps = (seconds > 0) ? stats.totalNodes / seconds : 0;
+    auto time        = searchtime.count();
 
     out << std::fixed;
     out << "info depth " << depth;
     out << " score " << formatScore(score);
-    out << " time " << static_cast<int>(seconds * 1000);
+    out << " time " << time;
     out << " nodes " << stats.totalNodes;
-    out << " nps " << static_cast<int>(nps);
+    out << " nps " << (time > 0 ? (stats.totalNodes * 1000 / time) : 0);
     out << " pv";
     for (auto& move : pv[0]) out << " " << move;
     out << std::endl;

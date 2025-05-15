@@ -25,7 +25,7 @@ class Engine {
     // UCI output
     void uci();
     void bestmove(Move);
-    void info(int, int, PrincipalVariation&, double);
+    void info(int, int, Milliseconds, PrincipalVariation&);
     void searchStats();
 
    private:

@@ -59,7 +59,9 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
 
     // Stop search when time expires
-    checkTime();
+    if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
+        ThreadPool::stopSignal = true;
+    }
 
     // 1. Base case: quiescence search
     if (depth == 0) {
@@ -172,10 +174,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             if (isPV && score > alpha) {
                 pv.update(ply, move);
                 if constexpr (isRoot) {
-                    // todo: add thread.info
-                    auto dur = Clock::now() - startTime;
-                    auto sec = std::chrono::duration_cast<Duration>(dur).count();
-                    if (isMainThread() && engine) engine->info(score, depth, pv, sec);
+                    if (isMainThread() && engine) engine->info(score, depth, elapsedTime(), pv);
                 }
             }
         }
@@ -210,10 +209,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
 
     if constexpr (isRoot) {
-        // todo: add thread.info
-        auto dur = Clock::now() - startTime;
-        auto sec = std::chrono::duration_cast<Duration>(dur).count();
-        if (isMainThread() && engine) engine->info(bestScore, depth, pv, sec);
+        if (isMainThread() && engine) engine->info(bestScore, depth, elapsedTime(), pv);
     }
 
     return bestScore;
@@ -273,12 +269,4 @@ int Thread::quiescence(int alpha, int beta) {
     }
 
     return alpha;
-}
-
-void Thread::checkTime() {
-    if (stats.totalNodes % NodeInterval == 0) {
-        auto dur      = Clock::now() - startTime;
-        auto duration = std::chrono::duration_cast<Milliseconds>(dur).count();
-        if (duration > context.movetime) ThreadPool::stopSignal = true;
-    }
 }

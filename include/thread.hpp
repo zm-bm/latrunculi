@@ -26,6 +26,7 @@ class Thread {
     void wait();
     void set(const std::string&, Context&, TimePoint startTime = Clock::now());
 
+    // todo: check if these can be private
     Board board;
     PrincipalVariation pv;
     Heuristics heuristics;
@@ -36,18 +37,6 @@ class Thread {
     TimePoint startTime;
 
    private:
-    // thread.cpp
-    void loop();
-    void reset();
-    bool isMainThread();
-
-    // search.cpp
-    int search();
-    template <NodeType = NodeType::Root>
-    int alphabeta(int, int, int);
-    int quiescence(int, int);
-    void checkTime();
-
     std::mutex mutex;
     std::condition_variable condition;
 
@@ -58,9 +47,32 @@ class Thread {
     std::thread thread;
     Engine* engine;
 
+    // thread.cpp
+    void loop();
+    void reset();
+
+    // search.cpp
+    int search();
+    template <NodeType = NodeType::Root>
+    int alphabeta(int, int, int);
+    int quiescence(int, int);
+
+    // inline / helper functions
+    bool isMainThread();
+    Milliseconds elapsedTime() const;
+    bool isTimeUp() const;
+
     friend class SearchTest;
     friend class SearchBenchmark;
 };
+
+inline bool Thread::isMainThread() { return threadId == 0; }
+
+inline Milliseconds Thread::elapsedTime() const {
+    return std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
+}
+
+inline bool Thread::isTimeUp() const { return elapsedTime().count() > context.movetime; }
 
 class ThreadPool {
    public:
