@@ -35,12 +35,12 @@ void Thread::wait() {
     condition.wait(lock, [&] { return !runSignal; });
 }
 
-void Thread::set(const std::string& fen, SearchOptions& context, TimePoint startTime) {
+void Thread::set(SearchOptions& options, TimePoint startTime) {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        board             = Board(fen, this);
-        this->stats.debug = context.debug;
-        this->options     = context;
+        board             = Board(options.fen, this);
+        this->stats.debug = options.debug;
+        this->options     = options;
         this->startTime   = startTime;
     }
 }
@@ -76,12 +76,12 @@ ThreadPool::ThreadPool(size_t numThreads, Engine* engine) {
 
 ThreadPool::~ThreadPool() { stopAll(); }
 
-void ThreadPool::startAll(Board& board, SearchOptions& options) {
+void ThreadPool::startAll(SearchOptions& options) {
     stopSignal          = false;
     TimePoint startTime = Clock::now();
 
     for (auto& thread : threads) {
-        thread->set(board.toFEN(), options, startTime);
+        thread->set(options, startTime);
         thread->start();
         std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 2));
     }

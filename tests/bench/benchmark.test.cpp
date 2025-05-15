@@ -14,7 +14,9 @@
 
 using EPDCases = std::vector<std::tuple<std::string, std::string, std::string>>;
 
-SearchOptions context{false, 20, 10000};
+bool debug   = false;
+int depth    = 20;
+int movetime = 10000;
 std::ostringstream oss;
 std::istringstream iss;
 
@@ -65,9 +67,12 @@ class SearchBenchmark : public ::testing::Test {
 
    protected:
     void testSearch(Board& board, std::string& bestMove, std::string& avoidMove) {
+        // reset the output stream
         oss.str("");
         oss.clear();
-        threadpool.startAll(board, context);
+
+        SearchOptions options{board.toFEN(), debug, depth, movetime};
+        threadpool.startAll(options);
         threadpool.waitAll();
     }
 };

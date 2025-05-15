@@ -24,9 +24,10 @@ class Thread {
     void start();
     void stop();
     void wait();
-    void set(const std::string&, SearchOptions&, TimePoint startTime = Clock::now());
+    void set(SearchOptions&, TimePoint startTime);
 
    private:
+    // search state
     Board board;
     PrincipalVariation pv;
     Heuristics heuristics;
@@ -35,15 +36,18 @@ class Thread {
     TimePoint startTime;
     int ply;
 
+    // thread state
     std::mutex mutex;
     std::condition_variable condition;
-
-    std::atomic<bool> exitSignal{false};
-    std::atomic<bool> runSignal{false};
+    bool exitSignal{false};
+    bool runSignal{false};
     const int threadId;
 
-    std::thread thread;
+    // engine pointer for uci output
     Engine* engine;
+
+    // standard library thread
+    std::thread thread;
 
     // thread.cpp
     void loop();
@@ -56,9 +60,9 @@ class Thread {
     int quiescence(int, int);
 
     // inline / helper functions
-    bool isMainThread();
     Milliseconds elapsedTime() const;
     bool isTimeUp() const;
+    bool isMainThread();
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -68,27 +72,25 @@ class Thread {
     friend class Board;
 };
 
-inline bool Thread::isMainThread() { return threadId == 0; }
-
 inline Milliseconds Thread::elapsedTime() const {
     return std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
 }
 
 inline bool Thread::isTimeUp() const { return elapsedTime().count() > options.movetime; }
 
+inline bool Thread::isMainThread() { return threadId == 0; }
+
 class ThreadPool {
    public:
     ThreadPool(size_t numThreads, Engine* engine);
     ~ThreadPool();
 
-    void startAll(Board&, SearchOptions&);
+    void startAll(SearchOptions&);
     void stopAll();
     void waitAll();
     Statistics aggregateStats() const;
 
     static inline std::atomic<bool> stopSignal{false};
-
-    friend class SearchBenchmark;
 
    private:
     std::vector<std::unique_ptr<Thread>> threads;

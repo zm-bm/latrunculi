@@ -9,7 +9,7 @@
 constexpr U64 NODE_INTERVAL = 10000;
 
 struct Statistics {
-    bool debug = true;
+    bool debug = DEFAULT_DEBUG;
 
     U64 totalNodes{0};
 

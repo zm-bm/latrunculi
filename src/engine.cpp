@@ -118,6 +118,8 @@ void Engine::perft(std::istringstream& iss) {
 void Engine::go(std::istringstream& iss) {
     std::string token;
     SearchOptions options{};
+
+    options.fen   = board.toFEN();
     options.debug = debug;
 
     while (iss >> token) {
@@ -131,7 +133,7 @@ void Engine::go(std::istringstream& iss) {
         }
     }
 
-    threadpool.startAll(board, options);
+    threadpool.startAll(options);
 }
 
 void Engine::move(std::istringstream& iss) {

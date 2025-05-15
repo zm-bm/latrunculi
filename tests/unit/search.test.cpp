@@ -5,18 +5,22 @@
 #include "engine.hpp"
 #include "thread.hpp"
 
+bool debug   = false;
+int depth    = 10;
+int movetime = 2000;
 std::ostringstream oss;
 
 class SearchTest : public ::testing::Test {
    private:
-    SearchOptions context{false, 10, 2000};
     Engine engine{std::cout, std::cin};
     Thread thread{0, &engine};
 
    protected:
     void testSearch(const std::string& fen, int expectedScore, Move expectedMove) {
         ThreadPool::stopSignal = false;
-        thread.set(fen, context);
+
+        SearchOptions options{fen, debug, depth, movetime};
+        thread.set(options, Clock::now());
 
         EXPECT_EQ(thread.search(), expectedScore) << fen;
         if (expectedMove != NullMove) EXPECT_EQ(thread.pv.bestMove(), expectedMove) << fen;
@@ -24,7 +28,9 @@ class SearchTest : public ::testing::Test {
 
     void testSearchGT(const std::string& fen, int expectedScore, Move expectedMove) {
         ThreadPool::stopSignal = false;
-        thread.set(fen, context);
+
+        SearchOptions options{fen, debug, depth, movetime};
+        thread.set(options, Clock::now());
 
         EXPECT_GT(thread.search(), expectedScore) << fen;
         if (expectedMove != NullMove) EXPECT_EQ(thread.pv.bestMove(), expectedMove) << fen;
