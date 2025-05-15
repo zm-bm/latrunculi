@@ -14,7 +14,7 @@
 
 using EPDCases = std::vector<std::tuple<std::string, std::string, std::string>>;
 
-Context context{false, 20, 10000};
+SearchOptions context{false, 20, 10000};
 std::ostringstream oss;
 std::istringstream iss;
 

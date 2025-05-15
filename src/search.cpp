@@ -21,7 +21,7 @@ int Thread::search() {
 
     // 1. Iterative deepening loop
     int depth = 1 + (threadId & 1);
-    for (; depth <= context.depth && !ThreadPool::stopSignal; ++depth) {
+    for (; depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
@@ -46,7 +46,7 @@ int Thread::search() {
 
     if (isMainThread() && engine) {
         engine->bestmove(pv.bestMove());
-        if (context.debug) engine->searchStats();
+        if (options.debug) engine->searchStats();
     }
 
     return score;

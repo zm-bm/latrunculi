@@ -4,7 +4,6 @@
 
 #include "board.hpp"
 #include "constants.hpp"
-#include "context.hpp"
 #include "statistics.hpp"
 #include "thread.hpp"
 
@@ -29,10 +28,16 @@ class Engine {
     void searchStats();
 
    private:
-    Board board           = Board(STARTFEN);
-    ThreadPool threadpool = ThreadPool(SEARCH_THREADS, this);
-    Context context;
+    // Engine state
+    Board board = Board(STARTFEN);
 
+    // Search thread pool
+    ThreadPool threadpool = ThreadPool(DEFAULT_THREADS, this);
+
+    // UCI options
+    bool debug = DEFAULT_DEBUG;
+
+    // I/O streams
     std::ostream& out;
     std::istream& in;
 

@@ -5,8 +5,8 @@
 #include "constants.hpp"
 #include "types.hpp"
 
-struct Context {
-    bool debug   = SEARCH_DEBUG;
-    int depth    = SEARCH_DEPTH;
+struct SearchOptions {
+    bool debug   = DEFAULT_DEBUG;
+    int depth    = DEFAULT_DEPTH;
     int movetime = INT32_MAX;
 };

@@ -7,9 +7,9 @@
 
 #include "board.hpp"
 #include "constants.hpp"
-#include "context.hpp"
 #include "heuristics.hpp"
 #include "pv.hpp"
+#include "searchoptions.hpp"
 #include "statistics.hpp"
 #include "types.hpp"
 
@@ -24,19 +24,17 @@ class Thread {
     void start();
     void stop();
     void wait();
-    void set(const std::string&, Context&, TimePoint startTime = Clock::now());
+    void set(const std::string&, SearchOptions&, TimePoint startTime = Clock::now());
 
-    // todo: check if these can be private
+   private:
     Board board;
     PrincipalVariation pv;
     Heuristics heuristics;
     Statistics stats;
+    SearchOptions options;
+    TimePoint startTime;
     int ply;
 
-    Context context;
-    TimePoint startTime;
-
-   private:
     std::mutex mutex;
     std::condition_variable condition;
 
@@ -64,6 +62,10 @@ class Thread {
 
     friend class SearchTest;
     friend class SearchBenchmark;
+
+    friend class ThreadPool;
+    friend class MovePriority;
+    friend class Board;
 };
 
 inline bool Thread::isMainThread() { return threadId == 0; }
@@ -72,14 +74,14 @@ inline Milliseconds Thread::elapsedTime() const {
     return std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
 }
 
-inline bool Thread::isTimeUp() const { return elapsedTime().count() > context.movetime; }
+inline bool Thread::isTimeUp() const { return elapsedTime().count() > options.movetime; }
 
 class ThreadPool {
    public:
     ThreadPool(size_t numThreads, Engine* engine);
     ~ThreadPool();
 
-    void startAll(Board&, Context&);
+    void startAll(Board&, SearchOptions&);
     void stopAll();
     void waitAll();
     Statistics aggregateStats() const;

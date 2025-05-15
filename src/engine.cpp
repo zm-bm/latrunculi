@@ -8,6 +8,7 @@
 #include "eval.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
+#include "searchoptions.hpp"
 #include "thread.hpp"
 #include "tt.hpp"
 
@@ -67,9 +68,9 @@ void Engine::setdebug(std::istringstream& iss) {
     iss >> token;
 
     if (token == "on") {
-        context.debug = true;
+        debug = true;
     } else if (token == "off") {
-        context.debug = false;
+        debug = false;
     }
 }
 
@@ -116,19 +117,21 @@ void Engine::perft(std::istringstream& iss) {
 
 void Engine::go(std::istringstream& iss) {
     std::string token;
+    SearchOptions options{};
+    options.debug = debug;
 
     while (iss >> token) {
         if (token == "depth") {
             iss >> token;
-            context.depth = std::stoi(token);
+            options.depth = std::stoi(token);
         }
         if (token == "movetime") {
             iss >> token;
-            context.movetime = std::stoi(token);
+            options.movetime = std::stoi(token);
         }
     }
 
-    threadpool.startAll(board, context);
+    threadpool.startAll(board, options);
 }
 
 void Engine::move(std::istringstream& iss) {
