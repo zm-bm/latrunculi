@@ -31,11 +31,11 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "debug") {
         setdebug(iss);
     } else if (token == "isready") {
-        std::cout << "readyok" << std::endl;
+        out << "readyok" << std::endl;
     } else if (token == "setoption") {
-        std::cout << "to be implemented" << std::endl;
+        out << "to be implemented" << std::endl;
     } else if (token == "ucinewgame") {
-        std::cout << "to be implemented" << std::endl;
+        out << "to be implemented" << std::endl;
     } else if (token == "position") {
         position(iss);
     } else if (token == "go") {
@@ -43,7 +43,7 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "stop") {
         threadpool.stopAll();
     } else if (token == "ponderhit") {
-        std::cout << "to be implemented" << std::endl;
+        out << "to be implemented" << std::endl;
     } else if (token == "quit" || token == "exit") {
         return false;
     }
@@ -55,7 +55,7 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "moves") {
         moves();
     } else if (token == "d") {
-        std::cout << board << std::endl;
+        out << board << std::endl;
     } else if (token == "eval") {
         eval<Verbose>(board);
     }
@@ -116,12 +116,11 @@ void Engine::perft(std::istringstream& iss) {
 }
 
 void Engine::go(std::istringstream& iss) {
-    std::string token;
     SearchOptions options{};
-
     options.fen   = board.toFEN();
     options.debug = debug;
 
+    std::string token;
     while (iss >> token) {
         if (token == "depth") {
             iss >> token;
@@ -153,14 +152,6 @@ void Engine::move(std::istringstream& iss) {
                 board.make(move);
             }
         }
-    }
-}
-
-void Engine::moves() {
-    MoveGenerator<GenType::All> moves{board};
-
-    for (auto& move : moves) {
-        std::cout << move << ": " << move.priority << std::endl;
     }
 }
 
@@ -242,5 +233,13 @@ void Engine::searchStats() {
         out << std::setw(5) << std::setprecision(1) << ttCutPct << "% | ";
         out << std::setw(5) << std::setprecision(1) << ebf << " / ";
         out << std::setw(5) << std::setprecision(1) << cumulative << "\n";
+    }
+}
+
+void Engine::moves() {
+    MoveGenerator<GenType::All> moves{board};
+
+    for (auto& move : moves) {
+        out << move << '\n';
     }
 }

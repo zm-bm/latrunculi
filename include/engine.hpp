@@ -21,8 +21,7 @@ class Engine {
     void loop();
     bool execute(const std::string&);
 
-    // UCI output
-    void uci();
+    // UCI output by search thread
     void bestmove(Move);
     void info(int, int, Milliseconds, PrincipalVariation&);
     void searchStats();
@@ -41,11 +40,14 @@ class Engine {
     std::ostream& out;
     std::istream& in;
 
-    // UCI input
-    void setdebug(std::istringstream& iss);
+    // UCI commands
     void position(std::istringstream& iss);
-    void perft(std::istringstream& iss);
     void go(std::istringstream& iss);
+    void uci();
+
+    // Helper commands
+    void setdebug(std::istringstream& iss);
+    void perft(std::istringstream& iss);
     void move(std::istringstream& iss);
     void moves();
 };
