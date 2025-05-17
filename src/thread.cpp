@@ -50,11 +50,11 @@ void Thread::loop() {
             condition.wait(lock, [&]() { return runSignal || exitSignal; });
 
             if (exitSignal) return;
-            runSignal = false;
         }
 
         if (!exitSignal) {
             search();
+            runSignal = false;
             condition.notify_all();
         }
     }
