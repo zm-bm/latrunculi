@@ -1,11 +1,9 @@
 #include "thread.hpp"
 
-#include <memory>
-
-#include "engine.hpp"
-
-Thread::Thread(int id, Engine* engine)
-    : threadId(id), thread(&Thread::loop, this), engine(engine) {}
+Thread::Thread(int id, UCIOutput& uciOutput, ThreadPool* threadPool)
+    : threadId(id), uciOutput(uciOutput), threadPool(threadPool), thread(&Thread::loop, this) {
+    board.setThread(this);
+}
 
 Thread::~Thread() {
     stop();
@@ -38,7 +36,7 @@ void Thread::wait() {
 void Thread::set(SearchOptions& options, TimePoint startTime) {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        board             = Board(options.fen, this);
+        board.loadFEN(options.fen);
         this->stats.debug = options.debug;
         this->options     = options;
         this->startTime   = startTime;
@@ -60,47 +58,4 @@ void Thread::loop() {
             condition.notify_all();
         }
     }
-}
-
-void Thread::reset() {
-    stats.reset();
-    ply = 0;
-    pv.clear();
-}
-
-ThreadPool::ThreadPool(size_t numThreads, Engine* engine) {
-    for (size_t i = 0; i < numThreads; ++i) {
-        threads.push_back(std::make_unique<Thread>(i, engine));
-    }
-}
-
-ThreadPool::~ThreadPool() { stopAll(); }
-
-void ThreadPool::startAll(SearchOptions& options) {
-    stopSignal          = false;
-    TimePoint startTime = Clock::now();
-
-    for (auto& thread : threads) {
-        thread->set(options, startTime);
-        thread->start();
-        std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 2));
-    }
-}
-
-void ThreadPool::stopAll() { stopSignal = true; }
-
-void ThreadPool::waitAll() {
-    for (auto& thread : threads) {
-        thread->wait();
-    }
-}
-
-Statistics ThreadPool::aggregateStats() const {
-    Statistics stats;
-
-    for (const auto& thread : threads) {
-        stats += thread->stats;
-    }
-
-    return stats;
 }

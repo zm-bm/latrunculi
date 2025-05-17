@@ -8,7 +8,7 @@
 
 constexpr U64 NODE_INTERVAL = 10000;
 
-struct Statistics {
+struct SearchStats {
     bool debug = DEFAULT_DEBUG;
 
     U64 totalNodes{0};
@@ -22,7 +22,7 @@ struct Statistics {
     std::array<U64, MAX_DEPTH> ttHits{0};
     std::array<U64, MAX_DEPTH> ttCutoffs{0};
 
-    Statistics& operator+=(const Statistics& other) {
+    SearchStats& operator+=(const SearchStats& other) {
         totalNodes += other.totalNodes;
         for (size_t i = 0; i < MAX_DEPTH; ++i) {
             nodes[i]         += other.nodes[i];
@@ -37,9 +37,9 @@ struct Statistics {
         return *this;
     }
 
-    Statistics operator+(const Statistics& other) const {
-        Statistics result  = *this;
-        result            += other;
+    SearchStats operator+(const SearchStats& other) const {
+        SearchStats result  = *this;
+        result             += other;
         return result;
     }
 

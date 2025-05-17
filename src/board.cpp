@@ -5,48 +5,6 @@
 #include "score.hpp"
 #include "thread.hpp"
 
-std::string Board::toSAN(Move move) const {
-    std::string result  = "";
-    Square from         = move.from();
-    Square to           = move.to();
-    PieceType pieceType = pieceTypeOn(from);
-
-    if (move.type() == CASTLE) {
-        if (move.from() < move.to())
-            return "O-O";
-        else
-            return "O-O-O";
-    }
-
-    if (pieceType != PAWN) result += std::toupper(toChar(pieceType));
-
-    MoveGenerator<GenType::All> moves{*this};
-    auto ambigMove = std::find_if(moves.begin(), moves.end(), [&](Move m) {
-        return m.to() == to && pieceTypeOn(m.from()) == pieceType && m.from() != from &&
-               isLegalMove(m);
-    });
-    if (ambigMove != moves.end()) {
-        bool diffFile = fileOf(ambigMove->from()) != fileOf(from);
-        bool diffRank = rankOf(ambigMove->from()) != rankOf(from);
-
-        if (diffFile)
-            result += toChar(fileOf(from));
-        else if (diffRank)
-            result += toChar(rankOf(from));
-    }
-
-    if (isCapture(move)) {
-        if (pieceType == PAWN) result += 'a' + fileOf(move.from());
-        result += 'x';
-    }
-
-    result += toString(to);
-    if (move.type() == PROMOTION) result += '=' + toChar(move.promoPiece());
-    if (isCheckingMove(move)) result += '+';
-
-    return result;
-}
-
 int Board::see(Move move) const {
     Square from         = move.from();
     Square to           = move.to();
@@ -328,12 +286,26 @@ void Board::unmmakeNull() {
 }
 
 void Board::loadFEN(const std::string& fen) {
-    FenParser parser(fen);
+    for (size_t c = 0; c < N_COLORS; ++c) {
+        for (size_t p = 0; p < N_PIECES; ++p) {
+            piecesBB[c][p]   = 0;
+            pieceCount[c][p] = 0;
+        }
+    }
 
-    auto pieces = parser.pieces;
-    for (auto p = pieces.begin(); p != pieces.end(); ++p) {
-        addPiece<true>(p->square, p->color, p->type);
-        if (p->type == KING) kingSquare[p->color] = p->square;
+    for (size_t sq = 0; sq < N_SQUARES; ++sq) {
+        squares[sq] = Piece::NONE;
+    }
+
+    material = {0, 0};
+    psqBonus = {0, 0};
+    state    = {State()};
+    ply      = 0;
+
+    FenParser parser(fen);
+    for (const auto p : parser.pieces) {
+        addPiece<true>(p.square, p.color, p.type);
+        if (p.type == KING) kingSquare[p.color] = p.square;
     }
 
     turn                      = parser.turn;
@@ -396,6 +368,48 @@ std::string Board::toFEN() const {
     oss << +state.at(ply).hmClock << " " << (moveCounter / 2) + 1;
 
     return oss.str();
+}
+
+std::string Board::toSAN(Move move) const {
+    std::string result  = "";
+    Square from         = move.from();
+    Square to           = move.to();
+    PieceType pieceType = pieceTypeOn(from);
+
+    if (move.type() == CASTLE) {
+        if (move.from() < move.to())
+            return "O-O";
+        else
+            return "O-O-O";
+    }
+
+    if (pieceType != PAWN) result += std::toupper(toChar(pieceType));
+
+    MoveGenerator<GenType::All> moves{*this};
+    auto ambigMove = std::find_if(moves.begin(), moves.end(), [&](Move m) {
+        return m.to() == to && pieceTypeOn(m.from()) == pieceType && m.from() != from &&
+               isLegalMove(m);
+    });
+    if (ambigMove != moves.end()) {
+        bool diffFile = fileOf(ambigMove->from()) != fileOf(from);
+        bool diffRank = rankOf(ambigMove->from()) != rankOf(from);
+
+        if (diffFile)
+            result += toChar(fileOf(from));
+        else if (diffRank)
+            result += toChar(rankOf(from));
+    }
+
+    if (isCapture(move)) {
+        if (pieceType == PAWN) result += 'a' + fileOf(move.from());
+        result += 'x';
+    }
+
+    result += toString(to);
+    if (move.type() == PROMOTION) result += '=' + toChar(move.promoPiece());
+    if (isCheckingMove(move)) result += '+';
+
+    return result;
 }
 
 std::ostream& operator<<(std::ostream& os, const Board& board) {

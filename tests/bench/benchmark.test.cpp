@@ -62,16 +62,16 @@ EPDCases readEPDFile(const std::string& filename) {
 
 class SearchBenchmark : public ::testing::Test {
    private:
-    Engine engine{oss, iss};
-    ThreadPool threadpool{1, &engine};
+    UCIOutput uciOutput{oss};
+    ThreadPool threadpool{1, uciOutput};
 
    protected:
-    void testSearch(Board& board, std::string& bestMove, std::string& avoidMove) {
+    void testSearch(std::string& fen, std::string& bestMove, std::string& avoidMove) {
         // reset the output stream
         oss.str("");
         oss.clear();
 
-        SearchOptions options{board.toFEN(), debug, depth, movetime};
+        SearchOptions options{fen, debug, depth, movetime};
         threadpool.startAll(options);
         threadpool.waitAll();
     }
@@ -84,13 +84,13 @@ TEST_F(SearchBenchmark, ccr) {
 
     int successful = 0;
     for (auto& [fen, bestMove, avoidMove] : cases) {
-        Board board{fen};
-        testSearch(board, bestMove, avoidMove);
+        testSearch(fen, bestMove, avoidMove);
 
         std::istringstream iss(oss.str());
         while (iss >> token && token != "bestmove");
         iss >> engineMove;
 
+        Board board(fen);
         MoveGenerator<GenType::All> moves{board};
         auto moveMatches = [&](Move m) { return m.str() == engineMove; };
         auto move        = std::find_if(moves.begin(), moves.end(), moveMatches);

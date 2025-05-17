@@ -28,11 +28,14 @@ class Board {
     std::vector<State> state          = {State()};
     U32 ply                           = 0;
     U32 moveCounter                   = 0;
-    Thread* thread;
+    Thread* thread                    = nullptr;
 
    public:
-    Board() = default;
-    explicit Board(const std::string&, Thread* thread = nullptr);
+    // constructors
+    Board()                        = default;
+    Board(const Board&)            = delete;
+    Board& operator=(const Board&) = delete;
+    explicit Board(const std::string&);
 
     // accessors
     template <PieceType... Ps>
@@ -56,7 +59,6 @@ class Board {
     U8 halfmove() const;
 
     // move/check properties
-    std::string toSAN(Move) const;
     int see(Move) const;
     bool isDraw() const;
     bool isLegalMove(Move) const;
@@ -105,12 +107,15 @@ class Board {
     template <NodeType = NodeType::Root>
     U64 perft(int, std::ostream& = std::cout);
 
-    // FENs
+    // FEN / string conversions
     void loadFEN(const std::string&);
     std::string toFEN() const;
+    std::string toSAN(Move) const;
+
+    void setThread(Thread* t) { thread = t; }
 };
 
-inline Board::Board(const std::string& fen, Thread* thread) : thread(thread) { loadFEN(fen); }
+inline Board::Board(const std::string& fen) { loadFEN(fen); }
 
 template <PieceType... Ps>
 inline U64 Board::pieces() const {

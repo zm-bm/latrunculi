@@ -7,7 +7,8 @@
 
 #include "types.hpp"
 
-// FENs
+constexpr auto VERSION = "0.1";
+
 constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
                POS2     = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
                POS3     = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
@@ -23,7 +24,7 @@ constexpr int MAX_HISTORY = 1000;
 
 // WIP search constants
 constexpr int DEFAULT_THREADS = 1;
-constexpr int DEFAULT_DEPTH   = 14;
+constexpr int DEFAULT_DEPTH   = 6;
 constexpr bool DEFAULT_DEBUG  = true;
 
 // move gen constants

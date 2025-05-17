@@ -1,27 +1,33 @@
 #include <algorithm>
 
 #include "board.hpp"
-#include "engine.hpp"
+#include "constants.hpp"
 #include "eval.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"
+#include "thread_pool.hpp"
 #include "tt.hpp"
+#include "types.hpp"
 
-constexpr int AspirationWindow = 50;
+// todo: lower aspiration window
+constexpr int AspirationWindow = 100;
 constexpr int LmrMoves         = 2;
 constexpr int LmrDepth         = 3;
 constexpr int FutilityMargin   = 300;
 constexpr int NullMoveR        = 3;
 
 int Thread::search() {
-    reset();
+    stats.reset();
+    ply = 0;
+    pv.clear();
 
     int score     = 0;
     int prevScore = eval<Silent>(board);
 
     // 1. Iterative deepening loop
     int depth = 1 + (threadId & 1);
-    for (; depth <= options.depth && !ThreadPool::stopSignal; ++depth) {
+    std::cout << board.toFEN() << std::endl;
+    for (; depth <= options.depth && !(threadPool && threadPool->stopSignal.load()); ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
@@ -44,9 +50,12 @@ int Thread::search() {
         if (isMateScore(score)) break;
     }
 
-    if (isMainThread() && engine) {
-        engine->bestmove(pv.bestMove());
-        if (options.debug) engine->searchStats();
+    if (isMainThread()) {
+        uciOutput.sendBestmove(pv.bestMove());
+        if (options.debug && threadPool != nullptr) {
+            SearchStats stats = threadPool->getStats();
+            uciOutput.sendStats(stats);
+        }
     }
 
     return score;
@@ -59,8 +68,8 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
 
     // Stop search when time expires
-    if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
-        ThreadPool::stopSignal = true;
+    if (isMainThread() && stats.isAtNodeInterval() && isTimeUp() && threadPool != nullptr) {
+        threadPool->stopSignal = true;
     }
 
     // 1. Base case: quiescence search
@@ -130,7 +139,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         bool isQuiet = !board.isCapture(move) && !board.isCheckingMove(move);
 
         // Return best estimate when search stops
-        if (ThreadPool::stopSignal) {
+        if (threadPool && threadPool->stopSignal.load()) {
             if (bestScore > -INF_SCORE) return bestScore;
             return eval(board);
         }
@@ -174,7 +183,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             if (isPV && score > alpha) {
                 pv.update(ply, move);
                 if constexpr (isRoot) {
-                    if (isMainThread() && engine) engine->info(score, depth, elapsedTime(), pv);
+                    if (isMainThread()) {
+                        int nodes = threadPool ? threadPool->getNodeCount() : stats.totalNodes;
+                        uciOutput.sendInfo(score, depth, nodes, getElapsedTime(), pv.bestLine());
+                    }
                 }
             }
         }
@@ -209,7 +221,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
 
     if constexpr (isRoot) {
-        if (isMainThread() && engine) engine->info(bestScore, depth, elapsedTime(), pv);
+        if (isMainThread()) {
+            int nodes = threadPool ? threadPool->getNodeCount() : stats.totalNodes;
+            uciOutput.sendInfo(bestScore, depth, nodes, getElapsedTime(), pv.bestLine());
+        }
     }
 
     return bestScore;
