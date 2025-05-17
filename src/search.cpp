@@ -9,8 +9,7 @@
 #include "tt.hpp"
 #include "types.hpp"
 
-// todo: lower aspiration window
-constexpr int AspirationWindow = 100;
+constexpr int AspirationWindow = 50;
 constexpr int LmrMoves         = 2;
 constexpr int LmrDepth         = 3;
 constexpr int FutilityMargin   = 300;
@@ -52,10 +51,7 @@ int Thread::search() {
 
     if (isMainThread()) {
         uciOutput.sendBestmove(pv.bestMove());
-        if (options.debug && threadPool != nullptr) {
-            SearchStats stats = threadPool->getStats();
-            uciOutput.sendStats(stats);
-        }
+        if (options.debug) uciOutput.sendStats(getStats());
     }
 
     return score;
@@ -203,12 +199,11 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
     // Draw / mate handling
     if (legalMoves == 0) {
+        bestMove = NullMove;
         if (board.isCheck()) {
             bestScore = -MATE_SCORE + ply;
-            bestMove  = Move();
         } else {
             bestScore = DRAW_SCORE;
-            bestMove  = Move();
         }
     }
 

@@ -24,7 +24,7 @@ constexpr int MAX_HISTORY = 1000;
 
 // WIP search constants
 constexpr int DEFAULT_THREADS = 1;
-constexpr int DEFAULT_DEPTH   = 6;
+constexpr int DEFAULT_DEPTH   = 14;
 constexpr bool DEFAULT_DEBUG  = true;
 
 // move gen constants

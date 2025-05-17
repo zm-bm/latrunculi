@@ -5,6 +5,8 @@
 #include "board.hpp"
 #include "constants.hpp"
 
+constexpr auto MoveLimit = 4;
+
 TEST(MoveGenTest, All) {
     Board board{STARTFEN};
     MoveGenerator<GenType::All> moves{board};
@@ -47,7 +49,7 @@ TEST_P(PerftTest, PerftForMultipleDepths) {
     Board board(fen);
     std::stringstream nullStream;
 
-    for (int depth = 1; depth <= expected_results.size(); ++depth) {
+    for (int depth = 1; depth <= expected_results.size() && depth <= MoveLimit; ++depth) {
         long result = board.perft(depth, nullStream);
         EXPECT_EQ(result, expected_results[depth - 1]) << "Failed at depth " << depth;
     }

@@ -14,7 +14,7 @@ class UCIOutput {
 
     void sendBestmove(std::string);
     void sendInfo(int, int, int, Milliseconds, std::string);
-    void sendStats(SearchStats& stats);
+    void sendStats(SearchStats stats);
 
    private:
     std::ostream& out;

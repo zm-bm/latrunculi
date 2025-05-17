@@ -26,7 +26,7 @@ void UCIOutput::sendInfo(int score, int depth, int nodes, Milliseconds ms, std::
     out << std::endl;
 }
 
-void UCIOutput::sendStats(SearchStats& stats) {
+void UCIOutput::sendStats(SearchStats stats) {
     out << "\n"
         << std::setw(5) << "Depth"
         << " | " << std::setw(18) << "Nodes (QNode%)"

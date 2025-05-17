@@ -10,10 +10,9 @@
 #include "pv.hpp"
 #include "search_options.hpp"
 #include "search_stats.hpp"
+#include "thread_pool.hpp"
 #include "types.hpp"
 #include "uci_output.hpp"
-
-class ThreadPool;
 
 class Thread {
    public:
@@ -50,18 +49,17 @@ class Thread {
     // main thread loop
     void loop();
 
+    // search.cpp
     int search();
     template <NodeType = NodeType::Root>
     int alphabeta(int, int, int);
     int quiescence(int, int);
 
     // helpers
-    Milliseconds getElapsedTime() const {
-        return std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
-    };
-
-    bool isTimeUp() const { return getElapsedTime().count() > options.movetime; }
-    bool isMainThread() const { return threadId == 0; }
+    SearchStats getStats() const;
+    Milliseconds getElapsedTime() const;
+    bool isTimeUp() const;
+    bool isMainThread() const;
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -70,3 +68,14 @@ class Thread {
     friend class MovePriority;
     friend class Board;
 };
+
+inline SearchStats Thread::getStats() const {
+    return threadPool == nullptr ? this->stats : threadPool->getStats();
+}
+
+inline Milliseconds Thread::getElapsedTime() const {
+    return std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
+};
+
+inline bool Thread::isTimeUp() const { return getElapsedTime().count() > options.movetime; }
+inline bool Thread::isMainThread() const { return threadId == 0; }

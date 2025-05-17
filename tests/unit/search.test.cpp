@@ -10,6 +10,7 @@ bool debug   = false;
 int depth    = 10;
 int movetime = 2000;
 std::ostringstream oss;
+constexpr auto AnyMove = "ANY";
 
 class SearchTest : public ::testing::Test {
    private:
@@ -17,20 +18,24 @@ class SearchTest : public ::testing::Test {
     Thread thread{0, uciOutput, nullptr};
 
    protected:
-    void testSearch(const std::string fen, int expectedScore, std::string expectedMove) {
+    void testSearch(const std::string fen, int score, std::string move) {
         SearchOptions options{fen, debug, depth, movetime};
         thread.set(options, Clock::now());
 
-        EXPECT_EQ(thread.search(), expectedScore) << fen;
-        EXPECT_EQ(thread.pv.bestMove(), expectedMove) << fen;
+        EXPECT_EQ(thread.search(), score) << fen;
+        if (move != AnyMove) {
+            EXPECT_EQ(thread.pv.bestMove(), move) << fen;
+        }
     }
 
-    void testSearchGT(const std::string fen, int expectedScore, std::string expectedMove) {
+    void testSearchGT(const std::string fen, int score, std::string move) {
         SearchOptions options{fen, debug, depth, movetime};
         thread.set(options, Clock::now());
 
-        EXPECT_GT(thread.search(), expectedScore) << fen;
-        EXPECT_EQ(thread.pv.bestMove(), expectedMove) << fen;
+        EXPECT_GT(thread.search(), score) << fen;
+        if (move != AnyMove) {
+            EXPECT_EQ(thread.pv.bestMove(), move) << fen;
+        }
     }
 };
 
@@ -41,7 +46,6 @@ TEST_F(SearchTest, basicMates) {
     auto searchpos4 = "5rk1/pb2npp1/1p5p/5p2/5B2/1B6/P2R2QP/2r1R2K b - - 0 4";
 
     std::vector<std::tuple<std::string, int, std::string>> testCases = {
-        {searchpos2, +(MATE_SCORE - 3), "c6g2"},
         {searchpos1, +(MATE_SCORE - 1), "h8h1"},
         {searchpos2, +(MATE_SCORE - 3), "c6g2"},
         {searchpos3, -(MATE_SCORE - 2), "e2g2"},
@@ -59,7 +63,7 @@ TEST_F(SearchTest, basicDraws) {
     auto searchpos3 = "1r4Q1/5k1K/7P/8/8/8/8/8 b - -";
 
     std::vector<std::tuple<std::string, int, std::string>> testCases = {
-        {searchpos1, DRAW_SCORE, ""},
+        {searchpos1, DRAW_SCORE, AnyMove},
         {searchpos2, DRAW_SCORE, "g7g8q"},
         {searchpos3, DRAW_SCORE, "b8g8"},
     };

@@ -4,7 +4,7 @@
 
 ThreadPool::ThreadPool(size_t numThreads, UCIOutput& uciOutput) {
     for (size_t i = 0; i < numThreads; ++i) {
-        threads.push_back(std::make_unique<Thread>(i, uciOutput));
+        threads.push_back(std::make_unique<Thread>(i, uciOutput, this));
     }
 }
 
