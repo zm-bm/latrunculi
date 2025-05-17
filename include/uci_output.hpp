@@ -13,11 +13,13 @@ class UCIOutput {
     void sendIdentity();
 
     void sendBestmove(std::string);
-    void sendInfo(int, int, int, Milliseconds, std::string);
+    void sendInfo(int, int, U64, Milliseconds, std::string);
     void sendStats(SearchStats stats);
 
    private:
     std::ostream& out;
+    int lastScore{0};
+    std::string lastPV;
 
     std::string formatScore(int score);
 };

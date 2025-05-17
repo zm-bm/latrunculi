@@ -13,7 +13,11 @@ void UCIOutput::sendIdentity() {
 
 void UCIOutput::sendBestmove(std::string move) { out << "bestmove " << move << std::endl; }
 
-void UCIOutput::sendInfo(int score, int depth, int nodes, Milliseconds ms, std::string pv) {
+void UCIOutput::sendInfo(int score, int depth, U64 nodes, Milliseconds ms, std::string pv) {
+    if (score == lastScore && pv == lastPV) return;
+    lastScore = score;
+    lastPV    = pv;
+
     auto time = ms.count();
 
     out << std::fixed;
