@@ -25,7 +25,7 @@ int Thread::search() {
 
     // 1. Iterative deepening loop
     int depth = 1 + (threadId & 1);
-    for (; depth <= options.depth && !(threadPool && threadPool->stopSignal.load()); ++depth) {
+    for (; depth <= options.depth && !isStopping(); ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
@@ -63,8 +63,11 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
 
     // Stop search when time expires
-    if (isMainThread() && stats.isAtNodeInterval() && isTimeUp() && threadPool != nullptr) {
-        threadPool->stopSignal = true;
+    if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
+        if (threadPool)
+            threadPool->stopSignal = true;
+        else
+            exitSignal = true;
     }
 
     // 1. Base case: quiescence search
@@ -133,12 +136,6 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
         bool isQuiet = !board.isCapture(move) && !board.isCheckingMove(move);
 
-        // Return best estimate when search stops
-        if (threadPool && threadPool->stopSignal.load()) {
-            if (bestScore > -INF_SCORE) return bestScore;
-            return eval(board);
-        }
-
         // Futility pruning
         if (depth <= 2 && isQuiet) {
             int staticEval = eval(board);
@@ -194,6 +191,8 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             stats.addBetaCutoff(ply, move == moves[0]);
             break;
         }
+
+        if (isStopping()) break;
     }
 
     // Draw / mate handling
