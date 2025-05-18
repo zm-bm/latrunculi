@@ -111,7 +111,7 @@ void Engine::perft(std::istringstream& iss) {
     iss >> token;
 
     auto val = std::stoi(token);
-    board.perft<NodeType::Root>(val);
+    board.perft<NodeType::Root>(val, out);
 }
 
 void Engine::go(std::istringstream& iss) {

@@ -16,6 +16,8 @@ class Engine {
 
     void loop();
 
+    friend class EngineTest;
+
    private:
     std::istream& in;
     std::ostream& out;

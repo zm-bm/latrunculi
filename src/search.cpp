@@ -25,7 +25,6 @@ int Thread::search() {
 
     // 1. Iterative deepening loop
     int depth = 1 + (threadId & 1);
-    std::cout << board.toFEN() << std::endl;
     for (; depth <= options.depth && !(threadPool && threadPool->stopSignal.load()); ++depth) {
         stats.resetDepthStats();
 
