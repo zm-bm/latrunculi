@@ -102,6 +102,22 @@ TEST(BB_msb, CorrectMostSignificantBit) {
     EXPECT_EQ(BB::msb(BB::set(H8)), H8);
 }
 
+TEST(BB_lsbPop, CorrectLeastSignificantBitPop) {
+    U64 bb = BB::set(A1) | BB::set(B2) | BB::set(C3);
+    EXPECT_EQ(BB::lsbPop(bb), A1);
+    EXPECT_EQ(BB::lsbPop(bb), B2);
+    EXPECT_EQ(BB::lsbPop(bb), C3);
+    EXPECT_EQ(bb, 0);
+}
+
+TEST(BB_msbPop, CorrectMostSignificantBitPop) {
+    U64 bb = BB::set(A1) | BB::set(B2) | BB::set(C3);
+    EXPECT_EQ(BB::msbPop(bb), C3);
+    EXPECT_EQ(BB::msbPop(bb), B2);
+    EXPECT_EQ(BB::msbPop(bb), A1);
+    EXPECT_EQ(bb, 0);
+}
+
 TEST(BB_fillNorth, CorrectFillValues) {
     EXPECT_EQ(BB::fillNorth(BB::set(A1)), BB::FILE_MASK[FILE1]);
     EXPECT_EQ(BB::fillNorth(BB::set(H1)), BB::FILE_MASK[FILE8]);
