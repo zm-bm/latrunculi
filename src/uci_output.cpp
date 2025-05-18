@@ -3,15 +3,20 @@
 #include <complex>
 #include <iomanip>
 
+#include "board.hpp"
 #include "constants.hpp"
 
-void UCIOutput::sendIdentity() {
+void UCIOutput::sendIdentity() const {
     out << "id name Latrunculi " << VERSION << std::endl;
     out << "id author Eric VanderHelm" << std::endl;
     out << "uciok" << std::endl;
 }
 
-void UCIOutput::sendBestmove(std::string move) { out << "bestmove " << move << std::endl; }
+void UCIOutput::sendReady() const { out << "readyok" << std::endl; }
+
+void UCIOutput::sendBestmove(std::string move) const { out << "bestmove " << move << std::endl; }
+
+void UCIOutput::toBeImplemented() const { out << "to be implemented" << std::endl; }
 
 void UCIOutput::sendInfo(int score, int depth, U64 nodes, Milliseconds ms, std::string pv) {
     if (score == lastScore && pv == lastPV) return;
@@ -30,7 +35,7 @@ void UCIOutput::sendInfo(int score, int depth, U64 nodes, Milliseconds ms, std::
     out << std::endl;
 }
 
-void UCIOutput::sendStats(SearchStats stats) {
+void UCIOutput::sendStats(SearchStats stats) const {
     out << "\n"
         << std::setw(5) << "Depth"
         << " | " << std::setw(18) << "Nodes (QNode%)"

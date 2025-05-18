@@ -30,11 +30,11 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "debug") {
         setdebug(iss);
     } else if (token == "isready") {
-        out << "readyok" << std::endl;
+        uciOutput.sendReady();
     } else if (token == "setoption") {
-        out << "to be implemented" << std::endl;
+        uciOutput.toBeImplemented();
     } else if (token == "ucinewgame") {
-        out << "to be implemented" << std::endl;
+        uciOutput.toBeImplemented();
     } else if (token == "position") {
         position(iss);
     } else if (token == "go") {
@@ -42,7 +42,7 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "stop") {
         threadpool.stopAll();
     } else if (token == "ponderhit") {
-        out << "to be implemented" << std::endl;
+        uciOutput.toBeImplemented();
     } else if (token == "quit" || token == "exit") {
         return false;
     }

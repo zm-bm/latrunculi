@@ -10,11 +10,15 @@ class UCIOutput {
    public:
     explicit UCIOutput(std::ostream& out) : out(out) {}
 
-    void sendIdentity();
-
-    void sendBestmove(std::string);
+    // UCI protocol commands
+    void sendIdentity() const;
+    void sendReady() const;
+    void sendBestmove(std::string) const;
     void sendInfo(int, int, U64, Milliseconds, std::string);
-    void sendStats(SearchStats stats);
+
+    // Non UCI protocol commands
+    void sendStats(SearchStats stats) const;
+    void toBeImplemented() const;
 
    private:
     std::ostream& out;
