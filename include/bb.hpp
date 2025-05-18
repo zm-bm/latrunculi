@@ -186,7 +186,7 @@ inline Square lsbPop(U64& bb) {
     return sq;
 }
 inline Square msbPop(U64& bb) {
-    Square sq  = static_cast<Square>(__builtin_ctzll(bb));
+    Square sq  = static_cast<Square>(63 - __builtin_clzll(bb));
     bb        &= ~(1ULL << sq);
     return sq;
 }
