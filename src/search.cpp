@@ -192,7 +192,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             break;
         }
 
-        if (isHaltingSearch()) break;
+        if (isRoot && isHaltingSearch()) break;
     }
 
     // Draw / mate handling
