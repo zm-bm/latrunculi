@@ -29,3 +29,43 @@ TEST(HistoryTableTest, Reset) {
     historyTable.reset();
     EXPECT_EQ(historyTable.get(WHITE, E2, E4), 0);
 }
+
+TEST(KillerMovesTest, AddAndRetrieve) {
+    KillerMoves killerMoves;
+    killerMoves.update(Move(E2, E4), 0);
+    EXPECT_TRUE(killerMoves.isKiller(Move(E2, E4), 0));
+    EXPECT_FALSE(killerMoves.isKiller(Move(E2, E3), 0));
+    EXPECT_FALSE(killerMoves.isKiller(Move(E2, E4), 1));
+}
+
+TEST(KillerMovesTest, LimitSize) {
+    KillerMoves killerMoves;
+    killerMoves.update(Move(C2, C4), 0);
+    killerMoves.update(Move(D2, D4), 0);
+    killerMoves.update(Move(E2, E4), 0);
+    EXPECT_FALSE(killerMoves.isKiller(Move(C2, C4), 0));
+    EXPECT_TRUE(killerMoves.isKiller(Move(D2, D4), 0));
+    EXPECT_TRUE(killerMoves.isKiller(Move(E2, E4), 0));
+}
+
+TEST(HeuristicsTest, AddBetaCutoffQuietMove) {
+    Heuristics heuristics;
+    Board board{POS2};
+    Move move(A2, A3);
+    int ply = 0;
+
+    heuristics.addBetaCutoff(board, move, ply);
+    EXPECT_TRUE(heuristics.killers.isKiller(move, ply));
+    EXPECT_GT(heuristics.history.get(WHITE, A2, A3), 0);
+}
+
+TEST(HeuristicsTest, AddBetaCutoffCaptureMove) {
+    Heuristics heuristics;
+    Board board{POS2};
+    Move move(D5, E6);
+    int ply = 0;
+
+    heuristics.addBetaCutoff(board, move, ply);
+    EXPECT_FALSE(heuristics.killers.isKiller(move, ply));
+    EXPECT_EQ(heuristics.history.get(WHITE, D5, E6), 0);
+}

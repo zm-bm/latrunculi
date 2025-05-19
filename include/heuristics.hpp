@@ -24,7 +24,8 @@ struct HistoryTable {
     inline void reset() {
         for (int c = 0; c < N_COLORS; ++c)
             for (int from = 0; from < N_SQUARES; ++from)
-                for (int to = 0; to < N_SQUARES; ++to) history[c][from][to] = 0;
+                for (int to = 0; to < N_SQUARES; ++to)
+                    history[c][from][to] = 0;  // reset history values
     }
 };
 
@@ -54,5 +55,6 @@ struct Heuristics {
             history.update(board.sideToMove(), move.from(), to, ply);
         }
     }
+
     inline void age() { history.age(); }
 };
