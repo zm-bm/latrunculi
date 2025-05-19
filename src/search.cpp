@@ -192,7 +192,11 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             break;
         }
 
-        if (isRoot && isHaltingSearch()) break;
+        if constexpr (isRoot) {
+            if (isHaltingSearch()) {
+                break;
+            }
+        }
     }
 
     // Draw / mate handling
@@ -206,12 +210,14 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     }
 
     // 8. Store result in transposition table
-    TT::NodeType flag = TT::EXACT;
-    if (bestScore <= lowerbound)
-        flag = TT::UPPERBOUND;
-    else if (bestScore >= upperbound)
-        flag = TT::LOWERBOUND;
-    TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
+    if (!isHaltingSearch()) {
+        TT::NodeType flag = TT::EXACT;
+        if (bestScore <= lowerbound)
+            flag = TT::UPPERBOUND;
+        else if (bestScore >= upperbound)
+            flag = TT::LOWERBOUND;
+        TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
+    }
 
     if constexpr (isRoot) {
         if (isMainThread()) {
