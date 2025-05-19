@@ -23,7 +23,15 @@ void Thread::start() {
 void Thread::stop() {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        exitSignal = true;
+        stopSignal = true;
+    }
+    condition.notify_all();
+}
+
+void Thread::haltSearch() {
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        haltSearchSignal = true;
     }
     condition.notify_all();
 }
@@ -47,12 +55,12 @@ void Thread::loop() {
     while (true) {
         {
             std::unique_lock<std::mutex> lock(mutex);
-            condition.wait(lock, [&]() { return runSignal || exitSignal; });
+            condition.wait(lock, [&]() { return runSignal || stopSignal; });
 
-            if (exitSignal) return;
+            if (stopSignal) return;
         }
 
-        if (!exitSignal) {
+        if (!stopSignal) {
             search();
             runSignal = false;
             condition.notify_all();

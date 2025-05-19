@@ -11,7 +11,6 @@ ThreadPool::ThreadPool(size_t numThreads, UCIOutput& uciOutput) {
 ThreadPool::~ThreadPool() { stopAll(); }
 
 void ThreadPool::startAll(SearchOptions& options) {
-    stopSignal          = false;
     TimePoint startTime = Clock::now();
 
     for (auto& thread : threads) {
@@ -21,7 +20,17 @@ void ThreadPool::startAll(SearchOptions& options) {
     }
 }
 
-void ThreadPool::stopAll() { stopSignal = true; }
+void ThreadPool::stopAll() {
+    for (auto& thread : threads) {
+        thread->stop();
+    }
+}
+
+void ThreadPool::haltAll() {
+    for (auto& thread : threads) {
+        thread->haltSearch();
+    }
+}
 
 void ThreadPool::waitAll() {
     for (auto& thread : threads) {

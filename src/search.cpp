@@ -25,7 +25,7 @@ int Thread::search() {
 
     // 1. Iterative deepening loop
     int depth = 1 + (threadId & 1);
-    for (; depth <= options.depth && !isStopping(); ++depth) {
+    for (; depth <= options.depth && !isHaltingSearch(); ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
@@ -65,9 +65,9 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     // Stop search when time expires
     if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
         if (threadPool)
-            threadPool->stopSignal = true;
+            threadPool->haltAll();
         else
-            exitSignal = true;
+            haltSearch();
     }
 
     // 1. Base case: quiescence search
@@ -192,7 +192,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             break;
         }
 
-        if (isStopping()) break;
+        if (isHaltingSearch()) break;
     }
 
     // Draw / mate handling

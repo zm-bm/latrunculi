@@ -40,7 +40,7 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "go") {
         go(iss);
     } else if (token == "stop") {
-        threadpool.stopAll();
+        threadpool.haltAll();
     } else if (token == "ponderhit") {
         uciOutput.toBeImplemented();
     } else if (token == "quit" || token == "exit") {

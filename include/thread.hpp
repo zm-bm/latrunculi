@@ -22,6 +22,7 @@ class Thread {
 
     void start();
     void stop();
+    void haltSearch();
     void wait();
     void set(SearchOptions&, TimePoint startTime);
 
@@ -38,8 +39,9 @@ class Thread {
     // thread state
     std::mutex mutex;
     std::condition_variable condition;
-    bool exitSignal{false};
+    bool stopSignal{false};
     bool runSignal{false};
+    std::atomic<bool> haltSearchSignal{false};
     const int threadId;
 
     UCIOutput& uciOutput;
@@ -60,7 +62,7 @@ class Thread {
     Milliseconds getElapsedTime() const;
     bool isTimeUp() const;
     bool isMainThread() const;
-    bool isStopping() const;
+    bool isHaltingSearch() const;
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -80,6 +82,4 @@ inline Milliseconds Thread::getElapsedTime() const {
 
 inline bool Thread::isTimeUp() const { return getElapsedTime().count() > options.movetime; }
 inline bool Thread::isMainThread() const { return threadId == 0; }
-inline bool Thread::isStopping() const {
-    return exitSignal || (threadPool && threadPool->stopSignal.load());
-}
+inline bool Thread::isHaltingSearch() const { return haltSearchSignal || stopSignal; }

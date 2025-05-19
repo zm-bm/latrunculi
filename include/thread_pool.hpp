@@ -18,12 +18,11 @@ class ThreadPool {
 
     void startAll(SearchOptions&);
     void stopAll();
+    void haltAll();
     void waitAll();
 
     int getNodeCount() const;
     SearchStats getStats() const;
-
-    std::atomic<bool> stopSignal{false};
 
    private:
     std::vector<std::unique_ptr<Thread>> threads;
