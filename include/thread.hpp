@@ -68,7 +68,7 @@ class Thread {
     friend class SearchBenchmark;
 
     friend class ThreadPool;
-    friend class MovePriority;
+    friend class MoveOrder;
     friend class Board;
 };
 

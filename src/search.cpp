@@ -3,6 +3,7 @@
 #include "board.hpp"
 #include "constants.hpp"
 #include "eval.hpp"
+#include "move_order.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"
@@ -125,7 +126,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
     // 3. Generate moves and sort by priority
     MoveGenerator<GenType::All> moves{board};
-    moves.sort(MovePriority(*this, isPV, entry));
+    moves.sort(MoveOrder(*this, isPV, entry));
 
     // 4. Loop over moves
     int searchedMoves = 0;
@@ -248,7 +249,7 @@ int Thread::quiescence(int alpha, int beta) {
 
     // 2. Generate only forcing moves and sort by priority
     MoveGenerator<GenType::Captures> moves{board};
-    moves.sort(MovePriority(*this));
+    moves.sort(MoveOrder(*this));
 
     // 3. Loop over moves
     int legalMoves = 0;
