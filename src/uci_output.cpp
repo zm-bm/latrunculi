@@ -18,8 +18,9 @@ void UCIOutput::sendBestmove(std::string move) const { out << "bestmove " << mov
 
 void UCIOutput::toBeImplemented() const { out << "to be implemented" << std::endl; }
 
-void UCIOutput::sendInfo(int score, int depth, U64 nodes, Milliseconds ms, std::string pv) {
-    if (score == lastScore && pv == lastPV) return;
+void UCIOutput::sendInfo(
+    int score, int depth, U64 nodes, Milliseconds ms, std::string pv, bool force) {
+    if (score == lastScore && pv == lastPV && !force) return;
     lastScore = score;
     lastPV    = pv;
 

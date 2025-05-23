@@ -14,7 +14,7 @@ class UCIOutput {
     void sendIdentity() const;
     void sendReady() const;
     void sendBestmove(std::string) const;
-    void sendInfo(int, int, U64, Milliseconds, std::string);
+    void sendInfo(int, int, U64, Milliseconds, std::string, bool = false);
 
     // Non UCI protocol commands
     void sendStats(SearchStats stats) const;
