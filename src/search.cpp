@@ -50,6 +50,8 @@ int Thread::search() {
     }
 
     if (isMainThread()) {
+        int nodes = threadPool ? threadPool->getNodeCount() : stats.totalNodes;
+        uciOutput.sendInfo(score, depth - 1, nodes, getElapsedTime(), pv.bestLine(), true);
         uciOutput.sendBestmove(pv.bestMove());
         if (options.debug) uciOutput.sendStats(getStats());
     }
