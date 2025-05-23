@@ -30,7 +30,7 @@ struct HistoryTable {
 };
 
 struct KillerMoves {
-    Move killers[MAX_DEPTH][2];
+    Move killers[MAX_DEPTH][2] = {NullMove};
 
     inline void update(Move killer, int ply) {
         if (killers[ply][0] != killer) {
