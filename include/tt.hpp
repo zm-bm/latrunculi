@@ -45,6 +45,20 @@ struct Entry {
     NodeType flag  = NONE;
     Spinlock lock;
 
+    Entry() = default;
+
+    Entry(U64 key, Move move, int score, int depth, NodeType flag)
+        : zobristKey(key), bestMove(move), score(score), depth(depth), flag(flag) {}
+
+    Entry(const Entry& other) {
+        zobristKey = other.zobristKey;
+        bestMove   = other.bestMove;
+        score      = other.score;
+        depth      = other.depth;
+        flag       = other.flag;
+        // Note: Spinlock not copied
+    }
+
     Entry& operator=(const Entry& other) {
         if (this == &other) return *this;
         zobristKey = other.zobristKey;
@@ -52,6 +66,7 @@ struct Entry {
         score      = other.score;
         depth      = other.depth;
         flag       = other.flag;
+        // Note: Spinlock not copied
         return *this;
     }
 
@@ -67,13 +82,13 @@ class Table {
    public:
     Table() = default;
 
-    Entry* probe(U64 key) {
+    Entry probe(U64 key) {
         Entry* entry = &table[key % TT_SIZE];
         entry->lock.lock();
-        return entry;
+        Entry copy = *entry;
+        entry->lock.unlock();
+        return copy;
     }
-
-    void release(U64 key) { table[key % TT_SIZE].lock.unlock(); }
 
     void store(U64 key, Move move, int score, int depth, NodeType flag) {
         Entry* entry = &table[key % TT_SIZE];

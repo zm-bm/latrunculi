@@ -80,38 +80,32 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     int lowerbound = alpha;
     int upperbound = beta;
     int bestScore  = -INF_SCORE;
-    Move bestMove;
+    Move bestMove  = NullMove;
 
     stats.addNode(ply);
 
     // 2. Check the transposition table
-    TT::Entry* entry = nullptr;
-    if constexpr (!isPV) {
-        stats.addTTProbe(ply);
-        entry = TT::table.probe(key);
+    stats.addTTProbe(ply);
+    TT::Entry entry = TT::table.probe(key);
+    if (entry.isValid(key) && entry.depth >= depth) {
+        auto score = TT::score(entry.score, -ply);
+        stats.addTTHit(ply);
 
-        if (entry->isValid(key) && entry->depth >= depth) {
-            stats.addTTHit(ply);
-            auto score    = TT::score(entry->score, -ply);
-            auto bestMove = entry->bestMove;
-            auto flag     = entry->flag;
-
-            TT::table.release(key);
-
-            if (entry->flag == TT::EXACT) {
+        if (entry.flag == TT::EXACT) {
+            stats.addTTCutoff(ply);
+            if (board.isLegalMove(entry.bestMove)) {
+                pv.update(ply, entry.bestMove);
+            }
+            return score;
+        }
+        if constexpr (!isPV) {
+            if (entry.flag == TT::LOWERBOUND && score >= beta) {
+                stats.addTTCutoff(ply);
+                return score;
+            } else if (entry.flag == TT::UPPERBOUND && score <= alpha) {
                 stats.addTTCutoff(ply);
                 return score;
             }
-            if (entry->flag == TT::LOWERBOUND && score >= beta) {
-                stats.addTTCutoff(ply);
-                return score;
-            }
-            if (entry->flag == TT::UPPERBOUND && score <= alpha) {
-                stats.addTTCutoff(ply);
-                return score;
-            }
-        } else {
-            TT::table.release(key);
         }
     }
 
@@ -127,7 +121,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     // 3. Generate moves and sort by priority
     MoveGenerator<GenType::All> moves{board};
     Move pvMove   = (isPV && !pv[ply].empty()) ? pv[ply][0] : NullMove;
-    Move hashMove = (entry && entry->isValid(key)) ? entry->bestMove : NullMove;
+    Move hashMove = entry.isValid(key) ? entry.bestMove : NullMove;
     MoveOrder moveOrder(board, heuristics, ply, pvMove, hashMove);
     moves.sort(moveOrder);
 
