@@ -39,7 +39,7 @@ enum NodeType : U8 {
 
 struct Entry {
     U64 zobristKey = 0;
-    Move bestMove  = {};
+    Move bestMove  = NullMove;
     int score      = 0;
     int depth      = 0;
     NodeType flag  = NONE;
@@ -52,7 +52,6 @@ struct Entry {
         score      = other.score;
         depth      = other.depth;
         flag       = other.flag;
-        // Do not copy `lock` to avoid errors
         return *this;
     }
 
