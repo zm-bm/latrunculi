@@ -126,7 +126,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
     // 3. Generate moves and sort by priority
     MoveGenerator<GenType::All> moves{board};
-    moves.sort(MoveOrder(*this, isPV, entry));
+    Move pvMove   = (isPV && !pv[ply].empty()) ? pv[ply][0] : NullMove;
+    Move hashMove = (entry && entry->isValid(key)) ? entry->bestMove : NullMove;
+    MoveOrder moveOrder(board, heuristics, ply, pvMove, hashMove);
+    moves.sort(moveOrder);
 
     // 4. Loop over moves
     int searchedMoves = 0;
@@ -249,7 +252,8 @@ int Thread::quiescence(int alpha, int beta) {
 
     // 2. Generate only forcing moves and sort by priority
     MoveGenerator<GenType::Captures> moves{board};
-    moves.sort(MoveOrder(*this));
+    MoveOrder moveOrder(board, heuristics, ply);
+    moves.sort(moveOrder);
 
     // 3. Loop over moves
     int legalMoves = 0;

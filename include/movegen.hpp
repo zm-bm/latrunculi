@@ -19,13 +19,12 @@ class MoveGenerator {
    public:
     MoveGenerator(const Board& board);
 
-    void sort(MoveOrder);
-
     Move& operator[](int index) { return moves[index]; }
     const Move* begin() { return moves.begin(); }
     const Move* end() { return last; }
     const bool empty() { return last == moves.data(); }
     const size_t size() { return static_cast<std::size_t>(last - moves.data()); }
+    void sort(MoveOrder&);
 
    private:
     const Board& board;
@@ -68,9 +67,9 @@ inline void MoveGenerator<T>::add(Square from, Square to, MoveType mtype, PieceT
 }
 
 template <GenType T>
-inline void MoveGenerator<T>::sort(MoveOrder priority) {
+inline void MoveGenerator<T>::sort(MoveOrder& moveOrder) {
     for (Move* move = moves.data(); move != last; ++move) {
-        move->priority = priority.scoreMove(*move);
+        move->priority = moveOrder.scoreMove(*move);
     }
 
     auto comp = [](const Move& a, const Move& b) { return a.priority > b.priority; };
