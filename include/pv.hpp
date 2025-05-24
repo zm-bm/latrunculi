@@ -7,35 +7,52 @@
 #include "move.hpp"
 #include "types.hpp"
 
-struct PrincipalVariation {
-    using Line = std::vector<Move>;
+using MoveLine = std::vector<Move>;
 
-    std::array<Line, MAX_DEPTH> lines;
+class PrincipalVariation {
+   private:
+    std::array<MoveLine, MAX_DEPTH> lines;
 
-    Line& operator[](const int ply) { return lines[ply]; }
-
-    std::string bestMove() const { return lines[0].empty() ? "" : lines[0][0].str(); }
-
-    std::string bestLine() const {
-        std::string line;
-        for (const auto& move : lines[0]) {
-            line += move.str() + " ";
-        }
-        return line;
-    }
-
-    void update(const int ply, const Move& move) {
-        Line& line = lines[ply];
-        Line& prev = lines[ply + 1];
-
-        line.clear();
-        line.push_back(move);
-        line.insert(line.end(), prev.begin(), prev.end());
-    }
-
-    void clear() {
-        for (auto& line : lines) {
-            line.clear();
-        }
-    }
+   public:
+    void update(const int ply, const Move& move);
+    void clear(int ply);
+    void clear();
+    Move bestMove(int ply = 0) const;
+    MoveLine bestLine() const;
+    MoveLine& operator[](const int ply);
+    operator std::string() const;
 };
+
+inline void PrincipalVariation::update(const int ply, const Move& move) {
+    MoveLine& line = lines[ply];
+    MoveLine& prev = lines[ply + 1];
+
+    line.clear();
+    line.push_back(move);
+    line.insert(line.end(), prev.begin(), prev.end());
+}
+
+inline void PrincipalVariation::clear() {
+    for (auto& line : lines) {
+        line.clear();
+    }
+}
+
+inline void PrincipalVariation::clear(int ply) { lines[ply].clear(); }
+
+inline Move PrincipalVariation::bestMove(int ply) const {
+    auto front = lines[ply].front();
+    return lines[ply].empty() ? NullMove : lines[ply][0];
+}
+
+inline MoveLine PrincipalVariation::bestLine() const { return lines[0]; }
+
+inline MoveLine& PrincipalVariation::operator[](const int ply) { return lines[ply]; }
+
+inline PrincipalVariation::operator std::string() const {
+    std::string string;
+    for (const auto& move : lines[0]) {
+        string += move.str() + " ";
+    }
+    return string;
+}

@@ -50,9 +50,8 @@ int Thread::search() {
     }
 
     if (isMainThread()) {
-        int nodes = threadPool ? threadPool->getNodeCount() : stats.totalNodes;
-        uciOutput.sendInfo(score, depth - 1, nodes, getElapsedTime(), pv.bestLine(), true);
-        uciOutput.sendBestmove(pv.bestMove());
+        reportSearchInfo(score, depth - 1);
+        uciOutput.sendBestmove(pv.bestMove().str());
         if (options.debug) uciOutput.sendStats(getStats());
     }
 
@@ -122,9 +121,12 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
     // 3. Generate moves and sort by priority
     MoveGenerator<GenType::All> moves{board};
-    Move pvMove   = (isPV && !pv[ply].empty()) ? pv[ply][0] : NullMove;
-    Move hashMove = entry.isValid(key) ? entry.bestMove : NullMove;
-    MoveOrder moveOrder(board, heuristics, ply, pvMove, hashMove);
+    Move pvMove = pv.bestMove(ply);
+    MoveOrder moveOrder(board,
+                        heuristics,
+                        ply,
+                        (isPV ? pv.bestMove(ply) : NullMove),
+                        entry.bestMove);
     moves.sort(moveOrder);
 
     // 4. Loop over moves
@@ -146,7 +148,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         board.make(move);
 
         int score;
-        pv[ply + 1].clear();
+        pv.clear(ply + 1);
         if (isRoot || searchedMoves == 0) {
             score = -alphabeta<nodeType>(-beta, -alpha, depth - 1);
         } else {
@@ -174,12 +176,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             bestMove  = move;
             if (isPV && score > alpha) {
                 pv.update(ply, move);
-                if constexpr (isRoot) {
-                    if (isMainThread()) {
-                        int nodes = threadPool ? threadPool->getNodeCount() : stats.totalNodes;
-                        uciOutput.sendInfo(score, depth, nodes, getElapsedTime(), pv.bestLine());
-                    }
-                }
+                if constexpr (isRoot) reportSearchInfo(score, depth);
             }
         }
 
@@ -219,12 +216,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
     }
 
-    if constexpr (isRoot) {
-        if (isMainThread()) {
-            int nodes = threadPool ? threadPool->getNodeCount() : stats.totalNodes;
-            uciOutput.sendInfo(bestScore, depth, nodes, getElapsedTime(), pv.bestLine());
-        }
-    }
+    if constexpr (isRoot) reportSearchInfo(bestScore, depth);
 
     return bestScore;
 }

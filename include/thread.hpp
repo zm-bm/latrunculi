@@ -57,12 +57,13 @@ class Thread {
     int alphabeta(int, int, int);
     int quiescence(int, int);
 
-    // helpers
-    SearchStats getStats() const;
+    // inline functions / helpers
     Milliseconds getElapsedTime() const;
     bool isTimeUp() const;
     bool isMainThread() const;
     bool isHaltingSearch() const;
+    SearchStats getStats() const;
+    void reportSearchInfo(int score, int depth, bool force = false) const;
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -72,10 +73,6 @@ class Thread {
     friend class Board;
 };
 
-inline SearchStats Thread::getStats() const {
-    return threadPool == nullptr ? this->stats : threadPool->getStats();
-}
-
 inline Milliseconds Thread::getElapsedTime() const {
     return std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
 };
@@ -83,3 +80,15 @@ inline Milliseconds Thread::getElapsedTime() const {
 inline bool Thread::isTimeUp() const { return getElapsedTime().count() > options.movetime; }
 inline bool Thread::isMainThread() const { return threadId == 0; }
 inline bool Thread::isHaltingSearch() const { return haltSearchSignal || stopSignal; }
+
+inline SearchStats Thread::getStats() const {
+    return threadPool == nullptr ? this->stats : threadPool->getStats();
+}
+
+inline void Thread::reportSearchInfo(int score, int depth, bool force) const {
+    if (isMainThread()) {
+        auto nodes       = threadPool ? threadPool->getNodeCount() : stats.totalNodes;
+        auto elapsedTime = getElapsedTime();
+        uciOutput.sendInfo(score, depth, nodes, elapsedTime, pv, force);
+    }
+}
