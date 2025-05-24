@@ -48,7 +48,7 @@ int ThreadPool::getNodeCount() const {
     return totalNodes;
 }
 
-SearchStats ThreadPool::getStats() const {
+SearchStats<> ThreadPool::getStats() const {
     SearchStats stats;
 
     for (const auto& thread : threads) {

@@ -22,7 +22,7 @@ class ThreadPool {
     void waitAll();
 
     int getNodeCount() const;
-    SearchStats getStats() const;
+    SearchStats<> getStats() const;
 
    private:
     std::vector<std::unique_ptr<Thread>> threads;

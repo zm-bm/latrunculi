@@ -17,7 +17,7 @@ constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
                POS5     = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
                EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
-constexpr auto STATS_ENABLED = false;
+constexpr auto STATS_ENABLED = true;
 
 // uci options
 constexpr size_t DEFAULT_HASH_SIZE = 1 << 20;  // 1 MiB

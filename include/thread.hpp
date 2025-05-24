@@ -31,7 +31,7 @@ class Thread {
     Board board;
     PrincipalVariation pv;
     Heuristics heuristics;
-    SearchStats stats;
+    SearchStats<> stats;
     SearchOptions options;
     TimePoint startTime;
     int ply;
@@ -62,7 +62,7 @@ class Thread {
     bool isTimeUp() const;
     bool isMainThread() const;
     bool isHaltingSearch() const;
-    SearchStats getStats() const;
+    SearchStats<> getStats() const;
     void reportSearchInfo(int score, int depth, bool force = false) const;
 
     friend class SearchTest;
@@ -81,7 +81,7 @@ inline bool Thread::isTimeUp() const { return getElapsedTime().count() > options
 inline bool Thread::isMainThread() const { return threadId == 0; }
 inline bool Thread::isHaltingSearch() const { return haltSearchSignal || stopSignal; }
 
-inline SearchStats Thread::getStats() const {
+inline SearchStats<> Thread::getStats() const {
     return threadPool == nullptr ? this->stats : threadPool->getStats();
 }
 

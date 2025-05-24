@@ -36,7 +36,7 @@ void UCIOutput::sendInfo(
     out << std::endl;
 }
 
-void UCIOutput::sendStats(SearchStats stats) const {
+void UCIOutput::sendStats(SearchStats<> stats) const {
     out << "\n"
         << std::setw(5) << "Depth"
         << " | " << std::setw(18) << "Nodes (QNode%)"
