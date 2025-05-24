@@ -7,26 +7,18 @@
 #include "move.hpp"
 #include "types.hpp"
 
+using MoveLine = std::vector<Move>;
+
 struct PrincipalVariation {
-    using Line = std::vector<Move>;
+    std::array<MoveLine, MAX_DEPTH> lines;
 
-    std::array<Line, MAX_DEPTH> lines;
-
-    Line& operator[](const int ply) { return lines[ply]; }
-
-    std::string bestMove() const { return lines[0].empty() ? "" : lines[0][0].str(); }
-
-    std::string bestLine() const {
-        std::string line;
-        for (const auto& move : lines[0]) {
-            line += move.str() + " ";
-        }
-        return line;
-    }
+    MoveLine bestLine() const { return lines[0]; }
+    Move bestMove(int ply = 0) const { return lines[ply].empty() ? NullMove : lines[ply][0]; }
+    void clear(int ply) { lines[ply].clear(); }
 
     void update(const int ply, const Move& move) {
-        Line& line = lines[ply];
-        Line& prev = lines[ply + 1];
+        MoveLine& line = lines[ply];
+        MoveLine& prev = lines[ply + 1];
 
         line.clear();
         line.push_back(move);
@@ -37,5 +29,15 @@ struct PrincipalVariation {
         for (auto& line : lines) {
             line.clear();
         }
+    }
+
+    MoveLine& operator[](const int ply) { return lines[ply]; }
+
+    operator std::string() const {
+        std::string string;
+        for (const auto& move : lines[0]) {
+            string += move.str() + " ";
+        }
+        return string;
     }
 };
