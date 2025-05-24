@@ -18,7 +18,6 @@ class MoveOrder {
         PROM_MOVE    = 1 << 13,
         GOOD_CAPTURE = 1 << 12,
         KILLER_MOVE  = 1 << 11,
-        HISTORY_MOVE = 1 << 10,
         BAD_CAPTURE  = 0,
     };
 
