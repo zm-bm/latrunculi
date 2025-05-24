@@ -20,7 +20,7 @@ constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
 // search constants
 constexpr int MAX_DEPTH   = 64;
 constexpr int MAX_MOVES   = 256;
-constexpr int MAX_HISTORY = 1000;
+constexpr int MAX_HISTORY = 1024;
 
 // WIP search constants
 constexpr int DEFAULT_THREADS = 1;
