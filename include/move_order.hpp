@@ -23,7 +23,8 @@ class MoveOrder {
     };
 
     Board& board;
-    Heuristics& heuristics;
+    KillerMoves& killers;
+    HistoryTable& history;
     Move pvMove;
     Move hashMove;
     int ply;
@@ -31,7 +32,12 @@ class MoveOrder {
 
 inline MoveOrder::MoveOrder(
     Board& board, Heuristics& heuristics, int ply, Move pvMove, Move hashMove)
-    : board(board), heuristics(heuristics), ply(ply), pvMove(pvMove), hashMove(hashMove) {};
+    : board(board),
+      killers(heuristics.killers),
+      history(heuristics.history),
+      ply(ply),
+      pvMove(pvMove),
+      hashMove(hashMove) {};
 
 inline U16 MoveOrder::scoreMove(const Move& move) const {
     if (move == pvMove) return PV_MOVE;
@@ -45,7 +51,7 @@ inline U16 MoveOrder::scoreMove(const Move& move) const {
         return (seeScore >= 0) ? GOOD_CAPTURE + seeScore : BAD_CAPTURE;
     }
 
-    if (heuristics.killers.isKiller(move, ply)) return KILLER_MOVE;
+    if (killers.isKiller(move, ply)) return KILLER_MOVE;
 
-    return heuristics.history.get(board.sideToMove(), move.from(), move.to());
+    return history.get(board.sideToMove(), move.from(), move.to());
 }
