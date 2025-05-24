@@ -73,7 +73,7 @@ struct Entry {
     bool isValid(U64 key) const { return zobristKey == key; }
 };
 
-constexpr size_t TT_SIZE = 1 << 20;
+constexpr size_t TT_SIZE = DEFAULT_HASH_SIZE;
 
 class Table {
    private:

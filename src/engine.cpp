@@ -67,9 +67,9 @@ void Engine::setdebug(std::istringstream& iss) {
     iss >> token;
 
     if (token == "on") {
-        debug = true;
+        uciOptions.debug = true;
     } else if (token == "off") {
-        debug = false;
+        uciOptions.debug = false;
     }
 }
 
@@ -117,7 +117,7 @@ void Engine::perft(std::istringstream& iss) {
 void Engine::go(std::istringstream& iss) {
     SearchOptions options{};
     options.fen   = board.toFEN();
-    options.debug = debug;
+    options.debug = uciOptions.debug;
 
     std::string token;
     while (iss >> token) {

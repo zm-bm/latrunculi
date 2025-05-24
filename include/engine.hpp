@@ -6,13 +6,15 @@
 #include "constants.hpp"
 #include "search_stats.hpp"
 #include "thread_pool.hpp"
+#include "uci_options.hpp"
 #include "uci_output.hpp"
 
 class Engine {
    public:
     Engine() = delete;
+
     Engine(std::ostream& out, std::istream& in)
-        : in(in), out(out), uciOutput(out), threadpool(DEFAULT_THREADS, uciOutput) {}
+        : in(in), out(out), uciOutput(out), threadpool(uciOptions.threads, uciOutput) {}
 
     void loop();
 
@@ -22,9 +24,9 @@ class Engine {
     std::istream& in;
     std::ostream& out;
     UCIOutput uciOutput;
+    UCIOptions uciOptions;
     ThreadPool threadpool;
     Board board = Board(STARTFEN);
-    bool debug  = DEFAULT_DEBUG;
 
     bool execute(const std::string&);
 
