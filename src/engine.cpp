@@ -25,6 +25,7 @@ bool Engine::execute(const std::string& line) {
     std::string token;
     iss >> token;
 
+    // UCI commands
     if (token == "uci") {
         uciOutput.sendIdentity();
     } else if (token == "debug") {
@@ -32,7 +33,7 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "isready") {
         uciOutput.sendReady();
     } else if (token == "setoption") {
-        uciOutput.toBeImplemented();
+        setoption(iss);
     } else if (token == "ucinewgame") {
         uciOutput.toBeImplemented();
     } else if (token == "position") {
@@ -47,6 +48,7 @@ bool Engine::execute(const std::string& line) {
         return false;
     }
 
+    // Non-UCI commands
     if (token == "perft") {
         perft(iss);
     } else if (token == "move") {
@@ -60,17 +62,6 @@ bool Engine::execute(const std::string& line) {
     }
 
     return true;
-}
-
-void Engine::setdebug(std::istringstream& iss) {
-    std::string token;
-    iss >> token;
-
-    if (token == "on") {
-        debug = true;
-    } else if (token == "off") {
-        debug = false;
-    }
 }
 
 void Engine::position(std::istringstream& iss) {
@@ -106,18 +97,10 @@ void Engine::position(std::istringstream& iss) {
     }
 }
 
-void Engine::perft(std::istringstream& iss) {
-    std::string token;
-    iss >> token;
-
-    auto val = std::stoi(token);
-    board.perft<NodeType::Root>(val, out);
-}
-
 void Engine::go(std::istringstream& iss) {
     SearchOptions options{};
     options.fen   = board.toFEN();
-    options.debug = debug;
+    options.debug = uciOptions.debug;
 
     std::string token;
     while (iss >> token) {
@@ -132,6 +115,49 @@ void Engine::go(std::istringstream& iss) {
     }
 
     threadpool.startAll(options);
+}
+
+void Engine::setoption(std::istringstream& iss) {
+    std::string token, name, value;
+    iss >> token;
+
+    if (token == "name") {
+        std::cout << iss.str() << std::endl;
+        while (iss >> token && token != "value") {
+            name += token;
+        }
+
+        if (name == "Debug") {
+            setdebug(iss);
+        } else if (name == "Threads") {
+            iss >> token;
+            int numThreads = std::stoi(token);
+            threadpool.resize(numThreads);
+        } else if (name == "Hash") {
+            iss >> token;
+            size_t hash = std::stoul(token);
+            // TT::resize(hash);
+        }
+    }
+}
+
+void Engine::setdebug(std::istringstream& iss) {
+    std::string token;
+    iss >> token;
+
+    if (token == "on") {
+        uciOptions.debug = true;
+    } else if (token == "off") {
+        uciOptions.debug = false;
+    }
+}
+
+void Engine::perft(std::istringstream& iss) {
+    std::string token;
+    iss >> token;
+
+    auto val = std::stoi(token);
+    board.perft<NodeType::Root>(val, out);
 }
 
 void Engine::move(std::istringstream& iss) {

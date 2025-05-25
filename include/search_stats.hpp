@@ -8,9 +8,8 @@
 
 constexpr U64 NODE_INTERVAL = 10000;
 
+template <bool Debug = STATS_ENABLED>
 struct SearchStats {
-    bool debug = DEFAULT_DEBUG;
-
     U64 totalNodes{0};
 
     std::array<U64, MAX_DEPTH> nodes{0};
@@ -45,19 +44,19 @@ struct SearchStats {
 
     void addNode(int ply) {
         totalNodes++;
-        if (debug) nodes[ply]++;
+        if constexpr (Debug) nodes[ply]++;
     }
 
     void addQNode(int ply) {
         totalNodes++;
-        if (debug) {
+        if constexpr (Debug) {
             nodes[ply]++;
             qNodes[ply]++;
         }
     }
 
     void addBetaCutoff(int ply, bool early) {
-        if (debug) {
+        if constexpr (Debug) {
             cutoffs[ply]++;
             if (early)
                 failHighEarly[ply]++;
@@ -67,13 +66,13 @@ struct SearchStats {
     }
 
     void addTTProbe(int ply) {
-        if (debug) ttProbes[ply]++;
+        if constexpr (Debug) ttProbes[ply]++;
     }
     void addTTHit(int ply) {
-        if (debug) ttHits[ply]++;
+        if constexpr (Debug) ttHits[ply]++;
     }
     void addTTCutoff(int ply) {
-        if (debug) ttCutoffs[ply]++;
+        if constexpr (Debug) ttCutoffs[ply]++;
     }
 
     int maxDepth() const {

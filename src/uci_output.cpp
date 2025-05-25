@@ -7,8 +7,11 @@
 #include "constants.hpp"
 
 void UCIOutput::sendIdentity() const {
-    out << "id name Latrunculi " << VERSION << std::endl;
-    out << "id author Eric VanderHelm" << std::endl;
+    out << "id name Latrunculi " << VERSION << "\n";
+    out << "id author Eric VanderHelm\n\n";
+    out << "option name Debug type check default " << (DEFAULT_DEBUG ? "true" : "false") << "\n";
+    out << "option name Threads type spin default " << DEFAULT_THREADS << "\n";
+    out << "option name Hash type spin default " << DEFAULT_HASH_SIZE << "\n";
     out << "uciok" << std::endl;
 }
 
@@ -36,7 +39,7 @@ void UCIOutput::sendInfo(
     out << std::endl;
 }
 
-void UCIOutput::sendStats(SearchStats stats) const {
+void UCIOutput::sendStats(SearchStats<> stats) const {
     out << "\n"
         << std::setw(5) << "Depth"
         << " | " << std::setw(18) << "Nodes (QNode%)"

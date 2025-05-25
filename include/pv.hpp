@@ -41,7 +41,6 @@ inline void PrincipalVariation::clear() {
 inline void PrincipalVariation::clear(int ply) { lines[ply].clear(); }
 
 inline Move PrincipalVariation::bestMove(int ply) const {
-    auto front = lines[ply].front();
     return lines[ply].empty() ? NullMove : lines[ply][0];
 }
 

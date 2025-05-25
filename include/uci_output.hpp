@@ -17,7 +17,7 @@ class UCIOutput {
     void sendInfo(int, int, U64, Milliseconds, std::string, bool = false);
 
     // Non UCI protocol commands
-    void sendStats(SearchStats stats) const;
+    void sendStats(SearchStats<> stats) const;
     void toBeImplemented() const;
 
    private:

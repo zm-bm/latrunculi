@@ -52,7 +52,7 @@ int Thread::search() {
     if (isMainThread()) {
         reportSearchInfo(score, depth - 1, true);
         uciOutput.sendBestmove(pv.bestMove().str());
-        if (options.debug) uciOutput.sendStats(getStats());
+        if constexpr (STATS_ENABLED) uciOutput.sendStats(getStats());
     }
 
     return score;

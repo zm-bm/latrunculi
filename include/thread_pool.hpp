@@ -20,10 +20,12 @@ class ThreadPool {
     void stopAll();
     void haltAll();
     void waitAll();
+    void resize(size_t newSize);
 
     int getNodeCount() const;
-    SearchStats getStats() const;
+    SearchStats<> getStats() const;
 
    private:
     std::vector<std::unique_ptr<Thread>> threads;
+    UCIOutput& uciOutput;
 };

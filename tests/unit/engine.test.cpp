@@ -14,7 +14,7 @@ class EngineTest : public ::testing::Test {
 
     bool execute(const std::string& command) { return engine.execute(command); }
 
-    bool debug() { return engine.debug; }
+    bool debug() { return engine.uciOptions.debug; }
 
     Board& board() { return engine.board; }
 };
