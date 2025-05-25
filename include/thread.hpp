@@ -40,7 +40,7 @@ class Thread {
     std::mutex mutex;
     std::condition_variable condition;
     bool stopSignal{false};
-    bool runSignal{false};
+    std::atomic<bool> runSignal{false};
     std::atomic<bool> haltSearchSignal{false};
     const int threadId;
 

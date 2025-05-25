@@ -190,9 +190,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         }
 
         if constexpr (isRoot) {
-            if (isHaltingSearch()) {
-                break;
-            }
+            if (isHaltingSearch()) break;
         }
     }
 
