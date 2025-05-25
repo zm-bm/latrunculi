@@ -45,4 +45,6 @@ class Engine {
     void perft(std::istringstream& iss);
     void move(std::istringstream& iss);
     void moves();
+
+    friend class BenchmarkTest;
 };
