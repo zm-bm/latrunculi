@@ -61,7 +61,8 @@ void Thread::loop() {
 
         if (!stopSignal) {
             search();
-            runSignal = false;
+            runSignal        = false;
+            haltSearchSignal = false;
             condition.notify_all();
         }
     }
