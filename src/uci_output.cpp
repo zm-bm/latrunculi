@@ -7,8 +7,11 @@
 #include "constants.hpp"
 
 void UCIOutput::sendIdentity() const {
-    out << "id name Latrunculi " << VERSION << std::endl;
-    out << "id author Eric VanderHelm" << std::endl;
+    out << "id name Latrunculi " << VERSION << "\n";
+    out << "id author Eric VanderHelm\n\n";
+    out << "option name Debug type check default " << (DEFAULT_DEBUG ? "true" : "false") << "\n";
+    out << "option name Threads type spin default " << DEFAULT_THREADS << "\n";
+    out << "option name Hash type spin default " << DEFAULT_HASH_SIZE << "\n";
     out << "uciok" << std::endl;
 }
 

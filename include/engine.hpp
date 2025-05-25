@@ -14,7 +14,11 @@ class Engine {
     Engine() = delete;
 
     Engine(std::ostream& out, std::istream& in)
-        : in(in), out(out), uciOutput(out), threadpool(uciOptions.threads, uciOutput) {}
+        : in(in),
+          out(out),
+          uciOutput(out),
+          board(STARTFEN),
+          threadpool(DEFAULT_THREADS, uciOutput) {}
 
     void loop();
 
@@ -25,14 +29,19 @@ class Engine {
     std::ostream& out;
     UCIOutput uciOutput;
     UCIOptions uciOptions;
+    Board board;
     ThreadPool threadpool;
-    Board board = Board(STARTFEN);
 
+    // Execute command
     bool execute(const std::string&);
 
+    // UCI commands
     void position(std::istringstream& iss);
     void go(std::istringstream& iss);
+    void setoption(std::istringstream& iss);
     void setdebug(std::istringstream& iss);
+
+    // Non-UCI commands
     void perft(std::istringstream& iss);
     void move(std::istringstream& iss);
     void moves();

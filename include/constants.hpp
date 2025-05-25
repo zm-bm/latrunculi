@@ -21,7 +21,7 @@ constexpr auto STATS_ENABLED = true;
 
 // uci options
 constexpr size_t DEFAULT_HASH_SIZE = 1 << 20;  // 1 MiB
-constexpr size_t DEFAULT_THREADS   = 4;
+constexpr size_t DEFAULT_THREADS   = 1;
 constexpr bool DEFAULT_DEBUG       = false;
 
 // search constants
