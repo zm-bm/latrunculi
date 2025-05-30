@@ -1,6 +1,6 @@
 #include "thread.hpp"
 
-Thread::Thread(int id, UCIOutput& uciOutput, ThreadPool* threadPool)
+Thread::Thread(int id, UCIOutput& uciOutput, ThreadPool& threadPool)
     : threadId(id), uciOutput(uciOutput), threadPool(threadPool), thread(&Thread::loop, this) {
     board.setThread(this);
 }
@@ -31,7 +31,7 @@ void Thread::stop() {
 void Thread::haltSearch() {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        haltSearchSignal = true;
+        if (runSignal) haltSearchSignal = true;
     }
     condition.notify_all();
 }

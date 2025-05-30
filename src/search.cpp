@@ -52,7 +52,7 @@ int Thread::search() {
     if (isMainThread()) {
         reportSearchInfo(score, depth - 1, true);
         uciOutput.sendBestmove(pv.bestMove().str());
-        if constexpr (STATS_ENABLED) uciOutput.sendStats(getStats());
+        if constexpr (STATS_ENABLED) uciOutput.sendStats(threadPool.getStats());
     }
 
     return score;
@@ -66,10 +66,8 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
     // Stop search when time expires
     if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
-        if (threadPool)
-            threadPool->haltAll();
-        else
-            haltSearch();
+        threadPool.haltAll();
+        return alpha;
     }
 
     // 1. Base case: quiescence search
@@ -189,10 +187,6 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             heuristics.addBetaCutoff(board, move, ply);
             stats.addBetaCutoff(ply, move == moves[0]);
             break;
-        }
-
-        if constexpr (isRoot) {
-            if (isHaltingSearch()) break;
         }
     }
 

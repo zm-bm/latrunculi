@@ -14,11 +14,10 @@ class ThreadTest : public ::testing::Test {
    protected:
     std::ostringstream oss;
     UCIOutput uciOutput{oss};
+    ThreadPool threadPool{1, uciOutput};
     Thread* thread;
 
-    void SetUp() override { thread = new Thread(0, uciOutput, nullptr); }
-
-    void TearDown() override { delete thread; }
+    void SetUp() override { thread = threadPool.threads[0].get(); }
 };
 
 TEST_F(ThreadTest, ThreadStartsAndStopsCorrectly) {

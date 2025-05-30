@@ -64,5 +64,9 @@ TEST_F(ThreadPoolTest, GetStats) {
     threadPool->stopAll();
 
     SearchStats stats = threadPool->getStats();
-    EXPECT_GT(stats.maxDepth(), 0);
+    if (STATS_ENABLED) {
+        EXPECT_GT(stats.maxDepth(), 0);
+    } else {
+        SUCCEED();
+    }
 }

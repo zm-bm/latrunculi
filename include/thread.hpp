@@ -17,7 +17,7 @@
 class Thread {
    public:
     Thread() = delete;
-    Thread(int, UCIOutput&, ThreadPool* threadPool = nullptr);
+    Thread(int, UCIOutput&, ThreadPool&);
     ~Thread();
 
     void start();
@@ -45,7 +45,7 @@ class Thread {
     const int threadId;
 
     UCIOutput& uciOutput;
-    ThreadPool* threadPool{nullptr};
+    ThreadPool& threadPool;
     std::thread thread;
 
     // main thread loop
@@ -62,7 +62,6 @@ class Thread {
     bool isTimeUp() const;
     bool isMainThread() const;
     bool isHaltingSearch() const;
-    SearchStats<> getStats() const;
     void reportSearchInfo(int score, int depth, bool force = false) const;
 
     friend class SearchTest;
@@ -81,13 +80,9 @@ inline bool Thread::isTimeUp() const { return getElapsedTime().count() > options
 inline bool Thread::isMainThread() const { return threadId == 0; }
 inline bool Thread::isHaltingSearch() const { return haltSearchSignal || stopSignal; }
 
-inline SearchStats<> Thread::getStats() const {
-    return threadPool == nullptr ? this->stats : threadPool->getStats();
-}
-
 inline void Thread::reportSearchInfo(int score, int depth, bool force) const {
     if (isMainThread()) {
-        auto nodes       = threadPool ? threadPool->getNodeCount() : stats.totalNodes;
+        auto nodes       = threadPool.getNodeCount();
         auto elapsedTime = getElapsedTime();
         uciOutput.sendInfo(score, depth, nodes, elapsedTime, pv, force);
     }
