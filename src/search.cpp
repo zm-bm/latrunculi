@@ -92,12 +92,14 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         auto score = TT::score(entry.score, -ply);
         stats.addTTHit(ply);
 
-        if (entry.flag == TT::EXACT) {
-            stats.addTTCutoff(ply);
-            if (board.isLegalMove(entry.bestMove)) {
-                pv.update(ply, entry.bestMove);
+        if constexpr (!isRoot) {
+            if (entry.flag == TT::EXACT) {
+                stats.addTTCutoff(ply);
+                if (board.isLegalMove(entry.bestMove)) {
+                    pv.update(ply, entry.bestMove);
+                }
+                return score;
             }
-            return score;
         }
         if constexpr (!isPV) {
             if (entry.flag == TT::LOWERBOUND && score >= beta) {
