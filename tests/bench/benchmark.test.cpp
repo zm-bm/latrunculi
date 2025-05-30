@@ -61,51 +61,91 @@ class BenchmarkTest : public ::testing::Test {
         return {fen, bestMove, avoidMove};
     }
 
-    bool testSearch(std::string& fen, std::string& bestMove, std::string& avoidMove) {
+    std::string getLastOutput() {
+        std::istringstream iss(oss.str());
+        std::string line, last;
+        while (std::getline(iss, line)) {
+            last = line;
+        }
+        return last;
+    }
+
+    std::string extractPV() {
+        auto outputStr = getLastOutput();
+        std::istringstream iss(outputStr);
+        std::string token;
+        while (iss >> token) {
+            if (token == "pv") {
+                std::string pvMove;
+                if (iss >> pvMove) {
+                    return pvMove;
+                }
+            }
+        }
+        return "";
+    }
+
+    std::string getEngineMove(std::string fen, std::string move) {
+        Board board(fen);
+        MoveGenerator<GenType::All> moves{board};
+
+        auto moveMatches = [&](Move m) { return m.str() == move; };
+        auto movePtr     = std::find_if(moves.begin(), moves.end(), moveMatches);
+
+        return board.toSAN(*movePtr);
+    }
+
+    bool testSearch(std::string& fen, std::string& expectedMove, std::string& avoidMove) {
         // reset the output stream
         oss.str("");
         oss.clear();
 
+        // log the test case
+        std::cout << "fen= " << fen << std::endl;
+        if (!expectedMove.empty()) std::cout << "bm=" << expectedMove;
+        if (!avoidMove.empty()) std::cout << "\tam=" << avoidMove;
+        std::cout << std::endl;
+
+        auto start = std::chrono::steady_clock::now();
+
+        engine.execute("stop");
         engine.execute("position fen " + fen);
         engine.execute("go movetime " + MOVETIME);
 
-        // poll output every 10ms until "bestmove " is found
         std::string output;
+        bool foundBestMove = false;
         while (true) {
             output = oss.str();
-            // std::cout << output << std::endl;
+
+            std::string pvMove = extractPV();
+            if (!pvMove.empty()) {
+                auto engineMove = getEngineMove(fen, pvMove);
+
+                if ((expectedMove.empty() || expectedMove == engineMove) &&
+                    (avoidMove.empty() || avoidMove != engineMove)) {
+                    auto now = std::chrono::steady_clock::now();
+                    auto elapsed =
+                        std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+                    std::cout << "SUCCESS: " << engineMove << " (Time: " << elapsed << " ms)"
+                              << std::endl;
+                    foundBestMove = true;
+                    break;
+                }
+            }
+
             if (output.find("bestmove") != std::string::npos) {
+                std::string pvMove = extractPV();
+                auto engineMove    = getEngineMove(fen, pvMove);
+                std::cout << "FAILURE:" << engineMove << std::endl;
                 break;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
-        std::string token, engineMove, engineMoveSAN;
-        std::istringstream iss(output);
-        while (iss >> token && token != "bestmove");
-        iss >> engineMove;
+        // temp output for debugging
+        std::cout << "Output: \n" << output << std::endl;
 
-        Board board(fen);
-        MoveGenerator<GenType::All> moves{board};
-        auto moveMatches = [&](Move m) { return m.str() == engineMove; };
-        auto move        = std::find_if(moves.begin(), moves.end(), moveMatches);
-        engineMoveSAN    = board.toSAN(*move);
-
-        std::cout << engineMoveSAN;
-        ;
-        if (!bestMove.empty()) std::cout << "\tbm=" << bestMove;
-        if (!avoidMove.empty()) std::cout << "\tam=" << avoidMove;
-
-        if ((bestMove.empty() || bestMove == engineMoveSAN) &&
-            (avoidMove.empty() || avoidMove != engineMoveSAN)) {
-            std::cout << "\tSUCCESS\n" << std::endl;
-            ;
-            return true;
-        } else {
-            std::cout << "\tFAILURE\n" << std::endl;
-            ;
-            return false;
-        }
+        return foundBestMove;
     }
 
     void testAll() {
