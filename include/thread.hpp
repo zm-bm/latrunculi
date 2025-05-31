@@ -61,7 +61,6 @@ class Thread {
     Milliseconds getElapsedTime() const;
     bool isTimeUp() const;
     bool isMainThread() const;
-    bool isHaltingSearch() const;
     void reportSearchInfo(int score, int depth, bool force = false) const;
 
     friend class SearchTest;
@@ -78,7 +77,6 @@ inline Milliseconds Thread::getElapsedTime() const {
 
 inline bool Thread::isTimeUp() const { return getElapsedTime().count() > options.movetime; }
 inline bool Thread::isMainThread() const { return threadId == 0; }
-inline bool Thread::isHaltingSearch() const { return stopSignal || exitSignal; }
 
 inline void Thread::reportSearchInfo(int score, int depth, bool force) const {
     if (isMainThread()) {

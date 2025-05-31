@@ -23,6 +23,7 @@ void Thread::start() {
 void Thread::exit() {
     {
         std::lock_guard<std::mutex> lock(mutex);
+        stopSignal = true;
         exitSignal = true;
     }
     condition.notify_all();

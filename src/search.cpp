@@ -26,7 +26,7 @@ int Thread::search() {
 
     // 1. Iterative deepening loop
     int depth = 1 + (threadId & 1);
-    for (; depth <= options.depth && !isHaltingSearch(); ++depth) {
+    for (; depth <= options.depth && !stopSignal; ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
@@ -201,7 +201,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     }
 
     // 8. Store result in transposition table
-    if (!isHaltingSearch()) {
+    if (!stopSignal) {
         TT::NodeType flag = TT::EXACT;
         if (bestScore <= lowerbound)
             flag = TT::UPPERBOUND;
