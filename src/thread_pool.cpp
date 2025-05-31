@@ -8,7 +8,7 @@ ThreadPool::ThreadPool(size_t numThreads, UCIOutput& uciOutput) : uciOutput(uciO
     }
 }
 
-ThreadPool::~ThreadPool() { stopAll(); }
+ThreadPool::~ThreadPool() { exitAll(); }
 
 void ThreadPool::startAll(SearchOptions& options) {
     TimePoint startTime = Clock::now();
@@ -20,15 +20,15 @@ void ThreadPool::startAll(SearchOptions& options) {
     }
 }
 
-void ThreadPool::stopAll() {
+void ThreadPool::exitAll() {
     for (auto& thread : threads) {
-        thread->stop();
+        thread->exit();
     }
 }
 
-void ThreadPool::haltAll() {
+void ThreadPool::stopAll() {
     for (auto& thread : threads) {
-        thread->haltSearch();
+        thread->stop();
     }
 }
 
@@ -43,7 +43,7 @@ void ThreadPool::resize(size_t newSize) {
 
     if (newSize < threads.size()) {
         for (size_t i = newSize; i < threads.size(); ++i) {
-            threads[i]->stop();
+            threads[i]->exit();
         }
         threads.resize(newSize);
     } else {

@@ -38,9 +38,9 @@ TEST_F(ThreadPoolTest, ExitAllThreads) {
     EXPECT_NO_THROW(threadPool->waitAll());
 }
 
-TEST_F(ThreadPoolTest, HaltAllThreads) {
+TEST_F(ThreadPoolTest, StopAllThreads) {
     threadPool->startAll(options);
-    threadPool->haltAll();
+    threadPool->stopAll();
 
     // Ensure threads are halted
     EXPECT_NO_THROW(threadPool->waitAll());

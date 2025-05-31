@@ -66,7 +66,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
     // Stop search when time expires
     if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
-        threadPool.haltAll();
+        threadPool.stopAll();
         return alpha;
     }
 

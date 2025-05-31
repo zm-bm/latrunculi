@@ -17,8 +17,8 @@ class ThreadPool {
     ~ThreadPool();
 
     void startAll(SearchOptions&);
+    void exitAll();
     void stopAll();
-    void haltAll();
     void waitAll();
     void resize(size_t newSize);
 
