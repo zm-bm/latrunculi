@@ -22,21 +22,20 @@ int Thread::search() {
     pv.clear();
 
     int score     = 0;
-    int prevScore = eval<Silent>(board);
+    int lastScore = eval<Silent>(board);
+    int depth     = 1 + (threadId & 1);
+    int lastDepth = depth - 1;
 
     // 1. Iterative deepening loop
-    int depth = 1 + (threadId & 1);
     for (; depth <= options.depth && !stopSignal; ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
-        int alpha = prevScore - AspirationWindow;
-        int beta  = prevScore + AspirationWindow;
+        int alpha = lastScore - AspirationWindow;
+        int beta  = lastScore + AspirationWindow;
 
         // 3. First search
         score = alphabeta(alpha, beta, depth);
-
-        if (score == ABORT_SCORE) break;
 
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
@@ -45,14 +44,17 @@ int Thread::search() {
             score = alphabeta(alpha, INF_SCORE, depth);
         }
 
-        prevScore = score;
+        if (score == ABORT_SCORE) break;
+        lastScore = score;
+        lastDepth = depth;
+
         heuristics.age();
 
         if (isMateScore(score)) break;
     }
 
     if (isMainThread()) {
-        reportSearchInfo(score, depth - 1, true);
+        reportSearchInfo(lastScore, lastDepth, true);
         uciOutput.sendBestmove(pv.bestMove().str());
         if constexpr (STATS_ENABLED) uciOutput.sendStats(threadPool.getStats());
     }
@@ -69,8 +71,8 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     // Stop search when time expires
     if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
         threadPool.stopAll();
-        return ABORT_SCORE;
     }
+    if (stopSignal) return ABORT_SCORE;
 
     // 1. Base case: quiescence search
     if (depth == 0) {
@@ -118,6 +120,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         board.makeNull();
         int score = -alphabeta<NodeType::NonPV>(-beta, -beta + 1, depth - 1 - NullMoveR);
         board.unmmakeNull();
+        if (score == ABORT_SCORE) return ABORT_SCORE;
         if (score >= beta) return beta;
     }
 
@@ -172,9 +175,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
         board.unmake();
 
-        if (score == ABORT_SCORE) {
-            return ABORT_SCORE;
-        }
+        if (score == ABORT_SCORE) return ABORT_SCORE;
 
         // 6. If we found a better move, update our bestScore/Move and principal variation
         if (score > bestScore) {
@@ -222,6 +223,8 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 template int Thread::alphabeta<NodeType::Root>(int, int, int);
 
 int Thread::quiescence(int alpha, int beta) {
+    if (stopSignal) return ABORT_SCORE;
+
     // 1. Evaluate the current position (stand-pat).
     int standPat = eval(board);
     stats.addQNode(ply);
@@ -254,6 +257,8 @@ int Thread::quiescence(int alpha, int beta) {
         board.make(move);
         int score = -quiescence(-beta, -alpha);
         board.unmake();
+
+        if (score == ABORT_SCORE) return ABORT_SCORE;
 
         if (score >= beta) {
             // beta cutoff
