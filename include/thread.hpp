@@ -17,12 +17,12 @@
 class Thread {
    public:
     Thread() = delete;
-    Thread(int, UCIOutput&, ThreadPool* threadPool = nullptr);
+    Thread(int, UCIOutput&, ThreadPool&);
     ~Thread();
 
     void start();
+    void exit();
     void stop();
-    void haltSearch();
     void wait();
     void set(SearchOptions&, TimePoint startTime);
 
@@ -39,13 +39,13 @@ class Thread {
     // thread state
     std::mutex mutex;
     std::condition_variable condition;
-    bool stopSignal{false};
+    bool exitSignal{false};
     std::atomic<bool> runSignal{false};
-    std::atomic<bool> haltSearchSignal{false};
+    std::atomic<bool> stopSignal{false};
     const int threadId;
 
     UCIOutput& uciOutput;
-    ThreadPool* threadPool{nullptr};
+    ThreadPool& threadPool;
     std::thread thread;
 
     // main thread loop
@@ -61,8 +61,6 @@ class Thread {
     Milliseconds getElapsedTime() const;
     bool isTimeUp() const;
     bool isMainThread() const;
-    bool isHaltingSearch() const;
-    SearchStats<> getStats() const;
     void reportSearchInfo(int score, int depth, bool force = false) const;
 
     friend class SearchTest;
@@ -79,15 +77,10 @@ inline Milliseconds Thread::getElapsedTime() const {
 
 inline bool Thread::isTimeUp() const { return getElapsedTime().count() > options.movetime; }
 inline bool Thread::isMainThread() const { return threadId == 0; }
-inline bool Thread::isHaltingSearch() const { return haltSearchSignal || stopSignal; }
-
-inline SearchStats<> Thread::getStats() const {
-    return threadPool == nullptr ? this->stats : threadPool->getStats();
-}
 
 inline void Thread::reportSearchInfo(int score, int depth, bool force) const {
     if (isMainThread()) {
-        auto nodes       = threadPool ? threadPool->getNodeCount() : stats.totalNodes;
+        auto nodes       = threadPool.getNodeCount();
         auto elapsedTime = getElapsedTime();
         uciOutput.sendInfo(score, depth, nodes, elapsedTime, pv, force);
     }

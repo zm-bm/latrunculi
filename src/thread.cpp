@@ -1,12 +1,12 @@
 #include "thread.hpp"
 
-Thread::Thread(int id, UCIOutput& uciOutput, ThreadPool* threadPool)
+Thread::Thread(int id, UCIOutput& uciOutput, ThreadPool& threadPool)
     : threadId(id), uciOutput(uciOutput), threadPool(threadPool), thread(&Thread::loop, this) {
     board.setThread(this);
 }
 
 Thread::~Thread() {
-    stop();
+    exit();
     if (thread.joinable()) {
         thread.join();
     }
@@ -20,18 +20,19 @@ void Thread::start() {
     condition.notify_all();
 }
 
-void Thread::stop() {
+void Thread::exit() {
     {
         std::lock_guard<std::mutex> lock(mutex);
         stopSignal = true;
+        exitSignal = true;
     }
     condition.notify_all();
 }
 
-void Thread::haltSearch() {
+void Thread::stop() {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        haltSearchSignal = true;
+        if (runSignal) stopSignal = true;
     }
     condition.notify_all();
 }
@@ -54,15 +55,15 @@ void Thread::loop() {
     while (true) {
         {
             std::unique_lock<std::mutex> lock(mutex);
-            condition.wait(lock, [&]() { return runSignal || stopSignal; });
+            condition.wait(lock, [&]() { return runSignal || exitSignal; });
 
-            if (stopSignal) return;
+            if (exitSignal) return;
         }
 
-        if (!stopSignal) {
+        if (!exitSignal) {
             search();
-            runSignal        = false;
-            haltSearchSignal = false;
+            runSignal  = false;
+            stopSignal = false;
             condition.notify_all();
         }
     }

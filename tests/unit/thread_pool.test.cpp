@@ -30,17 +30,17 @@ TEST_F(ThreadPoolTest, StartAllThreads) {
     EXPECT_NO_THROW(threadPool->waitAll());
 }
 
-TEST_F(ThreadPoolTest, StopAllThreads) {
+TEST_F(ThreadPoolTest, ExitAllThreads) {
     threadPool->startAll(options);
-    threadPool->stopAll();
+    threadPool->exitAll();
 
     // Ensure threads are stopped
     EXPECT_NO_THROW(threadPool->waitAll());
 }
 
-TEST_F(ThreadPoolTest, HaltAllThreads) {
+TEST_F(ThreadPoolTest, StopAllThreads) {
     threadPool->startAll(options);
-    threadPool->haltAll();
+    threadPool->stopAll();
 
     // Ensure threads are halted
     EXPECT_NO_THROW(threadPool->waitAll());
@@ -50,7 +50,7 @@ TEST_F(ThreadPoolTest, GetNodeCount) {
     threadPool->startAll(options);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    threadPool->stopAll();
+    threadPool->exitAll();
 
     int nodeCount = threadPool->getNodeCount();
     EXPECT_GT(nodeCount, 0);
@@ -61,8 +61,8 @@ TEST_F(ThreadPoolTest, GetStats) {
     threadPool->startAll(options);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    threadPool->stopAll();
+    threadPool->exitAll();
 
     SearchStats stats = threadPool->getStats();
-    EXPECT_GT(stats.maxDepth(), 0);
+    EXPECT_GT(stats.totalNodes, 0);
 }

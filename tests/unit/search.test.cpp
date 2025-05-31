@@ -15,26 +15,29 @@ constexpr auto AnyMove = "ANY";
 class SearchTest : public ::testing::Test {
    private:
     UCIOutput uciOutput{std::cout};
-    Thread thread{0, uciOutput, nullptr};
+    ThreadPool threadPool{1, uciOutput};
+    Thread* thread;
 
    protected:
+    void SetUp() override { thread = threadPool.threads[0].get(); }
+
     void testSearch(const std::string fen, int score, std::string move) {
         SearchOptions options{fen, debug, depth, movetime};
-        thread.set(options, Clock::now());
+        thread->set(options, Clock::now());
 
-        EXPECT_EQ(thread.search(), score) << fen;
+        EXPECT_EQ(thread->search(), score) << fen;
         if (move != AnyMove) {
-            EXPECT_EQ(thread.pv.bestMove().str(), move) << fen;
+            EXPECT_EQ(thread->pv.bestMove().str(), move) << fen;
         }
     }
 
     void testSearchGT(const std::string fen, int score, std::string move) {
         SearchOptions options{fen, debug, depth, movetime};
-        thread.set(options, Clock::now());
+        thread->set(options, Clock::now());
 
-        EXPECT_GT(thread.search(), score) << fen;
+        EXPECT_GT(thread->search(), score) << fen;
         if (move != AnyMove) {
-            EXPECT_EQ(thread.pv.bestMove().str(), move) << fen;
+            EXPECT_EQ(thread->pv.bestMove().str(), move) << fen;
         }
     }
 };

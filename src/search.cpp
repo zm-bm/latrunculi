@@ -26,7 +26,7 @@ int Thread::search() {
 
     // 1. Iterative deepening loop
     int depth = 1 + (threadId & 1);
-    for (; depth <= options.depth && !isHaltingSearch(); ++depth) {
+    for (; depth <= options.depth && !stopSignal; ++depth) {
         stats.resetDepthStats();
 
         // 2. Aspiration window from previous score
@@ -35,6 +35,8 @@ int Thread::search() {
 
         // 3. First search
         score = alphabeta(alpha, beta, depth);
+
+        if (score == ABORT_SCORE) break;
 
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
@@ -52,7 +54,7 @@ int Thread::search() {
     if (isMainThread()) {
         reportSearchInfo(score, depth - 1, true);
         uciOutput.sendBestmove(pv.bestMove().str());
-        if constexpr (STATS_ENABLED) uciOutput.sendStats(getStats());
+        if constexpr (STATS_ENABLED) uciOutput.sendStats(threadPool.getStats());
     }
 
     return score;
@@ -66,10 +68,8 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
     // Stop search when time expires
     if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
-        if (threadPool)
-            threadPool->haltAll();
-        else
-            haltSearch();
+        threadPool.stopAll();
+        return ABORT_SCORE;
     }
 
     // 1. Base case: quiescence search
@@ -172,6 +172,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
         board.unmake();
 
+        if (score == ABORT_SCORE) {
+            return ABORT_SCORE;
+        }
+
         // 6. If we found a better move, update our bestScore/Move and principal variation
         if (score > bestScore) {
             bestScore = score;
@@ -190,10 +194,6 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             stats.addBetaCutoff(ply, move == moves[0]);
             break;
         }
-
-        if constexpr (isRoot) {
-            if (isHaltingSearch()) break;
-        }
     }
 
     // Draw / mate handling
@@ -207,14 +207,12 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     }
 
     // 8. Store result in transposition table
-    if (!isHaltingSearch()) {
-        TT::NodeType flag = TT::EXACT;
-        if (bestScore <= lowerbound)
-            flag = TT::UPPERBOUND;
-        else if (bestScore >= upperbound)
-            flag = TT::LOWERBOUND;
-        TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
-    }
+    TT::NodeType flag = TT::EXACT;
+    if (bestScore <= lowerbound)
+        flag = TT::UPPERBOUND;
+    else if (bestScore >= upperbound)
+        flag = TT::LOWERBOUND;
+    TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
 
     if constexpr (isRoot) reportSearchInfo(bestScore, depth);
 

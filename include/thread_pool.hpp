@@ -17,13 +17,16 @@ class ThreadPool {
     ~ThreadPool();
 
     void startAll(SearchOptions&);
+    void exitAll();
     void stopAll();
-    void haltAll();
     void waitAll();
     void resize(size_t newSize);
 
     int getNodeCount() const;
     SearchStats<> getStats() const;
+
+    friend class ThreadTest;
+    friend class SearchTest;
 
    private:
     std::vector<std::unique_ptr<Thread>> threads;

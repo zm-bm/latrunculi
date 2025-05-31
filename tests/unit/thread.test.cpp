@@ -14,17 +14,16 @@ class ThreadTest : public ::testing::Test {
    protected:
     std::ostringstream oss;
     UCIOutput uciOutput{oss};
+    ThreadPool threadPool{1, uciOutput};
     Thread* thread;
 
-    void SetUp() override { thread = new Thread(0, uciOutput, nullptr); }
-
-    void TearDown() override { delete thread; }
+    void SetUp() override { thread = threadPool.threads[0].get(); }
 };
 
-TEST_F(ThreadTest, ThreadStartsAndStopsCorrectly) {
+TEST_F(ThreadTest, ThreadStartsAndExitsCorrectly) {
     thread->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    thread->stop();
+    thread->exit();
     thread->wait();
 
     // If the thread stops and waits without deadlock, the test passes.
@@ -40,14 +39,14 @@ TEST_F(ThreadTest, ThreadProcessesSearchCorrectly) {
 
     thread->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    thread->stop();
+    thread->exit();
     thread->wait();
 
     EXPECT_NE(oss.str().find("bestmove"), std::string::npos)
         << "Expected 'bestmove' in output, but got: " << oss.str();
 }
 
-TEST_F(ThreadTest, ThreadHaltsSearchCorrectly) {
+TEST_F(ThreadTest, ThreadStopsSearchCorrectly) {
     SearchOptions options;
     options.fen   = STARTFEN;
     options.debug = false;
@@ -56,7 +55,7 @@ TEST_F(ThreadTest, ThreadHaltsSearchCorrectly) {
 
     thread->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    thread->haltSearch();
+    thread->stop();
     thread->wait();
 
     EXPECT_NE(oss.str().find("bestmove"), std::string::npos)
@@ -71,7 +70,7 @@ TEST_F(ThreadTest, ThreadHandlesMultipleSearches) {
     thread->set(options1, Clock::now());
     thread->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    thread->haltSearch();
+    thread->stop();
     thread->wait();
 
     SearchOptions options2;
@@ -81,7 +80,7 @@ TEST_F(ThreadTest, ThreadHandlesMultipleSearches) {
     thread->set(options2, Clock::now());
     thread->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    thread->haltSearch();
+    thread->stop();
     thread->wait();
 
     EXPECT_NE(oss.str().find("bestmove"), std::string::npos)
@@ -89,7 +88,7 @@ TEST_F(ThreadTest, ThreadHandlesMultipleSearches) {
 }
 
 TEST_F(ThreadTest, ThreadExitsGracefully) {
-    thread->stop();
+    thread->exit();
     thread->wait();
 
     // If the thread exits without issues, the test passes.
