@@ -36,6 +36,8 @@ int Thread::search() {
         // 3. First search
         score = alphabeta(alpha, beta, depth);
 
+        if (score == ABORT_SCORE) break;
+
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
             score = alphabeta(-INF_SCORE, beta, depth);
@@ -67,7 +69,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     // Stop search when time expires
     if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
         threadPool.stopAll();
-        return alpha;
+        return ABORT_SCORE;
     }
 
     // 1. Base case: quiescence search
@@ -170,6 +172,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
         board.unmake();
 
+        if (score == ABORT_SCORE) {
+            return ABORT_SCORE;
+        }
+
         // 6. If we found a better move, update our bestScore/Move and principal variation
         if (score > bestScore) {
             bestScore = score;
@@ -201,14 +207,12 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     }
 
     // 8. Store result in transposition table
-    if (!stopSignal) {
-        TT::NodeType flag = TT::EXACT;
-        if (bestScore <= lowerbound)
-            flag = TT::UPPERBOUND;
-        else if (bestScore >= upperbound)
-            flag = TT::LOWERBOUND;
-        TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
-    }
+    TT::NodeType flag = TT::EXACT;
+    if (bestScore <= lowerbound)
+        flag = TT::UPPERBOUND;
+    else if (bestScore >= upperbound)
+        flag = TT::LOWERBOUND;
+    TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
 
     if constexpr (isRoot) reportSearchInfo(bestScore, depth);
 
