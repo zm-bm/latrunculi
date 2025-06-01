@@ -13,9 +13,11 @@ Thread::~Thread() {
 }
 
 void Thread::start() {
+    if (runSignal) return;
     {
         std::lock_guard<std::mutex> lock(mutex);
-        runSignal = true;
+        runSignal  = true;
+        stopSignal = false;
     }
     condition.notify_all();
 }
@@ -32,7 +34,7 @@ void Thread::exit() {
 void Thread::stop() {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        if (runSignal) stopSignal = true;
+        stopSignal = true;
     }
     condition.notify_all();
 }
@@ -43,6 +45,7 @@ void Thread::wait() {
 }
 
 void Thread::set(SearchOptions& options, TimePoint startTime) {
+    if (runSignal) return;
     {
         std::lock_guard<std::mutex> lock(mutex);
         board.loadFEN(options.fen);
