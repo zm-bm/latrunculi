@@ -69,10 +69,11 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
 
     // Stop search when time expires
-    if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
+    if (stopSignal) {
+        return ABORT_SCORE;
+    } else if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
         threadPool.stopAll();
     }
-    if (stopSignal) return ABORT_SCORE;
 
     // 1. Base case: quiescence search
     if (depth == 0) {
@@ -223,7 +224,11 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 template int Thread::alphabeta<NodeType::Root>(int, int, int);
 
 int Thread::quiescence(int alpha, int beta) {
-    if (stopSignal) return ABORT_SCORE;
+    if (stopSignal) {
+        return ABORT_SCORE;
+    } else if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
+        threadPool.stopAll();
+    }
 
     // 1. Evaluate the current position (stand-pat).
     int standPat = eval(board);
