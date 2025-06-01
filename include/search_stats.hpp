@@ -23,7 +23,7 @@ struct SearchStats {
 
     SearchStats& operator+=(const SearchStats& other) {
         totalNodes += other.totalNodes;
-        if constexpr (STATS_ENABLED) {
+        if constexpr (Debug) {
             for (size_t i = 0; i < MAX_DEPTH; ++i) {
                 nodes[i]         += other.nodes[i];
                 qNodes[i]        += other.qNodes[i];
@@ -87,19 +87,21 @@ struct SearchStats {
     }
 
     void reset() {
-        resetDepthStats();
+        resetDebugStats();
         totalNodes = 0;
     }
 
-    void resetDepthStats() {
-        nodes         = {};
-        qNodes        = {};
-        cutoffs       = {};
-        failHighEarly = {};
-        failHighLate  = {};
-        ttProbes      = {};
-        ttHits        = {};
-        ttCutoffs     = {};
+    void resetDebugStats() {
+        if constexpr (Debug) {
+            nodes         = {};
+            qNodes        = {};
+            cutoffs       = {};
+            failHighEarly = {};
+            failHighLate  = {};
+            ttProbes      = {};
+            ttHits        = {};
+            ttCutoffs     = {};
+        }
     }
 
     bool isAtNodeInterval() const { return totalNodes % NODE_INTERVAL == 0; }

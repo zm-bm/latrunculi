@@ -28,7 +28,7 @@ int Thread::search() {
 
     // 1. Iterative deepening loop
     for (; depth <= options.depth && !stopSignal; ++depth) {
-        stats.resetDepthStats();
+        stats.resetDebugStats();
 
         // 2. Aspiration window from previous score
         int alpha = lastScore - AspirationWindow;
@@ -53,11 +53,9 @@ int Thread::search() {
         if (isMateScore(score)) break;
     }
 
-    if (isMainThread()) {
-        reportSearchInfo(lastScore, lastDepth, true);
-        uciOutput.sendBestmove(pv.bestMove().str());
-        if constexpr (STATS_ENABLED) uciOutput.sendStats(threadPool.getStats());
-    }
+    uciInfo(lastScore, lastDepth, true);
+    uciBestMove();
+    if (STATS_ENABLED) uciDebugStats();
 
     return score;
 }
@@ -184,7 +182,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             bestMove  = move;
             if (isPV && score > alpha) {
                 pv.update(ply, move);
-                if constexpr (isRoot) reportSearchInfo(score, depth);
+                if constexpr (isRoot) uciInfo(score, depth);
             }
         }
 
@@ -216,7 +214,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         flag = TT::LOWERBOUND;
     TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
 
-    if constexpr (isRoot) reportSearchInfo(bestScore, depth);
+    if constexpr (isRoot) uciInfo(bestScore, depth);
 
     return bestScore;
 }

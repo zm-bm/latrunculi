@@ -61,7 +61,10 @@ class Thread {
     bool isMainThread() const;
     Milliseconds getElapsedTime() const;
     bool isTimeUp() const;
-    void reportSearchInfo(int score, int depth, bool force = false) const;
+
+    void uciInfo(int score, int depth, bool force = false) const;
+    void uciBestMove() const;
+    void uciDebugStats() const;
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -82,10 +85,24 @@ inline bool Thread::isTimeUp() const {
     return elapsedTime.count() > options.movetime;
 }
 
-inline void Thread::reportSearchInfo(int score, int depth, bool force) const {
+inline void Thread::uciInfo(int score, int depth, bool force) const {
     if (isMainThread()) {
         auto nodes       = threadPool.getNodeCount();
         auto elapsedTime = getElapsedTime();
         uciOutput.sendInfo(score, depth, nodes, elapsedTime, pv, force);
+    }
+}
+
+inline void Thread::uciBestMove() const {
+    if (isMainThread()) {
+        auto bestMove = pv.bestMove();
+        uciOutput.sendBestmove(bestMove.str());
+    }
+}
+
+inline void Thread::uciDebugStats() const {
+    if (isMainThread()) {
+        auto stats = threadPool.getStats();
+        uciOutput.sendStats(stats);
     }
 }
