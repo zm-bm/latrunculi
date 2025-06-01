@@ -58,9 +58,9 @@ class Thread {
     int quiescence(int, int);
 
     // inline functions / helpers
+    bool isMainThread() const;
     Milliseconds getElapsedTime() const;
     bool isTimeUp() const;
-    bool isMainThread() const;
     void reportSearchInfo(int score, int depth, bool force = false) const;
 
     friend class SearchTest;
@@ -71,12 +71,16 @@ class Thread {
     friend class Board;
 };
 
+inline bool Thread::isMainThread() const { return threadId == 0; }
+
 inline Milliseconds Thread::getElapsedTime() const {
     return std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
 };
 
-inline bool Thread::isTimeUp() const { return getElapsedTime().count() > options.movetime; }
-inline bool Thread::isMainThread() const { return threadId == 0; }
+inline bool Thread::isTimeUp() const {
+    auto elapsedTime = getElapsedTime();
+    return elapsedTime.count() > options.movetime;
+}
 
 inline void Thread::reportSearchInfo(int score, int depth, bool force) const {
     if (isMainThread()) {
