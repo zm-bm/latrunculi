@@ -16,7 +16,11 @@ void Engine::loop() {
 
     std::string line;
     while (std::getline(std::cin, line)) {
-        if (!execute(line)) break;
+        try {
+            if (!execute(line)) break;
+        } catch (const std::exception& e) {
+            std::cerr << line << " failed: " << e.what() << std::endl;
+        }
     }
 }
 
@@ -35,15 +39,14 @@ bool Engine::execute(const std::string& line) {
     } else if (token == "setoption") {
         setoption(iss);
     } else if (token == "ucinewgame") {
-        uciOutput.toBeImplemented();
+        // TT.clear
+        // ThreadPool::resetHeuristics
     } else if (token == "position") {
         position(iss);
     } else if (token == "go") {
         go(iss);
     } else if (token == "stop") {
         threadpool.stopAll();
-    } else if (token == "ponderhit") {
-        uciOutput.toBeImplemented();
     } else if (token == "quit" || token == "exit") {
         return false;
     }
@@ -106,11 +109,19 @@ void Engine::go(std::istringstream& iss) {
     while (iss >> token) {
         if (token == "depth") {
             iss >> token;
-            options.depth = std::stoi(token);
+            try {
+                options.depth = std::stoi(token);
+            } catch (const std::invalid_argument& e) {
+                out << "info string invalid depth value: " << token << std::endl;
+            }
         }
         if (token == "movetime") {
             iss >> token;
-            options.movetime = std::stoi(token);
+            try {
+                options.movetime = std::stoi(token);
+            } catch (const std::invalid_argument& e) {
+                std::cerr << "info string invalid movetime value: " << token << std::endl;
+            }
         }
     }
 
@@ -122,7 +133,6 @@ void Engine::setoption(std::istringstream& iss) {
     iss >> token;
 
     if (token == "name") {
-        std::cout << iss.str() << std::endl;
         while (iss >> token && token != "value") {
             name += token;
         }
@@ -131,12 +141,20 @@ void Engine::setoption(std::istringstream& iss) {
             setdebug(iss);
         } else if (name == "Threads") {
             iss >> token;
-            int numThreads = std::stoi(token);
-            threadpool.resize(numThreads);
+            try {
+                int numThreads = std::stoi(token);
+                threadpool.resize(numThreads);
+            } catch (const std::invalid_argument& e) {
+                out << "info string invalid Threads value: " << token << std::endl;
+            }
         } else if (name == "Hash") {
             iss >> token;
-            size_t hash = std::stoul(token);
-            // TT::resize(hash);
+            try {
+                size_t hash = std::stoul(token);
+                // TT::resize(hash);
+            } catch (const std::invalid_argument& e) {
+                out << "info string invalid Hash value" << token << std::endl;
+            }
         }
     }
 }
@@ -155,9 +173,12 @@ void Engine::setdebug(std::istringstream& iss) {
 void Engine::perft(std::istringstream& iss) {
     std::string token;
     iss >> token;
-
-    auto val = std::stoi(token);
-    board.perft<NodeType::Root>(val, out);
+    try {
+        auto depth = std::stoi(token);
+        board.perft<NodeType::Root>(depth, out);
+    } catch (const std::invalid_argument& e) {
+        out << "info string invalid perft value: " << token << std::endl;
+    }
 }
 
 void Engine::move(std::istringstream& iss) {
