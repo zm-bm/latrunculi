@@ -54,5 +54,11 @@ class Engine {
     void move(std::istringstream& iss);
     void moves(std::istringstream& iss);
 
+    // Helper functions
+    std::string parseFen(std::istringstream& iss);
+    void loadMoves(std::istringstream& iss);
+    bool tryMove(Board& board, const std::string& token);
+    int parseInt(std::istringstream& iss, std::string errorMsg, int, int);
+
     friend class BenchmarkTest;
 };

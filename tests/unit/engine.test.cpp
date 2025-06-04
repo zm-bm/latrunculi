@@ -46,10 +46,21 @@ TEST_F(EngineTest, ExecutePositionStartPosCommand) {
     EXPECT_EQ(board().toFEN(), STARTFEN);
 }
 
+TEST_F(EngineTest, ExecutePositionStartPosWithMovesCommand) {
+    EXPECT_TRUE(execute("position startpos moves e2e4 e7e5"));
+    EXPECT_EQ(board().toFEN(), "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2");
+}
+
 TEST_F(EngineTest, ExecutePositionFENCommand) {
     auto position = std::string("position fen ") + EMPTYFEN;
     EXPECT_TRUE(execute(position));
     EXPECT_EQ(board().toFEN(), EMPTYFEN);
+}
+
+TEST_F(EngineTest, ExecutePositionFENWithMovesCommand) {
+    auto position = std::string("position fen ") + EMPTYFEN + " moves e1e2 e8d8";
+    EXPECT_TRUE(execute(position));
+    EXPECT_EQ(board().toFEN(), "3k4/8/8/8/8/8/4K3/8 w - - 2 2");
 }
 
 TEST_F(EngineTest, ExecuteGoCommandWithDepth) {
@@ -86,4 +97,42 @@ TEST_F(EngineTest, ExecutePerftCommand) {
 TEST_F(EngineTest, ExecuteInvalidCommand) {
     EXPECT_TRUE(execute("invalidcommand"));
     EXPECT_NE(output.str().find("Unknown command"), std::string::npos);
+}
+
+TEST_F(EngineTest, GoCommandDepthNegative) {
+    EXPECT_TRUE(execute("position startpos"));
+    output.str("");
+    EXPECT_TRUE(execute("go depth -3"));
+    std::string outStr = output.str();
+    EXPECT_NE(outStr.find("invalid depth"), std::string::npos);
+}
+
+TEST_F(EngineTest, GoCommandMovetimeNegative) {
+    EXPECT_TRUE(execute("position startpos"));
+    output.str("");
+    EXPECT_TRUE(execute("go movetime -1000"));
+    std::string outStr = output.str();
+    EXPECT_NE(outStr.find("invalid movetime"), std::string::npos);
+}
+
+TEST_F(EngineTest, GoCommandDepthNonNumeric) {
+    EXPECT_TRUE(execute("position startpos"));
+    output.str("");
+    EXPECT_TRUE(execute("go depth abc"));
+    std::string outStr = output.str();
+    EXPECT_NE(outStr.find("invalid depth"), std::string::npos);
+}
+
+TEST_F(EngineTest, SetoptionThreadsNegative) {
+    output.str("");
+    EXPECT_TRUE(execute("setoption name Threads value -1"));
+    std::string outStr = output.str();
+    EXPECT_NE(outStr.find("invalid Threads"), std::string::npos);
+}
+
+TEST_F(EngineTest, SetoptionHashNegative) {
+    output.str("");
+    EXPECT_TRUE(execute("setoption name Hash value -1"));
+    std::string outStr = output.str();
+    EXPECT_NE(outStr.find("invalid Hash"), std::string::npos);
 }
