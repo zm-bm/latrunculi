@@ -6,7 +6,7 @@
 #include "board.hpp"
 #include "constants.hpp"
 
-void UCIOutput::sendIdentity() const {
+void UCIOutput::identify() const {
     out << "id name Latrunculi " << VERSION << "\n";
     out << "id author Eric VanderHelm\n\n";
     out << "option name Debug type check default " << (DEFAULT_DEBUG ? "true" : "false") << "\n";
@@ -15,14 +15,35 @@ void UCIOutput::sendIdentity() const {
     out << "uciok" << std::endl;
 }
 
-void UCIOutput::sendReady() const { out << "readyok" << std::endl; }
+void UCIOutput::ready() const { out << "readyok" << std::endl; }
 
-void UCIOutput::sendBestmove(std::string move) const { out << "bestmove " << move << std::endl; }
+void UCIOutput::bestmove(std::string move) const { out << "bestmove " << move << std::endl; }
 
-void UCIOutput::toBeImplemented() const { out << "to be implemented" << std::endl; }
+void UCIOutput::help() const {
+    out << "For details, see: https://www.wbec-ridderkerk.nl/html/UCIProtocol.html\n"
+        << "Available commands:\n"
+        << "  uci          - Show engine identity and supported options\n"
+        << "  isready      - Check if the engine is ready\n"
+        << "  setoption    - Set engine options\n"
+        << "  ucinewgame   - Start a new game\n"
+        << "  position     - Set up the board position\n"
+        << "  go           - Start searching for the best move\n"
+        << "  stop         - Stop the search\n"
+        << "  ponderhit    - Handle ponder hit (not implemented)\n"
+        << "  quit         - Exit the engine\n"
+        << "  perft <depth> - Run perft for the given depth\n"
+        << "  move <move>  - Make a move on the board\n"
+        << "  moves        - Show all legal moves\n"
+        << "  d            - Display the current board position\n"
+        << "  eval         - Evaluate the current position\n"
+        << std::endl;
+}
 
-void UCIOutput::sendInfo(
-    int score, int depth, U64 nodes, Milliseconds ms, std::string pv, bool force) {
+void UCIOutput::unknownCommand(const std::string& command) const {
+    out << "Unknown command: '" << command << "'. Type help for a list of commands\n" << std::endl;
+}
+
+void UCIOutput::info(int score, int depth, U64 nodes, Milliseconds ms, std::string pv, bool force) {
     if (score == lastScore && pv == lastPV && !force) return;
     lastScore = score;
     lastPV    = pv;
@@ -39,7 +60,7 @@ void UCIOutput::sendInfo(
     out << std::endl;
 }
 
-void UCIOutput::sendStats(SearchStats<> stats) const {
+void UCIOutput::stats(SearchStats<> stats) const {
     out << "\n"
         << std::setw(5) << "Depth"
         << " | " << std::setw(18) << "Nodes (QNode%)"

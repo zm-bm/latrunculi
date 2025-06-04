@@ -11,14 +11,15 @@ class UCIOutput {
     explicit UCIOutput(std::ostream& out) : out(out) {}
 
     // UCI protocol commands
-    void sendIdentity() const;
-    void sendReady() const;
-    void sendBestmove(std::string) const;
-    void sendInfo(int, int, U64, Milliseconds, std::string, bool = false);
+    void identify() const;
+    void ready() const;
+    void bestmove(std::string) const;
+    void info(int, int, U64, Milliseconds, std::string, bool = false);
 
     // Non UCI protocol commands
-    void sendStats(SearchStats<> stats) const;
-    void toBeImplemented() const;
+    void stats(SearchStats<> stats) const;
+    void help() const;
+    void unknownCommand(const std::string& command) const;
 
    private:
     std::ostream& out;

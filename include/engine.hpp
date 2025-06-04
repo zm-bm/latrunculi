@@ -36,15 +36,23 @@ class Engine {
     bool execute(const std::string&);
 
     // UCI commands
+    void uci(std::istringstream& iss);
+    void setdebug(std::istringstream& iss);
+    void isready(std::istringstream& iss);
+    void setoption(std::istringstream& iss);
+    void newgame(std::istringstream& iss);
     void position(std::istringstream& iss);
     void go(std::istringstream& iss);
-    void setoption(std::istringstream& iss);
-    void setdebug(std::istringstream& iss);
+    void stop(std::istringstream& iss);
+    void ponderhit(std::istringstream& iss);
 
     // Non-UCI commands
+    void help(std::istringstream& iss);
+    void display(std::istringstream& iss);
+    void evaluate(std::istringstream& iss);
     void perft(std::istringstream& iss);
     void move(std::istringstream& iss);
-    void moves();
+    void moves(std::istringstream& iss);
 
     friend class BenchmarkTest;
 };

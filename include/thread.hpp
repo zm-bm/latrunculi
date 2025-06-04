@@ -89,20 +89,20 @@ inline void Thread::uciInfo(int score, int depth, bool force) const {
     if (isMainThread()) {
         auto nodes       = threadPool.getNodeCount();
         auto elapsedTime = getElapsedTime();
-        uciOutput.sendInfo(score, depth, nodes, elapsedTime, pv, force);
+        uciOutput.info(score, depth, nodes, elapsedTime, pv, force);
     }
 }
 
 inline void Thread::uciBestMove() const {
     if (isMainThread()) {
         auto bestMove = pv.bestMove();
-        uciOutput.sendBestmove(bestMove.str());
+        uciOutput.bestmove(bestMove.str());
     }
 }
 
 inline void Thread::uciDebugStats() const {
     if (isMainThread()) {
         auto stats = threadPool.getStats();
-        uciOutput.sendStats(stats);
+        uciOutput.stats(stats);
     }
 }

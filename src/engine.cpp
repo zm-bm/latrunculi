@@ -1,7 +1,10 @@
 #include "engine.hpp"
 
 #include <chrono>
+#include <functional>
 #include <sstream>
+#include <unordered_map>
+#include <variant>
 
 #include "board.hpp"
 #include "eval.hpp"
@@ -11,9 +14,14 @@
 #include "thread.hpp"
 #include "tt.hpp"
 
-void Engine::loop() {
-    uciOutput.sendIdentity();
+using CommandFunc = std::function<void(std::istringstream&)>;
 
+// Helper function for adding commands
+CommandFunc makeCommand(Engine* engine, void (Engine::*func)(std::istringstream&)) {
+    return [engine, func](std::istringstream& iss) { (engine->*func)(iss); };
+}
+
+void Engine::loop() {
     std::string line;
     while (std::getline(std::cin, line)) {
         try {
@@ -29,42 +37,89 @@ bool Engine::execute(const std::string& line) {
     std::string token;
     iss >> token;
 
-    // UCI commands
-    if (token == "uci") {
-        uciOutput.sendIdentity();
-    } else if (token == "debug") {
-        setdebug(iss);
-    } else if (token == "isready") {
-        uciOutput.sendReady();
-    } else if (token == "setoption") {
-        setoption(iss);
-    } else if (token == "ucinewgame") {
-        // TT.clear
-        // ThreadPool::resetHeuristics
-    } else if (token == "position") {
-        position(iss);
-    } else if (token == "go") {
-        go(iss);
-    } else if (token == "stop") {
-        threadpool.stopAll();
-    } else if (token == "quit" || token == "exit") {
-        return false;
+    bool shouldExit = false;
+
+    static const std::unordered_map<std::string, CommandFunc> commands = {
+        // UCI commands
+        {"uci", makeCommand(this, &Engine::uci)},
+        {"debug", makeCommand(this, &Engine::setdebug)},
+        {"isready", makeCommand(this, &Engine::isready)},
+        {"setoption", makeCommand(this, &Engine::setoption)},
+        {"ucinewgame", makeCommand(this, &Engine::newgame)},
+        {"position", makeCommand(this, &Engine::position)},
+        {"go", makeCommand(this, &Engine::go)},
+        {"stop", makeCommand(this, &Engine::stop)},
+        {"ponderhit", makeCommand(this, &Engine::ponderhit)},
+        {"quit", [&shouldExit](std::istringstream&) { shouldExit = true; }},
+        {"exit", [&shouldExit](std::istringstream&) { shouldExit = true; }},
+        // Non-UCI utility commands
+        {"help", makeCommand(this, &Engine::help)},
+        {"d", makeCommand(this, &Engine::display)},
+        {"eval", makeCommand(this, &Engine::evaluate)},
+        {"move", makeCommand(this, &Engine::move)},
+        {"moves", makeCommand(this, &Engine::moves)},
+        {"perft", makeCommand(this, &Engine::perft)},
+    };
+
+    auto it = commands.find(token);
+    if (it != commands.end()) {
+        it->second(iss);
+    } else {
+        out << "Unknown command: '" << token << "'. Type help for a list of commands." << std::endl;
     }
 
-    // Non-UCI commands
-    if (token == "perft") {
-        perft(iss);
-    } else if (token == "move") {
-        move(iss);
-    } else if (token == "moves") {
-        moves();
-    } else if (token == "d") {
-        out << board << std::endl;
-    } else if (token == "eval") {
-        eval<Verbose>(board);
-    }
+    return !shouldExit;
+}
 
-    return true;
+void Engine::uci(std::istringstream& iss) { uciOutput.identify(); }
+
+void Engine::setdebug(std::istringstream& iss) {
+    std::string token;
+    iss >> token;
+
+    if (token == "on") {
+        uciOptions.debug = true;
+    } else if (token == "off") {
+        uciOptions.debug = false;
+    }
+}
+
+void Engine::isready(std::istringstream& iss) { uciOutput.ready(); }
+
+void Engine::setoption(std::istringstream& iss) {
+    std::string token, name, value;
+    iss >> token;
+
+    if (token == "name") {
+        while (iss >> token && token != "value") {
+            name += token;
+        }
+
+        if (name == "Debug") {
+            setdebug(iss);
+        } else if (name == "Threads") {
+            iss >> token;
+            try {
+                int numThreads = std::stoi(token);
+                threadpool.resize(numThreads);
+            } catch (const std::invalid_argument& e) {
+                out << "info string invalid Threads value: " << token << std::endl;
+            }
+        } else if (name == "Hash") {
+            iss >> token;
+            try {
+                size_t hash = std::stoul(token);
+                // TT::resize(hash);
+            } catch (const std::invalid_argument& e) {
+                out << "info string invalid Hash value" << token << std::endl;
+            }
+        }
+    }
+}
+
+void Engine::newgame(std::istringstream& iss) {
+    // tt.clear();
+    // threadpool.resetHeuristics();
 }
 
 void Engine::position(std::istringstream& iss) {
@@ -128,58 +183,17 @@ void Engine::go(std::istringstream& iss) {
     threadpool.startAll(options);
 }
 
-void Engine::setoption(std::istringstream& iss) {
-    std::string token, name, value;
-    iss >> token;
+void Engine::stop(std::istringstream& iss) { threadpool.stopAll(); }
 
-    if (token == "name") {
-        while (iss >> token && token != "value") {
-            name += token;
-        }
-
-        if (name == "Debug") {
-            setdebug(iss);
-        } else if (name == "Threads") {
-            iss >> token;
-            try {
-                int numThreads = std::stoi(token);
-                threadpool.resize(numThreads);
-            } catch (const std::invalid_argument& e) {
-                out << "info string invalid Threads value: " << token << std::endl;
-            }
-        } else if (name == "Hash") {
-            iss >> token;
-            try {
-                size_t hash = std::stoul(token);
-                // TT::resize(hash);
-            } catch (const std::invalid_argument& e) {
-                out << "info string invalid Hash value" << token << std::endl;
-            }
-        }
-    }
+void Engine::ponderhit(std::istringstream& iss) {
+    // TODO: implement pondering/ponderhit
 }
 
-void Engine::setdebug(std::istringstream& iss) {
-    std::string token;
-    iss >> token;
+void Engine::help(std::istringstream& iss) { uciOutput.help(); }
 
-    if (token == "on") {
-        uciOptions.debug = true;
-    } else if (token == "off") {
-        uciOptions.debug = false;
-    }
-}
+void Engine::display(std::istringstream& iss) { out << board.toFEN() << std::endl; }
 
-void Engine::perft(std::istringstream& iss) {
-    std::string token;
-    iss >> token;
-    try {
-        auto depth = std::stoi(token);
-        board.perft<NodeType::Root>(depth, out);
-    } catch (const std::invalid_argument& e) {
-        out << "info string invalid perft value: " << token << std::endl;
-    }
-}
+void Engine::evaluate(std::istringstream& iss) { auto score = eval<Verbose>(board); }
 
 void Engine::move(std::istringstream& iss) {
     std::string token;
@@ -201,10 +215,21 @@ void Engine::move(std::istringstream& iss) {
     }
 }
 
-void Engine::moves() {
+void Engine::moves(std::istringstream& iss) {
     MoveGenerator<GenType::All> moves{board};
 
     for (auto& move : moves) {
         out << move << '\n';
+    }
+}
+
+void Engine::perft(std::istringstream& iss) {
+    std::string token;
+    iss >> token;
+    try {
+        auto depth = std::stoi(token);
+        board.perft<NodeType::Root>(depth, out);
+    } catch (const std::invalid_argument& e) {
+        out << "info string invalid perft value: " << token << std::endl;
     }
 }

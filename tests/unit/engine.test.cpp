@@ -85,5 +85,5 @@ TEST_F(EngineTest, ExecutePerftCommand) {
 
 TEST_F(EngineTest, ExecuteInvalidCommand) {
     EXPECT_TRUE(execute("invalidcommand"));
-    EXPECT_TRUE(output.str().empty());
+    EXPECT_NE(output.str().find("Unknown command"), std::string::npos);
 }
