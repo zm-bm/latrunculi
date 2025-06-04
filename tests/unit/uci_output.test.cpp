@@ -16,18 +16,18 @@ class UCIOutputTest : public ::testing::Test {
 };
 
 TEST_F(UCIOutputTest, SendIdentity) {
-    uciOutput.sendIdentity();
+    uciOutput.identify();
     EXPECT_NE(outputStream.str().find("uciok"), std::string::npos);
 }
 
 TEST_F(UCIOutputTest, SendReady) {
-    uciOutput.sendReady();
+    uciOutput.ready();
     EXPECT_EQ(outputStream.str(), "readyok\n");
 }
 
 TEST_F(UCIOutputTest, SendBestmove) {
     std::string move = "e2e4";
-    uciOutput.sendBestmove(move);
+    uciOutput.bestmove(move);
     EXPECT_EQ(outputStream.str(), "bestmove e2e4\n");
 }
 
@@ -38,7 +38,7 @@ TEST_F(UCIOutputTest, SendInfo) {
     Milliseconds ms(100);
     std::string pv = "e2e4 e7e5";
 
-    uciOutput.sendInfo(score, depth, nodes, ms, pv);
+    uciOutput.info(score, depth, nodes, ms, pv);
 
     EXPECT_NE(outputStream.str().find("depth 10"), std::string::npos);
     EXPECT_NE(outputStream.str().find("score cp 50"), std::string::npos);
@@ -52,7 +52,7 @@ TEST_F(UCIOutputTest, SendInfoMate) {
     Milliseconds ms(100);
     std::string pv = "e2e4 e7e5";
 
-    uciOutput.sendInfo(score, depth, nodes, ms, pv);
+    uciOutput.info(score, depth, nodes, ms, pv);
 
     EXPECT_NE(outputStream.str().find("depth 10"), std::string::npos);
     EXPECT_NE(outputStream.str().find("score mate 2"), std::string::npos);
@@ -70,7 +70,7 @@ TEST_F(UCIOutputTest, SendStats) {
     stats.ttHits        = {0, 30, 90};
     stats.ttCutoffs     = {0, 20, 60};
 
-    uciOutput.sendStats(stats);
+    uciOutput.stats(stats);
 
     EXPECT_NE(outputStream.str().find("Depth"), std::string::npos);
     EXPECT_NE(outputStream.str().find("Nodes"), std::string::npos);
