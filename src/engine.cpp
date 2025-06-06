@@ -204,7 +204,6 @@ std::string Engine::parseFen(std::istringstream& iss) {
     while (iss >> token && token != "moves") {
         fen += token + " ";
     }
-    std::cout << fen << std::endl;
     return fen.substr(0, fen.size() - 1);
 }
 
