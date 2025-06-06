@@ -19,6 +19,12 @@ struct InfoData {
     int time  = 0;
     U64 nps   = 0;
     std::string pvFirstMove;
+
+    friend std::ostream& operator<<(std::ostream& os, const InfoData& info) {
+        std::cout << "info: depth=" << info.depth << ", time=" << info.time << ", nps=" << info.nps
+                  << ", pv=" << info.pvFirstMove;
+        return os;
+    }
 };
 
 InfoData parseInfoLine(const std::string& line) {
@@ -116,21 +122,18 @@ class BenchmarkTest : public ::testing::Test {
         return board.toSAN(*movePtr);
     }
 
-    bool testSearch(std::string& fen, std::string& bestMove, std::string& avoidMove) {
-        // reset the output stream and set up the board
-        oss.str("");
-        oss.clear();
-
-        // log the test case
-        std::cout << "\nfen= " << fen << std::endl;
+    void logCase(const std::string& fen,
+                 const std::string& bestMove,
+                 const std::string& avoidMove) {
+        std::cout << "fen: " << fen << std::endl;
         if (!bestMove.empty()) std::cout << "bm=" << bestMove;
         if (!avoidMove.empty()) std::cout << "\tam=" << avoidMove;
-        std::cout << std::endl;
+        std::cout << "\n" << std::endl;
+    }
 
-        engine.execute("position fen " + fen);
-        engine.execute("go movetime " + MOVETIME);
-
+    void waitForSearch() {
         std::string output;
+
         while (true) {
             output = oss.str();
             if (output.find("bestmove") != std::string::npos) {
@@ -138,94 +141,81 @@ class BenchmarkTest : public ::testing::Test {
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
+    }
 
-        bool onlyBest  = !bestMove.empty() && avoidMove.empty();
-        bool onlyAvoid = bestMove.empty() && !avoidMove.empty();
-        bool bothMoves = !bestMove.empty() && !avoidMove.empty();
-
+    bool testSearch(
+        std::string& fen, std::string& bestMove, std::string& avoidMove, int& depth, int& time) {
         bool success     = false;
         int successDepth = INT_MAX;
         int successTime  = INT_MAX;
 
-        std::istringstream lines(output);
+        // reset the output stream and set up the board
+        oss.str("");
+        oss.clear();
+
+        engine.execute("position fen " + fen);
+        engine.execute("go movetime " + MOVETIME);
+        waitForSearch();
+
+        std::istringstream lines(oss.str());
         std::string line;
+
         while (std::getline(lines, line)) {
             if (line.find("info") != std::string::npos) {
-                std::istringstream iss(line);
-                std::string token;
                 InfoData infoData = parseInfoLine(line);
-                if (infoData.pvFirstMove.empty()) continue;
+
+                if (infoData.pvFirstMove.empty() || infoData.depth < MIN_DEPTH) {
+                    continue;
+                }
 
                 std::string engineMove = getEngineMove(fen, infoData.pvFirstMove);
 
-                std::cout << "info: depth=" << infoData.depth << ", time=" << infoData.time
-                          << ", nps=" << infoData.nps << ", pv=" << infoData.pvFirstMove
-                          << std::endl;
-                if (onlyBest) {
-                    if (engineMove == bestMove && infoData.depth > MIN_DEPTH) {
-                        std::cout << "SUCCESS: " << engineMove << " (Depth: " << infoData.depth
-                                  << ", Time: " << infoData.time << " ms)" << std::endl;
-                        success      = true;
-                        successDepth = std::min(infoData.depth, successDepth);
-                        successTime  = std::min(infoData.time, successTime);
-                    } else {
-                        std::cout << "FAILURE: Expected " << bestMove << ", got " << engineMove
-                                  << " (Depth: " << infoData.depth << ", Time: " << infoData.time
-                                  << " ms)" << std::endl;
-                        success      = false;
-                        successDepth = INT_MAX;
-                        successTime  = INT_MAX;
-                    }
-                } else if (onlyAvoid) {
-                    if (engineMove != avoidMove && infoData.depth > MIN_DEPTH) {
-                        std::cout << "SUCCESS: Avoided " << avoidMove
-                                  << " (Depth: " << infoData.depth << ", Time: " << infoData.time
-                                  << " ms)" << std::endl;
-                        success      = true;
-                        successDepth = std::min(infoData.depth, successDepth);
-                        successTime  = std::min(infoData.time, successTime);
-                    } else {
-                        std::cout << "FAILURE: Did not avoid " << avoidMove
-                                  << " (Depth: " << infoData.depth << ", Time: " << infoData.time
-                                  << " ms)" << std::endl;
-                        success      = false;
-                        successDepth = INT_MAX;
-                        successTime  = INT_MAX;
-                    }
-                } else if (bothMoves) {
-                    if (engineMove == bestMove && engineMove != avoidMove &&
-                        infoData.depth > MIN_DEPTH) {
-                        std::cout << "SUCCESS: " << engineMove << " (Depth: " << infoData.depth
-                                  << ", Time: " << infoData.time << " ms)" << std::endl;
-                        success      = true;
-                        successDepth = std::min(infoData.depth, successDepth);
-                        successTime  = std::min(infoData.time, successTime);
-                    } else {
-                        std::cout << "FAILURE: Expected either " << bestMove << " or avoided "
-                                  << avoidMove << ", got " << engineMove
-                                  << " (Depth: " << infoData.depth << ", Time: " << infoData.time
-                                  << " ms)" << std::endl;
-                        success      = false;
-                        successDepth = INT_MAX;
-                        successTime  = INT_MAX;
-                    }
+                success = ((bestMove.empty() || engineMove == bestMove) &&
+                           (avoidMove.empty() || engineMove != avoidMove));
+                if (success) {
+                    successDepth = std::min(infoData.depth, successDepth);
+                    successTime  = std::min(infoData.time, successTime);
+                } else {
+                    successDepth = INT_MAX;
+                    successTime  = INT_MAX;
                 }
-                std::cout << "----------------------------------------" << std::endl;
             }
         }
 
+        depth = successDepth;
+        time  = successTime;
         return success;
     }
 
     void testAll() {
-        int passed = 0;
+        int successful = 0;
+        int totalDepth = 0;
+        int totalTime  = 0;
 
         for (auto& [fen, bestMove, avoidMove] : cases) {
-            passed += testSearch(fen, bestMove, avoidMove);
+            logCase(fen, bestMove, avoidMove);
+
+            int testDepth = 0;
+            int testTime  = 0;
+            bool success  = testSearch(fen, bestMove, avoidMove, testDepth, testTime);
+
+            if (success) {
+                std::cout << "Test passed: solution found in " << testDepth
+                          << " ply, time = " << testTime << " ms" << std::endl;
+                totalDepth += testDepth;
+                totalTime  += testTime;
+                successful++;
+            } else {
+                std::cout << "Test failed." << std::endl;
+            }
         }
 
-        std::cout << "BenchmarkTest: " << passed << " out of " << cases.size()
+        std::cout << "BenchmarkTest: " << successful << " out of " << cases.size()
                   << " cases passed.\n";
+        if (successful > 0) {
+            std::cout << "Aggregate Metrics: average ply = " << (totalDepth / successful)
+                      << ", average time = " << (totalTime / successful) << " ms" << std::endl;
+        }
     }
 };
 
