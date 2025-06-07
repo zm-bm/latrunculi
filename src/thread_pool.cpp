@@ -49,7 +49,6 @@ void ThreadPool::resize(size_t newSize) {
     } else {
         for (size_t i = threads.size(); i < newSize; ++i) {
             threads.push_back(std::make_unique<Thread>(i, uciOutput, *this));
-            std::cout << "Thread " << i << " created." << std::endl;
         }
     }
 }
