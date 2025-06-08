@@ -14,9 +14,6 @@
 #include "thread.hpp"
 #include "tt.hpp"
 
-// Sentinel for invalid integers
-constexpr int INVALID_INT = std::numeric_limits<int>::min();
-
 // Helpers for adding commands
 using CommandFunc = std::function<void(std::istringstream&)>;
 CommandFunc makeCommand(Engine* engine, void (Engine::*func)(std::istringstream&)) {
@@ -97,18 +94,30 @@ void Engine::setoption(std::istringstream& iss) {
             name += token;
         }
 
+        auto parseOptionInt = [&](const std::string& opt, int min, int max, auto&& handler) {
+            int val;
+            if (iss >> val) {
+                if (val >= min && val <= max) {
+                    handler(val);
+                } else {
+                    uciOutput.infoString("invalid " + opt + " value " + std::to_string(val));
+                }
+            } else {
+                iss.clear();
+                std::string bad;
+                iss >> bad;
+                uciOutput.infoString("invalid " + opt + " value " + bad);
+            }
+        };
+
         if (name == "Debug") {
             setdebug(iss);
         } else if (name == "Threads") {
-            int value = parseInt(iss, "Threads", 1, 64);
-            if (value == INVALID_INT) return;
-
-            threadpool.resize(value);
+            parseOptionInt(name, 1, MAX_THREADS, [&](int val) { threadpool.resize(val); });
         } else if (name == "Hash") {
-            int value = parseInt(iss, "Hash", 1, 1024);
-            if (value == INVALID_INT) return;
-
-            // TT::resize(hash);
+            parseOptionInt(name, 1, MAX_HASH_MB, [&](int val) {
+                // tt.resize(val * 1024 * 1024 / sizeof(Entry));
+            });
         }
     }
 }
@@ -128,33 +137,24 @@ void Engine::position(std::istringstream& iss) {
     } else if (token == "fen") {
         fen = parseFen(iss);
     } else {
-        out << "info string invalid fen: " << token << std::endl;
+        uciOutput.infoString("invalid position command: " + token);
         return;
     }
 
     board.loadFEN(fen);
-    loadMoves(iss);
+
+    while (iss >> token) {
+        if (!tryMove(board, token)) break;
+    }
 }
 
 void Engine::go(std::istringstream& iss) {
-    SearchOptions options{};
+    SearchOptions options{iss};
     options.fen   = board.toFEN();
     options.debug = uciOptions.debug;
 
-    std::string token;
-    while (iss >> token) {
-        if (token == "depth") {
-            int depth = parseInt(iss, "depth", 1, MAX_DEPTH);
-            if (depth != INVALID_INT) {
-                options.depth = depth;
-            }
-        }
-        if (token == "movetime") {
-            int movetime = parseInt(iss, "movetime", 1, INT32_MAX);
-            if (movetime != INVALID_INT) {
-                options.movetime = movetime;
-            }
-        }
+    for (const auto& w : options.warnings) {
+        uciOutput.infoString("invalid " + w.name + " value " + w.value);
     }
 
     threadpool.startAll(options);
@@ -170,7 +170,7 @@ void Engine::help(std::istringstream& iss) { uciOutput.help(); }
 
 void Engine::display(std::istringstream& iss) { out << board << std::endl; }
 
-void Engine::evaluate(std::istringstream& iss) { auto score = eval<Verbose>(board); }
+void Engine::evaluate(std::istringstream& iss) { eval<Verbose>(board); }
 
 void Engine::move(std::istringstream& iss) {
     std::string token;
@@ -192,10 +192,19 @@ void Engine::moves(std::istringstream& iss) {
 }
 
 void Engine::perft(std::istringstream& iss) {
-    int depth = parseInt(iss, "perft", 1, MAX_DEPTH);
+    int depth = 1;
 
-    if (depth != INVALID_INT) {
-        board.perft<NodeType::Root>(depth, out);
+    if (iss >> depth) {
+        if (0 < depth && depth < MAX_DEPTH) {
+            board.perft<NodeType::Root>(depth, out);
+        } else {
+            uciOutput.infoString("invalid perft value " + std::to_string(depth));
+        }
+    } else {
+        iss.clear();
+        std::string bad;
+        iss >> bad;
+        uciOutput.infoString("invalid perft value " + bad);
     }
 }
 
@@ -207,13 +216,6 @@ std::string Engine::parseFen(std::istringstream& iss) {
     return fen.substr(0, fen.size() - 1);
 }
 
-void Engine::loadMoves(std::istringstream& iss) {
-    std::string token;
-    while (iss >> token) {
-        if (!tryMove(board, token)) break;
-    }
-}
-
 bool Engine::tryMove(Board& board, const std::string& token) {
     MoveGenerator<GenType::All> moves{board};
     for (auto& move : moves) {
@@ -223,28 +225,4 @@ bool Engine::tryMove(Board& board, const std::string& token) {
         }
     }
     return false;
-}
-
-int Engine::parseInt(std::istringstream& iss, std::string errorMsg, int min, int max) {
-    std::string token;
-    iss >> token;
-    try {
-        int value = std::stoi(token);
-
-        if (value < min) {
-            out << "info string invalid " << errorMsg << " value: " << value << ", using " << min
-                << std::endl;
-            return min;
-        }
-        if (value > max) {
-            out << "info string invalid " << errorMsg << " value: " << value << ", using " << max
-                << std::endl;
-            return max;
-        }
-
-        return value;
-    } catch (const std::invalid_argument& e) {
-        out << "info string invalid " << errorMsg << " value: " << token << std::endl;
-        return INVALID_INT;
-    }
 }

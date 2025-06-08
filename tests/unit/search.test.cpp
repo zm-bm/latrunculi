@@ -6,7 +6,6 @@
 #include "thread_pool.hpp"
 #include "uci_output.hpp"
 
-bool debug   = false;
 int depth    = 10;
 int movetime = 2000;
 std::ostringstream oss;
@@ -17,12 +16,17 @@ class SearchTest : public ::testing::Test {
     UCIOutput uciOutput{std::cout};
     ThreadPool threadPool{1, uciOutput};
     Thread* thread;
+    SearchOptions options;
 
    protected:
-    void SetUp() override { thread = threadPool.threads[0].get(); }
+    void SetUp() override {
+        thread           = threadPool.threads[0].get();
+        options.depth    = depth;
+        options.movetime = movetime;
+    }
 
     void testSearch(const std::string fen, int score, std::string move) {
-        SearchOptions options{fen, debug, depth, movetime};
+        options.fen = fen;
         thread->set(options, Clock::now());
 
         EXPECT_EQ(thread->search(), score) << fen;
@@ -32,7 +36,7 @@ class SearchTest : public ::testing::Test {
     }
 
     void testSearchGT(const std::string fen, int score, std::string move) {
-        SearchOptions options{fen, debug, depth, movetime};
+        options.fen = fen;
         thread->set(options, Clock::now());
 
         EXPECT_GT(thread->search(), score) << fen;

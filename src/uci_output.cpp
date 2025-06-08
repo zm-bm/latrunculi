@@ -11,7 +11,7 @@ void UCIOutput::identify() const {
     out << "id author Eric VanderHelm\n\n";
     out << "option name Debug type check default " << (DEFAULT_DEBUG ? "true" : "false") << "\n";
     out << "option name Threads type spin default " << DEFAULT_THREADS << "\n";
-    out << "option name Hash type spin default " << DEFAULT_HASH_SIZE << "\n";
+    out << "option name Hash type spin default " << DEFAULT_HASH_MB << "\n";
     out << "uciok" << std::endl;
 }
 
@@ -58,6 +58,10 @@ void UCIOutput::info(int score, int depth, U64 nodes, Milliseconds ms, std::stri
     out << " nps " << (time > 0 ? (nodes * 1000 / time) : 0);
     out << " pv " << pv;
     out << std::endl;
+}
+
+void UCIOutput::infoString(const std::string& str) const {
+    out << "info string " << str << std::endl;
 }
 
 void UCIOutput::stats(SearchStats<> stats) const {
