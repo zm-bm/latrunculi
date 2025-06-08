@@ -15,6 +15,7 @@ class UCIOutput {
     void ready() const;
     void bestmove(std::string) const;
     void info(int, int, U64, Milliseconds, std::string, bool = false);
+    void infoString(const std::string& str) const;
 
     // Non UCI protocol commands
     void stats(SearchStats<> stats) const;

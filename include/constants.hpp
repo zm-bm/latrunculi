@@ -20,9 +20,12 @@ constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
 constexpr auto STATS_ENABLED = false;
 
 // uci options
-constexpr size_t DEFAULT_HASH_SIZE = 1 << 20;  // 1 MiB
-constexpr size_t DEFAULT_THREADS   = 1;
-constexpr bool DEFAULT_DEBUG       = false;
+constexpr size_t DEFAULT_HASH_MB = 1;
+constexpr size_t DEFAULT_THREADS = 1;
+constexpr bool DEFAULT_DEBUG     = false;
+
+constexpr int MAX_THREADS = 64;
+constexpr int MAX_HASH_MB = 2048;
 
 // search constants
 constexpr int MAX_DEPTH   = 64;
