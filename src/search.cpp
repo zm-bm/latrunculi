@@ -69,7 +69,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     // Stop search when time expires
     if (stopSignal) {
         return ABORT_SCORE;
-    } else if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
+    } else if (isTimeUp()) {
         threadPool.stopAll();
     }
 
@@ -224,7 +224,7 @@ template int Thread::alphabeta<NodeType::Root>(int, int, int);
 int Thread::quiescence(int alpha, int beta) {
     if (stopSignal) {
         return ABORT_SCORE;
-    } else if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
+    } else if (isTimeUp()) {
         threadPool.stopAll();
     }
 

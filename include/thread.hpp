@@ -81,6 +81,10 @@ inline Milliseconds Thread::getElapsedTime() const {
 };
 
 inline bool Thread::isTimeUp() const {
+    if (!isMainThread() || !stats.isAtNodeInterval()) {
+        return false;
+    }
+
     auto elapsedTime = getElapsedTime();
     return elapsedTime.count() > options.movetime;
 }
