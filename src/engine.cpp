@@ -35,6 +35,7 @@ bool Engine::execute(const std::string& line) {
     std::istringstream iss(line);
     std::string token;
     iss >> token;
+    if (token.empty()) return true;
 
     bool shouldExit = false;
 
