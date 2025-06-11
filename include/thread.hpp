@@ -34,6 +34,7 @@ class Thread {
     SearchStats<> stats;
     SearchOptions options;
     TimePoint startTime;
+    I64 allocatedTime;
     int ply;
 
     // thread state
@@ -86,7 +87,7 @@ inline bool Thread::isTimeUp() const {
     }
 
     auto elapsedTime = getElapsedTime();
-    return elapsedTime.count() > options.movetime;
+    return elapsedTime.count() > allocatedTime;
 }
 
 inline void Thread::uciInfo(int score, int depth, bool force) const {

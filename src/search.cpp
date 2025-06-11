@@ -21,6 +21,11 @@ int Thread::search() {
     ply = 0;
     pv.clear();
 
+    auto remaining      = board.sideToMove() == WHITE ? options.wtime : options.btime;
+    auto increment      = board.sideToMove() == WHITE ? options.winc : options.binc;
+    auto allocated      = remaining / options.movestogo + increment;
+    this->allocatedTime = remaining > 0 ? std::min(allocated, options.movetime) : options.movetime;
+
     int score     = 0;
     int lastScore = eval<Silent>(board);
     int depth     = 1 + (threadId & 1);
