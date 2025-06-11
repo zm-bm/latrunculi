@@ -21,6 +21,11 @@ int Thread::search() {
     ply = 0;
     pv.clear();
 
+    auto remaining      = board.sideToMove() == WHITE ? options.wtime : options.btime;
+    auto increment      = board.sideToMove() == WHITE ? options.winc : options.binc;
+    auto allocated      = remaining / options.movestogo + increment;
+    this->allocatedTime = remaining > 0 ? std::min(allocated, options.movetime) : options.movetime;
+
     int score     = 0;
     int lastScore = eval<Silent>(board);
     int depth     = 1 + (threadId & 1);
@@ -69,7 +74,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     // Stop search when time expires
     if (stopSignal) {
         return ABORT_SCORE;
-    } else if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
+    } else if (isTimeUp()) {
         threadPool.stopAll();
     }
 
@@ -224,7 +229,7 @@ template int Thread::alphabeta<NodeType::Root>(int, int, int);
 int Thread::quiescence(int alpha, int beta) {
     if (stopSignal) {
         return ABORT_SCORE;
-    } else if (isMainThread() && stats.isAtNodeInterval() && isTimeUp()) {
+    } else if (isTimeUp()) {
         threadPool.stopAll();
     }
 
