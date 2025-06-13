@@ -93,25 +93,25 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
     // 2. Check the transposition table
     stats.addTTProbe(ply);
-    TT::Entry entry = TT::table.probe(key);
-    if (entry.isValid(key) && entry.depth >= depth) {
-        auto score = TT::score(entry.score, -ply);
+    TT::Entry* entry = TT::table.probe(key);
+    if (entry && entry->depth >= depth) {
+        auto score = TT::score(entry->score, -ply);
         stats.addTTHit(ply);
 
         if constexpr (!isRoot) {
-            if (entry.flag == TT::EXACT) {
+            if (entry->flag == TT::EXACT) {
                 stats.addTTCutoff(ply);
-                if (board.isLegalMove(entry.bestMove)) {
-                    pv.update(ply, entry.bestMove);
+                if (board.isLegalMove(entry->bestMove)) {
+                    pv.update(ply, entry->bestMove);
                 }
                 return score;
             }
         }
         if constexpr (!isPV) {
-            if (entry.flag == TT::LOWERBOUND && score >= beta) {
+            if (entry->flag == TT::LOWERBOUND && score >= beta) {
                 stats.addTTCutoff(ply);
                 return score;
-            } else if (entry.flag == TT::UPPERBOUND && score <= alpha) {
+            } else if (entry->flag == TT::UPPERBOUND && score <= alpha) {
                 stats.addTTCutoff(ply);
                 return score;
             }
@@ -135,7 +135,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
                         heuristics,
                         ply,
                         (isPV ? pv.bestMove(ply) : NullMove),
-                        entry.bestMove);
+                        (entry ? entry->bestMove : NullMove));
     moves.sort(moveOrder);
 
     // 4. Loop over moves
