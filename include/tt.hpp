@@ -2,6 +2,7 @@
 
 #include <array>
 #include <atomic>
+#include <numeric>
 
 #include "constants.hpp"
 #include "move.hpp"
@@ -9,10 +10,19 @@
 
 namespace TT {
 
-class Spinlock {
+constexpr size_t CLUSTER_SIZE = 4;
+
+inline constexpr int score(int score, int ply) {
+    if (score >= MATE_IN_MAX_PLY)
+        score += ply;
+    else if (score <= MATE_IN_MAX_PLY)
+        score -= ply;
+    return score;
+}
+
+struct Spinlock {
     std::atomic_flag flag = ATOMIC_FLAG_INIT;
 
-   public:
     void lock() {
         while (flag.test_and_set(std::memory_order_acquire)) {
             // Spin-wait (busy-wait)
@@ -21,14 +31,6 @@ class Spinlock {
 
     void unlock() { flag.clear(std::memory_order_release); }
 };
-
-constexpr int score(int score, int ply) {
-    if (score >= MATE_IN_MAX_PLY)
-        score += ply;
-    else if (score <= MATE_IN_MAX_PLY)
-        score -= ply;
-    return score;
-}
 
 enum NodeType : U8 {
     NONE,
@@ -43,62 +45,61 @@ struct Entry {
     int score      = 0;
     int depth      = 0;
     NodeType flag  = NONE;
-    Spinlock lock;
-
-    Entry() = default;
-
-    Entry(U64 key, Move move, int score, int depth, NodeType flag)
-        : zobristKey(key), bestMove(move), score(score), depth(depth), flag(flag) {}
-
-    Entry(const Entry& other) {
-        zobristKey = other.zobristKey;
-        bestMove   = other.bestMove;
-        score      = other.score;
-        depth      = other.depth;
-        flag       = other.flag;
-        // Note: Spinlock not copied
-    }
-
-    Entry& operator=(const Entry& other) {
-        if (this == &other) return *this;
-        zobristKey = other.zobristKey;
-        bestMove   = other.bestMove;
-        score      = other.score;
-        depth      = other.depth;
-        flag       = other.flag;
-        // Note: Spinlock not copied
-        return *this;
-    }
-
-    bool isValid(U64 key) const { return zobristKey == key; }
 };
 
-constexpr size_t HASH_SIZE  = DEFAULT_HASH_MB * 1024 * 1024;
-constexpr size_t ENTRY_SIZE = sizeof(Entry);
-constexpr size_t TT_SIZE    = HASH_SIZE / ENTRY_SIZE;
+struct Cluster {
+    Entry entries[CLUSTER_SIZE] = {};
+    Spinlock lk;
+};
 
 class Table {
    private:
-    std::array<Entry, TT_SIZE> table;
+    Cluster* _table = nullptr;
+    U32 _mask       = 0;
 
    public:
-    Table() = default;
+    Table() { init(DEFAULT_HASH_MB); };
+    ~Table() { delete[] _table; }
 
-    Entry probe(U64 key) {
-        Entry* entry = &table[key % TT_SIZE];
-        entry->lock.lock();
-        Entry copy = *entry;
-        entry->lock.unlock();
-        return copy;
+    void init(size_t megabytes) {
+        delete[] _table;
+
+        U64 bytes    = U64(megabytes) << 20;
+        U64 clusters = bytes / sizeof(Cluster);
+        clusters     = 1ULL << std::bit_width(clusters - 1);
+
+        _mask  = U32(clusters) - 1;
+        _table = new Cluster[clusters]();
+    }
+
+    Entry* probe(U64 key) {
+        Cluster& cluster = _table[key & _mask];
+
+        for (Entry& e : cluster.entries) {
+            if (e.zobristKey == key && e.flag != NONE) return &e;
+        }
+
+        return nullptr;
     }
 
     void store(U64 key, Move move, int score, int depth, NodeType flag) {
-        Entry* entry = &table[key % TT_SIZE];
-        entry->lock.lock();
-        if (entry->depth <= depth) {
-            *entry = {key, move, score, depth, flag};
+        Cluster& cluster = _table[key & _mask];
+        cluster.lk.lock();
+        Entry* replace = &cluster.entries[0];
+
+        // replacement strategy: deepest-first else overwrite the shallowest
+        for (Entry& e : cluster.entries) {
+            if (e.zobristKey == key) {
+                replace = &e;
+                break;
+            }
+            if (e.depth < replace->depth) {
+                replace = &e;
+            }
         }
-        entry->lock.unlock();
+        *replace = Entry{key, move, score, depth, flag};
+
+        cluster.lk.unlock();
     }
 };
 

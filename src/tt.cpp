@@ -2,6 +2,6 @@
 
 namespace TT {
 
-Table table;
+Table table{};
 
 }
