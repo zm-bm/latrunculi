@@ -86,6 +86,10 @@ inline bool Thread::isTimeUp() const {
         return false;
     }
 
+    if (options.nodes != INT32_MAX && threadPool.getNodeCount() >= options.nodes) {
+        return true;
+    }
+
     auto elapsedTime = getElapsedTime();
     return elapsedTime.count() > allocatedTime;
 }
