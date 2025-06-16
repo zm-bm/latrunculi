@@ -116,16 +116,14 @@ void Engine::setoption(std::istringstream& iss) {
         } else if (name == "Threads") {
             parseOptionInt(name, 1, MAX_THREADS, [&](int val) { threadpool.resize(val); });
         } else if (name == "Hash") {
-            parseOptionInt(name, 1, MAX_HASH_MB, [&](int val) {
-                // tt.resize(val * 1024 * 1024 / sizeof(Entry));
-            });
+            parseOptionInt(name, 1, MAX_HASH_MB, [&](int val) { TT::table.resize(val); });
         }
     }
 }
 
 void Engine::newgame(std::istringstream& iss) {
-    // tt.clear();
-    // threadpool.resetHeuristics();
+    TT::table.age();
+    // TODO: clear heuristics
 }
 
 void Engine::position(std::istringstream& iss) {

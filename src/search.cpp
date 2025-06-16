@@ -101,8 +101,8 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         if constexpr (!isRoot) {
             if (entry->flag == TT::EXACT) {
                 stats.addTTCutoff(ply);
-                if (board.isLegalMove(entry->bestMove)) {
-                    pv.update(ply, entry->bestMove);
+                if (board.isLegalMove(entry->move)) {
+                    pv.update(ply, entry->move);
                 }
                 return score;
             }
@@ -135,7 +135,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
                         heuristics,
                         ply,
                         (isPV ? pv.bestMove(ply) : NullMove),
-                        (entry ? entry->bestMove : NullMove));
+                        (entry ? entry->move : NullMove));
     moves.sort(moveOrder);
 
     // 4. Loop over moves
