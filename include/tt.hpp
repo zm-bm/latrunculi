@@ -1,9 +1,12 @@
 #pragma once
 
+#include <immintrin.h>
+
 #include <array>
 #include <atomic>
 #include <memory>
 #include <numeric>
+#include <thread>
 
 #include "constants.hpp"
 #include "move.hpp"
@@ -25,8 +28,12 @@ struct Spinlock {
     std::atomic_flag flag = ATOMIC_FLAG_INIT;
 
     void lock() {
+        int spins = 0;
         while (flag.test_and_set(std::memory_order_acquire)) {
-            // Spin-wait (busy-wait)
+            if (spins++ < 64)
+                _mm_pause();
+            else
+                std::this_thread::yield();
         }
     }
 
@@ -41,17 +48,16 @@ enum NodeType : U8 {
 };
 
 struct Entry {
-    U16 key16     = 0;
     Move move     = NullMove;
-    int score     = 0;
+    I16 score     = 0;
+    U16 key16     = 0;
     U8 depth      = 0;
     NodeType flag = NONE;
     U8 age        = 0;
 };
 
-struct Cluster {
+struct alignas(64) Cluster {
     Entry entries[CLUSTER_SIZE] = {};
-    Spinlock lk;
 };
 
 class Table {
@@ -61,7 +67,7 @@ class Table {
     U32 _shift                        = 0;
     U8 _age                           = 0;
 
-    static U64 index(U64 k, U32 shift) { return (k * 0x9e3779b97f4a7c15ull) >> shift; }
+    U64 index(U64 k) { return (k * 0x9e3779b97f4a7c15ull) >> _shift; }
 
    public:
     explicit Table() { resize(DEFAULT_HASH_MB); };
@@ -82,7 +88,7 @@ class Table {
     void age() { ++_age; }
 
     Entry* probe(U64 key) {
-        auto idx         = index(key, _shift);
+        auto idx         = index(key);
         auto key16       = U16(key >> 48);
         Cluster& cluster = _table[idx];
 
@@ -93,11 +99,11 @@ class Table {
         return nullptr;
     }
 
-    void store(U64 key, Move move, int score, U8 depth, NodeType flag) {
-        auto idx         = index(key, _shift);
+    void store(U64 key, Move move, I16 score, U8 depth, NodeType flag) {
+        auto idx         = index(key);
         auto key16       = U16(key >> 48);
         Cluster& cluster = _table[idx];
-        cluster.lk.lock();
+        // cluster.lk.lock();
 
         // replacement: same key, else shallowest or old-age
         Entry* target = &cluster.entries[0];
@@ -111,9 +117,9 @@ class Table {
             }
         }
 
-        *target = Entry{key16, move, score, depth, flag, _age};
+        *target = Entry{move, score, key16, depth, flag, _age};
 
-        cluster.lk.unlock();
+        // cluster.lk.unlock();
     }
 };
 
