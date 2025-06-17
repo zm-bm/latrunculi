@@ -15,7 +15,9 @@
 
 const std::string TESTFILE = "./tests/arasan20.epd";
 const int MOVETIME         = 10000;  // in milliseconds
+const int HASH_MB          = 16;
 const int THREADS          = 1;
+const int MOVE_LIMIT       = 10000;  // max moves to search
 
 struct TestCase {
     std::string fen;
@@ -133,6 +135,7 @@ class BenchmarkTest : public ::testing::Test {
    protected:
     void SetUp() override {
         engine.execute("setoption name Threads value " + std::to_string(THREADS));
+        engine.execute("setoption name Hash value " + std::to_string(HASH_MB));
 
         std::ifstream file(TESTFILE);
         if (file.is_open()) {
@@ -196,6 +199,7 @@ class BenchmarkTest : public ::testing::Test {
         std::vector<U64> maxNps;
 
         for (auto& testCase : testCases) {
+            if (maxDepths.size() >= MOVE_LIMIT) break;
             std::cout << testCase << std::endl;
 
             TestResult result = testSearch(testCase);
