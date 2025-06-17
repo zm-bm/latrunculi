@@ -63,9 +63,9 @@ constexpr int ROOK_VALUE_EG   = 1100;
 constexpr int QUEEN_VALUE_EG  = 2150;
 
 // mate constants
-constexpr int ABORT_SCORE     = 1000000;
-constexpr int INF_SCORE       = 100001;
-constexpr int MATE_SCORE      = 100000;
+constexpr int ABORT_SCORE     = INT16_MAX;
+constexpr int INF_SCORE       = INT16_MAX - 1;
+constexpr int MATE_SCORE      = INT16_MAX - 2;
 constexpr int MATE_IN_MAX_PLY = MATE_SCORE - MAX_DEPTH;
 constexpr int DRAW_SCORE      = 0;
 
