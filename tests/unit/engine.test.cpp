@@ -10,7 +10,10 @@ class EngineTest : public ::testing::Test {
     std::ostringstream output;
     Engine engine = Engine(output, std::cin);
 
-    void SetUp() override { engine.out.rdbuf(output.rdbuf()); }
+    void SetUp() override {
+        engine.out.rdbuf(output.rdbuf());
+        output.str("");  // Clear output before each test
+    }
 
     bool execute(const std::string& command) { return engine.execute(command); }
 
@@ -109,7 +112,6 @@ TEST_F(EngineTest, GoCommandDepthNegative) {
 
 TEST_F(EngineTest, GoCommandMovetimeNegative) {
     EXPECT_TRUE(execute("position startpos"));
-    output.str("");
     EXPECT_TRUE(execute("go movetime -1000"));
     std::string outStr = output.str();
     EXPECT_NE(outStr.find("invalid movetime"), std::string::npos);
@@ -117,22 +119,21 @@ TEST_F(EngineTest, GoCommandMovetimeNegative) {
 
 TEST_F(EngineTest, GoCommandDepthNonNumeric) {
     EXPECT_TRUE(execute("position startpos"));
-    output.str("");
     EXPECT_TRUE(execute("go depth abc"));
     std::string outStr = output.str();
     EXPECT_NE(outStr.find("invalid depth"), std::string::npos);
 }
 
 TEST_F(EngineTest, SetoptionThreadsNegative) {
-    output.str("");
     EXPECT_TRUE(execute("setoption name Threads value -1"));
     std::string outStr = output.str();
     EXPECT_NE(outStr.find("invalid Threads"), std::string::npos);
 }
 
 TEST_F(EngineTest, SetoptionHashNegative) {
-    output.str("");
     EXPECT_TRUE(execute("setoption name Hash value -1"));
     std::string outStr = output.str();
     EXPECT_NE(outStr.find("invalid Hash"), std::string::npos);
 }
+
+TEST_F(EngineTest, NewGame) { EXPECT_TRUE(execute("ucinewgame")); }

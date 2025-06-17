@@ -22,6 +22,7 @@ class ThreadPool {
     void waitAll();
     void resize(size_t newSize);
 
+    void age() const;
     int getNodeCount() const;
     SearchStats<> getStats() const;
 

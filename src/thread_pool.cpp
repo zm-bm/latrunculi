@@ -53,6 +53,12 @@ void ThreadPool::resize(size_t newSize) {
     }
 }
 
+void ThreadPool::age() const {
+    for (const auto& thread : threads) {
+        thread->heuristics.age();
+    }
+}
+
 int ThreadPool::getNodeCount() const {
     int totalNodes = 0;
 

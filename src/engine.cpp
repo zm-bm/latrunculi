@@ -123,7 +123,7 @@ void Engine::setoption(std::istringstream& iss) {
 
 void Engine::newgame(std::istringstream& iss) {
     TT::table.age();
-    // TODO: clear heuristics
+    threadpool.age();
 }
 
 void Engine::position(std::istringstream& iss) {
