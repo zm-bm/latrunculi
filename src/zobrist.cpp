@@ -7,7 +7,7 @@ namespace Zobrist {
 U64 psq[N_COLORS][N_PIECES][N_SQUARES];
 U64 stm;
 U64 ep[8];
-U64 castle[N_COLORS][2];
+U64 castle[N_COLORS][N_CASTLES];
 
 void init() {
     std::mt19937_64 r;

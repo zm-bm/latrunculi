@@ -50,7 +50,7 @@ struct Heuristics {
 
     inline void addBetaCutoff(Board& board, Move move, int ply) {
         Square to = move.to();
-        if (board.pieceOn(to) == Piece::NONE) {
+        if (board.pieceOn(to) == Piece::None) {
             killers.update(move, ply);
             history.update(board.sideToMove(), move.from(), to, ply);
         }

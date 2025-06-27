@@ -17,7 +17,7 @@ TEST(MoveTest, Constructor) {
 
     EXPECT_EQ(move.from(), from) << "should create move with from square";
     EXPECT_EQ(move.to(), to) << "should create move with to square";
-    EXPECT_EQ(move.type(), NORMAL) << "should create normal move";
+    EXPECT_EQ(move.type(), MoveType::Normal) << "should create normal move";
     EXPECT_FALSE(move.isNullMove()) << "should not create null move";
 }
 
@@ -31,13 +31,13 @@ TEST(MoveTest, EqualityOperator) {
 }
 
 TEST(MoveTest, PromotionMove) {
-    Move move(A7, A8, PROMOTION, QUEEN);
-    EXPECT_EQ(move.type(), PROMOTION) << "should create promotion move";
-    EXPECT_EQ(move.promoPiece(), QUEEN) << "should handle promotion piece";
+    Move move(A7, A8, MoveType::Promotion, PieceType::Queen);
+    EXPECT_EQ(move.type(), MoveType::Promotion) << "should create promotion move";
+    EXPECT_EQ(move.promoPiece(), PieceType::Queen) << "should handle promotion piece";
     EXPECT_FALSE(move.isNullMove()) << "should not be null move";
 }
 
 TEST(MoveTest, OutputStreamOperator) {
-    Move move(A7, A8, PROMOTION, ROOK);
+    Move move(A7, A8, MoveType::Promotion, PieceType::Rook);
     EXPECT_EQ(move.str(), "a7a8r") << "should output move string";
 }

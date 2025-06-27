@@ -1,11 +1,11 @@
 #include <iostream>
 
 #include "engine.hpp"
-#include "magics.hpp"
+#include "magic.hpp"
 #include "zobrist.hpp"
 
 int main() {
-    Magics::init();
+    Magic::init();
     Zobrist::init();
 
     Engine engine(std::cout, std::cin);

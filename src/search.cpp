@@ -95,11 +95,11 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     stats.addTTProbe(ply);
     TT::Entry* entry = TT::table.probe(key);
     if (entry && entry->depth >= depth) {
-        auto score = TT::score(entry->score, -ply);
+        auto score = ttScore(entry->score, -ply);
         stats.addTTHit(ply);
 
         if constexpr (!isRoot) {
-            if (entry->flag == TT::EXACT) {
+            if (entry->flag == TT::EntryType::Exact) {
                 stats.addTTCutoff(ply);
                 if (board.isLegalMove(entry->move)) {
                     pv.update(ply, entry->move);
@@ -108,10 +108,10 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             }
         }
         if constexpr (!isPV) {
-            if (entry->flag == TT::LOWERBOUND && score >= beta) {
+            if (entry->flag == TT::EntryType::LowerBound && score >= beta) {
                 stats.addTTCutoff(ply);
                 return score;
-            } else if (entry->flag == TT::UPPERBOUND && score <= alpha) {
+            } else if (entry->flag == TT::EntryType::UpperBound && score <= alpha) {
                 stats.addTTCutoff(ply);
                 return score;
             }
@@ -129,7 +129,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     }
 
     // 3. Generate moves and sort by priority
-    MoveGenerator<GenType::All> moves{board};
+    MoveGenerator<MoveGenMode::All> moves{board};
     Move pvMove = pv.bestMove(ply);
     MoveOrder moveOrder(board,
                         heuristics,
@@ -212,12 +212,12 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     }
 
     // 8. Store result in transposition table
-    TT::NodeType flag = TT::EXACT;
+    TT::EntryType flag = TT::EntryType::Exact;
     if (bestScore <= lowerbound)
-        flag = TT::UPPERBOUND;
+        flag = TT::EntryType::UpperBound;
     else if (bestScore >= upperbound)
-        flag = TT::LOWERBOUND;
-    TT::table.store(key, bestMove, TT::score(bestScore, ply), depth, flag);
+        flag = TT::EntryType::LowerBound;
+    TT::table.store(key, bestMove, ttScore(bestScore, ply), depth, flag);
 
     if constexpr (isRoot) uciInfo(bestScore, depth);
 
@@ -248,7 +248,7 @@ int Thread::quiescence(int alpha, int beta) {
     }
 
     // 2. Generate only forcing moves and sort by priority
-    MoveGenerator<GenType::Captures> moves{board};
+    MoveGenerator<MoveGenMode::Captures> moves{board};
     MoveOrder moveOrder(board, heuristics, ply);
     moves.sort(moveOrder);
 

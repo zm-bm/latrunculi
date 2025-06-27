@@ -11,6 +11,8 @@
 #include "score.hpp"
 #include "zobrist.hpp"
 
+using enum PieceType;
+
 const auto PAWN_E2        = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
 const auto PAWN_E4        = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
 const auto ENPASSANT_A3   = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
@@ -18,104 +20,105 @@ const std::string FENS[6] = {STARTFEN, POS2, POS3, POS4W, POS4B, POS5};
 
 TEST(BoardTest, piecesEmptyBoard) {
     Board b(EMPTYFEN);
-    EXPECT_EQ(b.pieces<KING>(WHITE), BB::set(E1));
-    EXPECT_EQ(b.pieces<KING>(BLACK), BB::set(E8));
-    EXPECT_EQ(b.pieces<PAWN>(WHITE), 0x0);
-    EXPECT_EQ(b.pieces<PAWN>(BLACK), 0x0);
-    EXPECT_EQ(b.pieces<KNIGHT>(WHITE), 0x0);
-    EXPECT_EQ(b.pieces<KNIGHT>(BLACK), 0x0);
-    EXPECT_EQ(b.pieces<BISHOP>(WHITE), 0x0);
-    EXPECT_EQ(b.pieces<BISHOP>(BLACK), 0x0);
-    EXPECT_EQ(b.pieces<ROOK>(WHITE), 0x0);
-    EXPECT_EQ(b.pieces<ROOK>(BLACK), 0x0);
-    EXPECT_EQ(b.pieces<QUEEN>(WHITE), 0x0);
-    EXPECT_EQ(b.pieces<QUEEN>(BLACK), 0x0);
+    EXPECT_EQ(b.pieces<King>(WHITE), BB::set(E1));
+    EXPECT_EQ(b.pieces<King>(BLACK), BB::set(E8));
+    EXPECT_EQ(b.pieces<Pawn>(WHITE), 0x0);
+    EXPECT_EQ(b.pieces<Pawn>(BLACK), 0x0);
+    EXPECT_EQ(b.pieces<Knight>(WHITE), 0x0);
+    EXPECT_EQ(b.pieces<Knight>(BLACK), 0x0);
+    EXPECT_EQ(b.pieces<Bishop>(WHITE), 0x0);
+    EXPECT_EQ(b.pieces<Bishop>(BLACK), 0x0);
+    EXPECT_EQ(b.pieces<Rook>(WHITE), 0x0);
+    EXPECT_EQ(b.pieces<Rook>(BLACK), 0x0);
+    EXPECT_EQ(b.pieces<Queen>(WHITE), 0x0);
+    EXPECT_EQ(b.pieces<Queen>(BLACK), 0x0);
 }
 
 TEST(BoardTest, pieces_StartBoard) {
     Board b(STARTFEN);
-    EXPECT_EQ(b.pieces<KING>(WHITE), BB::set(E1));
-    EXPECT_EQ(b.pieces<KING>(BLACK), BB::set(E8));
-    EXPECT_EQ(b.pieces<PAWN>(WHITE), BB::rank(RANK2));
-    EXPECT_EQ(b.pieces<PAWN>(BLACK), BB::rank(RANK7));
-    EXPECT_EQ(b.pieces<KNIGHT>(WHITE), BB::set(B1) | BB::set(G1));
-    EXPECT_EQ(b.pieces<KNIGHT>(BLACK), BB::set(B8) | BB::set(G8));
-    EXPECT_EQ(b.pieces<BISHOP>(WHITE), BB::set(C1) | BB::set(F1));
-    EXPECT_EQ(b.pieces<BISHOP>(BLACK), BB::set(C8) | BB::set(F8));
-    EXPECT_EQ(b.pieces<ROOK>(WHITE), BB::set(A1) | BB::set(H1));
-    EXPECT_EQ(b.pieces<ROOK>(BLACK), BB::set(A8) | BB::set(H8));
-    EXPECT_EQ(b.pieces<QUEEN>(WHITE), BB::set(D1));
-    EXPECT_EQ(b.pieces<QUEEN>(BLACK), BB::set(D8));
+    EXPECT_EQ(b.pieces<King>(WHITE), BB::set(E1));
+    EXPECT_EQ(b.pieces<King>(BLACK), BB::set(E8));
+    EXPECT_EQ(b.pieces<Pawn>(WHITE), BB::rankBB(Rank::R2));
+    EXPECT_EQ(b.pieces<Pawn>(BLACK), BB::rankBB(Rank::R7));
+    EXPECT_EQ(b.pieces<Knight>(WHITE), BB::set(B1, G1));
+    EXPECT_EQ(b.pieces<Knight>(BLACK), BB::set(B8, G8));
+    EXPECT_EQ(b.pieces<Bishop>(WHITE), BB::set(C1, F1));
+    EXPECT_EQ(b.pieces<Bishop>(BLACK), BB::set(C8, F8));
+    EXPECT_EQ(b.pieces<Rook>(WHITE), BB::set(A1, H1));
+    EXPECT_EQ(b.pieces<Rook>(BLACK), BB::set(A8, H8));
+    EXPECT_EQ(b.pieces<Queen>(WHITE), BB::set(D1));
+    EXPECT_EQ(b.pieces<Queen>(BLACK), BB::set(D8));
 }
 
 TEST(BoardTest, occupancyEmptyBoard) {
-    U64 expected = BB::set(E1) | BB::set(E8);
+    U64 expected = BB::set(E1, E8);
     EXPECT_EQ(Board(EMPTYFEN).occupancy(), expected);
 }
 
 TEST(BoardTest, occupancyStartBoard) {
-    U64 expected = BB::rank(RANK1) | BB::rank(RANK2) | BB::rank(RANK7) | BB::rank(RANK8);
+    U64 expected =
+        BB::rankBB(Rank::R1) | BB::rankBB(Rank::R2) | BB::rankBB(Rank::R7) | BB::rankBB(Rank::R8);
     EXPECT_EQ(Board(STARTFEN).occupancy(), expected);
 }
 
 TEST(BoardTest, countEmptyBoard) {
     Board b(EMPTYFEN);
-    EXPECT_EQ(b.count(WHITE, KING), 1);
-    EXPECT_EQ(b.count(BLACK, KING), 1);
-    EXPECT_EQ(b.count(WHITE, PAWN), 0);
-    EXPECT_EQ(b.count(BLACK, PAWN), 0);
-    EXPECT_EQ(b.count(WHITE, KNIGHT), 0);
-    EXPECT_EQ(b.count(BLACK, KNIGHT), 0);
-    EXPECT_EQ(b.count(WHITE, BISHOP), 0);
-    EXPECT_EQ(b.count(BLACK, BISHOP), 0);
-    EXPECT_EQ(b.count(WHITE, ROOK), 0);
-    EXPECT_EQ(b.count(BLACK, ROOK), 0);
-    EXPECT_EQ(b.count(WHITE, QUEEN), 0);
-    EXPECT_EQ(b.count(BLACK, QUEEN), 0);
+    EXPECT_EQ(b.count(WHITE, King), 1);
+    EXPECT_EQ(b.count(BLACK, King), 1);
+    EXPECT_EQ(b.count(WHITE, Pawn), 0);
+    EXPECT_EQ(b.count(BLACK, Pawn), 0);
+    EXPECT_EQ(b.count(WHITE, Knight), 0);
+    EXPECT_EQ(b.count(BLACK, Knight), 0);
+    EXPECT_EQ(b.count(WHITE, Bishop), 0);
+    EXPECT_EQ(b.count(BLACK, Bishop), 0);
+    EXPECT_EQ(b.count(WHITE, Rook), 0);
+    EXPECT_EQ(b.count(BLACK, Rook), 0);
+    EXPECT_EQ(b.count(WHITE, Queen), 0);
+    EXPECT_EQ(b.count(BLACK, Queen), 0);
 }
 
 TEST(BoardTest, countStartBoard) {
     Board b(STARTFEN);
-    EXPECT_EQ(b.count(WHITE, KING), 1);
-    EXPECT_EQ(b.count(BLACK, KING), 1);
-    EXPECT_EQ(b.count(WHITE, PAWN), 8);
-    EXPECT_EQ(b.count(BLACK, PAWN), 8);
-    EXPECT_EQ(b.count(WHITE, KNIGHT), 2);
-    EXPECT_EQ(b.count(BLACK, KNIGHT), 2);
-    EXPECT_EQ(b.count(WHITE, BISHOP), 2);
-    EXPECT_EQ(b.count(BLACK, BISHOP), 2);
-    EXPECT_EQ(b.count(WHITE, ROOK), 2);
-    EXPECT_EQ(b.count(BLACK, ROOK), 2);
-    EXPECT_EQ(b.count(WHITE, QUEEN), 1);
-    EXPECT_EQ(b.count(BLACK, QUEEN), 1);
+    EXPECT_EQ(b.count(WHITE, King), 1);
+    EXPECT_EQ(b.count(BLACK, King), 1);
+    EXPECT_EQ(b.count(WHITE, Pawn), 8);
+    EXPECT_EQ(b.count(BLACK, Pawn), 8);
+    EXPECT_EQ(b.count(WHITE, Knight), 2);
+    EXPECT_EQ(b.count(BLACK, Knight), 2);
+    EXPECT_EQ(b.count(WHITE, Bishop), 2);
+    EXPECT_EQ(b.count(BLACK, Bishop), 2);
+    EXPECT_EQ(b.count(WHITE, Rook), 2);
+    EXPECT_EQ(b.count(BLACK, Rook), 2);
+    EXPECT_EQ(b.count(WHITE, Queen), 1);
+    EXPECT_EQ(b.count(BLACK, Queen), 1);
 }
 
 TEST(BoardTest, pieceOnEmptyBoard) {
     Board b(EMPTYFEN);
-    EXPECT_EQ(b.pieceOn(E1), Piece::W_KING);
-    EXPECT_EQ(b.pieceOn(FILE5, RANK1), Piece::W_KING);
-    EXPECT_EQ(b.pieceOn(E2), Piece::NONE);
-    EXPECT_EQ(b.pieceOn(FILE5, RANK2), Piece::NONE);
+    EXPECT_EQ(b.pieceOn(E1), Piece::WKing);
+    EXPECT_EQ(b.pieceOn(File::F5, Rank::R1), Piece::WKing);
+    EXPECT_EQ(b.pieceOn(E2), Piece::None);
+    EXPECT_EQ(b.pieceOn(File::F5, Rank::R2), Piece::None);
 }
 
 TEST(BoardTest, pieceOnStartBoard) {
     Board b(STARTFEN);
-    EXPECT_EQ(b.pieceOn(A2), Piece::W_PAWN);
-    EXPECT_EQ(b.pieceOn(FILE1, RANK2), Piece::W_PAWN);
-    EXPECT_EQ(b.pieceOn(A3), Piece::NONE);
-    EXPECT_EQ(b.pieceOn(FILE1, RANK3), Piece::NONE);
+    EXPECT_EQ(b.pieceOn(A2), Piece::WPawn);
+    EXPECT_EQ(b.pieceOn(File::F1, Rank::R2), Piece::WPawn);
+    EXPECT_EQ(b.pieceOn(A3), Piece::None);
+    EXPECT_EQ(b.pieceOn(File::F1, Rank::R3), Piece::None);
 }
 
 TEST(Board_getPieceType, pieceTypeOnEmptyBoard) {
     Board b(EMPTYFEN);
-    EXPECT_EQ(b.pieceTypeOn(E1), KING);
-    EXPECT_EQ(b.pieceTypeOn(E2), NO_PIECE_TYPE);
+    EXPECT_EQ(b.pieceTypeOn(E1), King);
+    EXPECT_EQ(b.pieceTypeOn(E2), None);
 }
 
 TEST(BoardTest, pieceTypeOnStartBoard) {
     Board b(STARTFEN);
-    EXPECT_EQ(b.pieceTypeOn(A2), PAWN);
-    EXPECT_EQ(b.pieceTypeOn(A3), NO_PIECE_TYPE);
+    EXPECT_EQ(b.pieceTypeOn(A2), Pawn);
+    EXPECT_EQ(b.pieceTypeOn(A3), None);
 }
 
 TEST(BoardTest, kingSqEmptyBoard) {
@@ -136,24 +139,24 @@ TEST(BoardTest, sideToMoveBlack) { EXPECT_EQ(Board(POS4B).sideToMove(), BLACK); 
 TEST(BoardTest, materialStartBoard) { EXPECT_EQ(Board(STARTFEN).materialScore(), Score{}); }
 TEST(BoardTest, materialWhitePawn) {
     Board b("4k3/4p3/8/8/8/8/3PP3/4K3 w - - 0 1");
-    EXPECT_EQ(b.materialScore(), pieceScore(PAWN));
+    EXPECT_EQ(b.materialScore(), pieceScore(Pawn));
 }
 TEST(BoardTest, materialBlackBishop) {
     Board b("4k3/2bbp3/8/8/8/8/3BP3/4K3 w - - 0 1");
-    EXPECT_EQ(b.materialScore(), pieceScore(BISHOP, BLACK));
+    EXPECT_EQ(b.materialScore(), pieceScore(Bishop, BLACK));
 }
 TEST(BoardTest, materialWhiteQueenBlackRook) {
     Board b("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1");
-    EXPECT_EQ(b.materialScore(), pieceScore(QUEEN) + pieceScore(ROOK, BLACK));
+    EXPECT_EQ(b.materialScore(), pieceScore(Queen) + pieceScore(Rook, BLACK));
 }
 
 TEST(BoardTest, psqBonusStartBoard) { EXPECT_EQ(Board(STARTFEN).psqBonusScore(), Score{}); }
 TEST(BoardTest, psqBonusWhiteE2Pawn) {
-    EXPECT_EQ(Board(PAWN_E2).psqBonusScore(), pieceSqScore(PAWN, WHITE, E2));
+    EXPECT_EQ(Board(PAWN_E2).psqBonusScore(), pieceSqScore(Pawn, WHITE, E2));
 }
 TEST(BoardTest, psqBonusBlackD8Queen) {
     Board b("3qk3/8/8/8/8/8/8/4K3 w - - 0 1");
-    EXPECT_EQ(b.psqBonusScore(), pieceSqScore(QUEEN, BLACK, D8));
+    EXPECT_EQ(b.psqBonusScore(), pieceSqScore(Queen, BLACK, D8));
 }
 
 TEST(BoardTest, getCastleEmptyBoard) { EXPECT_EQ(Board(EMPTYFEN).castleRights(), NO_CASTLE); }
@@ -170,23 +173,25 @@ TEST(BoardTest, halfmove) { EXPECT_EQ(Board("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1").h
 
 TEST(BoardTest, seeBasicCapture) {
     Board b("1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - -");
-    EXPECT_EQ(b.see(Move(E1, E5)), pieceValue(PAWN));
+    EXPECT_EQ(b.see(Move(E1, E5)), pieceValue(Pawn));
 }
 TEST(BoardTest, seeTradingCaptures) {
     Board b("1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - -");
-    EXPECT_EQ(b.see(Move(D3, E5)), pieceValue(PAWN) - pieceValue(KNIGHT));
+    EXPECT_EQ(b.see(Move(D3, E5)), pieceValue(Pawn) - pieceValue(Knight));
 }
 
 TEST(BoardTest, isLegalMove) { EXPECT_TRUE(Board(POS3).isLegalMove(Move(B4, F4))); }
 TEST(BoardTest, isLegalMovePinnedMove) { EXPECT_FALSE(Board(POS3).isLegalMove(Move(B5, B6))); }
 TEST(BoardTest, isLegalMoveMovingIntoCheck) { EXPECT_FALSE(Board(POS3).isLegalMove(Move(A5, B6))); }
-TEST(BoardTest, isLegalMoveCastling) { EXPECT_TRUE(Board(POS2).isLegalMove(Move(E1, G1, CASTLE))); }
+TEST(BoardTest, isLegalMoveCastling) {
+    EXPECT_TRUE(Board(POS2).isLegalMove(Move(E1, G1, MoveType::Castle)));
+}
 TEST(BoardTest, isLegalMoveEnPassant) {
-    EXPECT_TRUE(Board(ENPASSANT_A3).isLegalMove(Move(B4, A3, ENPASSANT)));
+    EXPECT_TRUE(Board(ENPASSANT_A3).isLegalMove(Move(B4, A3, MoveType::EnPassant)));
 }
 TEST(BoardTest, isLegalMovePinnedEnPassant) {
     Board b("8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - e3 0 1");
-    EXPECT_FALSE(b.isLegalMove(Move(F4, E3, ENPASSANT)));
+    EXPECT_FALSE(b.isLegalMove(Move(F4, E3, MoveType::EnPassant)));
 }
 
 TEST(BoardTest, isCheckingMoveRegularChecks) {
@@ -208,18 +213,18 @@ TEST(BoardTest, isCheckingMoveDiscoveredChecks) {
 }
 TEST(BoardTest, isCheckingMoveDiscoveredEnPassant) {
     Board b("4k3/8/8/1pP5/B7/8/8/4K3 w - b6 0 1");
-    EXPECT_TRUE(b.isCheckingMove(Move(C5, B6, ENPASSANT)));
+    EXPECT_TRUE(b.isCheckingMove(Move(C5, B6, MoveType::EnPassant)));
 }
 TEST(BoardTest, isCheckingMovePromotions) {
     Board b("4k3/P7/8/8/8/8/8/4K3 w - - 0 1");
-    EXPECT_TRUE(b.isCheckingMove(Move(A7, A8, PROMOTION, QUEEN)));
-    EXPECT_TRUE(b.isCheckingMove(Move(A7, A8, PROMOTION, ROOK)));
-    EXPECT_FALSE(b.isCheckingMove(Move(A7, A8, PROMOTION, BISHOP)));
-    EXPECT_FALSE(b.isCheckingMove(Move(A7, A8, PROMOTION, KNIGHT)));
+    EXPECT_TRUE(b.isCheckingMove(Move(A7, A8, MoveType::Promotion, Queen)));
+    EXPECT_TRUE(b.isCheckingMove(Move(A7, A8, MoveType::Promotion, Rook)));
+    EXPECT_FALSE(b.isCheckingMove(Move(A7, A8, MoveType::Promotion, Bishop)));
+    EXPECT_FALSE(b.isCheckingMove(Move(A7, A8, MoveType::Promotion, Knight)));
 }
 TEST(BoardTEST, isCheckingMoveCastles) {
     Board b("5k2/8/8/8/8/8/8/4K2R w K - 0 1");
-    EXPECT_TRUE(b.isCheckingMove(Move(E1, G1, CASTLE)));
+    EXPECT_TRUE(b.isCheckingMove(Move(E1, G1, MoveType::Castle)));
 }
 
 TEST(BoardTest, isCapture) {
@@ -245,67 +250,69 @@ TEST(BoardTest, isDoubleCheck) {
 TEST(BoardTest, attacksToStartBoard) {
     Board b(STARTFEN);
     EXPECT_EQ(b.attacksTo(A2, WHITE), BB::set(A1));
-    EXPECT_EQ(b.attacksTo(A3, WHITE), BB::set(B2) | BB::set(B1));
+    EXPECT_EQ(b.attacksTo(A3, WHITE), BB::set(B2, B1));
     EXPECT_EQ(b.attacksTo(A4, WHITE), 0);
     EXPECT_EQ(b.attacksTo(B2, WHITE), BB::set(C1));
-    EXPECT_EQ(b.attacksTo(B3, WHITE), BB::set(A2) | BB::set(C2));
+    EXPECT_EQ(b.attacksTo(B3, WHITE), BB::set(A2, C2));
     EXPECT_EQ(b.attacksTo(B4, WHITE), 0);
 }
 
 TEST(BoardTest, attacksToBBStartBoard) {
     Board b(STARTFEN);
-    EXPECT_TRUE(b.attacksTo(BB::rank(RANK1), WHITE));
-    EXPECT_TRUE(b.attacksTo(BB::rank(RANK3), WHITE));
-    EXPECT_TRUE(b.attacksTo(BB::rank(RANK8), BLACK));
-    EXPECT_TRUE(b.attacksTo(BB::rank(RANK6), BLACK));
-    EXPECT_FALSE(b.attacksTo(BB::rank(RANK4), WHITE));
-    EXPECT_FALSE(b.attacksTo(BB::rank(RANK5), BLACK));
+    EXPECT_TRUE(b.attacksTo(BB::rankBB(Rank::R1), WHITE));
+    EXPECT_TRUE(b.attacksTo(BB::rankBB(Rank::R3), WHITE));
+    EXPECT_TRUE(b.attacksTo(BB::rankBB(Rank::R8), BLACK));
+    EXPECT_TRUE(b.attacksTo(BB::rankBB(Rank::R6), BLACK));
+    EXPECT_FALSE(b.attacksTo(BB::rankBB(Rank::R4), WHITE));
+    EXPECT_FALSE(b.attacksTo(BB::rankBB(Rank::R5), BLACK));
 }
 
 TEST(BoardTest, attacksToPinnedPosition) {
     Board b(POS3);
-    EXPECT_TRUE(b.attacksTo(BB::file(FILE8), WHITE));
-    EXPECT_TRUE(b.attacksTo(BB::file(FILE2), BLACK));
-    EXPECT_FALSE(b.attacksTo(BB::file(FILE7), WHITE));
-    EXPECT_FALSE(b.attacksTo(BB::file(FILE1), BLACK));
+    EXPECT_TRUE(b.attacksTo(BB::fileBB(File::F8), WHITE));
+    EXPECT_TRUE(b.attacksTo(BB::fileBB(File::F2), BLACK));
+    EXPECT_FALSE(b.attacksTo(BB::fileBB(File::F7), WHITE));
+    EXPECT_FALSE(b.attacksTo(BB::fileBB(File::F1), BLACK));
 }
 
 TEST(BoardTest, addPiece) {
     Board board = Board(EMPTYFEN);
-    U64 key     = board.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
-    board.addPiece<true>(E2, WHITE, PAWN);
+    U64 key     = board.getKey() ^ Zobrist::hashPiece(WHITE, Pawn, E2);
+    board.addPiece<true>(E2, WHITE, Pawn);
 
-    EXPECT_EQ(board.pieceOn(E2), makePiece(WHITE, PAWN));
-    EXPECT_EQ(board.pieces<PAWN>(WHITE), BB::set(E2));
-    EXPECT_EQ(board.count(WHITE, PAWN), 1);
-    EXPECT_EQ(board.occupancy(), BB::set(E8) | BB::set(E2) | BB::set(E1));
+    EXPECT_EQ(board.pieceOn(E2), makePiece(WHITE, Pawn));
+    EXPECT_EQ(board.pieces<Pawn>(WHITE), BB::set(E2));
+    EXPECT_EQ(board.count(WHITE, Pawn), 1);
+    EXPECT_EQ(board.occupancy(), BB::set(E8, E2, E1));
     EXPECT_EQ(board.getKey(), key);
     EXPECT_EQ(board.toFEN(), PAWN_E2);
 }
 
 TEST(BoardTest, removePiece) {
     Board board = Board(PAWN_E2);
-    U64 key     = board.getKey() ^ Zobrist::psq[WHITE][PAWN][E2];
-    board.removePiece<true>(E2, WHITE, PAWN);
+    U64 key     = board.getKey() ^ Zobrist::hashPiece(WHITE, Pawn, E2);
+    board.removePiece<true>(E2, WHITE, Pawn);
 
-    EXPECT_EQ(board.pieceOn(E2), Piece::NONE);
-    EXPECT_EQ(board.pieces<PAWN>(WHITE), 0x0);
-    EXPECT_EQ(board.count(WHITE, PAWN), 0);
-    EXPECT_EQ(board.occupancy(), BB::set(E8) | BB::set(E1));
+    EXPECT_EQ(board.pieceOn(E2), Piece::None);
+    EXPECT_EQ(board.pieces<Pawn>(WHITE), 0x0);
+    EXPECT_EQ(board.count(WHITE, Pawn), 0);
+    EXPECT_EQ(board.occupancy(), BB::set(E8, E1));
     EXPECT_EQ(board.getKey(), key);
     EXPECT_EQ(board.toFEN(), EMPTYFEN);
 }
 
 TEST(BoardTest, movePiece) {
-    Board board = Board(PAWN_E2);
-    U64 key     = board.getKey() ^ Zobrist::psq[WHITE][PAWN][E2] ^ Zobrist::psq[WHITE][PAWN][E4];
-    board.movePiece<true>(E2, E4, WHITE, PAWN);
+    Board board  = Board(PAWN_E2);
+    U64 key      = board.getKey();
+    key         ^= Zobrist::hashPiece(WHITE, Pawn, E2);
+    key         ^= Zobrist::hashPiece(WHITE, Pawn, E4);
+    board.movePiece<true>(E2, E4, WHITE, Pawn);
 
-    EXPECT_EQ(board.pieceOn(E2), Piece::NONE);
-    EXPECT_EQ(board.pieceOn(E4), makePiece(WHITE, PAWN));
-    EXPECT_EQ(board.pieces<PAWN>(WHITE), BB::set(E4));
-    EXPECT_EQ(board.count(WHITE, PAWN), 1);
-    EXPECT_EQ(board.occupancy(), BB::set(E8) | BB::set(E1) | BB::set(E4));
+    EXPECT_EQ(board.pieceOn(E2), Piece::None);
+    EXPECT_EQ(board.pieceOn(E4), makePiece(WHITE, Pawn));
+    EXPECT_EQ(board.pieces<Pawn>(WHITE), BB::set(E4));
+    EXPECT_EQ(board.count(WHITE, Pawn), 1);
+    EXPECT_EQ(board.occupancy(), BB::set(E8, E1, E4));
     EXPECT_EQ(board.getKey(), key);
     EXPECT_EQ(board.toFEN(), PAWN_E4);
 }
@@ -398,7 +405,7 @@ TEST(BoardTest, makePawnDoublePushSetsEnpassantSq) {
 
 TEST(BoardTest, makeEnpassantCapture) {
     Board b(ENPASSANT_A3);
-    b.make(Move(B4, A3, ENPASSANT));
+    b.make(Move(B4, A3, MoveType::EnPassant));
     EXPECT_EQ(b.toFEN(), "4k3/8/8/8/8/p7/8/4K3 w - - 0 2");
     b.unmake();
     EXPECT_EQ(b.toFEN(), ENPASSANT_A3);
@@ -406,7 +413,7 @@ TEST(BoardTest, makeEnpassantCapture) {
 
 TEST(BoardTest, makeCastleKingside) {
     Board b(POS2);
-    b.make(Move(E1, G1, CASTLE));
+    b.make(Move(E1, G1, MoveType::Castle));
     EXPECT_EQ(b.toFEN(), "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R4RK1 b kq - 1 1");
     b.unmake();
     EXPECT_EQ(b.toFEN(), POS2);
@@ -414,7 +421,7 @@ TEST(BoardTest, makeCastleKingside) {
 
 TEST(BoardTest, makeCastleQueenside) {
     Board b(POS2);
-    b.make(Move(E1, C1, CASTLE));
+    b.make(Move(E1, C1, MoveType::Castle));
     EXPECT_EQ(b.toFEN(), "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2KR3R b kq - 1 1");
     b.unmake();
     EXPECT_EQ(b.toFEN(), POS2);
@@ -447,7 +454,7 @@ TEST(BoardTest, RookMoveDisablesCastleOOORights) {
 TEST(BoardTest, QueenPromotion) {
     auto fen = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
     Board b  = Board(fen);
-    b.make(Move(A7, A8, PROMOTION, QUEEN));
+    b.make(Move(A7, A8, MoveType::Promotion, Queen));
     EXPECT_EQ(b.toFEN(), "Q3k3/8/8/8/8/8/8/4K3 b - - 0 1");
     b.unmake();
     EXPECT_EQ(b.toFEN(), fen);
@@ -456,7 +463,7 @@ TEST(BoardTest, QueenPromotion) {
 TEST(BoardTest, UnderPromotion) {
     auto fen = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
     Board b  = Board(fen);
-    b.make(Move(A7, A8, PROMOTION, BISHOP));
+    b.make(Move(A7, A8, MoveType::Promotion, Bishop));
     EXPECT_EQ(b.toFEN(), "B3k3/8/8/8/8/8/8/4K3 b - - 0 1");
     b.unmake();
     EXPECT_EQ(b.toFEN(), fen);

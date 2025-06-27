@@ -7,7 +7,7 @@
 
 #include "types.hpp"
 
-constexpr auto VERSION = "0.1";
+constexpr auto VERSION = "0.1.0";
 
 constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
                POS2     = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
@@ -17,22 +17,33 @@ constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
                POS5     = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
                EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
+// display search stats
 constexpr auto STATS_ENABLED = false;
 
-// uci options
-constexpr size_t DEFAULT_HASH_MB = 1;
+// uci option constants
 constexpr size_t DEFAULT_THREADS = 1;
+constexpr size_t MAX_THREADS     = 64;
+constexpr size_t DEFAULT_HASH_MB = 1;
+constexpr size_t MAX_HASH_MB     = 2048;
 constexpr bool DEFAULT_DEBUG     = false;
-
-constexpr int MAX_THREADS = 64;
-constexpr int MAX_HASH_MB = 2048;
 
 // search constants
 constexpr int MAX_DEPTH   = 64;
 constexpr int MAX_MOVES   = 256;
 constexpr int MAX_HISTORY = 1024;
 
+// castle right constants
+constexpr CastleRights NO_CASTLE    = 0b0000;
+constexpr CastleRights BLACK_OOO    = 0b0001;
+constexpr CastleRights BLACK_OO     = 0b0010;
+constexpr CastleRights WHITE_OOO    = 0b0100;
+constexpr CastleRights WHITE_OO     = 0b1000;
+constexpr CastleRights BLACK_CASTLE = 0b0011;
+constexpr CastleRights WHITE_CASTLE = 0b1100;
+constexpr CastleRights ALL_CASTLE   = 0b1111;
+
 // move gen constants
+constexpr size_t N_CASTLES                            = 2;
 constexpr Square KingOrigin[N_COLORS]                 = {E8, E1};
 constexpr Square KingDestinationOO[N_COLORS]          = {G8, G1};
 constexpr Square KingDestinationOOO[N_COLORS]         = {C8, C1};
@@ -43,14 +54,15 @@ constexpr U64 CastlePathOO[N_COLORS]      = {0x6000000000000000ull, 0x0000000000
 constexpr U64 CastlePathOOO[N_COLORS]     = {0x0E00000000000000ull, 0x000000000000000Eull};
 constexpr U64 KingCastlePathOO[N_COLORS]  = {0x7000000000000000ull, 0x0000000000000070ull};
 constexpr U64 KingCastlePathOOO[N_COLORS] = {0x1C00000000000000ull, 0x000000000000001Cull};
-constexpr U64 LIGHT_SQUARES               = 0x55AA55AA55AA55AA;
-constexpr U64 DARK_SQUARES                = 0xAA55AA55AA55AA55;
-constexpr U64 WHITE_OUTPOSTS              = 0x0000FFFFFF000000;
-constexpr U64 BLACK_OUTPOSTS              = 0x000000FFFFFF0000;
-constexpr U64 CENTER_FILES                = 0x3C3C3C3C3C3C3C3C;
-constexpr U64 CENTER_SQUARES              = 0x0000001818000000;
+constexpr U64 LIGHT_SQUARES               = 0x55AA55AA55AA55AAull;
+constexpr U64 DARK_SQUARES                = 0xAA55AA55AA55AA55ull;
+constexpr U64 WHITE_OUTPOSTS              = 0x0000FFFFFF000000ull;
+constexpr U64 BLACK_OUTPOSTS              = 0x000000FFFFFF0000ull;
+constexpr U64 CENTER_FILES                = 0x3C3C3C3C3C3C3C3Cull;
+constexpr U64 CENTER_SQUARES              = 0x0000001818000000ull;
 
-// eval constants
+// eval constants / functions
+constexpr int TEMPO_BONUS     = 25;
 constexpr int PAWN_VALUE_MG   = 100;
 constexpr int KNIGHT_VALUE_MG = 630;
 constexpr int BISHOP_VALUE_MG = 660;
@@ -62,7 +74,12 @@ constexpr int BISHOP_VALUE_EG = 740;
 constexpr int ROOK_VALUE_EG   = 1100;
 constexpr int QUEEN_VALUE_EG  = 2150;
 
-// mate constants
+constexpr int PIECE_VALUES[N_PIECES] = {
+    0, PAWN_VALUE_MG, KNIGHT_VALUE_MG, BISHOP_VALUE_MG, ROOK_VALUE_MG, QUEEN_VALUE_MG, 0};
+
+constexpr int pieceValue(PieceType pieceType) { return PIECE_VALUES[idx(pieceType)]; }
+
+// mate constants / functions
 constexpr int ABORT_SCORE     = INT16_MAX;
 constexpr int INF_SCORE       = INT16_MAX - 1;
 constexpr int MATE_SCORE      = INT16_MAX - 2;
@@ -71,16 +88,22 @@ constexpr int DRAW_SCORE      = 0;
 
 constexpr bool isMateScore(int score) { return std::abs(score) > MATE_IN_MAX_PLY; }
 constexpr int mateDistance(int score) { return MATE_SCORE - std::abs(score); }
+constexpr int ttScore(int score, int ply) {
+    if (score >= MATE_IN_MAX_PLY)
+        score += ply;
+    else if (score <= MATE_IN_MAX_PLY)
+        score -= ply;
+    return score;
+}
 
-constexpr int PIECE_VALUES[N_PIECES - 1] = {
-    PAWN_VALUE_MG, KNIGHT_VALUE_MG, BISHOP_VALUE_MG, ROOK_VALUE_MG, QUEEN_VALUE_MG, 0};
-constexpr int pieceValue(PieceType pieceType) { return PIECE_VALUES[pieceType - 1]; };
-
-constexpr int TEMPO_BONUS = 25;
-constexpr int SCALE_LIMIT = 64;
+// phase constants
+constexpr size_t N_PHASES = 2;
 constexpr int PHASE_LIMIT = 128;
 constexpr int MG_LIMIT    = 4 * BISHOP_VALUE_MG + 4 * ROOK_VALUE_MG + 2 * QUEEN_VALUE_MG;
 constexpr int EG_LIMIT    = KNIGHT_VALUE_MG + BISHOP_VALUE_MG + 2 * ROOK_VALUE_MG;
+
+// endgame scaling constants
+constexpr int SCALE_LIMIT = 64;
 
 // clang-format off
 const std::array<int, N_SQUARES> PAWN_BONUS_MG = {

@@ -43,7 +43,7 @@ inline U16 MoveOrder::scoreMove(const Move& move) const {
 
     if (move == hashMove) return HASH_MOVE;
 
-    if (move.type() == PROMOTION) return PROM_MOVE;
+    if (move.type() == MoveType::Promotion) return PROM_MOVE;
 
     if (board.isCapture(move)) {
         int seeScore = board.see(move);
