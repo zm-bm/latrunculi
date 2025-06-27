@@ -11,7 +11,7 @@
 #include "state.hpp"
 #include "zobrist.hpp"
 
-template <GenType T>
+template <MoveGenMode T>
 class MoveGenerator;
 
 class Thread;
@@ -20,7 +20,7 @@ class Board {
    private:
     U64 piecesBB[N_COLORS][N_PIECES]  = {0};
     U8 pieceCount[N_COLORS][N_PIECES] = {0};
-    Piece squares[N_SQUARES]          = {Piece::NONE};
+    Piece squares[N_SQUARES]          = {Piece::None};
     Square kingSquare[N_COLORS]       = {E1, E8};
     Color turn                        = WHITE;
     Score material                    = {0, 0};
@@ -119,19 +119,17 @@ inline Board::Board(const std::string& fen) { loadFEN(fen); }
 
 template <PieceType... Ps>
 inline U64 Board::pieces() const {
-    return ((piecesBB[WHITE][Ps] | piecesBB[BLACK][Ps]) | ...);
+    return ((piecesBB[WHITE][idx(Ps)] | piecesBB[BLACK][idx(Ps)]) | ...);
 };
 
 template <PieceType... Ps>
 inline U64 Board::pieces(Color c) const {
-    return (piecesBB[c][Ps] | ...);
+    return (piecesBB[c][idx(Ps)] | ...);
 };
 
-inline U64 Board::occupancy() const {
-    return pieces<ALL_PIECES>(WHITE) | pieces<ALL_PIECES>(BLACK);
-}
+inline U64 Board::occupancy() const { return pieces<PieceType::All>(); }
 
-inline U8 Board::count(Color c, PieceType p) const { return pieceCount[c][p]; };
+inline U8 Board::count(Color c, PieceType p) const { return pieceCount[c][idx(p)]; };
 
 inline Piece Board::pieceOn(Square sq) const { return squares[sq]; }
 
@@ -159,7 +157,7 @@ inline Square Board::enPassantSq() const { return state.at(ply).enPassantSq; }
 
 inline U8 Board::halfmove() const { return state.at(ply).hmClock; }
 
-inline bool Board::isCapture(Move move) const { return pieceTypeOn(move.to()) != NO_PIECE_TYPE; };
+inline bool Board::isCapture(Move move) const { return pieceTypeOn(move.to()) != PieceType::None; };
 
 inline bool Board::isCheck() const { return checkers(); }
 
@@ -170,11 +168,13 @@ inline U64 Board::attacksTo(Square sq, Color c) const { return attacksTo(sq, c, 
 
 // Returns a bitboard of pieces of color c which attacks a square
 inline U64 Board::attacksTo(Square sq, Color c, U64 occupied) const {
-    return (pieces<PAWN>(c) & BB::pawnAttacks(BB::set(sq), ~c)) |
-           (pieces<KNIGHT>(c) & BB::moves<KNIGHT>(sq, occupied)) |
-           (pieces<KING>(c) & BB::moves<KING>(sq, occupied)) |
-           (pieces<BISHOP, QUEEN>(c) & BB::moves<BISHOP>(sq, occupied)) |
-           (pieces<ROOK, QUEEN>(c) & BB::moves<ROOK>(sq, occupied));
+    auto diagSliders = pieces<PieceType::Bishop, PieceType::Queen>(c);
+    auto lineSliders = pieces<PieceType::Rook, PieceType::Queen>(c);
+    return (pieces<PieceType::Pawn>(c) & BB::pawnAttacks(BB::set(sq), ~c)) |
+           (pieces<PieceType::Knight>(c) & BB::moves<PieceType::Knight>(sq, occupied)) |
+           (pieces<PieceType::King>(c) & BB::moves<PieceType::King>(sq, occupied)) |
+           (diagSliders & BB::moves<PieceType::Bishop>(sq, occupied)) |
+           (lineSliders & BB::moves<PieceType::Rook>(sq, occupied));
 }
 
 // Returns a bitboard of pieces of color c which attacks a square
@@ -182,12 +182,14 @@ inline U64 Board::attacksTo(Square sq) const { return attacksTo(sq, occupancy())
 
 // Returns a bitboard of pieces of any which attacks a square
 inline U64 Board::attacksTo(Square sq, U64 occupied) const {
-    return (pieces<PAWN>(WHITE) & BB::pawnAttacks(BB::set(sq), BLACK)) |
-           (pieces<PAWN>(BLACK) & BB::pawnAttacks(BB::set(sq), WHITE)) |
-           (pieces<KNIGHT>() & BB::moves<KNIGHT>(sq, occupied)) |
-           (pieces<KING>() & BB::moves<KING>(sq, occupied)) |
-           (pieces<BISHOP, QUEEN>() & BB::moves<BISHOP>(sq, occupied)) |
-           (pieces<ROOK, QUEEN>() & BB::moves<ROOK>(sq, occupied));
+    auto diagSliders = pieces<PieceType::Bishop, PieceType::Queen>();
+    auto lineSliders = pieces<PieceType::Rook, PieceType::Queen>();
+    return (pieces<PieceType::Pawn>(WHITE) & BB::pawnAttacks(BB::set(sq), BLACK)) |
+           (pieces<PieceType::Pawn>(BLACK) & BB::pawnAttacks(BB::set(sq), WHITE)) |
+           (pieces<PieceType::Knight>() & BB::moves<PieceType::Knight>(sq, occupied)) |
+           (pieces<PieceType::King>() & BB::moves<PieceType::King>(sq, occupied)) |
+           (diagSliders & BB::moves<PieceType::Bishop>(sq, occupied)) |
+           (lineSliders & BB::moves<PieceType::Rook>(sq, occupied));
 }
 
 // Determine if any set square of a bitboard is attacked by color c
@@ -201,38 +203,38 @@ inline U64 Board::attacksTo(U64 bitboard, Color c) const {
 }
 
 template <bool applyHash>
-inline void Board::addPiece(Square sq, Color c, PieceType p) {
-    pieceCount[c][p]++;
-    piecesBB[c][ALL_PIECES] ^= BB::set(sq);
-    piecesBB[c][p]          ^= BB::set(sq);
-    squares[sq]              = makePiece(c, p);
-    material                += pieceScore(p, c);
-    psqBonus                += pieceSqScore(p, c, sq);
-    if constexpr (applyHash) state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
+inline void Board::addPiece(Square sq, Color c, PieceType pt) {
+    pieceCount[c][idx(pt)]++;
+    piecesBB[c][idx(pt)]             ^= BB::set(sq);
+    piecesBB[c][idx(PieceType::All)] ^= BB::set(sq);
+    squares[sq]                       = makePiece(c, pt);
+    material                         += pieceScore(pt, c);
+    psqBonus                         += pieceSqScore(pt, c, sq);
+    if constexpr (applyHash) state.at(ply).zkey ^= Zobrist::hashPiece(c, pt, sq);
 }
 
 template <bool applyHash>
-inline void Board::removePiece(Square sq, Color c, PieceType p) {
-    pieceCount[c][p]--;
-    piecesBB[c][ALL_PIECES] ^= BB::set(sq);
-    piecesBB[c][p]          ^= BB::set(sq);
-    squares[sq]              = Piece::NONE;
-    material                -= pieceScore(p, c);
-    psqBonus                -= pieceSqScore(p, c, sq);
-    if constexpr (applyHash) state.at(ply).zkey ^= Zobrist::psq[c][p][sq];
+inline void Board::removePiece(Square sq, Color c, PieceType pt) {
+    pieceCount[c][idx(pt)]--;
+    piecesBB[c][idx(pt)]             ^= BB::set(sq);
+    piecesBB[c][idx(PieceType::All)] ^= BB::set(sq);
+    squares[sq]                       = Piece::None;
+    material                         -= pieceScore(pt, c);
+    psqBonus                         -= pieceSqScore(pt, c, sq);
+    if constexpr (applyHash) state.at(ply).zkey ^= Zobrist::hashPiece(c, pt, sq);
 }
 
 template <bool applyHash>
-inline void Board::movePiece(Square from, Square to, Color c, PieceType p) {
-    U64 mask                 = BB::set(from) | BB::set(to);
-    piecesBB[c][ALL_PIECES] ^= mask;
-    piecesBB[c][p]          ^= mask;
-    squares[from]            = Piece::NONE;
-    squares[to]              = makePiece(c, p);
-    psqBonus                += pieceSqScore(p, c, to) - pieceSqScore(p, c, from);
+inline void Board::movePiece(Square from, Square to, Color c, PieceType pt) {
+    U64 mask                          = BB::set(from) | BB::set(to);
+    piecesBB[c][idx(pt)]             ^= mask;
+    piecesBB[c][idx(PieceType::All)] ^= mask;
+    squares[from]                     = Piece::None;
+    squares[to]                       = makePiece(c, pt);
+    psqBonus                         += pieceSqScore(pt, c, to) - pieceSqScore(pt, c, from);
 
     if constexpr (applyHash) {
-        state.at(ply).zkey ^= Zobrist::psq[c][p][from] ^ Zobrist::psq[c][p][to];
+        state.at(ply).zkey ^= Zobrist::hashPiece(c, pt, from) ^ Zobrist::hashPiece(c, pt, to);
     }
 }
 
@@ -240,53 +242,56 @@ inline void Board::movePiece(Square from, Square to, Color c, PieceType p) {
 inline U64 Board::calculateKey() const {
     U64 zkey = 0x0;
 
-    for (auto sq = A1; sq != INVALID; sq++) {
+    for (auto sq = A1; sq != INVALID; ++sq) {
         auto piece = pieceOn(sq);
-        if (piece != Piece::NONE) {
-            zkey ^= Zobrist::psq[pieceColorOf(piece)][pieceTypeOf(piece)][sq];
+        if (piece != Piece::None) {
+            zkey ^= Zobrist::hashPiece(pieceColorOf(piece), pieceTypeOf(piece), sq);
         }
     }
 
     if (turn == BLACK) zkey ^= Zobrist::stm;
-    if (canCastleOO(WHITE)) zkey ^= Zobrist::castle[WHITE][KINGSIDE];
-    if (canCastleOOO(WHITE)) zkey ^= Zobrist::castle[WHITE][QUEENSIDE];
-    if (canCastleOO(BLACK)) zkey ^= Zobrist::castle[BLACK][KINGSIDE];
-    if (canCastleOOO(BLACK)) zkey ^= Zobrist::castle[BLACK][QUEENSIDE];
+    if (canCastleOO(WHITE)) zkey ^= Zobrist::hashCastle(WHITE, Castle::KingSide);
+    if (canCastleOOO(WHITE)) zkey ^= Zobrist::hashCastle(WHITE, Castle::QueenSide);
+    if (canCastleOO(BLACK)) zkey ^= Zobrist::hashCastle(BLACK, Castle::KingSide);
+    if (canCastleOOO(BLACK)) zkey ^= Zobrist::hashCastle(BLACK, Castle::QueenSide);
     auto sq = enPassantSq();
-    if (sq != INVALID) zkey ^= Zobrist::ep[fileOf(sq)];
+    if (sq != INVALID) zkey ^= Zobrist::hashEp(sq);
 
     return zkey;
 }
 
 inline bool Board::canCastle(Color c) const {
     // Check if the specified color can castle
-    return castleRights() & (c ? WHITE_CASTLE : BLACK_CASTLE);
+    auto rights = castleRights() & (c ? WHITE_CASTLE : BLACK_CASTLE);
+    return rights.any();
 }
 
 inline bool Board::canCastleOO(Color c) const {
     // Check if the specified color can castle kingside (OO)
-    return castleRights() & (c ? WHITE_OO : BLACK_OO);
+    auto rights = castleRights() & (c ? WHITE_OO : BLACK_OO);
+    return rights.any();
 }
 
 inline bool Board::canCastleOOO(Color c) const {
     // Check if the specified color can castle queenside (OOO)
-    return castleRights() & (c ? WHITE_OOO : BLACK_OOO);
+    auto rights = castleRights() & (c ? WHITE_OOO : BLACK_OOO);
+    return rights.any();
 }
 
 inline void Board::disableCastle(Color c) {
     // Disable castling for the specified color
-    if (canCastleOO(c)) state.at(ply).zkey ^= Zobrist::castle[c][KINGSIDE];
-    if (canCastleOOO(c)) state.at(ply).zkey ^= Zobrist::castle[c][QUEENSIDE];
+    if (canCastleOO(c)) state.at(ply).zkey ^= Zobrist::hashCastle(c, Castle::KingSide);
+    if (canCastleOOO(c)) state.at(ply).zkey ^= Zobrist::hashCastle(c, Castle::QueenSide);
     state.at(ply).castle &= c ? BLACK_CASTLE : WHITE_CASTLE;
 }
 
 inline void Board::disableCastle(Color c, Square sq) {
     // Disable casting for the specified color and side
-    if (sq == RookOrigin[KINGSIDE][c] && canCastleOO(c)) {
-        state.at(ply).zkey   ^= Zobrist::castle[c][KINGSIDE];
+    if (sq == RookOrigin[idx(Castle::KingSide)][c] && canCastleOO(c)) {
+        state.at(ply).zkey   ^= Zobrist::hashCastle(c, Castle::KingSide);
         state.at(ply).castle &= ~(c ? WHITE_OO : BLACK_OO);
-    } else if (sq == RookOrigin[QUEENSIDE][c] && canCastleOOO(c)) {
-        state.at(ply).zkey   ^= Zobrist::castle[c][QUEENSIDE];
+    } else if (sq == RookOrigin[idx(Castle::QueenSide)][c] && canCastleOOO(c)) {
+        state.at(ply).zkey   ^= Zobrist::hashCastle(c, Castle::QueenSide);
         state.at(ply).castle &= ~(c ? WHITE_OOO : BLACK_OOO);
     }
 }
@@ -295,8 +300,9 @@ inline void Board::disableCastle(Color c, Square sq) {
 inline void Board::updatePinInfo(Color c) {
     Color enemy = ~c;
     Square king = kingSq(c);
-    U64 sliders = (BB::moves<BISHOP>(king) & pieces<BISHOP, QUEEN>(enemy)) |
-                  (BB::moves<ROOK>(king) & pieces<ROOK, QUEEN>(enemy));
+    U64 sliders =
+        (BB::moves<PieceType::Bishop>(king) & pieces<PieceType::Bishop, PieceType::Queen>(enemy)) |
+        (BB::moves<PieceType::Rook>(king) & pieces<PieceType::Rook, PieceType::Queen>(enemy));
 
     U64 occupied = occupancy();
     U64 blockers = 0;
@@ -304,7 +310,7 @@ inline void Board::updatePinInfo(Color c) {
     while (sliders) {
         // For each potential pinning piece
         Square pinner       = BB::lsbPop(sliders);
-        U64 piecesInBetween = occupied & BB::betweenBB(king, pinner);
+        U64 piecesInBetween = occupied & BB::between(king, pinner);
 
         // Check if only one piece separates the slider and the king
         if (!BB::isMany(piecesInBetween)) {
@@ -319,12 +325,15 @@ inline void Board::updateCheckInfo() {
     Square enemyKing = kingSq(enemy);
     U64 occupied     = occupancy();
 
-    state[ply].checkers       = attacksTo(kingSq(turn), enemy);
-    state[ply].checks[PAWN]   = BB::pawnAttacks(BB::set(enemyKing), enemy);
-    state[ply].checks[KNIGHT] = BB::moves<KNIGHT>(enemyKing, occupied);
-    state[ply].checks[BISHOP] = BB::moves<BISHOP>(enemyKing, occupied);
-    state[ply].checks[ROOK]   = BB::moves<ROOK>(enemyKing, occupied);
-    state[ply].checks[QUEEN]  = state[ply].checks[BISHOP] | state[ply].checks[ROOK];
+    state[ply].checkers = attacksTo(kingSq(turn), enemy);
+
+    state[ply].checks[idx(PieceType::Pawn)]   = BB::pawnAttacks(BB::set(enemyKing), enemy);
+    state[ply].checks[idx(PieceType::Knight)] = BB::moves<PieceType::Knight>(enemyKing, occupied);
+    state[ply].checks[idx(PieceType::Bishop)] = BB::moves<PieceType::Bishop>(enemyKing, occupied);
+    state[ply].checks[idx(PieceType::Rook)]   = BB::moves<PieceType::Rook>(enemyKing, occupied);
+    state[ply].checks[idx(PieceType::Queen)] =
+        state[ply].checks[idx(PieceType::Bishop)] | state[ply].checks[idx(PieceType::Rook)];
+
     updatePinInfo(WHITE);
     updatePinInfo(BLACK);
 }

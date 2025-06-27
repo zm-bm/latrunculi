@@ -26,69 +26,69 @@ void FenParser::parse() {
 }
 
 void FenParser::parsePieces(const std::string& section) {
-    auto file = FILE1;
-    auto rank = RANK8;
+    auto file = File::F1;
+    auto rank = Rank::R8;
 
     for (auto iter = section.begin(); iter != section.end(); ++iter) {
         auto ch = *iter;
 
         if ((ch >= '1') && (ch <= '8')) {
-            file += File(ch - '0');
+            file = file + int(ch - '0');
         } else {
             Square sq = makeSquare(file, rank);
 
             switch (ch) {
                 case 'P':
-                    pieces.emplace_back(PieceSquare{WHITE, PAWN, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{WHITE, PieceType::Pawn, sq});
+                    ++file;
                     break;
                 case 'N':
-                    pieces.emplace_back(PieceSquare{WHITE, KNIGHT, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{WHITE, PieceType::Knight, sq});
+                    ++file;
                     break;
                 case 'B':
-                    pieces.emplace_back(PieceSquare{WHITE, BISHOP, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{WHITE, PieceType::Bishop, sq});
+                    ++file;
                     break;
                 case 'R':
-                    pieces.emplace_back(PieceSquare{WHITE, ROOK, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{WHITE, PieceType::Rook, sq});
+                    ++file;
                     break;
                 case 'Q':
-                    pieces.emplace_back(PieceSquare{WHITE, QUEEN, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{WHITE, PieceType::Queen, sq});
+                    ++file;
                     break;
                 case 'K':
-                    pieces.emplace_back(PieceSquare{WHITE, KING, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{WHITE, PieceType::King, sq});
+                    ++file;
                     break;
                 case 'p':
-                    pieces.emplace_back(PieceSquare{BLACK, PAWN, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{BLACK, PieceType::Pawn, sq});
+                    ++file;
                     break;
                 case 'n':
-                    pieces.emplace_back(PieceSquare{BLACK, KNIGHT, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{BLACK, PieceType::Knight, sq});
+                    ++file;
                     break;
                 case 'b':
-                    pieces.emplace_back(PieceSquare{BLACK, BISHOP, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{BLACK, PieceType::Bishop, sq});
+                    ++file;
                     break;
                 case 'r':
-                    pieces.emplace_back(PieceSquare{BLACK, ROOK, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{BLACK, PieceType::Rook, sq});
+                    ++file;
                     break;
                 case 'q':
-                    pieces.emplace_back(PieceSquare{BLACK, QUEEN, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{BLACK, PieceType::Queen, sq});
+                    ++file;
                     break;
                 case 'k':
-                    pieces.emplace_back(PieceSquare{BLACK, KING, sq});
-                    file++;
+                    pieces.emplace_back(PieceSquare{BLACK, PieceType::King, sq});
+                    ++file;
                     break;
                 case '/':
-                    rank--;
-                    file = FILE1;
+                    --rank;
+                    file = File::F1;
                     break;
             }
         }

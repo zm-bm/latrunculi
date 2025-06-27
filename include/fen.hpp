@@ -4,7 +4,14 @@
 #include <string>
 #include <vector>
 
+#include "constants.hpp"
 #include "types.hpp"
+
+struct PieceSquare {
+    Color color;
+    PieceType type;
+    Square square;
+};
 
 // https://www.chessprogramming.org/Forsyth-Edwards_Notation
 class FenParser {

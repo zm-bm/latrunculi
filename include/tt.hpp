@@ -16,44 +16,20 @@ namespace TT {
 
 constexpr size_t CLUSTER_SIZE = 4;
 
-inline constexpr int score(int score, int ply) {
-    if (score >= MATE_IN_MAX_PLY)
-        score += ply;
-    else if (score <= MATE_IN_MAX_PLY)
-        score -= ply;
-    return score;
-}
-
-struct Spinlock {
-    std::atomic_flag flag = ATOMIC_FLAG_INIT;
-
-    void lock() {
-        int spins = 0;
-        while (flag.test_and_set(std::memory_order_acquire)) {
-            if (spins++ < 64)
-                _mm_pause();
-            else
-                std::this_thread::yield();
-        }
-    }
-
-    void unlock() { flag.clear(std::memory_order_release); }
-};
-
-enum NodeType : U8 {
-    NONE,
-    EXACT,
-    LOWERBOUND,
-    UPPERBOUND,
+enum class EntryType : U8 {
+    None,
+    Exact,
+    LowerBound,
+    UpperBound,
 };
 
 struct Entry {
-    Move move     = NullMove;
-    I16 score     = 0;
-    U16 key16     = 0;
-    U8 depth      = 0;
-    NodeType flag = NONE;
-    U8 age        = 0;
+    Move move      = NullMove;
+    I16 score      = 0;
+    U16 key16      = 0;
+    U8 depth       = 0;
+    U8 age         = 0;
+    EntryType flag = EntryType::None;
 };
 
 struct alignas(64) Cluster {
@@ -93,13 +69,13 @@ class Table {
         Cluster& cluster = _table[idx];
 
         for (Entry& e : cluster.entries) {
-            if (e.key16 == key16 && e.flag != NONE) return &e;
+            if (e.key16 == key16 && e.flag != EntryType::None) return &e;
         }
 
         return nullptr;
     }
 
-    void store(U64 key, Move move, I16 score, U8 depth, NodeType flag) {
+    void store(U64 key, Move move, I16 score, U8 depth, EntryType flag) {
         auto idx         = index(key);
         auto key16       = U16(key >> 48);
         Cluster& cluster = _table[idx];
@@ -117,10 +93,26 @@ class Table {
             }
         }
 
-        *target = Entry{move, score, key16, depth, flag, _age};
+        *target = Entry{move, score, key16, depth, _age, flag};
 
         // cluster.lk.unlock();
     }
+};
+
+struct Spinlock {
+    std::atomic_flag flag = ATOMIC_FLAG_INIT;
+
+    void lock() {
+        int spins = 0;
+        while (flag.test_and_set(std::memory_order_acquire)) {
+            if (spins++ < 64)
+                _mm_pause();
+            else
+                std::this_thread::yield();
+        }
+    }
+
+    void unlock() { flag.clear(std::memory_order_release); }
 };
 
 extern Table table;

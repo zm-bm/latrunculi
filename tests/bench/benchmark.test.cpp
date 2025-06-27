@@ -114,7 +114,7 @@ TestCase buildCase(const std::string& line) {
 
 std::string getEngineMove(std::string fen, std::string move) {
     Board board(fen);
-    MoveGenerator<GenType::All> moves{board};
+    MoveGenerator<MoveGenMode::All> moves{board};
 
     auto moveMatches = [&](Move m) { return m.str() == move; };
     auto movePtr     = std::find_if(moves.begin(), moves.end(), moveMatches);

@@ -183,7 +183,7 @@ void Engine::move(std::istringstream& iss) {
 }
 
 void Engine::moves(std::istringstream& iss) {
-    MoveGenerator<GenType::All> moves{board};
+    MoveGenerator<MoveGenMode::All> moves{board};
 
     for (auto& move : moves) {
         out << move << '\n';
@@ -216,7 +216,7 @@ std::string Engine::parseFen(std::istringstream& iss) {
 }
 
 bool Engine::tryMove(Board& board, const std::string& token) {
-    MoveGenerator<GenType::All> moves{board};
+    MoveGenerator<MoveGenMode::All> moves{board};
     for (auto& move : moves) {
         if (move.str() == token && board.isLegalMove(move)) {
             board.make(move);

@@ -2,13 +2,13 @@
 
 #include <iostream>
 
-#include "magics.hpp"
+#include "magic.hpp"
 #include "zobrist.hpp"
 
 class GlobalTestSetup : public ::testing::Environment {
    public:
     void SetUp() override {
-        Magics::init();
+        Magic::init();
         Zobrist::init();
     }
 };

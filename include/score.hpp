@@ -47,23 +47,30 @@ struct Score {
     }
 };
 
-inline constexpr Score ZERO_SCORE   = {0, 0};
-inline constexpr Score PAWN_SCORE   = {PAWN_VALUE_MG, PAWN_VALUE_EG};
-inline constexpr Score KNIGHT_SCORE = {KNIGHT_VALUE_MG, KNIGHT_VALUE_EG};
-inline constexpr Score BISHOP_SCORE = {BISHOP_VALUE_MG, BISHOP_VALUE_EG};
-inline constexpr Score ROOK_SCORE   = {ROOK_VALUE_MG, ROOK_VALUE_EG};
-inline constexpr Score QUEEN_SCORE  = {QUEEN_VALUE_MG, QUEEN_VALUE_EG};
+constexpr Score ZERO_SCORE   = {0, 0};
+constexpr Score PAWN_SCORE   = {PAWN_VALUE_MG, PAWN_VALUE_EG};
+constexpr Score KNIGHT_SCORE = {KNIGHT_VALUE_MG, KNIGHT_VALUE_EG};
+constexpr Score BISHOP_SCORE = {BISHOP_VALUE_MG, BISHOP_VALUE_EG};
+constexpr Score ROOK_SCORE   = {ROOK_VALUE_MG, ROOK_VALUE_EG};
+constexpr Score QUEEN_SCORE  = {QUEEN_VALUE_MG, QUEEN_VALUE_EG};
 
-inline constexpr Score PIECE_SCORES[N_COLORS][N_PIECES] = {
-    {-PAWN_SCORE, -KNIGHT_SCORE, -BISHOP_SCORE, -ROOK_SCORE, -QUEEN_SCORE, ZERO_SCORE},
-    {PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE, ZERO_SCORE}};
+constexpr Score PIECE_SCORES[N_COLORS][N_PIECES] = {
+    {ZERO_SCORE, -PAWN_SCORE, -KNIGHT_SCORE, -BISHOP_SCORE, -ROOK_SCORE, -QUEEN_SCORE, ZERO_SCORE},
+    {ZERO_SCORE, PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE, ZERO_SCORE}};
 
-constexpr Score pieceScore(PieceType pt) { return PIECE_SCORES[WHITE][pt - 1]; }
+constexpr Score pieceScore(PieceType pt) {
+    auto p = idx(pt);
+    return PIECE_SCORES[WHITE][p];
+}
 
-constexpr Score pieceScore(PieceType pt, Color c) { return PIECE_SCORES[c][pt - 1]; }
+constexpr Score pieceScore(PieceType pt, Color c) {
+    auto p = idx(pt);
+    return PIECE_SCORES[c][p];
+}
 
 constexpr Score pieceSqScore(PieceType pt, Color c, Square sq) {
-    sq = SQUARE_MAP[c][sq];
-    Score score{PSQ_VALUES[pt - 1][MIDGAME][sq], PSQ_VALUES[pt - 1][ENDGAME][sq]};
+    auto p = idx(pt) - 1;
+    sq     = SQUARE_MAP[c][sq];
+    Score score{PSQ_VALUES[p][idx(Phase::MidGame)][sq], PSQ_VALUES[p][idx(Phase::EndGame)][sq]};
     return (score * c * 2) - score;
 }

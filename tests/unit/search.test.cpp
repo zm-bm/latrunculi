@@ -85,8 +85,8 @@ TEST_F(SearchTest, basicTactics) {
     auto searchpos2 = "3r4/pbb1qBk1/2p4p/1p2N1p1/3r4/P3Q2P/1P3PP1/2RR2K1 w - -";
 
     std::vector<std::tuple<std::string, int, std::string>> testCases = {
-        {searchpos1, pieceValue(ROOK), "d3d8"},
-        {searchpos2, pieceValue(PAWN), "d1d4"},
+        {searchpos1, pieceValue(PieceType::Rook), "d3d8"},
+        {searchpos2, pieceValue(PieceType::Pawn), "d1d4"},
     };
 
     for (auto& [fen, expectedScore, expectedMove] : testCases) {

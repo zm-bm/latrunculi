@@ -16,7 +16,7 @@ class MoveOrderTest : public ::testing::Test {
 };
 
 TEST_F(MoveOrderTest, OrderMoves) {
-    MoveGenerator<GenType::All> moves(board);
+    MoveGenerator<MoveGenMode::All> moves(board);
     MoveOrder moveOrder(board, heuristics, ply);
     moves.sort(moveOrder);
 
@@ -30,7 +30,7 @@ TEST_F(MoveOrderTest, OrderHeuristicMoves) {
     Move historyMove = Move(A5, A6);
     heuristics.history.update(board.sideToMove(), historyMove.from(), historyMove.to(), ply);
 
-    MoveGenerator<GenType::All> moves(board);
+    MoveGenerator<MoveGenMode::All> moves(board);
     MoveOrder moveOrder(board, heuristics, ply);
     moves.sort(moveOrder);
 
@@ -44,7 +44,7 @@ TEST_F(MoveOrderTest, Hash_PVMovesFirst) {
     Move pvMove   = Move(B4, C4);
     Move hashMove = Move(E2, E3);
 
-    MoveGenerator<GenType::All> moves(board);
+    MoveGenerator<MoveGenMode::All> moves(board);
     MoveOrder moveOrder(board, heuristics, ply, pvMove, hashMove);
     moves.sort(moveOrder);
 

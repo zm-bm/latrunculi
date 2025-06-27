@@ -19,7 +19,10 @@ struct Move {
     U16 priority{0};
 
     constexpr Move() = default;
-    constexpr Move(Square from, Square to, MoveType mtype = NORMAL, PieceType promoPiece = KNIGHT)
+    constexpr Move(Square from,
+                   Square to,
+                   MoveType mtype       = MoveType::Normal,
+                   PieceType promoPiece = PieceType::Knight)
         : value{pack(from, to, mtype, promoPiece)} {}
 
     inline Square from() const { return unpackFrom(value); }
@@ -30,8 +33,9 @@ struct Move {
     inline bool isNullMove() const { return value == 0; }
     inline bool operator==(const Move& rhs) const { return value == rhs.value; }
 
-    static constexpr U16 pack(Square from, Square to, MoveType mtype, PieceType promoPiece) {
-        auto promo = promoPiece - KNIGHT;
+    static constexpr U16 pack(Square from, Square to, MoveType moveType, PieceType promoPiece) {
+        auto mtype = idx(moveType);
+        auto promo = idx(promoPiece) - idx(PieceType::Knight);
         return (from & 0x3F) |           // 6 bits for from
                ((to & 0x3F) << 6) |      // 6 bits for to
                ((mtype & 0x03) << 12) |  // 2 bits for move type
@@ -47,7 +51,7 @@ struct Move {
         return static_cast<MoveType>((packed >> 12) & 0x03);
     }
     static constexpr PieceType unpackPromoPiece(U16 packed) {
-        return static_cast<PieceType>(((packed >> 14) & 0x03) + KNIGHT);
+        return static_cast<PieceType>(((packed >> 14) & 0x03) + idx(PieceType::Knight));
     }
 
     std::string str() const;
@@ -60,12 +64,12 @@ inline std::ostream& operator<<(std::ostream& os, const Move& mv) {
         os << "none";
     } else {
         os << mv.from() << mv.to();
-        if (mv.type() == PROMOTION) {
+        if (mv.type() == MoveType::Promotion) {
             switch (mv.promoPiece()) {
-                case QUEEN: os << 'q'; break;
-                case ROOK: os << 'r'; break;
-                case BISHOP: os << 'b'; break;
-                case KNIGHT: os << 'n'; break;
+                case PieceType::Queen: os << 'q'; break;
+                case PieceType::Rook: os << 'r'; break;
+                case PieceType::Bishop: os << 'b'; break;
+                case PieceType::Knight: os << 'n'; break;
                 default: break;
             }
         }

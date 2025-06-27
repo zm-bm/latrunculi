@@ -5,31 +5,26 @@
 #include "board.hpp"
 #include "constants.hpp"
 
-constexpr auto MoveLimit = 4;
-
-TEST(MoveGenTest, All) {
-    Board board{STARTFEN};
-    MoveGenerator<GenType::All> moves{board};
-    EXPECT_EQ(moves.size(), 20) << "should have 20 moves";
-}
-
-TEST(MoveGenTest, Captures) {
-    Board board{POS2};
-    MoveGenerator<GenType::Captures> moves{board};
-    EXPECT_EQ(moves.size(), 8) << "should have 8 legal captures";
-}
-
 // Perft positions and results
 // https://www.chessprogramming.org/Perft_Results
 
+constexpr auto MoveLimit = 4;
+
 auto startMoves = std::vector<long>{
-    20, 400, 8902, 197281, 4865609,
-    // 119060324,
+    20,
+    400,
+    8902,
+    197281,
+    4865609,
+    119060324,
 };
 auto pos2Moves = std::vector<long>{
-    48, 2039, 97862, 4085603,
-    // 193690690,
-    // 8031647685,
+    48,
+    2039,
+    97862,
+    4085603,
+    193690690,
+    8031647685,
 };
 auto pos3Moves = std::vector<long>{14, 191, 2812, 43238, 674624, 11030083};
 auto pos4Moves = std::vector<long>{6, 264, 9467, 422333, 15833292};
@@ -61,3 +56,15 @@ INSTANTIATE_TEST_SUITE_P(Position3PerftTestSuite, PerftTest, ::testing::Values(p
 INSTANTIATE_TEST_SUITE_P(Position4WPerftTestSuite, PerftTest, ::testing::Values(pos4w));
 INSTANTIATE_TEST_SUITE_P(Position4BPerftTestSuite, PerftTest, ::testing::Values(pos4b));
 INSTANTIATE_TEST_SUITE_P(Position5PerftTestSuite, PerftTest, ::testing::Values(pos5));
+
+TEST(MoveGenTest, All) {
+    Board board{STARTFEN};
+    MoveGenerator<MoveGenMode::All> moves{board};
+    EXPECT_EQ(moves.size(), 20) << "should have 20 moves";
+}
+
+TEST(MoveGenTest, Captures) {
+    Board board{POS2};
+    MoveGenerator<MoveGenMode::Captures> moves{board};
+    EXPECT_EQ(moves.size(), 8) << "should have 8 legal captures";
+}
