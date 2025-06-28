@@ -2,41 +2,69 @@
 
 #include <gtest/gtest.h>
 
-TEST(Types_sqFromCoords, CorrectValues) {
-    EXPECT_EQ(makeSquare(File::F1, Rank::R1), A1);
-    EXPECT_EQ(makeSquare(File::F1, Rank::R8), A8);
-    EXPECT_EQ(makeSquare(File::F8, Rank::R1), H1);
-    EXPECT_EQ(makeSquare(File::F8, Rank::R8), H8);
-    EXPECT_EQ(makeSquare(File::F4, Rank::R4), D4);
+TEST(TypesColor, InvertFlipsColor) { EXPECT_EQ(WHITE, ~BLACK); }
+
+TEST(TypesSquares, MakeSquareFromFileRank) {
+    for (Square sq = A1; sq < INVALID; ++sq) {
+        EXPECT_EQ(sq, makeSquare(fileOf(sq), rankOf(sq)));
+    }
 }
 
-TEST(Types_sqFromString, CorrectValues) {
-    EXPECT_EQ(makeSquare("a1"), A1);
-    EXPECT_EQ(makeSquare("a8"), A8);
-    EXPECT_EQ(makeSquare("h1"), H1);
-    EXPECT_EQ(makeSquare("h8"), H8);
-    EXPECT_EQ(makeSquare("d4"), D4);
+TEST(TypesSquares, MakeSquareFromString) {
+    for (Square sq = A1; sq < INVALID; ++sq) {
+        EXPECT_EQ(sq, makeSquare(toString(sq)));
+    }
 }
 
-TEST(Types_rankFromSq, CorrectValues) {
-    EXPECT_EQ(rankOf(A1), Rank::R1);
-    EXPECT_EQ(rankOf(H1), Rank::R1);
-    EXPECT_EQ(rankOf(A4), Rank::R4);
-    EXPECT_EQ(rankOf(H4), Rank::R4);
-    EXPECT_EQ(rankOf(A8), Rank::R8);
-    EXPECT_EQ(rankOf(H8), Rank::R8);
+TEST(TypesSquares, ToString) {
+    for (Square sq = A1; sq < INVALID; ++sq) {
+        EXPECT_EQ(toString(sq), std::string{toChar(fileOf(sq))} + toChar(rankOf(sq)));
+    }
 }
 
-TEST(Types_fileFromSq, CorrectValues) {
-    EXPECT_EQ(fileOf(A1), File::F1);
-    EXPECT_EQ(fileOf(A8), File::F1);
-    EXPECT_EQ(fileOf(D1), File::F4);
-    EXPECT_EQ(fileOf(D8), File::F4);
-    EXPECT_EQ(fileOf(H1), File::F8);
-    EXPECT_EQ(fileOf(H8), File::F8);
+TEST(TypesSquare, Arithmetic) {
+    EXPECT_EQ(A1 + 1, B1);
+    EXPECT_EQ(A1, B1 - 1);
+    EXPECT_EQ(A1 + 8, A2);
+    EXPECT_EQ(A1, A2 - 8);
+
+    EXPECT_EQ(File::F1 + 1, File::F2);
+    EXPECT_EQ(File::F1, File::F2 - 1);
+
+    EXPECT_EQ(Rank::R1 + 1, Rank::R2);
+    EXPECT_EQ(Rank::R1, Rank::R2 - 1);
 }
 
-TEST(Types_makePiece, CorrectValues) {
+TEST(TypesSquares, RelativeRank) {
+    EXPECT_EQ(relativeRank(A1, WHITE), Rank::R1);
+    EXPECT_EQ(relativeRank(A1, BLACK), Rank::R8);
+    EXPECT_EQ(relativeRank(H8, WHITE), Rank::R8);
+    EXPECT_EQ(relativeRank(H8, BLACK), Rank::R1);
+}
+
+TEST(TypesSquares, PawnMove) {
+    EXPECT_EQ((pawnMove<WHITE, PawnMove::Push, true>(E4)), E5);
+    EXPECT_EQ((pawnMove<WHITE, PawnMove::Push, false>(E5)), E4);
+    EXPECT_EQ((pawnMove<BLACK, PawnMove::Push, true>(E5)), E4);
+    EXPECT_EQ((pawnMove<BLACK, PawnMove::Push, false>(E4)), E5);
+
+    EXPECT_EQ((pawnMove<WHITE, PawnMove::Right, true>(D4)), E5);
+    EXPECT_EQ((pawnMove<WHITE, PawnMove::Right, false>(E5)), D4);
+    EXPECT_EQ((pawnMove<BLACK, PawnMove::Right, true>(E5)), D4);
+    EXPECT_EQ((pawnMove<BLACK, PawnMove::Right, false>(D4)), E5);
+
+    EXPECT_EQ((pawnMove<WHITE, PawnMove::Left, true>(E4)), D5);
+    EXPECT_EQ((pawnMove<WHITE, PawnMove::Left, false>(D5)), E4);
+    EXPECT_EQ((pawnMove<BLACK, PawnMove::Left, true>(D5)), E4);
+    EXPECT_EQ((pawnMove<BLACK, PawnMove::Left, false>(E4)), D5);
+
+    EXPECT_EQ((pawnMove<WHITE, PawnMove::Double, true>(E2)), E4);
+    EXPECT_EQ((pawnMove<WHITE, PawnMove::Double, false>(E4)), E2);
+    EXPECT_EQ((pawnMove<BLACK, PawnMove::Double, true>(D7)), D5);
+    EXPECT_EQ((pawnMove<BLACK, PawnMove::Double, false>(D5)), D7);
+}
+
+TEST(TypesPieces, MakePiece) {
     EXPECT_EQ(makePiece(WHITE, PieceType::Pawn), Piece::WPawn);
     EXPECT_EQ(makePiece(WHITE, PieceType::Knight), Piece::WKnight);
     EXPECT_EQ(makePiece(WHITE, PieceType::Bishop), Piece::WBishop);
@@ -51,7 +79,7 @@ TEST(Types_makePiece, CorrectValues) {
     EXPECT_EQ(makePiece(BLACK, PieceType::King), Piece::BKing);
 }
 
-TEST(Types_getPieceType, CorrectValues) {
+TEST(TypesPieces, PieceTypeOf) {
     EXPECT_EQ(pieceTypeOf(Piece::WPawn), PieceType::Pawn);
     EXPECT_EQ(pieceTypeOf(Piece::WKnight), PieceType::Knight);
     EXPECT_EQ(pieceTypeOf(Piece::WBishop), PieceType::Bishop);
@@ -66,7 +94,7 @@ TEST(Types_getPieceType, CorrectValues) {
     EXPECT_EQ(pieceTypeOf(Piece::BKing), PieceType::King);
 }
 
-TEST(Types_getPieceColor, CorrectValues) {
+TEST(TypesPieces, PieceColorOf) {
     EXPECT_EQ(pieceColorOf(Piece::WPawn), WHITE);
     EXPECT_EQ(pieceColorOf(Piece::WKnight), WHITE);
     EXPECT_EQ(pieceColorOf(Piece::WBishop), WHITE);
@@ -79,60 +107,4 @@ TEST(Types_getPieceColor, CorrectValues) {
     EXPECT_EQ(pieceColorOf(Piece::BRook), BLACK);
     EXPECT_EQ(pieceColorOf(Piece::BQueen), BLACK);
     EXPECT_EQ(pieceColorOf(Piece::BKing), BLACK);
-}
-
-TEST(Types_pawnMovePush, CorrectValues) {
-    Square sq = pawnMove<WHITE, PawnMove::Push, true>(E4);
-    EXPECT_EQ(sq, E5);
-    sq = pawnMove<WHITE, PawnMove::Push, false>(E5);
-    EXPECT_EQ(sq, E4);
-
-    sq = pawnMove<BLACK, PawnMove::Push, true>(E5);
-    EXPECT_EQ(sq, E4);
-    sq = pawnMove<BLACK, PawnMove::Push, false>(E4);
-    EXPECT_EQ(sq, E5);
-}
-
-TEST(Types_pawnMoveRight, CorrectValues) {
-    Square sq = pawnMove<WHITE, PawnMove::Right, true>(D4);
-    EXPECT_EQ(sq, E5);
-    sq = pawnMove<WHITE, PawnMove::Right, false>(E5);
-    EXPECT_EQ(sq, D4);
-
-    sq = pawnMove<BLACK, PawnMove::Right, true>(E5);
-    EXPECT_EQ(sq, D4);
-    sq = pawnMove<BLACK, PawnMove::Right, false>(D4);
-    EXPECT_EQ(sq, E5);
-}
-
-TEST(Types_pawnMoveLeft, CorrectValues) {
-    Square sq;
-    sq = pawnMove<WHITE, PawnMove::Left, true>(E4);
-    EXPECT_EQ(sq, D5);
-    sq = pawnMove<WHITE, PawnMove::Left, false>(D5);
-    EXPECT_EQ(sq, E4);
-
-    sq = pawnMove<BLACK, PawnMove::Left, true>(D5);
-    EXPECT_EQ(sq, E4);
-    sq = pawnMove<BLACK, PawnMove::Left, false>(E4);
-    EXPECT_EQ(sq, D5);
-}
-
-TEST(Types_Color, InvertFlipsColor) { EXPECT_EQ(WHITE, ~BLACK); }
-
-TEST(Types_Square, Arithmetic) {
-    EXPECT_EQ(A1 + 1, B1);
-    EXPECT_EQ(A1, B1 - 1);
-    EXPECT_EQ(A1 + 8, A2);
-    EXPECT_EQ(A1, A2 - 8);
-}
-
-TEST(Types_File, Arithmetic) {
-    EXPECT_EQ(File::F1 + 1, File::F2);
-    EXPECT_EQ(File::F1, File::F2 - 1);
-}
-
-TEST(Types_Rank, Arithmetic) {
-    EXPECT_EQ(Rank::R1 + 1, Rank::R2);
-    EXPECT_EQ(Rank::R1, Rank::R2 - 1);
 }

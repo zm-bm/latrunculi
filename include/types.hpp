@@ -88,20 +88,6 @@ constexpr size_t idx(E e) noexcept {
 
 constexpr Color operator~(Color c) { return static_cast<Color>(c ^ WHITE); }
 
-constexpr Rank rankOf(const Square square) { return static_cast<Rank>(square >> 3); }
-constexpr File fileOf(const Square square) { return static_cast<File>(square & 7); }
-
-constexpr Rank relativeRank(const Square square, const Color color) {
-    return Rank(idx(rankOf(square)) ^ (~color * 7));
-}
-
-constexpr Color pieceColorOf(const Piece p) { return static_cast<Color>(idx(p) >> 3); }
-constexpr PieceType pieceTypeOf(const Piece p) { return static_cast<PieceType>(idx(p) & 0x7); }
-
-constexpr Piece makePiece(const Color c, const PieceType p) {
-    return static_cast<Piece>((c << 3) | idx(p));
-}
-
 constexpr Square makeSquare(const File file, const Rank rank) {
     return static_cast<Square>((idx(rank) << 3) + idx(file));
 }
@@ -111,6 +97,20 @@ inline Square makeSquare(const std::string& square) {
     auto rank = static_cast<Rank>(square[1] - '1');
     return makeSquare(file, rank);
 }
+
+constexpr Rank rankOf(const Square square) { return static_cast<Rank>(square >> 3); }
+constexpr File fileOf(const Square square) { return static_cast<File>(square & 7); }
+
+constexpr Rank relativeRank(const Square square, const Color color) {
+    return Rank(idx(rankOf(square)) ^ (~color * 7));
+}
+
+constexpr Piece makePiece(const Color c, const PieceType p) {
+    return static_cast<Piece>((c << 3) | idx(p));
+}
+
+constexpr Color pieceColorOf(const Piece p) { return static_cast<Color>(idx(p) >> 3); }
+constexpr PieceType pieceTypeOf(const Piece p) { return static_cast<PieceType>(idx(p) & 0x7); }
 
 // -----------------
 // String/char helpers
