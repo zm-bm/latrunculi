@@ -12,9 +12,6 @@ namespace BB {
 
 using namespace BBUtils;
 
-constexpr U64 rankBB(const Rank rank) { return 0xFFULL << (idx(rank) << 3); }
-constexpr U64 fileBB(const File file) { return 0x0101010101010101ULL << idx(file); }
-
 constexpr U64 set(const Square sq) { return 0x1ULL << idx(sq); }
 constexpr U64 clear(const Square sq) { return ~set(sq); }
 
@@ -22,6 +19,9 @@ template <typename... Squares>
 constexpr U64 set(Squares... sqs) {
     return (set(sqs) | ...);
 }
+
+constexpr U64 fileBB(const File file) { return 0x0101010101010101ULL << idx(file); }
+constexpr U64 rankBB(const Rank rank) { return 0xFFULL << (idx(rank) << 3); }
 
 constexpr BBMatrix DISTANCE = createBBMatrix(calcDistance);
 constexpr U64 distance(const Square sq1, const Square sq2) { return DISTANCE[sq1][sq2]; }
@@ -31,21 +31,6 @@ constexpr U64 collinear(const Square sq1, const Square sq2) { return COLLINEAR_M
 
 constexpr BBMatrix BETWEEN_MASK = createBBMatrix(calcBetweenMask);
 constexpr U64 between(const Square sq1, const Square sq2) { return BETWEEN_MASK[sq1][sq2]; }
-
-constexpr BBTable KNIGHT_ATTACKS = createBBTable(makeCalcAttacks({
-    // clang-format off
-    {+2, -1}, {+1, -2}, {+1, +2}, {+2, +1},
-    {-2, -1}, {-1, -2}, {-1, +2}, {-2, +1},
-    // clang-format on
-}));
-
-constexpr BBTable KING_ATTACKS = createBBTable(makeCalcAttacks({
-    // clang-format off
-    {+1, -1}, {+1, 0}, {+1, +1},
-    { 0, -1},          { 0, +1},
-    {-1, -1}, {-1, 0}, {-1, +1},
-    // clang-format on
-}));
 
 constexpr int count(const U64 bb) { return __builtin_popcountll(bb); }
 constexpr U64 isMany(const U64 bb) { return bb & (bb - 1); }
@@ -145,6 +130,21 @@ constexpr U64 pawnDoubleAttacks(U64 pawns) {
 constexpr U64 pawnDoubleAttacks(U64 pawns, Color c) {
     return pawnMoves<PawnMove::Left>(pawns, c) & pawnMoves<PawnMove::Right>(pawns, c);
 }
+
+constexpr BBTable KNIGHT_ATTACKS = createBBTable(makeCalcAttacks({
+    // clang-format off
+    {+2, -1}, {+1, -2}, {+1, +2}, {+2, +1},
+    {-2, -1}, {-1, -2}, {-1, +2}, {-2, +1},
+    // clang-format on
+}));
+
+constexpr BBTable KING_ATTACKS = createBBTable(makeCalcAttacks({
+    // clang-format off
+    {+1, -1}, {+1, 0}, {+1, +1},
+    { 0, -1},          { 0, +1},
+    {-1, -1}, {-1, 0}, {-1, +1},
+    // clang-format on
+}));
 
 template <PieceType p>
 constexpr U64 moves(Square sq, U64 occupancy = 0) {
