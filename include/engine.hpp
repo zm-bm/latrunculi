@@ -58,7 +58,8 @@ class Engine {
     std::string parseFen(std::istringstream& iss);
     void loadMoves(std::istringstream& iss);
     bool tryMove(Board& board, const std::string& token);
-    int parseInt(std::istringstream& iss, std::string errorMsg, int, int);
+    void parseSetoptionInt(
+        std::istringstream& iss, const std::string& opt, int min, int max, auto&& handler);
 
     friend class BenchmarkTest;
 };

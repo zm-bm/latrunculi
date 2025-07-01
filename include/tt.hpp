@@ -42,11 +42,12 @@ class Table {
     U32 _mask                         = 0;
     U32 _shift                        = 0;
     U8 _age                           = 0;
+    size_t _size                      = 0;
 
     U64 index(U64 k) { return (k * 0x9e3779b97f4a7c15ull) >> _shift; }
 
    public:
-    explicit Table() { resize(DEFAULT_HASH_MB); };
+    explicit Table() : _size(DEFAULT_HASH_MB) { resize(DEFAULT_HASH_MB); };
 
     void resize(size_t megabytes) {
         U64 bytes = U64(megabytes) << 20;
@@ -59,6 +60,7 @@ class Table {
         _mask  = U32(clusters) - 1;
         _shift = 64 - std::countr_zero(clusters);
         _age   = 0;
+        _size  = megabytes;
     }
 
     void age() { ++_age; }
@@ -97,6 +99,8 @@ class Table {
 
         // cluster.lk.unlock();
     }
+
+    size_t size() const { return _size; }
 };
 
 struct Spinlock {
