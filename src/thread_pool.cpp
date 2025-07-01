@@ -59,6 +59,8 @@ void ThreadPool::age() const {
     }
 }
 
+int ThreadPool::size() const { return threads.size(); }
+
 int ThreadPool::getNodeCount() const {
     int totalNodes = 0;
 

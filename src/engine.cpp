@@ -88,36 +88,23 @@ void Engine::isready(std::istringstream& iss) { uciOutput.ready(); }
 
 void Engine::setoption(std::istringstream& iss) {
     std::string token, name, value;
+
     iss >> token;
+    if (token != "name") {
+        uciOutput.infoString("invalid setoption command");
+        return;
+    }
 
-    if (token == "name") {
-        while (iss >> token && token != "value") {
-            name += token;
-        }
+    while (iss >> token && token != "value") {
+        name += token;
+    }
 
-        auto parseOptionInt = [&](const std::string& opt, int min, int max, auto&& handler) {
-            int val;
-            if (iss >> val) {
-                if (val >= min && val <= max) {
-                    handler(val);
-                } else {
-                    uciOutput.infoString("invalid " + opt + " value " + std::to_string(val));
-                }
-            } else {
-                iss.clear();
-                std::string bad;
-                iss >> bad;
-                uciOutput.infoString("invalid " + opt + " value " + bad);
-            }
-        };
-
-        if (name == "Debug") {
-            setdebug(iss);
-        } else if (name == "Threads") {
-            parseOptionInt(name, 1, MAX_THREADS, [&](int val) { threadpool.resize(val); });
-        } else if (name == "Hash") {
-            parseOptionInt(name, 1, MAX_HASH_MB, [&](int val) { TT::table.resize(val); });
-        }
+    if (name == "Threads") {
+        parseSetoptionInt(iss, name, 1, MAX_THREADS, [&](int val) { threadpool.resize(val); });
+    } else if (name == "Hash") {
+        parseSetoptionInt(iss, name, 1, MAX_HASH_MB, [&](int val) { TT::table.resize(val); });
+    } else {
+        uciOutput.infoString("invalid setoption command");
     }
 }
 
@@ -161,9 +148,7 @@ void Engine::go(std::istringstream& iss) {
 
 void Engine::stop(std::istringstream& iss) { threadpool.stopAll(); }
 
-void Engine::ponderhit(std::istringstream& iss) {
-    // TODO: implement pondering/ponderhit
-}
+void Engine::ponderhit(std::istringstream& iss) {}
 
 void Engine::help(std::istringstream& iss) { uciOutput.help(); }
 
@@ -225,3 +210,14 @@ bool Engine::tryMove(Board& board, const std::string& token) {
     }
     return false;
 }
+
+void Engine::parseSetoptionInt(
+    std::istringstream& iss, const std::string& opt, int min, int max, auto&& handler) {
+    int val;
+    if (iss >> val && val >= min && val <= max) {
+        handler(val);
+    } else {
+        iss.clear();
+        uciOutput.infoString("invalid setoption command");
+    }
+};

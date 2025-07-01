@@ -60,7 +60,11 @@ void Thread::loop() {
             std::unique_lock<std::mutex> lock(mutex);
             condition.wait(lock, [&]() { return runSignal || exitSignal; });
 
-            if (exitSignal) return;
+            if (exitSignal) {
+                runSignal  = false;
+                stopSignal = false;
+                return;
+            }
         }
 
         if (!exitSignal) {
