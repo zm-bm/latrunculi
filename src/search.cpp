@@ -1,5 +1,6 @@
 #include <algorithm>
 
+#include "base.hpp"
 #include "board.hpp"
 #include "constants.hpp"
 #include "eval.hpp"

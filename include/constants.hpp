@@ -61,23 +61,20 @@ constexpr U64 BLACK_OUTPOSTS              = 0x000000FFFFFF0000ull;
 constexpr U64 CENTER_FILES                = 0x3C3C3C3C3C3C3C3Cull;
 constexpr U64 CENTER_SQUARES              = 0x0000001818000000ull;
 
-// eval constants / functions
-constexpr int TEMPO_BONUS     = 25;
-constexpr int PAWN_VALUE_MG   = 100;
-constexpr int KNIGHT_VALUE_MG = 630;
-constexpr int BISHOP_VALUE_MG = 660;
-constexpr int ROOK_VALUE_MG   = 1000;
-constexpr int QUEEN_VALUE_MG  = 2000;
-constexpr int PAWN_VALUE_EG   = 166;
-constexpr int KNIGHT_VALUE_EG = 680;
-constexpr int BISHOP_VALUE_EG = 740;
-constexpr int ROOK_VALUE_EG   = 1100;
-constexpr int QUEEN_VALUE_EG  = 2150;
-
+// eval constants
+constexpr int TEMPO_BONUS            = 25;
+constexpr int PAWN_VALUE_MG          = 100;
+constexpr int KNIGHT_VALUE_MG        = 630;
+constexpr int BISHOP_VALUE_MG        = 660;
+constexpr int ROOK_VALUE_MG          = 1000;
+constexpr int QUEEN_VALUE_MG         = 2000;
+constexpr int PAWN_VALUE_EG          = 166;
+constexpr int KNIGHT_VALUE_EG        = 680;
+constexpr int BISHOP_VALUE_EG        = 740;
+constexpr int ROOK_VALUE_EG          = 1100;
+constexpr int QUEEN_VALUE_EG         = 2150;
 constexpr int PIECE_VALUES[N_PIECES] = {
     0, PAWN_VALUE_MG, KNIGHT_VALUE_MG, BISHOP_VALUE_MG, ROOK_VALUE_MG, QUEEN_VALUE_MG, 0};
-
-constexpr int pieceValue(PieceType pieceType) { return PIECE_VALUES[idx(pieceType)]; }
 
 // mate constants / functions
 constexpr int ABORT_SCORE     = INT16_MAX;
@@ -85,16 +82,6 @@ constexpr int INF_SCORE       = INT16_MAX - 1;
 constexpr int MATE_SCORE      = INT16_MAX - 2;
 constexpr int MATE_IN_MAX_PLY = MATE_SCORE - MAX_DEPTH;
 constexpr int DRAW_SCORE      = 0;
-
-constexpr bool isMateScore(int score) { return std::abs(score) > MATE_IN_MAX_PLY; }
-constexpr int mateDistance(int score) { return MATE_SCORE - std::abs(score); }
-constexpr int ttScore(int score, int ply) {
-    if (score >= MATE_IN_MAX_PLY)
-        score += ply;
-    else if (score <= MATE_IN_MAX_PLY)
-        score -= ply;
-    return score;
-}
 
 // phase constants
 constexpr size_t N_PHASES = 2;

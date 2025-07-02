@@ -4,11 +4,13 @@
 #include <tuple>
 #include <vector>
 
+#include "base.hpp"
 #include "bb.hpp"
 #include "constants.hpp"
 #include "move.hpp"
 #include "score.hpp"
 #include "state.hpp"
+#include "types.hpp"
 #include "zobrist.hpp"
 
 template <MoveGenMode T>
