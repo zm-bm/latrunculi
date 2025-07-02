@@ -1,6 +1,7 @@
 
 #include <gtest/gtest.h>
 
+#include "base.hpp"
 #include "constants.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"

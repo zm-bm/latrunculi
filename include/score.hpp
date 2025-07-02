@@ -57,20 +57,3 @@ constexpr Score QUEEN_SCORE  = {QUEEN_VALUE_MG, QUEEN_VALUE_EG};
 constexpr Score PIECE_SCORES[N_COLORS][N_PIECES] = {
     {ZERO_SCORE, -PAWN_SCORE, -KNIGHT_SCORE, -BISHOP_SCORE, -ROOK_SCORE, -QUEEN_SCORE, ZERO_SCORE},
     {ZERO_SCORE, PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE, ZERO_SCORE}};
-
-constexpr Score pieceScore(PieceType pt) {
-    auto p = idx(pt);
-    return PIECE_SCORES[WHITE][p];
-}
-
-constexpr Score pieceScore(PieceType pt, Color c) {
-    auto p = idx(pt);
-    return PIECE_SCORES[c][p];
-}
-
-constexpr Score pieceSqScore(PieceType pt, Color c, Square sq) {
-    auto p = idx(pt) - 1;
-    sq     = SQUARE_MAP[c][sq];
-    Score score{PSQ_VALUES[p][idx(Phase::MidGame)][sq], PSQ_VALUES[p][idx(Phase::EndGame)][sq]};
-    return (score * c * 2) - score;
-}

@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 
+#include "base.hpp"
 #include "constants.hpp"
 #include "eval.hpp"
 #include "score.hpp"

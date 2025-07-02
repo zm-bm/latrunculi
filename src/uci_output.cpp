@@ -3,6 +3,7 @@
 #include <complex>
 #include <iomanip>
 
+#include "base.hpp"
 #include "board.hpp"
 #include "constants.hpp"
 
