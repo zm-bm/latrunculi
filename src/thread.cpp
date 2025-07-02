@@ -61,8 +61,8 @@ void Thread::loop() {
             condition.wait(lock, [&]() { return runSignal || exitSignal; });
 
             if (exitSignal) {
-                runSignal  = false;
-                stopSignal = false;
+                runSignal = false;
+                condition.notify_all();
                 return;
             }
         }

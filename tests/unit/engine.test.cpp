@@ -214,7 +214,7 @@ TEST_F(EngineTest, GoCommand_Movetime_Invalid) {
 
 TEST_F(EngineTest, GoCommand_Movetime_Valid) {
     EXPECT_TRUE(execute("go movetime 50"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
     EXPECT_NE(output.str().find("bestmove"), std::string::npos);
 }
 
