@@ -33,31 +33,37 @@ struct Move {
     inline bool isNullMove() const { return value == 0; }
     inline bool operator==(const Move& rhs) const { return value == rhs.value; }
 
-    static constexpr U16 pack(Square from, Square to, MoveType moveType, PieceType promoPiece) {
-        auto mtype = idx(moveType);
-        auto promo = idx(promoPiece) - idx(PieceType::Knight);
-        return (from & 0x3F) |           // 6 bits for from
-               ((to & 0x3F) << 6) |      // 6 bits for to
-               ((mtype & 0x03) << 12) |  // 2 bits for move type
-               ((promo & 0x03) << 14);   // 2 bits for promos
-    }
-    static constexpr Square unpackFrom(U16 packed) {
-        return static_cast<Square>((packed >> 0) & 0x3F);
-    }
-    static constexpr Square unpackTo(U16 packed) {
-        return static_cast<Square>((packed >> 6) & 0x3F);
-    }
-    static constexpr MoveType unpackType(U16 packed) {
-        return static_cast<MoveType>((packed >> 12) & 0x03);
-    }
-    static constexpr PieceType unpackPromoPiece(U16 packed) {
-        return static_cast<PieceType>(((packed >> 14) & 0x03) + idx(PieceType::Knight));
-    }
+    static constexpr U16 pack(Square from, Square to, MoveType moveType, PieceType promoPiece);
+    static constexpr Square unpackFrom(U16 packed);
+    static constexpr Square unpackTo(U16 packed);
+    static constexpr MoveType unpackType(U16 packed);
+    static constexpr PieceType unpackPromoPiece(U16 packed);
 
     std::string str() const;
 };
 
 constexpr Move NullMove{};
+
+constexpr U16 Move::pack(Square from, Square to, MoveType moveType, PieceType promoPiece) {
+    auto mtype = idx(moveType);
+    auto promo = idx(promoPiece) - idx(PieceType::Knight);
+    return (from & 0x3F) |           // 6 bits for from
+           ((to & 0x3F) << 6) |      // 6 bits for to
+           ((mtype & 0x03) << 12) |  // 2 bits for move type
+           ((promo & 0x03) << 14);   // 2 bits for promos
+}
+
+constexpr Square Move::unpackFrom(U16 packed) { return static_cast<Square>((packed >> 0) & 0x3F); }
+
+constexpr Square Move::unpackTo(U16 packed) { return static_cast<Square>((packed >> 6) & 0x3F); }
+
+constexpr MoveType Move::unpackType(U16 packed) {
+    return static_cast<MoveType>((packed >> 12) & 0x03);
+}
+
+constexpr PieceType Move::unpackPromoPiece(U16 packed) {
+    return static_cast<PieceType>(((packed >> 14) & 0x03) + idx(PieceType::Knight));
+}
 
 inline std::ostream& operator<<(std::ostream& os, const Move& mv) {
     if (mv.isNullMove()) {
