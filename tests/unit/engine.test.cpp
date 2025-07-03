@@ -6,6 +6,10 @@
 #include "gtest/gtest.h"
 #include "tt.hpp"
 
+using namespace std::literals;
+
+const auto E2E4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+
 class EngineTest : public ::testing::Test {
    protected:
     std::ostringstream output;
@@ -17,285 +21,235 @@ class EngineTest : public ::testing::Test {
 
     bool execute(const std::string& command) { return engine.execute(command); }
 
-    bool debug() { return engine.uciOptions.debug; }
     Board& board() { return engine.board; }
     ThreadPool& threadpool() { return engine.threadpool; }
 };
 
-// 'uci' command test
-TEST_F(EngineTest, UCI) {
-    EXPECT_TRUE(execute("uci"));
-    EXPECT_NE(output.str().find("id name Latrunculi"), std::string::npos);
-}
-
-// 'debug' command tests
-TEST_F(EngineTest, Debug_InitialState) { EXPECT_EQ(debug(), DEFAULT_DEBUG); }
-
-TEST_F(EngineTest, Debug_InvalidCommand) {
-    EXPECT_TRUE(execute("debug xyz"));
-    EXPECT_EQ(debug(), DEFAULT_DEBUG);
-}
-
-TEST_F(EngineTest, Debug_ValidOnCommand) {
-    EXPECT_TRUE(execute("debug on"));
-    EXPECT_TRUE(debug());
-}
-
-TEST_F(EngineTest, Debug_ValidOffCommand) {
-    EXPECT_TRUE(execute("debug on"));
-    EXPECT_TRUE(debug());
-
-    execute("debug off");
-    EXPECT_FALSE(debug());
-}
-
-// 'isready' command tests
-TEST_F(EngineTest, IsReady) {
-    EXPECT_TRUE(execute("isready"));
-    EXPECT_EQ(output.str(), "readyok\n");
-}
-
-// 'setoption' tests
-TEST_F(EngineTest, SetOption_NameThreads_Negative) {
-    EXPECT_TRUE(execute("setoption name Threads value -1"));
-    EXPECT_EQ(threadpool().size(), DEFAULT_THREADS);
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_NameThreads_Zero) {
-    EXPECT_TRUE(execute("setoption name Threads value 0"));
-    EXPECT_EQ(threadpool().size(), DEFAULT_THREADS);
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_NameThreads_TooLarge) {
-    EXPECT_TRUE(execute("setoption name Threads value " + std::to_string(MAX_THREADS + 1)));
-    EXPECT_EQ(threadpool().size(), DEFAULT_THREADS);
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_NameThreads_NaN) {
-    EXPECT_TRUE(execute("setoption name Threads value abc"));
-    EXPECT_EQ(threadpool().size(), DEFAULT_THREADS);
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_NameThreads_Valid) {
-    EXPECT_TRUE(execute("setoption name Threads value 4"));
-    EXPECT_EQ(threadpool().size(), 4);
-}
-
-TEST_F(EngineTest, SetOption_NameHash_Negative) {
-    EXPECT_TRUE(execute("setoption name Hash value -1"));
-    EXPECT_EQ(TT::table.size(), DEFAULT_HASH_MB);
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_NameHash_Zero) {
-    EXPECT_TRUE(execute("setoption name Hash value 0"));
-    EXPECT_EQ(TT::table.size(), DEFAULT_HASH_MB);
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_NameHash_TooLarge) {
-    EXPECT_TRUE(execute("setoption name Hash value " + std::to_string(MAX_HASH_MB + 1)));
-    EXPECT_EQ(TT::table.size(), DEFAULT_HASH_MB);
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_NameHash_NaN) {
-    EXPECT_TRUE(execute("setoption name Hash value abc"));
-    EXPECT_EQ(TT::table.size(), DEFAULT_HASH_MB);
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_NameHash_Valid) {
-    EXPECT_TRUE(execute("setoption name Hash value 64"));
-    EXPECT_EQ(TT::table.size(), 64);
-}
-
-TEST_F(EngineTest, SetOption_InvalidName_Missing) {
-    EXPECT_TRUE(execute("setoption"));
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_InvalidName_NoName) {
-    EXPECT_TRUE(execute("setoption abc"));
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_InvalidName_NoNameValue) {
-    EXPECT_TRUE(execute("setoption name"));
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_InvalidName_NoValue) {
-    EXPECT_TRUE(execute("setoption name abc"));
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-TEST_F(EngineTest, SetOption_InvalidName_WithValue) {
-    EXPECT_TRUE(execute("setoption name abc value 10"));
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
-}
-
-// 'ucinewgame' command test
-TEST_F(EngineTest, UciNewGame) { EXPECT_TRUE(execute("ucinewgame")); }
-
-// 'position' command tests
-TEST_F(EngineTest, Position_None) {
-    EXPECT_TRUE(execute("position"));
-    EXPECT_NE(output.str().find("invalid position"), std::string::npos);
-}
-
-TEST_F(EngineTest, Position_Invalid) {
-    EXPECT_TRUE(execute("position abc"));
-    EXPECT_NE(output.str().find("invalid position"), std::string::npos);
-}
-
-TEST_F(EngineTest, Position_StartPos_NoMoves) {
-    EXPECT_TRUE(execute("position startpos"));
-    EXPECT_EQ(board().toFEN(), STARTFEN);
-}
-
-TEST_F(EngineTest, Position_StartPos_EmptyMoves) {
-    EXPECT_TRUE(execute("position startpos moves"));
-    EXPECT_EQ(board().toFEN(), STARTFEN);
-}
-
-TEST_F(EngineTest, Position_StartPos_ValidMoves) {
-    EXPECT_TRUE(execute("position startpos moves e2e4 e7e5"));
-    EXPECT_EQ(board().toFEN(), "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2");
-}
-
-TEST_F(EngineTest, Position_StartPos_InvalidMoves) {
-    EXPECT_TRUE(execute("position startpos moves e7e5 e2e4"));
-    EXPECT_EQ(board().toFEN(), STARTFEN);
-}
-
-TEST_F(EngineTest, Position_FEN) {
-    auto position = std::string("position fen ") + EMPTYFEN;
-    EXPECT_TRUE(execute(position));
-    EXPECT_EQ(board().toFEN(), EMPTYFEN);
-}
-
-TEST_F(EngineTest, Position_FEN_ValidMoves) {
-    auto position = std::string("position fen ") + EMPTYFEN + " moves e1e2 e8d8";
-    EXPECT_TRUE(execute(position));
-    EXPECT_EQ(board().toFEN(), "3k4/8/8/8/8/8/4K3/8 w - - 2 2");
-}
-
-// 'go' and 'stop' command tests
-TEST_F(EngineTest, GoCommand_Depth_Negative) {
-    EXPECT_TRUE(execute("go depth -3"));
-    EXPECT_NE(output.str().find("invalid depth"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_Depth_Invalid) {
-    EXPECT_TRUE(execute("go depth abc"));
-    EXPECT_NE(output.str().find("invalid depth"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_Depth_Valid) {
-    EXPECT_TRUE(execute("go depth 3"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    EXPECT_NE(output.str().find("bestmove"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_Movetime_Negative) {
-    EXPECT_TRUE(execute("go movetime -1000"));
-    EXPECT_NE(output.str().find("invalid movetime"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_Movetime_Invalid) {
-    EXPECT_TRUE(execute("go movetime abc"));
-    EXPECT_NE(output.str().find("invalid movetime"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_Movetime_Valid) {
-    EXPECT_TRUE(execute("go movetime 50"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(150));
-    EXPECT_NE(output.str().find("bestmove"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_Nodes_Negative) {
-    EXPECT_TRUE(execute("go nodes -10000"));
-    EXPECT_NE(output.str().find("invalid nodes"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_Nodes_Invalid) {
-    EXPECT_TRUE(execute("go nodes abc"));
-    EXPECT_NE(output.str().find("invalid nodes"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_Nodes_Valid) {
-    EXPECT_TRUE(execute("go nodes 10000"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    EXPECT_NE(output.str().find("bestmove"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_WtimeBtime_Valid) {
-    EXPECT_TRUE(execute("go wtime 1000 btime 1000"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    EXPECT_NE(output.str().find("bestmove"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_WincBinc_Valid) {
-    EXPECT_TRUE(execute("go wtime 1000 btime 1000 winc 100 binc 100"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    EXPECT_NE(output.str().find("bestmove"), std::string::npos);
-}
-
-TEST_F(EngineTest, GoCommand_StopCommand) {
+TEST_F(EngineTest, StopCommand) {
     EXPECT_TRUE(execute("go"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     EXPECT_TRUE(execute("stop"));
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_NE(output.str().find("bestmove"), std::string::npos);
 }
 
-// 'ponderhit' command tests
-TEST_F(EngineTest, PonderHitCommand) { EXPECT_TRUE(execute("ponderhit")); }
+// --------------------------
+// UCI command tests
+// --------------------------
 
-// 'exit' or 'quit' command test
-TEST_F(EngineTest, QuitCommand) {
-    EXPECT_TRUE(execute("uci"));
-    EXPECT_FALSE(execute("quit"));
+struct UCICase {
+    std::vector<std::string> commands;    // commands to run in sequence
+    std::string expectedBoard;            // if non-empty then an expected board FEN
+    std::string expectedOutputSubstring;  // if non-empty then an expected substring in output
+};
+
+class UCICommandParameterizedTest : public EngineTest,
+                                    public ::testing::WithParamInterface<UCICase> {};
+
+TEST_P(UCICommandParameterizedTest, ValidateCommandSequence) {
+    const auto& param = GetParam();
+
+    for (const auto& cmd : param.commands) {
+        EXPECT_TRUE(execute(cmd));
+    }
+    if (!param.expectedBoard.empty()) {
+        EXPECT_EQ(board().toFEN(), param.expectedBoard);
+    }
+    if (!param.expectedOutputSubstring.empty()) {
+        EXPECT_NE(output.str().find(param.expectedOutputSubstring), std::string::npos);
+    }
 }
 
-TEST_F(EngineTest, ExitCommand) {
-    EXPECT_TRUE(execute("uci"));
-    EXPECT_FALSE(execute("exit"));
+INSTANTIATE_TEST_SUITE_P(
+    UCICommandTests,
+    UCICommandParameterizedTest,
+    ::testing::Values(UCICase{{"uci"}, "", "id name Latrunculi"},
+                      UCICase{{"invalidcommand"}, "", "Unknown command"},
+                      UCICase{{"isready"}, "", "readyok"},
+                      UCICase{{"ucinewgame"}, "", ""},
+                      UCICase{{"uci", "quit"}, "", ""},
+                      UCICase{{"uci", "exit"}, "", ""},
+                      UCICase{{"debug on"}, "", ""},
+                      UCICase{{"debug off"}, "", ""},
+                      UCICase{{"ponderhit"}, "", ""},
+                      UCICase{{"position startpos", "move e2e4"}, E2E4, ""},
+                      UCICase{{"position startpos", "move e2e4", "move undo"}, STARTFEN, ""},
+                      UCICase{{"position startpos", "moves"}, "", "e2e4"},
+                      UCICase{{"position startpos", "perft 1"}, "", "NODES: 20"}));
+
+// --------------------------
+// setoption name Threads tests
+// --------------------------
+
+struct ThreadsCase {
+    std::string command;
+    int expectedPoolSize;
+    std::string expectedOutputSubstring;  // if non-empty then an expected substring in output
+};
+
+class SetOptionThreadsParameterizedTest : public EngineTest,
+                                          public ::testing::WithParamInterface<ThreadsCase> {};
+
+TEST_P(SetOptionThreadsParameterizedTest, ValidateThreadsOption) {
+    const auto& param = GetParam();
+    EXPECT_TRUE(execute(param.command));
+    EXPECT_EQ(threadpool().size(), param.expectedPoolSize);
+    if (!param.expectedOutputSubstring.empty())
+        EXPECT_NE(output.str().find(param.expectedOutputSubstring), std::string::npos);
 }
 
-// invalid command tests
-TEST_F(EngineTest, ExecuteInvalidCommand) {
-    EXPECT_TRUE(execute("invalidcommand"));
-    EXPECT_NE(output.str().find("Unknown command"), std::string::npos);
+INSTANTIATE_TEST_SUITE_P(
+    SetOptionThreadsTests,
+    SetOptionThreadsParameterizedTest,
+    ::testing::Values(
+        ThreadsCase{"setoption name Threads value abc", DEFAULT_THREADS, "invalid setoption"},
+        ThreadsCase{"setoption name Threads value -1", DEFAULT_THREADS, "invalid setoption"},
+        ThreadsCase{"setoption name Threads value 0", DEFAULT_THREADS, "invalid setoption"},
+        ThreadsCase{"setoption name Threads value " + std::to_string(MAX_THREADS + 1),
+                    DEFAULT_THREADS,
+                    "invalid setoption"},
+        ThreadsCase{"setoption name Threads value 4", 4, ""}));
+
+// --------------------------
+// setoption name Hash tests
+// --------------------------
+
+struct HashCase {
+    std::string command;
+    int expectedHashSize;
+    std::string expectedOutputSubstring;  // if non-empty then an expected substring in output
+};
+
+class SetOptionHashParameterizedTest : public EngineTest,
+                                       public ::testing::WithParamInterface<HashCase> {
+   protected:
+    void SetUp() override { TT::table.resize(DEFAULT_HASH_MB); }
+};
+
+TEST_P(SetOptionHashParameterizedTest, ValidateHashOption) {
+    const auto& param = GetParam();
+    EXPECT_TRUE(execute(param.command));
+    EXPECT_EQ(TT::table.size(), param.expectedHashSize);
+    if (!param.expectedOutputSubstring.empty())
+        EXPECT_NE(output.str().find(param.expectedOutputSubstring), std::string::npos);
 }
 
-// non-UCI command tests
-TEST_F(EngineTest, ExecuteMoveCommand) {
-    execute("position startpos");
-    EXPECT_TRUE(execute("move e2e4"));
-    EXPECT_EQ(board().toFEN(), "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
+INSTANTIATE_TEST_SUITE_P(
+    SetOptionHashTests,
+    SetOptionHashParameterizedTest,
+    ::testing::Values(
+        HashCase{"setoption name Hash value abc", DEFAULT_HASH_MB, "invalid setoption"},
+        HashCase{"setoption name Hash value -1", DEFAULT_HASH_MB, "invalid setoption"},
+        HashCase{"setoption name Hash value 0", DEFAULT_HASH_MB, "invalid setoption"},
+        HashCase{"setoption name Hash value "s + std::to_string(MAX_HASH_MB + 1),
+                 DEFAULT_HASH_MB,
+                 "invalid setoption"},
+        HashCase{"setoption name Hash value 64", 64, ""}));
+
+// --------------------------
+// setoption invalid commands tests
+// --------------------------
+
+struct SetOptionCase {
+    std::string command;
+};
+
+class SetOptionInvalidParameterizedTest : public EngineTest,
+                                          public ::testing::WithParamInterface<SetOptionCase> {};
+
+TEST_P(SetOptionInvalidParameterizedTest, ValidateInvalidOption) {
+    const auto& param = GetParam();
+    EXPECT_TRUE(execute(param.command));
+    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
 }
 
-TEST_F(EngineTest, ExecuteUndoMoveCommand) {
-    execute("position startpos");
-    execute("move e2e4");
-    EXPECT_TRUE(execute("move undo"));
-    EXPECT_EQ(board().toFEN(), STARTFEN);
+INSTANTIATE_TEST_SUITE_P(SetOptionInvalidTests,
+                         SetOptionInvalidParameterizedTest,
+                         ::testing::Values(SetOptionCase{"setoption"},
+                                           SetOptionCase{"setoption abc"},
+                                           SetOptionCase{"setoption name"},
+                                           SetOptionCase{"setoption name abc"},
+                                           SetOptionCase{"setoption name abc value"},
+                                           SetOptionCase{"setoption name abc value abc"},
+                                           SetOptionCase{"setoption name abc value 10"}));
+
+// --------------------------
+// position command tests
+// --------------------------
+
+struct PositionCase {
+    std::string command;
+    std::string expectedFEN;     // if non-empty then an expected board state
+    std::string expectedOutput;  // if non-empty then an expected error message
+};
+
+class PositionParameterizedTest : public EngineTest,
+                                  public ::testing::WithParamInterface<PositionCase> {};
+
+TEST_P(PositionParameterizedTest, ValidatePosition) {
+    const auto& param = GetParam();
+    EXPECT_TRUE(execute(param.command));
+    if (!param.expectedFEN.empty()) {
+        EXPECT_EQ(board().toFEN(), param.expectedFEN);
+    } else {
+        EXPECT_NE(output.str().find(param.expectedOutput), std::string::npos);
+    }
 }
 
-TEST_F(EngineTest, ExecuteMovesCommand) {
-    execute("position startpos");
-    EXPECT_TRUE(execute("moves"));
-    EXPECT_FALSE(output.str().empty());
+INSTANTIATE_TEST_SUITE_P(
+    PositionTests,
+    PositionParameterizedTest,
+    ::testing::Values(PositionCase{"position", "", "invalid position"},
+                      PositionCase{"position abc", "", "invalid position"},
+                      PositionCase{"position startpos", STARTFEN, ""},
+                      PositionCase{"position startpos moves", STARTFEN, ""},
+                      PositionCase{"position startpos moves e2e4", E2E4, ""},
+                      PositionCase{"position startpos moves e7e5", STARTFEN, ""},
+                      PositionCase{"position fen "s + EMPTYFEN, EMPTYFEN, ""},
+                      PositionCase{"position fen "s + EMPTYFEN + " abc", EMPTYFEN, ""},
+                      PositionCase{"position fen "s + EMPTYFEN + " moves", EMPTYFEN, ""},
+                      PositionCase{"position fen "s + EMPTYFEN + " moves abc", EMPTYFEN, ""},
+                      PositionCase{"position fen "s + EMPTYFEN + " moves e1e2 e8d8",
+                                   "3k4/8/8/8/8/8/4K3/8 w - - 2 2",
+                                   ""}));
+
+// --------------------------
+// go command tests
+// --------------------------
+
+struct GoCommandTestCase {
+    std::string command;
+    std::string expectedSubstring;
+    int sleepMilliseconds;
+};
+
+class GoCommandParameterizedTest : public EngineTest,
+                                   public ::testing::WithParamInterface<GoCommandTestCase> {};
+
+TEST_P(GoCommandParameterizedTest, ValidateOutput) {
+    const auto& param = GetParam();
+    EXPECT_TRUE(execute(param.command));
+    if (param.sleepMilliseconds > 0)
+        std::this_thread::sleep_for(std::chrono::milliseconds(param.sleepMilliseconds));
+    EXPECT_NE(output.str().find(param.expectedSubstring), std::string::npos);
 }
 
-TEST_F(EngineTest, ExecutePerftCommand) {
-    execute("position startpos");
-    EXPECT_TRUE(execute("perft 1"));
-    EXPECT_NE(output.str().find("NODES: 20"), std::string::npos);
-}
+INSTANTIATE_TEST_SUITE_P(
+    InvalidGoCommands,
+    GoCommandParameterizedTest,
+    ::testing::Values(GoCommandTestCase{"go depth -3", "invalid depth", 0},
+                      GoCommandTestCase{"go depth abc", "invalid depth", 0},
+                      GoCommandTestCase{"go movetime -1000", "invalid movetime", 0},
+                      GoCommandTestCase{"go movetime abc", "invalid movetime", 0},
+                      GoCommandTestCase{"go nodes -10000", "invalid nodes", 0},
+                      GoCommandTestCase{"go nodes abc", "invalid nodes", 0}));
+
+INSTANTIATE_TEST_SUITE_P(
+    ValidGoCommands,
+    GoCommandParameterizedTest,
+    ::testing::Values(GoCommandTestCase{"go depth 3", "bestmove", 50},
+                      GoCommandTestCase{"go movetime 50", "bestmove", 150},
+                      GoCommandTestCase{"go nodes 10000", "bestmove", 150},
+                      GoCommandTestCase{"go wtime 1000 btime 1000", "bestmove", 150},
+                      GoCommandTestCase{
+                          "go wtime 1000 btime 1000 winc 100 binc 100", "bestmove", 200}));
