@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "score.hpp"
 #include "types.hpp"
 
 constexpr auto VERSION = "0.1.0";
@@ -62,19 +63,31 @@ constexpr U64 CENTER_FILES                = 0x3C3C3C3C3C3C3C3Cull;
 constexpr U64 CENTER_SQUARES              = 0x0000001818000000ull;
 
 // eval constants
-constexpr int TEMPO_BONUS            = 25;
-constexpr int PAWN_VALUE_MG          = 100;
-constexpr int KNIGHT_VALUE_MG        = 630;
-constexpr int BISHOP_VALUE_MG        = 660;
-constexpr int ROOK_VALUE_MG          = 1000;
-constexpr int QUEEN_VALUE_MG         = 2000;
-constexpr int PAWN_VALUE_EG          = 166;
-constexpr int KNIGHT_VALUE_EG        = 680;
-constexpr int BISHOP_VALUE_EG        = 740;
-constexpr int ROOK_VALUE_EG          = 1100;
-constexpr int QUEEN_VALUE_EG         = 2150;
+constexpr int TEMPO_BONUS     = 25;
+constexpr int PAWN_VALUE_MG   = 100;
+constexpr int KNIGHT_VALUE_MG = 630;
+constexpr int BISHOP_VALUE_MG = 660;
+constexpr int ROOK_VALUE_MG   = 1000;
+constexpr int QUEEN_VALUE_MG  = 2000;
+constexpr int PAWN_VALUE_EG   = 166;
+constexpr int KNIGHT_VALUE_EG = 680;
+constexpr int BISHOP_VALUE_EG = 740;
+constexpr int ROOK_VALUE_EG   = 1100;
+constexpr int QUEEN_VALUE_EG  = 2150;
+
+constexpr Score ZERO_SCORE   = {0, 0};
+constexpr Score PAWN_SCORE   = {PAWN_VALUE_MG, PAWN_VALUE_EG};
+constexpr Score KNIGHT_SCORE = {KNIGHT_VALUE_MG, KNIGHT_VALUE_EG};
+constexpr Score BISHOP_SCORE = {BISHOP_VALUE_MG, BISHOP_VALUE_EG};
+constexpr Score ROOK_SCORE   = {ROOK_VALUE_MG, ROOK_VALUE_EG};
+constexpr Score QUEEN_SCORE  = {QUEEN_VALUE_MG, QUEEN_VALUE_EG};
+
 constexpr int PIECE_VALUES[N_PIECES] = {
     0, PAWN_VALUE_MG, KNIGHT_VALUE_MG, BISHOP_VALUE_MG, ROOK_VALUE_MG, QUEEN_VALUE_MG, 0};
+
+constexpr Score PIECE_SCORES[N_COLORS][N_PIECES] = {
+    {ZERO_SCORE, -PAWN_SCORE, -KNIGHT_SCORE, -BISHOP_SCORE, -ROOK_SCORE, -QUEEN_SCORE, ZERO_SCORE},
+    {ZERO_SCORE, PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE, ZERO_SCORE}};
 
 // mate constants / functions
 constexpr int ABORT_SCORE     = INT16_MAX;

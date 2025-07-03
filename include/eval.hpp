@@ -10,6 +10,17 @@
 #include "score.hpp"
 #include "types.hpp"
 
+inline int taper(Score score, int phase) {
+    int egPhase = PHASE_LIMIT - phase;
+    return ((score.mg * phase) + (score.eg * egPhase)) / PHASE_LIMIT;
+}
+
+static std::ostream& operator<<(std::ostream& os, const Score& score) {
+    os << std::setw(5) << double(score.mg) / PAWN_VALUE_MG << " ";
+    os << std::setw(5) << double(score.eg) / PAWN_VALUE_MG;
+    return os;
+}
+
 enum Verbosity { Verbose, Silent };
 
 enum Term {
@@ -268,7 +279,7 @@ int Eval<mode>::evaluate() {
 
     // scale eg and taper mg/eg to produce final eval
     score.eg   *= scaleFactor() / float(SCALE_LIMIT);
-    int result  = score.taper(phase());
+    int result  = taper(score, phase());
 
     // result is relative to side to move
     if (board.sideToMove() == BLACK) result = -result;

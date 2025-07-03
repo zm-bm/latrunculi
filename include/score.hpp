@@ -2,8 +2,6 @@
 
 #include <iomanip>
 
-#include "constants.hpp"
-
 struct Score {
     int mg = 0;
     int eg = 0;
@@ -34,26 +32,4 @@ struct Score {
         eg *= scalar;
         return *this;
     }
-
-    int taper(int phase) const {
-        int egPhase = PHASE_LIMIT - phase;
-        return ((mg * phase) + (eg * egPhase)) / PHASE_LIMIT;
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const Score& score) {
-        os << std::setw(5) << double(score.mg) / PAWN_VALUE_MG << " ";
-        os << std::setw(5) << double(score.eg) / PAWN_VALUE_MG;
-        return os;
-    }
 };
-
-constexpr Score ZERO_SCORE   = {0, 0};
-constexpr Score PAWN_SCORE   = {PAWN_VALUE_MG, PAWN_VALUE_EG};
-constexpr Score KNIGHT_SCORE = {KNIGHT_VALUE_MG, KNIGHT_VALUE_EG};
-constexpr Score BISHOP_SCORE = {BISHOP_VALUE_MG, BISHOP_VALUE_EG};
-constexpr Score ROOK_SCORE   = {ROOK_VALUE_MG, ROOK_VALUE_EG};
-constexpr Score QUEEN_SCORE  = {QUEEN_VALUE_MG, QUEEN_VALUE_EG};
-
-constexpr Score PIECE_SCORES[N_COLORS][N_PIECES] = {
-    {ZERO_SCORE, -PAWN_SCORE, -KNIGHT_SCORE, -BISHOP_SCORE, -ROOK_SCORE, -QUEEN_SCORE, ZERO_SCORE},
-    {ZERO_SCORE, PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE, ZERO_SCORE}};
