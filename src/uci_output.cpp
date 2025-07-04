@@ -10,9 +10,10 @@
 void UCIOutput::identify() const {
     out << "id name Latrunculi " << VERSION << "\n";
     out << "id author Eric VanderHelm\n\n";
-    out << "option name Debug type check default " << (DEFAULT_DEBUG ? "true" : "false") << "\n";
-    out << "option name Threads type spin default " << DEFAULT_THREADS << "\n";
-    out << "option name Hash type spin default " << DEFAULT_HASH_MB << "\n";
+    out << "option name Threads type spin default " << DEFAULT_THREADS << " min 1 max "
+        << MAX_THREADS << "\n";
+    out << "option name Hash type spin default " << DEFAULT_HASH_MB << " min 1 max " << MAX_HASH_MB
+        << "\n";
     out << "uciok" << std::endl;
 }
 
@@ -21,27 +22,23 @@ void UCIOutput::ready() const { out << "readyok" << std::endl; }
 void UCIOutput::bestmove(std::string move) const { out << "bestmove " << move << std::endl; }
 
 void UCIOutput::help() const {
-    out << "For details, see: https://www.wbec-ridderkerk.nl/html/UCIProtocol.html\n"
-        << "Available commands:\n"
-        << "  uci          - Show engine identity and supported options\n"
-        << "  isready      - Check if the engine is ready\n"
-        << "  setoption    - Set engine options\n"
-        << "  ucinewgame   - Start a new game\n"
-        << "  position     - Set up the board position\n"
-        << "  go           - Start searching for the best move\n"
-        << "  stop         - Stop the search\n"
-        << "  ponderhit    - Handle ponder hit (not implemented)\n"
-        << "  quit         - Exit the engine\n"
+    out << "Available commands:\n"
+        << "  uci           - Show engine identity and supported options\n"
+        << "  isready       - Check if the engine is ready\n"
+        << "  setoption     - Set engine options\n"
+        << "  ucinewgame    - Start a new game\n"
+        << "  position      - Set up the board position\n"
+        << "  go            - Start searching for the best move\n"
+        << "  stop          - Stop the search\n"
+        << "  ponderhit     - Handle ponder hit\n"
+        << "  quit          - Exit the engine\n"
         << "  perft <depth> - Run perft for the given depth\n"
-        << "  move <move>  - Make a move on the board\n"
-        << "  moves        - Show all legal moves\n"
-        << "  d            - Display the current board position\n"
-        << "  eval         - Evaluate the current position\n"
+        << "  move <move>   - Make a move on the board\n"
+        << "  moves         - Show all legal moves\n"
+        << "  d             - Display the current board position\n"
+        << "  eval          - Evaluate the current position\n"
+        << "For UCI protocol details, see: https://www.wbec-ridderkerk.nl/html/UCIProtocol.html\n"
         << std::endl;
-}
-
-void UCIOutput::unknownCommand(const std::string& command) const {
-    out << "Unknown command: '" << command << "'. Type help for a list of commands\n" << std::endl;
 }
 
 void UCIOutput::info(int score, int depth, U64 nodes, Milliseconds ms, std::string pv, bool force) {

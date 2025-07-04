@@ -6,8 +6,11 @@
 #include "constants.hpp"
 #include "search_stats.hpp"
 #include "thread_pool.hpp"
-#include "uci_options.hpp"
 #include "uci_output.hpp"
+
+struct UCIOptions {
+    bool debug = DEFAULT_DEBUG;
+};
 
 class Engine {
    public:
