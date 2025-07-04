@@ -1,6 +1,10 @@
 #pragma once
 
 #include <chrono>
+#include <sstream>
+#include <string>
+#include <tuple>
+#include <unordered_map>
 
 #include "constants.hpp"
 #include "types.hpp"
@@ -30,46 +34,26 @@ struct SearchOptions {
 
     SearchOptions(std::istringstream& iss) {
         std::string token;
+
+        std::unordered_map<std::string, std::tuple<int*, int, int>> optionMap = {
+            {"depth", {&depth, 1, MAX_DEPTH}},
+            {"movetime", {&movetime, 1, INT32_MAX}},
+            {"nodes", {&nodes, 0, INT32_MAX}},
+            {"wtime", {&wtime, 0, INT32_MAX}},
+            {"btime", {&btime, 0, INT32_MAX}},
+            {"winc", {&winc, 0, INT32_MAX}},
+            {"binc", {&binc, 0, INT32_MAX}},
+            {"movestogo", {&movestogo, 1, INT32_MAX}}};
+
         while (iss >> token) {
-            int* target = nullptr;
-            int min = INT32_MIN, max = INT32_MAX;
+            auto it = optionMap.find(token);
 
-            if (token == "depth") {
-                target = &depth;
-                min    = 1;
-                max    = MAX_DEPTH;
-            } else if (token == "movetime") {
-                target = &movetime;
-                min    = 1;
-                max    = INT32_MAX;
-            } else if (token == "nodes") {
-                target = &nodes;
-                min    = 0;
-                max    = INT32_MAX;
-            } else if (token == "wtime") {
-                target = &wtime;
-                min    = 0;
-                max    = INT32_MAX;
-            } else if (token == "btime") {
-                target = &btime;
-                min    = 0;
-                max    = INT32_MAX;
-            } else if (token == "winc") {
-                target = &winc;
-                min    = 0;
-                max    = INT32_MAX;
-            } else if (token == "binc") {
-                target = &binc;
-                min    = 0;
-                max    = INT32_MAX;
-            } else if (token == "movestogo") {
-                target = &movestogo;
-                min    = 1;
-                max    = INT32_MAX;
-            }
-
-            if (target) {
+            if (it != optionMap.end()) {
+                int* target = std::get<0>(it->second);
+                int min     = std::get<1>(it->second);
+                int max     = std::get<2>(it->second);
                 int val;
+
                 if (!(iss >> val)) {
                     iss.clear();
                     std::string bad;
