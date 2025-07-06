@@ -1,5 +1,6 @@
 #include "thread_pool.hpp"
 
+#include "search_stats.hpp"
 #include "thread.hpp"
 
 ThreadPool::ThreadPool(size_t numThreads, UCIOutput& uciOutput) : uciOutput(uciOutput) {
@@ -61,22 +62,15 @@ void ThreadPool::age() const {
 
 int ThreadPool::size() const { return threads.size(); }
 
-int ThreadPool::getNodeCount() const {
-    int totalNodes = 0;
-
+template <typename T>
+T ThreadPool::accumulate(T Thread::* member) const {
+    T total = T{};
     for (const auto& thread : threads) {
-        totalNodes += thread->stats.totalNodes;
+        total += (*thread).*member;
     }
-
-    return totalNodes;
+    return total;
 }
 
-SearchStats<> ThreadPool::getStats() const {
-    SearchStats stats;
-
-    for (const auto& thread : threads) {
-        stats += thread->stats;
-    }
-
-    return stats;
-}
+// intantiate accumulate for nodes and stats
+template U64 ThreadPool::accumulate<U64>(U64 Thread::* member) const;
+template SearchStats<> ThreadPool::accumulate<SearchStats<>>(SearchStats<> Thread::* member) const;

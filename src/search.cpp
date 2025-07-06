@@ -18,8 +18,8 @@ constexpr int FutilityMargin   = 300;
 constexpr int NullMoveR        = 3;
 
 int Thread::search() {
-    stats.reset();
-    ply = 0;
+    nodes = 0;
+    ply   = 0;
     pv.clear();
 
     auto remaining      = board.sideToMove() == WHITE ? options.wtime : options.btime;
@@ -34,7 +34,7 @@ int Thread::search() {
 
     // 1. Iterative deepening loop
     for (; depth <= options.depth && !stopSignal; ++depth) {
-        stats.resetDebugStats();
+        stats.reset();
 
         // 2. Aspiration window from previous score
         int alpha = lastScore - AspirationWindow;
@@ -60,8 +60,12 @@ int Thread::search() {
     }
 
     uciInfo(lastScore, lastDepth, true);
-    uciBestMove();
-    if (STATS_ENABLED) uciDebugStats();
+    if (isMainThread()) {
+        uciOutput.bestmove(pv.bestMove().str());
+        if constexpr (STATS_ENABLED) {
+            uciOutput.stats(threadPool.accumulate(&Thread::stats));
+        }
+    }
 
     return score;
 }
@@ -90,6 +94,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     int bestScore  = -INF_SCORE;
     Move bestMove  = NullMove;
 
+    nodes++;
     stats.addNode(ply);
 
     // 2. Check the transposition table
@@ -236,6 +241,8 @@ int Thread::quiescence(int alpha, int beta) {
 
     // 1. Evaluate the current position (stand-pat).
     int standPat = eval(board);
+
+    nodes++;
     stats.addQNode(ply);
 
     if (standPat >= beta) {

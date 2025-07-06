@@ -4,7 +4,10 @@
 
 #include "gtest/gtest.h"
 #include "search_options.hpp"
+#include "thread.hpp"
 #include "uci_output.hpp"
+
+const int N_THREADS = 4;
 
 class ThreadPoolTest : public ::testing::Test {
    protected:
@@ -13,15 +16,17 @@ class ThreadPoolTest : public ::testing::Test {
     ThreadPool* threadPool;
     SearchOptions options;
 
+    U64 testAccumulate() { return threadPool->accumulate(&Thread::nodes); }
+
     void SetUp() override {
-        threadPool    = new ThreadPool(4, uciOutput);
+        threadPool    = new ThreadPool(N_THREADS, uciOutput);
         options.depth = 5;
     }
 
     void TearDown() override { delete threadPool; }
 };
 
-TEST_F(ThreadPoolTest, ConstructorInitializesThreads) { EXPECT_EQ(threadPool->getNodeCount(), 0); }
+TEST_F(ThreadPoolTest, Constructor) { EXPECT_EQ(threadPool->size(), N_THREADS); }
 
 TEST_F(ThreadPoolTest, StartAllThreads) {
     threadPool->startAll(options);
@@ -46,23 +51,13 @@ TEST_F(ThreadPoolTest, StopAllThreads) {
     EXPECT_NO_THROW(threadPool->waitAll());
 }
 
-TEST_F(ThreadPoolTest, GetNodeCount) {
+TEST_F(ThreadPoolTest, AccumulateNodes) {
     threadPool->startAll(options);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     threadPool->exitAll();
 
-    int nodeCount = threadPool->getNodeCount();
-    EXPECT_GT(nodeCount, 0);
-}
+    U64 totalNodes = testAccumulate();
 
-TEST_F(ThreadPoolTest, GetStats) {
-    SearchOptions options;
-    threadPool->startAll(options);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    threadPool->exitAll();
-
-    SearchStats stats = threadPool->getStats();
-    EXPECT_GT(stats.totalNodes, 0);
+    EXPECT_GT(totalNodes, 0);
 }

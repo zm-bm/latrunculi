@@ -35,6 +35,7 @@ class Thread {
     SearchOptions options;
     TimePoint startTime;
     I64 allocatedTime;
+    U64 nodes;
     int ply;
 
     // thread state
@@ -60,15 +61,13 @@ class Thread {
 
     // inline functions / helpers
     bool isMainThread() const;
-    Milliseconds getElapsedTime() const;
     bool isTimeUp() const;
 
     void uciInfo(int score, int depth, bool force = false) const;
-    void uciBestMove() const;
-    void uciDebugStats() const;
 
     friend class SearchTest;
     friend class SearchBenchmark;
+    friend class ThreadPoolTest;
 
     friend class ThreadPool;
     friend class MoveOrder;
@@ -77,41 +76,24 @@ class Thread {
 
 inline bool Thread::isMainThread() const { return threadId == 0; }
 
-inline Milliseconds Thread::getElapsedTime() const {
-    return std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
-};
-
 inline bool Thread::isTimeUp() const {
-    if (!isMainThread() || !stats.isAtNodeInterval()) {
+    if (!isMainThread() || (nodes % NODE_INTERVAL != 0)) {
         return false;
     }
 
-    if (options.nodes != INT32_MAX && threadPool.getNodeCount() >= options.nodes) {
+    auto totalNodes = threadPool.accumulate(&Thread::nodes);
+    if (options.nodes != INT32_MAX && totalNodes >= options.nodes) {
         return true;
     }
 
-    auto elapsedTime = getElapsedTime();
+    auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
     return elapsedTime.count() > allocatedTime;
 }
 
 inline void Thread::uciInfo(int score, int depth, bool force) const {
     if (isMainThread()) {
-        auto nodes       = threadPool.getNodeCount();
-        auto elapsedTime = getElapsedTime();
-        uciOutput.info(score, depth, nodes, elapsedTime, pv, force);
-    }
-}
-
-inline void Thread::uciBestMove() const {
-    if (isMainThread()) {
-        auto bestMove = pv.bestMove();
-        uciOutput.bestmove(bestMove.str());
-    }
-}
-
-inline void Thread::uciDebugStats() const {
-    if (isMainThread()) {
-        auto stats = threadPool.getStats();
-        uciOutput.stats(stats);
+        auto totalNodes  = threadPool.accumulate(&Thread::nodes);
+        auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
+        uciOutput.info(score, depth, totalNodes, elapsedTime, pv, force);
     }
 }

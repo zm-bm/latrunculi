@@ -24,8 +24,9 @@ class ThreadPool {
     void age() const;
 
     int size() const;
-    int getNodeCount() const;
-    SearchStats<> getStats() const;
+
+    template <typename T>
+    T accumulate(T Thread::* member) const;
 
     friend class ThreadTest;
     friend class SearchTest;
