@@ -1,6 +1,5 @@
 #include "uci_output.hpp"
 
-#include <complex>
 #include <iomanip>
 
 #include "base.hpp"
@@ -62,48 +61,7 @@ void UCIOutput::infoString(const std::string& str) const {
     out << "info string " << str << std::endl;
 }
 
-void UCIOutput::stats(SearchStats<> stats) const {
-    out << "\n"
-        << std::setw(5) << "Depth"
-        << " | " << std::setw(18) << "Nodes (QNode%)"
-        << " | " << std::setw(23) << "Cutoffs (Early%/Late%)"
-        << " | " << std::setw(6) << "TTHit%"
-        << " | " << std::setw(6) << "TTCut%"
-        << " | " << std::setw(13) << "EBF / Cumul" << "\n";
-
-    int maxDepth = stats.maxDepth();
-    for (size_t d = 1; d < maxDepth; ++d) {
-        U64 nodes   = stats.nodes[d];
-        U64 prev    = stats.nodes[d - 1];
-        U64 qnodes  = stats.qNodes[d];
-        U64 cutoffs = stats.cutoffs[d];
-        U64 early   = stats.failHighEarly[d];
-        U64 late    = stats.failHighLate[d];
-        U64 probes  = stats.ttProbes[d];
-        U64 hits    = stats.ttHits[d];
-        U64 cutTT   = stats.ttCutoffs[d];
-
-        double quiesPct   = nodes > 0 ? 100.0 * qnodes / nodes : 0.0;
-        double earlyPct   = cutoffs > 0 ? 100.0 * early / cutoffs : 0.0;
-        double latePct    = cutoffs > 0 ? 100.0 * late / cutoffs : 0.0;
-        double ttHitPct   = probes > 0 ? 100.0 * hits / probes : 0.0;
-        double ttCutPct   = hits > 0 ? 100.0 * cutTT / hits : 0.0;
-        double ebf        = prev > 0 ? static_cast<double>(nodes) / prev : 0.0;
-        double cumulative = std::pow(static_cast<double>(nodes), 1.0 / d);
-
-        out << std::fixed;
-        out << std::setw(5) << d << " | ";
-        out << std::setw(9) << nodes << " (";
-        out << std::setw(5) << std::setprecision(1) << quiesPct << "%) | ";
-        out << std::setw(8) << cutoffs << " (";
-        out << std::setw(5) << std::setprecision(1) << earlyPct << "/";
-        out << std::setw(5) << std::setprecision(1) << latePct << "%) | ";
-        out << std::setw(5) << std::setprecision(1) << ttHitPct << "% | ";
-        out << std::setw(5) << std::setprecision(1) << ttCutPct << "% | ";
-        out << std::setw(5) << std::setprecision(1) << ebf << " / ";
-        out << std::setw(5) << std::setprecision(1) << cumulative << "\n";
-    }
-}
+void UCIOutput::stats(SearchStats<> stats) const { out << stats << std::endl; }
 
 std::string UCIOutput::formatScore(int score) {
     std::ostringstream oss;
