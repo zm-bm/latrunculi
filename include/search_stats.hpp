@@ -10,7 +10,7 @@
 template <bool Enable = STATS_ENABLED>
 struct SearchStats;
 
-// Specialization for when stats are disabled
+// Specialization when stats disabled
 template <>
 struct SearchStats<false> {
     void addNode(int) {}
@@ -26,7 +26,7 @@ struct SearchStats<false> {
     SearchStats operator+(const SearchStats& other) const { return *this; }
 };
 
-// Specialization for when stats are enabled
+// Specialization when stats enabled
 template <>
 struct SearchStats<true> {
     using StatsArray = std::array<U64, MAX_DEPTH>;
@@ -40,20 +40,20 @@ struct SearchStats<true> {
     StatsArray ttHits{0};
     StatsArray ttCutoffs{0};
 
-    void addNode(const int ply) {
+    inline void addNode(const int ply) {
         if (ply >= 0 && ply < MAX_DEPTH) {
             nodes[ply]++;
         }
     }
 
-    void addQNode(const int ply) {
+    inline void addQNode(const int ply) {
         if (ply >= 0 && ply < MAX_DEPTH) {
             nodes[ply]++;
             qNodes[ply]++;
         }
     }
 
-    void addBetaCutoff(const int ply, const bool early) {
+    inline void addBetaCutoff(const int ply, const bool early) {
         if (ply >= 0 && ply < MAX_DEPTH) {
             cutoffs[ply]++;
             if (early)
@@ -63,13 +63,13 @@ struct SearchStats<true> {
         }
     }
 
-    void addTTProbe(const int ply) {
+    inline void addTTProbe(const int ply) {
         if (ply >= 0 && ply < MAX_DEPTH) ttProbes[ply]++;
     }
-    void addTTHit(const int ply) {
+    inline void addTTHit(const int ply) {
         if (ply >= 0 && ply < MAX_DEPTH) ttHits[ply]++;
     }
-    void addTTCutoff(const int ply) {
+    inline void addTTCutoff(const int ply) {
         if (ply >= 0 && ply < MAX_DEPTH) ttCutoffs[ply]++;
     }
 
@@ -82,15 +82,6 @@ struct SearchStats<true> {
         ttProbes.fill(0);
         ttHits.fill(0);
         ttCutoffs.fill(0);
-    }
-
-    int maxDepth() const {
-        for (int d = MAX_DEPTH - 1; d >= 0; --d) {
-            if (nodes[d] > 0 || qNodes[d] > 0) {
-                return d;
-            }
-        }
-        return 0;
     }
 
     SearchStats& operator+=(const SearchStats& other) {
@@ -122,7 +113,8 @@ struct SearchStats<true> {
             << " | " << std::setw(6) << "TTCut%"
             << " | " << std::setw(13) << "EBF / Cumul" << "\n";
 
-        int maxDepth = stats.maxDepth();
+        int maxDepth = MAX_DEPTH - 1;
+        while (maxDepth >= 0 && stats.nodes[maxDepth] == 0) --maxDepth;
 
         for (size_t d = 1; d <= maxDepth; ++d) {
             U64 nodes   = stats.nodes[d];
