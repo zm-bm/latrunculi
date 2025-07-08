@@ -130,7 +130,7 @@ class BenchmarkTest : public ::testing::Test {
 
     std::ostringstream oss;
     std::stringstream iss;
-    Engine engine{oss, iss};
+    Engine engine{oss, oss, iss};
 
    protected:
     void SetUp() override {

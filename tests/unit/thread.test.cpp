@@ -13,7 +13,7 @@
 class ThreadTest : public ::testing::Test {
    protected:
     std::ostringstream oss;
-    UCIProtocolHandler uciHandler{oss};
+    UCIProtocolHandler uciHandler{oss, oss};
     ThreadPool threadPool{1, uciHandler};
     Thread* thread;
 

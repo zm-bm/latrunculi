@@ -12,7 +12,7 @@
 class Engine {
    public:
     Engine() = delete;
-    Engine(std::ostream& out, std::istream& in);
+    Engine(std::ostream& out, std::ostream& err, std::istream& in);
 
     void loop();
 
@@ -21,6 +21,7 @@ class Engine {
    private:
     std::istream& in;
     std::ostream& out;
+    std::ostream& err;
     UCIProtocolHandler uciHandler;
     UCIOptions uciOptions;
     Board board;

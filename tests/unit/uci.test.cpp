@@ -8,29 +8,29 @@ using namespace std::string_literals;
 
 class UCIOutputTest : public ::testing::Test {
    protected:
-    std::ostringstream outputStream;
-    UCIProtocolHandler uciHandler{outputStream};
+    std::ostringstream oss;
+    UCIProtocolHandler uciHandler{oss, oss};
 
     void SetUp() override {
-        outputStream.str("");
-        outputStream.clear();
+        oss.str("");
+        oss.clear();
     }
 };
 
 TEST_F(UCIOutputTest, Identify) {
     uciHandler.identify();
-    EXPECT_NE(outputStream.str().find("uciok"), std::string::npos);
+    EXPECT_NE(oss.str().find("uciok"), std::string::npos);
 }
 
 TEST_F(UCIOutputTest, Ready) {
     uciHandler.ready();
-    EXPECT_EQ(outputStream.str(), "readyok\n");
+    EXPECT_EQ(oss.str(), "readyok\n");
 }
 
 TEST_F(UCIOutputTest, Bestmove) {
     std::string move = "e2e4";
     uciHandler.bestmove(move);
-    EXPECT_EQ(outputStream.str(), "bestmove e2e4\n");
+    EXPECT_EQ(oss.str(), "bestmove e2e4\n");
 }
 
 TEST_F(UCIOutputTest, InfoCentipawnScore) {
@@ -42,10 +42,10 @@ TEST_F(UCIOutputTest, InfoCentipawnScore) {
     UCIBestLine bestLine{score, depth, nodes, ms, pv};
     uciHandler.info(bestLine);
 
-    EXPECT_NE(outputStream.str().find("depth 10"), std::string::npos);
-    EXPECT_NE(outputStream.str().find("score cp 50"), std::string::npos);
-    EXPECT_NE(outputStream.str().find("nps 10"), std::string::npos);
-    EXPECT_NE(outputStream.str().find("pv "s + pv), std::string::npos);
+    EXPECT_NE(oss.str().find("depth 10"), std::string::npos);
+    EXPECT_NE(oss.str().find("score cp 50"), std::string::npos);
+    EXPECT_NE(oss.str().find("nps 10"), std::string::npos);
+    EXPECT_NE(oss.str().find("pv "s + pv), std::string::npos);
 }
 
 TEST_F(UCIOutputTest, InfoMateScore) {
@@ -58,19 +58,19 @@ TEST_F(UCIOutputTest, InfoMateScore) {
 
     uciHandler.info(bestLine);
 
-    EXPECT_NE(outputStream.str().find("depth 10"), std::string::npos);
-    EXPECT_NE(outputStream.str().find("score mate 2"), std::string::npos);
-    EXPECT_NE(outputStream.str().find("nps 10"), std::string::npos);
-    EXPECT_NE(outputStream.str().find("pv "s + pv), std::string::npos);
+    EXPECT_NE(oss.str().find("depth 10"), std::string::npos);
+    EXPECT_NE(oss.str().find("score mate 2"), std::string::npos);
+    EXPECT_NE(oss.str().find("nps 10"), std::string::npos);
+    EXPECT_NE(oss.str().find("pv "s + pv), std::string::npos);
 }
 
 TEST_F(UCIOutputTest, InfoString) {
     std::string info = "This is a test info string";
     uciHandler.info(info);
-    EXPECT_NE(outputStream.str().find(info), std::string::npos);
+    EXPECT_NE(oss.str().find(info), std::string::npos);
 }
 
 TEST_F(UCIOutputTest, Help) {
     uciHandler.help();
-    EXPECT_NE(outputStream.str().find("Available commands"), std::string::npos);
+    EXPECT_NE(oss.str().find("Available commands"), std::string::npos);
 }

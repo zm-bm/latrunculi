@@ -14,7 +14,7 @@ constexpr auto AnyMove = "ANY";
 
 class SearchTest : public ::testing::Test {
    private:
-    UCIProtocolHandler uciHandler{std::cout};
+    UCIProtocolHandler uciHandler{std::cout, std::cerr};
     ThreadPool threadPool{1, uciHandler};
     Thread* thread;
     SearchOptions options;

@@ -13,7 +13,7 @@ const auto E2E4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
 class EngineTest : public ::testing::Test {
    protected:
     std::ostringstream output;
-    Engine engine{output, std::cin};
+    Engine engine{output, output, std::cin};
 
     void SetUp() override {
         output.str("");  // Clear output before each test

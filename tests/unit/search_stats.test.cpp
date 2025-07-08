@@ -55,10 +55,10 @@ TEST(SearchStats, Output) {
     stats.ttHits        = {0, 30, 90};
     stats.ttCutoffs     = {0, 20, 60};
 
-    std::ostringstream outputStream;
-    outputStream << stats;
+    std::ostringstream oss;
+    oss << stats;
 
-    EXPECT_NE(outputStream.str().find("Depth"), std::string::npos);
-    EXPECT_NE(outputStream.str().find("Nodes"), std::string::npos);
-    EXPECT_NE(outputStream.str().find("Cutoffs"), std::string::npos);
+    EXPECT_NE(oss.str().find("Depth"), std::string::npos);
+    EXPECT_NE(oss.str().find("Nodes"), std::string::npos);
+    EXPECT_NE(oss.str().find("Cutoffs"), std::string::npos);
 }

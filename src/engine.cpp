@@ -17,30 +17,35 @@ static CommandFunc makeCommand(Engine* engine, bool (Engine::*func)(std::istring
     return [engine, func](std::istringstream& iss) { return (engine->*func)(iss); };
 }
 
-Engine::Engine(std::ostream& out, std::istream& in)
-    : in(in), out(out), uciHandler(out), board(STARTFEN), threadpool(DEFAULT_THREADS, uciHandler) {
-    commandMap = {
-        // UCI commands
-        {"uci", makeCommand(this, &Engine::uci)},
-        {"debug", makeCommand(this, &Engine::setdebug)},
-        {"isready", makeCommand(this, &Engine::isready)},
-        {"setoption", makeCommand(this, &Engine::setoption)},
-        {"ucinewgame", makeCommand(this, &Engine::newgame)},
-        {"position", makeCommand(this, &Engine::position)},
-        {"go", makeCommand(this, &Engine::go)},
-        {"stop", makeCommand(this, &Engine::stop)},
-        {"ponderhit", makeCommand(this, &Engine::ponderhit)},
-        {"quit", makeCommand(this, &Engine::quit)},
-        // Non-UCI commands
-        {"help", makeCommand(this, &Engine::help)},
-        {"board", makeCommand(this, &Engine::displayBoard)},
-        {"eval", makeCommand(this, &Engine::evaluate)},
-        {"move", makeCommand(this, &Engine::move)},
-        {"moves", makeCommand(this, &Engine::moves)},
-        {"perft", makeCommand(this, &Engine::perft)},
-        {"exit", makeCommand(this, &Engine::quit)},
-    };
-}
+Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
+    : in(in),
+      err(err),
+      out(out),
+      uciHandler(out, err),
+      board(STARTFEN),
+      threadpool(DEFAULT_THREADS, uciHandler),
+      commandMap({
+          // UCI commands
+          {"uci", makeCommand(this, &Engine::uci)},
+          {"debug", makeCommand(this, &Engine::setdebug)},
+          {"isready", makeCommand(this, &Engine::isready)},
+          {"setoption", makeCommand(this, &Engine::setoption)},
+          {"ucinewgame", makeCommand(this, &Engine::newgame)},
+          {"position", makeCommand(this, &Engine::position)},
+          {"go", makeCommand(this, &Engine::go)},
+          {"stop", makeCommand(this, &Engine::stop)},
+          {"ponderhit", makeCommand(this, &Engine::ponderhit)},
+          {"quit", makeCommand(this, &Engine::quit)},
+          // Non-UCI commands
+          {"help", makeCommand(this, &Engine::help)},
+          {"board", makeCommand(this, &Engine::displayBoard)},
+          {"eval", makeCommand(this, &Engine::evaluate)},
+          {"move", makeCommand(this, &Engine::move)},
+          {"moves", makeCommand(this, &Engine::moves)},
+          {"perft", makeCommand(this, &Engine::perft)},
+          {"exit", makeCommand(this, &Engine::quit)},
+          {"", [](std::istringstream&) { return true; }},  // empty command to ignore blank lines
+      }) {}
 
 void Engine::loop() {
     std::string line;

@@ -12,7 +12,7 @@ const int N_THREADS = 4;
 class ThreadPoolTest : public ::testing::Test {
    protected:
     std::ostringstream oss;
-    UCIProtocolHandler uciHandler{oss};
+    UCIProtocolHandler uciHandler{oss, oss};
     ThreadPool* threadPool;
     SearchOptions options;
 

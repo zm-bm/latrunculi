@@ -27,23 +27,21 @@ struct UCIBestLine {
 
 class UCIProtocolHandler {
    public:
-    explicit UCIProtocolHandler(std::ostream& out) : out(out) {}
+    explicit UCIProtocolHandler(std::ostream& out, std::ostream& err) : out(out), err(err) {}
 
-    // UCI protocol commands
+    void help() const;
     void identify() const;
     void ready() const;
     void bestmove(std::string) const;
     void info(const UCIBestLine& info) const;
     void info(const std::string& str) const;
 
-    // Non UCI protocol commands
-    void help() const;
-
     template <typename T>
     void logOutput(T&& obj) const {
-        out << std::forward<T>(obj) << std::endl;
+        err << std::forward<T>(obj) << std::endl;
     }
 
    private:
     std::ostream& out;
+    std::ostream& err;
 };
