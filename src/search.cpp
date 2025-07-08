@@ -59,7 +59,7 @@ int Thread::search() {
         if (isMateScore(score)) break;
     }
 
-    uciInfo(lastScore, lastDepth, true);
+    reportBestLine(lastScore, lastDepth, true);
     if (isMainThread()) {
         uciHandler.bestmove(pv.bestMove().str());
         if constexpr (STATS_ENABLED) {
@@ -193,7 +193,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             bestMove  = move;
             if (isPV && score > alpha) {
                 pv.update(ply, move);
-                if constexpr (isRoot) uciInfo(score, depth);
+                if constexpr (isRoot) reportBestLine(score, depth);
             }
         }
 
@@ -225,7 +225,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         flag = TT::EntryType::LowerBound;
     TT::table.store(key, bestMove, ttScore(bestScore, ply), depth, flag);
 
-    if constexpr (isRoot) uciInfo(bestScore, depth);
+    if constexpr (isRoot) reportBestLine(bestScore, depth);
 
     return bestScore;
 }
