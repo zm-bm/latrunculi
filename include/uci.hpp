@@ -33,16 +33,17 @@ class UCIProtocolHandler {
     void identify() const;
     void ready() const;
     void bestmove(std::string) const;
-
     void info(const UCIBestLine& info) const;
     void info(const std::string& str) const;
 
     // Non UCI protocol commands
-    void stats(SearchStats<> stats) const;
     void help() const;
+
+    template <typename T>
+    void logOutput(T&& obj) const {
+        out << std::forward<T>(obj) << std::endl;
+    }
 
    private:
     std::ostream& out;
-    int lastScore{0};
-    std::string lastPV;
 };

@@ -114,7 +114,7 @@ struct SearchStats<true> {
             << " | " << std::setw(13) << "EBF / Cumul" << "\n";
 
         int maxDepth = MAX_DEPTH - 1;
-        while (maxDepth >= 0 && stats.nodes[maxDepth] == 0) --maxDepth;
+        while (maxDepth > 0 && stats.nodes[maxDepth] == 0) --maxDepth;
 
         for (size_t d = 1; d <= maxDepth; ++d) {
             U64 nodes   = stats.nodes[d];

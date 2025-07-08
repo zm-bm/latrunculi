@@ -4,6 +4,7 @@
 #include <bitset>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <iostream>
 #include <string>
 #include <utility>
@@ -22,6 +23,7 @@ using I32 = int32_t;
 using I16 = int16_t;
 using I8  = int8_t;
 
+using CommandFunc  = std::function<bool(std::istringstream&)>;
 using BBTable      = std::array<U64, 64>;
 using BBMatrix     = std::array<std::array<U64, 64>, 64>;
 using Clock        = std::chrono::high_resolution_clock;

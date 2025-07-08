@@ -25,13 +25,17 @@ class EngineTest : public ::testing::Test {
     ThreadPool& threadpool() { return engine.threadpool; }
 };
 
-TEST_F(EngineTest, StopCommand) {
+TEST_F(EngineTest, GoAndStopCommands) {
     EXPECT_TRUE(execute("go"));
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     EXPECT_TRUE(execute("stop"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     EXPECT_NE(output.str().find("bestmove"), std::string::npos);
 }
+
+TEST_F(EngineTest, ExitCommand) { EXPECT_FALSE(execute("exit")); }
+
+TEST_F(EngineTest, QuitCommand) { EXPECT_FALSE(execute("quit")); }
 
 // --------------------------
 // UCI command tests
@@ -67,8 +71,6 @@ INSTANTIATE_TEST_SUITE_P(
                       UCICase{{"invalidcommand"}, "", "unknown command"},
                       UCICase{{"isready"}, "", "readyok"},
                       UCICase{{"ucinewgame"}, "", ""},
-                      UCICase{{"uci", "quit"}, "", ""},
-                      UCICase{{"uci", "exit"}, "", ""},
                       UCICase{{"debug on"}, "", ""},
                       UCICase{{"debug off"}, "", ""},
                       UCICase{{"ponderhit"}, "", ""},
@@ -229,8 +231,7 @@ class GoCommandParameterizedTest : public EngineTest,
 TEST_P(GoCommandParameterizedTest, ValidateOutput) {
     const auto& param = GetParam();
     EXPECT_TRUE(execute(param.command));
-    if (param.sleepMilliseconds > 0)
-        std::this_thread::sleep_for(std::chrono::milliseconds(param.sleepMilliseconds));
+    std::this_thread::sleep_for(std::chrono::milliseconds(param.sleepMilliseconds));
     EXPECT_NE(output.str().find(param.expectedSubstring), std::string::npos);
 }
 

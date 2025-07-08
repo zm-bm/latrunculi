@@ -71,5 +71,3 @@ void UCIProtocolHandler::info(const UCIBestLine& info) const { out << info << st
 void UCIProtocolHandler::info(const std::string& str) const {
     out << "info string " << str << std::endl;
 }
-
-void UCIProtocolHandler::stats(SearchStats<> stats) const { out << stats << std::endl; }

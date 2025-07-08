@@ -37,6 +37,8 @@ class Thread {
     I64 allocatedTime;
     U64 nodes;
     int ply;
+    int lastScore;
+    std::string lastPV;
 
     // thread state
     std::mutex mutex;
@@ -62,7 +64,7 @@ class Thread {
     // inline functions / helpers
     bool isMainThread() const;
     bool isTimeUp() const;
-    void reportBestLine(int score, int depth, bool force = false) const;
+    void reportBestLine(int score, int depth, bool force = false);
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -89,11 +91,18 @@ inline bool Thread::isTimeUp() const {
     return elapsedTime.count() > allocatedTime;
 }
 
-inline void Thread::reportBestLine(int score, int depth, bool force) const {
+inline void Thread::reportBestLine(int score, int depth, bool force) {
     if (isMainThread()) {
+        auto pvStr = static_cast<std::string>(pv);
+
+        if (!force && score == lastScore && pvStr == lastPV) {
+            return;
+        }
+        lastScore = score;
+        lastPV    = pvStr;
+
         auto totalNodes  = threadPool.accumulate(&Thread::nodes);
         auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
-        auto pvStr       = static_cast<std::string>(pv);
         auto bestLine    = UCIBestLine{score, depth, totalNodes, elapsedTime, pvStr};
 
         uciHandler.info(bestLine);
