@@ -94,6 +94,9 @@ inline void Thread::uciInfo(int score, int depth, bool force) const {
     if (isMainThread()) {
         auto totalNodes  = threadPool.accumulate(&Thread::nodes);
         auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
-        uciOutput.info(score, depth, totalNodes, elapsedTime, pv, force);
+        auto pvStr       = static_cast<std::string>(pv);
+        auto uciInfo     = UCIInfo{score, depth, totalNodes, elapsedTime, pvStr};
+
+        uciOutput.info(uciInfo);
     }
 }

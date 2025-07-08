@@ -39,8 +39,8 @@ TEST_F(UCIOutputTest, InfoCentipawnScore) {
     U64 nodes = 1000;
     Milliseconds ms(100);
     std::string pv = "e2e4 e7e5";
-
-    uciOutput.info(score, depth, nodes, ms, pv);
+    UCIInfo uciInfo{score, depth, nodes, ms, pv};
+    uciOutput.info(uciInfo);
 
     EXPECT_NE(outputStream.str().find("depth 10"), std::string::npos);
     EXPECT_NE(outputStream.str().find("score cp 50"), std::string::npos);
@@ -54,8 +54,9 @@ TEST_F(UCIOutputTest, InfoMateScore) {
     U64 nodes = 1000;
     Milliseconds ms(100);
     std::string pv = "e2e4 e7e5";
+    UCIInfo uciInfo{score, depth, nodes, ms, pv};
 
-    uciOutput.info(score, depth, nodes, ms, pv);
+    uciOutput.info(uciInfo);
 
     EXPECT_NE(outputStream.str().find("depth 10"), std::string::npos);
     EXPECT_NE(outputStream.str().find("score mate 2"), std::string::npos);
@@ -65,7 +66,7 @@ TEST_F(UCIOutputTest, InfoMateScore) {
 
 TEST_F(UCIOutputTest, InfoString) {
     std::string info = "This is a test info string";
-    uciOutput.infoString(info);
+    uciOutput.info(info);
     EXPECT_NE(outputStream.str().find(info), std::string::npos);
 }
 

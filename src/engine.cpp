@@ -65,7 +65,7 @@ bool Engine::execute(const std::string& line) {
     if (it != commands.end()) {
         it->second(iss);
     } else {
-        out << "Unknown command: '" << token << "'. Type help for a list of commands." << std::endl;
+        uciOutput.info("unknown command: " + token + ", type help for a list of commands");
     }
 
     return !shouldExit;
@@ -91,7 +91,7 @@ void Engine::setoption(std::istringstream& iss) {
 
     iss >> token;
     if (token != "name") {
-        uciOutput.infoString("invalid setoption command");
+        uciOutput.info("invalid setoption command");
         return;
     }
 
@@ -104,7 +104,7 @@ void Engine::setoption(std::istringstream& iss) {
     } else if (name == "Hash") {
         parseSetoptionInt(iss, name, 1, MAX_HASH_MB, [&](int val) { TT::table.resize(val); });
     } else {
-        uciOutput.infoString("invalid setoption command");
+        uciOutput.info("invalid setoption command");
     }
 }
 
@@ -123,7 +123,7 @@ void Engine::position(std::istringstream& iss) {
     } else if (token == "fen") {
         fen = parseFen(iss);
     } else {
-        uciOutput.infoString("invalid position command: " + token);
+        uciOutput.info("invalid position command: " + token);
         return;
     }
 
@@ -140,7 +140,7 @@ void Engine::go(std::istringstream& iss) {
     options.debug = uciOptions.debug;
 
     for (const auto& w : options.warnings) {
-        uciOutput.infoString("invalid " + w.name + " value " + w.value);
+        uciOutput.info("invalid " + w.name + " value " + w.value);
     }
 
     threadpool.startAll(options);
@@ -182,13 +182,13 @@ void Engine::perft(std::istringstream& iss) {
         if (0 < depth && depth < MAX_DEPTH) {
             board.perft<NodeType::Root>(depth, out);
         } else {
-            uciOutput.infoString("invalid perft value " + std::to_string(depth));
+            uciOutput.info("invalid perft value " + std::to_string(depth));
         }
     } else {
         iss.clear();
         std::string bad;
         iss >> bad;
-        uciOutput.infoString("invalid perft value " + bad);
+        uciOutput.info("invalid perft value " + bad);
     }
 }
 
@@ -218,6 +218,6 @@ void Engine::parseSetoptionInt(
         handler(val);
     } else {
         iss.clear();
-        uciOutput.infoString("invalid setoption command");
+        uciOutput.info("invalid setoption command");
     }
 };

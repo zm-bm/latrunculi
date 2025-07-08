@@ -6,6 +6,30 @@
 #include "board.hpp"
 #include "constants.hpp"
 
+std::string UCIInfo::formatScore() const {
+    std::ostringstream oss;
+    if (isMateScore(score)) {
+        int mateInMoves = (mateDistance(score) + 1) / 2;
+        oss << "mate " << (score > 0 ? "" : "-") << mateInMoves;
+    } else {
+        oss << "cp " << score;
+    }
+    return oss.str();
+}
+
+std::ostream& operator<<(std::ostream& os, const UCIInfo& info) {
+    auto timeCount = info.time.count();
+
+    os << std::fixed;
+    os << "info depth " << info.depth;
+    os << " score " << info.formatScore();
+    os << " time " << timeCount;
+    os << " nodes " << info.nodes;
+    os << " nps " << (timeCount > 0 ? (info.nodes * 1000 / timeCount) : 0);
+    os << " pv " << info.pv;
+    return os;
+}
+
 void UCIOutput::identify() const {
     out << "id name Latrunculi " << VERSION << "\n";
     out << "id author Eric VanderHelm\n\n";
@@ -40,36 +64,8 @@ void UCIOutput::help() const {
         << std::endl;
 }
 
-void UCIOutput::info(int score, int depth, U64 nodes, Milliseconds ms, std::string pv, bool force) {
-    if (score == lastScore && pv == lastPV && !force) return;
-    lastScore = score;
-    lastPV    = pv;
+void UCIOutput::info(const UCIInfo& info) { out << info << std::endl; }
 
-    auto time = ms.count();
-
-    out << std::fixed;
-    out << "info depth " << depth;
-    out << " score " << formatScore(score);
-    out << " time " << time;
-    out << " nodes " << nodes;
-    out << " nps " << (time > 0 ? (nodes * 1000 / time) : 0);
-    out << " pv " << pv;
-    out << std::endl;
-}
-
-void UCIOutput::infoString(const std::string& str) const {
-    out << "info string " << str << std::endl;
-}
+void UCIOutput::info(const std::string& str) const { out << "info string " << str << std::endl; }
 
 void UCIOutput::stats(SearchStats<> stats) const { out << stats << std::endl; }
-
-std::string UCIOutput::formatScore(int score) {
-    std::ostringstream oss;
-    if (isMateScore(score)) {
-        int mateInMoves = (mateDistance(score) + 1) / 2;
-        oss << "mate " << (score > 0 ? "" : "-") << mateInMoves;
-    } else {
-        oss << "cp " << score;
-    }
-    return oss.str();
-}

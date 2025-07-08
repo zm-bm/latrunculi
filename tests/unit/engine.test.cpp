@@ -64,7 +64,7 @@ INSTANTIATE_TEST_SUITE_P(
     UCICommandTests,
     UCICommandParameterizedTest,
     ::testing::Values(UCICase{{"uci"}, "", "id name Latrunculi"},
-                      UCICase{{"invalidcommand"}, "", "Unknown command"},
+                      UCICase{{"invalidcommand"}, "", "unknown command"},
                       UCICase{{"isready"}, "", "readyok"},
                       UCICase{{"ucinewgame"}, "", ""},
                       UCICase{{"uci", "quit"}, "", ""},
