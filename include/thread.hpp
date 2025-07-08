@@ -17,7 +17,7 @@
 class Thread {
    public:
     Thread() = delete;
-    Thread(int, UCIOutput&, ThreadPool&);
+    Thread(int, UCIProtocolHandler&, ThreadPool&);
     ~Thread();
 
     void start();
@@ -46,7 +46,7 @@ class Thread {
     std::atomic<bool> stopSignal{false};
     const int threadId;
 
-    UCIOutput& uciOutput;
+    UCIProtocolHandler& uciHandler;
     ThreadPool& threadPool;
     std::thread thread;
 
@@ -95,8 +95,8 @@ inline void Thread::uciInfo(int score, int depth, bool force) const {
         auto totalNodes  = threadPool.accumulate(&Thread::nodes);
         auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
         auto pvStr       = static_cast<std::string>(pv);
-        auto uciInfo     = UCIInfo{score, depth, totalNodes, elapsedTime, pvStr};
+        auto uciInfo     = UCIBestLine{score, depth, totalNodes, elapsedTime, pvStr};
 
-        uciOutput.info(uciInfo);
+        uciHandler.info(uciInfo);
     }
 }

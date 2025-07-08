@@ -13,8 +13,8 @@
 class ThreadTest : public ::testing::Test {
    protected:
     std::ostringstream oss;
-    UCIOutput uciOutput{oss};
-    ThreadPool threadPool{1, uciOutput};
+    UCIProtocolHandler uciHandler{oss};
+    ThreadPool threadPool{1, uciHandler};
     Thread* thread;
 
     void SetUp() override { thread = threadPool.threads[0].get(); }

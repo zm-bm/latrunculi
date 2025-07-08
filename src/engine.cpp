@@ -65,13 +65,13 @@ bool Engine::execute(const std::string& line) {
     if (it != commands.end()) {
         it->second(iss);
     } else {
-        uciOutput.info("unknown command: " + token + ", type help for a list of commands");
+        uciHandler.info("unknown command: " + token + ", type help for a list of commands");
     }
 
     return !shouldExit;
 }
 
-void Engine::uci(std::istringstream& iss) { uciOutput.identify(); }
+void Engine::uci(std::istringstream& iss) { uciHandler.identify(); }
 
 void Engine::setdebug(std::istringstream& iss) {
     std::string token;
@@ -84,14 +84,14 @@ void Engine::setdebug(std::istringstream& iss) {
     }
 }
 
-void Engine::isready(std::istringstream& iss) { uciOutput.ready(); }
+void Engine::isready(std::istringstream& iss) { uciHandler.ready(); }
 
 void Engine::setoption(std::istringstream& iss) {
     std::string token, name, value;
 
     iss >> token;
     if (token != "name") {
-        uciOutput.info("invalid setoption command");
+        uciHandler.info("invalid setoption command");
         return;
     }
 
@@ -104,7 +104,7 @@ void Engine::setoption(std::istringstream& iss) {
     } else if (name == "Hash") {
         parseSetoptionInt(iss, name, 1, MAX_HASH_MB, [&](int val) { TT::table.resize(val); });
     } else {
-        uciOutput.info("invalid setoption command");
+        uciHandler.info("invalid setoption command");
     }
 }
 
@@ -123,7 +123,7 @@ void Engine::position(std::istringstream& iss) {
     } else if (token == "fen") {
         fen = parseFen(iss);
     } else {
-        uciOutput.info("invalid position command: " + token);
+        uciHandler.info("invalid position command: " + token);
         return;
     }
 
@@ -140,7 +140,7 @@ void Engine::go(std::istringstream& iss) {
     options.debug = uciOptions.debug;
 
     for (const auto& w : options.warnings) {
-        uciOutput.info("invalid " + w.name + " value " + w.value);
+        uciHandler.info("invalid " + w.name + " value " + w.value);
     }
 
     threadpool.startAll(options);
@@ -150,7 +150,7 @@ void Engine::stop(std::istringstream& iss) { threadpool.stopAll(); }
 
 void Engine::ponderhit(std::istringstream& iss) {}
 
-void Engine::help(std::istringstream& iss) { uciOutput.help(); }
+void Engine::help(std::istringstream& iss) { uciHandler.help(); }
 
 void Engine::display(std::istringstream& iss) { out << board << std::endl; }
 
@@ -182,13 +182,13 @@ void Engine::perft(std::istringstream& iss) {
         if (0 < depth && depth < MAX_DEPTH) {
             board.perft<NodeType::Root>(depth, out);
         } else {
-            uciOutput.info("invalid perft value " + std::to_string(depth));
+            uciHandler.info("invalid perft value " + std::to_string(depth));
         }
     } else {
         iss.clear();
         std::string bad;
         iss >> bad;
-        uciOutput.info("invalid perft value " + bad);
+        uciHandler.info("invalid perft value " + bad);
     }
 }
 
@@ -218,6 +218,6 @@ void Engine::parseSetoptionInt(
         handler(val);
     } else {
         iss.clear();
-        uciOutput.info("invalid setoption command");
+        uciHandler.info("invalid setoption command");
     }
 };

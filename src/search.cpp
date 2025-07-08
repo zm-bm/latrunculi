@@ -61,9 +61,9 @@ int Thread::search() {
 
     uciInfo(lastScore, lastDepth, true);
     if (isMainThread()) {
-        uciOutput.bestmove(pv.bestMove().str());
+        uciHandler.bestmove(pv.bestMove().str());
         if constexpr (STATS_ENABLED) {
-            uciOutput.stats(threadPool.accumulate(&Thread::stats));
+            uciHandler.stats(threadPool.accumulate(&Thread::stats));
         }
     }
 

@@ -12,14 +12,14 @@ const int N_THREADS = 4;
 class ThreadPoolTest : public ::testing::Test {
    protected:
     std::ostringstream oss;
-    UCIOutput uciOutput{oss};
+    UCIProtocolHandler uciHandler{oss};
     ThreadPool* threadPool;
     SearchOptions options;
 
     U64 testAccumulate() { return threadPool->accumulate(&Thread::nodes); }
 
     void SetUp() override {
-        threadPool    = new ThreadPool(N_THREADS, uciOutput);
+        threadPool    = new ThreadPool(N_THREADS, uciHandler);
         options.depth = 5;
     }
 

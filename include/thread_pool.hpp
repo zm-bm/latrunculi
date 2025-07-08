@@ -13,7 +13,7 @@ class Thread;
 class ThreadPool {
    public:
     ThreadPool() = delete;
-    ThreadPool(size_t numThreads, UCIOutput& uciOutput);
+    ThreadPool(size_t numThreads, UCIProtocolHandler& uciHandler);
     ~ThreadPool();
 
     void startAll(SearchOptions&);
@@ -33,5 +33,5 @@ class ThreadPool {
 
    private:
     std::vector<std::unique_ptr<Thread>> threads;
-    UCIOutput& uciOutput;
+    UCIProtocolHandler& uciHandler;
 };

@@ -8,10 +8,6 @@
 #include "thread_pool.hpp"
 #include "uci_output.hpp"
 
-struct UCIOptions {
-    bool debug = DEFAULT_DEBUG;
-};
-
 class Engine {
    public:
     Engine() = delete;
@@ -19,9 +15,9 @@ class Engine {
     Engine(std::ostream& out, std::istream& in)
         : in(in),
           out(out),
-          uciOutput(out),
+          uciHandler(out),
           board(STARTFEN),
-          threadpool(DEFAULT_THREADS, uciOutput) {}
+          threadpool(DEFAULT_THREADS, uciHandler) {}
 
     void loop();
 
@@ -30,7 +26,7 @@ class Engine {
    private:
     std::istream& in;
     std::ostream& out;
-    UCIOutput uciOutput;
+    UCIProtocolHandler uciHandler;
     UCIOptions uciOptions;
     Board board;
     ThreadPool threadpool;

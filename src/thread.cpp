@@ -1,7 +1,7 @@
 #include "thread.hpp"
 
-Thread::Thread(int id, UCIOutput& uciOutput, ThreadPool& threadPool)
-    : threadId(id), uciOutput(uciOutput), threadPool(threadPool), thread(&Thread::loop, this) {
+Thread::Thread(int id, UCIProtocolHandler& uciHandler, ThreadPool& threadPool)
+    : threadId(id), uciHandler(uciHandler), threadPool(threadPool), thread(&Thread::loop, this) {
     board.setThread(this);
 }
 

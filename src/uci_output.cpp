@@ -6,7 +6,7 @@
 #include "board.hpp"
 #include "constants.hpp"
 
-std::string UCIInfo::formatScore() const {
+std::string UCIBestLine::formatScore() const {
     std::ostringstream oss;
     if (isMateScore(score)) {
         int mateInMoves = (mateDistance(score) + 1) / 2;
@@ -17,7 +17,7 @@ std::string UCIInfo::formatScore() const {
     return oss.str();
 }
 
-std::ostream& operator<<(std::ostream& os, const UCIInfo& info) {
+std::ostream& operator<<(std::ostream& os, const UCIBestLine& info) {
     auto timeCount = info.time.count();
 
     os << std::fixed;
@@ -30,7 +30,7 @@ std::ostream& operator<<(std::ostream& os, const UCIInfo& info) {
     return os;
 }
 
-void UCIOutput::identify() const {
+void UCIProtocolHandler::identify() const {
     out << "id name Latrunculi " << VERSION << "\n";
     out << "id author Eric VanderHelm\n\n";
     out << "option name Threads type spin default " << DEFAULT_THREADS << " min 1 max "
@@ -40,11 +40,13 @@ void UCIOutput::identify() const {
     out << "uciok" << std::endl;
 }
 
-void UCIOutput::ready() const { out << "readyok" << std::endl; }
+void UCIProtocolHandler::ready() const { out << "readyok" << std::endl; }
 
-void UCIOutput::bestmove(std::string move) const { out << "bestmove " << move << std::endl; }
+void UCIProtocolHandler::bestmove(std::string move) const {
+    out << "bestmove " << move << std::endl;
+}
 
-void UCIOutput::help() const {
+void UCIProtocolHandler::help() const {
     out << "Available commands:\n"
         << "  uci           - Show engine identity and supported options\n"
         << "  isready       - Check if the engine is ready\n"
@@ -64,8 +66,10 @@ void UCIOutput::help() const {
         << std::endl;
 }
 
-void UCIOutput::info(const UCIInfo& info) { out << info << std::endl; }
+void UCIProtocolHandler::info(const UCIBestLine& info) const { out << info << std::endl; }
 
-void UCIOutput::info(const std::string& str) const { out << "info string " << str << std::endl; }
+void UCIProtocolHandler::info(const std::string& str) const {
+    out << "info string " << str << std::endl;
+}
 
-void UCIOutput::stats(SearchStats<> stats) const { out << stats << std::endl; }
+void UCIProtocolHandler::stats(SearchStats<> stats) const { out << stats << std::endl; }
