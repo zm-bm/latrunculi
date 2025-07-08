@@ -12,7 +12,7 @@
 #include "search_stats.hpp"
 #include "thread_pool.hpp"
 #include "types.hpp"
-#include "uci_output.hpp"
+#include "uci.hpp"
 
 class Thread {
    public:

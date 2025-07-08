@@ -5,7 +5,7 @@
 #include "gtest/gtest.h"
 #include "search_options.hpp"
 #include "thread.hpp"
-#include "uci_output.hpp"
+#include "uci.hpp"
 
 const int N_THREADS = 4;
 

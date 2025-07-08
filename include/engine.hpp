@@ -6,7 +6,7 @@
 #include "constants.hpp"
 #include "search_stats.hpp"
 #include "thread_pool.hpp"
-#include "uci_output.hpp"
+#include "uci.hpp"
 
 class Engine {
    public:

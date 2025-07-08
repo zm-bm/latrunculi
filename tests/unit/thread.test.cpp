@@ -8,7 +8,7 @@
 
 #include "search_options.hpp"
 #include "thread_pool.hpp"
-#include "uci_output.hpp"
+#include "uci.hpp"
 
 class ThreadTest : public ::testing::Test {
    protected:

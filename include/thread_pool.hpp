@@ -6,7 +6,7 @@
 
 #include "search_options.hpp"
 #include "search_stats.hpp"
-#include "uci_output.hpp"
+#include "uci.hpp"
 
 class Thread;
 
