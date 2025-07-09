@@ -18,12 +18,6 @@ class UCIOptionBase {
    public:
     virtual ~UCIOptionBase()                        = default;
     virtual void setValue(const std::string& value) = 0;
-    virtual void print(std::ostream& os) const      = 0;
-
-    friend std::ostream& operator<<(std::ostream& os, const UCIOptionBase& option) {
-        option.print(os);
-        return os;
-    }
 };
 
 template <typename T>
@@ -79,28 +73,10 @@ class UCIOption : public UCIOptionBase {
             onChange(value);
         }
     }
-
-    void print(std::ostream& os) const override {
-        auto typeName = std::is_same_v<T, int>    ? "spin"
-                        : std::is_same_v<T, bool> ? "check"
-                                                  : "string";
-        os << "type " << typeName;
-
-        if constexpr (std::is_same_v<T, bool>) {
-            os << " default " << (defaultValue ? "true" : "false");
-        } else {
-            os << " default " << defaultValue;
-        }
-
-        if (minValue) os << " min " << *minValue;
-        if (maxValue) os << " max " << *maxValue;
-    }
 };
 
 struct UCIConfig {
-    using OptionMap = std::unordered_map<std::string, std::unique_ptr<UCIOptionBase>>;
-
-    OptionMap options;
+    std::unordered_map<std::string, std::unique_ptr<UCIOptionBase>> options;
 
     template <typename T>
     void registerOption(const std::string& name,
@@ -136,16 +112,25 @@ struct UCIConfig {
 
     friend std::ostream& operator<<(std::ostream& os, const UCIConfig& config) {
         for (const auto& [name, option] : config.options) {
-            os << "option name " << name << " " << *option << "\n";
+            os << "option name " << name << " ";
+            if (auto* opt = dynamic_cast<UCIOption<int>*>(option.get())) {
+                os << "type spin default " << opt->value;
+                if (opt->minValue) os << " min " << *opt->minValue;
+                if (opt->maxValue) os << " max " << *opt->maxValue;
+            } else if (auto* opt = dynamic_cast<UCIOption<bool>*>(option.get())) {
+                os << "type check default " << (opt->value ? "true" : "false");
+            } else if (auto* opt = dynamic_cast<UCIOption<std::string>*>(option.get())) {
+                os << "type string default \"" << opt->value << "\"";
+            } else {
+                throw std::runtime_error("Unsupported option type for: " + name);
+            }
         }
         return os;
     }
 };
 
 struct UCIBestLine {
-    UCIBestLine(int score, int depth, U64 nodes, Milliseconds time, std::string& pv)
-        : score(score), depth(depth), nodes(nodes), time(time), pv(pv) {}
-
+    UCIBestLine(int score, int depth, U64 nodes, Milliseconds time, std::string pv);
     std::string formatScore() const;
     friend std::ostream& operator<<(std::ostream& os, const UCIBestLine& info);
 

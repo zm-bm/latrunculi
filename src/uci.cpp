@@ -6,6 +6,13 @@
 #include "board.hpp"
 #include "constants.hpp"
 
+// --------------------------
+// UCIBestLine implementation
+// --------------------------
+
+UCIBestLine::UCIBestLine(int score, int depth, U64 nodes, Milliseconds time, std::string pv)
+    : score(score), depth(depth), nodes(nodes), time(time), pv(std::move(pv)) {}
+
 std::string UCIBestLine::formatScore() const {
     std::ostringstream oss;
     if (isMateScore(score)) {
@@ -29,6 +36,10 @@ std::ostream& operator<<(std::ostream& os, const UCIBestLine& info) {
     os << " pv " << info.pv;
     return os;
 }
+
+// --------------------------
+// UCIProtocolHandler implementation
+// --------------------------
 
 void UCIProtocolHandler::help() const {
     err << "Available commands:\n"
