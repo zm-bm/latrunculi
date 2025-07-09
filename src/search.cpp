@@ -28,17 +28,17 @@ int Thread::search() {
     this->allocatedTime = remaining > 0 ? std::min(allocated, options.movetime) : options.movetime;
 
     int score     = 0;
-    int lastScore = eval<Silent>(board);
+    int prevScore = eval<Silent>(board);
     int depth     = 1 + (threadId & 1);
-    int lastDepth = depth - 1;
+    int prevDepth = depth - 1;
 
     // 1. Iterative deepening loop
     for (; depth <= options.depth && !stopSignal; ++depth) {
         stats.reset();
 
         // 2. Aspiration window from previous score
-        int alpha = lastScore - AspirationWindow;
-        int beta  = lastScore + AspirationWindow;
+        int alpha = prevScore - AspirationWindow;
+        int beta  = prevScore + AspirationWindow;
 
         // 3. First search
         score = alphabeta(alpha, beta, depth);
@@ -51,19 +51,19 @@ int Thread::search() {
         }
 
         if (score == ABORT_SCORE) break;
-        lastScore = score;
-        lastDepth = depth;
+        prevScore = score;
+        prevDepth = depth;
 
         heuristics.age();
 
         if (isMateScore(score)) break;
     }
 
-    uciInfo(lastScore, lastDepth, true);
+    reportBestLine(prevScore, prevDepth, true);
     if (isMainThread()) {
-        uciOutput.bestmove(pv.bestMove().str());
+        uciHandler.bestmove(pv.bestMove().str());
         if constexpr (STATS_ENABLED) {
-            uciOutput.stats(threadPool.accumulate(&Thread::stats));
+            uciHandler.logOutput(threadPool.accumulate(&Thread::stats));
         }
     }
 
@@ -193,7 +193,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             bestMove  = move;
             if (isPV && score > alpha) {
                 pv.update(ply, move);
-                if constexpr (isRoot) uciInfo(score, depth);
+                if constexpr (isRoot) reportBestLine(score, depth);
             }
         }
 
@@ -225,7 +225,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         flag = TT::EntryType::LowerBound;
     TT::table.store(key, bestMove, ttScore(bestScore, ply), depth, flag);
 
-    if constexpr (isRoot) uciInfo(bestScore, depth);
+    if constexpr (isRoot) reportBestLine(bestScore, depth);
 
     return bestScore;
 }

@@ -3,9 +3,9 @@
 #include "search_stats.hpp"
 #include "thread.hpp"
 
-ThreadPool::ThreadPool(size_t numThreads, UCIOutput& uciOutput) : uciOutput(uciOutput) {
+ThreadPool::ThreadPool(size_t numThreads, UCIProtocolHandler& uciHandler) : uciHandler(uciHandler) {
     for (size_t i = 0; i < numThreads; ++i) {
-        threads.push_back(std::make_unique<Thread>(i, uciOutput, *this));
+        threads.push_back(std::make_unique<Thread>(i, uciHandler, *this));
     }
 }
 
@@ -49,7 +49,7 @@ void ThreadPool::resize(size_t newSize) {
         threads.resize(newSize);
     } else {
         for (size_t i = threads.size(); i < newSize; ++i) {
-            threads.push_back(std::make_unique<Thread>(i, uciOutput, *this));
+            threads.push_back(std::make_unique<Thread>(i, uciHandler, *this));
         }
     }
 }

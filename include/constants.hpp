@@ -19,7 +19,7 @@ constexpr auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 
                EMPTYFEN = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
 
 // display search stats
-constexpr auto STATS_ENABLED = false;
+constexpr bool STATS_ENABLED = false;
 
 // uci option constants
 constexpr size_t DEFAULT_THREADS = 1;

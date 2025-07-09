@@ -12,12 +12,12 @@
 #include "search_stats.hpp"
 #include "thread_pool.hpp"
 #include "types.hpp"
-#include "uci_output.hpp"
+#include "uci.hpp"
 
 class Thread {
    public:
     Thread() = delete;
-    Thread(int, UCIOutput&, ThreadPool&);
+    Thread(int, UCIProtocolHandler&, ThreadPool&);
     ~Thread();
 
     void start();
@@ -37,6 +37,8 @@ class Thread {
     I64 allocatedTime;
     U64 nodes;
     int ply;
+    int lastScore;
+    std::string lastPV;
 
     // thread state
     std::mutex mutex;
@@ -46,7 +48,7 @@ class Thread {
     std::atomic<bool> stopSignal{false};
     const int threadId;
 
-    UCIOutput& uciOutput;
+    UCIProtocolHandler& uciHandler;
     ThreadPool& threadPool;
     std::thread thread;
 
@@ -62,8 +64,7 @@ class Thread {
     // inline functions / helpers
     bool isMainThread() const;
     bool isTimeUp() const;
-
-    void uciInfo(int score, int depth, bool force = false) const;
+    void reportBestLine(int score, int depth, bool force = false);
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -90,10 +91,20 @@ inline bool Thread::isTimeUp() const {
     return elapsedTime.count() > allocatedTime;
 }
 
-inline void Thread::uciInfo(int score, int depth, bool force) const {
+inline void Thread::reportBestLine(int score, int depth, bool force) {
     if (isMainThread()) {
+        auto pvStr = std::string(pv);
+
+        if (!force && score == lastScore && pvStr == lastPV) {
+            return;
+        }
+        lastScore = score;
+        lastPV    = pvStr;
+
         auto totalNodes  = threadPool.accumulate(&Thread::nodes);
         auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
-        uciOutput.info(score, depth, totalNodes, elapsedTime, pv, force);
+        auto bestLine    = UCIBestLine{score, depth, totalNodes, elapsedTime, pvStr};
+
+        uciHandler.info(bestLine);
     }
 }

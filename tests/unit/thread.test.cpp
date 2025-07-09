@@ -8,13 +8,13 @@
 
 #include "search_options.hpp"
 #include "thread_pool.hpp"
-#include "uci_output.hpp"
+#include "uci.hpp"
 
 class ThreadTest : public ::testing::Test {
    protected:
     std::ostringstream oss;
-    UCIOutput uciOutput{oss};
-    ThreadPool threadPool{1, uciOutput};
+    UCIProtocolHandler uciHandler{oss, oss};
+    ThreadPool threadPool{1, uciHandler};
     Thread* thread;
 
     void SetUp() override { thread = threadPool.threads[0].get(); }

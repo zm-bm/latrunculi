@@ -5,7 +5,7 @@
 #include "constants.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"
-#include "uci_output.hpp"
+#include "uci.hpp"
 
 int depth    = 10;
 int movetime = 2000;
@@ -14,8 +14,8 @@ constexpr auto AnyMove = "ANY";
 
 class SearchTest : public ::testing::Test {
    private:
-    UCIOutput uciOutput{std::cout};
-    ThreadPool threadPool{1, uciOutput};
+    UCIProtocolHandler uciHandler{std::cout, std::cerr};
+    ThreadPool threadPool{1, uciHandler};
     Thread* thread;
     SearchOptions options;
 

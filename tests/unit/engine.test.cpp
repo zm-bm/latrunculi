@@ -13,7 +13,7 @@ const auto E2E4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
 class EngineTest : public ::testing::Test {
    protected:
     std::ostringstream output;
-    Engine engine{output, std::cin};
+    Engine engine{output, output, std::cin};
 
     void SetUp() override {
         output.str("");  // Clear output before each test
@@ -25,13 +25,17 @@ class EngineTest : public ::testing::Test {
     ThreadPool& threadpool() { return engine.threadpool; }
 };
 
-TEST_F(EngineTest, StopCommand) {
+TEST_F(EngineTest, GoAndStopCommands) {
     EXPECT_TRUE(execute("go"));
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     EXPECT_TRUE(execute("stop"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     EXPECT_NE(output.str().find("bestmove"), std::string::npos);
 }
+
+TEST_F(EngineTest, ExitCommand) { EXPECT_FALSE(execute("exit")); }
+
+TEST_F(EngineTest, QuitCommand) { EXPECT_FALSE(execute("quit")); }
 
 // --------------------------
 // UCI command tests
@@ -64,11 +68,9 @@ INSTANTIATE_TEST_SUITE_P(
     UCICommandTests,
     UCICommandParameterizedTest,
     ::testing::Values(UCICase{{"uci"}, "", "id name Latrunculi"},
-                      UCICase{{"invalidcommand"}, "", "Unknown command"},
+                      UCICase{{"invalidcommand"}, "", "unknown command"},
                       UCICase{{"isready"}, "", "readyok"},
                       UCICase{{"ucinewgame"}, "", ""},
-                      UCICase{{"uci", "quit"}, "", ""},
-                      UCICase{{"uci", "exit"}, "", ""},
                       UCICase{{"debug on"}, "", ""},
                       UCICase{{"debug off"}, "", ""},
                       UCICase{{"ponderhit"}, "", ""},
@@ -95,20 +97,20 @@ TEST_P(SetOptionThreadsParameterizedTest, ValidateThreadsOption) {
     EXPECT_TRUE(execute(param.command));
     EXPECT_EQ(threadpool().size(), param.expectedPoolSize);
     if (!param.expectedOutputSubstring.empty())
-        EXPECT_NE(output.str().find(param.expectedOutputSubstring), std::string::npos);
+        EXPECT_NE(output.str().find(param.expectedOutputSubstring), std::string::npos)
+            << "Expected: " << param.expectedOutputSubstring << "\nActual: " << output.str();
 }
 
 INSTANTIATE_TEST_SUITE_P(
     SetOptionThreadsTests,
     SetOptionThreadsParameterizedTest,
-    ::testing::Values(
-        ThreadsCase{"setoption name Threads value abc", DEFAULT_THREADS, "invalid setoption"},
-        ThreadsCase{"setoption name Threads value -1", DEFAULT_THREADS, "invalid setoption"},
-        ThreadsCase{"setoption name Threads value 0", DEFAULT_THREADS, "invalid setoption"},
-        ThreadsCase{"setoption name Threads value " + std::to_string(MAX_THREADS + 1),
-                    DEFAULT_THREADS,
-                    "invalid setoption"},
-        ThreadsCase{"setoption name Threads value 4", 4, ""}));
+    ::testing::Values(ThreadsCase{"setoption name Threads value abc", DEFAULT_THREADS, "Error"},
+                      ThreadsCase{"setoption name Threads value -1", DEFAULT_THREADS, "Error"},
+                      ThreadsCase{"setoption name Threads value 0", DEFAULT_THREADS, "Error"},
+                      ThreadsCase{"setoption name Threads value " + std::to_string(MAX_THREADS + 1),
+                                  DEFAULT_THREADS,
+                                  "Error"},
+                      ThreadsCase{"setoption name Threads value 4", 4, ""}));
 
 // --------------------------
 // setoption name Hash tests
@@ -131,20 +133,20 @@ TEST_P(SetOptionHashParameterizedTest, ValidateHashOption) {
     EXPECT_TRUE(execute(param.command));
     EXPECT_EQ(TT::table.size(), param.expectedHashSize);
     if (!param.expectedOutputSubstring.empty())
-        EXPECT_NE(output.str().find(param.expectedOutputSubstring), std::string::npos);
+        EXPECT_NE(output.str().find(param.expectedOutputSubstring), std::string::npos)
+            << "Expected: " << param.expectedOutputSubstring << "\nActual: " << output.str();
 }
 
 INSTANTIATE_TEST_SUITE_P(
     SetOptionHashTests,
     SetOptionHashParameterizedTest,
-    ::testing::Values(
-        HashCase{"setoption name Hash value abc", DEFAULT_HASH_MB, "invalid setoption"},
-        HashCase{"setoption name Hash value -1", DEFAULT_HASH_MB, "invalid setoption"},
-        HashCase{"setoption name Hash value 0", DEFAULT_HASH_MB, "invalid setoption"},
-        HashCase{"setoption name Hash value "s + std::to_string(MAX_HASH_MB + 1),
-                 DEFAULT_HASH_MB,
-                 "invalid setoption"},
-        HashCase{"setoption name Hash value 64", 64, ""}));
+    ::testing::Values(HashCase{"setoption name Hash value abc", DEFAULT_HASH_MB, "Error"},
+                      HashCase{"setoption name Hash value -1", DEFAULT_HASH_MB, "Error"},
+                      HashCase{"setoption name Hash value 0", DEFAULT_HASH_MB, "Error"},
+                      HashCase{"setoption name Hash value "s + std::to_string(MAX_HASH_MB + 1),
+                               DEFAULT_HASH_MB,
+                               "Error"},
+                      HashCase{"setoption name Hash value 64", 64, ""}));
 
 // --------------------------
 // setoption invalid commands tests
@@ -160,7 +162,7 @@ class SetOptionInvalidParameterizedTest : public EngineTest,
 TEST_P(SetOptionInvalidParameterizedTest, ValidateInvalidOption) {
     const auto& param = GetParam();
     EXPECT_TRUE(execute(param.command));
-    EXPECT_NE(output.str().find("invalid setoption"), std::string::npos);
+    EXPECT_NE(output.str().find("Error"), std::string::npos);
 }
 
 INSTANTIATE_TEST_SUITE_P(SetOptionInvalidTests,
@@ -229,8 +231,7 @@ class GoCommandParameterizedTest : public EngineTest,
 TEST_P(GoCommandParameterizedTest, ValidateOutput) {
     const auto& param = GetParam();
     EXPECT_TRUE(execute(param.command));
-    if (param.sleepMilliseconds > 0)
-        std::this_thread::sleep_for(std::chrono::milliseconds(param.sleepMilliseconds));
+    std::this_thread::sleep_for(std::chrono::milliseconds(param.sleepMilliseconds));
     EXPECT_NE(output.str().find(param.expectedSubstring), std::string::npos);
 }
 
