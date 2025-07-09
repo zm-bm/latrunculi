@@ -93,7 +93,7 @@ inline bool Thread::isTimeUp() const {
 
 inline void Thread::reportBestLine(int score, int depth, bool force) {
     if (isMainThread()) {
-        auto pvStr = static_cast<std::string>(pv);
+        auto pvStr = std::string(pv);
 
         if (!force && score == lastScore && pvStr == lastPV) {
             return;

@@ -19,17 +19,17 @@ class Engine {
     friend class EngineTest;
 
    private:
-    std::istream& in;
     std::ostream& out;
     std::ostream& err;
+    std::istream& in;
     UCIProtocolHandler uciHandler;
-    UCIOptions uciOptions;
+    UCIConfig config;
     Board board;
     ThreadPool threadpool;
     std::unordered_map<std::string, CommandFunc> commandMap;
 
     // Execute command
-    bool execute(const std::string&);
+    bool execute(const std::string&) noexcept;
 
     // UCI commands
     bool uci(std::istringstream& iss);
@@ -51,11 +51,10 @@ class Engine {
     bool move(std::istringstream& iss);
     bool moves(std::istringstream& iss);
 
-    // Helper functions
-    std::string parsePosition(std::istringstream& iss);
+    // Helpers
+    std::pair<std::string, std::string> parsePosition(std::istringstream& iss);
+    std::pair<std::string, std::string> parseSetOption(std::istringstream& iss);
     Move getMove(const std::string& token);
-    void parseSetoptionInt(
-        std::istringstream& iss, const std::string& opt, int min, int max, auto&& handler);
 
     friend class BenchmarkTest;
 };

@@ -50,13 +50,10 @@ void UCIProtocolHandler::help() const {
         << std::endl;
 }
 
-void UCIProtocolHandler::identify() const {
+void UCIProtocolHandler::identify(const UCIConfig& config) const {
     out << "id name Latrunculi " << VERSION << "\n";
     out << "id author Eric VanderHelm\n\n";
-    out << "option name Threads type spin default " << DEFAULT_THREADS << " min 1 max "
-        << MAX_THREADS << "\n";
-    out << "option name Hash type spin default " << DEFAULT_HASH_MB << " min 1 max " << MAX_HASH_MB
-        << "\n";
+    out << config << "\n";
     out << "uciok" << std::endl;
 }
 

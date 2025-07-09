@@ -18,7 +18,8 @@ class UCIOutputTest : public ::testing::Test {
 };
 
 TEST_F(UCIOutputTest, Identify) {
-    uciHandler.identify();
+    UCIConfig config;
+    uciHandler.identify(config);
     EXPECT_NE(oss.str().find("uciok"), std::string::npos);
 }
 
