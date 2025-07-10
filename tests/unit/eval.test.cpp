@@ -8,7 +8,7 @@
 #include "score.hpp"
 #include "types.hpp"
 
-using Scores = Eval<>::Scores;
+using Scores = Eval<>::Conf;
 
 // TEST(ScoreTest, TaperScoreMidgame) {
 //     int exp = Score{100, 50}.taper(PHASE_LIMIT);

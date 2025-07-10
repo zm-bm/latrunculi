@@ -7,43 +7,10 @@
 #include "bb.hpp"
 #include "board.hpp"
 #include "constants.hpp"
-#include "eval_constants.hpp"
+#include "eval_base.hpp"
+#include "eval_config.hpp"
 #include "score.hpp"
 #include "types.hpp"
-
-enum Verbosity { Verbose, Silent };
-
-enum Term {
-    TERM_MATERIAL,
-    TERM_PIECE_SQ,
-    TERM_PAWNS,
-    TERM_KNIGHTS,
-    TERM_BISHOPS,
-    TERM_ROOKS,
-    TERM_QUEENS,
-    TERM_KING,
-    TERM_MOBILITY,
-    TERM_THREATS,
-    N_TERMS,
-};
-
-struct EvalTermScores {
-    std::optional<Score> scores[N_COLORS] = {std::nullopt};
-    void addScore(Color color, Score score) { scores[color] = score; }
-};
-
-static std::ostream& operator<<(std::ostream& os, const EvalTermScores& term) {
-    os << " | ";
-    if (term.scores[BLACK].has_value()) {
-        os << term.scores[WHITE].value() << " | ";
-        os << term.scores[BLACK].value() << " | ";
-        os << term.scores[WHITE].value() - term.scores[BLACK].value();
-    } else {
-        os << " ----  ---- |  ----  ---- | " << term.scores[WHITE].value();
-    }
-    os << '\n';
-    return os;
-}
 
 template <Verbosity mode = Silent>
 class Eval {
@@ -53,17 +20,12 @@ class Eval {
 
     int evaluate();
 
-    using Scores = EvalConstants;
-
-    static constexpr int KingAttackersValue[N_PIECES] = {0, 0, 50, 35, 30, 10};
-    static constexpr int SafeCheckValue[N_PIECES]     = {0, 0, 600, 400, 700, 500};
-    static constexpr int UnsafeCheckValue[N_PIECES]   = {0, 0, 80, 70, 60, 10};
+    using Conf = EvalConfig;
 
    private:
     const Board& board;
 
-    using TermScores = std::conditional_t<mode == Verbose, EvalTermScores, std::nullptr_t>;
-    TermScores termScores[N_TERMS];
+    ScoreTracker<mode> scoreTracker;
 
     U64 attacks[N_COLORS][N_PIECES] = {{0}};
     U64 attacksByTwo[N_COLORS]      = {0};
@@ -83,7 +45,7 @@ class Eval {
     template <Color>
     void initialize();
 
-    template <Term, Color = WHITE>
+    template <EvalTerm, Color = WHITE>
     Score evaluateTerm();
 
     template <Color>
@@ -160,23 +122,23 @@ void Eval<mode>::initialize() {
 }
 
 template <Verbosity mode>
-template <Term term, Color c>
+template <EvalTerm term, Color c>
 inline Score Eval<mode>::evaluateTerm() {
     Score score;
 
-    if constexpr (term == TERM_MATERIAL) score = board.materialScore();
-    if constexpr (term == TERM_PIECE_SQ) score = board.psqBonusScore();
-    if constexpr (term == TERM_PAWNS) score = pawnsScore<c>();
-    if constexpr (term == TERM_KNIGHTS) score = piecesScore<c, PieceType::Knight>();
-    if constexpr (term == TERM_BISHOPS) score = piecesScore<c, PieceType::Bishop>();
-    if constexpr (term == TERM_ROOKS) score = piecesScore<c, PieceType::Rook>();
-    if constexpr (term == TERM_QUEENS) score = piecesScore<c, PieceType::Queen>();
-    if constexpr (term == TERM_KING) score = kingScore<c>();
-    if constexpr (term == TERM_MOBILITY) score = mobility[c];
-    if constexpr (term == TERM_THREATS) score = threats[c];
+    if constexpr (term == EvalTerm::Material) score = board.materialScore();
+    if constexpr (term == EvalTerm::PieceSquares) score = board.psqBonusScore();
+    if constexpr (term == EvalTerm::Pawns) score = pawnsScore<c>();
+    if constexpr (term == EvalTerm::Knights) score = piecesScore<c, PieceType::Knight>();
+    if constexpr (term == EvalTerm::Bishops) score = piecesScore<c, PieceType::Bishop>();
+    if constexpr (term == EvalTerm::Rooks) score = piecesScore<c, PieceType::Rook>();
+    if constexpr (term == EvalTerm::Queens) score = piecesScore<c, PieceType::Queen>();
+    if constexpr (term == EvalTerm::King) score = kingScore<c>();
+    if constexpr (term == EvalTerm::Mobility) score = mobility[c];
+    if constexpr (term == EvalTerm::Threats) score = threats[c];
 
     if constexpr (mode == Verbose) {
-        termScores[term].addScore(c, score);
+        scoreTracker.addScore(term, score, c);
     }
 
     return score;
@@ -185,18 +147,18 @@ inline Score Eval<mode>::evaluateTerm() {
 template <Verbosity mode>
 int Eval<mode>::evaluate() {
     // evaluate basic terms
-    _score += evaluateTerm<TERM_MATERIAL>();
-    _score += evaluateTerm<TERM_PIECE_SQ>();
-    _score += evaluateTerm<TERM_PAWNS, WHITE>() - evaluateTerm<TERM_PAWNS, BLACK>();
-    _score += evaluateTerm<TERM_KNIGHTS, WHITE>() - evaluateTerm<TERM_KNIGHTS, BLACK>();
-    _score += evaluateTerm<TERM_BISHOPS, WHITE>() - evaluateTerm<TERM_BISHOPS, BLACK>();
-    _score += evaluateTerm<TERM_ROOKS, WHITE>() - evaluateTerm<TERM_ROOKS, BLACK>();
-    _score += evaluateTerm<TERM_QUEENS, WHITE>() - evaluateTerm<TERM_QUEENS, BLACK>();
+    _score += evaluateTerm<EvalTerm::Material>();
+    _score += evaluateTerm<EvalTerm::PieceSquares>();
+    _score += evaluateTerm<EvalTerm::Pawns, WHITE>() - evaluateTerm<EvalTerm::Pawns, BLACK>();
+    _score += evaluateTerm<EvalTerm::Knights, WHITE>() - evaluateTerm<EvalTerm::Knights, BLACK>();
+    _score += evaluateTerm<EvalTerm::Bishops, WHITE>() - evaluateTerm<EvalTerm::Bishops, BLACK>();
+    _score += evaluateTerm<EvalTerm::Rooks, WHITE>() - evaluateTerm<EvalTerm::Rooks, BLACK>();
+    _score += evaluateTerm<EvalTerm::Queens, WHITE>() - evaluateTerm<EvalTerm::Queens, BLACK>();
 
     // complex terms that require data from evaluating pieces
-    _score    += evaluateTerm<TERM_KING, WHITE>() - evaluateTerm<TERM_KING, BLACK>();
-    _score    += evaluateTerm<TERM_MOBILITY, WHITE>() - evaluateTerm<TERM_MOBILITY, BLACK>();
-    _score    += evaluateTerm<TERM_THREATS, WHITE>() - evaluateTerm<TERM_THREATS, BLACK>();
+    _score += evaluateTerm<EvalTerm::King, WHITE>() - evaluateTerm<EvalTerm::King, BLACK>();
+    _score += evaluateTerm<EvalTerm::Mobility, WHITE>() - evaluateTerm<EvalTerm::Mobility, BLACK>();
+    _score += evaluateTerm<EvalTerm::Threats, WHITE>() - evaluateTerm<EvalTerm::Threats, BLACK>();
     _score.eg *= scaleFactor() / float(SCALE_LIMIT);
 
     _result = taper(_score);
@@ -233,19 +195,19 @@ inline Score Eval<mode>::pawnsScore() {
     // isolated pawns
     U64 pawnsFill      = BB::fillFiles(pawns);
     U64 isolatedPawns  = (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
-    score             += Scores::IsoPawn * BB::count(isolatedPawns);
+    score             += Conf::IsoPawn * BB::count(isolatedPawns);
 
     // backwards pawns
     U64 stops           = BB::pawnMoves<PawnMove::Push, c>(pawns);
     U64 attackSpan      = BB::pawnAttackSpan<c>(pawns);
     U64 enemyAttacks    = BB::pawnAttacks<enemy>(enemyPawns);
     U64 backwardsPawns  = BB::pawnMoves<PawnMove::Push, enemy>(stops & enemyAttacks & ~attackSpan);
-    score              += Scores::BackwardPawn * BB::count(backwardsPawns);
+    score              += Conf::BackwardPawn * BB::count(backwardsPawns);
 
     // doubled pawns (unsupported pawn with friendly pawns behind)
     U64 pawnsBehind   = pawns & BB::spanFront<c>(pawns);
     U64 doubledPawns  = pawnsBehind & ~pawnAttacks;
-    score            += Scores::DoubledPawn * BB::count(doubledPawns);
+    score            += Conf::DoubledPawn * BB::count(doubledPawns);
 
     // passed pawns
     // U64 passedPawns = pawns & ~BB::pawnFullSpan<enemy>(enemyPawns)
@@ -266,7 +228,7 @@ Score Eval<mode>::piecesScore() {
     // bonus for bishop pair
     if constexpr (p == PieceType::Bishop) {
         if (board.count(c, PieceType::Bishop) > 1) {
-            score += Scores::BishopPair;
+            score += Conf::BishopPair;
         }
     }
 
@@ -285,45 +247,45 @@ Score Eval<mode>::piecesScore() {
         U64 kingAttacks = moves & kingZone[enemy];
         if (kingAttacks) {
             kingAttackersCount[c]++;
-            kingAttackersValue[c] += KingAttackersValue[idx(p)];
+            kingAttackersValue[c] += Conf::PieceKingAttacks[idx(p)];
         } else if ((p == PieceType::Bishop && (BB::moves<p>(sq, pawns) & kingZone[enemy])) |
                    (p == PieceType::Rook && (BB::moves<p>(sq) & kingZone[enemy]))) {
-            score += Scores::KingZoneXrayAttack;
+            score += Conf::KingZoneXrayAttack;
         }
 
         // populate mobility
         U64 nMoves   = BB::count(moves & mobilityZone[c]);
-        mobility[c] += Scores::Mobility[idx(p)][nMoves];
+        mobility[c] += Conf::Mobility[idx(p)][nMoves];
 
         // populate threats
         U64 defenders = board.attacksTo(sq, c);
         U64 attackers = board.attacksTo(sq, enemy);
         if (BB::count(attackers) > BB::count(defenders)) {
-            threats[c] += Scores::WeakPiece[idx(p)];
+            threats[c] += Conf::WeakPiece[idx(p)];
         }
 
         if constexpr (p == PieceType::Knight || p == PieceType::Bishop) {
             // bonus for minor piece outposts,  reachable knight outposts
             if (pieceBB & outposts[c]) {
-                if constexpr (p == PieceType::Knight) score += Scores::KnightOutpost;
-                if constexpr (p == PieceType::Bishop) score += Scores::BishopOutpost;
+                if constexpr (p == PieceType::Knight) score += Conf::KnightOutpost;
+                if constexpr (p == PieceType::Bishop) score += Conf::BishopOutpost;
             } else if (p == PieceType::Knight && moves & outposts[c]) {
-                score += Scores::ReachableOutpost;
+                score += Conf::ReachableOutpost;
             }
 
             // bonus minor piece guarded by pawn
             if (pieceBB & BB::pawnMoves<PawnMove::Push, enemy>(pawns)) {
-                score += Scores::MinorPawnShield;
+                score += Conf::MinorPawnShield;
             }
 
             if constexpr (p == PieceType::Bishop) {
                 // bonus for bishop on long diagonal
                 if (BB::isMany(CENTER_SQUARES & BB::moves<p>(sq, pawns))) {
-                    score += Scores::BishopLongDiagonal;
+                    score += Conf::BishopLongDiagonal;
                 }
 
                 // penalty for bishop blocked by friendly pawns
-                score += Scores::BishopBlockedByPawn * bishopPawnBlockers<c>(pieceBB);
+                score += Conf::BishopBlockedByPawn * bishopPawnBlockers<c>(pieceBB);
             }
         }
 
@@ -331,16 +293,16 @@ Score Eval<mode>::piecesScore() {
             // bonus for rook on open file, penalty for closed file w blocked pawn
             U64 fileBB = BB::fileBB(fileOf(sq));
             if (!(pawns & fileBB)) {
-                score += Scores::RookOpenFile[!(enemyPawns & fileBB)];
+                score += Conf::RookOpenFile[!(enemyPawns & fileBB)];
             } else if (pawns & fileBB & BB::pawnMoves<PawnMove::Push, enemy>(occupied)) {
-                score += Scores::RookClosedFile;
+                score += Conf::RookClosedFile;
             }
         }
 
         if constexpr (p == PieceType::Queen) {
             // penalty for discovered attacks on queen
             if (discoveredAttackOnQueen<c>(sq, occupied)) {
-                score += Scores::QueenDiscoveredAttack;
+                score += Conf::QueenDiscoveredAttack;
             }
         }
     });
@@ -369,7 +331,7 @@ template <Verbosity mode>
 inline int Eval<mode>::kingChecks(PieceType pieceType, U64 safeChecks, U64 allChecks) {
     int count = safeChecks ? BB::count(safeChecks) : BB::count(allChecks);
     auto pt   = idx(pieceType);
-    int value = safeChecks ? SafeCheckValue[pt] : UnsafeCheckValue[pt];
+    int value = safeChecks ? Conf::PieceSafeCheck[pt] : Conf::PieceUnsafeCheck[pt];
     return (value * (count + 1)) / 2;
 }
 
@@ -439,11 +401,11 @@ inline Score Eval<mode>::kingShelter(Square kingSq) {
                   fileShelter<c>(pawns, enemyPawns, file) +
                   fileShelter<c>(pawns, enemyPawns, file + 1);
 
-    score += Scores::KingFile[int(kingFile)];
+    score += Conf::KingFile[int(kingFile)];
 
     bool friendlyOpenFile  = !(board.pieces<PieceType::Pawn>(c) & BB::fileBB(kingFile));
     bool enemyOpenFile     = !(board.pieces<PieceType::Pawn>(enemy) & BB::fileBB(kingFile));
-    score                 += Scores::KingOpenFile[friendlyOpenFile][enemyOpenFile];
+    score                 += Conf::KingOpenFile[friendlyOpenFile][enemyOpenFile];
 
     return score;
 }
@@ -457,13 +419,13 @@ inline Score Eval<mode>::fileShelter(U64 pawns, U64 enemyPawns, File file) {
     // our pawns
     pawns     &= BB::fileBB(file);
     Rank rank  = pawns ? relativeRank(BB::advancedSq<enemy>(pawns), c) : Rank::R1;
-    score     += Scores::PawnRankShelter[int(rank)];
+    score     += Conf::PawnRankShelter[int(rank)];
 
     // enemy pawns
     enemyPawns     &= BB::fileBB(file);
     Rank enemyRank  = enemyPawns ? relativeRank(BB::advancedSq<enemy>(enemyPawns), c) : Rank::R1;
     bool isBlocked  = (rank != Rank::R1) && ((rank + 1) == enemyRank);
-    score          += Scores::PawnRankStorm[isBlocked][int(enemyRank)];
+    score          += Conf::PawnRankStorm[isBlocked][int(enemyRank)];
 
     return score;
 }
@@ -571,18 +533,18 @@ std::ostream& operator<<(std::ostream& os, const Eval<mode>& eval) {
     os << "     Term    |    White    |    Black    |    Total   \n";
     os << "             |   MG    EG  |   MG    EG  |   MG    EG \n";
     os << " ------------+-------------+-------------+------------\n";
-    os << std::setw(12) << "Material" << eval.termScores[TERM_MATERIAL];
-    os << std::setw(12) << "Piece Sq." << eval.termScores[TERM_PIECE_SQ];
-    os << std::setw(12) << "Pawns" << eval.termScores[TERM_PAWNS];
-    os << std::setw(12) << "Knights" << eval.termScores[TERM_KNIGHTS];
-    os << std::setw(12) << "Bishops" << eval.termScores[TERM_BISHOPS];
-    os << std::setw(12) << "Rooks" << eval.termScores[TERM_ROOKS];
-    os << std::setw(12) << "Queens" << eval.termScores[TERM_QUEENS];
-    os << std::setw(12) << "Kings" << eval.termScores[TERM_KING];
-    os << std::setw(12) << "Mobility" << eval.termScores[TERM_MOBILITY];
-    os << std::setw(12) << "Threats" << eval.termScores[TERM_THREATS];
+    os << std::setw(12) << "Material" << eval.scoreTracker[EvalTerm::Material];
+    os << std::setw(12) << "Piece Sq." << eval.scoreTracker[EvalTerm::PieceSquares];
+    os << std::setw(12) << "Pawns" << eval.scoreTracker[EvalTerm::Pawns];
+    os << std::setw(12) << "Knights" << eval.scoreTracker[EvalTerm::Knights];
+    os << std::setw(12) << "Bishops" << eval.scoreTracker[EvalTerm::Bishops];
+    os << std::setw(12) << "Rooks" << eval.scoreTracker[EvalTerm::Rooks];
+    os << std::setw(12) << "Queens" << eval.scoreTracker[EvalTerm::Queens];
+    os << std::setw(12) << "Kings" << eval.scoreTracker[EvalTerm::King];
+    os << std::setw(12) << "Mobility" << eval.scoreTracker[EvalTerm::Mobility];
+    os << std::setw(12) << "Threats" << eval.scoreTracker[EvalTerm::Threats];
     os << " ------------+-------------+-------------+------------\n";
-    os << std::setw(12) << "Total" << EvalTermScores{{std::nullopt, eval._score}};
+    os << std::setw(12) << "Total" << TermData{eval._score};
     os << "\nEvaluation:\t" << double(result) / PAWN_VALUE_MG << '\n';
 
     return os;

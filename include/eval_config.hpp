@@ -3,7 +3,11 @@
 #include "constants.hpp"
 #include "score.hpp"
 
-struct EvalConstants {
+struct EvalConfig {
+    static constexpr int PieceKingAttacks[N_PIECES] = {0, 0, 50, 35, 30, 10};
+    static constexpr int PieceSafeCheck[N_PIECES]   = {0, 0, 600, 400, 700, 500};
+    static constexpr int PieceUnsafeCheck[N_PIECES] = {0, 0, 80, 70, 60, 10};
+
     static constexpr Score IsoPawn               = {-5, -15};
     static constexpr Score BackwardPawn          = {-10, -25};
     static constexpr Score DoubledPawn           = {-10, -50};

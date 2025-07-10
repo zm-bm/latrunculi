@@ -45,7 +45,6 @@ constexpr CastleRights WHITE_CASTLE = 0b1100;
 constexpr CastleRights ALL_CASTLE   = 0b1111;
 
 // move gen constants
-constexpr size_t N_CASTLES                            = 2;
 constexpr Square KingOrigin[N_COLORS]                 = {E8, E1};
 constexpr Square KingDestinationOO[N_COLORS]          = {G8, G1};
 constexpr Square KingDestinationOOO[N_COLORS]         = {C8, C1};
