@@ -171,7 +171,9 @@ bool Engine::displayBoard(std::istringstream& iss) {
 }
 
 bool Engine::evaluate(std::istringstream& iss) {
-    eval<Verbose>(board);
+    Eval<Verbose> eval{board};
+    eval.evaluate();
+    uciHandler.logOutput(eval);
     return true;
 }
 
@@ -208,7 +210,7 @@ bool Engine::perft(std::istringstream& iss) {
         return true;
     }
 
-    board.perft<NodeType::Root>(depth, out);
+    board.perft<NodeType::Root>(depth, err);
     return true;
 }
 

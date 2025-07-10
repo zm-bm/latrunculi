@@ -7,19 +7,9 @@
 #include "bb.hpp"
 #include "board.hpp"
 #include "constants.hpp"
+#include "eval_constants.hpp"
 #include "score.hpp"
 #include "types.hpp"
-
-inline int taper(Score score, int phase) {
-    int egPhase = PHASE_LIMIT - phase;
-    return ((score.mg * phase) + (score.eg * egPhase)) / PHASE_LIMIT;
-}
-
-static std::ostream& operator<<(std::ostream& os, const Score& score) {
-    os << std::setw(5) << double(score.mg) / PAWN_VALUE_MG << " ";
-    os << std::setw(5) << double(score.eg) / PAWN_VALUE_MG;
-    return os;
-}
 
 enum Verbosity { Verbose, Silent };
 
@@ -37,95 +27,23 @@ enum Term {
     N_TERMS,
 };
 
-struct TermData {
+struct EvalTermScores {
     std::optional<Score> scores[N_COLORS] = {std::nullopt};
     void addScore(Color color, Score score) { scores[color] = score; }
 };
 
-struct ScoreConstants {
-    static constexpr Score IsoPawn               = {-5, -15};
-    static constexpr Score BackwardPawn          = {-10, -25};
-    static constexpr Score DoubledPawn           = {-10, -50};
-    static constexpr Score ReachableOutpost      = {30, 20};
-    static constexpr Score BishopOutpost         = {30, 20};
-    static constexpr Score KnightOutpost         = {50, 30};
-    static constexpr Score MinorPawnShield       = {20, 5};
-    static constexpr Score BishopLongDiagonal    = {40, 0};
-    static constexpr Score BishopPair            = {50, 80};
-    static constexpr Score BishopBlockedByPawn   = {-2, -6};
-    static constexpr Score RookClosedFile        = {-10, -5};
-    static constexpr Score KingZoneXrayAttack    = {20, 0};
-    static constexpr Score QueenDiscoveredAttack = {-50, -25};
-
-    // Bonus for rook on open files: [0] = semi-open, [1] = fully open
-    static constexpr Score RookOpenFile[] = {{20, 10}, {40, 20}};
-
-    // Bonus for friendly pawn by rank (index = pawn rank; 0 = no pawn)
-    static constexpr Score PawnRankShelter[] = {
-        {-30, 0}, {60, 0}, {35, 0}, {-20, 0}, {-5, 0}, {-20, 0}, {-80, 0}};
-
-    // Pawn storm penalty by pawn rank:
-    // PawnRankStorm[unblocked=0 / blocked=1][pawn rank (0 = no pawn)]
-    static constexpr Score PawnRankStorm[][N_PIECES] = {
-        {{0, 0}, {-20, 0}, {-120, 0}, {-60, 0}, {-45, 0}, {-20, 0}, {-10, 0}},
-        {{0, 0}, {0, 0}, {-60, -60}, {0, -20}, {5, -15}, {10, -10}, {15, -5}}};
-
-    // Score for king based on file openness: [friendly file open][enemy file open]
-    // 0 = closed file, 1 = open file
-    static constexpr Score KingOpenFile[][2] = {
-        {{20, -10}, {10, 5}},
-        {{0, 0}, {-10, 5}},
-    };
-
-    // Score for king based on file (index = king file)
-    static constexpr Score KingFile[] = {
-        {20, 0}, {5, 0}, {-15, 0}, {-30, 0}, {-30, 0}, {-15, 0}, {5, 0}, {20, 0}};
-
-    // Score for potentially hanging piece
-    static constexpr Score WeakPiece[] = {
-        ZERO_SCORE, ZERO_SCORE, {-20, -10}, {-25, -15}, {-50, -25}, {-100, -50}};
-
-    // clang-format off
-
-    // Knight mobility score (index = number of legal moves)
-    static constexpr Score KnightMobility[] = {
-        {-40, -48}, {-32, -36}, {-8, -20}, {-2, -12}, {2, 6},
-        {8, 8},     {12, 12},   {16, 16},  {24, 16}
-    };
-
-    // Bishop mobility score (index = number of legal moves)
-    static constexpr Score BishopMobility[] = {
-        {-32, -40}, {-16, -16}, {8, -4},   {16, 8},   {24, 16},
-        {32, 24},   {32, 36},   {40, 36},  {40, 40},  {44, 48},
-        {48, 48},   {56, 56},   {56, 56},  {64, 64}
-    };
-
-    // Rook mobility score (index = number of legal moves)
-    static constexpr Score RookMobility[] = {
-        {-40, -56}, {-16, -8}, {0, 12},   {0, 28},   {4, 44},
-        {8, 64},    {12, 64},  {20, 80},  {28, 88},  {28, 88},
-        {28, 96},   {32, 104}, {36, 108}, {40, 112}, {44, 120}
-    };
-
-    // Queen mobility score (index = number of legal moves)
-    static constexpr Score QueenMobility[] = {
-        {-20, -32}, {-12, -20}, {-4, -4},   {-4, 12},   {12, 24},  {16, 36},  {16, 40},
-        {24, 48},   {28, 48},   {36, 60},   {40, 60},   {44, 64},  {44, 80},  {48, 80},
-        {48, 88},   {48, 88},   {48, 88},   {48, 92},   {52, 96},  {56, 96},  {60, 100},
-        {68, 108},  {68, 112},  {68, 112},  {72, 116},  {72, 120}, {76, 124}, {80, 140}
-    };
-    // clang-format on
-
-    // Mobility score lookup by piece type. nullptr for pieces without mobility scoring
-    static constexpr const Score* Mobility[] = {
-        nullptr,
-        nullptr,
-        KnightMobility,
-        BishopMobility,
-        RookMobility,
-        QueenMobility,
-    };
-};
+static std::ostream& operator<<(std::ostream& os, const EvalTermScores& term) {
+    os << " | ";
+    if (term.scores[BLACK].has_value()) {
+        os << term.scores[WHITE].value() << " | ";
+        os << term.scores[BLACK].value() << " | ";
+        os << term.scores[WHITE].value() - term.scores[BLACK].value();
+    } else {
+        os << " ----  ---- |  ----  ---- | " << term.scores[WHITE].value();
+    }
+    os << '\n';
+    return os;
+}
 
 template <Verbosity mode = Silent>
 class Eval {
@@ -135,7 +53,7 @@ class Eval {
 
     int evaluate();
 
-    using Scores = ScoreConstants;
+    using Scores = EvalConstants;
 
     static constexpr int KingAttackersValue[N_PIECES] = {0, 0, 50, 35, 30, 10};
     static constexpr int SafeCheckValue[N_PIECES]     = {0, 0, 600, 400, 700, 500};
@@ -144,7 +62,7 @@ class Eval {
    private:
     const Board& board;
 
-    using TermScores = std::conditional_t<mode == Verbose, TermData, std::nullptr_t>;
+    using TermScores = std::conditional_t<mode == Verbose, EvalTermScores, std::nullptr_t>;
     TermScores termScores[N_TERMS];
 
     U64 attacks[N_COLORS][N_PIECES] = {{0}};
@@ -158,6 +76,9 @@ class Eval {
 
     Score mobility[N_COLORS] = {ZERO_SCORE};
     Score threats[N_COLORS]  = {ZERO_SCORE};
+
+    Score _score = ZERO_SCORE;
+    int _result  = 0;
 
     template <Color>
     void initialize();
@@ -189,10 +110,12 @@ class Eval {
 
     // main eval helpers
     int phase() const;
+    int taper(Score score);
     int nonPawnMaterial(Color) const;
     int scaleFactor() const;
 
-    void printEval(double, Score) const;
+    template <Verbosity m>
+    friend std::ostream& operator<<(std::ostream& os, const Eval<m>& eval);
 
     friend class EvalTest;
 
@@ -261,33 +184,26 @@ inline Score Eval<mode>::evaluateTerm() {
 
 template <Verbosity mode>
 int Eval<mode>::evaluate() {
-    Score score;
-
     // evaluate basic terms
-    score += evaluateTerm<TERM_MATERIAL>();
-    score += evaluateTerm<TERM_PIECE_SQ>();
-    score += evaluateTerm<TERM_PAWNS, WHITE>() - evaluateTerm<TERM_PAWNS, BLACK>();
-    score += evaluateTerm<TERM_KNIGHTS, WHITE>() - evaluateTerm<TERM_KNIGHTS, BLACK>();
-    score += evaluateTerm<TERM_BISHOPS, WHITE>() - evaluateTerm<TERM_BISHOPS, BLACK>();
-    score += evaluateTerm<TERM_ROOKS, WHITE>() - evaluateTerm<TERM_ROOKS, BLACK>();
-    score += evaluateTerm<TERM_QUEENS, WHITE>() - evaluateTerm<TERM_QUEENS, BLACK>();
+    _score += evaluateTerm<TERM_MATERIAL>();
+    _score += evaluateTerm<TERM_PIECE_SQ>();
+    _score += evaluateTerm<TERM_PAWNS, WHITE>() - evaluateTerm<TERM_PAWNS, BLACK>();
+    _score += evaluateTerm<TERM_KNIGHTS, WHITE>() - evaluateTerm<TERM_KNIGHTS, BLACK>();
+    _score += evaluateTerm<TERM_BISHOPS, WHITE>() - evaluateTerm<TERM_BISHOPS, BLACK>();
+    _score += evaluateTerm<TERM_ROOKS, WHITE>() - evaluateTerm<TERM_ROOKS, BLACK>();
+    _score += evaluateTerm<TERM_QUEENS, WHITE>() - evaluateTerm<TERM_QUEENS, BLACK>();
 
-    // more complex terms that require data from evaluating pieces
-    score += evaluateTerm<TERM_KING, WHITE>() - evaluateTerm<TERM_KING, BLACK>();
-    score += evaluateTerm<TERM_MOBILITY, WHITE>() - evaluateTerm<TERM_MOBILITY, BLACK>();
-    score += evaluateTerm<TERM_THREATS, WHITE>() - evaluateTerm<TERM_THREATS, BLACK>();
+    // complex terms that require data from evaluating pieces
+    _score    += evaluateTerm<TERM_KING, WHITE>() - evaluateTerm<TERM_KING, BLACK>();
+    _score    += evaluateTerm<TERM_MOBILITY, WHITE>() - evaluateTerm<TERM_MOBILITY, BLACK>();
+    _score    += evaluateTerm<TERM_THREATS, WHITE>() - evaluateTerm<TERM_THREATS, BLACK>();
+    _score.eg *= scaleFactor() / float(SCALE_LIMIT);
 
-    // scale eg and taper mg/eg to produce final eval
-    score.eg   *= scaleFactor() / float(SCALE_LIMIT);
-    int result  = taper(score, phase());
+    _result = taper(_score);
+    if (board.sideToMove() == BLACK) _result = -_result;
 
-    // result is relative to side to move
-    if (board.sideToMove() == BLACK) result = -result;
-
-    result += TEMPO_BONUS;
-    if constexpr (mode == Verbose) printEval(result, score);
-
-    return result;
+    _result += TEMPO_BONUS;
+    return _result;
 }
 
 template <Color c, typename Func>
@@ -626,6 +542,13 @@ inline int Eval<mode>::phase() const {
 }
 
 template <Verbosity mode>
+inline int Eval<mode>::taper(Score score) {
+    int mgPhase = phase();
+    int egPhase = PHASE_LIMIT - mgPhase;
+    return ((score.mg * mgPhase) + (score.eg * egPhase)) / PHASE_LIMIT;
+}
+
+template <Verbosity mode>
 inline int Eval<mode>::nonPawnMaterial(Color c) const {
     return ((board.count(c, PieceType::Knight) * KNIGHT_VALUE_MG) +
             (board.count(c, PieceType::Bishop) * BISHOP_VALUE_MG) +
@@ -641,44 +564,32 @@ int Eval<mode>::scaleFactor() const {
 }
 
 template <Verbosity mode>
-void Eval<mode>::printEval(double result, Score score) const {
-    result = board.sideToMove() == WHITE ? result : -result;
-    // clang-format off
-    std::cout << std::showpoint << std::noshowpos << std::fixed << std::setprecision(2)
-                << "     Term    |    White    |    Black    |    Total   \n"
-                << "             |   MG    EG  |   MG    EG  |   MG    EG \n"
-                << " ------------+-------------+-------------+------------\n"
-                << std::setw(12) << "Material" << termScores[TERM_MATERIAL]
-                << std::setw(12) << "Piece Sq." << termScores[TERM_PIECE_SQ]
-                << std::setw(12) << "Pawns" << termScores[TERM_PAWNS]
-                << std::setw(12) << "Knights" << termScores[TERM_KNIGHTS]
-                << std::setw(12) << "Bishops" << termScores[TERM_BISHOPS]
-                << std::setw(12) << "Rooks" << termScores[TERM_ROOKS]
-                << std::setw(12) << "Queens" << termScores[TERM_QUEENS]
-                << std::setw(12) << "Kings" << termScores[TERM_KING]
-                << std::setw(12) << "Mobility" << termScores[TERM_MOBILITY]
-                << std::setw(12) << "Threats" << termScores[TERM_THREATS]
-                << " ------------+-------------+-------------+------------\n"
-                << std::setw(12) << "Total" << TermData{{std::nullopt, score}}
-                << "\nEvaluation:\t" << result / PAWN_VALUE_MG << '\n';
-    // clang-format on
-}
+std::ostream& operator<<(std::ostream& os, const Eval<mode>& eval) {
+    int result = eval.board.sideToMove() == WHITE ? eval._result : -eval._result;
 
-inline std::ostream& operator<<(std::ostream& os, const TermData& term) {
-    os << " | ";
-    if (term.scores[BLACK].has_value()) {
-        os << term.scores[WHITE].value() << " | ";
-        os << term.scores[BLACK].value() << " | ";
-        os << term.scores[WHITE].value() - term.scores[BLACK].value();
-    } else {
-        os << " ----  ---- |  ----  ---- | " << term.scores[WHITE].value();
-    }
-    os << '\n';
+    os << std::showpoint << std::noshowpos << std::fixed << std::setprecision(2);
+    os << "     Term    |    White    |    Black    |    Total   \n";
+    os << "             |   MG    EG  |   MG    EG  |   MG    EG \n";
+    os << " ------------+-------------+-------------+------------\n";
+    os << std::setw(12) << "Material" << eval.termScores[TERM_MATERIAL];
+    os << std::setw(12) << "Piece Sq." << eval.termScores[TERM_PIECE_SQ];
+    os << std::setw(12) << "Pawns" << eval.termScores[TERM_PAWNS];
+    os << std::setw(12) << "Knights" << eval.termScores[TERM_KNIGHTS];
+    os << std::setw(12) << "Bishops" << eval.termScores[TERM_BISHOPS];
+    os << std::setw(12) << "Rooks" << eval.termScores[TERM_ROOKS];
+    os << std::setw(12) << "Queens" << eval.termScores[TERM_QUEENS];
+    os << std::setw(12) << "Kings" << eval.termScores[TERM_KING];
+    os << std::setw(12) << "Mobility" << eval.termScores[TERM_MOBILITY];
+    os << std::setw(12) << "Threats" << eval.termScores[TERM_THREATS];
+    os << " ------------+-------------+-------------+------------\n";
+    os << std::setw(12) << "Total" << EvalTermScores{{std::nullopt, eval._score}};
+    os << "\nEvaluation:\t" << double(result) / PAWN_VALUE_MG << '\n';
+
     return os;
 }
 
 template <Verbosity mode = Silent>
-int eval(const Board& board) {
+inline int eval(const Board& board) {
     return Eval<mode>(board).evaluate();
 }
 

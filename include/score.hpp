@@ -6,7 +6,6 @@ struct Score {
     int mg = 0;
     int eg = 0;
 
-    // operators
     constexpr Score operator+(const Score& other) const { return {mg + other.mg, eg + other.eg}; }
     constexpr Score operator-(const Score& other) const { return {mg - other.mg, eg - other.eg}; }
     constexpr Score operator*(int scalar) const { return {mg * scalar, eg * scalar}; }
@@ -32,4 +31,6 @@ struct Score {
         eg *= scalar;
         return *this;
     }
+
+    friend std::ostream& operator<<(std::ostream& os, const Score& score);
 };
