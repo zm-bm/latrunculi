@@ -1,8 +1,6 @@
 #include "fen.hpp"
 
-FenParser::FenParser(const std::string& fen) : fen(fen) { parse(); }
-
-void FenParser::parse() {
+FenParser::FenParser(const std::string& fen) {
     std::istringstream fenStream(fen);
     std::string piecePlacement, activeColor, castlingRights, enPassantTarget;
     std::string halfmove, fullmove;

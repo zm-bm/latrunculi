@@ -16,8 +16,8 @@
 
 class UCIOptionBase {
    public:
-    virtual ~UCIOptionBase()                        = default;
-    virtual void setValue(const std::string& value) = 0;
+    virtual ~UCIOptionBase()                           = default;
+    virtual void setValue(const std::string& strValue) = 0;
 };
 
 template <typename T>
