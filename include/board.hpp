@@ -34,10 +34,11 @@ class Board {
 
    public:
     // constructors
-    Board()                        = default;
+    Board() = default;
+    explicit Board(const std::string& fen);
+
     Board(const Board&)            = delete;
     Board& operator=(const Board&) = delete;
-    explicit Board(const std::string&);
 
     // accessors
     template <PieceType... Ps>

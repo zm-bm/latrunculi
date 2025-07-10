@@ -26,9 +26,6 @@ class FenParser {
     U32 moveCounter     = 0;
 
    private:
-    std::string fen;
-
-    void parse();
     void parsePieces(const std::string& section);
     void parseTurn(const std::string& section);
     void parseCastlingRights(const std::string& section);
