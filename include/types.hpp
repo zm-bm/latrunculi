@@ -81,6 +81,7 @@ constexpr size_t N_CASTLES = 2;
 enum class Castle { KingSide, QueenSide };
 
 enum class Phase { MidGame, EndGame };
+
 enum class EvalTerm {
     Material,
     PieceSquares,
@@ -94,8 +95,6 @@ enum class EvalTerm {
     Threats,
     Count,
 };
-
-enum Verbosity { Verbose, Silent };
 
 enum class NodeType { Root, PV, NonPV };
 
@@ -214,3 +213,17 @@ constexpr File operator+(File f1, int f2) { return File(int(f1) + f2); }
 constexpr File operator-(File f1, int f2) { return File(int(f1) - f2); }
 constexpr File& operator++(File& f) { return f = f + 1; }
 constexpr File& operator--(File& f) { return f = f - 1; }
+
+// -----------------
+// Piece Indexes
+// -----------------
+
+namespace PieceIdx {
+constexpr auto All    = idx(PieceType::All);
+constexpr auto Pawn   = idx(PieceType::Pawn);
+constexpr auto Knight = idx(PieceType::Knight);
+constexpr auto Bishop = idx(PieceType::Bishop);
+constexpr auto Rook   = idx(PieceType::Rook);
+constexpr auto Queen  = idx(PieceType::Queen);
+constexpr auto King   = idx(PieceType::King);
+}  // namespace PieceIdx

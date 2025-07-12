@@ -171,7 +171,7 @@ bool Engine::displayBoard(std::istringstream& iss) {
 }
 
 bool Engine::evaluate(std::istringstream& iss) {
-    Eval<Verbose> eval{board};
+    EvalVerbose eval{board};
     eval.evaluate();
     uciHandler.logOutput(eval);
     return true;

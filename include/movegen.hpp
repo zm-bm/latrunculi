@@ -208,12 +208,12 @@ void MoveGenerator<T>::generatePieceMoves(const U64 targets, const U64 occupied)
 
     while (bitboard) {
         // Pop lsb bit and clear it from the bitboard
-        Square from  = BB::advancedSq<c>(bitboard);
+        Square from  = BB::selectSquare<c>(bitboard);
         bitboard    &= BB::clear(from);
 
         U64 pieceMoves = BB::moves<p>(from, occupied) & targets;
         while (pieceMoves) {
-            Square to   = BB::advancedSq<c>(pieceMoves);
+            Square to   = BB::selectSquare<c>(pieceMoves);
             pieceMoves &= BB::clear(to);
 
             add(from, to);
@@ -226,7 +226,7 @@ template <PawnMove p, Color c>
 inline void MoveGenerator<T>::addPawnMoves(U64 bitboard) {
     while (bitboard) {
         // Pop lsb bit and clear it from the bitboard
-        Square to  = BB::advancedSq<c>(bitboard);
+        Square to  = BB::selectSquare<c>(bitboard);
         bitboard  &= BB::clear(to);
 
         // Reverse the move to get the origin square and append move
@@ -240,7 +240,7 @@ template <PawnMove p, Color c>
 inline void MoveGenerator<T>::addPawnPromotions(U64 bitboard) {
     while (bitboard) {
         // Pop lsb bit and clear it from the bitboard
-        Square to  = BB::advancedSq<c>(bitboard);
+        Square to  = BB::selectSquare<c>(bitboard);
         bitboard  &= BB::clear(to);
 
         // Reverse the move to get the origin square and append moves

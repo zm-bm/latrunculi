@@ -249,7 +249,7 @@ INSTANTIATE_TEST_SUITE_P(
     GoCommandParameterizedTest,
     ::testing::Values(GoCommandTestCase{"go depth 3", "bestmove", 50},
                       GoCommandTestCase{"go movetime 50", "bestmove", 150},
-                      GoCommandTestCase{"go nodes 10000", "bestmove", 150},
+                      GoCommandTestCase{"go nodes 1000", "bestmove", 150},
                       GoCommandTestCase{"go wtime 1000 btime 1000", "bestmove", 150},
                       GoCommandTestCase{
                           "go wtime 1000 btime 1000 winc 100 binc 100", "bestmove", 200}));

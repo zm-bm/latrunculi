@@ -8,75 +8,75 @@
 #include "score.hpp"
 #include "types.hpp"
 
-using Scores = Eval<>::Conf;
+using Scores = Eval::Conf;
 
 // TEST(ScoreTest, TaperScoreMidgame) {
-//     int exp = Score{100, 50}.taper(PHASE_LIMIT);
+//     int exp = Score{100, 50}.taperScore(PHASE_LIMIT);
 //     EXPECT_EQ(exp, 100) << "max phase tapers to midgame";
 // }
 
 // TEST(ScoreTest, TaperScoreBetween) {
-//     int exp = Score{100, 50}.taper(PHASE_LIMIT / 2);
+//     int exp = Score{100, 50}.taperScore(PHASE_LIMIT / 2);
 //     EXPECT_EQ(exp, 75) << "half phase tapers to average";
 // }
 
 // TEST(ScoreTest, TaperScoreEndgame) {
-//     int exp = Score{100, 50}.taper(0);
+//     int exp = Score{100, 50}.taperScore(0);
 //     EXPECT_EQ(exp, 50) << "0 phase tapers to endgame";
 // }
 
 class EvalTest : public ::testing::Test {
    protected:
-    void testOutposts(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
+    void testOutpostZones(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Board board(fen);
-        Eval<Silent> eval(board);
-        EXPECT_EQ(eval.outposts[WHITE], expectedWhite) << fen;
-        EXPECT_EQ(eval.outposts[BLACK], expectedBlack) << fen;
+        Eval eval(board);
+        EXPECT_EQ(eval.zones.outposts[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(eval.zones.outposts[BLACK], expectedBlack) << fen;
     }
 
-    void testMobilityArea(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
+    void testMobilityZones(const std::string& fen, U64 expectedWhite, U64 expectedBlack) {
         Board board(fen);
-        Eval<Silent> eval(board);
-        EXPECT_EQ(eval.mobilityZone[WHITE], expectedWhite) << fen;
-        EXPECT_EQ(eval.mobilityZone[BLACK], expectedBlack) << fen;
+        Eval eval(board);
+        EXPECT_EQ(eval.zones.mobility[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(eval.zones.mobility[BLACK], expectedBlack) << fen;
     }
 
-    void testMobility(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+    void testMobilityScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Board board(fen);
-        Eval<Silent> eval(board);
+        Eval eval(board);
         eval.evaluate();
-        EXPECT_EQ(eval.mobility[WHITE], expectedWhite) << fen;
-        EXPECT_EQ(eval.mobility[BLACK], expectedBlack) << fen;
+        EXPECT_EQ(eval.scores.mobility[WHITE], expectedWhite) << fen;
+        EXPECT_EQ(eval.scores.mobility[BLACK], expectedBlack) << fen;
     }
 
-    void testPawnsScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+    void testEvaluatePawns(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Board board(fen);
-        Eval<Silent> eval(board);
-        EXPECT_EQ(eval.pawnsScore<WHITE>(), expectedWhite) << fen;
-        EXPECT_EQ(eval.pawnsScore<BLACK>(), expectedBlack) << fen;
+        Eval eval(board);
+        EXPECT_EQ(eval.evaluatePawns<WHITE>(), expectedWhite) << fen;
+        EXPECT_EQ(eval.evaluatePawns<BLACK>(), expectedBlack) << fen;
     }
 
     template <PieceType p>
-    void testPiecesScore(const std::string& fen, Score expectedWhite, Score expectedBlack) {
+    void testEvaluatePieces(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Board board(fen);
-        Eval<Silent> eval(board);
-        Score wScore = eval.piecesScore<WHITE, p>();
-        Score bScore = eval.piecesScore<BLACK, p>();
+        Eval eval(board);
+        Score wScore = eval.evaluatePieces<WHITE, p>();
+        Score bScore = eval.evaluatePieces<BLACK, p>();
         EXPECT_EQ(wScore, expectedWhite) << fen;
         EXPECT_EQ(bScore, expectedBlack) << fen;
     }
 
     void testKingScore(const std::string& fen, Score expected) {
         Board board(fen);
-        Eval<Silent> eval(board);
+        Eval eval(board);
         eval.evaluate();
-        EXPECT_EQ(eval.kingScore<WHITE>(), expected) << fen;
-        EXPECT_EQ(eval.kingScore<BLACK>(), expected) << fen;
+        EXPECT_EQ(eval.evaluateKing<WHITE>(), expected) << fen;
+        EXPECT_EQ(eval.evaluateKing<BLACK>(), expected) << fen;
     }
 
     void testKingShelter(const std::string& fen, Score expectedWhite, Score expectedBlack) {
         Board board(fen);
-        Eval<Silent> eval(board);
+        Eval eval(board);
         EXPECT_EQ(eval.kingShelter<WHITE>(board.kingSq(WHITE)), expectedWhite) << fen;
         EXPECT_EQ(eval.kingShelter<BLACK>(board.kingSq(BLACK)), expectedBlack) << fen;
     }
@@ -86,29 +86,29 @@ class EvalTest : public ::testing::Test {
                          Score expectedBlack,
                          File file) {
         Board board(fen);
-        Eval<Silent> eval(board);
+        Eval eval(board);
         U64 wPawns = board.pieces<PieceType::Pawn>(WHITE);
         U64 bPawns = board.pieces<PieceType::Pawn>(BLACK);
-        EXPECT_EQ(eval.fileShelter<WHITE>(wPawns, bPawns, file), expectedWhite) << fen;
-        EXPECT_EQ(eval.fileShelter<BLACK>(bPawns, wPawns, file), expectedBlack) << fen;
+        EXPECT_EQ(eval.kingFileShelter<WHITE>(wPawns, bPawns, file), expectedWhite) << fen;
+        EXPECT_EQ(eval.kingFileShelter<BLACK>(bPawns, wPawns, file), expectedBlack) << fen;
     }
 
     void testPhase(const std::string& fen, int expected, int tolerance) {
         Board board(fen);
-        Eval<Silent> eval(board);
+        Eval eval(board);
         int phaseValue = eval.phase();
         EXPECT_LE(std::abs(phaseValue - expected), tolerance) << fen;
     }
 
     void testNonPawnMaterial(const std::string& fen, Color c, int expected) {
         Board board(fen);
-        Eval<Silent> eval(board);
+        Eval eval(board);
         EXPECT_EQ(eval.nonPawnMaterial(c), expected);
     }
 
-    void testScaleFactor(const std::string& fen, int expected) {
+    void testScaleFactor(const std::string& fen, float expected) {
         Board board(fen);
-        Eval<Silent> eval(board);
+        Eval eval(board);
         EXPECT_EQ(eval.scaleFactor(), expected) << fen;
     }
 };
@@ -138,7 +138,7 @@ TEST_F(EvalTest, Outposts) {
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testOutposts(fen, expectedWhite, expectedBlack);
+        testOutpostZones(fen, expectedWhite, expectedBlack);
     }
 }
 
@@ -152,11 +152,11 @@ TEST_F(EvalTest, MobilityArea) {
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testMobilityArea(fen, expectedWhite, expectedBlack);
+        testMobilityZones(fen, expectedWhite, expectedBlack);
     }
 }
 
-TEST_F(EvalTest, Mobility) {
+TEST_F(EvalTest, MobilityScore) {
     std::vector<std::tuple<std::string, Score>> testCases = {
         {EMPTYFEN, {0}},
         // no mobility area restriction
@@ -173,11 +173,11 @@ TEST_F(EvalTest, Mobility) {
     };
 
     for (const auto& [fen, expected] : testCases) {
-        testMobility(fen, expected, expected);
+        testMobilityScore(fen, expected, expected);
     }
 }
 
-TEST_F(EvalTest, PawnsScore) {
+TEST_F(EvalTest, EvaluatePawns) {
     auto isoPawn1       = "4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1";
     auto isoPawn2       = "rnbqkbnr/ppppp1pp/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 2";
     auto isoPawn3       = "rnbqkbnr/pppppp1p/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 3";
@@ -208,7 +208,7 @@ TEST_F(EvalTest, PawnsScore) {
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testPawnsScore(fen, expectedWhite, expectedBlack);
+        testEvaluatePawns(fen, expectedWhite, expectedBlack);
     }
 }
 
@@ -228,7 +228,7 @@ TEST_F(EvalTest, KnightsScore) {
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testPiecesScore<PieceType::Knight>(fen, expectedWhite, expectedBlack);
+        testEvaluatePieces<PieceType::Knight>(fen, expectedWhite, expectedBlack);
     }
 }
 
@@ -266,7 +266,7 @@ TEST_F(EvalTest, BishopsScore) {
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testPiecesScore<PieceType::Bishop>(fen, expectedWhite, expectedBlack);
+        testEvaluatePieces<PieceType::Bishop>(fen, expectedWhite, expectedBlack);
     }
 }
 
@@ -280,7 +280,7 @@ TEST_F(EvalTest, RookScore) {
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testPiecesScore<PieceType::Rook>(fen, expectedWhite, expectedBlack);
+        testEvaluatePieces<PieceType::Rook>(fen, expectedWhite, expectedBlack);
     }
 }
 
@@ -297,7 +297,7 @@ TEST_F(EvalTest, QueenScore) {
     };
 
     for (const auto& [fen, expectedWhite, expectedBlack] : testCases) {
-        testPiecesScore<PieceType::Queen>(fen, expectedWhite, expectedBlack);
+        testEvaluatePieces<PieceType::Queen>(fen, expectedWhite, expectedBlack);
     }
 }
 
@@ -416,9 +416,9 @@ TEST_F(EvalTest, NonPawnMaterial) {
 }
 
 TEST_F(EvalTest, ScaleFactor) {
-    std::vector<std::pair<std::string, int>> testCases = {
-        {EMPTYFEN, 36},
-        {STARTFEN, SCALE_LIMIT},
+    std::vector<std::pair<std::string, float>> testCases = {
+        {EMPTYFEN, 36.0 / SCALE_LIMIT},
+        {STARTFEN, 1.0},
     };
 
     for (const auto& [fen, expected] : testCases) {

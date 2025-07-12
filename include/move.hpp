@@ -46,7 +46,7 @@ constexpr Move NullMove{};
 
 constexpr U16 Move::pack(Square from, Square to, MoveType moveType, PieceType promoPiece) {
     auto mtype = idx(moveType);
-    auto promo = idx(promoPiece) - idx(PieceType::Knight);
+    auto promo = idx(promoPiece) - PieceIdx::Knight;
     return (from & 0x3F) |           // 6 bits for from
            ((to & 0x3F) << 6) |      // 6 bits for to
            ((mtype & 0x03) << 12) |  // 2 bits for move type
@@ -62,7 +62,7 @@ constexpr MoveType Move::unpackType(U16 packed) {
 }
 
 constexpr PieceType Move::unpackPromoPiece(U16 packed) {
-    return static_cast<PieceType>(((packed >> 14) & 0x03) + idx(PieceType::Knight));
+    return static_cast<PieceType>(((packed >> 14) & 0x03) + PieceIdx::Knight);
 }
 
 inline std::ostream& operator<<(std::ostream& os, const Move& mv) {
