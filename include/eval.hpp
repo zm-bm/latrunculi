@@ -11,12 +11,7 @@
 #include "score.hpp"
 #include "types.hpp"
 
-/**
- * @brief Evaluates a chess position.
- *
- * This class provides methods to evaluate various aspects of a chess position,
- * including material balance, piece activity, king safety, and more.
- */
+// Evaluates chess positions using material, mobility, king safety, and positional factors
 class Eval {
    public:
     using Conf         = EvalConfig;
@@ -33,10 +28,6 @@ class Eval {
     const Board& board;
     TermCallback termCallback = nullptr;
 
-    //---------------------------------------
-    // Evaluation data
-    //---------------------------------------
-
     struct AttackData {
         U64 by[N_COLORS][N_PIECES] = {{0}};
         U64 byTwo[N_COLORS]        = {0};
@@ -48,7 +39,7 @@ class Eval {
         U64 king[N_COLORS]     = {0};
     } zones;
 
-    struct EnemyKingAttacksData {
+    struct KingAttackersData {
         int count[N_COLORS] = {0};
         int value[N_COLORS] = {0};
     } kingAttackers;
@@ -60,99 +51,73 @@ class Eval {
         int finalResult          = 0;
     } scores;
 
-    //---------------------------------------
-    // Initialization methods
-    //---------------------------------------
+    struct PieceContext {
+        Square square  = INVALID;
+        U64 pieceBB    = 0;
+        U64 occupied   = 0;
+        U64 pawns      = 0;
+        U64 enemyPawns = 0;
+    };
 
+    // Initialization methods
     template <Color>
     void initialize();
-
     template <Color c>
-    U64 calculateOutpostZone();
-
+    U64 calculateOutpostsZone(U64 pawns, U64 enemyPawns);
     template <Color c>
-    U64 calculateMobilityZone();
-
+    U64 calculateMobilityZone(U64 pawns, U64 enemyPawns, Square kingSq);
     template <Color c>
-    U64 calculateKingZone();
+    U64 calculateKingZone(Square kingSq);
 
-    //---------------------------------------
     // Core evaluation methods
-    //---------------------------------------
-
     template <EvalTerm, Color = WHITE>
     Score evaluateTerm();
-
     template <Color>
     Score evaluatePawns();
-
     template <Color, PieceType>
     Score evaluatePieces();
-
     template <Color>
     Score evaluateKing();
 
-    //---------------------------------------
-    // Update evaluation data methods
-    //---------------------------------------
-
+    // Update methods for accumulating data during evaluation
     template <Color c, PieceType p>
-    void updatePieceAttacks(U64 moves);
-
+    void updateAttackBitboards(U64 moves);
     template <Color c, PieceType p>
-    void updatePieceMobility(U64 moves);
-
+    void updateMobilityScore(U64 moves);
     template <Color c, PieceType p>
-    void updatePieceThreats(const PieceContext& ctx);
-
+    void updateThreatScore(const PieceContext& ctx);
     template <Color c, PieceType p>
-    Score updatePieceKingAttackers(const PieceContext& ctx, U64 moves);
+    Score updateKingDanger(const PieceContext& ctx, U64 moves);
 
-    //---------------------------------------
-    // Piece evaluation methods
-    //---------------------------------------
-
+    // Piece specific evaluation methods
     template <Color c, PieceType p>
     U64 calculateMoves(const PieceContext& ctx);
-
     template <Color c, PieceType p>
     Score evaluateMinorPiece(const PieceContext& ctx, U64 moves);
-
     template <Color c>
     Score evaluateBishop(const PieceContext& ctx);
-
     template <Color>
     Score bishopPawnBlockers(const PieceContext& ctx) const;
-
     template <Color c>
     Score evaluateRook(const PieceContext& ctx);
-
     template <Color c>
     Score evaluateQueen(const PieceContext& ctx);
-
     template <Color c, PieceType p>
     bool discoveredAttack(const PieceContext& ctx);
 
-    //---------------------------------------
     // King evaluation methods
-    //---------------------------------------
-
     template <Color>
     Score kingShelter(Square kingSq);
-
     template <Color>
     Score kingFileShelter(U64 pawns, U64 enemyPawns, File file);
-
-    template <Color>
+    template <Color c>
     Score kingDanger(Square kingSq);
-
+    template <Color>
+    int kingDangerRaw(Square kingSq);
     template <PieceType>
     int kingChecksDanger(U64 safeChecks, U64 allChecks);
 
-    //---------------------------------------
-    // Helper methods
-    //---------------------------------------
-
+    // Helpers
     float scaleFactor() const;
     int taperScore(Score score) const;
     int phase() const;
@@ -161,21 +126,13 @@ class Eval {
     friend class EvalTest;
 };
 
-/**
- * @brief Constructs an Eval object with a given board and optional evaluation term callback.
- * @param b The board to evaluate.
- * @param termCallback Optional callback to be called for each evaluation term.
- */
 inline Eval::Eval(const Board& b, TermCallback termCallback)
     : board{b}, termCallback{termCallback} {
     initialize<WHITE>();
     initialize<BLACK>();
 }
 
-/**
- * @brief Main function for evaluating the board position.
- * @return int The evaluation of the position.
- */
+/// returns static evaluation of the position
 inline int Eval::evaluate() {
     Score score;
 
@@ -187,104 +144,69 @@ inline int Eval::evaluate() {
     score += evaluateTerm<EvalTerm::Bishops, WHITE>() - evaluateTerm<EvalTerm::Bishops, BLACK>();
     score += evaluateTerm<EvalTerm::Rooks, WHITE>() - evaluateTerm<EvalTerm::Rooks, BLACK>();
     score += evaluateTerm<EvalTerm::Queens, WHITE>() - evaluateTerm<EvalTerm::Queens, BLACK>();
-    // complex terms
+
+    // terms requiring accumulated data from basic terms
     score += evaluateTerm<EvalTerm::King, WHITE>() - evaluateTerm<EvalTerm::King, BLACK>();
     score += evaluateTerm<EvalTerm::Mobility, WHITE>() - evaluateTerm<EvalTerm::Mobility, BLACK>();
     score += evaluateTerm<EvalTerm::Threats, WHITE>() - evaluateTerm<EvalTerm::Threats, BLACK>();
 
-    // scale endgame in drawn positions
-    score.eg *= scaleFactor();
-
-    // blend midgame and endgame scores into a final evaluation
-    int result = taperScore(score);
-
-    // final result relative to side to move and add tempo bonus
-    if (board.sideToMove() == BLACK) result = -result;
-    result += TEMPO_BONUS;
-
+    score.eg          *= scaleFactor();
     scores.finalScore  = score;
-    scores.finalResult = result;
-    return result;
+
+    int stm            = ((board.sideToMove() == WHITE) ? 1 : -1);
+    scores.finalResult = taperScore(score) * stm + TEMPO_BONUS;
+    return scores.finalResult;
 }
 
-/**
- * @brief Initializes evaluation data for a specific color
- * @tparam c Color for which to initialize data
- */
+/// prep zone data + seed king attacks
 template <Color c>
 inline void Eval::initialize() {
-    zones.outposts[c] = calculateOutpostZone<c>();
-    zones.mobility[c] = calculateMobilityZone<c>();
-    zones.king[c]     = calculateKingZone<c>();
+    constexpr Color enemy = ~c;
+
+    Square kingSq = board.kingSq(c);
+    U64 kingMoves = BB::moves<PieceType::King>(kingSq);
+    updateAttackBitboards<c, PieceType::King>(kingMoves);
+
+    U64 pawns         = board.pieces<PieceType::Pawn>(c);
+    U64 enemyPawns    = board.pieces<PieceType::Pawn>(enemy);
+    zones.outposts[c] = calculateOutpostsZone<c>(pawns, enemyPawns);
+    zones.mobility[c] = calculateMobilityZone<c>(pawns, enemyPawns, kingSq);
+    zones.king[c]     = calculateKingZone<c>(kingSq);
 }
 
-/**
- * @brief Calculates squares where pieces can be safely posted behind pawn protection
- * @tparam c Color for which to calculate outposts
- * @return Bitboard of potential outpost squares
- */
+/// outposts mask: behind enemy pawns, supported by friendly pawns, on ranks 4-6
 template <Color c>
-inline U64 Eval::calculateOutpostZone() {
-    constexpr Color enemy     = ~c;
-    constexpr U64 outpostMask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
+inline U64 Eval::calculateOutpostsZone(U64 pawns, U64 enemyPawns) {
+    constexpr Color enemy    = ~c;
+    constexpr U64 rank4thru6 = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
 
-    U64 pawns      = board.pieces<PieceType::Pawn>(c);
-    U64 enemyPawns = board.pieces<PieceType::Pawn>(enemy);
-
-    // Potential outposts are squares where:
-    // 1. Cannot be attacked by enemy pawns
-    // 2. Supported by friendly pawns
-    // 3. On file 4-6 relative to side
-    return (~BB::pawnAttackSpan<enemy>(enemyPawns) & BB::pawnAttacks<c>(pawns) & outpostMask);
+    U64 behindEnemy = ~BB::pawnAttackSpan<enemy>(enemyPawns);
+    U64 supported   = BB::pawnAttacks<c>(pawns);
+    return (behindEnemy & supported & rank4thru6);
 }
 
-/**
- * @brief Calculates squares where pieces can safely move (not attacked by enemy pawns)
- *
- * Mobility zone is defined as:
- * 1. Not attacked by enemy pawns
- * 2. Not occupied by the king
- * 3. Not occupied by friendly pawns on the second rank
- *
- * @tparam c Color for which to calculate mobility zone
- * @return Bitboard of squares for mobility evaluation
- */
+/// mobility mask: safe from enemy pawns, not occupied by the king or rank 2 pawns
 template <Color c>
-inline U64 Eval::calculateMobilityZone() {
+inline U64 Eval::calculateMobilityZone(U64 pawns, U64 enemyPawns, Square kingSq) {
     constexpr Color enemy = ~c;
     constexpr U64 rank2   = (c == WHITE) ? BB::rankBB(Rank::R2) : BB::rankBB(Rank::R7);
 
-    Square kingSq  = board.kingSq(c);
-    U64 pawns      = board.pieces<PieceType::Pawn>(c);
-    U64 enemyPawns = board.pieces<PieceType::Pawn>(enemy);
-
-    return ~(BB::pawnAttacks<enemy>(enemyPawns) | BB::set(kingSq) | (pawns & rank2));
+    U64 safe     = ~BB::pawnAttacks<enemy>(enemyPawns);
+    U64 occupied = BB::set(kingSq) | (pawns & rank2);
+    return (safe & ~occupied);
 }
 
-/**
- * @brief Calculates 3x3 area around the king for king safety evaluation
- * @tparam c Color for which to calculate king zone
- * @return Bitboard representing the king's danger zone
- */
+// king zone: 3x3 king neighborhood for king safety evaluation
 template <Color c>
-inline U64 Eval::calculateKingZone() {
-    Square kingSq = board.kingSq(c);
+inline U64 Eval::calculateKingZone(Square kingSq) {
     Square center = makeSquare(std::clamp(fileOf(kingSq), File::F2, File::F7),
                                std::clamp(rankOf(kingSq), Rank::R2, Rank::R7));
-
-    // King zone is a 3x3 square area around the king
     return BB::moves<PieceType::King>(center) | BB::set(center);
 }
 
-/**
- * @brief Evaluates a specific term in the evaluation function
- * @tparam term Evaluation term to calculate
- * @tparam c Color for which to evaluate the term
- * @return Score for the specified term
- * @note Calls termCallback if registered
- */
+// dispatch a single eval term -> score
 template <EvalTerm term, Color c>
-Score Eval::evaluateTerm() {
+inline Score Eval::evaluateTerm() {
     Score score;
 
     // clang-format off
@@ -307,21 +229,16 @@ Score Eval::evaluateTerm() {
     return score;
 }
 
-/**
- * @brief Evaluates pawn structure (isolated, backward, doubled pawns)
- * @tparam c Color for which to evaluate pawns
- * @return Score representing pawn structure quality
- * @note Updates attack tables as a side effect
- */
+// eval pawn structure: isolated + backward + doubled
 template <Color c>
 Score Eval::evaluatePawns() {
     constexpr Color enemy = ~c;
     Score score;
 
     U64 pawns             = board.pieces<PieceType::Pawn>(c);
+    U64 enemyPawns        = board.pieces<PieceType::Pawn>(enemy);
     U64 pawnAttacks       = BB::pawnAttacks<c>(pawns);
     U64 pawnDoubleAttacks = BB::pawnDoubleAttacks<c>(pawns);
-    U64 enemyPawns        = board.pieces<PieceType::Pawn>(enemy);
 
     attacks.byTwo[c] |= pawnDoubleAttacks | (attacks.by[c][PieceIdx::All] & pawnAttacks);
     attacks.by[c][PieceIdx::All]  |= pawnAttacks;
@@ -347,13 +264,7 @@ Score Eval::evaluatePawns() {
     return score;
 }
 
-/**
- * @brief Evaluates all pieces of a specific type
- * @tparam c Color of the pieces
- * @tparam p Type of pieces to evaluate
- * @return Combined score for all pieces of the specified type
- * @note Updates attack tables and other evaluation data
- */
+// eval all pieces of type p for color c
 template <Color c, PieceType p>
 Score Eval::evaluatePieces() {
     constexpr Color enemy = ~c;
@@ -363,7 +274,6 @@ Score Eval::evaluatePieces() {
     U64 pawns      = board.pieces<PieceType::Pawn>(c);
     U64 enemyPawns = board.pieces<PieceType::Pawn>(enemy);
 
-    // Process each piece
     U64 pieceBB = board.pieces<p>(c);
     BB::scan<c>(pieceBB, [&](Square sq) {
         PieceContext context{.square     = sq,
@@ -373,10 +283,10 @@ Score Eval::evaluatePieces() {
                              .enemyPawns = enemyPawns};
 
         U64 moves = calculateMoves<c, p>(context);
-        updatePieceAttacks<c, p>(moves);
-        updatePieceMobility<c, p>(moves);
-        updatePieceThreats<c, p>(context);
-        score += updatePieceKingAttackers<c, p>(context, moves);
+        updateAttackBitboards<c, p>(moves);
+        updateMobilityScore<c, p>(moves);
+        updateThreatScore<c, p>(context);
+        score += updateKingDanger<c, p>(context, moves);
 
         if constexpr (p == PieceType::Bishop || p == PieceType::Knight) {
             score += evaluateMinorPiece<c, p>(context, moves);
@@ -391,7 +301,6 @@ Score Eval::evaluatePieces() {
         }
     });
 
-    // Special case for bishop pair
     if constexpr (p == PieceType::Bishop) {
         if (board.count(c, PieceType::Bishop) > 1) score += Conf::BishopPair;
     }
@@ -399,145 +308,93 @@ Score Eval::evaluatePieces() {
     return score;
 }
 
-/**
- * @brief Evaluates king safety based on pawn shelter and enemy attacks
- * @tparam c Color of the king to evaluate
- * @return Score representing king safety
- */
+// king safety: pawn shelter + incoming attacks
 template <Color c>
 Score Eval::evaluateKing() {
     constexpr Color enemy = ~c;
+    Score score;
+    Square kingSq = board.kingSq(c);
 
-    Square kingSq   = board.kingSq(c);
-    U64 kingAttacks = BB::moves<PieceType::King>(kingSq);
-    updatePieceAttacks<c, PieceType::King>(kingAttacks);
+    score += kingShelter<c>(kingSq);
+    if (board.canCastleOO(c)) score = std::max(score, kingShelter<c>(KingDestinationOO[c]));
+    if (board.canCastleOOO(c)) score = std::max(score, kingShelter<c>(KingDestinationOOO[c]));
 
-    Score shelter    = kingShelter<c>(kingSq);
-    Score shelterOO  = board.canCastleOO(c) ? kingShelter<c>(KingDestinationOO[c]) : ZERO_SCORE;
-    Score shelterOOO = board.canCastleOOO(c) ? kingShelter<c>(KingDestinationOOO[c]) : ZERO_SCORE;
-
-    Score score  = std::max({shelter, shelterOO, shelterOOO});
-    score       -= kingDanger<c>(kingSq);
+    score -= kingDanger<c>(kingSq);
 
     return score;
 }
 
-/**
- * @brief Updates attack bitboards for a piece type
- * @tparam c Color of the piece
- * @tparam p Type of the piece
- * @param moves Bitboard of possible moves/attacks
- */
+// merge moves into attack bitboards
 template <Color c, PieceType p>
-inline void Eval::updatePieceAttacks(U64 moves) {
+inline void Eval::updateAttackBitboards(U64 moves) {
     attacks.byTwo[c]             |= (attacks.by[c][PieceIdx::All] & moves);
     attacks.by[c][PieceIdx::All] |= moves;
     attacks.by[c][idx(p)]        |= moves;
 }
 
-/**
- * @brief Calculates mobility score for a piece type
- * @tparam c Color of the piece
- * @tparam p Type of the piece
- * @param moves Bitboard of possible moves
- */
+// add mobility bonus for # of moves
 template <Color c, PieceType p>
-inline void Eval::updatePieceMobility(U64 moves) {
+inline void Eval::updateMobilityScore(U64 moves) {
     U64 moveCount       = BB::count(moves & zones.mobility[c]);
     scores.mobility[c] += Conf::Mobility[idx(p)][moveCount];
 }
 
-/**
- * @brief Evaluates threats against a piece (when attackers outnumber defenders)
- * @tparam c Color of the piece
- * @tparam p Type of the piece
- * @param ctx Context information for the piece
- */
+// penalize weak pieces if attackers > defenders
 template <Color c, PieceType p>
-inline void Eval::updatePieceThreats(const PieceContext& ctx) {
+inline void Eval::updateThreatScore(const PieceContext& ctx) {
     constexpr Color enemy = ~c;
 
-    // Check if attackers outnumber defenders
-    U64 defenders = board.attacksTo(ctx.square, c);
-    U64 attackers = board.attacksTo(ctx.square, enemy);
-    if (BB::count(attackers) > BB::count(defenders)) {
+    U64 defenders    = board.attacksTo(ctx.square, c);
+    U64 attackers    = board.attacksTo(ctx.square, enemy);
+    bool outnumbered = BB::count(attackers) > BB::count(defenders);
+    if (outnumbered) {
         scores.threats[c] += Conf::WeakPiece[idx(p)];
     }
 }
 
-/**
- * @brief Evaluates pieces attacking the enemy king zone
- * @tparam c Color of the piece
- * @tparam p Type of the piece
- * @param ctx Context information for the piece
- * @param moves Bitboard of possible moves
- * @return Score bonus for king attacks
- */
+// update king attackers with attacks on enemy king zone
 template <Color c, PieceType p>
-inline Score Eval::updatePieceKingAttackers(const PieceContext& ctx, U64 moves) {
+inline Score Eval::updateKingDanger(const PieceContext& ctx, U64 moves) {
     constexpr Color enemy = ~c;
 
-    // Check if the piece is attacking the enemy king zone
     if (moves & zones.king[enemy]) {
-        kingAttackers.count[c]++;
-        kingAttackers.value[c] += Conf::PieceKingAttacks[idx(p)];
-    }
-    // Check for x-ray attacks on enemy king zone
-    else if ((p == PieceType::Bishop && (BB::moves<p>(ctx.square, ctx.pawns) & zones.king[enemy])) |
-             (p == PieceType::Knight && (BB::moves<p>(ctx.square) & zones.king[enemy]))) {
-        return Conf::KingZoneXrayAttack;
+        kingAttackers.count[enemy]++;
+        kingAttackers.value[enemy] += Conf::AttackedKingZoneDanger[idx(p)];
+    } else if constexpr (p == PieceType::Bishop || p == PieceType::Rook) {
+        U64 xrays = BB::moves<p>(ctx.square, ctx.pawns) & zones.king[enemy];
+        if (xrays) return Conf::KingZoneXrayAttack;
     }
 
     return ZERO_SCORE;
 }
 
-/**
- * @brief Calculates legal moves for a piece, considering pins
- * @tparam c Color of the piece
- * @tparam p Type of the piece
- * @param ctx Context information for the piece
- * @return Bitboard of legal moves
- */
 template <Color c, PieceType p>
 inline U64 Eval::calculateMoves(const PieceContext& ctx) {
-    U64 moves = BB::moves<p>(ctx.square, ctx.occupied);
-
-    // If piece is pinned, restrict moves to the line of attack
-    if (board.blockers(c) & ctx.pieceBB) {
-        moves &= BB::collinear(board.kingSq(c), ctx.square);
-    }
+    U64 moves       = BB::moves<p>(ctx.square, ctx.occupied);
+    U64 pinnedPiece = board.blockers(c) & ctx.pieceBB;
+    if (pinnedPiece) moves &= BB::collinear(board.kingSq(c), ctx.square);
 
     return moves;
 }
 
-/**
- * @brief Evaluates minor pieces (knights and bishops) for outposts and pawn shields
- * @tparam c Color of the piece
- * @tparam p Type of the piece (Knight or Bishop)
- * @param ctx Context information for the piece
- * @param moves Bitboard of legal moves
- * @return Score bonus for the minor piece position
- */
+// minor piece eval: outposts + pawn shields
 template <Color c, PieceType p>
 inline Score Eval::evaluateMinorPiece(const PieceContext& ctx, U64 moves) {
+    static_assert(p == PieceType::Knight || p == PieceType::Bishop);
     constexpr Color enemy = ~c;
     Score score;
 
-    // Outpost bonus
     if (ctx.pieceBB & zones.outposts[c]) {
         if constexpr (p == PieceType::Knight)
             score += Conf::KnightOutpost;
         else
             score += Conf::BishopOutpost;
-    }
-    // Reachable outpost for knights
-    else if constexpr (p == PieceType::Knight) {
+    } else if constexpr (p == PieceType::Knight) {
         if (moves & zones.outposts[c]) {
             score += Conf::ReachableOutpost;
         }
     }
 
-    // Pawn shield bonus
     if (ctx.pieceBB & BB::pawnMoves<PawnMove::Push, enemy>(ctx.pawns)) {
         score += Conf::MinorPawnShield;
     }
@@ -545,118 +402,81 @@ inline Score Eval::evaluateMinorPiece(const PieceContext& ctx, U64 moves) {
     return score;
 }
 
-/**
- * @brief Evaluates bishop-specific positional factors
- * @tparam c Color of the bishop
- * @param ctx Context information for the bishop
- * @return Score representing bishop position quality
- */
+// bishop eval: long diagonals + pawn block penalty
 template <Color c>
 inline Score Eval::evaluateBishop(const PieceContext& ctx) {
     Score score;
 
-    // Bonus for bishops on long diagonals
-    if (BB::isMany(CENTER_SQUARES & BB::moves<PieceType::Bishop>(ctx.square, ctx.pawns))) {
-        score += Conf::BishopLongDiagonal;
-    }
+    U64 xrayMoves       = BB::moves<PieceType::Bishop>(ctx.square, ctx.pawns);
+    bool onLongDiagonal = BB::isMany(CENTER_SQUARES & xrayMoves);
+    if (onLongDiagonal) score += Conf::BishopLongDiagonal;
 
-    // Penalty for pawns blocking the bishop's path
     score += bishopPawnBlockers<c>(ctx);
 
     return score;
 }
 
-/**
- * @brief Calculates penalty for pawns blocking a bishop's movement
- * @tparam c Color of the bishop
- * @param ctx Context information for the bishop
- * @return Negative score for blocked bishop
- */
+// penalize bishops blocked by pawns on the same color squares
 template <Color c>
 inline Score Eval::bishopPawnBlockers(const PieceContext& ctx) const {
     constexpr Color enemy = ~c;
 
     U64 sameColorPawns = ctx.pawns & (ctx.pieceBB & DARK_SQUARES ? DARK_SQUARES : LIGHT_SQUARES);
-    int pawnCount      = BB::count(sameColorPawns);
+    int sameColorCount = BB::count(sameColorPawns);
 
     U64 blockedPawns       = ctx.pawns & BB::pawnMoves<PawnMove::Push, enemy>(ctx.occupied);
-    U64 bishopOutsideChain = ctx.pieceBB & BB::pawnAttacks<c>(ctx.pawns);
-    int pawnBlockingFactor = BB::count(blockedPawns & CENTER_FILES) + !bishopOutsideChain;
+    U64 outsidePawnChain   = ctx.pieceBB & BB::pawnAttacks<c>(ctx.pawns);
+    int pawnBlockingFactor = BB::count(blockedPawns & CENTER_FILES) + !outsidePawnChain;
 
-    return Conf::BishopBlockedByPawn * pawnCount * pawnBlockingFactor;
+    return Conf::BishopBlockedByPawn * sameColorCount * pawnBlockingFactor;
 }
 
-/**
- * @brief Evaluates rook-specific positional factors (open files)
- * @tparam c Color of the rook
- * @param ctx Context information for the rook
- * @return Score representing rook position quality
- */
+/// rook eval: open/semi-open file bonus, closed+blocked penalty
 template <Color c>
 inline Score Eval::evaluateRook(const PieceContext& ctx) {
     constexpr Color enemy = ~c;
-    U64 rookFileMask      = BB::fileBB(fileOf(ctx.square));
 
-    // Open file bonus
-    if (!(ctx.pawns & rookFileMask)) {
-        return Conf::RookOpenFile[!(ctx.enemyPawns & rookFileMask)];
-    }
-    // Closed file penalty
-    else if (ctx.pawns & rookFileMask & BB::pawnMoves<PawnMove::Push, enemy>(ctx.occupied)) {
+    U64 rookFileMask = BB::fileBB(fileOf(ctx.square));
+    U64 filePawns    = ctx.pawns & rookFileMask;
+    bool semiOpen    = !filePawns;
+
+    if (semiOpen) {
+        bool fullyOpen = !(ctx.enemyPawns & rookFileMask);
+        return Conf::RookOpenFile[fullyOpen];
+    } else if (filePawns & BB::pawnMoves<PawnMove::Push, enemy>(ctx.occupied)) {
         return Conf::RookClosedFile;
     }
 
     return ZERO_SCORE;
 }
 
-/**
- * @brief Evaluates queen-specific positional factors
- * @tparam c Color of the queen
- * @param ctx Context information for the queen
- * @return Score representing queen position quality
- */
+// queen eval: penalize discovered attacks
 template <Color c>
 inline Score Eval::evaluateQueen(const PieceContext& ctx) {
-    // Check for discovered attacks on a queen by enemy bishops or rooks
     if (discoveredAttack<c, PieceType::Bishop>(ctx) || discoveredAttack<c, PieceType::Rook>(ctx)) {
         return Conf::QueenDiscoveredAttack;
     }
     return ZERO_SCORE;
 }
 
-/**
- * @brief Detects if a piece is vulnerable to discovered attacks
- * @tparam c Color of the piece
- * @tparam p Type of attacking piece to check for
- * @param ctx Context information for the piece
- * @return True if piece is vulnerable to discovered attack
- */
+// penalize discovered attacks on the piece
 template <Color c, PieceType p>
 inline bool Eval::discoveredAttack(const PieceContext& ctx) {
-    constexpr Color enemy   = ~c;
+    constexpr Color enemy = ~c;
+
     bool isDiscoverAttacked = false;
+    U64 attackers           = board.pieces<p>(enemy) & BB::moves<p>(ctx.square, 0);
 
-    // Process enemy pieces that can attack the square
-    U64 attackers = board.pieces<p>(enemy) & BB::moves<p>(ctx.square, 0);
     BB::scan<c>(attackers, [&](Square pieceSq) {
-        U64 piecesBetween = BB::between(ctx.square, pieceSq) & ctx.occupied;
-
-        // Check if there is only one piece between the attacker and the square
-        if (!BB::isMany(piecesBetween)) {
-            isDiscoverAttacked = true;
-            return;
-        };
+        U64 piecesBetween  = BB::between(ctx.square, pieceSq) & ctx.occupied;
+        isDiscoverAttacked = !BB::isMany(piecesBetween);
+        if (isDiscoverAttacked) return;
     });
 
     return isDiscoverAttacked;
 }
 
-/**
- * @brief Evaluates pawn shelter for king safety
- * @tparam c Color of the king
- * @param kingSq Square of the king
- * @return Score representing pawn shelter quality
- */
+// king pawn-shelter score: friendly pawn shield vs enemy pawn storm
 template <Color c>
 Score Eval::kingShelter(Square kingSq) {
     constexpr Color enemy = ~c;
@@ -686,14 +506,7 @@ Score Eval::kingShelter(Square kingSq) {
     return score;
 }
 
-/**
- * @brief Evaluates pawn shelter on a specific file
- * @tparam c Color of the king
- * @param pawns Bitboard of friendly pawns
- * @param enemyPawns Bitboard of enemy pawns
- * @param file File to evaluate
- * @return Score for pawn shelter on this file
- */
+// shelter score for one file: friendly pawn rank + enemy pawn rank
 template <Color c>
 inline Score Eval::kingFileShelter(U64 pawns, U64 enemyPawns, File file) {
     constexpr Color enemy = ~c;
@@ -702,127 +515,103 @@ inline Score Eval::kingFileShelter(U64 pawns, U64 enemyPawns, File file) {
     pawns      &= BB::fileBB(file);
     enemyPawns &= BB::fileBB(file);
 
-    Square ourPawnSquare   = BB::selectSquare<enemy>(pawns);
-    Square enemyPawnSquare = BB::selectSquare<enemy>(enemyPawns);
+    Square friendlyPawn = BB::selectSquare<enemy>(pawns);
+    Square enemyPawn    = BB::selectSquare<enemy>(enemyPawns);
+    Rank friendlyRank   = pawns ? relativeRank(friendlyPawn, c) : Rank::R1;
+    Rank enemyRank      = enemyPawns ? relativeRank(enemyPawn, c) : Rank::R1;
+    bool blocked        = pawns && (friendlyRank + 1 == enemyRank);
 
-    Rank ourPawnRank   = pawns ? relativeRank(ourPawnSquare, c) : Rank::R1;
-    Rank enemyPawnRank = enemyPawns ? relativeRank(enemyPawnSquare, c) : Rank::R1;
-    bool isPawnBlocked = (ourPawnRank != Rank::R1) && ((ourPawnRank + 1) == enemyPawnRank);
-
-    score += Conf::PawnRankShelter[idx(ourPawnRank)];
-    score += Conf::PawnRankStorm[isPawnBlocked][idx(enemyPawnRank)];
+    score += Conf::PawnRankShelter[idx(friendlyRank)];
+    score += Conf::PawnRankStorm[blocked][idx(enemyRank)];
 
     return score;
 }
 
-/**
- * @brief Calculates danger to the king from enemy attacks
- * @tparam c Color of the king
- * @param kingSq Square of the king
- * @return Negative score proportional to king danger
- */
+// convert raw danger into score {mg=quad scaling, eg=linear scaling}
 template <Color c>
-Score Eval::kingDanger(Square kingSq) {
+inline Score Eval::kingDanger(Square kingSq) {
+    int danger  = kingDangerRaw<c>(kingSq);
+    int mgScore = danger * danger / 2048;
+    int egScore = danger / 8;
+    return {mgScore, egScore};
+}
+
+// return 'raw' king danger metric (checks, weak defenses, pins, etc)
+template <Color c>
+int Eval::kingDangerRaw(Square kingSq) {
     constexpr Color enemy = ~c;
     int danger            = 0;
 
-    // calculate safe potential checks on our king
-    U64 kqOnlyDefense = ~attacks.by[c][PieceIdx::All] | attacks.by[c][PieceIdx::King] |
-                        attacks.by[c][PieceIdx::Queen];
-    U64 weaklyDefended  = kqOnlyDefense & attacks.by[enemy][PieceIdx::All] & ~attacks.byTwo[c];
-    U64 safeChecks      = ~attacks.by[c][PieceIdx::All] | (weaklyDefended & attacks.byTwo[enemy]);
-    safeChecks         &= ~board.pieces<PieceType::All>(enemy);
+    U64 defended       = attacks.by[c][PieceIdx::All];
+    U64 attacked       = attacks.by[enemy][PieceIdx::All];
+    U64 kqDefense      = attacks.by[c][PieceIdx::Queen] | attacks.by[c][PieceIdx::King];
+    U64 weaklyDefended = (~defended | kqDefense) & attacked & ~attacks.byTwo[c];
+    U64 safelyAttacked = ~board.pieces<PieceType::All>(enemy) &
+                         (~defended | (weaklyDefended & attacks.byTwo[enemy]));
 
-    // calculate knight checks danger
-    U64 knightChecks      = BB::moves<PieceType::Knight>(kingSq) & attacks.by[c][PieceIdx::Knight];
-    U64 safeKnightChecks  = knightChecks & safeChecks;
+    U64 knightMoves       = attacks.by[enemy][PieceIdx::Knight];
+    U64 knightChecks      = BB::moves<PieceType::Knight>(kingSq) & knightMoves;
+    U64 safeKnightChecks  = knightChecks & safelyAttacked;
     danger               += kingChecksDanger<PieceType::Knight>(safeKnightChecks, knightChecks);
 
-    // calculate sliding checks
-    U64 straightChecks = BB::moves<PieceType::Rook>(kingSq, board.pieces<PieceType::All>());
-    U64 diagonalChecks = BB::moves<PieceType::Bishop>(kingSq, board.pieces<PieceType::All>());
+    U64 occupancy      = board.occupancy();
+    U64 straightChecks = BB::moves<PieceType::Rook>(kingSq, occupancy);
+    U64 diagonalChecks = BB::moves<PieceType::Bishop>(kingSq, occupancy);
 
-    // calculate rook checks danger
     U64 rookChecks      = straightChecks & attacks.by[enemy][PieceIdx::Rook];
-    U64 safeRookChecks  = rookChecks & safeChecks;
+    U64 safeRookChecks  = rookChecks & safelyAttacked;
     danger             += kingChecksDanger<PieceType::Rook>(safeRookChecks, rookChecks);
 
-    // calculate queen checks danger (removing available rook checks)
-    U64 queenChecks     = (straightChecks | diagonalChecks) & attacks.by[enemy][PieceIdx::Queen];
-    U64 safeQueenChecks = queenChecks & safeChecks & ~(rookChecks | attacks.by[c][PieceIdx::Queen]);
-    danger += kingChecksDanger<PieceType::Queen>(safeQueenChecks, queenChecks);
+    U64 queenChecks      = (straightChecks | diagonalChecks) & attacks.by[enemy][PieceIdx::Queen];
+    U64 badQueenChecks   = rookChecks | attacks.by[c][PieceIdx::Queen];
+    U64 safeQueenChecks  = queenChecks & safelyAttacked & ~badQueenChecks;
+    danger              += kingChecksDanger<PieceType::Queen>(safeQueenChecks, queenChecks);
 
-    // calculate bishop checks danger (removing available queen checks)
     U64 bishopChecks      = diagonalChecks & attacks.by[enemy][PieceIdx::Bishop];
-    U64 safeBishopChecks  = bishopChecks & safeChecks & ~queenChecks;
+    U64 safeBishopChecks  = bishopChecks & safelyAttacked & ~queenChecks;
     danger               += kingChecksDanger<PieceType::Bishop>(safeBishopChecks, bishopChecks);
 
-    // king zone attacks
-    danger += kingAttackers.value[enemy] * kingAttackers.count[enemy];
+    int kingZoneAttacks  = kingAttackers.value[c] * kingAttackers.count[c];
+    danger              += kingZoneAttacks;
 
-    // king zone weaknesses
-    danger += 150 * BB::count(zones.king[c] & weaklyDefended);
+    int kingZoneWeakness  = BB::count(zones.king[c] & weaklyDefended);
+    danger               += Conf::WeakKingZoneDanger * kingZoneWeakness;
 
-    // pinned pieces
-    danger += 50 * BB::count(board.blockers(c));
+    int pinsCount  = BB::count(board.blockers(c));
+    danger        += Conf::PinnedPieceDanger * pinsCount;
 
-    return {danger * danger / 2048,  // scale midgame danger quadratically
-            danger / 8};             // scale endgame danger linearly
+    return danger;
 }
 
-/**
- * @brief Calculates danger from potential checks against the king
- * @tparam p Type of piece delivering the check
- * @param safeChecks Bitboard of safe checking squares
- * @param allChecks Bitboard of all possible checking squares
- * @return Danger value from the potential checks
- */
+// scale danger non-linearly, 1 check = 1×, 2 checks = ~1.3×, 3 checks = 1.5×, asymptotes to 2×
 template <PieceType p>
 inline int Eval::kingChecksDanger(U64 safeChecks, U64 allChecks) {
     constexpr auto pt = idx(p);
-    int checkCount    = safeChecks ? BB::count(safeChecks) : BB::count(allChecks);
-    auto checkValue   = safeChecks ? Conf::PieceSafeCheck : Conf::PieceUnsafeCheck;
-
-    // non-linear scaling: 1 check = 1×, 2 = ~1.3×, 3 = 1.5×, asymptotes to 2×
+    int checkCount    = BB::count(safeChecks ? safeChecks : allChecks);
+    auto checkValue   = safeChecks ? Conf::SafeCheckDanger : Conf::UnsafeCheckDanger;
     return (checkValue[pt] * checkCount * 2) / (checkCount + 1);
 }
 
-/**
- * @brief Calculates endgame scaling factor based on pawn count
- * @return Factor between 0-1 to scale endgame evaluation
- */
+// scale endgame eval toward 0 in draw-ish pawn endings,
 inline float Eval::scaleFactor() const {
-    // scale proportionally with pawns
     int pawnCount = board.count(board.sideToMove(), PieceType::Pawn);
     return std::min(SCALE_LIMIT, 36 + 5 * pawnCount) / float(SCALE_LIMIT);
 }
 
-/**
- * @brief Interpolates between middlegame and endgame scores based on game phase
- * @param score Score to interpolate
- * @return Final tapered score
- */
+// blend midgame / endgame scores based on game phase
 inline int Eval::taperScore(Score score) const {
     int mgPhase = phase();
     int egPhase = PHASE_LIMIT - mgPhase;
     return ((score.mg * mgPhase) + (score.eg * egPhase)) / PHASE_LIMIT;
 }
 
-/**
- * @brief Determines current game phase based on remaining material
- * @return Phase value (higher = more middlegame-like)
- */
+// game phase: 0 = endgame, PHASE_LIMIT = middlegame
 inline int Eval::phase() const {
     int npm      = nonPawnMaterial(WHITE) + nonPawnMaterial(BLACK);
     int material = std::clamp(npm, EG_LIMIT, MG_LIMIT);
     return ((material - EG_LIMIT) * PHASE_LIMIT) / (MG_LIMIT - EG_LIMIT);
 }
 
-/**
- * @brief Calculates total material value excluding pawns
- * @param c Color for which to calculate material
- * @return Total non-pawn material value
- */
 inline int Eval::nonPawnMaterial(Color c) const {
     return ((board.count(c, PieceType::Knight) * KNIGHT_VALUE_MG) +
             (board.count(c, PieceType::Bishop) * BISHOP_VALUE_MG) +
@@ -830,13 +619,9 @@ inline int Eval::nonPawnMaterial(Color c) const {
             (board.count(c, PieceType::Queen) * QUEEN_VALUE_MG));
 }
 
-/**
- * @brief Helper function to evaluate a position
- * @param board Position to evaluate
- * @return Evaluation score from current player's perspective
- */
 inline int eval(const Board& board) { return Eval(board).evaluate(); }
 
+// eval + per-term score breakdown (for logging/debug)
 class EvalVerbose {
    private:
     Eval eval;
