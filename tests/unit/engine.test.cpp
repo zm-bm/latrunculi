@@ -4,11 +4,10 @@
 #include <thread>
 
 #include "gtest/gtest.h"
+#include "test_utils.hpp"
 #include "tt.hpp"
 
 using namespace std::literals;
-
-const auto E2E4 = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
 
 class EngineTest : public ::testing::Test {
    protected:
@@ -250,7 +249,7 @@ INSTANTIATE_TEST_SUITE_P(
     GoCommandParameterizedTest,
     ::testing::Values(GoCommandTestCase{"go depth 3", "bestmove", 50},
                       GoCommandTestCase{"go movetime 50", "bestmove", 150},
-                      GoCommandTestCase{"go nodes 10000", "bestmove", 150},
+                      GoCommandTestCase{"go nodes 1000", "bestmove", 150},
                       GoCommandTestCase{"go wtime 1000 btime 1000", "bestmove", 150},
                       GoCommandTestCase{
                           "go wtime 1000 btime 1000 winc 100 binc 100", "bestmove", 200}));

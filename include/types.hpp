@@ -7,6 +7,7 @@
 #include <functional>
 #include <iostream>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -38,7 +39,6 @@ using CastleRights = std::bitset<4>;
 enum class Rank : I8 { R1, R2, R3, R4, R5, R6, R7, R8 };
 enum class File : I8 { F1, F2, F3, F4, F5, F6, F7, F8 };
 
-constexpr size_t N_SQUARES = 64;
 enum Square : I8 {
     // clang-format off
     A1, B1, C1, D1, E1, F1, G1, H1,
@@ -49,12 +49,11 @@ enum Square : I8 {
     A6, B6, C6, D6, E6, F6, G6, H6,
     A7, B7, C7, D7, E7, F7, G7, H7,
     A8, B8, C8, D8, E8, F8, G8, H8,
-    INVALID = 64
+    INVALID = 64, N_SQUARES = 64
     // clang-format on
 };
 
-constexpr size_t N_COLORS = 2;
-enum Color : U8 { BLACK, WHITE };
+enum Color : U8 { BLACK, WHITE, N_COLORS = 2 };
 
 constexpr size_t N_PIECES = 7;
 enum class PieceType : U8 {
@@ -73,19 +72,39 @@ enum class Piece : U8 {
 };
 
 enum class MoveType { Normal, Promotion, EnPassant, Castle };
+
 enum class MoveGenMode { All, Captures, Evasions, Quiets };
+
 enum class PawnMove { Left = 7, Push = 8, Right = 9, Double = 16 };
-enum class NodeType { Root, PV, NonPV };
+
+constexpr size_t N_CASTLES = 2;
 enum class Castle { KingSide, QueenSide };
+
 enum class Phase { MidGame, EndGame };
+
+enum class EvalTerm {
+    Material,
+    PieceSquares,
+    Pawns,
+    Knights,
+    Bishops,
+    Rooks,
+    Queens,
+    King,
+    Mobility,
+    Threats,
+    Count,
+};
+
+enum class NodeType { Root, PV, NonPV };
 
 // -----------------
 // Conversion helpers
 // -----------------
 
 template <typename E>
-constexpr size_t idx(E e) noexcept {
-    return static_cast<size_t>(std::to_underlying(e));
+constexpr auto idx(E e) noexcept {
+    return static_cast<std::underlying_type_t<E>>(e);
 }
 
 constexpr Color operator~(Color c) { return static_cast<Color>(c ^ WHITE); }
@@ -194,3 +213,17 @@ constexpr File operator+(File f1, int f2) { return File(int(f1) + f2); }
 constexpr File operator-(File f1, int f2) { return File(int(f1) - f2); }
 constexpr File& operator++(File& f) { return f = f + 1; }
 constexpr File& operator--(File& f) { return f = f - 1; }
+
+// -----------------
+// Piece Indexes
+// -----------------
+
+namespace PieceIdx {
+constexpr auto All    = idx(PieceType::All);
+constexpr auto Pawn   = idx(PieceType::Pawn);
+constexpr auto Knight = idx(PieceType::Knight);
+constexpr auto Bishop = idx(PieceType::Bishop);
+constexpr auto Rook   = idx(PieceType::Rook);
+constexpr auto Queen  = idx(PieceType::Queen);
+constexpr auto King   = idx(PieceType::King);
+}  // namespace PieceIdx

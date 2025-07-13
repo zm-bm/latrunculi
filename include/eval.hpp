@@ -7,339 +7,266 @@
 #include "bb.hpp"
 #include "board.hpp"
 #include "constants.hpp"
+#include "eval_base.hpp"
 #include "score.hpp"
 #include "types.hpp"
 
-inline int taper(Score score, int phase) {
-    int egPhase = PHASE_LIMIT - phase;
-    return ((score.mg * phase) + (score.eg * egPhase)) / PHASE_LIMIT;
-}
-
-static std::ostream& operator<<(std::ostream& os, const Score& score) {
-    os << std::setw(5) << double(score.mg) / PAWN_VALUE_MG << " ";
-    os << std::setw(5) << double(score.eg) / PAWN_VALUE_MG;
-    return os;
-}
-
-enum Verbosity { Verbose, Silent };
-
-enum Term {
-    TERM_MATERIAL,
-    TERM_PIECE_SQ,
-    TERM_PAWNS,
-    TERM_KNIGHTS,
-    TERM_BISHOPS,
-    TERM_ROOKS,
-    TERM_QUEENS,
-    TERM_KING,
-    TERM_MOBILITY,
-    TERM_THREATS,
-    N_TERMS,
-};
-
-struct TermData {
-    std::optional<Score> scores[N_COLORS] = {std::nullopt};
-    void addScore(Color color, Score score) { scores[color] = score; }
-};
-
-struct ScoreConstants {
-    static constexpr Score IsoPawn               = {-5, -15};
-    static constexpr Score BackwardPawn          = {-10, -25};
-    static constexpr Score DoubledPawn           = {-10, -50};
-    static constexpr Score ReachableOutpost      = {30, 20};
-    static constexpr Score BishopOutpost         = {30, 20};
-    static constexpr Score KnightOutpost         = {50, 30};
-    static constexpr Score MinorPawnShield       = {20, 5};
-    static constexpr Score BishopLongDiagonal    = {40, 0};
-    static constexpr Score BishopPair            = {50, 80};
-    static constexpr Score BishopBlockedByPawn   = {-2, -6};
-    static constexpr Score RookClosedFile        = {-10, -5};
-    static constexpr Score KingZoneXrayAttack    = {20, 0};
-    static constexpr Score QueenDiscoveredAttack = {-50, -25};
-
-    // Bonus for rook on open files: [0] = semi-open, [1] = fully open
-    static constexpr Score RookOpenFile[] = {{20, 10}, {40, 20}};
-
-    // Bonus for friendly pawn by rank (index = pawn rank; 0 = no pawn)
-    static constexpr Score PawnRankShelter[] = {
-        {-30, 0}, {60, 0}, {35, 0}, {-20, 0}, {-5, 0}, {-20, 0}, {-80, 0}};
-
-    // Pawn storm penalty by pawn rank:
-    // PawnRankStorm[unblocked=0 / blocked=1][pawn rank (0 = no pawn)]
-    static constexpr Score PawnRankStorm[][N_PIECES] = {
-        {{0, 0}, {-20, 0}, {-120, 0}, {-60, 0}, {-45, 0}, {-20, 0}, {-10, 0}},
-        {{0, 0}, {0, 0}, {-60, -60}, {0, -20}, {5, -15}, {10, -10}, {15, -5}}};
-
-    // Score for king based on file openness: [friendly file open][enemy file open]
-    // 0 = closed file, 1 = open file
-    static constexpr Score KingOpenFile[][2] = {
-        {{20, -10}, {10, 5}},
-        {{0, 0}, {-10, 5}},
-    };
-
-    // Score for king based on file (index = king file)
-    static constexpr Score KingFile[] = {
-        {20, 0}, {5, 0}, {-15, 0}, {-30, 0}, {-30, 0}, {-15, 0}, {5, 0}, {20, 0}};
-
-    // Score for potentially hanging piece
-    static constexpr Score WeakPiece[] = {
-        ZERO_SCORE, ZERO_SCORE, {-20, -10}, {-25, -15}, {-50, -25}, {-100, -50}};
-
-    // clang-format off
-
-    // Knight mobility score (index = number of legal moves)
-    static constexpr Score KnightMobility[] = {
-        {-40, -48}, {-32, -36}, {-8, -20}, {-2, -12}, {2, 6},
-        {8, 8},     {12, 12},   {16, 16},  {24, 16}
-    };
-
-    // Bishop mobility score (index = number of legal moves)
-    static constexpr Score BishopMobility[] = {
-        {-32, -40}, {-16, -16}, {8, -4},   {16, 8},   {24, 16},
-        {32, 24},   {32, 36},   {40, 36},  {40, 40},  {44, 48},
-        {48, 48},   {56, 56},   {56, 56},  {64, 64}
-    };
-
-    // Rook mobility score (index = number of legal moves)
-    static constexpr Score RookMobility[] = {
-        {-40, -56}, {-16, -8}, {0, 12},   {0, 28},   {4, 44},
-        {8, 64},    {12, 64},  {20, 80},  {28, 88},  {28, 88},
-        {28, 96},   {32, 104}, {36, 108}, {40, 112}, {44, 120}
-    };
-
-    // Queen mobility score (index = number of legal moves)
-    static constexpr Score QueenMobility[] = {
-        {-20, -32}, {-12, -20}, {-4, -4},   {-4, 12},   {12, 24},  {16, 36},  {16, 40},
-        {24, 48},   {28, 48},   {36, 60},   {40, 60},   {44, 64},  {44, 80},  {48, 80},
-        {48, 88},   {48, 88},   {48, 88},   {48, 92},   {52, 96},  {56, 96},  {60, 100},
-        {68, 108},  {68, 112},  {68, 112},  {72, 116},  {72, 120}, {76, 124}, {80, 140}
-    };
-    // clang-format on
-
-    // Mobility score lookup by piece type. nullptr for pieces without mobility scoring
-    static constexpr const Score* Mobility[] = {
-        nullptr,
-        nullptr,
-        KnightMobility,
-        BishopMobility,
-        RookMobility,
-        QueenMobility,
-    };
-};
-
-template <Verbosity mode = Silent>
+// Evaluates chess positions using material, mobility, king safety, and positional factors
 class Eval {
    public:
+    using Conf         = EvalConfig;
+    using TermCallback = std::function<void(EvalTerm, Color, Score)>;
+
     Eval() = delete;
-    Eval(const Board&);
+    Eval(const Board&, TermCallback termCallback = nullptr);
 
     int evaluate();
 
-    using Scores = ScoreConstants;
-
-    static constexpr int KingAttackersValue[N_PIECES] = {0, 0, 50, 35, 30, 10};
-    static constexpr int SafeCheckValue[N_PIECES]     = {0, 0, 600, 400, 700, 500};
-    static constexpr int UnsafeCheckValue[N_PIECES]   = {0, 0, 80, 70, 60, 10};
+    friend class EvalVerbose;
 
    private:
     const Board& board;
+    TermCallback termCallback = nullptr;
 
-    using TermScores = std::conditional_t<mode == Verbose, TermData, std::nullptr_t>;
-    TermScores termScores[N_TERMS];
+    struct AttackData {
+        U64 by[N_COLORS][N_PIECES] = {{0}};
+        U64 byTwo[N_COLORS]        = {0};
+    } attacks;
 
-    U64 attacks[N_COLORS][N_PIECES] = {{0}};
-    U64 attacksByTwo[N_COLORS]      = {0};
-    U64 outposts[N_COLORS]          = {0};
-    U64 mobilityZone[N_COLORS]      = {0};
-    U64 kingZone[N_COLORS]          = {0};
+    struct ZoneData {
+        U64 outposts[N_COLORS] = {0};
+        U64 mobility[N_COLORS] = {0};
+        U64 king[N_COLORS]     = {0};
+    } zones;
 
-    int kingAttackersCount[N_COLORS] = {0};
-    int kingAttackersValue[N_COLORS] = {0};
+    struct KingAttackersData {
+        int count[N_COLORS] = {0};
+        int value[N_COLORS] = {0};
+    } kingAttackers;
 
-    Score mobility[N_COLORS] = {ZERO_SCORE};
-    Score threats[N_COLORS]  = {ZERO_SCORE};
+    struct ScoreData {
+        Score mobility[N_COLORS] = {ZERO_SCORE};
+        Score threats[N_COLORS]  = {ZERO_SCORE};
+        Score finalScore         = ZERO_SCORE;
+        int finalResult          = 0;
+    } scores;
 
+    struct PieceContext {
+        Square square  = INVALID;
+        U64 pieceBB    = 0;
+        U64 occupied   = 0;
+        U64 pawns      = 0;
+        U64 enemyPawns = 0;
+    };
+
+    // Initialization methods
     template <Color>
     void initialize();
+    template <Color c>
+    U64 calculateOutpostsZone(U64 pawns, U64 enemyPawns);
+    template <Color c>
+    U64 calculateMobilityZone(U64 pawns, U64 enemyPawns, Square kingSq);
+    template <Color c>
+    U64 calculateKingZone(Square kingSq);
 
-    template <Term, Color = WHITE>
+    // Core evaluation methods
+    template <EvalTerm, Color = WHITE>
     Score evaluateTerm();
-
     template <Color>
-    Score pawnsScore();
+    Score evaluatePawns();
     template <Color, PieceType>
-    Score piecesScore();
+    Score evaluatePieces();
     template <Color>
-    Score kingScore();
+    Score evaluateKing();
 
-    // king safety score helpers
-    int kingChecks(PieceType, U64, U64);
-    template <Color>
-    int kingDanger(Square);
-    template <Color>
-    Score kingShelter(Square);
-    template <Color>
-    Score fileShelter(U64, U64, File);
+    // Update methods for accumulating data during evaluation
+    template <Color c, PieceType p>
+    void updateAttackBitboards(U64 moves);
+    template <Color c, PieceType p>
+    void updateMobilityScore(U64 moves);
+    template <Color c, PieceType p>
+    void updateThreatScore(const PieceContext& ctx);
+    template <Color c, PieceType p>
+    Score updateKingDanger(const PieceContext& ctx, U64 moves);
 
-    // pieces score helpers
+    // Piece specific evaluation methods
+    template <Color c, PieceType p>
+    U64 calculateMoves(const PieceContext& ctx);
+    template <Color c, PieceType p>
+    Score evaluateMinorPiece(const PieceContext& ctx, U64 moves);
+    template <Color c>
+    Score evaluateBishop(const PieceContext& ctx);
     template <Color>
-    int bishopPawnBlockers(U64) const;
-    template <Color>
-    bool discoveredAttackOnQueen(Square, U64) const;
+    Score bishopPawnBlockers(const PieceContext& ctx) const;
+    template <Color c>
+    Score evaluateRook(const PieceContext& ctx);
+    template <Color c>
+    Score evaluateQueen(const PieceContext& ctx);
+    template <Color c, PieceType p>
+    bool discoveredAttack(const PieceContext& ctx);
 
-    // main eval helpers
+    // King evaluation methods
+    template <Color>
+    Score kingShelter(Square kingSq);
+    template <Color>
+    Score kingFileShelter(U64 pawns, U64 enemyPawns, File file);
+    template <Color c>
+    Score kingDanger(Square kingSq);
+    template <Color>
+    int kingDangerRaw(Square kingSq);
+    template <PieceType>
+    int kingChecksDanger(U64 safeChecks, U64 allChecks);
+
+    // Helpers
+    float scaleFactor() const;
+    int taperScore(Score score) const;
     int phase() const;
     int nonPawnMaterial(Color) const;
-    int scaleFactor() const;
-
-    void printEval(double, Score) const;
 
     friend class EvalTest;
-
-    static constexpr auto PtAllIdx    = idx(PieceType::All);
-    static constexpr auto PtPawnIdx   = idx(PieceType::Pawn);
-    static constexpr auto PtKnightIdx = idx(PieceType::Knight);
-    static constexpr auto PtBishopIdx = idx(PieceType::Bishop);
-    static constexpr auto PtRookIdx   = idx(PieceType::Rook);
-    static constexpr auto PtQueenIdx  = idx(PieceType::Queen);
-    static constexpr auto PtKingIdx   = idx(PieceType::King);
 };
 
-template <Verbosity mode>
-Eval<mode>::Eval(const Board& b) : board{b} {
+inline Eval::Eval(const Board& b, TermCallback termCallback)
+    : board{b}, termCallback{termCallback} {
     initialize<WHITE>();
     initialize<BLACK>();
 }
 
-template <Verbosity mode>
-template <Color c>
-void Eval<mode>::initialize() {
-    constexpr Color enemy     = ~c;
-    constexpr U64 rank2       = (c == WHITE) ? BB::rankBB(Rank::R2) : BB::rankBB(Rank::R7);
-    constexpr U64 outpostMask = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
-    U64 pawns                 = board.pieces<PieceType::Pawn>(c);
-    U64 enemyPawns            = board.pieces<PieceType::Pawn>(enemy);
-    Square kingSq             = board.kingSq(c);
-
-    attacks[c][PtAllIdx] = attacks[c][PtKingIdx] = BB::moves<PieceType::King>(kingSq);
-
-    outposts[c] = (~BB::pawnAttackSpan<enemy>(enemyPawns) &  // cannot be attacked by enemy pawns
-                   BB::pawnAttacks<c>(pawns) &               // supported by friendly pawn
-                   outpostMask);                             // on file 4-6 relative to side
-
-    mobilityZone[c] = ~(BB::pawnAttacks<enemy>(enemyPawns) |  // exclude enemy pawn attacks
-                        BB::set(kingSq) |                     // king square
-                        (pawns & rank2));                     // and unmoved pawns
-
-    Square center = makeSquare(std::clamp(fileOf(kingSq), File::F2, File::F7),
-                               std::clamp(rankOf(kingSq), Rank::R2, Rank::R7));
-    kingZone[c]   = BB::moves<PieceType::King>(center) | BB::set(center);  // 3x3 zone around king
-}
-
-template <Verbosity mode>
-template <Term term, Color c>
-inline Score Eval<mode>::evaluateTerm() {
+/// returns static evaluation of the position
+inline int Eval::evaluate() {
     Score score;
 
-    if constexpr (term == TERM_MATERIAL) score = board.materialScore();
-    if constexpr (term == TERM_PIECE_SQ) score = board.psqBonusScore();
-    if constexpr (term == TERM_PAWNS) score = pawnsScore<c>();
-    if constexpr (term == TERM_KNIGHTS) score = piecesScore<c, PieceType::Knight>();
-    if constexpr (term == TERM_BISHOPS) score = piecesScore<c, PieceType::Bishop>();
-    if constexpr (term == TERM_ROOKS) score = piecesScore<c, PieceType::Rook>();
-    if constexpr (term == TERM_QUEENS) score = piecesScore<c, PieceType::Queen>();
-    if constexpr (term == TERM_KING) score = kingScore<c>();
-    if constexpr (term == TERM_MOBILITY) score = mobility[c];
-    if constexpr (term == TERM_THREATS) score = threats[c];
+    // basic terms
+    score += evaluateTerm<EvalTerm::Material>();
+    score += evaluateTerm<EvalTerm::PieceSquares>();
+    score += evaluateTerm<EvalTerm::Pawns, WHITE>() - evaluateTerm<EvalTerm::Pawns, BLACK>();
+    score += evaluateTerm<EvalTerm::Knights, WHITE>() - evaluateTerm<EvalTerm::Knights, BLACK>();
+    score += evaluateTerm<EvalTerm::Bishops, WHITE>() - evaluateTerm<EvalTerm::Bishops, BLACK>();
+    score += evaluateTerm<EvalTerm::Rooks, WHITE>() - evaluateTerm<EvalTerm::Rooks, BLACK>();
+    score += evaluateTerm<EvalTerm::Queens, WHITE>() - evaluateTerm<EvalTerm::Queens, BLACK>();
 
-    if constexpr (mode == Verbose) {
-        termScores[term].addScore(c, score);
+    // terms requiring accumulated data from basic terms
+    score += evaluateTerm<EvalTerm::King, WHITE>() - evaluateTerm<EvalTerm::King, BLACK>();
+    score += evaluateTerm<EvalTerm::Mobility, WHITE>() - evaluateTerm<EvalTerm::Mobility, BLACK>();
+    score += evaluateTerm<EvalTerm::Threats, WHITE>() - evaluateTerm<EvalTerm::Threats, BLACK>();
+
+    score.eg          *= scaleFactor();
+    scores.finalScore  = score;
+
+    int stm            = ((board.sideToMove() == WHITE) ? 1 : -1);
+    scores.finalResult = taperScore(score) * stm + TEMPO_BONUS;
+    return scores.finalResult;
+}
+
+/// prep zone data + seed king attacks
+template <Color c>
+inline void Eval::initialize() {
+    constexpr Color enemy = ~c;
+
+    Square kingSq = board.kingSq(c);
+    U64 kingMoves = BB::moves<PieceType::King>(kingSq);
+    updateAttackBitboards<c, PieceType::King>(kingMoves);
+
+    U64 pawns         = board.pieces<PieceType::Pawn>(c);
+    U64 enemyPawns    = board.pieces<PieceType::Pawn>(enemy);
+    zones.outposts[c] = calculateOutpostsZone<c>(pawns, enemyPawns);
+    zones.mobility[c] = calculateMobilityZone<c>(pawns, enemyPawns, kingSq);
+    zones.king[c]     = calculateKingZone<c>(kingSq);
+}
+
+/// outposts mask: behind enemy pawns, supported by friendly pawns, on ranks 4-6
+template <Color c>
+inline U64 Eval::calculateOutpostsZone(U64 pawns, U64 enemyPawns) {
+    constexpr Color enemy    = ~c;
+    constexpr U64 rank4thru6 = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
+
+    U64 behindEnemy = ~BB::pawnAttackSpan<enemy>(enemyPawns);
+    U64 supported   = BB::pawnAttacks<c>(pawns);
+    return (behindEnemy & supported & rank4thru6);
+}
+
+/// mobility mask: safe from enemy pawns, not occupied by the king or rank 2 pawns
+template <Color c>
+inline U64 Eval::calculateMobilityZone(U64 pawns, U64 enemyPawns, Square kingSq) {
+    constexpr Color enemy = ~c;
+    constexpr U64 rank2   = (c == WHITE) ? BB::rankBB(Rank::R2) : BB::rankBB(Rank::R7);
+
+    U64 safe     = ~BB::pawnAttacks<enemy>(enemyPawns);
+    U64 occupied = BB::set(kingSq) | (pawns & rank2);
+    return (safe & ~occupied);
+}
+
+// king zone: 3x3 king neighborhood for king safety evaluation
+template <Color c>
+inline U64 Eval::calculateKingZone(Square kingSq) {
+    Square center = makeSquare(std::clamp(fileOf(kingSq), File::F2, File::F7),
+                               std::clamp(rankOf(kingSq), Rank::R2, Rank::R7));
+    return BB::moves<PieceType::King>(center) | BB::set(center);
+}
+
+// dispatch a single eval term -> score
+template <EvalTerm term, Color c>
+inline Score Eval::evaluateTerm() {
+    Score score;
+
+    // clang-format off
+    switch (term) {
+        case EvalTerm::Material:     score = board.materialScore(); break;
+        case EvalTerm::PieceSquares: score = board.psqBonusScore(); break;
+        case EvalTerm::Pawns:        score = evaluatePawns<c>(); break;
+        case EvalTerm::Knights:      score = evaluatePieces<c, PieceType::Knight>(); break;
+        case EvalTerm::Bishops:      score = evaluatePieces<c, PieceType::Bishop>(); break;
+        case EvalTerm::Rooks:        score = evaluatePieces<c, PieceType::Rook>(); break;
+        case EvalTerm::Queens:       score = evaluatePieces<c, PieceType::Queen>(); break;
+        case EvalTerm::King:         score = evaluateKing<c>(); break;
+        case EvalTerm::Mobility:     score = scores.mobility[c]; break;
+        case EvalTerm::Threats:      score = scores.threats[c]; break;
+        default: break;
     }
+    // clang-format on
 
+    if (termCallback) termCallback(term, c, score);
     return score;
 }
 
-template <Verbosity mode>
-int Eval<mode>::evaluate() {
-    Score score;
-
-    // evaluate basic terms
-    score += evaluateTerm<TERM_MATERIAL>();
-    score += evaluateTerm<TERM_PIECE_SQ>();
-    score += evaluateTerm<TERM_PAWNS, WHITE>() - evaluateTerm<TERM_PAWNS, BLACK>();
-    score += evaluateTerm<TERM_KNIGHTS, WHITE>() - evaluateTerm<TERM_KNIGHTS, BLACK>();
-    score += evaluateTerm<TERM_BISHOPS, WHITE>() - evaluateTerm<TERM_BISHOPS, BLACK>();
-    score += evaluateTerm<TERM_ROOKS, WHITE>() - evaluateTerm<TERM_ROOKS, BLACK>();
-    score += evaluateTerm<TERM_QUEENS, WHITE>() - evaluateTerm<TERM_QUEENS, BLACK>();
-
-    // more complex terms that require data from evaluating pieces
-    score += evaluateTerm<TERM_KING, WHITE>() - evaluateTerm<TERM_KING, BLACK>();
-    score += evaluateTerm<TERM_MOBILITY, WHITE>() - evaluateTerm<TERM_MOBILITY, BLACK>();
-    score += evaluateTerm<TERM_THREATS, WHITE>() - evaluateTerm<TERM_THREATS, BLACK>();
-
-    // scale eg and taper mg/eg to produce final eval
-    score.eg   *= scaleFactor() / float(SCALE_LIMIT);
-    int result  = taper(score, phase());
-
-    // result is relative to side to move
-    if (board.sideToMove() == BLACK) result = -result;
-
-    result += TEMPO_BONUS;
-    if constexpr (mode == Verbose) printEval(result, score);
-
-    return result;
-}
-
-template <Color c, typename Func>
-void forEachPiece(U64 bitboard, Func action) {
-    while (bitboard) {
-        Square sq = BB::advancedSq<c>(bitboard);
-        action(sq);
-        bitboard &= BB::clear(sq);
-    }
-}
-
-template <Verbosity mode>
+// eval pawn structure: isolated + backward + doubled
 template <Color c>
-inline Score Eval<mode>::pawnsScore() {
+Score Eval::evaluatePawns() {
     constexpr Color enemy = ~c;
     Score score;
 
     U64 pawns             = board.pieces<PieceType::Pawn>(c);
+    U64 enemyPawns        = board.pieces<PieceType::Pawn>(enemy);
     U64 pawnAttacks       = BB::pawnAttacks<c>(pawns);
     U64 pawnDoubleAttacks = BB::pawnDoubleAttacks<c>(pawns);
-    U64 enemyPawns        = board.pieces<PieceType::Pawn>(enemy);
 
-    attacksByTwo[c]       |= pawnDoubleAttacks | (attacks[c][PtAllIdx] & pawnAttacks);
-    attacks[c][PtAllIdx]  |= pawnAttacks;
-    attacks[c][PtPawnIdx] |= pawnAttacks;
+    attacks.byTwo[c] |= pawnDoubleAttacks | (attacks.by[c][PieceIdx::All] & pawnAttacks);
+    attacks.by[c][PieceIdx::All]  |= pawnAttacks;
+    attacks.by[c][PieceIdx::Pawn] |= pawnAttacks;
 
     // isolated pawns
     U64 pawnsFill      = BB::fillFiles(pawns);
     U64 isolatedPawns  = (pawns & ~BB::shiftWest(pawnsFill)) & (pawns & ~BB::shiftEast(pawnsFill));
-    score             += Scores::IsoPawn * BB::count(isolatedPawns);
+    score             += Conf::IsoPawn * BB::count(isolatedPawns);
 
     // backwards pawns
     U64 stops           = BB::pawnMoves<PawnMove::Push, c>(pawns);
     U64 attackSpan      = BB::pawnAttackSpan<c>(pawns);
     U64 enemyAttacks    = BB::pawnAttacks<enemy>(enemyPawns);
     U64 backwardsPawns  = BB::pawnMoves<PawnMove::Push, enemy>(stops & enemyAttacks & ~attackSpan);
-    score              += Scores::BackwardPawn * BB::count(backwardsPawns);
+    score              += Conf::BackwardPawn * BB::count(backwardsPawns);
 
     // doubled pawns (unsupported pawn with friendly pawns behind)
     U64 pawnsBehind   = pawns & BB::spanFront<c>(pawns);
     U64 doubledPawns  = pawnsBehind & ~pawnAttacks;
-    score            += Scores::DoubledPawn * BB::count(doubledPawns);
-
-    // passed pawns
-    // U64 passedPawns = pawns & ~BB::pawnFullSpan<enemy>(enemyPawns)
+    score            += Conf::DoubledPawn * BB::count(doubledPawns);
 
     return score;
 }
 
-template <Verbosity mode>
+// eval all pieces of type p for color c
 template <Color c, PieceType p>
-Score Eval<mode>::piecesScore() {
+Score Eval::evaluatePieces() {
     constexpr Color enemy = ~c;
     Score score;
 
@@ -347,340 +274,367 @@ Score Eval<mode>::piecesScore() {
     U64 pawns      = board.pieces<PieceType::Pawn>(c);
     U64 enemyPawns = board.pieces<PieceType::Pawn>(enemy);
 
-    // bonus for bishop pair
-    if constexpr (p == PieceType::Bishop) {
-        if (board.count(c, PieceType::Bishop) > 1) {
-            score += Scores::BishopPair;
-        }
-    }
+    U64 pieceBB = board.pieces<p>(c);
+    BB::scan<c>(pieceBB, [&](Square sq) {
+        PieceContext context{.square     = sq,
+                             .pieceBB    = BB::set(sq),
+                             .occupied   = occupied,
+                             .pawns      = pawns,
+                             .enemyPawns = enemyPawns};
 
-    forEachPiece<c>(board.pieces<p>(c), [&](Square sq) {
-        U64 pieceBB = BB::set(sq);
-        U64 moves   = BB::moves<p>(sq, occupied);
-        if (board.blockers(c) & pieceBB) {
-            moves &= BB::collinear(board.kingSq(c), sq);
-        }
+        U64 moves = calculateMoves<c, p>(context);
+        updateAttackBitboards<c, p>(moves);
+        updateMobilityScore<c, p>(moves);
+        updateThreatScore<c, p>(context);
+        score += updateKingDanger<c, p>(context, moves);
 
-        attacksByTwo[c]      |= (attacks[c][PtAllIdx] & moves);
-        attacks[c][PtAllIdx] |= moves;
-        attacks[c][idx(p)]   |= moves;
-
-        // populate king danger
-        U64 kingAttacks = moves & kingZone[enemy];
-        if (kingAttacks) {
-            kingAttackersCount[c]++;
-            kingAttackersValue[c] += KingAttackersValue[idx(p)];
-        } else if ((p == PieceType::Bishop && (BB::moves<p>(sq, pawns) & kingZone[enemy])) |
-                   (p == PieceType::Rook && (BB::moves<p>(sq) & kingZone[enemy]))) {
-            score += Scores::KingZoneXrayAttack;
+        if constexpr (p == PieceType::Bishop || p == PieceType::Knight) {
+            score += evaluateMinorPiece<c, p>(context, moves);
         }
 
-        // populate mobility
-        U64 nMoves   = BB::count(moves & mobilityZone[c]);
-        mobility[c] += Scores::Mobility[idx(p)][nMoves];
-
-        // populate threats
-        U64 defenders = board.attacksTo(sq, c);
-        U64 attackers = board.attacksTo(sq, enemy);
-        if (BB::count(attackers) > BB::count(defenders)) {
-            threats[c] += Scores::WeakPiece[idx(p)];
-        }
-
-        if constexpr (p == PieceType::Knight || p == PieceType::Bishop) {
-            // bonus for minor piece outposts,  reachable knight outposts
-            if (pieceBB & outposts[c]) {
-                if constexpr (p == PieceType::Knight) score += Scores::KnightOutpost;
-                if constexpr (p == PieceType::Bishop) score += Scores::BishopOutpost;
-            } else if (p == PieceType::Knight && moves & outposts[c]) {
-                score += Scores::ReachableOutpost;
-            }
-
-            // bonus minor piece guarded by pawn
-            if (pieceBB & BB::pawnMoves<PawnMove::Push, enemy>(pawns)) {
-                score += Scores::MinorPawnShield;
-            }
-
-            if constexpr (p == PieceType::Bishop) {
-                // bonus for bishop on long diagonal
-                if (BB::isMany(CENTER_SQUARES & BB::moves<p>(sq, pawns))) {
-                    score += Scores::BishopLongDiagonal;
-                }
-
-                // penalty for bishop blocked by friendly pawns
-                score += Scores::BishopBlockedByPawn * bishopPawnBlockers<c>(pieceBB);
-            }
-        }
-
-        if constexpr (p == PieceType::Rook) {
-            // bonus for rook on open file, penalty for closed file w blocked pawn
-            U64 fileBB = BB::fileBB(fileOf(sq));
-            if (!(pawns & fileBB)) {
-                score += Scores::RookOpenFile[!(enemyPawns & fileBB)];
-            } else if (pawns & fileBB & BB::pawnMoves<PawnMove::Push, enemy>(occupied)) {
-                score += Scores::RookClosedFile;
-            }
-        }
-
-        if constexpr (p == PieceType::Queen) {
-            // penalty for discovered attacks on queen
-            if (discoveredAttackOnQueen<c>(sq, occupied)) {
-                score += Scores::QueenDiscoveredAttack;
-            }
+        if constexpr (p == PieceType::Bishop) {
+            score += evaluateBishop<c>(context);
+        } else if constexpr (p == PieceType::Rook) {
+            score += evaluateRook<c>(context);
+        } else if constexpr (p == PieceType::Queen) {
+            score += evaluateQueen<c>(context);
         }
     });
 
+    if constexpr (p == PieceType::Bishop) {
+        if (board.count(c, PieceType::Bishop) > 1) score += Conf::BishopPair;
+    }
+
     return score;
 }
 
-template <Verbosity mode>
+// king safety: pawn shelter + incoming attacks
 template <Color c>
-inline Score Eval<mode>::kingScore() {
+Score Eval::evaluateKing() {
     constexpr Color enemy = ~c;
-    Square kingSq         = board.kingSq(c);
-    Score score           = kingShelter<c>(kingSq);
+    Score score;
+    Square kingSq = board.kingSq(c);
 
+    score += kingShelter<c>(kingSq);
     if (board.canCastleOO(c)) score = std::max(score, kingShelter<c>(KingDestinationOO[c]));
     if (board.canCastleOOO(c)) score = std::max(score, kingShelter<c>(KingDestinationOOO[c]));
 
-    int danger  = kingDanger<c>(kingSq);
-    score      -= {danger * danger / 2048,  // scale mg quadratically
-                   danger / 8};             // scale eg linearly
+    score -= kingDanger<c>(kingSq);
 
     return score;
 }
 
-template <Verbosity mode>
-inline int Eval<mode>::kingChecks(PieceType pieceType, U64 safeChecks, U64 allChecks) {
-    int count = safeChecks ? BB::count(safeChecks) : BB::count(allChecks);
-    auto pt   = idx(pieceType);
-    int value = safeChecks ? SafeCheckValue[pt] : UnsafeCheckValue[pt];
-    return (value * (count + 1)) / 2;
+// merge moves into attack bitboards
+template <Color c, PieceType p>
+inline void Eval::updateAttackBitboards(U64 moves) {
+    attacks.byTwo[c]             |= (attacks.by[c][PieceIdx::All] & moves);
+    attacks.by[c][PieceIdx::All] |= moves;
+    attacks.by[c][idx(p)]        |= moves;
 }
 
-template <Verbosity mode>
-template <Color c>
-inline int Eval<mode>::kingDanger(Square kingSq) {
-    constexpr Color enemy = ~c;
-    int danger            = 0;
-
-    // calculate safe, potential checking squares
-    U64 kqOnlyDefense   = ~attacks[c][PtAllIdx] | attacks[c][PtKingIdx] | attacks[c][PtQueenIdx];
-    U64 weaklyDefended  = kqOnlyDefense & attacks[enemy][PtAllIdx] & ~attacksByTwo[c];
-    U64 safeChecks      = ~attacks[c][PtAllIdx] | (weaklyDefended & attacksByTwo[enemy]);
-    safeChecks         &= ~board.pieces<PieceType::All>(enemy);
-
-    // evaluate knight checks
-    U64 knightChecks      = BB::moves<PieceType::Knight>(kingSq) & attacks[c][PtKnightIdx];
-    U64 safeKnightChecks  = knightChecks & safeChecks;
-    danger               += kingChecks(PieceType::Knight, safeKnightChecks, knightChecks);
-
-    // calculate sliding
-    U64 straightChecks = BB::moves<PieceType::Rook>(kingSq, board.pieces<PieceType::All>());
-    U64 diagonalChecks = BB::moves<PieceType::Bishop>(kingSq, board.pieces<PieceType::All>());
-
-    // evaluate rook checks
-    U64 rookChecks      = straightChecks & attacks[enemy][PtRookIdx];
-    U64 safeRookChecks  = rookChecks & safeChecks;
-    danger             += kingChecks(PieceType::Rook, safeRookChecks, rookChecks);
-
-    // evaluate queen checks
-    U64 queenChecks      = (straightChecks | diagonalChecks) & attacks[enemy][PtQueenIdx];
-    U64 safeQueenChecks  = queenChecks & safeChecks & ~(rookChecks | attacks[c][PtQueenIdx]);
-    danger              += kingChecks(PieceType::Queen, safeQueenChecks, queenChecks);
-
-    // evaluate bishop checks
-    U64 bishopChecks      = diagonalChecks & attacks[enemy][PtBishopIdx];
-    U64 safeBishopChecks  = bishopChecks & safeChecks & ~queenChecks;
-    danger               += kingChecks(PieceType::Bishop, safeBishopChecks, bishopChecks);
-
-    // king zone attacks
-    danger += kingAttackersValue[enemy] * kingAttackersCount[enemy];
-
-    // king zone weaknesses
-    danger += 150 * BB::count(kingZone[c] & weaklyDefended);
-
-    // pinned pieces
-    danger += 50 * BB::count(board.blockers(c));
-
-    return danger;
+// add mobility bonus for # of moves
+template <Color c, PieceType p>
+inline void Eval::updateMobilityScore(U64 moves) {
+    U64 moveCount       = BB::count(moves & zones.mobility[c]);
+    scores.mobility[c] += Conf::Mobility[idx(p)][moveCount];
 }
 
-template <Verbosity mode>
-template <Color c>
-inline Score Eval<mode>::kingShelter(Square kingSq) {
+// penalize weak pieces if attackers > defenders
+template <Color c, PieceType p>
+inline void Eval::updateThreatScore(const PieceContext& ctx) {
     constexpr Color enemy = ~c;
+
+    U64 defenders    = board.attacksTo(ctx.square, c);
+    U64 attackers    = board.attacksTo(ctx.square, enemy);
+    bool outnumbered = BB::count(attackers) > BB::count(defenders);
+    if (outnumbered) {
+        scores.threats[c] += Conf::WeakPiece[idx(p)];
+    }
+}
+
+// update king attackers with attacks on enemy king zone
+template <Color c, PieceType p>
+inline Score Eval::updateKingDanger(const PieceContext& ctx, U64 moves) {
+    constexpr Color enemy = ~c;
+
+    if (moves & zones.king[enemy]) {
+        kingAttackers.count[enemy]++;
+        kingAttackers.value[enemy] += Conf::AttackedKingZoneDanger[idx(p)];
+    } else if constexpr (p == PieceType::Bishop || p == PieceType::Rook) {
+        U64 xrays = BB::moves<p>(ctx.square, ctx.pawns) & zones.king[enemy];
+        if (xrays) return Conf::KingZoneXrayAttack;
+    }
+
+    return ZERO_SCORE;
+}
+
+template <Color c, PieceType p>
+inline U64 Eval::calculateMoves(const PieceContext& ctx) {
+    U64 moves       = BB::moves<p>(ctx.square, ctx.occupied);
+    U64 pinnedPiece = board.blockers(c) & ctx.pieceBB;
+    if (pinnedPiece) moves &= BB::collinear(board.kingSq(c), ctx.square);
+
+    return moves;
+}
+
+// minor piece eval: outposts + pawn shields
+template <Color c, PieceType p>
+inline Score Eval::evaluateMinorPiece(const PieceContext& ctx, U64 moves) {
+    static_assert(p == PieceType::Knight || p == PieceType::Bishop);
+    constexpr Color enemy = ~c;
+    Score score;
+
+    if (ctx.pieceBB & zones.outposts[c]) {
+        if constexpr (p == PieceType::Knight)
+            score += Conf::KnightOutpost;
+        else
+            score += Conf::BishopOutpost;
+    } else if constexpr (p == PieceType::Knight) {
+        if (moves & zones.outposts[c]) {
+            score += Conf::ReachableOutpost;
+        }
+    }
+
+    if (ctx.pieceBB & BB::pawnMoves<PawnMove::Push, enemy>(ctx.pawns)) {
+        score += Conf::MinorPawnShield;
+    }
+
+    return score;
+}
+
+// bishop eval: long diagonals + pawn block penalty
+template <Color c>
+inline Score Eval::evaluateBishop(const PieceContext& ctx) {
+    Score score;
+
+    U64 xrayMoves       = BB::moves<PieceType::Bishop>(ctx.square, ctx.pawns);
+    bool onLongDiagonal = BB::isMany(CENTER_SQUARES & xrayMoves);
+    if (onLongDiagonal) score += Conf::BishopLongDiagonal;
+
+    score += bishopPawnBlockers<c>(ctx);
+
+    return score;
+}
+
+// penalize bishops blocked by pawns on the same color squares
+template <Color c>
+inline Score Eval::bishopPawnBlockers(const PieceContext& ctx) const {
+    constexpr Color enemy = ~c;
+
+    U64 sameColorPawns = ctx.pawns & (ctx.pieceBB & DARK_SQUARES ? DARK_SQUARES : LIGHT_SQUARES);
+    int sameColorCount = BB::count(sameColorPawns);
+
+    U64 blockedPawns       = ctx.pawns & BB::pawnMoves<PawnMove::Push, enemy>(ctx.occupied);
+    U64 outsidePawnChain   = ctx.pieceBB & BB::pawnAttacks<c>(ctx.pawns);
+    int pawnBlockingFactor = BB::count(blockedPawns & CENTER_FILES) + !outsidePawnChain;
+
+    return Conf::BishopBlockedByPawn * sameColorCount * pawnBlockingFactor;
+}
+
+/// rook eval: open/semi-open file bonus, closed+blocked penalty
+template <Color c>
+inline Score Eval::evaluateRook(const PieceContext& ctx) {
+    constexpr Color enemy = ~c;
+
+    U64 rookFileMask = BB::fileBB(fileOf(ctx.square));
+    U64 filePawns    = ctx.pawns & rookFileMask;
+    bool semiOpen    = !filePawns;
+
+    if (semiOpen) {
+        bool fullyOpen = !(ctx.enemyPawns & rookFileMask);
+        return Conf::RookOpenFile[fullyOpen];
+    } else if (filePawns & BB::pawnMoves<PawnMove::Push, enemy>(ctx.occupied)) {
+        return Conf::RookClosedFile;
+    }
+
+    return ZERO_SCORE;
+}
+
+// queen eval: penalize discovered attacks
+template <Color c>
+inline Score Eval::evaluateQueen(const PieceContext& ctx) {
+    if (discoveredAttack<c, PieceType::Bishop>(ctx) || discoveredAttack<c, PieceType::Rook>(ctx)) {
+        return Conf::QueenDiscoveredAttack;
+    }
+    return ZERO_SCORE;
+}
+
+// penalize discovered attacks on the piece
+template <Color c, PieceType p>
+inline bool Eval::discoveredAttack(const PieceContext& ctx) {
+    constexpr Color enemy = ~c;
+
+    bool isDiscoverAttacked = false;
+    U64 attackers           = board.pieces<p>(enemy) & BB::moves<p>(ctx.square, 0);
+
+    BB::scan<c>(attackers, [&](Square pieceSq) {
+        U64 piecesBetween  = BB::between(ctx.square, pieceSq) & ctx.occupied;
+        isDiscoverAttacked = !BB::isMany(piecesBetween);
+        if (isDiscoverAttacked) return;
+    });
+
+    return isDiscoverAttacked;
+}
+
+// king pawn-shelter score: friendly pawn shield vs enemy pawn storm
+template <Color c>
+Score Eval::kingShelter(Square kingSq) {
+    constexpr Color enemy = ~c;
+    Score score;
 
     File kingFile = fileOf(kingSq);
     Rank kingRank = rankOf(kingSq);
 
-    U64 pawnsInFront = BB::spanFront<c>(BB::rankBB(kingRank));
-    U64 enemyPawns   = board.pieces<PieceType::Pawn>(enemy) & pawnsInFront;
-    U64 pawns =
-        board.pieces<PieceType::Pawn>(c) & pawnsInFront & ~BB::pawnAttacks<enemy>(enemyPawns);
+    U64 pawns      = board.pieces<PieceType::Pawn>(c);
+    U64 enemyPawns = board.pieces<PieceType::Pawn>(enemy);
 
-    File file   = std::clamp(kingFile, File::F2, File::F7);
-    Score score = fileShelter<c>(pawns, enemyPawns, file - 1) +
-                  fileShelter<c>(pawns, enemyPawns, file) +
-                  fileShelter<c>(pawns, enemyPawns, file + 1);
+    U64 aheadOfKingMask = BB::spanFront<c>(BB::rankBB(kingRank));
+    U64 pawnsAhead      = pawns & aheadOfKingMask & ~BB::pawnAttacks<enemy>(enemyPawns);
+    U64 enemyPawnsAhead = enemyPawns & aheadOfKingMask;
 
-    score += Scores::KingFile[int(kingFile)];
+    File file  = std::clamp(kingFile, File::F2, File::F7);
+    score     += kingFileShelter<c>(pawnsAhead, enemyPawnsAhead, file - 1);
+    score     += kingFileShelter<c>(pawnsAhead, enemyPawnsAhead, file);
+    score     += kingFileShelter<c>(pawnsAhead, enemyPawnsAhead, file + 1);
 
-    bool friendlyOpenFile  = !(board.pieces<PieceType::Pawn>(c) & BB::fileBB(kingFile));
-    bool enemyOpenFile     = !(board.pieces<PieceType::Pawn>(enemy) & BB::fileBB(kingFile));
-    score                 += Scores::KingOpenFile[friendlyOpenFile][enemyOpenFile];
+    score += Conf::KingFile[idx(kingFile)];
+
+    bool friendlyOpenFile  = !(pawns & BB::fileBB(kingFile));
+    bool enemyOpenFile     = !(enemyPawns & BB::fileBB(kingFile));
+    score                 += Conf::KingOpenFile[friendlyOpenFile][enemyOpenFile];
 
     return score;
 }
 
-template <Verbosity mode>
+// shelter score for one file: friendly pawn rank + enemy pawn rank
 template <Color c>
-inline Score Eval<mode>::fileShelter(U64 pawns, U64 enemyPawns, File file) {
+inline Score Eval::kingFileShelter(U64 pawns, U64 enemyPawns, File file) {
     constexpr Color enemy = ~c;
     Score score;
 
-    // our pawns
-    pawns     &= BB::fileBB(file);
-    Rank rank  = pawns ? relativeRank(BB::advancedSq<enemy>(pawns), c) : Rank::R1;
-    score     += Scores::PawnRankShelter[int(rank)];
+    pawns      &= BB::fileBB(file);
+    enemyPawns &= BB::fileBB(file);
 
-    // enemy pawns
-    enemyPawns     &= BB::fileBB(file);
-    Rank enemyRank  = enemyPawns ? relativeRank(BB::advancedSq<enemy>(enemyPawns), c) : Rank::R1;
-    bool isBlocked  = (rank != Rank::R1) && ((rank + 1) == enemyRank);
-    score          += Scores::PawnRankStorm[isBlocked][int(enemyRank)];
+    Square friendlyPawn = BB::selectSquare<enemy>(pawns);
+    Square enemyPawn    = BB::selectSquare<enemy>(enemyPawns);
+    Rank friendlyRank   = pawns ? relativeRank(friendlyPawn, c) : Rank::R1;
+    Rank enemyRank      = enemyPawns ? relativeRank(enemyPawn, c) : Rank::R1;
+    bool blocked        = pawns && (friendlyRank + 1 == enemyRank);
+
+    score += Conf::PawnRankShelter[idx(friendlyRank)];
+    score += Conf::PawnRankStorm[blocked][idx(enemyRank)];
 
     return score;
 }
 
-/**
- * @brief Determines if the queen at the given square is vulnerable to a discovered attack.
- *
- * This function evaluates whether there is an enemy bishop or rook on the same diagonal, rank, or
- * file as the specified square, such that a discovered attack on the queen could occur. A
- * discovered attack happens when there is exactly one piece between the enemy attacker and the
- * square in question, and that piece is moved to reveal the attack.
- *
- * @tparam debug A boolean flag for enabling debug mode.
- * @tparam c The color of the player to check for discovered attacks (WHITE or BLACK).
- * @param sq The square occupied by the queen that is potentially subject to a discovered attack.
- * @param occupied The current occupancy bitboard indicating all occupied squares.
- * @return true if a discovered attack on the queen is possible, false otherwise.
- */
-template <Verbosity mode>
+// convert raw danger into score {mg=quad scaling, eg=linear scaling}
 template <Color c>
-inline bool Eval<mode>::discoveredAttackOnQueen(Square sq, U64 occupied) const {
-    constexpr Color enemy = ~c;
-    bool attacked         = false;
-
-    U64 attackingBishops =
-        BB::moves<PieceType::Bishop>(sq, 0) & board.pieces<PieceType::Bishop>(enemy);
-    forEachPiece<c>(attackingBishops, [&](Square bishopSq) {
-        U64 piecesBetween = BB::between(sq, bishopSq) & occupied;
-        if (piecesBetween && !BB::isMany(piecesBetween)) {
-            attacked = true;
-        }
-    });
-
-    U64 attackingRooks = BB::moves<PieceType::Rook>(sq, 0) & board.pieces<PieceType::Rook>(enemy);
-    forEachPiece<c>(attackingRooks, [&](Square rookSq) {
-        U64 piecesBetween = BB::between(sq, rookSq) & occupied;
-        if (piecesBetween && !BB::isMany(piecesBetween)) {
-            attacked = true;
-        }
-    });
-
-    return attacked;
+inline Score Eval::kingDanger(Square kingSq) {
+    int danger  = kingDangerRaw<c>(kingSq);
+    int mgScore = danger * danger / 2048;
+    int egScore = danger / 8;
+    return {mgScore, egScore};
 }
 
-/**
- * @brief Evaluates the alignment of the current player's pawns and bishops relative to the blocked
- * central pawns.
- *
- * This function calculates a score based on the interaction of the current player's pawns and
- * a specific bishop color (light or dark) specified by the bitboard `bb`. The score is adjusted by
- * the number of blocked pawns in the central files (C, D, E, F) and whether the bishop's path is
- * clear from friendly pawn attacks.
- *
- * @tparam debug A boolean flag for enabling debug mode.
- * @tparam c The color of the player (WHITE or BLACK).
- * @param bb A bitboard indicating the squares occupied by the player's bishops of a specific color.
- * @return An integer score representing the influence of pawns on the given bishops, adjusted by
- *         the number of blocked central pawns.
- */
-template <Verbosity mode>
+// return 'raw' king danger metric (checks, weak defenses, pins, etc)
 template <Color c>
-inline int Eval<mode>::bishopPawnBlockers(U64 bb) const {
+int Eval::kingDangerRaw(Square kingSq) {
     constexpr Color enemy = ~c;
-    U64 pawns             = board.pieces<PieceType::Pawn>(c);
-    U64 blockedPawns      = pawns & BB::pawnMoves<PawnMove::Push, enemy>(board.occupancy());
-    U64 sameColorSquares  = (bb & DARK_SQUARES) ? DARK_SQUARES : LIGHT_SQUARES;
-    int pawnFactor = BB::count(blockedPawns & CENTER_FILES) + !(BB::pawnAttacks<c>(pawns) & bb);
-    return pawnFactor * BB::count(pawns & sameColorSquares);
+    int danger            = 0;
+
+    U64 defended       = attacks.by[c][PieceIdx::All];
+    U64 attacked       = attacks.by[enemy][PieceIdx::All];
+    U64 kqDefense      = attacks.by[c][PieceIdx::Queen] | attacks.by[c][PieceIdx::King];
+    U64 weaklyDefended = (~defended | kqDefense) & attacked & ~attacks.byTwo[c];
+    U64 safelyAttacked = ~board.pieces<PieceType::All>(enemy) &
+                         (~defended | (weaklyDefended & attacks.byTwo[enemy]));
+
+    U64 knightMoves       = attacks.by[enemy][PieceIdx::Knight];
+    U64 knightChecks      = BB::moves<PieceType::Knight>(kingSq) & knightMoves;
+    U64 safeKnightChecks  = knightChecks & safelyAttacked;
+    danger               += kingChecksDanger<PieceType::Knight>(safeKnightChecks, knightChecks);
+
+    U64 occupancy      = board.occupancy();
+    U64 straightChecks = BB::moves<PieceType::Rook>(kingSq, occupancy);
+    U64 diagonalChecks = BB::moves<PieceType::Bishop>(kingSq, occupancy);
+
+    U64 rookChecks      = straightChecks & attacks.by[enemy][PieceIdx::Rook];
+    U64 safeRookChecks  = rookChecks & safelyAttacked;
+    danger             += kingChecksDanger<PieceType::Rook>(safeRookChecks, rookChecks);
+
+    U64 queenChecks      = (straightChecks | diagonalChecks) & attacks.by[enemy][PieceIdx::Queen];
+    U64 badQueenChecks   = rookChecks | attacks.by[c][PieceIdx::Queen];
+    U64 safeQueenChecks  = queenChecks & safelyAttacked & ~badQueenChecks;
+    danger              += kingChecksDanger<PieceType::Queen>(safeQueenChecks, queenChecks);
+
+    U64 bishopChecks      = diagonalChecks & attacks.by[enemy][PieceIdx::Bishop];
+    U64 safeBishopChecks  = bishopChecks & safelyAttacked & ~queenChecks;
+    danger               += kingChecksDanger<PieceType::Bishop>(safeBishopChecks, bishopChecks);
+
+    int kingZoneAttacks  = kingAttackers.value[c] * kingAttackers.count[c];
+    danger              += kingZoneAttacks;
+
+    int kingZoneWeakness  = BB::count(zones.king[c] & weaklyDefended);
+    danger               += Conf::WeakKingZoneDanger * kingZoneWeakness;
+
+    int pinsCount  = BB::count(board.blockers(c));
+    danger        += Conf::PinnedPieceDanger * pinsCount;
+
+    return danger;
 }
 
-template <Verbosity mode>
-inline int Eval<mode>::phase() const {
+// scale danger non-linearly, 1 check = 1×, 2 checks = ~1.3×, 3 checks = 1.5×, asymptotes to 2×
+template <PieceType p>
+inline int Eval::kingChecksDanger(U64 safeChecks, U64 allChecks) {
+    constexpr auto pt = idx(p);
+    int checkCount    = BB::count(safeChecks ? safeChecks : allChecks);
+    auto checkValue   = safeChecks ? Conf::SafeCheckDanger : Conf::UnsafeCheckDanger;
+    return (checkValue[pt] * checkCount * 2) / (checkCount + 1);
+}
+
+// scale endgame eval toward 0 in draw-ish pawn endings,
+inline float Eval::scaleFactor() const {
+    int pawnCount = board.count(board.sideToMove(), PieceType::Pawn);
+    return std::min(SCALE_LIMIT, 36 + 5 * pawnCount) / float(SCALE_LIMIT);
+}
+
+// blend midgame / endgame scores based on game phase
+inline int Eval::taperScore(Score score) const {
+    int mgPhase = phase();
+    int egPhase = PHASE_LIMIT - mgPhase;
+    return ((score.mg * mgPhase) + (score.eg * egPhase)) / PHASE_LIMIT;
+}
+
+// game phase: 0 = endgame, PHASE_LIMIT = middlegame
+inline int Eval::phase() const {
     int npm      = nonPawnMaterial(WHITE) + nonPawnMaterial(BLACK);
     int material = std::clamp(npm, EG_LIMIT, MG_LIMIT);
     return ((material - EG_LIMIT) * PHASE_LIMIT) / (MG_LIMIT - EG_LIMIT);
 }
 
-template <Verbosity mode>
-inline int Eval<mode>::nonPawnMaterial(Color c) const {
+inline int Eval::nonPawnMaterial(Color c) const {
     return ((board.count(c, PieceType::Knight) * KNIGHT_VALUE_MG) +
             (board.count(c, PieceType::Bishop) * BISHOP_VALUE_MG) +
             (board.count(c, PieceType::Rook) * ROOK_VALUE_MG) +
             (board.count(c, PieceType::Queen) * QUEEN_VALUE_MG));
 }
 
-template <Verbosity mode>
-int Eval<mode>::scaleFactor() const {
-    // place holder, scale proportionally with pawns
-    int pawnCount = board.count(board.sideToMove(), PieceType::Pawn);
-    return std::min(SCALE_LIMIT, 36 + 5 * pawnCount);
-}
+inline int eval(const Board& board) { return Eval(board).evaluate(); }
 
-template <Verbosity mode>
-void Eval<mode>::printEval(double result, Score score) const {
-    result = board.sideToMove() == WHITE ? result : -result;
-    // clang-format off
-    std::cout << std::showpoint << std::noshowpos << std::fixed << std::setprecision(2)
-                << "     Term    |    White    |    Black    |    Total   \n"
-                << "             |   MG    EG  |   MG    EG  |   MG    EG \n"
-                << " ------------+-------------+-------------+------------\n"
-                << std::setw(12) << "Material" << termScores[TERM_MATERIAL]
-                << std::setw(12) << "Piece Sq." << termScores[TERM_PIECE_SQ]
-                << std::setw(12) << "Pawns" << termScores[TERM_PAWNS]
-                << std::setw(12) << "Knights" << termScores[TERM_KNIGHTS]
-                << std::setw(12) << "Bishops" << termScores[TERM_BISHOPS]
-                << std::setw(12) << "Rooks" << termScores[TERM_ROOKS]
-                << std::setw(12) << "Queens" << termScores[TERM_QUEENS]
-                << std::setw(12) << "Kings" << termScores[TERM_KING]
-                << std::setw(12) << "Mobility" << termScores[TERM_MOBILITY]
-                << std::setw(12) << "Threats" << termScores[TERM_THREATS]
-                << " ------------+-------------+-------------+------------\n"
-                << std::setw(12) << "Total" << TermData{{std::nullopt, score}}
-                << "\nEvaluation:\t" << result / PAWN_VALUE_MG << '\n';
-    // clang-format on
-}
+// eval + per-term score breakdown (for logging/debug)
+class EvalVerbose {
+   private:
+    Eval eval;
+    ScoreTracker scoreTracker;
 
-inline std::ostream& operator<<(std::ostream& os, const TermData& term) {
-    os << " | ";
-    if (term.scores[BLACK].has_value()) {
-        os << term.scores[WHITE].value() << " | ";
-        os << term.scores[BLACK].value() << " | ";
-        os << term.scores[WHITE].value() - term.scores[BLACK].value();
-    } else {
-        os << " ----  ---- |  ----  ---- | " << term.scores[WHITE].value();
-    }
-    os << '\n';
-    return os;
-}
+   public:
+    EvalVerbose(const Board& b)
+        : eval(b, [this](EvalTerm term, Color c, Score score) {
+              scoreTracker.addScore(term, score, c);
+          }) {}
 
-template <Verbosity mode = Silent>
-int eval(const Board& board) {
-    return Eval<mode>(board).evaluate();
-}
+    int evaluate() { return eval.evaluate(); };
 
-template int eval<Silent>(const Board&);
-template int eval<Verbose>(const Board&);
+    std::string toString() const;
+    friend std::ostream& operator<<(std::ostream& os, const EvalVerbose& eval);
+};

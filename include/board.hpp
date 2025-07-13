@@ -208,33 +208,33 @@ inline U64 Board::attacksTo(U64 bitboard, Color c) const {
 template <bool applyHash>
 inline void Board::addPiece(Square sq, Color c, PieceType pt) {
     pieceCount[c][idx(pt)]++;
-    piecesBB[c][idx(pt)]             ^= BB::set(sq);
-    piecesBB[c][idx(PieceType::All)] ^= BB::set(sq);
-    squares[sq]                       = makePiece(c, pt);
-    material                         += pieceScore(pt, c);
-    psqBonus                         += pieceSqScore(pt, c, sq);
+    piecesBB[c][idx(pt)]       ^= BB::set(sq);
+    piecesBB[c][PieceIdx::All] ^= BB::set(sq);
+    squares[sq]                 = makePiece(c, pt);
+    material                   += pieceScore(pt, c);
+    psqBonus                   += pieceSqScore(pt, c, sq);
     if constexpr (applyHash) state.at(ply).zkey ^= Zobrist::hashPiece(c, pt, sq);
 }
 
 template <bool applyHash>
 inline void Board::removePiece(Square sq, Color c, PieceType pt) {
     pieceCount[c][idx(pt)]--;
-    piecesBB[c][idx(pt)]             ^= BB::set(sq);
-    piecesBB[c][idx(PieceType::All)] ^= BB::set(sq);
-    squares[sq]                       = Piece::None;
-    material                         -= pieceScore(pt, c);
-    psqBonus                         -= pieceSqScore(pt, c, sq);
+    piecesBB[c][idx(pt)]       ^= BB::set(sq);
+    piecesBB[c][PieceIdx::All] ^= BB::set(sq);
+    squares[sq]                 = Piece::None;
+    material                   -= pieceScore(pt, c);
+    psqBonus                   -= pieceSqScore(pt, c, sq);
     if constexpr (applyHash) state.at(ply).zkey ^= Zobrist::hashPiece(c, pt, sq);
 }
 
 template <bool applyHash>
 inline void Board::movePiece(Square from, Square to, Color c, PieceType pt) {
-    U64 mask                          = BB::set(from) | BB::set(to);
-    piecesBB[c][idx(pt)]             ^= mask;
-    piecesBB[c][idx(PieceType::All)] ^= mask;
-    squares[from]                     = Piece::None;
-    squares[to]                       = makePiece(c, pt);
-    psqBonus                         += pieceSqScore(pt, c, to) - pieceSqScore(pt, c, from);
+    U64 mask                    = BB::set(from) | BB::set(to);
+    piecesBB[c][idx(pt)]       ^= mask;
+    piecesBB[c][PieceIdx::All] ^= mask;
+    squares[from]               = Piece::None;
+    squares[to]                 = makePiece(c, pt);
+    psqBonus                   += pieceSqScore(pt, c, to) - pieceSqScore(pt, c, from);
 
     if constexpr (applyHash) {
         state.at(ply).zkey ^= Zobrist::hashPiece(c, pt, from) ^ Zobrist::hashPiece(c, pt, to);
@@ -330,12 +330,12 @@ inline void Board::updateCheckInfo() {
 
     state[ply].checkers = attacksTo(kingSq(turn), enemy);
 
-    state[ply].checks[idx(PieceType::Pawn)]   = BB::pawnAttacks(BB::set(enemyKing), enemy);
-    state[ply].checks[idx(PieceType::Knight)] = BB::moves<PieceType::Knight>(enemyKing, occupied);
-    state[ply].checks[idx(PieceType::Bishop)] = BB::moves<PieceType::Bishop>(enemyKing, occupied);
-    state[ply].checks[idx(PieceType::Rook)]   = BB::moves<PieceType::Rook>(enemyKing, occupied);
-    state[ply].checks[idx(PieceType::Queen)] =
-        state[ply].checks[idx(PieceType::Bishop)] | state[ply].checks[idx(PieceType::Rook)];
+    state[ply].checks[PieceIdx::Pawn]   = BB::pawnAttacks(BB::set(enemyKing), enemy);
+    state[ply].checks[PieceIdx::Knight] = BB::moves<PieceType::Knight>(enemyKing, occupied);
+    state[ply].checks[PieceIdx::Bishop] = BB::moves<PieceType::Bishop>(enemyKing, occupied);
+    state[ply].checks[PieceIdx::Rook]   = BB::moves<PieceType::Rook>(enemyKing, occupied);
+    state[ply].checks[PieceIdx::Queen] =
+        state[ply].checks[PieceIdx::Bishop] | state[ply].checks[PieceIdx::Rook];
 
     updatePinInfo(WHITE);
     updatePinInfo(BLACK);

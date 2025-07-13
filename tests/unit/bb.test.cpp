@@ -112,6 +112,33 @@ TEST(BB, CorrectMostSignificantBitPop) {
     EXPECT_EQ(bb, 0);
 }
 
+TEST(BitboardTests, SelectSquare) {
+    U64 bb = BB::set(A1, B2, C3);
+    EXPECT_EQ(BB::selectSquare<WHITE>(bb), C3);
+    EXPECT_EQ(BB::selectSquare<BLACK>(bb), A1);
+}
+
+TEST(BitboardTests, PopSquare) {
+    U64 bb = BB::set(A1, B2, C3);
+    EXPECT_EQ(BB::popSquare<WHITE>(bb), C3);
+    EXPECT_EQ(bb, BB::set(A1, B2));
+    EXPECT_EQ(BB::popSquare<BLACK>(bb), A1);
+    EXPECT_EQ(bb, BB::set(B2));
+}
+
+TEST(BitboardTests, Scan) {
+    U64 bb = BB::set(A1, B2, C3);
+    std::vector<Square> scannedSquares;
+    auto action = [&scannedSquares](Square sq) { scannedSquares.push_back(sq); };
+
+    BB::scan<WHITE>(bb, action);
+
+    EXPECT_EQ(scannedSquares.size(), 3);
+    EXPECT_EQ(scannedSquares[0], C3);
+    EXPECT_EQ(scannedSquares[1], B2);
+    EXPECT_EQ(scannedSquares[2], A1);
+}
+
 TEST(BB, CorrectFillNorthValues) {
     EXPECT_EQ(BB::fillNorth(BB::set(A1)), BB::fileBB(File::F1));
     EXPECT_EQ(BB::fillNorth(BB::set(H1)), BB::fileBB(File::F8));

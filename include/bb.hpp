@@ -37,6 +37,11 @@ constexpr U64 isMany(const U64 bb) { return bb & (bb - 1); }
 constexpr Square lsb(const U64 bb) { return static_cast<Square>(__builtin_ctzll(bb)); }
 constexpr Square msb(const U64 bb) { return static_cast<Square>(63 - __builtin_clzll(bb)); }
 
+template <Color c>
+constexpr Square selectSquare(U64 bb) {
+    return (c == WHITE) ? msb(bb) : lsb(bb);
+}
+
 constexpr Square lsbPop(U64& bb) {
     auto sq  = lsb(bb);
     bb      &= clear(sq);
@@ -49,8 +54,16 @@ constexpr Square msbPop(U64& bb) {
 }
 
 template <Color c>
-constexpr Square advancedSq(U64 bb) {
-    return (c == WHITE) ? msb(bb) : lsb(bb);
+constexpr Square popSquare(U64& bb) {
+    return (c == WHITE) ? msbPop(bb) : lsbPop(bb);
+}
+
+template <Color c, typename Func>
+inline void scan(U64& bb, Func action) {
+    while (bb) {
+        Square sq = BB::popSquare<c>(bb);
+        action(sq);
+    }
 }
 
 constexpr U64 fillNorth(U64 bb) {

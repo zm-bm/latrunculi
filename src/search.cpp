@@ -28,7 +28,7 @@ int Thread::search() {
     this->allocatedTime = remaining > 0 ? std::min(allocated, options.movetime) : options.movetime;
 
     int score     = 0;
-    int prevScore = eval<Silent>(board);
+    int prevScore = eval(board);
     int depth     = 1 + (threadId & 1);
     int prevDepth = depth - 1;
 
