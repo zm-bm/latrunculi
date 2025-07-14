@@ -30,7 +30,7 @@ cmake --build build -j$(nproc)
 ### run
 
 ```bash
-./build/latrunculi   # opens uci prompt
+./bin/latrunculi   # opens uci prompt
 ```
 
 point any uci‑capable gui (cutechess, arena, etc.) at the binary and set options if needed:
@@ -44,9 +44,8 @@ go depth 20
 ## tests & benchmarks
 
 ```bash
-ctest              # googletest unit suite
-build/unit_test    # move-gen / correctness
-build/bench_test   # nps measurements
+./bin/tests         # move-gen / correctness
+./bin/benchmark     # nps measurements
 ```
 
 ## roadmap
