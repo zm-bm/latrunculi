@@ -56,5 +56,5 @@ class Engine {
     std::pair<std::string, std::string> parseSetOption(std::istringstream& iss);
     Move getMove(const std::string& token);
 
-    friend class BenchmarkTest;
+    friend class Benchmark;
 };
