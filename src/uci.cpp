@@ -63,8 +63,8 @@ void UCIProtocolHandler::help() const {
 
 void UCIProtocolHandler::identify(const UCIConfig& config) const {
     out << "id name Latrunculi " << VERSION << "\n";
-    out << "id author Eric VanderHelm\n\n";
-    out << config << "\n";
+    out << "id author Eric VanderHelm\n";
+    out << config;
     out << "uciok" << std::endl;
 }
 
