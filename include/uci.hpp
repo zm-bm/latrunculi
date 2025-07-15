@@ -10,7 +10,7 @@
 #include "types.hpp"
 
 // --------------------------
-// UCI Protocol Implementation
+// UCI Protocol
 // https://www.wbec-ridderkerk.nl/html/UCIProtocol.html
 // --------------------------
 
@@ -124,6 +124,7 @@ struct UCIConfig {
             } else {
                 throw std::runtime_error("Unsupported option type for: " + name);
             }
+            os << "\n";
         }
         return os;
     }
