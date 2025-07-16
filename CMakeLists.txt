@@ -4,7 +4,6 @@ project(Latrunculi)
 # Specify C++ standard
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 # Include directories
 include_directories(include)
@@ -38,5 +37,5 @@ target_link_libraries(tests lib gtest gmock pthread)
 include(CTest)
 add_test(NAME UnitTests COMMAND tests)
 
-# Copy to bin directory after build
+# Set output directory for executables to bin
 set_target_properties(latrunculi benchmark tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
