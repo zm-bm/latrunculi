@@ -417,7 +417,7 @@ std::string Board::toSAN(Move move) const {
 }
 
 std::ostream& operator<<(std::ostream& os, const Board& board) {
-    for (Rank rank = Rank::R8; rank <= Rank::R1; --rank) {
+    for (Rank rank = Rank::R8; rank >= Rank::R1; --rank) {
         os << "   +---+---+---+---+---+---+---+---+\n";
         os << "   |";
         for (File file = File::F1; file <= File::F8; ++file) {

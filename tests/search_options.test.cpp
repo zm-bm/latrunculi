@@ -1,4 +1,3 @@
-// filepath: /home/rick/code/latrunculi/tests/unit/search_options_gtest.cpp
 #include "search_options.hpp"
 
 #include <gtest/gtest.h>
