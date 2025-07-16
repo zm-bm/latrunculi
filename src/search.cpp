@@ -11,13 +11,26 @@
 #include "tt.hpp"
 #include "types.hpp"
 
+int Thread::search() { return 0; }
+
+template <NodeType node>
+int Thread::alphabeta(int alpha, int beta, int depth) {
+    return 0;
+}
+
+int Thread::quiescence(int alpha, int beta) { return 0; }
+
+// -----------------------------
+// Deprecated search functions
+// -----------------------------
+
 constexpr int AspirationWindow = 50;
 constexpr int LmrMoves         = 2;
 constexpr int LmrDepth         = 3;
 constexpr int FutilityMargin   = 300;
 constexpr int NullMoveR        = 3;
 
-int Thread::search() {
+int Thread::search_DEPRECATED() {
     nodes = 0;
     ply   = 0;
     pv.clear();
@@ -71,7 +84,7 @@ int Thread::search() {
 }
 
 template <NodeType node>
-int Thread::alphabeta(int alpha, int beta, int depth) {
+int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
     constexpr bool isRoot   = node == NodeType::Root;
     constexpr bool isPV     = isRoot || node == NodeType::PV;
     constexpr auto nodeType = isPV ? NodeType::PV : NodeType::NonPV;
@@ -230,9 +243,9 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     return bestScore;
 }
 
-template int Thread::alphabeta<NodeType::Root>(int, int, int);
+template int Thread::alphabeta_DEPRECATED<NodeType::Root>(int, int, int);
 
-int Thread::quiescence(int alpha, int beta) {
+int Thread::quiescence_DEPRECATED(int alpha, int beta) {
     if (stopSignal) {
         return ABORT_SCORE;
     } else if (isTimeUp()) {

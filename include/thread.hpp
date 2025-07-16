@@ -58,8 +58,13 @@ class Thread {
     // search.cpp
     int search();
     template <NodeType = NodeType::Root>
-    int alphabeta(int, int, int);
-    int quiescence(int, int);
+    int alphabeta(int alpha, int beta, int depth);
+    int quiescence(int alpha, int beta);
+
+    int search_DEPRECATED();
+    template <NodeType = NodeType::Root>
+    int alphabeta_DEPRECATED(int, int, int);
+    int quiescence_DEPRECATED(int, int);
 
     // inline functions / helpers
     bool isMainThread() const;
