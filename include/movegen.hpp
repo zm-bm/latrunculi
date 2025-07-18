@@ -14,7 +14,7 @@
 #include "tt.hpp"
 #include "types.hpp"
 
-template <MoveGenMode T>
+template <MoveGenMode T = MoveGenMode::All>
 class MoveGenerator {
    public:
     MoveGenerator(const Board& board);

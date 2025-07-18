@@ -4,7 +4,7 @@
 #include "move.hpp"
 
 TEST(PrincipalVariationTest, UpdateAndBestLine) {
-    PrincipalVariation pv;
+    PVTable pv;
 
     // Initially, bestLine should be empty
     EXPECT_TRUE(pv.bestLine().empty());
@@ -14,7 +14,7 @@ TEST(PrincipalVariationTest, UpdateAndBestLine) {
     pv.update(0, move1);
 
     // After update, bestLine should contain only move1
-    MoveLine best = pv.bestLine();
+    PVLine best = pv.bestLine();
     ASSERT_EQ(best.size(), 1);
     EXPECT_EQ(best[0], move1);
 
@@ -34,7 +34,7 @@ TEST(PrincipalVariationTest, UpdateAndBestLine) {
 }
 
 TEST(PrincipalVariationTest, ClearMethods) {
-    PrincipalVariation pv;
+    PVTable pv;
     Move move1(A2, A3);
     Move move2(B2, B3);
     Move move3(C2, C3);
@@ -48,7 +48,7 @@ TEST(PrincipalVariationTest, ClearMethods) {
     pv.clear(1);
 
     // ply 0 was not cleared, so bestLine remains
-    MoveLine best = pv.bestLine();
+    PVLine best = pv.bestLine();
     ASSERT_EQ(best.size(), 1);
     EXPECT_EQ(best[0], move1);
 
@@ -59,7 +59,7 @@ TEST(PrincipalVariationTest, ClearMethods) {
 }
 
 TEST(PrincipalVariationTest, OperatorIndexAndStringConversion) {
-    PrincipalVariation pv;
+    PVTable pv;
     Move move1(A2, A3);
     Move move2(B2, B3);
 
@@ -71,8 +71,8 @@ TEST(PrincipalVariationTest, OperatorIndexAndStringConversion) {
     pv.update(0, move1);
 
     // Test operator[]: accessing ply 0 should return the same line as bestLine
-    MoveLine line0 = pv[0];
-    MoveLine best  = pv.bestLine();
+    PVLine line0 = pv[0];
+    PVLine best  = pv.bestLine();
     EXPECT_EQ(line0, best);
 
     // Expect the string to contain move1's representation.

@@ -7,7 +7,7 @@
 #include "thread_pool.hpp"
 #include "uci.hpp"
 
-int depth    = 10;
+int depth    = 8;
 int movetime = 2000;
 std::ostringstream oss;
 constexpr auto AnyMove = "ANY";
@@ -21,9 +21,9 @@ class SearchTest : public ::testing::Test {
 
    protected:
     void SetUp() override {
-        thread           = threadPool.threads[0].get();
-        options.depth    = depth;
-        options.movetime = movetime;
+        thread        = threadPool.threads[0].get();
+        options.depth = depth;
+        // options.movetime = movetime;
     }
 
     void testSearch(const std::string fen, int score, std::string move) {
@@ -32,7 +32,7 @@ class SearchTest : public ::testing::Test {
 
         EXPECT_EQ(thread->search(), score) << fen;
         if (move != AnyMove) {
-            EXPECT_EQ(thread->pv.bestMove().str(), move) << fen;
+            EXPECT_EQ(thread->pvTable.bestMove().str(), move) << fen;
         }
     }
 
@@ -42,7 +42,7 @@ class SearchTest : public ::testing::Test {
 
         EXPECT_GT(thread->search(), score) << fen;
         if (move != AnyMove) {
-            EXPECT_EQ(thread->pv.bestMove().str(), move) << fen;
+            EXPECT_EQ(thread->pvTable.bestMove().str(), move) << fen;
         }
     }
 };

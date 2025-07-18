@@ -21,6 +21,11 @@ class ThreadTest : public ::testing::Test {
 };
 
 TEST_F(ThreadTest, ThreadStartsAndExitsCorrectly) {
+    SearchOptions options;
+    options.fen   = STARTFEN;
+    options.debug = false;
+    thread->set(options, Clock::now());
+
     thread->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     thread->exit();

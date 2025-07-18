@@ -11,14 +11,141 @@
 #include "tt.hpp"
 #include "types.hpp"
 
-int Thread::search() { return 0; }
+void Thread::reset() {
+    nodes = 0;
+    ply   = 0;
+    pvTable.clear();
 
-template <NodeType node>
-int Thread::alphabeta(int alpha, int beta, int depth) {
-    return 0;
+    searchTime = options.searchTimeMs(board.sideToMove());
 }
 
-int Thread::quiescence(int alpha, int beta) { return 0; }
+int Thread::search() {
+    reset();
+
+    int value;
+    int depth = 1;
+
+    for (; depth <= options.depth; ++depth) {
+        value = alphabeta<>(-INF_SCORE, INF_SCORE, depth);
+        if (stopSignal) break;
+        sendInfo(value, depth, rootLine);
+    }
+
+    if (isMainThread()) {
+        sendInfo(rootValue, rootDepth, rootLine);
+        sendMove(rootLine.empty() ? NullMove : rootLine[0]);
+        if constexpr (STATS_ENABLED) sendStats();
+    }
+
+    return value;
+}
+
+template <NodeType N>
+int Thread::alphabeta(int alpha, int beta, int depth) {
+    constexpr bool root   = N == NodeType::Root;
+    constexpr bool pvnode = N != NodeType::NonPV;
+    constexpr auto child  = pvnode ? NodeType::PV : NodeType::NonPV;
+
+    checkStop();
+    if (stopSignal) return alpha;
+
+    bool inCheck = board.isCheck();
+    if (inCheck) depth++;
+
+    if (depth == 0) return quiescence(alpha, beta);
+
+    nodes++;
+    stats.addNode(ply);
+
+    // TODO: check for repetition or 50-move rule
+
+    Move pvMove = pvTable.bestMove(ply);
+    pvTable.clear(ply);
+
+    MoveGenerator<> moves{board};
+    MoveOrder moveOrder(board, heuristics, ply, pvMove);
+    moves.sort(moveOrder);
+
+    int legalMoves = 0;
+    int bestValue  = -INF_SCORE;
+    Move bestMove  = NullMove;
+
+    for (auto& move : moves) {
+        if (!board.isLegalMove(move)) continue;
+        legalMoves++;
+
+        board.make(move);
+
+        int value = -alphabeta<child>(-beta, -alpha, depth - 1);
+
+        board.unmake();
+
+        if (stopSignal) return alpha;
+
+        if (value >= beta) {
+            return value;
+        }
+
+        if (value > bestValue) {
+            bestValue = value;
+            bestMove  = move;
+
+            if (value > alpha) {
+                alpha = value;
+                if constexpr (pvnode) pvTable.update(ply, move);
+                if constexpr (root) {
+                    rootValue = value;
+                    rootDepth = depth;
+                    rootLine  = pvTable[0];
+                    sendInfo(rootValue, rootDepth, rootLine);
+                }
+            }
+        }
+    }
+
+    if (legalMoves == 0) {
+        return inCheck ? -MATE_SCORE + ply : DRAW_SCORE;
+    }
+
+    return bestValue;
+}
+
+int Thread::quiescence(int alpha, int beta) {
+    checkStop();
+    if (stopSignal) return alpha;
+
+    nodes++;
+    stats.addQNode(ply);
+
+    int standPat = eval(board);
+
+    if (standPat >= beta) return standPat;
+    if (standPat > alpha) alpha = standPat;
+
+    MoveGenerator<MoveGenMode::Captures> moves{board};
+
+    int legalMoves = 0;
+    for (auto& move : moves) {
+        if (!board.isLegalMove(move)) continue;
+        legalMoves++;
+
+        board.make(move);
+        int score = -quiescence(-beta, -alpha);
+        board.unmake();
+
+        if (stopSignal) return alpha;
+
+        if (score >= beta) return score;
+        if (score > alpha) alpha = score;
+    }
+
+    if (legalMoves == 0) {
+        if (board.isCheck()) return -MATE_SCORE + ply;
+        if (board.isDraw()) return DRAW_SCORE;
+    }
+
+    return alpha;
+}
 
 // -----------------------------
 // Deprecated search functions
@@ -33,12 +160,12 @@ constexpr int NullMoveR        = 3;
 int Thread::search_DEPRECATED() {
     nodes = 0;
     ply   = 0;
-    pv.clear();
+    pvTable.clear();
 
-    auto remaining      = board.sideToMove() == WHITE ? options.wtime : options.btime;
-    auto increment      = board.sideToMove() == WHITE ? options.winc : options.binc;
-    auto allocated      = remaining / options.movestogo + increment;
-    this->allocatedTime = remaining > 0 ? std::min(allocated, options.movetime) : options.movetime;
+    auto remaining   = board.sideToMove() == WHITE ? options.wtime : options.btime;
+    auto increment   = board.sideToMove() == WHITE ? options.winc : options.binc;
+    auto allocated   = remaining / options.movestogo + increment;
+    this->searchTime = remaining > 0 ? std::min(allocated, options.movetime) : options.movetime;
 
     int score     = 0;
     int prevScore = eval(board);
@@ -54,13 +181,13 @@ int Thread::search_DEPRECATED() {
         int beta  = prevScore + AspirationWindow;
 
         // 3. First search
-        score = alphabeta(alpha, beta, depth);
+        score = alphabeta<>(alpha, beta, depth);
 
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
-            score = alphabeta(-INF_SCORE, beta, depth);
+            score = alphabeta<>(-INF_SCORE, beta, depth);
         } else if (score >= beta) {
-            score = alphabeta(alpha, INF_SCORE, depth);
+            score = alphabeta<>(alpha, INF_SCORE, depth);
         }
 
         if (score == ABORT_SCORE) break;
@@ -72,9 +199,9 @@ int Thread::search_DEPRECATED() {
         if (isMateScore(score)) break;
     }
 
-    reportBestLine(prevScore, prevDepth, true);
+    sendInfo(prevScore, prevDepth, pvTable[0]);
     if (isMainThread()) {
-        uciHandler.bestmove(pv.bestMove().str());
+        uciHandler.bestmove(pvTable.bestMove().str());
         if constexpr (STATS_ENABLED) {
             uciHandler.logOutput(threadPool.accumulate(&Thread::stats));
         }
@@ -92,7 +219,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
     // Stop search when time expires
     if (stopSignal) {
         return ABORT_SCORE;
-    } else if (isTimeUp()) {
+    } else if (isTimeUp_DEPRECATED()) {
         threadPool.stopAll();
     }
 
@@ -121,7 +248,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
             if (entry->flag == TT::EntryType::Exact) {
                 stats.addTTCutoff(ply);
                 if (board.isLegalMove(entry->move)) {
-                    pv.update(ply, entry->move);
+                    pvTable.update(ply, entry->move);
                 }
                 return score;
             }
@@ -149,11 +276,11 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
 
     // 3. Generate moves and sort by priority
     MoveGenerator<MoveGenMode::All> moves{board};
-    Move pvMove = pv.bestMove(ply);
+    Move pvMove = pvTable.bestMove(ply);
     MoveOrder moveOrder(board,
                         heuristics,
                         ply,
-                        (isPV ? pv.bestMove(ply) : NullMove),
+                        (isPV ? pvTable.bestMove(ply) : NullMove),
                         (entry ? entry->move : NullMove));
     moves.sort(moveOrder);
 
@@ -176,7 +303,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
         board.make(move);
 
         int score;
-        pv.clear(ply + 1);
+        pvTable.clear(ply + 1);
         if (isRoot || searchedMoves == 0) {
             score = -alphabeta<nodeType>(-beta, -alpha, depth - 1);
         } else {
@@ -205,8 +332,8 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
             bestScore = score;
             bestMove  = move;
             if (isPV && score > alpha) {
-                pv.update(ply, move);
-                if constexpr (isRoot) reportBestLine(score, depth);
+                pvTable.update(ply, move);
+                if constexpr (isRoot) sendInfo(score, depth, pvTable[0]);
             }
         }
 
@@ -238,7 +365,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
         flag = TT::EntryType::LowerBound;
     TT::table.store(key, bestMove, ttScore(bestScore, ply), depth, flag);
 
-    if constexpr (isRoot) reportBestLine(bestScore, depth);
+    if constexpr (isRoot) sendInfo(bestScore, depth, pvTable[0]);
 
     return bestScore;
 }
@@ -248,7 +375,7 @@ template int Thread::alphabeta_DEPRECATED<NodeType::Root>(int, int, int);
 int Thread::quiescence_DEPRECATED(int alpha, int beta) {
     if (stopSignal) {
         return ABORT_SCORE;
-    } else if (isTimeUp()) {
+    } else if (isTimeUp_DEPRECATED()) {
         threadPool.stopAll();
     }
 

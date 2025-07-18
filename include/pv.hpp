@@ -7,48 +7,56 @@
 #include "move.hpp"
 #include "types.hpp"
 
-using MoveLine = std::vector<Move>;
+using PVLine = std::vector<Move>;
 
-class PrincipalVariation {
+inline std::string toString(const PVLine& line) {
+    std::string result;
+    for (const auto& move : line) {
+        result += move.str() + " ";
+    }
+    return result;
+}
+
+class PVTable {
    private:
-    std::array<MoveLine, MAX_DEPTH> lines;
+    std::array<PVLine, MAX_DEPTH> lines;
 
    public:
     void update(const int ply, const Move& move);
     void clear(int ply);
     void clear();
     Move bestMove(int ply = 0) const;
-    MoveLine bestLine() const;
-    MoveLine& operator[](const int ply);
+    PVLine bestLine() const;
+    PVLine& operator[](const int ply);
     operator std::string() const;
 };
 
-inline void PrincipalVariation::update(const int ply, const Move& move) {
-    MoveLine& line = lines[ply];
-    MoveLine& prev = lines[ply + 1];
+inline void PVTable::update(const int ply, const Move& move) {
+    PVLine& line = lines[ply];
+    PVLine& prev = lines[ply + 1];
 
     line.clear();
     line.push_back(move);
     line.insert(line.end(), prev.begin(), prev.end());
 }
 
-inline void PrincipalVariation::clear() {
+inline void PVTable::clear() {
     for (auto& line : lines) {
         line.clear();
     }
 }
 
-inline void PrincipalVariation::clear(int ply) { lines[ply].clear(); }
+inline void PVTable::clear(int ply) { lines[ply].clear(); }
 
-inline Move PrincipalVariation::bestMove(int ply) const {
+inline Move PVTable::bestMove(int ply) const {
     return lines[ply].empty() ? NullMove : lines[ply][0];
 }
 
-inline MoveLine PrincipalVariation::bestLine() const { return lines[0]; }
+inline PVLine PVTable::bestLine() const { return lines[0]; }
 
-inline MoveLine& PrincipalVariation::operator[](const int ply) { return lines[ply]; }
+inline PVLine& PVTable::operator[](const int ply) { return lines[ply]; }
 
-inline PrincipalVariation::operator std::string() const {
+inline PVTable::operator std::string() const {
     std::string string;
     for (const auto& move : lines[0]) {
         string += move.str() + " ";
