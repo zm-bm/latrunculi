@@ -110,14 +110,26 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     moves.sort(moveOrder);
 
     int legalMoves = 0;
-
     for (auto& move : moves) {
         if (!board.isLegalMove(move)) continue;
         legalMoves++;
 
         board.make(move);
 
-        int value = -alphabeta<child>(-beta, -alpha, depth - 1);
+        auto fullSearch = [&] { return -alphabeta<child>(-beta, -alpha, depth - 1); };
+        auto zwSearch = [&] { return -alphabeta<NodeType::NonPV>(-alpha - 1, -alpha, depth - 1); };
+        int value;
+
+        // PVS search
+        if constexpr (root) {
+            value = fullSearch();
+        } else if (bestValue == -INF_SCORE) {
+            value = fullSearch();
+        } else {
+            value = zwSearch();
+            if constexpr (pvnode)
+                if (value > alpha) value = fullSearch();
+        }
 
         board.unmake();
 
