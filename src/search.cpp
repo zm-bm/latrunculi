@@ -11,6 +11,8 @@
 #include "tt.hpp"
 #include "types.hpp"
 
+constexpr int AspirationWindow = 50;
+
 void Thread::reset() {
     nodes = 0;
     ply   = 0;
@@ -25,14 +27,19 @@ void Thread::reset() {
 int Thread::search() {
     reset();
 
+    int value = eval(board);
     int depth = 1 + (threadId & 1);
 
     for (; depth <= options.depth; ++depth) {
         if constexpr (STATS_ENABLED) stats.reset();
 
-        int value = alphabeta<>(-INF_SCORE, INF_SCORE, depth);
+        value = searchWiden(depth, value);
 
         if (stopSignal) break;
+
+        rootValue = value;
+        rootDepth = depth;
+        rootLine  = pvTable[0];
         sendInfo(value, depth, rootLine);
     }
 
@@ -44,6 +51,20 @@ int Thread::search() {
     }
 
     return rootValue;
+}
+
+int Thread::searchWiden(int depth, int prevValue) {
+    int alpha = prevValue - AspirationWindow;
+    int beta  = prevValue + AspirationWindow;
+
+    int value = alphabeta<>(alpha, beta, depth);
+
+    if (value <= alpha)
+        value = alphabeta<>(-INF_SCORE, beta, depth);
+    else if (value >= beta)
+        value = alphabeta<>(alpha, INF_SCORE, depth);
+
+    return value;
 }
 
 template <NodeType N>
@@ -210,11 +231,10 @@ int Thread::quiescence(int alpha, int beta) {
 // Deprecated search functions
 // -----------------------------
 
-constexpr int AspirationWindow = 50;
-constexpr int LmrMoves         = 2;
-constexpr int LmrDepth         = 3;
-constexpr int FutilityMargin   = 300;
-constexpr int NullMoveR        = 3;
+constexpr int LmrMoves       = 2;
+constexpr int LmrDepth       = 3;
+constexpr int FutilityMargin = 300;
+constexpr int NullMoveR      = 3;
 
 int Thread::search_DEPRECATED() {
     nodes = 0;

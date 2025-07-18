@@ -64,8 +64,11 @@ class Thread {
     // search.cpp
     void reset();
     int search();
+    int searchWiden(int depth, int value);
+
     template <NodeType = NodeType::Root>
     int alphabeta(int alpha, int beta, int depth);
+
     int quiescence(int alpha, int beta);
 
     int search_DEPRECATED();
