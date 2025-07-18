@@ -50,7 +50,7 @@ Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
     auto updateThreads = [this](const int& value) { threadpool.resize(value); };
     config.registerOption<int>("Threads", DEFAULT_THREADS, 1, MAX_THREADS, updateThreads);
 
-    auto updateHash = [](const int& value) { TT::table.resize(value); };
+    auto updateHash = [](const int& value) { tt.resize(value); };
     config.registerOption<int>("Hash", DEFAULT_HASH_MB, 1, MAX_HASH_MB, updateHash);
 
     config.registerOption<bool>("Debug", DEFAULT_DEBUG);
@@ -111,7 +111,7 @@ bool Engine::setoption(std::istringstream& iss) {
 }
 
 bool Engine::newgame(std::istringstream& iss) {
-    TT::table.age();
+    tt.ageTable();
     threadpool.age();
     return true;
 }

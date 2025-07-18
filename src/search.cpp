@@ -14,19 +14,24 @@
 void Thread::reset() {
     nodes = 0;
     ply   = 0;
-    pvTable.clear();
 
-    searchTime = options.searchTimeMs(board.sideToMove());
+    pvTable.clear();
+    tt.ageTable();
+
+    Color c    = board.sideToMove();
+    searchTime = options.searchTimeMs(c);
 }
 
 int Thread::search() {
     reset();
 
-    int value;
-    int depth = 1;
+    int depth = 1 + (threadId & 1);
 
     for (; depth <= options.depth; ++depth) {
-        value = alphabeta<>(-INF_SCORE, INF_SCORE, depth);
+        if constexpr (STATS_ENABLED) stats.reset();
+
+        int value = alphabeta<>(-INF_SCORE, INF_SCORE, depth);
+
         if (stopSignal) break;
         sendInfo(value, depth, rootLine);
     }
@@ -34,10 +39,11 @@ int Thread::search() {
     if (isMainThread()) {
         sendInfo(rootValue, rootDepth, rootLine);
         sendMove(rootLine.empty() ? NullMove : rootLine[0]);
+
         if constexpr (STATS_ENABLED) sendStats();
     }
 
-    return value;
+    return rootValue;
 }
 
 template <NodeType N>
@@ -59,16 +65,51 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
     // TODO: check for repetition or 50-move rule
 
+    U64 key       = board.getKey();
+    int alpha0    = alpha;
+    int bestValue = -INF_SCORE;
+    Move bestMove = NullMove;
+    Move ttMove   = NullMove;
+
+    TT_Entry* e = tt.probe(key);
+    stats.addTTProbe(ply);
+    if (e != nullptr && board.isLegalMove(e->move)) {
+        ttMove = e->move;
+
+        if (e->depth >= depth) {
+            stats.addTTHit(ply);
+
+            auto score = ttScore(e->score, -ply);
+
+            if constexpr (!root) {
+                if (e->flag == TT_Flag::Exact) {
+                    stats.addTTCutoff(ply);
+                    pvTable.update(ply, ttMove);
+                    return score;
+                }
+            }
+
+            if (e->flag == TT_Flag::LowerBound) alpha = std::max(alpha, score);
+            if (e->flag == TT_Flag::UpperBound) beta = std::min(beta, score);
+
+            if constexpr (!pvnode) {
+                if (alpha >= beta) {
+                    stats.addTTCutoff(ply);
+                    pvTable.update(ply, ttMove);
+                    return score;
+                }
+            }
+        }
+    }
+
     Move pvMove = pvTable.bestMove(ply);
     pvTable.clear(ply);
 
     MoveGenerator<> moves{board};
-    MoveOrder moveOrder(board, heuristics, ply, pvMove);
+    MoveOrder moveOrder(board, heuristics, ply, pvMove, ttMove);
     moves.sort(moveOrder);
 
     int legalMoves = 0;
-    int bestValue  = -INF_SCORE;
-    Move bestMove  = NullMove;
 
     for (auto& move : moves) {
         if (!board.isLegalMove(move)) continue;
@@ -83,6 +124,9 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         if (stopSignal) return alpha;
 
         if (value >= beta) {
+            tt.store(key, move, ttScore(value, ply), depth, TT_Flag::LowerBound);
+            pvTable.clear(ply);
+            stats.addBetaCutoff(ply, move == moves[0]);
             return value;
         }
 
@@ -104,8 +148,11 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     }
 
     if (legalMoves == 0) {
-        return inCheck ? -MATE_SCORE + ply : DRAW_SCORE;
+        bestValue = inCheck ? -MATE_SCORE + ply : DRAW_SCORE;
     }
+
+    TT_Flag flag = (bestValue > alpha0) ? TT_Flag::Exact : TT_Flag::UpperBound;
+    tt.store(key, bestMove, ttScore(bestValue, ply), depth, flag);
 
     return bestValue;
 }
@@ -237,15 +284,15 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
     nodes++;
     stats.addNode(ply);
 
-    // 2. Check the transposition table
+    // 2. Check the transposition tt
     stats.addTTProbe(ply);
-    TT::Entry* entry = TT::table.probe(key);
+    TT_Entry* entry = tt.probe(key);
     if (entry && entry->depth >= depth) {
         auto score = ttScore(entry->score, -ply);
         stats.addTTHit(ply);
 
         if constexpr (!isRoot) {
-            if (entry->flag == TT::EntryType::Exact) {
+            if (entry->flag == TT_Flag::Exact) {
                 stats.addTTCutoff(ply);
                 if (board.isLegalMove(entry->move)) {
                     pvTable.update(ply, entry->move);
@@ -254,10 +301,10 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
             }
         }
         if constexpr (!isPV) {
-            if (entry->flag == TT::EntryType::LowerBound && score >= beta) {
+            if (entry->flag == TT_Flag::LowerBound && score >= beta) {
                 stats.addTTCutoff(ply);
                 return score;
-            } else if (entry->flag == TT::EntryType::UpperBound && score <= alpha) {
+            } else if (entry->flag == TT_Flag::UpperBound && score <= alpha) {
                 stats.addTTCutoff(ply);
                 return score;
             }
@@ -357,13 +404,13 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
         }
     }
 
-    // 8. Store result in transposition table
-    TT::EntryType flag = TT::EntryType::Exact;
+    // 8. Store result in transposition tt
+    TT_Flag flag = TT_Flag::Exact;
     if (bestScore <= lowerbound)
-        flag = TT::EntryType::UpperBound;
+        flag = TT_Flag::UpperBound;
     else if (bestScore >= upperbound)
-        flag = TT::EntryType::LowerBound;
-    TT::table.store(key, bestMove, ttScore(bestScore, ply), depth, flag);
+        flag = TT_Flag::LowerBound;
+    tt.store(key, bestMove, ttScore(bestScore, ply), depth, flag);
 
     if constexpr (isRoot) sendInfo(bestScore, depth, pvTable[0]);
 
