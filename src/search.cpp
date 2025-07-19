@@ -18,6 +18,8 @@ void Thread::reset() {
     ply   = 0;
 
     pvTable.clear();
+    killers.clear();
+    history.clear();
     tt.ageTable();
 
     Color c    = board.sideToMove();
@@ -41,6 +43,8 @@ int Thread::search() {
         rootDepth = depth;
         rootLine  = pvTable[0];
         sendInfo(value, depth, rootLine);
+
+        history.age();
     }
 
     if (isMainThread()) {
@@ -127,13 +131,17 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     pvTable.clear(ply);
 
     MoveGenerator<> moves{board};
-    MoveOrder moveOrder(board, heuristics, ply, pvMove, ttMove);
+    MoveOrder moveOrder(board, ply, killers, history, pvMove, ttMove);
     moves.sort(moveOrder);
 
     int legalMoves = 0;
     for (auto& move : moves) {
         if (!board.isLegalMove(move)) continue;
+
         legalMoves++;
+        bool isCapture = board.isCapture(move);
+        bool isQuiet   = (!isCapture && !board.isCheckingMove(move) &&
+                        move.type() != MoveType::Promotion && move.type() != MoveType::EnPassant);
 
         board.make(move);
 
@@ -156,13 +164,22 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
         if (stopSignal) return alpha;
 
+        // fail-soft beta cutoff
         if (value >= beta) {
-            tt.store(key, move, ttScore(value, ply), depth, TT_Flag::LowerBound);
-            pvTable.clear(ply);
             stats.addBetaCutoff(ply, move == moves[0]);
+
+            if (!isCapture) {
+                killers.update(move, ply);
+                history.update(board.sideToMove(), move.from(), move.to(), depth);
+            }
+
+            pvTable.clear(ply);
+            tt.store(key, move, ttScore(value, ply), depth, TT_Flag::LowerBound);
+
             return value;
         }
 
+        // new best move, update values + pvTable
         if (value > bestValue) {
             bestValue = value;
             bestMove  = move;
@@ -203,6 +220,8 @@ int Thread::quiescence(int alpha, int beta) {
     if (standPat > alpha) alpha = standPat;
 
     MoveGenerator<MoveGenMode::Captures> moves{board};
+    MoveOrder moveOrder(board, ply, killers, history);
+    moves.sort(moveOrder);
 
     int legalMoves = 0;
     for (auto& move : moves) {
@@ -273,7 +292,7 @@ int Thread::search_DEPRECATED() {
         prevScore = score;
         prevDepth = depth;
 
-        heuristics.age();
+        // heuristics.age();
 
         if (isMateScore(score)) break;
     }
@@ -357,8 +376,9 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
     MoveGenerator<MoveGenMode::All> moves{board};
     Move pvMove = pvTable.bestMove(ply);
     MoveOrder moveOrder(board,
-                        heuristics,
                         ply,
+                        killers,
+                        history,
                         (isPV ? pvTable.bestMove(ply) : NullMove),
                         (entry ? entry->move : NullMove));
     moves.sort(moveOrder);
@@ -420,7 +440,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
         alpha = std::max(alpha, score);
         if (alpha >= beta) {
             // Beta cut-off
-            heuristics.addBetaCutoff(board, move, ply);
+            // heuristics.addBetaCutoff(board, move, ply);
             stats.addBetaCutoff(ply, move == moves[0]);
             break;
         }
@@ -476,7 +496,7 @@ int Thread::quiescence_DEPRECATED(int alpha, int beta) {
 
     // 2. Generate only forcing moves and sort by priority
     MoveGenerator<MoveGenMode::Captures> moves{board};
-    MoveOrder moveOrder(board, heuristics, ply);
+    MoveOrder moveOrder(board, ply, killers, history);
     moves.sort(moveOrder);
 
     // 3. Loop over moves

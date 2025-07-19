@@ -29,10 +29,8 @@ constexpr size_t MAX_HASH_MB     = 2048;
 constexpr bool DEFAULT_DEBUG     = false;
 
 // search constants
-constexpr int MAX_DEPTH     = 64;
-constexpr int MAX_MOVES     = 256;
-constexpr int MAX_HISTORY   = 1024;
-constexpr U64 NODE_INTERVAL = 8192;
+constexpr int MAX_DEPTH = 64;
+constexpr int MAX_MOVES = 256;
 
 // castle right constants
 constexpr CastleRights NO_CASTLE    = 0b0000;

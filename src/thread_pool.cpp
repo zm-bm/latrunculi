@@ -54,12 +54,6 @@ void ThreadPool::resize(size_t newSize) {
     }
 }
 
-void ThreadPool::age() const {
-    for (const auto& thread : threads) {
-        thread->heuristics.age();
-    }
-}
-
 int ThreadPool::size() const { return threads.size(); }
 
 template <typename T>

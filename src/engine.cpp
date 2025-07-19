@@ -112,7 +112,6 @@ bool Engine::setoption(std::istringstream& iss) {
 
 bool Engine::newgame(std::istringstream& iss) {
     tt.ageTable();
-    threadpool.age();
     return true;
 }
 

@@ -56,6 +56,7 @@ class TranspositionTable {
 
     void store(U64 key, Move move, I16 score, U8 depth, TT_Flag flag);
 
+    void clear();
     void resize(U32 megabytes);
 
     void ageTable() { ++age; }
@@ -95,6 +96,15 @@ inline void TranspositionTable::store(U64 key, Move move, I16 score, U8 depth, T
     *target = TT_Entry{move, score, key16, depth, age, flag};
 
     // cluster.lk.unlock();
+}
+
+inline void TranspositionTable::clear() {
+    for (U32 i = 0; i < (mask + 1); ++i) {
+        for (auto& entry : table[i].entries) {
+            entry = TT_Entry{};
+        }
+    }
+    age = 0;
 }
 
 inline void TranspositionTable::resize(U32 megabytes) {

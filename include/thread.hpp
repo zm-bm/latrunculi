@@ -30,11 +30,14 @@ class Thread {
     // search state
     Board board;
     PVTable pvTable;
-    Heuristics heuristics;
     SearchOptions options;
     TimePoint startTime;
     I64 searchTime;
     int ply;
+
+    // heuristics
+    KillerMoves killers;
+    HistoryTable history;
 
     // search stats
     U64 nodes;
@@ -116,7 +119,7 @@ inline void Thread::checkStop() {
 }
 
 inline bool Thread::isTimeUp_DEPRECATED() const {
-    if (!isMainThread() || (nodes % NODE_INTERVAL != 0)) {
+    if (!isMainThread() || (nodes % 1024 != 0)) {
         return false;
     }
 

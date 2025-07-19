@@ -96,6 +96,16 @@ enum class EvalTerm {
     Count,
 };
 
+enum MovePriority : U16 {
+    HASH_MOVE    = 1 << 15,
+    PV_MOVE      = 1 << 14,
+    PROM_MOVE    = 1 << 13,
+    GOOD_CAPTURE = 1 << 12,
+    KILLER_MOVE  = 1 << 11,
+    HISTORY_MOVE = 1 << 10,
+    BAD_CAPTURE  = 0,
+};
+
 enum class NodeType { Root, PV, NonPV };
 
 // -----------------

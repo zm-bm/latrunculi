@@ -8,35 +8,29 @@
 
 class MoveOrder {
    public:
-    MoveOrder(Board&, Heuristics&, int, Move = NullMove, Move = NullMove);
+    MoveOrder(Board& board,
+              int ply,
+              KillerMoves& killers,
+              HistoryTable& history,
+              Move pvMove   = NullMove,
+              Move hashMove = NullMove)
+        : board(board),
+          ply(ply),
+          killers(killers),
+          history(history),
+          pvMove(pvMove),
+          hashMove(hashMove) {}
+
     U16 scoreMove(const Move& move) const;
 
    private:
-    enum Priority : U16 {
-        HASH_MOVE    = 1 << 15,
-        PV_MOVE      = 1 << 14,
-        PROM_MOVE    = 1 << 13,
-        GOOD_CAPTURE = 1 << 12,
-        KILLER_MOVE  = 1 << 11,
-        BAD_CAPTURE  = 0,
-    };
-
     Board& board;
+    int ply;
     KillerMoves& killers;
     HistoryTable& history;
     Move pvMove;
     Move hashMove;
-    int ply;
 };
-
-inline MoveOrder::MoveOrder(
-    Board& board, Heuristics& heuristics, int ply, Move pvMove, Move hashMove)
-    : board(board),
-      killers(heuristics.killers),
-      history(heuristics.history),
-      ply(ply),
-      pvMove(pvMove),
-      hashMove(hashMove) {};
 
 inline U16 MoveOrder::scoreMove(const Move& move) const {
     if (move == pvMove) return PV_MOVE;
@@ -52,5 +46,9 @@ inline U16 MoveOrder::scoreMove(const Move& move) const {
 
     if (killers.isKiller(move, ply)) return KILLER_MOVE;
 
-    return history.get(board.sideToMove(), move.from(), move.to());
+    Color c     = board.sideToMove();
+    Square from = move.from();
+    Square to   = move.to();
+
+    return history.get(c, from, to);
 }

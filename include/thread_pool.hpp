@@ -21,7 +21,6 @@ class ThreadPool {
     void stopAll();
     void waitAll();
     void resize(size_t newSize);
-    void age() const;
 
     int size() const;
 

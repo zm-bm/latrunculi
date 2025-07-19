@@ -12,12 +12,13 @@ class MoveOrderTest : public ::testing::Test {
 
     int ply = 5;
     Board board;
-    Heuristics heuristics;
+    KillerMoves killers;
+    HistoryTable history;
 };
 
 TEST_F(MoveOrderTest, OrderMoves) {
     MoveGenerator<MoveGenMode::All> moves(board);
-    MoveOrder moveOrder(board, heuristics, ply);
+    MoveOrder moveOrder(board, ply, killers, history);
     moves.sort(moveOrder);
 
     EXPECT_FALSE(moves.empty()) << "Move list should not be empty";
@@ -25,13 +26,13 @@ TEST_F(MoveOrderTest, OrderMoves) {
 
 TEST_F(MoveOrderTest, OrderHeuristicMoves) {
     Move killerMove = Move(A5, A4);
-    heuristics.killers.update(killerMove, ply);
+    killers.update(killerMove, ply);
 
     Move historyMove = Move(A5, A6);
-    heuristics.history.update(board.sideToMove(), historyMove.from(), historyMove.to(), ply);
+    history.update(board.sideToMove(), historyMove.from(), historyMove.to(), ply);
 
     MoveGenerator<MoveGenMode::All> moves(board);
-    MoveOrder moveOrder(board, heuristics, ply);
+    MoveOrder moveOrder(board, ply, killers, history);
     moves.sort(moveOrder);
 
     EXPECT_GT(moves.size(), 3) << "Should be more than 3 moves";
@@ -45,7 +46,7 @@ TEST_F(MoveOrderTest, Hash_PVMovesFirst) {
     Move hashMove = Move(E2, E3);
 
     MoveGenerator<MoveGenMode::All> moves(board);
-    MoveOrder moveOrder(board, heuristics, ply, pvMove, hashMove);
+    MoveOrder moveOrder(board, ply, killers, history, pvMove, hashMove);
     moves.sort(moveOrder);
 
     EXPECT_GT(moves.size(), 1);
