@@ -482,3 +482,19 @@ TEST(BoardTest, ZobristKey) {
         EXPECT_EQ(b.getKey(), b.calculateKey());
     }
 }
+
+TEST(BoardTest, NonPawnMaterial) {
+    int mat = 2 * KNIGHT_VALUE_MG + 2 * BISHOP_VALUE_MG + 2 * ROOK_VALUE_MG + QUEEN_VALUE_MG;
+    std::vector<std::tuple<std::string, Color, int>> testCases = {
+        {EMPTYFEN, WHITE, 0},
+        {EMPTYFEN, BLACK, 0},
+        {STARTFEN, WHITE, mat},
+        {STARTFEN, BLACK, mat},
+        {"4k3/8/8/8/8/8/8/4K1NR w K - 0 1", WHITE, KNIGHT_VALUE_MG + ROOK_VALUE_MG},
+        {"4k1nr/8/8/8/8/8/8/4K3 w k - 0 1", BLACK, KNIGHT_VALUE_MG + ROOK_VALUE_MG}};
+
+    for (const auto& [fen, color, expected] : testCases) {
+        Board board(fen);
+        EXPECT_EQ(board.nonPawnMaterial(color), expected);
+    }
+}

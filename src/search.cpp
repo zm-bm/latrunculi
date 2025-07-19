@@ -72,7 +72,7 @@ int Thread::searchWiden(int depth, int prevValue) {
 }
 
 template <NodeType N>
-int Thread::alphabeta(int alpha, int beta, int depth) {
+int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
     constexpr bool root   = N == NodeType::Root;
     constexpr bool pvnode = N != NodeType::NonPV;
     constexpr auto child  = pvnode ? NodeType::PV : NodeType::NonPV;
@@ -90,12 +90,14 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
     // TODO: check for repetition or 50-move rule
 
+    Color turn    = board.sideToMove();
     U64 key       = board.getKey();
     int alpha0    = alpha;
     int bestValue = -INF_SCORE;
     Move bestMove = NullMove;
     Move ttMove   = NullMove;
 
+    // Check the transposition table
     TT_Entry* e = tt.probe(key);
     stats.addTTProbe(ply);
     if (e != nullptr && board.isLegalMove(e->move)) {
@@ -127,6 +129,21 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
         }
     }
 
+    // Null move pruning
+    if constexpr (!pvnode) {
+        int R = 3;
+        if (depth >= R && canNull && !inCheck && board.nonPawnMaterial(turn) > BISHOP_VALUE_MG) {
+            if (depth > 6) R = 4;
+
+            board.makeNull();
+            int value = -alphabeta<NodeType::NonPV>(-beta, -beta + 1, depth - R, NO_NULL);
+            board.unmmakeNull();
+
+            if (stopSignal) return alpha;
+            if (value >= beta) return value;
+        }
+    }
+
     Move pvMove = pvTable.bestMove(ply);
     pvTable.clear(ply);
 
@@ -137,19 +154,19 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
     int legalMoves = 0;
     for (auto& move : moves) {
         if (!board.isLegalMove(move)) continue;
-
         legalMoves++;
+
         bool isCapture = board.isCapture(move);
         bool isQuiet   = (!isCapture && !board.isCheckingMove(move) &&
                         move.type() != MoveType::Promotion && move.type() != MoveType::EnPassant);
+        int value;
 
         board.make(move);
 
+        // PVS search
         auto fullSearch = [&] { return -alphabeta<child>(-beta, -alpha, depth - 1); };
         auto zwSearch = [&] { return -alphabeta<NodeType::NonPV>(-alpha - 1, -alpha, depth - 1); };
-        int value;
 
-        // PVS search
         if constexpr (root) {
             value = fullSearch();
         } else if (bestValue == -INF_SCORE) {
@@ -170,7 +187,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
 
             if (!isCapture) {
                 killers.update(move, ply);
-                history.update(board.sideToMove(), move.from(), move.to(), depth);
+                history.update(turn, move.from(), move.to(), depth);
             }
 
             pvTable.clear(ply);
@@ -179,7 +196,7 @@ int Thread::alphabeta(int alpha, int beta, int depth) {
             return value;
         }
 
-        // new best move, update values + pvTable
+        // new best move, update alpha/best/root values + pvTable
         if (value > bestValue) {
             bestValue = value;
             bestMove  = move;

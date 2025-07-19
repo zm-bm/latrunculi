@@ -31,6 +31,8 @@ constexpr bool DEFAULT_DEBUG     = false;
 // search constants
 constexpr int MAX_DEPTH = 64;
 constexpr int MAX_MOVES = 256;
+constexpr bool DO_NULL  = true;
+constexpr bool NO_NULL  = false;
 
 // castle right constants
 constexpr CastleRights NO_CASTLE    = 0b0000;

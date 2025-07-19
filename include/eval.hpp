@@ -607,16 +607,9 @@ inline int Eval::taperScore(Score score) const {
 
 // game phase: 0 = endgame, PHASE_LIMIT = middlegame
 inline int Eval::phase() const {
-    int npm      = nonPawnMaterial(WHITE) + nonPawnMaterial(BLACK);
+    int npm      = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
     int material = std::clamp(npm, EG_LIMIT, MG_LIMIT);
     return ((material - EG_LIMIT) * PHASE_LIMIT) / (MG_LIMIT - EG_LIMIT);
-}
-
-inline int Eval::nonPawnMaterial(Color c) const {
-    return ((board.count(c, PieceType::Knight) * KNIGHT_VALUE_MG) +
-            (board.count(c, PieceType::Bishop) * BISHOP_VALUE_MG) +
-            (board.count(c, PieceType::Rook) * ROOK_VALUE_MG) +
-            (board.count(c, PieceType::Queen) * QUEEN_VALUE_MG));
 }
 
 inline int eval(const Board& board) { return Eval(board).evaluate(); }

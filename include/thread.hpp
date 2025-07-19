@@ -70,7 +70,7 @@ class Thread {
     int searchWiden(int depth, int value);
 
     template <NodeType = NodeType::Root>
-    int alphabeta(int alpha, int beta, int depth);
+    int alphabeta(int alpha, int beta, int depth, bool canNull = DO_NULL);
 
     int quiescence(int alpha, int beta);
 

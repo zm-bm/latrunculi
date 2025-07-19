@@ -60,6 +60,7 @@ class Board {
     U64 blockers(Color c) const;
     Square enPassantSq() const;
     U8 halfmove() const;
+    int nonPawnMaterial(Color c) const;
 
     // move/check properties
     int see(Move) const;
@@ -339,6 +340,13 @@ inline void Board::updateCheckInfo() {
 
     updatePinInfo(WHITE);
     updatePinInfo(BLACK);
+}
+
+inline int Board::nonPawnMaterial(Color c) const {
+    return ((count(c, PieceType::Knight) * KNIGHT_VALUE_MG) +
+            (count(c, PieceType::Bishop) * BISHOP_VALUE_MG) +
+            (count(c, PieceType::Rook) * ROOK_VALUE_MG) +
+            (count(c, PieceType::Queen) * QUEEN_VALUE_MG));
 }
 
 std::ostream& operator<<(std::ostream& os, const Board& board);

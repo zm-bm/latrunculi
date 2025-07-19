@@ -93,12 +93,6 @@ class EvalTest : public ::testing::Test {
         EXPECT_LE(std::abs(phaseValue - expected), tolerance) << fen;
     }
 
-    void testNonPawnMaterial(const std::string& fen, Color c, int expected) {
-        Board board(fen);
-        Eval eval(board);
-        EXPECT_EQ(eval.nonPawnMaterial(c), expected);
-    }
-
     void testScaleFactor(const std::string& fen, float expected) {
         Board board(fen);
         Eval eval(board);
@@ -437,20 +431,5 @@ TEST_F(EvalTest, Phase) {
 
     for (const auto& [fen, expected, tolerance] : testCases) {
         testPhase(fen, expected, tolerance);
-    }
-}
-
-TEST_F(EvalTest, NonPawnMaterial) {
-    int mat = 2 * KNIGHT_VALUE_MG + 2 * BISHOP_VALUE_MG + 2 * ROOK_VALUE_MG + QUEEN_VALUE_MG;
-    std::vector<std::tuple<std::string, Color, int>> testCases = {
-        {EMPTYFEN, WHITE, 0},
-        {EMPTYFEN, BLACK, 0},
-        {STARTFEN, WHITE, mat},
-        {STARTFEN, BLACK, mat},
-        {"4k3/8/8/8/8/8/8/4K1NR w K - 0 1", WHITE, KNIGHT_VALUE_MG + ROOK_VALUE_MG},
-        {"4k1nr/8/8/8/8/8/8/4K3 w k - 0 1", BLACK, KNIGHT_VALUE_MG + ROOK_VALUE_MG}};
-
-    for (const auto& [fen, color, expected] : testCases) {
-        testNonPawnMaterial(fen, color, expected);
     }
 }
