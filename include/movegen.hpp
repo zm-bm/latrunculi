@@ -175,7 +175,7 @@ void MoveGenerator<T>::generatePawnMoves(const U64 targets, const U64 occupied) 
         Square enpassant = board.enPassantSq();
         if (enpassant != INVALID) {
             // Only necessary if enemy pawn is targeted, or if in check
-            Square enemyPawn = pawnMove<C, PawnMove::Push, false>(enpassant);
+            Square enemyPawn = pawnMove<C, PawnMove::Push, BACKWARD>(enpassant);
             if (G != MoveGenMode::Evasions || (targets & BB::set(enemyPawn))) {
                 // Append en passant captures to move list
                 addEnPassants<PawnMove::Left, C>(pawns, enpassant);
@@ -230,7 +230,7 @@ inline void MoveGenerator<T>::addPawnMoves(U64 bitboard) {
         bitboard  &= BB::clear(to);
 
         // Reverse the move to get the origin square and append move
-        Square from = pawnMove<c, p, false>(to);
+        Square from = pawnMove<c, p, BACKWARD>(to);
         add(from, to);
     }
 };
@@ -244,7 +244,7 @@ inline void MoveGenerator<T>::addPawnPromotions(U64 bitboard) {
         bitboard  &= BB::clear(to);
 
         // Reverse the move to get the origin square and append moves
-        Square from = pawnMove<c, p, false>(to);
+        Square from = pawnMove<c, p, BACKWARD>(to);
 
         add(from, to, MoveType::Promotion, PieceType::Queen);
         add(from, to, MoveType::Promotion, PieceType::Rook);
@@ -259,7 +259,7 @@ inline void MoveGenerator<T>::addEnPassants(U64 pawns, Square enpassant) {
     U64 bitboard = BB::pawnMoves<p, c>(pawns) & BB::set(enpassant);
 
     if (bitboard) {
-        Square from = pawnMove<c, p, false>(enpassant);
+        Square from = pawnMove<c, p, BACKWARD>(enpassant);
         add(from, enpassant, MoveType::EnPassant);
     }
 }

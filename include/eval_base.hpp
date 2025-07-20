@@ -6,6 +6,14 @@
 
 // clang-format off
 struct EvalConfig {
+
+    static constexpr U64 darkSquares   = 0xAA55AA55AA55AA55ull;
+    static constexpr U64 lightSquares  = 0x55AA55AA55AA55AAull;
+    static constexpr U64 wOutposts     = 0x0000FFFFFF000000ull;
+    static constexpr U64 bOutposts     = 0x000000FFFFFF0000ull;
+    static constexpr U64 centerFiles   = 0x3C3C3C3C3C3C3C3Cull;
+    static constexpr U64 centerSquares = 0x0000001818000000ull;
+
     static constexpr Score IsoPawn               = {-5, -15};
     static constexpr Score BackwardPawn          = {-10, -25};
     static constexpr Score DoubledPawn           = {-10, -50};

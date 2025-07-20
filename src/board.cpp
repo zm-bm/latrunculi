@@ -72,7 +72,7 @@ bool Board::isLegalMove(Move mv) const {
         }
     } else if (mv.type() == MoveType::EnPassant) {
         // Check if captured pawn was blocking check
-        Square enemyPawn = pawnMove<PawnMove::Push, false>(to, turn);
+        Square enemyPawn = pawnMove<PawnMove::Push, BACKWARD>(to, turn);
         U64 occupied     = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
         auto diagSliders = pieces<PieceType::Bishop, PieceType::Queen>(~turn);
         auto lineSliders = pieces<PieceType::Rook, PieceType::Queen>(~turn);
@@ -115,7 +115,7 @@ bool Board::isCheckingMove(Move mv) const {
 
         case MoveType::EnPassant: {
             // Check if captured pawn was blocking enemy king from attack
-            Square enemyPawn = pawnMove<PawnMove::Push, false>(to, turn);
+            Square enemyPawn = pawnMove<PawnMove::Push, BACKWARD>(to, turn);
             U64 occupied     = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
             auto diagSliders = pieces<PieceType::Bishop, PieceType::Queen>(turn);
             auto lineSliders = pieces<PieceType::Rook, PieceType::Queen>(turn);
@@ -149,7 +149,7 @@ void Board::make(Move mv) {
     Color enemy             = ~turn;
     if (movetype == MoveType::EnPassant) {
         captPieceType      = PieceType::Pawn;
-        captureSq          = pawnMove<PawnMove::Push, false>(to, turn);
+        captureSq          = pawnMove<PawnMove::Push, BACKWARD>(to, turn);
         squares[captureSq] = Piece::None;
     }
 
@@ -193,7 +193,7 @@ void Board::make(Move mv) {
         case PieceType::Pawn: {
             state[ply].hmClock = 0;
             if (std::abs(to - from) == idx(PawnMove::Double)) {
-                Square sq                  = pawnMove<PawnMove::Push, false>(to, turn);
+                Square sq                  = pawnMove<PawnMove::Push, BACKWARD>(to, turn);
                 state.at(ply).enPassantSq  = sq;
                 state.at(ply).zkey        ^= Zobrist::hashEp(sq);
             } else if (movetype == MoveType::Promotion) {
@@ -257,8 +257,9 @@ void Board::unmake() {
     } else {
         movePiece<false>(to, from, turn, pieceType);
         if (captPieceType != PieceType::None) {
-            Square captureSq =
-                (movetype != MoveType::EnPassant) ? to : pawnMove<PawnMove::Push, false>(to, turn);
+            Square captureSq = (movetype != MoveType::EnPassant)
+                                   ? to
+                                   : pawnMove<PawnMove::Push, BACKWARD>(to, turn);
             addPiece<false>(captureSq, enemy, captPieceType);
         }
     }

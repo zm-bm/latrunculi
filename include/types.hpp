@@ -191,21 +191,6 @@ inline std::ostream& operator<<(std::ostream& os, PieceType pieceType) {
 }
 
 // -----------------
-// Move helpers
-// -----------------
-
-template <Color c, PawnMove p, bool forward>
-inline Square pawnMove(const Square sq) {
-    return (forward == (c == WHITE)) ? Square(sq + static_cast<int>(p))
-                                     : Square(sq - static_cast<int>(p));
-}
-
-template <PawnMove p, bool forward>
-inline Square pawnMove(const Square sq, const Color c) {
-    return (c == WHITE) ? pawnMove<WHITE, p, forward>(sq) : pawnMove<BLACK, p, forward>(sq);
-}
-
-// -----------------
 // Operators
 // -----------------
 

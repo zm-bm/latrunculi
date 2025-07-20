@@ -16,6 +16,18 @@ class TranspositionTable;
 
 extern TranspositionTable tt;
 
+// convert 'mate in n' from root, to 'mate in n' from current pos
+inline int toTT(int value, int ply) {
+    if (std::abs(value) < MATE_BOUND) return value;
+    return value > 0 ? value + ply : value - ply;
+}
+
+// convert 'mate in n' from current pos, to 'mate in n' from root
+inline int fromTT(int value, int ply) {
+    if (std::abs(value) < MATE_BOUND) return value;
+    return value > 0 ? value - ply : value + ply;
+}
+
 enum class TT_Flag : U8 {
     None,
     Exact,

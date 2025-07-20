@@ -178,7 +178,7 @@ inline void Eval::initialize() {
 template <Color c>
 inline U64 Eval::calculateOutpostsZone(U64 pawns, U64 enemyPawns) {
     constexpr Color enemy    = ~c;
-    constexpr U64 rank4thru6 = (c == WHITE) ? WHITE_OUTPOSTS : BLACK_OUTPOSTS;
+    constexpr U64 rank4thru6 = (c == WHITE) ? Conf::wOutposts : Conf::bOutposts;
 
     U64 behindEnemy = ~BB::pawnAttackSpan<enemy>(enemyPawns);
     U64 supported   = BB::pawnAttacks<c>(pawns);
@@ -408,7 +408,7 @@ inline Score Eval::evaluateBishop(const PieceContext& ctx) {
     Score score;
 
     U64 xrayMoves       = BB::moves<PieceType::Bishop>(ctx.square, ctx.pawns);
-    bool onLongDiagonal = BB::isMany(CENTER_SQUARES & xrayMoves);
+    bool onLongDiagonal = BB::isMany(Conf::centerSquares & xrayMoves);
     if (onLongDiagonal) score += Conf::BishopLongDiagonal;
 
     score += bishopPawnBlockers<c>(ctx);
@@ -421,12 +421,13 @@ template <Color c>
 inline Score Eval::bishopPawnBlockers(const PieceContext& ctx) const {
     constexpr Color enemy = ~c;
 
-    U64 sameColorPawns = ctx.pawns & (ctx.pieceBB & DARK_SQUARES ? DARK_SQUARES : LIGHT_SQUARES);
+    bool isDarkSq      = ctx.pieceBB & Conf::darkSquares;
+    U64 sameColorPawns = ctx.pawns & (isDarkSq ? Conf::darkSquares : Conf::lightSquares);
     int sameColorCount = BB::count(sameColorPawns);
 
     U64 blockedPawns       = ctx.pawns & BB::pawnMoves<PawnMove::Push, enemy>(ctx.occupied);
     U64 outsidePawnChain   = ctx.pieceBB & BB::pawnAttacks<c>(ctx.pawns);
-    int pawnBlockingFactor = BB::count(blockedPawns & CENTER_FILES) + !outsidePawnChain;
+    int pawnBlockingFactor = BB::count(blockedPawns & Conf::centerFiles) + !outsidePawnChain;
 
     return Conf::BishopBlockedByPawn * sameColorCount * pawnBlockingFactor;
 }

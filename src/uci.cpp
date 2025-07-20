@@ -15,7 +15,7 @@ UCIBestLine::UCIBestLine(int score, int depth, U64 nodes, Milliseconds time, std
 
 std::string UCIBestLine::formatScore() const {
     std::ostringstream oss;
-    if (isMateScore(score)) {
+    if (isMate(score)) {
         int mateInMoves = (mateDistance(score) + 1) / 2;
         oss << "mate " << (score > 0 ? "" : "-") << mateInMoves;
     } else {

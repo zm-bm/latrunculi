@@ -54,10 +54,10 @@ TEST_F(SearchTest, basicMates) {
     auto searchpos4 = "5rk1/pb2npp1/1p5p/5p2/5B2/1B6/P2R2QP/2r1R2K b - - 0 4";
 
     std::vector<std::tuple<std::string, int, std::string>> testCases = {
-        {searchpos1, +(MATE_SCORE - 1), "h8h1"},
-        {searchpos2, +(MATE_SCORE - 3), "c6g2"},
-        {searchpos3, -(MATE_SCORE - 2), "e2g2"},
-        {searchpos4, +(MATE_SCORE - 1), "c1e1"},
+        {searchpos1, +(MATE_VALUE - 1), "h8h1"},
+        {searchpos2, +(MATE_VALUE - 3), "c6g2"},
+        {searchpos3, -(MATE_VALUE - 2), "e2g2"},
+        {searchpos4, +(MATE_VALUE - 1), "c1e1"},
     };
 
     for (auto& [fen, expectedScore, expectedMove] : testCases) {
@@ -71,9 +71,9 @@ TEST_F(SearchTest, basicDraws) {
     auto searchpos3 = "1r4Q1/5k1K/7P/8/8/8/8/8 b - -";
 
     std::vector<std::tuple<std::string, int, std::string>> testCases = {
-        {searchpos1, DRAW_SCORE, AnyMove},
-        {searchpos2, DRAW_SCORE, "g7g8q"},
-        {searchpos3, DRAW_SCORE, "b8g8"},
+        {searchpos1, DRAW_VALUE, AnyMove},
+        {searchpos2, DRAW_VALUE, "g7g8q"},
+        {searchpos3, DRAW_VALUE, "b8g8"},
     };
 
     for (auto& [fen, expectedScore, expectedMove] : testCases) {

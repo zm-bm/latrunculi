@@ -240,7 +240,7 @@ TEST_F(UCIProtocolHandlerTest, InfoBestLine) {
 }
 
 TEST_F(UCIProtocolHandlerTest, InfoScore) {
-    int score = MATE_SCORE - 4;
+    int score = MATE_VALUE - 4;
     int depth = 10;
     U64 nodes = 1000;
     Milliseconds ms(100);

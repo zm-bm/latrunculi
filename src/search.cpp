@@ -68,9 +68,9 @@ int Thread::searchWiden(int depth, int prevValue) {
     int value = alphabeta<>(alpha, beta, depth);
 
     if (value <= alpha)
-        value = alphabeta<>(-INF_SCORE, beta, depth);
+        value = alphabeta<>(-INF_VALUE, beta, depth);
     else if (value >= beta)
-        value = alphabeta<>(alpha, INF_SCORE, depth);
+        value = alphabeta<>(alpha, INF_VALUE, depth);
 
     return value;
 }
@@ -84,6 +84,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
     checkStop();
     if (stopSignal) return alpha;
 
+    // check extension
     bool inCheck = board.isCheck();
     if (inCheck) depth++;
 
@@ -98,11 +99,10 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
     Color turn    = board.sideToMove();
     U64 key       = board.getKey();
     int alpha0    = alpha;
-    int bestValue = -INF_SCORE;
+    int bestValue = -INF_VALUE;
     Move bestMove = NullMove;
     Move ttMove   = NullMove;
-    Move pvMove   = NullMove;
-    if constexpr (root) pvMove = rootMove;
+    Move pvMove   = root ? rootMove : NullMove;
 
     // Check the transposition table
     TT_Entry* e = tt.probe(key);
@@ -113,22 +113,22 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
         if (e->depth >= depth) {
             stats.addTTHit(ply);
 
-            auto score = ttScore(e->score, -ply);
+            int value = fromTT(e->score, ply);
 
             if constexpr (!pvnode) {
                 if (e->flag == TT_Flag::Exact) {
                     stats.addTTCutoff(ply);
-                    return score;
+                    return value;
                 }
             }
 
-            if (e->flag == TT_Flag::LowerBound) alpha = std::max(alpha, score);
-            if (e->flag == TT_Flag::UpperBound) beta = std::min(beta, score);
+            if (e->flag == TT_Flag::LowerBound) alpha = std::max(alpha, value);
+            if (e->flag == TT_Flag::UpperBound) beta = std::min(beta, value);
 
             if constexpr (!pvnode) {
                 if (alpha >= beta) {
                     stats.addTTCutoff(ply);
-                    return score;
+                    return value;
                 }
             }
         }
@@ -149,10 +149,12 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
         }
     }
 
+    // Generate moves
     MoveGenerator<> moves{board};
     MoveOrder moveOrder(board, ply, killers, history, pvMove, ttMove);
     moves.sort(moveOrder);
 
+    // Iterate through moves
     int legalMoves = 0;
     int triedMoves = 0;
     for (auto& move : moves) {
@@ -210,12 +212,12 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
                 history.update(turn, move.from(), move.to(), depth);
             }
 
-            tt.store(key, move, ttScore(value, ply), depth, TT_Flag::LowerBound);
+            tt.store(key, move, toTT(value, ply), depth, TT_Flag::LowerBound);
 
             return value;
         }
 
-        // new best move, update alpha/best/root values
+        // new best move
         if (value > bestValue) {
             bestValue = value;
             bestMove  = move;
@@ -232,11 +234,12 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
     }
 
     if (legalMoves == 0) {
-        bestValue = inCheck ? -MATE_SCORE + ply : DRAW_SCORE;
+        bestMove  = NullMove;
+        bestValue = inCheck ? -MATE_VALUE + ply : DRAW_VALUE;
     }
 
     TT_Flag flag = (bestValue > alpha0) ? TT_Flag::Exact : TT_Flag::UpperBound;
-    tt.store(key, bestMove, ttScore(bestValue, ply), depth, flag);
+    tt.store(key, bestMove, toTT(bestValue, ply), depth, flag);
 
     return bestValue;
 }
@@ -273,8 +276,8 @@ int Thread::quiescence(int alpha, int beta) {
     }
 
     if (legalMoves == 0) {
-        if (board.isCheck()) return -MATE_SCORE + ply;
-        if (board.isDraw()) return DRAW_SCORE;
+        if (board.isCheck()) return -MATE_VALUE + ply;
+        if (board.isDraw()) return DRAW_VALUE;
     }
 
     return alpha;
@@ -317,18 +320,18 @@ int Thread::search_DEPRECATED() {
 
         // 4. If fail-low or fail-high, re-search with bigger bounds
         if (score <= alpha) {
-            score = alphabeta<>(-INF_SCORE, beta, depth);
+            score = alphabeta<>(-INF_VALUE, beta, depth);
         } else if (score >= beta) {
-            score = alphabeta<>(alpha, INF_SCORE, depth);
+            score = alphabeta<>(alpha, INF_VALUE, depth);
         }
 
-        if (score == ABORT_SCORE) break;
+        // if (score == ABORT_SCORE) break;
         prevScore = score;
         prevDepth = depth;
 
         // heuristics.age();
 
-        if (isMateScore(score)) break;
+        if (isMate(score)) break;
     }
 
     // sendInfo(prevScore, prevDepth, pvTable[0]);
@@ -350,7 +353,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
 
     // Stop search when time expires
     if (stopSignal) {
-        return ABORT_SCORE;
+        // return ABORT_SCORE;
     } else if (isTimeUp_DEPRECATED()) {
         threadPool.stopAll();
     }
@@ -363,7 +366,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
     U64 key        = board.getKey();
     int lowerbound = alpha;
     int upperbound = beta;
-    int bestScore  = -INF_SCORE;
+    int bestScore  = -INF_VALUE;
     Move bestMove  = NullMove;
 
     nodes++;
@@ -372,29 +375,6 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
     // 2. Check the transposition tt
     stats.addTTProbe(ply);
     TT_Entry* entry = tt.probe(key);
-    if (entry && entry->depth >= depth) {
-        auto score = ttScore(entry->score, -ply);
-        stats.addTTHit(ply);
-
-        if constexpr (!isRoot) {
-            if (entry->flag == TT_Flag::Exact) {
-                stats.addTTCutoff(ply);
-                if (board.isLegalMove(entry->move)) {
-                    // pvTable.update(ply, entry->move);
-                }
-                return score;
-            }
-        }
-        if constexpr (!isPV) {
-            if (entry->flag == TT_Flag::LowerBound && score >= beta) {
-                stats.addTTCutoff(ply);
-                return score;
-            } else if (entry->flag == TT_Flag::UpperBound && score <= alpha) {
-                stats.addTTCutoff(ply);
-                return score;
-            }
-        }
-    }
 
     // Null move pruning
     bool inCheck = board.isCheck();
@@ -402,7 +382,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
         board.makeNull();
         int score = -alphabeta<NodeType::NonPV>(-beta, -beta + 1, depth - 1 - NullMoveR);
         board.unmmakeNull();
-        if (score == ABORT_SCORE) return ABORT_SCORE;
+        // if (score == ABORT_SCORE) return ABORT_SCORE;
         if (score >= beta) return beta;
     }
 
@@ -453,7 +433,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
 
         board.unmake();
 
-        if (score == ABORT_SCORE) return ABORT_SCORE;
+        // if (score == ABORT_SCORE) return ABORT_SCORE;
 
         // 6. If we found a better move, update our bestScore/Move and principal variation
         if (score > bestScore) {
@@ -479,9 +459,9 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
     if (legalMoves == 0) {
         bestMove = NullMove;
         if (board.isCheck()) {
-            bestScore = -MATE_SCORE + ply;
+            bestScore = -MATE_VALUE + ply;
         } else {
-            bestScore = DRAW_SCORE;
+            bestScore = DRAW_VALUE;
         }
     }
 
@@ -491,7 +471,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
         flag = TT_Flag::UpperBound;
     else if (bestScore >= upperbound)
         flag = TT_Flag::LowerBound;
-    tt.store(key, bestMove, ttScore(bestScore, ply), depth, flag);
+    // tt.store(key, bestMove, ttScore(bestScore, ply), depth, flag);
 
     // if constexpr (isRoot) sendInfo(bestScore, depth, pvTable[0]);
 
@@ -502,7 +482,7 @@ template int Thread::alphabeta_DEPRECATED<NodeType::Root>(int, int, int);
 
 int Thread::quiescence_DEPRECATED(int alpha, int beta) {
     if (stopSignal) {
-        return ABORT_SCORE;
+        // return ABORT_SCORE;
     } else if (isTimeUp_DEPRECATED()) {
         threadPool.stopAll();
     }
@@ -542,7 +522,7 @@ int Thread::quiescence_DEPRECATED(int alpha, int beta) {
         int score = -quiescence(-beta, -alpha);
         board.unmake();
 
-        if (score == ABORT_SCORE) return ABORT_SCORE;
+        // if (score == ABORT_SCORE) return ABORT_SCORE;
 
         if (score >= beta) {
             // beta cutoff
@@ -557,7 +537,7 @@ int Thread::quiescence_DEPRECATED(int alpha, int beta) {
 
     if (legalMoves == 0) {
         if (board.isCheck())
-            return -MATE_SCORE + ply;
+            return -MATE_VALUE + ply;
         else if (board.isDraw())
             return 0;
     }
