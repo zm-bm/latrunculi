@@ -32,7 +32,7 @@ class SearchTest : public ::testing::Test {
 
         EXPECT_EQ(thread->search(), score) << fen;
         if (move != AnyMove) {
-            EXPECT_EQ(thread->pvTable.bestMove().str(), move) << fen;
+            EXPECT_EQ(thread->rootMove.str(), move) << fen;
         }
     }
 
@@ -42,7 +42,7 @@ class SearchTest : public ::testing::Test {
 
         EXPECT_GT(thread->search(), score) << fen;
         if (move != AnyMove) {
-            EXPECT_EQ(thread->pvTable.bestMove().str(), move) << fen;
+            EXPECT_EQ(thread->rootMove.str(), move) << fen;
         }
     }
 };

@@ -17,7 +17,6 @@ void Thread::reset() {
     nodes = 0;
     ply   = 0;
 
-    pvTable.clear();
     killers.clear();
     history.clear();
     tt.ageTable();
@@ -41,17 +40,22 @@ int Thread::search() {
 
         rootValue = value;
         rootDepth = depth;
-        rootLine  = pvTable[0];
-        sendInfo(value, depth, rootLine);
+
+        uciHandler.info(getBestLine(value, depth));
 
         history.age();
     }
 
-    if (isMainThread()) {
-        sendInfo(rootValue, rootDepth, rootLine);
-        sendMove(rootLine.empty() ? NullMove : rootLine[0]);
+    if (threadId == 0) {
+        if (stopSignal) {
+            uciHandler.info(getBestLine(rootValue, rootDepth));
+        }
+        uciHandler.bestmove(rootMove.str());
 
-        if constexpr (STATS_ENABLED) sendStats();
+        if constexpr (STATS_ENABLED) {
+            auto stats = threadPool.accumulate(&Thread::stats);
+            uciHandler.logOutput(stats);
+        }
     }
 
     return rootValue;
@@ -97,6 +101,8 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
     int bestValue = -INF_SCORE;
     Move bestMove = NullMove;
     Move ttMove   = NullMove;
+    Move pvMove   = NullMove;
+    if constexpr (root) pvMove = rootMove;
 
     // Check the transposition table
     TT_Entry* e = tt.probe(key);
@@ -112,7 +118,6 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
             if constexpr (!pvnode) {
                 if (e->flag == TT_Flag::Exact) {
                     stats.addTTCutoff(ply);
-                    pvTable.update(ply, ttMove);
                     return score;
                 }
             }
@@ -123,7 +128,6 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
             if constexpr (!pvnode) {
                 if (alpha >= beta) {
                     stats.addTTCutoff(ply);
-                    pvTable.update(ply, ttMove);
                     return score;
                 }
             }
@@ -144,9 +148,6 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
             if (value >= beta) return value;
         }
     }
-
-    Move pvMove = pvTable.bestMove(ply);
-    pvTable.clear(ply);
 
     MoveGenerator<> moves{board};
     MoveOrder moveOrder(board, ply, killers, history, pvMove, ttMove);
@@ -209,25 +210,22 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
                 history.update(turn, move.from(), move.to(), depth);
             }
 
-            pvTable.clear(ply);
             tt.store(key, move, ttScore(value, ply), depth, TT_Flag::LowerBound);
 
             return value;
         }
 
-        // new best move, update alpha/best/root values + pvTable
+        // new best move, update alpha/best/root values
         if (value > bestValue) {
             bestValue = value;
             bestMove  = move;
 
             if (value > alpha) {
                 alpha = value;
-                if constexpr (pvnode) pvTable.update(ply, move);
                 if constexpr (root) {
                     rootValue = value;
                     rootDepth = depth;
-                    rootLine  = pvTable[0];
-                    sendInfo(rootValue, rootDepth, rootLine);
+                    rootMove  = move;
                 }
             }
         }
@@ -294,7 +292,7 @@ constexpr int NullMoveR      = 3;
 int Thread::search_DEPRECATED() {
     nodes = 0;
     ply   = 0;
-    pvTable.clear();
+    // pvTable.clear();
 
     auto remaining   = board.sideToMove() == WHITE ? options.wtime : options.btime;
     auto increment   = board.sideToMove() == WHITE ? options.winc : options.binc;
@@ -333,9 +331,9 @@ int Thread::search_DEPRECATED() {
         if (isMateScore(score)) break;
     }
 
-    sendInfo(prevScore, prevDepth, pvTable[0]);
-    if (isMainThread()) {
-        uciHandler.bestmove(pvTable.bestMove().str());
+    // sendInfo(prevScore, prevDepth, pvTable[0]);
+    if (threadId == 0) {
+        // uciHandler.bestmove(pvTable.bestMove().str());
         if constexpr (STATS_ENABLED) {
             uciHandler.logOutput(threadPool.accumulate(&Thread::stats));
         }
@@ -382,7 +380,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
             if (entry->flag == TT_Flag::Exact) {
                 stats.addTTCutoff(ply);
                 if (board.isLegalMove(entry->move)) {
-                    pvTable.update(ply, entry->move);
+                    // pvTable.update(ply, entry->move);
                 }
                 return score;
             }
@@ -410,13 +408,8 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
 
     // 3. Generate moves and sort by priority
     MoveGenerator<MoveGenMode::All> moves{board};
-    Move pvMove = pvTable.bestMove(ply);
-    MoveOrder moveOrder(board,
-                        ply,
-                        killers,
-                        history,
-                        (isPV ? pvTable.bestMove(ply) : NullMove),
-                        (entry ? entry->move : NullMove));
+    // Move pvMove = pvTable.bestMove(ply);
+    MoveOrder moveOrder(board, ply, killers, history, NullMove, (entry ? entry->move : NullMove));
     moves.sort(moveOrder);
 
     // 4. Loop over moves
@@ -438,7 +431,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
         board.make(move);
 
         int score;
-        pvTable.clear(ply + 1);
+        // pvTable.clear(ply + 1);
         if (isRoot || searchedMoves == 0) {
             score = -alphabeta<nodeType>(-beta, -alpha, depth - 1);
         } else {
@@ -467,8 +460,8 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
             bestScore = score;
             bestMove  = move;
             if (isPV && score > alpha) {
-                pvTable.update(ply, move);
-                if constexpr (isRoot) sendInfo(score, depth, pvTable[0]);
+                // pvTable.update(ply, move);
+                // if constexpr (isRoot) sendInfo(score, depth, pvTable[0]);
             }
         }
 
@@ -500,7 +493,7 @@ int Thread::alphabeta_DEPRECATED(int alpha, int beta, int depth) {
         flag = TT_Flag::LowerBound;
     tt.store(key, bestMove, ttScore(bestScore, ply), depth, flag);
 
-    if constexpr (isRoot) sendInfo(bestScore, depth, pvTable[0]);
+    // if constexpr (isRoot) sendInfo(bestScore, depth, pvTable[0]);
 
     return bestScore;
 }

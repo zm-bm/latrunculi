@@ -7,10 +7,10 @@
 #include "board.hpp"
 #include "constants.hpp"
 #include "heuristics.hpp"
-#include "pv.hpp"
 #include "search_options.hpp"
 #include "search_stats.hpp"
 #include "thread_pool.hpp"
+#include "tt.hpp"
 #include "types.hpp"
 #include "uci.hpp"
 
@@ -29,7 +29,6 @@ class Thread {
    private:
     // search state
     Board board;
-    PVTable pvTable;
     SearchOptions options;
     TimePoint startTime;
     I64 searchTime;
@@ -44,7 +43,7 @@ class Thread {
     SearchStats<> stats;
 
     // search results
-    PVLine rootLine;
+    Move rootMove;
     int rootValue;
     int rootDepth;
 
@@ -80,13 +79,11 @@ class Thread {
     int quiescence_DEPRECATED(int, int);
 
     // inline functions / helpers
-    bool isMainThread() const;
     void checkStop();
     bool isTimeUp_DEPRECATED() const;
 
-    void sendInfo(int score, int depth, PVLine& line);
-    void sendMove(Move move);
-    void sendStats();
+    std::string getPV(int depth) const;
+    UCIBestLine getBestLine(int score, int depth) const;
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -97,11 +94,9 @@ class Thread {
     friend class Board;
 };
 
-inline bool Thread::isMainThread() const { return threadId == 0; }
-
 inline void Thread::checkStop() {
     if ((nodes & 0xFFF) != 0) return;
-    if (!isMainThread()) return;
+    if (threadId != 0) return;
 
     bool stopSearch = false;
 
@@ -119,7 +114,7 @@ inline void Thread::checkStop() {
 }
 
 inline bool Thread::isTimeUp_DEPRECATED() const {
-    if (!isMainThread() || (nodes % 1024 != 0)) {
+    if (threadId != 0 || (nodes % 1024 != 0)) {
         return false;
     }
 
@@ -132,21 +127,28 @@ inline bool Thread::isTimeUp_DEPRECATED() const {
     return elapsedTime.count() > searchTime;
 }
 
-inline void Thread::sendInfo(int score, int depth, PVLine& line) {
-    if (isMainThread()) {
-        auto pv          = toString(line);
-        auto totalNodes  = threadPool.accumulate(&Thread::nodes);
-        auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
+inline std::string Thread::getPV(int depth) const {
+    std::string pv;
+    Board b{board.toFEN()};
 
-        auto bestLine = UCIBestLine{score, depth, totalNodes, elapsedTime, pv};
+    for (int d = 1; d <= depth; ++d) {
+        TT_Entry* e = tt.probe(b.getKey());
 
-        uciHandler.info(bestLine);
+        if (e == nullptr || e->move == NullMove || !b.isLegalMove(e->move)) {
+            break;
+        }
+
+        b.make(e->move);
+        pv += e->move.str() + " ";
     }
+
+    return pv;
 }
 
-inline void Thread::sendMove(Move move) { uciHandler.bestmove(move.str()); }
+inline UCIBestLine Thread::getBestLine(int score, int depth) const {
+    auto totalNodes  = threadPool.accumulate(&Thread::nodes);
+    auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
+    auto pv          = getPV(depth);
 
-inline void Thread::sendStats() {
-    auto stats = threadPool.accumulate(&Thread::stats);
-    uciHandler.logOutput(stats);
+    return UCIBestLine{score, depth, totalNodes, elapsedTime, pv};
 }
