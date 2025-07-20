@@ -24,7 +24,7 @@ constexpr bool STATS_ENABLED = false;
 // uci option constants
 constexpr size_t DEFAULT_THREADS = 1;
 constexpr size_t MAX_THREADS     = 64;
-constexpr size_t DEFAULT_HASH_MB = 1;
+constexpr size_t DEFAULT_HASH_MB = 2;
 constexpr size_t MAX_HASH_MB     = 2048;
 constexpr bool DEFAULT_DEBUG     = false;
 

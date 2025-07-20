@@ -84,10 +84,16 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
     checkStop();
     if (stopSignal) return alpha;
 
+    // mate distance pruning
+    alpha = std::max(alpha, -MATE_VALUE + ply);
+    beta  = std::min(beta, MATE_VALUE - ply);
+    if (alpha >= beta) return alpha;
+
     // check extension
     bool inCheck = board.isCheck();
     if (inCheck) depth++;
 
+    // base cases
     if (depth <= 0) return quiescence(alpha, beta);
     if (ply >= MAX_DEPTH) return eval(board);
 
@@ -112,7 +118,6 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
 
         if (e->depth >= depth) {
             stats.addTTHit(ply);
-
             int value = fromTT(e->score, ply);
 
             if constexpr (!pvnode) {
@@ -149,6 +154,15 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
         }
     }
 
+    // Decide if futile pruning is applicable
+    bool futileNode = false;
+    if constexpr (!pvnode) {
+        constexpr int futilityMargin[4] = {0, 250, 400, 550};
+
+        futileNode = (depth <= 3 && !inCheck && !isMate(alpha) &&
+                      eval(board) + futilityMargin[depth] <= alpha);
+    }
+
     // Generate moves
     MoveGenerator<> moves{board};
     MoveOrder moveOrder(board, ply, killers, history, pvMove, ttMove);
@@ -170,6 +184,12 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
 
         bool givesCheck = board.isCheck();
         triedMoves++;
+
+        // Futility pruning
+        if (futileNode && triedMoves > 1 && isQuiet && !givesCheck) {
+            board.unmake();
+            continue;
+        }
 
         // Late move reduction
         int reduction = 0;
@@ -251,7 +271,15 @@ int Thread::quiescence(int alpha, int beta) {
     nodes++;
     stats.addQNode(ply);
 
+    // TODO: check for repetition or 50-move rule
+
     int standPat = eval(board);
+    if (ply >= MAX_DEPTH) return standPat;
+
+    // mate distance pruning
+    alpha = std::max(alpha, -MATE_VALUE + ply);
+    beta  = std::min(beta, MATE_VALUE - ply);
+    if (alpha >= beta) return alpha;
 
     if (standPat >= beta) return standPat;
     if (standPat > alpha) alpha = standPat;
