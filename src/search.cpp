@@ -83,7 +83,8 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
     bool inCheck = board.isCheck();
     if (inCheck) depth++;
 
-    if (depth == 0) return quiescence(alpha, beta);
+    if (depth <= 0) return quiescence(alpha, beta);
+    if (ply >= MAX_DEPTH) return eval(board);
 
     nodes++;
     stats.addNode(ply);
@@ -108,7 +109,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
 
             auto score = ttScore(e->score, -ply);
 
-            if constexpr (!root) {
+            if constexpr (!pvnode) {
                 if (e->flag == TT_Flag::Exact) {
                     stats.addTTCutoff(ply);
                     pvTable.update(ply, ttMove);
@@ -152,27 +153,45 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
     moves.sort(moveOrder);
 
     int legalMoves = 0;
+    int triedMoves = 0;
     for (auto& move : moves) {
         if (!board.isLegalMove(move)) continue;
         legalMoves++;
 
-        bool isCapture = board.isCapture(move);
-        bool isQuiet   = (!isCapture && !board.isCheckingMove(move) &&
-                        move.type() != MoveType::Promotion && move.type() != MoveType::EnPassant);
-        int value;
+        bool isPromotion = move.type() == MoveType::Promotion;
+        bool isEnPassant = move.type() == MoveType::EnPassant;
+        bool isCapture   = board.isCapture(move) || isEnPassant;
+        bool isQuiet     = !isCapture && !isPromotion;
 
         board.make(move);
 
-        // PVS search
-        auto fullSearch = [&] { return -alphabeta<child>(-beta, -alpha, depth - 1); };
-        auto zwSearch = [&] { return -alphabeta<NodeType::NonPV>(-alpha - 1, -alpha, depth - 1); };
+        bool givesCheck = board.isCheck();
+        triedMoves++;
 
-        if constexpr (root) {
-            value = fullSearch();
-        } else if (bestValue == -INF_SCORE) {
+        // Late move reduction
+        int reduction = 0;
+        if constexpr (!root) {
+            if (depth >= 3 && triedMoves >= 3) {
+                double base = isQuiet ? 1.25 : 0.75;
+                double div  = isQuiet ? 2.5 : 3.3;
+                double r    = base + std::log(depth) * std::log(triedMoves) / div;
+
+                if (inCheck || givesCheck) r *= 0.6;
+                if constexpr (pvnode) r *= 0.7;
+                if (killers.isKiller(move, ply)) r *= 0.8;
+
+                reduction = std::clamp(int(r), 1, depth - 2);
+            };
+        }
+
+        // PVS search
+        int value;
+        auto fullSearch = [&] { return -alphabeta<child>(-beta, -alpha, depth - 1); };
+
+        if (triedMoves == 0) {
             value = fullSearch();
         } else {
-            value = zwSearch();
+            value = -alphabeta<NodeType::NonPV>(-alpha - 1, -alpha, depth - 1 - reduction);
             if constexpr (pvnode)
                 if (value > alpha) value = fullSearch();
         }
@@ -185,7 +204,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
         if (value >= beta) {
             stats.addBetaCutoff(ply, move == moves[0]);
 
-            if (!isCapture) {
+            if (isQuiet) {
                 killers.update(move, ply);
                 history.update(turn, move.from(), move.to(), depth);
             }
