@@ -47,13 +47,30 @@ int Board::see(Move move) const {
     return gain[0];
 }
 
-// Determine if board is in a drawn position
-bool Board::isDraw() const {
+// true if there are no legal moves
+bool Board::isStalemate() const {
     MoveGenerator<MoveGenMode::All> moves{*this};
     for (auto& move : moves) {
         if (isLegalMove(move)) return false;
     }
     return true;
+}
+
+// true if game is drawn by 50-move rule or 3-fold repetition
+bool Board::isDraw() const {
+    auto& cur = state.at(ply);
+
+    if (cur.hmClock >= 100) return true;
+
+    int i    = std::max(0, int(ply - 2));
+    int stop = std::max(0, int(ply - cur.hmClock));
+    int reps = 0;
+
+    for (; i >= stop; i -= 2) {
+        if (state[i].zkey == cur.zkey && ++reps == 2) return true;
+    }
+
+    return false;
 }
 
 // Determine if a move is legal for the current board

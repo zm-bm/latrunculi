@@ -2,7 +2,9 @@
 #include <gtest/gtest.h>
 
 #include "base.hpp"
+#include "board.hpp"
 #include "constants.hpp"
+#include "search_options.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"
 #include "uci.hpp"
@@ -27,7 +29,8 @@ class SearchTest : public ::testing::Test {
     }
 
     void testSearch(const std::string fen, int score, std::string move) {
-        options.fen = fen;
+        Board board{fen};
+        options.board = &board;
         thread->set(options, Clock::now());
 
         EXPECT_EQ(thread->search(), score) << fen;
@@ -37,7 +40,8 @@ class SearchTest : public ::testing::Test {
     }
 
     void testSearchGT(const std::string fen, int score, std::string move) {
-        options.fen = fen;
+        Board board{fen};
+        options.board = &board;
         thread->set(options, Clock::now());
 
         EXPECT_GT(thread->search(), score) << fen;

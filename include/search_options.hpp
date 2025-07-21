@@ -6,6 +6,7 @@
 #include <tuple>
 #include <unordered_map>
 
+#include "board.hpp"
 #include "constants.hpp"
 #include "types.hpp"
 
@@ -17,16 +18,16 @@ struct ParseWarning {
 };
 
 struct SearchOptions {
-    std::string fen = STARTFEN;
-    bool debug      = DEFAULT_DEBUG;
-    int depth       = MAX_DEPTH;
-    int movetime    = OPTION_NOT_SET;
-    int nodes       = OPTION_NOT_SET;
-    int wtime       = OPTION_NOT_SET;
-    int btime       = OPTION_NOT_SET;
-    int winc        = OPTION_NOT_SET;
-    int binc        = OPTION_NOT_SET;
-    int movestogo   = OPTION_NOT_SET;
+    Board* board  = nullptr;
+    bool debug    = DEFAULT_DEBUG;
+    int depth     = MAX_DEPTH;
+    int movetime  = OPTION_NOT_SET;
+    int nodes     = OPTION_NOT_SET;
+    int wtime     = OPTION_NOT_SET;
+    int btime     = OPTION_NOT_SET;
+    int winc      = OPTION_NOT_SET;
+    int binc      = OPTION_NOT_SET;
+    int movestogo = OPTION_NOT_SET;
 
     std::vector<ParseWarning> warnings;
 

@@ -48,7 +48,7 @@ void Thread::set(SearchOptions& options, TimePoint startTime) {
     if (runSignal) return;
     {
         std::lock_guard<std::mutex> lock(mutex);
-        board.loadFEN(options.fen);
+        board.load(options.board);
         this->options   = options;
         this->startTime = startTime;
     }

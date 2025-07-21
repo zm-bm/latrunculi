@@ -113,20 +113,6 @@ inline void Thread::checkStop() {
     if (stopSearch) threadPool.stopAll();
 }
 
-inline bool Thread::isTimeUp_DEPRECATED() const {
-    if (threadId != 0 || (nodes % 1024 != 0)) {
-        return false;
-    }
-
-    auto totalNodes = threadPool.accumulate(&Thread::nodes);
-    if (options.nodes != INT32_MAX && totalNodes >= options.nodes) {
-        return true;
-    }
-
-    auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
-    return elapsedTime.count() > searchTime;
-}
-
 inline std::string Thread::getPV(int depth) const {
     std::string pv;
     Board b{board.toFEN()};

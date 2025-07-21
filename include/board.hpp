@@ -40,6 +40,8 @@ class Board {
     Board(const Board&)            = delete;
     Board& operator=(const Board&) = delete;
 
+    void load(const Board*);
+
     // accessors
     template <PieceType... Ps>
     U64 pieces() const;
@@ -64,6 +66,7 @@ class Board {
 
     // move/check properties
     int see(Move) const;
+    bool isStalemate() const;
     bool isDraw() const;
     bool isLegalMove(Move) const;
     bool isCheckingMove(Move) const;
@@ -120,6 +123,14 @@ class Board {
 };
 
 inline Board::Board(const std::string& fen) { loadFEN(fen); }
+
+inline void Board::load(const Board* other) {
+    if (!other) return;
+
+    loadFEN(other->toFEN());
+    state = other->state;  // Proper copy instead of move
+    ply   = other->ply;
+}
 
 template <PieceType... Ps>
 inline U64 Board::pieces() const {

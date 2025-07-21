@@ -132,7 +132,7 @@ bool Engine::position(std::istringstream& iss) {
 
 bool Engine::go(std::istringstream& iss) {
     SearchOptions options{iss};
-    options.fen   = board.toFEN();
+    options.board = &board;
     options.debug = config.getOption<bool>("Debug");
 
     for (const auto& w : options.warnings) {
