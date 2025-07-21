@@ -154,13 +154,28 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
         }
     }
 
+    int staticEval = 0;
+    if constexpr (!pvnode) staticEval = eval(board);
+
+    // Razoring: if eval is low, do a qsearch. if we can't beat alpha, fail low
+    if constexpr (!pvnode) {
+        constexpr int razorMargin[4] = {0, 500, 900, 1800};
+
+        if (depth <= 3 && staticEval + razorMargin[depth] <= alpha) {
+            int value = quiescence(alpha - 1, alpha);
+            if (value < alpha) {
+                return value;
+            }
+        }
+    }
+
     // Decide if futile pruning is applicable
     bool futileNode = false;
     if constexpr (!pvnode) {
         constexpr int futilityMargin[4] = {0, 250, 400, 550};
 
         futileNode = (depth <= 3 && !inCheck && !isMate(alpha) &&
-                      eval(board) + futilityMargin[depth] <= alpha);
+                      staticEval + futilityMargin[depth] <= alpha);
     }
 
     // Generate moves
@@ -292,6 +307,9 @@ int Thread::quiescence(int alpha, int beta) {
     for (auto& move : moves) {
         if (!board.isLegalMove(move)) continue;
         legalMoves++;
+
+        // Prune bad captures
+        if (move.priority == 0) continue;
 
         board.make(move);
         int score = -quiescence(-beta, -alpha);

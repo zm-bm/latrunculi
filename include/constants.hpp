@@ -24,7 +24,7 @@ constexpr bool STATS_ENABLED = false;
 // uci option constants
 constexpr size_t DEFAULT_THREADS = 1;
 constexpr size_t MAX_THREADS     = 64;
-constexpr size_t DEFAULT_HASH_MB = 2;
+constexpr size_t DEFAULT_HASH_MB = 4;
 constexpr size_t MAX_HASH_MB     = 2048;
 constexpr bool DEFAULT_DEBUG     = false;
 
@@ -60,7 +60,6 @@ constexpr bool FORWARD  = true;
 constexpr bool BACKWARD = false;
 
 // eval constants
-constexpr int TEMPO_BONUS     = 25;
 constexpr int PAWN_VALUE_MG   = 100;
 constexpr int KNIGHT_VALUE_MG = 630;
 constexpr int BISHOP_VALUE_MG = 660;

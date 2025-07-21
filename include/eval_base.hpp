@@ -7,6 +7,8 @@
 // clang-format off
 struct EvalConfig {
 
+    static constexpr int TempoBonus = 20;
+
     static constexpr U64 darkSquares   = 0xAA55AA55AA55AA55ull;
     static constexpr U64 lightSquares  = 0x55AA55AA55AA55AAull;
     static constexpr U64 wOutposts     = 0x0000FFFFFF000000ull;

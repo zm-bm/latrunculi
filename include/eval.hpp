@@ -154,7 +154,7 @@ inline int Eval::evaluate() {
     scores.finalScore  = score;
 
     int stm            = ((board.sideToMove() == WHITE) ? 1 : -1);
-    scores.finalResult = taperScore(score) * stm + TEMPO_BONUS;
+    scores.finalResult = taperScore(score) * stm + Conf::TempoBonus;
     return scores.finalResult;
 }
 

@@ -116,9 +116,9 @@ TEST_F(EvalTest, Eval) {
     for (const auto& [fen, expected] : testCases) {
         Board board(fen);
         int result = eval(board);
-        EXPECT_EQ(result, expected + TEMPO_BONUS) << fen;
+        EXPECT_EQ(result, expected + Conf::TempoBonus) << fen;
         board.makeNull();
-        EXPECT_EQ(result, expected + TEMPO_BONUS) << fen;
+        EXPECT_EQ(result, expected + Conf::TempoBonus) << fen;
     }
 }
 
