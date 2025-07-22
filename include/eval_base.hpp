@@ -91,11 +91,11 @@ struct EvalConfig {
     };
 
     // raw danger values [index = piece type]
-    static constexpr int AttackedKingZoneDanger[N_PIECES] = {0, 0, 50, 35, 30, 10};
-    static constexpr int SafeCheckDanger[N_PIECES]        = {0, 0, 600, 400, 700, 500};
-    static constexpr int UnsafeCheckDanger[N_PIECES]      = {0, 0, 80, 70, 60, 10};
-    static constexpr int PinnedPieceDanger                = 50;
-    static constexpr int WeakKingZoneDanger               = 150;
+    static constexpr int AttackedKingZoneDanger[N_PIECES] = {0, 0, 30, 22, 18, 5};
+    static constexpr int SafeCheckDanger[N_PIECES]        = {0, 0, 320, 240, 360, 280};
+    static constexpr int UnsafeCheckDanger[N_PIECES]      = {0, 0, 35, 30, 25, 5};
+    static constexpr int PinnedPieceDanger                = 30;
+    static constexpr int WeakKingZoneDanger               = 80;
 };
 // clang-format on
 
