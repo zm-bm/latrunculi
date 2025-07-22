@@ -20,6 +20,7 @@ CUTECHESS_CMD=(
     -repeat
     -rounds 10
     -games 2
+    -resign movecount=5 score=1000
     -pgnout "$OUTPUT_DIR/games.pgn"
 )
 
