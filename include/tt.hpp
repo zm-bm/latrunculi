@@ -1,6 +1,6 @@
 #pragma once
 
-#include <immintrin.h>
+// #include <immintrin.h>
 
 #include <array>
 #include <atomic>
@@ -12,113 +12,139 @@
 #include "move.hpp"
 #include "types.hpp"
 
-namespace TT {
+class TranspositionTable;
 
-constexpr size_t CLUSTER_SIZE = 4;
+extern TranspositionTable tt;
 
-enum class EntryType : U8 {
+// convert 'mate in n' from root, to 'mate in n' from current pos
+inline int toTT(int value, int ply) {
+    if (std::abs(value) < MATE_BOUND) return value;
+    return value > 0 ? value + ply : value - ply;
+}
+
+// convert 'mate in n' from current pos, to 'mate in n' from root
+inline int fromTT(int value, int ply) {
+    if (std::abs(value) < MATE_BOUND) return value;
+    return value > 0 ? value - ply : value + ply;
+}
+
+enum class TT_Flag : U8 {
     None,
     Exact,
     LowerBound,
     UpperBound,
 };
 
-struct Entry {
-    Move move      = NullMove;
-    I16 score      = 0;
-    U16 key16      = 0;
-    U8 depth       = 0;
-    U8 age         = 0;
-    EntryType flag = EntryType::None;
+struct TT_Entry {
+    Move move    = NullMove;
+    I16 score    = 0;
+    U16 key16    = 0;
+    U8 depth     = 0;
+    U8 age       = 0;
+    TT_Flag flag = TT_Flag::None;
 };
 
-struct alignas(64) Cluster {
-    Entry entries[CLUSTER_SIZE] = {};
+constexpr U32 TT_CLUSTER_SIZE = 4;
+
+struct alignas(64) TT_Cluster {
+    TT_Entry entries[TT_CLUSTER_SIZE] = {};
 };
 
-class Table {
+class TranspositionTable {
    private:
-    std::unique_ptr<Cluster[]> _table = nullptr;
-    U32 _mask                         = 0;
-    U32 _shift                        = 0;
-    U8 _age                           = 0;
-    size_t _size                      = 0;
+    std::unique_ptr<TT_Cluster[]> table = nullptr;
 
-    U64 index(U64 k) { return (k * 0x9e3779b97f4a7c15ull) >> _shift; }
+    U32 size  = 0;
+    U32 mask  = 0;
+    U32 shift = 0;
+    U8 age    = 0;
+
+    U64 index(U64 k) { return (k * 0x9e3779b97f4a7c15ull) >> shift; }
 
    public:
-    explicit Table() : _size(DEFAULT_HASH_MB) { resize(DEFAULT_HASH_MB); };
+    explicit TranspositionTable() : size(DEFAULT_HASH_MB) { resize(DEFAULT_HASH_MB); };
 
-    void resize(size_t megabytes) {
-        U64 bytes = U64(megabytes) << 20;
+    TT_Entry* probe(U64 key);
 
-        // Ensure clusters is a power of two
-        U64 clusters = bytes / sizeof(Cluster);
-        clusters     = 1ULL << std::bit_width(clusters - 1);
+    void store(U64 key, Move move, I16 score, U8 depth, TT_Flag flag);
 
-        _table = std::make_unique<Cluster[]>(clusters);
-        _mask  = U32(clusters) - 1;
-        _shift = 64 - std::countr_zero(clusters);
-        _age   = 0;
-        _size  = megabytes;
-    }
+    void clear();
+    void resize(U32 megabytes);
 
-    void age() { ++_age; }
-
-    Entry* probe(U64 key) {
-        auto idx         = index(key);
-        auto key16       = U16(key >> 48);
-        Cluster& cluster = _table[idx];
-
-        for (Entry& e : cluster.entries) {
-            if (e.key16 == key16 && e.flag != EntryType::None) return &e;
-        }
-
-        return nullptr;
-    }
-
-    void store(U64 key, Move move, I16 score, U8 depth, EntryType flag) {
-        auto idx         = index(key);
-        auto key16       = U16(key >> 48);
-        Cluster& cluster = _table[idx];
-        // cluster.lk.lock();
-
-        // replacement: same key, else shallowest or old-age
-        Entry* target = &cluster.entries[0];
-        for (Entry& e : cluster.entries) {
-            if (e.key16 == key16) {
-                target = &e;
-                break;
-            }
-            if (e.age != _age || e.depth < target->depth) {
-                target = &e;
-            }
-        }
-
-        *target = Entry{move, score, key16, depth, _age, flag};
-
-        // cluster.lk.unlock();
-    }
-
-    size_t size() const { return _size; }
+    void ageTable() { ++age; }
+    U32 getSize() const { return size; }
 };
 
-struct Spinlock {
-    std::atomic_flag flag = ATOMIC_FLAG_INIT;
+inline TT_Entry* TranspositionTable::probe(U64 key) {
+    auto idx            = index(key);
+    auto key16          = U16(key >> 48);
+    TT_Cluster& cluster = table[idx];
 
-    void lock() {
-        int spins = 0;
-        while (flag.test_and_set(std::memory_order_acquire)) {
-            if (spins++ < 64)
-                _mm_pause();
-            else
-                std::this_thread::yield();
+    for (TT_Entry& e : cluster.entries) {
+        if (e.key16 == key16 && e.flag != TT_Flag::None) return &e;
+    }
+
+    return nullptr;
+}
+
+inline void TranspositionTable::store(U64 key, Move move, I16 score, U8 depth, TT_Flag flag) {
+    auto idx            = index(key);
+    auto key16          = U16(key >> 48);
+    TT_Cluster& cluster = table[idx];
+    // cluster.lk.lock();
+
+    // replacement: same key, else shallowest or old-age
+    TT_Entry* target = &cluster.entries[0];
+    for (TT_Entry& e : cluster.entries) {
+        if (e.key16 == key16) {
+            target = &e;
+            break;
+        }
+        if (e.age != age || e.depth < target->depth) {
+            target = &e;
         }
     }
 
-    void unlock() { flag.clear(std::memory_order_release); }
-};
+    *target = TT_Entry{move, score, key16, depth, age, flag};
 
-extern Table table;
+    // cluster.lk.unlock();
+}
 
-}  // namespace TT
+inline void TranspositionTable::clear() {
+    for (U32 i = 0; i < (mask + 1); ++i) {
+        for (auto& entry : table[i].entries) {
+            entry = TT_Entry{};
+        }
+    }
+    age = 0;
+}
+
+inline void TranspositionTable::resize(U32 megabytes) {
+    U64 bytes = U64(megabytes) << 20;
+
+    // Ensure clusters is a power of two
+    U64 clusters = bytes / sizeof(TT_Cluster);
+    clusters     = 1ULL << std::bit_width(clusters - 1);
+
+    table = std::make_unique<TT_Cluster[]>(clusters);
+    mask  = U32(clusters) - 1;
+    shift = 64 - std::countr_zero(clusters);
+    age   = 0;
+    size  = megabytes;
+}
+
+// struct Spinlock{
+//     std::atomic_flag flag = ATOMIC_FLAG_INIT;
+
+//     void lock() {
+//         int spins = 0;
+//         while (flag.test_and_set(std::memory_order_acquire)) {
+//             if (spins++ < 64)
+//                 _mm_pause();
+//             else
+//                 std::this_thread::yield();
+//         }
+//     }
+
+//     void unlock() { flag.clear(std::memory_order_release); }
+// };

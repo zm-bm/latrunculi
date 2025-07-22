@@ -64,8 +64,8 @@ TEST(SearchOptionsTest, MixedValidInvalidTokens) {
     EXPECT_EQ(opts.wtime, 5000);
     EXPECT_EQ(opts.btime, 6000);
 
-    // movestogo receives an invalid string so should be default
-    EXPECT_EQ(opts.movestogo, 30);
+    // movestogo receives an invalid string so should not be set
+    EXPECT_EQ(opts.movestogo, OPTION_NOT_SET);
 
     bool movestogoWarn = false;
     for (const auto &warn : opts.warnings) {
@@ -78,10 +78,10 @@ TEST(SearchOptionsTest, ExtraTokensIgnored) {
     std::istringstream iss("depth 15 someextradata movetime 2500 invalidtoken");
     SearchOptions opts(iss);
 
-    // Valid tokens are parsed correctly, others values are default
+    // Valid tokens are parsed correctly, others values are not set
     EXPECT_EQ(opts.depth, 15);
     EXPECT_EQ(opts.movetime, 2500);
-    EXPECT_EQ(opts.nodes, INT32_MAX);
+    EXPECT_EQ(opts.nodes, OPTION_NOT_SET);
 
     // Extra tokens should be ignored
     EXPECT_TRUE(opts.warnings.empty());

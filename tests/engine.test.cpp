@@ -124,13 +124,13 @@ struct HashCase {
 class SetOptionHashParameterizedTest : public EngineTest,
                                        public ::testing::WithParamInterface<HashCase> {
    protected:
-    void SetUp() override { TT::table.resize(DEFAULT_HASH_MB); }
+    void SetUp() override { tt.resize(DEFAULT_HASH_MB); }
 };
 
 TEST_P(SetOptionHashParameterizedTest, ValidateHashOption) {
     const auto& param = GetParam();
     EXPECT_TRUE(execute(param.command));
-    EXPECT_EQ(TT::table.size(), param.expectedHashSize);
+    EXPECT_EQ(tt.getSize(), param.expectedHashSize);
     if (!param.expectedOutputSubstring.empty())
         EXPECT_NE(output.str().find(param.expectedOutputSubstring), std::string::npos)
             << "Expected: " << param.expectedOutputSubstring << "\nActual: " << output.str();

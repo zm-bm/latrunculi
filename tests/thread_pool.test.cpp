@@ -14,12 +14,14 @@ class ThreadPoolTest : public ::testing::Test {
     std::ostringstream oss;
     UCIProtocolHandler uciHandler{oss, oss};
     ThreadPool* threadPool;
+    Board board{STARTFEN};
     SearchOptions options;
 
     U64 testAccumulate() { return threadPool->accumulate(&Thread::nodes); }
 
     void SetUp() override {
         threadPool    = new ThreadPool(N_THREADS, uciHandler);
+        options.board = &board;
         options.depth = 5;
     }
 
@@ -30,6 +32,7 @@ TEST_F(ThreadPoolTest, Constructor) { EXPECT_EQ(threadPool->size(), N_THREADS); 
 
 TEST_F(ThreadPoolTest, StartAllThreads) {
     threadPool->startAll(options);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     // Ensure threads are started
     EXPECT_NO_THROW(threadPool->waitAll());
@@ -37,6 +40,7 @@ TEST_F(ThreadPoolTest, StartAllThreads) {
 
 TEST_F(ThreadPoolTest, ExitAllThreads) {
     threadPool->startAll(options);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     threadPool->exitAll();
 
     // Ensure threads are stopped
@@ -45,6 +49,7 @@ TEST_F(ThreadPoolTest, ExitAllThreads) {
 
 TEST_F(ThreadPoolTest, StopAllThreads) {
     threadPool->startAll(options);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     threadPool->stopAll();
 
     // Ensure threads are halted
@@ -53,8 +58,7 @@ TEST_F(ThreadPoolTest, StopAllThreads) {
 
 TEST_F(ThreadPoolTest, AccumulateNodes) {
     threadPool->startAll(options);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     threadPool->exitAll();
 
     U64 totalNodes = testAccumulate();

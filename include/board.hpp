@@ -40,6 +40,8 @@ class Board {
     Board(const Board&)            = delete;
     Board& operator=(const Board&) = delete;
 
+    void load(const Board*);
+
     // accessors
     template <PieceType... Ps>
     U64 pieces() const;
@@ -60,9 +62,11 @@ class Board {
     U64 blockers(Color c) const;
     Square enPassantSq() const;
     U8 halfmove() const;
+    int nonPawnMaterial(Color c) const;
 
     // move/check properties
     int see(Move) const;
+    bool isStalemate() const;
     bool isDraw() const;
     bool isLegalMove(Move) const;
     bool isCheckingMove(Move) const;
@@ -119,6 +123,14 @@ class Board {
 };
 
 inline Board::Board(const std::string& fen) { loadFEN(fen); }
+
+inline void Board::load(const Board* other) {
+    if (!other) return;
+
+    loadFEN(other->toFEN());
+    state = other->state;  // Proper copy instead of move
+    ply   = other->ply;
+}
 
 template <PieceType... Ps>
 inline U64 Board::pieces() const {
@@ -339,6 +351,13 @@ inline void Board::updateCheckInfo() {
 
     updatePinInfo(WHITE);
     updatePinInfo(BLACK);
+}
+
+inline int Board::nonPawnMaterial(Color c) const {
+    return ((count(c, PieceType::Knight) * KNIGHT_VALUE_MG) +
+            (count(c, PieceType::Bishop) * BISHOP_VALUE_MG) +
+            (count(c, PieceType::Rook) * ROOK_VALUE_MG) +
+            (count(c, PieceType::Queen) * QUEEN_VALUE_MG));
 }
 
 std::ostream& operator<<(std::ostream& os, const Board& board);

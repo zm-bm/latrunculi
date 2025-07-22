@@ -3,58 +3,53 @@
 #include "board.hpp"
 #include "constants.hpp"
 #include "move.hpp"
+#include "types.hpp"
+
+constexpr int MAX_HISTORY = static_cast<int>(HISTORY_MOVE);
 
 struct HistoryTable {
-    int history[N_COLORS][N_SQUARES][N_SQUARES] = {0};
+    I16 history[N_COLORS][N_SQUARES][N_SQUARES] = {0};
 
-    inline void update(Color c, Square from, Square to, int ply) {
-        int bonus             = std::clamp(1 << ply, -MAX_HISTORY, MAX_HISTORY);
-        history[c][from][to] += bonus - (history[c][from][to] * bonus / MAX_HISTORY);
+    void update(Color c, Square from, Square to, int depth) {
+        int bonus   = depth * depth;
+        int clamped = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+        int gravity = bonus - (history[c][from][to] * bonus / MAX_HISTORY);
+
+        history[c][from][to] += gravity;
     }
 
-    inline int get(Color c, Square from, Square to) const { return history[c][from][to]; }
+    int get(Color c, Square from, Square to) const { return history[c][from][to]; }
 
-    inline void age() {
+    void age() {
         for (int c = 0; c < N_COLORS; ++c)
             for (int from = 0; from < N_SQUARES; ++from)
-                for (int to = 0; to < N_SQUARES; ++to)
-                    history[c][from][to] >>= 1;  // age history values
+                for (int to = 0; to < N_SQUARES; ++to) history[c][from][to] >>= 1;
     }
 
-    inline void reset() {
+    void clear() {
         for (int c = 0; c < N_COLORS; ++c)
             for (int from = 0; from < N_SQUARES; ++from)
-                for (int to = 0; to < N_SQUARES; ++to)
-                    history[c][from][to] = 0;  // reset history values
+                for (int to = 0; to < N_SQUARES; ++to) history[c][from][to] = 0;
     }
 };
 
 struct KillerMoves {
     Move killers[MAX_DEPTH][2] = {NullMove};
 
-    inline void update(Move killer, int ply) {
-        if (killers[ply][0] != killer) {
-            killers[ply][1] = killers[ply][0];
-            killers[ply][0] = killer;
-        }
+    void update(Move killer, int ply) {
+        if (killers[ply][0] == killer) return;
+        killers[ply][1] = killers[ply][0];
+        killers[ply][0] = killer;
     }
 
-    inline bool isKiller(Move move, int ply) const {
+    bool isKiller(Move move, int ply) const {
         return move == killers[ply][0] || move == killers[ply][1];
     }
-};
 
-struct Heuristics {
-    HistoryTable history;
-    KillerMoves killers;
-
-    inline void addBetaCutoff(Board& board, Move move, int ply) {
-        Square to = move.to();
-        if (board.pieceOn(to) == Piece::None) {
-            killers.update(move, ply);
-            history.update(board.sideToMove(), move.from(), to, ply);
+    void clear() {
+        for (int ply = 0; ply < MAX_DEPTH; ++ply) {
+            killers[ply][0] = NullMove;
+            killers[ply][1] = NullMove;
         }
     }
-
-    inline void age() { history.age(); }
 };

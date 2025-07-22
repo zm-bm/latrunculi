@@ -6,10 +6,11 @@
 #include <tuple>
 #include <unordered_map>
 
+#include "board.hpp"
 #include "constants.hpp"
 #include "types.hpp"
 
-const int TIME_NOT_SET = -1;
+const int OPTION_NOT_SET = -1;
 
 struct ParseWarning {
     std::string name;
@@ -17,16 +18,16 @@ struct ParseWarning {
 };
 
 struct SearchOptions {
-    std::string fen = STARTFEN;
-    bool debug      = DEFAULT_DEBUG;
-    int depth       = MAX_DEPTH;
-    int movetime    = INT32_MAX;
-    int nodes       = INT32_MAX;
-    int wtime       = TIME_NOT_SET;
-    int btime       = TIME_NOT_SET;
-    int winc        = 0;
-    int binc        = 0;
-    int movestogo   = 30;
+    Board* board  = nullptr;
+    bool debug    = DEFAULT_DEBUG;
+    int depth     = MAX_DEPTH;
+    int movetime  = OPTION_NOT_SET;
+    int nodes     = OPTION_NOT_SET;
+    int wtime     = OPTION_NOT_SET;
+    int btime     = OPTION_NOT_SET;
+    int winc      = OPTION_NOT_SET;
+    int binc      = OPTION_NOT_SET;
+    int movestogo = OPTION_NOT_SET;
 
     std::vector<ParseWarning> warnings;
 
@@ -67,5 +68,17 @@ struct SearchOptions {
                 }
             }
         }
+    }
+
+    I64 searchTimeMs(Color c) const {
+        if (movetime != OPTION_NOT_SET) {
+            return movetime;
+        } else if (wtime != OPTION_NOT_SET && btime != OPTION_NOT_SET) {
+            auto time      = c == WHITE ? wtime : btime;
+            auto incr      = c == WHITE ? winc : binc;
+            auto movesleft = (movestogo != OPTION_NOT_SET) ? movestogo : 30;
+            return (time / movesleft) + incr - 50;  // Subtract a small buffer
+        }
+        return OPTION_NOT_SET;
     }
 };

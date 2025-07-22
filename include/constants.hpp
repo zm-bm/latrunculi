@@ -24,15 +24,15 @@ constexpr bool STATS_ENABLED = false;
 // uci option constants
 constexpr size_t DEFAULT_THREADS = 1;
 constexpr size_t MAX_THREADS     = 64;
-constexpr size_t DEFAULT_HASH_MB = 1;
+constexpr size_t DEFAULT_HASH_MB = 4;
 constexpr size_t MAX_HASH_MB     = 2048;
 constexpr bool DEFAULT_DEBUG     = false;
 
 // search constants
-constexpr int MAX_DEPTH     = 64;
-constexpr int MAX_MOVES     = 256;
-constexpr int MAX_HISTORY   = 1024;
-constexpr U64 NODE_INTERVAL = 8192;
+constexpr int MAX_DEPTH = 64;
+constexpr int MAX_MOVES = 256;
+constexpr bool DO_NULL  = true;
+constexpr bool NO_NULL  = false;
 
 // castle right constants
 constexpr CastleRights NO_CASTLE    = 0b0000;
@@ -55,15 +55,11 @@ constexpr U64 CastlePathOO[N_COLORS]      = {0x6000000000000000ull, 0x0000000000
 constexpr U64 CastlePathOOO[N_COLORS]     = {0x0E00000000000000ull, 0x000000000000000Eull};
 constexpr U64 KingCastlePathOO[N_COLORS]  = {0x7000000000000000ull, 0x0000000000000070ull};
 constexpr U64 KingCastlePathOOO[N_COLORS] = {0x1C00000000000000ull, 0x000000000000001Cull};
-constexpr U64 LIGHT_SQUARES               = 0x55AA55AA55AA55AAull;
-constexpr U64 DARK_SQUARES                = 0xAA55AA55AA55AA55ull;
-constexpr U64 WHITE_OUTPOSTS              = 0x0000FFFFFF000000ull;
-constexpr U64 BLACK_OUTPOSTS              = 0x000000FFFFFF0000ull;
-constexpr U64 CENTER_FILES                = 0x3C3C3C3C3C3C3C3Cull;
-constexpr U64 CENTER_SQUARES              = 0x0000001818000000ull;
+
+constexpr bool FORWARD  = true;
+constexpr bool BACKWARD = false;
 
 // eval constants
-constexpr int TEMPO_BONUS     = 25;
 constexpr int PAWN_VALUE_MG   = 100;
 constexpr int KNIGHT_VALUE_MG = 630;
 constexpr int BISHOP_VALUE_MG = 660;
@@ -89,12 +85,11 @@ constexpr Score PIECE_SCORES[N_COLORS][N_PIECES] = {
     {ZERO_SCORE, -PAWN_SCORE, -KNIGHT_SCORE, -BISHOP_SCORE, -ROOK_SCORE, -QUEEN_SCORE, ZERO_SCORE},
     {ZERO_SCORE, PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE, ZERO_SCORE}};
 
-// mate constants / functions
-constexpr int ABORT_SCORE     = INT16_MAX;
-constexpr int INF_SCORE       = INT16_MAX - 1;
-constexpr int MATE_SCORE      = INT16_MAX - 2;
-constexpr int MATE_IN_MAX_PLY = MATE_SCORE - MAX_DEPTH;
-constexpr int DRAW_SCORE      = 0;
+// mate constants
+constexpr int INF_VALUE  = INT16_MAX;
+constexpr int MATE_VALUE = INT16_MAX - 1;
+constexpr int MATE_BOUND = MATE_VALUE - MAX_DEPTH;
+constexpr int DRAW_VALUE = 0;
 
 // phase constants
 constexpr size_t N_PHASES = 2;

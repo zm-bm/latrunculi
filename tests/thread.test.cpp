@@ -6,6 +6,7 @@
 #include <sstream>
 #include <thread>
 
+#include "board.hpp"
 #include "search_options.hpp"
 #include "thread_pool.hpp"
 #include "uci.hpp"
@@ -21,6 +22,11 @@ class ThreadTest : public ::testing::Test {
 };
 
 TEST_F(ThreadTest, ThreadStartsAndExitsCorrectly) {
+    SearchOptions options;
+    Board board{STARTFEN};
+    options.board = &board;
+    thread->set(options, Clock::now());
+
     thread->start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     thread->exit();
@@ -32,8 +38,8 @@ TEST_F(ThreadTest, ThreadStartsAndExitsCorrectly) {
 
 TEST_F(ThreadTest, ThreadProcessesSearchCorrectly) {
     SearchOptions options;
-    options.fen   = STARTFEN;
-    options.debug = false;
+    Board board{STARTFEN};
+    options.board = &board;
 
     thread->set(options, Clock::now());
 
@@ -48,8 +54,8 @@ TEST_F(ThreadTest, ThreadProcessesSearchCorrectly) {
 
 TEST_F(ThreadTest, ThreadStopsSearchCorrectly) {
     SearchOptions options;
-    options.fen   = STARTFEN;
-    options.debug = false;
+    Board board{STARTFEN};
+    options.board = &board;
 
     thread->set(options, Clock::now());
 
@@ -63,9 +69,9 @@ TEST_F(ThreadTest, ThreadStopsSearchCorrectly) {
 }
 
 TEST_F(ThreadTest, ThreadHandlesMultipleSearches) {
+    Board board{EMPTYFEN};
     SearchOptions options1;
-    options1.fen   = EMPTYFEN;
-    options1.debug = false;
+    options1.board = &board;
 
     thread->set(options1, Clock::now());
     thread->start();
@@ -74,8 +80,7 @@ TEST_F(ThreadTest, ThreadHandlesMultipleSearches) {
     thread->wait();
 
     SearchOptions options2;
-    options2.fen   = EMPTYFEN;
-    options2.debug = false;
+    options2.board = &board;
 
     thread->set(options2, Clock::now());
     thread->start();

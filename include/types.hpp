@@ -96,6 +96,16 @@ enum class EvalTerm {
     Count,
 };
 
+enum MovePriority : U16 {
+    HASH_MOVE    = 1 << 15,
+    PV_MOVE      = 1 << 14,
+    PROM_MOVE    = 1 << 13,
+    GOOD_CAPTURE = 1 << 12,
+    KILLER_MOVE  = 1 << 11,
+    HISTORY_MOVE = 1 << 10,
+    BAD_CAPTURE  = 0,
+};
+
 enum class NodeType { Root, PV, NonPV };
 
 // -----------------
@@ -178,21 +188,6 @@ inline std::ostream& operator<<(std::ostream& os, Piece piece) {
 inline std::ostream& operator<<(std::ostream& os, PieceType pieceType) {
     os << toChar(pieceType);
     return os;
-}
-
-// -----------------
-// Move helpers
-// -----------------
-
-template <Color c, PawnMove p, bool forward>
-inline Square pawnMove(const Square sq) {
-    return (forward == (c == WHITE)) ? Square(sq + static_cast<int>(p))
-                                     : Square(sq - static_cast<int>(p));
-}
-
-template <PawnMove p, bool forward>
-inline Square pawnMove(const Square sq, const Color c) {
-    return (c == WHITE) ? pawnMove<WHITE, p, forward>(sq) : pawnMove<BLACK, p, forward>(sq);
 }
 
 // -----------------

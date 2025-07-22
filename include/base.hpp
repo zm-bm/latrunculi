@@ -30,17 +30,24 @@ constexpr Score pieceSqScore(PieceType pt, Color c, Square sq) {
 }
 
 // --------------------------
-// Mate and TT scores
+// Mate helpers
 // --------------------------
 
-constexpr bool isMateScore(int score) { return std::abs(score) > MATE_IN_MAX_PLY; }
+constexpr bool isMate(int value) { return std::abs(value) > MATE_BOUND; }
 
-constexpr int mateDistance(int score) { return MATE_SCORE - std::abs(score); }
+constexpr int mateDistance(int value) { return MATE_VALUE - std::abs(value); }
 
-constexpr int ttScore(int score, int ply) {
-    if (score >= MATE_IN_MAX_PLY)
-        score += ply;
-    else if (score <= MATE_IN_MAX_PLY)
-        score -= ply;
-    return score;
+// -----------------
+// Pawn move helpers
+// -----------------
+
+template <Color c, PawnMove p, bool forward>
+inline Square pawnMove(const Square sq) {
+    return (forward == (c == WHITE)) ? Square(sq + static_cast<int>(p))
+                                     : Square(sq - static_cast<int>(p));
+}
+
+template <PawnMove p, bool forward>
+inline Square pawnMove(const Square sq, const Color c) {
+    return (c == WHITE) ? pawnMove<WHITE, p, forward>(sq) : pawnMove<BLACK, p, forward>(sq);
 }
