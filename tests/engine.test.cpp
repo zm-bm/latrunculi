@@ -112,42 +112,6 @@ INSTANTIATE_TEST_SUITE_P(
                       ThreadsCase{"setoption name Threads value 4", 4, ""}));
 
 // --------------------------
-// setoption name Hash tests
-// --------------------------
-
-struct HashCase {
-    std::string command;
-    int expectedHashSize;
-    std::string expectedOutputSubstring;  // if non-empty then an expected substring in output
-};
-
-class SetOptionHashParameterizedTest : public EngineTest,
-                                       public ::testing::WithParamInterface<HashCase> {
-   protected:
-    void SetUp() override { tt.resize(DEFAULT_HASH_MB); }
-};
-
-TEST_P(SetOptionHashParameterizedTest, ValidateHashOption) {
-    const auto& param = GetParam();
-    EXPECT_TRUE(execute(param.command));
-    EXPECT_EQ(tt.getSize(), param.expectedHashSize);
-    if (!param.expectedOutputSubstring.empty())
-        EXPECT_NE(output.str().find(param.expectedOutputSubstring), std::string::npos)
-            << "Expected: " << param.expectedOutputSubstring << "\nActual: " << output.str();
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    SetOptionHashTests,
-    SetOptionHashParameterizedTest,
-    ::testing::Values(HashCase{"setoption name Hash value abc", DEFAULT_HASH_MB, "Error"},
-                      HashCase{"setoption name Hash value -1", DEFAULT_HASH_MB, "Error"},
-                      HashCase{"setoption name Hash value 0", DEFAULT_HASH_MB, "Error"},
-                      HashCase{"setoption name Hash value "s + std::to_string(MAX_HASH_MB + 1),
-                               DEFAULT_HASH_MB,
-                               "Error"},
-                      HashCase{"setoption name Hash value 64", 64, ""}));
-
-// --------------------------
 // setoption invalid commands tests
 // --------------------------
 

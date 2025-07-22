@@ -86,10 +86,11 @@ constexpr Score PIECE_SCORES[N_COLORS][N_PIECES] = {
     {ZERO_SCORE, PAWN_SCORE, KNIGHT_SCORE, BISHOP_SCORE, ROOK_SCORE, QUEEN_SCORE, ZERO_SCORE}};
 
 // mate constants
-constexpr int INF_VALUE  = INT16_MAX;
-constexpr int MATE_VALUE = INT16_MAX - 1;
-constexpr int MATE_BOUND = MATE_VALUE - MAX_DEPTH;
-constexpr int DRAW_VALUE = 0;
+constexpr int INF_VALUE     = INT16_MAX;
+constexpr int MATE_VALUE    = INT16_MAX - 1;
+constexpr int MATE_BOUND    = MATE_VALUE - MAX_DEPTH;
+constexpr int TT_MATE_BOUND = MATE_VALUE - 2 * MAX_DEPTH;
+constexpr int DRAW_VALUE    = 0;
 
 // phase constants
 constexpr size_t N_PHASES = 2;
