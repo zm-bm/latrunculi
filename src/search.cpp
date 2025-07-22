@@ -119,7 +119,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
 
         if (e->depth >= depth) {
             stats.addTTHit(ply);
-            int value = fromTT(e->score, ply);
+            int value = e->get_score(ply);
 
             if constexpr (!pvnode) {
                 if (e->flag == TT_Flag::Exact) {
@@ -128,8 +128,8 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
                 }
             }
 
-            if (e->flag == TT_Flag::LowerBound) alpha = std::max(alpha, value);
-            if (e->flag == TT_Flag::UpperBound) beta = std::min(beta, value);
+            if (e->flag == TT_Flag::Lowerbound) alpha = std::max(alpha, value);
+            if (e->flag == TT_Flag::Upperbound) beta = std::min(beta, value);
 
             if constexpr (!pvnode) {
                 if (alpha >= beta) {
@@ -249,7 +249,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
                 history.update(turn, move.from(), move.to(), depth);
             }
 
-            tt.store(key, move, toTT(value, ply), depth, TT_Flag::LowerBound);
+            tt.store(key, move, value, depth, TT_Flag::Lowerbound, ply);
 
             return value;
         }
@@ -275,8 +275,8 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
         bestValue = inCheck ? -MATE_VALUE + ply : DRAW_VALUE;
     }
 
-    TT_Flag flag = (bestValue > alpha0) ? TT_Flag::Exact : TT_Flag::UpperBound;
-    tt.store(key, bestMove, toTT(bestValue, ply), depth, flag);
+    TT_Flag flag = (bestValue > alpha0) ? TT_Flag::Exact : TT_Flag::Upperbound;
+    tt.store(key, bestMove, bestValue, depth, flag, ply);
 
     return bestValue;
 }
