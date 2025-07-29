@@ -1,26 +1,24 @@
 #pragma once
 
-#include <atomic>
 #include <memory>
 #include <vector>
 
 #include "search_options.hpp"
-#include "search_stats.hpp"
 #include "uci.hpp"
 
 class Thread;
 
 class ThreadPool {
-   public:
+public:
     ThreadPool() = delete;
-    ThreadPool(size_t numThreads, UCIProtocolHandler& uciHandler);
+    ThreadPool(size_t thread_count, uci::Protocol& protocol);
     ~ThreadPool();
 
-    void startAll(SearchOptions&);
-    void exitAll();
-    void stopAll();
-    void waitAll();
-    void resize(size_t newSize);
+    void start_all(SearchOptions&);
+    void exit_all();
+    void stop_all();
+    void wait_all();
+    void resize(size_t thread_count);
 
     int size() const;
 
@@ -30,7 +28,8 @@ class ThreadPool {
     friend class ThreadTest;
     friend class SearchTest;
 
-   private:
+private:
     std::vector<std::unique_ptr<Thread>> threads;
-    UCIProtocolHandler& uciHandler;
+
+    uci::Protocol& protocol;
 };

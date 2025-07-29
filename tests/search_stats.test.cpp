@@ -4,34 +4,35 @@
 
 TEST(SearchStats, AddMethodsAndReset) {
     SearchStats<true> stats;
+
     int ply = 1;
-    stats.addNode(ply);
-    stats.addQNode(ply);
-    stats.addBetaCutoff(ply, true);
-    stats.addBetaCutoff(ply, false);
-    stats.addTTProbe(ply);
-    stats.addTTHit(ply);
-    stats.addTTCutoff(ply);
+    stats.node(ply);
+    stats.qnode(ply);
+    stats.beta_cutoff(ply, true);
+    stats.beta_cutoff(ply, false);
+    stats.tt_probe(ply);
+    stats.tt_hit(ply);
+    stats.tt_cutoff(ply);
 
     EXPECT_EQ(stats.nodes[ply], 2);
-    EXPECT_EQ(stats.qNodes[ply], 1);
+    EXPECT_EQ(stats.qnodes[ply], 1);
     EXPECT_EQ(stats.cutoffs[ply], 2);
-    EXPECT_EQ(stats.failHighEarly[ply], 1);
-    EXPECT_EQ(stats.failHighLate[ply], 1);
-    EXPECT_EQ(stats.ttProbes[ply], 1);
-    EXPECT_EQ(stats.ttHits[ply], 1);
-    EXPECT_EQ(stats.ttCutoffs[ply], 1);
+    EXPECT_EQ(stats.fail_high_early[ply], 1);
+    EXPECT_EQ(stats.fail_high_late[ply], 1);
+    EXPECT_EQ(stats.tt_probes[ply], 1);
+    EXPECT_EQ(stats.tt_hits[ply], 1);
+    EXPECT_EQ(stats.tt_cutoffs[ply], 1);
 
     stats.reset();
 
     EXPECT_EQ(stats.nodes[ply], 0);
-    EXPECT_EQ(stats.qNodes[ply], 0);
+    EXPECT_EQ(stats.qnodes[ply], 0);
     EXPECT_EQ(stats.cutoffs[ply], 0);
-    EXPECT_EQ(stats.failHighEarly[ply], 0);
-    EXPECT_EQ(stats.failHighLate[ply], 0);
-    EXPECT_EQ(stats.ttProbes[ply], 0);
-    EXPECT_EQ(stats.ttHits[ply], 0);
-    EXPECT_EQ(stats.ttCutoffs[ply], 0);
+    EXPECT_EQ(stats.fail_high_early[ply], 0);
+    EXPECT_EQ(stats.fail_high_late[ply], 0);
+    EXPECT_EQ(stats.tt_probes[ply], 0);
+    EXPECT_EQ(stats.tt_hits[ply], 0);
+    EXPECT_EQ(stats.tt_cutoffs[ply], 0);
 }
 
 TEST(SearchStats, ArithmeticOperators) {
@@ -46,17 +47,17 @@ TEST(SearchStats, ArithmeticOperators) {
 
 TEST(SearchStats, Output) {
     SearchStats<true> stats;
-    stats.nodes         = {0, 100, 200};
-    stats.qNodes        = {0, 50, 100};
-    stats.cutoffs       = {0, 80, 150};
-    stats.failHighEarly = {0, 40, 75};
-    stats.failHighLate  = {0, 40, 75};
-    stats.ttProbes      = {0, 60, 120};
-    stats.ttHits        = {0, 30, 90};
-    stats.ttCutoffs     = {0, 20, 60};
+    stats.nodes           = {0, 100, 200};
+    stats.qnodes          = {0, 50, 100};
+    stats.cutoffs         = {0, 80, 150};
+    stats.fail_high_early = {0, 40, 75};
+    stats.fail_high_late  = {0, 40, 75};
+    stats.tt_probes       = {0, 60, 120};
+    stats.tt_hits         = {0, 30, 90};
+    stats.tt_cutoffs      = {0, 20, 60};
 
     std::ostringstream oss;
-    oss << stats;
+    std::print(oss, "{}", stats);
 
     EXPECT_NE(oss.str().find("Depth"), std::string::npos);
     EXPECT_NE(oss.str().find("Nodes"), std::string::npos);

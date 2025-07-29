@@ -1,15 +1,13 @@
 #include <algorithm>
 
-#include "base.hpp"
 #include "board.hpp"
-#include "constants.hpp"
-#include "eval.hpp"
-#include "move_order.hpp"
+
+#include "defs.hpp"
+#include "evaluator.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"
 #include "tt.hpp"
-#include "types.hpp"
 
 constexpr int AspirationWindow = 50;
 
@@ -19,49 +17,48 @@ void Thread::reset() {
 
     killers.clear();
     history.clear();
-    tt.ageTable();
-
-    Color c    = board.sideToMove();
-    searchTime = options.searchTimeMs(c);
+    tt.age_table();
 }
 
 int Thread::search() {
     reset();
 
-    int value = eval(board);
-    int depth = 1 + (threadId & 1);
+    int value = evaluate(board);
+    int depth = 1 + (thread_id & 1);
 
     for (; depth <= options.depth; ++depth) {
-        if constexpr (STATS_ENABLED) stats.reset();
+        if constexpr (SEARCH_STATS)
+            stats.reset();
 
-        value = searchWiden(depth, value);
+        value = search_widen(depth, value);
 
-        if (stopSignal) break;
+        if (stop_signal)
+            break;
 
-        rootValue = value;
-        rootDepth = depth;
+        root_value = value;
+        root_depth = depth;
 
-        uciHandler.info(getBestLine(value, depth));
+        protocol.info(get_pv_line(value, depth));
 
         history.age();
     }
 
-    if (threadId == 0) {
-        if (stopSignal) {
-            uciHandler.info(getBestLine(rootValue, rootDepth));
+    if (thread_id == 0) {
+        if (stop_signal) {
+            protocol.info(get_pv_line(root_value, root_depth));
         }
-        uciHandler.bestmove(rootMove.str());
+        protocol.bestmove(root_move.str());
 
-        if constexpr (STATS_ENABLED) {
-            auto stats = threadPool.accumulate(&Thread::stats);
-            uciHandler.logOutput(stats);
+        if constexpr (SEARCH_STATS) {
+            auto stats = thread_pool.accumulate(&Thread::stats);
+            protocol.diagnostic_output(stats);
         }
     }
 
-    return rootValue;
+    return root_value;
 }
 
-int Thread::searchWiden(int depth, int prevValue) {
+int Thread::search_widen(int depth, int prevValue) {
     int alpha = prevValue - AspirationWindow;
     int beta  = prevValue + AspirationWindow;
 
@@ -76,64 +73,74 @@ int Thread::searchWiden(int depth, int prevValue) {
 }
 
 template <NodeType N>
-int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
-    constexpr bool root   = N == NodeType::Root;
-    constexpr bool pvnode = N != NodeType::NonPV;
-    constexpr auto child  = pvnode ? NodeType::PV : NodeType::NonPV;
+int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
+    constexpr bool root   = N == ROOT;
+    constexpr bool pvnode = N != NON_PV;
+    constexpr auto child  = pvnode ? PV : NON_PV;
 
-    checkStop();
-    if (stopSignal) return alpha;
+    check_stop();
+    if (stop_signal)
+        return alpha;
 
     // mate distance pruning
     alpha = std::max(alpha, -MATE_VALUE + ply);
     beta  = std::min(beta, MATE_VALUE - ply);
-    if (alpha >= beta) return alpha;
+    if (alpha >= beta)
+        return alpha;
 
     // check extension
-    bool inCheck = board.isCheck();
-    if (inCheck) depth++;
+    bool in_check = board.is_check();
+    if (in_check)
+        depth++;
 
     // base cases
-    if (depth <= 0) return quiescence(alpha, beta);
-    if (ply >= MAX_DEPTH) return eval(board);
+    if (depth <= 0)
+        return quiescence(alpha, beta);
+    if (ply >= MAX_DEPTH)
+        return evaluate(board);
 
     nodes++;
-    stats.addNode(ply);
+    stats.node(ply);
 
     // check for 50-move rule and draw by repetition
-    if (board.isDraw()) return DRAW_VALUE;
+    if (board.is_draw())
+        return DRAW_VALUE;
 
-    Color turn    = board.sideToMove();
-    U64 key       = board.getKey();
-    int alpha0    = alpha;
-    int bestValue = -INF_VALUE;
-    Move bestMove = NullMove;
-    Move ttMove   = NullMove;
-    Move pvMove   = root ? rootMove : NullMove;
+    Color    turn       = board.side_to_move();
+    uint64_t key        = board.key();
+    int      alpha0     = alpha;
+    int      best_value = -INF_VALUE;
+    Move     best_move  = NULL_MOVE;
+    Move     tt_move    = NULL_MOVE;
+    Move     pv_move    = root ? root_move : NULL_MOVE;
 
-    // Check the transposition table
+    // Probe the transposition table
     TT_Entry* e = tt.probe(key);
-    stats.addTTProbe(ply);
-    if (e != nullptr && board.isLegalMove(e->move)) {
-        ttMove = e->move;
+    stats.tt_probe(ply);
+
+    // If we have an entry, check for cutoffs or update alpha/beta
+    if (e != nullptr && board.is_legal_move(e->move)) {
+        tt_move = e->move;
 
         if (e->depth >= depth) {
-            stats.addTTHit(ply);
+            stats.tt_hit(ply);
             int value = e->get_score(ply);
 
             if constexpr (!pvnode) {
                 if (e->flag == TT_Flag::Exact) {
-                    stats.addTTCutoff(ply);
+                    stats.tt_cutoff(ply);
                     return value;
                 }
             }
 
-            if (e->flag == TT_Flag::Lowerbound) alpha = std::max(alpha, value);
-            if (e->flag == TT_Flag::Upperbound) beta = std::min(beta, value);
+            if (e->flag == TT_Flag::Lowerbound)
+                alpha = std::max(alpha, value);
+            if (e->flag == TT_Flag::Upperbound)
+                beta = std::min(beta, value);
 
             if constexpr (!pvnode) {
                 if (alpha >= beta) {
-                    stats.addTTCutoff(ply);
+                    stats.tt_cutoff(ply);
                     return value;
                 }
             }
@@ -143,27 +150,31 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
     // Null move pruning
     if constexpr (!pvnode) {
         int R = 3;
-        if (depth >= R && canNull && !inCheck && board.nonPawnMaterial(turn) > BISHOP_VALUE_MG) {
-            if (depth > 6) R = 4;
+        if (depth >= R && can_null && !in_check && board.nonPawnMaterial(turn) > BISHOP_MG) {
+            if (depth > 6)
+                R = 4;
 
-            board.makeNull();
-            int value = -alphabeta<NodeType::NonPV>(-beta, -beta + 1, depth - R, NO_NULL);
-            board.unmmakeNull();
+            board.make_null();
+            int value = -alphabeta<NON_PV>(-beta, -beta + 1, depth - R, false);
+            board.unmake_null();
 
-            if (stopSignal) return alpha;
-            if (value >= beta) return value;
+            if (stop_signal)
+                return alpha;
+            if (value >= beta)
+                return value;
         }
     }
 
     // Static eval used in razoring and futility pruning
-    int staticEval = 0;
-    if constexpr (!pvnode) staticEval = eval(board);
+    int static_eval = 0;
+    if constexpr (!pvnode)
+        static_eval = evaluate(board);
 
     // Razoring: if eval is low, do a qsearch. if we can't beat alpha, fail low
     if constexpr (!pvnode) {
-        constexpr int razorMargin[4] = {0, 500, 900, 1800};
+        constexpr int razor_margin[4] = {0, 500, 900, 1800};
 
-        if (depth <= 3 && staticEval + razorMargin[depth] <= alpha) {
+        if (depth <= 3 && static_eval + razor_margin[depth] <= alpha) {
             int value = quiescence(alpha - 1, alpha);
             if (value < alpha) {
                 return value;
@@ -172,38 +183,37 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
     }
 
     // Decide if futile pruning is applicable
-    bool futileNode = false;
+    bool futile_flag = false;
     if constexpr (!pvnode) {
-        constexpr int futilityMargin[4] = {0, 250, 400, 550};
-
-        futileNode = (depth <= 3 && !inCheck && !isMate(alpha) &&
-                      staticEval + futilityMargin[depth] <= alpha);
+        constexpr int futility_margin[4] = {0, 250, 400, 550};
+        futile_flag = (depth <= 3 && !in_check && std::abs(alpha) < MATE_BOUND &&
+                       static_eval + futility_margin[depth] <= alpha);
     }
 
     // Generate moves
-    MoveGenerator<> moves{board};
-    MoveOrder moveOrder(board, ply, killers, history, pvMove, ttMove);
-    moves.sort(moveOrder);
+    auto movelist = generate<ALL_MOVES>(board);
+    movelist.sort({board, killers, history, ply, pv_move, tt_move});
 
     // Iterate through moves
-    int legalMoves = 0;
-    int triedMoves = 0;
-    for (auto& move : moves) {
-        if (!board.isLegalMove(move)) continue;
-        legalMoves++;
+    int legal_moves = 0;
+    int tried_moves = 0;
+    for (auto& move : movelist) {
+        if (!board.is_legal_move(move))
+            continue;
+        legal_moves++;
 
-        bool isPromotion = move.type() == MoveType::Promotion;
-        bool isEnPassant = move.type() == MoveType::EnPassant;
-        bool isCapture   = board.isCapture(move) || isEnPassant;
-        bool isQuiet     = !isCapture && !isPromotion;
+        bool is_promotion = move.type() == MOVE_PROM;
+        bool is_enpassant = move.type() == MOVE_EP;
+        bool is_capture   = board.is_capture(move) || is_enpassant;
+        bool is_quiet     = !is_capture && !is_promotion;
 
         board.make(move);
 
-        bool givesCheck = board.isCheck();
-        triedMoves++;
+        bool gives_check = board.is_check();
+        tried_moves++;
 
         // Futility pruning
-        if (futileNode && triedMoves > 1 && isQuiet && !givesCheck) {
+        if (futile_flag && tried_moves > 1 && is_quiet && !gives_check) {
             board.unmake();
             continue;
         }
@@ -211,14 +221,17 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
         // Late move reduction
         int reduction = 0;
         if constexpr (!root) {
-            if (depth >= 3 && triedMoves >= 3) {
-                double base = isQuiet ? 1.25 : 0.75;
-                double div  = isQuiet ? 2.5 : 3.3;
-                double r    = base + std::log(depth) * std::log(triedMoves) / div;
+            if (depth >= 3 && tried_moves >= 3) {
+                double base = is_quiet ? 1.25 : 0.75;
+                double div  = is_quiet ? 2.5 : 3.3;
+                double r    = base + std::log(depth) * std::log(tried_moves) / div;
 
-                if (inCheck || givesCheck) r *= 0.6;
-                if constexpr (pvnode) r *= 0.7;
-                if (killers.isKiller(move, ply)) r *= 0.8;
+                if (in_check || gives_check)
+                    r *= 0.6;
+                if constexpr (pvnode)
+                    r *= 0.7;
+                if (killers.is_killer(move, ply))
+                    r *= 0.8;
 
                 reduction = std::clamp(int(r), 1, depth - 2);
             };
@@ -226,107 +239,118 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool canNull) {
 
         // PVS search
         int value;
-        auto fullSearch = [&] { return -alphabeta<child>(-beta, -alpha, depth - 1); };
-
-        if (triedMoves == 0) {
-            value = fullSearch();
+        if (tried_moves == 0) {
+            value = -alphabeta<child>(-beta, -alpha, depth - 1, can_null);
         } else {
-            value = -alphabeta<NodeType::NonPV>(-alpha - 1, -alpha, depth - 1 - reduction);
-            if constexpr (pvnode)
-                if (value > alpha) value = fullSearch();
+            value = -alphabeta<NON_PV>(-alpha - 1, -alpha, depth - 1 - reduction, can_null);
+            if constexpr (pvnode) {
+                if (value > alpha)
+                    value = -alphabeta<child>(-beta, -alpha, depth - 1, can_null);
+            }
         }
 
         board.unmake();
 
-        if (stopSignal) return alpha;
+        if (stop_signal)
+            return alpha;
 
         // fail-soft beta cutoff
         if (value >= beta) {
-            stats.addBetaCutoff(ply, move == moves[0]);
-
-            if (isQuiet) {
+            if (is_quiet) {
                 killers.update(move, ply);
                 history.update(turn, move.from(), move.to(), depth);
             }
 
+            stats.beta_cutoff(ply, move == movelist[0]);
             tt.store(key, move, value, depth, TT_Flag::Lowerbound, ply);
-
             return value;
         }
 
         // new best move
-        if (value > bestValue) {
-            bestValue = value;
-            bestMove  = move;
+        if (value > best_value) {
+            best_value = value;
+            best_move  = move;
 
             if (value > alpha) {
                 alpha = value;
                 if constexpr (root) {
-                    rootValue = value;
-                    rootDepth = depth;
-                    rootMove  = move;
+                    root_value = value;
+                    root_depth = depth;
+                    root_move  = move;
                 }
             }
         }
     }
 
-    if (legalMoves == 0) {
-        bestMove  = NullMove;
-        bestValue = inCheck ? -MATE_VALUE + ply : DRAW_VALUE;
+    if (legal_moves == 0) {
+        best_move  = NULL_MOVE;
+        best_value = in_check ? -MATE_VALUE + ply : DRAW_VALUE;
     }
 
-    TT_Flag flag = (bestValue > alpha0) ? TT_Flag::Exact : TT_Flag::Upperbound;
-    tt.store(key, bestMove, bestValue, depth, flag, ply);
+    TT_Flag flag = (best_value > alpha0) ? TT_Flag::Exact : TT_Flag::Upperbound;
+    tt.store(key, best_move, best_value, depth, flag, ply);
 
-    return bestValue;
+    return best_value;
 }
 
 int Thread::quiescence(int alpha, int beta) {
-    checkStop();
-    if (stopSignal) return alpha;
+    check_stop();
+    if (stop_signal)
+        return alpha;
 
     nodes++;
-    stats.addQNode(ply);
+    stats.qnode(ply);
 
     // check for 50-move rule and draw by repetition
-    if (board.isDraw()) return DRAW_VALUE;
+    if (board.is_draw())
+        return DRAW_VALUE;
 
-    int standPat = eval(board);
-    if (ply >= MAX_DEPTH) return standPat;
+    int stand_pat = evaluate(board);
+    if (ply >= MAX_DEPTH)
+        return stand_pat;
 
     // mate distance pruning
     alpha = std::max(alpha, -MATE_VALUE + ply);
     beta  = std::min(beta, MATE_VALUE - ply);
-    if (alpha >= beta) return alpha;
+    if (alpha >= beta)
+        return alpha;
 
-    if (standPat >= beta) return standPat;
-    if (standPat > alpha) alpha = standPat;
+    if (stand_pat >= beta)
+        return stand_pat;
+    if (stand_pat > alpha)
+        alpha = stand_pat;
 
-    MoveGenerator<MoveGenMode::Captures> moves{board};
-    MoveOrder moveOrder(board, ply, killers, history);
-    moves.sort(moveOrder);
+    auto movelist = generate<CAPTURES>(board);
+    movelist.sort({board, killers, history, ply});
 
-    int legalMoves = 0;
-    for (auto& move : moves) {
-        if (!board.isLegalMove(move)) continue;
-        legalMoves++;
+    int legal_moves = 0;
+    for (auto& move : movelist) {
+        if (!board.is_legal_move(move))
+            continue;
+        legal_moves++;
 
         // Prune bad captures
-        if (move.priority == 0) continue;
+        if (move.priority == 0)
+            continue;
 
         board.make(move);
         int score = -quiescence(-beta, -alpha);
         board.unmake();
 
-        if (stopSignal) return alpha;
+        if (stop_signal)
+            return alpha;
 
-        if (score >= beta) return score;
-        if (score > alpha) alpha = score;
+        if (score >= beta)
+            return score;
+        if (score > alpha)
+            alpha = score;
     }
 
-    if (legalMoves == 0) {
-        if (board.isCheck()) return -MATE_VALUE + ply;
-        if (board.isStalemate()) return DRAW_VALUE;
+    if (legal_moves == 0) {
+        if (board.is_check())
+            return -MATE_VALUE + ply;
+        if (board.is_stalemate())
+            return DRAW_VALUE;
     }
 
     return alpha;

@@ -1,35 +1,34 @@
 #pragma once
 
-#include <sstream>
 #include <string>
 #include <vector>
 
-#include "constants.hpp"
-#include "types.hpp"
+#include "defs.hpp"
 
 struct PieceSquare {
-    Color color;
+    Color     color;
     PieceType type;
-    Square square;
+    Square    square;
 };
 
 // https://www.chessprogramming.org/Forsyth-Edwards_Notation
 class FenParser {
-   public:
+public:
     explicit FenParser(const std::string& fen);
 
     std::vector<PieceSquare> pieces;
-    Color turn          = WHITE;
-    CastleRights castle = NO_CASTLE;
-    Square enPassantSq  = INVALID;
-    U8 hmClock          = 0;
-    U32 moveCounter     = 0;
 
-   private:
-    void parsePieces(const std::string& section);
-    void parseTurn(const std::string& section);
-    void parseCastlingRights(const std::string& section);
-    void parseEnPassantSq(const std::string& section);
-    void parseHalfmove(const std::string& section);
-    void parseFullmove(const std::string& section, Color turn);
+    Color        turn         = WHITE;
+    CastleRights castle       = NO_CASTLE;
+    Square       enpassant    = INVALID;
+    uint8_t      halfmove_clk = 0;
+    uint32_t     fullmove_clk = 0;
+
+private:
+    void parse_pieces(const std::string& section);
+    void parse_turn(const std::string& section);
+    void parse_castles(const std::string& section);
+    void parse_enpassant(const std::string& section);
+    void parse_halfmove(const std::string& section);
+    void parse_fullmove(const std::string& section, Color turn);
 };

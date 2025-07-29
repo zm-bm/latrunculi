@@ -3,58 +3,60 @@
 #include "search_stats.hpp"
 #include "thread.hpp"
 
-ThreadPool::ThreadPool(size_t numThreads, UCIProtocolHandler& uciHandler) : uciHandler(uciHandler) {
-    for (size_t i = 0; i < numThreads; ++i) {
-        threads.push_back(std::make_unique<Thread>(i, uciHandler, *this));
+ThreadPool::ThreadPool(size_t thread_count, uci::Protocol& protocol) : protocol(protocol) {
+    for (size_t i = 0; i < thread_count; ++i) {
+        threads.push_back(std::make_unique<Thread>(i, protocol, *this));
     }
 }
 
-ThreadPool::~ThreadPool() { exitAll(); }
+ThreadPool::~ThreadPool() {
+    exit_all();
+}
 
-void ThreadPool::startAll(SearchOptions& options) {
-    TimePoint startTime = Clock::now();
-
+void ThreadPool::start_all(SearchOptions& options) {
     for (auto& thread : threads) {
-        thread->set(options, startTime);
-        thread->start();
+        thread->start(options);
         std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 2));
     }
 }
 
-void ThreadPool::exitAll() {
+void ThreadPool::exit_all() {
     for (auto& thread : threads) {
         thread->exit();
     }
 }
 
-void ThreadPool::stopAll() {
+void ThreadPool::stop_all() {
     for (auto& thread : threads) {
         thread->stop();
     }
 }
 
-void ThreadPool::waitAll() {
+void ThreadPool::wait_all() {
     for (auto& thread : threads) {
         thread->wait();
     }
 }
 
-void ThreadPool::resize(size_t newSize) {
-    if (newSize == threads.size()) return;
+void ThreadPool::resize(size_t thread_count) {
+    if (thread_count == threads.size())
+        return;
 
-    if (newSize < threads.size()) {
-        for (size_t i = newSize; i < threads.size(); ++i) {
+    if (thread_count < threads.size()) {
+        for (size_t i = thread_count; i < threads.size(); ++i) {
             threads[i]->exit();
         }
-        threads.resize(newSize);
+        threads.resize(thread_count);
     } else {
-        for (size_t i = threads.size(); i < newSize; ++i) {
-            threads.push_back(std::make_unique<Thread>(i, uciHandler, *this));
+        for (size_t i = threads.size(); i < thread_count; ++i) {
+            threads.push_back(std::make_unique<Thread>(i, protocol, *this));
         }
     }
 }
 
-int ThreadPool::size() const { return threads.size(); }
+int ThreadPool::size() const {
+    return threads.size();
+}
 
 template <typename T>
 T ThreadPool::accumulate(T Thread::* member) const {
@@ -65,6 +67,5 @@ T ThreadPool::accumulate(T Thread::* member) const {
     return total;
 }
 
-// intantiate accumulate for nodes and stats
-template U64 ThreadPool::accumulate<U64>(U64 Thread::* member) const;
+template uint64_t      ThreadPool::accumulate<uint64_t>(uint64_t Thread::* member) const;
 template SearchStats<> ThreadPool::accumulate<SearchStats<>>(SearchStats<> Thread::* member) const;

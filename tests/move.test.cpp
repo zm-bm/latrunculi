@@ -2,11 +2,11 @@
 
 #include <gtest/gtest.h>
 
-#include "types.hpp"
+#include "defs.hpp"
 
 TEST(MoveTest, DefaultConstructor) {
     Move move;
-    EXPECT_TRUE(move.isNullMove()) << "should create null move by default";
+    EXPECT_TRUE(move.is_null()) << "should create null move by default";
 }
 
 TEST(MoveTest, Constructor) {
@@ -17,8 +17,8 @@ TEST(MoveTest, Constructor) {
 
     EXPECT_EQ(move.from(), from) << "should create move with from square";
     EXPECT_EQ(move.to(), to) << "should create move with to square";
-    EXPECT_EQ(move.type(), MoveType::Normal) << "should create normal move";
-    EXPECT_FALSE(move.isNullMove()) << "should not create null move";
+    EXPECT_EQ(move.type(), BASIC_MOVE) << "should create normal move";
+    EXPECT_FALSE(move.is_null()) << "should not create null move";
 }
 
 TEST(MoveTest, EqualityOperator) {
@@ -31,13 +31,13 @@ TEST(MoveTest, EqualityOperator) {
 }
 
 TEST(MoveTest, PromotionMove) {
-    Move move(A7, A8, MoveType::Promotion, PieceType::Queen);
-    EXPECT_EQ(move.type(), MoveType::Promotion) << "should create promotion move";
-    EXPECT_EQ(move.promoPiece(), PieceType::Queen) << "should handle promotion piece";
-    EXPECT_FALSE(move.isNullMove()) << "should not be null move";
+    Move move(A7, A8, MOVE_PROM, QUEEN);
+    EXPECT_EQ(move.type(), MOVE_PROM) << "should create promotion move";
+    EXPECT_EQ(move.prom_piece(), QUEEN) << "should handle promotion piece";
+    EXPECT_FALSE(move.is_null()) << "should not be null move";
 }
 
 TEST(MoveTest, OutputStreamOperator) {
-    Move move(A7, A8, MoveType::Promotion, PieceType::Rook);
+    Move move(A7, A8, MOVE_PROM, ROOK);
     EXPECT_EQ(move.str(), "a7a8r") << "should output move string";
 }

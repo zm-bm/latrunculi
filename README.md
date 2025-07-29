@@ -1,6 +1,6 @@
 # latrunculi
 
-*a work‑in‑progress uci chess engine written in modern c++23*
+*a work‑in‑progress uci chess engine written in c++23*
 
 ---
 
@@ -9,13 +9,12 @@
 * **bitboard core** with magic bitboards → O(1) slider attacks
 * **principal variation search** (iterative deepening, transposition table, null‑move pruning, late‑move reductions)
 * **tapered eval**: material, piece‑square tables, pawn structure, mobility, king safety
-* cross‑platform: linux, macos, windows (msvc)
 
 ## getting started
 
 ### prerequisites
 
-* c++23 compiler (clang ≥16, g++ ≥13, msvc ≥19.38)
+* c++23 compiler (clang ≥16, g++ ≥13)
 * cmake ≥3.26
 * git (for submodules)
 
@@ -36,24 +35,31 @@ cmake --build build -j$(nproc)
 point any uci‑capable gui (cutechess, arena, etc.) at the binary and set options if needed:
 
 ```text
-setoption name Threads value 8
-setoption name Hash value 1024
+setoption name Threads value 4
+setoption name Hash value 64
 go depth 20
 ```
 
 ## tests & benchmarks
 
 ```bash
-./bin/tests         # move-gen / correctness
+./bin/tests         # move-gen / unit tests 
 ./bin/benchmark     # nps measurements
 ```
 
 ## roadmap
 
-* nnue‑style evaluation
-* endgame tablebase probing
+* stack-based state
+* phased move generation + ordering
+* evaluation hash table
+* pawn evaluation hash table
+* better pawn structure evaluation
+* drawn endgame detection
+* syzygy endgame tablebase probing
 * better time‑management heuristics
 * ci with per‑commit sprt
+* nnue‑style evaluation
+* cross-platform support
 
 ## contributing
 

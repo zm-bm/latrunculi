@@ -5,8 +5,8 @@
 #include "zobrist.hpp"
 
 int main() {
-    Magic::init();
-    Zobrist::init();
+    magic::init();
+    zob::init();
 
     Engine engine(std::cout, std::cerr, std::cin);
     engine.loop();

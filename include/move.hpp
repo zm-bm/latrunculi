@@ -2,83 +2,73 @@
 
 #include <sstream>
 
-#include "types.hpp"
+#include "defs.hpp"
 
 struct Move {
+    constexpr Move() = default;
+    constexpr Move(Square from, Square to, MoveType m_type = BASIC_MOVE, PieceType prom = KNIGHT);
+
+    Square      from() const { return unpack_from(value); }
+    Square      to() const { return unpack_to(value); }
+    MoveType    type() const { return unpack_type(value); }
+    PieceType   prom_piece() const { return unpack_prom(value); }
+    std::string str() const;
+
+    bool is_null() const { return value == 0; }
+    bool operator==(const Move& rhs) const { return value == rhs.value; }
+
+    friend std::ostream& operator<<(std::ostream& os, const Move& move);
+
+    static constexpr uint16_t pack(Square from, Square to, MoveType moveType, PieceType promoPiece);
+    static constexpr Square   unpack_from(uint16_t packed);
+    static constexpr Square   unpack_to(uint16_t packed);
+    static constexpr MoveType unpack_type(uint16_t packed);
+    static constexpr PieceType unpack_prom(uint16_t packed);
+
+    static constexpr uint16_t move_mask  = 0x3F;
+    static constexpr uint16_t flag_mask  = 0x03;
+    static constexpr uint16_t to_shift   = 6;
+    static constexpr uint16_t type_shift = 12;
+    static constexpr uint16_t prom_shift = 14;
+
     /**
-     * @brief move encoding
-     * @details
+     * move encoding:
      * 6 bits for from square (0-5)
      * 6 bits for to square (6-11)
      * 2 bits for move type (12-13)
-     * 2 bits for promo piece (14-15)
+     * 2 bits for promotion piece (14-15)
      */
-    U16 value{0};
+    uint16_t value = {0};
 
-    /// @brief move priority used for sorting
-    U16 priority{0};
-
-    constexpr Move() = default;
-    constexpr Move(Square from,
-                   Square to,
-                   MoveType mtype       = MoveType::Normal,
-                   PieceType promoPiece = PieceType::Knight)
-        : value{pack(from, to, mtype, promoPiece)} {}
-
-    inline Square from() const { return unpackFrom(value); }
-    inline Square to() const { return unpackTo(value); }
-    inline MoveType type() const { return unpackType(value); }
-    inline PieceType promoPiece() const { return unpackPromoPiece(value); }
-
-    inline bool isNullMove() const { return value == 0; }
-    inline bool operator==(const Move& rhs) const { return value == rhs.value; }
-
-    static constexpr U16 pack(Square from, Square to, MoveType moveType, PieceType promoPiece);
-    static constexpr Square unpackFrom(U16 packed);
-    static constexpr Square unpackTo(U16 packed);
-    static constexpr MoveType unpackType(U16 packed);
-    static constexpr PieceType unpackPromoPiece(U16 packed);
-
-    std::string str() const;
+    /// move priority used for sorting
+    uint16_t priority = {0};
 };
 
-constexpr Move NullMove{};
+constexpr Move NULL_MOVE{};
 
-constexpr U16 Move::pack(Square from, Square to, MoveType moveType, PieceType promoPiece) {
-    auto mtype = idx(moveType);
-    auto promo = idx(promoPiece) - PieceIdx::Knight;
-    return (from & 0x3F) |           // 6 bits for from
-           ((to & 0x3F) << 6) |      // 6 bits for to
-           ((mtype & 0x03) << 12) |  // 2 bits for move type
-           ((promo & 0x03) << 14);   // 2 bits for promos
+constexpr Move::Move(Square from, Square to, MoveType m_type, PieceType prom)
+    : value{pack(from, to, m_type, prom)},
+      priority(0) {}
+
+constexpr uint16_t Move::pack(Square from, Square to, MoveType m_type, PieceType prom) {
+    return (from & move_mask) |                              // 6 bits for from
+           ((to & move_mask) << to_shift) |                  // 6 bits for to
+           ((int(m_type) & flag_mask) << type_shift) |       // 2 bits for move type
+           ((int(prom - KNIGHT) & flag_mask) << prom_shift); // 2 bits for promos
 }
 
-constexpr Square Move::unpackFrom(U16 packed) { return static_cast<Square>((packed >> 0) & 0x3F); }
-
-constexpr Square Move::unpackTo(U16 packed) { return static_cast<Square>((packed >> 6) & 0x3F); }
-
-constexpr MoveType Move::unpackType(U16 packed) {
-    return static_cast<MoveType>((packed >> 12) & 0x03);
+constexpr Square Move::unpack_from(uint16_t packed) {
+    return static_cast<Square>(packed & move_mask);
 }
 
-constexpr PieceType Move::unpackPromoPiece(U16 packed) {
-    return static_cast<PieceType>(((packed >> 14) & 0x03) + PieceIdx::Knight);
+constexpr Square Move::unpack_to(uint16_t packed) {
+    return static_cast<Square>((packed >> to_shift) & move_mask);
 }
 
-inline std::ostream& operator<<(std::ostream& os, const Move& mv) {
-    if (mv.isNullMove()) {
-        os << "none";
-    } else {
-        os << mv.from() << mv.to();
-        if (mv.type() == MoveType::Promotion) {
-            switch (mv.promoPiece()) {
-                case PieceType::Queen: os << 'q'; break;
-                case PieceType::Rook: os << 'r'; break;
-                case PieceType::Bishop: os << 'b'; break;
-                case PieceType::Knight: os << 'n'; break;
-                default: break;
-            }
-        }
-    }
-    return os;
+constexpr MoveType Move::unpack_type(uint16_t packed) {
+    return static_cast<MoveType>((packed >> type_shift) & flag_mask);
+}
+
+constexpr PieceType Move::unpack_prom(uint16_t packed) {
+    return static_cast<PieceType>(((packed >> prom_shift) & flag_mask) + KNIGHT);
 }

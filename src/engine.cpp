@@ -1,19 +1,16 @@
 #include "engine.hpp"
 
-#include <chrono>
 #include <functional>
 #include <sstream>
-#include <variant>
 
 #include "board.hpp"
-#include "eval.hpp"
+#include "evaluator.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
 #include "search_options.hpp"
-#include "thread.hpp"
 #include "tt.hpp"
 
-static CommandFunc makeCommand(Engine* engine, bool (Engine::*func)(std::istringstream&)) {
+static Engine::Command make_cmd(Engine* engine, bool (Engine::*func)(std::istringstream&)) {
     return [engine, func](std::istringstream& iss) { return (engine->*func)(iss); };
 }
 
@@ -21,158 +18,148 @@ Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
     : out(out),
       err(err),
       in(in),
-      uciHandler(out, err),
-      config(),
-      board(STARTFEN),
-      threadpool(DEFAULT_THREADS, uciHandler),
-      commandMap({
+      protocol(out, err),
+      board(Board::startfen),
+      thread_pool(DEFAULT_THREADS, protocol),
+      config({.hash_callback   = [this](const int& value) { tt.resize(value); },
+              .thread_callback = [this](const int& value) { thread_pool.resize(value); }}),
+      command_map({
           // UCI commands
-          {"uci", makeCommand(this, &Engine::uci)},
-          {"debug", makeCommand(this, &Engine::setdebug)},
-          {"isready", makeCommand(this, &Engine::isready)},
-          {"setoption", makeCommand(this, &Engine::setoption)},
-          {"ucinewgame", makeCommand(this, &Engine::newgame)},
-          {"position", makeCommand(this, &Engine::position)},
-          {"go", makeCommand(this, &Engine::go)},
-          {"stop", makeCommand(this, &Engine::stop)},
-          {"ponderhit", makeCommand(this, &Engine::ponderhit)},
-          {"quit", makeCommand(this, &Engine::quit)},
+          {"uci", make_cmd(this, &Engine::uci)},
+          {"debug", make_cmd(this, &Engine::set_debug)},
+          {"isready", make_cmd(this, &Engine::is_ready)},
+          {"setoption", make_cmd(this, &Engine::set_option)},
+          {"ucinewgame", make_cmd(this, &Engine::new_game)},
+          {"position", make_cmd(this, &Engine::position)},
+          {"go", make_cmd(this, &Engine::go)},
+          {"stop", make_cmd(this, &Engine::stop)},
+          {"ponderhit", make_cmd(this, &Engine::ponder_hit)},
+          {"quit", make_cmd(this, &Engine::quit)},
           // Non-UCI commands
-          {"help", makeCommand(this, &Engine::help)},
-          {"board", makeCommand(this, &Engine::displayBoard)},
-          {"eval", makeCommand(this, &Engine::evaluate)},
-          {"move", makeCommand(this, &Engine::move)},
-          {"moves", makeCommand(this, &Engine::moves)},
-          {"perft", makeCommand(this, &Engine::perft)},
-          {"exit", makeCommand(this, &Engine::quit)},
+          {"help", make_cmd(this, &Engine::help)},
+          {"board", make_cmd(this, &Engine::display_board)},
+          {"eval", make_cmd(this, &Engine::evaluate)},
+          {"move", make_cmd(this, &Engine::move)},
+          {"moves", make_cmd(this, &Engine::moves)},
+          {"perft", make_cmd(this, &Engine::perft)},
+          {"exit", make_cmd(this, &Engine::quit)},
           {"", [](std::istringstream&) { return true; }},
-      }) {
-    auto updateThreads = [this](const int& value) { threadpool.resize(value); };
-    config.registerOption<int>("Threads", DEFAULT_THREADS, 1, MAX_THREADS, updateThreads);
-
-    auto updateHash = [](const int& value) { tt.resize(value); };
-    config.registerOption<int>("Hash", DEFAULT_HASH_MB, 1, MAX_HASH_MB, updateHash);
-
-    config.registerOption<bool>("Debug", DEFAULT_DEBUG);
-}
+      }) {}
 
 void Engine::loop() {
     std::string line;
     while (std::getline(std::cin, line)) {
-        if (!execute(line)) break;
+        if (!execute(line))
+            break;
     }
 }
 
 bool Engine::execute(const std::string& line) noexcept {
     try {
         std::istringstream iss(line);
-        std::string token;
+        std::string        token;
         iss >> token;
 
-        auto it = commandMap.find(token);
-        if (it != commandMap.end()) {
+        auto it = command_map.find(token);
+        if (it != command_map.end()) {
             return it->second(iss);
         } else {
-            uciHandler.info("unknown command: " + token + ", type help for a list of commands");
+            protocol.info("unknown command: " + token + ", type help for a list of commands");
             return true;
         }
     } catch (const std::exception& e) {
-        uciHandler.info("Error: " + std::string(e.what()));
+        protocol.info("error: " + std::string(e.what()));
         return true;
     } catch (...) {
-        uciHandler.info("Unknown error occurred");
+        protocol.info("unknown error occurred");
         return true;
     }
 }
 
 bool Engine::uci(std::istringstream& iss) {
-    uciHandler.identify(config);
+    protocol.identify(config);
     return true;
 }
 
-bool Engine::setdebug(std::istringstream& iss) {
+bool Engine::set_debug(std::istringstream& iss) {
     std::string token;
     iss >> token;
-    config.setOption("Debug", token);
+    config.set_option("Debug", token);
     return true;
 }
 
-bool Engine::isready(std::istringstream& iss) {
-    uciHandler.ready();
+bool Engine::is_ready(std::istringstream& iss) {
+    protocol.ready();
     return true;
 }
 
-bool Engine::setoption(std::istringstream& iss) {
-    auto [name, value] = parseSetOption(iss);
-    if (name.empty()) throw std::runtime_error("missing option name");
-    if (value.empty()) throw std::runtime_error("missing option value");
-    config.setOption(name, value);
+bool Engine::set_option(std::istringstream& iss) {
+    auto [name, value] = parse_option(iss);
+    if (name.empty())
+        throw std::runtime_error("missing option name");
+    if (value.empty())
+        throw std::runtime_error("missing option value");
+    config.set_option(name, value);
     return true;
 }
 
-bool Engine::newgame(std::istringstream& iss) {
-    tt.ageTable();
+bool Engine::new_game(std::istringstream& iss) {
+    tt.age_table();
     return true;
 }
 
 bool Engine::position(std::istringstream& iss) {
-    auto [fen, moves] = parsePosition(iss);
-    if (fen.empty()) throw std::runtime_error("invalid position command");
-    board.loadFEN(fen);
+    auto [fen, moves] = parse_position(iss);
+    if (fen.empty())
+        throw std::runtime_error("invalid position command");
+    board.load_fen(fen);
 
-    std::istringstream movesStream(moves);
-    std::string token;
-    while (movesStream >> token) {
-        auto move = getMove(token);
-        if (move == NullMove) break;
+    std::istringstream moves_stream(moves);
+    std::string        token;
+    while (moves_stream >> token) {
+        auto move = get_move(token);
+        if (move.is_null())
+            break;
         board.make(move);
     }
     return true;
 }
 
 bool Engine::go(std::istringstream& iss) {
-    SearchOptions options{iss};
-    options.board = &board;
-    options.debug = config.getOption<bool>("Debug");
-
-    for (const auto& w : options.warnings) {
-        uciHandler.info("invalid " + w.name + " value " + w.value);
-    }
-
-    threadpool.startAll(options);
+    SearchOptions options(iss, &board);
+    thread_pool.start_all(options);
     return true;
 }
 
 bool Engine::stop(std::istringstream& iss) {
-    threadpool.stopAll();
+    thread_pool.stop_all();
     return true;
 }
 
 bool Engine::quit(std::istringstream& iss) {
-    threadpool.exitAll();
+    thread_pool.exit_all();
     return false;
 }
 
-bool Engine::ponderhit(std::istringstream& iss) {
-    // TODO: Implement pondering
-    uciHandler.info("ponderhit received");
+bool Engine::ponder_hit(std::istringstream& iss) {
+    protocol.info("ponderhit received");
     return true;
 }
 
 bool Engine::help(std::istringstream& iss) {
-    uciHandler.help();
+    protocol.help();
     return true;
 }
 
-bool Engine::displayBoard(std::istringstream& iss) {
-    uciHandler.logOutput(board);
+bool Engine::display_board(std::istringstream& iss) {
+    protocol.diagnostic_output(board);
     return true;
 }
 
 bool Engine::evaluate(std::istringstream& iss) {
-    EvalVerbose eval{board};
-    eval.evaluate();
-    uciHandler.logOutput(eval);
+    EvaluatorDebug e{board};
+    e.evaluate();
+    protocol.diagnostic_output(e);
     return true;
 }
 
@@ -183,9 +170,9 @@ bool Engine::move(std::istringstream& iss) {
     if (token == "undo") {
         board.unmake();
     } else {
-        auto move = getMove(token);
-        if (move == NullMove) {
-            uciHandler.info("invalid move: " + token);
+        auto move = get_move(token);
+        if (move.is_null()) {
+            protocol.info("invalid move: " + token);
         } else {
             board.make(move);
         }
@@ -194,50 +181,54 @@ bool Engine::move(std::istringstream& iss) {
 }
 
 bool Engine::moves(std::istringstream& iss) {
-    MoveGenerator<MoveGenMode::All> moves{board};
-    for (auto& move : moves) uciHandler.logOutput(move.str());
+    auto movelist = generate<ALL_MOVES>(board);
+    for (auto& move : movelist)
+        protocol.diagnostic_output(move.str());
     return true;
 }
 
 bool Engine::perft(std::istringstream& iss) {
     int depth;
 
-    if (!(iss >> depth) || depth <= 0 || depth >= MAX_DEPTH) {
-        iss.clear();
-        std::string invalid = iss.str().substr(iss.tellg());
-        uciHandler.info("invalid perft value " + invalid);
-        return true;
+    if (iss >> depth) {
+        depth = std::max(1, depth);
+        board.perft<ROOT>(depth, err);
     }
 
-    board.perft<NodeType::Root>(depth, err);
     return true;
 }
 
-std::pair<std::string, std::string> Engine::parsePosition(std::istringstream& iss) {
-    std::string token, fen, moves;
-    bool inFen = false, inMoves = false;
+std::pair<std::string, std::string> Engine::parse_position(std::istringstream& iss) {
+    std::string token;
+    std::string fen;
+    std::string moves;
+
+    bool in_fen   = false;
+    bool in_moves = false;
 
     while (iss >> token) {
         if (token == "startpos") {
-            fen     = STARTFEN;
-            inFen   = false;
-            inMoves = false;
+            fen      = Board::startfen;
+            in_fen   = false;
+            in_moves = false;
             continue;
         } else if (token == "fen") {
-            inFen   = true;
-            inMoves = false;
+            in_fen   = true;
+            in_moves = false;
             continue;
         } else if (token == "moves") {
-            inFen   = false;
-            inMoves = true;
+            in_fen   = false;
+            in_moves = true;
             continue;
         }
 
-        if (inFen) {
-            if (!fen.empty()) fen += ' ';
+        if (in_fen) {
+            if (!fen.empty())
+                fen += ' ';
             fen += token;
-        } else if (inMoves) {
-            if (!moves.empty()) moves += ' ';
+        } else if (in_moves) {
+            if (!moves.empty())
+                moves += ' ';
             moves += token;
         }
     }
@@ -245,26 +236,32 @@ std::pair<std::string, std::string> Engine::parsePosition(std::istringstream& is
     return {fen, moves};
 }
 
-std::pair<std::string, std::string> Engine::parseSetOption(std::istringstream& iss) {
-    std::string token, name, value;
-    bool inName = false, inValue = false;
+std::pair<std::string, std::string> Engine::parse_option(std::istringstream& iss) {
+    std::string token;
+    std::string name;
+    std::string value;
+
+    bool in_name  = false;
+    bool in_value = false;
 
     while (iss >> token) {
         if (token == "name") {
-            inName  = true;
-            inValue = false;
+            in_name  = true;
+            in_value = false;
             continue;
         } else if (token == "value") {
-            inName  = false;
-            inValue = true;
+            in_name  = false;
+            in_value = true;
             continue;
         }
 
-        if (inName) {
-            if (!name.empty()) name += ' ';
+        if (in_name) {
+            if (!name.empty())
+                name += ' ';
             name += token;
-        } else if (inValue) {
-            if (!value.empty()) value += ' ';
+        } else if (in_value) {
+            if (!value.empty())
+                value += ' ';
             value += token;
         }
     }
@@ -272,12 +269,12 @@ std::pair<std::string, std::string> Engine::parseSetOption(std::istringstream& i
     return {name, value};
 }
 
-Move Engine::getMove(const std::string& token) {
-    MoveGenerator<MoveGenMode::All> moves{board};
-    for (auto& move : moves) {
-        if (move.str() == token && board.isLegalMove(move)) {
+Move Engine::get_move(const std::string& token) {
+    auto movelist = generate<ALL_MOVES>(board);
+    for (auto& move : movelist) {
+        if (move.str() == token && board.is_legal_move(move)) {
             return move;
         }
     }
-    return NullMove;
+    return NULL_MOVE;
 }

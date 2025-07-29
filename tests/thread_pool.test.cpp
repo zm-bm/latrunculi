@@ -2,66 +2,69 @@
 
 #include <sstream>
 
-#include "gtest/gtest.h"
 #include "search_options.hpp"
+#include "test_util.hpp"
 #include "thread.hpp"
 #include "uci.hpp"
+#include "gtest/gtest.h"
 
 const int N_THREADS = 4;
 
 class ThreadPoolTest : public ::testing::Test {
-   protected:
+protected:
     std::ostringstream oss;
-    UCIProtocolHandler uciHandler{oss, oss};
-    ThreadPool* threadPool;
-    Board board{STARTFEN};
-    SearchOptions options;
+    uci::Protocol      protocol{oss, oss};
+    ThreadPool*        pool;
+    Board              board{STARTFEN};
+    SearchOptions      options;
 
-    U64 testAccumulate() { return threadPool->accumulate(&Thread::nodes); }
+    uint64_t test_accumulate() { return pool->accumulate(&Thread::nodes); }
 
     void SetUp() override {
-        threadPool    = new ThreadPool(N_THREADS, uciHandler);
+        pool          = new ThreadPool(N_THREADS, protocol);
         options.board = &board;
         options.depth = 5;
     }
 
-    void TearDown() override { delete threadPool; }
+    void TearDown() override { delete pool; }
 };
 
-TEST_F(ThreadPoolTest, Constructor) { EXPECT_EQ(threadPool->size(), N_THREADS); }
+TEST_F(ThreadPoolTest, Constructor) {
+    EXPECT_EQ(pool->size(), N_THREADS);
+}
 
 TEST_F(ThreadPoolTest, StartAllThreads) {
-    threadPool->startAll(options);
+    pool->start_all(options);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     // Ensure threads are started
-    EXPECT_NO_THROW(threadPool->waitAll());
+    EXPECT_NO_THROW(pool->wait_all());
 }
 
 TEST_F(ThreadPoolTest, ExitAllThreads) {
-    threadPool->startAll(options);
+    pool->start_all(options);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    threadPool->exitAll();
+    pool->exit_all();
 
     // Ensure threads are stopped
-    EXPECT_NO_THROW(threadPool->waitAll());
+    EXPECT_NO_THROW(pool->wait_all());
 }
 
 TEST_F(ThreadPoolTest, StopAllThreads) {
-    threadPool->startAll(options);
+    pool->start_all(options);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    threadPool->stopAll();
+    pool->stop_all();
 
     // Ensure threads are halted
-    EXPECT_NO_THROW(threadPool->waitAll());
+    EXPECT_NO_THROW(pool->wait_all());
 }
 
 TEST_F(ThreadPoolTest, AccumulateNodes) {
-    threadPool->startAll(options);
+    pool->start_all(options);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    threadPool->exitAll();
+    pool->exit_all();
 
-    U64 totalNodes = testAccumulate();
+    uint64_t totalNodes = test_accumulate();
 
     EXPECT_GT(totalNodes, 0);
 }

@@ -8,26 +8,26 @@
 
 #include "board.hpp"
 #include "search_options.hpp"
+#include "test_util.hpp"
 #include "thread_pool.hpp"
 #include "uci.hpp"
 
 class ThreadTest : public ::testing::Test {
-   protected:
+protected:
     std::ostringstream oss;
-    UCIProtocolHandler uciHandler{oss, oss};
-    ThreadPool threadPool{1, uciHandler};
-    Thread* thread;
+    uci::Protocol      protocol{oss, oss};
+    ThreadPool         pool{1, protocol};
+    Thread*            thread;
 
-    void SetUp() override { thread = threadPool.threads[0].get(); }
+    void SetUp() override { thread = pool.threads[0].get(); }
 };
 
 TEST_F(ThreadTest, ThreadStartsAndExitsCorrectly) {
+    Board         board{STARTFEN};
     SearchOptions options;
-    Board board{STARTFEN};
     options.board = &board;
-    thread->set(options, Clock::now());
 
-    thread->start();
+    thread->start(options);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     thread->exit();
     thread->wait();
@@ -38,12 +38,10 @@ TEST_F(ThreadTest, ThreadStartsAndExitsCorrectly) {
 
 TEST_F(ThreadTest, ThreadProcessesSearchCorrectly) {
     SearchOptions options;
-    Board board{STARTFEN};
+    Board         board{STARTFEN};
     options.board = &board;
 
-    thread->set(options, Clock::now());
-
-    thread->start();
+    thread->start(options);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     thread->exit();
     thread->wait();
@@ -54,12 +52,10 @@ TEST_F(ThreadTest, ThreadProcessesSearchCorrectly) {
 
 TEST_F(ThreadTest, ThreadStopsSearchCorrectly) {
     SearchOptions options;
-    Board board{STARTFEN};
+    Board         board{STARTFEN};
     options.board = &board;
 
-    thread->set(options, Clock::now());
-
-    thread->start();
+    thread->start(options);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     thread->stop();
     thread->wait();
@@ -69,12 +65,11 @@ TEST_F(ThreadTest, ThreadStopsSearchCorrectly) {
 }
 
 TEST_F(ThreadTest, ThreadHandlesMultipleSearches) {
-    Board board{EMPTYFEN};
+    Board         board{EMPTYFEN};
     SearchOptions options1;
     options1.board = &board;
 
-    thread->set(options1, Clock::now());
-    thread->start();
+    thread->start(options1);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     thread->stop();
     thread->wait();
@@ -82,8 +77,7 @@ TEST_F(ThreadTest, ThreadHandlesMultipleSearches) {
     SearchOptions options2;
     options2.board = &board;
 
-    thread->set(options2, Clock::now());
-    thread->start();
+    thread->start(options2);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     thread->stop();
     thread->wait();
