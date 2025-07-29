@@ -2,266 +2,236 @@
 
 #include <gtest/gtest.h>
 
-#include <numeric>
+#include "defs.hpp"
 
-#include "test_utils.hpp"
-#include "types.hpp"
-
-TEST(BB, CorrectSet) {
-    for (int i = 0; i < 64; ++i) {
-        U64 result   = BB::set(Square(i));
-        U64 expected = 1ULL << i;
-        ASSERT_EQ(result, expected) << "Failed at index " << i;
+TEST(bbTest, SetAndClear) {
+    for (Square sq = A1; sq < INVALID; ++sq) {
+        ASSERT_EQ(bb::set(sq), ~bb::clear(sq));
     }
 }
 
-TEST(BB, CorrectClear) {
-    for (int i = 0; i < 64; ++i) {
-        U64 result   = BB::clear(Square(i));
-        U64 expected = ~(1ULL << i);
-        ASSERT_EQ(result, expected) << "Failed at index " << i;
+TEST(bbTest, Distance) {
+    EXPECT_EQ(bb::distance(A1, A1), 0);
+    EXPECT_EQ(bb::distance(A1, A2), 1);
+    EXPECT_EQ(bb::distance(A1, B1), 1);
+    EXPECT_EQ(bb::distance(A1, B2), 1);
+    EXPECT_EQ(bb::distance(A1, G7), 6);
+    EXPECT_EQ(bb::distance(A1, H7), 7);
+    EXPECT_EQ(bb::distance(A1, G8), 7);
+    EXPECT_EQ(bb::distance(A1, H8), 7);
+}
+
+TEST(bbTest, Collinear) {
+    std::vector<std::tuple<Square, Square, uint64_t>> test_cases = {
+        {B2, D2, bb::rank(RANK2)},
+        {B2, B4, bb::file(FILE2)},
+        {A1, H8, bb::set(A1, B2, C3, D4, E5, F6, G7, H8)},
+        {A8, H1, bb::set(A8, B7, C6, D5, E4, F3, G2, H1)},
+        {C1, A3, bb::set(A3, B2, C1)},
+        {F1, H3, bb::set(F1, G2, H3)},
+        {B2, C4, 0},
+    };
+
+    for (const auto& [sq1, sq2, expected] : test_cases) {
+        EXPECT_EQ(bb::collinear(sq1, sq2), expected);
+        EXPECT_EQ(bb::collinear(sq2, sq1), expected);
     }
 }
 
-TEST(BB, CorrectFileBB) {
-    for (int i = 0; i < 8; ++i) {
-        U64 result   = BB::fileBB(File(i));
-        U64 expected = 0x0101010101010101ULL << i;
-        ASSERT_EQ(result, expected) << "Failed at file " << i;
-    }
+TEST(bbTest, Between) {
+    EXPECT_EQ(bb::between(B2, D2), bb::set(C2));
+    EXPECT_EQ(bb::between(D2, B2), bb::set(C2));
+    EXPECT_EQ(bb::between(B2, B4), bb::set(B3));
+    EXPECT_EQ(bb::between(B4, B2), bb::set(B3));
+    EXPECT_EQ(bb::between(B2, C4), 0);
+    EXPECT_EQ(bb::between(C4, B2), 0);
 }
 
-TEST(BB, CorrectRankBB) {
-    for (int i = 0; i < 8; ++i) {
-        U64 result   = BB::rankBB(Rank(i));
-        U64 expected = 0xFFULL << (i * 8);
-        ASSERT_EQ(result, expected) << "Failed at rank " << i;
-    }
+TEST(bbTest, IsMany) {
+    EXPECT_EQ(bb::is_many(0b100), 0);
+    EXPECT_NE(bb::is_many(0b110), 0);
 }
 
-TEST(BB, CorrectDistanceValues) {
-    EXPECT_EQ(BB::distance(A1, A1), 0);
-    EXPECT_EQ(BB::distance(A1, A2), 1);
-    EXPECT_EQ(BB::distance(A1, B1), 1);
-    EXPECT_EQ(BB::distance(A1, B2), 1);
-    EXPECT_EQ(BB::distance(A1, G7), 6);
-    EXPECT_EQ(BB::distance(A1, H7), 7);
-    EXPECT_EQ(BB::distance(A1, G8), 7);
-    EXPECT_EQ(BB::distance(A1, H8), 7);
+TEST(bbTest, Count) {
+    EXPECT_EQ(bb::count(0b0), 0);
+    EXPECT_EQ(bb::count(0b1000), 1);
+    EXPECT_EQ(bb::count(0b1010), 2);
+    EXPECT_EQ(bb::count(0b1011), 3);
 }
 
-TEST(BB, CorrectCollinear) {
-    EXPECT_EQ(BB::collinear(B2, D2), BB::rankBB(Rank::R2));
-    EXPECT_EQ(BB::collinear(D2, B2), BB::rankBB(Rank::R2));
-    EXPECT_EQ(BB::collinear(B2, B4), BB::fileBB(File::F2));
-    EXPECT_EQ(BB::collinear(B4, B2), BB::fileBB(File::F2));
-    EXPECT_EQ(BB::collinear(A1, H8), BB::set(A1, B2, C3, D4, E5, F6, G7, H8));
-    EXPECT_EQ(BB::collinear(H8, A1), BB::set(A1, B2, C3, D4, E5, F6, G7, H8));
-    EXPECT_EQ(BB::collinear(B2, C4), 0);
-    EXPECT_EQ(BB::collinear(C4, B2), 0);
+TEST(bbTest, Lsb) {
+    EXPECT_EQ(bb::lsb(bb::set(A1)), A1);
+    EXPECT_EQ(bb::lsb(bb::set(H1)), H1);
+    EXPECT_EQ(bb::lsb(bb::set(A8)), A8);
+    EXPECT_EQ(bb::lsb(bb::set(H8)), H8);
 }
 
-TEST(BB, CorrectBetween) {
-    EXPECT_EQ(BB::between(B2, D2), BB::set(C2));
-    EXPECT_EQ(BB::between(D2, B2), BB::set(C2));
-    EXPECT_EQ(BB::between(B2, B4), BB::set(B3));
-    EXPECT_EQ(BB::between(B4, B2), BB::set(B3));
-    EXPECT_EQ(BB::between(B2, C4), 0);
-    EXPECT_EQ(BB::between(C4, B2), 0);
+TEST(bbTest, Msb) {
+    EXPECT_EQ(bb::msb(bb::set(A1)), A1);
+    EXPECT_EQ(bb::msb(bb::set(H1)), H1);
+    EXPECT_EQ(bb::msb(bb::set(A8)), A8);
+    EXPECT_EQ(bb::msb(bb::set(H8)), H8);
 }
 
-TEST(BB, CorrectMoreThanOneValues) {
-    EXPECT_EQ(BB::isMany(0b100), 0);
-    EXPECT_NE(BB::isMany(0b110), 0);
+TEST(bbTest, LsbPop) {
+    uint64_t bitboard = bb::set(A1, B2, C3);
+    EXPECT_EQ(bb::lsb_pop(bitboard), A1);
+    EXPECT_EQ(bb::lsb_pop(bitboard), B2);
+    EXPECT_EQ(bb::lsb_pop(bitboard), C3);
+    EXPECT_EQ(bitboard, 0);
 }
 
-TEST(BB, CorrectBitCount) {
-    EXPECT_EQ(BB::count(0b0), 0);
-    EXPECT_EQ(BB::count(0b1000), 1);
-    EXPECT_EQ(BB::count(0b1010), 2);
-    EXPECT_EQ(BB::count(0b1011), 3);
+TEST(bbTest, MsbPop) {
+    uint64_t bitboard = bb::set(A1, B2, C3);
+    EXPECT_EQ(bb::msb_pop(bitboard), C3);
+    EXPECT_EQ(bb::msb_pop(bitboard), B2);
+    EXPECT_EQ(bb::msb_pop(bitboard), A1);
+    EXPECT_EQ(bitboard, 0);
 }
 
-TEST(BB, CorrectLeastSignificantBit) {
-    EXPECT_EQ(BB::lsb(BB::set(A1)), A1);
-    EXPECT_EQ(BB::lsb(BB::set(H1)), H1);
-    EXPECT_EQ(BB::lsb(BB::set(A8)), A8);
-    EXPECT_EQ(BB::lsb(BB::set(H8)), H8);
+TEST(bbTest, SelectSquare) {
+    uint64_t bitboard = bb::set(A1, B2, C3);
+    EXPECT_EQ(bb::select<WHITE>(bitboard), C3);
+    EXPECT_EQ(bb::select<BLACK>(bitboard), A1);
 }
 
-TEST(BB, CorrectMostSignificantBit) {
-    EXPECT_EQ(BB::msb(BB::set(A1)), A1);
-    EXPECT_EQ(BB::msb(BB::set(H1)), H1);
-    EXPECT_EQ(BB::msb(BB::set(A8)), A8);
-    EXPECT_EQ(BB::msb(BB::set(H8)), H8);
+TEST(bbTest, PopSquare) {
+    uint64_t bitboard = bb::set(A1, B2, C3);
+    EXPECT_EQ(bb::pop<WHITE>(bitboard), C3);
+    EXPECT_EQ(bitboard, bb::set(A1, B2));
+    EXPECT_EQ(bb::pop<BLACK>(bitboard), A1);
+    EXPECT_EQ(bitboard, bb::set(B2));
 }
 
-TEST(BB, CorrectLeastSignificantBitPop) {
-    U64 bb = BB::set(A1, B2, C3);
-    EXPECT_EQ(BB::lsbPop(bb), A1);
-    EXPECT_EQ(BB::lsbPop(bb), B2);
-    EXPECT_EQ(BB::lsbPop(bb), C3);
-    EXPECT_EQ(bb, 0);
+TEST(bbTest, Scan) {
+    std::vector<Square> squares;
+
+    uint64_t bitboard = bb::set(A1, B2, C3);
+    bb::scan<WHITE>(bitboard, [&squares](Square sq) { squares.push_back(sq); });
+
+    EXPECT_EQ(squares.size(), 3);
+    EXPECT_EQ(squares[0], C3);
+    EXPECT_EQ(squares[1], B2);
+    EXPECT_EQ(squares[2], A1);
 }
 
-TEST(BB, CorrectMostSignificantBitPop) {
-    U64 bb = BB::set(A1, B2, C3);
-    EXPECT_EQ(BB::msbPop(bb), C3);
-    EXPECT_EQ(BB::msbPop(bb), B2);
-    EXPECT_EQ(BB::msbPop(bb), A1);
-    EXPECT_EQ(bb, 0);
+TEST(bbTest, CorrectFillNorthValues) {
+    EXPECT_EQ(bb::fill_north(bb::set(A1)), bb::file(FILE1));
+    EXPECT_EQ(bb::fill_north(bb::set(H1)), bb::file(FILE8));
+    EXPECT_EQ(bb::fill_north(bb::set(A7)), bb::set(A7, A8));
+    EXPECT_EQ(bb::fill_north(bb::set(H7)), bb::set(H7, H8));
 }
 
-TEST(BitboardTests, SelectSquare) {
-    U64 bb = BB::set(A1, B2, C3);
-    EXPECT_EQ(BB::selectSquare<WHITE>(bb), C3);
-    EXPECT_EQ(BB::selectSquare<BLACK>(bb), A1);
+TEST(bbTest, CorrectFillSouthValues) {
+    EXPECT_EQ(bb::fill_south(bb::set(A8)), bb::file(FILE1));
+    EXPECT_EQ(bb::fill_south(bb::set(H8)), bb::file(FILE8));
+    EXPECT_EQ(bb::fill_south(bb::set(A2)), bb::set(A2, A1));
+    EXPECT_EQ(bb::fill_south(bb::set(H2)), bb::set(H2, H1));
 }
 
-TEST(BitboardTests, PopSquare) {
-    U64 bb = BB::set(A1, B2, C3);
-    EXPECT_EQ(BB::popSquare<WHITE>(bb), C3);
-    EXPECT_EQ(bb, BB::set(A1, B2));
-    EXPECT_EQ(BB::popSquare<BLACK>(bb), A1);
-    EXPECT_EQ(bb, BB::set(B2));
+TEST(bbTest, CorrectFillFilesValues) {
+    EXPECT_EQ(bb::fill(bb::set(A1)), bb::file(FILE1));
+    EXPECT_EQ(bb::fill(bb::set(D4)), bb::file(FILE4));
+    EXPECT_EQ(bb::fill(bb::set(H8)), bb::file(FILE8));
 }
 
-TEST(BitboardTests, Scan) {
-    U64 bb = BB::set(A1, B2, C3);
-    std::vector<Square> scannedSquares;
-    auto action = [&scannedSquares](Square sq) { scannedSquares.push_back(sq); };
-
-    BB::scan<WHITE>(bb, action);
-
-    EXPECT_EQ(scannedSquares.size(), 3);
-    EXPECT_EQ(scannedSquares[0], C3);
-    EXPECT_EQ(scannedSquares[1], B2);
-    EXPECT_EQ(scannedSquares[2], A1);
+TEST(bbTest, CorrectShiftSouthValues) {
+    EXPECT_EQ(bb::shift_south(bb::set(A1)), 0);
+    EXPECT_EQ(bb::shift_south(bb::set(D4)), bb::set(D3));
+    EXPECT_EQ(bb::shift_south(bb::set(H8)), bb::set(H7));
 }
 
-TEST(BB, CorrectFillNorthValues) {
-    EXPECT_EQ(BB::fillNorth(BB::set(A1)), BB::fileBB(File::F1));
-    EXPECT_EQ(BB::fillNorth(BB::set(H1)), BB::fileBB(File::F8));
-    EXPECT_EQ(BB::fillNorth(BB::set(A7)), BB::set(A7, A8));
-    EXPECT_EQ(BB::fillNorth(BB::set(H7)), BB::set(H7, H8));
+TEST(bbTest, CorrectShiftNorthValues) {
+    EXPECT_EQ(bb::shift_north(bb::set(A1)), bb::set(A2));
+    EXPECT_EQ(bb::shift_north(bb::set(D4)), bb::set(D5));
+    EXPECT_EQ(bb::shift_north(bb::set(H8)), 0);
 }
 
-TEST(BB, CorrectFillSouthValues) {
-    EXPECT_EQ(BB::fillSouth(BB::set(A8)), BB::fileBB(File::F1));
-    EXPECT_EQ(BB::fillSouth(BB::set(H8)), BB::fileBB(File::F8));
-    EXPECT_EQ(BB::fillSouth(BB::set(A2)), BB::set(A2, A1));
-    EXPECT_EQ(BB::fillSouth(BB::set(H2)), BB::set(H2, H1));
+TEST(bbTest, CorrectShiftEastValues) {
+    EXPECT_EQ(bb::shift_east(bb::set(A1)), bb::set(B1));
+    EXPECT_EQ(bb::shift_east(bb::set(D4)), bb::set(E4));
+    EXPECT_EQ(bb::shift_east(bb::set(H8)), 0);
 }
 
-TEST(BB, CorrectFillFilesValues) {
-    EXPECT_EQ(BB::fillFiles(BB::set(A1)), BB::fileBB(File::F1));
-    EXPECT_EQ(BB::fillFiles(BB::set(D4)), BB::fileBB(File::F4));
-    EXPECT_EQ(BB::fillFiles(BB::set(H8)), BB::fileBB(File::F8));
+TEST(bbTest, CorrectShiftWestValues) {
+    EXPECT_EQ(bb::shift_west(bb::set(A1)), 0);
+    EXPECT_EQ(bb::shift_west(bb::set(D4)), bb::set(C4));
+    EXPECT_EQ(bb::shift_west(bb::set(H8)), bb::set(G8));
 }
 
-TEST(BB, CorrectShiftSouthValues) {
-    EXPECT_EQ(BB::shiftSouth(BB::set(A1)), 0);
-    EXPECT_EQ(BB::shiftSouth(BB::set(D4)), BB::set(D3));
-    EXPECT_EQ(BB::shiftSouth(BB::set(H8)), BB::set(H7));
+TEST(bbTest, CorrectSpanNorthValues) {
+    EXPECT_EQ(bb::span_north(bb::set(A1)), bb::set(A2, A3, A4, A5, A6, A7, A8));
+    EXPECT_EQ(bb::span_north(bb::set(D4)), bb::set(D5, D6, D7, D8));
+    EXPECT_EQ(bb::span_north(bb::set(H8)), 0);
 }
 
-TEST(BB, CorrectShiftNorthValues) {
-    EXPECT_EQ(BB::shiftNorth(BB::set(A1)), BB::set(A2));
-    EXPECT_EQ(BB::shiftNorth(BB::set(D4)), BB::set(D5));
-    EXPECT_EQ(BB::shiftNorth(BB::set(H8)), 0);
+TEST(bbTest, CorrectSpanSouthValues) {
+    EXPECT_EQ(bb::span_south(bb::set(A1)), 0);
+    EXPECT_EQ(bb::span_south(bb::set(D4)), bb::set(D1, D2, D3));
+    EXPECT_EQ(bb::span_south(bb::set(H8)), bb::set(H1, H2, H3, H4, H5, H6, H7));
 }
 
-TEST(BB, CorrectShiftEastValues) {
-    EXPECT_EQ(BB::shiftEast(BB::set(A1)), BB::set(B1));
-    EXPECT_EQ(BB::shiftEast(BB::set(D4)), BB::set(E4));
-    EXPECT_EQ(BB::shiftEast(BB::set(H8)), 0);
+TEST(bbTest, CorrectSpanFrontValues) {
+    EXPECT_EQ(bb::span_front<WHITE>(bb::set(A4)), bb::set(A5, A6, A7, A8));
+    EXPECT_EQ(bb::span_front<BLACK>(bb::set(A4)), bb::set(A3, A2, A1));
 }
 
-TEST(BB, CorrectShiftWestValues) {
-    EXPECT_EQ(BB::shiftWest(BB::set(A1)), 0);
-    EXPECT_EQ(BB::shiftWest(BB::set(D4)), BB::set(C4));
-    EXPECT_EQ(BB::shiftWest(BB::set(H8)), BB::set(G8));
+TEST(bbTest, CorrectSpanBackValues) {
+    EXPECT_EQ(bb::span_back<WHITE>(bb::set(A4)), bb::set(A3, A2, A1));
+    EXPECT_EQ(bb::span_back<BLACK>(bb::set(A4)), bb::set(A5, A6, A7, A8));
 }
 
-TEST(BB, CorrectSpanNorthValues) {
-    EXPECT_EQ(BB::spanNorth(BB::set(A1)), BB::set(A2, A3, A4, A5, A6, A7, A8));
-    EXPECT_EQ(BB::spanNorth(BB::set(D4)), BB::set(D5, D6, D7, D8));
-    EXPECT_EQ(BB::spanNorth(BB::set(H8)), 0);
+TEST(bbTest, CorrectPawnAttackSpanValues) {
+    EXPECT_EQ(bb::attack_span<WHITE>(bb::set(D5)), bb::set(C6, E6, C7, E7, C8, E8));
+    EXPECT_EQ(bb::attack_span<BLACK>(bb::set(D4)), bb::set(C3, E3, C2, E2, C1, E1));
 }
 
-TEST(BB, CorrectSpanSouthValues) {
-    EXPECT_EQ(BB::spanSouth(BB::set(A1)), 0);
-    EXPECT_EQ(BB::spanSouth(BB::set(D4)), BB::set(D1, D2, D3));
-    EXPECT_EQ(BB::spanSouth(BB::set(H8)), BB::set(H1, H2, H3, H4, H5, H6, H7));
+TEST(bbTest, CorrectPawnFullSpanValues) {
+    EXPECT_EQ(bb::full_span<WHITE>(bb::set(D6)), bb::set(C7, D7, E7, C8, D8, E8));
+    EXPECT_EQ(bb::full_span<BLACK>(bb::set(D3)), bb::set(C2, D2, E2, C1, D1, E1));
 }
 
-TEST(BB, CorrectSpanFrontValues) {
-    EXPECT_EQ(BB::spanFront<WHITE>(BB::set(A4)), BB::set(A5, A6, A7, A8));
-    EXPECT_EQ(BB::spanFront<BLACK>(BB::set(A4)), BB::set(A3, A2, A1));
+TEST(bbTest, CorrectPawnMoves) {
+    uint64_t pawns = bb::set(D4);
+    EXPECT_EQ(bb::pawn_moves<PAWN_PUSH>(pawns, WHITE), bb::set(D5));
+    EXPECT_EQ(bb::pawn_moves<PAWN_PUSH>(pawns, BLACK), bb::set(D3));
+    EXPECT_EQ(bb::pawn_moves<PAWN_LEFT>(pawns, WHITE), bb::set(C5));
+    EXPECT_EQ(bb::pawn_moves<PAWN_RIGHT>(pawns, WHITE), bb::set(E5));
+    EXPECT_EQ(bb::pawn_moves<PAWN_LEFT>(pawns, BLACK), bb::set(E3));
+    EXPECT_EQ(bb::pawn_moves<PAWN_RIGHT>(pawns, BLACK), bb::set(C3));
+    EXPECT_EQ(bb::pawn_moves<PAWN_PUSH2>(pawns, WHITE), bb::set(D6));
+    EXPECT_EQ(bb::pawn_moves<PAWN_PUSH2>(pawns, BLACK), bb::set(D2));
+
+    uint64_t pawns_left = bb::set(A4);
+    EXPECT_EQ(bb::pawn_moves<PAWN_LEFT>(pawns_left, WHITE), 0);
+    EXPECT_EQ(bb::pawn_moves<PAWN_RIGHT>(pawns_left, BLACK), 0);
+
+    uint64_t pawns_right = bb::set(H4);
+    EXPECT_EQ(bb::pawn_moves<PAWN_RIGHT>(pawns_right, WHITE), 0);
+    EXPECT_EQ(bb::pawn_moves<PAWN_LEFT>(pawns_right, BLACK), 0);
 }
 
-TEST(BB, CorrectSpanBackValues) {
-    EXPECT_EQ(BB::spanBack<WHITE>(BB::set(A4)), BB::set(A3, A2, A1));
-    EXPECT_EQ(BB::spanBack<BLACK>(BB::set(A4)), BB::set(A5, A6, A7, A8));
+TEST(bbTest, CorrectPawnAttacks) {
+    uint64_t pawns = bb::set(A4, D4, H4);
+    EXPECT_EQ(bb::pawn_attacks(pawns, WHITE), bb::set(B5, C5, E5, G5));
+    EXPECT_EQ(bb::pawn_attacks(pawns, BLACK), bb::set(B3, C3, E3, G3));
 }
 
-TEST(BB, CorrectPawnAttackSpanValues) {
-    EXPECT_EQ(BB::pawnAttackSpan<WHITE>(BB::set(D5)), BB::set(C6, E6, C7, E7, C8, E8));
-    EXPECT_EQ(BB::pawnAttackSpan<BLACK>(BB::set(D4)), BB::set(C3, E3, C2, E2, C1, E1));
+TEST(bbTest, CorrectMovesKnights) {
+    EXPECT_EQ(bb::moves<KNIGHT>(A1), bb::set(B3, C2));
+    EXPECT_EQ(bb::moves<KNIGHT>(H1), bb::set(G3, F2));
+    EXPECT_EQ(bb::moves<KNIGHT>(A8), bb::set(B6, C7));
+    EXPECT_EQ(bb::moves<KNIGHT>(H8), bb::set(G6, F7));
+    EXPECT_EQ(bb::moves<KNIGHT>(G2), bb::set(E1, E3, F4, H4));
+    EXPECT_EQ(bb::moves<KNIGHT>(C6), bb::set(A5, A7, B4, B8, D4, D8, E5, E7));
 }
 
-TEST(BB, CorrectPawnFullSpanValues) {
-    EXPECT_EQ(BB::pawnFullSpan<WHITE>(BB::set(D6)), BB::set(C7, D7, E7, C8, D8, E8));
-    EXPECT_EQ(BB::pawnFullSpan<BLACK>(BB::set(D3)), BB::set(C2, D2, E2, C1, D1, E1));
-}
-
-TEST(BB, CorrectPawnMoves) {
-    U64 pawns = BB::set(D4);
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Push>(pawns, WHITE), BB::set(D5));
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Push>(pawns, BLACK), BB::set(D3));
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Left>(pawns, WHITE), BB::set(C5));
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Right>(pawns, WHITE), BB::set(E5));
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Left>(pawns, BLACK), BB::set(E3));
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Right>(pawns, BLACK), BB::set(C3));
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Double>(pawns, WHITE), BB::set(D6));
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Double>(pawns, BLACK), BB::set(D2));
-
-    U64 pawnsLeft = BB::set(A4);
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Left>(pawnsLeft, WHITE), 0);
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Right>(pawnsLeft, BLACK), 0);
-
-    U64 pawnsRight = BB::set(H4);
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Right>(pawnsRight, WHITE), 0);
-    EXPECT_EQ(BB::pawnMoves<PawnMove::Left>(pawnsRight, BLACK), 0);
-}
-
-TEST(BB, CorrectPawnAttacks) {
-    U64 pawns = BB::set(A4, D4, H4);
-    EXPECT_EQ(BB::pawnAttacks(pawns, WHITE), BB::set(B5, C5, E5, G5));
-    EXPECT_EQ(BB::pawnAttacks(pawns, BLACK), BB::set(B3, C3, E3, G3));
-}
-
-TEST(BB, CorrectPawnDoubleAttacks) {
-    U64 pawns = BB::set(C3, D4, E4, F4, E5);
-    EXPECT_EQ(BB::pawnDoubleAttacks(pawns, WHITE), BB::set(E5));
-    EXPECT_EQ(BB::pawnDoubleAttacks(pawns, BLACK), BB::set(E3));
-}
-
-TEST(BB, CorrectMovesKnights) {
-    EXPECT_EQ(BB::moves<PieceType::Knight>(A1), BB::set(B3, C2));
-    EXPECT_EQ(BB::moves<PieceType::Knight>(H1), BB::set(G3, F2));
-    EXPECT_EQ(BB::moves<PieceType::Knight>(A8), BB::set(B6, C7));
-    EXPECT_EQ(BB::moves<PieceType::Knight>(H8), BB::set(G6, F7));
-    EXPECT_EQ(BB::moves<PieceType::Knight>(G2), BB::set(E1, E3, F4, H4));
-    EXPECT_EQ(BB::moves<PieceType::Knight>(C6), BB::set(A5, A7, B4, B8, D4, D8, E5, E7));
+TEST(bbTest, CorrectMovesKings) {
+    EXPECT_EQ(bb::moves<KING>(A1), bb::set(A2, B2, B1));
+    EXPECT_EQ(bb::moves<KING>(H1), bb::set(H2, G2, G1));
+    EXPECT_EQ(bb::moves<KING>(A8), bb::set(A7, B7, B8));
+    EXPECT_EQ(bb::moves<KING>(H8), bb::set(H7, G7, G8));
+    EXPECT_EQ(bb::moves<KING>(G2), bb::set(F1, F2, F3, G1, G3, H1, H2, H3));
 }
 
 // magic attacks are not tested here, as they are tested in magic.test.cpp
-
-TEST(BB, CorrectMovesKings) {
-    EXPECT_EQ(BB::moves<PieceType::King>(A1), BB::set(A2, B2, B1));
-    EXPECT_EQ(BB::moves<PieceType::King>(H1), BB::set(H2, G2, G1));
-    EXPECT_EQ(BB::moves<PieceType::King>(A8), BB::set(A7, B7, B8));
-    EXPECT_EQ(BB::moves<PieceType::King>(H8), BB::set(H7, G7, G8));
-    EXPECT_EQ(BB::moves<PieceType::King>(G2), BB::set(F1, F2, F3, G1, G3, H1, H2, H3));
-}

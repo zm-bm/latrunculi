@@ -7,19 +7,20 @@
 #include <string>
 #include <thread>
 #include <tuple>
+#include <unistd.h>
 #include <vector>
 
-#include "defs.hpp"
+#include "bench_defs.hpp"
 #include "engine.hpp"
 #include "magic.hpp"
 #include "thread.hpp"
 #include "zobrist.hpp"
 
 std::string TESTFILE;
-const int MOVETIME   = 10000;  // in milliseconds
-const int HASH_MB    = 16;
-const int THREADS    = 1;
-const int MOVE_LIMIT = 10000;  // max moves to search
+const int   MOVETIME    = 10000; // in milliseconds
+const int   HASH_MB     = 16;
+const int   THREADS     = 1;
+const int   depth_limit = 10000; // max moves to search
 
 // Get test file path relative to the executable
 static std::string getTestFilePath() {
@@ -30,17 +31,14 @@ static std::string getTestFilePath() {
     GetModuleFileName(NULL, buffer, MAX_PATH);
     exePath = buffer;
 #else
-    char buffer[PATH_MAX];
+    char    buffer[PATH_MAX];
     ssize_t count = readlink("/proc/self/exe", buffer, PATH_MAX);
     if (count != -1) {
         exePath = std::string(buffer, count);
     }
 #endif
 
-    // Starting from executable directory, look for the test file
-    std::filesystem::path basePath = std::filesystem::path(exePath).parent_path();
-
-    // Check for arasan20.epd in the bench directory next to the executable
+    std::filesystem::path basePath     = std::filesystem::path(exePath).parent_path();
     std::filesystem::path testFilePath = basePath / ".." / "bench" / "arasan20.epd";
 
     if (std::filesystem::exists(testFilePath)) {
@@ -51,16 +49,16 @@ static std::string getTestFilePath() {
 }
 
 class Benchmark {
-   private:
+private:
     const int MIN_DEPTH = 8;
 
-    std::vector<TestCase> testCases;
+    std::vector<TestCase> test_cases;
 
     std::ostringstream oss;
-    std::stringstream iss;
-    Engine engine{oss, oss, iss};
+    std::stringstream  iss;
+    Engine             engine{oss, oss, iss};
 
-   public:
+public:
     Benchmark() {
         engine.execute("setoption name Threads value " + std::to_string(THREADS));
         engine.execute("setoption name Hash value " + std::to_string(HASH_MB));
@@ -69,7 +67,7 @@ class Benchmark {
         if (file.is_open()) {
             std::string line;
             while (std::getline(file, line)) {
-                testCases.push_back(TestCase(line));
+                test_cases.push_back(TestCase(line));
             }
             file.close();
         } else {
@@ -86,19 +84,22 @@ class Benchmark {
         engine.execute("position fen " + testCase.fen);
         engine.execute("go movetime " + std::to_string(MOVETIME));
         while (true) {
-            if (oss.str().find("bestmove") != std::string::npos) break;
+            if (oss.str().find("bestmove") != std::string::npos)
+                break;
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         // process the output stream
         std::istringstream lines{oss.str()};
-        std::string line;
+        std::string        line;
         while (std::getline(lines, line)) {
-            if (line.find("info") == std::string::npos) continue;
+            if (line.find("info") == std::string::npos)
+                continue;
 
             UCIInfo info{line};
 
-            if (info.pvFirstMove.empty() || info.depth < MIN_DEPTH) continue;
+            if (info.pvFirstMove.empty() || info.depth < MIN_DEPTH)
+                continue;
 
             result.update(info);
         }
@@ -107,13 +108,14 @@ class Benchmark {
     }
 
     void runAll() {
-        int successful = 0;
-        std::vector<int> maxDepths, successDepths;
-        std::vector<int> maxTimes, successTimes;
-        std::vector<U64> maxNps;
+        int                   successful = 0;
+        std::vector<int>      maxDepths, successDepths;
+        std::vector<int>      maxTimes, successTimes;
+        std::vector<uint64_t> maxNps;
 
-        for (auto& testCase : testCases) {
-            if (maxDepths.size() >= MOVE_LIMIT) break;
+        for (auto& testCase : test_cases) {
+            if (maxDepths.size() >= depth_limit)
+                break;
 
             TestResult result = testSearch(testCase);
             std::cout << result << std::endl;
@@ -131,13 +133,13 @@ class Benchmark {
 
         int avgAllDepth = std::reduce(maxDepths.begin(), maxDepths.end(), 0) / maxDepths.size();
         int avgAllTimes = std::reduce(maxTimes.begin(), maxTimes.end(), 0) / maxTimes.size();
-        U64 avgNps      = std::reduce(maxNps.begin(), maxNps.end(), 0ULL) / maxNps.size();
+        uint64_t avgNps = std::reduce(maxNps.begin(), maxNps.end(), 0ULL) / maxNps.size();
 
         std::cout << "\nBenchmark Summary: ";
         std::cout << "Threads = " << THREADS << ", ";
         std::cout << "Movetime: " << MOVETIME << " ms" << std::endl;
         std::cout << "-------------------" << std::endl;
-        std::cout << "Cases Passed: " << successful << " out of " << testCases.size() << std::endl;
+        std::cout << "Cases Passed: " << successful << " out of " << test_cases.size() << std::endl;
         std::cout << "Average Depth: " << avgAllDepth << " ply" << std::endl;
         std::cout << "Average Time: " << avgAllTimes << " ms" << std::endl;
         std::cout << "Average NPS: " << avgNps << std::endl;
@@ -154,8 +156,8 @@ class Benchmark {
 };
 
 int main(int argc, char* argv[]) {
-    Magic::init();
-    Zobrist::init();
+    magic::init();
+    zob::init();
 
     try {
         // Allow override via command line argument

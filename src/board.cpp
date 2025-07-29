@@ -1,483 +1,473 @@
 #include "board.hpp"
 
+#include "eval.hpp"
 #include "fen.hpp"
 #include "movegen.hpp"
 #include "score.hpp"
 #include "thread.hpp"
 
-int Board::see(Move move) const {
-    Square from         = move.from();
-    Square to           = move.to();
-    PieceType fromPiece = pieceTypeOn(from);
-    PieceType toPiece   = pieceTypeOn(to);
-    Color side          = sideToMove();
+void Board::load_fen(const std::string& fen) {
+    reset();
+    FenParser parser(fen);
 
+    for (const auto p : parser.pieces) {
+        add_piece<true>(p.square, p.color, p.type);
+        if (p.type == KING)
+            king_square[p.color] = p.square;
+    }
+
+    turn                       = parser.turn;
+    state.at(ply).castle       = parser.castle;
+    state.at(ply).enpassant    = parser.enpassant;
+    state.at(ply).halfmove_clk = parser.halfmove_clk;
+    fullmove_clk               = parser.fullmove_clk;
+
+    state.at(ply).zkey = calculate_key();
+    update_check_data();
+}
+
+void Board::reset() {
+    for (int c = 0; c < N_COLORS; ++c) {
+        for (int p = 0; p < N_PIECES; ++p) {
+            piece_bb[c][p]     = 0;
+            piece_counts[c][p] = 0;
+        }
+    }
+    for (int sq = 0; sq < N_SQUARES; ++sq)
+        squares[sq] = NO_PIECE;
+
+    material  = {0, 0};
+    psq_bonus = {0, 0};
+    state     = {State()};
+    ply       = 0;
+}
+
+// Determine if a pseudo-legal move is legal
+bool Board::is_legal_move(Move mv) const {
+    Square from = mv.from();
+    Square to   = mv.to();
+    Square king = king_sq(turn);
+
+    // king move: check if king is attacked(castle legality handled in movegen)
+    if (from == king) {
+        if (mv.type() != MOVE_CASTLE)
+            return !attacks_to(to, ~turn, occupancy() ^ bb::set(from, to));
+        return true;
+    }
+
+    // enpassant: check if captured pawn is blocking check
+    else if (mv.type() == MOVE_EP) {
+        Square   pawn = to + (turn == WHITE ? SOUTH : NORTH);
+        uint64_t occ  = (occupancy() ^ bb::set(from, pawn)) | bb::set(to);
+        return !(pieces<BISHOP, QUEEN>(~turn) & bb::moves<BISHOP>(king, occ)) &&
+               !(pieces<ROOK, QUEEN>(~turn) & bb::moves<ROOK>(king, occ));
+    }
+
+    // check if moved piece is pinned or moving in-line with check
+    uint64_t pins = blockers(turn);
+    return (!pins || !(pins & bb::set(from)) || bb::collinear(from, to) & bb::set(king));
+}
+
+// Determine if a move gives check for the current board
+bool Board::is_checking_move(Move mv) const {
+    Square from     = mv.from();
+    Square to       = mv.to();
+    Color  opp      = ~turn;
+    Square opp_king = king_sq(opp);
+    auto&  st       = state.at(ply);
+
+    // check if piece directly attacks the king or was a blocker
+    if (st.checks[type_of(piece_on(from))] & bb::set(to))
+        return true;
+    if ((st.blockers[opp] & bb::set(from)) && !(bb::collinear(from, to) & bb::set(opp_king)))
+        return true;
+
+    switch (mv.type()) {
+    case MOVE_PROM: {
+        // check if a promotion attacks the enemy king
+        uint64_t occupied = occupancy() ^ bb::set(from);
+        return bb::moves(to, mv.prom_piece(), occupied) & bb::set(opp_king);
+    }
+
+    case MOVE_EP: {
+        // check if captured pawn was blocking enemy king from attack
+        Square   pawn     = to + (turn == WHITE ? SOUTH : NORTH);
+        uint64_t occupied = (occupancy() ^ bb::set(from, pawn)) | bb::set(to);
+        return ((pieces<BISHOP, QUEEN>(turn) & bb::moves<BISHOP>(opp_king, occupied)) ||
+                (pieces<ROOK, QUEEN>(turn) & bb::moves<ROOK>(opp_king, occupied)));
+    }
+
+    case MOVE_CASTLE: {
+        // check if rook attacks enemy king
+        Square   rook_from = castle::rook_from[to < from][turn];
+        Square   rook_to   = castle::rook_to[to < from][turn];
+        uint64_t occupied  = occupancy() ^ bb::set(from, rook_from, to, rook_to);
+        return bb::moves<ROOK>(rook_to, occupied) & bb::set(opp_king);
+    }
+
+    case BASIC_MOVE: return false;
+    default:         return false;
+    }
+}
+
+// static exchange eval: likely eval change after a series of exchanges
+int Board::seeMove(Move move) const {
+    const Square from = move.from();
+    const Square to   = move.to();
+
+    Color     side      = side_to_move();
+    PieceType piece     = piecetype_on(from);
+    uint64_t  occupied  = occupancy();
+    uint64_t  attackers = attacks_to(to, occupied);
+    uint64_t  from_bb   = bb::set(from);
+
+    // swap-list of best case material gain for each depth
     int gain[32] = {};
-    int depth    = 0;
-    gain[depth]  = pieceValue(toPiece);
+    gain[0]      = eval::piece(piecetype_on(to)).mg;
 
-    U64 occupied  = occupancy();
-    U64 attackers = attacksTo(to, occupied);
-    U64 fromBB    = BB::set(from);
-
+    int depth = 0;
     do {
+        // next depth + side
         depth++;
-        side         = ~side;
-        gain[depth]  = pieceValue(fromPiece) - gain[depth - 1];
-        occupied    ^= fromBB;
-        attackers    = attacksTo(to, occupied) & occupied;
+        side = ~side;
 
-        // get least valuable attacker
-        U64 sideAttackers = attackers & pieces<PieceType::All>(side);
-        int least         = INT_MAX;
-        fromBB            = 0;
-        while (sideAttackers) {
-            Square sq = BB::lsbPop(sideAttackers);
-            if (pieceValue(pieceTypeOn(sq)) < least) {
-                fromBB    = BB::set(sq);
-                fromPiece = pieceTypeOn(sq);
+        // calculate gain, prune if negative
+        gain[depth] = eval::piece(piece).mg - gain[depth - 1];
+        if (std::max(-gain[depth - 1], gain[depth]) < 0)
+            break;
+
+        // update bitboards
+        occupied  ^= from_bb;
+        attackers  = attacks_to(to, occupied) & occupied;
+
+        // find next least valuable attacker
+        from_bb = 0;
+        for (PieceType p : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN}) {
+            uint64_t opp_pieces = attackers & piece_bb[side][p];
+            if (opp_pieces) {
+                piece   = p;
+                from_bb = opp_pieces & -opp_pieces; // get least significant bit
             }
         }
-    } while (fromBB);
+    } while (from_bb);
 
-    while (--depth) {
+    // negamax the swap-list to get final static exchange eval
+    while (--depth)
         gain[depth - 1] = -std::max(-gain[depth - 1], gain[depth]);
-    }
 
     return gain[0];
 }
 
-// true if there are no legal moves
-bool Board::isStalemate() const {
-    MoveGenerator<MoveGenMode::All> moves{*this};
-    for (auto& move : moves) {
-        if (isLegalMove(move)) return false;
+void Board::make(Move move) {
+    const Square from           = move.from();
+    const Square to             = move.to();
+    const Square enpassant      = enpassant_sq();
+    const auto   piecetype      = piecetype_on(from);
+    const auto   movetype       = move.type();
+    const Color  opp            = ~turn;
+    Square       capt_sq        = to;
+    PieceType    capt_piecetype = piecetype_on(to);
+
+    if (movetype == MOVE_EP) {
+        capt_piecetype   = PAWN;
+        capt_sq          = to + (turn == WHITE ? SOUTH : NORTH);
+        squares[capt_sq] = NO_PIECE;
+    }
+
+    // create new state and update counters
+    state.push_back(State(state[ply++], move));
+    auto& st = state.at(ply);
+    ++fullmove_clk;
+    if (thread)
+        thread->ply++;
+
+    // handle piece capture
+    st.captured = capt_piecetype;
+    if (capt_piecetype != NO_PIECETYPE) {
+        st.halfmove_clk = 0;
+        remove_piece<true>(capt_sq, opp, capt_piecetype);
+        if (can_castle(opp) && capt_piecetype == ROOK)
+            disable_castle(opp, capt_sq);
+    }
+
+    if (enpassant != INVALID)
+        st.zkey ^= zob::hash_ep(enpassant);
+
+    // move the piece / castle
+    move_piece<true>(from, to, turn, piecetype);
+    if (movetype == MOVE_CASTLE) {
+        auto   castle_side = CastleSide(to < from);
+        Square rook_from   = castle::rook_from[castle_side][turn];
+        Square rook_to     = castle::rook_to[castle_side][turn];
+        move_piece<true>(rook_from, rook_to, turn, ROOK);
+    }
+
+    switch (piecetype) {
+    case PAWN:
+        // set enpassant square,
+        st.halfmove_clk = 0;
+        if (std::abs(to - from) == PAWN_PUSH2) {
+            st.enpassant  = to + (turn == WHITE ? SOUTH : NORTH);
+            st.zkey      ^= zob::hash_ep(st.enpassant);
+        } else if (movetype == MOVE_PROM) {
+            remove_piece<true>(to, turn, PAWN);
+            add_piece<true>(to, turn, move.prom_piece());
+        }
+        break;
+
+    case KING:
+        king_square[turn] = to;
+        if (can_castle(turn))
+            disable_castle(turn);
+        break;
+
+    case ROOK:
+        if (can_castle(turn))
+            disable_castle(turn, from);
+        break;
+
+    default: break;
+    }
+
+    turn     = opp;
+    st.zkey ^= zob::turn;
+
+    update_check_data();
+}
+
+void Board::unmake() {
+    const Color  opp      = turn;
+    const Move   move     = state[ply].move;
+    const Square from     = move.from();
+    const Square to       = move.to();
+    const auto   movetype = move.type();
+
+    auto piecetype      = piecetype_on(to);
+    auto capt_piecetype = state[ply].captured;
+
+    // decrement counters and pop state
+    if (thread)
+        thread->ply--;
+    ply--;
+    fullmove_clk--;
+    turn = ~turn;
+    state.pop_back();
+
+    // replace promoted piece with pawn
+    if (movetype == MOVE_PROM) {
+        remove_piece<false>(to, turn, piecetype);
+        add_piece<false>(to, turn, PAWN);
+        piecetype = PAWN;
+    }
+
+    // move the piece back, restore captured piece
+    move_piece<false>(to, from, turn, piecetype);
+    if (movetype == MOVE_CASTLE) {
+        auto   castle_side = CastleSide(to < from);
+        Square rook_from   = castle::rook_from[castle_side][turn];
+        Square rook_to     = castle::rook_to[castle_side][turn];
+        move_piece<false>(rook_to, rook_from, turn, ROOK);
+    } else if (capt_piecetype != NO_PIECETYPE) {
+        Square capt_sq = (movetype != MOVE_EP) ? to : to + (turn == WHITE ? SOUTH : NORTH);
+        add_piece<false>(capt_sq, opp, capt_piecetype);
+    }
+
+    if (piecetype == KING)
+        king_square[turn] = from;
+}
+
+void Board::make_null() {
+    const Square enpassant = enpassant_sq();
+
+    state.push_back(State(state[ply++], Move()));
+    auto& st = state.at(ply);
+
+    turn     = ~turn;
+    st.zkey ^= zob::turn;
+    if (enpassant != INVALID)
+        st.zkey ^= zob::hash_ep(enpassant);
+
+    update_check_data();
+}
+
+void Board::unmake_null() {
+    --ply;
+    turn = ~turn;
+    state.pop_back();
+}
+
+// Calculate the Zobrist key for the current board state
+uint64_t Board::calculate_key() const {
+    uint64_t zkey = 0;
+
+    for (auto sq = A1; sq != INVALID; ++sq) {
+        auto piece = piece_on(sq);
+        if (piece != NO_PIECE)
+            zkey ^= zob::hash_piece(color_of(piece), type_of(piece), sq);
+    }
+
+    if (turn == BLACK)
+        zkey ^= zob::turn;
+    if (can_castle_kingside(WHITE))
+        zkey ^= zob::castle[CASTLE_KINGSIDE][WHITE];
+    if (can_castle_queenside(WHITE))
+        zkey ^= zob::castle[CASTLE_QUEENSIDE][WHITE];
+    if (can_castle_kingside(BLACK))
+        zkey ^= zob::castle[CASTLE_KINGSIDE][BLACK];
+    if (can_castle_queenside(BLACK))
+        zkey ^= zob::castle[CASTLE_QUEENSIDE][BLACK];
+
+    auto sq = enpassant_sq();
+    if (sq != INVALID)
+        zkey ^= zob::hash_ep(sq);
+
+    return zkey;
+}
+
+// stalemate from no legal moves
+bool Board::is_stalemate() const {
+    auto movelist = generate<ALL_MOVES>(*this);
+    for (auto& move : movelist) {
+        if (is_legal_move(move))
+            return false;
     }
     return true;
 }
 
-// true if game is drawn by 50-move rule or 3-fold repetition
-bool Board::isDraw() const {
-    auto& cur = state.at(ply);
+// draws from 50-move rule + 3-fold repetition
+bool Board::is_draw() const {
+    auto& st = state[ply];
+    if (st.halfmove_clk >= 100)
+        return true;
 
-    if (cur.hmClock >= 100) return true;
-
-    int i    = std::max(0, int(ply - 2));
-    int stop = std::max(0, int(ply - cur.hmClock));
     int reps = 0;
-
-    for (; i >= stop; i -= 2) {
-        if (state[i].zkey == cur.zkey && ++reps == 2) return true;
-    }
-
-    return false;
-}
-
-// Determine if a move is legal for the current board
-bool Board::isLegalMove(Move mv) const {
-    Square from = mv.from();
-    Square to   = mv.to();
-    Square king = kingSq(turn);
-
-    if (from == king) {
-        if (mv.type() == MoveType::Castle) {
+    int stop = std::max(0, int(ply) - st.halfmove_clk);
+    for (int i = std::max(0, int(ply) - 2); i >= stop; i -= 2) {
+        if (state[i].zkey == st.zkey && ++reps == 2)
             return true;
-        } else {
-            // Check if destination sq is attacked by enemy
-            U64 occupied = occupancy() ^ BB::set(from) ^ BB::set(to);
-            return !attacksTo(to, ~turn, occupied);
-        }
-    } else if (mv.type() == MoveType::EnPassant) {
-        // Check if captured pawn was blocking check
-        Square enemyPawn = pawnMove<PawnMove::Push, BACKWARD>(to, turn);
-        U64 occupied     = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
-        auto diagSliders = pieces<PieceType::Bishop, PieceType::Queen>(~turn);
-        auto lineSliders = pieces<PieceType::Rook, PieceType::Queen>(~turn);
-        return !(diagSliders & BB::moves<PieceType::Bishop>(king, occupied)) &&
-               !(lineSliders & BB::moves<PieceType::Rook>(king, occupied));
-    } else {
-        U64 blockers = state.at(ply).blockers[turn];
-        return (!blockers || !(blockers & BB::set(from))      // piece isn't blocker
-                || BB::collinear(from, to) & BB::set(king));  // or piece still blocks
-    }
-}
-
-// Determine if a move gives check for the current board
-bool Board::isCheckingMove(Move mv) const {
-    Square from         = mv.from();
-    Square to           = mv.to();
-    PieceType pieceType = pieceTypeOf(pieceOn(from));
-    Color enemy         = ~turn;
-    Square enemyKing    = kingSq(enemy);
-
-    // Check if destination+piece type directly attacks the king
-    if (state[ply].checks[idx(pieceType)] & BB::set(to)) {
-        return true;
-    }
-
-    // Check if moved piece was pinned
-    U64 blockers = state[ply].blockers[enemy];
-    if (blockers && (blockers & BB::set(from)) && !(BB::collinear(from, to) & BB::set(enemyKing))) {
-        return true;
-    }
-
-    switch (mv.type()) {
-        case MoveType::Normal: return false;
-
-        case MoveType::Promotion: {
-            // Check if a promotion attacks the enemy king
-            U64 occupied = occupancy() ^ BB::set(from);
-            return BB::moves(to, mv.promoPiece(), occupied) & BB::set(enemyKing);
-        }
-
-        case MoveType::EnPassant: {
-            // Check if captured pawn was blocking enemy king from attack
-            Square enemyPawn = pawnMove<PawnMove::Push, BACKWARD>(to, turn);
-            U64 occupied     = (occupancy() ^ BB::set(from) ^ BB::set(enemyPawn)) | BB::set(to);
-            auto diagSliders = pieces<PieceType::Bishop, PieceType::Queen>(turn);
-            auto lineSliders = pieces<PieceType::Rook, PieceType::Queen>(turn);
-            return ((diagSliders & BB::moves<PieceType::Bishop>(enemyKing, occupied)) ||
-                    (lineSliders & BB::moves<PieceType::Rook>(enemyKing, occupied)));
-        }
-
-        case MoveType::Castle: {
-            // Check if rook's destination after castling attacks enemy king
-            auto dir        = to > from ? idx(Castle::KingSide) : idx(Castle::QueenSide);
-            Square rookFrom = RookOrigin[dir][turn];
-            Square rookTo   = RookDestination[dir][turn];
-            U64 occupied    = occupancy() ^ BB::set(from, rookFrom, to, rookTo);
-            return BB::moves<PieceType::Rook>(rookTo, occupied) & BB::set(enemyKing);
-        }
-        default: return false;
     }
 
     return false;
 }
 
-void Board::make(Move mv) {
-    // Get basic information about the move
-    Square from             = mv.from();
-    Square to               = mv.to();
-    Square captureSq        = to;
-    Square enpassantSq      = enPassantSq();
-    PieceType pieceType     = pieceTypeOn(from);
-    PieceType captPieceType = pieceTypeOn(to);
-    MoveType movetype       = mv.type();
-    Color enemy             = ~turn;
-    if (movetype == MoveType::EnPassant) {
-        captPieceType      = PieceType::Pawn;
-        captureSq          = pawnMove<PawnMove::Push, BACKWARD>(to, turn);
-        squares[captureSq] = Piece::None;
-    }
-
-    // Create new board state and push it onto board state stack
-    state.push_back(State(state[ply], mv));
-
-    // Increment counters
-    ++ply;
-    ++moveCounter;
-
-    if (thread) thread->ply++;
-
-    // Handle piece capture
-    state[ply].captured = captPieceType;
-    if (captPieceType != PieceType::None) {
-        state[ply].hmClock = 0;
-        removePiece<true>(captureSq, enemy, captPieceType);
-
-        // Disable castle rights if captured piece is rook
-        if (canCastle(enemy) && captPieceType == PieceType::Rook) {
-            disableCastle(enemy, captureSq);
-        }
-    }
-
-    // Remove ep square from zobrist key if any
-    if (enpassantSq != INVALID) {
-        state[ply].zkey ^= Zobrist::hashEp(enpassantSq);
-    }
-
-    // Move the piece
-    if (movetype == MoveType::Castle) {
-        movePiece<true>(from, to, turn, PieceType::King);
-        auto dir = to > from ? idx(Castle::KingSide) : idx(Castle::QueenSide);
-        movePiece<true>(RookOrigin[dir][turn], RookDestination[dir][turn], turn, PieceType::Rook);
-    } else {
-        movePiece<true>(from, to, turn, pieceType);
-    }
-
-    switch (pieceType) {
-        // handle enpassants and promotions
-        case PieceType::Pawn: {
-            state[ply].hmClock = 0;
-            if (std::abs(to - from) == idx(PawnMove::Double)) {
-                Square sq                  = pawnMove<PawnMove::Push, BACKWARD>(to, turn);
-                state.at(ply).enPassantSq  = sq;
-                state.at(ply).zkey        ^= Zobrist::hashEp(sq);
-            } else if (movetype == MoveType::Promotion) {
-                removePiece<true>(to, turn, PieceType::Pawn);
-                addPiece<true>(to, turn, mv.promoPiece());
-            }
-            break;
-        }
-
-        // disable castling
-        case PieceType::King: {
-            kingSquare[turn] = to;
-            if (canCastle(turn)) disableCastle(turn);
-            break;
-        }
-        case PieceType::Rook: {
-            if (canCastle(turn)) disableCastle(turn, from);
-            break;
-        }
-
-        default: break;
-    }
-
-    turn             = enemy;
-    state[ply].zkey ^= Zobrist::stm;
-
-    updateCheckInfo();
-}
-
-void Board::unmake() {
-    // Get basic move information
-    Color enemy             = turn;
-    Move mv                 = state[ply].move;
-    Square from             = mv.from();
-    Square to               = mv.to();
-    PieceType captPieceType = state[ply].captured;
-    PieceType pieceType     = pieceTypeOn(to);
-    MoveType movetype       = mv.type();
-
-    // Decrement counters
-    if (thread) thread->ply--;
-    --ply;
-    --moveCounter;
-
-    // Revert to the previous board state
-    turn = ~turn;
-    state.pop_back();
-
-    // Make corrections if promotion move
-    if (movetype == MoveType::Promotion) {
-        removePiece<false>(to, turn, pieceType);
-        addPiece<false>(to, turn, PieceType::Pawn);
-        pieceType = PieceType::Pawn;
-    }
-
-    // Undo the move
-    if (movetype == MoveType::Castle) {
-        movePiece<false>(to, from, turn, PieceType::King);
-        auto dir = to > from ? idx(Castle::KingSide) : idx(Castle::QueenSide);
-        movePiece<false>(RookDestination[dir][turn], RookOrigin[dir][turn], turn, PieceType::Rook);
-    } else {
-        movePiece<false>(to, from, turn, pieceType);
-        if (captPieceType != PieceType::None) {
-            Square captureSq = (movetype != MoveType::EnPassant)
-                                   ? to
-                                   : pawnMove<PawnMove::Push, BACKWARD>(to, turn);
-            addPiece<false>(captureSq, enemy, captPieceType);
-        }
-    }
-
-    if (pieceType == PieceType::King) {
-        kingSquare[turn] = from;
-    }
-}
-
-void Board::makeNull() {
-    Square enpassantSq = enPassantSq();
-
-    state.push_back(State(state[ply], Move()));
-    turn = ~turn;
-    ++ply;
-
-    state[ply].zkey ^= Zobrist::stm;
-    if (enpassantSq != INVALID) {
-        state[ply].zkey ^= Zobrist::hashEp(enpassantSq);
-    }
-
-    updateCheckInfo();
-}
-
-void Board::unmmakeNull() {
-    --ply;
-    turn = ~turn;
-    state.pop_back();
-}
-
-void Board::loadFEN(const std::string& fen) {
-    for (size_t c = 0; c < N_COLORS; ++c) {
-        for (size_t p = 0; p < N_PIECES; ++p) {
-            piecesBB[c][p]   = 0;
-            pieceCount[c][p] = 0;
-        }
-    }
-
-    for (size_t sq = 0; sq < N_SQUARES; ++sq) {
-        squares[sq] = Piece::None;
-    }
-
-    material = {0, 0};
-    psqBonus = {0, 0};
-    state    = {State()};
-    ply      = 0;
-
-    FenParser parser(fen);
-    for (const auto p : parser.pieces) {
-        addPiece<true>(p.square, p.color, p.type);
-        if (p.type == PieceType::King) kingSquare[p.color] = p.square;
-    }
-
-    turn                      = parser.turn;
-    state.at(ply).castle      = parser.castle;
-    state.at(ply).enPassantSq = parser.enPassantSq;
-    state.at(ply).hmClock     = parser.hmClock;
-    moveCounter               = parser.moveCounter;
-
-    state.at(ply).zkey = calculateKey();
-    updateCheckInfo();
-}
-
+// convert the board to a FEN string representation
 std::string Board::toFEN() const {
     std::ostringstream oss;
+    int                empty = 0;
 
-    for (Rank rank = Rank::R8; rank >= Rank::R1; --rank) {
-        int emptyCount = 0;
-        for (File file = File::F1; file <= File::F8; ++file) {
-            Piece p = pieceOn(file, rank);
-            if (p != Piece::None) {
-                if (emptyCount > 0) {
-                    oss << emptyCount;
-                    emptyCount = 0;
-                }
+    auto reset_empty = [&]() {
+        if (empty > 0) {
+            oss << empty;
+            empty = 0;
+        }
+    };
+
+    for (Rank rank = RANK8; rank >= RANK1; --rank) {
+        for (File file = FILE1; file <= FILE8; ++file) {
+            Piece p = piece_on(file, rank);
+            if (p != NO_PIECE) {
+                reset_empty();
                 oss << p;
             } else {
-                ++emptyCount;
+                ++empty;
             }
         }
 
-        if (emptyCount > 0) {
-            oss << emptyCount;
-            emptyCount = 0;
-        }
-        if (rank != Rank::R1) oss << '/';
+        reset_empty();
+        if (rank != RANK1)
+            oss << '/';
     }
 
-    if (turn) {
-        oss << " w ";
-    } else {
-        oss << " b ";
-    }
+    oss << (turn == WHITE ? " w " : " b ");
 
-    if (canCastle(WHITE) || canCastle(BLACK)) {
-        if (canCastleOO(WHITE)) oss << "K";
-        if (canCastleOOO(WHITE)) oss << "Q";
-        if (canCastleOO(BLACK)) oss << "k";
-        if (canCastleOOO(BLACK)) oss << "q";
+    if (can_castle(WHITE) || can_castle(BLACK)) {
+        oss << (can_castle_kingside(WHITE) ? "K" : "");
+        oss << (can_castle_queenside(WHITE) ? "Q" : "");
+        oss << (can_castle_kingside(BLACK) ? "k" : "");
+        oss << (can_castle_queenside(BLACK) ? "q" : "");
     } else {
         oss << "-";
     }
 
-    Square enpassantSq = enPassantSq();
-    if (enpassantSq != INVALID) {
-        oss << " " << enpassantSq << " ";
-    } else {
-        oss << " - ";
-    }
-
-    oss << +state.at(ply).hmClock << " " << (moveCounter / 2) + 1;
+    Square ep_sq = enpassant_sq();
+    oss << " " << (ep_sq != INVALID ? to_string(ep_sq) : "-");
+    oss << " " << +halfmove() << " " << +fullmove();
 
     return oss.str();
 }
 
+// convert a move to standard algebraic notation
 std::string Board::toSAN(Move move) const {
-    std::string result  = "";
-    Square from         = move.from();
-    Square to           = move.to();
-    PieceType pieceType = pieceTypeOn(from);
+    std::string result    = "";
+    Square      from      = move.from();
+    Square      to        = move.to();
+    PieceType   piecetype = piecetype_on(from);
 
-    if (move.type() == MoveType::Castle) {
+    if (move.type() == MOVE_CASTLE) {
         if (move.from() < move.to())
             return "O-O";
         else
             return "O-O-O";
     }
 
-    if (pieceType != PieceType::Pawn) result += std::toupper(toChar(pieceType));
+    if (piecetype != PAWN)
+        result += std::toupper(to_char(piecetype));
 
-    MoveGenerator<MoveGenMode::All> moves{*this};
-    auto ambigMove = std::find_if(moves.begin(), moves.end(), [&](Move m) {
-        return m.to() == to && pieceTypeOn(m.from()) == pieceType && m.from() != from &&
-               isLegalMove(m);
-    });
-    if (ambigMove != moves.end()) {
-        bool diffFile = fileOf(ambigMove->from()) != fileOf(from);
-        bool diffRank = rankOf(ambigMove->from()) != rankOf(from);
-
-        if (diffFile)
-            result += toChar(fileOf(from));
-        else if (diffRank)
-            result += toChar(rankOf(from));
+    // handle move disambiguation
+    auto movelist = generate<ALL_MOVES>(*this);
+    for (auto& m : movelist) {
+        bool ambiguous =
+            (piecetype_on(m.from()) == piecetype) && (m.to() == to) && (m.from() != from);
+        if (ambiguous && is_legal_move(m)) {
+            if (file_of(m.from()) != file_of(from))
+                result += to_char(file_of(from));
+            if (rank_of(m.from()) != rank_of(from))
+                result += to_char(rank_of(from));
+            break;
+        }
     }
 
-    if (isCapture(move)) {
-        if (pieceType == PieceType::Pawn) result += toChar(fileOf(from));
+    if (is_capture(move)) {
+        if (piecetype == PAWN)
+            result += to_char(file_of(from));
         result += 'x';
     }
 
-    result += toString(to);
-    if (move.type() == MoveType::Promotion) result += '=' + toChar(move.promoPiece());
-    if (isCheckingMove(move)) result += '+';
+    result += to_string(to);
+    if (move.type() == MOVE_PROM)
+        result += '=' + to_char(move.prom_piece());
+    if (is_checking_move(move))
+        result += '+';
 
     return result;
 }
 
-std::ostream& operator<<(std::ostream& os, const Board& board) {
-    for (Rank rank = Rank::R8; rank >= Rank::R1; --rank) {
-        os << "   +---+---+---+---+---+---+---+---+\n";
-        os << "   |";
-        for (File file = File::F1; file <= File::F8; ++file) {
-            os << " " << board.pieceOn(file, rank) << " |";
-        }
-        os << " " << rank << '\n';
-    }
-
-    os << "   +---+---+---+---+---+---+---+---+\n";
-    os << "     a   b   c   d   e   f   g   h\n\n";
-    os << board.toFEN() << std::endl;
-
-    return os;
-}
-
+// perform a perft search to find # of legal moves at a given depth
 template <NodeType node>
-U64 Board::perft(int depth, std::ostream& oss) {
-    if (depth == 0) return 1;
+uint64_t Board::perft(int depth, std::ostream& oss) {
+    if (depth == 0)
+        return 1;
 
-    MoveGenerator<MoveGenMode::All> moves{*this};
+    uint64_t nodes    = 0;
+    auto     movelist = generate<ALL_MOVES>(*this);
 
-    U64 count = 0, nodes = 0;
-
-    for (auto& move : moves) {
-        if (!isLegalMove(move)) continue;
+    for (auto& move : movelist) {
+        if (!is_legal_move(move))
+            continue;
 
         make(move);
-
-        count  = perft<NodeType::NonPV>(depth - 1);
-        nodes += count;
-
-        if constexpr (node == NodeType::Root) {
-            oss << move << ": " << count << '\n';
-        }
-
+        uint64_t count  = perft<NON_PV>(depth - 1);
+        nodes          += count;
         unmake();
+
+        if constexpr (node == ROOT)
+            oss << move.str() << ": " << count << '\n';
     }
 
-    if constexpr (node == NodeType::Root) {
+    if constexpr (node == ROOT)
         oss << "NODES: " << nodes << std::endl;
-    }
 
     return nodes;
 }
-template U64 Board::perft<NodeType::Root>(int, std::ostream& = std::cout);
+
+template uint64_t Board::perft<ROOT>(int, std::ostream& = std::cerr);

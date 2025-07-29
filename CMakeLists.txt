@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(Latrunculi)
+project(Latrunculi VERSION 0.1.0)
 
 # Specify C++ standard
 set(CMAKE_CXX_STANDARD 23)
@@ -14,6 +14,9 @@ list(REMOVE_ITEM SOURCES "${CMAKE_SOURCE_DIR}/src/main.cpp")
 
 # Create object library from source files
 add_library(lib OBJECT ${SOURCES})
+
+target_compile_definitions(lib PRIVATE 
+    LATRUNCULI_VERSION="${PROJECT_VERSION}")
 
 # Create the main executable
 add_executable(latrunculi src/main.cpp)

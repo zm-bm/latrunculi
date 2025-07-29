@@ -32,31 +32,37 @@ struct TestCase {
         fen.pop_back();
 
         while (iss >> token) {
-            if (token == "bm") iss >> bestMove;
-            if (token == "am") iss >> avoidMove;
+            if (token == "bm")
+                iss >> bestMove;
+            if (token == "am")
+                iss >> avoidMove;
         }
     }
 };
 
 struct UCIInfo {
-    int depth    = 0;
-    int time     = 0;
-    uint64_t nps = 0;
+    int         depth = 0;
+    int         time  = 0;
+    uint64_t    nps   = 0;
     std::string pvFirstMove;
 
     UCIInfo(std::string line) {
         std::istringstream iss(line);
-        std::string token;
+        std::string        token;
 
         while (iss >> token) {
             if (token == "depth") {
-                if (iss >> token) depth = std::stoi(token);
+                if (iss >> token)
+                    depth = std::stoi(token);
             } else if (token == "time") {
-                if (iss >> token) time = std::stoi(token);
+                if (iss >> token)
+                    time = std::stoi(token);
             } else if (token == "nps") {
-                if (iss >> token) nps = std::stoull(token);
+                if (iss >> token)
+                    nps = std::stoull(token);
             } else if (token == "pv") {
-                if (iss >> token) pvFirstMove = token;
+                if (iss >> token)
+                    pvFirstMove = token;
             }
         }
     }
@@ -72,22 +78,22 @@ struct UCIInfo {
 };
 
 struct TestResult {
-    bool success      = false;
-    int maxDepth      = 0;
-    int solutionDepth = INT_MAX;
-    int maxTime       = 0;
-    int solutionTime  = INT_MAX;
-    uint64_t nps      = 0;
+    bool     success       = false;
+    int      maxDepth      = 0;
+    int      solutionDepth = INT_MAX;
+    int      maxTime       = 0;
+    int      solutionTime  = INT_MAX;
+    uint64_t nps           = 0;
     TestCase testCase;
 
     TestResult(TestCase tc) : testCase(tc) {}
 
     std::string getEngineMove(std::string fen, std::string move) {
-        Board board(fen);
-        MoveGenerator<MoveGenMode::All> moves{board};
+        Board    board(fen);
+        MoveList movelist = generate<ALL_MOVES>(board);
 
         auto moveMatches = [&](Move m) { return m.str() == move; };
-        auto movePtr     = std::find_if(moves.begin(), moves.end(), moveMatches);
+        auto movePtr     = std::find_if(movelist.begin(), movelist.end(), moveMatches);
 
         return board.toSAN(*movePtr);
     }

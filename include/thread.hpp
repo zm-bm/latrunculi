@@ -5,124 +5,97 @@
 #include <thread>
 
 #include "board.hpp"
-#include "constants.hpp"
-#include "heuristics.hpp"
+
+#include "defs.hpp"
+#include "history.hpp"
+#include "killers.hpp"
 #include "search_options.hpp"
 #include "search_stats.hpp"
 #include "thread_pool.hpp"
 #include "tt.hpp"
-#include "types.hpp"
 #include "uci.hpp"
 
 class Thread {
-   public:
+public:
     Thread() = delete;
-    Thread(int, UCIProtocolHandler&, ThreadPool&);
+    Thread(int id, uci::Protocol& protocol, ThreadPool& pool);
     ~Thread();
 
-    void start();
+    void start(SearchOptions& options);
     void exit();
     void stop();
     void wait();
-    void set(SearchOptions&, TimePoint startTime);
 
-   private:
+private:
     // search state
-    Board board;
-    SearchOptions options;
-    TimePoint startTime;
-    I64 searchTime;
-    int ply;
 
-    // heuristics
-    KillerMoves killers;
-    HistoryTable history;
-
-    // search stats
-    U64 nodes;
-    SearchStats<> stats;
-
-    // search results
-    Move rootMove;
-    int rootValue;
-    int rootDepth;
-
-    // references
-    UCIProtocolHandler& uciHandler;
-    ThreadPool& threadPool;
+    Board          board;
+    int            ply;
+    Move           root_move;
+    int            root_value;
+    int            root_depth;
+    KillerMoves    killers;
+    HistoryTable   history;
+    SearchOptions  options;
+    int64_t        searchtime_ms;
+    uint64_t       nodes;
+    SearchStats<>  stats;
+    uci::Protocol& protocol;
+    ThreadPool&    thread_pool;
 
     // thread state
-    std::mutex mutex;
+
+    std::mutex              mutex;
     std::condition_variable condition;
-    bool exitSignal{false};
-    std::atomic<bool> runSignal{false};
-    std::atomic<bool> stopSignal{false};
-    const int threadId;
-    std::thread thread;
+    bool                    exit_signal{false};
+    std::atomic<bool>       run_signal{false};
+    std::atomic<bool>       stop_signal{false};
+    const int               thread_id;
+    std::thread             thread;
 
     // main thread loop
     void loop();
 
     // search.cpp
     void reset();
-    int search();
-    int searchWiden(int depth, int value);
+    int  search();
+    int  search_widen(int depth, int value);
+    int  quiescence(int alpha, int beta);
+    template <NodeType = ROOT>
+    int alphabeta(int alpha, int beta, int depth, bool canNull = true);
 
-    template <NodeType = NodeType::Root>
-    int alphabeta(int alpha, int beta, int depth, bool canNull = DO_NULL);
-
-    int quiescence(int alpha, int beta);
-
-    int search_DEPRECATED();
-    template <NodeType>
-    int alphabeta_DEPRECATED(int, int, int);
-    int quiescence_DEPRECATED(int, int);
-
-    // inline functions / helpers
-    void checkStop();
-    bool isTimeUp_DEPRECATED() const;
-
-    std::string getPV(int depth) const;
-    UCIBestLine getBestLine(int score, int depth) const;
+    // inline helpers
+    Milliseconds get_runtime() const;
+    uint64_t     get_nodes() const;
+    std::string  get_pv(int depth) const;
+    uci::PV      get_pv_line(int score, int depth) const;
+    void         check_stop();
 
     friend class SearchTest;
     friend class SearchBenchmark;
     friend class ThreadPoolTest;
 
     friend class ThreadPool;
-    friend class MoveOrder;
     friend class Board;
 };
 
-inline void Thread::checkStop() {
-    if ((nodes & 0xFFF) != 0) return;
-    if (threadId != 0) return;
-
-    bool stopSearch = false;
-
-    if (options.nodes != OPTION_NOT_SET) {
-        auto totalNodes = threadPool.accumulate(&Thread::nodes);
-        stopSearch      = totalNodes >= options.nodes;
-    }
-
-    else if (searchTime != OPTION_NOT_SET) {
-        auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
-        stopSearch       = elapsedTime.count() > searchTime;
-    }
-
-    if (stopSearch) threadPool.stopAll();
+inline Milliseconds Thread::get_runtime() const {
+    return std::chrono::duration_cast<Milliseconds>(Clock::now() - options.starttime);
 }
 
-inline std::string Thread::getPV(int depth) const {
-    std::string pv;
+inline uint64_t Thread::get_nodes() const {
+    return thread_pool.accumulate(&Thread::nodes);
+}
+
+inline std::string Thread::get_pv(int depth) const {
     Board b{board.toFEN()};
 
+    std::string pv;
     for (int d = 1; d <= depth; ++d) {
-        TT_Entry* e = tt.probe(b.getKey());
+        TT_Entry* e = tt.probe(b.key());
 
-        if (e == nullptr || e->move == NullMove || !b.isLegalMove(e->move)) {
+        if (e == nullptr || e->move.is_null() || !b.is_legal_move(e->move))
             break;
-        }
 
         b.make(e->move);
         pv += e->move.str() + " ";
@@ -131,10 +104,26 @@ inline std::string Thread::getPV(int depth) const {
     return pv;
 }
 
-inline UCIBestLine Thread::getBestLine(int score, int depth) const {
-    auto totalNodes  = threadPool.accumulate(&Thread::nodes);
-    auto elapsedTime = std::chrono::duration_cast<Milliseconds>(Clock::now() - startTime);
-    auto pv          = getPV(depth);
+inline uci::PV Thread::get_pv_line(int score, int depth) const {
+    return uci::PV{score, depth, get_nodes(), get_runtime(), get_pv(depth)};
+}
 
-    return UCIBestLine{score, depth, totalNodes, elapsedTime, pv};
+inline void Thread::check_stop() {
+    if (thread_id != 0)
+        return;
+
+    if (nodes & 0xFFF)
+        return;
+
+    if (options.nodes != OPTION_NOT_SET) {
+        auto total_nodes = get_nodes();
+        if (total_nodes >= options.nodes)
+            thread_pool.stop_all();
+    }
+
+    if (searchtime_ms != OPTION_NOT_SET) {
+        auto runtime_ms = get_runtime().count();
+        if (runtime_ms >= searchtime_ms)
+            thread_pool.stop_all();
+    }
 }

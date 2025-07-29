@@ -1,23 +1,23 @@
 #pragma once
 
-#include "constants.hpp"
-#include "types.hpp"
+#include "defs.hpp"
+#include "util.hpp"
 
-namespace Zobrist {
+namespace zob {
 
 void init();
 
-extern U64 psq[N_COLORS][N_PIECES][N_SQUARES];
-extern U64 stm;
-extern U64 ep[8];
-extern U64 castle[N_COLORS][N_CASTLES];
+extern uint64_t piece[N_COLORS][N_PIECES][N_SQUARES];
+extern uint64_t turn;
+extern uint64_t ep[8];
+extern uint64_t castle[2][N_COLORS];
 
-inline U64 hashPiece(const Color c, const PieceType p, const Square sq) {
-    return psq[c][idx(p)][sq];
+inline uint64_t hash_piece(const Color c, const PieceType pt, const Square sq) {
+    return piece[c][pt][sq];
 }
 
-inline U64 hashEp(const Square sq) { return ep[idx(fileOf(sq))]; }
+inline uint64_t hash_ep(const Square sq) {
+    return ep[file_of(sq)];
+}
 
-inline U64 hashCastle(const Color c, const Castle side) { return castle[c][idx(side)]; }
-
-}  // namespace Zobrist
+} // namespace zob

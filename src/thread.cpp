@@ -1,8 +1,12 @@
 #include "thread.hpp"
 
-Thread::Thread(int id, UCIProtocolHandler& uciHandler, ThreadPool& threadPool)
-    : threadId(id), uciHandler(uciHandler), threadPool(threadPool), thread(&Thread::loop, this) {
-    board.setThread(this);
+Thread::Thread(int id, uci::Protocol& protocol, ThreadPool& pool)
+    : board(Board::startfen),
+      thread_id(id),
+      protocol(protocol),
+      thread_pool(pool),
+      thread(&Thread::loop, this) {
+    board.set_thread(this);
 }
 
 Thread::~Thread() {
@@ -12,12 +16,18 @@ Thread::~Thread() {
     }
 }
 
-void Thread::start() {
-    if (runSignal) return;
+void Thread::start(SearchOptions& search_options) {
+    if (run_signal)
+        return;
     {
         std::lock_guard<std::mutex> lock(mutex);
-        runSignal  = true;
-        stopSignal = false;
+
+        board.load_board(search_options.board);
+        this->options       = search_options;
+        this->searchtime_ms = options.calc_searchtime_ms(board.side_to_move());
+
+        run_signal  = true;
+        stop_signal = false;
     }
     condition.notify_all();
 }
@@ -25,8 +35,8 @@ void Thread::start() {
 void Thread::exit() {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        stopSignal = true;
-        exitSignal = true;
+        stop_signal = true;
+        exit_signal = true;
     }
     condition.notify_all();
 }
@@ -34,43 +44,33 @@ void Thread::exit() {
 void Thread::stop() {
     {
         std::lock_guard<std::mutex> lock(mutex);
-        stopSignal = true;
+        stop_signal = true;
     }
     condition.notify_all();
 }
 
 void Thread::wait() {
     std::unique_lock<std::mutex> lock(mutex);
-    condition.wait(lock, [&] { return !runSignal; });
-}
-
-void Thread::set(SearchOptions& options, TimePoint startTime) {
-    if (runSignal) return;
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        board.load(options.board);
-        this->options   = options;
-        this->startTime = startTime;
-    }
+    condition.wait(lock, [&] { return !run_signal; });
 }
 
 void Thread::loop() {
     while (true) {
         {
             std::unique_lock<std::mutex> lock(mutex);
-            condition.wait(lock, [&]() { return runSignal || exitSignal; });
+            condition.wait(lock, [&]() { return run_signal || exit_signal; });
 
-            if (exitSignal) {
-                runSignal = false;
+            if (exit_signal) {
+                run_signal = false;
                 condition.notify_all();
                 return;
             }
         }
 
-        if (!exitSignal) {
+        if (!exit_signal) {
             search();
-            runSignal  = false;
-            stopSignal = false;
+            run_signal  = false;
+            stop_signal = false;
             condition.notify_all();
         }
     }

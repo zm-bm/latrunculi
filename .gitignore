@@ -7,6 +7,7 @@ data/
 logs/
 
 # Ignore CMake cache and output files
+.cache/
 CMakeFiles/
 CMakeCache.txt
 CTestTestfile.cmake
@@ -60,3 +61,5 @@ DartConfiguration.tcl
 *.DS_Store
 *.directory
 Thumbs.db
+.llvm.clang-format
+

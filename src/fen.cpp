@@ -1,128 +1,94 @@
 #include "fen.hpp"
+#include "util.hpp"
+#include <sstream>
 
 FenParser::FenParser(const std::string& fen) {
-    std::istringstream fenStream(fen);
-    std::string piecePlacement, activeColor, castlingRights, enPassantTarget;
+    std::istringstream iss(fen);
+    std::string        pieces_str, color_str, castle_str, enpassant_str;
+
+    if (!(iss >> pieces_str >> color_str >> castle_str >> enpassant_str)) {
+        throw std::invalid_argument("invalid fen, must have at least 4 sections");
+    }
+
+    parse_pieces(pieces_str);
+    parse_turn(color_str);
+    parse_castles(castle_str);
+    parse_enpassant(enpassant_str);
+
     std::string halfmove, fullmove;
-
-    if (!(fenStream >> piecePlacement >> activeColor >> castlingRights >> enPassantTarget)) {
-        throw std::invalid_argument("Invalid FEN: must have at least 4 sections");
-    }
-
-    parsePieces(piecePlacement);
-    parseTurn(activeColor);
-    parseCastlingRights(castlingRights);
-    parseEnPassantSq(enPassantTarget);
-
-    if (fenStream >> halfmove) {
-        parseHalfmove(halfmove);
-    }
-
-    if (fenStream >> fullmove) {
-        parseFullmove(fullmove, turn);
-    }
+    if (iss >> halfmove)
+        parse_halfmove(halfmove);
+    if (iss >> fullmove)
+        parse_fullmove(fullmove, turn);
 }
 
-void FenParser::parsePieces(const std::string& section) {
-    auto file = File::F1;
-    auto rank = Rank::R8;
+void FenParser::parse_pieces(const std::string& section) {
+    auto file = FILE1;
+    auto rank = RANK8;
 
-    for (auto iter = section.begin(); iter != section.end(); ++iter) {
-        auto ch = *iter;
+    for (char ch : section) {
 
-        if ((ch >= '1') && (ch <= '8')) {
+        if (std::isdigit(ch))
             file = file + int(ch - '0');
-        } else {
-            Square sq = makeSquare(file, rank);
 
+        else if (std::isalpha(ch)) {
+            Square sq = make_square(file, rank);
+
+            PieceSquare p = {.square = INVALID};
             switch (ch) {
-                case 'P':
-                    pieces.emplace_back(PieceSquare{WHITE, PieceType::Pawn, sq});
-                    ++file;
-                    break;
-                case 'N':
-                    pieces.emplace_back(PieceSquare{WHITE, PieceType::Knight, sq});
-                    ++file;
-                    break;
-                case 'B':
-                    pieces.emplace_back(PieceSquare{WHITE, PieceType::Bishop, sq});
-                    ++file;
-                    break;
-                case 'R':
-                    pieces.emplace_back(PieceSquare{WHITE, PieceType::Rook, sq});
-                    ++file;
-                    break;
-                case 'Q':
-                    pieces.emplace_back(PieceSquare{WHITE, PieceType::Queen, sq});
-                    ++file;
-                    break;
-                case 'K':
-                    pieces.emplace_back(PieceSquare{WHITE, PieceType::King, sq});
-                    ++file;
-                    break;
-                case 'p':
-                    pieces.emplace_back(PieceSquare{BLACK, PieceType::Pawn, sq});
-                    ++file;
-                    break;
-                case 'n':
-                    pieces.emplace_back(PieceSquare{BLACK, PieceType::Knight, sq});
-                    ++file;
-                    break;
-                case 'b':
-                    pieces.emplace_back(PieceSquare{BLACK, PieceType::Bishop, sq});
-                    ++file;
-                    break;
-                case 'r':
-                    pieces.emplace_back(PieceSquare{BLACK, PieceType::Rook, sq});
-                    ++file;
-                    break;
-                case 'q':
-                    pieces.emplace_back(PieceSquare{BLACK, PieceType::Queen, sq});
-                    ++file;
-                    break;
-                case 'k':
-                    pieces.emplace_back(PieceSquare{BLACK, PieceType::King, sq});
-                    ++file;
-                    break;
-                case '/':
-                    --rank;
-                    file = File::F1;
-                    break;
+            case 'P': p = {WHITE, PAWN, sq}; break;
+            case 'N': p = {WHITE, KNIGHT, sq}; break;
+            case 'B': p = {WHITE, BISHOP, sq}; break;
+            case 'R': p = {WHITE, ROOK, sq}; break;
+            case 'Q': p = {WHITE, QUEEN, sq}; break;
+            case 'K': p = {WHITE, KING, sq}; break;
+            case 'p': p = {BLACK, PAWN, sq}; break;
+            case 'n': p = {BLACK, KNIGHT, sq}; break;
+            case 'b': p = {BLACK, BISHOP, sq}; break;
+            case 'r': p = {BLACK, ROOK, sq}; break;
+            case 'q': p = {BLACK, QUEEN, sq}; break;
+            case 'k': p = {BLACK, KING, sq}; break;
+            default:  break;
             }
+
+            if (p.square != INVALID)
+                pieces.emplace_back(p);
+
+            ++file;
+        }
+
+        else if (ch == '/') {
+            --rank;
+            file = FILE1;
         }
     }
 }
 
-void FenParser::parseTurn(const std::string& section) { turn = (section == "w") ? WHITE : BLACK; }
-
-void FenParser::parseCastlingRights(const std::string& section) {
-    if (section.find('-') == std::string::npos) {
-        if (section.find('K') != std::string::npos) {
-            castle |= WHITE_OO;
-        }
-
-        if (section.find('Q') != std::string::npos) {
-            castle |= WHITE_OOO;
-        }
-
-        if (section.find('k') != std::string::npos) {
-            castle |= BLACK_OO;
-        }
-
-        if (section.find('q') != std::string::npos) {
-            castle |= BLACK_OOO;
-        }
-    }
+void FenParser::parse_turn(const std::string& section) {
+    turn = (section == "w") ? WHITE : BLACK;
 }
 
-void FenParser::parseEnPassantSq(const std::string& section) {
+void FenParser::parse_castles(const std::string& section) {
+    if (section.find('K') != std::string::npos)
+        castle |= W_KINGSIDE;
+    if (section.find('Q') != std::string::npos)
+        castle |= W_QUEENSIDE;
+    if (section.find('k') != std::string::npos)
+        castle |= B_KINGSIDE;
+    if (section.find('q') != std::string::npos)
+        castle |= B_QUEENSIDE;
+}
+
+void FenParser::parse_enpassant(const std::string& section) {
     if (section.compare("-") != 0) {
-        enPassantSq = makeSquare(section);
+        enpassant = make_square(section);
     }
 }
 
-void FenParser::parseHalfmove(const std::string& section) { hmClock = std::stoi(section); }
+void FenParser::parse_halfmove(const std::string& section) {
+    halfmove_clk = std::stoi(section);
+}
 
-void FenParser::parseFullmove(const std::string& section, Color turn) {
-    moveCounter = 2 * (std::stoul(section) - 1) + (turn == WHITE ? 0 : 1);
+void FenParser::parse_fullmove(const std::string& section, Color turn) {
+    fullmove_clk = 2 * (std::stoul(section) - 1) + (turn == WHITE ? 0 : 1);
 }
