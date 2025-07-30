@@ -38,7 +38,8 @@ int Thread::search() {
         root_value = value;
         root_depth = depth;
 
-        protocol.info(get_pv_line(value, depth));
+        if (thread_id == 0)
+            protocol.info(get_pv_line(value, depth));
 
         history.age();
     }
@@ -82,6 +83,9 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     if (stop_signal)
         return alpha;
 
+    uint64_t key = board.key();
+    __builtin_prefetch(tt.prefetch_addr(key));
+
     // mate distance pruning
     alpha = std::max(alpha, -MATE_VALUE + ply);
     beta  = std::min(beta, MATE_VALUE - ply);
@@ -106,13 +110,12 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     if (board.is_draw())
         return DRAW_VALUE;
 
-    Color    turn       = board.side_to_move();
-    uint64_t key        = board.key();
-    int      alpha0     = alpha;
-    int      best_value = -INF_VALUE;
-    Move     best_move  = NULL_MOVE;
-    Move     tt_move    = NULL_MOVE;
-    Move     pv_move    = root ? root_move : NULL_MOVE;
+    Color turn       = board.side_to_move();
+    int   alpha0     = alpha;
+    int   best_value = -INF_VALUE;
+    Move  best_move  = NULL_MOVE;
+    Move  tt_move    = NULL_MOVE;
+    Move  pv_move    = root ? root_move : NULL_MOVE;
 
     // Probe the transposition table
     TT_Entry* e = tt.probe(key);
