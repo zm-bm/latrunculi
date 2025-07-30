@@ -32,7 +32,7 @@ int Thread::search() {
 
         value = search_widen(depth, value);
 
-        if (stop_signal)
+        if (halt_requested())
             break;
 
         root_value = value;
@@ -45,7 +45,7 @@ int Thread::search() {
     }
 
     if (thread_id == 0) {
-        if (stop_signal) {
+        if (halt_requested()) {
             protocol.info(get_pv_line(root_value, root_depth));
         }
         protocol.bestmove(root_move.str());
@@ -79,8 +79,8 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     constexpr bool pvnode = N != NON_PV;
     constexpr auto child  = pvnode ? PV : NON_PV;
 
-    check_stop();
-    if (stop_signal)
+    check_halt_conditions();
+    if (halt_requested())
         return alpha;
 
     uint64_t key = board.key();
@@ -161,7 +161,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
             int value = -alphabeta<NON_PV>(-beta, -beta + 1, depth - R, false);
             board.unmake_null();
 
-            if (stop_signal)
+            if (halt_requested())
                 return alpha;
             if (value >= beta)
                 return value;
@@ -254,7 +254,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
 
         board.unmake();
 
-        if (stop_signal)
+        if (halt_requested())
             return alpha;
 
         // fail-soft beta cutoff
@@ -297,8 +297,8 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
 }
 
 int Thread::quiescence(int alpha, int beta) {
-    check_stop();
-    if (stop_signal)
+    check_halt_conditions();
+    if (halt_requested())
         return alpha;
 
     nodes++;
@@ -340,7 +340,7 @@ int Thread::quiescence(int alpha, int beta) {
         int score = -quiescence(-beta, -alpha);
         board.unmake();
 
-        if (stop_signal)
+        if (halt_requested())
             return alpha;
 
         if (score >= beta)

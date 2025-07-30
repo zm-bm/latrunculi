@@ -9,10 +9,6 @@ ThreadPool::ThreadPool(size_t thread_count, uci::Protocol& protocol) : protocol(
     }
 }
 
-ThreadPool::~ThreadPool() {
-    exit_all();
-}
-
 void ThreadPool::start_all(SearchOptions& options) {
     for (auto& thread : threads) {
         thread->start(options);
@@ -20,15 +16,15 @@ void ThreadPool::start_all(SearchOptions& options) {
     }
 }
 
-void ThreadPool::exit_all() {
+void ThreadPool::shutdown_all() {
     for (auto& thread : threads) {
-        thread->exit();
+        thread->shutdown();
     }
 }
 
-void ThreadPool::stop_all() {
+void ThreadPool::halt_all() {
     for (auto& thread : threads) {
-        thread->stop();
+        thread->halt();
     }
 }
 
@@ -44,7 +40,7 @@ void ThreadPool::resize(size_t thread_count) {
 
     if (thread_count < threads.size()) {
         for (size_t i = thread_count; i < threads.size(); ++i) {
-            threads[i]->exit();
+            threads[i]->shutdown();
         }
         threads.resize(thread_count);
     } else {

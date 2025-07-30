@@ -4,19 +4,18 @@
 #include <vector>
 
 #include "search_options.hpp"
+#include "thread.hpp"
 #include "uci.hpp"
-
-class Thread;
 
 class ThreadPool {
 public:
     ThreadPool() = delete;
     ThreadPool(size_t thread_count, uci::Protocol& protocol);
-    ~ThreadPool();
+    ~ThreadPool() = default;
 
     void start_all(SearchOptions&);
-    void exit_all();
-    void stop_all();
+    void shutdown_all();
+    void halt_all();
     void wait_all();
     void resize(size_t thread_count);
 

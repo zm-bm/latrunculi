@@ -1,77 +1,92 @@
 #include "thread.hpp"
+#include "thread_pool.hpp"
 
 Thread::Thread(int id, uci::Protocol& protocol, ThreadPool& pool)
     : board(Board::startfen),
-      thread_id(id),
       protocol(protocol),
+      thread_id(id),
       thread_pool(pool),
-      thread(&Thread::loop, this) {
+      worker(&Thread::loop, this) {
     board.set_thread(this);
 }
 
 Thread::~Thread() {
-    exit();
-    if (thread.joinable()) {
-        thread.join();
+    shutdown();
+    if (worker.joinable()) {
+        worker.join();
     }
 }
 
-void Thread::start(SearchOptions& search_options) {
-    if (run_signal)
-        return;
+void Thread::start(SearchOptions& options) {
     {
         std::lock_guard<std::mutex> lock(mutex);
-
-        board.load_board(search_options.board);
-        this->options       = search_options;
-        this->searchtime_ms = options.calc_searchtime_ms(board.side_to_move());
-
-        run_signal  = true;
-        stop_signal = false;
+        set_options(options);
+        busy_flag = true;
+        run_flag  = true;
+        halt_flag.store(false, std::memory_order_relaxed);
     }
-    condition.notify_all();
+    cv.notify_one();
 }
 
-void Thread::exit() {
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        stop_signal = true;
-        exit_signal = true;
-    }
-    condition.notify_all();
-}
-
-void Thread::stop() {
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        stop_signal = true;
-    }
-    condition.notify_all();
+void Thread::halt() {
+    halt_flag.store(true, std::memory_order_relaxed);
 }
 
 void Thread::wait() {
-    std::unique_lock<std::mutex> lock(mutex);
-    condition.wait(lock, [&] { return !run_signal; });
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        done_cv.wait(lock, [&] { return !busy_flag; });
+    }
+}
+
+void Thread::shutdown() {
+    halt();
+    wait();
+    {
+        std::lock_guard<std::mutex> lk(mutex);
+        exit_flag = true;
+    }
+    cv.notify_one();
 }
 
 void Thread::loop() {
     while (true) {
         {
-            std::unique_lock<std::mutex> lock(mutex);
-            condition.wait(lock, [&]() { return run_signal || exit_signal; });
-
-            if (exit_signal) {
-                run_signal = false;
-                condition.notify_all();
-                return;
-            }
+            std::unique_lock<std::mutex> lk(mutex);
+            cv.wait(lk, [&]() { return run_flag || exit_flag; });
+            if (exit_flag)
+                break;
+            run_flag = false;
         }
-
-        if (!exit_signal) {
-            search();
-            run_signal  = false;
-            stop_signal = false;
-            condition.notify_all();
+        search();
+        {
+            std::lock_guard<std::mutex> lk(mutex);
+            busy_flag = false;
         }
+        done_cv.notify_all();
+    }
+}
+
+uint64_t Thread::get_nodes() const {
+    return thread_pool.accumulate(&Thread::nodes);
+}
+
+void Thread::check_halt_conditions() {
+    if (thread_id != 0)
+        return;
+
+    if (nodes & 0xFFF)
+        return;
+
+    if (options.nodes != OPTION_NOT_SET) {
+        auto total_nodes = get_nodes();
+        if (total_nodes >= options.nodes)
+            thread_pool.halt_all();
+    }
+
+    if (searchtime_ms != OPTION_NOT_SET) {
+        auto runtime_ms = get_runtime().count();
+        if (runtime_ms >= searchtime_ms)
+            thread_pool.halt_all();
     }
 }

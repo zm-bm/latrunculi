@@ -132,12 +132,12 @@ bool Engine::go(std::istringstream& iss) {
 }
 
 bool Engine::stop(std::istringstream& iss) {
-    thread_pool.stop_all();
+    thread_pool.halt_all();
     return true;
 }
 
 bool Engine::quit(std::istringstream& iss) {
-    thread_pool.exit_all();
+    thread_pool.shutdown_all();
     return false;
 }
 
