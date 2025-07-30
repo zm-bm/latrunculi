@@ -11,9 +11,10 @@
 #include "killers.hpp"
 #include "search_options.hpp"
 #include "search_stats.hpp"
-#include "thread_pool.hpp"
 #include "tt.hpp"
 #include "uci.hpp"
+
+class ThreadPool;
 
 class Thread {
 public:
@@ -22,9 +23,9 @@ public:
     ~Thread();
 
     void start(SearchOptions& options);
-    void exit();
-    void stop();
+    void halt();
     void wait();
+    void shutdown();
 
 private:
     // search state
@@ -45,18 +46,22 @@ private:
 
     // thread state
 
-    std::mutex              mutex;
-    std::condition_variable condition;
-    bool                    exit_signal{false};
-    std::atomic<bool>       run_signal{false};
-    std::atomic<bool>       stop_signal{false};
     const int               thread_id;
-    std::thread             thread;
+    std::mutex              mutex;
+    std::condition_variable cv;
+    std::condition_variable done_cv;
+    bool                    exit_flag{false};
+    bool                    run_flag{false};
+    bool                    busy_flag{false};
+    std::atomic<bool>       halt_flag{false};
+    std::thread             worker;
 
     // main thread loop
+
     void loop();
 
     // search.cpp
+
     void reset();
     int  search();
     int  search_widen(int depth, int value);
@@ -65,11 +70,15 @@ private:
     int alphabeta(int alpha, int beta, int depth, bool canNull = true);
 
     // inline helpers
+
     Milliseconds get_runtime() const;
     uint64_t     get_nodes() const;
     std::string  get_pv(int depth) const;
     uci::PV      get_pv_line(int score, int depth) const;
-    void         check_stop();
+
+    void set_options(SearchOptions& options);
+    void check_halt_conditions();
+    bool halt_requested() const { return halt_flag.load(std::memory_order_relaxed); }
 
     friend class SearchTest;
     friend class SearchBenchmark;
@@ -79,12 +88,15 @@ private:
     friend class Board;
 };
 
-inline Milliseconds Thread::get_runtime() const {
-    return std::chrono::duration_cast<Milliseconds>(Clock::now() - options.starttime);
+inline void Thread::set_options(SearchOptions& options) {
+    board.load_board(options.board);
+
+    this->options       = options;
+    this->searchtime_ms = options.calc_searchtime_ms(board.side_to_move());
 }
 
-inline uint64_t Thread::get_nodes() const {
-    return thread_pool.accumulate(&Thread::nodes);
+inline Milliseconds Thread::get_runtime() const {
+    return std::chrono::duration_cast<Milliseconds>(Clock::now() - options.starttime);
 }
 
 inline std::string Thread::get_pv(int depth) const {
@@ -106,24 +118,4 @@ inline std::string Thread::get_pv(int depth) const {
 
 inline uci::PV Thread::get_pv_line(int score, int depth) const {
     return uci::PV{score, depth, get_nodes(), get_runtime(), get_pv(depth)};
-}
-
-inline void Thread::check_stop() {
-    if (thread_id != 0)
-        return;
-
-    if (nodes & 0xFFF)
-        return;
-
-    if (options.nodes != OPTION_NOT_SET) {
-        auto total_nodes = get_nodes();
-        if (total_nodes >= options.nodes)
-            thread_pool.stop_all();
-    }
-
-    if (searchtime_ms != OPTION_NOT_SET) {
-        auto runtime_ms = get_runtime().count();
-        if (runtime_ms >= searchtime_ms)
-            thread_pool.stop_all();
-    }
 }

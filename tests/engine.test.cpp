@@ -20,10 +20,14 @@ protected:
 };
 
 TEST_F(EngineTest, GoAndStopCommands) {
+    // Start a search
     EXPECT_TRUE(execute("go"));
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
+    // Wait for a short time and stop the search
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     EXPECT_TRUE(execute("stop"));
+
+    // Wait for threads to finish and check output for best move
     threadpool().wait_all();
     EXPECT_NE(output.str().find("bestmove"), std::string::npos);
 }
@@ -83,7 +87,10 @@ class SetOptionTest : public EngineTest, public ::testing::WithParamInterface<Se
 TEST_P(SetOptionTest, ValidateSetOption) {
     const auto& param = GetParam();
 
+    // Execute the setoption command
     EXPECT_TRUE(execute(param.command));
+
+    // Check if the thread count is set correctly and output is as expected
     EXPECT_EQ(threadpool().size(), param.threads);
     EXPECT_NE(output.str().find(param.output), std::string::npos);
 }
@@ -116,7 +123,11 @@ class PositionTest : public EngineTest, public ::testing::WithParamInterface<Pos
 
 TEST_P(PositionTest, ValidatePosition) {
     const auto& param = GetParam();
+
+    // Execute the position command
     EXPECT_TRUE(execute(param.cmd));
+
+    // Check if the board is set to the expected FEN
     EXPECT_EQ(board().toFEN(), param.fen);
 }
 
@@ -150,7 +161,10 @@ class GoTest : public EngineTest, public ::testing::WithParamInterface<GoCase> {
 TEST_P(GoTest, ValidateOutput) {
     const auto& param = GetParam();
 
+    // Start the search
     EXPECT_TRUE(execute(param.command));
+
+    // Wait for the search to complete and check output
     threadpool().wait_all();
     EXPECT_NE(output.str().find(param.output), std::string::npos) << output.str();
 }

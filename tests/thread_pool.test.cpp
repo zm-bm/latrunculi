@@ -12,59 +12,59 @@ const int N_THREADS = 4;
 
 class ThreadPoolTest : public ::testing::Test {
 protected:
+    std::istringstream iss;
     std::ostringstream oss;
     uci::Protocol      protocol{oss, oss};
-    ThreadPool*        pool;
+    ThreadPool         pool{N_THREADS, protocol};
     Board              board{STARTFEN};
-    SearchOptions      options;
+    SearchOptions      options{iss, &board};
 
-    uint64_t test_accumulate() { return pool->accumulate(&Thread::nodes); }
+    uint64_t accumulate_nodes() { return pool.accumulate(&Thread::nodes); }
 
-    void SetUp() override {
-        pool          = new ThreadPool(N_THREADS, protocol);
-        options.board = &board;
-        options.depth = 5;
-    }
-
-    void TearDown() override { delete pool; }
+    void SetUp() override { oss.str(""); }
 };
 
 TEST_F(ThreadPoolTest, Constructor) {
-    EXPECT_EQ(pool->size(), N_THREADS);
+    EXPECT_EQ(pool.size(), N_THREADS);
 }
 
 TEST_F(ThreadPoolTest, StartAllThreads) {
-    pool->start_all(options);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // Start the pool with fixed depth
+    options.depth = 5;
+    pool.start_all(options);
 
-    // Ensure threads are started
-    EXPECT_NO_THROW(pool->wait_all());
+    // Check output for best move
+    EXPECT_NO_THROW(pool.wait_all());
+    EXPECT_NE(oss.str().find("bestmove"), std::string::npos) << oss.str();
 }
 
-TEST_F(ThreadPoolTest, ExitAllThreads) {
-    pool->start_all(options);
+TEST_F(ThreadPoolTest, HaltAllThreads) {
+    // Start the pool and then halt
+    pool.start_all(options);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    pool->exit_all();
+    pool.halt_all();
 
-    // Ensure threads are stopped
-    EXPECT_NO_THROW(pool->wait_all());
+    // Check output for best move
+    EXPECT_NO_THROW(pool.wait_all());
+    EXPECT_NE(oss.str().find("bestmove"), std::string::npos) << oss.str();
 }
 
-TEST_F(ThreadPoolTest, StopAllThreads) {
-    pool->start_all(options);
+TEST_F(ThreadPoolTest, ShutdownAllThreads) {
+    // Start the pool and then shutdown all threads
+    pool.start_all(options);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    pool->stop_all();
+    pool.shutdown_all();
 
-    // Ensure threads are halted
-    EXPECT_NO_THROW(pool->wait_all());
+    // Check output for best move
+    EXPECT_NE(oss.str().find("bestmove"), std::string::npos) << oss.str();
 }
 
 TEST_F(ThreadPoolTest, AccumulateNodes) {
-    pool->start_all(options);
+    // Start the pool and then exit
+    pool.start_all(options);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    pool->exit_all();
+    pool.shutdown_all();
 
-    uint64_t totalNodes = test_accumulate();
-
-    EXPECT_GT(totalNodes, 0);
+    // Check that nodes were accumulated
+    EXPECT_GT(accumulate_nodes(), 0);
 }
