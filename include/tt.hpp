@@ -42,12 +42,13 @@ public:
     void      resize(size_t megabytes);
     void      clear();
     void      age_table() { ++age; }
+    const void* prefetch_addr(uint64_t zkey) const;
 
     static constexpr size_t default_mb = 4;
 
 private:
-    uint64_t cluster_key(uint64_t zkey);
-    uint16_t entry_key(uint64_t zkey);
+    uint64_t cluster_key(uint64_t zkey) const;
+    uint16_t entry_key(uint64_t zkey) const;
 
     std::unique_ptr<TT_Cluster[]> table = nullptr;
 
@@ -56,11 +57,16 @@ private:
     uint8_t  age    = 0;
 };
 
-inline uint64_t TT_Table::cluster_key(uint64_t zkey) {
+inline const void* TT_Table::prefetch_addr(uint64_t zkey) const {
+    uint64_t idx = cluster_key(zkey);
+    return &table[idx];
+}
+
+inline uint64_t TT_Table::cluster_key(uint64_t zkey) const {
     return (zkey * 0x9e3779b97f4a7c15ull) >> shift;
 }
 
-inline uint16_t TT_Table::entry_key(uint64_t zkey) {
+inline uint16_t TT_Table::entry_key(uint64_t zkey) const {
     return uint16_t((zkey ^ (zkey >> 32)) & 0xFFFF);
 }
 
