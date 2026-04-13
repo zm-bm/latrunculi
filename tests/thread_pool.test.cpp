@@ -1,6 +1,8 @@
 #include "thread_pool.hpp"
 
+#include <chrono>
 #include <sstream>
+#include <thread>
 
 #include "search_options.hpp"
 #include "test_util.hpp"
@@ -20,6 +22,23 @@ protected:
     SearchOptions      options{iss, &board};
 
     uint64_t accumulate_nodes() { return pool.accumulate(&Thread::nodes); }
+    bool     search_started() {
+        for (const auto& thread : pool.threads) {
+            if (thread->search_started_flag.load(std::memory_order_acquire))
+                return true;
+        }
+        return false;
+    }
+
+    bool wait_for_search_start(std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
+        auto deadline = std::chrono::steady_clock::now() + timeout;
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (search_started())
+                return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return search_started();
+    }
 
     void SetUp() override { oss.str(""); }
 };
@@ -41,6 +60,7 @@ TEST_F(ThreadPoolTest, StartAllThreads) {
 TEST_F(ThreadPoolTest, HaltAllThreads) {
     // Start the pool and then halt
     pool.start_all(options);
+    ASSERT_TRUE(wait_for_search_start());
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     pool.halt_all();
 
@@ -52,6 +72,7 @@ TEST_F(ThreadPoolTest, HaltAllThreads) {
 TEST_F(ThreadPoolTest, ShutdownAllThreads) {
     // Start the pool and then shutdown all threads
     pool.start_all(options);
+    ASSERT_TRUE(wait_for_search_start());
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     pool.shutdown_all();
 
@@ -62,7 +83,6 @@ TEST_F(ThreadPoolTest, ShutdownAllThreads) {
 TEST_F(ThreadPoolTest, AccumulateNodes) {
     // Start the pool and then exit
     pool.start_all(options);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     pool.shutdown_all();
 
     // Check that nodes were accumulated

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -53,6 +54,7 @@ private:
     bool                    exit_flag{false};
     bool                    run_flag{false};
     bool                    busy_flag{false};
+    std::atomic<bool>       search_started_flag{false};
     std::atomic<bool>       halt_flag{false};
     std::thread             worker;
 
@@ -82,6 +84,7 @@ private:
 
     friend class SearchTest;
     friend class SearchBenchmark;
+    friend class ThreadTest;
     friend class ThreadPoolTest;
 
     friend class ThreadPool;

@@ -24,6 +24,16 @@ protected:
         thread = pool.threads[0].get();
         oss.str("");
     }
+
+    bool wait_for_search_start(std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
+        auto deadline = std::chrono::steady_clock::now() + timeout;
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (thread->search_started_flag.load(std::memory_order_acquire))
+                return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return thread->search_started_flag.load(std::memory_order_acquire);
+    }
 };
 
 TEST_F(ThreadTest, ThreadShutsDownCorrectly) {
@@ -32,6 +42,7 @@ TEST_F(ThreadTest, ThreadShutsDownCorrectly) {
 
     // Start the search then shut down
     thread->start(options);
+    ASSERT_TRUE(wait_for_search_start());
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     thread->shutdown();
 
@@ -45,6 +56,7 @@ TEST_F(ThreadTest, ThreadHaltsSearchCorrectly) {
 
     // Start the search then halt
     thread->start(options);
+    ASSERT_TRUE(wait_for_search_start());
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     thread->halt();
 
@@ -61,7 +73,6 @@ TEST_F(ThreadTest, ThreadHandlesMultipleSearches) {
 
     // Run the first search
     thread->start(options1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     thread->halt();
 
     // Check output for the first search, clear the output stream
@@ -71,7 +82,6 @@ TEST_F(ThreadTest, ThreadHandlesMultipleSearches) {
 
     // Run the second search
     thread->start(options2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     thread->halt();
 
     // Check output for the second search

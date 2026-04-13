@@ -15,7 +15,7 @@
 ### prerequisites
 
 * c++23 compiler (clang ≥16, g++ ≥13)
-* cmake ≥3.26
+* cmake ≥3.22
 * git (for submodules)
 
 ### build
@@ -26,10 +26,16 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 ```
 
+if you forgot `--recursive`, run:
+
+```bash
+git submodule update --init --recursive
+```
+
 ### run
 
 ```bash
-./bin/latrunculi   # opens uci prompt
+./build/bin/latrunculi   # opens uci prompt
 ```
 
 point any uci‑capable gui (cutechess, arena, etc.) at the binary and set options if needed:
@@ -43,8 +49,8 @@ go depth 20
 ## tests & benchmarks
 
 ```bash
-./bin/tests         # move-gen / unit tests 
-./bin/benchmark     # nps measurements
+ctest --test-dir build --output-on-failure
+./build/bin/benchmark     # nps measurements
 ```
 
 ## roadmap

@@ -25,6 +25,7 @@ public:
     T accumulate(T Thread::* member) const;
 
     friend class ThreadTest;
+    friend class ThreadPoolTest;
     friend class SearchTest;
 
 private:

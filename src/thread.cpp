@@ -23,6 +23,7 @@ void Thread::start(SearchOptions& options) {
         set_options(options);
         busy_flag = true;
         run_flag  = true;
+        search_started_flag.store(false, std::memory_order_release);
         halt_flag.store(false, std::memory_order_relaxed);
     }
     cv.notify_one();
@@ -58,7 +59,9 @@ void Thread::loop() {
                 break;
             run_flag = false;
         }
+        search_started_flag.store(true, std::memory_order_release);
         search();
+        search_started_flag.store(false, std::memory_order_release);
         {
             std::lock_guard<std::mutex> lk(mutex);
             busy_flag = false;
