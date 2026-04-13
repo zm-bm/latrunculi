@@ -45,6 +45,6 @@ TEST_F(MoveListTest, SortMovesWithPVAndHash) {
     movelist.sort({board, killers, history, ply, pvMove, hashMove});
 
     EXPECT_GT(movelist.size(), 1);
-    EXPECT_EQ(movelist[0], hashMove);
-    EXPECT_EQ(movelist[1], pvMove);
+    EXPECT_EQ(movelist[0], pvMove);
+    EXPECT_EQ(movelist[1], hashMove);
 }

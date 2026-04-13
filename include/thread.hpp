@@ -10,6 +10,7 @@
 #include "defs.hpp"
 #include "history.hpp"
 #include "killers.hpp"
+#include "movegen.hpp"
 #include "search_options.hpp"
 #include "search_stats.hpp"
 #include "tt.hpp"
@@ -32,15 +33,15 @@ private:
     // search state
 
     Board          board;
-    int            ply;
-    Move           root_move;
-    int            root_value;
-    int            root_depth;
+    int            ply{0};
+    Move           root_move{NULL_MOVE};
+    int            root_value{DRAW_VALUE};
+    int            root_depth{0};
     KillerMoves    killers;
     HistoryTable   history;
     SearchOptions  options;
-    int64_t        searchtime_ms;
-    uint64_t       nodes;
+    int64_t        searchtime_ms{OPTION_NOT_SET};
+    uint64_t       nodes{0};
     SearchStats<>  stats;
     uci::Protocol& protocol;
     ThreadPool&    thread_pool;
@@ -77,6 +78,7 @@ private:
     uint64_t     get_nodes() const;
     std::string  get_pv(int depth) const;
     uci::PV      get_pv_line(int score, int depth) const;
+    Move         first_legal_root_move() const;
 
     void set_options(SearchOptions& options);
     void check_halt_conditions();
@@ -121,4 +123,13 @@ inline std::string Thread::get_pv(int depth) const {
 
 inline uci::PV Thread::get_pv_line(int score, int depth) const {
     return uci::PV{score, depth, get_nodes(), get_runtime(), get_pv(depth)};
+}
+
+inline Move Thread::first_legal_root_move() const {
+    auto movelist = generate<ALL_MOVES>(board);
+    for (auto& move : movelist) {
+        if (board.is_legal_move(move))
+            return move;
+    }
+    return NULL_MOVE;
 }

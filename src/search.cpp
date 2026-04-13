@@ -12,8 +12,11 @@
 constexpr int AspirationWindow = 50;
 
 void Thread::reset() {
-    nodes = 0;
-    ply   = 0;
+    nodes      = 0;
+    ply        = 0;
+    root_depth = 0;
+    root_value = evaluate(board);
+    root_move  = first_legal_root_move();
 
     killers.clear();
     history.clear();
@@ -23,7 +26,7 @@ void Thread::reset() {
 int Thread::search() {
     reset();
 
-    int value = evaluate(board);
+    int value = root_value;
     int depth = 1 + (thread_id & 1);
 
     for (; depth <= options.depth; ++depth) {
@@ -60,17 +63,33 @@ int Thread::search() {
 }
 
 int Thread::search_widen(int depth, int prevValue) {
-    int alpha = prevValue - AspirationWindow;
-    int beta  = prevValue + AspirationWindow;
+    constexpr int Inf    = static_cast<int>(INF_VALUE);
+    constexpr int NegInf = -Inf;
 
-    int value = alphabeta<>(alpha, beta, depth);
+    int delta = AspirationWindow;
+    int alpha = std::max(prevValue - delta, NegInf);
+    int beta  = std::min(prevValue + delta, Inf);
 
-    if (value <= alpha)
-        value = alphabeta<>(-INF_VALUE, beta, depth);
-    else if (value >= beta)
-        value = alphabeta<>(alpha, INF_VALUE, depth);
+    while (true) {
+        int value = alphabeta<>(alpha, beta, depth);
 
-    return value;
+        if (halt_requested())
+            return value;
+
+        if (value <= alpha) {
+            if (alpha == NegInf)
+                return value;
+            alpha = std::max(alpha - delta, NegInf);
+        } else if (value >= beta) {
+            if (beta == Inf)
+                return value;
+            beta = std::min(beta + delta, Inf);
+        } else {
+            return value;
+        }
+
+        delta = std::min(delta * 2, Inf);
+    }
 }
 
 template <NodeType N>
@@ -115,7 +134,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     int   best_value = -INF_VALUE;
     Move  best_move  = NULL_MOVE;
     Move  tt_move    = NULL_MOVE;
-    Move  pv_move    = root ? root_move : NULL_MOVE;
+    Move  pv_move    = (root && root_depth > 0) ? root_move : NULL_MOVE;
 
     // Probe the transposition table
     TT_Entry* e = tt.probe(key);
@@ -198,12 +217,12 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     movelist.sort({board, killers, history, ply, pv_move, tt_move});
 
     // Iterate through moves
-    int legal_moves = 0;
-    int tried_moves = 0;
+    int legal_move_index = 0;
     for (auto& move : movelist) {
         if (!board.is_legal_move(move))
             continue;
-        legal_moves++;
+        legal_move_index++;
+        const bool first_legal = (legal_move_index == 1);
 
         bool is_promotion = move.type() == MOVE_PROM;
         bool is_enpassant = move.type() == MOVE_EP;
@@ -213,10 +232,9 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
         board.make(move);
 
         bool gives_check = board.is_check();
-        tried_moves++;
 
         // Futility pruning
-        if (futile_flag && tried_moves > 1 && is_quiet && !gives_check) {
+        if (futile_flag && !first_legal && is_quiet && !gives_check) {
             board.unmake();
             continue;
         }
@@ -224,10 +242,10 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
         // Late move reduction
         int reduction = 0;
         if constexpr (!root) {
-            if (depth >= 3 && tried_moves >= 3) {
+            if (depth >= 3 && legal_move_index >= 3) {
                 double base = is_quiet ? 1.25 : 0.75;
                 double div  = is_quiet ? 2.5 : 3.3;
-                double r    = base + std::log(depth) * std::log(tried_moves) / div;
+                double r    = base + std::log(depth) * std::log(legal_move_index) / div;
 
                 if (in_check || gives_check)
                     r *= 0.6;
@@ -242,7 +260,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
 
         // PVS search
         int value;
-        if (tried_moves == 0) {
+        if (first_legal) {
             value = -alphabeta<child>(-beta, -alpha, depth - 1, can_null);
         } else {
             value = -alphabeta<NON_PV>(-alpha - 1, -alpha, depth - 1 - reduction, can_null);
@@ -254,8 +272,11 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
 
         board.unmake();
 
-        if (halt_requested())
+        if (halt_requested()) {
+            if constexpr (root)
+                return root_value;
             return alpha;
+        }
 
         // fail-soft beta cutoff
         if (value >= beta) {
@@ -264,7 +285,13 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
                 history.update(turn, move.from(), move.to(), depth);
             }
 
-            stats.beta_cutoff(ply, move == movelist[0]);
+            if constexpr (root) {
+                root_move  = move;
+                root_value = value;
+                root_depth = depth;
+            }
+
+            stats.beta_cutoff(ply, first_legal);
             tt.store(key, move, value, depth, TT_Flag::Lowerbound, ply);
             return value;
         }
@@ -285,9 +312,15 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
         }
     }
 
-    if (legal_moves == 0) {
+    if (legal_move_index == 0) {
         best_move  = NULL_MOVE;
         best_value = in_check ? -MATE_VALUE + ply : DRAW_VALUE;
+    }
+
+    if constexpr (root) {
+        root_move  = best_move;
+        root_value = best_value;
+        root_depth = depth;
     }
 
     TT_Flag flag = (best_value > alpha0) ? TT_Flag::Exact : TT_Flag::Upperbound;

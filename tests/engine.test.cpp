@@ -40,6 +40,24 @@ TEST_F(EngineTest, QuitCommand) {
     EXPECT_FALSE(execute("quit"));
 }
 
+TEST_F(EngineTest, SearchDoesNotReuseStaleBestMoveWhenNoLegalMoves) {
+    // Seed a previous bestmove.
+    EXPECT_TRUE(execute("position startpos"));
+    EXPECT_TRUE(execute("go depth 1"));
+    threadpool().wait_all();
+
+    // Run a checkmated position; bestmove must not reuse the prior move.
+    output.str("");
+    output.clear();
+
+    EXPECT_TRUE(execute("position fen 7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"));
+    EXPECT_TRUE(execute("go depth 1"));
+    threadpool().wait_all();
+
+    EXPECT_NE(output.str().find("bestmove none"), std::string::npos) << output.str();
+    EXPECT_EQ(output.str().find("bestmove e2e4"), std::string::npos) << output.str();
+}
+
 // Basic engine command tests
 
 struct CommandCase {

@@ -124,8 +124,8 @@ enum MoveType { BASIC_MOVE, MOVE_PROM, MOVE_EP, MOVE_CASTLE };
 enum GeneratorMode { ALL_MOVES, CAPTURES, EVASIONS, QUIETS };
 
 enum MovePriority : uint16_t {
-    PRIORITY_HASH    = 1 << 15,
-    PRIORITY_PV      = 1 << 14,
+    PRIORITY_PV      = 1 << 15,
+    PRIORITY_HASH    = 1 << 14,
     PRIORITY_PROM    = 1 << 13,
     PRIORITY_CAPTURE = 1 << 12,
     PRIORITY_KILLER  = 1 << 11,
