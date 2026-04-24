@@ -1,6 +1,33 @@
 #include "tt.hpp"
 
+#include <array>
+#include <atomic>
+#include <barrier>
+#include <thread>
+#include <vector>
+
 #include "gtest/gtest.h"
+
+namespace {
+struct TT_ExpectedSnapshot {
+    Move    move;
+    int16_t score;
+    uint8_t depth;
+    TT_Flag flag;
+};
+
+[[nodiscard]] bool matches_expected_snapshot(
+    const TT_Record& record, const std::array<TT_ExpectedSnapshot, 4>& expected_snapshots) {
+    for (const auto& expected : expected_snapshots) {
+        if (record.move == expected.move && record.score == expected.score &&
+            record.depth == expected.depth && record.flag == expected.flag) {
+            return true;
+        }
+    }
+
+    return false;
+}
+} // namespace
 
 class TT_Test : public ::testing::Test {
 protected:
@@ -191,4 +218,61 @@ TEST_F(TT_Test, StoreAndProbeRoundTripPublishedAge) {
 TEST_F(TT_Test, NoneFlagEntriesProbeAsMiss) {
     tt.store(key, move, score, depth, TT_Flag::None, 0);
     EXPECT_FALSE(tt.probe(key).has_value());
+}
+
+TEST_F(TT_Test, ConcurrentStoreAndProbeYieldOnlyCompleteSnapshots) {
+    constexpr uint64_t shared_key = 0x0F0E0D0C0B0A0908ULL;
+    const std::array<TT_ExpectedSnapshot, 4> expected_snapshots{{
+        {Move(Square::A2, Square::A4), 111, 4, TT_Flag::Exact},
+        {Move(Square::B2, Square::B4), -77, 6, TT_Flag::Lowerbound},
+        {Move(Square::C2, Square::C4), 205, 9, TT_Flag::Upperbound},
+        {Move(Square::D2, Square::D4), 18, 12, TT_Flag::Exact},
+    }};
+
+    constexpr int writer_iterations = 20000;
+    constexpr int reader_iterations = 30000;
+
+    std::barrier start_line(static_cast<std::ptrdiff_t>(expected_snapshots.size() + 2));
+    std::atomic<int> hit_count{0};
+    std::atomic<int> miss_count{0};
+    std::atomic<int> invalid_snapshot_count{0};
+
+    auto writer = [&](const TT_ExpectedSnapshot& snapshot) {
+        start_line.arrive_and_wait();
+        for (int i = 0; i < writer_iterations; ++i)
+            tt.store(shared_key, snapshot.move, snapshot.score, snapshot.depth, snapshot.flag, 0);
+    };
+
+    auto reader = [&]() {
+        start_line.arrive_and_wait();
+        for (int i = 0; i < reader_iterations; ++i) {
+            auto probe = tt.probe(shared_key);
+            if (!probe.has_value()) {
+                miss_count.fetch_add(1, std::memory_order_relaxed);
+                continue;
+            }
+
+            hit_count.fetch_add(1, std::memory_order_relaxed);
+            if (!matches_expected_snapshot(*probe, expected_snapshots))
+                invalid_snapshot_count.fetch_add(1, std::memory_order_relaxed);
+        }
+    };
+
+    std::vector<std::jthread> workers;
+    workers.reserve(expected_snapshots.size() + 2);
+    for (const auto& snapshot : expected_snapshots)
+        workers.emplace_back(writer, std::cref(snapshot));
+    workers.emplace_back(reader);
+    workers.emplace_back(reader);
+
+    for (auto& worker : workers)
+        worker.join();
+
+    EXPECT_GT(hit_count.load(std::memory_order_relaxed), 0);
+    EXPECT_GT(miss_count.load(std::memory_order_relaxed), 0);
+    EXPECT_EQ(invalid_snapshot_count.load(std::memory_order_relaxed), 0);
+
+    auto final_probe = tt.probe(shared_key);
+    ASSERT_TRUE(final_probe.has_value());
+    EXPECT_TRUE(matches_expected_snapshot(*final_probe, expected_snapshots));
 }
