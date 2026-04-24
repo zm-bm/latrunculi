@@ -40,7 +40,11 @@ protected:
         return search_started();
     }
 
-    void SetUp() override { oss.str(""); }
+    void SetUp() override {
+        oss.str("");
+        oss.clear();
+        tt.clear();
+    }
 };
 
 TEST_F(ThreadPoolTest, Constructor) {
@@ -87,4 +91,18 @@ TEST_F(ThreadPoolTest, AccumulateNodes) {
 
     // Check that nodes were accumulated
     EXPECT_GT(accumulate_nodes(), 0);
+}
+
+TEST_F(ThreadPoolTest, RootSearchAgesSharedTTOncePerStartAll) {
+    options.depth = 1;
+
+    EXPECT_EQ(tt.current_age(), uint8_t{0});
+
+    pool.start_all(options);
+    pool.wait_all();
+    EXPECT_EQ(tt.current_age(), uint8_t{1});
+
+    pool.start_all(options);
+    pool.wait_all();
+    EXPECT_EQ(tt.current_age(), uint8_t{2});
 }

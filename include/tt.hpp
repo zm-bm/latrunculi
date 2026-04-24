@@ -61,7 +61,9 @@ public:
                                           int      ply);
     void                                   resize(size_t megabytes);
     void                                   clear();
+    // Advance the shared TT generation once per root-search lifecycle event.
     void                                   age_table() { ++age; }
+    [[nodiscard]] uint8_t                  current_age() const { return age; }
     const void*                            prefetch_addr(uint64_t zkey) const;
 
     static constexpr size_t default_mb = 4;

@@ -21,7 +21,6 @@ void Thread::reset() {
 
     killers.clear();
     history.clear();
-    tt.age_table();
 }
 
 int Thread::search() {

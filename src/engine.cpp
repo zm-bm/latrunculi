@@ -104,7 +104,9 @@ bool Engine::set_option(std::istringstream& iss) {
 }
 
 bool Engine::new_game(std::istringstream& iss) {
-    tt.age_table();
+    // UCI new game policy: drop all cached TT data so a fresh game starts from an empty table
+    // with generation 0 instead of carrying entries across unrelated games.
+    tt.clear();
     return true;
 }
 

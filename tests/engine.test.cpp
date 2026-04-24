@@ -12,7 +12,11 @@ protected:
     std::ostringstream output;
     Engine             engine{output, output, std::cin};
 
-    void SetUp() override { output.str(""); }
+    void SetUp() override {
+        output.str("");
+        output.clear();
+        tt.clear();
+    }
 
     bool        execute(const std::string& command) { return engine.execute(command); }
     Board&      board() { return engine.board; }
@@ -56,6 +60,18 @@ TEST_F(EngineTest, SearchDoesNotReuseStaleBestMoveWhenNoLegalMoves) {
 
     EXPECT_NE(output.str().find("bestmove none"), std::string::npos) << output.str();
     EXPECT_EQ(output.str().find("bestmove e2e4"), std::string::npos) << output.str();
+}
+
+TEST_F(EngineTest, UciNewGameClearsTTAndResetsGeneration) {
+    tt.age_table();
+    tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TT_Flag::Exact, 0);
+    ASSERT_TRUE(tt.probe(board().key()).has_value());
+    ASSERT_EQ(tt.current_age(), uint8_t{1});
+
+    EXPECT_TRUE(execute("ucinewgame"));
+
+    EXPECT_FALSE(tt.probe(board().key()).has_value());
+    EXPECT_EQ(tt.current_age(), uint8_t{0});
 }
 
 // Basic engine command tests

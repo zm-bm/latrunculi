@@ -10,6 +10,8 @@ ThreadPool::ThreadPool(size_t thread_count, uci::Protocol& protocol) : protocol(
 }
 
 void ThreadPool::start_all(SearchOptions& options) {
+    tt.age_table();
+
     for (auto& thread : threads) {
         thread->start(options);
         std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 2));
