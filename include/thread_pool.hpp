@@ -22,7 +22,7 @@ public:
     int size() const;
 
     template <typename T>
-    T accumulate(T Thread::* member) const;
+    T accumulate(T Thread::*member) const;
 
     friend class ThreadTest;
     friend class ThreadPoolTest;

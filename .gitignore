@@ -1,10 +1,15 @@
 # Ignore build artifacts and directories
 build/
+build-*/
+cmake-build-*/
 out/
 bin/
 lib/
 data/
 logs/
+
+# Local preset overrides
+CMakeUserPresets.json
 
 # Ignore CMake cache and output files
 .cache/

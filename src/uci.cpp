@@ -64,7 +64,7 @@ Available commands:
   d             - Display the current board position
   eval          - Evaluate the current position
 For UCI protocol details, see: https://www.wbec-ridderkerk.nl/html/UCIProtocol.html)";
-    std::println(err, format_str);
+    err << format_str << '\n';
 }
 
 void Protocol::identify(const uci::Config& config) const {
@@ -74,28 +74,28 @@ id author Eric VanderHelm
 option name Hash {}
 option name Threads {}
 uciok)";
-    std::println(out, format_str, LATRUNCULI_VERSION, config.hash, config.threads);
+    out << std::format(format_str, LATRUNCULI_VERSION, config.hash, config.threads) << '\n';
 }
 
 void Protocol::ready() const {
-    std::println(out, "readyok");
+    out << "readyok\n";
 }
 
 void Protocol::bestmove(std::string move) const {
-    std::println(out, "bestmove {}", move);
+    out << std::format("bestmove {}", move) << '\n';
 }
 
 void Protocol::info(const std::string& str) const {
-    std::println(out, "info string {}", str);
+    out << std::format("info string {}", str) << '\n';
 }
 
 void Protocol::info(const uci::PV& pv) const {
-    std::println(out, "info {}", pv);
+    out << std::format("info {}", pv) << '\n';
 }
 
 template <typename T>
 void Protocol::diagnostic_output(T&& obj) const {
-    std::println(err, "{}", std::forward<T>(obj));
+    err << std::format("{}", std::forward<T>(obj)) << '\n';
 }
 
 template void Protocol::diagnostic_output(std::string& str) const;

@@ -57,7 +57,7 @@ TEST(SearchStats, Output) {
     stats.tt_cutoffs      = {0, 20, 60};
 
     std::ostringstream oss;
-    std::print(oss, "{}", stats);
+    oss << std::format("{}", stats);
 
     EXPECT_NE(oss.str().find("Depth"), std::string::npos);
     EXPECT_NE(oss.str().find("Nodes"), std::string::npos);

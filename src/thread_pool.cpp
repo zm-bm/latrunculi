@@ -55,7 +55,7 @@ int ThreadPool::size() const {
 }
 
 template <typename T>
-T ThreadPool::accumulate(T Thread::* member) const {
+T ThreadPool::accumulate(T Thread::*member) const {
     T total = T{};
     for (const auto& thread : threads) {
         total += (*thread).*member;
@@ -63,5 +63,5 @@ T ThreadPool::accumulate(T Thread::* member) const {
     return total;
 }
 
-template uint64_t      ThreadPool::accumulate<uint64_t>(uint64_t Thread::* member) const;
-template SearchStats<> ThreadPool::accumulate<SearchStats<>>(SearchStats<> Thread::* member) const;
+template uint64_t      ThreadPool::accumulate<uint64_t>(uint64_t Thread::*member) const;
+template SearchStats<> ThreadPool::accumulate<SearchStats<>>(SearchStats<> Thread::*member) const;

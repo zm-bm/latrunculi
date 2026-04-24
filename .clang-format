@@ -14,7 +14,7 @@ AllowShortLambdasOnASingleLine: All
 AllowShortCaseLabelsOnASingleLine: true
 BinPackArguments: false
 BinPackParameters: false
-BreakTemplateDeclarations: Yes
+AlwaysBreakTemplateDeclarations: Yes
 ColumnLimit:     100
 IndentWidth:     4
 PackConstructorInitializers: CurrentLine
