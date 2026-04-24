@@ -172,3 +172,23 @@ TEST_F(TT_Test, ProbeReturnsDetachedSnapshot) {
     EXPECT_EQ(new_move, second_probe->move);
     EXPECT_EQ(new_score, second_probe->score);
 }
+
+TEST_F(TT_Test, StoreAndProbeRoundTripPublishedAge) {
+    tt.age_table();
+    tt.age_table();
+
+    tt.store(key, move, score, depth, flag, 0);
+    auto entry = tt.probe(key);
+
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(uint8_t{2}, entry->age);
+    EXPECT_EQ(move, entry->move);
+    EXPECT_EQ(score, entry->score);
+    EXPECT_EQ(depth, entry->depth);
+    EXPECT_EQ(flag, entry->flag);
+}
+
+TEST_F(TT_Test, NoneFlagEntriesProbeAsMiss) {
+    tt.store(key, move, score, depth, TT_Flag::None, 0);
+    EXPECT_FALSE(tt.probe(key).has_value());
+}

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <optional>
 
@@ -17,15 +18,8 @@ enum class TT_Flag : uint8_t {
 };
 
 struct TT_Entry {
-    Move     move  = NULL_MOVE;
-    int16_t  score = 0;
-    uint16_t key   = 0;
-    uint8_t  depth = 0;
-    uint8_t  age   = 0;
-    TT_Flag  flag  = TT_Flag::None;
-
-    int replacement_score(int tt_age) const;
-    int get_score(int ply) const;
+    std::atomic<uint64_t> payload   = 0;
+    std::atomic<uint64_t> signature = 0;
 };
 
 struct TT_Record {
@@ -55,8 +49,8 @@ public:
     // - Callers never receive a pointer/reference to shared TT_Entry storage.
     // - probe() returns an immutable by-value snapshot of one validated entry, or std::nullopt.
     // - Search code must use only the returned TT_Record; keeping aliases into shared storage is forbidden.
-    // - Mixed concurrent observations are not part of the API contract; later tasks will tighten
-    //   the publication/validation protocol inside the table implementation without changing callers.
+    // - TT internals publish payload first and validation/signature last, so racing reads degrade to
+    //   a miss, an old hit, or a new hit rather than accepting a mixed entry.
     [[nodiscard]] std::optional<TT_Record> probe(uint64_t zkey) const;
     void                                   store(
                                           uint64_t zkey,
@@ -98,23 +92,11 @@ inline uint16_t TT_Table::entry_key(uint64_t zkey) const {
 
 // lower score = better replacement candidate
 // prefer shallow entries, then older entries
-inline int TT_Entry::replacement_score(int tt_age) const {
-    return depth * 2 - (tt_age - age);
-}
-
 inline int TT_Record::replacement_score(int tt_age) const {
     return depth * 2 - (tt_age - age);
 }
 
 // convert mate from current position score into mate from root
-inline int TT_Entry::get_score(int ply) const {
-    if (score >= TT_MATE_BOUND)
-        return score - ply;
-    if (score <= -TT_MATE_BOUND)
-        return score + ply;
-    return score;
-}
-
 inline int TT_Record::get_score(int ply) const {
     if (score >= TT_MATE_BOUND)
         return score - ply;
