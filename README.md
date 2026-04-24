@@ -78,8 +78,13 @@ go depth 20
 
 ```bash
 ctest --preset release
-./build/release/bin/benchmark
+./build/release/bin/benchmark --movetime 250 --limit 5
 ```
+
+`benchmark` is a smoke benchmark: it is meant to stay cheap enough for routine iteration.
+It reports raw observed search metrics from short runs and, separately, a tactical solve signal
+once a case reaches the minimum reporting depth. Treat it as a quick sanity check, not as the
+project's full engine-comparison framework.
 
 ## license
 

@@ -8,6 +8,8 @@
 #include "board.hpp"
 #include "movegen.hpp"
 
+inline constexpr int BENCHMARK_MIN_TACTICAL_DEPTH = 10;
+
 struct TestCase {
     std::string fen;
     std::string best_move;
@@ -29,18 +31,22 @@ struct UCIInfo {
 };
 
 struct TestResult {
-    bool     success   = false;
-    int      max_depth = 0;
-    int      sol_depth = INT_MAX;
-    int      max_time  = 0;
-    int      sol_time  = INT_MAX;
-    uint64_t nps       = 0;
+    bool     success                = false;
+    bool     saw_observed_info      = false;
+    bool     has_tactical_signal    = false;
+    int      observed_max_depth     = 0;
+    int      observed_max_time      = 0;
+    uint64_t observed_nps           = 0;
+    int      tactical_max_depth     = 0;
+    int      sol_depth              = INT_MAX;
+    int      sol_time               = INT_MAX;
     TestCase test_case;
 
     TestResult(TestCase tc) : test_case(tc) {}
 
     std::string get_engine_move(std::string fen, std::string move);
-    void        update(const UCIInfo& info);
+    void        observe(const UCIInfo& info);
+    void        update_tactical(const UCIInfo& info);
 
     friend std::ostream& operator<<(std::ostream& os, const TestResult& result);
 };
@@ -110,24 +116,38 @@ inline std::string TestResult::get_engine_move(std::string fen, std::string move
     return board.toSAN(*movePtr);
 }
 
-inline void TestResult::update(const UCIInfo& info) {
+inline void TestResult::observe(const UCIInfo& info) {
+    saw_observed_info  = true;
+    observed_max_depth = std::max(observed_max_depth, info.depth);
+    observed_max_time  = std::max(observed_max_time, info.time);
+    observed_nps       = info.nps;
+}
+
+inline void TestResult::update_tactical(const UCIInfo& info) {
     std::string engineMove = get_engine_move(test_case.fen, info.first_move);
 
     success = ((test_case.best_move.empty() || engineMove == test_case.best_move) &&
                (test_case.avoid_move.empty() || engineMove != test_case.avoid_move));
 
-    max_depth = std::max(max_depth, info.depth);
+    has_tactical_signal = true;
+    tactical_max_depth = std::max(tactical_max_depth, info.depth);
     sol_depth = success ? std::min(info.depth, sol_depth) : INT_MAX;
-    max_time  = std::max(max_time, info.time);
     sol_time  = success ? std::min(info.time, sol_time) : INT_MAX;
-    nps       = info.nps;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const TestResult& result) {
-    os << (result.success ? "Pass: " : "Fail: ");
-    os << "depth " << result.max_depth << " ";
-    os << "time " << result.max_time << " ";
-    os << "nps " << result.nps << " ";
+    os << (result.success ? "Solved: " : "Unsolved: ");
+    os << "observed depth " << result.observed_max_depth << " ";
+    os << "time " << result.observed_max_time << " ";
+    os << "nps " << result.observed_nps << " ";
+    os << "| tactical ";
+    if (!result.has_tactical_signal) {
+        os << "not reached (needs depth >= " << BENCHMARK_MIN_TACTICAL_DEPTH << ") ";
+    } else if (result.success) {
+        os << "solved at depth " << result.sol_depth << " time " << result.sol_time << " ";
+    } else {
+        os << "unsolved through depth " << result.tactical_max_depth << " ";
+    }
     os << "fen " << result.test_case.test_string;
     return os;
 }
