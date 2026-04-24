@@ -137,28 +137,29 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     Move  tt_move    = NULL_MOVE;
     Move  pv_move    = (root && root_depth > 0) ? root_move : NULL_MOVE;
 
-    // Probe the transposition table
-    TT_Entry* e = tt.probe(key);
+    // Probe the transposition table via a local snapshot only.
+    auto probe = tt.probe(key);
     stats.tt_probe(ply);
 
-    // If we have an entry, check for cutoffs or update alpha/beta
-    if (e != nullptr && board.is_legal_move(e->move)) {
-        tt_move = e->move;
+    // If we have an entry, check for cutoffs or update alpha/beta.
+    // The search must consume only the snapshot returned by probe().
+    if (probe.has_value() && board.is_legal_move(probe->move)) {
+        tt_move = probe->move;
 
-        if (e->depth >= depth) {
+        if (probe->depth >= depth) {
             stats.tt_hit(ply);
-            int value = e->get_score(ply);
+            int value = probe->get_score(ply);
 
             if constexpr (!pvnode) {
-                if (e->flag == TT_Flag::Exact) {
+                if (probe->flag == TT_Flag::Exact) {
                     stats.tt_cutoff(ply);
                     return value;
                 }
             }
 
-            if (e->flag == TT_Flag::Lowerbound)
+            if (probe->flag == TT_Flag::Lowerbound)
                 alpha = std::max(alpha, value);
-            if (e->flag == TT_Flag::Upperbound)
+            if (probe->flag == TT_Flag::Upperbound)
                 beta = std::min(beta, value);
 
             if constexpr (!pvnode) {

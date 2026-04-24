@@ -109,13 +109,13 @@ inline std::string Thread::get_pv(int depth) const {
 
     std::string pv;
     for (int d = 1; d <= depth; ++d) {
-        TT_Entry* e = tt.probe(b.key());
+        auto probe = tt.probe(b.key());
 
-        if (e == nullptr || e->move.is_null() || !b.is_legal_move(e->move))
+        if (!probe.has_value() || probe->move.is_null() || !b.is_legal_move(probe->move))
             break;
 
-        b.make(e->move);
-        pv += e->move.str() + " ";
+        b.make(probe->move);
+        pv += probe->move.str() + " ";
     }
 
     return pv;

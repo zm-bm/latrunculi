@@ -15,16 +15,16 @@ protected:
 
 TEST_F(TT_Test, InitialState) {
     // Check that the table is empty initially
-    EXPECT_EQ(nullptr, tt.probe(0x123456789ABCDEF));
+    EXPECT_FALSE(tt.probe(0x123456789ABCDEF).has_value());
 }
 
 TEST_F(TT_Test, StoreAndProbe) {
-    // Store and retrieve an entry
+    // Store and retrieve a snapshot
     tt.store(key, move, score, depth, flag, 0);
-    TT_Entry* entry = tt.probe(key);
+    auto entry = tt.probe(key);
 
-    // Check that the entry was stored correctly
-    ASSERT_NE(nullptr, entry);
+    // Check that the snapshot was stored correctly
+    ASSERT_TRUE(entry.has_value());
     EXPECT_EQ(move, entry->move);
     EXPECT_EQ(score, entry->score);
     EXPECT_EQ(depth, entry->depth);
@@ -42,9 +42,9 @@ TEST_F(TT_Test, ReplaceEntry) {
     TT_Flag new_flag  = TT_Flag::Lowerbound;
     tt.store(key, new_move, new_score, new_depth, new_flag, 0);
 
-    // Check that the entry was replaced
-    TT_Entry* entry = tt.probe(key);
-    ASSERT_NE(nullptr, entry);
+    // Check that the snapshot was replaced
+    auto entry = tt.probe(key);
+    ASSERT_TRUE(entry.has_value());
     EXPECT_EQ(new_move, entry->move);
     EXPECT_EQ(new_score, entry->score);
     EXPECT_EQ(new_depth, entry->depth);
@@ -57,7 +57,7 @@ TEST_F(TT_Test, ClearTable) {
     tt.clear();
 
     // After clearing, the entry should not be found
-    EXPECT_EQ(nullptr, tt.probe(key));
+    EXPECT_FALSE(tt.probe(key).has_value());
 }
 
 TEST_F(TT_Test, MateScoreAdjustment) {
@@ -68,8 +68,8 @@ TEST_F(TT_Test, MateScoreAdjustment) {
     tt.store(key, move, mate_score, depth, flag, ply);
 
     // Entry score is adjusted by ply
-    TT_Entry* entry = tt.probe(key);
-    ASSERT_NE(nullptr, entry);
+    auto entry = tt.probe(key);
+    ASSERT_TRUE(entry.has_value());
     EXPECT_EQ(mate_score + ply, entry->score);
     EXPECT_EQ(mate_score, entry->get_score(ply));
 }
@@ -82,8 +82,8 @@ TEST_F(TT_Test, MatedScoreAdjustment) {
     tt.store(key, move, mate_score, depth, flag, ply);
 
     // Entry score is adjusted by ply
-    TT_Entry* entry = tt.probe(key);
-    ASSERT_NE(nullptr, entry);
+    auto entry = tt.probe(key);
+    ASSERT_TRUE(entry.has_value());
     EXPECT_EQ(mate_score - ply, entry->score);
     EXPECT_EQ(mate_score, entry->get_score(ply));
 }
@@ -91,18 +91,18 @@ TEST_F(TT_Test, MatedScoreAdjustment) {
 TEST_F(TT_Test, ResizeTable) {
     // Store an entry
     tt.store(key, move, score, depth, flag, 0);
-    EXPECT_NE(nullptr, tt.probe(key));
+    EXPECT_TRUE(tt.probe(key).has_value());
 
     // Resize table
     tt.resize(8);
 
     // Entry should be gone after resize
-    EXPECT_EQ(nullptr, tt.probe(key));
+    EXPECT_FALSE(tt.probe(key).has_value());
 
     // We can store and retrieve again
     tt.store(key, move, score, depth, flag, 0);
-    TT_Entry* entry = tt.probe(key);
-    ASSERT_NE(nullptr, entry);
+    auto entry = tt.probe(key);
+    ASSERT_TRUE(entry.has_value());
     EXPECT_EQ(move, entry->move);
 }
 
@@ -118,11 +118,11 @@ TEST_F(TT_Test, EntryKeyGeneration) {
     tt.store(key2, move2, 200, 8, TT_Flag::Lowerbound, 0);
 
     // Both entries should be accessible
-    TT_Entry* entry1 = tt.probe(key1);
-    TT_Entry* entry2 = tt.probe(key2);
+    auto entry1 = tt.probe(key1);
+    auto entry2 = tt.probe(key2);
 
-    ASSERT_NE(nullptr, entry1);
-    ASSERT_NE(nullptr, entry2);
+    ASSERT_TRUE(entry1.has_value());
+    ASSERT_TRUE(entry2.has_value());
 
     EXPECT_EQ(move, entry1->move);
     EXPECT_EQ(move2, entry2->move);
@@ -131,8 +131,8 @@ TEST_F(TT_Test, EntryKeyGeneration) {
 TEST_F(TT_Test, ReplacementScoreCalculation) {
     // Create an entry
     tt.store(key, move, score, depth, flag, 0);
-    TT_Entry* entry = tt.probe(key);
-    ASSERT_NE(nullptr, entry);
+    auto entry = tt.probe(key);
+    ASSERT_TRUE(entry.has_value());
 
     // Initial replacement score
     int age           = 0;
@@ -146,8 +146,29 @@ TEST_F(TT_Test, ReplacementScoreCalculation) {
     // A deeper entry should have a higher replacement score
     tt.store(key, move, score, depth + 3, flag, 0);
     entry = tt.probe(key);
-    ASSERT_NE(nullptr, entry);
+    ASSERT_TRUE(entry.has_value());
 
     int deeper_score = entry->replacement_score(age);
     EXPECT_GT(deeper_score, new_score);
+}
+
+TEST_F(TT_Test, ProbeReturnsDetachedSnapshot) {
+    tt.store(key, move, score, depth, flag, 0);
+
+    auto first_probe = tt.probe(key);
+    ASSERT_TRUE(first_probe.has_value());
+
+    Move    new_move  = Move(Square::E2, Square::E4);
+    int16_t new_score = 200;
+    tt.store(key, new_move, new_score, depth + 1, TT_Flag::Lowerbound, 0);
+
+    EXPECT_EQ(move, first_probe->move);
+    EXPECT_EQ(score, first_probe->score);
+    EXPECT_EQ(depth, first_probe->depth);
+    EXPECT_EQ(flag, first_probe->flag);
+
+    auto second_probe = tt.probe(key);
+    ASSERT_TRUE(second_probe.has_value());
+    EXPECT_EQ(new_move, second_probe->move);
+    EXPECT_EQ(new_score, second_probe->score);
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 #include "defs.hpp"
 #include "move.hpp"
@@ -27,6 +28,18 @@ struct TT_Entry {
     int get_score(int ply) const;
 };
 
+struct TT_Record {
+    Move     move  = NULL_MOVE;
+    int16_t  score = 0;
+    uint8_t  depth = 0;
+    uint8_t  age   = 0;
+    TT_Flag  flag  = TT_Flag::None;
+
+    [[nodiscard]] bool is_valid() const { return flag != TT_Flag::None; }
+    int                replacement_score(int tt_age) const;
+    int                get_score(int ply) const;
+};
+
 struct alignas(64) TT_Cluster {
     static constexpr uint32_t size = 4;
 
@@ -37,12 +50,25 @@ class TT_Table {
 public:
     explicit TT_Table();
 
-    TT_Entry* probe(uint64_t zkey);
-    void      store(uint64_t zkey, Move move, int16_t score, uint8_t depth, TT_Flag flag, int ply);
-    void      resize(size_t megabytes);
-    void      clear();
-    void      age_table() { ++age; }
-    const void* prefetch_addr(uint64_t zkey) const;
+    // Shared-TT contract at the API boundary:
+    // - The table storage is globally shared across search threads.
+    // - Callers never receive a pointer/reference to shared TT_Entry storage.
+    // - probe() returns an immutable by-value snapshot of one validated entry, or std::nullopt.
+    // - Search code must use only the returned TT_Record; keeping aliases into shared storage is forbidden.
+    // - Mixed concurrent observations are not part of the API contract; later tasks will tighten
+    //   the publication/validation protocol inside the table implementation without changing callers.
+    [[nodiscard]] std::optional<TT_Record> probe(uint64_t zkey) const;
+    void                                   store(
+                                          uint64_t zkey,
+                                          Move     move,
+                                          int16_t  score,
+                                          uint8_t  depth,
+                                          TT_Flag  flag,
+                                          int      ply);
+    void                                   resize(size_t megabytes);
+    void                                   clear();
+    void                                   age_table() { ++age; }
+    const void*                            prefetch_addr(uint64_t zkey) const;
 
     static constexpr size_t default_mb = 4;
 
@@ -76,8 +102,20 @@ inline int TT_Entry::replacement_score(int tt_age) const {
     return depth * 2 - (tt_age - age);
 }
 
+inline int TT_Record::replacement_score(int tt_age) const {
+    return depth * 2 - (tt_age - age);
+}
+
 // convert mate from current position score into mate from root
 inline int TT_Entry::get_score(int ply) const {
+    if (score >= TT_MATE_BOUND)
+        return score - ply;
+    if (score <= -TT_MATE_BOUND)
+        return score + ply;
+    return score;
+}
+
+inline int TT_Record::get_score(int ply) const {
     if (score >= TT_MATE_BOUND)
         return score - ply;
     if (score <= -TT_MATE_BOUND)

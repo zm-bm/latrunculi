@@ -8,16 +8,25 @@ TT_Table::TT_Table() {
     resize(default_mb);
 }
 
-TT_Entry* TT_Table::probe(uint64_t zkey) {
-    TT_Cluster& cluster = table[cluster_key(zkey)];
+std::optional<TT_Record> TT_Table::probe(uint64_t zkey) const {
+    const TT_Cluster& cluster = table[cluster_key(zkey)];
 
     const uint16_t key = entry_key(zkey);
-    for (TT_Entry& e : cluster.entries) {
-        if (e.key == key && e.flag != TT_Flag::None)
-            return &e;
+    for (const TT_Entry& entry : cluster.entries) {
+        if (entry.key == key && entry.flag != TT_Flag::None) {
+            // Read shared storage once and return a local snapshot. Callers must not retain
+            // aliases into TT storage; later tasks will harden publication/validation semantics.
+            return TT_Record{
+                .move  = entry.move,
+                .score = entry.score,
+                .depth = entry.depth,
+                .age   = entry.age,
+                .flag  = entry.flag,
+            };
+        }
     }
 
-    return nullptr;
+    return std::nullopt;
 }
 
 void TT_Table::store(
