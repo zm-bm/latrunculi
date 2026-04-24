@@ -15,10 +15,10 @@
 #include "zobrist.hpp"
 
 std::string TESTFILE;
-const int   SEARCHTIME = 10000; // search time in milliseconds
+int         SEARCHTIME = 10000; // search time in milliseconds
 const int   HASH_MB    = 16;
-const int   THREADS    = 1;
-const int   MOVE_LIMIT = 5;  // max moves to search
+int         THREADS    = 1;
+int         MOVE_LIMIT = 5;  // max moves to search
 const int   MIN_DEPTH  = 10; // minimum depth to consider a move valid
 
 // Get test file path relative to the executable
@@ -159,12 +159,43 @@ int main(int argc, char* argv[]) {
     zob::init();
 
     try {
-        // Allow override via command line argument
-        if (argc > 1) {
-            TESTFILE = argv[1];
+        for (int i = 1; i < argc; ++i) {
+            std::string arg = argv[i];
+
+            if (arg == "--threads") {
+                if (++i >= argc)
+                    throw std::runtime_error("missing value for --threads");
+                THREADS = std::stoi(argv[i]);
+                continue;
+            }
+
+            if (arg == "--movetime") {
+                if (++i >= argc)
+                    throw std::runtime_error("missing value for --movetime");
+                SEARCHTIME = std::stoi(argv[i]);
+                continue;
+            }
+
+            if (arg == "--limit") {
+                if (++i >= argc)
+                    throw std::runtime_error("missing value for --limit");
+                MOVE_LIMIT = std::stoi(argv[i]);
+                continue;
+            }
+
+            TESTFILE = arg;
+        }
+
+        if (THREADS < 1)
+            throw std::runtime_error("--threads must be >= 1");
+        if (SEARCHTIME < 1)
+            throw std::runtime_error("--movetime must be >= 1");
+        if (MOVE_LIMIT < 1)
+            throw std::runtime_error("--limit must be >= 1");
+
+        if (!TESTFILE.empty()) {
             if (!std::filesystem::exists(TESTFILE)) {
-                std::cerr << "Warning: Provided test file does not exist: " << TESTFILE
-                          << std::endl;
+                std::cerr << "Warning: Provided test file does not exist: " << TESTFILE << std::endl;
                 std::cerr << "Falling back to automatic path resolution." << std::endl;
                 TESTFILE = get_test_file_path();
             }
@@ -173,13 +204,15 @@ int main(int argc, char* argv[]) {
         }
 
         std::cout << "Using test file: " << TESTFILE << std::endl;
+        std::cout << "Threads: " << THREADS << ", movetime: " << SEARCHTIME
+                  << " ms, move limit: " << MOVE_LIMIT << std::endl;
 
         Benchmark benchmark;
         benchmark.run_all_tests();
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
-        std::cerr << "To specify a test file path, use: " << argv[0] << " <path_to_test_file>"
-                  << std::endl;
+        std::cerr << "Usage: " << argv[0]
+                  << " [--threads N] [--movetime MS] [--limit N] [path_to_test_file]" << std::endl;
         return 1;
     }
 
