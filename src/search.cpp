@@ -342,9 +342,7 @@ int Thread::quiescence(int alpha, int beta) {
     if (board.is_draw())
         return DRAW_VALUE;
 
-    int stand_pat = evaluate(board);
-    if (ply >= MAX_DEPTH)
-        return stand_pat;
+    const bool in_check = board.is_check();
 
     // mate distance pruning
     alpha = std::max(alpha, -MATE_VALUE + ply);
@@ -352,10 +350,16 @@ int Thread::quiescence(int alpha, int beta) {
     if (alpha >= beta)
         return alpha;
 
-    if (stand_pat >= beta)
-        return stand_pat;
-    if (stand_pat > alpha)
-        alpha = stand_pat;
+    if (!in_check) {
+        int stand_pat = evaluate(board);
+        if (ply >= MAX_DEPTH)
+            return stand_pat;
+
+        if (stand_pat >= beta)
+            return stand_pat;
+        if (stand_pat > alpha)
+            alpha = stand_pat;
+    }
 
     auto movelist = generate<CAPTURES>(board);
     movelist.sort({board, killers, history, ply});
@@ -366,8 +370,8 @@ int Thread::quiescence(int alpha, int beta) {
             continue;
         legal_moves++;
 
-        // Prune bad captures
-        if (move.priority == 0)
+        // Prune bad captures only in the normal non-check qsearch branch.
+        if (!in_check && move.priority == 0)
             continue;
 
         board.make(move);
@@ -384,7 +388,7 @@ int Thread::quiescence(int alpha, int beta) {
     }
 
     if (legal_moves == 0) {
-        if (board.is_check())
+        if (in_check)
             return -MATE_VALUE + ply;
         if (board.is_stalemate())
             return DRAW_VALUE;
