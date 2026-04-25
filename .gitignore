@@ -8,6 +8,7 @@ lib/
 data/
 logs/
 *.pyc
+__pycache__/
 
 # Local preset overrides
 CMakeUserPresets.json

@@ -74,30 +74,13 @@ isready
 go depth 20
 ```
 
-## tests & benchmarks
+## tests
 
 ```bash
 ctest --preset release
-./build/release/bin/benchmark --movetime 250 --limit 5
 ```
 
-`benchmark` is a smoke benchmark: it is meant to stay cheap enough for routine iteration.
-It reports whether short runs complete cleanly with plausible `bestmove` output plus raw observed
-search metrics such as depth, nodes, time, and NPS. Treat it as a quick sanity/perf check, not as
-the project's full engine-comparison framework.
-
-For direct old-vs-new engine comparisons, use the fixed direct-UCI suite instead:
-
-```bash
-python3 bench/direct_uci_bench.py --threads 1,4 --movetime 1000 > direct-uci.tsv
-```
-
-The default suite lives in `bench/direct_uci_suite.tsv` and keeps a modest fixed set of positions.
-For a minimal verification pass, run a single suite position at two thread counts, for example:
-`python3 bench/direct_uci_bench.py --positions startpos --threads 1,4 --movetime 1000`
-Capture the TSV columns exactly as emitted: `position_id`, `threads`, `movetime_ms`, `depth`,
-`seldepth`, `score_type`, `score_value`, `nodes`, `time_ms`, `nps`, `bestmove`, and `pv`.
-These direct-UCI runs are the reusable source of truth for apples-to-apples revision comparisons.
+`benchmark` is available for quick smoke checks during development.
 
 ## license
 
