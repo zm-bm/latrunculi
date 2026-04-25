@@ -14,18 +14,45 @@ std::ostringstream oss;
 constexpr auto     AnyMove = "ANY";
 
 class SearchTest : public ::testing::Test {
-private:
+protected:
     uci::Protocol protocol{std::cout, std::cerr};
     ThreadPool    pool{1, protocol};
     Thread*       thread;
     SearchOptions options;
 
-protected:
     void SetUp() override {
         thread        = pool.threads[0].get();
         options       = SearchOptions();
         options.depth = depth;
         // options.movetime = movetime;
+    }
+
+    int testQuiescence(const std::string& fen, int alpha = -INF_VALUE, int beta = INF_VALUE) {
+        Board board{fen};
+        options.board = &board;
+        thread->set_options(options);
+        thread->reset();
+        return thread->quiescence(alpha, beta);
+    }
+
+    int testQuiescenceAfterMove(const std::string& fen, const std::string& move_str, int alpha = -INF_VALUE, int beta = INF_VALUE) {
+        Board board{fen};
+        options.board = &board;
+        thread->set_options(options);
+        thread->reset();
+
+        auto movelist = generate<ALL_MOVES>(thread->board);
+        auto move_it = std::find_if(movelist.begin(), movelist.end(), [&](const Move& move) {
+            return move.str() == move_str && thread->board.is_legal_move(move);
+        });
+        EXPECT_NE(move_it, movelist.end()) << fen;
+        if (move_it == movelist.end())
+            return 0;
+
+        thread->board.make(*move_it);
+        int score = thread->quiescence(alpha, beta);
+        thread->board.unmake();
+        return score;
     }
 
     void testSearch(const std::string fen, int score, std::string move) {
@@ -85,6 +112,15 @@ TEST_F(SearchTest, basicDraws) {
     for (auto& [fen, expectedScore, expectedMove] : test_cases) {
         testSearch(fen, expectedScore, expectedMove);
     }
+}
+
+TEST_F(SearchTest, QuiescenceInCheckSearchesForcedQuietEvasion) {
+    auto in_check_with_one_quiet_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+
+    int actual = testQuiescence(in_check_with_one_quiet_evasion);
+    int expected = -testQuiescenceAfterMove(in_check_with_one_quiet_evasion, "a8b8");
+
+    EXPECT_EQ(actual, expected) << in_check_with_one_quiet_evasion;
 }
 
 TEST_F(SearchTest, basicTactics) {
