@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "board.hpp"
+#include "evaluator.hpp"
 
 #include "search_options.hpp"
 #include "thread.hpp"
@@ -116,11 +117,24 @@ TEST_F(SearchTest, basicDraws) {
 
 TEST_F(SearchTest, QuiescenceInCheckSearchesForcedQuietEvasion) {
     auto in_check_with_one_quiet_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    Board board{in_check_with_one_quiet_evasion};
+
+    ASSERT_TRUE(board.is_check()) << in_check_with_one_quiet_evasion;
 
     int actual = testQuiescence(in_check_with_one_quiet_evasion);
     int expected = -testQuiescenceAfterMove(in_check_with_one_quiet_evasion, "a8b8");
 
     EXPECT_EQ(actual, expected) << in_check_with_one_quiet_evasion;
+    EXPECT_NE(actual, evaluate(board)) << "in-check qsearch must not stand pat";
+}
+
+TEST_F(SearchTest, QuiescenceOutOfCheckUsesStandPatInsteadOfSearchingQuiets) {
+    auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    Board board{quiet_control};
+
+    ASSERT_FALSE(board.is_check()) << quiet_control;
+
+    EXPECT_EQ(testQuiescence(quiet_control), evaluate(board)) << quiet_control;
 }
 
 TEST_F(SearchTest, basicTactics) {
