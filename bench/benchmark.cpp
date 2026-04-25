@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <numeric>
 #include <sstream>
@@ -19,7 +21,6 @@ int         SEARCHTIME = 1000; // smoke benchmark search time in milliseconds
 const int   HASH_MB    = 16;
 int         THREADS    = 1;
 int         MOVE_LIMIT = 5;  // max moves to search in a smoke run
-const int   MIN_DEPTH  = BENCHMARK_MIN_TACTICAL_DEPTH; // minimum depth before tactical solve reporting is considered meaningful
 
 // Get test file path relative to the executable
 static std::string get_test_file_path() {
@@ -53,6 +54,43 @@ static std::string get_test_file_path() {
     for (const auto& candidate : candidates)
         message << "\n  - " << candidate.string();
     throw std::runtime_error(message.str());
+}
+
+template <typename T>
+static double average_of(const std::vector<T>& values) {
+    if (values.empty())
+        return 0.0;
+
+    const auto total = std::reduce(values.begin(), values.end(), static_cast<long double>(0));
+    return static_cast<double>(total / values.size());
+}
+
+template <typename T>
+static double median_of(std::vector<T> values) {
+    if (values.empty())
+        return 0.0;
+
+    std::sort(values.begin(), values.end());
+    const size_t middle = values.size() / 2;
+    if (values.size() % 2 == 1)
+        return static_cast<double>(values[middle]);
+
+    return static_cast<double>(values[middle - 1] + values[middle]) / 2.0;
+}
+
+template <typename T>
+static std::pair<T, T> minmax_of(const std::vector<T>& values) {
+    if (values.empty())
+        return {T{}, T{}};
+
+    const auto [min_it, max_it] = std::minmax_element(values.begin(), values.end());
+    return {*min_it, *max_it};
+}
+
+static std::string format_metric(double value) {
+    std::ostringstream out;
+    out << std::fixed << std::setprecision(value >= 100.0 ? 0 : 1) << value;
+    return out.str();
 }
 
 class Benchmark {
@@ -98,6 +136,15 @@ public:
         std::istringstream lines{oss.str()};
         std::string        line;
         while (std::getline(lines, line)) {
+            if (line.rfind("bestmove ", 0) == 0) {
+                std::istringstream bestmove_line{line};
+                std::string        token;
+                bestmove_line >> token >> result.bestmove;
+                result.has_bestmove = !result.bestmove.empty();
+                result.has_plausible_bestmove = result.is_plausible_move(testCase.fen, result.bestmove);
+                continue;
+            }
+
             if (line.find("info") == std::string::npos)
                 continue;
 
@@ -107,23 +154,19 @@ public:
                 continue;
 
             result.observe(info);
-
-            if (info.depth < MIN_DEPTH)
-                continue;
-
-            result.update_tactical(info);
         }
 
         return result;
     }
 
     void run_all_tests() {
-        int                   successful = 0;
-        int                   tactical_cases = 0;
-        std::vector<int>      observed_depths, successful_depths;
-        std::vector<int>      observed_times, successful_times;
+        std::vector<int>      observed_depths;
+        std::vector<int>      observed_times;
+        std::vector<uint64_t> observed_nodes;
         std::vector<uint64_t> observed_nps;
-        std::vector<int>      tactical_depths;
+        int                   completed_cases = 0;
+        int                   bestmove_cases  = 0;
+        int                   plausible_cases = 0;
 
         for (auto& test_case : test_cases) {
             if (observed_depths.size() >= MOVE_LIMIT)
@@ -134,56 +177,36 @@ public:
 
             observed_depths.push_back(result.observed_max_depth);
             observed_times.push_back(result.observed_max_time);
+            observed_nodes.push_back(result.observed_max_nodes);
             observed_nps.push_back(result.observed_nps);
-
-            if (result.has_tactical_signal) {
-                tactical_cases++;
-                tactical_depths.push_back(result.tactical_max_depth);
-            }
-
-            if (result.success) {
-                successful++;
-                successful_depths.push_back(result.sol_depth);
-                successful_times.push_back(result.sol_time);
-            }
+            completed_cases += result.saw_observed_info ? 1 : 0;
+            bestmove_cases += result.has_bestmove ? 1 : 0;
+            plausible_cases += result.has_plausible_bestmove ? 1 : 0;
         }
 
-        int avg_observed_depth = std::reduce(observed_depths.begin(), observed_depths.end(), 0) / observed_depths.size();
-        int avg_observed_time  = std::reduce(observed_times.begin(), observed_times.end(), 0) / observed_times.size();
-        uint64_t avg_observed_nps =
-            std::reduce(observed_nps.begin(), observed_nps.end(), 0ULL) / observed_nps.size();
+        const auto [min_depth, max_depth] = minmax_of(observed_depths);
+        const auto [min_time, max_time] = minmax_of(observed_times);
+        const auto [min_nodes, max_nodes] = minmax_of(observed_nodes);
+        const auto [min_nps, max_nps] = minmax_of(observed_nps);
 
         std::cout << "\nSmoke Benchmark Summary\n";
         std::cout << "Threads = " << THREADS << ", ";
         std::cout << "movetime = " << SEARCHTIME << " ms, ";
-        std::cout << "cases = " << observed_depths.size() << ", ";
-        std::cout << "tactical threshold = depth " << MIN_DEPTH << std::endl;
+        std::cout << "cases = " << observed_depths.size() << std::endl;
         std::cout << "-------------------" << std::endl;
-        std::cout << "Observed averages: depth " << avg_observed_depth << " ply, time "
-                  << avg_observed_time << " ms, nps " << avg_observed_nps << std::endl;
-
-        if (tactical_cases == 0) {
-            std::cout << "Tactical smoke signal: unavailable at this short setting"
-                      << " (no case reached depth " << MIN_DEPTH << ")" << std::endl;
-        } else {
-            int avg_tactical_depth =
-                std::reduce(tactical_depths.begin(), tactical_depths.end(), 0) / tactical_depths.size();
-            std::cout << "Tactical smoke signal: solved " << successful << " / " << tactical_cases
-                      << " qualifying cases, avg qualifying depth " << avg_tactical_depth << std::endl;
-        }
-
-        if (successful > 0) {
-            int avg_success_depth =
-                std::reduce(successful_depths.begin(), successful_depths.end(), 0) /
-                successful_depths.size();
-            int avg_success_time =
-                std::reduce(successful_times.begin(), successful_times.end(), 0) /
-                successful_times.size();
-            std::cout << "Solved-case averages: depth " << avg_success_depth << " ply, time "
-                      << avg_success_time << " ms" << std::endl;
-        }
-
-        std::cout << "Use this as a quick development smoke benchmark, not as a full engine comparison."
+        std::cout << "Completed with observed info: " << completed_cases << " / " << observed_depths.size()
+                  << ", bestmove seen: " << bestmove_cases << " / " << observed_depths.size()
+                  << ", plausible bestmove: " << plausible_cases << " / " << observed_depths.size() << std::endl;
+        std::cout << "Observed averages: depth " << format_metric(average_of(observed_depths)) << " ply, nodes "
+                  << format_metric(average_of(observed_nodes)) << ", time "
+                  << format_metric(average_of(observed_times)) << " ms, nps "
+                  << format_metric(average_of(observed_nps)) << std::endl;
+        std::cout << "Observed medians: nps " << format_metric(median_of(observed_nps)) << ", depth "
+                  << format_metric(median_of(observed_depths)) << " ply" << std::endl;
+        std::cout << "Observed spread: depth " << min_depth << "-" << max_depth << " ply, nodes "
+                  << min_nodes << "-" << max_nodes << ", time " << min_time << "-" << max_time
+                  << " ms, nps " << min_nps << "-" << max_nps << std::endl;
+        std::cout << "Use this as a quick stability/throughput smoke benchmark, not as a tactical or comparative suite."
                   << std::endl;
     }
 };
