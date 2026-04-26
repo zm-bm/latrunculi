@@ -262,12 +262,12 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
         // PVS search
         int value;
         if (first_legal) {
-            value = -alphabeta<child>(-beta, -alpha, depth - 1, can_null);
+            value = -alphabeta<child>(-beta, -alpha, depth - 1);
         } else {
-            value = -alphabeta<NON_PV>(-alpha - 1, -alpha, depth - 1 - reduction, can_null);
+            value = -alphabeta<NON_PV>(-alpha - 1, -alpha, depth - 1 - reduction);
             if constexpr (pvnode) {
                 if (value > alpha)
-                    value = -alphabeta<child>(-beta, -alpha, depth - 1, can_null);
+                    value = -alphabeta<child>(-beta, -alpha, depth - 1);
             }
         }
 

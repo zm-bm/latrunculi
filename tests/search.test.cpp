@@ -7,6 +7,7 @@
 #include "search_options.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"
+#include "tt.hpp"
 #include "uci.hpp"
 
 int                depth    = 8;
@@ -54,6 +55,57 @@ protected:
         int score = thread->quiescence(alpha, beta);
         thread->board.unmake();
         return score;
+    }
+
+    void loadThreadBoard(Board& board) {
+        tt.clear();
+        options.board = &board;
+        thread->set_options(options);
+        thread->reset();
+    }
+
+    Move findThreadMove(const std::string& move_str) {
+        auto movelist = generate<ALL_MOVES>(thread->board);
+        auto move_it  = std::find_if(movelist.begin(), movelist.end(), [&](const Move& move) {
+            return move.str() == move_str && thread->board.is_legal_move(move);
+        });
+        EXPECT_NE(move_it, movelist.end()) << thread->board.toFEN();
+        return move_it == movelist.end() ? NULL_MOVE : *move_it;
+    }
+
+    bool threadInCheck() const { return thread->board.is_check(); }
+
+    int threadNonPawnMaterial() const { return thread->board.nonPawnMaterial(thread->board.side_to_move()); }
+
+    uint64_t threadKey() const { return thread->board.key(); }
+
+    uint64_t threadNullChildKey() const {
+        Board board_copy{thread->board.toFEN()};
+        board_copy.make_null();
+        return board_copy.key();
+    }
+
+    bool threadDescendantInCheck(Move move) const {
+        Board board_copy{thread->board.toFEN()};
+        board_copy.make(move);
+        return board_copy.is_check();
+    }
+
+    int threadDescendantNonPawnMaterial(Move move) const {
+        Board board_copy{thread->board.toFEN()};
+        board_copy.make(move);
+        return board_copy.nonPawnMaterial(board_copy.side_to_move());
+    }
+
+    uint64_t threadDescendantNullKey(Move move) const {
+        Board board_copy{thread->board.toFEN()};
+        board_copy.make(move);
+        board_copy.make_null();
+        return board_copy.key();
+    }
+
+    int runNonPvAlphaBeta(int alpha, int beta, int search_depth, bool can_null) {
+        return thread->alphabeta<NON_PV>(alpha, beta, search_depth, can_null);
     }
 
     void testSearch(const std::string fen, int score, std::string move) {
@@ -135,6 +187,34 @@ TEST_F(SearchTest, QuiescenceOutOfCheckUsesStandPatInsteadOfSearchingQuiets) {
     ASSERT_FALSE(board.is_check()) << quiet_control;
 
     EXPECT_EQ(testQuiescence(quiet_control), evaluate(board)) << quiet_control;
+}
+
+TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendants) {
+    constexpr auto immediate_null_child = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1";
+    Board          board{immediate_null_child};
+    loadThreadBoard(board);
+
+    ASSERT_FALSE(threadInCheck());
+    ASSERT_GT(threadNonPawnMaterial(), BISHOP_MG);
+
+    Move real_move = findThreadMove("e7e5");
+    ASSERT_FALSE(real_move.is_null());
+    ASSERT_FALSE(threadDescendantInCheck(real_move));
+    ASSERT_GT(threadDescendantNonPawnMaterial(real_move), BISHOP_MG);
+
+    const auto immediate_null_key = threadNullChildKey();
+    const auto descendant_null_key = threadDescendantNullKey(real_move);
+
+    ASSERT_FALSE(tt.probe(immediate_null_key).has_value());
+    ASSERT_FALSE(tt.probe(descendant_null_key).has_value());
+
+    tt.store(threadKey(), real_move, 0, 0, TT_Flag::Lowerbound, 0);
+    (void)runNonPvAlphaBeta(-50, 50, 5, false);
+
+    EXPECT_FALSE(tt.probe(immediate_null_key).has_value())
+        << "the immediate null child must still forbid a second null move";
+    EXPECT_TRUE(tt.probe(descendant_null_key).has_value())
+        << "after a real move from the null child, descendants should regain null-move eligibility";
 }
 
 TEST_F(SearchTest, basicTactics) {
