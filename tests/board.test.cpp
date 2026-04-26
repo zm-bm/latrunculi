@@ -266,6 +266,16 @@ TEST(BoardTest, static_exchange_trade) {
     EXPECT_EQ(b.seeMove(Move(D3, E5)), eval::piece(PAWN).mg - eval::piece(KNIGHT).mg);
 }
 
+TEST(BoardTest, static_exchange_prefers_pawn_over_knight_recapturer) {
+    Board b("7k/1B1p4/4p3/P2p4/2P5/2n5/8/K7 w - - 0 1");
+    EXPECT_EQ(b.seeMove(Move(B7, D5)), eval::piece(PAWN).mg - eval::piece(BISHOP).mg);
+}
+
+TEST(BoardTest, static_exchange_handles_king_recapture) {
+    Board b("7k/8/4k3/3p4/3Q4/8/8/K7 w - - 0 1");
+    EXPECT_EQ(b.seeMove(Move(D4, D5)), eval::piece(PAWN).mg - eval::piece(QUEEN).mg);
+}
+
 TEST(BoardTest, is_legal_move_pin) {
     EXPECT_FALSE(Board(POS3).is_legal_move(Move(B5, B6)));
 }

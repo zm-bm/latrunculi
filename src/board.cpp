@@ -142,11 +142,12 @@ int Board::seeMove(Move move) const {
 
         // find next least valuable attacker
         from_bb = 0;
-        for (PieceType p : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN}) {
+        for (PieceType p : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING}) {
             uint64_t opp_pieces = attackers & piece_bb[side][p];
             if (opp_pieces) {
                 piece   = p;
                 from_bb = opp_pieces & -opp_pieces; // get least significant bit
+                break;
             }
         }
     } while (from_bb);
