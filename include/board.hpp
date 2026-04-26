@@ -64,6 +64,7 @@ public:
     uint64_t     checkers() const { return state.at(ply).checkers; }
     uint64_t     blockers(Color c) const { return state.at(ply).blockers[c]; }
     Square       enpassant_sq() const { return state.at(ply).enpassant; }
+    Square       legal_enpassant_sq() const;
     uint8_t      halfmove() const { return state.at(ply).halfmove_clk; }
 
     State& get_state() { return state.at(ply); }
@@ -100,7 +101,9 @@ public:
 
     // move properties
 
-    bool is_capture(Move move) const { return piecetype_on(move.to()) != NO_PIECETYPE; }
+    bool is_capture(Move move) const {
+        return move.type() == MOVE_EP || piecetype_on(move.to()) != NO_PIECETYPE;
+    }
     bool is_legal_move(Move move) const;
     bool is_checking_move(Move move) const;
     int  seeMove(Move move) const;

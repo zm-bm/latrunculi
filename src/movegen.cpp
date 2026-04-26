@@ -130,7 +130,7 @@ void pawn_captures(const GeneratorContext& ctx,
     add_pawn_moves<PAWN_LEFT, C>(left_moves, ctx.movelist);
     add_pawn_moves<PAWN_RIGHT, C>(right_moves, ctx.movelist);
 
-    Square enpassant = ctx.board.enpassant_sq();
+    Square enpassant = ctx.board.legal_enpassant_sq();
     if (enpassant == INVALID)
         return;
 

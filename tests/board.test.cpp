@@ -3,8 +3,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <string>
 
+#include "movegen.hpp"
 #include "score.hpp"
 #include "test_util.hpp"
 #include "zobrist.hpp"
@@ -252,6 +254,53 @@ TEST(BoardTest, enpassant_sq) {
     EXPECT_EQ(Board(ENPASSANT_A3).enpassant_sq(), A3);
 }
 
+TEST(BoardTest, legal_enpassant_sq) {
+    EXPECT_EQ(Board(ENPASSANT_A3).legal_enpassant_sq(), A3);
+}
+
+TEST(BoardTest, enpassant_key_ignores_uncapturable_square) {
+    Board with_ep("4k3/8/8/8/4P3/8/8/4K3 b - e3 0 1");
+    Board without_ep("4k3/8/8/8/4P3/8/8/4K3 b - - 0 1");
+
+    EXPECT_EQ(with_ep.legal_enpassant_sq(), INVALID);
+    EXPECT_EQ(with_ep.key(), with_ep.calculate_key());
+    EXPECT_EQ(without_ep.key(), without_ep.calculate_key());
+    EXPECT_EQ(with_ep.key(), without_ep.key());
+}
+
+TEST(BoardTest, enpassant_key_hashes_legal_square) {
+    Board with_ep(ENPASSANT_A3);
+    Board without_ep("4k3/8/8/8/Pp6/8/8/4K3 b - - 0 1");
+
+    EXPECT_EQ(with_ep.legal_enpassant_sq(), A3);
+    EXPECT_EQ(with_ep.key(), with_ep.calculate_key());
+    EXPECT_EQ(without_ep.key(), without_ep.calculate_key());
+    EXPECT_NE(with_ep.key(), without_ep.key());
+}
+
+TEST(BoardTest, legal_enpassant_sq_pinned_en_passant) {
+    Board b("8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - e3 0 1");
+    EXPECT_EQ(b.legal_enpassant_sq(), INVALID);
+}
+
+TEST(BoardTest, enpassant_key_ignores_pinned_en_passant) {
+    Board with_ep("8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - e3 0 1");
+    Board without_ep("8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - - 0 1");
+
+    EXPECT_EQ(with_ep.legal_enpassant_sq(), INVALID);
+    EXPECT_EQ(with_ep.key(), with_ep.calculate_key());
+    EXPECT_EQ(without_ep.key(), without_ep.calculate_key());
+    EXPECT_EQ(with_ep.key(), without_ep.key());
+}
+
+TEST(BoardTest, generated_moves_skip_illegal_en_passant) {
+    Board b("8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - e3 0 1");
+    auto  movelist = generate<ALL_MOVES>(b);
+
+    auto ep_move = std::find(movelist.begin(), movelist.end(), Move(F4, E3, MOVE_EP));
+    EXPECT_EQ(ep_move, movelist.end());
+}
+
 TEST(BoardTest, halfmove) {
     EXPECT_EQ(Board("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1").halfmove(), 7);
 }
@@ -338,6 +387,7 @@ TEST(BoardTest, is_capture) {
     Board b(POS2);
     EXPECT_TRUE(b.is_capture(Move(D5, E6)));
     EXPECT_TRUE(b.is_capture(Move(F3, F6)));
+    EXPECT_TRUE(Board(ENPASSANT_A3).is_capture(Move(B4, A3, MOVE_EP)));
     EXPECT_FALSE(b.is_capture(Move(A2, A4)));
     EXPECT_FALSE(b.is_capture(Move(C3, B5)));
 }

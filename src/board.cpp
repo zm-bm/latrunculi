@@ -42,6 +42,23 @@ void Board::reset() {
     ply       = 0;
 }
 
+Square Board::legal_enpassant_sq() const {
+    const Square enpassant = enpassant_sq();
+    if (enpassant == INVALID)
+        return INVALID;
+
+    const Color side      = side_to_move();
+    uint64_t    capturers = pieces<PAWN>(side) & bb::pawn_attacks(bb::set(enpassant), ~side);
+
+    while (capturers) {
+        const Square from = bb::lsb_pop(capturers);
+        if (is_legal_move(Move(from, enpassant, MOVE_EP)))
+            return enpassant;
+    }
+
+    return INVALID;
+}
+
 // Determine if a pseudo-legal move is legal
 bool Board::is_legal_move(Move mv) const {
     Square from = mv.from();
@@ -162,7 +179,7 @@ int Board::seeMove(Move move) const {
 void Board::make(Move move) {
     const Square from           = move.from();
     const Square to             = move.to();
-    const Square enpassant      = enpassant_sq();
+    const Square enpassant      = legal_enpassant_sq();
     const auto   piecetype      = piecetype_on(from);
     const auto   movetype       = move.type();
     const Color  opp            = ~turn;
@@ -208,8 +225,7 @@ void Board::make(Move move) {
         // set enpassant square,
         st.halfmove_clk = 0;
         if (std::abs(to - from) == PAWN_PUSH2) {
-            st.enpassant  = to + (turn == WHITE ? SOUTH : NORTH);
-            st.zkey      ^= zob::hash_ep(st.enpassant);
+            st.enpassant = to + (turn == WHITE ? SOUTH : NORTH);
         } else if (movetype == MOVE_PROM) {
             remove_piece<true>(to, turn, PAWN);
             add_piece<true>(to, turn, move.prom_piece());
@@ -232,6 +248,9 @@ void Board::make(Move move) {
 
     turn     = opp;
     st.zkey ^= zob::turn;
+
+    if (legal_enpassant_sq() != INVALID)
+        st.zkey ^= zob::hash_ep(st.enpassant);
 
     update_check_data();
 }
@@ -278,7 +297,7 @@ void Board::unmake() {
 }
 
 void Board::make_null() {
-    const Square enpassant = enpassant_sq();
+    const Square hashed_enpassant = legal_enpassant_sq();
 
     state.push_back(State(state[ply++], Move()));
     auto& st = state.at(ply);
@@ -287,8 +306,8 @@ void Board::make_null() {
 
     turn     = ~turn;
     st.zkey ^= zob::turn;
-    if (enpassant != INVALID)
-        st.zkey ^= zob::hash_ep(enpassant);
+    if (hashed_enpassant != INVALID)
+        st.zkey ^= zob::hash_ep(hashed_enpassant);
 
     update_check_data();
 }
@@ -322,7 +341,7 @@ uint64_t Board::calculate_key() const {
     if (can_castle_queenside(BLACK))
         zkey ^= zob::castle[CASTLE_QUEENSIDE][BLACK];
 
-    auto sq = enpassant_sq();
+    auto sq = legal_enpassant_sq();
     if (sq != INVALID)
         zkey ^= zob::hash_ep(sq);
 
