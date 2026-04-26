@@ -34,6 +34,15 @@ protected:
         }
         return thread->search_started_flag.load(std::memory_order_acquire);
     }
+
+    void load_thread_board(Board& board) {
+        SearchOptions options(iss, &board);
+        thread->set_options(options);
+        thread->reset();
+    }
+
+    int thread_ply() const { return thread->ply; }
+    Board& thread_board() { return thread->board; }
 };
 
 TEST_F(ThreadTest, ThreadShutsDownCorrectly) {
@@ -87,6 +96,31 @@ TEST_F(ThreadTest, ThreadHandlesMultipleSearches) {
     // Check output for the second search
     thread->wait();
     EXPECT_NE(oss.str().find("bestmove"), std::string::npos) << oss.str();
+}
+
+TEST_F(ThreadTest, NullMoveKeepsThreadPlyInSync) {
+    Board board{STARTFEN};
+    load_thread_board(board);
+
+    EXPECT_EQ(thread_ply(), 0);
+
+    thread_board().make_null();
+    EXPECT_EQ(thread_ply(), 1);
+
+    thread_board().unmake_null();
+    EXPECT_EQ(thread_ply(), 0);
+
+    thread_board().make(Move(E2, E4));
+    EXPECT_EQ(thread_ply(), 1);
+
+    thread_board().make_null();
+    EXPECT_EQ(thread_ply(), 2);
+
+    thread_board().unmake_null();
+    EXPECT_EQ(thread_ply(), 1);
+
+    thread_board().unmake();
+    EXPECT_EQ(thread_ply(), 0);
 }
 
 TEST_F(ThreadTest, ThreadShutsDownGracefully) {

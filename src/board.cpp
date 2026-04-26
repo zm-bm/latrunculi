@@ -281,6 +281,8 @@ void Board::make_null() {
 
     state.push_back(State(state[ply++], Move()));
     auto& st = state.at(ply);
+    if (thread)
+        thread->ply++;
 
     turn     = ~turn;
     st.zkey ^= zob::turn;
@@ -291,6 +293,8 @@ void Board::make_null() {
 }
 
 void Board::unmake_null() {
+    if (thread)
+        thread->ply--;
     --ply;
     turn = ~turn;
     state.pop_back();
