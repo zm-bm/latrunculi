@@ -22,6 +22,13 @@ protected:
     SearchOptions      options{iss, &board};
 
     uint64_t accumulate_nodes() { return pool.accumulate(&Thread::nodes); }
+    int      initial_depth(int thread_index) { return pool.threads[thread_index]->initial_search_depth(); }
+    Move     best_voted_move(Move fallback) { return pool.best_voted_move(board, fallback); }
+    void     set_root_result(int thread_index, RootSearchResult result) {
+        auto& thread = *pool.threads[thread_index];
+        std::lock_guard<std::mutex> lock(thread.root_result_mutex);
+        thread.root_result = result;
+    }
     bool     search_started() {
         for (const auto& thread : pool.threads) {
             if (thread->search_started_flag.load(std::memory_order_acquire))
@@ -105,4 +112,34 @@ TEST_F(ThreadPoolTest, RootSearchAgesSharedTTOncePerStartAll) {
     pool.start_all(options);
     pool.wait_all();
     EXPECT_EQ(tt.current_age(), uint8_t{2});
+}
+
+TEST_F(ThreadPoolTest, HelperThreadsUseIntentionalDepthOffset) {
+    EXPECT_EQ(initial_depth(0), 1);
+    EXPECT_EQ(initial_depth(1), 2);
+    EXPECT_EQ(initial_depth(2), 1);
+    EXPECT_EQ(initial_depth(3), 2);
+}
+
+TEST_F(ThreadPoolTest, BestVotedMovePrefersDeeperCompletedLegalResult) {
+    Move main_move{E2, E4};
+    Move helper_move{G1, F3};
+
+    set_root_result(0, {main_move, 100, 4, 1000, true});
+    set_root_result(1, {helper_move, 0, 5, 500, true});
+
+    EXPECT_EQ(best_voted_move(main_move), helper_move);
+}
+
+TEST_F(ThreadPoolTest, BestVotedMoveIgnoresIncompleteNullAndIllegalResults) {
+    Move fallback{E2, E4};
+    Move incomplete{G1, F3};
+    Move illegal_empty_square_move{A1, A8};
+
+    set_root_result(0, {fallback, 10, 3, 100, true});
+    set_root_result(1, {incomplete, 1000, 8, 1000, false});
+    set_root_result(2, {NULL_MOVE, 1000, 8, 1000, true});
+    set_root_result(3, {illegal_empty_square_move, 1000, 8, 1000, true});
+
+    EXPECT_EQ(best_voted_move(fallback), fallback);
 }

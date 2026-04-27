@@ -16,6 +16,8 @@ struct MoveOrderContext {
     int           ply;
     Move          pv_move;
     Move          tt_move;
+    bool          root      = false;
+    int           thread_id = 0;
 };
 
 class MoveList {
@@ -34,6 +36,8 @@ public:
     uint16_t priority(const MoveOrderContext& ctx, const Move& move) const;
 
 private:
+    void diversify_root_order(const MoveOrderContext& ctx);
+
     std::array<Move, MAX_MOVES> moves;
 
     Move* last;
@@ -49,6 +53,27 @@ inline void MoveList::sort(const MoveOrderContext& ctx) {
 
     auto comp = [](const Move& a, const Move& b) { return a.priority > b.priority; };
     std::stable_sort(moves.begin(), last, comp);
+
+    diversify_root_order(ctx);
+}
+
+inline void MoveList::diversify_root_order(const MoveOrderContext& ctx) {
+    if (!ctx.root || ctx.thread_id == 0)
+        return;
+
+    for (Move* group_first = moves.data(); group_first != last;) {
+        Move* group_last = group_first + 1;
+        while (group_last != last && group_last->priority == group_first->priority)
+            ++group_last;
+
+        const auto group_size = group_last - group_first;
+        if (group_size > 1 && group_first->priority < PRIORITY_HASH) {
+            const auto rotation = ctx.thread_id % group_size;
+            std::rotate(group_first, group_first + rotation, group_last);
+        }
+
+        group_first = group_last;
+    }
 }
 
 inline uint16_t MoveList::priority(const MoveOrderContext& ctx, const Move& move) const {

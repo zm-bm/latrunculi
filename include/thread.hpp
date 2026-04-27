@@ -18,6 +18,14 @@
 
 class ThreadPool;
 
+struct RootSearchResult {
+    Move     move{NULL_MOVE};
+    int      value{DRAW_VALUE};
+    int      depth{0};
+    uint64_t nodes{0};
+    bool     completed{false};
+};
+
 class Thread {
 public:
     Thread() = delete;
@@ -58,6 +66,8 @@ private:
     std::atomic<bool>       search_started_flag{false};
     std::atomic<bool>       halt_flag{false};
     std::thread             worker;
+    mutable std::mutex      root_result_mutex;
+    RootSearchResult        root_result;
 
     // main thread loop
 
@@ -79,6 +89,10 @@ private:
     std::string  get_pv(int depth) const;
     uci::PV      get_pv_line(int score, int depth) const;
     Move         first_legal_root_move() const;
+    int          initial_search_depth() const;
+    void         clear_root_result();
+    void         publish_root_result();
+    RootSearchResult root_result_snapshot() const;
 
     void set_options(SearchOptions& options);
     void check_halt_conditions();

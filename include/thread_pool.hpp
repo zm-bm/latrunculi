@@ -17,6 +17,8 @@ public:
     void shutdown_all();
     void halt_all();
     void wait_all();
+    void halt_helpers();
+    void wait_helpers();
     void resize(size_t thread_count);
 
     int size() const;
@@ -24,6 +26,7 @@ public:
     template <typename T>
     T accumulate(T Thread::*member) const;
 
+    friend class Thread;
     friend class ThreadTest;
     friend class ThreadPoolTest;
     friend class SearchTest;
@@ -32,4 +35,6 @@ private:
     std::vector<std::unique_ptr<Thread>> threads;
 
     uci::Protocol& protocol;
+
+    Move best_voted_move(const Board& board, Move fallback) const;
 };

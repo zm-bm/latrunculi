@@ -21,6 +21,7 @@ void Thread::start(SearchOptions& options) {
     {
         std::lock_guard<std::mutex> lock(mutex);
         set_options(options);
+        clear_root_result();
         busy_flag = true;
         run_flag  = true;
         search_started_flag.store(false, std::memory_order_release);
@@ -72,6 +73,21 @@ void Thread::loop() {
 
 uint64_t Thread::get_nodes() const {
     return thread_pool.accumulate(&Thread::nodes);
+}
+
+void Thread::clear_root_result() {
+    std::lock_guard<std::mutex> lock(root_result_mutex);
+    root_result = {};
+}
+
+void Thread::publish_root_result() {
+    std::lock_guard<std::mutex> lock(root_result_mutex);
+    root_result = RootSearchResult{root_move, root_value, root_depth, nodes, true};
+}
+
+RootSearchResult Thread::root_result_snapshot() const {
+    std::lock_guard<std::mutex> lock(root_result_mutex);
+    return root_result;
 }
 
 void Thread::check_halt_conditions() {

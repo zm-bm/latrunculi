@@ -23,11 +23,15 @@ void Thread::reset() {
     history.clear();
 }
 
+int Thread::initial_search_depth() const {
+    return 1 + (thread_id & 1);
+}
+
 int Thread::search() {
     reset();
 
     int value = root_value;
-    int depth = 1 + (thread_id & 1);
+    int depth = initial_search_depth();
 
     for (; depth <= options.depth; ++depth) {
         if constexpr (SEARCH_STATS)
@@ -47,11 +51,18 @@ int Thread::search() {
         history.age();
     }
 
+    publish_root_result();
+
     if (thread_id == 0) {
+        thread_pool.halt_helpers();
+        thread_pool.wait_helpers();
+
         if (halt_requested()) {
             protocol.info(get_pv_line(root_value, root_depth));
         }
-        protocol.bestmove(root_move.str());
+
+        Move best_move = thread_pool.best_voted_move(board, root_move);
+        protocol.bestmove(best_move.str());
 
         if constexpr (SEARCH_STATS) {
             auto stats = thread_pool.accumulate(&Thread::stats);
@@ -215,7 +226,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
 
     // Generate moves
     auto movelist = generate<ALL_MOVES>(board);
-    movelist.sort({board, killers, history, ply, pv_move, tt_move});
+    movelist.sort({board, killers, history, ply, pv_move, tt_move, root, thread_id});
 
     // Iterate through moves
     int legal_move_index = 0;
