@@ -225,12 +225,13 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     }
 
     // Generate moves
-    auto movelist = generate<ALL_MOVES>(board);
-    movelist.sort({board, killers, history, ply, pv_move, tt_move, root, thread_id});
+    auto             movelist = generate<ALL_MOVES>(board);
+    StagedMovePicker picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id}, std::move(movelist)};
 
     // Iterate through moves
     int legal_move_index = 0;
-    for (auto& move : movelist) {
+    while (Move* picked_move = picker.next()) {
+        Move move = *picked_move;
         if (!board.is_legal_move(move))
             continue;
         legal_move_index++;
@@ -372,17 +373,18 @@ int Thread::quiescence(int alpha, int beta) {
             alpha = stand_pat;
     }
 
-    auto movelist = generate<CAPTURES>(board);
-    movelist.sort({board, killers, history, ply});
+    MoveList movelist = in_check ? generate<EVASIONS>(board) : generate<CAPTURES>(board);
+    QuiescenceMovePicker picker{{board, killers, history, ply}, std::move(movelist), in_check};
 
     int legal_moves = 0;
-    for (auto& move : movelist) {
+    while (Move* picked_move = picker.next()) {
+        Move move = *picked_move;
         if (!board.is_legal_move(move))
             continue;
         legal_moves++;
 
         // Prune bad captures only in the normal non-check qsearch branch.
-        if (!in_check && move.priority == 0)
+        if (!in_check && move.type() != MOVE_PROM && move.priority == PRIORITY_WEAK)
             continue;
 
         board.make(move);

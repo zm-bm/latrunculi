@@ -1,4 +1,6 @@
 
+#include <algorithm>
+
 #include <gtest/gtest.h>
 
 #include "board.hpp"
@@ -9,6 +11,7 @@
 #include "thread_pool.hpp"
 #include "tt.hpp"
 #include "uci.hpp"
+#include "test_util.hpp"
 
 int                depth    = 8;
 int                movetime = 2000;
@@ -21,6 +24,9 @@ protected:
     ThreadPool    pool{1, protocol};
     Thread*       thread;
     SearchOptions options;
+    KillerMoves   sort_killers;
+    HistoryTable  sort_history;
+    int           sort_ply = 5;
 
     void SetUp() override {
         thread        = pool.threads[0].get();
@@ -55,6 +61,39 @@ protected:
         int score = thread->quiescence(alpha, beta);
         thread->board.unmake();
         return score;
+    }
+
+    std::pair<int, uint64_t> testQuiescenceWithNodes(const std::string& fen, int alpha = -INF_VALUE, int beta = INF_VALUE) {
+        Board board{fen};
+        options.board = &board;
+        thread->set_options(options);
+        thread->reset();
+        return {thread->quiescence(alpha, beta), thread->nodes};
+    }
+
+    Move firstLegalPickedMove(Board& board, Move pv_move = NULL_MOVE, Move tt_move = NULL_MOVE,
+                              bool root = false, int thread_id = 0) {
+        MoveList          movelist = generate<ALL_MOVES>(board);
+        StagedMovePicker  picker{{board, sort_killers, sort_history, sort_ply, pv_move, tt_move, root, thread_id}, std::move(movelist)};
+
+        while (Move* move = picker.next()) {
+            if (board.is_legal_move(*move))
+                return *move;
+        }
+        return NULL_MOVE;
+    }
+
+    std::vector<Move> pickedLegalQuiescenceMoves(Board& board) {
+        const bool in_check = board.is_check();
+        MoveList   movelist = in_check ? generate<EVASIONS>(board) : generate<CAPTURES>(board);
+        QuiescenceMovePicker picker{{board, sort_killers, sort_history, sort_ply}, std::move(movelist), in_check};
+
+        std::vector<Move> moves;
+        while (Move* move = picker.next()) {
+            if (board.is_legal_move(*move))
+                moves.push_back(*move);
+        }
+        return moves;
     }
 
     void loadThreadBoard(Board& board) {
@@ -187,6 +226,56 @@ TEST_F(SearchTest, QuiescenceOutOfCheckUsesStandPatInsteadOfSearchingQuiets) {
     ASSERT_FALSE(board.is_check()) << quiet_control;
 
     EXPECT_EQ(testQuiescence(quiet_control), evaluate(board)) << quiet_control;
+}
+
+TEST_F(SearchTest, FirstLegalPickedMoveSkipsIllegalHashMove) {
+    Board board{POS3};
+    Move  illegal_hash_move = Move(B5, B6);
+
+    ASSERT_FALSE(board.is_legal_move(illegal_hash_move));
+
+    EXPECT_EQ(firstLegalPickedMove(board, NULL_MOVE, illegal_hash_move), Move(B4, F4));
+}
+
+TEST_F(SearchTest, QuiescenceOutOfCheckIncludesPromotions) {
+    constexpr auto promotion_fen = "7k/P7/8/8/8/8/8/4K3 w - - 0 1";
+    Board          board{promotion_fen};
+
+    ASSERT_FALSE(board.is_check()) << promotion_fen;
+
+    const auto legal_moves = pickedLegalQuiescenceMoves(board);
+    ASSERT_EQ(legal_moves.size(), 4U) << promotion_fen;
+    EXPECT_EQ(legal_moves[0].str(), "a7a8q");
+    EXPECT_EQ(legal_moves[1].str(), "a7a8r");
+    EXPECT_EQ(legal_moves[2].str(), "a7a8b");
+    EXPECT_EQ(legal_moves[3].str(), "a7a8n");
+
+    const int actual = testQuiescence(promotion_fen);
+    const int expected = std::max({-testQuiescenceAfterMove(promotion_fen, "a7a8q"),
+                                   -testQuiescenceAfterMove(promotion_fen, "a7a8r"),
+                                   -testQuiescenceAfterMove(promotion_fen, "a7a8b"),
+                                   -testQuiescenceAfterMove(promotion_fen, "a7a8n")});
+
+    EXPECT_EQ(actual, expected) << promotion_fen;
+}
+
+TEST_F(SearchTest, QuiescenceOutOfCheckSkipsWeakCaptures) {
+    constexpr auto weak_capture_fen = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
+    Board          board{weak_capture_fen};
+
+    loadThreadBoard(board);
+    ASSERT_FALSE(threadInCheck()) << weak_capture_fen;
+
+    const auto legal_captures = pickedLegalQuiescenceMoves(board);
+    ASSERT_EQ(legal_captures.size(), 1U) << weak_capture_fen;
+    EXPECT_EQ(legal_captures[0].str(), "d1d7");
+    EXPECT_EQ(legal_captures[0].priority, PRIORITY_WEAK);
+
+    const int                stand_pat = evaluate(board);
+    const auto [score, nodes] = testQuiescenceWithNodes(weak_capture_fen);
+
+    EXPECT_EQ(score, stand_pat);
+    EXPECT_EQ(nodes, 1U) << "weak captures should be pruned before recursive qsearch";
 }
 
 TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendants) {

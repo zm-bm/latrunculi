@@ -23,6 +23,19 @@ std::vector<Move> ordered_moves(MoveList& movelist) {
         moves.push_back(move);
     return moves;
 }
+
+std::vector<Move> picked_moves(Board& board, KillerMoves& killers, HistoryTable& history, int ply,
+                               Move pv_move = NULL_MOVE, Move tt_move = NULL_MOVE,
+                               bool root = false, int thread_id = 0) {
+    std::vector<Move> moves;
+    MoveList          movelist = generate<ALL_MOVES>(board);
+    StagedMovePicker  picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id}, std::move(movelist)};
+
+    while (Move* move = picker.next())
+        moves.push_back(*move);
+
+    return moves;
+}
 } // namespace
 
 TEST_F(MoveListTest, GenerateSortMoves) {
@@ -103,4 +116,48 @@ TEST_F(MoveListTest, HelperRootSortKeepsPVAndHashFirst) {
     ASSERT_GT(helper_root.size(), 1);
     EXPECT_EQ(helper_root[0], pvMove);
     EXPECT_EQ(helper_root[1], hashMove);
+}
+
+TEST_F(MoveListTest, HelperRootSortKeepsHashMoveFirstWithoutPV) {
+    Board quiet_board{STARTFEN};
+    Move  hash_move = Move(E2, E4);
+
+    MoveList helper_root = generate<ALL_MOVES>(quiet_board);
+    helper_root.sort({quiet_board, killers, history, ply, NULL_MOVE, hash_move, true, 1});
+
+    ASSERT_FALSE(helper_root.empty());
+    EXPECT_EQ(helper_root[0], hash_move);
+}
+
+TEST_F(MoveListTest, StagedPickerKeepsPVHashKillerAndHistoryOrder) {
+    Move pv_move     = Move(B4, C4);
+    Move hash_move   = Move(E2, E3);
+    Move killer_move = Move(A5, A4);
+    Move hist_move   = Move(A5, A6);
+
+    killers.update(killer_move, ply);
+    history.update(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
+
+    const auto moves = picked_moves(board, killers, history, ply, pv_move, hash_move);
+
+    ASSERT_GT(moves.size(), 4U);
+    EXPECT_EQ(moves[0], pv_move);
+    EXPECT_EQ(moves[1], hash_move);
+    EXPECT_EQ(moves[2], Move(B4, F4));
+    EXPECT_EQ(moves[3], killer_move);
+    EXPECT_EQ(moves[4], hist_move);
+}
+
+TEST_F(MoveListTest, HelperRootPickerRotatesEqualPriorityMovesButKeepsPVHashFirst) {
+    Board quiet_board{STARTFEN};
+    Move  hash_move = Move(E2, E4);
+
+    const auto main_order   = picked_moves(quiet_board, killers, history, ply, NULL_MOVE, hash_move, true, 0);
+    const auto helper_order = picked_moves(quiet_board, killers, history, ply, NULL_MOVE, hash_move, true, 1);
+
+    ASSERT_GT(main_order.size(), 2U);
+    ASSERT_EQ(main_order.front(), hash_move);
+    ASSERT_EQ(helper_order.front(), hash_move);
+    EXPECT_NE(helper_order, main_order);
+    EXPECT_EQ(helper_order[1], main_order[2]);
 }
