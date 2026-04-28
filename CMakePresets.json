@@ -32,6 +32,16 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "release-stats",
+      "inherits": ["base"],
+      "displayName": "Release with search stats",
+      "description": "Release build with search stats diagnostics enabled",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LATRUNCULI_SEARCH_STATS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -43,6 +53,11 @@
     {
       "name": "release",
       "configurePreset": "release",
+      "jobs": 0
+    },
+    {
+      "name": "release-stats",
+      "configurePreset": "release-stats",
       "jobs": 0
     }
   ],
@@ -57,6 +72,13 @@
     {
       "name": "release",
       "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release-stats",
+      "configurePreset": "release-stats",
       "output": {
         "outputOnFailure": true
       }

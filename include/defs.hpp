@@ -9,6 +9,10 @@
 #define LATRUNCULI_VERSION "0.0.0"
 #endif
 
+#ifndef LATRUNCULI_SEARCH_STATS
+#define LATRUNCULI_SEARCH_STATS 0
+#endif
+
 using Clock        = std::chrono::high_resolution_clock;
 using TimePoint    = std::chrono::high_resolution_clock::time_point;
 using Milliseconds = std::chrono::milliseconds;
@@ -17,7 +21,7 @@ constexpr int  MAX_DEPTH       = 64;
 constexpr int  MAX_MOVES       = 128;
 constexpr int  DEFAULT_THREADS = 1;
 constexpr int  DEFAULT_HASH    = 4;
-constexpr bool SEARCH_STATS    = false;
+constexpr bool SEARCH_STATS    = LATRUNCULI_SEARCH_STATS;
 
 enum Color : uint8_t { BLACK, WHITE, N_COLORS };
 

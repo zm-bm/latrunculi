@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(CTest)
 find_package(Threads REQUIRED)
 
+option(LATRUNCULI_SEARCH_STATS "Enable detailed search statistics diagnostics" OFF)
+
 set(LATRUNCULI_ENGINE_SOURCES
     src/board.cpp
     src/engine.cpp
@@ -27,6 +29,7 @@ set(LATRUNCULI_ENGINE_SOURCES
 
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
 target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
 target_compile_definitions(latrunculi_lib PRIVATE LATRUNCULI_VERSION="${PROJECT_VERSION}")
 
 add_executable(latrunculi src/main.cpp)

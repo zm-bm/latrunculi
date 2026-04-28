@@ -6,6 +6,7 @@ import argparse
 import csv
 import os
 import pty
+import re
 import select
 import subprocess
 import sys
@@ -112,7 +113,122 @@ def parse_info_line(line: str) -> dict[str, str]:
     return info
 
 
-def run_position(engine: Path, fen: str, threads: int, movetime: int, hash_mb: int) -> dict[str, str]:
+def parse_search_stats_lines(lines: list[str]) -> tuple[dict[str, str], str]:
+    stats: dict[str, str] = {
+        "stats_beta_cutoffs": "",
+        "stats_cutoff_early_pct": "",
+        "stats_cutoff_late_pct": "",
+        "stats_tt_hit_pct": "",
+        "stats_tt_cutoff_pct": "",
+        "stats_qnode_pct": "",
+        "stats_ebf": "",
+        "stats_cumulative_ebf": "",
+    }
+    table_lines: list[str] = []
+    table_rows: list[dict[str, str]] = []
+    capture = False
+    for line in lines:
+        stripped = line.strip()
+        if "Depth" in stripped and "Nodes (QNode%)" in stripped and "Cutoffs" in stripped:
+            capture = True
+            table_lines.append(line)
+            continue
+        if not capture:
+            continue
+        if not stripped:
+            if table_lines:
+                break
+            continue
+        table_lines.append(line)
+        parts = [part.strip() for part in line.split("|")]
+        if len(parts) != 6 or not parts[0].isdigit():
+            continue
+        row = parse_search_stats_row(parts)
+        if row:
+            table_rows.append(row)
+    if table_rows:
+        stats.update(aggregate_search_stats_rows(table_rows))
+    return stats, "\n".join(table_lines).strip()
+
+
+def aggregate_search_stats_rows(rows: list[dict[str, str]]) -> dict[str, str]:
+    total_nodes = sum(int(row.get("stats_nodes", "0") or 0) for row in rows)
+    total_cutoffs = sum(int(row.get("stats_beta_cutoffs", "0") or 0) for row in rows)
+    total_qnodes = sum(float(row.get("stats_qnodes", "0") or 0.0) for row in rows)
+    total_early = sum(float(row.get("stats_cutoff_early_count", "0") or 0.0) for row in rows)
+    total_late = sum(float(row.get("stats_cutoff_late_count", "0") or 0.0) for row in rows)
+    weighted_tt_hit = weighted_average(rows, "stats_tt_hit_pct", "stats_nodes")
+    weighted_tt_cut = weighted_average(rows, "stats_tt_cutoff_pct", "stats_nodes")
+    last = rows[-1]
+    return {
+        "stats_beta_cutoffs": str(total_cutoffs),
+        "stats_cutoff_early_pct": f"{(100.0 * total_early / total_cutoffs):.1f}" if total_cutoffs else "0.0",
+        "stats_cutoff_late_pct": f"{(100.0 * total_late / total_cutoffs):.1f}" if total_cutoffs else "0.0",
+        "stats_tt_hit_pct": f"{weighted_tt_hit:.1f}" if weighted_tt_hit is not None else "",
+        "stats_tt_cutoff_pct": f"{weighted_tt_cut:.1f}" if weighted_tt_cut is not None else "",
+        "stats_qnode_pct": f"{(100.0 * total_qnodes / total_nodes):.1f}" if total_nodes else "",
+        "stats_ebf": last.get("stats_ebf", ""),
+        "stats_cumulative_ebf": last.get("stats_cumulative_ebf", ""),
+    }
+
+
+def weighted_average(rows: list[dict[str, str]], value_key: str, weight_key: str) -> float | None:
+    total_weight = 0.0
+    total = 0.0
+    for row in rows:
+        try:
+            value = float(row.get(value_key, ""))
+            weight = float(row.get(weight_key, ""))
+        except ValueError:
+            continue
+        total += value * weight
+        total_weight += weight
+    return total / total_weight if total_weight else None
+
+
+def parse_search_stats_row(parts: list[str]) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    nodes_match = re.search(r"^(\d+)\s+\(\s*([-+0-9.]+)%\)", parts[1])
+    cutoff_match = re.search(
+        r"^(\d+)\s+\(\s*([-+0-9.]+)\s*/\s*([-+0-9.]+)%\)", parts[2]
+    )
+    pct_match = re.search(r"([-+0-9.]+)%", parts[3])
+    ttcut_match = re.search(r"([-+0-9.]+)%", parts[4])
+    ebf_match = re.search(r"([-+0-9.]+)\s*/\s*([-+0-9.]+)", parts[5])
+    if nodes_match:
+        nodes = int(nodes_match.group(1))
+        qnode_pct = float(nodes_match.group(2))
+        parsed["stats_nodes"] = str(nodes)
+        parsed["stats_qnodes"] = f"{nodes * qnode_pct / 100.0:.3f}"
+        parsed["stats_qnode_pct"] = nodes_match.group(2)
+    if cutoff_match:
+        cutoffs = int(cutoff_match.group(1))
+        early_pct = float(cutoff_match.group(2))
+        late_pct = float(cutoff_match.group(3))
+        parsed["stats_beta_cutoffs"] = str(cutoffs)
+        parsed["stats_cutoff_early_count"] = f"{cutoffs * early_pct / 100.0:.3f}"
+        parsed["stats_cutoff_late_count"] = f"{cutoffs * late_pct / 100.0:.3f}"
+        parsed["stats_cutoff_early_pct"] = cutoff_match.group(2)
+        parsed["stats_cutoff_late_pct"] = cutoff_match.group(3)
+    if pct_match:
+        parsed["stats_tt_hit_pct"] = pct_match.group(1)
+    if ttcut_match:
+        parsed["stats_tt_cutoff_pct"] = ttcut_match.group(1)
+    if ebf_match:
+        parsed["stats_ebf"] = ebf_match.group(1)
+        parsed["stats_cumulative_ebf"] = ebf_match.group(2)
+    return parsed
+
+
+def run_position(
+    engine: Path,
+    fen: str,
+    threads: int,
+    movetime: int,
+    hash_mb: int,
+    *,
+    capture_raw: bool = False,
+) -> dict[str, str]:
     command = [str(engine)]
     result = {
         "depth": "",
@@ -128,6 +244,7 @@ def run_position(engine: Path, fen: str, threads: int, movetime: int, hash_mb: i
 
     master_fd, slave_fd = pty.openpty()
     pending_output = ""
+    raw_lines: list[str] = []
 
     def read_line(timeout_seconds: float) -> str:
         nonlocal pending_output
@@ -185,6 +302,7 @@ def run_position(engine: Path, fen: str, threads: int, movetime: int, hash_mb: i
             saw_readyok = False
             while True:
                 stripped = read_line(timeout_seconds=5)
+                raw_lines.append(stripped)
                 if stripped == "uciok":
                     saw_uciok = True
                 elif stripped == "readyok":
@@ -199,6 +317,7 @@ def run_position(engine: Path, fen: str, threads: int, movetime: int, hash_mb: i
             search_timeout = max(5.0, movetime / 1000.0 + 5.0)
             while True:
                 stripped = read_line(timeout_seconds=search_timeout)
+                raw_lines.append(stripped)
                 if stripped.startswith("info "):
                     info = parse_info_line(stripped)
                     if info.get("depth"):
@@ -215,6 +334,15 @@ def run_position(engine: Path, fen: str, threads: int, movetime: int, hash_mb: i
                     break
 
             send("quit")
+            drain_deadline = time.monotonic() + 2.0
+            while process.poll() is None or ("\n" in pending_output and time.monotonic() < drain_deadline):
+                try:
+                    stripped = read_line(timeout_seconds=0.2)
+                except TimeoutError:
+                    continue
+                except RuntimeError:
+                    break
+                raw_lines.append(stripped)
             process.wait(timeout=search_timeout)
     finally:
         if slave_fd != -1:
@@ -223,6 +351,12 @@ def run_position(engine: Path, fen: str, threads: int, movetime: int, hash_mb: i
 
     if not result["bestmove"]:
         raise RuntimeError(f"engine produced no bestmove for fen: {fen}")
+
+    if capture_raw:
+        stats, stats_raw = parse_search_stats_lines(raw_lines)
+        result.update(stats)
+        result["search_stats_raw"] = stats_raw
+        result["raw_output"] = "\n".join(raw_lines).strip()
 
     return result
 
