@@ -333,6 +333,14 @@ TEST(BoardTest, is_legal_move_moving_into_check) {
     EXPECT_FALSE(Board(POS3).is_legal_move(Move(A5, B6)));
 }
 
+TEST(BoardTest, is_legal_move_rejects_non_evasion_while_in_check) {
+    Board b("k3r3/8/8/8/8/8/8/2B1K1N1 w - - 0 1");
+
+    ASSERT_TRUE(b.is_check());
+    EXPECT_FALSE(b.is_legal_move(Move(G1, F3)));
+    EXPECT_TRUE(b.is_legal_move(Move(C1, E3)));
+}
+
 TEST(BoardTest, is_legal_move_castle) {
     EXPECT_TRUE(Board(POS2).is_legal_move(Move(E1, G1, MOVE_CASTLE)));
 }

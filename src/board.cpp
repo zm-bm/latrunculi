@@ -80,9 +80,20 @@ bool Board::is_legal_move(Move mv) const {
                !(pieces<ROOK, QUEEN>(~turn) & bb::moves<ROOK>(king, occ));
     }
 
+    // non-king moves must resolve any current check
+    uint64_t checkers_bb = checkers();
+    if (checkers_bb) {
+        if (bb::is_many(checkers_bb))
+            return false;
+
+        Square checker = bb::lsb(checkers_bb);
+        if (to != checker && !(bb::between(king, checker) & bb::set(to)))
+            return false;
+    }
+
     // check if moved piece is pinned or moving in-line with check
     uint64_t pins = blockers(turn);
-    return (!pins || !(pins & bb::set(from)) || bb::collinear(from, to) & bb::set(king));
+    return (!pins || !(pins & bb::set(from)) || (bb::collinear(from, to) & bb::set(king)));
 }
 
 // Determine if a move gives check for the current board
