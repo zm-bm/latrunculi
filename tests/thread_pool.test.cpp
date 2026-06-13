@@ -22,14 +22,18 @@ protected:
     SearchOptions      options{iss, &board};
 
     uint64_t accumulate_nodes() { return pool.accumulate(&Thread::nodes); }
-    int      initial_depth(int thread_index) { return pool.threads[thread_index]->initial_search_depth(); }
-    Move     best_voted_move(Move fallback) { return pool.best_voted_move(board, fallback); }
-    void     set_root_result(int thread_index, RootSearchResult result) {
-        auto& thread = *pool.threads[thread_index];
+    int      initial_depth(int thread_index) {
+        return pool.threads[thread_index]->initial_search_depth();
+    }
+    Move best_voted_move(Move fallback) { return pool.best_voted_move(board, fallback); }
+
+    void set_root_result(int thread_index, RootSearchResult result) {
+        auto&                       thread = *pool.threads[thread_index];
         std::lock_guard<std::mutex> lock(thread.root_result_mutex);
         thread.root_result = result;
     }
-    bool     search_started() {
+
+    bool search_started() {
         for (const auto& thread : pool.threads) {
             if (thread->search_started_flag.load(std::memory_order_acquire))
                 return true;
@@ -92,11 +96,11 @@ TEST_F(ThreadPoolTest, ShutdownAllThreads) {
 }
 
 TEST_F(ThreadPoolTest, AccumulateNodes) {
-    // Start the pool and then exit
-    pool.start_all(options);
-    pool.shutdown_all();
+    options.depth = 1;
 
-    // Check that nodes were accumulated
+    pool.start_all(options);
+    pool.wait_all();
+
     EXPECT_GT(accumulate_nodes(), 0);
 }
 
