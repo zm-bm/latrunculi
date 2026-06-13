@@ -28,11 +28,28 @@ Tested on linux with g++ 13.3 / 14.2 and clang++ 18.
 
 ### build
 
+Default builds produce the engine executable only:
+
 ```bash
 git clone --recursive https://github.com/zm-bm/latrunculi.git
 cd latrunculi
 cmake --preset release
 cmake --build --preset release
+```
+
+Developer builds opt into tests and benchmark:
+
+```bash
+cmake --preset release-dev
+cmake --build --preset release-dev
+ctest --preset release-dev
+```
+
+Specific development targets can be built directly:
+
+```bash
+cmake --build --preset release-dev --target tests
+cmake --build --preset release-dev --target benchmark
 ```
 
 if you want a specific compiler:
@@ -77,10 +94,12 @@ go depth 20
 ## tests
 
 ```bash
-ctest --preset release
+cmake --preset release-dev
+cmake --build --preset release-dev
+ctest --preset release-dev
 ```
 
-`benchmark` is available for quick smoke checks during development.
+`benchmark` is available in `*-dev` presets for quick smoke checks.
 
 ## license
 
