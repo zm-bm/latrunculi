@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(BUILD_TESTING "Build tests" OFF)
 include(CTest)
 find_package(Threads REQUIRED)
 
@@ -35,7 +36,7 @@ target_compile_definitions(latrunculi_lib PRIVATE LATRUNCULI_VERSION="${PROJECT_
 add_executable(latrunculi src/main.cpp)
 target_link_libraries(latrunculi PRIVATE latrunculi_lib Threads::Threads)
 
-option(LATRUNCULI_BUILD_BENCHMARK "Build benchmark target" ON)
+option(LATRUNCULI_BUILD_BENCHMARK "Build benchmark target" OFF)
 if(LATRUNCULI_BUILD_BENCHMARK)
     add_executable(benchmark bench/benchmark.cpp)
     target_link_libraries(benchmark PRIVATE latrunculi_lib Threads::Threads)

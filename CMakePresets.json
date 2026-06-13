@@ -25,12 +25,32 @@
       }
     },
     {
+      "name": "debug-dev",
+      "inherits": ["debug"],
+      "displayName": "Debug Developer",
+      "description": "Debug build with tests and benchmark enabled",
+      "cacheVariables": {
+        "BUILD_TESTING": "ON",
+        "LATRUNCULI_BUILD_BENCHMARK": "ON"
+      }
+    },
+    {
       "name": "release",
       "inherits": ["base"],
       "displayName": "Release",
       "description": "Release build using the system default C++ compiler",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "release-dev",
+      "inherits": ["release"],
+      "displayName": "Release Developer",
+      "description": "Release build with tests and benchmark enabled",
+      "cacheVariables": {
+        "BUILD_TESTING": "ON",
+        "LATRUNCULI_BUILD_BENCHMARK": "ON"
       }
     },
     {
@@ -41,6 +61,16 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "LATRUNCULI_SEARCH_STATS": "ON"
+      }
+    },
+    {
+      "name": "release-stats-dev",
+      "inherits": ["release-stats"],
+      "displayName": "Release with search stats Developer",
+      "description": "Release build with search stats, tests, and benchmark enabled",
+      "cacheVariables": {
+        "BUILD_TESTING": "ON",
+        "LATRUNCULI_BUILD_BENCHMARK": "ON"
       }
     }
   ],
@@ -59,26 +89,41 @@
       "name": "release-stats",
       "configurePreset": "release-stats",
       "jobs": 0
+    },
+    {
+      "name": "debug-dev",
+      "configurePreset": "debug-dev",
+      "jobs": 0
+    },
+    {
+      "name": "release-dev",
+      "configurePreset": "release-dev",
+      "jobs": 0
+    },
+    {
+      "name": "release-stats-dev",
+      "configurePreset": "release-stats-dev",
+      "jobs": 0
     }
   ],
   "testPresets": [
     {
-      "name": "debug",
-      "configurePreset": "debug",
+      "name": "debug-dev",
+      "configurePreset": "debug-dev",
       "output": {
         "outputOnFailure": true
       }
     },
     {
-      "name": "release",
-      "configurePreset": "release",
+      "name": "release-dev",
+      "configurePreset": "release-dev",
       "output": {
         "outputOnFailure": true
       }
     },
     {
-      "name": "release-stats",
-      "configurePreset": "release-stats",
+      "name": "release-stats-dev",
+      "configurePreset": "release-stats-dev",
       "output": {
         "outputOnFailure": true
       }

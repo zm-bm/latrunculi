@@ -1,5 +1,7 @@
 #include "movegen.hpp"
 
+#include <cstdint>
+
 #include <gtest/gtest.h>
 
 #include "board.hpp"
@@ -10,7 +12,7 @@
 
 constexpr auto depth_limit = 4;
 
-using PerftParams = std::tuple<std::string, std::vector<long>>;
+using PerftParams = std::tuple<std::string, std::vector<uint64_t>>;
 
 PerftParams perft_start = {
     STARTFEN,
@@ -108,7 +110,7 @@ TEST_P(PerftTest, PerftDepths) {
         if (depth > depth_limit)
             break;
 
-        long result = board.perft(depth, null_stream);
+        uint64_t result = board.perft(depth, null_stream);
         EXPECT_EQ(result, expected[depth - 1]) << "Failed at depth " << depth;
     }
 }

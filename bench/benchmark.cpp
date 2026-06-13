@@ -8,7 +8,12 @@
 #include <sstream>
 #include <string>
 #include <thread>
+
+#ifndef _WIN32
+#include <limits.h>
 #include <unistd.h>
+#endif
+
 #include <vector>
 
 #include "bench_defs.hpp"
@@ -20,14 +25,15 @@ std::string TESTFILE;
 int         SEARCHTIME = 1000; // smoke benchmark search time in milliseconds
 const int   HASH_MB    = 16;
 int         THREADS    = 1;
-int         MOVE_LIMIT = 5;  // max moves to search in a smoke run
+int         MOVE_LIMIT = 5; // max moves to search in a smoke run
 
 // Get test file path relative to the executable
 static std::string get_test_file_path() {
     std::vector<std::filesystem::path> candidates;
 
 #ifdef LATRUNCULI_SOURCE_DIR
-    candidates.emplace_back(std::filesystem::path(LATRUNCULI_SOURCE_DIR) / "bench" / "arasan20.epd");
+    candidates.emplace_back(std::filesystem::path(LATRUNCULI_SOURCE_DIR) / "bench" /
+                            "arasan20.epd");
 #endif
 
 #ifndef _WIN32
@@ -141,7 +147,8 @@ public:
                 std::string        token;
                 bestmove_line >> token >> result.bestmove;
                 result.has_bestmove = !result.bestmove.empty();
-                result.has_plausible_bestmove = result.is_plausible_move(testCase.fen, result.bestmove);
+                result.has_plausible_bestmove =
+                    result.is_plausible_move(testCase.fen, result.bestmove);
                 continue;
             }
 
@@ -180,33 +187,35 @@ public:
             observed_nodes.push_back(result.observed_max_nodes);
             observed_nps.push_back(result.observed_nps);
             completed_cases += result.saw_observed_info ? 1 : 0;
-            bestmove_cases += result.has_bestmove ? 1 : 0;
+            bestmove_cases  += result.has_bestmove ? 1 : 0;
             plausible_cases += result.has_plausible_bestmove ? 1 : 0;
         }
 
         const auto [min_depth, max_depth] = minmax_of(observed_depths);
-        const auto [min_time, max_time] = minmax_of(observed_times);
+        const auto [min_time, max_time]   = minmax_of(observed_times);
         const auto [min_nodes, max_nodes] = minmax_of(observed_nodes);
-        const auto [min_nps, max_nps] = minmax_of(observed_nps);
+        const auto [min_nps, max_nps]     = minmax_of(observed_nps);
 
         std::cout << "\nSmoke Benchmark Summary\n";
         std::cout << "Threads = " << THREADS << ", ";
         std::cout << "movetime = " << SEARCHTIME << " ms, ";
         std::cout << "cases = " << observed_depths.size() << std::endl;
         std::cout << "-------------------" << std::endl;
-        std::cout << "Completed with observed info: " << completed_cases << " / " << observed_depths.size()
-                  << ", bestmove seen: " << bestmove_cases << " / " << observed_depths.size()
-                  << ", plausible bestmove: " << plausible_cases << " / " << observed_depths.size() << std::endl;
-        std::cout << "Observed averages: depth " << format_metric(average_of(observed_depths)) << " ply, nodes "
-                  << format_metric(average_of(observed_nodes)) << ", time "
+        std::cout << "Completed with observed info: " << completed_cases << " / "
+                  << observed_depths.size() << ", bestmove seen: " << bestmove_cases << " / "
+                  << observed_depths.size() << ", plausible bestmove: " << plausible_cases << " / "
+                  << observed_depths.size() << std::endl;
+        std::cout << "Observed averages: depth " << format_metric(average_of(observed_depths))
+                  << " ply, nodes " << format_metric(average_of(observed_nodes)) << ", time "
                   << format_metric(average_of(observed_times)) << " ms, nps "
                   << format_metric(average_of(observed_nps)) << std::endl;
-        std::cout << "Observed medians: nps " << format_metric(median_of(observed_nps)) << ", depth "
-                  << format_metric(median_of(observed_depths)) << " ply" << std::endl;
+        std::cout << "Observed medians: nps " << format_metric(median_of(observed_nps))
+                  << ", depth " << format_metric(median_of(observed_depths)) << " ply" << std::endl;
         std::cout << "Observed spread: depth " << min_depth << "-" << max_depth << " ply, nodes "
                   << min_nodes << "-" << max_nodes << ", time " << min_time << "-" << max_time
                   << " ms, nps " << min_nps << "-" << max_nps << std::endl;
-        std::cout << "Use this as a quick stability/throughput smoke benchmark, not as a tactical or comparative suite."
+        std::cout << "Use this as a quick stability/throughput smoke benchmark, not as a tactical "
+                     "or comparative suite."
                   << std::endl;
     }
 };
@@ -263,7 +272,8 @@ int main(int argc, char* argv[]) {
 
         if (!TESTFILE.empty()) {
             if (!std::filesystem::exists(TESTFILE)) {
-                std::cerr << "Warning: Provided test file does not exist: " << TESTFILE << std::endl;
+                std::cerr << "Warning: Provided test file does not exist: " << TESTFILE
+                          << std::endl;
                 std::cerr << "Falling back to automatic path resolution." << std::endl;
                 TESTFILE = get_test_file_path();
             }
