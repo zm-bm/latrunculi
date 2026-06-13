@@ -23,11 +23,11 @@ struct TT_Entry {
 };
 
 struct TT_Record {
-    Move     move  = NULL_MOVE;
-    int16_t  score = 0;
-    uint8_t  depth = 0;
-    uint8_t  age   = 0;
-    TT_Flag  flag  = TT_Flag::None;
+    Move    move  = NULL_MOVE;
+    int16_t score = 0;
+    uint8_t depth = 0;
+    uint8_t age   = 0;
+    TT_Flag flag  = TT_Flag::None;
 
     [[nodiscard]] bool is_valid() const { return flag != TT_Flag::None; }
     int                replacement_score(int tt_age) const;
@@ -48,29 +48,24 @@ public:
     // - The table storage is globally shared across search threads.
     // - Callers never receive a pointer/reference to shared TT_Entry storage.
     // - probe() returns an immutable by-value snapshot of one validated entry, or std::nullopt.
-    // - Search code must use only the returned TT_Record; keeping aliases into shared storage is forbidden.
-    // - TT internals publish payload first and validation/signature last, so racing reads degrade to
-    //   a miss, an old hit, or a new hit rather than accepting a mixed entry.
+    // - Search code must use only the returned TT_Record; keeping aliases into shared storage is
+    // forbidden.
+    // - TT internals publish payload first and a full-key XOR signature last, so racing reads
+    // degrade
+    //   to a miss, an old hit, or a new hit rather than accepting a mixed entry for the probed key.
     [[nodiscard]] std::optional<TT_Record> probe(uint64_t zkey) const;
-    void                                   store(
-                                          uint64_t zkey,
-                                          Move     move,
-                                          int16_t  score,
-                                          uint8_t  depth,
-                                          TT_Flag  flag,
-                                          int      ply);
-    void                                   resize(size_t megabytes);
-    void                                   clear();
+    void store(uint64_t zkey, Move move, int16_t score, uint8_t depth, TT_Flag flag, int ply);
+    void resize(size_t megabytes);
+    void clear();
     // Advance the shared TT generation once per root-search lifecycle event.
-    void                                   age_table() { ++age; }
-    [[nodiscard]] uint8_t                  current_age() const { return age; }
-    const void*                            prefetch_addr(uint64_t zkey) const;
+    void                  age_table() { ++age; }
+    [[nodiscard]] uint8_t current_age() const { return age; }
+    const void*           prefetch_addr(uint64_t zkey) const;
 
     static constexpr size_t default_mb = 4;
 
 private:
     uint64_t cluster_key(uint64_t zkey) const;
-    uint16_t entry_key(uint64_t zkey) const;
 
     std::unique_ptr<TT_Cluster[]> table = nullptr;
 
@@ -88,14 +83,11 @@ inline uint64_t TT_Table::cluster_key(uint64_t zkey) const {
     return (zkey * 0x9e3779b97f4a7c15ull) >> shift;
 }
 
-inline uint16_t TT_Table::entry_key(uint64_t zkey) const {
-    return uint16_t((zkey ^ (zkey >> 32)) & 0xFFFF);
-}
-
 // lower score = better replacement candidate
 // prefer shallow entries, then older entries
 inline int TT_Record::replacement_score(int tt_age) const {
-    return depth * 2 - (tt_age - age);
+    const int relative_age = uint8_t(uint8_t(tt_age) - age);
+    return depth * 2 - relative_age;
 }
 
 // convert mate from current position score into mate from root

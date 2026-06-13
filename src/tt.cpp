@@ -18,15 +18,15 @@ constexpr uint64_t tt_depth_shift = tt_score_shift + tt_score_bits;
 constexpr uint64_t tt_age_shift   = tt_depth_shift + tt_depth_bits;
 constexpr uint64_t tt_flag_shift  = tt_age_shift + tt_age_bits;
 
-constexpr uint64_t tt_move_mask  = (uint64_t{1} << tt_move_bits) - 1;
-constexpr uint64_t tt_score_mask = (uint64_t{1} << tt_score_bits) - 1;
-constexpr uint64_t tt_depth_mask = (uint64_t{1} << tt_depth_bits) - 1;
-constexpr uint64_t tt_age_mask   = (uint64_t{1} << tt_age_bits) - 1;
-constexpr uint64_t tt_flag_mask  = (uint64_t{1} << tt_flag_bits) - 1;
-constexpr uint64_t tt_check_mask = (uint64_t{1} << 48) - 1;
+constexpr uint64_t tt_move_mask      = (uint64_t{1} << tt_move_bits) - 1;
+constexpr uint64_t tt_score_mask     = (uint64_t{1} << tt_score_bits) - 1;
+constexpr uint64_t tt_depth_mask     = (uint64_t{1} << tt_depth_bits) - 1;
+constexpr uint64_t tt_age_mask       = (uint64_t{1} << tt_age_bits) - 1;
+constexpr uint64_t tt_flag_mask      = (uint64_t{1} << tt_flag_bits) - 1;
+constexpr uint64_t tt_signature_salt = 0x9e3779b97f4a7c15ull;
 
 struct TT_Snapshot {
-    uint16_t  key = 0;
+    uint64_t  key = 0;
     TT_Record record{};
 };
 
@@ -48,39 +48,26 @@ struct TT_Snapshot {
     return record;
 }
 
-[[nodiscard]] uint64_t signature_checksum(uint16_t key, uint64_t payload) {
-    uint64_t mixed = payload ^ (uint64_t(key) << 32) ^ 0x9e3779b97f4a7c15ull;
-    mixed ^= mixed >> 33;
-    mixed *= 0xff51afd7ed558ccdULL;
-    mixed ^= mixed >> 33;
-    mixed *= 0xc4ceb9fe1a85ec53ULL;
-    mixed ^= mixed >> 33;
-    return mixed & tt_check_mask;
+[[nodiscard]] uint64_t make_signature(uint64_t zkey, uint64_t payload) {
+    return zkey ^ payload ^ tt_signature_salt;
 }
 
-[[nodiscard]] uint64_t make_signature(uint16_t key, uint64_t payload) {
-    return (uint64_t(key) << 48) | signature_checksum(key, payload);
+[[nodiscard]] uint64_t recover_key(uint64_t signature, uint64_t payload) {
+    return signature ^ payload ^ tt_signature_salt;
 }
 
 [[nodiscard]] std::optional<TT_Snapshot> load_snapshot(const TT_Entry& entry) {
     const uint64_t signature_before = entry.signature.load(std::memory_order_acquire);
-    if (signature_before == 0)
-        return std::nullopt;
-
-    const uint64_t payload = entry.payload.load(std::memory_order_relaxed);
+    const uint64_t payload          = entry.payload.load(std::memory_order_relaxed);
     const uint64_t signature_after  = entry.signature.load(std::memory_order_acquire);
     if (signature_before != signature_after)
-        return std::nullopt;
-
-    const uint16_t key = uint16_t(signature_after >> 48);
-    if (make_signature(key, payload) != signature_after)
         return std::nullopt;
 
     TT_Record record = unpack_payload(payload);
     if (!record.is_valid())
         return std::nullopt;
 
-    return TT_Snapshot{.key = key, .record = record};
+    return TT_Snapshot{.key = recover_key(signature_after, payload), .record = record};
 }
 
 void clear_entry(TT_Entry& entry) {
@@ -97,11 +84,10 @@ TT_Table::TT_Table() {
 
 std::optional<TT_Record> TT_Table::probe(uint64_t zkey) const {
     const TT_Cluster& cluster = table[cluster_key(zkey)];
-    const uint16_t    key     = entry_key(zkey);
 
     for (const TT_Entry& entry : cluster.entries) {
         auto snapshot = load_snapshot(entry);
-        if (snapshot && snapshot->key == key)
+        if (snapshot && snapshot->key == zkey)
             return snapshot->record;
     }
 
@@ -112,8 +98,6 @@ void TT_Table::store(
     uint64_t zkey, Move move, int16_t score, uint8_t depth, TT_Flag flag, int ply) {
     TT_Cluster& cluster = table[cluster_key(zkey)];
 
-    const uint16_t key = entry_key(zkey);
-
     // convert mate from root score into mate from current position
     if (score >= TT_MATE_BOUND)
         score += ply;
@@ -121,19 +105,20 @@ void TT_Table::store(
         score -= ply;
 
     // replacement policy: prefer same key, then lowest replacement score
-    TT_Entry* target                  = &cluster.entries[0];
+    TT_Entry* target                   = &cluster.entries[0];
     int       target_replacement_score = std::numeric_limits<int>::max();
     bool      target_is_same_key       = false;
 
     for (TT_Entry& entry : cluster.entries) {
         auto snapshot = load_snapshot(entry);
-        if (snapshot && snapshot->key == key) {
+        if (snapshot && snapshot->key == zkey) {
             target             = &entry;
             target_is_same_key = true;
             break;
         }
 
-        const int replacement_score = snapshot ? snapshot->record.replacement_score(age) : std::numeric_limits<int>::min();
+        const int replacement_score =
+            snapshot ? snapshot->record.replacement_score(age) : std::numeric_limits<int>::min();
         if (!target_is_same_key && replacement_score < target_replacement_score) {
             target                   = &entry;
             target_replacement_score = replacement_score;
@@ -149,7 +134,7 @@ void TT_Table::store(
     };
 
     const uint64_t payload   = pack_payload(record);
-    const uint64_t signature = make_signature(key, payload);
+    const uint64_t signature = make_signature(zkey, payload);
 
     target->payload.store(payload, std::memory_order_relaxed);
     target->signature.store(signature, std::memory_order_release);

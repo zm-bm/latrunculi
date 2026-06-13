@@ -9,6 +9,9 @@
 #include "gtest/gtest.h"
 
 namespace {
+constexpr uint64_t tt_cluster_multiplier = 0x9e3779b97f4a7c15ull;
+constexpr uint32_t one_mb_cluster_shift  = 50;
+
 struct TT_ExpectedSnapshot {
     Move    move;
     int16_t score;
@@ -16,8 +19,9 @@ struct TT_ExpectedSnapshot {
     TT_Flag flag;
 };
 
-[[nodiscard]] bool matches_expected_snapshot(
-    const TT_Record& record, const std::array<TT_ExpectedSnapshot, 4>& expected_snapshots) {
+[[nodiscard]] bool
+matches_expected_snapshot(const TT_Record&                          record,
+                          const std::array<TT_ExpectedSnapshot, 4>& expected_snapshots) {
     for (const auto& expected : expected_snapshots) {
         if (record.move == expected.move && record.score == expected.score &&
             record.depth == expected.depth && record.flag == expected.flag) {
@@ -26,6 +30,22 @@ struct TT_ExpectedSnapshot {
     }
 
     return false;
+}
+
+[[nodiscard]] uint64_t cluster_key_for_one_mb_table(uint64_t zkey) {
+    return (zkey * tt_cluster_multiplier) >> one_mb_cluster_shift;
+}
+
+[[nodiscard]] uint64_t find_same_one_mb_cluster_key(uint64_t zkey) {
+    const uint64_t target_cluster = cluster_key_for_one_mb_table(zkey);
+
+    for (uint64_t offset = 1; offset < 2'000'000; ++offset) {
+        const uint64_t candidate = zkey + offset;
+        if (cluster_key_for_one_mb_table(candidate) == target_cluster)
+            return candidate;
+    }
+
+    return zkey;
 }
 } // namespace
 
@@ -133,9 +153,7 @@ TEST_F(TT_Test, ResizeTable) {
     EXPECT_EQ(move, entry->move);
 }
 
-TEST_F(TT_Test, EntryKeyGeneration) {
-    // Test that different Zobrist keys with the same lowest 16 bits
-    // have the same entry key but different cluster keys
+TEST_F(TT_Test, StoreAndProbeDifferentFullKeys) {
     uint64_t key2 = 0xFEDCBA9876543210;
     uint64_t key1 = 0x123456789ABC3210;
 
@@ -153,6 +171,21 @@ TEST_F(TT_Test, EntryKeyGeneration) {
 
     EXPECT_EQ(move, entry1->move);
     EXPECT_EQ(move2, entry2->move);
+}
+
+TEST_F(TT_Test, ProbeRejectsDifferentFullKeyInSameCluster) {
+    tt.resize(1);
+
+    const uint64_t key1 = key;
+    const uint64_t key2 = find_same_one_mb_cluster_key(key1);
+
+    ASSERT_NE(key1, key2);
+    ASSERT_EQ(cluster_key_for_one_mb_table(key1), cluster_key_for_one_mb_table(key2));
+
+    tt.store(key1, move, score, depth, flag, 0);
+
+    ASSERT_TRUE(tt.probe(key1).has_value());
+    EXPECT_FALSE(tt.probe(key2).has_value());
 }
 
 TEST_F(TT_Test, ReplacementScoreCalculation) {
@@ -177,6 +210,18 @@ TEST_F(TT_Test, ReplacementScoreCalculation) {
 
     int deeper_score = entry->replacement_score(age);
     EXPECT_GT(deeper_score, new_score);
+}
+
+TEST_F(TT_Test, ReplacementScoreUsesWrappedAgeDistance) {
+    TT_Record record{
+        .move  = move,
+        .score = score,
+        .depth = depth,
+        .age   = uint8_t{255},
+        .flag  = flag,
+    };
+
+    EXPECT_EQ(record.replacement_score(0), depth * 2 - 1);
 }
 
 TEST_F(TT_Test, ProbeReturnsDetachedSnapshot) {
@@ -221,7 +266,7 @@ TEST_F(TT_Test, NoneFlagEntriesProbeAsMiss) {
 }
 
 TEST_F(TT_Test, ConcurrentStoreAndProbeYieldOnlyCompleteSnapshots) {
-    constexpr uint64_t shared_key = 0x0F0E0D0C0B0A0908ULL;
+    constexpr uint64_t                       shared_key = 0x0F0E0D0C0B0A0908ULL;
     const std::array<TT_ExpectedSnapshot, 4> expected_snapshots{{
         {Move(Square::A2, Square::A4), 111, 4, TT_Flag::Exact},
         {Move(Square::B2, Square::B4), -77, 6, TT_Flag::Lowerbound},
@@ -232,7 +277,7 @@ TEST_F(TT_Test, ConcurrentStoreAndProbeYieldOnlyCompleteSnapshots) {
     constexpr int writer_iterations = 20000;
     constexpr int reader_iterations = 30000;
 
-    std::barrier start_line(static_cast<std::ptrdiff_t>(expected_snapshots.size() + 2));
+    std::barrier     start_line(static_cast<std::ptrdiff_t>(expected_snapshots.size() + 2));
     std::atomic<int> hit_count{0};
     std::atomic<int> miss_count{0};
     std::atomic<int> invalid_snapshot_count{0};
@@ -268,8 +313,11 @@ TEST_F(TT_Test, ConcurrentStoreAndProbeYieldOnlyCompleteSnapshots) {
     for (auto& worker : workers)
         worker.join();
 
-    EXPECT_GT(hit_count.load(std::memory_order_relaxed), 0);
-    EXPECT_GT(miss_count.load(std::memory_order_relaxed), 0);
+    const int hits   = hit_count.load(std::memory_order_relaxed);
+    const int misses = miss_count.load(std::memory_order_relaxed);
+
+    EXPECT_GT(hits, 0);
+    EXPECT_EQ(hits + misses, reader_iterations * 2);
     EXPECT_EQ(invalid_snapshot_count.load(std::memory_order_relaxed), 0);
 
     auto final_probe = tt.probe(shared_key);

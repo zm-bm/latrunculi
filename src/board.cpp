@@ -6,6 +6,12 @@
 #include "score.hpp"
 #include "thread.hpp"
 
+namespace {
+bool valid_promotion_piece(PieceType piece) {
+    return piece >= KNIGHT && piece <= QUEEN;
+}
+} // namespace
+
 void Board::load_fen(const std::string& fen) {
     reset();
     FenParser parser(fen);
@@ -59,8 +65,119 @@ Square Board::legal_enpassant_sq() const {
     return INVALID;
 }
 
-// Determine if a pseudo-legal move is legal
+bool Board::is_pseudo_legal(Move mv) const {
+    if (mv.is_null())
+        return false;
+
+    const Square from = mv.from();
+    const Square to   = mv.to();
+    if (from == to)
+        return false;
+
+    const Piece piece = piece_on(from);
+    if (piece == NO_PIECE || color_of(piece) != turn)
+        return false;
+
+    const Piece target = piece_on(to);
+    if (target != NO_PIECE && color_of(target) == turn)
+        return false;
+
+    const PieceType piecetype = type_of(piece);
+    const uint64_t  to_bb     = bb::set(to);
+    const uint64_t  occupied  = occupancy();
+
+    switch (mv.type()) {
+    case BASIC_MOVE: {
+        if (piecetype == PAWN) {
+            const int push_delta = (turn == WHITE) ? NORTH : SOUTH;
+            const int move_delta = int(to) - int(from);
+
+            if (relative_rank(to, turn) == RANK8)
+                return false;
+
+            if (move_delta == push_delta)
+                return target == NO_PIECE;
+
+            if (move_delta == 2 * push_delta) {
+                const Square mid = from + push_delta;
+                return relative_rank(from, turn) == RANK2 && target == NO_PIECE &&
+                       piece_on(mid) == NO_PIECE;
+            }
+
+            return (bb::pawn_attacks(bb::set(from), turn) & to_bb) && target != NO_PIECE &&
+                   color_of(target) == ~turn;
+        }
+
+        if (piecetype == KING)
+            return bb::moves<KING>(from) & to_bb;
+
+        return piecetype != NO_PIECETYPE && piecetype != ALL_PIECES && piecetype != KING &&
+               (bb::moves(from, piecetype, occupied) & to_bb);
+    }
+
+    case MOVE_PROM: {
+        if (piecetype != PAWN || !valid_promotion_piece(mv.prom_piece()))
+            return false;
+        if (relative_rank(from, turn) != RANK7 || relative_rank(to, turn) != RANK8)
+            return false;
+
+        const int push_delta = (turn == WHITE) ? NORTH : SOUTH;
+        if (int(to) - int(from) == push_delta)
+            return target == NO_PIECE;
+
+        return (bb::pawn_attacks(bb::set(from), turn) & to_bb) && target != NO_PIECE &&
+               color_of(target) == ~turn;
+    }
+
+    case MOVE_EP: {
+        if (piecetype != PAWN || to != enpassant_sq() || target != NO_PIECE)
+            return false;
+        if (!(bb::pawn_attacks(bb::set(from), turn) & to_bb))
+            return false;
+
+        const Square captured = to + (turn == WHITE ? SOUTH : NORTH);
+        return piece_on(captured) == make_piece(~turn, PAWN);
+    }
+
+    case MOVE_CASTLE: {
+        if (piecetype != KING)
+            return false;
+
+        const Square expected_from = (turn == WHITE) ? E1 : E8;
+        if (from != expected_from)
+            return false;
+
+        const CastleSide side = (to > from) ? CASTLE_KINGSIDE : CASTLE_QUEENSIDE;
+        const Square     expected_to =
+            (side == CASTLE_KINGSIDE) ? ((turn == WHITE) ? G1 : G8) : ((turn == WHITE) ? C1 : C8);
+        if (to != expected_to)
+            return false;
+
+        if (side == CASTLE_KINGSIDE) {
+            if (!can_castle_kingside(turn))
+                return false;
+        } else if (!can_castle_queenside(turn)) {
+            return false;
+        }
+
+        if (piece_on(castle::rook_from[side][turn]) != make_piece(turn, ROOK))
+            return false;
+        if (occupied & castle::path[side][turn])
+            return false;
+
+        return !attacks_to(castle::kingpath[side][turn], ~turn);
+    }
+    }
+
+    return false;
+}
+
 bool Board::is_legal_move(Move mv) const {
+    return is_pseudo_legal(mv) && is_legal_pseudo_move(mv);
+}
+
+// Requires a pseudo-legal move. Filters moves that expose or leave the king in check.
+bool Board::is_legal_pseudo_move(Move mv) const {
     Square from = mv.from();
     Square to   = mv.to();
     Square king = king_sq(turn);
@@ -363,7 +480,7 @@ uint64_t Board::calculate_key() const {
 bool Board::is_stalemate() const {
     auto movelist = generate<ALL_MOVES>(*this);
     for (auto& move : movelist) {
-        if (is_legal_move(move))
+        if (is_legal_pseudo_move(move))
             return false;
     }
     return true;
@@ -453,7 +570,7 @@ std::string Board::toSAN(Move move) const {
     for (auto& m : movelist) {
         bool ambiguous =
             (piecetype_on(m.from()) == piecetype) && (m.to() == to) && (m.from() != from);
-        if (ambiguous && is_legal_move(m)) {
+        if (ambiguous && is_legal_pseudo_move(m)) {
             if (file_of(m.from()) != file_of(from))
                 result += to_char(file_of(from));
             if (rank_of(m.from()) != rank_of(from))
@@ -487,7 +604,7 @@ uint64_t Board::perft(int depth, std::ostream& oss) {
     auto     movelist = generate<ALL_MOVES>(*this);
 
     for (auto& move : movelist) {
-        if (!is_legal_move(move))
+        if (!is_legal_pseudo_move(move))
             continue;
 
         make(move);

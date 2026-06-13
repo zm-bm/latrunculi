@@ -84,14 +84,14 @@ private:
 
     // inline helpers
 
-    Milliseconds get_runtime() const;
-    uint64_t     get_nodes() const;
-    std::string  get_pv(int depth) const;
-    uci::PV      get_pv_line(int score, int depth) const;
-    Move         first_legal_root_move() const;
-    int          initial_search_depth() const;
-    void         clear_root_result();
-    void         publish_root_result();
+    Milliseconds     get_runtime() const;
+    uint64_t         get_nodes() const;
+    std::string      get_pv(int depth) const;
+    uci::PV          get_pv_line(int score, int depth) const;
+    Move             first_legal_root_move() const;
+    int              initial_search_depth() const;
+    void             clear_root_result();
+    void             publish_root_result();
     RootSearchResult root_result_snapshot() const;
 
     void set_options(SearchOptions& options);
@@ -125,7 +125,7 @@ inline std::string Thread::get_pv(int depth) const {
     for (int d = 1; d <= depth; ++d) {
         auto probe = tt.probe(b.key());
 
-        if (!probe.has_value() || probe->move.is_null() || !b.is_legal_move(probe->move))
+        if (!probe.has_value() || !b.is_legal_move(probe->move))
             break;
 
         b.make(probe->move);
@@ -142,7 +142,7 @@ inline uci::PV Thread::get_pv_line(int score, int depth) const {
 inline Move Thread::first_legal_root_move() const {
     auto movelist = generate<ALL_MOVES>(board);
     for (auto& move : movelist) {
-        if (board.is_legal_move(move))
+        if (board.is_legal_pseudo_move(move))
             return move;
     }
     return NULL_MOVE;

@@ -354,6 +354,78 @@ TEST(BoardTest, is_legal_move_pinned_en_passant) {
     EXPECT_FALSE(b.is_legal_move(Move(F4, E3, MOVE_EP)));
 }
 
+TEST(BoardTest, is_legal_pseudo_move_filters_generated_moves) {
+    EXPECT_FALSE(Board(POS3).is_legal_pseudo_move(Move(B5, B6)));
+    EXPECT_FALSE(Board(POS3).is_legal_pseudo_move(Move(A5, B6)));
+    EXPECT_TRUE(Board(ENPASSANT_A3).is_legal_pseudo_move(Move(B4, A3, MOVE_EP)));
+}
+
+TEST(BoardTest, is_pseudo_legal_accepts_generated_moves) {
+    for (const std::string fen :
+         {STARTFEN, POS2, POS3, POS4W, POS4B, ENPASSANT_A3, "7k/P7/8/8/8/8/8/4K3 w - - 0 1"}) {
+        Board board{fen};
+        auto  movelist = generate<ALL_MOVES>(board);
+        for (const Move& move : movelist)
+            EXPECT_TRUE(board.is_pseudo_legal(move)) << fen << " " << move;
+    }
+}
+
+TEST(BoardTest, is_pseudo_legal_rejects_untrusted_non_moves) {
+    Board quiet_control{"k7/8/2K5/8/8/8/8/8 b - - 0 1"};
+    Move  empty_square_move{H1, H2};
+
+    EXPECT_FALSE(quiet_control.is_legal_move(empty_square_move));
+    EXPECT_FALSE(quiet_control.is_pseudo_legal(empty_square_move));
+
+    Board start{STARTFEN};
+    EXPECT_FALSE(start.is_legal_move(NULL_MOVE));
+    EXPECT_FALSE(start.is_legal_move(Move(E7, E5)));
+    EXPECT_FALSE(start.is_legal_move(Move(B1, D2)));
+    EXPECT_FALSE(start.is_legal_move(Move(G1, F3, MOVE_PROM, QUEEN)));
+    EXPECT_FALSE(start.is_legal_move(Move(E2, E4, MOVE_CASTLE)));
+    EXPECT_FALSE(start.is_pseudo_legal(NULL_MOVE));
+    EXPECT_FALSE(start.is_pseudo_legal(Move(E7, E5)));
+    EXPECT_FALSE(start.is_pseudo_legal(Move(B1, D2)));
+    EXPECT_FALSE(start.is_pseudo_legal(Move(G1, F3, MOVE_PROM, QUEEN)));
+    EXPECT_FALSE(start.is_pseudo_legal(Move(E2, E4, MOVE_CASTLE)));
+}
+
+TEST(BoardTest, is_pseudo_legal_validates_pawn_move_encoding) {
+    Board start{STARTFEN};
+    EXPECT_TRUE(start.is_pseudo_legal(Move(E2, E4)));
+    EXPECT_FALSE(start.is_pseudo_legal(Move(E2, E5)));
+
+    Board blocked_double_push{"4k3/8/8/8/8/4N3/4P3/4K3 w - - 0 1"};
+    EXPECT_FALSE(blocked_double_push.is_pseudo_legal(Move(E2, E4)));
+
+    Board promotion{"7k/P7/8/8/8/8/8/4K3 w - - 0 1"};
+    EXPECT_FALSE(promotion.is_pseudo_legal(Move(A7, A8)));
+    EXPECT_TRUE(promotion.is_pseudo_legal(Move(A7, A8, MOVE_PROM, QUEEN)));
+
+    Board enpassant{ENPASSANT_A3};
+    EXPECT_TRUE(enpassant.is_pseudo_legal(Move(B4, A3, MOVE_EP)));
+    EXPECT_FALSE(enpassant.is_pseudo_legal(Move(B4, A3)));
+
+    Board no_enpassant{"4k3/8/8/8/Pp6/8/8/4K3 b - - 0 1"};
+    EXPECT_FALSE(no_enpassant.is_pseudo_legal(Move(B4, A3, MOVE_EP)));
+}
+
+TEST(BoardTest, is_pseudo_legal_validates_castling_conditions) {
+    Board castle_board{POS2};
+    EXPECT_TRUE(castle_board.is_pseudo_legal(Move(E1, G1, MOVE_CASTLE)));
+    EXPECT_TRUE(castle_board.is_pseudo_legal(Move(E1, C1, MOVE_CASTLE)));
+    EXPECT_FALSE(castle_board.is_pseudo_legal(Move(E1, G1)));
+
+    Board no_rights{"r3k2r/8/8/8/8/8/8/R3K2R w - - 0 1"};
+    EXPECT_FALSE(no_rights.is_pseudo_legal(Move(E1, G1, MOVE_CASTLE)));
+
+    Board blocked_path{STARTFEN};
+    EXPECT_FALSE(blocked_path.is_pseudo_legal(Move(E1, G1, MOVE_CASTLE)));
+
+    Board attacked_path{"r3k2r/8/8/8/8/8/5r2/R3K2R w KQkq - 0 1"};
+    EXPECT_FALSE(attacked_path.is_pseudo_legal(Move(E1, G1, MOVE_CASTLE)));
+}
+
 TEST(BoardTest, is_checking_move) {
     Board b("4k3/8/8/8/6N1/8/8/RB1QK3 w - - 0 1");
     EXPECT_TRUE(b.is_checking_move(Move(A1, A8)));

@@ -79,16 +79,17 @@ Move ThreadPool::best_voted_move(const Board& board, Move fallback) const {
         uint64_t nodes{0};
     };
 
-    auto root_moves = generate<ALL_MOVES>(board);
+    auto              root_moves = generate<ALL_MOVES>(board);
     std::vector<Move> legal_root_moves;
     legal_root_moves.reserve(root_moves.size());
     for (const auto& move : root_moves) {
-        if (board.is_legal_move(move))
+        if (board.is_legal_pseudo_move(move))
             legal_root_moves.push_back(move);
     }
 
     const auto is_legal_root_move = [&](Move move) {
-        return std::find(legal_root_moves.begin(), legal_root_moves.end(), move) != legal_root_moves.end();
+        return std::find(legal_root_moves.begin(), legal_root_moves.end(), move) !=
+               legal_root_moves.end();
     };
 
     std::vector<RootSearchResult> results;
@@ -104,17 +105,17 @@ Move ThreadPool::best_voted_move(const Board& board, Move fallback) const {
     if (results.empty())
         return fallback;
 
-    const int weakest = std::min_element(results.begin(), results.end(), [](const auto& lhs, const auto& rhs) {
-                            return lhs.value < rhs.value;
-                        })->value;
+    const int weakest =
+        std::min_element(results.begin(), results.end(), [](const auto& lhs, const auto& rhs) {
+            return lhs.value < rhs.value;
+        })->value;
 
     std::vector<Vote> votes;
     votes.reserve(results.size());
 
     for (const auto& result : results) {
-        auto it = std::find_if(votes.begin(), votes.end(), [&](const Vote& vote) {
-            return vote.move == result.move;
-        });
+        auto it = std::find_if(
+            votes.begin(), votes.end(), [&](const Vote& vote) { return vote.move == result.move; });
 
         if (it == votes.end()) {
             votes.push_back({result.move});
@@ -122,9 +123,9 @@ Move ThreadPool::best_voted_move(const Board& board, Move fallback) const {
         }
 
         it->weight += int64_t(result.depth) * 1000 + std::max(0, result.value - weakest);
-        it->depth = std::max(it->depth, result.depth);
-        it->value = std::max(it->value, result.value);
-        it->nodes += result.nodes;
+        it->depth   = std::max(it->depth, result.depth);
+        it->value   = std::max(it->value, result.value);
+        it->nodes  += result.nodes;
     }
 
     const auto better = [](const Vote& lhs, const Vote& rhs) {

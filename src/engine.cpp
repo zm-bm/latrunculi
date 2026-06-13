@@ -274,7 +274,7 @@ std::pair<std::string, std::string> Engine::parse_option(std::istringstream& iss
 Move Engine::get_move(const std::string& token) {
     auto movelist = generate<ALL_MOVES>(board);
     for (auto& move : movelist) {
-        if (move.str() == token && board.is_legal_move(move)) {
+        if (move.str() == token && board.is_legal_pseudo_move(move)) {
             return move;
         }
     }

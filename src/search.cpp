@@ -10,7 +10,30 @@
 #include "thread_pool.hpp"
 #include "tt.hpp"
 
+namespace {
 constexpr int AspirationWindow = 50;
+
+struct SearchWindow {
+    int  alpha;
+    int  beta;
+    int  cutoff;
+    bool has_cutoff;
+};
+
+SearchWindow apply_mate_distance_pruning(int alpha, int beta, int ply) {
+    const int lower_bound = -MATE_VALUE + ply;
+    if (lower_bound >= beta)
+        return {alpha, beta, lower_bound, true};
+    alpha = std::max(alpha, lower_bound);
+
+    const int upper_bound = MATE_VALUE - ply - 1;
+    if (upper_bound <= alpha)
+        return {alpha, beta, upper_bound, true};
+    beta = std::min(beta, upper_bound);
+
+    return {alpha, beta, 0, false};
+}
+} // namespace
 
 void Thread::reset() {
     nodes      = 0;
@@ -117,10 +140,11 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     __builtin_prefetch(tt.prefetch_addr(key));
 
     // mate distance pruning
-    alpha = std::max(alpha, -MATE_VALUE + ply);
-    beta  = std::min(beta, MATE_VALUE - ply);
-    if (alpha >= beta)
-        return alpha;
+    auto window = apply_mate_distance_pruning(alpha, beta, ply);
+    if (window.has_cutoff)
+        return window.cutoff;
+    alpha = window.alpha;
+    beta  = window.beta;
 
     // check extension
     bool in_check = board.is_check();
@@ -151,31 +175,33 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     auto probe = tt.probe(key);
     stats.tt_probe(ply);
 
-    // If we have an entry, check for cutoffs or update alpha/beta.
+    // If we have an entry, check for cutoffs.
     // The search must consume only the snapshot returned by probe().
-    if (probe.has_value() && board.is_legal_move(probe->move)) {
+    if (probe.has_value()) {
         tt_move = probe->move;
 
-        if (probe->depth >= depth) {
-            stats.tt_hit(ply);
-            int value = probe->get_score(ply);
+        if constexpr (!pvnode) {
+            if (probe->depth >= depth) {
+                stats.tt_hit(ply);
+                int value = probe->get_score(ply);
 
-            if constexpr (!pvnode) {
                 if (probe->flag == TT_Flag::Exact) {
                     stats.tt_cutoff(ply);
                     return value;
                 }
-            }
 
-            if (probe->flag == TT_Flag::Lowerbound)
-                alpha = std::max(alpha, value);
-            if (probe->flag == TT_Flag::Upperbound)
-                beta = std::min(beta, value);
+                if (probe->flag == TT_Flag::Lowerbound) {
+                    if (value >= beta) {
+                        stats.tt_cutoff(ply);
+                        return value;
+                    }
+                }
 
-            if constexpr (!pvnode) {
-                if (alpha >= beta) {
-                    stats.tt_cutoff(ply);
-                    return value;
+                if (probe->flag == TT_Flag::Upperbound) {
+                    if (value <= alpha) {
+                        stats.tt_cutoff(ply);
+                        return value;
+                    }
                 }
             }
         }
@@ -226,13 +252,14 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
 
     // Generate moves
     auto             movelist = generate<ALL_MOVES>(board);
-    StagedMovePicker picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id}, std::move(movelist)};
+    StagedMovePicker picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id},
+                            std::move(movelist)};
 
     // Iterate through moves
     int legal_move_index = 0;
     while (Move* picked_move = picker.next()) {
         Move move = *picked_move;
-        if (!board.is_legal_move(move))
+        if (!board.is_legal_pseudo_move(move))
             continue;
         legal_move_index++;
         const bool first_legal = (legal_move_index == 1);
@@ -350,25 +377,31 @@ int Thread::quiescence(int alpha, int beta) {
     nodes++;
     stats.qnode(ply);
 
+    // mate distance pruning
+    auto window = apply_mate_distance_pruning(alpha, beta, ply);
+    if (window.has_cutoff)
+        return window.cutoff;
+    alpha = window.alpha;
+    beta  = window.beta;
+
+    if (ply >= MAX_DEPTH)
+        return evaluate(board);
+
     // check for 50-move rule and draw by repetition
     if (board.is_draw())
         return DRAW_VALUE;
 
-    const bool in_check = board.is_check();
-
-    // mate distance pruning
-    alpha = std::max(alpha, -MATE_VALUE + ply);
-    beta  = std::min(beta, MATE_VALUE - ply);
-    if (alpha >= beta)
-        return alpha;
+    const bool in_check   = board.is_check();
+    int        best_value = -INF_VALUE;
 
     if (!in_check) {
         int stand_pat = evaluate(board);
-        if (ply >= MAX_DEPTH)
+        best_value    = stand_pat;
+        if (stand_pat >= beta) {
+            if (board.is_stalemate())
+                return DRAW_VALUE;
             return stand_pat;
-
-        if (stand_pat >= beta)
-            return stand_pat;
+        }
         if (stand_pat > alpha)
             alpha = stand_pat;
     }
@@ -379,7 +412,7 @@ int Thread::quiescence(int alpha, int beta) {
     int legal_moves = 0;
     while (Move* picked_move = picker.next()) {
         Move move = *picked_move;
-        if (!board.is_legal_move(move))
+        if (!board.is_legal_pseudo_move(move))
             continue;
         legal_moves++;
 
@@ -396,8 +429,11 @@ int Thread::quiescence(int alpha, int beta) {
 
         if (score >= beta)
             return score;
-        if (score > alpha)
-            alpha = score;
+        if (score > best_value) {
+            best_value = score;
+            if (score > alpha)
+                alpha = score;
+        }
     }
 
     if (legal_moves == 0) {
@@ -407,5 +443,5 @@ int Thread::quiescence(int alpha, int beta) {
             return DRAW_VALUE;
     }
 
-    return alpha;
+    return best_value;
 }

@@ -104,6 +104,11 @@ public:
     bool is_capture(Move move) const {
         return move.type() == MOVE_EP || piecetype_on(move.to()) != NO_PIECETYPE;
     }
+    // Fast shape check for arbitrary moves; does not test pins or self-check.
+    bool is_pseudo_legal(Move move) const;
+    // Requires a pseudo-legal/generated move; filters pins and self-check.
+    bool is_legal_pseudo_move(Move move) const;
+    // Full legality check for arbitrary/untrusted moves.
     bool is_legal_move(Move move) const;
     bool is_checking_move(Move move) const;
     int  seeMove(Move move) const;
