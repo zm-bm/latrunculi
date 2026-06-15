@@ -30,5 +30,5 @@ private:
     void parse_castles(const std::string& section);
     void parse_enpassant(const std::string& section);
     void parse_halfmove(const std::string& section);
-    void parse_fullmove(const std::string& section, Color turn);
+    void parse_fullmove(const std::string& section);
 };

@@ -176,7 +176,7 @@ INSTANTIATE_TEST_SUITE_P(
         PositionCase{.cmd = "position startpos moves e2e4", .fen = E2E4},
         PositionCase{.cmd = "position startpos moves e7e5", .fen = STARTFEN},
         PositionCase{.cmd = std::format("position fen {}", EMPTYFEN), .fen = EMPTYFEN},
-        PositionCase{.cmd = std::format("position fen {} abc", EMPTYFEN), .fen = EMPTYFEN},
+        PositionCase{.cmd = std::format("position fen {} abc", EMPTYFEN), .fen = STARTFEN},
         PositionCase{.cmd = std::format("position fen {} moves", EMPTYFEN), .fen = EMPTYFEN},
         PositionCase{.cmd = std::format("position fen {} moves abc", EMPTYFEN), .fen = EMPTYFEN},
         PositionCase{.cmd = std::format("position fen {} moves a1b1", EMPTYFEN), .fen = EMPTYFEN},

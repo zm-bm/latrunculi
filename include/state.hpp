@@ -15,7 +15,7 @@ struct State {
     uint64_t     zkey         = 0;
     Move         move         = NULL_MOVE;
     PieceType    captured     = NO_PIECETYPE;
-    CastleRights castle       = ALL_CASTLE;
+    CastleRights castle       = NO_CASTLE;
     Square       enpassant    = INVALID;
     uint8_t      halfmove_clk = 0;
 };

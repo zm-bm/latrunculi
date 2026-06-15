@@ -1,94 +1,185 @@
 #include "fen.hpp"
 #include "util.hpp"
+
+#include <charconv>
+#include <limits>
 #include <sstream>
+#include <stdexcept>
+#include <string_view>
+#include <system_error>
 
-FenParser::FenParser(const std::string& fen) {
-    std::istringstream iss(fen);
-    std::string        pieces_str, color_str, castle_str, enpassant_str;
+namespace {
 
-    if (!(iss >> pieces_str >> color_str >> castle_str >> enpassant_str)) {
-        throw std::invalid_argument("invalid fen, must have at least 4 sections");
+bool is_digit(char ch) {
+    return ch >= '0' && ch <= '9';
+}
+
+uint32_t parse_uint32(std::string_view section, const char* name) {
+    if (section.empty())
+        throw std::invalid_argument(std::string("invalid fen, missing ") + name);
+
+    for (char ch : section) {
+        if (!is_digit(ch))
+            throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
     }
 
-    parse_pieces(pieces_str);
-    parse_turn(color_str);
-    parse_castles(castle_str);
-    parse_enpassant(enpassant_str);
+    uint32_t value       = 0;
+    const auto [ptr, ec] = std::from_chars(section.data(), section.data() + section.size(), value);
+    if (ec != std::errc{} || ptr != section.data() + section.size())
+        throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
 
-    std::string halfmove, fullmove;
-    if (iss >> halfmove)
-        parse_halfmove(halfmove);
-    if (iss >> fullmove)
-        parse_fullmove(fullmove, turn);
+    return value;
+}
+
+uint8_t parse_uint8(std::string_view section, const char* name) {
+    const uint32_t value = parse_uint32(section, name);
+    if (value > std::numeric_limits<uint8_t>::max())
+        throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
+    return static_cast<uint8_t>(value);
+}
+
+uint32_t fen_fullmove_to_ply(uint32_t fullmove_num, Color turn) {
+    const uint64_t value = 2ull * (fullmove_num - 1) + (turn == WHITE ? 0 : 1);
+    if (value > std::numeric_limits<uint32_t>::max())
+        throw std::invalid_argument("invalid fen, fullmove number is too large");
+    return static_cast<uint32_t>(value);
+}
+
+PieceSquare make_piece_square(char ch, Square sq) {
+    switch (ch) {
+    case 'P': return {WHITE, PAWN, sq};
+    case 'N': return {WHITE, KNIGHT, sq};
+    case 'B': return {WHITE, BISHOP, sq};
+    case 'R': return {WHITE, ROOK, sq};
+    case 'Q': return {WHITE, QUEEN, sq};
+    case 'K': return {WHITE, KING, sq};
+    case 'p': return {BLACK, PAWN, sq};
+    case 'n': return {BLACK, KNIGHT, sq};
+    case 'b': return {BLACK, BISHOP, sq};
+    case 'r': return {BLACK, ROOK, sq};
+    case 'q': return {BLACK, QUEEN, sq};
+    case 'k': return {BLACK, KING, sq};
+    default:  throw std::invalid_argument("invalid fen, invalid piece placement");
+    }
+}
+
+} // namespace
+
+FenParser::FenParser(const std::string& fen) {
+    std::istringstream       iss(fen);
+    std::vector<std::string> sections;
+    std::string              section;
+
+    while (iss >> section)
+        sections.push_back(section);
+
+    if (sections.size() != 4 && sections.size() != 6)
+        throw std::invalid_argument("invalid fen, must have 4 or 6 sections");
+
+    parse_pieces(sections[0]);
+    parse_turn(sections[1]);
+    parse_castles(sections[2]);
+    parse_enpassant(sections[3]);
+
+    if (sections.size() == 6) {
+        parse_halfmove(sections[4]);
+        parse_fullmove(sections[5]);
+    } else {
+        fullmove_clk = fen_fullmove_to_ply(1, turn);
+    }
 }
 
 void FenParser::parse_pieces(const std::string& section) {
-    auto file = FILE1;
-    auto rank = RANK8;
+    int white_kings = 0;
+    int black_kings = 0;
+    int file        = 0;
+    int rank        = 7;
 
     for (char ch : section) {
+        if (is_digit(ch)) {
+            if (ch == '0')
+                throw std::invalid_argument("invalid fen, invalid piece placement");
+            file += int(ch - '0');
+            if (file > 8)
+                throw std::invalid_argument("invalid fen, invalid piece placement");
+        } else if (ch == '/') {
+            if (file != 8 || rank == 0)
+                throw std::invalid_argument("invalid fen, invalid piece placement");
+            --rank;
+            file = 0;
+        } else {
+            if (file >= 8)
+                throw std::invalid_argument("invalid fen, invalid piece placement");
 
-        if (std::isdigit(ch))
-            file = file + int(ch - '0');
+            auto p = make_piece_square(ch, make_square(File(file), Rank(rank)));
+            if (p.type == PAWN && (rank == 0 || rank == 7))
+                throw std::invalid_argument("invalid fen, invalid pawn placement");
+            if (p.type == KING)
+                (p.color == WHITE ? white_kings : black_kings)++;
 
-        else if (std::isalpha(ch)) {
-            Square sq = make_square(file, rank);
-
-            PieceSquare p = {.square = INVALID};
-            switch (ch) {
-            case 'P': p = {WHITE, PAWN, sq}; break;
-            case 'N': p = {WHITE, KNIGHT, sq}; break;
-            case 'B': p = {WHITE, BISHOP, sq}; break;
-            case 'R': p = {WHITE, ROOK, sq}; break;
-            case 'Q': p = {WHITE, QUEEN, sq}; break;
-            case 'K': p = {WHITE, KING, sq}; break;
-            case 'p': p = {BLACK, PAWN, sq}; break;
-            case 'n': p = {BLACK, KNIGHT, sq}; break;
-            case 'b': p = {BLACK, BISHOP, sq}; break;
-            case 'r': p = {BLACK, ROOK, sq}; break;
-            case 'q': p = {BLACK, QUEEN, sq}; break;
-            case 'k': p = {BLACK, KING, sq}; break;
-            default:  break;
-            }
-
-            if (p.square != INVALID)
-                pieces.emplace_back(p);
-
+            pieces.emplace_back(p);
             ++file;
         }
-
-        else if (ch == '/') {
-            --rank;
-            file = FILE1;
-        }
     }
+
+    if (rank != 0 || file != 8 || white_kings != 1 || black_kings != 1)
+        throw std::invalid_argument("invalid fen, invalid piece placement");
 }
 
 void FenParser::parse_turn(const std::string& section) {
-    turn = (section == "w") ? WHITE : BLACK;
+    if (section == "w")
+        turn = WHITE;
+    else if (section == "b")
+        turn = BLACK;
+    else
+        throw std::invalid_argument("invalid fen, invalid side to move");
 }
 
 void FenParser::parse_castles(const std::string& section) {
-    if (section.find('K') != std::string::npos)
-        castle |= W_KINGSIDE;
-    if (section.find('Q') != std::string::npos)
-        castle |= W_QUEENSIDE;
-    if (section.find('k') != std::string::npos)
-        castle |= B_KINGSIDE;
-    if (section.find('q') != std::string::npos)
-        castle |= B_QUEENSIDE;
-}
+    if (section == "-")
+        return;
+    if (section.empty())
+        throw std::invalid_argument("invalid fen, invalid castling rights");
 
-void FenParser::parse_enpassant(const std::string& section) {
-    if (section.compare("-") != 0) {
-        enpassant = make_square(section);
+    std::string_view order = "KQkq";
+    size_t           next  = 0;
+
+    for (char ch : section) {
+        const size_t pos = order.find(ch, next);
+        if (pos == std::string_view::npos)
+            throw std::invalid_argument("invalid fen, invalid castling rights");
+        next = pos + 1;
+
+        switch (ch) {
+        case 'K': castle |= W_KINGSIDE; break;
+        case 'Q': castle |= W_QUEENSIDE; break;
+        case 'k': castle |= B_KINGSIDE; break;
+        case 'q': castle |= B_QUEENSIDE; break;
+        default:  break;
+        }
     }
 }
 
-void FenParser::parse_halfmove(const std::string& section) {
-    halfmove_clk = std::stoi(section);
+void FenParser::parse_enpassant(const std::string& section) {
+    if (section == "-")
+        return;
+    if (section.size() != 2 || section[0] < 'a' || section[0] > 'h')
+        throw std::invalid_argument("invalid fen, invalid en passant square");
+
+    const char expected_rank = (turn == WHITE) ? '6' : '3';
+    if (section[1] != expected_rank)
+        throw std::invalid_argument("invalid fen, invalid en passant square");
+
+    enpassant = make_square(section);
 }
 
-void FenParser::parse_fullmove(const std::string& section, Color turn) {
-    fullmove_clk = 2 * (std::stoul(section) - 1) + (turn == WHITE ? 0 : 1);
+void FenParser::parse_halfmove(const std::string& section) {
+    halfmove_clk = parse_uint8(section, "halfmove clock");
+}
+
+void FenParser::parse_fullmove(const std::string& section) {
+    const uint32_t fullmove_num = parse_uint32(section, "fullmove number");
+    if (fullmove_num == 0)
+        throw std::invalid_argument("invalid fen, invalid fullmove number");
+    fullmove_clk = fen_fullmove_to_ply(fullmove_num, turn);
 }

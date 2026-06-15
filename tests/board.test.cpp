@@ -1,10 +1,10 @@
 #include "board.hpp"
 
-#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <string>
+#include <vector>
 
 #include "movegen.hpp"
 #include "score.hpp"
@@ -321,7 +321,7 @@ TEST(BoardTest, static_exchange_prefers_pawn_over_knight_recapturer) {
 }
 
 TEST(BoardTest, static_exchange_handles_king_recapture) {
-    Board b("7k/8/4k3/3p4/3Q4/8/8/K7 w - - 0 1");
+    Board b("8/8/4k3/3p4/3Q4/8/8/K7 w - - 0 1");
     EXPECT_EQ(b.seeMove(Move(D4, D5)), eval::piece(PAWN).mg - eval::piece(QUEEN).mg);
 }
 
@@ -670,12 +670,6 @@ const std::string test_positions[] = {
     ENPASSANT_A3,
     E2E4,
 };
-
-TEST(BoardTest, LoadsAndOutputsCorrectFens) {
-    for (auto fen : test_positions) {
-        EXPECT_EQ(Board(fen).toFEN(), fen) << "should return identical fen";
-    }
-}
 
 TEST(BoardTest, ZobristKey) {
     for (auto fen : test_positions) {

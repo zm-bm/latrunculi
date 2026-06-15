@@ -58,7 +58,7 @@ public:
     Color     side_to_move() const { return turn; }
     Score     material_score() const { return material; }
     Score     psq_bonus_score() const { return psq_bonus; }
-    uint8_t   fullmove() const { return (fullmove_clk / 2) + 1; }
+    uint32_t  fullmove() const { return (fullmove_clk / 2) + 1; }
 
     CastleRights castle_rights() const { return state.at(ply).castle; }
     uint64_t     checkers() const { return state.at(ply).checkers; }

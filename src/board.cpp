@@ -1,36 +1,17 @@
 #include "board.hpp"
 
 #include "eval.hpp"
-#include "fen.hpp"
 #include "movegen.hpp"
 #include "score.hpp"
 #include "thread.hpp"
+
+#include <algorithm>
 
 namespace {
 bool valid_promotion_piece(PieceType piece) {
     return piece >= KNIGHT && piece <= QUEEN;
 }
 } // namespace
-
-void Board::load_fen(const std::string& fen) {
-    reset();
-    FenParser parser(fen);
-
-    for (const auto p : parser.pieces) {
-        add_piece<true>(p.square, p.color, p.type);
-        if (p.type == KING)
-            king_square[p.color] = p.square;
-    }
-
-    turn                       = parser.turn;
-    state.at(ply).castle       = parser.castle;
-    state.at(ply).enpassant    = parser.enpassant;
-    state.at(ply).halfmove_clk = parser.halfmove_clk;
-    fullmove_clk               = parser.fullmove_clk;
-
-    state.at(ply).zkey = calculate_key();
-    update_check_data();
-}
 
 void Board::reset() {
     for (int c = 0; c < N_COLORS; ++c) {
@@ -42,10 +23,14 @@ void Board::reset() {
     for (int sq = 0; sq < N_SQUARES; ++sq)
         squares[sq] = NO_PIECE;
 
-    material  = {0, 0};
-    psq_bonus = {0, 0};
-    state     = {State()};
-    ply       = 0;
+    material           = {0, 0};
+    psq_bonus          = {0, 0};
+    king_square[WHITE] = INVALID;
+    king_square[BLACK] = INVALID;
+    turn               = WHITE;
+    fullmove_clk       = 0;
+    state              = {State()};
+    ply                = 0;
 }
 
 Square Board::legal_enpassant_sq() const {
@@ -492,60 +477,15 @@ bool Board::is_draw() const {
     if (st.halfmove_clk >= 100)
         return true;
 
-    int reps = 0;
-    int stop = std::max(0, int(ply) - st.halfmove_clk);
+    int            reps   = 0;
+    const uint32_t rewind = std::min(ply, uint32_t(st.halfmove_clk));
+    const int      stop   = static_cast<int>(ply - rewind);
     for (int i = std::max(0, int(ply) - 2); i >= stop; i -= 2) {
         if (state[i].zkey == st.zkey && ++reps == 2)
             return true;
     }
 
     return false;
-}
-
-// convert the board to a FEN string representation
-std::string Board::toFEN() const {
-    std::ostringstream oss;
-    int                empty = 0;
-
-    auto reset_empty = [&]() {
-        if (empty > 0) {
-            oss << empty;
-            empty = 0;
-        }
-    };
-
-    for (Rank rank = RANK8; rank >= RANK1; --rank) {
-        for (File file = FILE1; file <= FILE8; ++file) {
-            Piece p = piece_on(file, rank);
-            if (p != NO_PIECE) {
-                reset_empty();
-                oss << p;
-            } else {
-                ++empty;
-            }
-        }
-
-        reset_empty();
-        if (rank != RANK1)
-            oss << '/';
-    }
-
-    oss << (turn == WHITE ? " w " : " b ");
-
-    if (can_castle(WHITE) || can_castle(BLACK)) {
-        oss << (can_castle_kingside(WHITE) ? "K" : "");
-        oss << (can_castle_queenside(WHITE) ? "Q" : "");
-        oss << (can_castle_kingside(BLACK) ? "k" : "");
-        oss << (can_castle_queenside(BLACK) ? "q" : "");
-    } else {
-        oss << "-";
-    }
-
-    Square ep_sq = enpassant_sq();
-    oss << " " << (ep_sq != INVALID ? to_string(ep_sq) : "-");
-    oss << " " << +halfmove() << " " << +fullmove();
-
-    return oss.str();
 }
 
 // convert a move to standard algebraic notation
