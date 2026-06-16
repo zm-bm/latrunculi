@@ -215,6 +215,35 @@ TEST(BoardTest, is_pseudo_legal_validates_castling_conditions) {
     EXPECT_FALSE(attacked_path.is_pseudo_legal(Move(E1, G1, MOVE_CASTLE)));
 }
 
+TEST(BoardTest, pinners_direct_slider_check_is_not_pinner) {
+    Board b("4r2k/8/8/8/8/8/8/4K3 w - - 0 1");
+
+    EXPECT_EQ(b.checkers(), bb::set(E8));
+    EXPECT_EQ(b.blockers(WHITE), 0);
+    EXPECT_EQ(b.pinners(BLACK), 0);
+}
+
+TEST(BoardTest, pinners_own_blocker_sets_blocker_and_pinner) {
+    Board b("4r2k/8/8/8/8/8/4N3/4K3 w - - 0 1");
+
+    EXPECT_EQ(b.blockers(WHITE), bb::set(E2));
+    EXPECT_EQ(b.pinners(BLACK), bb::set(E8));
+}
+
+TEST(BoardTest, pinners_enemy_blocker_sets_blocker_only) {
+    Board b("4r2k/8/8/8/8/8/4n3/4K3 w - - 0 1");
+
+    EXPECT_EQ(b.blockers(WHITE), bb::set(E2));
+    EXPECT_EQ(b.pinners(BLACK), 0);
+}
+
+TEST(BoardTest, pinners_multiple_snipers_behind_own_blocker) {
+    Board b("4r2k/4q3/8/8/8/8/4N3/4K3 w - - 0 1");
+
+    EXPECT_EQ(b.blockers(WHITE), bb::set(E2));
+    EXPECT_EQ(b.pinners(BLACK), bb::set(E7, E8));
+}
+
 TEST(BoardTest, is_checking_move) {
     Board b("4k3/8/8/8/6N1/8/8/RB1QK3 w - - 0 1");
     EXPECT_TRUE(b.is_checking_move(Move(A1, A8)));

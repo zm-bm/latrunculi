@@ -63,6 +63,7 @@ public:
     CastleRights castle_rights() const { return state.at(ply).castle; }
     uint64_t     checkers() const { return state.at(ply).checkers; }
     uint64_t     blockers(Color c) const { return state.at(ply).blockers[c]; }
+    uint64_t     pinners(Color c) const { return state.at(ply).pinners[c]; }
     Square       enpassant_sq() const { return state.at(ply).enpassant; }
     Square       legal_enpassant_sq() const;
     uint8_t      halfmove() const { return state.at(ply).halfmove_clk; }
@@ -281,22 +282,25 @@ inline void Board::update_check_data() {
     update_pinners_and_blockers(BLACK);
 }
 
-// Update sliders aligned with king c and the single pieces, if any, blocking them.
+// Update single blockers on slider lines to king c and sliders pinning own blockers.
 inline void Board::update_pinners_and_blockers(Color c) {
     Color    opp     = ~c;
     Square   king    = king_sq(c);
-    uint64_t occ     = occupancy();
-    uint64_t sliders = (bb::moves<BISHOP>(king) & pieces<BISHOP, QUEEN>(opp)) |
+    uint64_t snipers = (bb::moves<BISHOP>(king) & pieces<BISHOP, QUEEN>(opp)) |
                        (bb::moves<ROOK>(king) & pieces<ROOK, QUEEN>(opp));
+    uint64_t occ = occupancy() ^ snipers;
 
-    // For each potential pinner, check if only one piece is blocking the king
-    while (sliders) {
-        Square   pinner         = bb::lsb_pop(sliders);
+    state[ply].blockers[c]  = 0;
+    state[ply].pinners[opp] = 0;
+
+    while (snipers) {
+        Square   pinner         = bb::lsb_pop(snipers);
         uint64_t pieces_between = occ & bb::between(king, pinner);
 
-        if (!bb::is_many(pieces_between)) {
-            state[ply].pinners[opp] |= bb::set(pinner);
-            state[ply].blockers[c]  |= pieces_between & occ;
+        if (pieces_between && !bb::is_many(pieces_between)) {
+            state[ply].blockers[c] |= pieces_between;
+            if (pieces_between & pieces<ALL_PIECES>(c))
+                state[ply].pinners[opp] |= bb::set(pinner);
         }
     }
 }
