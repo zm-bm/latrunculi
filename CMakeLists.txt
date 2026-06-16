@@ -14,6 +14,7 @@ option(LATRUNCULI_SEARCH_STATS "Enable detailed search statistics diagnostics" O
 set(LATRUNCULI_ENGINE_SOURCES
     src/board.cpp
     src/board_fen.cpp
+    src/board_representation.cpp
     src/engine.cpp
     src/evaluator.cpp
     src/fen.cpp
@@ -51,6 +52,7 @@ if(BUILD_TESTING)
         tests/bb.test.cpp
         tests/board.test.cpp
         tests/board_fen.test.cpp
+        tests/board_representation.test.cpp
         tests/engine.test.cpp
         tests/eval.test.cpp
         tests/evaluator.test.cpp

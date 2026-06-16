@@ -153,15 +153,6 @@ inline Board::Board(const std::string& fen) {
     load_fen(fen);
 }
 
-inline void Board::load_board(const Board* other) {
-    if (!other)
-        return;
-
-    load_fen(other->toFEN());
-    state = other->state;
-    ply   = other->ply;
-}
-
 template <PieceType... Ps>
 inline uint64_t Board::pieces() const {
     return ((piece_bb[WHITE][Ps] | piece_bb[BLACK][Ps]) | ...);
@@ -290,7 +281,7 @@ inline void Board::update_check_data() {
     update_pinners_and_blockers(BLACK);
 }
 
-// Update enemy pinning pieces and all blocking pieces for the king of a given color
+// Update sliders aligned with king c and the single pieces, if any, blocking them.
 inline void Board::update_pinners_and_blockers(Color c) {
     Color    opp     = ~c;
     Square   king    = king_sq(c);
