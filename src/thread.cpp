@@ -2,13 +2,11 @@
 #include "thread_pool.hpp"
 
 Thread::Thread(int id, uci::Protocol& protocol, ThreadPool& pool)
-    : board(Board::startfen),
+    : board(position_states[0], Board::startfen),
       protocol(protocol),
-      thread_id(id),
       thread_pool(pool),
-      worker(&Thread::loop, this) {
-    board.set_thread(this);
-}
+      thread_id(id),
+      worker(&Thread::loop, this) {}
 
 Thread::~Thread() {
     shutdown();

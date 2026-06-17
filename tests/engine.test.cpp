@@ -45,7 +45,7 @@ TEST_F(EngineTest, QuitCommand) {
 }
 
 TEST_F(EngineTest, SearchDoesNotReuseStaleBestMoveWhenNoLegalMoves) {
-    // Seed a previous bestmove.
+    // Seed an existing bestmove.
     EXPECT_TRUE(execute("position startpos"));
     EXPECT_TRUE(execute("go depth 1"));
     threadpool().wait_all();

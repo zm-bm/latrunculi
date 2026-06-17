@@ -18,7 +18,7 @@ protected:
     std::ostringstream oss;
     uci::Protocol      protocol{oss, oss};
     ThreadPool         pool{N_THREADS, protocol};
-    Board              board{STARTFEN};
+    TestBoard          board{STARTFEN};
     SearchOptions      options{iss, &board};
 
     uint64_t accumulate_nodes() { return pool.accumulate(&Thread::nodes); }

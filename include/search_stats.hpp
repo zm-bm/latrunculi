@@ -27,7 +27,7 @@ struct SearchStats<false> {
 // stats enabled specialization
 template <>
 struct SearchStats<true> {
-    using StatsArray = std::array<uint64_t, MAX_DEPTH>;
+    using StatsArray = std::array<uint64_t, MAX_SEARCH_PLY>;
 
     StatsArray nodes{0};
     StatsArray qnodes{0};
@@ -39,20 +39,20 @@ struct SearchStats<true> {
     StatsArray tt_cutoffs{0};
 
     void node(const int ply) {
-        if (ply >= 0 && ply < MAX_DEPTH) {
+        if (ply >= 0 && ply < MAX_SEARCH_PLY) {
             nodes[ply]++;
         }
     }
 
     void qnode(const int ply) {
-        if (ply >= 0 && ply < MAX_DEPTH) {
+        if (ply >= 0 && ply < MAX_SEARCH_PLY) {
             nodes[ply]++;
             qnodes[ply]++;
         }
     }
 
     void beta_cutoff(const int ply, const bool early) {
-        if (ply >= 0 && ply < MAX_DEPTH) {
+        if (ply >= 0 && ply < MAX_SEARCH_PLY) {
             cutoffs[ply]++;
             if (early)
                 fail_high_early[ply]++;
@@ -62,17 +62,17 @@ struct SearchStats<true> {
     }
 
     void tt_probe(const int ply) {
-        if (ply >= 0 && ply < MAX_DEPTH)
+        if (ply >= 0 && ply < MAX_SEARCH_PLY)
             tt_probes[ply]++;
     }
 
     void tt_hit(const int ply) {
-        if (ply >= 0 && ply < MAX_DEPTH)
+        if (ply >= 0 && ply < MAX_SEARCH_PLY)
             tt_hits[ply]++;
     }
 
     void tt_cutoff(const int ply) {
-        if (ply >= 0 && ply < MAX_DEPTH)
+        if (ply >= 0 && ply < MAX_SEARCH_PLY)
             tt_cutoffs[ply]++;
     }
 
@@ -88,7 +88,7 @@ struct SearchStats<true> {
     }
 
     SearchStats& operator+=(const SearchStats& other) {
-        for (size_t i = 0; i < MAX_DEPTH; ++i) {
+        for (size_t i = 0; i < MAX_SEARCH_PLY; ++i) {
             nodes[i]           += other.nodes[i];
             qnodes[i]          += other.qnodes[i];
             cutoffs[i]         += other.cutoffs[i];
@@ -129,7 +129,7 @@ struct std::formatter<SearchStats<true>> : std::formatter<std::string_view> {
                              "TTCut%",
                              "EBF / Cumul");
 
-        int maxDepth = MAX_DEPTH - 1;
+        int maxDepth = MAX_SEARCH_PLY - 1;
         while (maxDepth > 0 && stats.nodes[maxDepth] == 0)
             --maxDepth;
 

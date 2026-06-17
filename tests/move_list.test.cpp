@@ -11,7 +11,7 @@
 class MoveListTest : public ::testing::Test {
 protected:
     int          ply = 5;
-    Board        board{POS3};
+    TestBoard    board{POS3};
     KillerMoves  killers;
     HistoryTable history;
 };
@@ -24,12 +24,18 @@ std::vector<Move> ordered_moves(MoveList& movelist) {
     return moves;
 }
 
-std::vector<Move> picked_moves(Board& board, KillerMoves& killers, HistoryTable& history, int ply,
-                               Move pv_move = NULL_MOVE, Move tt_move = NULL_MOVE,
-                               bool root = false, int thread_id = 0) {
+std::vector<Move> picked_moves(Board&        board,
+                               KillerMoves&  killers,
+                               HistoryTable& history,
+                               int           ply,
+                               Move          pv_move   = NULL_MOVE,
+                               Move          tt_move   = NULL_MOVE,
+                               bool          root      = false,
+                               int           thread_id = 0) {
     std::vector<Move> moves;
     MoveList          movelist = generate<ALL_MOVES>(board);
-    StagedMovePicker  picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id}, std::move(movelist)};
+    StagedMovePicker  picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id},
+                            std::move(movelist)};
 
     while (Move* move = picker.next())
         moves.push_back(*move);
@@ -74,7 +80,7 @@ TEST_F(MoveListTest, SortMovesWithPVAndHash) {
 }
 
 TEST_F(MoveListTest, HelperRootSortRotatesEqualPriorityMoves) {
-    Board quiet_board{STARTFEN};
+    TestBoard quiet_board{STARTFEN};
 
     MoveList main_root = generate<ALL_MOVES>(quiet_board);
     main_root.sort({quiet_board, killers, history, ply, NULL_MOVE, NULL_MOVE, true, 0});
@@ -91,7 +97,7 @@ TEST_F(MoveListTest, HelperRootSortRotatesEqualPriorityMoves) {
 }
 
 TEST_F(MoveListTest, MainThreadAndNonRootSortKeepOriginalOrder) {
-    Board quiet_board{STARTFEN};
+    TestBoard quiet_board{STARTFEN};
 
     MoveList default_order = generate<ALL_MOVES>(quiet_board);
     default_order.sort({quiet_board, killers, history, ply});
@@ -119,8 +125,8 @@ TEST_F(MoveListTest, HelperRootSortKeepsPVAndHashFirst) {
 }
 
 TEST_F(MoveListTest, HelperRootSortKeepsHashMoveFirstWithoutPV) {
-    Board quiet_board{STARTFEN};
-    Move  hash_move = Move(E2, E4);
+    TestBoard quiet_board{STARTFEN};
+    Move      hash_move = Move(E2, E4);
 
     MoveList helper_root = generate<ALL_MOVES>(quiet_board);
     helper_root.sort({quiet_board, killers, history, ply, NULL_MOVE, hash_move, true, 1});
@@ -149,11 +155,13 @@ TEST_F(MoveListTest, StagedPickerKeepsPVHashKillerAndHistoryOrder) {
 }
 
 TEST_F(MoveListTest, HelperRootPickerRotatesEqualPriorityMovesButKeepsPVHashFirst) {
-    Board quiet_board{STARTFEN};
-    Move  hash_move = Move(E2, E4);
+    TestBoard quiet_board{STARTFEN};
+    Move      hash_move = Move(E2, E4);
 
-    const auto main_order   = picked_moves(quiet_board, killers, history, ply, NULL_MOVE, hash_move, true, 0);
-    const auto helper_order = picked_moves(quiet_board, killers, history, ply, NULL_MOVE, hash_move, true, 1);
+    const auto main_order =
+        picked_moves(quiet_board, killers, history, ply, NULL_MOVE, hash_move, true, 0);
+    const auto helper_order =
+        picked_moves(quiet_board, killers, history, ply, NULL_MOVE, hash_move, true, 1);
 
     ASSERT_GT(main_order.size(), 2U);
     ASSERT_EQ(main_order.front(), hash_move);

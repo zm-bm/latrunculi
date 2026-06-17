@@ -17,11 +17,13 @@ using Clock        = std::chrono::high_resolution_clock;
 using TimePoint    = std::chrono::high_resolution_clock::time_point;
 using Milliseconds = std::chrono::milliseconds;
 
-constexpr int  MAX_DEPTH       = 64;
-constexpr int  MAX_MOVES       = 128;
-constexpr int  DEFAULT_THREADS = 1;
-constexpr int  DEFAULT_HASH    = 4;
-constexpr bool SEARCH_STATS    = LATRUNCULI_SEARCH_STATS;
+constexpr int  MAX_SEARCH_DEPTH = 64;
+constexpr int  MAX_SEARCH_PLY   = 128;
+constexpr int  MAX_KEY_HISTORY  = 256;
+constexpr int  MAX_MOVES        = 256;
+constexpr int  DEFAULT_THREADS  = 1;
+constexpr int  DEFAULT_HASH     = 4;
+constexpr bool SEARCH_STATS     = LATRUNCULI_SEARCH_STATS;
 
 enum Color : uint8_t { BLACK, WHITE, N_COLORS };
 
@@ -76,8 +78,8 @@ enum Value : int16_t {
     DRAW_VALUE    = 0,
     INF_VALUE     = INT16_MAX,
     MATE_VALUE    = INT16_MAX - 1,
-    MATE_BOUND    = MATE_VALUE - MAX_DEPTH,
-    TT_MATE_BOUND = MATE_VALUE - 2 * MAX_DEPTH,
+    MATE_BOUND    = MATE_VALUE - MAX_SEARCH_PLY,
+    TT_MATE_BOUND = MATE_VALUE - 2 * MAX_SEARCH_PLY,
 
     PAWN_MG   = 100,
     KNIGHT_MG = 630,

@@ -14,13 +14,14 @@ void Board::load_fen(const std::string& fen) {
             king_square[p.color] = p.square;
     }
 
-    turn                       = parser.turn;
-    state.at(ply).castle       = parser.castle;
-    state.at(ply).enpassant    = parser.enpassant;
-    state.at(ply).halfmove_clk = parser.halfmove_clk;
-    fullmove_clk               = parser.fullmove_clk;
+    auto& state        = this->active_state();
+    turn               = parser.turn;
+    state.castle       = parser.castle;
+    state.enpassant    = parser.enpassant;
+    state.halfmove_clk = parser.halfmove_clk;
+    fullmove_clk       = parser.fullmove_clk;
 
-    state.at(ply).zkey = calculate_key();
+    state.zkey = calculate_key();
     update_check_data();
 }
 

@@ -36,7 +36,7 @@ protected:
     }
 
     int testQuiescence(const std::string& fen, int alpha = -INF_VALUE, int beta = INF_VALUE) {
-        Board board{fen};
+        TestBoard board{fen};
         options.board = &board;
         thread->set_options(options);
         thread->reset();
@@ -47,7 +47,7 @@ protected:
                                 const std::string& move_str,
                                 int                alpha = -INF_VALUE,
                                 int                beta  = INF_VALUE) {
-        Board board{fen};
+        TestBoard board{fen};
         options.board = &board;
         thread->set_options(options);
         thread->reset();
@@ -60,9 +60,11 @@ protected:
         if (move_it == movelist.end())
             return 0;
 
-        thread->board.make(*move_it);
+        thread->board.make(*move_it, thread->position_states[thread->ply + 1]);
+        ++thread->ply;
         int score = thread->quiescence(alpha, beta);
-        thread->board.unmake();
+        thread->board.unmake(thread->position_states[thread->ply - 1]);
+        --thread->ply;
         return score;
     }
 
@@ -72,7 +74,7 @@ protected:
                                int                beta,
                                int                search_depth,
                                bool               can_null = true) {
-        Board board{fen};
+        TestBoard board{fen};
         tt.clear();
         options.board = &board;
         thread->set_options(options);
@@ -86,15 +88,17 @@ protected:
         if (move_it == movelist.end())
             return 0;
 
-        thread->board.make(*move_it);
+        thread->board.make(*move_it, thread->position_states[thread->ply + 1]);
+        ++thread->ply;
         int score = thread->alphabeta<NON_PV>(alpha, beta, search_depth, can_null);
-        thread->board.unmake();
+        thread->board.unmake(thread->position_states[thread->ply - 1]);
+        --thread->ply;
         return score;
     }
 
     std::pair<int, uint64_t>
     testQuiescenceWithNodes(const std::string& fen, int alpha = -INF_VALUE, int beta = INF_VALUE) {
-        Board board{fen};
+        TestBoard board{fen};
         options.board = &board;
         thread->set_options(options);
         thread->reset();
@@ -157,25 +161,25 @@ protected:
     uint64_t threadKey() const { return thread->board.key(); }
 
     uint64_t threadNullChildKey() const {
-        Board board_copy{thread->board.toFEN()};
+        TestBoard board_copy{thread->board.toFEN()};
         board_copy.make_null();
         return board_copy.key();
     }
 
     bool threadDescendantInCheck(Move move) const {
-        Board board_copy{thread->board.toFEN()};
+        TestBoard board_copy{thread->board.toFEN()};
         board_copy.make(move);
         return board_copy.is_check();
     }
 
     int threadDescendantNonPawnMaterial(Move move) const {
-        Board board_copy{thread->board.toFEN()};
+        TestBoard board_copy{thread->board.toFEN()};
         board_copy.make(move);
         return board_copy.nonPawnMaterial(board_copy.side_to_move());
     }
 
     uint64_t threadDescendantNullKey(Move move) const {
-        Board board_copy{thread->board.toFEN()};
+        TestBoard board_copy{thread->board.toFEN()};
         board_copy.make(move);
         board_copy.make_null();
         return board_copy.key();
@@ -185,8 +189,8 @@ protected:
         return thread->alphabeta<NON_PV>(alpha, beta, search_depth, can_null);
     }
 
-    int runRootSearchWiden(int search_depth, int previous_value) {
-        return thread->search_widen(search_depth, previous_value);
+    int runRootSearchWiden(int search_depth, int prior_value) {
+        return thread->search_widen(search_depth, prior_value);
     }
 
     int runLoadedQuiescence(int alpha, int beta) { return thread->quiescence(alpha, beta); }
@@ -200,7 +204,7 @@ protected:
     bool threadMoveIsLegal(Move move) const { return thread->board.is_legal_move(move); }
 
     void testSearch(const std::string fen, int score, std::string move) {
-        Board board{fen};
+        TestBoard board{fen};
         options.board = &board;
         thread->start(options);
         thread->wait();
@@ -212,7 +216,7 @@ protected:
     }
 
     void testSearchGT(const std::string fen, int score, std::string move) {
-        Board board{fen};
+        TestBoard board{fen};
         options.board = &board;
         thread->start(options);
         thread->wait();
@@ -259,8 +263,8 @@ TEST_F(SearchTest, basicDraws) {
 }
 
 TEST_F(SearchTest, QuiescenceInCheckSearchesForcedQuietEvasion) {
-    auto  in_check_with_one_quiet_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
-    Board board{in_check_with_one_quiet_evasion};
+    auto      in_check_with_one_quiet_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    TestBoard board{in_check_with_one_quiet_evasion};
 
     ASSERT_TRUE(board.is_check()) << in_check_with_one_quiet_evasion;
 
@@ -272,8 +276,8 @@ TEST_F(SearchTest, QuiescenceInCheckSearchesForcedQuietEvasion) {
 }
 
 TEST_F(SearchTest, QuiescenceOutOfCheckUsesStandPatInsteadOfSearchingQuiets) {
-    auto  quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    Board board{quiet_control};
+    auto      quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard board{quiet_control};
 
     ASSERT_FALSE(board.is_check()) << quiet_control;
 
@@ -281,8 +285,8 @@ TEST_F(SearchTest, QuiescenceOutOfCheckUsesStandPatInsteadOfSearchingQuiets) {
 }
 
 TEST_F(SearchTest, FirstLegalPickedMoveSkipsIllegalHashMove) {
-    Board board{POS3};
-    Move  illegal_hash_move = Move(B5, B6);
+    TestBoard board{POS3};
+    Move      illegal_hash_move = Move(B5, B6);
 
     ASSERT_FALSE(board.is_legal_move(illegal_hash_move));
 
@@ -291,7 +295,7 @@ TEST_F(SearchTest, FirstLegalPickedMoveSkipsIllegalHashMove) {
 
 TEST_F(SearchTest, QuiescenceOutOfCheckIncludesPromotions) {
     constexpr auto promotion_fen = "7k/P7/8/8/8/8/8/4K3 w - - 0 1";
-    Board          board{promotion_fen};
+    TestBoard      board{promotion_fen};
 
     ASSERT_FALSE(board.is_check()) << promotion_fen;
 
@@ -313,7 +317,7 @@ TEST_F(SearchTest, QuiescenceOutOfCheckIncludesPromotions) {
 
 TEST_F(SearchTest, QuiescenceOutOfCheckSkipsWeakCaptures) {
     constexpr auto weak_capture_fen = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
-    Board          board{weak_capture_fen};
+    TestBoard      board{weak_capture_fen};
 
     loadThreadBoard(board);
     ASSERT_FALSE(threadInCheck()) << weak_capture_fen;
@@ -332,7 +336,7 @@ TEST_F(SearchTest, QuiescenceOutOfCheckSkipsWeakCaptures) {
 
 TEST_F(SearchTest, QuiescenceFailLowReturnsStandPatInsteadOfAlpha) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    Board          board{quiet_control};
+    TestBoard      board{quiet_control};
 
     const int     stand_pat = evaluate(board);
     constexpr int alpha     = 100;
@@ -357,14 +361,14 @@ TEST_F(SearchTest, QuiescenceFailLowInCheckReturnsBestEvasionInsteadOfAlpha) {
 
 TEST_F(SearchTest, QuiescenceFailHighReturnsRawScoreInsteadOfBeta) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    Board          quiet_board{quiet_control};
+    TestBoard      quiet_board{quiet_control};
     const int      stand_pat = evaluate(quiet_board);
 
     EXPECT_EQ(testQuiescence(quiet_control, stand_pat - 100, stand_pat - 50), stand_pat)
         << "stand-pat fail-high should return the raw stand-pat score";
 
     constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
-    Board          capture_board{winning_capture};
+    TestBoard      capture_board{winning_capture};
     const int      capture_stand_pat = evaluate(capture_board);
     const int      alpha             = capture_stand_pat - 50;
     const int      beta              = capture_stand_pat + 50;
@@ -385,7 +389,7 @@ TEST_F(SearchTest, AlphaBetaFailLowReturnsBestMoveScoreInsteadOfAlpha) {
         -testAlphaBetaAfterMove(one_legal_evasion, "a8b8", -beta, -alpha, search_depth);
     ASSERT_LT(expected, alpha) << one_legal_evasion;
 
-    Board board{one_legal_evasion};
+    TestBoard board{one_legal_evasion};
     loadThreadBoard(board);
     ASSERT_TRUE(threadInCheck()) << one_legal_evasion;
 
@@ -398,7 +402,7 @@ TEST_F(SearchTest, AlphaBetaFailHighReturnsRawScoreInsteadOfBeta) {
     constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
     constexpr int  search_depth      = 1;
 
-    Board exact_board{one_legal_evasion};
+    TestBoard exact_board{one_legal_evasion};
     loadThreadBoard(exact_board);
     const int exact = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth, true);
 
@@ -408,7 +412,7 @@ TEST_F(SearchTest, AlphaBetaFailHighReturnsRawScoreInsteadOfBeta) {
         -testAlphaBetaAfterMove(one_legal_evasion, "a8b8", -beta, -alpha, search_depth);
     ASSERT_GT(expected, beta) << one_legal_evasion;
 
-    Board board{one_legal_evasion};
+    TestBoard board{one_legal_evasion};
     loadThreadBoard(board);
     ASSERT_TRUE(threadInCheck()) << one_legal_evasion;
 
@@ -419,7 +423,7 @@ TEST_F(SearchTest, AlphaBetaFailHighReturnsRawScoreInsteadOfBeta) {
 
 TEST_F(SearchTest, QuiescenceMateDistanceLowerClampReturnsBound) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    Board          board{quiet_control};
+    TestBoard      board{quiet_control};
     loadThreadBoard(board);
 
     constexpr int search_ply  = 4;
@@ -431,7 +435,7 @@ TEST_F(SearchTest, QuiescenceMateDistanceLowerClampReturnsBound) {
 
 TEST_F(SearchTest, QuiescenceMateDistanceUpperClampReturnsBound) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    Board          board{quiet_control};
+    TestBoard      board{quiet_control};
     loadThreadBoard(board);
 
     constexpr int search_ply  = 4;
@@ -443,7 +447,7 @@ TEST_F(SearchTest, QuiescenceMateDistanceUpperClampReturnsBound) {
 
 TEST_F(SearchTest, QuiescenceMateDistanceUpperClampAtRootReturnsMateInOneBound) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    Board          board{quiet_control};
+    TestBoard      board{quiet_control};
     loadThreadBoard(board);
 
     constexpr int root_ply    = 0;
@@ -455,7 +459,7 @@ TEST_F(SearchTest, QuiescenceMateDistanceUpperClampAtRootReturnsMateInOneBound) 
 
 TEST_F(SearchTest, AlphaBetaMateDistanceLowerClampReturnsBound) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    Board          board{quiet_control};
+    TestBoard      board{quiet_control};
     loadThreadBoard(board);
 
     constexpr int search_ply  = 4;
@@ -467,7 +471,7 @@ TEST_F(SearchTest, AlphaBetaMateDistanceLowerClampReturnsBound) {
 
 TEST_F(SearchTest, AlphaBetaMateDistanceUpperClampReturnsBound) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    Board          board{quiet_control};
+    TestBoard      board{quiet_control};
     loadThreadBoard(board);
 
     constexpr int search_ply  = 4;
@@ -479,20 +483,20 @@ TEST_F(SearchTest, AlphaBetaMateDistanceUpperClampReturnsBound) {
 
 TEST_F(SearchTest, QuiescenceInCheckAtMaxDepthReturnsStaticEval) {
     constexpr auto in_check_with_one_quiet_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
-    Board          board{in_check_with_one_quiet_evasion};
+    TestBoard      board{in_check_with_one_quiet_evasion};
     loadThreadBoard(board);
 
     ASSERT_TRUE(threadInCheck()) << in_check_with_one_quiet_evasion;
     const int static_eval = evaluate(board);
 
-    setThreadPly(MAX_DEPTH);
+    setThreadPly(MAX_SEARCH_PLY);
 
     EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, INF_VALUE), static_eval);
 }
 
 TEST_F(SearchTest, QuiescenceStalemateStandPatFailHighReturnsDraw) {
     constexpr auto stalemate = "k7/8/KQ6/8/8/8/8/8 b - - 0 1";
-    Board          board{stalemate};
+    TestBoard      board{stalemate};
 
     ASSERT_FALSE(board.is_check()) << stalemate;
     ASSERT_TRUE(board.is_stalemate()) << stalemate;
@@ -510,7 +514,7 @@ TEST_F(SearchTest, RootSearchIgnoresTranspositionTableBoundsExceptForOrdering) {
     constexpr auto one_legal_root_move = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
     constexpr int  search_depth        = 1;
 
-    Board baseline_board{one_legal_root_move};
+    TestBoard baseline_board{one_legal_root_move};
     loadThreadBoard(baseline_board);
     const int baseline = runRootSearchWiden(search_depth, evaluate(baseline_board));
 
@@ -520,7 +524,7 @@ TEST_F(SearchTest, RootSearchIgnoresTranspositionTableBoundsExceptForOrdering) {
     ASSERT_GT(beta, baseline);
 
     auto search_with_root_tt = [&](TT_Flag flag, int score) {
-        Board board{one_legal_root_move};
+        TestBoard board{one_legal_root_move};
         loadThreadBoard(board);
         Move root_move = findThreadMove("a8b8");
         EXPECT_FALSE(root_move.is_null());
@@ -538,11 +542,11 @@ TEST_F(SearchTest, TranspositionTableExactWithNonPseudoLegalMoveStillCutsOff) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     constexpr int  search_depth  = 1;
 
-    Board baseline_board{quiet_control};
+    TestBoard baseline_board{quiet_control};
     loadThreadBoard(baseline_board);
     const int baseline = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth, false);
 
-    Board board{quiet_control};
+    TestBoard board{quiet_control};
     loadThreadBoard(board);
 
     Move invalid_tt_move{H1, H2};
@@ -560,7 +564,7 @@ TEST_F(SearchTest, TranspositionTableExactWithNonPseudoLegalMoveStillCutsOff) {
 TEST_F(SearchTest, PrincipalVariationSkipsNonPseudoLegalTranspositionTableMove) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
 
-    Board board{quiet_control};
+    TestBoard board{quiet_control};
     loadThreadBoard(board);
 
     Move invalid_tt_move{H1, H2};
@@ -575,7 +579,7 @@ TEST_F(SearchTest, PrincipalVariationSkipsNonPseudoLegalTranspositionTableMove) 
 TEST_F(SearchTest, PrincipalVariationPrintsPseudoLegalTranspositionTableMove) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
 
-    Board board{quiet_control};
+    TestBoard board{quiet_control};
     loadThreadBoard(board);
 
     Move pv_move = findThreadMove("a8b8");
@@ -592,7 +596,7 @@ TEST_F(SearchTest, NonPvTranspositionTableBoundsAreCutoffOnly) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     constexpr int  search_depth  = 2;
 
-    Board baseline_board{quiet_control};
+    TestBoard baseline_board{quiet_control};
     loadThreadBoard(baseline_board);
     const int baseline = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth, false);
 
@@ -602,7 +606,7 @@ TEST_F(SearchTest, NonPvTranspositionTableBoundsAreCutoffOnly) {
     ASSERT_GT(beta, baseline);
 
     auto search_with_tt_bound = [&](TT_Flag flag, int score) {
-        Board board{quiet_control};
+        TestBoard board{quiet_control};
         loadThreadBoard(board);
         Move tt_move = findThreadMove("a8b8");
         EXPECT_FALSE(tt_move.is_null());
@@ -620,7 +624,7 @@ TEST_F(SearchTest, NonPvTranspositionTableBoundsAreCutoffOnly) {
 TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendants) {
     constexpr auto immediate_null_child =
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1";
-    Board board{immediate_null_child};
+    TestBoard board{immediate_null_child};
     loadThreadBoard(board);
 
     ASSERT_FALSE(threadInCheck());

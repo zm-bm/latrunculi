@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <sstream>
 
 #include "board.hpp"
@@ -10,7 +11,7 @@ const int OPTION_NOT_SET = -1;
 struct SearchOptions {
     Board*    board     = nullptr;
     TimePoint starttime = Clock::now();
-    int       depth     = MAX_DEPTH;
+    int       depth     = MAX_SEARCH_DEPTH;
     int       movetime  = OPTION_NOT_SET;
     int       nodes     = OPTION_NOT_SET;
     int       wtime     = OPTION_NOT_SET;
@@ -22,7 +23,7 @@ struct SearchOptions {
     SearchOptions() = default;
     SearchOptions(std::istringstream& iss, Board* board = nullptr);
 
-    void set_depth(int d) { depth = std::clamp(d, 1, MAX_DEPTH); }
+    void set_depth(int d) { depth = std::clamp(d, 1, MAX_SEARCH_DEPTH); }
     void set_movetime(int mt) { movetime = std::max(mt, 1); }
     void set_nodes(int n) { nodes = std::max(n, 0); }
     void set_wtime(int wt) { wtime = std::max(wt, 0); }

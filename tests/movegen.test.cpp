@@ -102,7 +102,7 @@ class PerftTest : public ::testing::TestWithParam<PerftParams> {};
 TEST_P(PerftTest, PerftDepths) {
     auto [fen, expected] = GetParam();
 
-    Board board(fen);
+    TestBoard board(fen);
 
     std::stringstream null_stream;
 
@@ -124,13 +124,13 @@ INSTANTIATE_TEST_SUITE_P(Position5Perft, PerftTest, ::testing::Values(perft_pos5
 INSTANTIATE_TEST_SUITE_P(Position6Perft, PerftTest, ::testing::Values(perft_pos6));
 
 TEST(MoveGenTest, All) {
-    Board board{STARTFEN};
-    auto  movelist = generate<ALL_MOVES>(board);
+    TestBoard board{STARTFEN};
+    auto      movelist = generate<ALL_MOVES>(board);
     EXPECT_EQ(movelist.size(), 20);
 }
 
 TEST(MoveGenTest, Captures) {
-    Board board{POS2};
-    auto  movelist = generate<CAPTURES>(board);
+    TestBoard board{POS2};
+    auto      movelist = generate<CAPTURES>(board);
     EXPECT_EQ(movelist.size(), 8);
 }

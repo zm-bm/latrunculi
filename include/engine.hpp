@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cstddef>
+#include <deque>
+#include <functional>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 
@@ -42,16 +46,22 @@ private:
     std::pair<std::string, std::string> parse_position(std::istringstream& iss);
     std::pair<std::string, std::string> parse_option(std::istringstream& iss);
 
-    Move get_move(const std::string& token);
+    Move           get_move(const std::string& token);
+    PositionState& next_position_state();
+    void           reset_board(const std::string& fen);
+    void           make_board_move(Move move);
+    void           unmake_board_move();
 
-    std::ostream& out;
-    std::ostream& err;
-    std::istream& in;
-    uci::Protocol protocol;
-    uci::Config   config;
-    Board         board;
-    ThreadPool    thread_pool;
-    CommandMap    command_map;
+    std::ostream&             out;
+    std::ostream&             err;
+    std::istream&             in;
+    uci::Protocol             protocol;
+    uci::Config               config;
+    std::deque<PositionState> position_states = {PositionState()};
+    size_t                    position_ply    = 0;
+    Board                     board;
+    ThreadPool                thread_pool;
+    CommandMap                command_map;
 
     friend class EngineTest;
     friend class Benchmark;

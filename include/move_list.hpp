@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstdint>
 #include <utility>
 
@@ -52,7 +53,9 @@ private:
     Move*                       last;
 };
 
-inline MoveList::MoveList(const MoveList& other) : moves(other.moves), last(moves.data() + other.size()) {}
+inline MoveList::MoveList(const MoveList& other)
+    : moves(other.moves),
+      last(moves.data() + other.size()) {}
 
 inline MoveList::MoveList(MoveList&& other) noexcept : MoveList(other) {}
 
@@ -70,6 +73,7 @@ inline MoveList& MoveList::operator=(MoveList&& other) noexcept {
 }
 
 inline void MoveList::add(Square from, Square to, MoveType mtype, PieceType prom) {
+    assert(size() < moves.size());
     new (last++) Move(from, to, mtype, prom);
 }
 
@@ -198,7 +202,8 @@ private:
 };
 
 inline StagedMovePicker::StagedMovePicker(const MoveOrderContext& ctx, MoveList movelist)
-    : ctx(ctx), movelist(std::move(movelist)) {}
+    : ctx(ctx),
+      movelist(std::move(movelist)) {}
 
 inline Move* StagedMovePicker::remaining_begin() {
     return movelist.begin() + consumed_count;
@@ -293,8 +298,9 @@ inline Move* StagedMovePicker::next() {
         case MovePickerStage::PV:
             stage = MovePickerStage::HASH;
             if (!ctx.pv_move.is_null()) {
-                if (Move* move = pick_best([&](const Move& candidate) { return candidate == ctx.pv_move; },
-                                           [](const Move&) { return PRIORITY_PV; }))
+                if (Move* move =
+                        pick_best([&](const Move& candidate) { return candidate == ctx.pv_move; },
+                                  [](const Move&) { return PRIORITY_PV; }))
                     return move;
             }
             break;
@@ -302,15 +308,17 @@ inline Move* StagedMovePicker::next() {
         case MovePickerStage::HASH:
             stage = MovePickerStage::PROMOTIONS;
             if (!ctx.tt_move.is_null() && ctx.tt_move != ctx.pv_move) {
-                if (Move* move = pick_best([&](const Move& candidate) { return candidate == ctx.tt_move; },
-                                           [](const Move&) { return PRIORITY_HASH; }))
+                if (Move* move =
+                        pick_best([&](const Move& candidate) { return candidate == ctx.tt_move; },
+                                  [](const Move&) { return PRIORITY_HASH; }))
                     return move;
             }
             break;
 
         case MovePickerStage::PROMOTIONS:
-            if (Move* move = pick_best([&](const Move& candidate) { return candidate.type() == MOVE_PROM; },
-                                       [](const Move&) { return PRIORITY_PROM; }))
+            if (Move* move =
+                    pick_best([&](const Move& candidate) { return candidate.type() == MOVE_PROM; },
+                              [](const Move&) { return PRIORITY_PROM; }))
                 return move;
             stage = MovePickerStage::GOOD_TACTICALS;
             break;
@@ -319,7 +327,8 @@ inline Move* StagedMovePicker::next() {
             score_tacticals();
             if (Move* move = pick_best(
                     [&](const Move& candidate) {
-                        return candidate.type() != MOVE_PROM && is_capture(candidate) && candidate.priority >= PRIORITY_CAPTURE;
+                        return candidate.type() != MOVE_PROM && is_capture(candidate) &&
+                               candidate.priority >= PRIORITY_CAPTURE;
                     },
                     [](const Move& candidate) { return candidate.priority; }))
                 return move;
@@ -328,7 +337,9 @@ inline Move* StagedMovePicker::next() {
 
         case MovePickerStage::KILLERS:
             if (Move* move = pick_best(
-                    [&](const Move& candidate) { return is_quiet(candidate) && ctx.killers.is_killer(candidate, ctx.ply); },
+                    [&](const Move& candidate) {
+                        return is_quiet(candidate) && ctx.killers.is_killer(candidate, ctx.ply);
+                    },
                     [](const Move&) { return PRIORITY_KILLER; }))
                 return move;
             stage = MovePickerStage::QUIETS;
@@ -336,9 +347,12 @@ inline Move* StagedMovePicker::next() {
 
         case MovePickerStage::QUIETS:
             if (Move* move = pick_best(
-                    [&](const Move& candidate) { return is_quiet(candidate) && !ctx.killers.is_killer(candidate, ctx.ply); },
                     [&](const Move& candidate) {
-                        return static_cast<uint16_t>(ctx.history.get(ctx.board.side_to_move(), candidate.from(), candidate.to()));
+                        return is_quiet(candidate) && !ctx.killers.is_killer(candidate, ctx.ply);
+                    },
+                    [&](const Move& candidate) {
+                        return static_cast<uint16_t>(ctx.history.get(
+                            ctx.board.side_to_move(), candidate.from(), candidate.to()));
                     }))
                 return move;
             stage = MovePickerStage::WEAK_TACTICALS;
@@ -348,23 +362,28 @@ inline Move* StagedMovePicker::next() {
             score_tacticals();
             if (Move* move = pick_best(
                     [&](const Move& candidate) {
-                        return candidate.type() != MOVE_PROM && is_capture(candidate) && candidate.priority < PRIORITY_CAPTURE;
+                        return candidate.type() != MOVE_PROM && is_capture(candidate) &&
+                               candidate.priority < PRIORITY_CAPTURE;
                     },
                     [](const Move& candidate) { return candidate.priority; }))
                 return move;
             stage = MovePickerStage::DONE;
             break;
 
-        case MovePickerStage::DONE:
-            break;
+        case MovePickerStage::DONE: break;
         }
     }
 
     return nullptr;
 }
 
-inline QuiescenceMovePicker::QuiescenceMovePicker(const MoveOrderContext& ctx, MoveList movelist, bool in_check)
-    : ctx(ctx), movelist(std::move(movelist)), stage(QuiescenceMovePickerStage::PROMOTIONS), in_check(in_check) {}
+inline QuiescenceMovePicker::QuiescenceMovePicker(const MoveOrderContext& ctx,
+                                                  MoveList                movelist,
+                                                  bool                    in_check)
+    : ctx(ctx),
+      movelist(std::move(movelist)),
+      stage(QuiescenceMovePickerStage::PROMOTIONS),
+      in_check(in_check) {}
 
 inline Move* QuiescenceMovePicker::remaining_begin() {
     return movelist.begin() + consumed_count;
@@ -427,8 +446,9 @@ inline Move* QuiescenceMovePicker::next() {
     while (stage != QuiescenceMovePickerStage::DONE) {
         switch (stage) {
         case QuiescenceMovePickerStage::PROMOTIONS:
-            if (Move* move = pick_best([&](const Move& candidate) { return candidate.type() == MOVE_PROM; },
-                                       [](const Move&) { return PRIORITY_PROM; }))
+            if (Move* move =
+                    pick_best([&](const Move& candidate) { return candidate.type() == MOVE_PROM; },
+                              [](const Move&) { return PRIORITY_PROM; }))
                 return move;
             stage = QuiescenceMovePickerStage::GOOD_TACTICALS;
             break;
@@ -437,16 +457,20 @@ inline Move* QuiescenceMovePicker::next() {
             score_tacticals();
             if (Move* move = pick_best(
                     [&](const Move& candidate) {
-                        return candidate.type() != MOVE_PROM && is_capture(candidate) && candidate.priority >= PRIORITY_CAPTURE;
+                        return candidate.type() != MOVE_PROM && is_capture(candidate) &&
+                               candidate.priority >= PRIORITY_CAPTURE;
                     },
                     [](const Move& candidate) { return candidate.priority; }))
                 return move;
-            stage = in_check ? QuiescenceMovePickerStage::KILLERS : QuiescenceMovePickerStage::WEAK_TACTICALS;
+            stage = in_check ? QuiescenceMovePickerStage::KILLERS
+                             : QuiescenceMovePickerStage::WEAK_TACTICALS;
             break;
 
         case QuiescenceMovePickerStage::KILLERS:
             if (Move* move = pick_best(
-                    [&](const Move& candidate) { return is_quiet(candidate) && ctx.killers.is_killer(candidate, ctx.ply); },
+                    [&](const Move& candidate) {
+                        return is_quiet(candidate) && ctx.killers.is_killer(candidate, ctx.ply);
+                    },
                     [](const Move&) { return PRIORITY_KILLER; }))
                 return move;
             stage = QuiescenceMovePickerStage::QUIETS;
@@ -454,9 +478,12 @@ inline Move* QuiescenceMovePicker::next() {
 
         case QuiescenceMovePickerStage::QUIETS:
             if (Move* move = pick_best(
-                    [&](const Move& candidate) { return is_quiet(candidate) && !ctx.killers.is_killer(candidate, ctx.ply); },
                     [&](const Move& candidate) {
-                        return static_cast<uint16_t>(ctx.history.get(ctx.board.side_to_move(), candidate.from(), candidate.to()));
+                        return is_quiet(candidate) && !ctx.killers.is_killer(candidate, ctx.ply);
+                    },
+                    [&](const Move& candidate) {
+                        return static_cast<uint16_t>(ctx.history.get(
+                            ctx.board.side_to_move(), candidate.from(), candidate.to()));
                     }))
                 return move;
             stage = QuiescenceMovePickerStage::WEAK_TACTICALS;
@@ -466,15 +493,15 @@ inline Move* QuiescenceMovePicker::next() {
             score_tacticals();
             if (Move* move = pick_best(
                     [&](const Move& candidate) {
-                        return candidate.type() != MOVE_PROM && is_capture(candidate) && candidate.priority < PRIORITY_CAPTURE;
+                        return candidate.type() != MOVE_PROM && is_capture(candidate) &&
+                               candidate.priority < PRIORITY_CAPTURE;
                     },
                     [](const Move& candidate) { return candidate.priority; }))
                 return move;
             stage = QuiescenceMovePickerStage::DONE;
             break;
 
-        case QuiescenceMovePickerStage::DONE:
-            break;
+        case QuiescenceMovePickerStage::DONE: break;
         }
     }
 

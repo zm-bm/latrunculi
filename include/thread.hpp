@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -39,6 +40,8 @@ public:
 
 private:
     // search state
+
+    std::array<PositionState, MAX_SEARCH_PLY + 1> position_states{};
 
     Board          board;
     int            ply{0};
@@ -104,14 +107,15 @@ private:
     friend class ThreadPoolTest;
 
     friend class ThreadPool;
-    friend class Board;
 };
 
 inline void Thread::set_options(SearchOptions& options) {
+    board.bind_position_state(position_states[0]);
     board.load_board(options.board);
+    ply = 0;
 
-    this->options       = options;
-    this->searchtime_ms = options.calc_searchtime_ms(board.side_to_move());
+    this->options = options;
+    searchtime_ms = options.calc_searchtime_ms(board.side_to_move());
 }
 
 inline Milliseconds Thread::get_runtime() const {
@@ -119,7 +123,9 @@ inline Milliseconds Thread::get_runtime() const {
 }
 
 inline std::string Thread::get_pv(int depth) const {
-    Board b{board.toFEN()};
+    std::array<PositionState, MAX_SEARCH_PLY + 1> pv_position_states{};
+    Board                                         b{pv_position_states[0]};
+    b.load_board(&board);
 
     std::string pv;
     for (int d = 1; d <= depth; ++d) {
@@ -128,7 +134,7 @@ inline std::string Thread::get_pv(int depth) const {
         if (!probe.has_value() || !b.is_legal_move(probe->move))
             break;
 
-        b.make(probe->move);
+        b.make(probe->move, pv_position_states[d]);
         pv += probe->move.str() + " ";
     }
 

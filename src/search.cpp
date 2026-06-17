@@ -154,14 +154,14 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     // base cases
     if (depth <= 0)
         return quiescence(alpha, beta);
-    if (ply >= MAX_DEPTH)
+    if (ply >= MAX_SEARCH_PLY)
         return evaluate(board);
 
     nodes++;
     stats.node(ply);
 
     // check for 50-move rule and draw by repetition
-    if (board.is_draw())
+    if (board.is_draw(ply))
         return DRAW_VALUE;
 
     Color turn       = board.side_to_move();
@@ -214,9 +214,11 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
             if (depth > 6)
                 R = 4;
 
-            board.make_null();
+            board.make_null(position_states[ply + 1]);
+            ++ply;
             int value = -alphabeta<NON_PV>(-beta, -beta + 1, depth - R, false);
-            board.unmake_null();
+            board.unmake_null(position_states[ply - 1]);
+            --ply;
 
             if (halt_requested())
                 return alpha;
@@ -269,13 +271,15 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
         bool is_capture   = board.is_capture(move) || is_enpassant;
         bool is_quiet     = !is_capture && !is_promotion;
 
-        board.make(move);
+        board.make(move, position_states[ply + 1]);
+        ++ply;
 
         bool gives_check = board.is_check();
 
         // Futility pruning
         if (futile_flag && !first_legal && is_quiet && !gives_check) {
-            board.unmake();
+            board.unmake(position_states[ply - 1]);
+            --ply;
             continue;
         }
 
@@ -310,7 +314,8 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
             }
         }
 
-        board.unmake();
+        board.unmake(position_states[ply - 1]);
+        --ply;
 
         if (halt_requested()) {
             if constexpr (root)
@@ -384,11 +389,11 @@ int Thread::quiescence(int alpha, int beta) {
     alpha = window.alpha;
     beta  = window.beta;
 
-    if (ply >= MAX_DEPTH)
+    if (ply >= MAX_SEARCH_PLY)
         return evaluate(board);
 
     // check for 50-move rule and draw by repetition
-    if (board.is_draw())
+    if (board.is_draw(ply))
         return DRAW_VALUE;
 
     const bool in_check   = board.is_check();
@@ -420,9 +425,11 @@ int Thread::quiescence(int alpha, int beta) {
         if (!in_check && move.type() != MOVE_PROM && move.priority == PRIORITY_WEAK)
             continue;
 
-        board.make(move);
+        board.make(move, position_states[ply + 1]);
+        ++ply;
         int score = -quiescence(-beta, -alpha);
-        board.unmake();
+        board.unmake(position_states[ply - 1]);
+        --ply;
 
         if (halt_requested())
             return alpha;

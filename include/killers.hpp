@@ -4,7 +4,7 @@
 #include "move.hpp"
 
 struct KillerMoves {
-    Move killers[MAX_DEPTH][2] = {NULL_MOVE};
+    Move killers[MAX_SEARCH_PLY][2] = {NULL_MOVE};
 
     void update(Move killer, int ply);
     bool is_killer(Move move, int ply) const;
@@ -23,7 +23,7 @@ inline bool KillerMoves::is_killer(Move move, int ply) const {
 }
 
 inline void KillerMoves::clear() {
-    for (int ply = 0; ply < MAX_DEPTH; ++ply) {
+    for (int ply = 0; ply < MAX_SEARCH_PLY; ++ply) {
         killers[ply][0] = NULL_MOVE;
         killers[ply][1] = NULL_MOVE;
     }

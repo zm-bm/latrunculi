@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <sstream>
+#include <stdexcept>
 
 #include "board.hpp"
 #include "evaluator.hpp"
@@ -19,10 +20,12 @@ Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
       err(err),
       in(in),
       protocol(out, err),
-      board(Board::startfen),
-      thread_pool(DEFAULT_THREADS, protocol),
       config({.hash_callback   = [this](const int& value) { tt.resize(value); },
               .thread_callback = [this](const int& value) { thread_pool.resize(value); }}),
+      position_states{PositionState()},
+      position_ply(0),
+      board(position_states.front(), Board::startfen),
+      thread_pool(DEFAULT_THREADS, protocol),
       command_map({
           // UCI commands
           {"uci", make_cmd(this, &Engine::uci)},
@@ -45,6 +48,35 @@ Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
           {"exit", make_cmd(this, &Engine::quit)},
           {"", [](std::istringstream&) { return true; }},
       }) {}
+
+PositionState& Engine::next_position_state() {
+    if (position_states.size() <= position_ply + 1)
+        position_states.emplace_back();
+    return position_states[position_ply + 1];
+}
+
+void Engine::reset_board(const std::string& fen) {
+    board.load_fen(fen);
+
+    const auto root_state = board.position_state();
+    position_states.clear();
+    position_states.push_back(root_state);
+    position_ply = 0;
+    board.bind_position_state(position_states.front());
+}
+
+void Engine::make_board_move(Move move) {
+    board.make(move, next_position_state());
+    ++position_ply;
+}
+
+void Engine::unmake_board_move() {
+    if (position_ply == 0)
+        throw std::runtime_error("no move to undo");
+
+    board.unmake(position_states[position_ply - 1]);
+    --position_ply;
+}
 
 void Engine::loop() {
     std::string line;
@@ -114,7 +146,7 @@ bool Engine::position(std::istringstream& iss) {
     auto [fen, moves] = parse_position(iss);
     if (fen.empty())
         throw std::runtime_error("invalid position command");
-    board.load_fen(fen);
+    reset_board(fen);
 
     std::istringstream moves_stream(moves);
     std::string        token;
@@ -122,7 +154,7 @@ bool Engine::position(std::istringstream& iss) {
         auto move = get_move(token);
         if (move.is_null())
             break;
-        board.make(move);
+        make_board_move(move);
     }
     return true;
 }
@@ -170,13 +202,13 @@ bool Engine::move(std::istringstream& iss) {
     iss >> token;
 
     if (token == "undo") {
-        board.unmake();
+        unmake_board_move();
     } else {
         auto move = get_move(token);
         if (move.is_null()) {
             protocol.info("invalid move: " + token);
         } else {
-            board.make(move);
+            make_board_move(move);
         }
     }
     return true;

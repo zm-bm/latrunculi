@@ -1,9 +1,14 @@
 #pragma once
 
+#include <cstddef>
+#include <deque>
 #include <numeric>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "bb.hpp"
+#include "board.hpp"
 #include "defs.hpp"
 
 const auto STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -23,3 +28,64 @@ static uint64_t targets(const std::vector<Square>& squares) {
     auto add_sq = [](uint64_t acc, Square sq) { return acc | bb::set(sq); };
     return std::accumulate(squares.begin(), squares.end(), 0ULL, add_sq);
 }
+
+struct TestPositionStateOwner {
+protected:
+    std::deque<PositionState> position_states = {PositionState()};
+    size_t                    ply             = 0;
+
+    PositionState& root_state() { return position_states.front(); }
+
+    PositionState& next_position_state() {
+        if (position_states.size() <= ply + 1)
+            position_states.emplace_back();
+        return position_states[ply + 1];
+    }
+};
+
+class TestBoard : private TestPositionStateOwner, public Board {
+public:
+    explicit TestBoard(const std::string& fen = STARTFEN)
+        : Board(TestPositionStateOwner::root_state(), fen) {}
+
+    using Board::make;
+    using Board::make_null;
+    using Board::unmake;
+    using Board::unmake_null;
+
+    void make(Move move) {
+        Board::make(move, next_position_state());
+        ++ply;
+    }
+
+    void unmake() {
+        if (ply == 0)
+            throw std::runtime_error("no move to undo");
+
+        Board::unmake(position_states[ply - 1]);
+        --ply;
+    }
+
+    void make_null() {
+        Board::make_null(next_position_state());
+        ++ply;
+    }
+
+    void unmake_null() {
+        if (ply == 0)
+            throw std::runtime_error("no null move to undo");
+
+        Board::unmake_null(position_states[ply - 1]);
+        --ply;
+    }
+
+    void reset(const std::string& fen = STARTFEN) {
+        load_fen(fen);
+
+        const auto root_state = position_state();
+        position_states.clear();
+        position_states.push_back(root_state);
+        ply = 0;
+        bind_position_state(position_states.front());
+    }
+};

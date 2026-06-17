@@ -13,21 +13,21 @@
 class EvaluatorTest : public ::testing::Test {
 protected:
     void test_outpost_zone(std::string fen, uint64_t w_expected, uint64_t b_expected) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.zones.outposts[WHITE], w_expected) << fen;
         EXPECT_EQ(e.zones.outposts[BLACK], b_expected) << fen;
     }
 
     void test_mobility_zone(std::string fen, uint64_t w_expected, uint64_t b_expected) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.zones.mobility[WHITE], w_expected) << fen;
         EXPECT_EQ(e.zones.mobility[BLACK], b_expected) << fen;
     }
 
     void test_mobility_score(const std::string fen, Score w_expected, Score b_expected) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         e.evaluate();
         EXPECT_EQ(e.scores.mobility[WHITE], w_expected) << fen;
@@ -35,7 +35,7 @@ protected:
     }
 
     void test_evaluate_pawns(std::string fen, Score w_expected, Score b_expected) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.evaluate_pawns<WHITE>(), w_expected) << fen;
         EXPECT_EQ(e.evaluate_pawns<BLACK>(), b_expected) << fen;
@@ -43,7 +43,7 @@ protected:
 
     template <PieceType p>
     void test_evaluate_pieces(std::string fen, Score w_expected, Score b_expected) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         Score     w_score = e.evaluate_pieces<WHITE, p>();
         Score     b_score = e.evaluate_pieces<BLACK, p>();
@@ -52,7 +52,7 @@ protected:
     }
 
     void test_king_safety(std::string fen, Score expected) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         e.evaluate();
         EXPECT_EQ(e.evaluate_king_safety<WHITE>(), expected) << fen;
@@ -60,14 +60,14 @@ protected:
     }
 
     void test_shelter(std::string fen, Score w_expected, Score b_expected) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.evaluate_shelter<WHITE>(board.king_sq(WHITE)), w_expected) << fen;
         EXPECT_EQ(e.evaluate_shelter<BLACK>(board.king_sq(BLACK)), b_expected) << fen;
     }
 
     void test_shelter_file(std::string fen, Score w_expected, Score b_expected, File file) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         uint64_t  w_pawns = board.pieces<PAWN>(WHITE);
         uint64_t  b_pawns = board.pieces<PAWN>(BLACK);
@@ -76,7 +76,7 @@ protected:
     }
 
     void test_raw_danger(std::string fen, int w_expected, int b_expected) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         e.evaluate();
         EXPECT_EQ(e.calculate_raw_danger<WHITE>(board.king_sq(WHITE)), w_expected) << fen;
@@ -84,19 +84,19 @@ protected:
     }
 
     void test_phase(std::string fen, int expected, int tolerance) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         EXPECT_LE(std::abs(e.phase() - expected), tolerance) << fen;
     }
 
     void test_scale_factor(std::string fen, float expected) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.scale_factor(board.side_to_move()), expected) << fen;
     }
 
     void test_taper_score(std::string fen, Score score, int expected) {
-        Board     board(fen);
+        TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.taper_score(score), expected) << fen;
     }
@@ -109,8 +109,8 @@ TEST_F(EvaluatorTest, Evaluate) {
     };
 
     for (const auto& [fen, expected] : test_cases) {
-        Board board(fen);
-        int   result = evaluate(board);
+        TestBoard board(fen);
+        int       result = evaluate(board);
         EXPECT_EQ(result, expected + eval::tempo_bonus) << fen;
         board.make_null();
         EXPECT_EQ(result, expected + eval::tempo_bonus) << fen;

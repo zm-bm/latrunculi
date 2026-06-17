@@ -42,9 +42,9 @@ struct TestResult {
     uint64_t    observed_max_nodes     = 0;
     uint64_t    observed_nps           = 0;
     std::string bestmove;
-    int         tactical_max_depth     = 0;
-    int         sol_depth              = INT_MAX;
-    int         sol_time               = INT_MAX;
+    int         tactical_max_depth = 0;
+    int         sol_depth          = INT_MAX;
+    int         sol_time           = INT_MAX;
     TestCase    test_case;
 
     TestResult(TestCase tc) : test_case(tc) {}
@@ -117,8 +117,9 @@ inline std::ostream& operator<<(std::ostream& os, const UCIInfo& info) {
 }
 
 inline std::string TestResult::get_engine_move(std::string fen, std::string move) {
-    Board    board(fen);
-    MoveList movelist = generate<ALL_MOVES>(board);
+    PositionState position_state;
+    Board         board(position_state, fen);
+    MoveList      movelist = generate<ALL_MOVES>(board);
 
     auto moveMatches = [&](Move m) { return m.str() == move; };
     auto movePtr     = std::find_if(movelist.begin(), movelist.end(), moveMatches);
@@ -130,19 +131,20 @@ inline bool TestResult::is_plausible_move(std::string fen, std::string move) {
     if (move.empty() || move == "(none)")
         return false;
 
-    Board    board(fen);
-    MoveList movelist = generate<ALL_MOVES>(board);
+    PositionState position_state;
+    Board         board(position_state, fen);
+    MoveList      movelist = generate<ALL_MOVES>(board);
 
     auto moveMatches = [&](Move m) { return m.str() == move; };
     return std::find_if(movelist.begin(), movelist.end(), moveMatches) != movelist.end();
 }
 
 inline void TestResult::observe(const UCIInfo& info) {
-    saw_observed_info   = true;
-    observed_max_depth  = std::max(observed_max_depth, info.depth);
-    observed_max_time   = std::max(observed_max_time, info.time);
-    observed_max_nodes  = std::max(observed_max_nodes, info.nodes);
-    observed_nps        = info.nps;
+    saw_observed_info  = true;
+    observed_max_depth = std::max(observed_max_depth, info.depth);
+    observed_max_time  = std::max(observed_max_time, info.time);
+    observed_max_nodes = std::max(observed_max_nodes, info.nodes);
+    observed_nps       = info.nps;
 }
 
 inline void TestResult::update_tactical(const UCIInfo& info) {
@@ -152,9 +154,9 @@ inline void TestResult::update_tactical(const UCIInfo& info) {
                (test_case.avoid_move.empty() || engineMove != test_case.avoid_move));
 
     has_tactical_signal = true;
-    tactical_max_depth = std::max(tactical_max_depth, info.depth);
-    sol_depth = success ? std::min(info.depth, sol_depth) : INT_MAX;
-    sol_time  = success ? std::min(info.time, sol_time) : INT_MAX;
+    tactical_max_depth  = std::max(tactical_max_depth, info.depth);
+    sol_depth           = success ? std::min(info.depth, sol_depth) : INT_MAX;
+    sol_time            = success ? std::min(info.time, sol_time) : INT_MAX;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const TestResult& result) {

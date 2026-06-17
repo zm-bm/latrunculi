@@ -4,14 +4,15 @@
 #include "move.hpp"
 
 /**
- * Reversible ply-local board state.
+ * Reversible ply-local position state owned by the caller.
  *
  * Check data is recomputed after load/make/null moves. The remaining fields
- * are copied from the previous ply as needed, then adjusted by Board::make().
+ * store the undo data needed to restore the prior ply.
  */
-struct State {
-    State() = default;
-    State(const State& state, Move mv);
+struct PositionState {
+    PositionState() = default;
+    PositionState(PositionState& prior_state, Move move);
+    Move move() const;
 
     // Derived check data.
     uint64_t checkers = 0;
@@ -24,17 +25,23 @@ struct State {
     // Direct-check masks indexed by NO_PIECETYPE..QUEEN; KING maps to zero.
     uint64_t checks[N_PIECES - 1] = {0};
 
-    // Incremental and move-local data. Order is kept compact.
+    // Incremental key and move-local undo data. Order is kept compact.
     uint64_t     zkey         = 0;
-    Move         move         = NULL_MOVE;
+    uint16_t     move_value   = 0;
     PieceType    captured     = NO_PIECETYPE;
     CastleRights castle       = NO_CASTLE;
     Square       enpassant    = INVALID;
     uint8_t      halfmove_clk = 0;
 };
 
-inline State::State(const State& state, Move mv)
-    : zkey(state.zkey),
-      move(mv),
-      castle(state.castle),
-      halfmove_clk(state.halfmove_clk + 1) {}
+inline PositionState::PositionState(PositionState& prior_state, Move move)
+    : zkey(prior_state.zkey),
+      move_value(move.value),
+      castle(prior_state.castle),
+      halfmove_clk(prior_state.halfmove_clk + 1) {}
+
+inline Move PositionState::move() const {
+    Move move;
+    move.value = move_value;
+    return move;
+}

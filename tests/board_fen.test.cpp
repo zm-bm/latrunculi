@@ -25,8 +25,8 @@ const std::string round_trip_fens[] = {
 };
 
 void expect_same_reloaded_state(const std::string& fen) {
-    Board board(fen);
-    Board reloaded(board.toFEN());
+    TestBoard board(fen);
+    TestBoard reloaded(board.toFEN());
 
     EXPECT_EQ(reloaded.toFEN(), board.toFEN());
     EXPECT_EQ(reloaded.side_to_move(), board.side_to_move());
@@ -54,28 +54,28 @@ void expect_same_reloaded_state(const std::string& fen) {
 
 TEST(BoardFenTest, LoadsAndOutputsCorrectFens) {
     for (auto fen : round_trip_fens) {
-        EXPECT_EQ(Board(fen).toFEN(), fen) << "should return identical fen";
+        EXPECT_EQ(TestBoard(fen).toFEN(), fen) << "should return identical fen";
     }
 }
 
 TEST(BoardFenTest, FourFieldFenNormalizesClocks) {
-    EXPECT_EQ(Board("4k3/8/8/8/8/8/8/4K3 w - -").toFEN(), EMPTYFEN);
-    EXPECT_EQ(Board("4k3/8/8/8/8/8/8/4K3 b - -").toFEN(), "4k3/8/8/8/8/8/8/4K3 b - - 0 1");
+    EXPECT_EQ(TestBoard("4k3/8/8/8/8/8/8/4K3 w - -").toFEN(), EMPTYFEN);
+    EXPECT_EQ(TestBoard("4k3/8/8/8/8/8/8/4K3 b - -").toFEN(), "4k3/8/8/8/8/8/8/4K3 b - - 0 1");
 }
 
 TEST(BoardFenTest, MaxHalfmoveAndLongFullmoveFensRoundTrip) {
     const std::string white = "4k3/8/8/8/8/8/8/4K3 w - - 255 300";
     const std::string black = "4k3/8/8/8/8/8/8/4K3 b - - 255 300";
 
-    EXPECT_EQ(Board(white).toFEN(), white);
-    EXPECT_EQ(Board(black).toFEN(), black);
-    EXPECT_EQ(+Board(white).halfmove(), 255);
-    EXPECT_EQ(Board(white).fullmove(), 300);
+    EXPECT_EQ(TestBoard(white).toFEN(), white);
+    EXPECT_EQ(TestBoard(black).toFEN(), black);
+    EXPECT_EQ(+TestBoard(white).halfmove(), 255);
+    EXPECT_EQ(TestBoard(white).fullmove(), 300);
 }
 
 TEST(BoardFenTest, PreservesRawUnhashableEnPassantSquare) {
     const std::string fen = "4k3/8/8/8/4P3/8/8/4K3 b - e3 0 1";
-    Board             board(fen);
+    TestBoard         board(fen);
 
     EXPECT_EQ(board.enpassant_sq(), E3);
     EXPECT_EQ(board.legal_enpassant_sq(), INVALID);
@@ -83,7 +83,7 @@ TEST(BoardFenTest, PreservesRawUnhashableEnPassantSquare) {
 }
 
 TEST(BoardFenTest, InvalidFenDoesNotMutateBoard) {
-    Board board(E2E4);
+    TestBoard board(E2E4);
 
     const auto  fen      = board.toFEN();
     const auto  key      = board.key();
@@ -110,7 +110,7 @@ TEST(BoardFenTest, InvalidFenDoesNotMutateBoard) {
     }
 }
 
-TEST(BoardFenTest, ReloadingFenReproducesBoardState) {
+TEST(BoardFenTest, ReloadingFenReproducesLoadedPosition) {
     const std::vector<std::string> fens = {
         STARTFEN,
         POS2,

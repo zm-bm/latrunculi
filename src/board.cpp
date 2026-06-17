@@ -3,9 +3,10 @@
 #include "eval.hpp"
 #include "movegen.hpp"
 #include "score.hpp"
-#include "thread.hpp"
 
 #include <algorithm>
+#include <cassert>
+#include <stdexcept>
 
 namespace {
 bool valid_promotion_piece(PieceType piece) {
@@ -14,6 +15,39 @@ bool valid_promotion_piece(PieceType piece) {
 
 constexpr int direct_check_idx(PieceType piece) {
     return int(piece) * int(piece != KING);
+}
+
+template <NodeType node>
+uint64_t perft_impl(Board&                                         board,
+                    int                                            depth,
+                    std::ostream&                                  oss,
+                    std::array<PositionState, MAX_SEARCH_PLY + 1>& states,
+                    int                                            ply,
+                    PositionState&                                 current_state) {
+    if (depth == 0)
+        return 1;
+
+    uint64_t nodes    = 0;
+    auto     movelist = generate<ALL_MOVES>(board);
+
+    for (auto& move : movelist) {
+        if (!board.is_legal_pseudo_move(move))
+            continue;
+
+        board.make(move, states[ply + 1]);
+        uint64_t count =
+            perft_impl<NON_PV>(board, depth - 1, oss, states, ply + 1, states[ply + 1]);
+        nodes += count;
+        board.unmake(current_state);
+
+        if constexpr (node == ROOT)
+            oss << move.str() << ": " << count << '\n';
+    }
+
+    if constexpr (node == ROOT)
+        oss << "NODES: " << nodes << std::endl;
+
+    return nodes;
 }
 } // namespace
 
@@ -167,17 +201,17 @@ bool Board::is_legal_pseudo_move(Move mv) const {
 
 // Determine if a move gives check for the current board
 bool Board::is_checking_move(Move mv) const {
-    Square from     = mv.from();
-    Square to       = mv.to();
-    Color  opp      = ~turn;
-    Square opp_king = king_sq(opp);
-    auto&  st       = state.at(ply);
+    Square      from     = mv.from();
+    Square      to       = mv.to();
+    Color       opp      = ~turn;
+    Square      opp_king = king_sq(opp);
+    const auto& state    = position_state();
 
     // check if piece directly attacks the king or was a blocker
     const PieceType piecetype = type_of(piece_on(from));
-    if (st.checks[direct_check_idx(piecetype)] & bb::set(to))
+    if (state.checks[direct_check_idx(piecetype)] & bb::set(to))
         return true;
-    if ((st.blockers[opp] & bb::set(from)) && !(bb::collinear(from, to) & bb::set(opp_king)))
+    if ((state.blockers[opp] & bb::set(from)) && !(bb::collinear(from, to) & bb::set(opp_king)))
         return true;
 
     switch (mv.type()) {
@@ -257,7 +291,10 @@ int Board::seeMove(Move move) const {
     return gain[0];
 }
 
-void Board::make(Move move) {
+void Board::make(Move move, PositionState& next_state) {
+    assert(&next_state != active_position_state);
+    key_history.push(key());
+
     const Square from           = move.from();
     const Square to             = move.to();
     const Square enpassant      = legal_enpassant_sq();
@@ -274,23 +311,23 @@ void Board::make(Move move) {
     }
 
     // create new state and update counters
-    state.push_back(State(state[ply++], move));
-    auto& st = state.at(ply);
+    next_state            = PositionState(active_state(), move);
+    active_position_state = &next_state;
+    ++game_ply;
+    auto& state = this->active_state();
     ++fullmove_clk;
-    if (thread)
-        thread->ply++;
 
     // handle piece capture
-    st.captured = capt_piecetype;
+    state.captured = capt_piecetype;
     if (capt_piecetype != NO_PIECETYPE) {
-        st.halfmove_clk = 0;
+        state.halfmove_clk = 0;
         remove_piece<true>(capt_sq, opp, capt_piecetype);
         if (can_castle(opp) && capt_piecetype == ROOK)
             disable_castle(opp, capt_sq);
     }
 
     if (enpassant != INVALID)
-        st.zkey ^= zob::hash_ep(enpassant);
+        state.zkey ^= zob::hash_ep(enpassant);
 
     // move the piece / castle
     move_piece<true>(from, to, turn, piecetype);
@@ -304,9 +341,9 @@ void Board::make(Move move) {
     switch (piecetype) {
     case PAWN:
         // set enpassant square,
-        st.halfmove_clk = 0;
+        state.halfmove_clk = 0;
         if (std::abs(to - from) == PAWN_PUSH2) {
-            st.enpassant = to + (turn == WHITE ? SOUTH : NORTH);
+            state.enpassant = to + (turn == WHITE ? SOUTH : NORTH);
         } else if (movetype == MOVE_PROM) {
             remove_piece<true>(to, turn, PAWN);
             add_piece<true>(to, turn, move.prom_piece());
@@ -327,32 +364,34 @@ void Board::make(Move move) {
     default: break;
     }
 
-    turn     = opp;
-    st.zkey ^= zob::turn;
+    turn        = opp;
+    state.zkey ^= zob::turn;
 
     if (legal_enpassant_sq() != INVALID)
-        st.zkey ^= zob::hash_ep(st.enpassant);
+        state.zkey ^= zob::hash_ep(state.enpassant);
 
     update_check_data();
 }
 
-void Board::unmake() {
+void Board::unmake(PositionState& prior_state) {
+    assert(game_ply > 0);
+    assert(&prior_state != active_position_state);
+
     const Color  opp      = turn;
-    const Move   move     = state[ply].move;
+    const Move   move     = active_state().move();
     const Square from     = move.from();
     const Square to       = move.to();
     const auto   movetype = move.type();
 
     auto piecetype      = piecetype_on(to);
-    auto capt_piecetype = state[ply].captured;
+    auto capt_piecetype = active_state().captured;
 
     // decrement counters and pop state
-    if (thread)
-        thread->ply--;
-    ply--;
+    key_history.pop(prior_state.zkey);
+    active_position_state = &prior_state;
+    --game_ply;
     fullmove_clk--;
     turn = ~turn;
-    state.pop_back();
 
     // replace promoted piece with pawn
     if (movetype == MOVE_PROM) {
@@ -377,28 +416,33 @@ void Board::unmake() {
         king_square[turn] = from;
 }
 
-void Board::make_null() {
+void Board::make_null(PositionState& next_state) {
+    assert(&next_state != active_position_state);
+    key_history.push(key());
+
     const Square hashed_enpassant = legal_enpassant_sq();
 
-    state.push_back(State(state[ply++], Move()));
-    auto& st = state.at(ply);
-    if (thread)
-        thread->ply++;
+    next_state            = PositionState(active_state(), Move());
+    active_position_state = &next_state;
+    ++game_ply;
+    auto& state = this->active_state();
 
-    turn     = ~turn;
-    st.zkey ^= zob::turn;
+    turn        = ~turn;
+    state.zkey ^= zob::turn;
     if (hashed_enpassant != INVALID)
-        st.zkey ^= zob::hash_ep(hashed_enpassant);
+        state.zkey ^= zob::hash_ep(hashed_enpassant);
 
     update_check_data();
 }
 
-void Board::unmake_null() {
-    if (thread)
-        thread->ply--;
-    --ply;
+void Board::unmake_null(PositionState& prior_state) {
+    assert(game_ply > 0);
+    assert(&prior_state != active_position_state);
+
+    key_history.pop(prior_state.zkey);
+    active_position_state = &prior_state;
+    --game_ply;
     turn = ~turn;
-    state.pop_back();
 }
 
 // stalemate from no legal moves
@@ -412,16 +456,24 @@ bool Board::is_stalemate() const {
 }
 
 // draws from 50-move rule + 3-fold repetition
-bool Board::is_draw() const {
-    auto& st = state[ply];
-    if (st.halfmove_clk >= 100)
+bool Board::is_draw(int search_ply) const {
+    if (halfmove() >= 100)
         return true;
 
-    int            reps   = 0;
-    const uint32_t rewind = std::min(ply, uint32_t(st.halfmove_clk));
-    const int      stop   = static_cast<int>(ply - rewind);
-    for (int i = std::max(0, int(ply) - 2); i >= stop; i -= 2) {
-        if (state[i].zkey == st.zkey && ++reps == 2)
+    const int rewind      = std::min<int>(halfmove(), key_history.count());
+    int       repetitions = 0;
+
+    for (int distance = 2; distance <= rewind; distance += 2) {
+        const int index = key_history.count() - distance;
+        if (index < 0)
+            break;
+
+        if (key_history[index] != key())
+            continue;
+
+        if (distance < search_ply)
+            return true;
+        if (++repetitions == 2)
             return true;
     }
 
@@ -477,29 +529,11 @@ std::string Board::toSAN(Move move) const {
 // perform a perft search to find # of legal moves at a given depth
 template <NodeType node>
 uint64_t Board::perft(int depth, std::ostream& oss) {
-    if (depth == 0)
-        return 1;
+    if (depth < 0 || depth > MAX_SEARCH_PLY)
+        throw std::invalid_argument("perft depth out of range");
 
-    uint64_t nodes    = 0;
-    auto     movelist = generate<ALL_MOVES>(*this);
-
-    for (auto& move : movelist) {
-        if (!is_legal_pseudo_move(move))
-            continue;
-
-        make(move);
-        uint64_t count  = perft<NON_PV>(depth - 1);
-        nodes          += count;
-        unmake();
-
-        if constexpr (node == ROOT)
-            oss << move.str() << ": " << count << '\n';
-    }
-
-    if constexpr (node == ROOT)
-        oss << "NODES: " << nodes << std::endl;
-
-    return nodes;
+    std::array<PositionState, MAX_SEARCH_PLY + 1> states{};
+    return perft_impl<node>(*this, depth, oss, states, 0, active_state());
 }
 
 template uint64_t Board::perft<ROOT>(int, std::ostream& = std::cerr);

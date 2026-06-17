@@ -24,14 +24,14 @@ TEST(SearchOptionsTest, ValidInput) {
 TEST(SearchOptionsTest, InvalidNumericInput) {
     std::istringstream iss("depth abc");
     SearchOptions      opts(iss);
-    EXPECT_EQ(opts.depth, MAX_DEPTH);
+    EXPECT_EQ(opts.depth, MAX_SEARCH_DEPTH);
 }
 
 TEST(SearchOptionsTest, OutOfRangeValue) {
     std::istringstream iss("depth 999 movetime -50 movestogo 0");
     SearchOptions      opts(iss);
 
-    EXPECT_EQ(opts.depth, MAX_DEPTH);
+    EXPECT_EQ(opts.depth, MAX_SEARCH_DEPTH);
     EXPECT_EQ(opts.movetime, 1);
     EXPECT_EQ(opts.movestogo, 1);
 }

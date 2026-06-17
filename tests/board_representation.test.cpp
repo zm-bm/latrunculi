@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -50,6 +52,7 @@ struct BoardSnapshot {
     uint64_t     occupancy;
     uint64_t     checkers;
     uint64_t     blockers[N_COLORS];
+    uint64_t     pinners[N_COLORS];
     Square       kings[N_COLORS];
     Score        material;
     Score        psq;
@@ -77,6 +80,7 @@ BoardSnapshot snapshot(const Board& board) {
     for (int c = BLACK; c < N_COLORS; ++c) {
         const auto color = Color(c);
         snap.blockers[c] = board.blockers(color);
+        snap.pinners[c]  = board.pinners(color);
         snap.kings[c]    = board.king_sq(color);
 
         for (int p = ALL_PIECES; p < N_PIECES; ++p)
@@ -112,7 +116,7 @@ void expect_same_durable_representation(const Board& board, const BoardSnapshot&
     }
 }
 
-void expect_same_board_state(const Board& board, const BoardSnapshot& snap) {
+void expect_same_board_snapshot(const Board& board, const BoardSnapshot& snap) {
     expect_same_durable_representation(board, snap);
 
     EXPECT_EQ(board.toFEN(), snap.fen);
@@ -124,8 +128,10 @@ void expect_same_board_state(const Board& board, const BoardSnapshot& snap) {
     EXPECT_EQ(board.fullmove(), snap.fullmove);
     EXPECT_EQ(board.key(), snap.key);
     EXPECT_EQ(board.checkers(), snap.checkers);
-    for (int c = BLACK; c < N_COLORS; ++c)
+    for (int c = BLACK; c < N_COLORS; ++c) {
         EXPECT_EQ(board.blockers(Color(c)), snap.blockers[c]);
+        EXPECT_EQ(board.pinners(Color(c)), snap.pinners[c]);
+    }
 }
 
 void expect_board_consistent(const Board& board) {
@@ -179,10 +185,19 @@ void expect_board_consistent(const Board& board) {
     EXPECT_EQ(board.key(), board.calculate_key());
 }
 
+Move first_legal_move(Board& board) {
+    auto movelist = generate<ALL_MOVES>(board);
+    for (const auto& move : movelist) {
+        if (board.is_legal_pseudo_move(move))
+            return move;
+    }
+    return NULL_MOVE;
+}
+
 } // namespace
 
 TEST(BoardRepresentationTest, EMPTYFEN) {
-    Board b(EMPTYFEN);
+    TestBoard b(EMPTYFEN);
 
     EXPECT_EQ(b.king_sq(WHITE), E1);
     EXPECT_EQ(b.king_sq(BLACK), E8);
@@ -242,8 +257,27 @@ TEST(BoardRepresentationTest, EMPTYFEN) {
     expect_board_consistent(b);
 }
 
+TEST(BoardRepresentationTest, BoardObjectStaysCompact) {
+    EXPECT_EQ(sizeof(PositionState), 104U);
+    EXPECT_LT(sizeof(Board), 4096U);
+}
+
+TEST(BoardRepresentationTest, PerftDepthZeroReturnsOne) {
+    TestBoard          board(STARTFEN);
+    std::ostringstream output;
+
+    EXPECT_EQ(board.perft(0, output), 1U);
+}
+
+TEST(BoardRepresentationTest, PerftRejectsDepthBeyondStateSlots) {
+    TestBoard          board(STARTFEN);
+    std::ostringstream output;
+
+    EXPECT_THROW(board.perft(MAX_SEARCH_PLY + 1, output), std::invalid_argument);
+}
+
 TEST(BoardRepresentationTest, STARTFEN) {
-    Board b(STARTFEN);
+    TestBoard b(STARTFEN);
 
     EXPECT_EQ(b.king_sq(WHITE), E1);
     EXPECT_EQ(b.king_sq(BLACK), E8);
@@ -304,7 +338,7 @@ TEST(BoardRepresentationTest, STARTFEN) {
 }
 
 TEST(BoardRepresentationTest, POS4B) {
-    Board b(POS4B);
+    TestBoard b(POS4B);
 
     EXPECT_EQ(b.king_sq(WHITE), E1);
     EXPECT_EQ(b.king_sq(BLACK), G8);
@@ -364,7 +398,7 @@ TEST(BoardRepresentationTest, POS4B) {
 }
 
 TEST(BoardRepresentationTest, material_psq_bonus) {
-    Board b("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1");
+    TestBoard b("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1");
     EXPECT_EQ(b.material_score(), eval::piece(QUEEN, WHITE) + eval::piece(ROOK, BLACK));
     EXPECT_EQ(b.psq_bonus_score(),
               eval::piece_sq(QUEEN, WHITE, D1) + eval::piece_sq(ROOK, BLACK, D8));
@@ -372,8 +406,8 @@ TEST(BoardRepresentationTest, material_psq_bonus) {
 }
 
 TEST(BoardRepresentationTest, add_piece) {
-    Board    board = Board(EMPTYFEN);
-    uint64_t key   = board.key() ^ zob::hash_piece(WHITE, PAWN, E2);
+    TestBoard board = TestBoard(EMPTYFEN);
+    uint64_t  key   = board.key() ^ zob::hash_piece(WHITE, PAWN, E2);
     board.add_piece<true>(E2, WHITE, PAWN);
 
     EXPECT_EQ(board.piece_on(E2), make_piece(WHITE, PAWN));
@@ -386,8 +420,8 @@ TEST(BoardRepresentationTest, add_piece) {
 }
 
 TEST(BoardRepresentationTest, remove_piece) {
-    Board    board = Board(PAWN_E2);
-    uint64_t key   = board.key() ^ zob::hash_piece(WHITE, PAWN, E2);
+    TestBoard board = TestBoard(PAWN_E2);
+    uint64_t  key   = board.key() ^ zob::hash_piece(WHITE, PAWN, E2);
     board.remove_piece<true>(E2, WHITE, PAWN);
 
     EXPECT_EQ(board.piece_on(E2), NO_PIECE);
@@ -400,10 +434,10 @@ TEST(BoardRepresentationTest, remove_piece) {
 }
 
 TEST(BoardRepresentationTest, move_piece) {
-    Board    board  = Board(PAWN_E2);
-    uint64_t key    = board.key();
-    key            ^= zob::hash_piece(WHITE, PAWN, E2);
-    key            ^= zob::hash_piece(WHITE, PAWN, E4);
+    TestBoard board  = TestBoard(PAWN_E2);
+    uint64_t  key    = board.key();
+    key             ^= zob::hash_piece(WHITE, PAWN, E2);
+    key             ^= zob::hash_piece(WHITE, PAWN, E4);
     board.move_piece<true>(E2, E4, WHITE, PAWN);
 
     EXPECT_EQ(board.piece_on(E2), NO_PIECE);
@@ -418,7 +452,7 @@ TEST(BoardRepresentationTest, move_piece) {
 
 TEST(BoardRepresentationTest, ZobristKey) {
     for (auto fen : representation_fens) {
-        Board b(fen);
+        TestBoard b(fen);
         EXPECT_EQ(b.key(), b.calculate_key());
     }
 }
@@ -435,7 +469,7 @@ TEST(BoardRepresentationTest, NonPawnMaterial) {
     };
 
     for (const auto& [fen, color, expected] : test_cases) {
-        Board board(fen);
+        TestBoard board(fen);
         EXPECT_EQ(board.nonPawnMaterial(color), expected);
         expect_board_consistent(board);
     }
@@ -443,7 +477,7 @@ TEST(BoardRepresentationTest, NonPawnMaterial) {
 
 TEST(BoardRepresentationTest, LoadedFixturesAreConsistent) {
     for (const auto& fen : representation_fens) {
-        Board board(fen);
+        TestBoard board(fen);
         expect_board_consistent(board);
     }
 }
@@ -451,9 +485,9 @@ TEST(BoardRepresentationTest, LoadedFixturesAreConsistent) {
 TEST(BoardRepresentationTest, MakeUnmakePreservesRepresentation) {
     for (const auto& fen :
          {STARTFEN, POS2, POS3, POS4B, ENPASSANT_A3, "4k3/P7/8/8/8/8/8/4K3 w - - 0 1"}) {
-        Board board(fen);
-        auto  before   = snapshot(board);
-        auto  movelist = generate<ALL_MOVES>(board);
+        TestBoard board(fen);
+        auto      before   = snapshot(board);
+        auto      movelist = generate<ALL_MOVES>(board);
 
         for (const auto& move : movelist) {
             if (!board.is_legal_pseudo_move(move))
@@ -462,7 +496,7 @@ TEST(BoardRepresentationTest, MakeUnmakePreservesRepresentation) {
             board.make(move);
             expect_board_consistent(board);
             board.unmake();
-            expect_same_board_state(board, before);
+            expect_same_board_snapshot(board, before);
             expect_board_consistent(board);
         }
     }
@@ -470,15 +504,121 @@ TEST(BoardRepresentationTest, MakeUnmakePreservesRepresentation) {
 
 TEST(BoardRepresentationTest, NullMovePreservesDurableRepresentation) {
     for (const auto& fen : {STARTFEN, POS2, ENPASSANT_A3, "4k3/8/8/8/4P3/8/8/4K3 b - e3 0 1"}) {
-        Board board(fen);
-        auto  before = snapshot(board);
+        TestBoard board(fen);
+        auto      before = snapshot(board);
 
         board.make_null();
         expect_same_durable_representation(board, before);
         expect_board_consistent(board);
 
         board.unmake_null();
-        expect_same_board_state(board, before);
+        expect_same_board_snapshot(board, before);
         expect_board_consistent(board);
     }
+}
+
+TEST(BoardRepresentationTest, CallerOwnedMakeUnmakePreservesRepresentation) {
+    PositionState root_state;
+    Board         board(root_state, POS2);
+    auto          before = snapshot(board);
+
+    Move first = first_legal_move(board);
+    ASSERT_FALSE(first.is_null());
+    PositionState first_state;
+    board.make(first, first_state);
+    auto after_first = snapshot(board);
+    expect_board_consistent(board);
+
+    Move second = first_legal_move(board);
+    ASSERT_FALSE(second.is_null());
+    PositionState second_state;
+    board.make(second, second_state);
+    expect_board_consistent(board);
+
+    board.unmake(first_state);
+    expect_same_board_snapshot(board, after_first);
+    expect_board_consistent(board);
+
+    board.unmake(root_state);
+    expect_same_board_snapshot(board, before);
+    expect_board_consistent(board);
+}
+
+TEST(BoardRepresentationTest, CallerOwnedNullMovePreservesRepresentation) {
+    PositionState root_state;
+    Board         board(root_state, POS2);
+    auto          before = snapshot(board);
+
+    PositionState first_state;
+    board.make_null(first_state);
+    auto after_first = snapshot(board);
+    expect_same_durable_representation(board, before);
+    expect_board_consistent(board);
+
+    PositionState second_state;
+    board.make_null(second_state);
+    expect_same_durable_representation(board, before);
+    expect_board_consistent(board);
+
+    board.unmake_null(first_state);
+    expect_same_board_snapshot(board, after_first);
+    expect_board_consistent(board);
+
+    board.unmake_null(root_state);
+    expect_same_board_snapshot(board, before);
+    expect_board_consistent(board);
+}
+
+TEST(BoardRepresentationTest, UnmakeIrreversibleMovePreservesPriorRepetitionHistory) {
+    TestBoard board("7k/8/8/8/8/8/P7/K7 w - - 0 1");
+
+    board.make(Move(A1, B1));
+    board.make(Move(H8, G8));
+    board.make(Move(B1, A1));
+    board.make(Move(G8, H8));
+    ASSERT_FALSE(board.is_draw());
+    ASSERT_TRUE(board.is_draw(5));
+    const auto before = snapshot(board);
+
+    board.make(Move(A2, A3));
+    board.make(Move(H8, G8));
+    board.make(Move(A1, B1));
+    EXPECT_FALSE(board.is_draw());
+
+    board.unmake();
+    board.unmake();
+    board.unmake();
+
+    expect_same_board_snapshot(board, before);
+    EXPECT_FALSE(board.is_draw());
+    EXPECT_TRUE(board.is_draw(5));
+    expect_board_consistent(board);
+}
+
+TEST(BoardRepresentationTest, LoadBoardPreservesRepetitionHistory) {
+    TestBoard board("3r4/ppq4k/1nb1BQ1p/4Pp1p/1b6/8/PP3PPP/2R1R1K1 w - - 2 26");
+
+    board.make(Move(E6, F5));
+    board.make(Move(H7, G8));
+    board.make(Move(F5, E6));
+    board.make(Move(G8, H7));
+    board.make(Move(E6, F5));
+    board.make(Move(H7, G8));
+    board.make(Move(F5, E6));
+    board.make(Move(G8, H7));
+    board.make(Move(E6, F5));
+    ASSERT_TRUE(board.is_draw());
+    const auto before = snapshot(board);
+
+    TestBoard fen_only(board.toFEN());
+    EXPECT_FALSE(fen_only.is_draw());
+
+    TestBoard clone(STARTFEN);
+    clone.load_board(&board);
+
+    EXPECT_EQ(clone.toFEN(), board.toFEN());
+    EXPECT_EQ(clone.key(), board.key());
+    EXPECT_TRUE(clone.is_draw());
+    expect_same_board_snapshot(clone, before);
+    expect_board_consistent(clone);
 }

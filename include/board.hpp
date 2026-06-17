@@ -1,18 +1,16 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
 #include "bb.hpp"
 
 #include "defs.hpp"
 #include "eval.hpp"
+#include "key_history.hpp"
 #include "move.hpp"
+#include "position_state.hpp"
 #include "score.hpp"
-#include "state.hpp"
 #include "zobrist.hpp"
-
-class Thread;
 
 class Board {
 private:
@@ -22,25 +20,28 @@ private:
     Square   king_square[N_COLORS]            = {E1, E8};
     Color    turn                             = WHITE;
 
-    uint32_t ply          = 0;
+    uint32_t game_ply     = 0;
     uint32_t fullmove_clk = 0;
 
     Score material  = {0, 0};
     Score psq_bonus = {0, 0};
 
-    std::vector<State> state  = {State()};
-    Thread*            thread = nullptr;
+    PositionState* active_position_state = nullptr;
+    KeyHistory     key_history;
+
+    PositionState&       active_state() { return *active_position_state; }
+    const PositionState& active_state() const { return *active_position_state; }
 
 public:
-    explicit Board(const std::string& fen);
+    explicit Board(PositionState& root_state, const std::string& fen = startfen);
     Board()                        = delete;
     Board(const Board&)            = delete;
     Board& operator=(const Board&) = delete;
 
     void load_board(const Board*);
     void load_fen(const std::string&);
-    void set_thread(Thread* t) { thread = t; }
     void reset();
+    void bind_position_state(PositionState& state_slot) { active_position_state = &state_slot; }
 
     // accessors
 
@@ -60,15 +61,15 @@ public:
     Score     psq_bonus_score() const { return psq_bonus; }
     uint32_t  fullmove() const { return (fullmove_clk / 2) + 1; }
 
-    CastleRights castle_rights() const { return state.at(ply).castle; }
-    uint64_t     checkers() const { return state.at(ply).checkers; }
-    uint64_t     blockers(Color c) const { return state.at(ply).blockers[c]; }
-    uint64_t     pinners(Color c) const { return state.at(ply).pinners[c]; }
-    Square       enpassant_sq() const { return state.at(ply).enpassant; }
+    CastleRights castle_rights() const { return position_state().castle; }
+    uint64_t     checkers() const { return position_state().checkers; }
+    uint64_t     blockers(Color c) const { return position_state().blockers[c]; }
+    uint64_t     pinners(Color c) const { return position_state().pinners[c]; }
+    Square       enpassant_sq() const { return position_state().enpassant; }
+    uint8_t      halfmove() const { return position_state().halfmove_clk; }
     Square       legal_enpassant_sq() const;
-    uint8_t      halfmove() const { return state.at(ply).halfmove_clk; }
 
-    State& get_state() { return state.at(ply); }
+    const PositionState& position_state() const { return *active_position_state; }
 
     // castling
 
@@ -116,14 +117,14 @@ public:
 
     // make moves
 
-    void make(Move);
-    void unmake();
-    void make_null();
-    void unmake_null();
+    void make(Move, PositionState& next_state);
+    void unmake(PositionState& prior_state);
+    void make_null(PositionState& next_state);
+    void unmake_null(PositionState& prior_state);
 
     // zobrist keys
 
-    uint64_t key() const { return state.at(ply).zkey; }
+    uint64_t key() const { return position_state().zkey; }
     uint64_t calculate_key() const;
 
     // checks and draws
@@ -131,7 +132,7 @@ public:
     bool is_check() const { return checkers(); }
     bool is_double_check() const { return bb::is_many(checkers()); };
     bool is_stalemate() const;
-    bool is_draw() const;
+    bool is_draw(int search_ply = 0) const;
 
     // string conversions
 
@@ -150,7 +151,8 @@ public:
     static constexpr char startfen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 };
 
-inline Board::Board(const std::string& fen) {
+inline Board::Board(PositionState& root_state, const std::string& fen) {
+    bind_position_state(root_state);
     load_fen(fen);
 }
 
@@ -177,27 +179,27 @@ inline bool Board::can_castle_queenside(Color c) const {
 };
 
 inline void Board::disable_castle(Color c) {
-    auto& st = get_state();
+    auto& state = this->active_state();
 
     if (can_castle_kingside(c))
-        st.zkey ^= zob::castle[CASTLE_KINGSIDE][c];
+        state.zkey ^= zob::castle[CASTLE_KINGSIDE][c];
     if (can_castle_queenside(c))
-        st.zkey ^= zob::castle[CASTLE_QUEENSIDE][c];
+        state.zkey ^= zob::castle[CASTLE_QUEENSIDE][c];
 
-    st.castle &= (c == WHITE ? B_CASTLE : W_CASTLE);
+    state.castle &= (c == WHITE ? B_CASTLE : W_CASTLE);
 }
 
 inline void Board::disable_castle(Color c, Square sq) {
-    auto& st = get_state();
+    auto& state = this->active_state();
 
     if (sq == castle::rook_from[CASTLE_KINGSIDE][c] && can_castle_kingside(c)) {
-        st.zkey   ^= zob::castle[CASTLE_KINGSIDE][c];
-        st.castle &= ~(c == WHITE ? W_KINGSIDE : B_KINGSIDE);
+        state.zkey   ^= zob::castle[CASTLE_KINGSIDE][c];
+        state.castle &= ~(c == WHITE ? W_KINGSIDE : B_KINGSIDE);
     }
 
     else if (sq == castle::rook_from[CASTLE_QUEENSIDE][c] && can_castle_queenside(c)) {
-        st.zkey   ^= zob::castle[CASTLE_QUEENSIDE][c];
-        st.castle &= ~(c == WHITE ? W_QUEENSIDE : B_QUEENSIDE);
+        state.zkey   ^= zob::castle[CASTLE_QUEENSIDE][c];
+        state.castle &= ~(c == WHITE ? W_QUEENSIDE : B_QUEENSIDE);
     }
 }
 
@@ -240,7 +242,7 @@ inline void Board::add_piece(Square sq, Color c, PieceType pt) {
     material                += eval::piece(pt, c);
     psq_bonus               += eval::piece_sq(pt, c, sq);
     if constexpr (apply_hash)
-        state.at(ply).zkey ^= zob::hash_piece(c, pt, sq);
+        active_state().zkey ^= zob::hash_piece(c, pt, sq);
 }
 
 template <bool apply_hash>
@@ -252,7 +254,7 @@ inline void Board::remove_piece(Square sq, Color c, PieceType pt) {
     material                -= eval::piece(pt, c);
     psq_bonus               -= eval::piece_sq(pt, c, sq);
     if constexpr (apply_hash)
-        state.at(ply).zkey ^= zob::hash_piece(c, pt, sq);
+        active_state().zkey ^= zob::hash_piece(c, pt, sq);
 }
 
 template <bool apply_hash>
@@ -264,20 +266,21 @@ inline void Board::move_piece(Square from, Square to, Color c, PieceType pt) {
     squares[to]              = make_piece(c, pt);
     psq_bonus               += eval::piece_sq(pt, c, to) - eval::piece_sq(pt, c, from);
     if constexpr (apply_hash)
-        state.at(ply).zkey ^= zob::hash_piece(c, pt, from) ^ zob::hash_piece(c, pt, to);
+        active_state().zkey ^= zob::hash_piece(c, pt, from) ^ zob::hash_piece(c, pt, to);
 }
 
 inline void Board::update_check_data() {
     Color    opp      = ~turn;
     Square   opp_king = king_sq(opp);
     uint64_t occ      = occupancy();
+    auto&    state    = this->active_state();
 
-    state[ply].checkers       = attacks_to(king_sq(turn), opp);
-    state[ply].checks[PAWN]   = bb::pawn_attacks(bb::set(opp_king), opp);
-    state[ply].checks[KNIGHT] = bb::moves<KNIGHT>(opp_king, occ);
-    state[ply].checks[BISHOP] = bb::moves<BISHOP>(opp_king, occ);
-    state[ply].checks[ROOK]   = bb::moves<ROOK>(opp_king, occ);
-    state[ply].checks[QUEEN]  = state[ply].checks[BISHOP] | state[ply].checks[ROOK];
+    state.checkers       = attacks_to(king_sq(turn), opp);
+    state.checks[PAWN]   = bb::pawn_attacks(bb::set(opp_king), opp);
+    state.checks[KNIGHT] = bb::moves<KNIGHT>(opp_king, occ);
+    state.checks[BISHOP] = bb::moves<BISHOP>(opp_king, occ);
+    state.checks[ROOK]   = bb::moves<ROOK>(opp_king, occ);
+    state.checks[QUEEN]  = state.checks[BISHOP] | state.checks[ROOK];
     update_pinners_and_blockers(WHITE);
     update_pinners_and_blockers(BLACK);
 }
@@ -288,19 +291,20 @@ inline void Board::update_pinners_and_blockers(Color c) {
     Square   king    = king_sq(c);
     uint64_t snipers = (bb::moves<BISHOP>(king) & pieces<BISHOP, QUEEN>(opp)) |
                        (bb::moves<ROOK>(king) & pieces<ROOK, QUEEN>(opp));
-    uint64_t occ = occupancy() ^ snipers;
+    uint64_t occ   = occupancy() ^ snipers;
+    auto&    state = this->active_state();
 
-    state[ply].blockers[c]  = 0;
-    state[ply].pinners[opp] = 0;
+    state.blockers[c]  = 0;
+    state.pinners[opp] = 0;
 
     while (snipers) {
         Square   pinner         = bb::lsb_pop(snipers);
         uint64_t pieces_between = occ & bb::between(king, pinner);
 
         if (pieces_between && !bb::is_many(pieces_between)) {
-            state[ply].blockers[c] |= pieces_between;
+            state.blockers[c] |= pieces_between;
             if (pieces_between & pieces<ALL_PIECES>(c))
-                state[ply].pinners[opp] |= bb::set(pinner);
+                state.pinners[opp] |= bb::set(pinner);
         }
     }
 }
