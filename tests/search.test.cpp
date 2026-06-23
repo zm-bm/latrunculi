@@ -538,6 +538,39 @@ TEST_F(SearchTest, RootSearchIgnoresTranspositionTableBoundsExceptForOrdering) {
     EXPECT_EQ(search_with_root_tt(TT_Flag::Exact, baseline + 500), baseline);
 }
 
+TEST_F(SearchTest, RootSearchWidenResearchesFailedAspirationWindows) {
+    constexpr auto one_legal_root_move = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr int  search_depth        = 1;
+
+    TestBoard baseline_board{one_legal_root_move};
+    loadThreadBoard(baseline_board);
+    const int baseline = runRootSearchWiden(search_depth, evaluate(baseline_board));
+
+    TestBoard fail_low_board{one_legal_root_move};
+    loadThreadBoard(fail_low_board);
+    EXPECT_EQ(runRootSearchWiden(search_depth, baseline + 1000), baseline);
+
+    TestBoard fail_high_board{one_legal_root_move};
+    loadThreadBoard(fail_high_board);
+    EXPECT_EQ(runRootSearchWiden(search_depth, baseline - 1000), baseline);
+}
+
+TEST_F(SearchTest, HaltedSearchReturnsAbortSentinelValues) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  alpha         = -123;
+    constexpr int  beta          = 456;
+
+    TestBoard alpha_beta_board{quiet_control};
+    loadThreadBoard(alpha_beta_board);
+    thread->halt();
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, 2, true), alpha);
+
+    TestBoard qsearch_board{quiet_control};
+    loadThreadBoard(qsearch_board);
+    thread->halt();
+    EXPECT_EQ(runLoadedQuiescence(alpha, beta), alpha);
+}
+
 TEST_F(SearchTest, TranspositionTableExactWithNonPseudoLegalMoveStillCutsOff) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     constexpr int  search_depth  = 1;

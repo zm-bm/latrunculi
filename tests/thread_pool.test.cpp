@@ -147,3 +147,13 @@ TEST_F(ThreadPoolTest, BestVotedMoveIgnoresIncompleteNullAndIllegalResults) {
 
     EXPECT_EQ(best_voted_move(fallback), fallback);
 }
+
+TEST_F(ThreadPoolTest, BestVotedMoveIgnoresZeroDepthResults) {
+    Move fallback{E2, E4};
+    Move zero_depth_move{G1, F3};
+
+    set_root_result(0, {fallback, 10, 1, 100, true});
+    set_root_result(1, {zero_depth_move, MATE_VALUE - 1, 0, 500, true});
+
+    EXPECT_EQ(best_voted_move(fallback), fallback);
+}
