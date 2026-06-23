@@ -1,5 +1,6 @@
 #include "move_list.hpp"
 
+#include <algorithm>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -65,6 +66,28 @@ TEST_F(MoveListTest, SortMovesWithHistoryAndKiller) {
     EXPECT_EQ(movelist[0], Move(B4, F4));
     EXPECT_EQ(movelist[1], killer_move);
     EXPECT_EQ(movelist[2], hist_move);
+}
+
+TEST_F(MoveListTest, SaturatedHistoryQuietStaysBelowKillerPriority) {
+    Move killer_move = Move(A5, A4);
+    Move hist_move   = Move(A5, A6);
+
+    killers.update(killer_move, ply);
+    for (int i = 0; i < 8; ++i)
+        history.update(board.side_to_move(), hist_move.from(), hist_move.to(), MAX_SEARCH_DEPTH);
+
+    MoveList movelist = generate<ALL_MOVES>(board);
+    movelist.sort({board, killers, history, ply});
+
+    const auto moves     = ordered_moves(movelist);
+    const auto killer_it = std::find(moves.begin(), moves.end(), killer_move);
+    const auto hist_it   = std::find(moves.begin(), moves.end(), hist_move);
+
+    ASSERT_NE(killer_it, moves.end());
+    ASSERT_NE(hist_it, moves.end());
+    EXPECT_LT(killer_it, hist_it);
+    EXPECT_LE(history.get(board.side_to_move(), hist_move.from(), hist_move.to()),
+              PRIORITY_HISTORY);
 }
 
 TEST_F(MoveListTest, SortMovesWithPVAndHash) {

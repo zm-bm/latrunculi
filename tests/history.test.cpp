@@ -15,6 +15,16 @@ TEST(HistoryTableTest, UpdateAndRetrieve) {
     EXPECT_GT(hist.get(WHITE, E2, E4), value);
 }
 
+TEST(HistoryTableTest, UpdateStaysWithinPriorityHistoryBand) {
+    HistoryTable hist;
+
+    for (int i = 0; i < 8; ++i)
+        hist.update(WHITE, E2, E4, MAX_SEARCH_DEPTH);
+
+    EXPECT_GE(hist.get(WHITE, E2, E4), 0);
+    EXPECT_LE(hist.get(WHITE, E2, E4), PRIORITY_HISTORY);
+}
+
 TEST(HistoryTableTest, Age) {
     HistoryTable hist;
     hist.update(WHITE, E2, E4, 3);
