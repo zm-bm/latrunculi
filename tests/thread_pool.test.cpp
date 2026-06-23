@@ -65,16 +65,28 @@ TEST_F(ThreadPoolTest, Constructor) {
 TEST_F(ThreadPoolTest, StartAllThreads) {
     // Start the pool with fixed depth
     options.depth = 5;
-    pool.start_all(options);
+    EXPECT_TRUE(pool.start_all(options));
 
     // Check output for best move
     EXPECT_NO_THROW(pool.wait_all());
     EXPECT_NE(oss.str().find("bestmove"), std::string::npos) << oss.str();
 }
 
+TEST_F(ThreadPoolTest, StartAllRejectsConcurrentSearch) {
+    EXPECT_TRUE(pool.start_all(options));
+    ASSERT_TRUE(wait_for_search_start());
+    const auto age = tt.current_age();
+
+    EXPECT_FALSE(pool.start_all(options));
+    EXPECT_EQ(tt.current_age(), age);
+
+    pool.halt_all();
+    pool.wait_all();
+}
+
 TEST_F(ThreadPoolTest, HaltAllThreads) {
     // Start the pool and then halt
-    pool.start_all(options);
+    EXPECT_TRUE(pool.start_all(options));
     ASSERT_TRUE(wait_for_search_start());
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     pool.halt_all();
@@ -86,7 +98,7 @@ TEST_F(ThreadPoolTest, HaltAllThreads) {
 
 TEST_F(ThreadPoolTest, ShutdownAllThreads) {
     // Start the pool and then shutdown all threads
-    pool.start_all(options);
+    EXPECT_TRUE(pool.start_all(options));
     ASSERT_TRUE(wait_for_search_start());
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     pool.shutdown_all();
@@ -98,7 +110,7 @@ TEST_F(ThreadPoolTest, ShutdownAllThreads) {
 TEST_F(ThreadPoolTest, AccumulateNodes) {
     options.depth = 1;
 
-    pool.start_all(options);
+    EXPECT_TRUE(pool.start_all(options));
     pool.wait_all();
 
     EXPECT_GT(accumulate_nodes(), 0);
@@ -109,13 +121,24 @@ TEST_F(ThreadPoolTest, RootSearchAgesSharedTTOncePerStartAll) {
 
     EXPECT_EQ(tt.current_age(), uint8_t{0});
 
-    pool.start_all(options);
+    EXPECT_TRUE(pool.start_all(options));
     pool.wait_all();
     EXPECT_EQ(tt.current_age(), uint8_t{1});
 
-    pool.start_all(options);
+    EXPECT_TRUE(pool.start_all(options));
     pool.wait_all();
     EXPECT_EQ(tt.current_age(), uint8_t{2});
+}
+
+TEST_F(ThreadPoolTest, ResizeRejectsWhileSearchInProgress) {
+    EXPECT_TRUE(pool.start_all(options));
+    ASSERT_TRUE(wait_for_search_start());
+
+    EXPECT_FALSE(pool.resize(N_THREADS + 1));
+    EXPECT_EQ(pool.size(), N_THREADS);
+
+    pool.halt_all();
+    pool.wait_all();
 }
 
 TEST_F(ThreadPoolTest, HelperThreadsUseIntentionalDepthOffset) {

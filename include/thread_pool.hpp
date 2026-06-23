@@ -13,15 +13,16 @@ public:
     ThreadPool(size_t thread_count, uci::Protocol& protocol);
     ~ThreadPool() = default;
 
-    void start_all(SearchOptions&);
+    bool start_all(SearchOptions&);
     void shutdown_all();
     void halt_all();
     void wait_all();
     void halt_helpers();
     void wait_helpers();
-    void resize(size_t thread_count);
+    bool resize(size_t thread_count);
 
-    int size() const;
+    bool is_busy() const;
+    int  size() const;
 
     template <typename T>
     T accumulate(T Thread::*member) const;

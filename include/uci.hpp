@@ -95,6 +95,13 @@ struct std::formatter<uci::SpinOption> : std::formatter<std::string_view> {
 };
 
 template <>
+struct std::formatter<uci::CheckOption> : std::formatter<std::string_view> {
+    auto format(const uci::CheckOption& opt, std::format_context& ctx) const {
+        return std::format_to(ctx.out(), "type check default {}", opt.def_value ? "true" : "false");
+    }
+};
+
+template <>
 struct std::formatter<uci::PV> : std::formatter<std::string_view> {
     auto format(const uci::PV& pv, std::format_context& ctx) const {
         return std::format_to(ctx.out(),

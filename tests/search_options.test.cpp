@@ -53,3 +53,34 @@ TEST(SearchOptionsTest, ExtraTokensIgnored) {
     EXPECT_EQ(opts.movetime, 2500);
     EXPECT_EQ(opts.nodes, OPTION_NOT_SET);
 }
+
+TEST(SearchOptionsTest, MovetimeOverridesClockBudget) {
+    std::istringstream iss("movetime 1234 wtime 90000 btime 90000 winc 500 binc 500");
+    SearchOptions      opts(iss);
+
+    EXPECT_EQ(opts.calc_searchtime_ms(WHITE), 1234);
+}
+
+TEST(SearchOptionsTest, ClockBudgetDefaultsMissingIncrementToZero) {
+    std::istringstream iss("wtime 90000 btime 60000 movestogo 30");
+    SearchOptions      opts(iss);
+
+    EXPECT_EQ(opts.calc_searchtime_ms(WHITE), 2950);
+    EXPECT_EQ(opts.calc_searchtime_ms(BLACK), 1950);
+}
+
+TEST(SearchOptionsTest, ClockBudgetUsesSideIncrement) {
+    std::istringstream iss("wtime 90000 btime 60 winc 500 binc 100 movestogo 30");
+    SearchOptions      opts(iss);
+
+    EXPECT_EQ(opts.calc_searchtime_ms(WHITE), 3450);
+    EXPECT_EQ(opts.calc_searchtime_ms(BLACK), 52);
+}
+
+TEST(SearchOptionsTest, ClockBudgetUsesMinimumWhenBudgetIsLow) {
+    std::istringstream iss("wtime 60 btime 60 movestogo 30");
+    SearchOptions      opts(iss);
+
+    EXPECT_EQ(opts.calc_searchtime_ms(WHITE), 10);
+    EXPECT_EQ(opts.calc_searchtime_ms(BLACK), 10);
+}

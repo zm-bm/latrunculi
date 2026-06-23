@@ -1,6 +1,7 @@
 #include "uci.hpp"
 
 #include <sstream>
+#include <stdexcept>
 
 #include "gtest/gtest.h"
 
@@ -26,6 +27,26 @@ TEST_F(ProtocolTest, Identify) {
     uci::Config config;
     protocol.identify(config);
     EXPECT_NE(oss.str().find("uciok"), std::string::npos);
+    EXPECT_NE(oss.str().find("option name Debug type check default false"), std::string::npos);
+}
+
+TEST_F(ProtocolTest, ConfigSetOptionWorksWithoutCallbacks) {
+    uci::Config config;
+
+    EXPECT_NO_THROW(config.set_option("Hash", "16"));
+    EXPECT_NO_THROW(config.set_option("Threads", "2"));
+    EXPECT_NO_THROW(config.set_option("Debug", "on"));
+
+    EXPECT_EQ(config.hash.value, 16);
+    EXPECT_EQ(config.threads.value, 2);
+    EXPECT_TRUE(config.debug.value);
+}
+
+TEST_F(ProtocolTest, ConfigRejectsMalformedOptionValues) {
+    uci::Config config;
+
+    EXPECT_THROW(config.set_option("Threads", "2 extra"), std::invalid_argument);
+    EXPECT_THROW(config.set_option("Debug", "maybe"), std::invalid_argument);
 }
 
 TEST_F(ProtocolTest, Ready) {

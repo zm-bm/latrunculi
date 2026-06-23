@@ -4,26 +4,41 @@
 #include "evaluator.hpp"
 #include "search_stats.hpp"
 
+#include <cctype>
+
 namespace uci {
 
 void SpinOption::set(std::string value_str) {
-    int val = std::stoi(value_str);
+    size_t pos = 0;
+    int    val = std::stoi(value_str, &pos);
+    while (pos < value_str.size() && std::isspace(static_cast<unsigned char>(value_str[pos])))
+        ++pos;
+    if (pos != value_str.size())
+        throw std::invalid_argument("Invalid integer value");
     if (val < min_value || val > max_value)
         throw std::out_of_range("Value out of range");
     value = val;
 };
 
 void CheckOption::set(std::string val_str) {
-    value = (val_str == "true" || val_str == "on");
+    if (val_str == "true" || val_str == "on") {
+        value = true;
+    } else if (val_str == "false" || val_str == "off") {
+        value = false;
+    } else {
+        throw std::invalid_argument("Invalid boolean value");
+    }
 }
 
 void Config::set_option(const std::string& name, const std::string& value) {
     if (name == "Hash") {
         hash.set(value);
-        hash_callback(hash.value);
+        if (hash_callback)
+            hash_callback(hash.value);
     } else if (name == "Threads") {
         threads.set(value);
-        thread_callback(threads.value);
+        if (thread_callback)
+            thread_callback(threads.value);
     } else if (name == "Debug") {
         debug.set(value);
     } else {
@@ -73,8 +88,10 @@ id name Latrunculi {}
 id author Eric VanderHelm
 option name Hash {}
 option name Threads {}
+option name Debug {}
 uciok)";
-    out << std::format(format_str, LATRUNCULI_VERSION, config.hash, config.threads) << '\n';
+    out << std::format(format_str, LATRUNCULI_VERSION, config.hash, config.threads, config.debug)
+        << '\n';
 }
 
 void Protocol::ready() const {

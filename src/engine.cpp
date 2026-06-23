@@ -80,7 +80,7 @@ void Engine::unmake_board_move() {
 
 void Engine::loop() {
     std::string line;
-    while (std::getline(std::cin, line)) {
+    while (std::getline(in, line)) {
         if (!execute(line))
             break;
     }
@@ -126,6 +126,9 @@ bool Engine::is_ready(std::istringstream& iss) {
 }
 
 bool Engine::set_option(std::istringstream& iss) {
+    if (thread_pool.is_busy())
+        throw std::runtime_error("cannot set option while search is in progress");
+
     auto [name, value] = parse_option(iss);
     if (name.empty())
         throw std::runtime_error("missing option name");
@@ -136,6 +139,9 @@ bool Engine::set_option(std::istringstream& iss) {
 }
 
 bool Engine::new_game(std::istringstream& iss) {
+    if (thread_pool.is_busy())
+        throw std::runtime_error("cannot start new game while search is in progress");
+
     // UCI new game policy: drop all cached TT data so a fresh game starts from an empty table
     // with generation 0 instead of carrying entries across unrelated games.
     tt.clear();
@@ -161,7 +167,8 @@ bool Engine::position(std::istringstream& iss) {
 
 bool Engine::go(std::istringstream& iss) {
     SearchOptions options(iss, &board);
-    thread_pool.start_all(options);
+    if (!thread_pool.start_all(options))
+        protocol.info("search already in progress");
     return true;
 }
 

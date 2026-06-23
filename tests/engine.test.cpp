@@ -21,7 +21,27 @@ protected:
     bool        execute(const std::string& command) { return engine.execute(command); }
     Board&      board() { return engine.board; }
     ThreadPool& threadpool() { return engine.thread_pool; }
+
+    bool wait_for_busy(std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
+        auto deadline = std::chrono::steady_clock::now() + timeout;
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (threadpool().is_busy())
+                return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return threadpool().is_busy();
+    }
 };
+
+TEST(EngineLoopTest, ReadsConfiguredInputStream) {
+    std::istringstream input{"isready\nquit\n"};
+    std::ostringstream output;
+    Engine             engine{output, output, input};
+
+    engine.loop();
+
+    EXPECT_NE(output.str().find("readyok"), std::string::npos);
+}
 
 TEST_F(EngineTest, GoAndStopCommands) {
     // Start a search
@@ -34,6 +54,52 @@ TEST_F(EngineTest, GoAndStopCommands) {
     // Wait for threads to finish and check output for best move
     threadpool().wait_all();
     EXPECT_NE(output.str().find("bestmove"), std::string::npos);
+}
+
+TEST_F(EngineTest, GoWhileSearchInProgressIsRejected) {
+    EXPECT_TRUE(execute("go"));
+    ASSERT_TRUE(wait_for_busy());
+
+    output.str("");
+    output.clear();
+
+    EXPECT_TRUE(execute("go depth 1"));
+    EXPECT_NE(output.str().find("search already in progress"), std::string::npos) << output.str();
+
+    EXPECT_TRUE(execute("stop"));
+    threadpool().wait_all();
+}
+
+TEST_F(EngineTest, SetOptionWhileSearchInProgressIsRejected) {
+    EXPECT_TRUE(execute("go"));
+    ASSERT_TRUE(wait_for_busy());
+
+    output.str("");
+    output.clear();
+
+    EXPECT_TRUE(execute("setoption name Threads value 2"));
+    EXPECT_NE(output.str().find("cannot set option while search is in progress"), std::string::npos)
+        << output.str();
+    EXPECT_EQ(threadpool().size(), DEFAULT_THREADS);
+
+    EXPECT_TRUE(execute("stop"));
+    threadpool().wait_all();
+}
+
+TEST_F(EngineTest, UciNewGameWhileSearchInProgressIsRejected) {
+    EXPECT_TRUE(execute("go"));
+    ASSERT_TRUE(wait_for_busy());
+
+    output.str("");
+    output.clear();
+
+    EXPECT_TRUE(execute("ucinewgame"));
+    EXPECT_NE(output.str().find("cannot start new game while search is in progress"),
+              std::string::npos)
+        << output.str();
+
+    EXPECT_TRUE(execute("stop"));
+    threadpool().wait_all();
 }
 
 TEST_F(EngineTest, ExitCommand) {
@@ -141,6 +207,7 @@ INSTANTIATE_TEST_SUITE_P(
         SetOptionCase{.command = "setoption name Threads abc"},
         SetOptionCase{.command = "setoption name Threads value"},
         SetOptionCase{.command = "setoption name Threads value abc"},
+        SetOptionCase{.command = "setoption name Threads value 2 extra"},
         SetOptionCase{.command = "setoption name Threads value -1"},
         SetOptionCase{.command = "setoption name Threads value 0"},
         SetOptionCase{.command = "setoption name Threads value 99999"},

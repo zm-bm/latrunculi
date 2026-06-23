@@ -12,12 +12,17 @@ ThreadPool::ThreadPool(size_t thread_count, uci::Protocol& protocol) : protocol(
     }
 }
 
-void ThreadPool::start_all(SearchOptions& options) {
+bool ThreadPool::start_all(SearchOptions& options) {
+    if (is_busy())
+        return false;
+
     tt.age_table();
 
     for (auto& thread : threads) {
         thread->start(options);
     }
+
+    return true;
 }
 
 void ThreadPool::shutdown_all() {
@@ -50,9 +55,12 @@ void ThreadPool::wait_helpers() {
     }
 }
 
-void ThreadPool::resize(size_t thread_count) {
+bool ThreadPool::resize(size_t thread_count) {
+    if (is_busy())
+        return false;
+
     if (thread_count == threads.size())
-        return;
+        return true;
 
     if (thread_count < threads.size()) {
         for (size_t i = thread_count; i < threads.size(); ++i) {
@@ -64,6 +72,13 @@ void ThreadPool::resize(size_t thread_count) {
             threads.push_back(std::make_unique<Thread>(i, protocol, *this));
         }
     }
+
+    return true;
+}
+
+bool ThreadPool::is_busy() const {
+    return std::any_of(
+        threads.begin(), threads.end(), [](const auto& thread) { return thread->is_busy(); });
 }
 
 int ThreadPool::size() const {

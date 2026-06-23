@@ -60,7 +60,7 @@ private:
     // thread state
 
     const int               thread_id;
-    std::mutex              mutex;
+    mutable std::mutex      mutex;
     std::condition_variable cv;
     std::condition_variable done_cv;
     bool                    exit_flag{false};
@@ -87,6 +87,7 @@ private:
 
     // inline helpers
 
+    bool             is_busy() const;
     Milliseconds     get_runtime() const;
     uint64_t         get_nodes() const;
     std::string      get_pv(int depth) const;
@@ -108,6 +109,11 @@ private:
 
     friend class ThreadPool;
 };
+
+inline bool Thread::is_busy() const {
+    std::lock_guard<std::mutex> lock(mutex);
+    return busy_flag;
+}
 
 inline void Thread::set_options(SearchOptions& options) {
     board.bind_position_state(position_states[0]);
