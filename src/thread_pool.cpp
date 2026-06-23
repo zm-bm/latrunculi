@@ -97,7 +97,8 @@ Move ThreadPool::best_voted_move(const Board& board, Move fallback) const {
 
     for (const auto& thread : threads) {
         auto result = thread->root_result_snapshot();
-        if (!result.completed || result.move.is_null() || !is_legal_root_move(result.move))
+        if (!result.completed || result.depth <= 0 || result.move.is_null() ||
+            !is_legal_root_move(result.move))
             continue;
         results.push_back(result);
     }
