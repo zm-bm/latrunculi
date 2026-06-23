@@ -2,10 +2,12 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "movegen.hpp"
@@ -183,6 +185,209 @@ void expect_board_consistent(const Board& board) {
     EXPECT_EQ(board.material_score(), expected_material);
     EXPECT_EQ(board.psq_bonus_score(), expected_psq);
     EXPECT_EQ(board.key(), board.calculate_key());
+}
+
+struct ExpectedCheckData {
+    uint64_t checkers             = 0;
+    uint64_t blockers[N_COLORS]   = {0};
+    uint64_t pinners[N_COLORS]    = {0};
+    uint64_t checks[N_PIECES - 1] = {0};
+};
+
+int sign(int value) {
+    return (value > 0) - (value < 0);
+}
+
+bool on_board(int file, int rank) {
+    return file >= FILE1 && file <= FILE8 && rank >= RANK1 && rank <= RANK8;
+}
+
+uint64_t slow_leaper_attacks(Square from, const std::vector<std::pair<int, int>>& offsets) {
+    uint64_t  attacks = 0;
+    const int file    = file_of(from);
+    const int rank    = rank_of(from);
+
+    for (const auto& [df, dr] : offsets) {
+        const int to_file = file + df;
+        const int to_rank = rank + dr;
+        if (on_board(to_file, to_rank))
+            attacks |= bb::set(make_square(File(to_file), Rank(to_rank)));
+    }
+
+    return attacks;
+}
+
+uint64_t slow_knight_attacks(Square from) {
+    return slow_leaper_attacks(
+        from, {{1, 2}, {2, 1}, {2, -1}, {1, -2}, {-1, -2}, {-2, -1}, {-2, 1}, {-1, 2}});
+}
+
+uint64_t slow_king_attacks(Square from) {
+    return slow_leaper_attacks(
+        from, {{1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}, {0, 1}});
+}
+
+uint64_t slow_pawn_attackers_to(Square target, Color attacker) {
+    const int file = file_of(target);
+    const int rank = rank_of(target);
+    const int dr   = attacker == WHITE ? -1 : 1;
+
+    uint64_t attackers = 0;
+    for (const int df : {-1, 1}) {
+        const int from_file = file + df;
+        const int from_rank = rank + dr;
+        if (on_board(from_file, from_rank))
+            attackers |= bb::set(make_square(File(from_file), Rank(from_rank)));
+    }
+
+    return attackers;
+}
+
+bool ray_step(Square from, Square to, PieceType slider, int& df, int& dr) {
+    const int  file_delta = file_of(to) - file_of(from);
+    const int  rank_delta = rank_of(to) - rank_of(from);
+    const bool diagonal   = std::abs(file_delta) == std::abs(rank_delta);
+    const bool straight   = file_delta == 0 || rank_delta == 0;
+
+    if (file_delta == 0 && rank_delta == 0)
+        return false;
+
+    if ((slider == BISHOP || slider == QUEEN) && diagonal) {
+        df = sign(file_delta);
+        dr = sign(rank_delta);
+        return true;
+    }
+
+    if ((slider == ROOK || slider == QUEEN) && straight) {
+        df = sign(file_delta);
+        dr = sign(rank_delta);
+        return true;
+    }
+
+    return false;
+}
+
+uint64_t slow_between(Square from, Square to) {
+    int df = 0;
+    int dr = 0;
+    if (!ray_step(from, to, QUEEN, df, dr))
+        return 0;
+
+    uint64_t between = 0;
+    int      file    = file_of(from) + df;
+    int      rank    = rank_of(from) + dr;
+    while (file != file_of(to) || rank != rank_of(to)) {
+        between |= bb::set(make_square(File(file), Rank(rank)));
+        file    += df;
+        rank    += dr;
+    }
+
+    return between;
+}
+
+uint64_t slow_sliding_attacks(Square from, PieceType slider, uint64_t occupancy) {
+    const std::vector<std::pair<int, int>> bishop_dirs = {{1, 1}, {1, -1}, {-1, -1}, {-1, 1}};
+    const std::vector<std::pair<int, int>> rook_dirs   = {{1, 0}, {0, -1}, {-1, 0}, {0, 1}};
+
+    uint64_t attacks = 0;
+    auto     scan    = [&](const std::vector<std::pair<int, int>>& dirs) {
+        for (const auto& [df, dr] : dirs) {
+            int file = file_of(from) + df;
+            int rank = rank_of(from) + dr;
+            while (on_board(file, rank)) {
+                const Square sq  = make_square(File(file), Rank(rank));
+                attacks         |= bb::set(sq);
+                if (occupancy & bb::set(sq))
+                    break;
+                file += df;
+                rank += dr;
+            }
+        }
+    };
+
+    if (slider == BISHOP || slider == QUEEN)
+        scan(bishop_dirs);
+    if (slider == ROOK || slider == QUEEN)
+        scan(rook_dirs);
+
+    return attacks;
+}
+
+bool is_slider(PieceType piece) {
+    return piece == BISHOP || piece == ROOK || piece == QUEEN;
+}
+
+uint64_t slow_attackers_to(const Board& board, Square target, Color attacker) {
+    const uint64_t occupancy = board.occupancy();
+
+    return (board.pieces<PAWN>(attacker) & slow_pawn_attackers_to(target, attacker)) |
+           (board.pieces<KNIGHT>(attacker) & slow_knight_attacks(target)) |
+           (board.pieces<KING>(attacker) & slow_king_attacks(target)) |
+           (board.pieces<BISHOP, QUEEN>(attacker) &
+            slow_sliding_attacks(target, BISHOP, occupancy)) |
+           (board.pieces<ROOK, QUEEN>(attacker) & slow_sliding_attacks(target, ROOK, occupancy));
+}
+
+ExpectedCheckData expected_check_data(const Board& board) {
+    ExpectedCheckData expected;
+    const Color       us        = board.side_to_move();
+    const Color       them      = ~us;
+    const Square      them_king = board.king_sq(them);
+    const uint64_t    occupancy = board.occupancy();
+
+    expected.checkers       = slow_attackers_to(board, board.king_sq(us), them);
+    expected.checks[PAWN]   = slow_pawn_attackers_to(them_king, us);
+    expected.checks[KNIGHT] = slow_knight_attacks(them_king);
+    expected.checks[BISHOP] = slow_sliding_attacks(them_king, BISHOP, occupancy);
+    expected.checks[ROOK]   = slow_sliding_attacks(them_king, ROOK, occupancy);
+    expected.checks[QUEEN]  = expected.checks[BISHOP] | expected.checks[ROOK];
+
+    for (int c = BLACK; c < N_COLORS; ++c) {
+        const Color  king_color   = Color(c);
+        const Color  sniper_color = ~king_color;
+        const Square king         = board.king_sq(king_color);
+        uint64_t     snipers      = 0;
+
+        for (auto sq = A1; sq != INVALID; ++sq) {
+            const Piece piece = board.piece_on(sq);
+            if (piece == NO_PIECE || color_of(piece) != sniper_color || !is_slider(type_of(piece)))
+                continue;
+
+            int df = 0;
+            int dr = 0;
+            if (ray_step(king, sq, type_of(piece), df, dr))
+                snipers |= bb::set(sq);
+        }
+
+        const uint64_t occupancy_without_snipers = occupancy ^ snipers;
+        uint64_t       remaining_snipers         = snipers;
+        while (remaining_snipers) {
+            const Square   sniper         = bb::lsb_pop(remaining_snipers);
+            const uint64_t pieces_between = occupancy_without_snipers & slow_between(king, sniper);
+
+            if (pieces_between && !bb::is_many(pieces_between)) {
+                expected.blockers[king_color] |= pieces_between;
+                if (pieces_between & board.pieces<ALL_PIECES>(king_color))
+                    expected.pinners[sniper_color] |= bb::set(sniper);
+            }
+        }
+    }
+
+    return expected;
+}
+
+void expect_check_data_matches_slow_oracle(const Board& board) {
+    const ExpectedCheckData expected = expected_check_data(board);
+
+    EXPECT_EQ(board.checkers(), expected.checkers) << board.toFEN();
+    for (int c = BLACK; c < N_COLORS; ++c) {
+        EXPECT_EQ(board.blockers(Color(c)), expected.blockers[c]) << board.toFEN();
+        EXPECT_EQ(board.pinners(Color(c)), expected.pinners[c]) << board.toFEN();
+    }
+    for (int p = PAWN; p <= QUEEN; ++p) {
+        EXPECT_EQ(board.position_state().checks[p], expected.checks[p])
+            << board.toFEN() << " piece " << PieceType(p);
+    }
 }
 
 Move first_legal_move(Board& board) {
@@ -498,6 +703,63 @@ TEST(BoardRepresentationTest, MakeUnmakePreservesRepresentation) {
             board.unmake();
             expect_same_board_snapshot(board, before);
             expect_board_consistent(board);
+        }
+    }
+}
+
+TEST(BoardRepresentationTest, CapturePromotionMakeUnmakePreservesRepresentation) {
+    const std::string fen = "1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1";
+    TestBoard         board(fen);
+    const auto        before = snapshot(board);
+
+    const Move move(A7, B8, MOVE_PROM, QUEEN);
+    ASSERT_TRUE(board.is_legal_move(move));
+
+    board.make(move);
+    EXPECT_EQ(board.toFEN(), "1Q2k3/8/8/8/8/8/8/4K3 b - - 0 1");
+    expect_board_consistent(board);
+
+    board.unmake();
+    expect_same_board_snapshot(board, before);
+    expect_board_consistent(board);
+}
+
+TEST(BoardRepresentationTest, CheckDataMatchesSlowOracle) {
+    const std::vector<std::string> fens = {
+        STARTFEN,
+        POS2,
+        POS3,
+        POS4B,
+        ENPASSANT_A3,
+        "8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - e3 0 1",
+        "4r2k/4q3/8/8/8/8/4N3/4K3 w - - 0 1",
+        "4k3/8/8/8/8/8/4R3/4K3 w - - 0 1",
+    };
+
+    for (const auto& fen : fens) {
+        TestBoard board(fen);
+        SCOPED_TRACE(fen);
+        expect_check_data_matches_slow_oracle(board);
+
+        const auto movelist = generate<ALL_MOVES>(board);
+        for (const auto& move : movelist) {
+            if (!board.is_legal_pseudo_move(move))
+                continue;
+
+            SCOPED_TRACE(move);
+            const auto before = snapshot(board);
+            board.make(move);
+            expect_check_data_matches_slow_oracle(board);
+            board.unmake();
+            expect_same_board_snapshot(board, before);
+        }
+
+        if (!board.is_check()) {
+            const auto before = snapshot(board);
+            board.make_null();
+            expect_check_data_matches_slow_oracle(board);
+            board.unmake_null();
+            expect_same_board_snapshot(board, before);
         }
     }
 }
