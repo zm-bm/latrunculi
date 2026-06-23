@@ -29,9 +29,17 @@ struct TT_Record {
     uint8_t age   = 0;
     TT_Flag flag  = TT_Flag::None;
 
-    [[nodiscard]] bool is_valid() const { return flag != TT_Flag::None; }
-    int                replacement_score(int tt_age) const;
-    int                get_score(int ply) const;
+    [[nodiscard]] bool is_valid() const {
+        switch (flag) {
+        case TT_Flag::Exact:
+        case TT_Flag::Lowerbound:
+        case TT_Flag::Upperbound: return true;
+        case TT_Flag::None:       return false;
+        }
+        return false;
+    }
+    int replacement_score(int tt_age) const;
+    int get_score(int ply) const;
 };
 
 struct alignas(64) TT_Cluster {
@@ -51,8 +59,7 @@ public:
     // - Search code must use only the returned TT_Record; keeping aliases into shared storage is
     // forbidden.
     // - TT internals publish payload first and a full-key XOR signature last, so racing reads
-    // degrade
-    //   to a miss, an old hit, or a new hit rather than accepting a mixed entry for the probed key.
+    //   degrade to a miss, an old hit, or a new hit rather than accepting a mixed entry.
     [[nodiscard]] std::optional<TT_Record> probe(uint64_t zkey) const;
     void store(uint64_t zkey, Move move, int16_t score, uint8_t depth, TT_Flag flag, int ply);
     void resize(size_t megabytes);

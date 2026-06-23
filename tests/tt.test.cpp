@@ -3,6 +3,7 @@
 #include <array>
 #include <atomic>
 #include <barrier>
+#include <limits>
 #include <thread>
 #include <vector>
 
@@ -47,6 +48,19 @@ matches_expected_snapshot(const TT_Record&                          record,
 
     return zkey;
 }
+
+[[nodiscard]] std::vector<uint64_t> find_same_one_mb_cluster_keys(uint64_t zkey, size_t count) {
+    const uint64_t        target_cluster = cluster_key_for_one_mb_table(zkey);
+    std::vector<uint64_t> keys{zkey};
+
+    for (uint64_t offset = 1; offset < 2'000'000 && keys.size() < count; ++offset) {
+        const uint64_t candidate = zkey + offset;
+        if (cluster_key_for_one_mb_table(candidate) == target_cluster)
+            keys.push_back(candidate);
+    }
+
+    return keys;
+}
 } // namespace
 
 class TT_Test : public ::testing::Test {
@@ -76,6 +90,28 @@ TEST_F(TT_Test, StoreAndProbe) {
     EXPECT_EQ(score, entry->score);
     EXPECT_EQ(depth, entry->depth);
     EXPECT_EQ(flag, entry->flag);
+}
+
+TEST_F(TT_Test, PackedFieldBoundariesRoundTrip) {
+    for (int i = 0; i < std::numeric_limits<uint8_t>::max(); ++i)
+        tt.age_table();
+
+    Move packed_move;
+    packed_move.value = std::numeric_limits<uint16_t>::max();
+
+    constexpr int16_t packed_score = -12345;
+    constexpr uint8_t packed_depth = std::numeric_limits<uint8_t>::max();
+    constexpr TT_Flag packed_flag  = TT_Flag::Upperbound;
+
+    tt.store(key, packed_move, packed_score, packed_depth, packed_flag, 0);
+
+    auto entry = tt.probe(key);
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(packed_move, entry->move);
+    EXPECT_EQ(packed_score, entry->score);
+    EXPECT_EQ(packed_depth, entry->depth);
+    EXPECT_EQ(std::numeric_limits<uint8_t>::max(), entry->age);
+    EXPECT_EQ(packed_flag, entry->flag);
 }
 
 TEST_F(TT_Test, ReplaceEntry) {
@@ -153,6 +189,17 @@ TEST_F(TT_Test, ResizeTable) {
     EXPECT_EQ(move, entry->move);
 }
 
+TEST_F(TT_Test, ResizeZeroKeepsUsableTable) {
+    tt.resize(0);
+
+    tt.store(key, move, score, depth, flag, 0);
+    auto entry = tt.probe(key);
+
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(move, entry->move);
+    EXPECT_NE(nullptr, tt.prefetch_addr(key));
+}
+
 TEST_F(TT_Test, StoreAndProbeDifferentFullKeys) {
     uint64_t key2 = 0xFEDCBA9876543210;
     uint64_t key1 = 0x123456789ABC3210;
@@ -224,6 +271,36 @@ TEST_F(TT_Test, ReplacementScoreUsesWrappedAgeDistance) {
     EXPECT_EQ(record.replacement_score(0), depth * 2 - 1);
 }
 
+TEST_F(TT_Test, FullClusterReplacementChoosesLowestReplacementScore) {
+    tt.resize(1);
+
+    const auto keys = find_same_one_mb_cluster_keys(key, 5);
+    ASSERT_EQ(5U, keys.size());
+
+    const std::array<uint8_t, 4> depths = {9, 1, 5, 7};
+    const std::array<Move, 5>    moves  = {
+        Move(A2, A3), Move(B2, B3), Move(C2, C3), Move(D2, D3), Move(E2, E3)};
+
+    for (size_t i = 0; i < depths.size(); ++i) {
+        tt.store(keys[i], moves[i], score + int16_t(i), depths[i], TT_Flag::Exact, 0);
+        ASSERT_TRUE(tt.probe(keys[i]).has_value());
+    }
+
+    tt.store(keys[4], moves[4], 500, 8, TT_Flag::Lowerbound, 0);
+
+    EXPECT_TRUE(tt.probe(keys[0]).has_value());
+    EXPECT_FALSE(tt.probe(keys[1]).has_value());
+    EXPECT_TRUE(tt.probe(keys[2]).has_value());
+    EXPECT_TRUE(tt.probe(keys[3]).has_value());
+
+    auto inserted = tt.probe(keys[4]);
+    ASSERT_TRUE(inserted.has_value());
+    EXPECT_EQ(moves[4], inserted->move);
+    EXPECT_EQ(500, inserted->score);
+    EXPECT_EQ(8, inserted->depth);
+    EXPECT_EQ(TT_Flag::Lowerbound, inserted->flag);
+}
+
 TEST_F(TT_Test, ProbeReturnsDetachedSnapshot) {
     tt.store(key, move, score, depth, flag, 0);
 
@@ -262,6 +339,11 @@ TEST_F(TT_Test, StoreAndProbeRoundTripPublishedAge) {
 
 TEST_F(TT_Test, NoneFlagEntriesProbeAsMiss) {
     tt.store(key, move, score, depth, TT_Flag::None, 0);
+    EXPECT_FALSE(tt.probe(key).has_value());
+}
+
+TEST_F(TT_Test, InvalidFlagEntriesProbeAsMiss) {
+    tt.store(key, move, score, depth, TT_Flag{255}, 0);
     EXPECT_FALSE(tt.probe(key).has_value());
 }
 

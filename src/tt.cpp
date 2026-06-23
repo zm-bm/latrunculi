@@ -149,6 +149,9 @@ void TT_Table::clear() {
 }
 
 void TT_Table::resize(size_t mb) {
+    if (mb == 0)
+        mb = 1;
+
     uint64_t bytes = mb << 20;
 
     length = bytes / sizeof(TT_Cluster);
