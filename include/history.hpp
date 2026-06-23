@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 #include "defs.hpp"
 
 struct HistoryTable {
@@ -18,11 +20,11 @@ inline int HistoryTable::get(Color c, Square from, Square to) const {
 }
 
 inline void HistoryTable::update(Color c, Square from, Square to, int depth) {
-    int bonus   = depth * depth;
-    int clamped = std::clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
-    int gravity = bonus - (history[c][from][to] * bonus / MAX_HISTORY);
+    const int bonus   = std::clamp(depth * depth, 0, MAX_HISTORY);
+    const int current = history[c][from][to];
+    const int gravity = bonus - (current * bonus / MAX_HISTORY);
 
-    history[c][from][to] += gravity;
+    history[c][from][to] = std::clamp(current + gravity, -MAX_HISTORY, MAX_HISTORY);
 }
 
 inline void HistoryTable::age() {
