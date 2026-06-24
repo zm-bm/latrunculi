@@ -153,7 +153,7 @@ enum class QuiescenceMovePickerStage : uint8_t {
 
 class StagedMovePicker {
 public:
-    StagedMovePicker(const MoveOrderContext& ctx, MoveList movelist);
+    StagedMovePicker(const MoveOrderContext& ctx, MoveList& movelist);
 
     Move* next();
 
@@ -170,7 +170,7 @@ private:
     Move* pick_best(Predicate predicate, Score score);
 
     MoveOrderContext ctx;
-    MoveList         movelist;
+    MoveList&        movelist;
     MovePickerStage  stage{MovePickerStage::PV};
     std::size_t      consumed_count{0};
     bool             tactical_scores_ready{false};
@@ -178,7 +178,7 @@ private:
 
 class QuiescenceMovePicker {
 public:
-    QuiescenceMovePicker(const MoveOrderContext& ctx, MoveList movelist, bool in_check);
+    QuiescenceMovePicker(const MoveOrderContext& ctx, MoveList& movelist, bool in_check);
 
     Move* next();
 
@@ -194,16 +194,16 @@ private:
     Move* pick_best(Predicate predicate, Score score);
 
     MoveOrderContext          ctx;
-    MoveList                  movelist;
+    MoveList&                 movelist;
     QuiescenceMovePickerStage stage;
     bool                      in_check;
     std::size_t               consumed_count{0};
     bool                      tactical_scores_ready{false};
 };
 
-inline StagedMovePicker::StagedMovePicker(const MoveOrderContext& ctx, MoveList movelist)
+inline StagedMovePicker::StagedMovePicker(const MoveOrderContext& ctx, MoveList& movelist)
     : ctx(ctx),
-      movelist(std::move(movelist)) {}
+      movelist(movelist) {}
 
 inline Move* StagedMovePicker::remaining_begin() {
     return movelist.begin() + consumed_count;
@@ -378,10 +378,10 @@ inline Move* StagedMovePicker::next() {
 }
 
 inline QuiescenceMovePicker::QuiescenceMovePicker(const MoveOrderContext& ctx,
-                                                  MoveList                movelist,
+                                                  MoveList&               movelist,
                                                   bool                    in_check)
     : ctx(ctx),
-      movelist(std::move(movelist)),
+      movelist(movelist),
       stage(QuiescenceMovePickerStage::PROMOTIONS),
       in_check(in_check) {}
 

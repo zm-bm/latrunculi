@@ -255,7 +255,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     // Generate moves
     auto             movelist = generate<ALL_MOVES>(board);
     StagedMovePicker picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id},
-                            std::move(movelist)};
+                            movelist};
 
     // Iterate through moves
     int legal_move_index = 0;
@@ -412,7 +412,7 @@ int Thread::quiescence(int alpha, int beta) {
     }
 
     MoveList movelist = in_check ? generate<EVASIONS>(board) : generate<CAPTURES>(board);
-    QuiescenceMovePicker picker{{board, killers, history, ply}, std::move(movelist), in_check};
+    QuiescenceMovePicker picker{{board, killers, history, ply}, movelist, in_check};
 
     int legal_moves = 0;
     while (Move* picked_move = picker.next()) {

@@ -113,7 +113,7 @@ protected:
         MoveList         movelist = generate<ALL_MOVES>(board);
         StagedMovePicker picker{
             {board, sort_killers, sort_history, sort_ply, pv_move, tt_move, root, thread_id},
-            std::move(movelist)};
+            movelist};
 
         while (Move* move = picker.next()) {
             if (board.is_legal_pseudo_move(*move))
@@ -126,7 +126,7 @@ protected:
         const bool in_check = board.is_check();
         MoveList   movelist = in_check ? generate<EVASIONS>(board) : generate<CAPTURES>(board);
         QuiescenceMovePicker picker{
-            {board, sort_killers, sort_history, sort_ply}, std::move(movelist), in_check};
+            {board, sort_killers, sort_history, sort_ply}, movelist, in_check};
 
         std::vector<Move> moves;
         while (Move* move = picker.next()) {

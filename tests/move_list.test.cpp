@@ -36,7 +36,7 @@ std::vector<Move> picked_moves(Board&        board,
     std::vector<Move> moves;
     MoveList          movelist = generate<ALL_MOVES>(board);
     StagedMovePicker  picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id},
-                            std::move(movelist)};
+                            movelist};
 
     while (Move* move = picker.next())
         moves.push_back(*move);
