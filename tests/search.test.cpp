@@ -37,6 +37,7 @@ protected:
 
     int testQuiescence(const std::string& fen, int alpha = -INF_VALUE, int beta = INF_VALUE) {
         TestBoard board{fen};
+        tt.clear();
         options.board = &board;
         thread->set_options(options);
         thread->reset();
@@ -48,6 +49,7 @@ protected:
                                 int                alpha = -INF_VALUE,
                                 int                beta  = INF_VALUE) {
         TestBoard board{fen};
+        tt.clear();
         options.board = &board;
         thread->set_options(options);
         thread->reset();
@@ -99,6 +101,7 @@ protected:
     std::pair<int, uint64_t>
     testQuiescenceWithNodes(const std::string& fen, int alpha = -INF_VALUE, int beta = INF_VALUE) {
         TestBoard board{fen};
+        tt.clear();
         options.board = &board;
         thread->set_options(options);
         thread->reset();
@@ -194,6 +197,16 @@ protected:
     }
 
     int runLoadedQuiescence(int alpha, int beta) { return thread->quiescence(alpha, beta); }
+
+    int runLoadedPvQuiescence(int alpha, int beta) { return thread->quiescence<PV>(alpha, beta); }
+
+#if LATRUNCULI_SEARCH_STATS
+    void resetThreadStats() { thread->stats.reset(); }
+
+    uint64_t qTtProbes(int search_ply) const { return thread->stats.q_tt_probes[search_ply]; }
+    uint64_t qTtHits(int search_ply) const { return thread->stats.q_tt_hits[search_ply]; }
+    uint64_t qTtCutoffs(int search_ply) const { return thread->stats.q_tt_cutoffs[search_ply]; }
+#endif
 
     void setThreadPly(int search_ply) { thread->ply = search_ply; }
 
@@ -378,6 +391,195 @@ TEST_F(SearchTest, QuiescenceFailHighReturnsRawScoreInsteadOfBeta) {
     EXPECT_EQ(testQuiescence(winning_capture, alpha, beta), capture_score)
         << "capture fail-high should return the raw capture score";
 }
+
+TEST_F(SearchTest, QuiescenceTranspositionTableExactCutoffReturnsStoredScore) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadThreadBoard(board);
+
+    const int stored_score = evaluate(board) + 500;
+    tt.store(threadKey(), NULL_MOVE, stored_score, 0, TT_Flag::Exact, 0);
+
+    EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, INF_VALUE), stored_score);
+}
+
+TEST_F(SearchTest, QuiescenceTranspositionTableLowerboundCutsOnlyAtBeta) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    const int      stand_pat = evaluate(board);
+    const int      alpha     = stand_pat - 100;
+    const int      beta      = stand_pat + 100;
+
+    loadThreadBoard(board);
+    tt.store(threadKey(), NULL_MOVE, beta + 25, 0, TT_Flag::Lowerbound, 0);
+    EXPECT_EQ(runLoadedQuiescence(alpha, beta), beta + 25)
+        << "lowerbound qsearch TT cutoffs should return the raw stored score";
+
+    TestBoard no_cutoff_board{quiet_control};
+    loadThreadBoard(no_cutoff_board);
+    tt.store(threadKey(), NULL_MOVE, beta - 1, 0, TT_Flag::Lowerbound, 0);
+    EXPECT_EQ(runLoadedQuiescence(alpha, beta), stand_pat)
+        << "lowerbound qsearch TT entries below beta must not replace search";
+}
+
+TEST_F(SearchTest, QuiescenceTranspositionTableUpperboundCutsOnlyAtAlpha) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    const int      stand_pat = evaluate(board);
+    const int      alpha     = stand_pat - 100;
+    const int      beta      = stand_pat + 100;
+
+    loadThreadBoard(board);
+    tt.store(threadKey(), NULL_MOVE, alpha - 25, 0, TT_Flag::Upperbound, 0);
+    EXPECT_EQ(runLoadedQuiescence(alpha, beta), alpha - 25)
+        << "upperbound qsearch TT cutoffs should return the raw stored score";
+
+    TestBoard no_cutoff_board{quiet_control};
+    loadThreadBoard(no_cutoff_board);
+    tt.store(threadKey(), NULL_MOVE, alpha + 1, 0, TT_Flag::Upperbound, 0);
+    EXPECT_EQ(runLoadedQuiescence(alpha, beta), stand_pat)
+        << "upperbound qsearch TT entries above alpha must not replace search";
+}
+
+TEST_F(SearchTest, QuiescenceTranspositionTableDoesNotCutOffPvNode) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    const int      stand_pat    = evaluate(board);
+    const int      stored_score = stand_pat + 500;
+
+    loadThreadBoard(board);
+    tt.store(threadKey(), NULL_MOVE, stored_score, 0, TT_Flag::Exact, 0);
+
+    EXPECT_EQ(runLoadedPvQuiescence(-INF_VALUE, INF_VALUE), stand_pat)
+        << "PV qsearch should not return a stored TT score without searching";
+}
+
+TEST_F(SearchTest, QuiescenceTranspositionTableStoresStandPatLowerbound) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    const int      stand_pat = evaluate(board);
+    const int      alpha     = stand_pat - 100;
+    const int      beta      = stand_pat - 50;
+
+    loadThreadBoard(board);
+    EXPECT_EQ(runLoadedQuiescence(alpha, beta), stand_pat);
+
+    auto entry = tt.probe(threadKey());
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(entry->flag, TT_Flag::Lowerbound);
+    EXPECT_EQ(entry->depth, 0);
+    EXPECT_EQ(entry->move, NULL_MOVE);
+    EXPECT_EQ(entry->get_score(0), stand_pat);
+}
+
+TEST_F(SearchTest, QuiescenceTranspositionTableStoresFailLowUpperbound) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    const int      stand_pat = evaluate(board);
+    const int      alpha     = stand_pat + 100;
+    const int      beta      = stand_pat + 200;
+
+    loadThreadBoard(board);
+    EXPECT_EQ(runLoadedQuiescence(alpha, beta), stand_pat);
+
+    auto entry = tt.probe(threadKey());
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(entry->flag, TT_Flag::Upperbound);
+    EXPECT_EQ(entry->depth, 0);
+    EXPECT_EQ(entry->move, NULL_MOVE);
+    EXPECT_EQ(entry->get_score(0), stand_pat);
+}
+
+TEST_F(SearchTest, QuiescenceTranspositionTableStoresExactWhenScoreRaisesAlpha) {
+    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    TestBoard      capture_board{winning_capture};
+    const int      stand_pat = evaluate(capture_board);
+    const int      alpha     = stand_pat - 50;
+    const int      beta      = INF_VALUE;
+
+    const int expected = -testQuiescenceAfterMove(winning_capture, "d1e2", -beta, -alpha);
+    ASSERT_GT(expected, alpha) << winning_capture;
+    ASSERT_LT(expected, beta) << winning_capture;
+
+    TestBoard board{winning_capture};
+    loadThreadBoard(board);
+
+    EXPECT_EQ(runLoadedQuiescence(alpha, beta), expected);
+
+    auto entry = tt.probe(threadKey());
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(entry->flag, TT_Flag::Exact);
+    EXPECT_EQ(entry->depth, 0);
+    EXPECT_EQ(entry->move, NULL_MOVE);
+    EXPECT_EQ(entry->get_score(0), expected);
+}
+
+TEST_F(SearchTest, QuiescenceTranspositionTableStoresMateWithPlyAdjustment) {
+    constexpr auto checkmate = "k7/1Q6/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{checkmate};
+    loadThreadBoard(board);
+    ASSERT_TRUE(threadInCheck()) << checkmate;
+
+    constexpr int search_ply = 4;
+    constexpr int mate_score = -MATE_VALUE + search_ply;
+    setThreadPly(search_ply);
+
+    EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, INF_VALUE), mate_score);
+
+    auto entry = tt.probe(threadKey());
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(entry->flag, TT_Flag::Exact);
+    EXPECT_EQ(entry->depth, 0);
+    EXPECT_EQ(entry->move, NULL_MOVE);
+    EXPECT_EQ(entry->get_score(search_ply), mate_score);
+}
+
+TEST_F(SearchTest, QuiescenceTranspositionTableStoresDrawForStalemate) {
+    constexpr auto stalemate = "k7/8/KQ6/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{stalemate};
+    const int      stand_pat = evaluate(board);
+    const int      alpha     = stand_pat - 100;
+    const int      beta      = stand_pat - 1;
+
+    loadThreadBoard(board);
+    ASSERT_TRUE(board.is_stalemate()) << stalemate;
+    EXPECT_EQ(runLoadedQuiescence(alpha, beta), DRAW_VALUE);
+
+    auto entry = tt.probe(threadKey());
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(entry->flag, TT_Flag::Exact);
+    EXPECT_EQ(entry->depth, 0);
+    EXPECT_EQ(entry->move, NULL_MOVE);
+    EXPECT_EQ(entry->get_score(0), DRAW_VALUE);
+}
+
+TEST_F(SearchTest, QuiescenceTranspositionTableDoesNotOverrideDrawDetection) {
+    constexpr auto drawn_by_fifty_move = "k7/8/2K5/8/8/8/8/8 b - - 100 1";
+    TestBoard      board{drawn_by_fifty_move};
+    loadThreadBoard(board);
+    ASSERT_TRUE(board.is_draw()) << drawn_by_fifty_move;
+
+    tt.store(threadKey(), NULL_MOVE, 1234, 0, TT_Flag::Exact, 0);
+
+    EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, INF_VALUE), DRAW_VALUE);
+}
+
+#if LATRUNCULI_SEARCH_STATS
+TEST_F(SearchTest, QuiescenceTranspositionTableStatsCountersIncrement) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadThreadBoard(board);
+    resetThreadStats();
+
+    constexpr int stored_score = 321;
+    tt.store(threadKey(), NULL_MOVE, stored_score, 0, TT_Flag::Exact, 0);
+
+    EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, INF_VALUE), stored_score);
+    EXPECT_EQ(qTtProbes(0), 1);
+    EXPECT_EQ(qTtHits(0), 1);
+    EXPECT_EQ(qTtCutoffs(0), 1);
+}
+#endif
 
 TEST_F(SearchTest, AlphaBetaFailLowReturnsBestMoveScoreInsteadOfAlpha) {
     constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";

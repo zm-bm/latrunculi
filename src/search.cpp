@@ -12,6 +12,7 @@
 
 namespace {
 constexpr int AspirationWindow = 50;
+constexpr int QSearchTTDepth   = 0;
 
 struct SearchWindow {
     int  alpha;
@@ -157,7 +158,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
 
     // base cases
     if (depth <= 0)
-        return quiescence(alpha, beta);
+        return quiescence<child>(alpha, beta);
     if (ply >= MAX_SEARCH_PLY)
         return evaluate(board);
 
@@ -241,7 +242,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
         constexpr int razor_margin[4] = {0, 500, 900, 1800};
 
         if (depth <= 3 && static_eval + razor_margin[depth] <= alpha) {
-            int value = quiescence(alpha - 1, alpha);
+            int value = quiescence<NON_PV>(alpha - 1, alpha);
             if (value < alpha) {
                 return value;
             }
@@ -380,7 +381,10 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     return best_value;
 }
 
-int Thread::quiescence(int alpha, int beta) {
+template <NodeType N>
+int Thread::quiescence(int alpha, int beta, int qply) {
+    constexpr bool pvnode = N != NON_PV;
+
     check_halt_conditions();
     if (halt_requested())
         return alpha;
@@ -402,6 +406,38 @@ int Thread::quiescence(int alpha, int beta) {
     if (board.is_draw(ply))
         return DRAW_VALUE;
 
+    const uint64_t key       = board.key();
+    const int      alpha0    = alpha;
+    const bool     qtt_root  = !pvnode && qply == 0;
+    auto           store_qtt = [&](int score, TT_Flag flag) {
+        if (qtt_root)
+            tt.store(key, NULL_MOVE, score, QSearchTTDepth, flag, ply);
+    };
+
+    if (qtt_root) {
+        auto probe = tt.probe(key);
+        stats.q_tt_probe(ply);
+        if (probe.has_value() && probe->depth >= QSearchTTDepth) {
+            stats.q_tt_hit(ply);
+
+            if constexpr (!pvnode) {
+                const int value = probe->get_score(ply);
+                if (probe->flag == TT_Flag::Exact) {
+                    stats.q_tt_cutoff(ply);
+                    return value;
+                }
+                if (probe->flag == TT_Flag::Lowerbound && value >= beta) {
+                    stats.q_tt_cutoff(ply);
+                    return value;
+                }
+                if (probe->flag == TT_Flag::Upperbound && value <= alpha) {
+                    stats.q_tt_cutoff(ply);
+                    return value;
+                }
+            }
+        }
+    }
+
     const bool in_check   = board.is_check();
     int        best_value = -INF_VALUE;
 
@@ -409,8 +445,11 @@ int Thread::quiescence(int alpha, int beta) {
         int stand_pat = evaluate(board);
         best_value    = stand_pat;
         if (stand_pat >= beta) {
-            if (board.is_stalemate())
+            if (board.is_stalemate()) {
+                store_qtt(DRAW_VALUE, TT_Flag::Exact);
                 return DRAW_VALUE;
+            }
+            store_qtt(stand_pat, TT_Flag::Lowerbound);
             return stand_pat;
         }
         if (stand_pat > alpha)
@@ -433,15 +472,17 @@ int Thread::quiescence(int alpha, int beta) {
 
         board.make(move, position_states[ply + 1]);
         ++ply;
-        int score = -quiescence(-beta, -alpha);
+        int score = -quiescence<N>(-beta, -alpha, qply + 1);
         board.unmake(position_states[ply - 1]);
         --ply;
 
         if (halt_requested())
             return alpha;
 
-        if (score >= beta)
+        if (score >= beta) {
+            store_qtt(score, TT_Flag::Lowerbound);
             return score;
+        }
         if (score > best_value) {
             best_value = score;
             if (score > alpha)
@@ -450,11 +491,21 @@ int Thread::quiescence(int alpha, int beta) {
     }
 
     if (legal_moves == 0) {
-        if (in_check)
-            return -MATE_VALUE + ply;
-        if (board.is_stalemate())
+        if (in_check) {
+            best_value = -MATE_VALUE + ply;
+            store_qtt(best_value, TT_Flag::Exact);
+            return best_value;
+        }
+        if (board.is_stalemate()) {
+            store_qtt(DRAW_VALUE, TT_Flag::Exact);
             return DRAW_VALUE;
+        }
     }
 
+    const TT_Flag flag = (best_value > alpha0) ? TT_Flag::Exact : TT_Flag::Upperbound;
+    store_qtt(best_value, flag);
     return best_value;
 }
+
+template int Thread::quiescence<NON_PV>(int alpha, int beta, int qply);
+template int Thread::quiescence<PV>(int alpha, int beta, int qply);

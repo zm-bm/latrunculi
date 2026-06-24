@@ -41,44 +41,50 @@ python3 bench/search_experiment.py run --profile mid
 Use focused tests first, then full CTest. Use reference engines as shape checks,
 not as tuning sources.
 
-## P0: Search-Shape Instrumentation
+## Completed Work
 
-Hypothesis: the next useful search improvements need better visibility before
-tuning. Existing NPS/depth numbers are not enough to explain whether move
-ordering, aspiration, reductions, qsearch, or TT behavior changed.
+P0 and P1 are complete. Use these rows as controls for later experiments, not as
+tuned targets. Future changes should compare against a fresh same-command
+control when the result is within a few percent.
 
-Scope: add stats for beta cutoffs by move index, re-searches, aspiration
-fail-low/fail-high, qsearch node ratio, and separate main-search versus qsearch
-TT hit/cutoff data. Keep counters behind the existing stats build path.
+| Task | Implemented Shape | Result | Future Boundary |
+|---|---|---|---|
+| P0: Search-Shape Instrumentation | Stats for beta cutoffs by index, PVS re-searches, aspiration fails, qnode ratio, and separate main/qsearch TT fields behind stats builds. | Kept. Normal builds have no active stats-counter cost; stats output is stable enough for iteration. | Treat the measured P0 delta as the local control band for P1-P4. |
+| P1: Qsearch TT Integration | Non-PV qsearch-root TT probe/store only, depth `0`, existing mate-score adjustment, existing bound semantics, `NULL_MOVE` storage. | Kept. Fixed-depth searched fewer nodes/time; fixed-time was roughly neutral. | Deeper qTT use, qTT move ordering, or TT static-eval payloads need separate evidence. |
 
-Evidence: stats-enabled focused search tests, direct-UCI output with the new
-fields, and a before/after `search_experiment.py` run showing stable collection.
+Reference note: Stockfish and Ethereal both probe/store TT in qsearch. CPW does
+not, and remains useful only as the simple correctness model.
 
-Keep criteria: counters are cheap when stats are disabled, output is stable
-enough for benchmarks, and existing search behavior is unchanged.
+## Benchmark Baselines
 
-Revert criteria: stats affect non-stats builds, materially slow normal search,
-or make benchmark output noisy without explaining search behavior.
+| Change | Mode | NPS | Nodes / Time | Depth | Interpretation |
+|---|---|---:|---:|---:|---|
+| P0 vs pre-P0 | `release-dev`, fixed-time | `-1.99%` | nodes `-2.01%` | `+0.03` | Local control band, not a proven slowdown. |
+| P0 stats vs P0 normal | `release-stats-dev`, fixed-time | `-0.70%` | nodes `-0.70%` | `-0.07` | Acceptable diagnostic-build cost. |
+| P1 vs pre-P1 | `release-dev`, fixed-time | `-0.66%` | roughly flat | `+0.03` | Neutral; keep due fixed-depth gain. |
+| P1 vs pre-P1 | `release-dev`, depth 12, 1 thread | `+0.56%` | nodes `-15.00%`, time `-15.15%` | same target | Fewer nodes and less time. |
+| P1 vs pre-P1 | `release-dev`, depth 13, 4 threads | `-0.17%` | nodes `-4.36%`, time `-3.82%` | same target | Fewer nodes and less time. |
 
-## P1: Qsearch TT Integration
+P0 comparison commits:
 
-Hypothesis: probing and optionally storing qsearch results can reduce repeated
-tactical work and improve effective depth, especially in capture-heavy
-positions.
+- Pre-P0: `291010377f74ef9838b24d9dcc26ed48ee90ee1b`
+- P0: `9d7f7ca02a2b55102dcc55576a9eaf0de7ffff75`
 
-Scope: add qsearch TT consumption conservatively. Keep mate-score adjustment,
-bound semantics, legality boundaries, and PV/root conservatism consistent with
-main search. Do not mix this with pruning or ordering changes.
+## Stats Baselines
 
-Evidence: focused qsearch/search tests, TT tests for qsearch bounds if new
-storage paths are added, fixed-depth node comparison, and fixed-time direct-UCI
-comparison.
+| Metric | P0 Control | P1 Result | Use |
+|---|---:|---:|---|
+| Beta cutoffs | `185k` | not a keep signal | Move ordering and pruning context. |
+| Early cutoffs | `90.9%` | not a keep signal | Compare P2/P4 ordering changes. |
+| Cutoff average index | `1.36` | not a keep signal | Lower is usually better if node/time also holds. |
+| PVS re-searches | `652` | not a keep signal | Compare P3 aspiration/PVS changes. |
+| Main TT hit | `25.0%` | `25.1%` | Main TT behavior stayed comparable. |
+| Main TT cutoff | `94.3%` | `94.3%` | Main TT behavior stayed comparable. |
+| QTT hit | `0.0%` | `24.6%` | P1 qsearch TT is active. |
+| QTT cutoff | `0.0%` | `95.5%` | P1 qsearch TT hits mostly cut off. |
+| QNode ratio | `65.6%` | `66.4%` | Watch for qsearch growth in later changes. |
 
-Keep criteria: no correctness regressions, no PV instability from stale TT
-moves, and fixed-depth nodes or fixed-time NPS/depth improve or stay neutral.
-
-Revert criteria: tactical regressions, illegal/stale move use, noisy score
-swings without node savings, or worse fixed-depth behavior.
+## Active Backlog
 
 ## P2: Staged move generation
 

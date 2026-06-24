@@ -81,7 +81,8 @@ private:
     void reset();
     int  search();
     int  search_widen(int depth, int value);
-    int  quiescence(int alpha, int beta);
+    template <NodeType = NON_PV>
+    int quiescence(int alpha, int beta, int qply = 0);
     template <NodeType = ROOT>
     int alphabeta(int alpha, int beta, int depth, bool canNull = true);
 
