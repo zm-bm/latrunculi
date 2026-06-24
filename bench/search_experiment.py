@@ -13,14 +13,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from direct_uci_bench import DEFAULT_POSITIONS, load_positions, parse_threads, run_position, select_positions
+from direct_uci_bench import (
+    DEFAULT_POSITIONS,
+    STATS_COLUMNS,
+    load_positions,
+    parse_threads,
+    run_position,
+    select_positions,
+)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_OUTPUT_ROOT = Path("/home/rick/code/AGENTS/latrunculi/scratch/bench-runs")
 DEFAULT_BUILD_PRESET = "release-stats"
 DEFAULT_ENGINE = REPO_ROOT / "build/release-stats/bin/latrunculi"
-SCHEMA_VERSION = "search-experiment-v1"
+SCHEMA_VERSION = "search-experiment-v2"
 
 PROFILES = {
     "smoke": {"positions": "startpos,arasan20-01", "threads": "1,4", "movetime": 500, "repeats": 1, "hash": 64},
@@ -43,14 +50,7 @@ RESULT_COLUMNS = [
     "nps",
     "bestmove",
     "pv",
-    "stats_beta_cutoffs",
-    "stats_cutoff_early_pct",
-    "stats_cutoff_late_pct",
-    "stats_tt_hit_pct",
-    "stats_tt_cutoff_pct",
-    "stats_qnode_pct",
-    "stats_ebf",
-    "stats_cumulative_ebf",
+    *STATS_COLUMNS,
     "raw_output_file",
 ]
 
@@ -58,14 +58,7 @@ COMPARE_FIELDS = [
     "depth",
     "nodes",
     "nps",
-    "stats_beta_cutoffs",
-    "stats_cutoff_early_pct",
-    "stats_cutoff_late_pct",
-    "stats_tt_hit_pct",
-    "stats_tt_cutoff_pct",
-    "stats_qnode_pct",
-    "stats_ebf",
-    "stats_cumulative_ebf",
+    *STATS_COLUMNS,
 ]
 
 
@@ -220,12 +213,12 @@ def render_summary(manifest: dict[str, object], rows: list[dict[str, str]]) -> s
         f"- Movetime: `{manifest['movetime_ms']} ms`; repeats: `{manifest['repeats']}`; hash: `{manifest['hash_mb']} MiB`",
         "",
         "## Averaged results by position/thread",
-        "| Position | Threads | Depth | Nodes | NPS | Beta cutoffs | Early% | Late% | TTHit% | TTCut% | QNode% | EBF | Cumul | Bestmove(s) |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| Position | Threads | Depth | Nodes | NPS | Beta cutoffs | Early% | Late% | CutIdx | Cut1% | Cut2% | Cut3-4% | Cut5+% | PVS Re | Asp FL/FH/Re | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | EBF | Cumul | Bestmove(s) |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|---:|---:|---:|---|",
     ]
     for (position_id, threads), agg in grouped.items():
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {}/{}/{} | {}/{} | {}/{} | {} | {} | {} | {} |".format(
                 position_id,
                 threads,
                 format_num(agg["depth"]),
@@ -234,8 +227,19 @@ def render_summary(manifest: dict[str, object], rows: list[dict[str, str]]) -> s
                 format_num(agg["stats_beta_cutoffs"]),
                 format_num(agg["stats_cutoff_early_pct"]),
                 format_num(agg["stats_cutoff_late_pct"]),
-                format_num(agg["stats_tt_hit_pct"]),
-                format_num(agg["stats_tt_cutoff_pct"]),
+                format_num(agg["stats_cutoff_avg_index"]),
+                format_num(agg["stats_cutoff_1_pct"]),
+                format_num(agg["stats_cutoff_2_pct"]),
+                format_num(agg["stats_cutoff_3_4_pct"]),
+                format_num(agg["stats_cutoff_5_plus_pct"]),
+                format_num(agg["stats_pvs_researches"]),
+                format_num(agg["stats_aspiration_fail_low"]),
+                format_num(agg["stats_aspiration_fail_high"]),
+                format_num(agg["stats_aspiration_researches"]),
+                format_num(agg["stats_main_tt_hit_pct"]),
+                format_num(agg["stats_main_tt_cutoff_pct"]),
+                format_num(agg["stats_q_tt_hit_pct"]),
+                format_num(agg["stats_q_tt_cutoff_pct"]),
                 format_num(agg["stats_qnode_pct"]),
                 format_num(agg["stats_ebf"]),
                 format_num(agg["stats_cumulative_ebf"]),
@@ -246,7 +250,7 @@ def render_summary(manifest: dict[str, object], rows: list[dict[str, str]]) -> s
         "",
         "## Files",
         "- `manifest.json`: metadata needed for safe comparisons.",
-        "- `results.tsv`: stable schema `search-experiment-v1` with parsed aggregate stats columns.",
+        "- `results.tsv`: stable schema `search-experiment-v2` with parsed aggregate stats columns.",
         "- `raw/*.log`: combined stdout/stderr engine output, including raw SearchStats diagnostics.",
     ])
     return "\n".join(lines).rstrip() + "\n"
@@ -273,7 +277,7 @@ def command_run(args: argparse.Namespace) -> int:
         "git_dirty": git_dirty(args.repo),
         "engine_path": str(args.engine.resolve()),
         "build_preset": args.build_preset,
-        "search_stats_enabled": args.build_preset == DEFAULT_BUILD_PRESET,
+        "search_stats_enabled": args.build_preset in {"release-stats", "release-stats-dev"},
         "profile": args.profile,
         "positions_file": str(positions_file),
         "selected_positions": [position["id"] for position in selected_positions],
@@ -378,8 +382,8 @@ def render_compare(old_dir: Path, new_dir: Path, output: Path) -> str:
 
     lines.extend([
         "## Averaged deltas by position/thread",
-        "| Position | Threads | Depth old→new | Nodes delta | NPS old→new | NPS delta | Beta cutoff delta | Early% delta | Late% delta | TTHit% delta | TTCut% delta | QNode% delta | EBF delta | Cumul delta | Bestmove old→new |",
-        "|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| Position | Threads | Depth old→new | Nodes delta | NPS old→new | NPS delta | Beta cutoff delta | Early% delta | Late% delta | CutIdx delta | Cut1% delta | Cut2% delta | Cut3-4% delta | Cut5+% delta | PVS Re delta | Asp FL delta | Asp FH delta | Asp Re delta | MainTT Hit delta | MainTT Cut delta | QTT Hit delta | QTT Cut delta | QNode% delta | EBF delta | Cumul delta | Bestmove old→new |",
+        "|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ])
     for key in all_keys:
         position_id, threads = key
@@ -387,28 +391,35 @@ def render_compare(old_dir: Path, new_dir: Path, output: Path) -> str:
         new_agg = new.get(key, {})
         old_nps = old_agg.get("nps")
         new_nps = new_agg.get("nps")
-        lines.append(
-            "| {} | {} | {}→{} | {} | {}→{} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {}→{} |".format(
-                position_id,
-                threads,
-                format_num(old_agg.get("depth")),
-                format_num(new_agg.get("depth")),
-                percent_delta(old_agg.get("nodes"), new_agg.get("nodes")),
-                format_num(old_nps),
-                format_num(new_nps),
-                percent_delta(old_nps, new_nps),
-                percent_delta(old_agg.get("stats_beta_cutoffs"), new_agg.get("stats_beta_cutoffs")),
-                delta_points(old_agg.get("stats_cutoff_early_pct"), new_agg.get("stats_cutoff_early_pct")),
-                delta_points(old_agg.get("stats_cutoff_late_pct"), new_agg.get("stats_cutoff_late_pct")),
-                delta_points(old_agg.get("stats_tt_hit_pct"), new_agg.get("stats_tt_hit_pct")),
-                delta_points(old_agg.get("stats_tt_cutoff_pct"), new_agg.get("stats_tt_cutoff_pct")),
-                delta_points(old_agg.get("stats_qnode_pct"), new_agg.get("stats_qnode_pct")),
-                delta_points(old_agg.get("stats_ebf"), new_agg.get("stats_ebf")),
-                delta_points(old_agg.get("stats_cumulative_ebf"), new_agg.get("stats_cumulative_ebf")),
-                old_agg.get("bestmove", ""),
-                new_agg.get("bestmove", ""),
-            )
-        )
+        cells = [
+            position_id,
+            threads,
+            f"{format_num(old_agg.get('depth'))}→{format_num(new_agg.get('depth'))}",
+            percent_delta(old_agg.get("nodes"), new_agg.get("nodes")),
+            f"{format_num(old_nps)}→{format_num(new_nps)}",
+            percent_delta(old_nps, new_nps),
+            percent_delta(old_agg.get("stats_beta_cutoffs"), new_agg.get("stats_beta_cutoffs")),
+            delta_points(old_agg.get("stats_cutoff_early_pct"), new_agg.get("stats_cutoff_early_pct")),
+            delta_points(old_agg.get("stats_cutoff_late_pct"), new_agg.get("stats_cutoff_late_pct")),
+            delta_points(old_agg.get("stats_cutoff_avg_index"), new_agg.get("stats_cutoff_avg_index")),
+            delta_points(old_agg.get("stats_cutoff_1_pct"), new_agg.get("stats_cutoff_1_pct")),
+            delta_points(old_agg.get("stats_cutoff_2_pct"), new_agg.get("stats_cutoff_2_pct")),
+            delta_points(old_agg.get("stats_cutoff_3_4_pct"), new_agg.get("stats_cutoff_3_4_pct")),
+            delta_points(old_agg.get("stats_cutoff_5_plus_pct"), new_agg.get("stats_cutoff_5_plus_pct")),
+            percent_delta(old_agg.get("stats_pvs_researches"), new_agg.get("stats_pvs_researches")),
+            percent_delta(old_agg.get("stats_aspiration_fail_low"), new_agg.get("stats_aspiration_fail_low")),
+            percent_delta(old_agg.get("stats_aspiration_fail_high"), new_agg.get("stats_aspiration_fail_high")),
+            percent_delta(old_agg.get("stats_aspiration_researches"), new_agg.get("stats_aspiration_researches")),
+            delta_points(old_agg.get("stats_main_tt_hit_pct"), new_agg.get("stats_main_tt_hit_pct")),
+            delta_points(old_agg.get("stats_main_tt_cutoff_pct"), new_agg.get("stats_main_tt_cutoff_pct")),
+            delta_points(old_agg.get("stats_q_tt_hit_pct"), new_agg.get("stats_q_tt_hit_pct")),
+            delta_points(old_agg.get("stats_q_tt_cutoff_pct"), new_agg.get("stats_q_tt_cutoff_pct")),
+            delta_points(old_agg.get("stats_qnode_pct"), new_agg.get("stats_qnode_pct")),
+            delta_points(old_agg.get("stats_ebf"), new_agg.get("stats_ebf")),
+            delta_points(old_agg.get("stats_cumulative_ebf"), new_agg.get("stats_cumulative_ebf")),
+            f"{old_agg.get('bestmove', '')}→{new_agg.get('bestmove', '')}",
+        ]
+        lines.append("| " + " | ".join(cells) + " |")
     lines.extend([
         "",
         "## Notes",

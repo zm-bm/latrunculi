@@ -21,6 +21,27 @@ DEFAULT_POSITIONS = REPO_ROOT / "bench/direct_uci_suite.tsv"
 DEFAULT_THREADS = [1, 4]
 DEFAULT_MOVETIME_MS = 1000
 DEFAULT_HASH_MB = 64
+STATS_COLUMNS = [
+    "stats_beta_cutoffs",
+    "stats_cutoff_early_pct",
+    "stats_cutoff_late_pct",
+    "stats_cutoff_avg_index",
+    "stats_cutoff_1_pct",
+    "stats_cutoff_2_pct",
+    "stats_cutoff_3_4_pct",
+    "stats_cutoff_5_plus_pct",
+    "stats_pvs_researches",
+    "stats_aspiration_fail_low",
+    "stats_aspiration_fail_high",
+    "stats_aspiration_researches",
+    "stats_main_tt_hit_pct",
+    "stats_main_tt_cutoff_pct",
+    "stats_q_tt_hit_pct",
+    "stats_q_tt_cutoff_pct",
+    "stats_qnode_pct",
+    "stats_ebf",
+    "stats_cumulative_ebf",
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,6 +72,11 @@ def parse_args() -> argparse.Namespace:
         help="movetime in milliseconds for every run",
     )
     parser.add_argument("--hash", type=int, default=DEFAULT_HASH_MB, help="hash size in MiB")
+    parser.add_argument(
+        "--capture-stats",
+        action="store_true",
+        help="capture and parse SearchStats diagnostics from a stats-enabled engine",
+    )
     return parser.parse_args()
 
 
@@ -114,21 +140,22 @@ def parse_info_line(line: str) -> dict[str, str]:
 
 
 def parse_search_stats_lines(lines: list[str]) -> tuple[dict[str, str], str]:
-    stats: dict[str, str] = {
-        "stats_beta_cutoffs": "",
-        "stats_cutoff_early_pct": "",
-        "stats_cutoff_late_pct": "",
-        "stats_tt_hit_pct": "",
-        "stats_tt_cutoff_pct": "",
-        "stats_qnode_pct": "",
-        "stats_ebf": "",
-        "stats_cumulative_ebf": "",
-    }
+    stats: dict[str, str] = {column: "" for column in STATS_COLUMNS}
     table_lines: list[str] = []
     table_rows: list[dict[str, str]] = []
     capture = False
     for line in lines:
         stripped = line.strip()
+        aspiration_match = re.search(
+            r"^Aspiration:\s+fail-low=(\d+)\s+fail-high=(\d+)\s+re-searches=(\d+)",
+            stripped,
+        )
+        if aspiration_match:
+            stats["stats_aspiration_fail_low"] = aspiration_match.group(1)
+            stats["stats_aspiration_fail_high"] = aspiration_match.group(2)
+            stats["stats_aspiration_researches"] = aspiration_match.group(3)
+            table_lines.append(line)
+            continue
         if "Depth" in stripped and "Nodes (QNode%)" in stripped and "Cutoffs" in stripped:
             capture = True
             table_lines.append(line)
@@ -141,7 +168,7 @@ def parse_search_stats_lines(lines: list[str]) -> tuple[dict[str, str], str]:
             continue
         table_lines.append(line)
         parts = [part.strip() for part in line.split("|")]
-        if len(parts) != 6 or not parts[0].isdigit():
+        if len(parts) != 8 or not parts[0].isdigit():
             continue
         row = parse_search_stats_row(parts)
         if row:
@@ -157,15 +184,31 @@ def aggregate_search_stats_rows(rows: list[dict[str, str]]) -> dict[str, str]:
     total_qnodes = sum(float(row.get("stats_qnodes", "0") or 0.0) for row in rows)
     total_early = sum(float(row.get("stats_cutoff_early_count", "0") or 0.0) for row in rows)
     total_late = sum(float(row.get("stats_cutoff_late_count", "0") or 0.0) for row in rows)
-    weighted_tt_hit = weighted_average(rows, "stats_tt_hit_pct", "stats_nodes")
-    weighted_tt_cut = weighted_average(rows, "stats_tt_cutoff_pct", "stats_nodes")
+    total_cutoff_index = sum(float(row.get("stats_cutoff_index_total", "0") or 0.0) for row in rows)
+    total_cutoff_1 = sum(float(row.get("stats_cutoff_1_count", "0") or 0.0) for row in rows)
+    total_cutoff_2 = sum(float(row.get("stats_cutoff_2_count", "0") or 0.0) for row in rows)
+    total_cutoff_3_4 = sum(float(row.get("stats_cutoff_3_4_count", "0") or 0.0) for row in rows)
+    total_cutoff_5_plus = sum(float(row.get("stats_cutoff_5_plus_count", "0") or 0.0) for row in rows)
+    total_pvs_researches = sum(int(row.get("stats_pvs_researches", "0") or 0) for row in rows)
+    weighted_main_tt_hit = weighted_average(rows, "stats_main_tt_hit_pct", "stats_nodes")
+    weighted_main_tt_cut = weighted_average(rows, "stats_main_tt_cutoff_pct", "stats_nodes")
+    weighted_q_tt_hit = weighted_average(rows, "stats_q_tt_hit_pct", "stats_nodes")
+    weighted_q_tt_cut = weighted_average(rows, "stats_q_tt_cutoff_pct", "stats_nodes")
     last = rows[-1]
     return {
         "stats_beta_cutoffs": str(total_cutoffs),
         "stats_cutoff_early_pct": f"{(100.0 * total_early / total_cutoffs):.1f}" if total_cutoffs else "0.0",
         "stats_cutoff_late_pct": f"{(100.0 * total_late / total_cutoffs):.1f}" if total_cutoffs else "0.0",
-        "stats_tt_hit_pct": f"{weighted_tt_hit:.1f}" if weighted_tt_hit is not None else "",
-        "stats_tt_cutoff_pct": f"{weighted_tt_cut:.1f}" if weighted_tt_cut is not None else "",
+        "stats_cutoff_avg_index": f"{(total_cutoff_index / total_cutoffs):.1f}" if total_cutoffs else "0.0",
+        "stats_cutoff_1_pct": f"{(100.0 * total_cutoff_1 / total_cutoffs):.1f}" if total_cutoffs else "0.0",
+        "stats_cutoff_2_pct": f"{(100.0 * total_cutoff_2 / total_cutoffs):.1f}" if total_cutoffs else "0.0",
+        "stats_cutoff_3_4_pct": f"{(100.0 * total_cutoff_3_4 / total_cutoffs):.1f}" if total_cutoffs else "0.0",
+        "stats_cutoff_5_plus_pct": f"{(100.0 * total_cutoff_5_plus / total_cutoffs):.1f}" if total_cutoffs else "0.0",
+        "stats_pvs_researches": str(total_pvs_researches),
+        "stats_main_tt_hit_pct": f"{weighted_main_tt_hit:.1f}" if weighted_main_tt_hit is not None else "",
+        "stats_main_tt_cutoff_pct": f"{weighted_main_tt_cut:.1f}" if weighted_main_tt_cut is not None else "",
+        "stats_q_tt_hit_pct": f"{weighted_q_tt_hit:.1f}" if weighted_q_tt_hit is not None else "",
+        "stats_q_tt_cutoff_pct": f"{weighted_q_tt_cut:.1f}" if weighted_q_tt_cut is not None else "",
         "stats_qnode_pct": f"{(100.0 * total_qnodes / total_nodes):.1f}" if total_nodes else "",
         "stats_ebf": last.get("stats_ebf", ""),
         "stats_cumulative_ebf": last.get("stats_cumulative_ebf", ""),
@@ -192,9 +235,14 @@ def parse_search_stats_row(parts: list[str]) -> dict[str, str]:
     cutoff_match = re.search(
         r"^(\d+)\s+\(\s*([-+0-9.]+)\s*/\s*([-+0-9.]+)%\)", parts[2]
     )
-    pct_match = re.search(r"([-+0-9.]+)%", parts[3])
-    ttcut_match = re.search(r"([-+0-9.]+)%", parts[4])
-    ebf_match = re.search(r"([-+0-9.]+)\s*/\s*([-+0-9.]+)", parts[5])
+    cutoff_index_match = re.search(
+        r"^([-+0-9.]+)\s*/\s*([-+0-9.]+)\s*/\s*([-+0-9.]+)\s*/\s*([-+0-9.]+)\s*/\s*([-+0-9.]+)%",
+        parts[3],
+    )
+    pvs_match = re.search(r"^(\d+)$", parts[4])
+    main_tt_match = re.search(r"([-+0-9.]+)\s*/\s*([-+0-9.]+)%", parts[5])
+    q_tt_match = re.search(r"([-+0-9.]+)\s*/\s*([-+0-9.]+)%", parts[6])
+    ebf_match = re.search(r"([-+0-9.]+)\s*/\s*([-+0-9.]+)", parts[7])
     if nodes_match:
         nodes = int(nodes_match.group(1))
         qnode_pct = float(nodes_match.group(2))
@@ -210,10 +258,31 @@ def parse_search_stats_row(parts: list[str]) -> dict[str, str]:
         parsed["stats_cutoff_late_count"] = f"{cutoffs * late_pct / 100.0:.3f}"
         parsed["stats_cutoff_early_pct"] = cutoff_match.group(2)
         parsed["stats_cutoff_late_pct"] = cutoff_match.group(3)
-    if pct_match:
-        parsed["stats_tt_hit_pct"] = pct_match.group(1)
-    if ttcut_match:
-        parsed["stats_tt_cutoff_pct"] = ttcut_match.group(1)
+    if cutoff_index_match:
+        avg_index = float(cutoff_index_match.group(1))
+        one_pct = float(cutoff_index_match.group(2))
+        two_pct = float(cutoff_index_match.group(3))
+        three_four_pct = float(cutoff_index_match.group(4))
+        five_plus_pct = float(cutoff_index_match.group(5))
+        cutoffs = int(parsed.get("stats_beta_cutoffs", "0") or 0)
+        parsed["stats_cutoff_avg_index"] = cutoff_index_match.group(1)
+        parsed["stats_cutoff_index_total"] = f"{avg_index * cutoffs:.3f}"
+        parsed["stats_cutoff_1_pct"] = cutoff_index_match.group(2)
+        parsed["stats_cutoff_2_pct"] = cutoff_index_match.group(3)
+        parsed["stats_cutoff_3_4_pct"] = cutoff_index_match.group(4)
+        parsed["stats_cutoff_5_plus_pct"] = cutoff_index_match.group(5)
+        parsed["stats_cutoff_1_count"] = f"{cutoffs * one_pct / 100.0:.3f}"
+        parsed["stats_cutoff_2_count"] = f"{cutoffs * two_pct / 100.0:.3f}"
+        parsed["stats_cutoff_3_4_count"] = f"{cutoffs * three_four_pct / 100.0:.3f}"
+        parsed["stats_cutoff_5_plus_count"] = f"{cutoffs * five_plus_pct / 100.0:.3f}"
+    if pvs_match:
+        parsed["stats_pvs_researches"] = pvs_match.group(1)
+    if main_tt_match:
+        parsed["stats_main_tt_hit_pct"] = main_tt_match.group(1)
+        parsed["stats_main_tt_cutoff_pct"] = main_tt_match.group(2)
+    if q_tt_match:
+        parsed["stats_q_tt_hit_pct"] = q_tt_match.group(1)
+        parsed["stats_q_tt_cutoff_pct"] = q_tt_match.group(2)
     if ebf_match:
         parsed["stats_ebf"] = ebf_match.group(1)
         parsed["stats_cumulative_ebf"] = ebf_match.group(2)
@@ -362,7 +431,7 @@ def run_position(
 
 
 
-def emit_rows(rows: Iterable[dict[str, str]]) -> None:
+def emit_rows(rows: Iterable[dict[str, str]], *, include_stats: bool = False) -> None:
     header = [
         "position_id",
         "threads",
@@ -377,6 +446,8 @@ def emit_rows(rows: Iterable[dict[str, str]]) -> None:
         "bestmove",
         "pv",
     ]
+    if include_stats:
+        header.extend(STATS_COLUMNS)
     writer = csv.DictWriter(sys.stdout, fieldnames=header, delimiter="\t", lineterminator="\n")
     writer.writeheader()
     for row in rows:
@@ -394,7 +465,16 @@ def main() -> int:
     rows: list[dict[str, str]] = []
     for position in positions:
         for thread_count in threads:
-            result = run_position(args.engine, position["fen"], thread_count, args.movetime, args.hash)
+            result = run_position(
+                args.engine,
+                position["fen"],
+                thread_count,
+                args.movetime,
+                args.hash,
+                capture_raw=args.capture_stats,
+            )
+            result.pop("search_stats_raw", None)
+            result.pop("raw_output", None)
             rows.append(
                 {
                     "position_id": position["id"],
@@ -404,7 +484,7 @@ def main() -> int:
                 }
             )
 
-    emit_rows(rows)
+    emit_rows(rows, include_stats=args.capture_stats)
     return 0
 
 

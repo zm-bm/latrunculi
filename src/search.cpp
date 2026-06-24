@@ -111,13 +111,17 @@ int Thread::search_widen(int depth, int prevValue) {
             return value;
 
         if (value <= alpha) {
+            stats.aspiration_fail_low();
             if (alpha == NegInf)
                 return value;
             alpha = std::max(alpha - delta, NegInf);
+            stats.aspiration_research();
         } else if (value >= beta) {
+            stats.aspiration_fail_high();
             if (beta == Inf)
                 return value;
             beta = std::min(beta + delta, Inf);
+            stats.aspiration_research();
         } else {
             return value;
         }
@@ -173,7 +177,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
 
     // Probe the transposition table via a local snapshot only.
     auto probe = tt.probe(key);
-    stats.tt_probe(ply);
+    stats.main_tt_probe(ply);
 
     // If we have an entry, check for cutoffs.
     // The search must consume only the snapshot returned by probe().
@@ -182,24 +186,24 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
 
         if constexpr (!pvnode) {
             if (probe->depth >= depth) {
-                stats.tt_hit(ply);
+                stats.main_tt_hit(ply);
                 int value = probe->get_score(ply);
 
                 if (probe->flag == TT_Flag::Exact) {
-                    stats.tt_cutoff(ply);
+                    stats.main_tt_cutoff(ply);
                     return value;
                 }
 
                 if (probe->flag == TT_Flag::Lowerbound) {
                     if (value >= beta) {
-                        stats.tt_cutoff(ply);
+                        stats.main_tt_cutoff(ply);
                         return value;
                     }
                 }
 
                 if (probe->flag == TT_Flag::Upperbound) {
                     if (value <= alpha) {
-                        stats.tt_cutoff(ply);
+                        stats.main_tt_cutoff(ply);
                         return value;
                     }
                 }
@@ -309,8 +313,10 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
         } else {
             value = -alphabeta<NON_PV>(-alpha - 1, -alpha, depth - 1 - reduction);
             if constexpr (pvnode) {
-                if (value > alpha)
+                if (value > alpha) {
+                    stats.pvs_research(ply);
                     value = -alphabeta<child>(-beta, -alpha, depth - 1);
+                }
             }
         }
 
@@ -336,7 +342,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
                 root_depth = depth;
             }
 
-            stats.beta_cutoff(ply, first_legal);
+            stats.beta_cutoff(ply, legal_move_index);
             tt.store(key, move, value, depth, TT_Flag::Lowerbound, ply);
             return value;
         }
