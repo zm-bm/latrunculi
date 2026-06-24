@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <format>
+
 #include "bb.hpp"
 #include "board.hpp"
 
@@ -32,6 +34,27 @@ protected:
         e.evaluate();
         EXPECT_EQ(e.scores.mobility[WHITE], w_expected) << fen;
         EXPECT_EQ(e.scores.mobility[BLACK], b_expected) << fen;
+    }
+
+    template <Color C, PieceType P>
+    uint64_t test_piece_moves(const std::string& fen, Square sq) {
+        constexpr Color         Opp = ~C;
+        TestBoard               board(fen);
+        Evaluator               e(board);
+        Evaluator::PieceContext ctx{.square    = sq,
+                                    .piece_bb  = bb::set(sq),
+                                    .occupied  = board.occupancy(),
+                                    .pawns     = board.pieces<PAWN>(C),
+                                    .opp_pawns = board.pieces<PAWN>(Opp)};
+        return e.get_moves<C, P>(ctx);
+    }
+
+    void test_threat_score(const std::string& fen, Score w_expected, Score b_expected) {
+        TestBoard board(fen);
+        Evaluator e(board);
+        e.evaluate();
+        EXPECT_EQ(e.scores.threats[WHITE], w_expected) << fen;
+        EXPECT_EQ(e.scores.threats[BLACK], b_expected) << fen;
     }
 
     void test_evaluate_pawns(std::string fen, Score w_expected, Score b_expected) {
@@ -100,6 +123,13 @@ protected:
         Evaluator e(board);
         EXPECT_EQ(e.taper_score(score), expected) << fen;
     }
+
+    std::string debug_output(const std::string& fen) {
+        TestBoard      board(fen);
+        EvaluatorDebug debug(board);
+        debug.evaluate();
+        return std::format("{}", debug);
+    }
 };
 
 TEST_F(EvaluatorTest, Evaluate) {
@@ -110,11 +140,32 @@ TEST_F(EvaluatorTest, Evaluate) {
 
     for (const auto& [fen, expected] : test_cases) {
         TestBoard board(fen);
-        int       result = evaluate(board);
-        EXPECT_EQ(result, expected + eval::tempo_bonus) << fen;
+        EXPECT_EQ(evaluate(board), expected + eval::tempo_bonus) << fen;
         board.make_null();
-        EXPECT_EQ(result, expected + eval::tempo_bonus) << fen;
+        EXPECT_EQ(evaluate(board), expected + eval::tempo_bonus) << fen;
     }
+}
+
+TEST_F(EvaluatorTest, SideToMoveOnlyChangesPerspectiveAndTempo) {
+    TestBoard white_to_move("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
+    TestBoard black_to_move("4k3/8/8/8/8/8/4P3/4K3 b - - 0 1");
+
+    const int white_eval = evaluate(white_to_move);
+    const int black_eval = evaluate(black_to_move);
+
+    EXPECT_GT(white_eval, eval::tempo_bonus);
+    EXPECT_LT(black_eval, eval::tempo_bonus);
+    EXPECT_EQ(white_eval + black_eval, 2 * eval::tempo_bonus);
+}
+
+TEST_F(EvaluatorTest, NullMoveOnlyChangesPerspectiveAndTempo) {
+    TestBoard board("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
+
+    const int white_eval = evaluate(board);
+    board.make_null();
+    const int black_eval = evaluate(board);
+
+    EXPECT_EQ(white_eval + black_eval, 2 * eval::tempo_bonus);
 }
 
 TEST_F(EvaluatorTest, OutpostZone) {
@@ -164,6 +215,14 @@ TEST_F(EvaluatorTest, MobilityScore) {
     for (const auto [fen, expected] : test_cases) {
         test_mobility_score(fen, expected, expected);
     }
+}
+
+TEST_F(EvaluatorTest, PinnedPieceMobilityStaysOnPinRay) {
+    const uint64_t moves = test_piece_moves<WHITE, ROOK>("k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1", E2);
+
+    EXPECT_EQ(moves & ~bb::file(FILE5), 0ULL);
+    EXPECT_EQ(bb::count(moves), 7);
+    EXPECT_NE(moves & bb::set(E8), 0ULL);
 }
 
 TEST_F(EvaluatorTest, EvaluatePawns) {
@@ -286,6 +345,18 @@ TEST_F(EvaluatorTest, QueenScore) {
 
     for (const auto& [fen, w_expected, b_expected] : test_cases) {
         test_evaluate_pieces<QUEEN>(fen, w_expected, b_expected);
+    }
+}
+
+TEST_F(EvaluatorTest, ThreatScore) {
+    std::vector<std::tuple<std::string, Score, Score>> test_cases = {
+        {EMPTYFEN, Score::Zero, Score::Zero},
+        {"4k3/8/8/7b/8/8/r3N3/4K3 w - - 0 1", eval::weak_piece[KNIGHT], Score::Zero},
+        {"4k3/8/R3n3/8/7B/8/8/4K3 w - - 0 2", Score::Zero, eval::weak_piece[KNIGHT]},
+    };
+
+    for (const auto& [fen, w_expected, b_expected] : test_cases) {
+        test_threat_score(fen, w_expected, b_expected);
     }
 }
 
@@ -420,4 +491,14 @@ TEST_F(EvaluatorTest, Phase) {
     for (const auto& [fen, expected, tolerance] : test_cases) {
         test_phase(fen, expected, tolerance);
     }
+}
+
+TEST_F(EvaluatorTest, DebugOutputContainsStableTermBreakdown) {
+    const std::string output = debug_output(STARTFEN);
+
+    EXPECT_NE(output.find("Term"), std::string::npos);
+    EXPECT_NE(output.find("Material"), std::string::npos);
+    EXPECT_NE(output.find("Piece Sq."), std::string::npos);
+    EXPECT_NE(output.find("Mobility"), std::string::npos);
+    EXPECT_NE(output.find("Evaluation:"), std::string::npos);
 }

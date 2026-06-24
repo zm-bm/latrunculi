@@ -173,11 +173,12 @@ inline int Evaluator::evaluate() {
     score += evaluate_term<TERM_MOBILITY, WHITE>() - evaluate_term<TERM_MOBILITY, BLACK>();
     score += evaluate_term<TERM_THREATS, WHITE>() - evaluate_term<TERM_THREATS, BLACK>();
 
-    Color c   = board.side_to_move();
-    score.eg *= scale_factor(c);
+    const Color side_to_move   = board.side_to_move();
+    const Color stronger_side  = score.eg < 0 ? BLACK : WHITE;
+    score.eg                  *= scale_factor(stronger_side);
 
     scores.final_score  = score;
-    scores.final_value  = taper_score(score) * (c == WHITE ? 1 : -1);
+    scores.final_value  = taper_score(score) * (side_to_move == WHITE ? 1 : -1);
     scores.final_value += eval::tempo_bonus;
 
     return scores.final_value;
