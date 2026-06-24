@@ -137,9 +137,9 @@ private:
 
     // Helpers
 
-    float scale_factor(const Color c) const;
-    int   taper_score(const Score score) const;
-    int   phase() const;
+    int scale_factor(const Color c) const;
+    int taper_score(const Score score) const;
+    int phase() const;
 
     friend class EvaluatorDebug;
     friend class EvaluatorTest;
@@ -173,9 +173,9 @@ inline int Evaluator::evaluate() {
     score += evaluate_term<TERM_MOBILITY, WHITE>() - evaluate_term<TERM_MOBILITY, BLACK>();
     score += evaluate_term<TERM_THREATS, WHITE>() - evaluate_term<TERM_THREATS, BLACK>();
 
-    const Color side_to_move   = board.side_to_move();
-    const Color stronger_side  = score.eg < 0 ? BLACK : WHITE;
-    score.eg                  *= scale_factor(stronger_side);
+    const Color side_to_move  = board.side_to_move();
+    const Color stronger_side = score.eg < 0 ? BLACK : WHITE;
+    score.eg                  = (score.eg * scale_factor(stronger_side)) / eval::scale_limit;
 
     scores.final_score  = score;
     scores.final_value  = taper_score(score) * (side_to_move == WHITE ? 1 : -1);
@@ -636,10 +636,10 @@ inline int Evaluator::calculate_check_danger(const uint64_t safe_checks,
     return (danger[P] * count * 2) / (count + 1);
 }
 
-// scale endgame eval toward 0 in draw-ish pawn endings,
-inline float Evaluator::scale_factor(const Color c) const {
+// integer numerator for scaling endgame eval toward 0 in draw-ish pawn endings
+inline int Evaluator::scale_factor(const Color c) const {
     const int pawn_count = board.count(c, PAWN);
-    return std::min(eval::scale_limit, 36 + 5 * pawn_count) / float(eval::scale_limit);
+    return std::min(eval::scale_limit, 36 + 5 * pawn_count);
 }
 
 // blend midgame / endgame scores based on game phase

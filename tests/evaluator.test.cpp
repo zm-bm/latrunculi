@@ -112,7 +112,7 @@ protected:
         EXPECT_LE(std::abs(e.phase() - expected), tolerance) << fen;
     }
 
-    void test_scale_factor(std::string fen, float expected) {
+    void test_scale_factor(std::string fen, int expected) {
         TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.scale_factor(board.side_to_move()), expected) << fen;
@@ -458,10 +458,10 @@ TEST_F(EvaluatorTest, RawDanger) {
 }
 
 TEST_F(EvaluatorTest, ScaleFactor) {
-    std::vector<std::pair<std::string, float>> test_cases = {
-        {EMPTYFEN, 36.0 / eval::scale_limit},
-        {STARTFEN, 1.0},
-        {"4k3/8/8/8/8/8/4P3/4K3 w K - 0 1", 41.0 / eval::scale_limit}, // Single pawn
+    std::vector<std::pair<std::string, int>> test_cases = {
+        {EMPTYFEN, 36},
+        {STARTFEN, eval::scale_limit},
+        {"4k3/8/8/8/8/8/4P3/4K3 w K - 0 1", 41}, // Single pawn
     };
 
     for (const auto& [fen, expected] : test_cases) {
