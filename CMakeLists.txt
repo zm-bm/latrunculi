@@ -63,6 +63,7 @@ if(BUILD_TESTING)
         tests/main.cpp
         tests/move.test.cpp
         tests/move_list.test.cpp
+        tests/move_picker.test.cpp
         tests/movegen.test.cpp
         tests/score.test.cpp
         tests/search.test.cpp

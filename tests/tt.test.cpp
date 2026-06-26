@@ -97,7 +97,7 @@ TEST_F(TT_Test, PackedFieldBoundariesRoundTrip) {
         tt.age_table();
 
     Move packed_move;
-    packed_move.value = std::numeric_limits<uint16_t>::max();
+    packed_move.bits = std::numeric_limits<uint16_t>::max();
 
     constexpr int16_t packed_score = -12345;
     constexpr uint8_t packed_depth = std::numeric_limits<uint8_t>::max();

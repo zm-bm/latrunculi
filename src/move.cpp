@@ -1,6 +1,7 @@
 #include "move.hpp"
 
 #include <format>
+#include <ostream>
 
 std::ostream& operator<<(std::ostream& os, const Move& move) {
     os << move.str();

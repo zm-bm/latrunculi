@@ -27,7 +27,7 @@ struct PositionState {
 
     // Incremental key and move-local undo data. Order is kept compact.
     uint64_t     zkey         = 0;
-    uint16_t     move_value   = 0;
+    uint16_t     move_bits    = 0;
     PieceType    captured     = NO_PIECETYPE;
     CastleRights castle       = NO_CASTLE;
     Square       enpassant    = INVALID;
@@ -36,12 +36,12 @@ struct PositionState {
 
 inline PositionState::PositionState(PositionState& prior_state, Move move)
     : zkey(prior_state.zkey),
-      move_value(move.value),
+      move_bits(move.bits),
       castle(prior_state.castle),
       halfmove_clk(prior_state.halfmove_clk + 1) {}
 
 inline Move PositionState::move() const {
     Move move;
-    move.value = move_value;
+    move.bits = move_bits;
     return move;
 }

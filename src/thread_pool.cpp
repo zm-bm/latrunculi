@@ -153,7 +153,7 @@ Move ThreadPool::best_voted_move(const Board& board, Move fallback) const {
             return lhs.value < rhs.value;
         if (lhs.nodes != rhs.nodes)
             return lhs.nodes < rhs.nodes;
-        return lhs.move.value > rhs.move.value;
+        return lhs.move.bits > rhs.move.bits;
     };
 
     return std::max_element(votes.begin(), votes.end(), better)->move;

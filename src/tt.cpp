@@ -31,7 +31,7 @@ struct TT_Snapshot {
 };
 
 [[nodiscard]] uint64_t pack_payload(const TT_Record& record) {
-    return (uint64_t(record.move.value) << tt_move_shift) |
+    return (uint64_t(record.move.bits) << tt_move_shift) |
            ((uint64_t(uint16_t(record.score)) & tt_score_mask) << tt_score_shift) |
            ((uint64_t(record.depth) & tt_depth_mask) << tt_depth_shift) |
            ((uint64_t(record.age) & tt_age_mask) << tt_age_shift) |
@@ -40,11 +40,11 @@ struct TT_Snapshot {
 
 [[nodiscard]] TT_Record unpack_payload(uint64_t payload) {
     TT_Record record{};
-    record.move.value = uint16_t((payload >> tt_move_shift) & tt_move_mask);
-    record.score      = int16_t((payload >> tt_score_shift) & tt_score_mask);
-    record.depth      = uint8_t((payload >> tt_depth_shift) & tt_depth_mask);
-    record.age        = uint8_t((payload >> tt_age_shift) & tt_age_mask);
-    record.flag       = TT_Flag((payload >> tt_flag_shift) & tt_flag_mask);
+    record.move.bits = uint16_t((payload >> tt_move_shift) & tt_move_mask);
+    record.score     = int16_t((payload >> tt_score_shift) & tt_score_mask);
+    record.depth     = uint8_t((payload >> tt_depth_shift) & tt_depth_mask);
+    record.age       = uint8_t((payload >> tt_age_shift) & tt_age_mask);
+    record.flag      = TT_Flag((payload >> tt_flag_shift) & tt_flag_mask);
     return record;
 }
 

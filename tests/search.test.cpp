@@ -1,10 +1,13 @@
 
 #include <algorithm>
+#include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
 
 #include "board.hpp"
 #include "evaluator.hpp"
+#include "move_picker.hpp"
 
 #include "search_options.hpp"
 #include "test_util.hpp"
@@ -113,10 +116,11 @@ protected:
                               Move   tt_move   = NULL_MOVE,
                               bool   root      = false,
                               int    thread_id = 0) {
-        MoveList         movelist = generate<ALL_MOVES>(board);
-        StagedMovePicker picker{
+        MoveList   movelist = generate<ALL_MOVES>(board);
+        MovePicker picker{
             {board, sort_killers, sort_history, sort_ply, pv_move, tt_move, root, thread_id},
-            movelist};
+            movelist,
+            MovePickerMode::MainSearch};
 
         while (Move* move = picker.next()) {
             if (board.is_legal_pseudo_move(*move))
@@ -125,16 +129,27 @@ protected:
         return NULL_MOVE;
     }
 
-    std::vector<Move> pickedLegalQuiescenceMoves(Board& board) {
+    std::vector<std::pair<Move, uint16_t>> pickedLegalQuiescenceMovesWithScores(Board& board) {
         const bool in_check = board.is_check();
         MoveList   movelist = in_check ? generate<EVASIONS>(board) : generate<CAPTURES>(board);
-        QuiescenceMovePicker picker{
-            {board, sort_killers, sort_history, sort_ply}, movelist, in_check};
+        MovePicker picker{{board, sort_killers, sort_history, sort_ply},
+                          movelist,
+                          in_check ? MovePickerMode::QSearchEvasions
+                                   : MovePickerMode::QSearchCaptures};
 
-        std::vector<Move> moves;
+        std::vector<std::pair<Move, uint16_t>> moves;
         while (Move* move = picker.next()) {
             if (board.is_legal_pseudo_move(*move))
-                moves.push_back(*move);
+                moves.push_back({*move, picker.last_score()});
+        }
+        return moves;
+    }
+
+    std::vector<Move> pickedLegalQuiescenceMoves(Board& board) {
+        std::vector<Move> moves;
+        for (const auto& [move, score] : pickedLegalQuiescenceMovesWithScores(board)) {
+            (void)score;
+            moves.push_back(move);
         }
         return moves;
     }
@@ -335,10 +350,10 @@ TEST_F(SearchTest, QuiescenceOutOfCheckSkipsWeakCaptures) {
     loadThreadBoard(board);
     ASSERT_FALSE(threadInCheck()) << weak_capture_fen;
 
-    const auto legal_captures = pickedLegalQuiescenceMoves(board);
+    const auto legal_captures = pickedLegalQuiescenceMovesWithScores(board);
     ASSERT_EQ(legal_captures.size(), 1U) << weak_capture_fen;
-    EXPECT_EQ(legal_captures[0].str(), "d1d7");
-    EXPECT_EQ(legal_captures[0].priority, PRIORITY_WEAK);
+    EXPECT_EQ(legal_captures[0].first.str(), "d1d7");
+    EXPECT_EQ(legal_captures[0].second, PRIORITY_WEAK);
 
     const int stand_pat       = evaluate(board);
     const auto [score, nodes] = testQuiescenceWithNodes(weak_capture_fen);

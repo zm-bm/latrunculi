@@ -5,6 +5,7 @@
 
 #include "defs.hpp"
 #include "evaluator.hpp"
+#include "move_picker.hpp"
 #include "movegen.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"
@@ -258,9 +259,10 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
     }
 
     // Generate moves
-    auto             movelist = generate<ALL_MOVES>(board);
-    StagedMovePicker picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id},
-                            movelist};
+    auto       movelist = generate<ALL_MOVES>(board);
+    MovePicker picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id},
+                      movelist,
+                      MovePickerMode::MainSearch};
 
     // Iterate through moves
     int legal_move_index = 0;
@@ -456,8 +458,10 @@ int Thread::quiescence(int alpha, int beta, int qply) {
             alpha = stand_pat;
     }
 
-    MoveList movelist = in_check ? generate<EVASIONS>(board) : generate<CAPTURES>(board);
-    QuiescenceMovePicker picker{{board, killers, history, ply}, movelist, in_check};
+    MoveList   movelist = in_check ? generate<EVASIONS>(board) : generate<CAPTURES>(board);
+    MovePicker picker{{board, killers, history, ply},
+                      movelist,
+                      in_check ? MovePickerMode::QSearchEvasions : MovePickerMode::QSearchCaptures};
 
     int legal_moves = 0;
     while (Move* picked_move = picker.next()) {
@@ -467,7 +471,7 @@ int Thread::quiescence(int alpha, int beta, int qply) {
         legal_moves++;
 
         // Prune bad captures only in the normal non-check qsearch branch.
-        if (!in_check && move.type() != MOVE_PROM && move.priority == PRIORITY_WEAK)
+        if (!in_check && move.type() != MOVE_PROM && picker.last_score() == PRIORITY_WEAK)
             continue;
 
         board.make(move, position_states[ply + 1]);
