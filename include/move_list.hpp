@@ -74,7 +74,7 @@ inline MoveList& MoveList::operator=(MoveList&& other) noexcept {
 
 inline void MoveList::add(Square from, Square to, MoveType mtype, PieceType prom) {
     assert(size() < moves.size());
-    new (last++) Move(from, to, mtype, prom);
+    *last++ = Move(from, to, mtype, prom);
 }
 
 inline void MoveList::sort(const MoveOrderContext& ctx) {
