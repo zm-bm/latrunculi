@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <numeric>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -41,9 +42,11 @@ constexpr const char* POS4B = "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R
 constexpr const char* POS5  = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
 constexpr const char* POS6 =
     "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
-constexpr const char* SPECIAL_PROMOTION = "4k3/P6p/8/8/8/8/p6P/4K3 w - - 0 1";
-constexpr const char* SPECIAL_EP        = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
-constexpr const char* SPECIAL_CASTLE    = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+constexpr const char* SPECIAL_PROMOTION         = "4k3/P6p/8/8/8/8/p6P/4K3 w - - 0 1";
+constexpr const char* SPECIAL_CAPTURE_PROMOTION = "1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1";
+constexpr const char* SPECIAL_EP                = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
+constexpr const char* SPECIAL_CASTLE            = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+constexpr const char* SPECIAL_EVASION           = "k3r3/8/8/8/8/8/8/2B1K1N1 w - - 0 1";
 
 volatile uint64_t bench_sink = 0;
 
@@ -77,6 +80,7 @@ struct PerftCase {
 
 struct SpecialMoveCase {
     std::string_view id;
+    std::string_view mode;
     std::string_view fen;
     Move             move;
 };
@@ -332,6 +336,62 @@ std::vector<Move> legal_moves(Board& board) {
     return moves;
 }
 
+std::vector<Move> pseudo_moves(Board& board) {
+    std::vector<Move> moves;
+    MoveList          movelist = generate<ALL_MOVES>(board);
+    for (const auto& move : movelist)
+        moves.push_back(move);
+    return moves;
+}
+
+std::vector<Move> pseudo_quiet_moves(Board& board) {
+    std::vector<Move> moves;
+    for (const auto& move : pseudo_moves(board)) {
+        if (move.type() != MOVE_PROM && !board.is_capture(move))
+            moves.push_back(move);
+    }
+    return moves;
+}
+
+std::vector<Move> pseudo_capture_moves(Board& board) {
+    std::vector<Move> moves;
+    for (const auto& move : pseudo_moves(board)) {
+        if (move.type() != MOVE_PROM && move.type() != MOVE_EP && board.is_capture(move))
+            moves.push_back(move);
+    }
+    return moves;
+}
+
+std::vector<Move> pseudo_king_moves(Board& board) {
+    std::vector<Move> moves;
+    const Square      king = board.king_sq(board.side_to_move());
+    for (const auto& move : pseudo_moves(board)) {
+        if (move.from() == king)
+            moves.push_back(move);
+    }
+    return moves;
+}
+
+std::vector<Move> pseudo_ep_moves(Board& board) {
+    std::vector<Move> moves;
+    for (const auto& move : pseudo_moves(board)) {
+        if (move.type() == MOVE_EP)
+            moves.push_back(move);
+    }
+    return moves;
+}
+
+std::vector<Move> pseudo_evasion_moves(Board& board) {
+    std::vector<Move> moves;
+    if (!board.is_check())
+        return moves;
+
+    MoveList movelist = generate<EVASIONS>(board);
+    for (const auto& move : movelist)
+        moves.push_back(move);
+    return moves;
+}
+
 std::vector<Move> quiet_moves(Board& board) {
     std::vector<Move> moves;
     for (const auto& move : legal_moves(board)) {
@@ -472,6 +532,42 @@ BenchRow run_legal_filter_case(const FenCase& fen_case, Profile profile) {
                     static_cast<double>(total_legal) / static_cast<double>(iterations));
 }
 
+std::optional<BenchRow> run_prebuilt_legal_filter_case(const FenCase&     fen_case,
+                                                       Profile            profile,
+                                                       const std::string& mode,
+                                                       std::vector<Move> (*move_selector)(Board&)) {
+    PositionState root;
+    Board         board(root, std::string(fen_case.fen));
+    const auto    moves = move_selector(board);
+
+    if (moves.empty())
+        return std::nullopt;
+
+    const auto iterations  = iterations_for(profile);
+    const auto ops         = iterations * moves.size();
+    uint64_t   total_legal = 0;
+
+    const uint64_t total_ns = measure_ns([&] {
+        for (uint64_t i = 0; i < iterations; ++i) {
+            uint64_t legal = 0;
+            for (Move move : moves)
+                legal += board.is_legal_pseudo_move(move) ? 1 : 0;
+            total_legal += legal;
+            bench_sink  += legal;
+        }
+    });
+
+    return make_row("board-core",
+                    std::string(fen_case.id),
+                    mode,
+                    profile,
+                    iterations,
+                    ops,
+                    total_ns,
+                    0.0,
+                    static_cast<double>(moves.size()));
+}
+
 BenchRow run_make_unmake_case(const FenCase&     fen_case,
                               Profile            profile,
                               const std::string& mode,
@@ -533,7 +629,7 @@ BenchRow run_special_move_case(const SpecialMoveCase& special_case, Profile prof
     assert_restored(board, initial_key, std::string(special_case.id));
     return make_row("board-core",
                     std::string(special_case.id),
-                    "make_unmake_special",
+                    std::string(special_case.mode),
                     profile,
                     iterations,
                     iterations,
@@ -774,7 +870,14 @@ void run_search_smoke(Options& options) {
 
 void run_board_core(const Options& options) {
     std::vector<BenchRow> rows;
-    const auto            cases = board_cases(options.profile);
+    const auto            cases                = board_cases(options.profile);
+    const auto            push_attribution_row = [&](const FenCase&     fen_case,
+                                          const std::string& mode,
+                                          std::vector<Move> (*move_selector)(Board&)) {
+        if (auto row =
+                run_prebuilt_legal_filter_case(fen_case, options.profile, mode, move_selector))
+            rows.push_back(*row);
+    };
 
     for (const auto& fen_case : cases) {
         auto all_rows = run_generate_mode(fen_case, options.profile, ALL_MOVES);
@@ -784,6 +887,10 @@ void run_board_core(const Options& options) {
         rows.insert(rows.end(), capture_rows.begin(), capture_rows.end());
 
         rows.push_back(run_legal_filter_case(fen_case, options.profile));
+        push_attribution_row(fen_case, "legal_filter_prebuilt_all", pseudo_moves);
+        push_attribution_row(fen_case, "legal_filter_prebuilt_quiet", pseudo_quiet_moves);
+        push_attribution_row(fen_case, "legal_filter_prebuilt_capture", pseudo_capture_moves);
+        push_attribution_row(fen_case, "legal_filter_prebuilt_king", pseudo_king_moves);
         rows.push_back(
             run_make_unmake_case(fen_case, options.profile, "make_unmake_legal", legal_moves));
         rows.push_back(
@@ -793,10 +900,23 @@ void run_board_core(const Options& options) {
         rows.push_back(run_null_move_case(fen_case, options.profile));
     }
 
+    push_attribution_row({"en-passant", SPECIAL_EP}, "legal_filter_prebuilt_ep", pseudo_ep_moves);
+    push_attribution_row(
+        {"evasion", SPECIAL_EVASION}, "legal_filter_prebuilt_evasion", pseudo_evasion_moves);
+
     for (const auto& special_case :
-         {SpecialMoveCase{"promotion", SPECIAL_PROMOTION, Move(A7, A8, MOVE_PROM, QUEEN)},
-          SpecialMoveCase{"en-passant", SPECIAL_EP, Move(B4, A3, MOVE_EP)},
-          SpecialMoveCase{"castle", SPECIAL_CASTLE, Move(E1, G1, MOVE_CASTLE)}})
+         {SpecialMoveCase{"promotion",
+                          "make_unmake_promotion",
+                          SPECIAL_PROMOTION,
+                          Move(A7, A8, MOVE_PROM, QUEEN)},
+          SpecialMoveCase{"capture-promotion",
+                          "make_unmake_capture_promotion",
+                          SPECIAL_CAPTURE_PROMOTION,
+                          Move(A7, B8, MOVE_PROM, QUEEN)},
+          SpecialMoveCase{
+              "en-passant", "make_unmake_en_passant", SPECIAL_EP, Move(B4, A3, MOVE_EP)},
+          SpecialMoveCase{
+              "castle", "make_unmake_castle", SPECIAL_CASTLE, Move(E1, G1, MOVE_CASTLE)}})
         rows.push_back(run_special_move_case(special_case, options.profile));
 
     emit_rows(rows, options.format);

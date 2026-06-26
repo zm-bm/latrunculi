@@ -16,18 +16,18 @@ public:
     MoveList& operator=(const MoveList& other);
     MoveList& operator=(MoveList&& other) noexcept;
 
+    void add(Move move);
+    void add(Square from, Square to, MoveType mtype = BASIC_MOVE, PieceType prom = KNIGHT);
+
     Move*       begin() { return moves.data(); }
     const Move* begin() const { return moves.data(); }
     Move*       end() { return last; }
     const Move* end() const { return last; }
     bool        empty() const { return last == moves.data(); }
     std::size_t size() const { return static_cast<std::size_t>(last - moves.data()); }
-
     Move&       operator[](int index) { return moves[index]; }
     const Move& operator[](int index) const { return moves[index]; }
     void        clear() { last = moves.data(); }
-    void        add(Move move);
-    void        add(Square from, Square to, MoveType mtype = BASIC_MOVE, PieceType prom = KNIGHT);
 
 private:
     void copy_active_range_from(const MoveList& other);
