@@ -4,7 +4,6 @@
 #include <array>
 #include <cassert>
 #include <cstdint>
-#include <utility>
 
 #include "board.hpp"
 #include "defs.hpp"
@@ -41,6 +40,8 @@ public:
 
     Move&       operator[](int index) { return moves[index]; }
     const Move& operator[](int index) const { return moves[index]; }
+    void        clear() { last = moves.data(); }
+    void        add(Move move);
     void        add(Square from, Square to, MoveType mtype = BASIC_MOVE, PieceType prom = KNIGHT);
 
     void     sort(const MoveOrderContext& ctx);
@@ -48,28 +49,46 @@ public:
 
 private:
     void diversify_root_order(const MoveOrderContext& ctx);
+    void copy_active_range_from(const MoveList& other);
 
     std::array<Move, MAX_MOVES> moves;
     Move*                       last;
 };
 
-inline MoveList::MoveList(const MoveList& other)
-    : moves(other.moves),
-      last(moves.data() + other.size()) {}
+inline MoveList::MoveList(const MoveList& other) : last(moves.data()) {
+    *this = other;
+}
 
-inline MoveList::MoveList(MoveList&& other) noexcept : MoveList(other) {}
+inline MoveList::MoveList(MoveList&& other) noexcept : last(moves.data()) {
+    copy_active_range_from(other);
+}
 
 inline MoveList& MoveList::operator=(const MoveList& other) {
     if (this == &other)
         return *this;
 
-    moves = other.moves;
-    last  = moves.data() + other.size();
+    copy_active_range_from(other);
     return *this;
 }
 
 inline MoveList& MoveList::operator=(MoveList&& other) noexcept {
-    return *this = other;
+    if (this == &other)
+        return *this;
+
+    copy_active_range_from(other);
+    return *this;
+}
+
+inline void MoveList::copy_active_range_from(const MoveList& other) {
+    const auto count = other.size();
+    for (std::size_t i = 0; i < count; ++i)
+        moves[i] = other.moves[i];
+    last = moves.data() + count;
+}
+
+inline void MoveList::add(Move move) {
+    assert(size() < moves.size());
+    *last++ = move;
 }
 
 inline void MoveList::add(Square from, Square to, MoveType mtype, PieceType prom) {
