@@ -2,12 +2,9 @@
 
 #include <cstddef>
 #include <deque>
-#include <numeric>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
-#include "bb.hpp"
 #include "board.hpp"
 #include "defs.hpp"
 
@@ -23,11 +20,6 @@ const auto PAWN_E2  = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";
 const auto PAWN_E4  = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
 const auto E2E4     = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
 const auto ENPASSANT_A3 = "4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1";
-
-static uint64_t targets(const std::vector<Square>& squares) {
-    auto add_sq = [](uint64_t acc, Square sq) { return acc | bb::set(sq); };
-    return std::accumulate(squares.begin(), squares.end(), 0ULL, add_sq);
-}
 
 struct TestPositionStateOwner {
 protected:

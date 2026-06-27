@@ -8,6 +8,8 @@ struct KillerMoves {
 
     void update(Move killer, int ply);
     bool is_killer(Move move, int ply) const;
+    Move primary(int ply) const;
+    Move secondary(int ply) const;
     void clear();
 };
 
@@ -20,6 +22,14 @@ inline void KillerMoves::update(Move killer, int ply) {
 
 inline bool KillerMoves::is_killer(Move move, int ply) const {
     return move == killers[ply][0] || move == killers[ply][1];
+}
+
+inline Move KillerMoves::primary(int ply) const {
+    return killers[ply][0];
+}
+
+inline Move KillerMoves::secondary(int ply) const {
+    return killers[ply][1];
 }
 
 inline void KillerMoves::clear() {

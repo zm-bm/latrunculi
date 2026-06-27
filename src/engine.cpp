@@ -222,7 +222,7 @@ bool Engine::move(std::istringstream& iss) {
 }
 
 bool Engine::moves(std::istringstream& iss) {
-    auto movelist = generate<ALL_MOVES>(board);
+    auto movelist = movegen::generate_pseudo_legal(board);
     for (auto& move : movelist)
         protocol.diagnostic_output(move.str());
     return true;
@@ -311,9 +311,9 @@ std::pair<std::string, std::string> Engine::parse_option(std::istringstream& iss
 }
 
 Move Engine::get_move(const std::string& token) {
-    auto movelist = generate<ALL_MOVES>(board);
+    auto movelist = movegen::generate_pseudo_legal(board);
     for (auto& move : movelist) {
-        if (move.str() == token && board.is_legal_pseudo_move(move)) {
+        if (move.str() == token && board.is_legal_generated_move(move)) {
             return move;
         }
     }

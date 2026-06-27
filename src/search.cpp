@@ -6,7 +6,6 @@
 #include "defs.hpp"
 #include "evaluator.hpp"
 #include "move_picker.hpp"
-#include "movegen.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"
 #include "tt.hpp"
@@ -35,6 +34,7 @@ SearchWindow apply_mate_distance_pruning(int alpha, int beta, int ply) {
 
     return {alpha, beta, 0, false};
 }
+
 } // namespace
 
 void Thread::reset() {
@@ -258,24 +258,50 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
                        static_eval + futility_margin[depth] <= alpha);
     }
 
-    // Generate moves
-    auto       movelist = generate<ALL_MOVES>(board);
-    MovePicker picker{{board, killers, history, ply, pv_move, tt_move, root, thread_id},
-                      movelist,
-                      MovePickerMode::MainSearch};
+    int        legal_move_index = 0;
+    MovePicker picker{{board, killers, history, ply, pv_move, tt_move}, MovePickerMode::MainSearch};
 
-    // Iterate through moves
-    int legal_move_index = 0;
-    while (Move* picked_move = picker.next()) {
-        Move move = *picked_move;
-        if (!board.is_legal_pseudo_move(move))
+    auto record_staged_generation = [&]() {
+        if constexpr (SEARCH_STATS) {
+            if (picker.tracks_staged_generation())
+                stats.staged_generation(ply, picker.noisy_generated(), picker.quiet_generated());
+        }
+    };
+
+    auto record_staged_cutoff = [&]() {
+        if constexpr (SEARCH_STATS) {
+            if (!picker.tracks_staged_generation())
+                return;
+
+            switch (picker.last_source()) {
+            case MovePickSource::PV:
+            case MovePickSource::Hash:
+            case MovePickSource::GoodNoisy:
+            case MovePickSource::Killer:
+                if (!picker.quiet_generated())
+                    stats.staged_cutoff_before_quiet(ply);
+                break;
+            case MovePickSource::Quiet:    stats.staged_cutoff_quiet(ply); break;
+            case MovePickSource::BadNoisy: stats.staged_cutoff_bad_noisy(ply); break;
+            case MovePickSource::Evasion:
+            case MovePickSource::None:     break;
+            }
+        }
+    };
+
+    if constexpr (SEARCH_STATS) {
+        if (picker.tracks_staged_generation())
+            stats.staged_node(ply);
+    }
+
+    for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+        if (!board.is_legal_generated_move(move))
             continue;
         legal_move_index++;
         const bool first_legal = (legal_move_index == 1);
 
         bool is_promotion = move.type() == MOVE_PROM;
-        bool is_enpassant = move.type() == MOVE_EP;
-        bool is_capture   = board.is_capture(move) || is_enpassant;
+        bool is_capture   = board.is_capture(move);
         bool is_quiet     = !is_capture && !is_promotion;
 
         board.make(move, position_states[ply + 1]);
@@ -287,6 +313,9 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
         if (futile_flag && !first_legal && is_quiet && !gives_check) {
             board.unmake(position_states[ply - 1]);
             --ply;
+            picker.skip_quiet_moves();
+            if constexpr (SEARCH_STATS)
+                stats.staged_skip_quiet(ply);
             continue;
         }
 
@@ -327,6 +356,7 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
         --ply;
 
         if (halt_requested()) {
+            record_staged_generation();
             if constexpr (root)
                 return root_value;
             return alpha;
@@ -334,6 +364,9 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
 
         // fail-soft beta cutoff
         if (value >= beta) {
+            record_staged_cutoff();
+            record_staged_generation();
+
             if (is_quiet) {
                 killers.update(move, ply);
                 history.update(turn, move.from(), move.to(), depth);
@@ -365,6 +398,8 @@ int Thread::alphabeta(int alpha, int beta, int depth, bool can_null) {
             }
         }
     }
+
+    record_staged_generation();
 
     if (legal_move_index == 0) {
         best_move  = NULL_MOVE;
@@ -458,21 +493,13 @@ int Thread::quiescence(int alpha, int beta, int qply) {
             alpha = stand_pat;
     }
 
-    MoveList   movelist = in_check ? generate<EVASIONS>(board) : generate<CAPTURES>(board);
-    MovePicker picker{{board, killers, history, ply},
-                      movelist,
-                      in_check ? MovePickerMode::QSearchEvasions : MovePickerMode::QSearchCaptures};
+    MovePicker picker{{board, killers, history, ply}, MovePickerMode::QSearch};
 
     int legal_moves = 0;
-    while (Move* picked_move = picker.next()) {
-        Move move = *picked_move;
-        if (!board.is_legal_pseudo_move(move))
+    for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+        if (!board.is_legal_generated_move(move))
             continue;
         legal_moves++;
-
-        // Prune bad captures only in the normal non-check qsearch branch.
-        if (!in_check && move.type() != MOVE_PROM && picker.last_score() == PRIORITY_WEAK)
-            continue;
 
         board.make(move, position_states[ply + 1]);
         ++ply;

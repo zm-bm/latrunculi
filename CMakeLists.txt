@@ -20,6 +20,7 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/fen.cpp
     src/magic.cpp
     src/move.cpp
+    src/move_picker.cpp
     src/movegen.cpp
     src/search.cpp
     src/search_options.cpp

@@ -64,6 +64,19 @@ STATS_COLUMNS = [
     "stats_q_tt_hit_pct",
     "stats_q_tt_cutoff_pct",
     "stats_qnode_pct",
+    "stats_staged_nodes",
+    "stats_staged_noisy_generated",
+    "stats_staged_noisy_generated_pct",
+    "stats_staged_quiet_generated",
+    "stats_staged_quiet_generated_pct",
+    "stats_staged_skip_quiet",
+    "stats_staged_skip_quiet_pct",
+    "stats_staged_cutoff_before_quiet",
+    "stats_staged_cutoff_before_quiet_pct",
+    "stats_staged_cutoff_quiet",
+    "stats_staged_cutoff_quiet_pct",
+    "stats_staged_cutoff_bad_noisy",
+    "stats_staged_cutoff_bad_noisy_pct",
     "stats_ebf",
     "stats_cumulative_ebf",
 ]
@@ -408,6 +421,30 @@ def parse_search_stats_lines(lines: list[str]) -> dict[str, str]:
             stats["stats_aspiration_fail_high"] = aspiration_match.group(2)
             stats["stats_aspiration_researches"] = aspiration_match.group(3)
             continue
+        staged_match = re.search(
+            r"^StagedPicker:\s+nodes=(\d+)\s+noisy-generated=(\d+)\s+"
+            r"\(([-+0-9.]+)%\)\s+quiet-generated=(\d+)\s+\(([-+0-9.]+)%\)\s+"
+            r"skip-quiet=(\d+)\s+\(([-+0-9.]+)%\)\s+"
+            r"cutoff-before-quiet=(\d+)\s+\(([-+0-9.]+)%\)\s+"
+            r"cutoff-quiet=(\d+)\s+\(([-+0-9.]+)%\)\s+"
+            r"cutoff-bad-noisy=(\d+)\s+\(([-+0-9.]+)%\)",
+            stripped,
+        )
+        if staged_match:
+            stats["stats_staged_nodes"] = staged_match.group(1)
+            stats["stats_staged_noisy_generated"] = staged_match.group(2)
+            stats["stats_staged_noisy_generated_pct"] = staged_match.group(3)
+            stats["stats_staged_quiet_generated"] = staged_match.group(4)
+            stats["stats_staged_quiet_generated_pct"] = staged_match.group(5)
+            stats["stats_staged_skip_quiet"] = staged_match.group(6)
+            stats["stats_staged_skip_quiet_pct"] = staged_match.group(7)
+            stats["stats_staged_cutoff_before_quiet"] = staged_match.group(8)
+            stats["stats_staged_cutoff_before_quiet_pct"] = staged_match.group(9)
+            stats["stats_staged_cutoff_quiet"] = staged_match.group(10)
+            stats["stats_staged_cutoff_quiet_pct"] = staged_match.group(11)
+            stats["stats_staged_cutoff_bad_noisy"] = staged_match.group(12)
+            stats["stats_staged_cutoff_bad_noisy_pct"] = staged_match.group(13)
+            continue
         if "Depth" in stripped and "Nodes (QNode%)" in stripped and "Cutoffs" in stripped:
             capture = True
             continue
@@ -520,7 +557,6 @@ def aggregate_search_stats_rows(rows: list[dict[str, str]]) -> dict[str, str]:
         "stats_cumulative_ebf": last.get("stats_cumulative_ebf", ""),
     }
 
-
 def weighted_average(rows: list[dict[str, str]], value_key: str, weight_key: str) -> float | None:
     total_weight = 0.0
     total = 0.0
@@ -568,12 +604,12 @@ def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]
         f"- Movetime: `{manifest['movetime_ms']} ms`; repeats: `{manifest['repeats']}`; hash: `{manifest['hash_mb']} MiB`",
         "",
         "## Averaged results",
-        "| Position | Threads | Depth | Nodes | NPS | Beta cutoffs | Early% | CutIdx | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Bestmove(s) |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---|",
+        "| Position | Threads | Depth | Nodes | NPS | Beta cutoffs | Early% | CutIdx | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Staged QuietGen% | SkipQ% | Staged Cut PreQ/Quiet/Bad% | Bestmove(s) |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---:|---:|---|---|",
     ]
     for (position_id, threads), agg in grouped.items():
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {} | {} |".format(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {} | {} | {} | {}/{}/{} | {} |".format(
                 position_id,
                 threads,
                 format_num(agg["depth"]),
@@ -587,6 +623,11 @@ def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]
                 format_num(agg["stats_q_tt_hit_pct"]),
                 format_num(agg["stats_q_tt_cutoff_pct"]),
                 format_num(agg["stats_qnode_pct"]),
+                format_num(agg["stats_staged_quiet_generated_pct"]),
+                format_num(agg["stats_staged_skip_quiet_pct"]),
+                format_num(agg["stats_staged_cutoff_before_quiet_pct"]),
+                format_num(agg["stats_staged_cutoff_quiet_pct"]),
+                format_num(agg["stats_staged_cutoff_bad_noisy_pct"]),
                 agg["bestmove"] or "",
             )
         )
@@ -621,15 +662,15 @@ def render_direct_compare(
         f"- Candidate: `{new_dir}`",
         "",
         "## Averaged deltas",
-        "| Position | Threads | Depth old/new | Nodes delta | NPS old/new | NPS delta | Beta cutoff delta | Early delta | CutIdx delta | MainTT Hit delta | QTT Hit delta | QNode delta | Bestmove old/new |",
-        "|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| Position | Threads | Depth old/new | Nodes delta | NPS old/new | NPS delta | Beta cutoff delta | Early delta | CutIdx delta | MainTT Hit delta | QTT Hit delta | QNode delta | QuietGen delta | SkipQ delta | PreQ Cut delta | Quiet Cut delta | Bad Cut delta | Bestmove old/new |",
+        "|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for key in keys:
         position_id, threads = key
         old_agg = old.get(key, {})
         new_agg = new.get(key, {})
         lines.append(
-            "| {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} | {} | {} | {} / {} |".format(
+            "| {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} / {} |".format(
                 position_id,
                 threads,
                 format_num(old_agg.get("depth")),
@@ -644,6 +685,26 @@ def render_direct_compare(
                 delta_points(old_agg.get("stats_main_tt_hit_pct"), new_agg.get("stats_main_tt_hit_pct")),
                 delta_points(old_agg.get("stats_q_tt_hit_pct"), new_agg.get("stats_q_tt_hit_pct")),
                 delta_points(old_agg.get("stats_qnode_pct"), new_agg.get("stats_qnode_pct")),
+                delta_points(
+                    old_agg.get("stats_staged_quiet_generated_pct"),
+                    new_agg.get("stats_staged_quiet_generated_pct"),
+                ),
+                delta_points(
+                    old_agg.get("stats_staged_skip_quiet_pct"),
+                    new_agg.get("stats_staged_skip_quiet_pct"),
+                ),
+                delta_points(
+                    old_agg.get("stats_staged_cutoff_before_quiet_pct"),
+                    new_agg.get("stats_staged_cutoff_before_quiet_pct"),
+                ),
+                delta_points(
+                    old_agg.get("stats_staged_cutoff_quiet_pct"),
+                    new_agg.get("stats_staged_cutoff_quiet_pct"),
+                ),
+                delta_points(
+                    old_agg.get("stats_staged_cutoff_bad_noisy_pct"),
+                    new_agg.get("stats_staged_cutoff_bad_noisy_pct"),
+                ),
                 old_agg.get("bestmove", ""),
                 new_agg.get("bestmove", ""),
             )

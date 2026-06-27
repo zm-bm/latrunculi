@@ -123,7 +123,7 @@ TEST(BoardTest, enpassant_key_ignores_pinned_en_passant) {
 
 TEST(BoardTest, generated_moves_skip_illegal_en_passant) {
     TestBoard b("8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - e3 0 1");
-    auto      movelist = generate<ALL_MOVES>(b);
+    auto      movelist = movegen::generate_pseudo_legal(b);
 
     auto ep_move = std::find(movelist.begin(), movelist.end(), Move(F4, E3, MOVE_EP));
     EXPECT_EQ(ep_move, movelist.end());
@@ -151,6 +151,11 @@ TEST(BoardTest, static_exchange_prefers_pawn_over_knight_recapturer) {
 TEST(BoardTest, static_exchange_handles_king_recapture) {
     TestBoard b("8/8/4k3/3p4/3Q4/8/8/K7 w - - 0 1");
     EXPECT_EQ(b.seeMove(Move(D4, D5)), eval::piece(PAWN).mg - eval::piece(QUEEN).mg);
+}
+
+TEST(BoardTest, static_exchange_en_passant_uses_pawn_victim) {
+    TestBoard b(ENPASSANT_A3);
+    EXPECT_EQ(b.seeMove(Move(B4, A3, MOVE_EP)), eval::piece(PAWN).mg);
 }
 
 TEST(BoardTest, is_legal_move_pin) {
@@ -188,11 +193,30 @@ TEST(BoardTest, is_legal_pseudo_move_filters_generated_moves) {
     EXPECT_TRUE(TestBoard(ENPASSANT_A3).is_legal_pseudo_move(Move(B4, A3, MOVE_EP)));
 }
 
+TEST(BoardTest, is_legal_generated_move_matches_full_filter_for_generated_moves) {
+    for (const std::string fen : {STARTFEN,
+                                  POS2,
+                                  POS3,
+                                  POS4W,
+                                  POS4B,
+                                  ENPASSANT_A3,
+                                  "8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - e3 0 1",
+                                  "k3r3/8/8/8/8/8/8/2B1K1N1 w - - 0 1",
+                                  "7k/P7/8/8/8/8/8/4K3 w - - 0 1"}) {
+        TestBoard board{fen};
+        auto      movelist = movegen::generate_pseudo_legal(board);
+        for (const Move& move : movelist) {
+            EXPECT_EQ(board.is_legal_generated_move(move), board.is_legal_pseudo_move(move))
+                << fen << " " << move;
+        }
+    }
+}
+
 TEST(BoardTest, is_pseudo_legal_accepts_generated_moves) {
     for (const std::string fen :
          {STARTFEN, POS2, POS3, POS4W, POS4B, ENPASSANT_A3, "7k/P7/8/8/8/8/8/4K3 w - - 0 1"}) {
         TestBoard board{fen};
-        auto      movelist = generate<ALL_MOVES>(board);
+        auto      movelist = movegen::generate_pseudo_legal(board);
         for (const Move& move : movelist)
             EXPECT_TRUE(board.is_pseudo_legal(move)) << fen << " " << move;
     }
@@ -337,6 +361,13 @@ TEST(BoardTest, is_capture) {
     EXPECT_TRUE(TestBoard(ENPASSANT_A3).is_capture(Move(B4, A3, MOVE_EP)));
     EXPECT_FALSE(b.is_capture(Move(A2, A4)));
     EXPECT_FALSE(b.is_capture(Move(C3, B5)));
+}
+
+TEST(BoardTest, captured_piece_type) {
+    TestBoard b(POS2);
+    EXPECT_EQ(b.captured_piece_type(Move(D5, E6)), PAWN);
+    EXPECT_EQ(b.captured_piece_type(Move(A2, A4)), NO_PIECETYPE);
+    EXPECT_EQ(TestBoard(ENPASSANT_A3).captured_piece_type(Move(B4, A3, MOVE_EP)), PAWN);
 }
 
 TEST(BoardTest, is_double_check) {

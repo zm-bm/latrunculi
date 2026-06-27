@@ -391,9 +391,9 @@ void expect_check_data_matches_slow_oracle(const Board& board) {
 }
 
 Move first_legal_move(Board& board) {
-    auto movelist = generate<ALL_MOVES>(board);
+    auto movelist = movegen::generate_pseudo_legal(board);
     for (const auto& move : movelist) {
-        if (board.is_legal_pseudo_move(move))
+        if (board.is_legal_generated_move(move))
             return move;
     }
     return NULL_MOVE;
@@ -692,10 +692,10 @@ TEST(BoardRepresentationTest, MakeUnmakePreservesRepresentation) {
          {STARTFEN, POS2, POS3, POS4B, ENPASSANT_A3, "4k3/P7/8/8/8/8/8/4K3 w - - 0 1"}) {
         TestBoard board(fen);
         auto      before   = snapshot(board);
-        auto      movelist = generate<ALL_MOVES>(board);
+        auto      movelist = movegen::generate_pseudo_legal(board);
 
         for (const auto& move : movelist) {
-            if (!board.is_legal_pseudo_move(move))
+            if (!board.is_legal_generated_move(move))
                 continue;
 
             board.make(move);
@@ -741,9 +741,9 @@ TEST(BoardRepresentationTest, CheckDataMatchesSlowOracle) {
         SCOPED_TRACE(fen);
         expect_check_data_matches_slow_oracle(board);
 
-        const auto movelist = generate<ALL_MOVES>(board);
+        const auto movelist = movegen::generate_pseudo_legal(board);
         for (const auto& move : movelist) {
-            if (!board.is_legal_pseudo_move(move))
+            if (!board.is_legal_generated_move(move))
                 continue;
 
             SCOPED_TRACE(move);

@@ -57,9 +57,9 @@ protected:
         thread->set_options(options);
         thread->reset();
 
-        auto movelist = generate<ALL_MOVES>(thread->board);
+        auto movelist = movegen::generate_pseudo_legal(thread->board);
         auto move_it  = std::find_if(movelist.begin(), movelist.end(), [&](const Move& move) {
-            return move.str() == move_str && thread->board.is_legal_pseudo_move(move);
+            return move.str() == move_str && thread->board.is_legal_generated_move(move);
         });
         EXPECT_NE(move_it, movelist.end()) << fen;
         if (move_it == movelist.end())
@@ -85,9 +85,9 @@ protected:
         thread->set_options(options);
         thread->reset();
 
-        auto movelist = generate<ALL_MOVES>(thread->board);
+        auto movelist = movegen::generate_pseudo_legal(thread->board);
         auto move_it  = std::find_if(movelist.begin(), movelist.end(), [&](const Move& move) {
-            return move.str() == move_str && thread->board.is_legal_pseudo_move(move);
+            return move.str() == move_str && thread->board.is_legal_generated_move(move);
         });
         EXPECT_NE(move_it, movelist.end()) << fen;
         if (move_it == movelist.end())
@@ -111,36 +111,24 @@ protected:
         return {thread->quiescence(alpha, beta), thread->nodes};
     }
 
-    Move firstLegalPickedMove(Board& board,
-                              Move   pv_move   = NULL_MOVE,
-                              Move   tt_move   = NULL_MOVE,
-                              bool   root      = false,
-                              int    thread_id = 0) {
-        MoveList   movelist = generate<ALL_MOVES>(board);
-        MovePicker picker{
-            {board, sort_killers, sort_history, sort_ply, pv_move, tt_move, root, thread_id},
-            movelist,
-            MovePickerMode::MainSearch};
+    Move firstLegalPickedMove(Board& board, Move pv_move = NULL_MOVE, Move tt_move = NULL_MOVE) {
+        MovePicker picker{{board, sort_killers, sort_history, sort_ply, pv_move, tt_move},
+                          MovePickerMode::MainSearch};
 
-        while (Move* move = picker.next()) {
-            if (board.is_legal_pseudo_move(*move))
-                return *move;
+        for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+            if (board.is_legal_generated_move(move))
+                return move;
         }
         return NULL_MOVE;
     }
 
-    std::vector<std::pair<Move, uint16_t>> pickedLegalQuiescenceMovesWithScores(Board& board) {
-        const bool in_check = board.is_check();
-        MoveList   movelist = in_check ? generate<EVASIONS>(board) : generate<CAPTURES>(board);
-        MovePicker picker{{board, sort_killers, sort_history, sort_ply},
-                          movelist,
-                          in_check ? MovePickerMode::QSearchEvasions
-                                   : MovePickerMode::QSearchCaptures};
+    std::vector<std::pair<Move, MoveScore>> pickedLegalQuiescenceMovesWithScores(Board& board) {
+        MovePicker picker{{board, sort_killers, sort_history, sort_ply}, MovePickerMode::QSearch};
 
-        std::vector<std::pair<Move, uint16_t>> moves;
-        while (Move* move = picker.next()) {
-            if (board.is_legal_pseudo_move(*move))
-                moves.push_back({*move, picker.last_score()});
+        std::vector<std::pair<Move, MoveScore>> moves;
+        for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+            if (board.is_legal_generated_move(move))
+                moves.push_back({move, picker.last_score()});
         }
         return moves;
     }
@@ -162,9 +150,9 @@ protected:
     }
 
     Move findThreadMove(const std::string& move_str) {
-        auto movelist = generate<ALL_MOVES>(thread->board);
+        auto movelist = movegen::generate_pseudo_legal(thread->board);
         auto move_it  = std::find_if(movelist.begin(), movelist.end(), [&](const Move& move) {
-            return move.str() == move_str && thread->board.is_legal_pseudo_move(move);
+            return move.str() == move_str && thread->board.is_legal_generated_move(move);
         });
         EXPECT_NE(move_it, movelist.end()) << thread->board.toFEN();
         return move_it == movelist.end() ? NULL_MOVE : *move_it;
@@ -343,7 +331,7 @@ TEST_F(SearchTest, QuiescenceOutOfCheckIncludesPromotions) {
     EXPECT_EQ(actual, expected) << promotion_fen;
 }
 
-TEST_F(SearchTest, QuiescenceOutOfCheckSkipsWeakCaptures) {
+TEST_F(SearchTest, QuiescenceOutOfCheckSuppressesWeakCapturesInPicker) {
     constexpr auto weak_capture_fen = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
     TestBoard      board{weak_capture_fen};
 
@@ -351,15 +339,13 @@ TEST_F(SearchTest, QuiescenceOutOfCheckSkipsWeakCaptures) {
     ASSERT_FALSE(threadInCheck()) << weak_capture_fen;
 
     const auto legal_captures = pickedLegalQuiescenceMovesWithScores(board);
-    ASSERT_EQ(legal_captures.size(), 1U) << weak_capture_fen;
-    EXPECT_EQ(legal_captures[0].first.str(), "d1d7");
-    EXPECT_EQ(legal_captures[0].second, PRIORITY_WEAK);
+    EXPECT_TRUE(legal_captures.empty()) << weak_capture_fen;
 
     const int stand_pat       = evaluate(board);
     const auto [score, nodes] = testQuiescenceWithNodes(weak_capture_fen);
 
     EXPECT_EQ(score, stand_pat);
-    EXPECT_EQ(nodes, 1U) << "weak captures should be pruned before recursive qsearch";
+    EXPECT_EQ(nodes, 1U) << "weak captures should not enter recursive qsearch";
 }
 
 TEST_F(SearchTest, QuiescenceFailLowReturnsStandPatInsteadOfAlpha) {

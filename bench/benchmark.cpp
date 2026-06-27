@@ -168,7 +168,7 @@ struct SearchSmokeResult {
 
         PositionState position_state;
         Board         board(position_state, fen);
-        MoveList      movelist = generate<ALL_MOVES>(board);
+        MoveList      movelist = movegen::generate_pseudo_legal(board);
 
         auto move_matches = [&](Move candidate) { return candidate.str() == move; };
         return std::find_if(movelist.begin(), movelist.end(), move_matches) != movelist.end();
@@ -328,9 +328,9 @@ uint64_t null_iterations_for(Profile profile) {
 
 std::vector<Move> legal_moves(Board& board) {
     std::vector<Move> moves;
-    MoveList          movelist = generate<ALL_MOVES>(board);
+    MoveList          movelist = movegen::generate_pseudo_legal(board);
     for (const auto& move : movelist) {
-        if (board.is_legal_pseudo_move(move))
+        if (board.is_legal_generated_move(move))
             moves.push_back(move);
     }
     return moves;
@@ -338,13 +338,13 @@ std::vector<Move> legal_moves(Board& board) {
 
 std::vector<Move> pseudo_moves(Board& board) {
     std::vector<Move> moves;
-    MoveList          movelist = generate<ALL_MOVES>(board);
+    MoveList          movelist = movegen::generate_pseudo_legal(board);
     for (const auto& move : movelist)
         moves.push_back(move);
     return moves;
 }
 
-std::vector<Move> pseudo_quiet_moves(Board& board) {
+std::vector<Move> pseudo_quiet_candidates(Board& board) {
     std::vector<Move> moves;
     for (const auto& move : pseudo_moves(board)) {
         if (move.type() != MOVE_PROM && !board.is_capture(move))
@@ -386,13 +386,13 @@ std::vector<Move> pseudo_evasion_moves(Board& board) {
     if (!board.is_check())
         return moves;
 
-    MoveList movelist = generate<EVASIONS>(board);
+    MoveList movelist = movegen::generate_evasions(board);
     for (const auto& move : movelist)
         moves.push_back(move);
     return moves;
 }
 
-std::vector<Move> quiet_moves(Board& board) {
+std::vector<Move> quiet_candidates(Board& board) {
     std::vector<Move> moves;
     for (const auto& move : legal_moves(board)) {
         if (move.type() != MOVE_PROM && !board.is_capture(move))
@@ -453,10 +453,10 @@ uint64_t perft_nodes(Board&                                         board,
         return 1;
 
     uint64_t nodes    = 0;
-    auto     movelist = generate<ALL_MOVES>(board);
+    auto     movelist = movegen::generate_pseudo_legal(board);
 
     for (auto& move : movelist) {
-        if (!board.is_legal_pseudo_move(move))
+        if (!board.is_legal_generated_move(move))
             continue;
 
         board.make(move, states[ply + 1]);
@@ -472,8 +472,12 @@ void assert_restored(const Board& board, uint64_t initial_key, const std::string
         throw std::runtime_error("board restoration failed for " + label);
 }
 
-std::vector<BenchRow>
-run_generate_mode(const FenCase& fen_case, Profile profile, GeneratorMode mode) {
+using GenerateFn = MoveList (*)(const Board&);
+
+std::vector<BenchRow> run_generate_case(const FenCase&   fen_case,
+                                        Profile          profile,
+                                        std::string_view mode,
+                                        GenerateFn       generator) {
     PositionState root;
     Board         board(root, std::string(fen_case.fen));
     const auto    iterations  = iterations_for(profile);
@@ -481,21 +485,42 @@ run_generate_mode(const FenCase& fen_case, Profile profile, GeneratorMode mode) 
 
     const uint64_t total_ns = measure_ns([&] {
         for (uint64_t i = 0; i < iterations; ++i) {
-            MoveList movelist;
-            if (mode == ALL_MOVES)
-                movelist = generate<ALL_MOVES>(board);
-            else
-                movelist = generate<CAPTURES>(board);
-
-            total_moves += movelist.size();
-            bench_sink  += movelist.size();
+            MoveList movelist  = generator(board);
+            total_moves       += movelist.size();
+            bench_sink        += movelist.size();
         }
     });
 
-    const std::string mode_name = mode == ALL_MOVES ? "generate_all" : "generate_captures";
     return {make_row("board-core",
                      std::string(fen_case.id),
-                     mode_name,
+                     std::string(mode),
+                     profile,
+                     iterations,
+                     iterations,
+                     total_ns,
+                     0.0,
+                     static_cast<double>(total_moves) / static_cast<double>(iterations))};
+}
+
+std::vector<BenchRow> run_generate_noisy_quiet_union_case(const FenCase& fen_case,
+                                                          Profile        profile) {
+    PositionState root;
+    Board         board(root, std::string(fen_case.fen));
+    const auto    iterations  = iterations_for(profile);
+    uint64_t      total_moves = 0;
+
+    const uint64_t total_ns = measure_ns([&] {
+        for (uint64_t i = 0; i < iterations; ++i) {
+            MoveList noisy  = movegen::generate_noisy(board);
+            MoveList quiet  = movegen::generate_quiet(board);
+            total_moves    += noisy.size() + quiet.size();
+            bench_sink     += noisy.size() + quiet.size();
+        }
+    });
+
+    return {make_row("board-core",
+                     std::string(fen_case.id),
+                     "generate_noisy_quiet_union",
                      profile,
                      iterations,
                      iterations,
@@ -512,10 +537,10 @@ BenchRow run_legal_filter_case(const FenCase& fen_case, Profile profile) {
 
     const uint64_t total_ns = measure_ns([&] {
         for (uint64_t i = 0; i < iterations; ++i) {
-            MoveList movelist = generate<ALL_MOVES>(board);
+            MoveList movelist = movegen::generate_pseudo_legal(board);
             uint64_t legal    = 0;
             for (const auto& move : movelist)
-                legal += board.is_legal_pseudo_move(move) ? 1 : 0;
+                legal += board.is_legal_generated_move(move) ? 1 : 0;
             total_legal += legal;
             bench_sink  += legal;
         }
@@ -551,7 +576,7 @@ std::optional<BenchRow> run_prebuilt_legal_filter_case(const FenCase&     fen_ca
         for (uint64_t i = 0; i < iterations; ++i) {
             uint64_t legal = 0;
             for (Move move : moves)
-                legal += board.is_legal_pseudo_move(move) ? 1 : 0;
+                legal += board.is_legal_generated_move(move) ? 1 : 0;
             total_legal += legal;
             bench_sink  += legal;
         }
@@ -880,21 +905,30 @@ void run_board_core(const Options& options) {
     };
 
     for (const auto& fen_case : cases) {
-        auto all_rows = run_generate_mode(fen_case, options.profile, ALL_MOVES);
+        auto all_rows = run_generate_case(
+            fen_case, options.profile, "generate_non_evasions", movegen::generate_non_evasions);
         rows.insert(rows.end(), all_rows.begin(), all_rows.end());
 
-        auto capture_rows = run_generate_mode(fen_case, options.profile, CAPTURES);
-        rows.insert(rows.end(), capture_rows.begin(), capture_rows.end());
+        auto noisy_rows =
+            run_generate_case(fen_case, options.profile, "generate_noisy", movegen::generate_noisy);
+        rows.insert(rows.end(), noisy_rows.begin(), noisy_rows.end());
+
+        auto quiet_rows =
+            run_generate_case(fen_case, options.profile, "generate_quiet", movegen::generate_quiet);
+        rows.insert(rows.end(), quiet_rows.begin(), quiet_rows.end());
+
+        auto union_rows = run_generate_noisy_quiet_union_case(fen_case, options.profile);
+        rows.insert(rows.end(), union_rows.begin(), union_rows.end());
 
         rows.push_back(run_legal_filter_case(fen_case, options.profile));
         push_attribution_row(fen_case, "legal_filter_prebuilt_all", pseudo_moves);
-        push_attribution_row(fen_case, "legal_filter_prebuilt_quiet", pseudo_quiet_moves);
+        push_attribution_row(fen_case, "legal_filter_prebuilt_quiet", pseudo_quiet_candidates);
         push_attribution_row(fen_case, "legal_filter_prebuilt_capture", pseudo_capture_moves);
         push_attribution_row(fen_case, "legal_filter_prebuilt_king", pseudo_king_moves);
         rows.push_back(
             run_make_unmake_case(fen_case, options.profile, "make_unmake_legal", legal_moves));
         rows.push_back(
-            run_make_unmake_case(fen_case, options.profile, "make_unmake_quiet", quiet_moves));
+            run_make_unmake_case(fen_case, options.profile, "make_unmake_quiet", quiet_candidates));
         rows.push_back(
             run_make_unmake_case(fen_case, options.profile, "make_unmake_capture", capture_moves));
         rows.push_back(run_null_move_case(fen_case, options.profile));
@@ -903,6 +937,11 @@ void run_board_core(const Options& options) {
     push_attribution_row({"en-passant", SPECIAL_EP}, "legal_filter_prebuilt_ep", pseudo_ep_moves);
     push_attribution_row(
         {"evasion", SPECIAL_EVASION}, "legal_filter_prebuilt_evasion", pseudo_evasion_moves);
+    auto evasion_rows = run_generate_case({"evasion", SPECIAL_EVASION},
+                                          options.profile,
+                                          "generate_evasions",
+                                          movegen::generate_evasions);
+    rows.insert(rows.end(), evasion_rows.begin(), evasion_rows.end());
 
     for (const auto& special_case :
          {SpecialMoveCase{"promotion",

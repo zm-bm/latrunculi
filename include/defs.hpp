@@ -127,17 +127,15 @@ enum CastleRights : uint8_t {
 
 enum MoveType { BASIC_MOVE, MOVE_PROM, MOVE_EP, MOVE_CASTLE };
 
-enum GeneratorMode { ALL_MOVES, CAPTURES, EVASIONS, QUIETS };
+using MoveScore = int;
 
-enum MovePriority : uint16_t {
-    PRIORITY_PV      = 1 << 15,
-    PRIORITY_HASH    = 1 << 14,
-    PRIORITY_PROM    = 1 << 13,
-    PRIORITY_CAPTURE = 1 << 12,
-    PRIORITY_KILLER  = 1 << 11,
-    PRIORITY_HISTORY = 1 << 10,
-    PRIORITY_WEAK    = 0,
-};
+constexpr MoveScore PRIORITY_PV      = 1 << 30;
+constexpr MoveScore PRIORITY_HASH    = 1 << 29;
+constexpr MoveScore PRIORITY_PROM    = 1 << 28;
+constexpr MoveScore PRIORITY_CAPTURE = 1 << 22;
+constexpr MoveScore PRIORITY_KILLER  = 1 << 20;
+constexpr MoveScore PRIORITY_HISTORY = 1 << 10;
+constexpr MoveScore PRIORITY_WEAK    = 0;
 
 enum EvalTerm {
     TERM_MATERIAL,

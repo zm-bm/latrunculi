@@ -94,11 +94,11 @@ Move ThreadPool::best_voted_move(const Board& board, Move fallback) const {
         uint64_t nodes{0};
     };
 
-    auto              root_moves = generate<ALL_MOVES>(board);
+    auto              root_moves = movegen::generate_pseudo_legal(board);
     std::vector<Move> legal_root_moves;
     legal_root_moves.reserve(root_moves.size());
     for (const auto& move : root_moves) {
-        if (board.is_legal_pseudo_move(move))
+        if (board.is_legal_generated_move(move))
             legal_root_moves.push_back(move);
     }
 

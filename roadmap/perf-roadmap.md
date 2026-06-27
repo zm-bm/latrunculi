@@ -17,9 +17,77 @@ Treat each task as an experiment:
 
 ## Current P2 Status
 
-Staged move generation remains a plausible idea, but it is deferred until the
-generator surface is stage-safe and measured outside search. The Move/MoveList
-prerequisite is complete; continue with `roadmap/movegen-stage-refactor.md`.
+P2 now has the reference-style single owning `MovePicker` architecture in
+production. The picker owns staged generation for main search and qsearch; any
+remaining P2 work should improve ordering/performance inside this interface
+rather than reintroducing a prebuilt-vs-staged split.
+
+Completed pieces:
+
+- generator API cleanup is complete: callers have named
+  pseudo-legal/noisy/quiet/all/evasion contracts.
+- noisy/quiet duplicate, disjointness, and union tests exist.
+- split board-core rows exist for all/noisy/quiet/evasion generation.
+- stats-gated staged picker counters exist for noisy generation, quiet
+  generation, and cutoff source rates.
+- picker scoring uses a separate signed `MoveScore` lane; capture victim-bonus
+  scoring was kept, while the plain widened-history-range experiment was not.
+- prior staged search retry failed and was reverted.
+- a single owning `MovePicker` interface is used by root, PV, non-PV, and
+  qsearch paths.
+- `MovePicker` owns its active move/score buffers directly; the former
+  thread-owned `MovePickerScratch` allocation was removed.
+- qsearch now has one public picker mode; the picker internally chooses noisy
+  generation when out of check and evasion generation when in check.
+- qsearch-in-check returns generated evasions, including quiet evasions, without
+  using main-search killer stages.
+
+The architecture cleanup is intentionally accepted even if it carries short-term
+performance cost. The remaining P2 risk is fixed-depth tree-shape drift from the
+new staged ordering. Future work should refine ordering inside the unified
+picker, not restore production search paths that prebuild a full move list
+before constructing the picker.
+
+Quiet ordering remains intentionally simple: killers before history quiets, with
+no good/bad quiet threshold, countermove history, or continuation history yet.
+Treat those as measured P2/P4 follow-ups using beta-cutoff index, staged
+cutoff-source stats, and fixed-depth evidence; do not bundle them into cleanup
+patches.
+
+Latest unified-picker evidence:
+
+- Focused `MovePickerTest.*:MoveGenTest.*:SearchTest.*:SearchStats*.*`: `81`
+  tests passed.
+- Full `ctest --preset release-dev`: passed.
+- `git diff --check`: clean.
+- Direct-UCI smoke:
+  `scratch/bench-runs/20260626-124612-unified-staged-picker-final-smoke`.
+- Direct-UCI mid:
+  `scratch/bench-runs/20260626-124619-unified-staged-picker-final-mid`.
+- Board-core smoke:
+  `scratch/bench-runs/20260626-124724-unified-staged-picker-final-board`.
+- Picker-owned storage direct-UCI smoke:
+  `scratch/bench-runs/20260626-131905-picker-owned-storage-smoke`.
+- Picker-owned storage board-core smoke:
+  `scratch/bench-runs/20260626-131916-picker-owned-storage-board`.
+- No-`MoveSink` direct-UCI smoke:
+  `scratch/bench-runs/20260626-133909-no-movesink-smoke`.
+- No-`MoveSink` board-core smoke:
+  `scratch/bench-runs/20260626-133903-no-movesink-board`.
+- Stockfish-style picker storage direct-UCI smoke:
+  `scratch/bench-runs/20260626-151030-stockfish-style-picker-smoke`.
+- Stockfish-style picker storage board-core smoke:
+  `scratch/bench-runs/20260626-151024-stockfish-style-picker-storage`.
+- Direct `ScoredMove` output smoke:
+  `scratch/bench-runs/20260626-153814-direct-scored-output-smoke`.
+- Direct `ScoredMove` output mid:
+  `scratch/bench-runs/20260626-153823-direct-scored-output-mid`.
+- Direct `ScoredMove` output stats smoke:
+  `scratch/bench-runs/20260626-153930-direct-scored-output-stats`.
+- Direct-output smoke comparison vs. Stockfish-style picker storage:
+  `scratch/bench-runs/20260626-153814-direct-scored-output-smoke/comparison-vs-20260626-151030-stockfish-style-picker-smoke.md`.
+- Startpos fixed-depth spot check: depth `12`, `722785` nodes, `486 ms`,
+  bestmove `g1f3`.
 
 Prior P2 attempts:
 
@@ -28,33 +96,61 @@ Prior P2 attempts:
 | Adapter-style lazy picker | NPS `+0.94%`, depth `+0.25` | NPS `-5.27%`, nodes `+15.59%`, time `+15.27%` | Front-running a full-list picker pays staged overhead plus old generation cost. |
 | Narrowed adapter front-end | NPS `+66.13%`, depth `+0.75` | NPS `-6.95%`, nodes `+10.82%`, time `+16.63%` | Fixed-time depth gains are not enough when fixed-depth efficiency regresses. |
 | True staged main-search picker | NPS `-7.14%`, depth `-0.08 avg` | NPS `-4.89%`, nodes `+8.59%`, time `+28.01%` | Staging avoided quiet generation, but overhead or ordering drift dominated. |
+| Stage-safe generator retry | mixed, mostly neutral NPS, startpos depth down | startpos regressed badly; Arasan improved | Position-dependent result. Reverted; this led to the current single owning `MovePicker` shape. |
 
-Latest diagnostic result: current generator modes are not yet stage-safe enough
-for another picker rewrite. The next P2 patch should add generator contracts,
-union/duplicate tests, and board-core rows for split-batch cost before changing
-search behavior. Use `roadmap/movegen-stage-refactor.md` for the staged
-generation plan.
+Latest result: generator contracts are stage-safe, counters show a real
+skip-quiet opportunity, and the search code now uses one owning `MovePicker`
+interface. The next task is not more API cleanup; it is a picker-order follow-up
+that explains and reduces the remaining fixed-depth tree-shape regression.
 
-Diagnostic findings to preserve:
+Findings to preserve:
 
-- `generate<QUIETS>()` is an internal enum mode, not a public contract.
-- `CAPTURES` currently behaves like noisy generation because promotions are
-  included.
-- Promotion generation needs clear quiet/capture partitioning before staged
-  batches feed search.
-- Split-generation rows are missing for noisy, quiet, evasions, and
-  noisy-plus-quiet union cost.
-- In the diagnostic baseline, `generate_all` measured `70.320 ns/op` and
-  `legal_filter_all` measured `123.568 ns/op`, so legality and board-state work
-  remain large enough that skipped quiet generation must be measured.
+- `generate_noisy()` is cheap enough to be useful in cutoff-heavy nodes.
+- `generate_noisy() + generate_quiet()` is materially slower than
+  `generate_all()` if both batches are always needed.
+- Stats smoke showed roughly `50-66%` skip-quiet opportunity, but the staged
+  search retry still regressed startpos fixed-depth node/time.
+- Closure work must explain or reduce the remaining fixed-depth tree-shape
+  regression before P2 is called done.
 
-Diagnostic run directories:
+Historical run directories:
 
 - Board-core:
   `scratch/bench-runs/20260625-212323-p2-diagnostics-board-before`
 - Perft: `scratch/bench-runs/20260625-212353-p2-diagnostics-perft-before`
 - Direct-UCI smoke:
   `scratch/bench-runs/20260625-212359-p2-diagnostics-search-smoke`
+- Capture victim-bonus scoring:
+  `scratch/bench-runs/20260626-095450-capture-score-before-smoke`,
+  `scratch/bench-runs/20260626-095804-capture-score-after-smoke`,
+  `scratch/bench-runs/20260626-095459-capture-score-before-mid`,
+  `scratch/bench-runs/20260626-095815-capture-score-after-mid`
+- Staged main-search picker candidate:
+  `scratch/bench-runs/20260626-100940-staged-main-before-smoke`,
+  `scratch/bench-runs/20260626-101659-staged-main-after-smoke`,
+  `scratch/bench-runs/20260626-100953-staged-main-before-mid`,
+  `scratch/bench-runs/20260626-101712-staged-main-after-mid`,
+  `scratch/bench-runs/20260626-102417-staged-main-stats-smoke`
+- Single owning picker interface:
+  `scratch/bench-runs/20260626-105958-unified-picker-final-smoke`,
+  `scratch/bench-runs/20260626-105959-unified-picker-final-mid`
+- Unified staged picker:
+  `scratch/bench-runs/20260626-124612-unified-staged-picker-final-smoke`,
+  `scratch/bench-runs/20260626-124619-unified-staged-picker-final-mid`,
+  `scratch/bench-runs/20260626-124724-unified-staged-picker-final-board`
+- Picker-owned storage cleanup:
+  `scratch/bench-runs/20260626-131905-picker-owned-storage-smoke`,
+  `scratch/bench-runs/20260626-131916-picker-owned-storage-board`
+- No-`MoveSink` cleanup:
+  `scratch/bench-runs/20260626-133909-no-movesink-smoke`,
+  `scratch/bench-runs/20260626-133903-no-movesink-board`
+- Stockfish-style picker storage:
+  `scratch/bench-runs/20260626-151030-stockfish-style-picker-smoke`,
+  `scratch/bench-runs/20260626-151024-stockfish-style-picker-storage`
+- Direct `ScoredMove` output:
+  `scratch/bench-runs/20260626-153814-direct-scored-output-smoke`,
+  `scratch/bench-runs/20260626-153823-direct-scored-output-mid`,
+  `scratch/bench-runs/20260626-153930-direct-scored-output-stats`
 
 ## Evidence Gates
 
@@ -153,6 +249,8 @@ not, and remains useful only as the simple correctness model.
 | P2 narrowed adapter attempt | `release`, fixed-depth | `-6.95%` | nodes `+10.82%`, time `+16.63%` | same target | Reverted. Do not repeat this wrapper shape unchanged. |
 | P2 true staged attempt | `release`, fixed-time | `-7.14%` | nodes `-7.12%` | `-0.08 avg` | Rejected: production NPS dropped without a depth gain. |
 | P2 true staged attempt | `release`, fixed-depth | `-4.89%` | nodes `+8.59%`, time `+28.01%` | same target | Reverted. True staging avoided quiet generation, but the implementation still lost too much node/time efficiency. |
+| Capture victim-bonus scoring | `release-dev`, fixed-time smoke | `+0.45%` | nodes `+0.50%` | `+0.00` | Kept. Neutral small-profile result with no depth loss. |
+| Capture victim-bonus scoring | `release-dev`, fixed-time mid | `+0.82%` | nodes `+0.82%` | `-0.11 avg` | Kept. Mixed rows but positive aggregate; capture history remains separate. |
 
 P0 comparison commits:
 
@@ -311,6 +409,121 @@ their own; the likely payoff remains reducing full generation or avoiding later
 batches. Keep en passant and capture-promotion in mind as correctness-sensitive
 special paths, not immediate optimization targets.
 
+## Movegen Stage Ledger
+
+Kept changes:
+
+- Added public generator functions: `generate_pseudo_legal()`,
+  `generate_all()`, `generate_noisy()`, `generate_quiet()`, and
+  `generate_evasions()`.
+- Fixed quiet generation so promotions belong to noisy generation, not quiet
+  generation.
+- Added movegen contract tests proving noisy/quiet disjointness,
+  duplicate-freedom, and `noisy + quiet == all` for representative non-check
+  positions.
+- Added board-core rows for `generate_noisy`, `generate_quiet`,
+  `generate_evasions`, and `generate_noisy_quiet_union`.
+- Added stats-gated staged picker counters and direct-UCI columns for quiet
+  generation and cutoff-source rates.
+
+Run directories:
+
+- Split board-core:
+  `scratch/bench-runs/20260626-025617-movegen-stage-baseline`
+- Perft: `scratch/bench-runs/20260626-025653-movegen-stage-baseline`
+- Stats counters:
+  `scratch/bench-runs/20260626-030232-movegen-stage-counters`
+- Failed staged-search retry:
+  `scratch/bench-runs/20260626-030746-movegen-stage-search`
+- Clean baseline for retry comparison:
+  `scratch/bench-runs/20260626-030843-movegen-stage-search-baseline`
+
+Split-generation standard medians:
+
+| Mode | Median ns/op | Read |
+|---|---:|---|
+| `generate_all` | `58.088` | Current full pseudo-legal generation baseline. |
+| `generate_noisy` | `32.686` | Cheap enough to try before quiets. |
+| `generate_quiet` | `52.886` | Most of full generation cost remains in quiets. |
+| `generate_noisy_quiet_union` | `84.919` | About `46%` slower than full generation if both batches are always needed. |
+| `generate_evasions` | `34.513` | Evasion generation remains separate from the first staged retry. |
+
+Stats-build direct-UCI smoke:
+
+| Position | Threads | SkipQuiet% | HintCut% |
+|---|---:|---:|---:|
+| `startpos` | `1` | `50.1` | `8.5` |
+| `startpos` | `4` | `50.6` | `10.2` |
+| `arasan20-01` | `1` | `65.8` | `12.6` |
+| `arasan20-01` | `4` | `65.7` | `12.7` |
+
+Rejected Phase 5 retry:
+
+- Shape tried: main-search non-check staging with direct PV/hash hints, noisy
+  generation before quiet generation, weak tacticals deferred until after
+  quiets; qsearch was not part of that retry.
+- Fixed-time smoke was mostly neutral on NPS, but `startpos` lost depth.
+- Fixed-depth was mixed: Arasan improved, but startpos regressed badly.
+
+Fixed-depth spot check:
+
+| Position | Threads | Depth | Nodes | Time | Read |
+|---|---:|---:|---:|---:|---|
+| `startpos` | `1` | `12` | `+84.8%` | `+92.2%` | Rejected. |
+| `startpos` | `4` | `13` | `+51.8%` | `+62.5%` | Rejected. |
+| `arasan20-01` | `1` | `12` | `-8.1%` | `-6.6%` | Improved. |
+| `arasan20-01` | `4` | `13` | `-9.1%` | `-11.8%` | Improved. |
+
+Read: the generator contracts are no longer the blocker, and the current code
+now uses a single owning `MovePicker` interface. The remaining P2 task is
+closing the position-dependent search behavior, likely from order drift, hint
+handling, or the cost shape of splitting the picker.
+
+Closure attempt:
+
+- Correctness gates passed:
+  - `cmake --build --preset release-dev`
+  - `./build/release-dev/bin/tests --gtest_filter='MoveGenTest.*:MovePickerTest.*:SearchTest.*'`
+  - `ctest --preset release-dev`
+  - `git diff --check`
+- Fixed-time runs:
+  - `scratch/bench-runs/20260626-111838-staged-closure-smoke`
+  - `scratch/bench-runs/20260626-111844-staged-closure-mid`
+- Fixed-depth runs:
+  - baseline `cb14a9a`:
+    `scratch/bench-runs/20260626-112603-staged-closure-fixeddepth-baseline-cb14a9a`
+  - current candidate:
+    `scratch/bench-runs/20260626-112513-staged-closure-fixeddepth-current`
+
+Fixed-depth depth-12, one-thread comparison:
+
+| Position | Nodes | Time | NPS | Bestmove | Read |
+|---|---:|---:|---:|---|---|
+| `startpos` | `+24.7%` | `+26.6%` | `-1.5%` | `b1c3` -> `d2d4` | Regressed. |
+| `arasan20-01` | `-19.0%` | `-23.7%` | `+6.2%` | `e4a8` -> `e4a8` | Improved. |
+| `arasan20-08` | `+53.3%` | `+49.8%` | `+2.4%` | `h6h5` -> `h6h3` | Regressed. |
+
+Variant findings:
+
+| Variant | Result | Read |
+|---|---|---|
+| full prebuilt main inside current picker | `startpos` worse than current | Split generation is not the only cause. |
+| old capture scoring without victim bonus | partial node improvement, still regressed | Victim bonus contributes but is not the blocker. |
+| generated-list killer ordering | much worse | Direct killer slots are not the blocker. |
+| generated-list validation for PV/TT hints | no material node change | Hint pseudo-legality admission is not the blocker. |
+| legacy qsearch picker | almost no change | Qsearch sharing is not the main cause. |
+| legacy prebuilt picker semantics | `startpos` near baseline, `arasan20-08` still worse | The regression is in main picker ordering semantics. |
+| swap-discard generated PV/TT duplicates | helped `arasan20-08`, worsened `startpos` | Old full-list swap artifacts matter but are not a complete fix. |
+
+Updated decision: keep the unified staged `MovePicker` architecture as the
+reference-like shape, even though fixed-depth tree growth remains material in
+some positions. P2 performance closure is still deferred. The next follow-up
+should refine main-search ordering semantics inside the unified picker,
+especially PV/TT consumption effects, quiet tie order after staged batches, and
+staged cutoff behavior before quiet generation. Do not reintroduce a production
+prebuilt picker split or layer on unrelated heuristics until this picker-order
+issue is resolved.
+
 ## Active Backlog
 
 ## P2: Staged move generation
@@ -319,15 +532,42 @@ Hypothesis: staged move generation can avoid unnecessary work in cutoff-heavy
 nodes. Lazy generation by move class may reduce nodes' per-move overhead and
 improve cutoff efficiency.
 
-Status: deferred pending generator diagnostics.
+Status: unified staged `MovePicker` architecture is implemented and accepted.
+Root, PV, non-PV, and qsearch paths use one picker interface; qsearch has one
+public mode and the picker selects noisy versus evasion generation internally.
+P2 performance closure is still deferred because fixed-depth evidence shows
+remaining tree-shape drift.
 
-Next attempt: use `roadmap/movegen-stage-refactor.md` for public
-noisy/quiet/all/evasion generator contracts, union/duplicate tests, and
-board-core rows for split-generation cost. Do not add search-stage counters or
-change the picker until those contracts exist.
+Current evidence:
 
-Keep criteria: no duplicate or missing moves, same legality behavior, measured
-split-batch cost, and a credible fixed-depth retry plan.
+| Check | Result | Read |
+|---|---:|---|
+| Fixed-time smoke | mostly positive NPS; one four-thread startpos row `-0.7%` NPS | Acceptable smoke. |
+| Fixed-time mid | all rows positive NPS, roughly `+1.2%` to `+6.6%`; depth mostly neutral | Good candidate signal. |
+| Single-picker interface, fixed-time mid | mixed versus the staged-main candidate, roughly `-3.3%` to `+6.3%`; depth mostly neutral | Acceptable cleanup signal; keep watching startpos and single-thread rows. |
+| Fixed-depth startpos depth 12 | nodes `+24.7%`, time `+26.6%`, NPS `-1.5%` | Regressed. |
+| Fixed-depth arasan20-01 depth 12 | nodes `-19.0%`, time `-23.7%`, NPS `+6.2%` | Improved. |
+| Fixed-depth arasan20-08 depth 12 | nodes `+53.3%`, time `+49.8%`, NPS `+2.4%` | Regressed. |
+| Unified staged picker smoke | `scratch/bench-runs/20260626-124612-unified-staged-picker-final-smoke` | Architecture evidence. |
+| Unified staged picker mid | `scratch/bench-runs/20260626-124619-unified-staged-picker-final-mid` | Architecture evidence. |
+| Unified staged picker board-core | `scratch/bench-runs/20260626-124724-unified-staged-picker-final-board` | Board-core cost record. |
+| Unified staged picker startpos depth 12 | `722785` nodes, `486 ms`, bestmove `g1f3` | Spot check. |
+
+Next task: do a larger picker-order follow-up before adding new ordering
+heuristics. Candidate areas are PV/hash consumption effects, quiet tie order
+after captures are split out, staged cutoff behavior before quiet generation,
+and whether PV nodes should use a different generation policy than non-PV nodes.
+
+Closure criteria for the next follow-up:
+
+- keep the single owning `MovePicker` interface as the production architecture;
+- tune the staged picker only when the fix is tied to measured ordering drift,
+  duplicate handling, tie order, or staged cutoff evidence;
+- consider reverting only a specific ordering change if it worsens correctness
+  or makes the picker materially less clear;
+- avoid unrelated search tuning, capture history, countermove history,
+  continuation history, qsearch TT, or eval changes until this picker-order
+  issue is resolved.
 
 ## P3: Aspiration, LMR, And Pruning Tuning
 
@@ -354,9 +594,10 @@ Hypothesis: capture history, countermove history, or continuation history may
 improve cutoff quality beyond the current TT/PV, tactical, killer, and simple
 history model.
 
-Scope: evaluate one heuristic at a time. Keep the existing history table and
-killer behavior intact unless evidence shows a conflict. Avoid large picker
-architecture rewrites here; those belong in P2.
+Scope: evaluate one heuristic at a time. Current kept baseline is signed
+`MoveScore` storage plus SEE-gated capture victim-bonus scoring. Keep the
+existing history table and killer behavior intact unless evidence shows a
+conflict. Avoid large picker architecture rewrites here; those belong in P2.
 
 Evidence: move-ordering tests, history/killer tests, beta-cutoff-by-index data,
 fixed-depth search results, and direct-UCI runs.

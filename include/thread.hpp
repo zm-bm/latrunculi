@@ -153,9 +153,9 @@ inline uci::PV Thread::get_pv_line(int score, int depth) const {
 }
 
 inline Move Thread::first_legal_root_move() const {
-    auto movelist = generate<ALL_MOVES>(board);
+    auto movelist = movegen::generate_pseudo_legal(board);
     for (auto& move : movelist) {
-        if (board.is_legal_pseudo_move(move))
+        if (board.is_legal_generated_move(move))
             return move;
     }
     return NULL_MOVE;

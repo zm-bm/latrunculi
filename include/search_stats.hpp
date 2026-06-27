@@ -28,6 +28,12 @@ struct SearchStats<false> {
     void q_tt_probe(int) {}
     void q_tt_hit(int) {}
     void q_tt_cutoff(int) {}
+    void staged_node(int) {}
+    void staged_generation(int, bool, bool) {}
+    void staged_skip_quiet(int) {}
+    void staged_cutoff_before_quiet(int) {}
+    void staged_cutoff_quiet(int) {}
+    void staged_cutoff_bad_noisy(int) {}
     void reset() {}
 
     friend std::ostream& operator<<(std::ostream& out, const SearchStats& stats) { return out; }
@@ -60,6 +66,13 @@ struct SearchStats<true> {
     StatsArray q_tt_probes{0};
     StatsArray q_tt_hits{0};
     StatsArray q_tt_cutoffs{0};
+    StatsArray staged_nodes{0};
+    StatsArray staged_noisy_generated_nodes{0};
+    StatsArray staged_quiet_generated_nodes{0};
+    StatsArray staged_skip_quiet_nodes{0};
+    StatsArray staged_cutoff_before_quiet_nodes{0};
+    StatsArray staged_cutoff_quiet_nodes{0};
+    StatsArray staged_cutoff_bad_noisy_nodes{0};
 
     uint64_t aspiration_fail_lows{0};
     uint64_t aspiration_fail_highs{0};
@@ -137,6 +150,43 @@ struct SearchStats<true> {
             q_tt_cutoffs[ply]++;
     }
 
+    void staged_node(const int ply) {
+        if (!valid_ply(ply))
+            return;
+
+        staged_nodes[ply]++;
+    }
+
+    void staged_generation(const int ply, const bool noisy_generated, const bool quiet_generated) {
+        if (!valid_ply(ply))
+            return;
+
+        if (noisy_generated)
+            staged_noisy_generated_nodes[ply]++;
+        if (quiet_generated)
+            staged_quiet_generated_nodes[ply]++;
+    }
+
+    void staged_skip_quiet(const int ply) {
+        if (valid_ply(ply))
+            staged_skip_quiet_nodes[ply]++;
+    }
+
+    void staged_cutoff_before_quiet(const int ply) {
+        if (valid_ply(ply))
+            staged_cutoff_before_quiet_nodes[ply]++;
+    }
+
+    void staged_cutoff_quiet(const int ply) {
+        if (valid_ply(ply))
+            staged_cutoff_quiet_nodes[ply]++;
+    }
+
+    void staged_cutoff_bad_noisy(const int ply) {
+        if (valid_ply(ply))
+            staged_cutoff_bad_noisy_nodes[ply]++;
+    }
+
     void reset() {
         nodes.fill(0);
         qnodes.fill(0);
@@ -155,6 +205,13 @@ struct SearchStats<true> {
         q_tt_probes.fill(0);
         q_tt_hits.fill(0);
         q_tt_cutoffs.fill(0);
+        staged_nodes.fill(0);
+        staged_noisy_generated_nodes.fill(0);
+        staged_quiet_generated_nodes.fill(0);
+        staged_skip_quiet_nodes.fill(0);
+        staged_cutoff_before_quiet_nodes.fill(0);
+        staged_cutoff_quiet_nodes.fill(0);
+        staged_cutoff_bad_noisy_nodes.fill(0);
         aspiration_fail_lows  = 0;
         aspiration_fail_highs = 0;
         aspiration_researches = 0;
@@ -179,6 +236,14 @@ struct SearchStats<true> {
             q_tt_probes[i]         += other.q_tt_probes[i];
             q_tt_hits[i]           += other.q_tt_hits[i];
             q_tt_cutoffs[i]        += other.q_tt_cutoffs[i];
+
+            staged_nodes[i]                     += other.staged_nodes[i];
+            staged_noisy_generated_nodes[i]     += other.staged_noisy_generated_nodes[i];
+            staged_quiet_generated_nodes[i]     += other.staged_quiet_generated_nodes[i];
+            staged_skip_quiet_nodes[i]          += other.staged_skip_quiet_nodes[i];
+            staged_cutoff_before_quiet_nodes[i] += other.staged_cutoff_before_quiet_nodes[i];
+            staged_cutoff_quiet_nodes[i]        += other.staged_cutoff_quiet_nodes[i];
+            staged_cutoff_bad_noisy_nodes[i]    += other.staged_cutoff_bad_noisy_nodes[i];
         }
 
         aspiration_fail_lows  += other.aspiration_fail_lows;
@@ -214,6 +279,33 @@ struct std::formatter<SearchStats<true>> : std::formatter<std::string_view> {
                              stats.aspiration_fail_lows,
                              stats.aspiration_fail_highs,
                              stats.aspiration_researches);
+
+        const uint64_t staged_nodes               = sum(stats.staged_nodes);
+        const uint64_t staged_noisy_generated     = sum(stats.staged_noisy_generated_nodes);
+        const uint64_t staged_quiet_generated     = sum(stats.staged_quiet_generated_nodes);
+        const uint64_t staged_skip_quiet          = sum(stats.staged_skip_quiet_nodes);
+        const uint64_t staged_cutoff_before_quiet = sum(stats.staged_cutoff_before_quiet_nodes);
+        const uint64_t staged_cutoff_quiet        = sum(stats.staged_cutoff_quiet_nodes);
+        const uint64_t staged_cutoff_bad_noisy    = sum(stats.staged_cutoff_bad_noisy_nodes);
+
+        out = std::format_to(out,
+                             "StagedPicker: nodes={} noisy-generated={} ({:.1f}%) "
+                             "quiet-generated={} ({:.1f}%) skip-quiet={} ({:.1f}%) "
+                             "cutoff-before-quiet={} ({:.1f}%) "
+                             "cutoff-quiet={} ({:.1f}%) cutoff-bad-noisy={} ({:.1f}%)\n",
+                             staged_nodes,
+                             staged_noisy_generated,
+                             pct(staged_noisy_generated, staged_nodes),
+                             staged_quiet_generated,
+                             pct(staged_quiet_generated, staged_nodes),
+                             staged_skip_quiet,
+                             pct(staged_skip_quiet, staged_nodes),
+                             staged_cutoff_before_quiet,
+                             pct(staged_cutoff_before_quiet, staged_nodes),
+                             staged_cutoff_quiet,
+                             pct(staged_cutoff_quiet, staged_nodes),
+                             staged_cutoff_bad_noisy,
+                             pct(staged_cutoff_bad_noisy, staged_nodes));
 
         out =
             std::format_to(out,
@@ -277,5 +369,12 @@ struct std::formatter<SearchStats<true>> : std::formatter<std::string_view> {
 private:
     static double pct(const uint64_t count, const uint64_t total) {
         return total > 0 ? 100.0 * count / total : 0.0;
+    }
+
+    static uint64_t sum(const SearchStats<true>::StatsArray& values) {
+        uint64_t total = 0;
+        for (uint64_t value : values)
+            total += value;
+        return total;
     }
 };

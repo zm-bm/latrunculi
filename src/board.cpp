@@ -28,10 +28,10 @@ uint64_t perft_impl(Board&                                         board,
         return 1;
 
     uint64_t nodes    = 0;
-    auto     movelist = generate<ALL_MOVES>(board);
+    auto     movelist = movegen::generate_pseudo_legal(board);
 
     for (auto& move : movelist) {
-        if (!board.is_legal_pseudo_move(move))
+        if (!board.is_legal_generated_move(move))
             continue;
 
         board.make(move, states[ply + 1]);
@@ -162,6 +162,17 @@ bool Board::is_legal_move(Move mv) const {
     return is_pseudo_legal(mv) && is_legal_pseudo_move(mv);
 }
 
+// Requires a generated pseudo-legal move. Only strict cases can expose or leave king in check.
+bool Board::is_legal_generated_move(Move mv) const {
+    const Square from = mv.from();
+
+    if (checkers() || from == king_sq(turn) || mv.type() == MOVE_EP ||
+        (blockers(turn) & bb::set(from)))
+        return is_legal_pseudo_move(mv);
+
+    return true;
+}
+
 // Requires a pseudo-legal move. Filters moves that expose or leave the king in check.
 bool Board::is_legal_pseudo_move(Move mv) const {
     Square from = mv.from();
@@ -247,15 +258,22 @@ int Board::seeMove(Move move) const {
     const Square from = move.from();
     const Square to   = move.to();
 
-    Color     side      = side_to_move();
-    PieceType piece     = piecetype_on(from);
-    uint64_t  occupied  = occupancy();
-    uint64_t  attackers = attacks_to(to, occupied);
-    uint64_t  from_bb   = bb::set(from);
+    Color     side           = side_to_move();
+    PieceType piece          = piecetype_on(from);
+    PieceType captured_piece = captured_piece_type(move);
+    uint64_t  occupied       = occupancy();
+    uint64_t  from_bb        = bb::set(from);
+
+    if (move.type() == MOVE_EP) {
+        const Square captured = to + (side == WHITE ? SOUTH : NORTH);
+        occupied              = (occupied ^ bb::set(captured)) | bb::set(to);
+    }
+
+    uint64_t attackers = attacks_to(to, occupied);
 
     // swap-list of best case material gain for each depth
     int gain[32] = {};
-    gain[0]      = eval::piece(piecetype_on(to)).mg;
+    gain[0]      = eval::piece(captured_piece).mg;
 
     int depth = 0;
     do {
@@ -302,10 +320,9 @@ void Board::make(Move move, PositionState& next_state) {
     const auto   movetype       = move.type();
     const Color  opp            = ~turn;
     Square       capt_sq        = to;
-    PieceType    capt_piecetype = piecetype_on(to);
+    PieceType    capt_piecetype = captured_piece_type(move);
 
     if (movetype == MOVE_EP) {
-        capt_piecetype   = PAWN;
         capt_sq          = to + (turn == WHITE ? SOUTH : NORTH);
         squares[capt_sq] = NO_PIECE;
     }
@@ -447,9 +464,9 @@ void Board::unmake_null(PositionState& prior_state) {
 
 // stalemate from no legal moves
 bool Board::is_stalemate() const {
-    auto movelist = generate<ALL_MOVES>(*this);
+    auto movelist = movegen::generate_pseudo_legal(*this);
     for (auto& move : movelist) {
-        if (is_legal_pseudo_move(move))
+        if (is_legal_generated_move(move))
             return false;
     }
     return true;
@@ -498,11 +515,11 @@ std::string Board::toSAN(Move move) const {
         result += std::toupper(to_char(piecetype));
 
     // handle move disambiguation
-    auto movelist = generate<ALL_MOVES>(*this);
+    auto movelist = movegen::generate_pseudo_legal(*this);
     for (auto& m : movelist) {
         bool ambiguous =
             (piecetype_on(m.from()) == piecetype) && (m.to() == to) && (m.from() != from);
-        if (ambiguous && is_legal_pseudo_move(m)) {
+        if (ambiguous && is_legal_generated_move(m)) {
             if (file_of(m.from()) != file_of(from))
                 result += to_char(file_of(from));
             if (rank_of(m.from()) != rank_of(from))

@@ -103,13 +103,15 @@ public:
 
     // move properties
 
-    bool is_capture(Move move) const {
-        return move.type() == MOVE_EP || piecetype_on(move.to()) != NO_PIECETYPE;
-    }
+    PieceType captured_piece_type(Move move) const;
+
+    bool is_capture(Move move) const;
     // Fast shape check for arbitrary moves; does not test pins or self-check.
     bool is_pseudo_legal(Move move) const;
     // Requires a pseudo-legal/generated move; filters pins and self-check.
     bool is_legal_pseudo_move(Move move) const;
+    // Requires a move from local movegen/picker output; fast-paths ordinary legal moves.
+    bool is_legal_generated_move(Move move) const;
     // Full legality check for arbitrary/untrusted moves.
     bool is_legal_move(Move move) const;
     bool is_checking_move(Move move) const;
@@ -165,6 +167,14 @@ template <PieceType... Ps>
 inline uint64_t Board::pieces(Color c) const {
     return (piece_bb[c][Ps] | ...);
 };
+
+inline PieceType Board::captured_piece_type(Move move) const {
+    return move.type() == MOVE_EP ? PAWN : piecetype_on(move.to());
+}
+
+inline bool Board::is_capture(Move move) const {
+    return captured_piece_type(move) != NO_PIECETYPE;
+}
 
 inline bool Board::can_castle(Color c) const {
     return castle_rights() & (c ? W_CASTLE : B_CASTLE);
