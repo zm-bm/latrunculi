@@ -4,46 +4,27 @@
 #include <cmath>
 #include <cstdint>
 #include <format>
-#include <ostream>
+#include <string>
 #include <string_view>
 
 #include "defs.hpp"
+#include "move_picker.hpp"
 
 template <bool Enable = SEARCH_STATS>
-struct SearchStats;
+struct SearchCounters;
 
-// stats disabled specialization
+template <bool Enable = SEARCH_STATS>
+class SearchInstrumentation;
+
 template <>
-struct SearchStats<false> {
-    void node(int) {}
-    void qnode(int) {}
-    void beta_cutoff(int, int) {}
-    void pvs_research(int) {}
-    void aspiration_fail_low() {}
-    void aspiration_fail_high() {}
-    void aspiration_research() {}
-    void main_tt_probe(int) {}
-    void main_tt_hit(int) {}
-    void main_tt_cutoff(int) {}
-    void q_tt_probe(int) {}
-    void q_tt_hit(int) {}
-    void q_tt_cutoff(int) {}
-    void staged_node(int) {}
-    void staged_generation(int, bool, bool) {}
-    void staged_skip_quiet(int) {}
-    void staged_cutoff_before_quiet(int) {}
-    void staged_cutoff_quiet(int) {}
-    void staged_cutoff_bad_noisy(int) {}
-    void reset() {}
-
-    friend std::ostream& operator<<(std::ostream& out, const SearchStats& stats) { return out; }
-    SearchStats&         operator+=(const SearchStats& other) { return *this; }
-    SearchStats          operator+(const SearchStats& other) const { return *this; }
+struct SearchCounters<false> {
+    void            reset() {}
+    SearchCounters& operator+=(const SearchCounters&) { return *this; }
+    SearchCounters  operator+(const SearchCounters&) const { return *this; }
 };
 
-// stats enabled specialization
 template <>
-struct SearchStats<true> {
+struct SearchCounters<true> {
     using StatsArray = std::array<uint64_t, MAX_SEARCH_PLY>;
 
     StatsArray nodes{0};
@@ -78,115 +59,6 @@ struct SearchStats<true> {
     uint64_t aspiration_fail_highs{0};
     uint64_t aspiration_researches{0};
 
-    void node(const int ply) {
-        if (valid_ply(ply))
-            nodes[ply]++;
-    }
-
-    void qnode(const int ply) {
-        if (valid_ply(ply)) {
-            nodes[ply]++;
-            qnodes[ply]++;
-        }
-    }
-
-    void beta_cutoff(const int ply, const int move_index) {
-        if (!valid_ply(ply) || move_index <= 0)
-            return;
-
-        cutoffs[ply]++;
-        cutoff_index_sum[ply] += static_cast<uint64_t>(move_index);
-
-        if (move_index == 1) {
-            fail_high_early[ply]++;
-            cutoff_index_1[ply]++;
-        } else {
-            fail_high_late[ply]++;
-            if (move_index == 2)
-                cutoff_index_2[ply]++;
-            else if (move_index <= 4)
-                cutoff_index_3_4[ply]++;
-            else
-                cutoff_index_5_plus[ply]++;
-        }
-    }
-
-    void pvs_research(const int ply) {
-        if (valid_ply(ply))
-            pvs_researches[ply]++;
-    }
-
-    void aspiration_fail_low() { aspiration_fail_lows++; }
-    void aspiration_fail_high() { aspiration_fail_highs++; }
-    void aspiration_research() { aspiration_researches++; }
-
-    void main_tt_probe(const int ply) {
-        if (valid_ply(ply))
-            main_tt_probes[ply]++;
-    }
-
-    void main_tt_hit(const int ply) {
-        if (valid_ply(ply))
-            main_tt_hits[ply]++;
-    }
-
-    void main_tt_cutoff(const int ply) {
-        if (valid_ply(ply))
-            main_tt_cutoffs[ply]++;
-    }
-
-    void q_tt_probe(const int ply) {
-        if (valid_ply(ply))
-            q_tt_probes[ply]++;
-    }
-
-    void q_tt_hit(const int ply) {
-        if (valid_ply(ply))
-            q_tt_hits[ply]++;
-    }
-
-    void q_tt_cutoff(const int ply) {
-        if (valid_ply(ply))
-            q_tt_cutoffs[ply]++;
-    }
-
-    void staged_node(const int ply) {
-        if (!valid_ply(ply))
-            return;
-
-        staged_nodes[ply]++;
-    }
-
-    void staged_generation(const int ply, const bool noisy_generated, const bool quiet_generated) {
-        if (!valid_ply(ply))
-            return;
-
-        if (noisy_generated)
-            staged_noisy_generated_nodes[ply]++;
-        if (quiet_generated)
-            staged_quiet_generated_nodes[ply]++;
-    }
-
-    void staged_skip_quiet(const int ply) {
-        if (valid_ply(ply))
-            staged_skip_quiet_nodes[ply]++;
-    }
-
-    void staged_cutoff_before_quiet(const int ply) {
-        if (valid_ply(ply))
-            staged_cutoff_before_quiet_nodes[ply]++;
-    }
-
-    void staged_cutoff_quiet(const int ply) {
-        if (valid_ply(ply))
-            staged_cutoff_quiet_nodes[ply]++;
-    }
-
-    void staged_cutoff_bad_noisy(const int ply) {
-        if (valid_ply(ply))
-            staged_cutoff_bad_noisy_nodes[ply]++;
-    }
-
     void reset() {
         nodes.fill(0);
         qnodes.fill(0);
@@ -217,7 +89,7 @@ struct SearchStats<true> {
         aspiration_researches = 0;
     }
 
-    SearchStats& operator+=(const SearchStats& other) {
+    SearchCounters& operator+=(const SearchCounters& other) {
         for (size_t i = 0; i < MAX_SEARCH_PLY; ++i) {
             nodes[i]               += other.nodes[i];
             qnodes[i]              += other.qnodes[i];
@@ -252,27 +124,198 @@ struct SearchStats<true> {
         return *this;
     }
 
-    SearchStats operator+(const SearchStats& other) const {
-        SearchStats result  = *this;
-        result             += other;
+    SearchCounters operator+(const SearchCounters& other) const {
+        SearchCounters result  = *this;
+        result                += other;
         return result;
     }
 
-private:
     static bool valid_ply(const int ply) { return ply >= 0 && ply < MAX_SEARCH_PLY; }
 };
 
 template <>
-struct std::formatter<SearchStats<false>> : std::formatter<std::string_view> {
-    auto format(const SearchStats<false>& stats, std::format_context& ctx) const {
+class SearchInstrumentation<false> {
+public:
+    void        reset() {}
+    void        node(int) {}
+    void        qnode(int) {}
+    void        beta_cutoff(int, int) {}
+    void        pvs_research(int) {}
+    void        aspiration_fail_low() {}
+    void        aspiration_fail_high() {}
+    void        aspiration_research() {}
+    void        main_tt_probe(int) {}
+    void        main_tt_hit(int) {}
+    void        main_tt_cutoff(int) {}
+    void        q_tt_probe(int) {}
+    void        q_tt_hit(int) {}
+    void        q_tt_cutoff(int) {}
+    void        staged_node(int, const MovePicker&) {}
+    void        staged_generation(int, const MovePicker&) {}
+    void        staged_skip_quiet(int) {}
+    void        staged_cutoff(int, const MovePicker&) {}
+    std::string str() const;
+
+    SearchInstrumentation& operator+=(const SearchInstrumentation&) { return *this; }
+    SearchInstrumentation  operator+(const SearchInstrumentation&) const { return *this; }
+
+private:
+    SearchCounters<false> counters;
+};
+
+template <>
+class SearchInstrumentation<true> {
+public:
+    SearchInstrumentation() = default;
+    explicit SearchInstrumentation(SearchCounters<true> counters) : counters(counters) {}
+
+    void reset() { counters.reset(); }
+
+    void node(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.nodes[ply]++;
+    }
+
+    void qnode(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply)) {
+            counters.nodes[ply]++;
+            counters.qnodes[ply]++;
+        }
+    }
+
+    void beta_cutoff(const int ply, const int move_index) {
+        if (!SearchCounters<true>::valid_ply(ply) || move_index <= 0)
+            return;
+
+        counters.cutoffs[ply]++;
+        counters.cutoff_index_sum[ply] += static_cast<uint64_t>(move_index);
+
+        if (move_index == 1) {
+            counters.fail_high_early[ply]++;
+            counters.cutoff_index_1[ply]++;
+        } else {
+            counters.fail_high_late[ply]++;
+            if (move_index == 2)
+                counters.cutoff_index_2[ply]++;
+            else if (move_index <= 4)
+                counters.cutoff_index_3_4[ply]++;
+            else
+                counters.cutoff_index_5_plus[ply]++;
+        }
+    }
+
+    void pvs_research(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.pvs_researches[ply]++;
+    }
+
+    void aspiration_fail_low() { counters.aspiration_fail_lows++; }
+    void aspiration_fail_high() { counters.aspiration_fail_highs++; }
+    void aspiration_research() { counters.aspiration_researches++; }
+
+    void main_tt_probe(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.main_tt_probes[ply]++;
+    }
+
+    void main_tt_hit(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.main_tt_hits[ply]++;
+    }
+
+    void main_tt_cutoff(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.main_tt_cutoffs[ply]++;
+    }
+
+    void q_tt_probe(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.q_tt_probes[ply]++;
+    }
+
+    void q_tt_hit(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.q_tt_hits[ply]++;
+    }
+
+    void q_tt_cutoff(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.q_tt_cutoffs[ply]++;
+    }
+
+    void staged_node(const int ply, const MovePicker& picker) {
+        if (!SearchCounters<true>::valid_ply(ply) || !picker.tracks_staged_generation())
+            return;
+
+        counters.staged_nodes[ply]++;
+    }
+
+    void staged_generation(const int ply, const MovePicker& picker) {
+        if (!SearchCounters<true>::valid_ply(ply) || !picker.tracks_staged_generation())
+            return;
+
+        if (picker.noisy_generated())
+            counters.staged_noisy_generated_nodes[ply]++;
+        if (picker.quiet_generated())
+            counters.staged_quiet_generated_nodes[ply]++;
+    }
+
+    void staged_skip_quiet(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.staged_skip_quiet_nodes[ply]++;
+    }
+
+    void staged_cutoff(const int ply, const MovePicker& picker) {
+        if (!SearchCounters<true>::valid_ply(ply) || !picker.tracks_staged_generation())
+            return;
+
+        switch (picker.last_source()) {
+        case MovePickSource::PV:
+        case MovePickSource::Hash:
+        case MovePickSource::GoodNoisy:
+        case MovePickSource::Killer:
+            if (!picker.quiet_generated())
+                counters.staged_cutoff_before_quiet_nodes[ply]++;
+            break;
+        case MovePickSource::Quiet:    counters.staged_cutoff_quiet_nodes[ply]++; break;
+        case MovePickSource::BadNoisy: counters.staged_cutoff_bad_noisy_nodes[ply]++; break;
+        case MovePickSource::Evasion:
+        case MovePickSource::None:     break;
+        }
+    }
+
+    SearchInstrumentation& operator+=(const SearchInstrumentation& other) {
+        counters += other.counters;
+        return *this;
+    }
+
+    SearchInstrumentation operator+(const SearchInstrumentation& other) const {
+        SearchInstrumentation result  = *this;
+        result                       += other;
+        return result;
+    }
+
+    const SearchCounters<true>& raw_counters() const { return counters; }
+    std::string                 str() const;
+
+private:
+    SearchCounters<true> counters;
+};
+
+template <>
+struct std::formatter<SearchInstrumentation<false>> : std::formatter<std::string_view> {
+    auto format(const SearchInstrumentation<false>& instrumentation,
+                std::format_context&                ctx) const {
         return ctx.out();
     }
 };
 
 template <>
-struct std::formatter<SearchStats<true>> : std::formatter<std::string_view> {
-    auto format(const SearchStats<true>& stats, std::format_context& ctx) const {
-        auto out = ctx.out();
+struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_view> {
+    auto format(const SearchInstrumentation<true>& instrumentation,
+                std::format_context&               ctx) const {
+        const auto& stats = instrumentation.raw_counters();
+        auto        out   = ctx.out();
 
         out = std::format_to(out,
                              "\nAspiration: fail-low={} fail-high={} re-searches={}\n",
@@ -371,10 +414,18 @@ private:
         return total > 0 ? 100.0 * count / total : 0.0;
     }
 
-    static uint64_t sum(const SearchStats<true>::StatsArray& values) {
+    static uint64_t sum(const SearchCounters<true>::StatsArray& values) {
         uint64_t total = 0;
         for (uint64_t value : values)
             total += value;
         return total;
     }
 };
+
+inline std::string SearchInstrumentation<false>::str() const {
+    return std::format("{}", *this);
+}
+
+inline std::string SearchInstrumentation<true>::str() const {
+    return std::format("{}", *this);
+}

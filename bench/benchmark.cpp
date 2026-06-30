@@ -26,6 +26,7 @@
 #include "engine.hpp"
 #include "magic.hpp"
 #include "movegen.hpp"
+#include "position_state.hpp"
 #include "zobrist.hpp"
 
 namespace {
@@ -444,11 +445,8 @@ BenchRow make_row(const std::string& suite,
     };
 }
 
-uint64_t perft_nodes(Board&                                         board,
-                     int                                            depth,
-                     std::array<PositionState, MAX_SEARCH_PLY + 1>& states,
-                     int                                            ply,
-                     PositionState&                                 current_state) {
+uint64_t perft_nodes(
+    Board& board, int depth, PositionStateStack& states, int ply, PositionState& current_state) {
     if (depth == 0)
         return 1;
 
@@ -459,8 +457,8 @@ uint64_t perft_nodes(Board&                                         board,
         if (!board.is_legal_generated_move(move))
             continue;
 
-        board.make(move, states[ply + 1]);
-        nodes += perft_nodes(board, depth - 1, states, ply + 1, states[ply + 1]);
+        board.make(move, states.child(ply));
+        nodes += perft_nodes(board, depth - 1, states, ply + 1, states.child(ply));
         board.unmake(current_state);
     }
 
@@ -693,7 +691,7 @@ BenchRow run_null_move_case(const FenCase& fen_case, Profile profile) {
 BenchRow run_perft_case(const PerftCase& perft_case, Profile profile) {
     PositionState root;
     Board         board(root, std::string(perft_case.fen));
-    auto          states      = std::array<PositionState, MAX_SEARCH_PLY + 1>{};
+    auto          states      = PositionStateStack{};
     const auto    initial_key = board.key();
     const int     depth =
         profile == Profile::Smoke ? perft_case.smoke_depth : perft_case.standard_depth;

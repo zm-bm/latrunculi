@@ -6,8 +6,8 @@
 
 #include "defs.hpp"
 #include "eval.hpp"
-#include "key_history.hpp"
 #include "move.hpp"
+#include "position_key_history.hpp"
 #include "position_state.hpp"
 #include "score.hpp"
 #include "zobrist.hpp"
@@ -26,8 +26,8 @@ private:
     Score material  = {0, 0};
     Score psq_bonus = {0, 0};
 
-    PositionState* active_position_state = nullptr;
-    KeyHistory     key_history;
+    PositionState*     active_position_state = nullptr;
+    PositionKeyHistory position_key_history;
 
     PositionState&       active_state() { return *active_position_state; }
     const PositionState& active_state() const { return *active_position_state; }

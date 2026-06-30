@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "test_util.hpp"
+#include "tt.hpp"
 #include "gtest/gtest.h"
 
 class EngineTest : public ::testing::Test {
@@ -25,11 +26,11 @@ protected:
     bool wait_for_busy(std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
         auto deadline = std::chrono::steady_clock::now() + timeout;
         while (std::chrono::steady_clock::now() < deadline) {
-            if (threadpool().is_busy())
+            if (threadpool().is_searching())
                 return true;
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-        return threadpool().is_busy();
+        return threadpool().is_searching();
     }
 };
 
@@ -52,7 +53,7 @@ TEST_F(EngineTest, GoAndStopCommands) {
     EXPECT_TRUE(execute("stop"));
 
     // Wait for threads to finish and check output for best move
-    threadpool().wait_all();
+    threadpool().wait();
     EXPECT_NE(output.str().find("bestmove"), std::string::npos);
 }
 
@@ -67,7 +68,7 @@ TEST_F(EngineTest, GoWhileSearchInProgressIsRejected) {
     EXPECT_NE(output.str().find("search already in progress"), std::string::npos) << output.str();
 
     EXPECT_TRUE(execute("stop"));
-    threadpool().wait_all();
+    threadpool().wait();
 }
 
 TEST_F(EngineTest, SetOptionWhileSearchInProgressIsRejected) {
@@ -80,10 +81,10 @@ TEST_F(EngineTest, SetOptionWhileSearchInProgressIsRejected) {
     EXPECT_TRUE(execute("setoption name Threads value 2"));
     EXPECT_NE(output.str().find("cannot set option while search is in progress"), std::string::npos)
         << output.str();
-    EXPECT_EQ(threadpool().size(), DEFAULT_THREADS);
+    EXPECT_EQ(threadpool().thread_count(), DEFAULT_THREADS);
 
     EXPECT_TRUE(execute("stop"));
-    threadpool().wait_all();
+    threadpool().wait();
 }
 
 TEST_F(EngineTest, UciNewGameWhileSearchInProgressIsRejected) {
@@ -99,7 +100,7 @@ TEST_F(EngineTest, UciNewGameWhileSearchInProgressIsRejected) {
         << output.str();
 
     EXPECT_TRUE(execute("stop"));
-    threadpool().wait_all();
+    threadpool().wait();
 }
 
 TEST_F(EngineTest, ExitCommand) {
@@ -114,7 +115,7 @@ TEST_F(EngineTest, SearchDoesNotReuseStaleBestMoveWhenNoLegalMoves) {
     // Seed an existing bestmove.
     EXPECT_TRUE(execute("position startpos"));
     EXPECT_TRUE(execute("go depth 1"));
-    threadpool().wait_all();
+    threadpool().wait();
 
     // Run a checkmated position; bestmove must not reuse the prior move.
     output.str("");
@@ -122,7 +123,7 @@ TEST_F(EngineTest, SearchDoesNotReuseStaleBestMoveWhenNoLegalMoves) {
 
     EXPECT_TRUE(execute("position fen 7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"));
     EXPECT_TRUE(execute("go depth 1"));
-    threadpool().wait_all();
+    threadpool().wait();
 
     EXPECT_NE(output.str().find("bestmove none"), std::string::npos) << output.str();
     EXPECT_EQ(output.str().find("bestmove e2e4"), std::string::npos) << output.str();
@@ -174,6 +175,26 @@ INSTANTIATE_TEST_SUITE_P(
                       CommandCase{{"position startpos", "moves"}, STARTFEN, "e2e4"},
                       CommandCase{{"position startpos", "perft 1"}, STARTFEN, "NODES: 20"}));
 
+TEST_F(EngineTest, PositionReportsInvalidMoveToken) {
+    EXPECT_TRUE(execute("position startpos moves e7e5"));
+
+    EXPECT_EQ(board().toFEN(), STARTFEN);
+    EXPECT_NE(output.str().find("error: invalid move in position command: e7e5"), std::string::npos)
+        << output.str();
+}
+
+TEST_F(EngineTest, MovesCommandFiltersIllegalPseudoLegalMoves) {
+    EXPECT_TRUE(execute("position fen k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1"));
+    ASSERT_EQ(board().toFEN(), "k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1");
+    output.str("");
+    output.clear();
+
+    EXPECT_TRUE(execute("moves"));
+
+    EXPECT_NE(output.str().find("e2e8"), std::string::npos) << output.str();
+    EXPECT_EQ(output.str().find("e2a2"), std::string::npos) << output.str();
+}
+
 // setoption tests
 
 struct SetOptionCase {
@@ -191,7 +212,7 @@ TEST_P(SetOptionTest, ValidateSetOption) {
     EXPECT_TRUE(execute(param.command));
 
     // Check if the thread count is set correctly and output is as expected
-    EXPECT_EQ(threadpool().size(), param.threads);
+    EXPECT_EQ(threadpool().thread_count(), param.threads);
     EXPECT_NE(output.str().find(param.output), std::string::npos);
 }
 
@@ -266,7 +287,7 @@ TEST_P(GoTest, ValidateOutput) {
     EXPECT_TRUE(execute(param.command));
 
     // Wait for the search to complete and check output
-    threadpool().wait_all();
+    threadpool().wait();
     EXPECT_NE(output.str().find(param.output), std::string::npos) << output.str();
 }
 

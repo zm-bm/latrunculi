@@ -637,7 +637,7 @@ def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]
             "## Files",
             "- `manifest.json`: metadata needed for safe comparisons.",
             "- `results.tsv`: stable direct-UCI columns with parsed search stats.",
-            "- `raw/*.log`: combined engine output, including SearchStats diagnostics.",
+            "- `raw/*.log`: combined engine output, including search instrumentation diagnostics.",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"

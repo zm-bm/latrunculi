@@ -1,11 +1,14 @@
 #pragma once
 
-#include <format>
+#include <cstdint>
 #include <functional>
 #include <ostream>
 #include <string>
 
 #include "defs.hpp"
+
+class Board;
+struct RootLine;
 
 // UCI Protocol: https://www.wbec-ridderkerk.nl/html/UCIProtocol.html
 
@@ -45,22 +48,25 @@ struct Config {
         .def_value = false,
     };
 
-    std::function<void(const int&)> hash_callback;
-    std::function<void(const int&)> thread_callback;
+    std::function<void(int)> hash_callback;
+    std::function<void(int)> thread_callback;
 
     void set_option(const std::string& name, const std::string& value);
 };
 
-struct PV {
+struct SearchInfo {
     int          score;
     int          depth;
     uint64_t     nodes;
     Milliseconds time;
-    std::string  moves;
+    std::string  pv;
 
-    std::string get_score() const;
-    std::string get_nps() const;
+    std::string score_text() const;
+    std::string nps_text() const;
 };
+
+SearchInfo
+make_search_info(const RootLine& line, const Board& root_board, uint64_t nodes, Milliseconds time);
 
 class Protocol {
 public:
@@ -70,7 +76,7 @@ public:
     void identify(const uci::Config& config) const;
     void ready() const;
     void bestmove(std::string move) const;
-    void info(const uci::PV& pv) const;
+    void info(const uci::SearchInfo& info) const;
     void info(const std::string& str) const;
 
     template <typename T>
@@ -81,36 +87,4 @@ private:
     std::ostream& err;
 };
 
-}; // namespace uci
-
-template <>
-struct std::formatter<uci::SpinOption> : std::formatter<std::string_view> {
-    auto format(const uci::SpinOption& opt, std::format_context& ctx) const {
-        return std::format_to(ctx.out(),
-                              "type spin default {} min {} max {}",
-                              opt.def_value,
-                              opt.min_value,
-                              opt.max_value);
-    }
-};
-
-template <>
-struct std::formatter<uci::CheckOption> : std::formatter<std::string_view> {
-    auto format(const uci::CheckOption& opt, std::format_context& ctx) const {
-        return std::format_to(ctx.out(), "type check default {}", opt.def_value ? "true" : "false");
-    }
-};
-
-template <>
-struct std::formatter<uci::PV> : std::formatter<std::string_view> {
-    auto format(const uci::PV& pv, std::format_context& ctx) const {
-        return std::format_to(ctx.out(),
-                              "depth {} score {} nodes {} time {} nps {} pv {}",
-                              pv.depth,
-                              pv.get_score(),
-                              pv.nodes,
-                              pv.time.count(),
-                              pv.get_nps(),
-                              pv.moves);
-    }
-};
+} // namespace uci

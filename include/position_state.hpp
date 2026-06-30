@@ -1,47 +1,61 @@
 #pragma once
 
+#include <array>
+#include <cassert>
+
 #include "defs.hpp"
 #include "move.hpp"
 
 /**
- * Reversible ply-local position state owned by the caller.
+ * Per-ply board state owned by the caller and used by Board.
  *
- * Check data is recomputed after load/make/null moves. The remaining fields
- * store the undo data needed to restore the prior ply.
+ * Board owns the durable piece representation. This holds the active ply's
+ * reversible state plus cached check data for fast legality/search.
  */
 struct PositionState {
     PositionState() = default;
-    PositionState(PositionState& prior_state, Move move);
-    Move move() const;
 
-    // Derived check data.
-    uint64_t checkers = 0;
-    // blockers[c]: the sole occupied square, if any, between king c and an enemy slider.
-    // Own blockers are pinned; enemy blockers can move to uncover check.
-    uint64_t blockers[N_COLORS] = {0};
-    // pinners[c]: sliders of color c pinning an enemy blocker to its king.
-    // Farther snipers behind other snipers are included; direct checks are not.
-    uint64_t pinners[N_COLORS] = {0};
-    // Direct-check masks indexed by NO_PIECETYPE..QUEEN; KING maps to zero.
-    uint64_t checks[N_PIECES - 1] = {0};
+    // Refreshed after FEN load, make, and null moves.
+    // Enemy pieces checking the side-to-move king.
+    uint64_t checkers{};
+    // blockers[c]: single blockers between king c and enemy sliders.
+    uint64_t blockers[N_COLORS]{};
+    // pinners[c]: sliders of color c pinning enemy blockers.
+    uint64_t pinners[N_COLORS]{};
+    // Squares where each piece type would check the enemy king.
+    uint64_t checks[N_PIECES - 1]{};
 
-    // Incremental key and move-local undo data. Order is kept compact.
-    uint64_t     zkey         = 0;
-    uint16_t     move_bits    = 0;
-    PieceType    captured     = NO_PIECETYPE;
-    CastleRights castle       = NO_CASTLE;
-    Square       enpassant    = INVALID;
-    uint8_t      halfmove_clk = 0;
+    // Incremental key and compact undo data for the move that reached this ply.
+    uint64_t     zkey{};
+    Move         previous_move{NULL_MOVE};
+    PieceType    captured{NO_PIECETYPE};
+    CastleRights castle{NO_CASTLE};
+    Square       enpassant{INVALID};
+    uint8_t      halfmove_clk{};
+
+    PositionState(const PositionState& prior_state, Move move)
+        : zkey(prior_state.zkey),
+          previous_move(move),
+          castle(prior_state.castle),
+          halfmove_clk(prior_state.halfmove_clk + 1) {}
 };
 
-inline PositionState::PositionState(PositionState& prior_state, Move move)
-    : zkey(prior_state.zkey),
-      move_bits(move.bits),
-      castle(prior_state.castle),
-      halfmove_clk(prior_state.halfmove_clk + 1) {}
+// Fixed state storage for search/perft. child(ply) is where make() writes the
+// next ply; parent(ply) is what unmake() restores.
+class PositionStateStack {
+public:
+    PositionState& root() noexcept { return stack[0]; }
 
-inline Move PositionState::move() const {
-    Move move;
-    move.bits = move_bits;
-    return move;
-}
+    PositionState& child(int ply) noexcept {
+        assert(ply >= 0 && ply < MAX_SEARCH_PLY);
+        return stack[ply + 1];
+    }
+
+    PositionState& parent(int ply) noexcept {
+        assert(ply > 0 && ply <= MAX_SEARCH_PLY);
+        return stack[ply - 1];
+    }
+
+private:
+    std::array<PositionState, MAX_SEARCH_PLY + 1> stack{};
+};

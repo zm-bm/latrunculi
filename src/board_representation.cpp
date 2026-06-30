@@ -12,13 +12,13 @@ void Board::load_board(const Board* other) {
         &other->piece_counts[0][0], &other->piece_counts[0][0] + piece_slots, &piece_counts[0][0]);
     std::copy(other->squares, other->squares + N_SQUARES, squares);
     std::copy(other->king_square, other->king_square + N_COLORS, king_square);
-    turn           = other->turn;
-    fullmove_clk   = other->fullmove_clk;
-    material       = other->material;
-    psq_bonus      = other->psq_bonus;
-    game_ply       = other->game_ply;
-    key_history    = other->key_history;
-    active_state() = other->position_state();
+    turn                 = other->turn;
+    fullmove_clk         = other->fullmove_clk;
+    material             = other->material;
+    psq_bonus            = other->psq_bonus;
+    game_ply             = other->game_ply;
+    position_key_history = other->position_key_history;
+    active_state()       = other->position_state();
 }
 
 void Board::reset() {
@@ -39,7 +39,7 @@ void Board::reset() {
     fullmove_clk       = 0;
     active_state()     = PositionState{};
     game_ply           = 0;
-    key_history.clear();
+    position_key_history.clear();
 }
 
 Square Board::legal_enpassant_sq() const {

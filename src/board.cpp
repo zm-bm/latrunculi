@@ -2,6 +2,7 @@
 
 #include "eval.hpp"
 #include "movegen.hpp"
+#include "position_state.hpp"
 #include "score.hpp"
 
 #include <algorithm>
@@ -18,12 +19,12 @@ constexpr int direct_check_idx(PieceType piece) {
 }
 
 template <NodeType node>
-uint64_t perft_impl(Board&                                         board,
-                    int                                            depth,
-                    std::ostream&                                  oss,
-                    std::array<PositionState, MAX_SEARCH_PLY + 1>& states,
-                    int                                            ply,
-                    PositionState&                                 current_state) {
+uint64_t perft_impl(Board&              board,
+                    int                 depth,
+                    std::ostream&       oss,
+                    PositionStateStack& states,
+                    int                 ply,
+                    PositionState&      current_state) {
     if (depth == 0)
         return 1;
 
@@ -34,9 +35,9 @@ uint64_t perft_impl(Board&                                         board,
         if (!board.is_legal_generated_move(move))
             continue;
 
-        board.make(move, states[ply + 1]);
+        board.make(move, states.child(ply));
         uint64_t count =
-            perft_impl<NON_PV>(board, depth - 1, oss, states, ply + 1, states[ply + 1]);
+            perft_impl<NON_PV>(board, depth - 1, oss, states, ply + 1, states.child(ply));
         nodes += count;
         board.unmake(current_state);
 
@@ -311,7 +312,7 @@ int Board::seeMove(Move move) const {
 
 void Board::make(Move move, PositionState& next_state) {
     assert(&next_state != active_position_state);
-    key_history.push(key());
+    position_key_history.push(key());
 
     const Square from           = move.from();
     const Square to             = move.to();
@@ -395,7 +396,7 @@ void Board::unmake(PositionState& prior_state) {
     assert(&prior_state != active_position_state);
 
     const Color  opp      = turn;
-    const Move   move     = active_state().move();
+    const Move   move     = active_state().previous_move;
     const Square from     = move.from();
     const Square to       = move.to();
     const auto   movetype = move.type();
@@ -404,7 +405,7 @@ void Board::unmake(PositionState& prior_state) {
     auto capt_piecetype = active_state().captured;
 
     // decrement counters and pop state
-    key_history.pop(prior_state.zkey);
+    position_key_history.pop(prior_state.zkey);
     active_position_state = &prior_state;
     --game_ply;
     fullmove_clk--;
@@ -435,7 +436,7 @@ void Board::unmake(PositionState& prior_state) {
 
 void Board::make_null(PositionState& next_state) {
     assert(&next_state != active_position_state);
-    key_history.push(key());
+    position_key_history.push(key());
 
     const Square hashed_enpassant = legal_enpassant_sq();
 
@@ -456,7 +457,7 @@ void Board::unmake_null(PositionState& prior_state) {
     assert(game_ply > 0);
     assert(&prior_state != active_position_state);
 
-    key_history.pop(prior_state.zkey);
+    position_key_history.pop(prior_state.zkey);
     active_position_state = &prior_state;
     --game_ply;
     turn = ~turn;
@@ -477,15 +478,15 @@ bool Board::is_draw(int search_ply) const {
     if (halfmove() >= 100)
         return true;
 
-    const int rewind      = std::min<int>(halfmove(), key_history.count());
+    const int rewind      = std::min<int>(halfmove(), position_key_history.count());
     int       repetitions = 0;
 
     for (int distance = 2; distance <= rewind; distance += 2) {
-        const int index = key_history.count() - distance;
+        const int index = position_key_history.count() - distance;
         if (index < 0)
             break;
 
-        if (key_history[index] != key())
+        if (position_key_history[index] != key())
             continue;
 
         if (distance < search_ply)
@@ -549,7 +550,7 @@ uint64_t Board::perft(int depth, std::ostream& oss) {
     if (depth < 0 || depth > MAX_SEARCH_PLY)
         throw std::invalid_argument("perft depth out of range");
 
-    std::array<PositionState, MAX_SEARCH_PLY + 1> states{};
+    PositionStateStack states;
     return perft_impl<node>(*this, depth, oss, states, 0, active_state());
 }
 

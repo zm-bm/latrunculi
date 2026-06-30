@@ -153,7 +153,7 @@ enum EvalTerm {
 
 enum Phase { MIDGAME, ENDGAME, N_PHASES };
 
-enum NodeType { ROOT, PV, NON_PV };
+enum NodeType { ROOT, NON_PV };
 
 constexpr Color operator~(Color c) {
     return static_cast<Color>(c ^ WHITE);
