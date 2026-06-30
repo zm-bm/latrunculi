@@ -74,7 +74,7 @@ public:
     // Search progress and results.
     bool                  is_searching() const;
     uint64_t              nodes_searched() const;
-    std::vector<RootLine> root_lines() const;
+    std::vector<RootLine> root_snapshots() const;
 
     friend class SearchWorker;
     friend class ::ThreadTestAccess;

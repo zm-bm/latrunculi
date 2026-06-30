@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -55,11 +56,14 @@ protected:
     }
 
     int runNonPvAlphaBeta(int alpha, int beta, int search_depth) {
-        return worker->alphabeta<NON_PV>(alpha, beta, search_depth);
+        return worker->alphabeta(alpha, beta, search_depth);
     }
 
-    int runRootAlphaBeta(int alpha, int beta, int search_depth) {
-        return worker->alphabeta<ROOT>(alpha, beta, search_depth);
+    void buildRootLines() { worker->build_root_lines(); }
+
+    int runRootSearch() {
+        worker->build_root_lines();
+        return worker->search_root();
     }
 
     int runQuiescence(int alpha, int beta) { return worker->quiescence(alpha, beta); }
@@ -84,7 +88,7 @@ protected:
 
         worker->board.make(move, worker->position_states.child(worker->ply));
         ++worker->ply;
-        int score = worker->alphabeta<NON_PV>(alpha, beta, search_depth);
+        int score = worker->alphabeta(alpha, beta, search_depth);
         worker->board.unmake(worker->position_states.parent(worker->ply));
         --worker->ply;
         return score;
@@ -123,9 +127,15 @@ protected:
 
     bool rootPvEmpty() const { return worker->root.pv.empty(); }
 
+    int rootPvSize() const { return worker->root.pv.size(); }
+
+    Move rootPvFront() const { return worker->root.pv.front(); }
+
     int rootValue() const { return worker->root.value; }
 
     int rootDepth() const { return worker->root.depth; }
+
+    const std::vector<RootLine>& rootLines() const { return worker->root_lines; }
 
     RootLine rootSnapshot() const { return worker->root_snapshot(); }
 
@@ -334,18 +344,6 @@ TEST_F(SearchTest, AlphaBetaMateDistanceUpperClampReturnsBound) {
     EXPECT_EQ(runNonPvAlphaBeta(collapsed_alpha, INF_VALUE, 1), collapsed_alpha);
 }
 
-TEST_F(SearchTest, RootAlphaBetaDoesNotApplyMateDistancePruningBeforeSearch) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-    loadWorkerBoard(board);
-
-    constexpr int root_alpha = MATE_VALUE;
-    const int     actual     = runRootAlphaBeta(root_alpha, INF_VALUE, 1);
-
-    EXPECT_NE(actual, root_alpha);
-    EXPECT_GT(workerNodes(), 0U);
-}
-
 TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsStaticEval) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     TestBoard      board{quiet_control};
@@ -415,15 +413,69 @@ TEST_F(SearchTest, ResetDoesNotSeedRootLineWithFallbackMove) {
     EXPECT_TRUE(rootPvEmpty());
 }
 
+TEST_F(SearchTest, RootLineListContainsLegalGeneratedRootMoves) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 1);
+
+    int legal_move_count = 0;
+    for (Move move : movegen::generate_pseudo_legal(board)) {
+        if (board.is_legal_generated_move(move))
+            ++legal_move_count;
+    }
+
+    buildRootLines();
+
+    ASSERT_EQ(rootLines().size(), static_cast<size_t>(legal_move_count));
+    for (const RootLine& line : rootLines()) {
+        EXPECT_FALSE(line.best_move.is_null());
+        EXPECT_TRUE(board.is_legal_generated_move(line.best_move));
+        EXPECT_FALSE(line.completed);
+        EXPECT_EQ(line.depth, 0);
+        EXPECT_TRUE(line.pv.empty());
+    }
+}
+
+TEST_F(SearchTest, RootSearchCompletesAndOrdersRootLinesByBestCompletedLine) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 2);
+
+    (void)runRootSearch();
+
+    ASSERT_TRUE(rootCompleted());
+    ASSERT_TRUE(rootMoveIsLegal());
+    ASSERT_FALSE(rootLines().empty());
+    EXPECT_EQ(rootLines().front().best_move, rootMove());
+    EXPECT_EQ(rootLines().front().value, rootValue());
+    EXPECT_EQ(rootLines().front().depth, rootDepth());
+    EXPECT_EQ(rootDepth(), 2);
+
+    for (size_t index = 1; index < rootLines().size(); ++index)
+        EXPECT_FALSE(is_better_root_line(rootLines()[index], rootLines()[index - 1]));
+}
+
+TEST_F(SearchTest, RootSearchBuildsPrincipalVariationForRootLine) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 2);
+
+    (void)runRootSearch();
+
+    ASSERT_TRUE(rootCompleted());
+    ASSERT_FALSE(rootPvEmpty());
+    EXPECT_EQ(rootPvFront(), rootMove());
+    EXPECT_EQ(rootPvSize(), 2);
+}
+
 TEST_F(SearchTest, RootSearchSetsNullMoveForCheckmate) {
     constexpr auto checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
     TestBoard      board{checkmate};
     loadWorkerBoard(board);
 
-    EXPECT_EQ(runRootAlphaBeta(-INF_VALUE, INF_VALUE, 1), -MATE_VALUE);
+    EXPECT_EQ(runRootSearch(), -MATE_VALUE);
     EXPECT_EQ(rootMove(), NULL_MOVE);
     EXPECT_EQ(rootValue(), -MATE_VALUE);
-    EXPECT_EQ(rootDepth(), 1);
+    EXPECT_EQ(rootDepth(), options.depth);
+    EXPECT_TRUE(rootCompleted());
+    EXPECT_TRUE(rootLines().empty());
 }
 
 TEST_F(SearchTest, RootSearchSetsNullMoveForStalemate) {
@@ -431,10 +483,12 @@ TEST_F(SearchTest, RootSearchSetsNullMoveForStalemate) {
     TestBoard      board{stalemate};
     loadWorkerBoard(board);
 
-    EXPECT_EQ(runRootAlphaBeta(-INF_VALUE, INF_VALUE, 1), DRAW_VALUE);
+    EXPECT_EQ(runRootSearch(), DRAW_VALUE);
     EXPECT_EQ(rootMove(), NULL_MOVE);
     EXPECT_EQ(rootValue(), DRAW_VALUE);
-    EXPECT_EQ(rootDepth(), 1);
+    EXPECT_EQ(rootDepth(), options.depth);
+    EXPECT_TRUE(rootCompleted());
+    EXPECT_TRUE(rootLines().empty());
 }
 
 TEST_F(SearchTest, CompletedSearchPublishesRootLineSnapshot) {
@@ -508,6 +562,23 @@ TEST_F(SearchTest, StoppedSearchPublishesIncompleteRootLineSnapshot) {
     EXPECT_FALSE(snapshot.completed_depth());
     EXPECT_FALSE(snapshot.usable_best_move());
     EXPECT_TRUE(snapshot.pv.empty());
+}
+
+TEST_F(SearchTest, StoppedSearchPreservesLastCompletedRootLine) {
+    TestBoard board{STARTFEN};
+    options.board = &board;
+    options.depth = 8;
+    options.nodes = 100;
+
+    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::wait_for_idle(*thread);
+
+    const auto snapshot = rootSnapshot();
+    ASSERT_TRUE(snapshot.completed_depth());
+    EXPECT_TRUE(snapshot.usable_best_move());
+    EXPECT_LT(snapshot.depth, options.depth);
+    ASSERT_FALSE(snapshot.pv.empty());
+    EXPECT_EQ(snapshot.pv.front(), snapshot.best_move);
 }
 
 TEST_F(SearchTest, StoppedSearchReturnsAbortSentinelValue) {

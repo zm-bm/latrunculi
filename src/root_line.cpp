@@ -1,9 +1,7 @@
 #include "root_line.hpp"
 
-namespace {
-
 // Root-line ordering: completed depth, score, stable move bits.
-bool is_better_root_line(const RootLine& candidate, const RootLine& current) {
+bool is_better_root_line(const RootLine& candidate, const RootLine& current) noexcept {
     if (!candidate.usable_best_move())
         return false;
 
@@ -18,8 +16,6 @@ bool is_better_root_line(const RootLine& candidate, const RootLine& current) {
 
     return candidate.best_move.bits < current.best_move.bits;
 }
-
-} // namespace
 
 RootLine select_best_root_line(RootLine fallback, std::span<const RootLine> lines) {
     RootLine selected = fallback;

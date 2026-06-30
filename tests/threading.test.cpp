@@ -84,6 +84,17 @@ protected:
         return worker_running();
     }
 
+    bool wait_for_tt_age(uint8_t                   expected,
+                         std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
+        auto deadline = std::chrono::steady_clock::now() + timeout;
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (tt.current_age() == expected)
+                return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return tt.current_age() == expected;
+    }
+
     void SetUp() override {
         oss.str("");
         oss.clear();
@@ -158,12 +169,14 @@ TEST_F(ThreadPoolTest, StartSearchRejectsEmptyPool) {
     ThreadPool empty_pool{0, protocol};
 
     EXPECT_FALSE(empty_pool.start_search(options));
+    EXPECT_EQ(tt.current_age(), uint8_t{0});
 }
 
 TEST_F(ThreadPoolTest, StartSearchRejectsAfterShutdown) {
     pool.shutdown();
 
     EXPECT_FALSE(pool.start_search(options));
+    EXPECT_EQ(tt.current_age(), uint8_t{0});
 }
 
 TEST_F(ThreadPoolTest, StartSearchCompletes) {
@@ -205,6 +218,7 @@ TEST_F(ThreadPoolTest, MainWorkerReleasesHelperSearches) {
 TEST_F(ThreadPoolTest, StartSearchRejectsConcurrentSearch) {
     EXPECT_TRUE(pool.start_search(options));
     ASSERT_TRUE(wait_for_worker_running());
+    ASSERT_TRUE(wait_for_tt_age(1));
     const auto age = tt.current_age();
 
     EXPECT_FALSE(pool.start_search(options));
@@ -377,25 +391,25 @@ TEST_F(ThreadPoolTest, RootLineSnapshotsPublishOnlyCompletedRequestedDepths) {
     expect_completed_depths(options.depth);
 }
 
-TEST_F(ThreadPoolTest, RootLinesReturnsWorkerSnapshots) {
+TEST_F(ThreadPoolTest, RootSnapshotsReturnsWorkerSnapshots) {
     options.depth = 1;
 
     EXPECT_TRUE(pool.start_search(options));
     pool.wait();
 
-    const auto lines = pool.root_lines();
-    ASSERT_EQ(lines.size(), pool.thread_count());
+    const auto snapshots = pool.root_snapshots();
+    ASSERT_EQ(snapshots.size(), pool.thread_count());
 
     bool saw_completed_depth = false;
-    for (size_t index = 0; index < lines.size(); ++index) {
+    for (size_t index = 0; index < snapshots.size(); ++index) {
         const RootLine snapshot = ThreadTestAccess::root_snapshot(pool, index);
 
-        EXPECT_EQ(lines[index].best_move, snapshot.best_move);
-        EXPECT_EQ(lines[index].value, snapshot.value);
-        EXPECT_EQ(lines[index].depth, snapshot.depth);
-        EXPECT_EQ(lines[index].completed, snapshot.completed);
+        EXPECT_EQ(snapshots[index].best_move, snapshot.best_move);
+        EXPECT_EQ(snapshots[index].value, snapshot.value);
+        EXPECT_EQ(snapshots[index].depth, snapshot.depth);
+        EXPECT_EQ(snapshots[index].completed, snapshot.completed);
 
-        saw_completed_depth |= lines[index].completed_depth();
+        saw_completed_depth |= snapshots[index].completed_depth();
     }
 
     EXPECT_TRUE(saw_completed_depth);

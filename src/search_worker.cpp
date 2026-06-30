@@ -1,11 +1,14 @@
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <mutex>
 
 #include "board.hpp"
 #include "evaluator.hpp"
+#include "move_picker.hpp"
 #include "search_worker.hpp"
 #include "threading.hpp"
+#include "tt.hpp"
 #include "uci.hpp"
 
 SearchWorker::SearchWorker(int id, uci::Protocol& protocol, ThreadPool& pool)
@@ -48,12 +51,13 @@ int SearchWorker::search() {
     reset_search_state();
 
     if (is_main_worker()) {
-        // Future root-move setup belongs before helper release.
+        prepare_shared_search_state();
         thread_pool.release_helper_searches();
     } else {
         thread_pool.wait_for_helper_release();
     }
 
+    build_root_lines();
     const int value = search_root();
 
     record_root_result(value);
@@ -68,6 +72,7 @@ void SearchWorker::reset_search_state() {
     reset_nodes();
     ply  = 0;
     root = RootLine{NULL_MOVE, evaluate(board), 0, false};
+    root_lines.clear();
 
     killers.clear();
     history.clear();
@@ -76,15 +81,33 @@ void SearchWorker::reset_search_state() {
         stats.reset();
 }
 
+void SearchWorker::prepare_shared_search_state() {
+    assert(is_main_worker());
+    tt.age_table();
+}
+
+void SearchWorker::build_root_lines() {
+    root_lines.clear();
+
+    // Root candidates start in the current MovePicker order.
+    MovePicker picker{{board, killers, history, 0, NULL_MOVE, NULL_MOVE},
+                      MovePickerMode::MainSearch};
+    for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+        if (board.is_legal_generated_move(move))
+            root_lines.push_back(RootLine{.best_move = move, .value = -INF_VALUE});
+    }
+}
+
 // Root result reporting.
 void SearchWorker::record_root_result(int value) {
-    if (!stop_requested()) {
+    if (!root.completed && !stop_requested()) {
         root.value     = value;
         root.depth     = options.depth;
         root.completed = true;
-    } else {
-        root.pv.clear();
     }
+
+    if (!root.completed)
+        root.pv.clear();
 
     publish_root_snapshot();
 }
@@ -92,7 +115,7 @@ void SearchWorker::record_root_result(int value) {
 void SearchWorker::report_final_result() {
     thread_pool.stop_helper_searches();
 
-    const RootLine selected = select_best_root_line(root, thread_pool.root_lines());
+    const RootLine selected = select_best_root_line(root, thread_pool.root_snapshots());
 
     protocol.info(uci::make_search_info(selected, board, total_nodes(), runtime()));
     protocol.bestmove(selected.best_move.str());

@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cassert>
 
-#include "tt.hpp"
-
 Thread::Thread(int id, uci::Protocol& protocol, ThreadPool& pool)
     : worker(id, protocol, pool),
       native_thread(&Thread::idle_loop, this) {}
@@ -104,8 +102,6 @@ bool ThreadPool::start_search(const SearchOptions& options) {
     if (shutdown_requested || threads.empty() || is_searching())
         return false;
 
-    tt.age_table();
-
     // Close the gate so helpers wait for the main worker.
     close_helper_gate();
 
@@ -183,7 +179,7 @@ uint64_t ThreadPool::nodes_searched() const {
     return total;
 }
 
-std::vector<RootLine> ThreadPool::root_lines() const {
+std::vector<RootLine> ThreadPool::root_snapshots() const {
     std::vector<RootLine> lines;
     lines.reserve(threads.size());
     for (const auto& thread : threads) {

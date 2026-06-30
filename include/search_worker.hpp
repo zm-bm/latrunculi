@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <vector>
 
 #include "board.hpp"
 #include "defs.hpp"
@@ -37,12 +38,13 @@ public:
 
 private:
     // Board and search state.
-    PositionStateStack position_states;
-    Board              board;
-    int                ply{0};
-    RootLine           root;
-    KillerMoves        killers;
-    HistoryTable       history;
+    PositionStateStack    position_states;
+    Board                 board;
+    int                   ply{0};
+    RootLine              root;
+    std::vector<RootLine> root_lines;
+    KillerMoves           killers;
+    HistoryTable          history;
 
     // Current search request.
     SearchOptions options;
@@ -66,7 +68,10 @@ private:
 
     // Search lifecycle.
     void reset_search_state();
+    void prepare_shared_search_state();
+    void build_root_lines();
     int  search_root();
+    bool search_root_iteration(int depth);
     void record_root_result(int value);
     void report_final_result();
 
@@ -75,7 +80,6 @@ private:
     void publish_root_snapshot();
 
     // Search algorithm. (search.cpp)
-    template <NodeType = ROOT>
     int alphabeta(int alpha, int beta, int depth, PrincipalVariation* pv = nullptr);
     int quiescence(int alpha, int beta, PrincipalVariation* pv = nullptr);
 
