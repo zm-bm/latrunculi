@@ -20,7 +20,7 @@ namespace uci {
 class Protocol;
 }
 
-// Per-thread search state and S0 search execution.
+// Per-thread search state and search execution.
 class SearchWorker {
 public:
     SearchWorker() = delete;
@@ -74,9 +74,10 @@ private:
     void clear_root_snapshot();
     void publish_root_snapshot();
 
-    // Search algorithm.
+    // Search algorithm. (search.cpp)
     template <NodeType = ROOT>
     int alphabeta(int alpha, int beta, int depth, PrincipalVariation* pv = nullptr);
+    int quiescence(int alpha, int beta, PrincipalVariation* pv = nullptr);
 
     // Accounting and limits.
     Milliseconds runtime() const;

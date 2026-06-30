@@ -21,20 +21,26 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
     if (stop_requested())
         return alpha;
 
-    increment_nodes();
-    stats.node(ply);
-
     // Terminal handling. Root draw shortcuts are skipped so UCI gets a best move.
     const bool drawn = !root_node && board.is_draw(ply);
 
-    if (drawn)
+    if (drawn) {
+        increment_nodes();
+        stats.node(ply);
         return DRAW_VALUE;
+    }
 
-    if (ply >= MAX_SEARCH_PLY)
+    if (ply >= MAX_SEARCH_PLY) {
+        increment_nodes();
+        stats.node(ply);
         return evaluate(board);
+    }
 
     if (depth <= 0)
-        return evaluate(board);
+        return quiescence(alpha, beta, pv);
+
+    increment_nodes();
+    stats.node(ply);
 
     if constexpr (!root_node) {
         // Mate-distance pruning: bound impossible scores by root-relative ply.
@@ -56,7 +62,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
     if constexpr (SEARCH_STATS)
         stats.staged_node(ply, picker);
 
-    // Main move loop. S0 searches every legal move with the full window.
+    // Main move loop. This foundation search still uses a full window for every legal move.
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (!board.is_legal_generated_move(move))
             continue;
@@ -140,6 +146,83 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         if (best_move.is_null())
             root.pv.clear();
     }
+
+    return best_value;
+}
+
+int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
+    if (pv)
+        pv->clear();
+
+    if (should_poll_search_limits())
+        poll_search_limits();
+    if (stop_requested())
+        return alpha;
+
+    increment_nodes();
+    stats.qnode(ply);
+
+    // Terminal handling. Qsearch is below root, so draw shortcuts are allowed.
+    if (board.is_draw(ply))
+        return DRAW_VALUE;
+
+    if (ply >= MAX_SEARCH_PLY)
+        return evaluate(board);
+
+    const bool in_check         = board.is_check();
+    int        legal_move_index = 0;
+    int        best_value       = -INF_VALUE;
+
+    // Stand-pat is only legal when the side to move is not in check.
+    if (!in_check) {
+        best_value = evaluate(board);
+        if (best_value >= beta)
+            return best_value;
+        if (best_value > alpha)
+            alpha = best_value;
+    }
+
+    MovePicker         picker{{board, killers, history, ply, NULL_MOVE, NULL_MOVE},
+                      MovePickerMode::QSearch};
+    PrincipalVariation child_pv;
+
+    // Qsearch uses noisy moves outside check and full evasions while in check.
+    for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+        if (!board.is_legal_generated_move(move))
+            continue;
+
+        ++legal_move_index;
+
+        board.make(move, position_states.child(ply));
+        ++ply;
+        // Future scout/null-window qsearches should pass nullptr here.
+        const int value = -quiescence(-beta, -alpha, pv ? &child_pv : nullptr);
+        board.unmake(position_states.parent(ply));
+        --ply;
+
+        if (stop_requested())
+            return alpha;
+
+        if (value >= beta) {
+            if (pv)
+                pv->update(move, child_pv);
+            stats.beta_cutoff(ply, legal_move_index);
+            return value;
+        }
+
+        if (value > best_value) {
+            best_value = value;
+            if (value > alpha) {
+                alpha = value;
+                if (pv)
+                    pv->update(move, child_pv);
+            }
+        }
+    }
+
+    // In-check qsearch must find an evasion or it is checkmate.
+    if (in_check && legal_move_index == 0)
+        return -MATE_VALUE + ply;
 
     return best_value;
 }

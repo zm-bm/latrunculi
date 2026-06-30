@@ -62,6 +62,12 @@ protected:
         return worker->alphabeta<ROOT>(alpha, beta, search_depth);
     }
 
+    int runQuiescence(int alpha, int beta) { return worker->quiescence(alpha, beta); }
+
+    int runQuiescenceWithPv(int alpha, int beta, PrincipalVariation& pv) {
+        return worker->quiescence(alpha, beta, &pv);
+    }
+
     int runWorkerSearch() { return worker->search(); }
 
     int testAlphaBetaAfterMove(const std::string& fen,
@@ -79,6 +85,25 @@ protected:
         worker->board.make(move, worker->position_states.child(worker->ply));
         ++worker->ply;
         int score = worker->alphabeta<NON_PV>(alpha, beta, search_depth);
+        worker->board.unmake(worker->position_states.parent(worker->ply));
+        --worker->ply;
+        return score;
+    }
+
+    int testQuiescenceAfterMove(const std::string& fen,
+                                const std::string& move_str,
+                                int                alpha,
+                                int                beta) {
+        TestBoard board{fen};
+        loadWorkerBoard(board);
+
+        Move move = findWorkerMove(move_str);
+        if (move.is_null())
+            return 0;
+
+        worker->board.make(move, worker->position_states.child(worker->ply));
+        ++worker->ply;
+        int score = worker->quiescence(alpha, beta);
         worker->board.unmake(worker->position_states.parent(worker->ply));
         --worker->ply;
         return score;
@@ -105,6 +130,16 @@ protected:
     RootLine rootSnapshot() const { return worker->root_snapshot(); }
 
     void setWorkerPly(int search_ply) { worker->ply = search_ply; }
+
+#if LATRUNCULI_SEARCH_STATS
+    uint64_t statNodesAt(int search_ply) const {
+        return worker->stats.raw_counters().nodes[search_ply];
+    }
+
+    uint64_t qnodesAt(int search_ply) const {
+        return worker->stats.raw_counters().qnodes[search_ply];
+    }
+#endif
 
     void testSearch(const std::string& fen, int search_depth, int score, std::string move) {
         TestBoard board{fen};
@@ -134,14 +169,14 @@ TEST_F(SearchTest, DrawByRuleReturnsDrawValue) {
     EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 2), DRAW_VALUE);
 }
 
-TEST_F(SearchTest, DepthZeroReturnsStaticEvalWithoutQSearch) {
+TEST_F(SearchTest, DepthZeroEntersQuiescenceAndSearchesWinningCapture) {
     constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
     TestBoard      board{winning_capture};
     loadWorkerBoard(board);
 
     const int static_eval = evaluate(board);
-    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 0), static_eval);
-    EXPECT_EQ(workerNodes(), 1U);
+    EXPECT_GT(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 0), static_eval);
+    EXPECT_GT(workerNodes(), 1U);
 }
 
 TEST_F(SearchTest, DepthZeroDrawByRuleReturnsDrawBeforeStaticEval) {
@@ -152,6 +187,66 @@ TEST_F(SearchTest, DepthZeroDrawByRuleReturnsDrawBeforeStaticEval) {
     EXPECT_NE(evaluate(board), DRAW_VALUE);
     EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 0), DRAW_VALUE);
     EXPECT_EQ(workerNodes(), 1U);
+}
+
+TEST_F(SearchTest, QuiescenceStandPatFailsHighOutsideCheck) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    const int static_eval = evaluate(board);
+
+    EXPECT_EQ(runQuiescence(static_eval - 100, static_eval), static_eval);
+    EXPECT_EQ(workerNodes(), 1U);
+}
+
+TEST_F(SearchTest, QuiescenceInCheckSearchesLegalEvasion) {
+    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr int  alpha             = -INF_VALUE;
+    constexpr int  beta              = INF_VALUE;
+
+    const int expected = -testQuiescenceAfterMove(one_legal_evasion, "a8b8", -beta, -alpha);
+
+    TestBoard board{one_legal_evasion};
+    loadWorkerBoard(board);
+    ASSERT_TRUE(board.is_check()) << one_legal_evasion;
+
+    EXPECT_EQ(runQuiescence(alpha, beta), expected);
+}
+
+TEST_F(SearchTest, QuiescenceCheckmateWithNoEvasionsReturnsMateScore) {
+    constexpr auto checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{checkmate};
+    loadWorkerBoard(board);
+    setWorkerPly(3);
+
+    EXPECT_EQ(runQuiescence(-INF_VALUE, INF_VALUE), -MATE_VALUE + 3);
+}
+
+TEST_F(SearchTest, QuiescenceBuildsPrincipalVariationFromTacticalMove) {
+    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    TestBoard      board{winning_capture};
+    loadWorkerBoard(board);
+
+    PrincipalVariation pv;
+    const int          static_eval = evaluate(board);
+
+    EXPECT_GT(runQuiescenceWithPv(-INF_VALUE, INF_VALUE, pv), static_eval);
+    ASSERT_FALSE(pv.empty());
+    EXPECT_TRUE(board.is_legal_move(pv.front()));
+}
+
+TEST_F(SearchTest, QuiescenceRecordsQNodeInStatsBuild) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    (void)runQuiescence(-INF_VALUE, INF_VALUE);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(statNodesAt(0), 1U);
+    EXPECT_EQ(qnodesAt(0), 1U);
+#endif
 }
 
 TEST_F(SearchTest, RootDrawByRuleStillSearchesForLegalBestMove) {
