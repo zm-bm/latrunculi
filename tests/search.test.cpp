@@ -139,6 +139,8 @@ protected:
 
     RootLine rootSnapshot() const { return worker->root_snapshot(); }
 
+    int workerPly() const { return worker->ply; }
+
     void setWorkerPly(int search_ply) { worker->ply = search_ply; }
 
 #if LATRUNCULI_SEARCH_STATS
@@ -148,6 +150,30 @@ protected:
 
     uint64_t qnodesAt(int search_ply) const {
         return worker->stats.raw_counters().qnodes[search_ply];
+    }
+
+    uint64_t mainTtProbesAt(int search_ply) const {
+        return worker->stats.raw_counters().main_tt_probes[search_ply];
+    }
+
+    uint64_t mainTtHitsAt(int search_ply) const {
+        return worker->stats.raw_counters().main_tt_hits[search_ply];
+    }
+
+    uint64_t mainTtCutoffsAt(int search_ply) const {
+        return worker->stats.raw_counters().main_tt_cutoffs[search_ply];
+    }
+
+    uint64_t qTtProbesAt(int search_ply) const {
+        return worker->stats.raw_counters().q_tt_probes[search_ply];
+    }
+
+    uint64_t qTtHitsAt(int search_ply) const {
+        return worker->stats.raw_counters().q_tt_hits[search_ply];
+    }
+
+    uint64_t qTtCutoffsAt(int search_ply) const {
+        return worker->stats.raw_counters().q_tt_cutoffs[search_ply];
     }
 #endif
 
@@ -368,9 +394,54 @@ TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsDrawBeforeStaticEval) {
     EXPECT_EQ(workerNodes(), 1U);
 }
 
-TEST_F(SearchTest, AlphaBetaIgnoresTranspositionTableCutoffEntries) {
+TEST_F(SearchTest, AlphaBetaUsesExactTranspositionTableCutoff) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  search_depth  = 1;
+    constexpr int  search_depth  = 2;
+    constexpr int  tt_score      = 321;
+
+    TestBoard board{quiet_control};
+    loadWorkerBoard(board);
+
+    tt.store_search(workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Exact, workerPly());
+
+    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth), tt_score);
+}
+
+TEST_F(SearchTest, AlphaBetaUsesLowerboundTranspositionTableCutoff) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
+    constexpr int  tt_score      = 500;
+    constexpr int  alpha         = 100;
+    constexpr int  beta          = 200;
+
+    TestBoard board{quiet_control};
+    loadWorkerBoard(board);
+
+    tt.store_search(
+        workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Lowerbound, workerPly());
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), tt_score);
+}
+
+TEST_F(SearchTest, AlphaBetaUsesUpperboundTranspositionTableCutoff) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
+    constexpr int  tt_score      = -500;
+    constexpr int  alpha         = -200;
+    constexpr int  beta          = -100;
+
+    TestBoard board{quiet_control};
+    loadWorkerBoard(board);
+
+    tt.store_search(
+        workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Upperbound, workerPly());
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), tt_score);
+}
+
+TEST_F(SearchTest, AlphaBetaDoesNotCutoffWithShallowTranspositionTableEntry) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
 
     TestBoard baseline_board{quiet_control};
     loadWorkerBoard(baseline_board);
@@ -380,26 +451,126 @@ TEST_F(SearchTest, AlphaBetaIgnoresTranspositionTableCutoffEntries) {
     loadWorkerBoard(board);
 
     Move invalid_tt_move{H1, H2};
-    ASSERT_FALSE(board.is_legal_move(invalid_tt_move));
     ASSERT_FALSE(board.is_pseudo_legal(invalid_tt_move));
 
-    const int bogus_score = baseline + 500;
-    tt.store(workerKey(), invalid_tt_move, bogus_score, search_depth + 2, TT_Flag::Exact, 0);
+    tt.store_search(
+        workerKey(), invalid_tt_move, baseline + 500, search_depth - 1, TT_Flag::Exact, 0);
 
     EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth), baseline);
 }
 
-TEST_F(SearchTest, AlphaBetaDoesNotStoreTranspositionTableEntries) {
+TEST_F(SearchTest, AlphaBetaStoresExactTranspositionTableEntry) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
     TestBoard      board{quiet_control};
     loadWorkerBoard(board);
 
     const uint64_t key = workerKey();
     ASSERT_FALSE(tt.probe(key).has_value());
 
-    (void)runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 2);
+    const int value = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
 
-    EXPECT_FALSE(tt.probe(key).has_value());
+    auto record = tt.probe(key);
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, search_depth);
+    EXPECT_EQ(record->flag, TT_Flag::Exact);
+    EXPECT_FALSE(record->move.is_null());
+    EXPECT_TRUE(board.is_legal_move(record->move));
+}
+
+TEST_F(SearchTest, AlphaBetaStoresLowerboundOnBetaCutoff) {
+    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr int  search_depth      = 1;
+
+    TestBoard exact_board{one_legal_evasion};
+    loadWorkerBoard(exact_board);
+    const int exact = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
+
+    TestBoard board{one_legal_evasion};
+    loadWorkerBoard(board);
+
+    const int beta  = exact - 50;
+    const int alpha = beta - 100;
+    const int value = runNonPvAlphaBeta(alpha, beta, search_depth);
+    ASSERT_GE(value, beta);
+
+    auto record = tt.probe(workerKey());
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, search_depth);
+    EXPECT_EQ(record->flag, TT_Flag::Lowerbound);
+    EXPECT_FALSE(record->move.is_null());
+}
+
+TEST_F(SearchTest, AlphaBetaStoresUpperboundOnFailLow) {
+    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr int  search_depth      = 1;
+    constexpr int  alpha             = -100;
+    constexpr int  beta              = 0;
+
+    TestBoard board{one_legal_evasion};
+    loadWorkerBoard(board);
+
+    const int value = runNonPvAlphaBeta(alpha, beta, search_depth);
+    ASSERT_LT(value, alpha);
+
+    auto record = tt.probe(workerKey());
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, search_depth);
+    EXPECT_EQ(record->flag, TT_Flag::Upperbound);
+    EXPECT_FALSE(record->move.is_null());
+}
+
+TEST_F(SearchTest, AlphaBetaStoresNoLegalMoveTerminalAsExactTranspositionTableEntry) {
+    constexpr auto checkmate    = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth = 2;
+    constexpr int  search_ply   = 3;
+    TestBoard      board{checkmate};
+    loadWorkerBoard(board);
+    setWorkerPly(search_ply);
+
+    const int value = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
+    ASSERT_EQ(value, -MATE_VALUE + search_ply);
+
+    auto record = tt.probe(workerKey());
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->score, -MATE_VALUE);
+    EXPECT_EQ(record->depth, search_depth);
+    EXPECT_EQ(record->flag, TT_Flag::Exact);
+    EXPECT_EQ(record->move, NULL_MOVE);
+}
+
+TEST_F(SearchTest, RootSearchDoesNotStoreRootPositionTranspositionTableEntry) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 1);
+
+    const uint64_t root_key = workerKey();
+    (void)runRootSearch();
+
+    EXPECT_FALSE(tt.probe(root_key).has_value());
+}
+
+TEST_F(SearchTest, AlphaBetaRecordsMainTranspositionTableStatsWithoutQSearchTT) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
+    constexpr int  tt_score      = 321;
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    tt.store_search(workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Exact, workerPly());
+    (void)runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(mainTtProbesAt(0), 1U);
+    EXPECT_EQ(mainTtHitsAt(0), 1U);
+    EXPECT_EQ(mainTtCutoffsAt(0), 1U);
+    EXPECT_EQ(qTtProbesAt(0), 0U);
+    EXPECT_EQ(qTtHitsAt(0), 0U);
+    EXPECT_EQ(qTtCutoffsAt(0), 0U);
+#endif
 }
 
 TEST_F(SearchTest, ResetDoesNotSeedRootLineWithFallbackMove) {

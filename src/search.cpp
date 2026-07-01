@@ -5,6 +5,7 @@
 #include "evaluator.hpp"
 #include "move_picker.hpp"
 #include "search_worker.hpp"
+#include "tt.hpp"
 
 int SearchWorker::search_root() {
     if (root_lines.empty()) {
@@ -93,11 +94,29 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
     if (alpha >= beta)
         return alpha;
 
+    const int      original_alpha = alpha;
+    const uint64_t position_key   = board.key();
+    Move           tt_move        = NULL_MOVE;
+
+    stats.main_tt_probe(ply);
+    if (auto record = tt.probe(position_key)) {
+        stats.main_tt_hit(ply);
+
+        const int tt_score = record->score_at_ply(ply);
+        if (record->can_cutoff(tt_score, depth, alpha, beta)) {
+            stats.main_tt_cutoff(ply);
+            return tt_score;
+        }
+
+        tt_move = record->move;
+    }
+
     const bool         in_check         = board.is_check();
     const Color        turn             = board.side_to_move();
     int                legal_move_index = 0;
     int                best_value       = -INF_VALUE;
-    MovePicker         picker{{board, killers, history, ply, NULL_MOVE, NULL_MOVE},
+    Move               best_move        = NULL_MOVE;
+    MovePicker         picker{{board, killers, history, ply, NULL_MOVE, tt_move},
                       MovePickerMode::MainSearch};
     PrincipalVariation child_pv;
 
@@ -143,11 +162,13 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
                 pv->update(move, child_pv);
 
             stats.beta_cutoff(ply, legal_move_index);
+            tt.store_search(position_key, move, value, depth, TT_Flag::Lowerbound, ply);
             return value;
         }
 
         if (value > best_value) {
             best_value = value;
+            best_move  = move;
 
             if (value > alpha) {
                 alpha = value;
@@ -161,8 +182,18 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         stats.staged_generation(ply, picker);
 
     // No legal moves means checkmate or stalemate.
-    if (legal_move_index == 0)
+    if (legal_move_index == 0) {
         best_value = in_check ? -MATE_VALUE + ply : DRAW_VALUE;
+        tt.store_search(position_key, NULL_MOVE, best_value, depth, TT_Flag::Exact, ply);
+        return best_value;
+    }
+
+    tt.store_search(position_key,
+                    best_move,
+                    best_value,
+                    depth,
+                    tt_bound_for_window(best_value, original_alpha, beta),
+                    ply);
 
     return best_value;
 }
