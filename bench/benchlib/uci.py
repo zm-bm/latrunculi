@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .common import (
     BENCH_DIR,
+    DEFAULT_CPP_BUILD_PRESET,
     DEFAULT_DIRECT_BUILD_PRESET,
     add_common_run_args,
     average,
@@ -29,6 +30,7 @@ from .common import (
 )
 
 DIRECT_UCI_FORMAT = "direct-uci"
+FIXED_DEPTH_UCI_FORMAT = "fixed-depth-uci"
 DEFAULT_ARASAN20_EPD = BENCH_DIR / "arasan20.epd"
 STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 SUITE_POSITION_IDS = [
@@ -100,6 +102,26 @@ DIRECT_RESULT_COLUMNS = [
     "raw_output_file",
 ]
 
+FIXED_DEPTH_RESULT_COLUMNS = [
+    "result_format",
+    "position_id",
+    "repeat",
+    "threads",
+    "depth_target",
+    "hash_mb",
+    "depth",
+    "seldepth",
+    "score_type",
+    "score_value",
+    "nodes",
+    "time_ms",
+    "nps",
+    "bestmove",
+    "pv",
+    *STATS_COLUMNS,
+    "raw_output_file",
+]
+
 
 def add_direct_uci_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     parser = subparsers.add_parser("direct-uci", help="run stats-enabled direct-UCI benchmark suite")
@@ -110,6 +132,19 @@ def add_direct_uci_parser(subparsers: argparse._SubParsersAction[argparse.Argume
     parser.add_argument("--movetime", type=int)
     parser.add_argument("--repeats", type=int)
     parser.add_argument("--hash", type=int)
+    parser.add_argument("--epd-file", type=Path, default=DEFAULT_ARASAN20_EPD)
+    parser.add_argument("--engine", type=Path, help="engine binary path")
+
+
+def add_fixed_depth_uci_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    parser = subparsers.add_parser("fixed-depth-uci", help="run fixed-depth UCI search positions")
+    add_common_run_args(parser, build_preset=DEFAULT_CPP_BUILD_PRESET)
+    parser.add_argument("--positions", default="suite", help="suite, arasan20-full, or comma-separated position ids")
+    parser.add_argument("--threads", default="1", help="comma-separated thread counts")
+    parser.add_argument("--depth", type=int, required=True)
+    parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument("--hash", type=int, default=64)
+    parser.add_argument("--timeout", type=float, default=300.0, help="per-position timeout in seconds")
     parser.add_argument("--epd-file", type=Path, default=DEFAULT_ARASAN20_EPD)
     parser.add_argument("--engine", type=Path, help="engine binary path")
 
@@ -235,8 +270,9 @@ def command_run_direct_uci(args: argparse.Namespace) -> int:
                     engine,
                     position["fen"],
                     thread_count,
-                    int(config["movetime"]),
                     int(config["hash"]),
+                    go_command=f"go movetime {int(config['movetime'])}",
+                    search_timeout=max(5.0, int(config["movetime"]) / 1000.0 + 5.0),
                 )
                 raw_name = f"{position['id']}-t{thread_count}-r{repeat}.log"
                 (run_dir / "raw" / raw_name).write_text(result.pop("raw_output", "") + "\n", encoding="utf-8")
@@ -254,6 +290,75 @@ def command_run_direct_uci(args: argparse.Namespace) -> int:
 
     write_tsv(run_dir / "results.tsv", rows, DIRECT_RESULT_COLUMNS)
     (run_dir / "summary.md").write_text(render_direct_summary(manifest, rows), encoding="utf-8")
+    print(run_dir)
+    return 0
+
+
+def command_run_fixed_depth_uci(args: argparse.Namespace) -> int:
+    if args.depth <= 0:
+        raise ValueError("--depth must be positive")
+    if args.repeats <= 0:
+        raise ValueError("--repeats must be positive")
+    if args.hash <= 0:
+        raise ValueError("--hash must be positive")
+    if args.timeout <= 0:
+        raise ValueError("--timeout must be positive")
+
+    build_binary(args, "latrunculi")
+    engine = args.engine or default_engine_path(args.build_preset)
+    if not engine.exists():
+        raise FileNotFoundError(f"engine binary not found: {engine}")
+
+    epd_file = args.epd_file.resolve()
+    selected_positions = select_positions(load_benchmark_positions(epd_file), args.positions)
+    threads = parse_threads(args.threads)
+
+    run_dir = make_run_dir(args.output_root, args.label)
+    manifest = base_manifest(args, run_dir, FIXED_DEPTH_UCI_FORMAT)
+    manifest.update(
+        {
+            "engine_path": str(engine.resolve()),
+            "epd_file": str(epd_file),
+            "selected_positions": [position["id"] for position in selected_positions],
+            "threads": threads,
+            "depth_target": args.depth,
+            "hash_mb": args.hash,
+            "repeats": args.repeats,
+            "timeout_seconds": args.timeout,
+            "search_stats_enabled": args.build_preset in {"release-stats", "release-stats-dev"},
+        }
+    )
+    write_manifest(run_dir / "manifest.json", manifest)
+
+    rows: list[dict[str, str]] = []
+    for repeat in range(1, args.repeats + 1):
+        for position in selected_positions:
+            for thread_count in threads:
+                result = run_position(
+                    engine,
+                    position["fen"],
+                    thread_count,
+                    args.hash,
+                    go_command=f"go depth {args.depth}",
+                    search_timeout=args.timeout,
+                )
+                raw_name = f"{position['id']}-t{thread_count}-d{args.depth}-r{repeat}.log"
+                (run_dir / "raw" / raw_name).write_text(result.pop("raw_output", "") + "\n", encoding="utf-8")
+                rows.append(
+                    {
+                        "result_format": FIXED_DEPTH_UCI_FORMAT,
+                        "position_id": position["id"],
+                        "repeat": str(repeat),
+                        "threads": str(thread_count),
+                        "depth_target": str(args.depth),
+                        "hash_mb": str(args.hash),
+                        "raw_output_file": f"raw/{raw_name}",
+                        **result,
+                    }
+                )
+
+    write_tsv(run_dir / "results.tsv", rows, FIXED_DEPTH_RESULT_COLUMNS)
+    (run_dir / "summary.md").write_text(render_fixed_depth_summary(manifest, rows), encoding="utf-8")
     print(run_dir)
     return 0
 
@@ -284,8 +389,10 @@ def run_position(
     engine: Path,
     fen: str,
     threads: int,
-    movetime: int,
     hash_mb: int,
+    *,
+    go_command: str,
+    search_timeout: float,
 ) -> dict[str, str]:
     result = {
         "depth": "",
@@ -363,8 +470,7 @@ def run_position(
 
             send("ucinewgame")
             send(f"position fen {fen}")
-            send(f"go movetime {movetime}")
-            search_timeout = max(5.0, movetime / 1000.0 + 5.0)
+            send(go_command)
             while True:
                 stripped = read_line(timeout_seconds=search_timeout)
                 raw_lines.append(stripped)
@@ -588,6 +694,25 @@ def aggregate_direct_rows(rows: list[dict[str, str]]) -> dict[tuple[str, str], d
     return result
 
 
+def aggregate_fixed_depth_rows(rows: list[dict[str, str]]) -> dict[tuple[str, str], dict[str, float | str | None]]:
+    grouped = group_direct_rows(rows)
+    fields = ["depth", "nodes", "time_ms", "nps", *STATS_COLUMNS]
+    result: dict[tuple[str, str], dict[str, float | str | None]] = {}
+    for key, group in grouped.items():
+        result[key] = {field: average(num(row.get(field, "")) for row in group) for field in fields}
+        result[key]["score"] = ", ".join(
+            sorted(
+                {
+                    f"{row.get('score_type', '')} {row.get('score_value', '')}".strip()
+                    for row in group
+                    if row.get("score_type") or row.get("score_value")
+                }
+            )
+        )
+        result[key]["bestmove"] = ", ".join(sorted({row["bestmove"] for row in group if row.get("bestmove")}))
+    return result
+
+
 def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]]) -> str:
     grouped = aggregate_direct_rows(rows)
     lines = [
@@ -637,6 +762,55 @@ def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]
             "## Files",
             "- `manifest.json`: metadata needed for safe comparisons.",
             "- `results.tsv`: stable direct-UCI columns with parsed search stats.",
+            "- `raw/*.log`: combined engine output, including search instrumentation diagnostics.",
+        ]
+    )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_fixed_depth_summary(manifest: dict[str, object], rows: list[dict[str, str]]) -> str:
+    grouped = aggregate_fixed_depth_rows(rows)
+    lines = [
+        f"# Fixed-depth UCI benchmark: {manifest['label']}",
+        "",
+        "## Metadata",
+        f"- Run directory: `{manifest['run_dir']}`",
+        f"- Git revision: `{manifest['git_revision']}`",
+        f"- Git dirty: `{manifest['git_dirty']}`",
+        f"- Engine: `{manifest['engine_path']}`",
+        f"- Build preset: `{manifest['build_preset']}`",
+        f"- Positions: `{manifest['selected_positions']}`",
+        f"- Threads: `{','.join(str(t) for t in manifest['threads'])}`",
+        f"- Depth: `{manifest['depth_target']}`; repeats: `{manifest['repeats']}`; hash: `{manifest['hash_mb']} MiB`",
+        "",
+        "## Averaged results",
+        "| Position | Threads | Depth | Nodes | Time ms | NPS | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Score(s) | Bestmove(s) |",
+        "|---|---:|---:|---:|---:|---:|---|---|---:|---|---|",
+    ]
+    for (position_id, threads), agg in grouped.items():
+        lines.append(
+            "| {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {} | {} | {} |".format(
+                position_id,
+                threads,
+                format_num(agg["depth"]),
+                format_num(agg["nodes"]),
+                format_num(agg["time_ms"]),
+                format_num(agg["nps"]),
+                format_num(agg["stats_main_tt_hit_pct"]),
+                format_num(agg["stats_main_tt_cutoff_pct"]),
+                format_num(agg["stats_q_tt_hit_pct"]),
+                format_num(agg["stats_q_tt_cutoff_pct"]),
+                format_num(agg["stats_qnode_pct"]),
+                agg["score"] or "",
+                agg["bestmove"] or "",
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Files",
+            "- `manifest.json`: metadata needed for safe comparisons.",
+            "- `results.tsv`: stable fixed-depth UCI columns with parsed search stats.",
             "- `raw/*.log`: combined engine output, including search instrumentation diagnostics.",
         ]
     )
@@ -705,6 +879,57 @@ def render_direct_compare(
                     old_agg.get("stats_staged_cutoff_bad_noisy_pct"),
                     new_agg.get("stats_staged_cutoff_bad_noisy_pct"),
                 ),
+                old_agg.get("bestmove", ""),
+                new_agg.get("bestmove", ""),
+            )
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_fixed_depth_compare(
+    old_dir: Path,
+    new_dir: Path,
+    old_manifest: dict[str, object],
+    new_manifest: dict[str, object],
+) -> str:
+    _, old_rows = read_tsv(old_dir / "results.tsv")
+    _, new_rows = read_tsv(new_dir / "results.tsv")
+    old = aggregate_fixed_depth_rows(old_rows)
+    new = aggregate_fixed_depth_rows(new_rows)
+    keys = sorted(set(old) | set(new))
+    lines = [
+        f"# Fixed-depth UCI comparison: {old_manifest.get('label')} vs {new_manifest.get('label')}",
+        "",
+        "## Runs",
+        f"- Baseline: `{old_dir}`",
+        f"- Candidate: `{new_dir}`",
+        "",
+        "## Averaged deltas",
+        "| Position | Threads | Depth old/new | Nodes delta | Time old/new | Time delta | NPS old/new | NPS delta | MainTT Hit delta | QTT Hit delta | QNode delta | Score old/new | Bestmove old/new |",
+        "|---|---:|---|---:|---|---:|---|---:|---:|---:|---:|---|---|",
+    ]
+    for key in keys:
+        position_id, threads = key
+        old_agg = old.get(key, {})
+        new_agg = new.get(key, {})
+        lines.append(
+            "| {} | {} | {} / {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} / {} | {} / {} |".format(
+                position_id,
+                threads,
+                format_num(old_agg.get("depth")),
+                format_num(new_agg.get("depth")),
+                percent_delta(old_agg.get("nodes"), new_agg.get("nodes")),
+                format_num(old_agg.get("time_ms")),
+                format_num(new_agg.get("time_ms")),
+                percent_delta(old_agg.get("time_ms"), new_agg.get("time_ms")),
+                format_num(old_agg.get("nps")),
+                format_num(new_agg.get("nps")),
+                percent_delta(old_agg.get("nps"), new_agg.get("nps")),
+                delta_points(old_agg.get("stats_main_tt_hit_pct"), new_agg.get("stats_main_tt_hit_pct")),
+                delta_points(old_agg.get("stats_q_tt_hit_pct"), new_agg.get("stats_q_tt_hit_pct")),
+                delta_points(old_agg.get("stats_qnode_pct"), new_agg.get("stats_qnode_pct")),
+                old_agg.get("score", ""),
+                new_agg.get("score", ""),
                 old_agg.get("bestmove", ""),
                 new_agg.get("bestmove", ""),
             )

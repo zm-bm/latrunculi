@@ -16,7 +16,16 @@ from benchlib.cpp import (
     render_cpp_compare,
 )
 from benchlib.match import add_match_parser, command_run_match
-from benchlib.uci import DIRECT_UCI_FORMAT, add_direct_uci_parser, command_run_direct_uci, render_direct_compare
+from benchlib.uci import (
+    DIRECT_UCI_FORMAT,
+    FIXED_DEPTH_UCI_FORMAT,
+    add_direct_uci_parser,
+    add_fixed_depth_uci_parser,
+    command_run_direct_uci,
+    command_run_fixed_depth_uci,
+    render_direct_compare,
+    render_fixed_depth_compare,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,6 +38,7 @@ def parse_args() -> argparse.Namespace:
     add_cpp_suite_parser(run_subparsers, "perft")
     add_search_smoke_parser(run_subparsers)
     add_direct_uci_parser(run_subparsers)
+    add_fixed_depth_uci_parser(run_subparsers)
     add_match_parser(run_subparsers)
 
     compare = subparsers.add_parser("compare", help="compare two benchmark run directories")
@@ -47,7 +57,9 @@ def command_compare(args: argparse.Namespace) -> int:
     new_format = new_manifest.get("result_format")
     if old_format != new_format:
         raise ValueError("cannot compare runs with different result formats")
-    if old_manifest.get("suite") != new_manifest.get("suite"):
+    old_suite = old_manifest.get("suite")
+    new_suite = new_manifest.get("suite")
+    if old_suite is not None and new_suite is not None and old_suite != new_suite:
         raise ValueError("cannot compare runs from different suites")
 
     output = args.output or (candidate / f"comparison-vs-{baseline.name}.md")
@@ -55,6 +67,8 @@ def command_compare(args: argparse.Namespace) -> int:
         content = render_cpp_compare(baseline, candidate, old_manifest, new_manifest)
     elif old_format == DIRECT_UCI_FORMAT:
         content = render_direct_compare(baseline, candidate, old_manifest, new_manifest)
+    elif old_format == FIXED_DEPTH_UCI_FORMAT:
+        content = render_fixed_depth_compare(baseline, candidate, old_manifest, new_manifest)
     else:
         raise ValueError(f"compare is not supported for result format: {old_format}")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -73,6 +87,8 @@ def main() -> int:
         return command_run_search_smoke(args)
     if args.suite == "direct-uci":
         return command_run_direct_uci(args)
+    if args.suite == "fixed-depth-uci":
+        return command_run_fixed_depth_uci(args)
     if args.suite == "match":
         return command_run_match(args)
     raise ValueError(f"unknown suite: {args.suite}")
