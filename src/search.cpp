@@ -217,21 +217,42 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
     if (ply >= MAX_SEARCH_PLY)
         return evaluate(board);
 
+    constexpr int  qsearch_tt_depth = 0;
+    const int      original_alpha   = alpha;
+    const uint64_t position_key     = board.key();
+    Move           tt_move          = NULL_MOVE;
+
+    stats.q_tt_probe(ply);
+    if (auto record = tt.probe(position_key)) {
+        stats.q_tt_hit(ply);
+
+        const int tt_score = record->score_at_ply(ply);
+        if (record->can_cutoff(tt_score, qsearch_tt_depth, alpha, beta)) {
+            stats.q_tt_cutoff(ply);
+            return tt_score;
+        }
+
+        tt_move = record->move;
+    }
+
     const bool in_check         = board.is_check();
     int        legal_move_index = 0;
     int        best_value       = -INF_VALUE;
+    Move       best_move        = NULL_MOVE;
 
     // Stand-pat is only legal when the side to move is not in check.
     if (!in_check) {
         best_value = evaluate(board);
-        if (best_value >= beta)
+        if (best_value >= beta) {
+            tt.store_search(
+                position_key, NULL_MOVE, best_value, qsearch_tt_depth, TT_Flag::Lowerbound, ply);
             return best_value;
+        }
         if (best_value > alpha)
             alpha = best_value;
     }
 
-    MovePicker         picker{{board, killers, history, ply, NULL_MOVE, NULL_MOVE},
-                      MovePickerMode::QSearch};
+    MovePicker picker{{board, killers, history, ply, NULL_MOVE, tt_move}, MovePickerMode::QSearch};
     PrincipalVariation child_pv;
 
     // Qsearch uses noisy moves outside check and full evasions while in check.
@@ -255,11 +276,13 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
             if (pv)
                 pv->update(move, child_pv);
             stats.beta_cutoff(ply, legal_move_index);
+            tt.store_search(position_key, move, value, qsearch_tt_depth, TT_Flag::Lowerbound, ply);
             return value;
         }
 
         if (value > best_value) {
             best_value = value;
+            best_move  = move;
             if (value > alpha) {
                 alpha = value;
                 if (pv)
@@ -269,8 +292,18 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
     }
 
     // In-check qsearch must find an evasion or it is checkmate.
-    if (in_check && legal_move_index == 0)
-        return -MATE_VALUE + ply;
+    if (in_check && legal_move_index == 0) {
+        best_value = -MATE_VALUE + ply;
+        tt.store_search(position_key, NULL_MOVE, best_value, qsearch_tt_depth, TT_Flag::Exact, ply);
+        return best_value;
+    }
+
+    tt.store_search(position_key,
+                    best_move,
+                    best_value,
+                    qsearch_tt_depth,
+                    tt_bound_for_window(best_value, original_alpha, beta),
+                    ply);
 
     return best_value;
 }

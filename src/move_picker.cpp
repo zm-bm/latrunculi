@@ -50,13 +50,13 @@ MovePicker::MovePicker(const MovePickerContext& ctx, MovePickerMode mode)
     : ctx(ctx),
       mode(mode),
       in_check(ctx.board.is_check()),
-      valid_pv_move(is_valid_hint(ctx.pv_move)),
-      valid_tt_move(ctx.tt_move != ctx.pv_move && is_valid_hint(ctx.tt_move)),
+      valid_pv_move(mode == MovePickerMode::MainSearch && is_valid_hint(ctx.pv_move)),
+      valid_tt_move(ctx.tt_move != ctx.pv_move && is_valid_tt_hint(ctx.tt_move)),
       stage(initial_stage()) {}
 
 MovePicker::Stage MovePicker::initial_stage() const {
     if (mode == MovePickerMode::QSearch)
-        return in_check ? Stage::GENERATE_EVASIONS : Stage::GENERATE_NOISY;
+        return Stage::HASH;
 
     return Stage::PV;
 }
@@ -82,6 +82,16 @@ bool MovePicker::is_valid_hint(Move move) const {
         return false;
 
     return !in_check || ctx.board.is_legal_pseudo_move(move);
+}
+
+bool MovePicker::is_valid_tt_hint(Move move) const {
+    if (!is_valid_hint(move))
+        return false;
+
+    if (mode != MovePickerMode::QSearch || in_check)
+        return true;
+
+    return move.type() == MOVE_PROM || ctx.board.is_capture(move);
 }
 
 bool MovePicker::is_pv_or_tt_duplicate(const Move& move) const {

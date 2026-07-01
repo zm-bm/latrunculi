@@ -76,6 +76,32 @@ std::vector<std::pair<Move, MoveScore>> picked_moves_with_scores(Board&         
     return moves;
 }
 
+std::vector<std::pair<Move, MovePickSource>> picked_moves_with_sources(Board&         board,
+                                                                       KillerMoves&   killers,
+                                                                       HistoryTable&  history,
+                                                                       int            ply,
+                                                                       MovePickerMode mode,
+                                                                       Move pv_move = NULL_MOVE,
+                                                                       Move tt_move = NULL_MOVE) {
+    std::vector<std::pair<Move, MovePickSource>> moves;
+    MovePicker picker{{board, killers, history, ply, pv_move, tt_move}, mode};
+
+    for (Move move = picker.next(); !move.is_null(); move = picker.next())
+        moves.push_back({move, picker.last_source()});
+
+    return moves;
+}
+
+void expect_hash_move_first_once(const std::vector<std::pair<Move, MovePickSource>>& moves,
+                                 Move                                                expected) {
+    ASSERT_FALSE(moves.empty());
+    EXPECT_EQ(moves.front(), std::make_pair(expected, MovePickSource::Hash));
+    EXPECT_EQ(std::count_if(moves.begin(),
+                            moves.end(),
+                            [&](const auto& entry) { return entry.first == expected; }),
+              1);
+}
+
 std::vector<std::pair<Move, MoveScore>> staged_picked_moves_with_scores(Board&        board,
                                                                         KillerMoves&  killers,
                                                                         HistoryTable& history,
@@ -98,13 +124,8 @@ staged_picked_moves_with_sources(Board&        board,
                                  int           ply,
                                  Move          pv_move = NULL_MOVE,
                                  Move          tt_move = NULL_MOVE) {
-    std::vector<std::pair<Move, MovePickSource>> moves;
-    MovePicker picker{{board, killers, history, ply, pv_move, tt_move}, MovePickerMode::MainSearch};
-
-    for (Move move = picker.next(); !move.is_null(); move = picker.next())
-        moves.push_back({move, picker.last_source()});
-
-    return moves;
+    return picked_moves_with_sources(
+        board, killers, history, ply, MovePickerMode::MainSearch, pv_move, tt_move);
 }
 
 std::vector<Move> staged_picked_moves(Board&        board,
@@ -296,6 +317,46 @@ TEST_F(MovePickerTest, QSearchNotInCheckDoesNotReturnWeakCaptures) {
     EXPECT_EQ(std::find(moves.begin(), moves.end(), Move(D1, D7)), moves.end());
 }
 
+TEST_F(MovePickerTest, QSearchReturnsHashCaptureFirstOutsideCheck) {
+    Move tt_capture = Move(B4, F4);
+    ASSERT_FALSE(board.is_check());
+    ASSERT_TRUE(board.is_capture(tt_capture));
+
+    const auto moves = picked_moves_with_sources(
+        board, killers, history, ply, MovePickerMode::QSearch, NULL_MOVE, tt_capture);
+
+    expect_hash_move_first_once(moves, tt_capture);
+}
+
+TEST_F(MovePickerTest, QSearchReturnsHashPromotionFirstOutsideCheck) {
+    TestBoard promotion_board{std::string(PROMOTION_FEN)};
+    Move      tt_promotion = Move(A7, A8, MOVE_PROM, QUEEN);
+    ASSERT_FALSE(promotion_board.is_check());
+    ASSERT_TRUE(promotion_board.is_pseudo_legal(tt_promotion));
+
+    const auto moves = picked_moves_with_sources(
+        promotion_board, killers, history, ply, MovePickerMode::QSearch, NULL_MOVE, tt_promotion);
+
+    expect_hash_move_first_once(moves, tt_promotion);
+}
+
+TEST_F(MovePickerTest, QSearchIgnoresQuietHashMoveOutsideCheck) {
+    Move quiet_tt_move = Move(E2, E3);
+    ASSERT_FALSE(board.is_check());
+    ASSERT_TRUE(board.is_pseudo_legal(quiet_tt_move));
+    ASSERT_FALSE(board.is_capture(quiet_tt_move));
+
+    const auto moves = picked_moves_with_sources(
+        board, killers, history, ply, MovePickerMode::QSearch, NULL_MOVE, quiet_tt_move);
+
+    ASSERT_FALSE(moves.empty());
+    EXPECT_NE(moves.front().first, quiet_tt_move);
+    EXPECT_EQ(std::find_if(moves.begin(),
+                           moves.end(),
+                           [&](const auto& entry) { return entry.first == quiet_tt_move; }),
+              moves.end());
+}
+
 TEST_F(MovePickerTest, QSearchInCheckGeneratesEvasionsIncludingQuietEvasions) {
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     ASSERT_TRUE(evasion_board.is_check());
@@ -304,6 +365,18 @@ TEST_F(MovePickerTest, QSearchInCheckGeneratesEvasionsIncludingQuietEvasions) {
 
     EXPECT_EQ(sorted_move_bits(moves), sorted_move_bits(movegen::generate_evasions(evasion_board)));
     EXPECT_NE(std::find(moves.begin(), moves.end(), Move(A8, B8)), moves.end());
+}
+
+TEST_F(MovePickerTest, QSearchReturnsQuietHashEvasionFirstWhileInCheck) {
+    TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
+    Move      quiet_evasion = Move(A8, B8);
+    ASSERT_TRUE(evasion_board.is_check());
+    ASSERT_TRUE(evasion_board.is_legal_pseudo_move(quiet_evasion));
+
+    const auto moves = picked_moves_with_sources(
+        evasion_board, killers, history, ply, MovePickerMode::QSearch, NULL_MOVE, quiet_evasion);
+
+    expect_hash_move_first_once(moves, quiet_evasion);
 }
 
 TEST_F(MovePickerTest, QSearchInCheckDoesNotUseKillerStagesForQuietEvasions) {

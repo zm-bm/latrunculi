@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -115,6 +116,10 @@ protected:
 
     uint64_t workerKey() const { return worker->board.key(); }
 
+    std::optional<TT_Record> workerTtRecord() const { return tt.probe(workerKey()); }
+
+    void expectNoWorkerTtRecord() const { EXPECT_FALSE(workerTtRecord().has_value()); }
+
     uint64_t workerNodes() const { return worker->node_count(); }
 
     bool workerBoardIsDraw() const { return worker->board.is_draw(); }
@@ -225,15 +230,49 @@ TEST_F(SearchTest, DepthZeroDrawByRuleReturnsDrawBeforeStaticEval) {
     EXPECT_EQ(workerNodes(), 1U);
 }
 
-TEST_F(SearchTest, QuiescenceStandPatFailsHighOutsideCheck) {
+TEST_F(SearchTest, QuiescenceDrawByRuleDoesNotStoreTranspositionTableEntry) {
+    constexpr auto drawn_winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
+    TestBoard      board{drawn_winning_capture};
+    loadWorkerBoard(board);
+
+    EXPECT_EQ(runQuiescence(-INF_VALUE, INF_VALUE), DRAW_VALUE);
+    EXPECT_EQ(workerNodes(), 1U);
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(qnodesAt(0), 1U);
+#endif
+    expectNoWorkerTtRecord();
+}
+
+TEST_F(SearchTest, QuiescenceAtMaxPlyDoesNotStoreTranspositionTableEntry) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+    setWorkerPly(MAX_SEARCH_PLY);
+
+    const int static_eval = evaluate(board);
+
+    EXPECT_EQ(runQuiescence(-INF_VALUE, INF_VALUE), static_eval);
+    EXPECT_EQ(workerNodes(), 1U);
+    expectNoWorkerTtRecord();
+}
+
+TEST_F(SearchTest, QuiescenceStandPatFailHighReturnsEvalAndStoresLowerbound) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     TestBoard      board{quiet_control};
     loadWorkerBoard(board);
 
     const int static_eval = evaluate(board);
+    const int value       = runQuiescence(static_eval - 100, static_eval);
 
-    EXPECT_EQ(runQuiescence(static_eval - 100, static_eval), static_eval);
+    EXPECT_EQ(value, static_eval);
     EXPECT_EQ(workerNodes(), 1U);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_EQ(record->flag, TT_Flag::Lowerbound);
+    EXPECT_EQ(record->move, NULL_MOVE);
 }
 
 TEST_F(SearchTest, QuiescenceInCheckSearchesLegalEvasion) {
@@ -250,15 +289,6 @@ TEST_F(SearchTest, QuiescenceInCheckSearchesLegalEvasion) {
     EXPECT_EQ(runQuiescence(alpha, beta), expected);
 }
 
-TEST_F(SearchTest, QuiescenceCheckmateWithNoEvasionsReturnsMateScore) {
-    constexpr auto checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{checkmate};
-    loadWorkerBoard(board);
-    setWorkerPly(3);
-
-    EXPECT_EQ(runQuiescence(-INF_VALUE, INF_VALUE), -MATE_VALUE + 3);
-}
-
 TEST_F(SearchTest, QuiescenceBuildsPrincipalVariationFromTacticalMove) {
     constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
     TestBoard      board{winning_capture};
@@ -270,6 +300,145 @@ TEST_F(SearchTest, QuiescenceBuildsPrincipalVariationFromTacticalMove) {
     EXPECT_GT(runQuiescenceWithPv(-INF_VALUE, INF_VALUE, pv), static_eval);
     ASSERT_FALSE(pv.empty());
     EXPECT_TRUE(board.is_legal_move(pv.front()));
+}
+
+TEST_F(SearchTest, QuiescenceUsesExactTranspositionTableCutoff) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  tt_score      = 321;
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    tt.store_search(workerKey(), NULL_MOVE, tt_score, 0, TT_Flag::Exact, workerPly());
+
+    EXPECT_EQ(runQuiescence(-INF_VALUE, INF_VALUE), tt_score);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(qTtProbesAt(0), 1U);
+    EXPECT_EQ(qTtHitsAt(0), 1U);
+    EXPECT_EQ(qTtCutoffsAt(0), 1U);
+#endif
+}
+
+TEST_F(SearchTest, QuiescenceUsesLowerboundTranspositionTableCutoff) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  tt_score      = 500;
+    constexpr int  alpha         = 100;
+    constexpr int  beta          = 200;
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    tt.store_search(workerKey(), NULL_MOVE, tt_score, 0, TT_Flag::Lowerbound, workerPly());
+
+    EXPECT_EQ(runQuiescence(alpha, beta), tt_score);
+}
+
+TEST_F(SearchTest, QuiescenceUsesUpperboundTranspositionTableCutoff) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  tt_score      = -500;
+    constexpr int  alpha         = -200;
+    constexpr int  beta          = -100;
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    tt.store_search(workerKey(), NULL_MOVE, tt_score, 0, TT_Flag::Upperbound, workerPly());
+
+    EXPECT_EQ(runQuiescence(alpha, beta), tt_score);
+}
+
+TEST_F(SearchTest, QuiescenceIgnoresQuietNonCheckTranspositionTableMove) {
+    TestBoard baseline_board{POS3};
+    loadWorkerBoard(baseline_board);
+    const int baseline = runQuiescence(-INF_VALUE, INF_VALUE);
+
+    TestBoard board{POS3};
+    loadWorkerBoard(board);
+
+    Move quiet_tt_move = Move(E2, E3);
+    ASSERT_TRUE(board.is_pseudo_legal(quiet_tt_move));
+    ASSERT_FALSE(board.is_capture(quiet_tt_move));
+    tt.store_search(
+        workerKey(), quiet_tt_move, -INF_VALUE + 1000, 0, TT_Flag::Lowerbound, workerPly());
+
+    EXPECT_EQ(runQuiescence(-INF_VALUE, INF_VALUE), baseline);
+}
+
+TEST_F(SearchTest, QuiescenceCaptureBetaCutoffStoresLowerboundMove) {
+    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+
+    TestBoard exact_board{winning_capture};
+    loadWorkerBoard(exact_board);
+    const int static_eval = evaluate(exact_board);
+    const int exact       = runQuiescence(-INF_VALUE, INF_VALUE);
+    ASSERT_GT(exact, static_eval);
+
+    TestBoard board{winning_capture};
+    loadWorkerBoard(board);
+
+    const int beta  = static_eval + std::max(1, (exact - static_eval) / 2);
+    const int alpha = beta - 100;
+    const int value = runQuiescence(alpha, beta);
+    ASSERT_GE(value, beta);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_EQ(record->flag, TT_Flag::Lowerbound);
+    EXPECT_FALSE(record->move.is_null());
+    EXPECT_TRUE(board.is_capture(record->move) || record->move.type() == MOVE_PROM);
+}
+
+TEST_F(SearchTest, QuiescenceStoresUpperboundOnFailLow) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    const int static_eval = evaluate(board);
+    const int value       = runQuiescence(static_eval + 1, static_eval + 100);
+    ASSERT_LT(value, static_eval + 1);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_EQ(record->flag, TT_Flag::Upperbound);
+    EXPECT_EQ(record->move, NULL_MOVE);
+}
+
+TEST_F(SearchTest, QuiescenceStoresExactOnNormalExit) {
+    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    TestBoard      board{winning_capture};
+    loadWorkerBoard(board);
+
+    const int static_eval = evaluate(board);
+    const int value       = runQuiescence(static_eval - 1, INF_VALUE);
+    ASSERT_GT(value, static_eval);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_EQ(record->flag, TT_Flag::Exact);
+    EXPECT_FALSE(record->move.is_null());
+}
+
+TEST_F(SearchTest, QuiescenceCheckmateWithNoEvasionsReturnsMateAndStoresExact) {
+    constexpr auto checkmate  = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_ply = 3;
+    TestBoard      board{checkmate};
+    loadWorkerBoard(board);
+    setWorkerPly(search_ply);
+
+    const int value = runQuiescence(-INF_VALUE, INF_VALUE);
+    EXPECT_EQ(value, -MATE_VALUE + search_ply);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->score, -MATE_VALUE);
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_EQ(record->flag, TT_Flag::Exact);
+    EXPECT_EQ(record->move, NULL_MOVE);
 }
 
 TEST_F(SearchTest, QuiescenceRecordsQNodeInStatsBuild) {
@@ -495,7 +664,7 @@ TEST_F(SearchTest, AlphaBetaStoresLowerboundOnBetaCutoff) {
     const int value = runNonPvAlphaBeta(alpha, beta, search_depth);
     ASSERT_GE(value, beta);
 
-    auto record = tt.probe(workerKey());
+    auto record = workerTtRecord();
     ASSERT_TRUE(record.has_value());
     EXPECT_EQ(record->score_at_ply(workerPly()), value);
     EXPECT_EQ(record->depth, search_depth);
@@ -515,7 +684,7 @@ TEST_F(SearchTest, AlphaBetaStoresUpperboundOnFailLow) {
     const int value = runNonPvAlphaBeta(alpha, beta, search_depth);
     ASSERT_LT(value, alpha);
 
-    auto record = tt.probe(workerKey());
+    auto record = workerTtRecord();
     ASSERT_TRUE(record.has_value());
     EXPECT_EQ(record->score_at_ply(workerPly()), value);
     EXPECT_EQ(record->depth, search_depth);
@@ -534,7 +703,7 @@ TEST_F(SearchTest, AlphaBetaStoresNoLegalMoveTerminalAsExactTranspositionTableEn
     const int value = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
     ASSERT_EQ(value, -MATE_VALUE + search_ply);
 
-    auto record = tt.probe(workerKey());
+    auto record = workerTtRecord();
     ASSERT_TRUE(record.has_value());
     EXPECT_EQ(record->score_at_ply(workerPly()), value);
     EXPECT_EQ(record->score, -MATE_VALUE);
@@ -553,7 +722,7 @@ TEST_F(SearchTest, RootSearchDoesNotStoreRootPositionTranspositionTableEntry) {
     EXPECT_FALSE(tt.probe(root_key).has_value());
 }
 
-TEST_F(SearchTest, AlphaBetaRecordsMainTranspositionTableStatsWithoutQSearchTT) {
+TEST_F(SearchTest, AlphaBetaMainTTCutoffDoesNotEnterQSearchTT) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     constexpr int  search_depth  = 2;
     constexpr int  tt_score      = 321;

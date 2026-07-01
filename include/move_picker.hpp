@@ -76,6 +76,7 @@ private:
     bool        is_pv_or_tt_duplicate(const Move& move) const;
     bool        is_quiet_hint_duplicate(const Move& move) const;
     bool        is_valid_hint(Move move) const;
+    bool        is_valid_tt_hint(Move move) const;
     bool        is_returnable_killer(Move move, Move previous_killer) const;
     ScoredMove* moves_begin() { return moves.data(); }
     ScoredMove* moves_limit() { return moves.data() + MAX_MOVES; }
