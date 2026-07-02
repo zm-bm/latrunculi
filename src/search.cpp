@@ -116,12 +116,8 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
     int                legal_move_index = 0;
     int                best_value       = -INF_VALUE;
     Move               best_move        = NULL_MOVE;
-    MovePicker         picker{{board, killers, history, ply, NULL_MOVE, tt_move},
-                      MovePickerMode::MainSearch};
+    MovePicker         picker = MovePicker::main_search(board, killers, history, ply, tt_move);
     PrincipalVariation child_pv;
-
-    if constexpr (SEARCH_STATS)
-        stats.staged_node(ply, picker);
 
     // Main move loop. This foundation search still uses a full window for every legal move.
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
@@ -141,18 +137,10 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         board.unmake(position_states.parent(ply));
         --ply;
 
-        if (stop_requested()) {
-            if constexpr (SEARCH_STATS)
-                stats.staged_generation(ply, picker);
+        if (stop_requested())
             return alpha;
-        }
 
         if (value >= beta) {
-            if constexpr (SEARCH_STATS) {
-                stats.staged_cutoff(ply, picker);
-                stats.staged_generation(ply, picker);
-            }
-
             if (is_quiet) {
                 killers.update(move, ply);
                 history.update(turn, move.from(), move.to(), depth);
@@ -177,9 +165,6 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
             }
         }
     }
-
-    if constexpr (SEARCH_STATS)
-        stats.staged_generation(ply, picker);
 
     // No legal moves means checkmate or stalemate.
     if (legal_move_index == 0) {
@@ -252,7 +237,7 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
             alpha = best_value;
     }
 
-    MovePicker picker{{board, killers, history, ply, NULL_MOVE, tt_move}, MovePickerMode::QSearch};
+    MovePicker         picker = MovePicker::qsearch(board, history, tt_move);
     PrincipalVariation child_pv;
 
     // Qsearch uses noisy moves outside check and full evasions while in check.

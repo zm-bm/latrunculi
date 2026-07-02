@@ -90,8 +90,7 @@ void SearchWorker::build_root_lines() {
     root_lines.clear();
 
     // Root candidates start in the current MovePicker order.
-    MovePicker picker{{board, killers, history, 0, NULL_MOVE, NULL_MOVE},
-                      MovePickerMode::MainSearch};
+    MovePicker picker = MovePicker::main_search(board, killers, history, 0);
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (board.is_legal_generated_move(move))
             root_lines.push_back(RootLine{.best_move = move, .value = -INF_VALUE});

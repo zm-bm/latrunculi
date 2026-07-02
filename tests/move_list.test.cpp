@@ -24,7 +24,7 @@ TEST(MoveListTest, MoveIsValueOnly) {
     EXPECT_EQ(lhs.bits, rhs.bits);
 }
 
-TEST(MoveListTest, AddMoveAndClearMaintainAppendRange) {
+TEST(MoveListTest, AddMoveAndClearMaintainActiveRange) {
     MoveList movelist;
     Move     first(E2, E4);
     Move     second(G1, F3);

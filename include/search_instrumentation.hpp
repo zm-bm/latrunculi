@@ -8,7 +8,6 @@
 #include <string_view>
 
 #include "defs.hpp"
-#include "move_picker.hpp"
 
 template <bool Enable = SEARCH_STATS>
 struct SearchCounters;
@@ -47,13 +46,6 @@ struct SearchCounters<true> {
     StatsArray q_tt_probes{0};
     StatsArray q_tt_hits{0};
     StatsArray q_tt_cutoffs{0};
-    StatsArray staged_nodes{0};
-    StatsArray staged_noisy_generated_nodes{0};
-    StatsArray staged_quiet_generated_nodes{0};
-    StatsArray staged_skip_quiet_nodes{0};
-    StatsArray staged_cutoff_before_quiet_nodes{0};
-    StatsArray staged_cutoff_quiet_nodes{0};
-    StatsArray staged_cutoff_bad_noisy_nodes{0};
 
     uint64_t aspiration_fail_lows{0};
     uint64_t aspiration_fail_highs{0};
@@ -77,13 +69,6 @@ struct SearchCounters<true> {
         q_tt_probes.fill(0);
         q_tt_hits.fill(0);
         q_tt_cutoffs.fill(0);
-        staged_nodes.fill(0);
-        staged_noisy_generated_nodes.fill(0);
-        staged_quiet_generated_nodes.fill(0);
-        staged_skip_quiet_nodes.fill(0);
-        staged_cutoff_before_quiet_nodes.fill(0);
-        staged_cutoff_quiet_nodes.fill(0);
-        staged_cutoff_bad_noisy_nodes.fill(0);
         aspiration_fail_lows  = 0;
         aspiration_fail_highs = 0;
         aspiration_researches = 0;
@@ -108,14 +93,6 @@ struct SearchCounters<true> {
             q_tt_probes[i]         += other.q_tt_probes[i];
             q_tt_hits[i]           += other.q_tt_hits[i];
             q_tt_cutoffs[i]        += other.q_tt_cutoffs[i];
-
-            staged_nodes[i]                     += other.staged_nodes[i];
-            staged_noisy_generated_nodes[i]     += other.staged_noisy_generated_nodes[i];
-            staged_quiet_generated_nodes[i]     += other.staged_quiet_generated_nodes[i];
-            staged_skip_quiet_nodes[i]          += other.staged_skip_quiet_nodes[i];
-            staged_cutoff_before_quiet_nodes[i] += other.staged_cutoff_before_quiet_nodes[i];
-            staged_cutoff_quiet_nodes[i]        += other.staged_cutoff_quiet_nodes[i];
-            staged_cutoff_bad_noisy_nodes[i]    += other.staged_cutoff_bad_noisy_nodes[i];
         }
 
         aspiration_fail_lows  += other.aspiration_fail_lows;
@@ -150,10 +127,6 @@ public:
     void        q_tt_probe(int) {}
     void        q_tt_hit(int) {}
     void        q_tt_cutoff(int) {}
-    void        staged_node(int, const MovePicker&) {}
-    void        staged_generation(int, const MovePicker&) {}
-    void        staged_skip_quiet(int) {}
-    void        staged_cutoff(int, const MovePicker&) {}
     std::string str() const;
 
     SearchInstrumentation& operator+=(const SearchInstrumentation&) { return *this; }
@@ -243,47 +216,6 @@ public:
             counters.q_tt_cutoffs[ply]++;
     }
 
-    void staged_node(const int ply, const MovePicker& picker) {
-        if (!SearchCounters<true>::valid_ply(ply) || !picker.tracks_staged_generation())
-            return;
-
-        counters.staged_nodes[ply]++;
-    }
-
-    void staged_generation(const int ply, const MovePicker& picker) {
-        if (!SearchCounters<true>::valid_ply(ply) || !picker.tracks_staged_generation())
-            return;
-
-        if (picker.noisy_generated())
-            counters.staged_noisy_generated_nodes[ply]++;
-        if (picker.quiet_generated())
-            counters.staged_quiet_generated_nodes[ply]++;
-    }
-
-    void staged_skip_quiet(const int ply) {
-        if (SearchCounters<true>::valid_ply(ply))
-            counters.staged_skip_quiet_nodes[ply]++;
-    }
-
-    void staged_cutoff(const int ply, const MovePicker& picker) {
-        if (!SearchCounters<true>::valid_ply(ply) || !picker.tracks_staged_generation())
-            return;
-
-        switch (picker.last_source()) {
-        case MovePickSource::PV:
-        case MovePickSource::Hash:
-        case MovePickSource::GoodNoisy:
-        case MovePickSource::Killer:
-            if (!picker.quiet_generated())
-                counters.staged_cutoff_before_quiet_nodes[ply]++;
-            break;
-        case MovePickSource::Quiet:    counters.staged_cutoff_quiet_nodes[ply]++; break;
-        case MovePickSource::BadNoisy: counters.staged_cutoff_bad_noisy_nodes[ply]++; break;
-        case MovePickSource::Evasion:
-        case MovePickSource::None:     break;
-        }
-    }
-
     SearchInstrumentation& operator+=(const SearchInstrumentation& other) {
         counters += other.counters;
         return *this;
@@ -322,33 +254,6 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
                              stats.aspiration_fail_lows,
                              stats.aspiration_fail_highs,
                              stats.aspiration_researches);
-
-        const uint64_t staged_nodes               = sum(stats.staged_nodes);
-        const uint64_t staged_noisy_generated     = sum(stats.staged_noisy_generated_nodes);
-        const uint64_t staged_quiet_generated     = sum(stats.staged_quiet_generated_nodes);
-        const uint64_t staged_skip_quiet          = sum(stats.staged_skip_quiet_nodes);
-        const uint64_t staged_cutoff_before_quiet = sum(stats.staged_cutoff_before_quiet_nodes);
-        const uint64_t staged_cutoff_quiet        = sum(stats.staged_cutoff_quiet_nodes);
-        const uint64_t staged_cutoff_bad_noisy    = sum(stats.staged_cutoff_bad_noisy_nodes);
-
-        out = std::format_to(out,
-                             "StagedPicker: nodes={} noisy-generated={} ({:.1f}%) "
-                             "quiet-generated={} ({:.1f}%) skip-quiet={} ({:.1f}%) "
-                             "cutoff-before-quiet={} ({:.1f}%) "
-                             "cutoff-quiet={} ({:.1f}%) cutoff-bad-noisy={} ({:.1f}%)\n",
-                             staged_nodes,
-                             staged_noisy_generated,
-                             pct(staged_noisy_generated, staged_nodes),
-                             staged_quiet_generated,
-                             pct(staged_quiet_generated, staged_nodes),
-                             staged_skip_quiet,
-                             pct(staged_skip_quiet, staged_nodes),
-                             staged_cutoff_before_quiet,
-                             pct(staged_cutoff_before_quiet, staged_nodes),
-                             staged_cutoff_quiet,
-                             pct(staged_cutoff_quiet, staged_nodes),
-                             staged_cutoff_bad_noisy,
-                             pct(staged_cutoff_bad_noisy, staged_nodes));
 
         out =
             std::format_to(out,
@@ -412,13 +317,6 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
 private:
     static double pct(const uint64_t count, const uint64_t total) {
         return total > 0 ? 100.0 * count / total : 0.0;
-    }
-
-    static uint64_t sum(const SearchCounters<true>::StatsArray& values) {
-        uint64_t total = 0;
-        for (uint64_t value : values)
-            total += value;
-        return total;
     }
 };
 
