@@ -7,6 +7,17 @@
 #include "search_worker.hpp"
 #include "tt.hpp"
 
+namespace {
+
+constexpr int AspirationWindow = 50;
+constexpr int SearchInf        = static_cast<int>(INF_VALUE);
+
+int widened_delta(int delta) {
+    return delta >= SearchInf / 2 ? SearchInf : delta * 2;
+}
+
+} // namespace
+
 int SearchWorker::search_root() {
     if (root_lines.empty()) {
         // A completed null best move represents root mate or stalemate.
@@ -20,18 +31,58 @@ int SearchWorker::search_root() {
 
     // Completed iterations seed the next root-move order. Partial iterations are discarded.
     for (int depth = 1; depth <= options.depth && !stop_requested(); ++depth) {
-        if (!search_root_iteration(depth))
+        if (!search_root_aspiration(depth, root.value))
             break;
-
-        std::stable_sort(root_lines.begin(), root_lines.end(), is_better_root_line);
-        root = root_lines.front();
-        publish_root_snapshot();
     }
 
     return root.value;
 }
 
-bool SearchWorker::search_root_iteration(int depth) {
+bool SearchWorker::search_root_aspiration(int depth, int previous_value) {
+    int delta = AspirationWindow;
+    int alpha = std::max(previous_value - delta, -SearchInf);
+    int beta  = std::min(previous_value + delta, SearchInf);
+
+    while (!stop_requested()) {
+        if (!search_root_iteration(depth, alpha, beta))
+            return false;
+
+        std::stable_sort(root_lines.begin(), root_lines.end(), is_better_root_line);
+        const int value = root_lines.front().value;
+
+        if (value <= alpha) {
+            stats.aspiration_fail_low();
+            if (alpha == -SearchInf) {
+                root = root_lines.front();
+                publish_root_snapshot();
+                return true;
+            }
+
+            alpha = std::max(alpha - delta, -SearchInf);
+            stats.aspiration_research();
+        } else if (value >= beta) {
+            stats.aspiration_fail_high();
+            if (beta == SearchInf) {
+                root = root_lines.front();
+                publish_root_snapshot();
+                return true;
+            }
+
+            beta = std::min(beta + delta, SearchInf);
+            stats.aspiration_research();
+        } else {
+            root = root_lines.front();
+            publish_root_snapshot();
+            return true;
+        }
+
+        delta = widened_delta(delta);
+    }
+
+    return false;
+}
+
+bool SearchWorker::search_root_iteration(int depth, int alpha, int beta) {
     for (RootLine& line : root_lines) {
         Move move = line.best_move;
         assert(!move.is_null());
@@ -41,7 +92,7 @@ bool SearchWorker::search_root_iteration(int depth) {
         ++ply;
 
         PrincipalVariation child_pv;
-        const int          value = -alphabeta(-INF_VALUE, INF_VALUE, depth - 1, &child_pv);
+        const int          value = -alphabeta(-beta, -alpha, depth - 1, &child_pv);
 
         board.unmake(position_states.parent(ply));
         --ply;

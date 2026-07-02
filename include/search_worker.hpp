@@ -71,7 +71,8 @@ private:
     void prepare_shared_search_state();
     void build_root_lines();
     int  search_root();
-    bool search_root_iteration(int depth);
+    bool search_root_aspiration(int depth, int previous_value);
+    bool search_root_iteration(int depth, int alpha, int beta);
     void record_root_result(int value);
     void report_final_result();
 

@@ -67,6 +67,11 @@ protected:
         return worker->search_root();
     }
 
+    bool runRootAspiration(int search_depth, int previous_value) {
+        worker->build_root_lines();
+        return worker->search_root_aspiration(search_depth, previous_value);
+    }
+
     int runQuiescence(int alpha, int beta) { return worker->quiescence(alpha, beta); }
 
     int runQuiescenceWithPv(int alpha, int beta, PrincipalVariation& pv) {
@@ -179,6 +184,18 @@ protected:
 
     uint64_t qTtCutoffsAt(int search_ply) const {
         return worker->stats.raw_counters().q_tt_cutoffs[search_ply];
+    }
+
+    uint64_t aspirationFailLows() const {
+        return worker->stats.raw_counters().aspiration_fail_lows;
+    }
+
+    uint64_t aspirationFailHighs() const {
+        return worker->stats.raw_counters().aspiration_fail_highs;
+    }
+
+    uint64_t aspirationResearches() const {
+        return worker->stats.raw_counters().aspiration_researches;
     }
 #endif
 
@@ -803,6 +820,69 @@ TEST_F(SearchTest, RootSearchBuildsPrincipalVariationForRootLine) {
     ASSERT_FALSE(rootPvEmpty());
     EXPECT_EQ(rootPvFront(), rootMove());
     EXPECT_EQ(rootPvSize(), 2);
+}
+
+TEST_F(SearchTest, RootAspirationWidensAfterFailHighAndCompletes) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 1);
+
+    ASSERT_TRUE(runRootAspiration(1, -1000));
+
+    EXPECT_TRUE(rootCompleted());
+    EXPECT_TRUE(rootMoveIsLegal());
+    EXPECT_EQ(rootDepth(), 1);
+    EXPECT_GT(rootValue(), -950);
+    ASSERT_FALSE(rootPvEmpty());
+    EXPECT_EQ(rootPvFront(), rootMove());
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_GT(aspirationFailHighs(), 0U);
+    EXPECT_EQ(aspirationFailLows(), 0U);
+    EXPECT_EQ(aspirationResearches(), aspirationFailHighs());
+#endif
+}
+
+TEST_F(SearchTest, RootAspirationWidensAfterFailLowAndCompletes) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 1);
+
+    ASSERT_TRUE(runRootAspiration(1, 1000));
+
+    EXPECT_TRUE(rootCompleted());
+    EXPECT_TRUE(rootMoveIsLegal());
+    EXPECT_EQ(rootDepth(), 1);
+    EXPECT_LT(rootValue(), 950);
+    ASSERT_FALSE(rootPvEmpty());
+    EXPECT_EQ(rootPvFront(), rootMove());
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_GT(aspirationFailLows(), 0U);
+    EXPECT_EQ(aspirationFailHighs(), 0U);
+    EXPECT_EQ(aspirationResearches(), aspirationFailLows());
+#endif
+}
+
+TEST_F(SearchTest, StoppedRootAspirationPreservesLastAcceptedRootSnapshot) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 2);
+
+    ASSERT_TRUE(runRootAspiration(1, evaluate(board)));
+    const RootLine accepted = rootSnapshot();
+    ASSERT_TRUE(accepted.usable_best_move());
+    ASSERT_EQ(accepted.depth, 1);
+
+    ThreadTestAccess::request_stop(*thread);
+
+    EXPECT_FALSE(runRootAspiration(2, accepted.value));
+
+    const RootLine snapshot = rootSnapshot();
+    EXPECT_EQ(snapshot.best_move, accepted.best_move);
+    EXPECT_EQ(snapshot.value, accepted.value);
+    EXPECT_EQ(snapshot.depth, accepted.depth);
+    EXPECT_EQ(snapshot.completed, accepted.completed);
+    EXPECT_EQ(snapshot.pv.size(), accepted.pv.size());
+    ASSERT_FALSE(snapshot.pv.empty());
+    EXPECT_EQ(snapshot.pv.front(), accepted.best_move);
 }
 
 TEST_F(SearchTest, RootSearchSetsNullMoveForCheckmate) {
