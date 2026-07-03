@@ -1,13 +1,16 @@
 #include <algorithm>
 #include <array>
 #include <optional>
+#include <sstream>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 #include "board.hpp"
 #include "evaluator.hpp"
+#include "move_picker.hpp"
 #include "movegen.hpp"
 #include "search_options.hpp"
 #include "search_worker.hpp"
@@ -25,11 +28,13 @@ constexpr auto AnyMove = "ANY";
 
 class SearchTest : public ::testing::Test {
 protected:
-    uci::Protocol protocol{std::cout, std::cerr};
-    ThreadPool    pool{1, protocol};
-    Thread*       thread;
-    SearchWorker* worker;
-    SearchOptions options;
+    std::ostringstream protocol_out;
+    std::ostringstream protocol_err;
+    uci::Protocol      protocol{protocol_out, protocol_err};
+    ThreadPool         pool{1, protocol};
+    Thread*            thread;
+    SearchWorker*      worker;
+    SearchOptions      options;
 
     void SetUp() override {
         thread        = &ThreadTestAccess::thread(pool);
@@ -88,6 +93,34 @@ protected:
 
     int runWorkerSearch() { return worker->search(); }
 
+    template <typename Fn>
+    auto withWorkerMove(Move move, Fn&& fn) {
+        using Result = std::invoke_result_t<Fn&>;
+
+        if (move.is_null()) {
+            ADD_FAILURE() << "withWorkerMove requires a non-null move";
+            if constexpr (std::is_void_v<Result>) {
+                return;
+            } else {
+                return Result{};
+            }
+        }
+
+        worker->board.make(move, worker->position_states.child(worker->ply));
+        ++worker->ply;
+
+        if constexpr (std::is_void_v<Result>) {
+            fn();
+            worker->board.unmake(worker->position_states.parent(worker->ply));
+            --worker->ply;
+        } else {
+            Result result = fn();
+            worker->board.unmake(worker->position_states.parent(worker->ply));
+            --worker->ply;
+            return result;
+        }
+    }
+
     int testAlphaBetaAfterMove(const std::string& fen,
                                const std::string& move_str,
                                int                alpha,
@@ -100,12 +133,8 @@ protected:
         if (move.is_null())
             return 0;
 
-        worker->board.make(move, worker->position_states.child(worker->ply));
-        ++worker->ply;
-        int score = worker->alphabeta<NON_PV>(alpha, beta, search_depth);
-        worker->board.unmake(worker->position_states.parent(worker->ply));
-        --worker->ply;
-        return score;
+        return withWorkerMove(move,
+                              [&] { return worker->alphabeta<NON_PV>(alpha, beta, search_depth); });
     }
 
     int testQuiescenceAfterMove(const std::string& fen,
@@ -119,23 +148,45 @@ protected:
         if (move.is_null())
             return 0;
 
-        worker->board.make(move, worker->position_states.child(worker->ply));
-        ++worker->ply;
-        int score = worker->quiescence<NON_PV>(alpha, beta);
-        worker->board.unmake(worker->position_states.parent(worker->ply));
-        --worker->ply;
-        return score;
+        return withWorkerMove(move, [&] { return worker->quiescence<NON_PV>(alpha, beta); });
     }
 
     void storeQsearchTtAfterMove(Move move, int score, TT_Flag flag) {
         ASSERT_FALSE(move.is_null());
 
-        worker->board.make(move, worker->position_states.child(worker->ply));
-        ++worker->ply;
-        tt.store_search(workerKey(), NULL_MOVE, score, 0, flag, workerPly());
-        worker->board.unmake(worker->position_states.parent(worker->ply));
-        --worker->ply;
+        withWorkerMove(
+            move, [&] { tt.store_search(workerKey(), NULL_MOVE, score, 0, flag, workerPly()); });
     }
+
+    Move firstWorkerPickerMove(Move tt_move = NULL_MOVE) {
+        MovePicker picker = MovePicker::main_search(
+            worker->board, worker->killers, worker->history, worker->ply, tt_move);
+        for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+            if (worker->board.is_legal_generated_move(move))
+                return move;
+        }
+        return NULL_MOVE;
+    }
+
+    int scoreWorkerChild(Move move, int alpha, int beta, int search_depth) {
+        return withWorkerMove(move, [&] {
+            return -worker->alphabeta<NON_PV>(-beta, -alpha, search_depth, nullptr, true);
+        });
+    }
+
+    void storeWorkerChildSearchTt(Move move, int score, int depth, TT_Flag flag) {
+        ASSERT_FALSE(move.is_null());
+
+        withWorkerMove(move, [&] {
+            tt.store_search(workerKey(), NULL_MOVE, score, depth, flag, workerPly());
+        });
+    }
+
+    bool workerLegalGeneratedMove(Move move) const {
+        return worker->board.is_legal_generated_move(move);
+    }
+
+    void seedWorkerKiller(Move move) { worker->killers.update(move, worker->ply); }
 
     uint64_t workerKey() const { return worker->board.key(); }
 
@@ -241,6 +292,18 @@ protected:
 
     uint64_t nullMoveCutoffsAt(int search_ply) const {
         return worker->stats.raw_counters().null_move_cutoffs[search_ply];
+    }
+
+    uint64_t razorTriesAt(int search_ply) const {
+        return worker->stats.raw_counters().razor_tries[search_ply];
+    }
+
+    uint64_t razorCutoffsAt(int search_ply) const {
+        return worker->stats.raw_counters().razor_cutoffs[search_ply];
+    }
+
+    uint64_t futilitySkipsAt(int search_ply) const {
+        return worker->stats.raw_counters().futility_skips[search_ply];
     }
 #endif
 
@@ -364,47 +427,37 @@ TEST_F(SearchTest, QuiescenceBuildsPrincipalVariationFromTacticalMove) {
     EXPECT_TRUE(board.is_legal_move(pv.front()));
 }
 
-TEST_F(SearchTest, QuiescenceUsesExactTranspositionTableCutoff) {
+TEST_F(SearchTest, QuiescenceUsesTranspositionTableCutoffForEligibleBounds) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  tt_score      = 321;
-    TestBoard      board{quiet_control};
-    loadWorkerBoard(board);
 
-    tt.store_search(workerKey(), NULL_MOVE, tt_score, 0, TT_Flag::Exact, workerPly());
+    struct Case {
+        const char* name;
+        TT_Flag     flag;
+        int         score;
+        int         alpha;
+        int         beta;
+    };
 
-    EXPECT_EQ(runQuiescence(-INF_VALUE, INF_VALUE), tt_score);
+    const std::array cases{
+        Case{"exact", TT_Flag::Exact, 321, -INF_VALUE, INF_VALUE},
+        Case{"lowerbound", TT_Flag::Lowerbound, 500, 100, 200},
+        Case{"upperbound", TT_Flag::Upperbound, -500, -200, -100},
+    };
+
+    for (const auto& tc : cases) {
+        TestBoard board{quiet_control};
+        loadWorkerBoard(board);
+
+        tt.store_search(workerKey(), NULL_MOVE, tc.score, 0, tc.flag, workerPly());
+
+        EXPECT_EQ(runQuiescence(tc.alpha, tc.beta), tc.score) << tc.name;
 
 #if LATRUNCULI_SEARCH_STATS
-    EXPECT_EQ(qTtProbesAt(0), 1U);
-    EXPECT_EQ(qTtHitsAt(0), 1U);
-    EXPECT_EQ(qTtCutoffsAt(0), 1U);
+        EXPECT_EQ(qTtProbesAt(0), 1U) << tc.name;
+        EXPECT_EQ(qTtHitsAt(0), 1U) << tc.name;
+        EXPECT_EQ(qTtCutoffsAt(0), 1U) << tc.name;
 #endif
-}
-
-TEST_F(SearchTest, QuiescenceUsesLowerboundTranspositionTableCutoff) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  tt_score      = 500;
-    constexpr int  alpha         = 100;
-    constexpr int  beta          = 200;
-    TestBoard      board{quiet_control};
-    loadWorkerBoard(board);
-
-    tt.store_search(workerKey(), NULL_MOVE, tt_score, 0, TT_Flag::Lowerbound, workerPly());
-
-    EXPECT_EQ(runQuiescence(alpha, beta), tt_score);
-}
-
-TEST_F(SearchTest, QuiescenceUsesUpperboundTranspositionTableCutoff) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  tt_score      = -500;
-    constexpr int  alpha         = -200;
-    constexpr int  beta          = -100;
-    TestBoard      board{quiet_control};
-    loadWorkerBoard(board);
-
-    tt.store_search(workerKey(), NULL_MOVE, tt_score, 0, TT_Flag::Upperbound, workerPly());
-
-    EXPECT_EQ(runQuiescence(alpha, beta), tt_score);
+    }
 }
 
 TEST_F(SearchTest, QuiescenceIgnoresQuietNonCheckTranspositionTableMove) {
@@ -625,49 +678,32 @@ TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsDrawBeforeStaticEval) {
     EXPECT_EQ(workerNodes(), 1U);
 }
 
-TEST_F(SearchTest, AlphaBetaUsesExactTranspositionTableCutoff) {
+TEST_F(SearchTest, AlphaBetaUsesTranspositionTableCutoffForEligibleBounds) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     constexpr int  search_depth  = 2;
-    constexpr int  tt_score      = 321;
 
-    TestBoard board{quiet_control};
-    loadWorkerBoard(board);
+    struct Case {
+        const char* name;
+        TT_Flag     flag;
+        int         score;
+        int         alpha;
+        int         beta;
+    };
 
-    tt.store_search(workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Exact, workerPly());
+    const std::array cases{
+        Case{"exact", TT_Flag::Exact, 321, -INF_VALUE, INF_VALUE},
+        Case{"lowerbound", TT_Flag::Lowerbound, 500, 100, 200},
+        Case{"upperbound", TT_Flag::Upperbound, -500, -200, -100},
+    };
 
-    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth), tt_score);
-}
+    for (const auto& tc : cases) {
+        TestBoard board{quiet_control};
+        loadWorkerBoard(board);
 
-TEST_F(SearchTest, AlphaBetaUsesLowerboundTranspositionTableCutoff) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  search_depth  = 2;
-    constexpr int  tt_score      = 500;
-    constexpr int  alpha         = 100;
-    constexpr int  beta          = 200;
+        tt.store_search(workerKey(), NULL_MOVE, tc.score, search_depth, tc.flag, workerPly());
 
-    TestBoard board{quiet_control};
-    loadWorkerBoard(board);
-
-    tt.store_search(
-        workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Lowerbound, workerPly());
-
-    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), tt_score);
-}
-
-TEST_F(SearchTest, AlphaBetaUsesUpperboundTranspositionTableCutoff) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  search_depth  = 2;
-    constexpr int  tt_score      = -500;
-    constexpr int  alpha         = -200;
-    constexpr int  beta          = -100;
-
-    TestBoard board{quiet_control};
-    loadWorkerBoard(board);
-
-    tt.store_search(
-        workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Upperbound, workerPly());
-
-    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), tt_score);
+        EXPECT_EQ(runNonPvAlphaBeta(tc.alpha, tc.beta, search_depth), tc.score) << tc.name;
+    }
 }
 
 TEST_F(SearchTest, AlphaBetaDoesNotCutoffWithShallowTranspositionTableEntry) {
@@ -862,40 +898,49 @@ TEST_F(SearchTest, AlphaBetaNullMovePruningRequiresAllGuards) {
     constexpr int null_child_score = -200;
 
     struct Case {
+        const char* name;
         const char* fen;
         int         depth;
         bool        can_null;
     };
 
     const std::array cases{
-        Case{"k7/8/2K5/8/8/8/R6q/8 b - - 0 1", 4, true}, // in check
-        Case{"k7/8/2K5/8/8/8/8/8 b - - 0 1", 4, true},   // insufficient material
-        Case{"4k3/8/8/8/8/8/8/4K2R w - - 0 1", 4, true}, // lone rook material
-        Case{STARTFEN, 2, true},                         // shallower than reduction
-        Case{"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1", 4, false},
+        Case{"in check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", 4, true},
+        Case{"insufficient material", "k7/8/2K5/8/8/8/8/8 b - - 0 1", 4, true},
+        Case{"lone rook material", "4k3/8/8/8/8/8/8/4K2R w - - 0 1", 4, true},
+        Case{"shallower than reduction", STARTFEN, 2, true},
+        Case{"immediate repeated null",
+             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1",
+             4,
+             false},
     };
 
-    for (const auto& tc : cases) {
+    const auto expectNullMoveBlocked = [&](const Case& tc) {
+        SCOPED_TRACE(tc.name);
+
         TestBoard baseline_board{tc.fen};
         loadWorkerBoard(baseline_board, tc.depth);
         const int baseline = runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null);
 
         TestBoard board{tc.fen};
         loadWorkerBoard(board, tc.depth);
-        const uint64_t null_child_key = workerNullChildKey();
-        tt.store_search(null_child_key,
+        tt.store_search(workerNullChildKey(),
                         NULL_MOVE,
                         null_child_score,
                         std::max(0, tc.depth - 3),
                         TT_Flag::Exact,
                         1);
 
-        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null), baseline) << tc.fen;
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null), baseline);
 
 #if LATRUNCULI_SEARCH_STATS
-        EXPECT_EQ(nullMoveTriesAt(0), 0U) << tc.fen;
-        EXPECT_EQ(nullMoveCutoffsAt(0), 0U) << tc.fen;
+        EXPECT_EQ(nullMoveTriesAt(0), 0U);
+        EXPECT_EQ(nullMoveCutoffsAt(0), 0U);
 #endif
+    };
+
+    for (const auto& tc : cases) {
+        expectNullMoveBlocked(tc);
     }
 }
 
@@ -959,6 +1004,194 @@ TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendant
     EXPECT_EQ(nullMoveTriesAt(0), 0U);
     EXPECT_GT(nullMoveTriesAt(1), 0U);
 #endif
+}
+
+TEST_F(SearchTest, AlphaBetaRazoringReturnsQsearchFailLowWithoutParentMainTtStore) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
+
+    TestBoard board{quiet_control};
+    loadWorkerBoard(board, search_depth);
+
+    const int static_eval = evaluate(board);
+    const int alpha       = static_eval + 901;
+    const int beta        = alpha + 100;
+    const int value       = runNonPvAlphaBeta(alpha, beta, search_depth);
+
+    EXPECT_EQ(value, static_eval);
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_NE(record->depth, search_depth);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(razorTriesAt(0), 1U);
+    EXPECT_EQ(razorCutoffsAt(0), 1U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaRazoringRequiresAllGuards) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
+
+    struct Case {
+        const char* name;
+        const char* fen;
+        int         depth;
+        bool        can_null;
+        bool        pv;
+        bool        seed_tt_move;
+        int         alpha_offset;
+    };
+
+    const std::array cases{
+        Case{"PV node", quiet_control, search_depth, true, true, false, 901},
+        Case{"in check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", search_depth, true, false, false, 901},
+        Case{"depth above max", quiet_control, 4, true, false, false, 1901},
+        Case{"can_null false", STARTFEN, search_depth, false, false, false, 901},
+        Case{"TT move available", STARTFEN, search_depth, true, false, true, 901},
+        Case{"static eval above margin", STARTFEN, search_depth, true, false, false, 899},
+    };
+
+    const auto expectRazoringBlocked = [&](const Case& tc) {
+        SCOPED_TRACE(tc.name);
+
+        TestBoard board{tc.fen};
+        loadWorkerBoard(board, tc.depth);
+
+        if (tc.seed_tt_move) {
+            const Move tt_move = firstWorkerPickerMove();
+            ASSERT_FALSE(tt_move.is_null()) << tc.fen;
+            tt.store_search(workerKey(), tt_move, 0, 0, TT_Flag::Exact, workerPly());
+        }
+
+        const int static_eval = evaluate(board);
+        const int alpha       = static_eval + tc.alpha_offset;
+        const int beta        = alpha + 100;
+        if (tc.pv) {
+            PrincipalVariation pv;
+            (void)runPvAlphaBeta(alpha, beta, tc.depth, pv);
+        } else {
+            (void)runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null);
+        }
+
+        auto record = workerTtRecord();
+        ASSERT_TRUE(record.has_value()) << tc.fen;
+        EXPECT_EQ(record->depth, tc.depth) << tc.fen;
+
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_EQ(razorTriesAt(0), 0U) << tc.fen;
+        EXPECT_EQ(razorCutoffsAt(0), 0U) << tc.fen;
+#endif
+    };
+
+    for (const auto& tc : cases) {
+        expectRazoringBlocked(tc);
+    }
+}
+
+TEST_F(SearchTest, AlphaBetaFutilitySkipsOnlyAfterFirstLegalQuietMove) {
+    constexpr int search_depth = 2;
+
+    TestBoard expected_board{STARTFEN};
+    loadWorkerBoard(expected_board, search_depth);
+
+    const int  alpha      = evaluate(expected_board) + 401;
+    const int  beta       = alpha + 100;
+    const Move first_move = firstWorkerPickerMove();
+    ASSERT_FALSE(first_move.is_null());
+
+    const int expected = scoreWorkerChild(first_move, alpha, beta, search_depth - 1);
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), expected);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(futilitySkipsAt(0), 1U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaFutilityRequiresAllGuards) {
+    constexpr int search_depth = 2;
+
+    struct Case {
+        const char* name;
+        const char* fen;
+        int         depth;
+        int         alpha;
+        bool        pv;
+    };
+
+    TestBoard static_eval_board{STARTFEN};
+    const int static_eval = evaluate(static_eval_board);
+
+    const std::array cases{
+        Case{"PV node", STARTFEN, search_depth, static_eval + 401, true},
+        Case{"in check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", search_depth, 1000, false},
+        Case{"depth above max", STARTFEN, 4, static_eval + 401, false},
+        Case{"mate-adjacent alpha", STARTFEN, search_depth, MATE_BOUND, false},
+        Case{"static eval above margin", STARTFEN, search_depth, static_eval + 399, false},
+    };
+
+    const auto expectFutilityBlocked = [&](const Case& tc) {
+        SCOPED_TRACE(tc.name);
+
+        TestBoard board{tc.fen};
+        loadWorkerBoard(board, tc.depth);
+
+        const int beta = tc.alpha + 100;
+        if (tc.pv) {
+            PrincipalVariation pv;
+            (void)runPvAlphaBeta(tc.alpha, beta, tc.depth, pv);
+        } else {
+            (void)runNonPvAlphaBeta(tc.alpha, beta, tc.depth, false);
+        }
+
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_EQ(futilitySkipsAt(0), 0U) << tc.fen;
+#endif
+    };
+
+    for (const auto& tc : cases) {
+        expectFutilityBlocked(tc);
+    }
+}
+
+TEST_F(SearchTest, AlphaBetaFutilityKeepsCapturesPromotionsAndCheckingMoves) {
+    constexpr int search_depth = 2;
+
+    struct Case {
+        const char* fen;
+        Move        first;
+        Move        candidate;
+        bool        candidate_is_killer;
+    };
+
+    const std::array cases{
+        Case{"4k3/8/8/8/8/8/R6r/4K3 w - - 0 1", Move(E1, D1), Move(A2, H2), false},
+        Case{
+            "4k3/P6p/8/8/8/8/8/4K3 w - - 0 1", Move(E1, D1), Move(A7, A8, MOVE_PROM, QUEEN), false},
+        Case{"4k3/8/8/8/8/8/R7/4K3 w - - 0 1", Move(A2, A3), Move(A2, E2), true},
+    };
+
+    for (const auto& tc : cases) {
+        TestBoard board{tc.fen};
+        loadWorkerBoard(board, search_depth);
+        ASSERT_TRUE(workerLegalGeneratedMove(tc.first)) << tc.fen;
+        ASSERT_TRUE(workerLegalGeneratedMove(tc.candidate)) << tc.fen;
+
+        const int alpha       = evaluate(board) + 401;
+        const int beta        = alpha + 1000;
+        const int child_score = -(beta + 100);
+
+        tt.store_search(workerKey(), tc.first, 0, 0, TT_Flag::Exact, workerPly());
+        if (tc.candidate_is_killer)
+            seedWorkerKiller(tc.candidate);
+        storeWorkerChildSearchTt(tc.candidate, child_score, search_depth - 1, TT_Flag::Exact);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), -child_score) << tc.fen;
+    }
 }
 
 TEST_F(SearchTest, PvAlphaBetaMatchesFullWindowBaselineAndBuildsPv) {

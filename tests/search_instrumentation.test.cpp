@@ -24,6 +24,9 @@ TEST(SearchInstrumentation, DisabledStatsAreNoOps) {
     stats.q_tt_cutoff(1);
     stats.null_move_try(1);
     stats.null_move_cutoff(1);
+    stats.razor_try(1);
+    stats.razor_cutoff(1);
+    stats.futility_skip(1);
     stats.reset();
     stats += other;
 
@@ -53,6 +56,9 @@ TEST(SearchInstrumentation, RecordsEventsAndReset) {
     stats.q_tt_cutoff(ply);
     stats.null_move_try(ply);
     stats.null_move_cutoff(ply);
+    stats.razor_try(ply);
+    stats.razor_cutoff(ply);
+    stats.futility_skip(ply);
 
     const auto& counters = stats.raw_counters();
     EXPECT_EQ(counters.nodes[ply], 2);
@@ -77,6 +83,9 @@ TEST(SearchInstrumentation, RecordsEventsAndReset) {
     EXPECT_EQ(counters.q_tt_cutoffs[ply], 1);
     EXPECT_EQ(counters.null_move_tries[ply], 1);
     EXPECT_EQ(counters.null_move_cutoffs[ply], 1);
+    EXPECT_EQ(counters.razor_tries[ply], 1);
+    EXPECT_EQ(counters.razor_cutoffs[ply], 1);
+    EXPECT_EQ(counters.futility_skips[ply], 1);
 
     stats.reset();
 
@@ -103,6 +112,9 @@ TEST(SearchInstrumentation, RecordsEventsAndReset) {
     EXPECT_EQ(reset_counters.q_tt_cutoffs[ply], 0);
     EXPECT_EQ(reset_counters.null_move_tries[ply], 0);
     EXPECT_EQ(reset_counters.null_move_cutoffs[ply], 0);
+    EXPECT_EQ(reset_counters.razor_tries[ply], 0);
+    EXPECT_EQ(reset_counters.razor_cutoffs[ply], 0);
+    EXPECT_EQ(reset_counters.futility_skips[ply], 0);
 }
 
 TEST(SearchInstrumentation, ArithmeticOperators) {
@@ -116,6 +128,9 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     counters1.q_tt_probes[1]        = 5;
     counters1.null_move_tries[1]    = 6;
     counters1.null_move_cutoffs[1]  = 3;
+    counters1.razor_tries[1]        = 4;
+    counters1.razor_cutoffs[1]      = 2;
+    counters1.futility_skips[1]     = 7;
     counters1.aspiration_fail_lows  = 1;
     counters1.aspiration_fail_highs = 2;
     counters1.aspiration_researches = 3;
@@ -127,6 +142,9 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     counters2.q_tt_probes[1]        = 7;
     counters2.null_move_tries[1]    = 8;
     counters2.null_move_cutoffs[1]  = 5;
+    counters2.razor_tries[1]        = 9;
+    counters2.razor_cutoffs[1]      = 6;
+    counters2.futility_skips[1]     = 11;
     counters2.aspiration_fail_lows  = 4;
     counters2.aspiration_fail_highs = 5;
     counters2.aspiration_researches = 6;
@@ -143,6 +161,9 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     EXPECT_EQ(stats1.raw_counters().q_tt_probes[1], 12);
     EXPECT_EQ(stats1.raw_counters().null_move_tries[1], 14);
     EXPECT_EQ(stats1.raw_counters().null_move_cutoffs[1], 8);
+    EXPECT_EQ(stats1.raw_counters().razor_tries[1], 13);
+    EXPECT_EQ(stats1.raw_counters().razor_cutoffs[1], 8);
+    EXPECT_EQ(stats1.raw_counters().futility_skips[1], 18);
     EXPECT_EQ(stats1.raw_counters().aspiration_fail_lows, 5);
     EXPECT_EQ(stats1.raw_counters().aspiration_fail_highs, 7);
     EXPECT_EQ(stats1.raw_counters().aspiration_researches, 9);
@@ -151,6 +172,9 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     EXPECT_EQ(stats3.raw_counters().nodes[1], 20);
     EXPECT_EQ(stats3.raw_counters().null_move_tries[1], 22);
     EXPECT_EQ(stats3.raw_counters().null_move_cutoffs[1], 13);
+    EXPECT_EQ(stats3.raw_counters().razor_tries[1], 22);
+    EXPECT_EQ(stats3.raw_counters().razor_cutoffs[1], 14);
+    EXPECT_EQ(stats3.raw_counters().futility_skips[1], 29);
     EXPECT_EQ(stats3.raw_counters().aspiration_researches, 15);
 }
 
@@ -186,6 +210,12 @@ TEST(SearchInstrumentation, Output) {
     counters.null_move_cutoffs[1]   = 3;
     counters.null_move_tries[2]     = 4;
     counters.null_move_cutoffs[2]   = 1;
+    counters.razor_tries[1]         = 7;
+    counters.razor_cutoffs[1]       = 2;
+    counters.razor_tries[2]         = 3;
+    counters.razor_cutoffs[2]       = 2;
+    counters.futility_skips[1]      = 5;
+    counters.futility_skips[2]      = 6;
 
     SearchInstrumentation<true> stats{counters};
     std::ostringstream          oss;
@@ -195,6 +225,9 @@ TEST(SearchInstrumentation, Output) {
     EXPECT_NE(oss.str().find("Aspiration: fail-low=1 fail-high=2 re-searches=3"),
               std::string::npos);
     EXPECT_NE(oss.str().find("NullMove: tries=10 cutoffs=4 cutoff-rate=40.0%"), std::string::npos);
+    EXPECT_NE(oss.str().find("RazorFutility: razor-tries=10 razor-cutoffs=4 "
+                             "razor-cutoff-rate=40.0% futility-skips=11"),
+              std::string::npos);
     EXPECT_NE(oss.str().find("Depth"), std::string::npos);
     EXPECT_NE(oss.str().find("Nodes"), std::string::npos);
     EXPECT_NE(oss.str().find("CutIdx"), std::string::npos);

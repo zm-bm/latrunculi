@@ -28,6 +28,7 @@ public:
 
     // Returns ordered pseudo-legal candidates; search remains the legal-move authority.
     Move next();
+    void skip_quiet_moves();
 
 private:
     enum class Mode : uint8_t {
@@ -103,4 +104,5 @@ private:
     ScoredBand quiet;
     Move       killer_1{NULL_MOVE};
     Move       killer_2{NULL_MOVE};
+    bool       skip_quiets{false};
 };

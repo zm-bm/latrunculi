@@ -158,6 +158,16 @@ Move MovePicker::pick(ScoredBand& band) {
     return move;
 }
 
+void MovePicker::skip_quiet_moves() {
+    if (mode != Mode::MainSearch || in_check)
+        return;
+
+    skip_quiets = true;
+    if (stage == Stage::KILLER_1 || stage == Stage::KILLER_2 || stage == Stage::LOAD_QUIET ||
+        stage == Stage::PICK_QUIET)
+        stage = Stage::PICK_BAD_NOISY;
+}
+
 Move MovePicker::next() {
     while (stage != Stage::DONE) {
         switch (stage) {
@@ -198,7 +208,10 @@ Move MovePicker::next() {
             if (!move.is_null())
                 return move;
 
-            stage = mode == Mode::QSearch ? Stage::DONE : Stage::KILLER_1;
+            if (mode == Mode::QSearch)
+                stage = Stage::DONE;
+            else
+                stage = skip_quiets ? Stage::PICK_BAD_NOISY : Stage::KILLER_1;
             break;
         }
 
@@ -215,6 +228,10 @@ Move MovePicker::next() {
             break;
 
         case Stage::LOAD_QUIET:
+            if (skip_quiets) {
+                stage = Stage::PICK_BAD_NOISY;
+                break;
+            }
             assert(generated.end != nullptr);
             quiet.cur = generated.end;
             quiet.end = score_moves<ScoreKind::Quiet>(movegen::generate_quiet(board), quiet.cur);

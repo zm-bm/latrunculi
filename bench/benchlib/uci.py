@@ -61,6 +61,10 @@ STATS_COLUMNS = [
     "stats_null_move_tries",
     "stats_null_move_cutoffs",
     "stats_null_move_cutoff_pct",
+    "stats_razor_tries",
+    "stats_razor_cutoffs",
+    "stats_razor_cutoff_pct",
+    "stats_futility_skips",
     "stats_aspiration_fail_low",
     "stats_aspiration_fail_high",
     "stats_aspiration_researches",
@@ -526,6 +530,17 @@ def parse_search_stats_lines(lines: list[str]) -> dict[str, str]:
             stats["stats_null_move_cutoffs"] = null_move_match.group(2)
             stats["stats_null_move_cutoff_pct"] = null_move_match.group(3)
             continue
+        razor_futility_match = re.search(
+            r"^RazorFutility:\s+razor-tries=(\d+)\s+razor-cutoffs=(\d+)\s+"
+            r"razor-cutoff-rate=([-+0-9.]+)%\s+futility-skips=(\d+)",
+            stripped,
+        )
+        if razor_futility_match:
+            stats["stats_razor_tries"] = razor_futility_match.group(1)
+            stats["stats_razor_cutoffs"] = razor_futility_match.group(2)
+            stats["stats_razor_cutoff_pct"] = razor_futility_match.group(3)
+            stats["stats_futility_skips"] = razor_futility_match.group(4)
+            continue
         if "Depth" in stripped and "Nodes (QNode%)" in stripped and "Cutoffs" in stripped:
             capture = True
             continue
@@ -704,12 +719,12 @@ def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]
         f"- Movetime: `{manifest['movetime_ms']} ms`; repeats: `{manifest['repeats']}`; hash: `{manifest['hash_mb']} MiB`",
         "",
         "## Averaged results",
-        "| Position | Threads | Depth | Nodes | NPS | Beta cutoffs | Early% | CutIdx | NullMove Try/Cut% | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Bestmove(s) |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---|---|---|---:|---|",
+        "| Position | Threads | Depth | Nodes | NPS | Beta cutoffs | Early% | CutIdx | NullMove Try/Cut% | Razor Try/Cut% | Futility Skip | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Bestmove(s) |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---|---|---:|---|",
     ]
     for (position_id, threads), agg in grouped.items():
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {}/{} | {} | {} |".format(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {} | {}/{} | {}/{} | {} | {} |".format(
                 position_id,
                 threads,
                 format_num(agg["depth"]),
@@ -720,6 +735,9 @@ def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]
                 format_num(agg["stats_cutoff_avg_index"]),
                 format_num(agg["stats_null_move_tries"]),
                 format_num(agg["stats_null_move_cutoff_pct"]),
+                format_num(agg["stats_razor_tries"]),
+                format_num(agg["stats_razor_cutoff_pct"]),
+                format_num(agg["stats_futility_skips"]),
                 format_num(agg["stats_main_tt_hit_pct"]),
                 format_num(agg["stats_main_tt_cutoff_pct"]),
                 format_num(agg["stats_q_tt_hit_pct"]),
@@ -756,12 +774,12 @@ def render_fixed_depth_summary(manifest: dict[str, object], rows: list[dict[str,
         f"- Depth: `{manifest['depth_target']}`; repeats: `{manifest['repeats']}`; hash: `{manifest['hash_mb']} MiB`",
         "",
         "## Averaged results",
-        "| Position | Threads | Depth | Nodes | Time ms | NPS | NullMove Try/Cut% | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Score(s) | Bestmove(s) |",
-        "|---|---:|---:|---:|---:|---:|---|---|---|---:|---|---|",
+        "| Position | Threads | Depth | Nodes | Time ms | NPS | NullMove Try/Cut% | Razor Try/Cut% | Futility Skip | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Score(s) | Bestmove(s) |",
+        "|---|---:|---:|---:|---:|---:|---|---|---:|---|---|---:|---|---|",
     ]
     for (position_id, threads), agg in grouped.items():
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {}/{} | {} | {} | {} |".format(
+            "| {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {} | {}/{} | {}/{} | {} | {} | {} |".format(
                 position_id,
                 threads,
                 format_num(agg["depth"]),
@@ -770,6 +788,9 @@ def render_fixed_depth_summary(manifest: dict[str, object], rows: list[dict[str,
                 format_num(agg["nps"]),
                 format_num(agg["stats_null_move_tries"]),
                 format_num(agg["stats_null_move_cutoff_pct"]),
+                format_num(agg["stats_razor_tries"]),
+                format_num(agg["stats_razor_cutoff_pct"]),
+                format_num(agg["stats_futility_skips"]),
                 format_num(agg["stats_main_tt_hit_pct"]),
                 format_num(agg["stats_main_tt_cutoff_pct"]),
                 format_num(agg["stats_q_tt_hit_pct"]),
@@ -810,15 +831,15 @@ def render_direct_compare(
         f"- Candidate: `{new_dir}`",
         "",
         "## Averaged deltas",
-        "| Position | Threads | Depth old/new | Nodes delta | NPS old/new | NPS delta | Beta cutoff delta | Early delta | CutIdx delta | NullMove Try delta | NullMove Cut% delta | MainTT Hit delta | QTT Hit delta | QNode delta | Bestmove old/new |",
-        "|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| Position | Threads | Depth old/new | Nodes delta | NPS old/new | NPS delta | Beta cutoff delta | Early delta | CutIdx delta | NullMove Try delta | NullMove Cut% delta | Razor Try delta | Razor Cut% delta | Futility Skip delta | MainTT Hit delta | QTT Hit delta | QNode delta | Bestmove old/new |",
+        "|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for key in keys:
         position_id, threads = key
         old_agg = old.get(key, {})
         new_agg = new.get(key, {})
         lines.append(
-            "| {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} / {} |".format(
+            "| {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} / {} |".format(
                 position_id,
                 threads,
                 format_num(old_agg.get("depth")),
@@ -834,6 +855,9 @@ def render_direct_compare(
                 delta_points(
                     old_agg.get("stats_null_move_cutoff_pct"), new_agg.get("stats_null_move_cutoff_pct")
                 ),
+                percent_delta(old_agg.get("stats_razor_tries"), new_agg.get("stats_razor_tries")),
+                delta_points(old_agg.get("stats_razor_cutoff_pct"), new_agg.get("stats_razor_cutoff_pct")),
+                percent_delta(old_agg.get("stats_futility_skips"), new_agg.get("stats_futility_skips")),
                 delta_points(old_agg.get("stats_main_tt_hit_pct"), new_agg.get("stats_main_tt_hit_pct")),
                 delta_points(old_agg.get("stats_q_tt_hit_pct"), new_agg.get("stats_q_tt_hit_pct")),
                 delta_points(old_agg.get("stats_qnode_pct"), new_agg.get("stats_qnode_pct")),
@@ -863,15 +887,15 @@ def render_fixed_depth_compare(
         f"- Candidate: `{new_dir}`",
         "",
         "## Averaged deltas",
-        "| Position | Threads | Depth old/new | Nodes delta | Time old/new | Time delta | NPS old/new | NPS delta | NullMove Try delta | NullMove Cut% delta | MainTT Hit delta | QTT Hit delta | QNode delta | Score old/new | Bestmove old/new |",
-        "|---|---:|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---|---|",
+        "| Position | Threads | Depth old/new | Nodes delta | Time old/new | Time delta | NPS old/new | NPS delta | NullMove Try delta | NullMove Cut% delta | Razor Try delta | Razor Cut% delta | Futility Skip delta | MainTT Hit delta | QTT Hit delta | QNode delta | Score old/new | Bestmove old/new |",
+        "|---|---:|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|",
     ]
     for key in keys:
         position_id, threads = key
         old_agg = old.get(key, {})
         new_agg = new.get(key, {})
         lines.append(
-            "| {} | {} | {} / {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} | {} | {} / {} | {} / {} |".format(
+            "| {} | {} | {} / {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} / {} | {} / {} |".format(
                 position_id,
                 threads,
                 format_num(old_agg.get("depth")),
@@ -887,6 +911,9 @@ def render_fixed_depth_compare(
                 delta_points(
                     old_agg.get("stats_null_move_cutoff_pct"), new_agg.get("stats_null_move_cutoff_pct")
                 ),
+                percent_delta(old_agg.get("stats_razor_tries"), new_agg.get("stats_razor_tries")),
+                delta_points(old_agg.get("stats_razor_cutoff_pct"), new_agg.get("stats_razor_cutoff_pct")),
+                percent_delta(old_agg.get("stats_futility_skips"), new_agg.get("stats_futility_skips")),
                 delta_points(old_agg.get("stats_main_tt_hit_pct"), new_agg.get("stats_main_tt_hit_pct")),
                 delta_points(old_agg.get("stats_q_tt_hit_pct"), new_agg.get("stats_q_tt_hit_pct")),
                 delta_points(old_agg.get("stats_qnode_pct"), new_agg.get("stats_qnode_pct")),

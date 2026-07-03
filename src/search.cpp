@@ -18,6 +18,11 @@ constexpr int NullMoveReductionBase = 3;
 constexpr int NullMoveReductionDeep = 4;
 constexpr int NullMoveDeepDepth     = 6;
 
+// Razoring and futility defaults.
+constexpr int RazorFutilityMaxDepth = 3;
+constexpr int RazorMargin[]         = {0, 500, 900, 1800};
+constexpr int FutilityMargin[]      = {0, 250, 400, 550};
+
 // Apply the PV/non-PV TT cutoff policy.
 template <NodeType Node>
 bool tt_cutoff_allowed(
@@ -214,9 +219,24 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
 
     const bool  in_check = board.is_check();
     const Color turn     = board.side_to_move();
+    bool        futility = false;
 
     if constexpr (Node == NON_PV) {
-        // Step 5. Null Move Pruning. If passing still maintains beta, prune early.
+        // Step 5. Razoring. At shallow fail-low nodes, verify with qsearch.
+        const int static_eval = evaluate(board);
+        if (can_null && !in_check && depth <= RazorFutilityMaxDepth && tt_move.is_null() &&
+            static_eval + RazorMargin[depth] <= alpha) {
+            stats.razor_try(ply);
+            const int value = quiescence<NON_PV>(alpha - 1, alpha);
+            if (stop_requested())
+                return alpha;
+            if (value < alpha) {
+                stats.razor_cutoff(ply);
+                return value;
+            }
+        }
+
+        // Step 6. Null Move Pruning. If passing still maintains beta, prune early.
         // Skip NMP when a depth-sufficient TT upper bound suggests it will fail low.
         const int reduction =
             depth > NullMoveDeepDepth ? NullMoveReductionDeep : NullMoveReductionBase;
@@ -241,6 +261,10 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
                 return value;
             }
         }
+
+        // Step 7. Futility Pruning. If quiet moves cannot raise alpha, skip them after one move.
+        futility = depth <= RazorFutilityMaxDepth && !in_check && alpha > -MATE_BOUND &&
+                   alpha < MATE_BOUND && static_eval + FutilityMargin[depth] <= alpha;
     }
 
     int                move_count = 0;
@@ -249,12 +273,13 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
     MovePicker         picker     = MovePicker::main_search(board, killers, history, ply, tt_move);
     PrincipalVariation child_pv;
 
-    // Step 6. Move Loop. Search ordered legal moves until cutoff or exhaustion.
+    // Step 8. Move Loop. Search ordered legal moves until cutoff or exhaustion.
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (!board.is_legal_generated_move(move))
             continue;
 
         ++move_count;
+        const bool first_legal = move_count == 1;
 
         const bool is_promotion = move.type() == MOVE_PROM;
         const bool is_capture   = board.is_capture(move);
@@ -263,7 +288,16 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         board.make(move, position_states.child(ply));
         ++ply;
 
-        // Step 7. Principal Variation Search. Scout later PV moves before re-search.
+        const bool gives_check = board.is_check();
+        if (futility && !first_legal && is_quiet && !gives_check) {
+            board.unmake(position_states.parent(ply));
+            --ply;
+            picker.skip_quiet_moves();
+            stats.futility_skip(ply);
+            continue;
+        }
+
+        // Step 9. Principal Variation Search. Scout later PV moves before re-search.
         int value;
         if constexpr (Node == NON_PV) {
             value = -alphabeta<NON_PV>(-beta, -alpha, depth - 1, nullptr, true);
@@ -285,7 +319,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
             return alpha;
 
         if (value >= beta) {
-            // Step 8. Beta Cutoff. Return fail-soft value and store a lower bound.
+            // Step 10. Beta Cutoff. Return fail-soft value and store a lower bound.
             if (is_quiet) {
                 killers.update(move, ply);
                 history.update(turn, move.from(), move.to(), depth);
@@ -299,7 +333,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
             return value;
         }
 
-        // Step 9. Best Move Update. Raise alpha and PV when this move improves the node.
+        // Step 11. Best Move Update. Raise alpha and PV when this move improves the node.
         if (value > best_value) {
             best_value = value;
             best_move  = move;
@@ -312,14 +346,14 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         }
     }
 
-    // Step 10. Mate and Stalemate Detection. No legal moves ends the node.
+    // Step 12. Mate and Stalemate Detection. No legal moves ends the node.
     if (move_count == 0) {
         best_value = in_check ? -MATE_VALUE + ply : DRAW_VALUE;
         tt.store_search(position_key, NULL_MOVE, best_value, depth, TT_Flag::Exact, ply);
         return best_value;
     }
 
-    // Step 11. Store Result. Use the original window to classify the bound.
+    // Step 13. Store Result. Use the original window to classify the bound.
     tt.store_search(position_key,
                     best_move,
                     best_value,

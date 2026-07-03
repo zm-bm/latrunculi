@@ -426,3 +426,40 @@ TEST_F(MovePickerTest, MainSearchKeepsDeterministicEqualPriorityQuietOrder) {
     ASSERT_GT(first_order.size(), 1U);
     EXPECT_EQ(second_order, first_order);
 }
+
+TEST_F(MovePickerTest, SkipQuietMovesSkipsKillersAndQuietsButKeepsBadNoisyMoves) {
+    TestBoard weak_capture_board{std::string(WEAK_CAPTURE_FEN)};
+    Move      killer_move = Move(D1, D2);
+    ASSERT_TRUE(weak_capture_board.is_pseudo_legal(killer_move));
+    ASSERT_FALSE(weak_capture_board.is_capture(killer_move));
+    killers.update(killer_move, ply);
+
+    MovePicker picker =
+        MovePicker::main_search(weak_capture_board, killers, history, ply, NULL_MOVE);
+    picker.skip_quiet_moves();
+    const auto moves = collect_moves(picker);
+
+    EXPECT_EQ(std::find(moves.begin(), moves.end(), killer_move), moves.end());
+    EXPECT_NE(std::find(moves.begin(), moves.end(), Move(D1, D7)), moves.end());
+    for (Move move : moves) {
+        EXPECT_TRUE(move.type() == MOVE_PROM || weak_capture_board.is_capture(move)) << move.str();
+    }
+}
+
+TEST_F(MovePickerTest, SkipQuietMovesIsNoOpForQSearch) {
+    MovePicker picker = MovePicker::qsearch(board, history, NULL_MOVE);
+    picker.skip_quiet_moves();
+
+    EXPECT_EQ(collect_moves(picker), picked_qsearch(board, history));
+}
+
+TEST_F(MovePickerTest, SkipQuietMovesIsNoOpForInCheckMainSearch) {
+    TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
+    ASSERT_TRUE(evasion_board.is_check());
+
+    MovePicker picker = MovePicker::main_search(evasion_board, killers, history, ply, NULL_MOVE);
+    picker.skip_quiet_moves();
+
+    EXPECT_EQ(sorted_move_bits(collect_moves(picker)),
+              sorted_move_bits(movegen::generate_evasions(evasion_board)));
+}

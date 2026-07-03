@@ -48,6 +48,9 @@ struct SearchCounters<true> {
     StatsArray q_tt_cutoffs{0};
     StatsArray null_move_tries{0};
     StatsArray null_move_cutoffs{0};
+    StatsArray razor_tries{0};
+    StatsArray razor_cutoffs{0};
+    StatsArray futility_skips{0};
 
     uint64_t aspiration_fail_lows{0};
     uint64_t aspiration_fail_highs{0};
@@ -73,6 +76,9 @@ struct SearchCounters<true> {
         q_tt_cutoffs.fill(0);
         null_move_tries.fill(0);
         null_move_cutoffs.fill(0);
+        razor_tries.fill(0);
+        razor_cutoffs.fill(0);
+        futility_skips.fill(0);
         aspiration_fail_lows  = 0;
         aspiration_fail_highs = 0;
         aspiration_researches = 0;
@@ -99,6 +105,9 @@ struct SearchCounters<true> {
             q_tt_cutoffs[i]        += other.q_tt_cutoffs[i];
             null_move_tries[i]     += other.null_move_tries[i];
             null_move_cutoffs[i]   += other.null_move_cutoffs[i];
+            razor_tries[i]         += other.razor_tries[i];
+            razor_cutoffs[i]       += other.razor_cutoffs[i];
+            futility_skips[i]      += other.futility_skips[i];
         }
 
         aspiration_fail_lows  += other.aspiration_fail_lows;
@@ -135,6 +144,9 @@ public:
     void        q_tt_cutoff(int) {}
     void        null_move_try(int) {}
     void        null_move_cutoff(int) {}
+    void        razor_try(int) {}
+    void        razor_cutoff(int) {}
+    void        futility_skip(int) {}
     std::string str() const;
 
     SearchInstrumentation& operator+=(const SearchInstrumentation&) { return *this; }
@@ -234,6 +246,21 @@ public:
             counters.null_move_cutoffs[ply]++;
     }
 
+    void razor_try(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.razor_tries[ply]++;
+    }
+
+    void razor_cutoff(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.razor_cutoffs[ply]++;
+    }
+
+    void futility_skip(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.futility_skips[ply]++;
+    }
+
     SearchInstrumentation& operator+=(const SearchInstrumentation& other) {
         counters += other.counters;
         return *this;
@@ -280,6 +307,17 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
                              null_move_tries,
                              null_move_cutoffs,
                              pct(null_move_cutoffs, null_move_tries));
+
+        const uint64_t razor_tries    = sum(stats.razor_tries);
+        const uint64_t razor_cutoffs  = sum(stats.razor_cutoffs);
+        const uint64_t futility_skips = sum(stats.futility_skips);
+        out                           = std::format_to(out,
+                             "RazorFutility: razor-tries={} razor-cutoffs={} "
+                                                       "razor-cutoff-rate={:.1f}% futility-skips={}\n",
+                             razor_tries,
+                             razor_cutoffs,
+                             pct(razor_cutoffs, razor_tries),
+                             futility_skips);
 
         out =
             std::format_to(out,
