@@ -51,6 +51,8 @@ struct SearchCounters<true> {
     StatsArray razor_tries{0};
     StatsArray razor_cutoffs{0};
     StatsArray futility_skips{0};
+    StatsArray lmr_tries{0};
+    StatsArray lmr_researches{0};
 
     uint64_t aspiration_fail_lows{0};
     uint64_t aspiration_fail_highs{0};
@@ -79,6 +81,8 @@ struct SearchCounters<true> {
         razor_tries.fill(0);
         razor_cutoffs.fill(0);
         futility_skips.fill(0);
+        lmr_tries.fill(0);
+        lmr_researches.fill(0);
         aspiration_fail_lows  = 0;
         aspiration_fail_highs = 0;
         aspiration_researches = 0;
@@ -108,6 +112,8 @@ struct SearchCounters<true> {
             razor_tries[i]         += other.razor_tries[i];
             razor_cutoffs[i]       += other.razor_cutoffs[i];
             futility_skips[i]      += other.futility_skips[i];
+            lmr_tries[i]           += other.lmr_tries[i];
+            lmr_researches[i]      += other.lmr_researches[i];
         }
 
         aspiration_fail_lows  += other.aspiration_fail_lows;
@@ -147,6 +153,8 @@ public:
     void        razor_try(int) {}
     void        razor_cutoff(int) {}
     void        futility_skip(int) {}
+    void        lmr_try(int) {}
+    void        lmr_research(int) {}
     std::string str() const;
 
     SearchInstrumentation& operator+=(const SearchInstrumentation&) { return *this; }
@@ -261,6 +269,16 @@ public:
             counters.futility_skips[ply]++;
     }
 
+    void lmr_try(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.lmr_tries[ply]++;
+    }
+
+    void lmr_research(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.lmr_researches[ply]++;
+    }
+
     SearchInstrumentation& operator+=(const SearchInstrumentation& other) {
         counters += other.counters;
         return *this;
@@ -318,6 +336,14 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
                              razor_cutoffs,
                              pct(razor_cutoffs, razor_tries),
                              futility_skips);
+
+        const uint64_t lmr_tries      = sum(stats.lmr_tries);
+        const uint64_t lmr_researches = sum(stats.lmr_researches);
+        out                           = std::format_to(out,
+                             "LMR: tries={} re-searches={} re-search-rate={:.1f}%\n",
+                             lmr_tries,
+                             lmr_researches,
+                             pct(lmr_researches, lmr_tries));
 
         out =
             std::format_to(out,

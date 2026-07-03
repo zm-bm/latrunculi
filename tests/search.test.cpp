@@ -168,6 +168,17 @@ protected:
         return NULL_MOVE;
     }
 
+    std::vector<Move> workerPickerLegalMoves(Move tt_move = NULL_MOVE) {
+        std::vector<Move> moves;
+        MovePicker        picker = MovePicker::main_search(
+            worker->board, worker->killers, worker->history, worker->ply, tt_move);
+        for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+            if (worker->board.is_legal_generated_move(move))
+                moves.push_back(move);
+        }
+        return moves;
+    }
+
     int scoreWorkerChild(Move move, int alpha, int beta, int search_depth) {
         return withWorkerMove(move, [&] {
             return -worker->alphabeta<NON_PV>(-beta, -alpha, search_depth, nullptr, true);
@@ -187,6 +198,10 @@ protected:
     }
 
     void seedWorkerKiller(Move move) { worker->killers.update(move, worker->ply); }
+
+    void boostWorkerHistory(Move move, int depth) {
+        worker->history.update(worker->board.side_to_move(), move.from(), move.to(), depth);
+    }
 
     uint64_t workerKey() const { return worker->board.key(); }
 
@@ -304,6 +319,14 @@ protected:
 
     uint64_t futilitySkipsAt(int search_ply) const {
         return worker->stats.raw_counters().futility_skips[search_ply];
+    }
+
+    uint64_t lmrTriesAt(int search_ply) const {
+        return worker->stats.raw_counters().lmr_tries[search_ply];
+    }
+
+    uint64_t lmrResearchesAt(int search_ply) const {
+        return worker->stats.raw_counters().lmr_researches[search_ply];
     }
 #endif
 
@@ -1466,6 +1489,150 @@ TEST_F(SearchTest, StoppedRootAspirationPreservesLastAcceptedRootSnapshot) {
     EXPECT_EQ(snapshot.pv.size(), accepted.pv.size());
     ASSERT_FALSE(snapshot.pv.empty());
     EXPECT_EQ(snapshot.pv.front(), accepted.root_move);
+}
+
+TEST_F(SearchTest, AlphaBetaLmrResearchesFullDepthWhenReducedSearchImprovesAlpha) {
+    constexpr int search_depth         = 4;
+    constexpr int alpha                = -2000;
+    constexpr int beta                 = 2000;
+    constexpr int reduced_parent_value = 1500;
+
+    TestBoard baseline_board{STARTFEN};
+    loadWorkerBoard(baseline_board, search_depth);
+    const int expected = runNonPvAlphaBeta(alpha, beta, search_depth, false);
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 3U);
+    const Move reduced_move = moves[2];
+
+    storeWorkerChildSearchTt(reduced_move, -reduced_parent_value, search_depth - 2, TT_Flag::Exact);
+
+    const int actual = runNonPvAlphaBeta(alpha, beta, search_depth, false);
+    EXPECT_EQ(actual, expected);
+    EXPECT_NE(actual, reduced_parent_value);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_GT(lmrTriesAt(0), 0U);
+    EXPECT_GT(lmrResearchesAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaLmrRequiresMinimumDepth) {
+    constexpr int search_depth = 2;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    (void)runNonPvAlphaBeta(-2000, 2000, search_depth, false);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(lmrTriesAt(0), 0U);
+    EXPECT_EQ(lmrResearchesAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaLmrRequiresThirdLegalMove) {
+    constexpr auto two_legal_moves = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth    = 4;
+
+    TestBoard board{two_legal_moves};
+    loadWorkerBoard(board, search_depth);
+    ASSERT_EQ(workerPickerLegalMoves().size(), 2U);
+
+    (void)runNonPvAlphaBeta(-2000, 2000, search_depth, false);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(lmrTriesAt(0), 0U);
+    EXPECT_EQ(lmrResearchesAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaLmrSkipsTacticalVetoMoves) {
+    constexpr int search_depth        = 4;
+    constexpr int alpha               = -2000;
+    constexpr int beta                = -1000;
+    constexpr int low_parent_value    = alpha - 100;
+    constexpr int cutoff_parent_value = beta + 100;
+
+    struct Case {
+        const char* fen;
+        Move        tt_move;
+        Move        killer_move;
+        Move        candidate;
+    };
+
+    const std::array cases{
+        Case{"4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+             Move(E1, D1),
+             NULL_MOVE,
+             Move(A7, A8, MOVE_PROM, ROOK)},
+        Case{"4k3/8/8/8/6N1/8/8/RB1QK3 w - - 0 1", Move(A1, A8), Move(B1, G6), Move(D1, A4)},
+    };
+
+    for (const auto& tc : cases) {
+        TestBoard board{tc.fen};
+        loadWorkerBoard(board, search_depth);
+        ASSERT_TRUE(workerLegalGeneratedMove(tc.tt_move)) << tc.fen;
+        ASSERT_TRUE(workerLegalGeneratedMove(tc.candidate)) << tc.fen;
+        ASSERT_TRUE(board.is_checking_move(tc.candidate) || tc.candidate.type() == MOVE_PROM)
+            << tc.fen;
+
+        tt.store_search(workerKey(), tc.tt_move, 0, 0, TT_Flag::Exact, workerPly());
+        if (!tc.killer_move.is_null()) {
+            ASSERT_TRUE(workerLegalGeneratedMove(tc.killer_move)) << tc.fen;
+            ASSERT_TRUE(board.is_checking_move(tc.killer_move)) << tc.fen;
+            seedWorkerKiller(tc.killer_move);
+        }
+        boostWorkerHistory(tc.candidate, search_depth);
+
+        const auto moves        = workerPickerLegalMoves(tc.tt_move);
+        const auto candidate_it = std::find(moves.begin(), moves.end(), tc.candidate);
+        ASSERT_NE(candidate_it, moves.end()) << tc.fen;
+        ASSERT_EQ(std::distance(moves.begin(), candidate_it), 2) << tc.fen;
+
+        for (auto it = moves.begin(); it != candidate_it; ++it)
+            storeWorkerChildSearchTt(*it, -low_parent_value, search_depth - 1, TT_Flag::Exact);
+        storeWorkerChildSearchTt(
+            tc.candidate, -cutoff_parent_value, search_depth - 1, TT_Flag::Exact);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_parent_value)
+            << tc.fen;
+
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_EQ(lmrTriesAt(0), 0U) << tc.fen;
+        EXPECT_EQ(lmrResearchesAt(0), 0U) << tc.fen;
+#endif
+    }
+}
+
+TEST_F(SearchTest, AlphaBetaLmrSkipsCheckEvasions) {
+    constexpr auto in_check            = "4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1";
+    constexpr int  search_depth        = 4;
+    constexpr int  alpha               = -2000;
+    constexpr int  beta                = -1000;
+    constexpr int  low_parent_value    = alpha - 100;
+    constexpr int  cutoff_parent_value = beta + 100;
+
+    TestBoard board{in_check};
+    loadWorkerBoard(board, search_depth);
+    ASSERT_TRUE(board.is_check()) << in_check;
+
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 3U) << in_check;
+    const Move candidate = moves[2];
+
+    for (auto it = moves.begin(); it != moves.begin() + 2; ++it)
+        storeWorkerChildSearchTt(*it, -low_parent_value, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(candidate, -cutoff_parent_value, search_depth - 1, TT_Flag::Exact);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_parent_value);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(lmrTriesAt(0), 0U);
+    EXPECT_EQ(lmrResearchesAt(0), 0U);
+#endif
 }
 
 TEST_F(SearchTest, RootSearchSetsNullMoveForCheckmate) {

@@ -8,8 +8,8 @@ enough to revert, compare fixed-depth and fixed-time evidence when search shape
 changes, and avoid importing reference-engine constants without local
 measurement.
 
-Current focus: P3 search/pruning. P2 move ordering is closed as good enough and
-is now the baseline that P3 should measure against.
+Current focus: P4 move-ordering heuristics. P3 search foundations are closed as
+the current search baseline for future tuning.
 
 ## Evidence Gates
 
@@ -53,155 +53,61 @@ Direct-UCI selections:
 - `arasan20-full`: all 200 rows from `bench/arasan20.epd`, excluding
   `startpos`.
 
+Roadmap policy: keep the current durable baseline and the active backlog here.
+Intermediate experiment runs, rejected variants, and step-by-step implementation
+history belong in commit history or scratch run directories, not in this file.
+
 ## Completed Baselines
 
 | Task | Status | Key Result | Boundary |
 |---|---|---|---|
-| P0: Search-shape instrumentation | kept | Stats for beta cutoff index, PVS re-searches, aspiration fails, TT hit/cutoff rates, qnode ratio, and staged picker fields are available behind stats builds. | Normal builds should stay free of stats output/cost. |
+| P0: Search-shape instrumentation | kept | Search stats are available behind stats builds. | Normal builds should stay free of stats output/cost. |
 | P1: Qsearch TT integration | kept | Non-PV qsearch-root TT probe/store reduced fixed-depth nodes/time and was fixed-time neutral. | Deeper qTT use, qTT move ordering, or TT static-eval payloads need separate evidence. |
 | P2: Good enough move ordering | closed | Single owning staged `MovePicker` is accepted as the baseline. Closure stats show no obvious pathology. | Deeper ordering heuristics move to P4 or later. |
 | P2.5: Benchmark infrastructure | kept | `bench/bench.py` covers board-core, perft, search-smoke, direct-UCI, compare, and local cutechess match runs. | Use this before board, movegen, search, or eval performance work. |
+| P3: Search foundations | kept | Fail-soft alpha-beta, qsearch, root iterative deepening, TT, aspiration, PVS, null move, razoring/futility, and LMR are restored with focused tests and depth-10 evidence. | Treat this as the search baseline; future pruning or tuning changes need fresh fixed-depth and fixed-time evidence. |
 
-Reference note: Stockfish and Ethereal both probe/store TT in qsearch. CPW does
-not, and remains useful only as the simple correctness model.
+## Current P3 Search Baseline
 
-## Current P2 Baseline
+P3 rebuilt the search stack from a bare fail-soft alpha-beta core, then restored
+qsearch, root-line iterative deepening, main and qsearch TT integration,
+aspiration windows, PVS, null-move pruning, razoring/futility, and LMR. The
+kept stack is intentionally conservative around root publication, TT bound
+semantics, stopped searches, and tactical pruning guards.
 
-P2 is closed as good enough at `77c333a7a5385e734eb61bac5bf06947823b1596`. No
-move-ordering tuning was added during the closure pass.
+Final S10 validation passed: release and stats focused
+`SearchTest.*:MovePickerTest.*SkipQuiet*:SearchInstrumentation.*` suites
+passed `77/77`, full `ctest --preset release-dev` passed, benchmark parser
+compile passed, and `git diff --check` passed.
 
-Accepted architecture:
+Final fixed-depth depth-10 baseline:
+`scratch/bench-runs/20260703-112102-p3-final-fixeddepth-d10`. The six-position
+suite searched `1.002M` nodes in `558 ms`.
 
-- one owning staged `MovePicker` is used by root, PV, non-PV, and qsearch paths;
-- the picker owns `ScoredMove` storage and no longer prebuilds a full
-  `MoveList`;
-- public movegen exposes named non-evasion, noisy, quiet, evasion, and
-  pseudo-legal contracts;
-- qsearch has one public picker mode and internally uses noisy or evasion
-  generation based on check state;
-- ordering uses PV/hash hints, promotions/good tacticals, killers, history
-  quiets, and bad noisy moves;
-- capture scoring keeps the SEE gate and adds a victim-value bonus;
-- quiet ordering remains deliberately simple.
+Direct-UCI sanity:
+`scratch/bench-runs/20260703-112105-p3-final-smoke` and
+`scratch/bench-runs/20260703-112110-p3-final-mid`. The mid run averaged
+`4.889M` NPS, `7.338M` nodes, and depth `15.97`, compared with the P2 mid
+baseline's `4.594M` NPS, `6.896M` nodes, and depth `15.78`.
 
-Latest staged-picker benchmark:
+Stats spot-check:
+`scratch/bench-runs/20260703-112213-p3-final-stats-arasan20-01-d10` reported
+`32409` LMR tries at `0.1%` re-searches, `5825` null tries at `71.5%` cutoffs,
+`1138` razor tries at `95.5%` cutoffs, `3301` futility skips, main TT
+`64.8%/37.7%` hit/cutoff, qsearch TT `23.4%/87.8%` hit/cutoff, and `63.4%`
+qnodes. Stats smoke:
+`scratch/bench-runs/20260703-112208-p3-final-stats`.
 
-| Metric | Before `cb14a9a` | After `77c333a` | Change |
-|---|---:|---:|---:|
-| Direct-UCI mid avg NPS | `4,213,406` | `4,547,404` | `+7.97%` |
-| Direct-UCI mid avg nodes | `6,323,166` | `6,825,982` | `+7.99%` |
-| Direct-UCI mid avg depth | `15.44` | `15.78` | `+0.34` |
-| Board-core generation | old full/capture names | new staged names | `+17-27%` |
-| Board-core legal filter | baseline | staged baseline | neutral |
-
-P2 closure evidence:
-
-| Evidence | Result |
-|---|---|
-| `cmake --preset release-dev` | passed |
-| `cmake --build --preset release-dev` | passed |
-| `ctest --preset release-dev` | passed, `1/1` test target |
-| `git diff --check` | passed |
-| Stats run | `scratch/bench-runs/20260627-125245-p2-good-enough-stats` |
-| Fixed-depth run | `scratch/bench-runs/20260627-130220-p2-good-enough-fixeddepth` |
-| Direct-UCI mid run | `scratch/bench-runs/20260627-130229-p2-good-enough-mid` |
-
-Stats-build closure metrics:
-
-| Metric | Average |
-|---|---:|
-| Staged noisy generated | `88.9%` |
-| Staged quiet generated | `12.4%` |
-| Staged cutoff before quiet | `86.2%` |
-| Staged cutoff during quiets | `2.6%` |
-| Staged cutoff during bad noisy | `0.0%` |
-| Skip-quiet requests | `2.6%` |
-| Beta cutoff average index | `1.2` |
-| QNode ratio | `66.8%` |
-| Main TT hit | `24.9%` |
-| QSearch TT hit | `23.7%` |
-
-Read: quiet generation is not happening at nearly every staged node, most staged
-cutoffs happen before quiet generation, and beta cutoffs remain early. There is
-no evidence that P2 needs another tuning pass before P3.
-
-Fixed-depth control:
-
-| Position | Depth | Nodes | Time ms | NPS | Score | Bestmove |
-|---|---:|---:|---:|---:|---:|---|
-| `startpos` | `12` | `698998` | `496` | `1409270` | `cp 39` | `d2d4` |
-| `arasan20-01` | `12` | `526207` | `281` | `1872622` | `cp -119` | `e4a8` |
-| `arasan20-08` | `12` | `1387961` | `836` | `1660240` | `cp -271` | `h6h5` |
-
-Direct-UCI mid sanity:
-
-| Metric | Average |
-|---|---:|
-| NPS | `4594039` |
-| Nodes | `6895605` |
-| Depth | `15.78` |
-
-Historical P2 lesson: earlier staged attempts regressed fixed-depth efficiency
-when they mixed staged policy with prebuilt/full-list artifacts. Do not
-reintroduce a production prebuilt-vs-staged split unless fresh evidence clearly
-beats the current single-picker baseline.
-
-## Board-Core Baselines
+## Board-Core Notes
 
 Board-core work should start from fresh board-core rows plus profiler data, not
-from broad make/unmake or legality-filter rewrites based on suspicion.
-
-Kept `MoveList::add` optimization:
-
-| Mode | Result |
-|---|---:|
-| `generate_all` now `generate_non_evasions` | `-8.03%` avg ns/op |
-| `generate_captures` now `generate_noisy` | `-6.60%` avg ns/op |
-| `legal_filter_all` | `-5.30%` avg ns/op |
-| `make_unmake_legal` | `-0.30%` avg ns/op |
-| `make_unmake_quiet` | `-0.22%` avg ns/op |
-| `make_unmake_capture` | `-0.04%` avg ns/op |
-| `null_make_unmake` | `-0.43%` avg ns/op |
-
-Attribution snapshot:
-
-| Mode | Avg ns/op | Read |
-|---|---:|---|
-| `generate_all` now `generate_non_evasions` | `74.863` | Full pseudo-legal generation remains larger than one legality check. |
-| `generate_captures` now `generate_noisy` | `41.818` | Capture/noisy generation is cheap relative to full generation. |
-| `legal_filter_all` | `117.426` | Full generation plus legality checks. |
-| `legal_filter_prebuilt_all` | `2.625` | Isolated generated-move legality is small per move. |
-| `make_unmake_legal` | `48.887` | Current make/unmake baseline. |
-| `make_unmake_capture` | `52.249` | Captures are modestly higher. |
-| `make_unmake_en_passant` | `60.174` | Slower but rare and correctness-sensitive. |
-| `null_make_unmake` | `30.391` | Null move remains cheap. |
-
-Read: isolated legality checks were not the standalone bottleneck. En passant
-and capture-promotion remain correctness-sensitive special paths, not immediate
-optimization targets without profiling.
+from broad make/unmake or legality-filter rewrites based on suspicion. The last
+kept board-core pass showed `MoveList::add` was worth simplifying, while
+isolated legality checks were not the standalone bottleneck. En passant and
+capture-promotion remain correctness-sensitive paths; only touch them with
+focused profiling and perft coverage.
 
 ## Active Backlog
-
-## P3: Search Foundations
-
-Hypothesis: before tuning aspiration, LMR, null move, razoring, or futility, the
-search stack should be rebuilt and validated from a bare fail-soft alpha-beta
-core upward.
-
-Scope: execute `roadmap/p3-search-foundations.md`. Start with S0 bare
-alpha-beta, then add qsearch, TT, aspiration, PVS, null move, razoring/futility,
-and LMR one layer at a time. Keep the current Board, MovePicker, eval,
-UCI/threading, and benchmark infrastructure.
-
-Evidence: focused search tests, stats-build counters where relevant,
-fixed-depth controls, direct-UCI runs, and a final S9 baseline recorded here.
-
-Keep criteria: each restored search layer has clear correctness evidence and
-neutral or explainable fixed-depth/fixed-time behavior.
-
-Revert criteria: tactical failures, broken fail-soft or bound semantics,
-unstable root publication, or a feature whose effect cannot be explained by
-measured evidence.
 
 ## P4: Move-Ordering Heuristics
 

@@ -27,6 +27,8 @@ TEST(SearchInstrumentation, DisabledStatsAreNoOps) {
     stats.razor_try(1);
     stats.razor_cutoff(1);
     stats.futility_skip(1);
+    stats.lmr_try(1);
+    stats.lmr_research(1);
     stats.reset();
     stats += other;
 
@@ -59,6 +61,8 @@ TEST(SearchInstrumentation, RecordsEventsAndReset) {
     stats.razor_try(ply);
     stats.razor_cutoff(ply);
     stats.futility_skip(ply);
+    stats.lmr_try(ply);
+    stats.lmr_research(ply);
 
     const auto& counters = stats.raw_counters();
     EXPECT_EQ(counters.nodes[ply], 2);
@@ -86,6 +90,8 @@ TEST(SearchInstrumentation, RecordsEventsAndReset) {
     EXPECT_EQ(counters.razor_tries[ply], 1);
     EXPECT_EQ(counters.razor_cutoffs[ply], 1);
     EXPECT_EQ(counters.futility_skips[ply], 1);
+    EXPECT_EQ(counters.lmr_tries[ply], 1);
+    EXPECT_EQ(counters.lmr_researches[ply], 1);
 
     stats.reset();
 
@@ -115,6 +121,8 @@ TEST(SearchInstrumentation, RecordsEventsAndReset) {
     EXPECT_EQ(reset_counters.razor_tries[ply], 0);
     EXPECT_EQ(reset_counters.razor_cutoffs[ply], 0);
     EXPECT_EQ(reset_counters.futility_skips[ply], 0);
+    EXPECT_EQ(reset_counters.lmr_tries[ply], 0);
+    EXPECT_EQ(reset_counters.lmr_researches[ply], 0);
 }
 
 TEST(SearchInstrumentation, ArithmeticOperators) {
@@ -131,6 +139,8 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     counters1.razor_tries[1]        = 4;
     counters1.razor_cutoffs[1]      = 2;
     counters1.futility_skips[1]     = 7;
+    counters1.lmr_tries[1]          = 8;
+    counters1.lmr_researches[1]     = 4;
     counters1.aspiration_fail_lows  = 1;
     counters1.aspiration_fail_highs = 2;
     counters1.aspiration_researches = 3;
@@ -145,6 +155,8 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     counters2.razor_tries[1]        = 9;
     counters2.razor_cutoffs[1]      = 6;
     counters2.futility_skips[1]     = 11;
+    counters2.lmr_tries[1]          = 12;
+    counters2.lmr_researches[1]     = 3;
     counters2.aspiration_fail_lows  = 4;
     counters2.aspiration_fail_highs = 5;
     counters2.aspiration_researches = 6;
@@ -164,6 +176,8 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     EXPECT_EQ(stats1.raw_counters().razor_tries[1], 13);
     EXPECT_EQ(stats1.raw_counters().razor_cutoffs[1], 8);
     EXPECT_EQ(stats1.raw_counters().futility_skips[1], 18);
+    EXPECT_EQ(stats1.raw_counters().lmr_tries[1], 20);
+    EXPECT_EQ(stats1.raw_counters().lmr_researches[1], 7);
     EXPECT_EQ(stats1.raw_counters().aspiration_fail_lows, 5);
     EXPECT_EQ(stats1.raw_counters().aspiration_fail_highs, 7);
     EXPECT_EQ(stats1.raw_counters().aspiration_researches, 9);
@@ -175,6 +189,8 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     EXPECT_EQ(stats3.raw_counters().razor_tries[1], 22);
     EXPECT_EQ(stats3.raw_counters().razor_cutoffs[1], 14);
     EXPECT_EQ(stats3.raw_counters().futility_skips[1], 29);
+    EXPECT_EQ(stats3.raw_counters().lmr_tries[1], 32);
+    EXPECT_EQ(stats3.raw_counters().lmr_researches[1], 10);
     EXPECT_EQ(stats3.raw_counters().aspiration_researches, 15);
 }
 
@@ -216,6 +232,10 @@ TEST(SearchInstrumentation, Output) {
     counters.razor_cutoffs[2]       = 2;
     counters.futility_skips[1]      = 5;
     counters.futility_skips[2]      = 6;
+    counters.lmr_tries[1]           = 8;
+    counters.lmr_researches[1]      = 2;
+    counters.lmr_tries[2]           = 12;
+    counters.lmr_researches[2]      = 3;
 
     SearchInstrumentation<true> stats{counters};
     std::ostringstream          oss;
@@ -227,6 +247,8 @@ TEST(SearchInstrumentation, Output) {
     EXPECT_NE(oss.str().find("NullMove: tries=10 cutoffs=4 cutoff-rate=40.0%"), std::string::npos);
     EXPECT_NE(oss.str().find("RazorFutility: razor-tries=10 razor-cutoffs=4 "
                              "razor-cutoff-rate=40.0% futility-skips=11"),
+              std::string::npos);
+    EXPECT_NE(oss.str().find("LMR: tries=20 re-searches=5 re-search-rate=25.0%"),
               std::string::npos);
     EXPECT_NE(oss.str().find("Depth"), std::string::npos);
     EXPECT_NE(oss.str().find("Nodes"), std::string::npos);
