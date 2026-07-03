@@ -56,8 +56,8 @@ protected:
         return move_it == movelist.end() ? NULL_MOVE : *move_it;
     }
 
-    int runNonPvAlphaBeta(int alpha, int beta, int search_depth) {
-        return worker->alphabeta<NON_PV>(alpha, beta, search_depth);
+    int runNonPvAlphaBeta(int alpha, int beta, int search_depth, bool can_null = true) {
+        return worker->alphabeta<NON_PV>(alpha, beta, search_depth, nullptr, can_null);
     }
 
     int runPvAlphaBeta(int alpha, int beta, int search_depth, PrincipalVariation& pv) {
@@ -138,6 +138,19 @@ protected:
     }
 
     uint64_t workerKey() const { return worker->board.key(); }
+
+    uint64_t workerNullChildKey() const {
+        TestBoard board_copy{worker->board.toFEN()};
+        board_copy.make_null();
+        return board_copy.key();
+    }
+
+    uint64_t workerDescendantNullKey(Move move) const {
+        TestBoard board_copy{worker->board.toFEN()};
+        board_copy.make(move);
+        board_copy.make_null();
+        return board_copy.key();
+    }
 
     std::optional<TT_Record> workerTtRecord() const { return tt.probe(workerKey()); }
 
@@ -220,6 +233,14 @@ protected:
 
     uint64_t pvsResearchesAt(int search_ply) const {
         return worker->stats.raw_counters().pvs_researches[search_ply];
+    }
+
+    uint64_t nullMoveTriesAt(int search_ply) const {
+        return worker->stats.raw_counters().null_move_tries[search_ply];
+    }
+
+    uint64_t nullMoveCutoffsAt(int search_ply) const {
+        return worker->stats.raw_counters().null_move_cutoffs[search_ply];
     }
 #endif
 
@@ -780,6 +801,163 @@ TEST_F(SearchTest, AlphaBetaMainTTCutoffDoesNotEnterQSearchTT) {
     EXPECT_EQ(qTtProbesAt(0), 0U);
     EXPECT_EQ(qTtHitsAt(0), 0U);
     EXPECT_EQ(qTtCutoffsAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaNullMovePruningReturnsFailSoftCutoffFromNullChild) {
+    constexpr int search_depth     = 4;
+    constexpr int alpha            = -50;
+    constexpr int beta             = 50;
+    constexpr int null_child_score = -200;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const uint64_t root_key       = workerKey();
+    const uint64_t null_child_key = workerNullChildKey();
+    ASSERT_FALSE(tt.probe(root_key).has_value());
+    ASSERT_FALSE(tt.probe(null_child_key).has_value());
+
+    tt.store_search(
+        null_child_key, NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), -null_child_score);
+    EXPECT_FALSE(tt.probe(root_key).has_value());
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(nullMoveTriesAt(0), 1U);
+    EXPECT_EQ(nullMoveCutoffsAt(0), 1U);
+#endif
+}
+
+TEST_F(SearchTest, PvAlphaBetaDoesNotUseNullMovePruning) {
+    constexpr int search_depth     = 4;
+    constexpr int alpha            = -50;
+    constexpr int beta             = 50;
+    constexpr int null_child_score = -200;
+
+    TestBoard baseline_board{STARTFEN};
+    loadWorkerBoard(baseline_board, search_depth);
+    PrincipalVariation baseline_pv;
+    const int          baseline = runPvAlphaBeta(alpha, beta, search_depth, baseline_pv);
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+    const uint64_t null_child_key = workerNullChildKey();
+    tt.store_search(
+        null_child_key, NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
+
+    PrincipalVariation pv;
+    EXPECT_EQ(runPvAlphaBeta(alpha, beta, search_depth, pv), baseline);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(nullMoveTriesAt(0), 0U);
+    EXPECT_EQ(nullMoveCutoffsAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaNullMovePruningRequiresAllGuards) {
+    constexpr int alpha            = -50;
+    constexpr int beta             = 50;
+    constexpr int null_child_score = -200;
+
+    struct Case {
+        const char* fen;
+        int         depth;
+        bool        can_null;
+    };
+
+    const std::array cases{
+        Case{"k7/8/2K5/8/8/8/R6q/8 b - - 0 1", 4, true}, // in check
+        Case{"k7/8/2K5/8/8/8/8/8 b - - 0 1", 4, true},   // insufficient material
+        Case{"4k3/8/8/8/8/8/8/4K2R w - - 0 1", 4, true}, // lone rook material
+        Case{STARTFEN, 2, true},                         // shallower than reduction
+        Case{"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1", 4, false},
+    };
+
+    for (const auto& tc : cases) {
+        TestBoard baseline_board{tc.fen};
+        loadWorkerBoard(baseline_board, tc.depth);
+        const int baseline = runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null);
+
+        TestBoard board{tc.fen};
+        loadWorkerBoard(board, tc.depth);
+        const uint64_t null_child_key = workerNullChildKey();
+        tt.store_search(null_child_key,
+                        NULL_MOVE,
+                        null_child_score,
+                        std::max(0, tc.depth - 3),
+                        TT_Flag::Exact,
+                        1);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null), baseline) << tc.fen;
+
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_EQ(nullMoveTriesAt(0), 0U) << tc.fen;
+        EXPECT_EQ(nullMoveCutoffsAt(0), 0U) << tc.fen;
+#endif
+    }
+}
+
+TEST_F(SearchTest, AlphaBetaNullMovePruningHonorsParentUpperBoundVeto) {
+    constexpr int search_depth     = 4;
+    constexpr int alpha            = -50;
+    constexpr int beta             = 50;
+    constexpr int null_child_score = -200;
+
+    TestBoard baseline_board{STARTFEN};
+    loadWorkerBoard(baseline_board, search_depth);
+    tt.store_search(
+        workerKey(), NULL_MOVE, beta - 1, search_depth, TT_Flag::Upperbound, workerPly());
+    tt.store_search(
+        workerNullChildKey(), NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
+    const int baseline = runNonPvAlphaBeta(alpha, beta, search_depth, false);
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+    tt.store_search(
+        workerKey(), NULL_MOVE, beta - 1, search_depth, TT_Flag::Upperbound, workerPly());
+    tt.store_search(
+        workerNullChildKey(), NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), baseline);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(nullMoveTriesAt(0), 0U);
+    EXPECT_EQ(nullMoveCutoffsAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendants) {
+    constexpr auto immediate_null_child =
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1";
+    constexpr int search_depth = 5;
+
+    TestBoard board{immediate_null_child};
+    loadWorkerBoard(board, search_depth);
+
+    ASSERT_FALSE(board.is_check());
+    ASSERT_GT(board.nonPawnMaterial(board.side_to_move()), ROOK_MG);
+
+    const Move real_move = findWorkerMove("e7e5");
+    ASSERT_FALSE(real_move.is_null());
+
+    const uint64_t immediate_null_key  = workerNullChildKey();
+    const uint64_t descendant_null_key = workerDescendantNullKey(real_move);
+    ASSERT_FALSE(tt.probe(immediate_null_key).has_value());
+    ASSERT_FALSE(tt.probe(descendant_null_key).has_value());
+
+    tt.store_search(workerKey(), real_move, 0, 0, TT_Flag::Lowerbound, workerPly());
+    (void)runNonPvAlphaBeta(-50, 50, search_depth, false);
+
+    EXPECT_FALSE(tt.probe(immediate_null_key).has_value())
+        << "the immediate null child must still forbid a second null move";
+    EXPECT_TRUE(tt.probe(descendant_null_key).has_value())
+        << "after a real move from the null child, descendants should regain null-move eligibility";
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(nullMoveTriesAt(0), 0U);
+    EXPECT_GT(nullMoveTriesAt(1), 0U);
 #endif
 }
 

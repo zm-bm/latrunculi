@@ -46,6 +46,8 @@ struct SearchCounters<true> {
     StatsArray q_tt_probes{0};
     StatsArray q_tt_hits{0};
     StatsArray q_tt_cutoffs{0};
+    StatsArray null_move_tries{0};
+    StatsArray null_move_cutoffs{0};
 
     uint64_t aspiration_fail_lows{0};
     uint64_t aspiration_fail_highs{0};
@@ -69,6 +71,8 @@ struct SearchCounters<true> {
         q_tt_probes.fill(0);
         q_tt_hits.fill(0);
         q_tt_cutoffs.fill(0);
+        null_move_tries.fill(0);
+        null_move_cutoffs.fill(0);
         aspiration_fail_lows  = 0;
         aspiration_fail_highs = 0;
         aspiration_researches = 0;
@@ -93,6 +97,8 @@ struct SearchCounters<true> {
             q_tt_probes[i]         += other.q_tt_probes[i];
             q_tt_hits[i]           += other.q_tt_hits[i];
             q_tt_cutoffs[i]        += other.q_tt_cutoffs[i];
+            null_move_tries[i]     += other.null_move_tries[i];
+            null_move_cutoffs[i]   += other.null_move_cutoffs[i];
         }
 
         aspiration_fail_lows  += other.aspiration_fail_lows;
@@ -127,6 +133,8 @@ public:
     void        q_tt_probe(int) {}
     void        q_tt_hit(int) {}
     void        q_tt_cutoff(int) {}
+    void        null_move_try(int) {}
+    void        null_move_cutoff(int) {}
     std::string str() const;
 
     SearchInstrumentation& operator+=(const SearchInstrumentation&) { return *this; }
@@ -216,6 +224,16 @@ public:
             counters.q_tt_cutoffs[ply]++;
     }
 
+    void null_move_try(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.null_move_tries[ply]++;
+    }
+
+    void null_move_cutoff(const int ply) {
+        if (SearchCounters<true>::valid_ply(ply))
+            counters.null_move_cutoffs[ply]++;
+    }
+
     SearchInstrumentation& operator+=(const SearchInstrumentation& other) {
         counters += other.counters;
         return *this;
@@ -254,6 +272,14 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
                              stats.aspiration_fail_lows,
                              stats.aspiration_fail_highs,
                              stats.aspiration_researches);
+
+        const uint64_t null_move_tries   = sum(stats.null_move_tries);
+        const uint64_t null_move_cutoffs = sum(stats.null_move_cutoffs);
+        out                              = std::format_to(out,
+                             "NullMove: tries={} cutoffs={} cutoff-rate={:.1f}%\n",
+                             null_move_tries,
+                             null_move_cutoffs,
+                             pct(null_move_cutoffs, null_move_tries));
 
         out =
             std::format_to(out,
@@ -315,6 +341,13 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
     }
 
 private:
+    static uint64_t sum(const SearchCounters<true>::StatsArray& values) {
+        uint64_t total = 0;
+        for (const uint64_t value : values)
+            total += value;
+        return total;
+    }
+
     static double pct(const uint64_t count, const uint64_t total) {
         return total > 0 ? 100.0 * count / total : 0.0;
     }

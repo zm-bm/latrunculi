@@ -58,6 +58,9 @@ STATS_COLUMNS = [
     "stats_cutoff_3_4_pct",
     "stats_cutoff_5_plus_pct",
     "stats_pvs_researches",
+    "stats_null_move_tries",
+    "stats_null_move_cutoffs",
+    "stats_null_move_cutoff_pct",
     "stats_aspiration_fail_low",
     "stats_aspiration_fail_high",
     "stats_aspiration_researches",
@@ -514,6 +517,15 @@ def parse_search_stats_lines(lines: list[str]) -> dict[str, str]:
             stats["stats_aspiration_fail_high"] = aspiration_match.group(2)
             stats["stats_aspiration_researches"] = aspiration_match.group(3)
             continue
+        null_move_match = re.search(
+            r"^NullMove:\s+tries=(\d+)\s+cutoffs=(\d+)\s+cutoff-rate=([-+0-9.]+)%",
+            stripped,
+        )
+        if null_move_match:
+            stats["stats_null_move_tries"] = null_move_match.group(1)
+            stats["stats_null_move_cutoffs"] = null_move_match.group(2)
+            stats["stats_null_move_cutoff_pct"] = null_move_match.group(3)
+            continue
         if "Depth" in stripped and "Nodes (QNode%)" in stripped and "Cutoffs" in stripped:
             capture = True
             continue
@@ -692,12 +704,12 @@ def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]
         f"- Movetime: `{manifest['movetime_ms']} ms`; repeats: `{manifest['repeats']}`; hash: `{manifest['hash_mb']} MiB`",
         "",
         "## Averaged results",
-        "| Position | Threads | Depth | Nodes | NPS | Beta cutoffs | Early% | CutIdx | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Bestmove(s) |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---|",
+        "| Position | Threads | Depth | Nodes | NPS | Beta cutoffs | Early% | CutIdx | NullMove Try/Cut% | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Bestmove(s) |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---|---|---|---:|---|",
     ]
     for (position_id, threads), agg in grouped.items():
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {} | {} |".format(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {}/{} | {} | {} |".format(
                 position_id,
                 threads,
                 format_num(agg["depth"]),
@@ -706,6 +718,8 @@ def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]
                 format_num(agg["stats_beta_cutoffs"]),
                 format_num(agg["stats_cutoff_early_pct"]),
                 format_num(agg["stats_cutoff_avg_index"]),
+                format_num(agg["stats_null_move_tries"]),
+                format_num(agg["stats_null_move_cutoff_pct"]),
                 format_num(agg["stats_main_tt_hit_pct"]),
                 format_num(agg["stats_main_tt_cutoff_pct"]),
                 format_num(agg["stats_q_tt_hit_pct"]),
@@ -742,18 +756,20 @@ def render_fixed_depth_summary(manifest: dict[str, object], rows: list[dict[str,
         f"- Depth: `{manifest['depth_target']}`; repeats: `{manifest['repeats']}`; hash: `{manifest['hash_mb']} MiB`",
         "",
         "## Averaged results",
-        "| Position | Threads | Depth | Nodes | Time ms | NPS | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Score(s) | Bestmove(s) |",
-        "|---|---:|---:|---:|---:|---:|---|---|---:|---|---|",
+        "| Position | Threads | Depth | Nodes | Time ms | NPS | NullMove Try/Cut% | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Score(s) | Bestmove(s) |",
+        "|---|---:|---:|---:|---:|---:|---|---|---|---:|---|---|",
     ]
     for (position_id, threads), agg in grouped.items():
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {} | {} | {} |".format(
+            "| {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {}/{} | {} | {} | {} |".format(
                 position_id,
                 threads,
                 format_num(agg["depth"]),
                 format_num(agg["nodes"]),
                 format_num(agg["time_ms"]),
                 format_num(agg["nps"]),
+                format_num(agg["stats_null_move_tries"]),
+                format_num(agg["stats_null_move_cutoff_pct"]),
                 format_num(agg["stats_main_tt_hit_pct"]),
                 format_num(agg["stats_main_tt_cutoff_pct"]),
                 format_num(agg["stats_q_tt_hit_pct"]),
@@ -794,15 +810,15 @@ def render_direct_compare(
         f"- Candidate: `{new_dir}`",
         "",
         "## Averaged deltas",
-        "| Position | Threads | Depth old/new | Nodes delta | NPS old/new | NPS delta | Beta cutoff delta | Early delta | CutIdx delta | MainTT Hit delta | QTT Hit delta | QNode delta | Bestmove old/new |",
-        "|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| Position | Threads | Depth old/new | Nodes delta | NPS old/new | NPS delta | Beta cutoff delta | Early delta | CutIdx delta | NullMove Try delta | NullMove Cut% delta | MainTT Hit delta | QTT Hit delta | QNode delta | Bestmove old/new |",
+        "|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for key in keys:
         position_id, threads = key
         old_agg = old.get(key, {})
         new_agg = new.get(key, {})
         lines.append(
-            "| {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} | {} | {} / {} |".format(
+            "| {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} / {} |".format(
                 position_id,
                 threads,
                 format_num(old_agg.get("depth")),
@@ -814,6 +830,10 @@ def render_direct_compare(
                 percent_delta(old_agg.get("stats_beta_cutoffs"), new_agg.get("stats_beta_cutoffs")),
                 delta_points(old_agg.get("stats_cutoff_early_pct"), new_agg.get("stats_cutoff_early_pct")),
                 delta_points(old_agg.get("stats_cutoff_avg_index"), new_agg.get("stats_cutoff_avg_index")),
+                percent_delta(old_agg.get("stats_null_move_tries"), new_agg.get("stats_null_move_tries")),
+                delta_points(
+                    old_agg.get("stats_null_move_cutoff_pct"), new_agg.get("stats_null_move_cutoff_pct")
+                ),
                 delta_points(old_agg.get("stats_main_tt_hit_pct"), new_agg.get("stats_main_tt_hit_pct")),
                 delta_points(old_agg.get("stats_q_tt_hit_pct"), new_agg.get("stats_q_tt_hit_pct")),
                 delta_points(old_agg.get("stats_qnode_pct"), new_agg.get("stats_qnode_pct")),
@@ -843,15 +863,15 @@ def render_fixed_depth_compare(
         f"- Candidate: `{new_dir}`",
         "",
         "## Averaged deltas",
-        "| Position | Threads | Depth old/new | Nodes delta | Time old/new | Time delta | NPS old/new | NPS delta | MainTT Hit delta | QTT Hit delta | QNode delta | Score old/new | Bestmove old/new |",
-        "|---|---:|---|---:|---|---:|---|---:|---:|---:|---:|---|---|",
+        "| Position | Threads | Depth old/new | Nodes delta | Time old/new | Time delta | NPS old/new | NPS delta | NullMove Try delta | NullMove Cut% delta | MainTT Hit delta | QTT Hit delta | QNode delta | Score old/new | Bestmove old/new |",
+        "|---|---:|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---|---|",
     ]
     for key in keys:
         position_id, threads = key
         old_agg = old.get(key, {})
         new_agg = new.get(key, {})
         lines.append(
-            "| {} | {} | {} / {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} / {} | {} / {} |".format(
+            "| {} | {} | {} / {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} | {} | {} / {} | {} / {} |".format(
                 position_id,
                 threads,
                 format_num(old_agg.get("depth")),
@@ -863,6 +883,10 @@ def render_fixed_depth_compare(
                 format_num(old_agg.get("nps")),
                 format_num(new_agg.get("nps")),
                 percent_delta(old_agg.get("nps"), new_agg.get("nps")),
+                percent_delta(old_agg.get("stats_null_move_tries"), new_agg.get("stats_null_move_tries")),
+                delta_points(
+                    old_agg.get("stats_null_move_cutoff_pct"), new_agg.get("stats_null_move_cutoff_pct")
+                ),
                 delta_points(old_agg.get("stats_main_tt_hit_pct"), new_agg.get("stats_main_tt_hit_pct")),
                 delta_points(old_agg.get("stats_q_tt_hit_pct"), new_agg.get("stats_q_tt_hit_pct")),
                 delta_points(old_agg.get("stats_qnode_pct"), new_agg.get("stats_qnode_pct")),

@@ -13,6 +13,11 @@ namespace {
 constexpr int AspirationWindow = 50;
 constexpr int SearchInf        = static_cast<int>(INF_VALUE);
 
+// Null-move pruning defaults.
+constexpr int NullMoveReductionBase = 3;
+constexpr int NullMoveReductionDeep = 4;
+constexpr int NullMoveDeepDepth     = 6;
+
 // Apply the PV/non-PV TT cutoff policy.
 template <NodeType Node>
 bool tt_cutoff_allowed(
@@ -151,7 +156,7 @@ bool SearchWorker::search_root_window(int depth, int alpha, int beta) {
 
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
 template <NodeType Node>
-int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* pv) {
+int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* pv, bool can_null) {
     if (pv)
         pv->clear();
 
@@ -193,20 +198,51 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
 
     // Probe for a cutoff or a hash move.
     stats.main_tt_probe(ply);
-    if (auto record = tt.probe(position_key)) {
+    const auto tt_record = tt.probe(position_key);
+    if (tt_record) {
         stats.main_tt_hit(ply);
 
-        const int tt_score = record->score_at_ply(ply);
-        if (tt_cutoff_allowed<Node>(*record, tt_score, depth, alpha, beta)) {
+        const TT_Record& record   = *tt_record;
+        const int        tt_score = record.score_at_ply(ply);
+        if (tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
             stats.main_tt_cutoff(ply);
             return tt_score;
         }
 
-        tt_move = record->move;
+        tt_move = record.move;
     }
 
-    const bool         in_check   = board.is_check();
-    const Color        turn       = board.side_to_move();
+    const bool  in_check = board.is_check();
+    const Color turn     = board.side_to_move();
+
+    if constexpr (Node == NON_PV) {
+        // Null Move Pruning. If passing the turn still maintains beta, prune early.
+        // Skip NMP when a depth-sufficient TT upper bound suggests it will fail low.
+        const int reduction =
+            depth > NullMoveDeepDepth ? NullMoveReductionDeep : NullMoveReductionBase;
+        const bool tt_upper_veto = tt_record && tt_record->depth >= depth &&
+                                   tt_record->flag == TT_Flag::Upperbound &&
+                                   tt_record->score_at_ply(ply) < beta;
+        if (can_null && !in_check && depth >= reduction && board.nonPawnMaterial(turn) > ROOK_MG &&
+            !tt_upper_veto) {
+            stats.null_move_try(ply);
+
+            board.make_null(position_states.child(ply));
+            ++ply;
+            const int value =
+                -alphabeta<NON_PV>(-beta, -beta + 1, depth - reduction, nullptr, false);
+            board.unmake_null(position_states.parent(ply));
+            --ply;
+
+            if (stop_requested())
+                return alpha;
+            if (value >= beta) {
+                stats.null_move_cutoff(ply);
+                return value;
+            }
+        }
+    }
+
     int                move_count = 0;
     int                best_value = -INF_VALUE;
     Move               best_move  = NULL_MOVE;
@@ -230,15 +266,15 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         // PV nodes search the first move full-window; later moves scout first.
         int value;
         if constexpr (Node == NON_PV) {
-            value = -alphabeta<NON_PV>(-beta, -alpha, depth - 1);
+            value = -alphabeta<NON_PV>(-beta, -alpha, depth - 1, nullptr, true);
         } else if (move_count == 1) {
-            value = -alphabeta<PV>(-beta, -alpha, depth - 1, pv ? &child_pv : nullptr);
+            value = -alphabeta<PV>(-beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
         } else {
-            value = -alphabeta<NON_PV>(-alpha - 1, -alpha, depth - 1);
+            value = -alphabeta<NON_PV>(-alpha - 1, -alpha, depth - 1, nullptr, true);
             if (!stop_requested() && value > alpha) {
                 stats.pvs_research(ply);
                 child_pv.clear();
-                value = -alphabeta<PV>(-beta, -alpha, depth - 1, pv ? &child_pv : nullptr);
+                value = -alphabeta<PV>(-beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
             }
         }
 
@@ -406,7 +442,7 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
 }
 
 // Template definitions live in this translation unit; instantiate the node types we use.
-template int SearchWorker::alphabeta<PV>(int, int, int, PrincipalVariation*);
-template int SearchWorker::alphabeta<NON_PV>(int, int, int, PrincipalVariation*);
+template int SearchWorker::alphabeta<PV>(int, int, int, PrincipalVariation*, bool);
+template int SearchWorker::alphabeta<NON_PV>(int, int, int, PrincipalVariation*, bool);
 template int SearchWorker::quiescence<PV>(int, int, PrincipalVariation*);
 template int SearchWorker::quiescence<NON_PV>(int, int, PrincipalVariation*);

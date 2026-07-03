@@ -83,7 +83,8 @@ private:
 
     // Search algorithm. (search.cpp)
     template <NodeType Node = NON_PV>
-    int alphabeta(int alpha, int beta, int depth, PrincipalVariation* pv = nullptr);
+    int alphabeta(
+        int alpha, int beta, int depth, PrincipalVariation* pv = nullptr, bool can_null = true);
     template <NodeType Node = NON_PV>
     int quiescence(int alpha, int beta, PrincipalVariation* pv = nullptr);
 

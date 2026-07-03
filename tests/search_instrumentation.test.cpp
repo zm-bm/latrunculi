@@ -22,6 +22,8 @@ TEST(SearchInstrumentation, DisabledStatsAreNoOps) {
     stats.q_tt_probe(1);
     stats.q_tt_hit(1);
     stats.q_tt_cutoff(1);
+    stats.null_move_try(1);
+    stats.null_move_cutoff(1);
     stats.reset();
     stats += other;
 
@@ -49,6 +51,8 @@ TEST(SearchInstrumentation, RecordsEventsAndReset) {
     stats.q_tt_probe(ply);
     stats.q_tt_hit(ply);
     stats.q_tt_cutoff(ply);
+    stats.null_move_try(ply);
+    stats.null_move_cutoff(ply);
 
     const auto& counters = stats.raw_counters();
     EXPECT_EQ(counters.nodes[ply], 2);
@@ -71,6 +75,8 @@ TEST(SearchInstrumentation, RecordsEventsAndReset) {
     EXPECT_EQ(counters.q_tt_probes[ply], 1);
     EXPECT_EQ(counters.q_tt_hits[ply], 1);
     EXPECT_EQ(counters.q_tt_cutoffs[ply], 1);
+    EXPECT_EQ(counters.null_move_tries[ply], 1);
+    EXPECT_EQ(counters.null_move_cutoffs[ply], 1);
 
     stats.reset();
 
@@ -95,6 +101,8 @@ TEST(SearchInstrumentation, RecordsEventsAndReset) {
     EXPECT_EQ(reset_counters.q_tt_probes[ply], 0);
     EXPECT_EQ(reset_counters.q_tt_hits[ply], 0);
     EXPECT_EQ(reset_counters.q_tt_cutoffs[ply], 0);
+    EXPECT_EQ(reset_counters.null_move_tries[ply], 0);
+    EXPECT_EQ(reset_counters.null_move_cutoffs[ply], 0);
 }
 
 TEST(SearchInstrumentation, ArithmeticOperators) {
@@ -106,6 +114,8 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     counters1.pvs_researches[1]     = 1;
     counters1.main_tt_probes[1]     = 4;
     counters1.q_tt_probes[1]        = 5;
+    counters1.null_move_tries[1]    = 6;
+    counters1.null_move_cutoffs[1]  = 3;
     counters1.aspiration_fail_lows  = 1;
     counters1.aspiration_fail_highs = 2;
     counters1.aspiration_researches = 3;
@@ -115,6 +125,8 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     counters2.pvs_researches[1]     = 2;
     counters2.main_tt_probes[1]     = 6;
     counters2.q_tt_probes[1]        = 7;
+    counters2.null_move_tries[1]    = 8;
+    counters2.null_move_cutoffs[1]  = 5;
     counters2.aspiration_fail_lows  = 4;
     counters2.aspiration_fail_highs = 5;
     counters2.aspiration_researches = 6;
@@ -129,12 +141,16 @@ TEST(SearchInstrumentation, ArithmeticOperators) {
     EXPECT_EQ(stats1.raw_counters().pvs_researches[1], 3);
     EXPECT_EQ(stats1.raw_counters().main_tt_probes[1], 10);
     EXPECT_EQ(stats1.raw_counters().q_tt_probes[1], 12);
+    EXPECT_EQ(stats1.raw_counters().null_move_tries[1], 14);
+    EXPECT_EQ(stats1.raw_counters().null_move_cutoffs[1], 8);
     EXPECT_EQ(stats1.raw_counters().aspiration_fail_lows, 5);
     EXPECT_EQ(stats1.raw_counters().aspiration_fail_highs, 7);
     EXPECT_EQ(stats1.raw_counters().aspiration_researches, 9);
 
     auto stats3 = stats1 + stats2;
     EXPECT_EQ(stats3.raw_counters().nodes[1], 20);
+    EXPECT_EQ(stats3.raw_counters().null_move_tries[1], 22);
+    EXPECT_EQ(stats3.raw_counters().null_move_cutoffs[1], 13);
     EXPECT_EQ(stats3.raw_counters().aspiration_researches, 15);
 }
 
@@ -166,6 +182,10 @@ TEST(SearchInstrumentation, Output) {
     counters.q_tt_probes[1]         = 40;
     counters.q_tt_hits[1]           = 10;
     counters.q_tt_cutoffs[1]        = 5;
+    counters.null_move_tries[1]     = 6;
+    counters.null_move_cutoffs[1]   = 3;
+    counters.null_move_tries[2]     = 4;
+    counters.null_move_cutoffs[2]   = 1;
 
     SearchInstrumentation<true> stats{counters};
     std::ostringstream          oss;
@@ -174,6 +194,7 @@ TEST(SearchInstrumentation, Output) {
     EXPECT_EQ(stats.str(), std::format("{}", stats));
     EXPECT_NE(oss.str().find("Aspiration: fail-low=1 fail-high=2 re-searches=3"),
               std::string::npos);
+    EXPECT_NE(oss.str().find("NullMove: tries=10 cutoffs=4 cutoff-rate=40.0%"), std::string::npos);
     EXPECT_NE(oss.str().find("Depth"), std::string::npos);
     EXPECT_NE(oss.str().find("Nodes"), std::string::npos);
     EXPECT_NE(oss.str().find("CutIdx"), std::string::npos);

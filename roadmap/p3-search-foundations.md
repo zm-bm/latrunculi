@@ -25,7 +25,6 @@ small enough to understand, benchmark, and revert.
 
 - Start with correctness and tree-shape clarity, not strength tuning.
 - Keep current board/movegen/make-unmake/eval contracts intact.
-- Keep the single owning staged `MovePicker` baseline from P2.
 - Use commit-sized ladder steps instead of a new runtime experiment framework.
 - Do not add `LATRUNCULI_SEARCH_EXPERIMENTS` yet; revisit it only if branch or
   commit comparisons become painful.
@@ -232,6 +231,26 @@ material, depth guard, and no immediate repeated null move.
 
 Evidence: null-move try/cutoff stats if available, tactical regression tests,
 fixed-depth controls, and direct-UCI mid.
+
+Result 2026-07-02: kept. Non-PV main search now tries null-move pruning after
+terminal handling, mate-distance pruning, and the main TT probe. Current guards
+are `can_null`, not in check, `depth >= R`, side-to-move non-pawn material
+`> ROOK_MG`, and no depth-sufficient parent TT upper bound below beta. The null
+child searches a zero-width window at `depth - R` with `can_null=false`, where
+`R` is `3`, or `4` when depth is greater than `6`.
+
+Null cutoffs return the fail-soft null value and do not store TT bounds or
+update PV, killers, or history. Stats builds record null-move tries/cutoffs, and
+the benchmark parser reports them in direct/fixed summaries and comparisons.
+
+Evidence: focused release and stats `SearchTest.*:SearchInstrumentation.*`
+suites passed, full `ctest --preset release-dev` passed, benchmark parser
+compile passed, and `git diff --check` passed. Compared with S6 fixed-depth
+baseline `scratch/bench-runs/20260702-190520-p3-s6-pvs-final-fixeddepth-d8`,
+S7 fixed-depth depth-8
+`scratch/bench-runs/20260702-193626-p3-s7-nullmove-fixeddepth-d8` kept all six
+scores and best moves unchanged while total nodes moved `9.29M -> 2.18M`
+(`-76.5%`) and total measured time moved `5127 -> 1035 ms` (`-79.8%`).
 
 ### S8: Razoring And Futility
 
