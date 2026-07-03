@@ -115,6 +115,7 @@ public:
     // Full legality check for arbitrary/untrusted moves.
     bool is_legal_move(Move move) const;
     bool is_checking_move(Move move) const;
+    bool seeAtLeast(Move move, int threshold) const;
     int  seeMove(Move move) const;
 
     // make moves

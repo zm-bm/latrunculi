@@ -1,9 +1,7 @@
 #include "board.hpp"
 
-#include "eval.hpp"
 #include "movegen.hpp"
 #include "position_state.hpp"
-#include "score.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -252,62 +250,6 @@ bool Board::is_checking_move(Move mv) const {
     case BASIC_MOVE: return false;
     default:         return false;
     }
-}
-
-// static exchange eval: likely eval change after a series of exchanges
-int Board::seeMove(Move move) const {
-    const Square from = move.from();
-    const Square to   = move.to();
-
-    Color     side           = side_to_move();
-    PieceType piece          = piecetype_on(from);
-    PieceType captured_piece = captured_piece_type(move);
-    uint64_t  occupied       = occupancy();
-    uint64_t  from_bb        = bb::set(from);
-
-    if (move.type() == MOVE_EP) {
-        const Square captured = to + (side == WHITE ? SOUTH : NORTH);
-        occupied              = (occupied ^ bb::set(captured)) | bb::set(to);
-    }
-
-    uint64_t attackers = attacks_to(to, occupied);
-
-    // swap-list of best case material gain for each depth
-    int gain[32] = {};
-    gain[0]      = eval::piece(captured_piece).mg;
-
-    int depth = 0;
-    do {
-        // next depth + side
-        depth++;
-        side = ~side;
-
-        // calculate gain, prune if negative
-        gain[depth] = eval::piece(piece).mg - gain[depth - 1];
-        if (std::max(-gain[depth - 1], gain[depth]) < 0)
-            break;
-
-        // update bitboards
-        occupied  ^= from_bb;
-        attackers  = attacks_to(to, occupied) & occupied;
-
-        // find next least valuable attacker
-        from_bb = 0;
-        for (PieceType p : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING}) {
-            uint64_t opp_pieces = attackers & piece_bb[side][p];
-            if (opp_pieces) {
-                piece   = p;
-                from_bb = opp_pieces & -opp_pieces; // get least significant bit
-                break;
-            }
-        }
-    } while (from_bb);
-
-    // negamax the swap-list to get final static exchange eval
-    while (--depth)
-        gain[depth - 1] = -std::max(-gain[depth - 1], gain[depth]);
-
-    return gain[0];
 }
 
 void Board::make(Move move, PositionState& next_state) {

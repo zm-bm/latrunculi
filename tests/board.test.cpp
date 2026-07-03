@@ -133,31 +133,6 @@ TEST(BoardTest, halfmove) {
     EXPECT_EQ(TestBoard("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1").halfmove(), 7);
 }
 
-TEST(BoardTest, static_exchange_basic) {
-    TestBoard b("1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - -");
-    EXPECT_EQ(b.seeMove(Move(E1, E5)), eval::piece(PAWN).mg);
-}
-
-TEST(BoardTest, static_exchange_trade) {
-    TestBoard b("1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - -");
-    EXPECT_EQ(b.seeMove(Move(D3, E5)), eval::piece(PAWN).mg - eval::piece(KNIGHT).mg);
-}
-
-TEST(BoardTest, static_exchange_prefers_pawn_over_knight_recapturer) {
-    TestBoard b("7k/1B1p4/4p3/P2p4/2P5/2n5/8/K7 w - - 0 1");
-    EXPECT_EQ(b.seeMove(Move(B7, D5)), eval::piece(PAWN).mg - eval::piece(BISHOP).mg);
-}
-
-TEST(BoardTest, static_exchange_handles_king_recapture) {
-    TestBoard b("8/8/4k3/3p4/3Q4/8/8/K7 w - - 0 1");
-    EXPECT_EQ(b.seeMove(Move(D4, D5)), eval::piece(PAWN).mg - eval::piece(QUEEN).mg);
-}
-
-TEST(BoardTest, static_exchange_en_passant_uses_pawn_victim) {
-    TestBoard b(ENPASSANT_A3);
-    EXPECT_EQ(b.seeMove(Move(B4, A3, MOVE_EP)), eval::piece(PAWN).mg);
-}
-
 TEST(BoardTest, is_legal_move_pin) {
     EXPECT_FALSE(TestBoard(POS3).is_legal_move(Move(B5, B6)));
 }

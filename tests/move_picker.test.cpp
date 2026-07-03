@@ -5,7 +5,6 @@
 
 #include <gtest/gtest.h>
 
-#include "eval.hpp"
 #include "history.hpp"
 #include "killers.hpp"
 #include "movegen.hpp"
@@ -20,12 +19,11 @@ protected:
 };
 
 namespace {
-constexpr std::string_view PROMOTION_FEN                  = "4k3/P6p/8/8/8/8/p6P/4K3 w - - 0 1";
-constexpr std::string_view CAPTURE_PROMOTION_FEN          = "1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1";
-constexpr std::string_view CASTLE_FEN                     = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
-constexpr std::string_view QUIET_EVASION_FEN              = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
-constexpr std::string_view WEAK_CAPTURE_FEN               = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
-constexpr MoveScore        EXPECTED_CAPTURE_VICTIM_WEIGHT = 7;
+constexpr std::string_view PROMOTION_FEN         = "4k3/P6p/8/8/8/8/p6P/4K3 w - - 0 1";
+constexpr std::string_view CAPTURE_PROMOTION_FEN = "1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1";
+constexpr std::string_view CASTLE_FEN            = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+constexpr std::string_view QUIET_EVASION_FEN     = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+constexpr std::string_view WEAK_CAPTURE_FEN      = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
 
 std::vector<uint16_t> sorted_move_bits(MoveList movelist) {
     std::vector<uint16_t> bits;
@@ -73,14 +71,8 @@ std::vector<Move> picked_root_order(
     return picked_main_search(board, killers, history, ply, tt_move);
 }
 
-MoveScore expected_capture_score(const Board& board, Move move) {
-    const int see_score = board.seeMove(move);
-    if (see_score < 0)
-        return PRIORITY_WEAK;
-
-    return PRIORITY_CAPTURE +
-           EXPECTED_CAPTURE_VICTIM_WEIGHT * eval::piece(board.captured_piece_type(move)).mg +
-           see_score;
+bool expected_good_noisy(const Board& board, Move move) {
+    return move.type() == MOVE_PROM || board.seeAtLeast(move, 0);
 }
 } // namespace
 
@@ -158,15 +150,13 @@ TEST_F(MovePickerTest, QSearchNotInCheckGeneratesNoisyMovesOnly) {
 
     MoveList expected;
     for (const Move& move : movegen::generate_noisy(board)) {
-        if (move.type() == MOVE_PROM || expected_capture_score(board, move) >= PRIORITY_CAPTURE)
+        if (expected_good_noisy(board, move))
             expected.add(move);
     }
     EXPECT_EQ(sorted_move_bits(moves), sorted_move_bits(expected));
     for (const Move& move : moves) {
         EXPECT_TRUE(move.type() == MOVE_PROM || board.is_capture(move)) << move.str();
-        EXPECT_TRUE(move.type() == MOVE_PROM ||
-                    expected_capture_score(board, move) >= PRIORITY_CAPTURE)
-            << move.str();
+        EXPECT_TRUE(expected_good_noisy(board, move)) << move.str();
     }
 }
 
