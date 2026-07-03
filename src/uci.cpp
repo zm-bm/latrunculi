@@ -35,7 +35,7 @@ std::string format_search_info(const SearchInfo& info) {
 }
 
 std::string format_root_pv(const RootLine& line, const Board& root_board) {
-    if (!line.usable_best_move() || line.pv.empty() || line.pv.front() != line.best_move)
+    if (!line.usable_root_move() || line.pv.empty() || line.pv.front() != line.root_move)
         return "";
 
     PositionStateStack pv_states;

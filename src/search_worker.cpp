@@ -33,17 +33,17 @@ void SearchWorker::configure_search(const SearchOptions& search_options) {
 // Root snapshot publication.
 void SearchWorker::clear_root_snapshot() {
     std::lock_guard<std::mutex> lock(root_snapshot_mutex);
-    published_root = {};
+    root_result_snapshot = {};
 }
 
-void SearchWorker::publish_root_snapshot() {
+void SearchWorker::update_root_snapshot() {
     std::lock_guard<std::mutex> lock(root_snapshot_mutex);
-    published_root = root;
+    root_result_snapshot = root_result;
 }
 
 RootLine SearchWorker::root_snapshot() const {
     std::lock_guard<std::mutex> lock(root_snapshot_mutex);
-    return published_root;
+    return root_result_snapshot;
 }
 
 // Search lifecycle.
@@ -65,13 +65,13 @@ int SearchWorker::search() {
     if (is_main_worker())
         report_final_result();
 
-    return root.value;
+    return root_result.value;
 }
 
 void SearchWorker::reset_search_state() {
     reset_nodes();
-    ply  = 0;
-    root = RootLine{NULL_MOVE, evaluate(board), 0, false};
+    ply         = 0;
+    root_result = RootLine{NULL_MOVE, evaluate(board), 0, false};
     root_lines.clear();
 
     killers.clear();
@@ -93,31 +93,42 @@ void SearchWorker::build_root_lines() {
     MovePicker picker = MovePicker::main_search(board, killers, history, 0);
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (board.is_legal_generated_move(move))
-            root_lines.push_back(RootLine{.best_move = move, .value = -INF_VALUE});
+            root_lines.push_back(RootLine{.root_move = move, .value = -INF_VALUE});
     }
 }
 
 // Root result reporting.
+RootLine SearchWorker::terminal_root_result() const {
+    assert(root_lines.empty());
+
+    return RootLine{
+        .root_move = NULL_MOVE,
+        .value     = board.is_check() ? -MATE_VALUE : DRAW_VALUE,
+        .depth     = options.depth,
+        .completed = true,
+    };
+}
+
 void SearchWorker::record_root_result(int value) {
-    if (!root.completed && !stop_requested()) {
-        root.value     = value;
-        root.depth     = options.depth;
-        root.completed = true;
+    if (!root_result.completed && !stop_requested()) {
+        root_result.value     = value;
+        root_result.depth     = options.depth;
+        root_result.completed = true;
     }
 
-    if (!root.completed)
-        root.pv.clear();
+    if (!root_result.completed)
+        root_result.pv.clear();
 
-    publish_root_snapshot();
+    update_root_snapshot();
 }
 
 void SearchWorker::report_final_result() {
     thread_pool.stop_helper_searches();
 
-    const RootLine selected = select_best_root_line(root, thread_pool.root_snapshots());
+    const RootLine selected = select_best_root_line(root_result, thread_pool.root_snapshots());
 
     protocol.info(uci::make_search_info(selected, board, total_nodes(), runtime()));
-    protocol.bestmove(selected.best_move.str());
+    protocol.bestmove(selected.root_move.str());
 
     if constexpr (SEARCH_STATS) {
         auto stats = thread_pool.aggregate_instrumentation();

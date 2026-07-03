@@ -41,7 +41,7 @@ private:
     PositionStateStack    position_states;
     Board                 board;
     int                   ply{0};
-    RootLine              root;
+    RootLine              root_result;
     std::vector<RootLine> root_lines;
     KillerMoves           killers;
     HistoryTable          history;
@@ -62,26 +62,29 @@ private:
     // Stop state.
     std::atomic<bool> stop_requested_flag{false};
 
-    // Published root result.
+    // Root result snapshots.
     mutable std::mutex root_snapshot_mutex;
-    RootLine           published_root;
+    RootLine           root_result_snapshot;
 
     // Search lifecycle.
-    void reset_search_state();
-    void prepare_shared_search_state();
-    void build_root_lines();
-    int  search_root();
-    bool search_root_aspiration(int depth, int previous_value);
-    bool search_root_iteration(int depth, int alpha, int beta);
-    void record_root_result(int value);
-    void report_final_result();
+    void     reset_search_state();
+    void     prepare_shared_search_state();
+    void     build_root_lines();
+    int      search_root();
+    RootLine terminal_root_result() const;
+    bool     search_root_depth(int depth, int previous_value);
+    bool     search_root_window(int depth, int alpha, int beta);
+    void     record_root_result(int value);
+    void     report_final_result();
 
     // Root snapshot publication.
     void clear_root_snapshot();
-    void publish_root_snapshot();
+    void update_root_snapshot();
 
     // Search algorithm. (search.cpp)
+    template <NodeType Node = NON_PV>
     int alphabeta(int alpha, int beta, int depth, PrincipalVariation* pv = nullptr);
+    template <NodeType Node = NON_PV>
     int quiescence(int alpha, int beta, PrincipalVariation* pv = nullptr);
 
     // Accounting and limits.

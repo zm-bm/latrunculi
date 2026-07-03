@@ -236,7 +236,7 @@ bool Engine::perft(std::istringstream& iss) {
 
     if (iss >> depth) {
         depth = std::max(1, depth);
-        board.perft<ROOT>(depth, err);
+        board.perft(depth, err);
     }
 
     return true;

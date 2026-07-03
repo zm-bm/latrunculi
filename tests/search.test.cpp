@@ -57,7 +57,11 @@ protected:
     }
 
     int runNonPvAlphaBeta(int alpha, int beta, int search_depth) {
-        return worker->alphabeta(alpha, beta, search_depth);
+        return worker->alphabeta<NON_PV>(alpha, beta, search_depth);
+    }
+
+    int runPvAlphaBeta(int alpha, int beta, int search_depth, PrincipalVariation& pv) {
+        return worker->alphabeta<PV>(alpha, beta, search_depth, &pv);
     }
 
     void buildRootLines() { worker->build_root_lines(); }
@@ -67,15 +71,19 @@ protected:
         return worker->search_root();
     }
 
-    bool runRootAspiration(int search_depth, int previous_value) {
+    bool runRootDepth(int search_depth, int previous_value) {
         worker->build_root_lines();
-        return worker->search_root_aspiration(search_depth, previous_value);
+        return worker->search_root_depth(search_depth, previous_value);
     }
 
-    int runQuiescence(int alpha, int beta) { return worker->quiescence(alpha, beta); }
+    bool runRootWindow(int search_depth, int alpha, int beta) {
+        return worker->search_root_window(search_depth, alpha, beta);
+    }
 
-    int runQuiescenceWithPv(int alpha, int beta, PrincipalVariation& pv) {
-        return worker->quiescence(alpha, beta, &pv);
+    int runQuiescence(int alpha, int beta) { return worker->quiescence<NON_PV>(alpha, beta); }
+
+    int runPvQuiescence(int alpha, int beta, PrincipalVariation& pv) {
+        return worker->quiescence<PV>(alpha, beta, &pv);
     }
 
     int runWorkerSearch() { return worker->search(); }
@@ -94,7 +102,7 @@ protected:
 
         worker->board.make(move, worker->position_states.child(worker->ply));
         ++worker->ply;
-        int score = worker->alphabeta(alpha, beta, search_depth);
+        int score = worker->alphabeta<NON_PV>(alpha, beta, search_depth);
         worker->board.unmake(worker->position_states.parent(worker->ply));
         --worker->ply;
         return score;
@@ -113,10 +121,20 @@ protected:
 
         worker->board.make(move, worker->position_states.child(worker->ply));
         ++worker->ply;
-        int score = worker->quiescence(alpha, beta);
+        int score = worker->quiescence<NON_PV>(alpha, beta);
         worker->board.unmake(worker->position_states.parent(worker->ply));
         --worker->ply;
         return score;
+    }
+
+    void storeQsearchTtAfterMove(Move move, int score, TT_Flag flag) {
+        ASSERT_FALSE(move.is_null());
+
+        worker->board.make(move, worker->position_states.child(worker->ply));
+        ++worker->ply;
+        tt.store_search(workerKey(), NULL_MOVE, score, 0, flag, workerPly());
+        worker->board.unmake(worker->position_states.parent(worker->ply));
+        --worker->ply;
     }
 
     uint64_t workerKey() const { return worker->board.key(); }
@@ -129,23 +147,25 @@ protected:
 
     bool workerBoardIsDraw() const { return worker->board.is_draw(); }
 
-    Move rootMove() const { return worker->root.best_move; }
+    Move rootMove() const { return worker->root_result.root_move; }
 
-    bool rootCompleted() const { return worker->root.completed; }
+    bool rootCompleted() const { return worker->root_result.completed; }
 
     bool rootMoveIsLegal() const { return worker->board.is_legal_move(rootMove()); }
 
-    bool rootPvEmpty() const { return worker->root.pv.empty(); }
+    bool rootPvEmpty() const { return worker->root_result.pv.empty(); }
 
-    int rootPvSize() const { return worker->root.pv.size(); }
+    int rootPvSize() const { return worker->root_result.pv.size(); }
 
-    Move rootPvFront() const { return worker->root.pv.front(); }
+    Move rootPvFront() const { return worker->root_result.pv.front(); }
 
-    int rootValue() const { return worker->root.value; }
+    int rootValue() const { return worker->root_result.value; }
 
-    int rootDepth() const { return worker->root.depth; }
+    int rootDepth() const { return worker->root_result.depth; }
 
     const std::vector<RootLine>& rootLines() const { return worker->root_lines; }
+
+    std::vector<RootLine>& mutableRootLines() { return worker->root_lines; }
 
     RootLine rootSnapshot() const { return worker->root_snapshot(); }
 
@@ -197,6 +217,10 @@ protected:
     uint64_t aspirationResearches() const {
         return worker->stats.raw_counters().aspiration_researches;
     }
+
+    uint64_t pvsResearchesAt(int search_ply) const {
+        return worker->stats.raw_counters().pvs_researches[search_ply];
+    }
 #endif
 
     void testSearch(const std::string& fen, int search_depth, int score, std::string move) {
@@ -206,9 +230,9 @@ protected:
         ThreadTestAccess::start_search(*thread, options);
         ThreadTestAccess::wait_for_idle(*thread);
 
-        EXPECT_EQ(worker->root.value, score) << fen;
+        EXPECT_EQ(rootValue(), score) << fen;
         if (move != AnyMove) {
-            EXPECT_EQ(worker->root.best_move.str(), move) << fen;
+            EXPECT_EQ(rootMove().str(), move) << fen;
         }
     }
 };
@@ -314,7 +338,7 @@ TEST_F(SearchTest, QuiescenceBuildsPrincipalVariationFromTacticalMove) {
     PrincipalVariation pv;
     const int          static_eval = evaluate(board);
 
-    EXPECT_GT(runQuiescenceWithPv(-INF_VALUE, INF_VALUE, pv), static_eval);
+    EXPECT_GT(runPvQuiescence(-INF_VALUE, INF_VALUE, pv), static_eval);
     ASSERT_FALSE(pv.empty());
     EXPECT_TRUE(board.is_legal_move(pv.front()));
 }
@@ -485,8 +509,8 @@ TEST_F(SearchTest, RootDrawByRuleStillSearchesForLegalBestMove) {
     EXPECT_GT(workerNodes(), 1U);
 
     const RootLine snapshot = rootSnapshot();
-    EXPECT_TRUE(snapshot.usable_best_move());
-    EXPECT_EQ(snapshot.best_move, rootMove());
+    EXPECT_TRUE(snapshot.usable_root_move());
+    EXPECT_EQ(snapshot.root_move, rootMove());
 }
 
 TEST_F(SearchTest, AlphaBetaFailLowReturnsBestMoveScoreInsteadOfAlpha) {
@@ -759,6 +783,154 @@ TEST_F(SearchTest, AlphaBetaMainTTCutoffDoesNotEnterQSearchTT) {
 #endif
 }
 
+TEST_F(SearchTest, PvAlphaBetaMatchesFullWindowBaselineAndBuildsPv) {
+    struct Case {
+        const char* fen;
+        int         depth;
+    };
+
+    const std::array cases{
+        Case{STARTFEN, 3},
+        Case{POS6, 3},
+    };
+
+    for (const auto& tc : cases) {
+        TestBoard baseline_board{tc.fen};
+        loadWorkerBoard(baseline_board, tc.depth);
+        const int baseline = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, tc.depth);
+
+        TestBoard pvs_board{tc.fen};
+        loadWorkerBoard(pvs_board, tc.depth);
+        PrincipalVariation pv;
+        const int          pvs_value = runPvAlphaBeta(-INF_VALUE, INF_VALUE, tc.depth, pv);
+
+        EXPECT_EQ(pvs_value, baseline) << tc.fen;
+        ASSERT_FALSE(pv.empty()) << tc.fen;
+        EXPECT_TRUE(pvs_board.is_legal_move(pv.front())) << tc.fen;
+    }
+}
+
+TEST_F(SearchTest, PvNodesIgnoreNonExactMainAndQsearchTtBounds) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
+
+    TestBoard baseline_board{quiet_control};
+    loadWorkerBoard(baseline_board, search_depth);
+    PrincipalVariation baseline_pv;
+    const int          baseline = runPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth, baseline_pv);
+
+    const int alpha       = baseline - 100;
+    const int beta        = baseline + 100;
+    const int bogus_score = beta + 25;
+
+    TestBoard non_pv_board{quiet_control};
+    loadWorkerBoard(non_pv_board, search_depth);
+    tt.store_search(
+        workerKey(), NULL_MOVE, bogus_score, search_depth, TT_Flag::Lowerbound, workerPly());
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), bogus_score);
+
+    TestBoard pv_board{quiet_control};
+    loadWorkerBoard(pv_board, search_depth);
+    tt.store_search(
+        workerKey(), NULL_MOVE, bogus_score, search_depth, TT_Flag::Lowerbound, workerPly());
+    PrincipalVariation pv;
+    EXPECT_EQ(runPvAlphaBeta(alpha, beta, search_depth, pv), baseline);
+
+    TestBoard q_baseline_board{quiet_control};
+    loadWorkerBoard(q_baseline_board);
+    PrincipalVariation q_pv;
+    const int          q_baseline = runPvQuiescence(-INF_VALUE, INF_VALUE, q_pv);
+    const int          q_alpha    = q_baseline - 100;
+    const int          q_beta     = q_baseline + 100;
+    const int          q_bogus    = q_beta + 25;
+
+    TestBoard q_non_pv_board{quiet_control};
+    loadWorkerBoard(q_non_pv_board);
+    tt.store_search(workerKey(), NULL_MOVE, q_bogus, 0, TT_Flag::Lowerbound, workerPly());
+    EXPECT_EQ(runQuiescence(q_alpha, q_beta), q_bogus);
+
+    TestBoard q_pv_board{quiet_control};
+    loadWorkerBoard(q_pv_board);
+    tt.store_search(workerKey(), NULL_MOVE, q_bogus, 0, TT_Flag::Lowerbound, workerPly());
+    PrincipalVariation bounded_q_pv;
+    EXPECT_EQ(runPvQuiescence(q_alpha, q_beta, bounded_q_pv), q_baseline);
+}
+
+TEST_F(SearchTest, PvQuiescencePropagatesPvNodeToChildTtBounds) {
+    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    TestBoard      baseline_board{winning_capture};
+    loadWorkerBoard(baseline_board);
+
+    const int static_eval = evaluate(baseline_board);
+    const int alpha       = static_eval - 100;
+    const int beta        = static_eval + 500;
+    const int child_score = -static_eval + 10;
+
+    PrincipalVariation baseline_pv;
+    const int          baseline = runPvQuiescence(alpha, beta, baseline_pv);
+
+    TestBoard bounded_board{winning_capture};
+    loadWorkerBoard(bounded_board);
+
+    const Move capture = findWorkerMove("d1e2");
+    storeQsearchTtAfterMove(capture, child_score, TT_Flag::Lowerbound);
+
+    PrincipalVariation pv;
+    EXPECT_EQ(runPvQuiescence(alpha, beta, pv), baseline);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(qTtProbesAt(0), 1U);
+    EXPECT_EQ(qTtHitsAt(0), 0U);
+    EXPECT_GT(qTtProbesAt(1), 0U);
+    EXPECT_GT(qTtHitsAt(1), 0U);
+    EXPECT_EQ(qTtCutoffsAt(1), 0U);
+#endif
+}
+
+TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
+    constexpr auto tactic       = "k7/4r3/8/8/8/3Q4/4p3/K7 w - - 0 1";
+    constexpr int  search_depth = 1;
+    TestBoard      board{tactic};
+    loadWorkerBoard(board, search_depth);
+
+    buildRootLines();
+
+    const Move first_move = findWorkerMove("d3e2");
+    const Move best_move  = findWorkerMove("d3d8");
+    ASSERT_FALSE(first_move.is_null());
+    ASSERT_FALSE(best_move.is_null());
+
+    RootLine first_line;
+    RootLine best_line;
+    bool     found_first = false;
+    bool     found_best  = false;
+    for (const RootLine& line : rootLines()) {
+        if (line.root_move == first_move) {
+            first_line  = line;
+            found_first = true;
+        }
+        if (line.root_move == best_move) {
+            best_line  = line;
+            found_best = true;
+        }
+    }
+    ASSERT_TRUE(found_first);
+    ASSERT_TRUE(found_best);
+
+    mutableRootLines() = {first_line, best_line};
+    ASSERT_TRUE(runRootWindow(search_depth, -INF_VALUE, INF_VALUE));
+
+    ASSERT_EQ(rootLines().size(), 2U);
+    EXPECT_GT(rootLines()[1].value, rootLines()[0].value);
+
+    std::stable_sort(mutableRootLines().begin(), mutableRootLines().end(), is_better_root_line);
+    EXPECT_EQ(rootLines().front().root_move, best_move);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_GT(pvsResearchesAt(1), 0U);
+#endif
+}
+
 TEST_F(SearchTest, ResetDoesNotSeedRootLineWithFallbackMove) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     TestBoard      board{quiet_control};
@@ -784,8 +956,8 @@ TEST_F(SearchTest, RootLineListContainsLegalGeneratedRootMoves) {
 
     ASSERT_EQ(rootLines().size(), static_cast<size_t>(legal_move_count));
     for (const RootLine& line : rootLines()) {
-        EXPECT_FALSE(line.best_move.is_null());
-        EXPECT_TRUE(board.is_legal_generated_move(line.best_move));
+        EXPECT_FALSE(line.root_move.is_null());
+        EXPECT_TRUE(board.is_legal_generated_move(line.root_move));
         EXPECT_FALSE(line.completed);
         EXPECT_EQ(line.depth, 0);
         EXPECT_TRUE(line.pv.empty());
@@ -801,7 +973,7 @@ TEST_F(SearchTest, RootSearchCompletesAndOrdersRootLinesByBestCompletedLine) {
     ASSERT_TRUE(rootCompleted());
     ASSERT_TRUE(rootMoveIsLegal());
     ASSERT_FALSE(rootLines().empty());
-    EXPECT_EQ(rootLines().front().best_move, rootMove());
+    EXPECT_EQ(rootLines().front().root_move, rootMove());
     EXPECT_EQ(rootLines().front().value, rootValue());
     EXPECT_EQ(rootLines().front().depth, rootDepth());
     EXPECT_EQ(rootDepth(), 2);
@@ -826,7 +998,7 @@ TEST_F(SearchTest, RootAspirationWidensAfterFailHighAndCompletes) {
     TestBoard board{STARTFEN};
     loadWorkerBoard(board, 1);
 
-    ASSERT_TRUE(runRootAspiration(1, -1000));
+    ASSERT_TRUE(runRootDepth(1, -1000));
 
     EXPECT_TRUE(rootCompleted());
     EXPECT_TRUE(rootMoveIsLegal());
@@ -846,7 +1018,7 @@ TEST_F(SearchTest, RootAspirationWidensAfterFailLowAndCompletes) {
     TestBoard board{STARTFEN};
     loadWorkerBoard(board, 1);
 
-    ASSERT_TRUE(runRootAspiration(1, 1000));
+    ASSERT_TRUE(runRootDepth(1, 1000));
 
     EXPECT_TRUE(rootCompleted());
     EXPECT_TRUE(rootMoveIsLegal());
@@ -866,23 +1038,23 @@ TEST_F(SearchTest, StoppedRootAspirationPreservesLastAcceptedRootSnapshot) {
     TestBoard board{STARTFEN};
     loadWorkerBoard(board, 2);
 
-    ASSERT_TRUE(runRootAspiration(1, evaluate(board)));
+    ASSERT_TRUE(runRootDepth(1, evaluate(board)));
     const RootLine accepted = rootSnapshot();
-    ASSERT_TRUE(accepted.usable_best_move());
+    ASSERT_TRUE(accepted.usable_root_move());
     ASSERT_EQ(accepted.depth, 1);
 
     ThreadTestAccess::request_stop(*thread);
 
-    EXPECT_FALSE(runRootAspiration(2, accepted.value));
+    EXPECT_FALSE(runRootDepth(2, accepted.value));
 
     const RootLine snapshot = rootSnapshot();
-    EXPECT_EQ(snapshot.best_move, accepted.best_move);
+    EXPECT_EQ(snapshot.root_move, accepted.root_move);
     EXPECT_EQ(snapshot.value, accepted.value);
     EXPECT_EQ(snapshot.depth, accepted.depth);
     EXPECT_EQ(snapshot.completed, accepted.completed);
     EXPECT_EQ(snapshot.pv.size(), accepted.pv.size());
     ASSERT_FALSE(snapshot.pv.empty());
-    EXPECT_EQ(snapshot.pv.front(), accepted.best_move);
+    EXPECT_EQ(snapshot.pv.front(), accepted.root_move);
 }
 
 TEST_F(SearchTest, RootSearchSetsNullMoveForCheckmate) {
@@ -922,11 +1094,11 @@ TEST_F(SearchTest, CompletedSearchPublishesRootLineSnapshot) {
 
     const auto snapshot = rootSnapshot();
     EXPECT_TRUE(snapshot.completed);
-    EXPECT_TRUE(snapshot.completed_depth());
-    EXPECT_TRUE(snapshot.usable_best_move());
-    EXPECT_EQ(snapshot.best_move.str(), "h8h1");
+    EXPECT_TRUE(snapshot.has_completed_depth());
+    EXPECT_TRUE(snapshot.usable_root_move());
+    EXPECT_EQ(snapshot.root_move.str(), "h8h1");
     ASSERT_FALSE(snapshot.pv.empty());
-    EXPECT_EQ(snapshot.pv.front(), snapshot.best_move);
+    EXPECT_EQ(snapshot.pv.front(), snapshot.root_move);
     EXPECT_EQ(snapshot.pv.size(), 1);
     EXPECT_EQ(snapshot.value, MATE_VALUE - 1);
     EXPECT_EQ(snapshot.depth, 2);
@@ -943,9 +1115,9 @@ TEST_F(SearchTest, CompletedNonTerminalSearchPublishesFullRootPv) {
 
     const auto snapshot = rootSnapshot();
     ASSERT_TRUE(snapshot.completed);
-    ASSERT_TRUE(snapshot.usable_best_move());
+    ASSERT_TRUE(snapshot.usable_root_move());
     ASSERT_EQ(snapshot.pv.size(), 2);
-    EXPECT_EQ(snapshot.pv.front(), snapshot.best_move);
+    EXPECT_EQ(snapshot.pv.front(), snapshot.root_move);
 }
 
 TEST_F(SearchTest, CompletedNoLegalMoveSearchPublishesCompletedNullMove) {
@@ -959,9 +1131,9 @@ TEST_F(SearchTest, CompletedNoLegalMoveSearchPublishesCompletedNullMove) {
 
     const auto snapshot = rootSnapshot();
     EXPECT_TRUE(snapshot.completed);
-    EXPECT_TRUE(snapshot.completed_depth());
-    EXPECT_FALSE(snapshot.usable_best_move());
-    EXPECT_EQ(snapshot.best_move, NULL_MOVE);
+    EXPECT_TRUE(snapshot.has_completed_depth());
+    EXPECT_FALSE(snapshot.usable_root_move());
+    EXPECT_EQ(snapshot.root_move, NULL_MOVE);
     EXPECT_EQ(snapshot.value, -MATE_VALUE);
     EXPECT_EQ(snapshot.depth, 1);
     EXPECT_TRUE(snapshot.pv.empty());
@@ -977,10 +1149,10 @@ TEST_F(SearchTest, StoppedSearchPublishesIncompleteRootLineSnapshot) {
 
     const auto snapshot = rootSnapshot();
     EXPECT_FALSE(snapshot.completed);
-    EXPECT_EQ(snapshot.best_move, NULL_MOVE);
+    EXPECT_EQ(snapshot.root_move, NULL_MOVE);
     EXPECT_EQ(snapshot.depth, 0);
-    EXPECT_FALSE(snapshot.completed_depth());
-    EXPECT_FALSE(snapshot.usable_best_move());
+    EXPECT_FALSE(snapshot.has_completed_depth());
+    EXPECT_FALSE(snapshot.usable_root_move());
     EXPECT_TRUE(snapshot.pv.empty());
 }
 
@@ -994,11 +1166,11 @@ TEST_F(SearchTest, StoppedSearchPreservesLastCompletedRootLine) {
     ThreadTestAccess::wait_for_idle(*thread);
 
     const auto snapshot = rootSnapshot();
-    ASSERT_TRUE(snapshot.completed_depth());
-    EXPECT_TRUE(snapshot.usable_best_move());
+    ASSERT_TRUE(snapshot.has_completed_depth());
+    EXPECT_TRUE(snapshot.usable_root_move());
     EXPECT_LT(snapshot.depth, options.depth);
     ASSERT_FALSE(snapshot.pv.empty());
-    EXPECT_EQ(snapshot.pv.front(), snapshot.best_move);
+    EXPECT_EQ(snapshot.pv.front(), snapshot.root_move);
 }
 
 TEST_F(SearchTest, StoppedSearchReturnsAbortSentinelValue) {
@@ -1014,73 +1186,73 @@ TEST_F(SearchTest, StoppedSearchReturnsAbortSentinelValue) {
 }
 
 TEST_F(SearchTest, SelectBestRootLinePrefersHigherCompletedDepth) {
-    const RootLine fallback{.best_move = Move(E2, E4), .value = 50, .depth = 2, .completed = true};
+    const RootLine fallback{.root_move = Move(E2, E4), .value = 50, .depth = 2, .completed = true};
     const std::array<RootLine, 2> lines{
-        RootLine{.best_move = Move(G1, F3), .value = 0, .depth = 3, .completed = true},
-        RootLine{.best_move = Move(D2, D4), .value = 200, .depth = 1, .completed = true},
+        RootLine{.root_move = Move(G1, F3), .value = 0, .depth = 3, .completed = true},
+        RootLine{.root_move = Move(D2, D4), .value = 200, .depth = 1, .completed = true},
     };
 
     const RootLine selected = select_best_root_line(fallback, lines);
 
-    EXPECT_EQ(selected.best_move, Move(G1, F3));
+    EXPECT_EQ(selected.root_move, Move(G1, F3));
     EXPECT_EQ(selected.depth, 3);
 }
 
 TEST_F(SearchTest, SelectBestRootLineTieBreaksByHigherValue) {
-    const RootLine fallback{.best_move = Move(E2, E4), .value = 10, .depth = 3, .completed = true};
+    const RootLine fallback{.root_move = Move(E2, E4), .value = 10, .depth = 3, .completed = true};
     const std::array<RootLine, 2> lines{
-        RootLine{.best_move = Move(G1, F3), .value = 25, .depth = 3, .completed = true},
-        RootLine{.best_move = Move(D2, D4), .value = 20, .depth = 3, .completed = true},
+        RootLine{.root_move = Move(G1, F3), .value = 25, .depth = 3, .completed = true},
+        RootLine{.root_move = Move(D2, D4), .value = 20, .depth = 3, .completed = true},
     };
 
     const RootLine selected = select_best_root_line(fallback, lines);
 
-    EXPECT_EQ(selected.best_move, Move(G1, F3));
+    EXPECT_EQ(selected.root_move, Move(G1, F3));
     EXPECT_EQ(selected.value, 25);
 }
 
 TEST_F(SearchTest, SelectBestRootLineTieBreaksByLowerMoveBits) {
-    const RootLine fallback{.best_move = Move(H2, H3), .value = 10, .depth = 3, .completed = true};
-    const RootLine first{.best_move = Move(G2, G3), .value = 10, .depth = 3, .completed = true};
-    const RootLine second{.best_move = Move(A2, A3), .value = 10, .depth = 3, .completed = true};
+    const RootLine fallback{.root_move = Move(H2, H3), .value = 10, .depth = 3, .completed = true};
+    const RootLine first{.root_move = Move(G2, G3), .value = 10, .depth = 3, .completed = true};
+    const RootLine second{.root_move = Move(A2, A3), .value = 10, .depth = 3, .completed = true};
     const std::array<RootLine, 2> lines{first, second};
 
     const RootLine selected = select_best_root_line(fallback, lines);
     const Move     expected =
-        first.best_move.bits < second.best_move.bits ? first.best_move : second.best_move;
+        first.root_move.bits < second.root_move.bits ? first.root_move : second.root_move;
 
-    EXPECT_LT(expected.bits, fallback.best_move.bits);
-    EXPECT_EQ(selected.best_move, expected);
+    EXPECT_LT(expected.bits, fallback.root_move.bits);
+    EXPECT_EQ(selected.root_move, expected);
 }
 
 TEST_F(SearchTest, SelectBestRootLineIgnoresUnusableLines) {
-    const RootLine fallback{.best_move = Move(E2, E4), .value = 10, .depth = 2, .completed = true};
+    const RootLine fallback{.root_move = Move(E2, E4), .value = 10, .depth = 2, .completed = true};
     const std::array<RootLine, 3> lines{
-        RootLine{.best_move = Move(G1, F3), .value = 1000, .depth = 99, .completed = false},
-        RootLine{.best_move = NULL_MOVE, .value = 1000, .depth = 99, .completed = true},
-        RootLine{.best_move = Move(D2, D4), .value = 1000, .depth = 0, .completed = true},
+        RootLine{.root_move = Move(G1, F3), .value = 1000, .depth = 99, .completed = false},
+        RootLine{.root_move = NULL_MOVE, .value = 1000, .depth = 99, .completed = true},
+        RootLine{.root_move = Move(D2, D4), .value = 1000, .depth = 0, .completed = true},
     };
 
     const RootLine selected = select_best_root_line(fallback, lines);
 
-    EXPECT_EQ(selected.best_move, fallback.best_move);
+    EXPECT_EQ(selected.root_move, fallback.root_move);
     EXPECT_EQ(selected.value, fallback.value);
     EXPECT_EQ(selected.depth, fallback.depth);
 }
 
 TEST_F(SearchTest, SelectBestRootLineReturnsFallbackWhenNoUsableLineExists) {
     const RootLine fallback{
-        .best_move = NULL_MOVE, .value = DRAW_VALUE, .depth = 1, .completed = true};
+        .root_move = NULL_MOVE, .value = DRAW_VALUE, .depth = 1, .completed = true};
     const std::array<RootLine, 2> lines{
-        RootLine{.best_move = Move(G1, F3), .value = 1000, .depth = 2, .completed = false},
-        RootLine{.best_move = NULL_MOVE, .value = -MATE_VALUE, .depth = 2, .completed = true},
+        RootLine{.root_move = Move(G1, F3), .value = 1000, .depth = 2, .completed = false},
+        RootLine{.root_move = NULL_MOVE, .value = -MATE_VALUE, .depth = 2, .completed = true},
     };
 
     const RootLine selected = select_best_root_line(fallback, lines);
 
-    EXPECT_TRUE(selected.best_move.is_null());
+    EXPECT_TRUE(selected.root_move.is_null());
     EXPECT_TRUE(selected.completed);
-    EXPECT_TRUE(selected.completed_depth());
-    EXPECT_FALSE(selected.usable_best_move());
+    EXPECT_TRUE(selected.has_completed_depth());
+    EXPECT_FALSE(selected.usable_root_move());
     EXPECT_EQ(selected.value, DRAW_VALUE);
 }

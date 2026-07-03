@@ -8,7 +8,7 @@
 
 // Root-search result passed between workers and final reporting.
 struct RootLine {
-    Move best_move{NULL_MOVE};
+    Move root_move{NULL_MOVE};
     int  value{DRAW_VALUE};
 
     int  depth{0};
@@ -16,9 +16,23 @@ struct RootLine {
 
     PrincipalVariation pv;
 
-    bool completed_depth() const noexcept { return completed && depth > 0; }
-    bool has_best_move() const noexcept { return !best_move.is_null(); }
-    bool usable_best_move() const noexcept { return completed_depth() && has_best_move(); }
+    void reset_attempt() noexcept {
+        value     = -INF_VALUE;
+        depth     = 0;
+        completed = false;
+        pv.clear();
+    }
+
+    void complete(int completed_depth, int score, const PrincipalVariation& child_pv) {
+        value     = score;
+        depth     = completed_depth;
+        completed = true;
+        pv.update(root_move, child_pv);
+    }
+
+    bool has_completed_depth() const noexcept { return completed && depth > 0; }
+    bool has_root_move() const noexcept { return !root_move.is_null(); }
+    bool usable_root_move() const noexcept { return has_completed_depth() && has_root_move(); }
 };
 
 bool is_better_root_line(const RootLine& candidate, const RootLine& current) noexcept;

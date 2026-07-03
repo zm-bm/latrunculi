@@ -60,11 +60,11 @@ protected:
         for (size_t index = 0; index < pool.thread_count(); ++index) {
             auto snapshot = ThreadTestAccess::root_snapshot(pool, index);
             if (!snapshot.completed) {
-                EXPECT_FALSE(snapshot.completed_depth());
+                EXPECT_FALSE(snapshot.has_completed_depth());
                 continue;
             }
 
-            EXPECT_TRUE(snapshot.completed_depth());
+            EXPECT_TRUE(snapshot.has_completed_depth());
             EXPECT_EQ(snapshot.depth, depth);
             saw_completed_depth = true;
         }
@@ -404,12 +404,12 @@ TEST_F(ThreadPoolTest, RootSnapshotsReturnsWorkerSnapshots) {
     for (size_t index = 0; index < snapshots.size(); ++index) {
         const RootLine snapshot = ThreadTestAccess::root_snapshot(pool, index);
 
-        EXPECT_EQ(snapshots[index].best_move, snapshot.best_move);
+        EXPECT_EQ(snapshots[index].root_move, snapshot.root_move);
         EXPECT_EQ(snapshots[index].value, snapshot.value);
         EXPECT_EQ(snapshots[index].depth, snapshot.depth);
         EXPECT_EQ(snapshots[index].completed, snapshot.completed);
 
-        saw_completed_depth |= snapshots[index].completed_depth();
+        saw_completed_depth |= snapshots[index].has_completed_depth();
     }
 
     EXPECT_TRUE(saw_completed_depth);

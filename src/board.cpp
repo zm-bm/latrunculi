@@ -18,7 +18,7 @@ constexpr int direct_check_idx(PieceType piece) {
     return int(piece) * int(piece != KING);
 }
 
-template <NodeType node>
+template <bool Root>
 uint64_t perft_impl(Board&              board,
                     int                 depth,
                     std::ostream&       oss,
@@ -37,15 +37,15 @@ uint64_t perft_impl(Board&              board,
 
         board.make(move, states.child(ply));
         uint64_t count =
-            perft_impl<NON_PV>(board, depth - 1, oss, states, ply + 1, states.child(ply));
+            perft_impl<false>(board, depth - 1, oss, states, ply + 1, states.child(ply));
         nodes += count;
         board.unmake(current_state);
 
-        if constexpr (node == ROOT)
+        if constexpr (Root)
             oss << move.str() << ": " << count << '\n';
     }
 
-    if constexpr (node == ROOT)
+    if constexpr (Root)
         oss << "NODES: " << nodes << std::endl;
 
     return nodes;
@@ -545,13 +545,14 @@ std::string Board::toSAN(Move move) const {
 }
 
 // perform a perft search to find # of legal moves at a given depth
-template <NodeType node>
+template <bool Root>
 uint64_t Board::perft(int depth, std::ostream& oss) {
     if (depth < 0 || depth > MAX_SEARCH_PLY)
         throw std::invalid_argument("perft depth out of range");
 
     PositionStateStack states;
-    return perft_impl<node>(*this, depth, oss, states, 0, active_state());
+    return perft_impl<Root>(*this, depth, oss, states, 0, active_state());
 }
 
-template uint64_t Board::perft<ROOT>(int, std::ostream& = std::cerr);
+template uint64_t Board::perft<true>(int, std::ostream&);
+template uint64_t Board::perft<false>(int, std::ostream&);

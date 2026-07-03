@@ -143,7 +143,7 @@ public:
 
     // perft
 
-    template <NodeType = ROOT>
+    template <bool Root = true>
     uint64_t perft(int, std::ostream& = std::cout);
 
     // eval helpers

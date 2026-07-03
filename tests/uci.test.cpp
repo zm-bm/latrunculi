@@ -118,7 +118,7 @@ TEST_F(ProtocolTest, InfoMate) {
 TEST_F(ProtocolTest, MakeSearchInfoSerializesLegalRootPv) {
     TestBoard board{STARTFEN};
     RootLine  line{
-         .best_move = Move{E2, E4},
+         .root_move = Move{E2, E4},
          .value     = 20,
          .depth     = 2,
          .completed = true,
@@ -138,7 +138,7 @@ TEST_F(ProtocolTest, MakeSearchInfoClearsUnusableRootPv) {
     TestBoard board{STARTFEN};
 
     RootLine null_best{
-        .best_move = NULL_MOVE,
+        .root_move = NULL_MOVE,
         .value     = DRAW_VALUE,
         .depth     = 1,
         .completed = true,
@@ -146,7 +146,7 @@ TEST_F(ProtocolTest, MakeSearchInfoClearsUnusableRootPv) {
     EXPECT_EQ(uci::make_search_info(null_best, board, 0, Milliseconds{0}).pv, "");
 
     RootLine incomplete{
-        .best_move = Move{E2, E4},
+        .root_move = Move{E2, E4},
         .value     = DRAW_VALUE,
         .depth     = 1,
         .completed = false,
@@ -155,7 +155,7 @@ TEST_F(ProtocolTest, MakeSearchInfoClearsUnusableRootPv) {
     EXPECT_EQ(uci::make_search_info(incomplete, board, 0, Milliseconds{0}).pv, "");
 
     RootLine depth_zero{
-        .best_move = Move{E2, E4},
+        .root_move = Move{E2, E4},
         .value     = DRAW_VALUE,
         .depth     = 0,
         .completed = true,
@@ -168,7 +168,7 @@ TEST_F(ProtocolTest, MakeSearchInfoRejectsStaleRootPv) {
     TestBoard board{STARTFEN};
 
     RootLine first_move_mismatch{
-        .best_move = Move{E2, E4},
+        .root_move = Move{E2, E4},
         .value     = DRAW_VALUE,
         .depth     = 1,
         .completed = true,
@@ -177,7 +177,7 @@ TEST_F(ProtocolTest, MakeSearchInfoRejectsStaleRootPv) {
     EXPECT_EQ(uci::make_search_info(first_move_mismatch, board, 0, Milliseconds{0}).pv, "");
 
     RootLine illegal_child{
-        .best_move = Move{E2, E4},
+        .root_move = Move{E2, E4},
         .value     = DRAW_VALUE,
         .depth     = 2,
         .completed = true,
