@@ -98,7 +98,7 @@ TEST_F(MovePickerTest, MainSearchKeepsHistoryBelowKillerPriority) {
     ASSERT_NE(hist_it, moves.end());
     EXPECT_LT(killer_it, hist_it);
     EXPECT_LE(history.get(board.side_to_move(), hist_move.from(), hist_move.to()),
-              PRIORITY_HISTORY);
+              HistoryTable::MAX_SCORE);
 }
 
 TEST_F(MovePickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKiller) {
@@ -122,8 +122,8 @@ TEST_F(MovePickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKil
     ASSERT_NE(light_it, moves.end());
     EXPECT_LT(killer_it, saturated_it);
     EXPECT_LT(saturated_it, light_it);
-    EXPECT_LT(history.get(board.side_to_move(), saturated_move.from(), saturated_move.to()),
-              PRIORITY_KILLER);
+    EXPECT_LE(history.get(board.side_to_move(), saturated_move.from(), saturated_move.to()),
+              HistoryTable::MAX_SCORE);
     EXPECT_GT(history.get(board.side_to_move(), saturated_move.from(), saturated_move.to()),
               history.get(board.side_to_move(), light_move.from(), light_move.to()));
 }

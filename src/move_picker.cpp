@@ -11,15 +11,24 @@
 
 namespace {
 
-constexpr MoveScore CAPTURE_VICTIM_WEIGHT = 7;
+// Coarse score bands, not tuned chess values. In-band terms order moves only
+// within their stage; they should not cross into another stage.
+constexpr MoveScore GoodCaptureScoreBase = MoveScore{1} << 22;
+constexpr MoveScore PromotionScore       = GoodCaptureScoreBase << 6;
+constexpr MoveScore WeakCaptureScore     = 0;
+
+// Orders SEE-safe captures within the good-capture band.
+constexpr MoveScore CaptureVictimWeight = 7;
+
+static_assert(HistoryTable::MAX_SCORE < GoodCaptureScoreBase);
 
 MoveScore capture_score(const Board& board, Move move) {
     const int see_score = board.seeMove(move);
     if (see_score < 0)
-        return PRIORITY_WEAK;
+        return WeakCaptureScore;
 
-    return PRIORITY_CAPTURE +
-           CAPTURE_VICTIM_WEIGHT * eval::piece(board.captured_piece_type(move)).mg + see_score;
+    const int victim_value = eval::piece(board.captured_piece_type(move)).mg;
+    return GoodCaptureScoreBase + CaptureVictimWeight * victim_value + see_score;
 }
 
 } // namespace
@@ -90,12 +99,12 @@ bool MovePicker::is_returnable_killer(Move move, Move previous_killer) const {
 template <MovePicker::ScoreKind Kind>
 MoveScore MovePicker::score_move(Move move) const {
     if constexpr (Kind == ScoreKind::Noisy) {
-        return move.type() == MOVE_PROM ? PRIORITY_PROM : capture_score(board, move);
+        return move.type() == MOVE_PROM ? PromotionScore : capture_score(board, move);
     } else if constexpr (Kind == ScoreKind::Quiet) {
         return static_cast<MoveScore>(history.get(side, move.from(), move.to()));
     } else {
         if (move.type() == MOVE_PROM)
-            return PRIORITY_PROM;
+            return PromotionScore;
         if (board.is_capture(move))
             return capture_score(board, move);
         return static_cast<MoveScore>(history.get(side, move.from(), move.to()));
@@ -125,11 +134,12 @@ bool MovePicker::is_pickable(const ScoredMove& scored_move) const {
     if constexpr (Kind == PickKind::Evasion) {
         return !is_tt_duplicate(move);
     } else if constexpr (Kind == PickKind::GoodNoisy) {
-        return !is_tt_duplicate(move) && (move.type() == MOVE_PROM || score >= PRIORITY_CAPTURE);
+        return !is_tt_duplicate(move) &&
+               (move.type() == MOVE_PROM || score >= GoodCaptureScoreBase);
     } else if constexpr (Kind == PickKind::Quiet) {
         return !is_quiet_hint_duplicate(move);
     } else {
-        return !is_tt_duplicate(move) && move.type() != MOVE_PROM && score < PRIORITY_CAPTURE;
+        return !is_tt_duplicate(move) && move.type() != MOVE_PROM && score < GoodCaptureScoreBase;
     }
 }
 
@@ -177,14 +187,15 @@ Move MovePicker::next() {
                 return tt_move;
             break;
 
-        case Stage::LOAD_EVASIONS:
-            generated.cur = moves.data();
-            generated.end =
-                score_moves<ScoreKind::Evasion>(movegen::generate_evasions(board), generated.cur);
-            quiet.cur = generated.end;
-            quiet.end = generated.end;
-            stage     = Stage::PICK_EVASION;
+        case Stage::LOAD_EVASIONS: {
+            generated.cur                = moves.data();
+            const MoveList evasion_moves = movegen::generate_evasions(board);
+            generated.end = score_moves<ScoreKind::Evasion>(evasion_moves, generated.cur);
+            quiet.cur     = generated.end;
+            quiet.end     = generated.end;
+            stage         = Stage::PICK_EVASION;
             [[fallthrough]];
+        }
 
         case Stage::PICK_EVASION: {
             Move move = pick<PickKind::Evasion>(generated);
@@ -194,14 +205,15 @@ Move MovePicker::next() {
             break;
         }
 
-        case Stage::LOAD_NOISY:
-            generated.cur = moves.data();
-            generated.end =
-                score_moves<ScoreKind::Noisy>(movegen::generate_noisy(board), generated.cur);
-            quiet.cur = generated.end;
-            quiet.end = generated.end;
-            stage     = Stage::PICK_GOOD_NOISY;
+        case Stage::LOAD_NOISY: {
+            generated.cur              = moves.data();
+            const MoveList noisy_moves = movegen::generate_noisy(board);
+            generated.end              = score_moves<ScoreKind::Noisy>(noisy_moves, generated.cur);
+            quiet.cur                  = generated.end;
+            quiet.end                  = generated.end;
+            stage                      = Stage::PICK_GOOD_NOISY;
             [[fallthrough]];
+        }
 
         case Stage::PICK_GOOD_NOISY: {
             Move move = pick<PickKind::GoodNoisy>(generated);
@@ -227,16 +239,18 @@ Move MovePicker::next() {
                 return killer_2;
             break;
 
-        case Stage::LOAD_QUIET:
+        case Stage::LOAD_QUIET: {
             if (skip_quiets) {
                 stage = Stage::PICK_BAD_NOISY;
                 break;
             }
             assert(generated.end != nullptr);
-            quiet.cur = generated.end;
-            quiet.end = score_moves<ScoreKind::Quiet>(movegen::generate_quiet(board), quiet.cur);
-            stage     = Stage::PICK_QUIET;
+            quiet.cur                  = generated.end;
+            const MoveList quiet_moves = movegen::generate_quiet(board);
+            quiet.end                  = score_moves<ScoreKind::Quiet>(quiet_moves, quiet.cur);
+            stage                      = Stage::PICK_QUIET;
             [[fallthrough]];
+        }
 
         case Stage::PICK_QUIET: {
             Move move = pick<PickKind::Quiet>(quiet);

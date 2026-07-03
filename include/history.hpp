@@ -5,7 +5,7 @@
 #include "defs.hpp"
 
 struct HistoryTable {
-    static constexpr int MAX_HISTORY = PRIORITY_HISTORY;
+    static constexpr int MAX_SCORE = 1024;
 
     int16_t history[N_COLORS][N_SQUARES][N_SQUARES] = {0};
 
@@ -20,11 +20,11 @@ inline int HistoryTable::get(Color c, Square from, Square to) const {
 }
 
 inline void HistoryTable::update(Color c, Square from, Square to, int depth) {
-    const int bonus   = std::clamp(depth * depth, 0, MAX_HISTORY);
+    const int bonus   = std::clamp(depth * depth, 0, MAX_SCORE);
     const int current = history[c][from][to];
-    const int gravity = bonus - (current * bonus / MAX_HISTORY);
+    const int gravity = bonus - (current * bonus / MAX_SCORE);
 
-    history[c][from][to] = std::clamp(current + gravity, -MAX_HISTORY, MAX_HISTORY);
+    history[c][from][to] = std::clamp(current + gravity, -MAX_SCORE, MAX_SCORE);
 }
 
 inline void HistoryTable::age() {
