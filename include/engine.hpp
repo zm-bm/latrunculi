@@ -8,7 +8,7 @@
 #include <unordered_map>
 
 #include "board.hpp"
-#include "thread_pool.hpp"
+#include "threading.hpp"
 #include "uci.hpp"
 
 class Engine {

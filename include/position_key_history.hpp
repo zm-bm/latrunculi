@@ -6,10 +6,10 @@
 
 #include "defs.hpp"
 
-// Previous position keys for repetition detection. Append on make, pop on unmake.
-struct KeyHistory {
-    std::array<uint64_t, MAX_KEY_HISTORY> keys = {};
-    uint16_t                              size = 0;
+// Previous position keys for repetition detection.
+struct PositionKeyHistory {
+    std::array<uint64_t, MAX_KEY_HISTORY> keys{};
+    uint16_t                              size{};
 
     void clear() { size = 0; }
 

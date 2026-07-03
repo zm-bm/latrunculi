@@ -61,6 +61,19 @@ matches_expected_snapshot(const TT_Record&                          record,
 
     return keys;
 }
+
+void expect_record(uint64_t zkey,
+                   Move     expected_move,
+                   int      expected_score,
+                   uint8_t  expected_depth,
+                   TT_Flag  expected_flag) {
+    auto entry = tt.probe(zkey);
+    ASSERT_TRUE(entry.has_value());
+    EXPECT_EQ(expected_move, entry->move);
+    EXPECT_EQ(expected_score, entry->score);
+    EXPECT_EQ(expected_depth, entry->depth);
+    EXPECT_EQ(expected_flag, entry->flag);
+}
 } // namespace
 
 class TT_Test : public ::testing::Test {
@@ -75,21 +88,13 @@ protected:
 };
 
 TEST_F(TT_Test, InitialState) {
-    // Check that the table is empty initially
     EXPECT_FALSE(tt.probe(0x123456789ABCDEF).has_value());
 }
 
 TEST_F(TT_Test, StoreAndProbe) {
-    // Store and retrieve a snapshot
     tt.store(key, move, score, depth, flag, 0);
-    auto entry = tt.probe(key);
 
-    // Check that the snapshot was stored correctly
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(move, entry->move);
-    EXPECT_EQ(score, entry->score);
-    EXPECT_EQ(depth, entry->depth);
-    EXPECT_EQ(flag, entry->flag);
+    expect_record(key, move, score, depth, flag);
 }
 
 TEST_F(TT_Test, PackedFieldBoundariesRoundTrip) {
@@ -114,79 +119,89 @@ TEST_F(TT_Test, PackedFieldBoundariesRoundTrip) {
     EXPECT_EQ(packed_flag, entry->flag);
 }
 
-TEST_F(TT_Test, ReplaceEntry) {
-    // Store an initial entry
-    tt.store(key, move, score, depth, flag, 0);
-
-    // Replace it with a new entry
-    Move    new_move  = Move(Square::E2, Square::E4);
-    int16_t new_score = 200;
-    uint8_t new_depth = 8;
-    TT_Flag new_flag  = TT_Flag::Lowerbound;
-    tt.store(key, new_move, new_score, new_depth, new_flag, 0);
-
-    // Check that the snapshot was replaced
-    auto entry = tt.probe(key);
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(new_move, entry->move);
-    EXPECT_EQ(new_score, entry->score);
-    EXPECT_EQ(new_depth, entry->depth);
-    EXPECT_EQ(new_flag, entry->flag);
-}
-
-TEST_F(TT_Test, ClearTable) {
-    // Store and then clear the table
+TEST_F(TT_Test, ClearRemovesEntries) {
     tt.store(key, move, score, depth, flag, 0);
     tt.clear();
 
-    // After clearing, the entry should not be found
     EXPECT_FALSE(tt.probe(key).has_value());
 }
 
-TEST_F(TT_Test, MateScoreAdjustment) {
-    int16_t mate_score = MATE_VALUE - 5; // Mate in 3
+TEST_F(TT_Test, MateScoresRoundTripThroughStorage) {
+    struct Case {
+        int16_t root_score;
+        int     ply;
+        int16_t stored_score;
+    };
 
-    // Store a mate score entry
-    int ply = 2;
-    tt.store(key, move, mate_score, depth, flag, ply);
+    const std::array cases{
+        Case{.root_score = MATE_VALUE - 5, .ply = 2, .stored_score = MATE_VALUE - 3},
+        Case{.root_score = -MATE_VALUE + 6, .ply = 5, .stored_score = -MATE_VALUE + 1},
+    };
 
-    // Entry score is adjusted by ply
-    auto entry = tt.probe(key);
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(mate_score + ply, entry->score);
-    EXPECT_EQ(mate_score, entry->get_score(ply));
+    for (const auto& tc : cases) {
+        tt.clear();
+        tt.store(key, move, tc.root_score, depth, flag, tc.ply);
+
+        auto entry = tt.probe(key);
+        ASSERT_TRUE(entry.has_value());
+        EXPECT_EQ(tc.stored_score, entry->score);
+        EXPECT_EQ(tc.root_score, entry->score_at_ply(tc.ply));
+    }
 }
 
-TEST_F(TT_Test, MatedScoreAdjustment) {
-    int16_t mate_score = -MATE_VALUE + 6; // Mated in 3
+TEST_F(TT_Test, StoreSearchConvertsDepthAndMateScore) {
+    constexpr int search_depth = 7;
+    constexpr int ply          = 3;
+    constexpr int mate_score   = MATE_VALUE - 10;
 
-    // Store a mate score entry
-    int ply = 5;
-    tt.store(key, move, mate_score, depth, flag, ply);
+    tt.store_search(key, move, mate_score, search_depth, TT_Flag::Exact, ply);
 
-    // Entry score is adjusted by ply
     auto entry = tt.probe(key);
     ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(mate_score - ply, entry->score);
-    EXPECT_EQ(mate_score, entry->get_score(ply));
+    EXPECT_EQ(search_depth, entry->depth);
+    EXPECT_EQ(mate_score + ply, entry->score);
+    EXPECT_EQ(mate_score, entry->score_at_ply(ply));
+}
+
+TEST_F(TT_Test, RecordCanCutoffWithSufficientDepthAndMatchingBound) {
+    TT_Record record{
+        .move  = move,
+        .score = score,
+        .depth = 5,
+        .age   = 0,
+        .flag  = TT_Flag::Exact,
+    };
+
+    EXPECT_TRUE(record.can_cutoff(0, 5, -10, 10));
+    EXPECT_FALSE(record.can_cutoff(0, 6, -10, 10));
+
+    record.flag = TT_Flag::Lowerbound;
+    EXPECT_TRUE(record.can_cutoff(10, 5, -10, 10));
+    EXPECT_FALSE(record.can_cutoff(9, 5, -10, 10));
+
+    record.flag = TT_Flag::Upperbound;
+    EXPECT_TRUE(record.can_cutoff(-10, 5, -10, 10));
+    EXPECT_FALSE(record.can_cutoff(-9, 5, -10, 10));
+
+    record.flag = TT_Flag::None;
+    EXPECT_FALSE(record.can_cutoff(0, 5, -10, 10));
+}
+
+TEST_F(TT_Test, BoundForWindowClassifiesSearchResult) {
+    EXPECT_EQ(tt_bound_for_window(10, -10, 10), TT_Flag::Lowerbound);
+    EXPECT_EQ(tt_bound_for_window(-10, -10, 10), TT_Flag::Upperbound);
+    EXPECT_EQ(tt_bound_for_window(0, -10, 10), TT_Flag::Exact);
 }
 
 TEST_F(TT_Test, ResizeTable) {
-    // Store an entry
     tt.store(key, move, score, depth, flag, 0);
     EXPECT_TRUE(tt.probe(key).has_value());
 
-    // Resize table
     tt.resize(8);
-
-    // Entry should be gone after resize
     EXPECT_FALSE(tt.probe(key).has_value());
 
-    // We can store and retrieve again
     tt.store(key, move, score, depth, flag, 0);
-    auto entry = tt.probe(key);
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(move, entry->move);
+    expect_record(key, move, score, depth, flag);
 }
 
 TEST_F(TT_Test, ResizeZeroKeepsUsableTable) {
@@ -204,20 +219,12 @@ TEST_F(TT_Test, StoreAndProbeDifferentFullKeys) {
     uint64_t key2 = 0xFEDCBA9876543210;
     uint64_t key1 = 0x123456789ABC3210;
 
-    // Store both entries
     tt.store(key1, move, score, depth, flag, 0);
     Move move2 = Move(Square::E2, Square::E4);
     tt.store(key2, move2, 200, 8, TT_Flag::Lowerbound, 0);
 
-    // Both entries should be accessible
-    auto entry1 = tt.probe(key1);
-    auto entry2 = tt.probe(key2);
-
-    ASSERT_TRUE(entry1.has_value());
-    ASSERT_TRUE(entry2.has_value());
-
-    EXPECT_EQ(move, entry1->move);
-    EXPECT_EQ(move2, entry2->move);
+    expect_record(key1, move, score, depth, flag);
+    expect_record(key2, move2, 200, 8, TT_Flag::Lowerbound);
 }
 
 TEST_F(TT_Test, ProbeRejectsDifferentFullKeyInSameCluster) {
@@ -235,31 +242,7 @@ TEST_F(TT_Test, ProbeRejectsDifferentFullKeyInSameCluster) {
     EXPECT_FALSE(tt.probe(key2).has_value());
 }
 
-TEST_F(TT_Test, ReplacementScoreCalculation) {
-    // Create an entry
-    tt.store(key, move, score, depth, flag, 0);
-    auto entry = tt.probe(key);
-    ASSERT_TRUE(entry.has_value());
-
-    // Initial replacement score
-    int age           = 0;
-    int initial_score = entry->replacement_score(age);
-
-    // The replacement score should now be lower (more likely to be replaced)
-    age++;
-    int new_score = entry->replacement_score(age);
-    EXPECT_LT(new_score, initial_score);
-
-    // A deeper entry should have a higher replacement score
-    tt.store(key, move, score, depth + 3, flag, 0);
-    entry = tt.probe(key);
-    ASSERT_TRUE(entry.has_value());
-
-    int deeper_score = entry->replacement_score(age);
-    EXPECT_GT(deeper_score, new_score);
-}
-
-TEST_F(TT_Test, ReplacementScoreUsesWrappedAgeDistance) {
+TEST_F(TT_Test, ReplacementScoreUsesDepthMinusWrappedAgeDistance) {
     TT_Record record{
         .move  = move,
         .score = score,
@@ -268,7 +251,65 @@ TEST_F(TT_Test, ReplacementScoreUsesWrappedAgeDistance) {
         .flag  = flag,
     };
 
-    EXPECT_EQ(record.replacement_score(0), depth * 2 - 1);
+    EXPECT_EQ(record.replacement_score(255), depth);
+    EXPECT_EQ(record.replacement_score(0), depth - 4);
+
+    TT_Record deeper_record = record;
+    deeper_record.depth     = depth + 3;
+    EXPECT_GT(deeper_record.replacement_score(0), record.replacement_score(0));
+}
+
+TEST_F(TT_Test, SameKeyNullMoveStorePreservesPreviousMoveAndUpdatesAcceptedFields) {
+    tt.store(key, move, 100, 6, TT_Flag::Exact, 0);
+
+    tt.store(key, NULL_MOVE, 250, 7, TT_Flag::Lowerbound, 0);
+
+    expect_record(key, move, 250, 7, TT_Flag::Lowerbound);
+}
+
+TEST_F(TT_Test, SameKeyShallowNonExactStoreDoesNotReplaceMuchDeeperEntry) {
+    tt.store(key, move, 100, 10, TT_Flag::Exact, 0);
+
+    Move shallow_move{Square::E2, Square::E4};
+    tt.store(key, shallow_move, 250, 7, TT_Flag::Lowerbound, 0);
+
+    expect_record(key, move, 100, 10, TT_Flag::Exact);
+}
+
+TEST_F(TT_Test, SameKeyShallowExactStoreReplacesDeeperEntry) {
+    tt.store(key, move, 100, 10, TT_Flag::Lowerbound, 0);
+
+    Move exact_move{Square::E2, Square::E4};
+    tt.store(key, exact_move, 250, 1, TT_Flag::Exact, 0);
+
+    expect_record(key, exact_move, 250, 1, TT_Flag::Exact);
+}
+
+TEST_F(TT_Test, SameKeySimilarDepthNonExactStoreReplacesEntry) {
+    tt.store(key, move, 100, 8, TT_Flag::Exact, 0);
+
+    Move new_move{Square::E2, Square::E4};
+    tt.store(key, new_move, 250, 6, TT_Flag::Upperbound, 0);
+
+    expect_record(key, new_move, 250, 6, TT_Flag::Upperbound);
+}
+
+TEST_F(TT_Test, DifferentKeyNullMoveReplacementKeepsNullMove) {
+    tt.resize(1);
+
+    const auto keys = find_same_one_mb_cluster_keys(key, 5);
+    ASSERT_EQ(5U, keys.size());
+
+    const std::array<Move, 4> moves = {Move(A2, A3), Move(B2, B3), Move(C2, C3), Move(D2, D3)};
+
+    for (size_t i = 0; i < moves.size(); ++i) {
+        tt.store(keys[i], moves[i], score + int16_t(i), uint8_t(i + 1), TT_Flag::Exact, 0);
+        ASSERT_TRUE(tt.probe(keys[i]).has_value());
+    }
+
+    tt.store(keys[4], NULL_MOVE, 500, 8, TT_Flag::Lowerbound, 0);
+
+    expect_record(keys[4], NULL_MOVE, 500, 8, TT_Flag::Lowerbound);
 }
 
 TEST_F(TT_Test, FullClusterReplacementChoosesLowestReplacementScore) {
@@ -293,12 +334,7 @@ TEST_F(TT_Test, FullClusterReplacementChoosesLowestReplacementScore) {
     EXPECT_TRUE(tt.probe(keys[2]).has_value());
     EXPECT_TRUE(tt.probe(keys[3]).has_value());
 
-    auto inserted = tt.probe(keys[4]);
-    ASSERT_TRUE(inserted.has_value());
-    EXPECT_EQ(moves[4], inserted->move);
-    EXPECT_EQ(500, inserted->score);
-    EXPECT_EQ(8, inserted->depth);
-    EXPECT_EQ(TT_Flag::Lowerbound, inserted->flag);
+    expect_record(keys[4], moves[4], 500, 8, TT_Flag::Lowerbound);
 }
 
 TEST_F(TT_Test, ProbeReturnsDetachedSnapshot) {

@@ -1,7 +1,6 @@
 #include "move_picker.hpp"
 
 #include <algorithm>
-#include <functional>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -44,98 +43,34 @@ std::vector<uint16_t> sorted_move_bits(const std::vector<Move>& moves) {
     return bits;
 }
 
-std::vector<Move> picked_moves(Board&         board,
-                               KillerMoves&   killers,
-                               HistoryTable&  history,
-                               int            ply,
-                               MovePickerMode mode,
-                               Move           pv_move = NULL_MOVE,
-                               Move           tt_move = NULL_MOVE) {
+std::vector<Move> collect_moves(MovePicker& picker) {
     std::vector<Move> moves;
-    MovePicker        picker{{board, killers, history, ply, pv_move, tt_move}, mode};
-
+    moves.reserve(MAX_MOVES);
     for (Move move = picker.next(); !move.is_null(); move = picker.next())
         moves.push_back(move);
-
     return moves;
 }
 
-std::vector<std::pair<Move, MoveScore>> picked_moves_with_scores(Board&         board,
-                                                                 KillerMoves&   killers,
-                                                                 HistoryTable&  history,
-                                                                 int            ply,
-                                                                 MovePickerMode mode,
-                                                                 Move           pv_move = NULL_MOVE,
-                                                                 Move tt_move = NULL_MOVE) {
-    std::vector<std::pair<Move, MoveScore>> moves;
-    MovePicker picker{{board, killers, history, ply, pv_move, tt_move}, mode};
-
-    for (Move move = picker.next(); !move.is_null(); move = picker.next())
-        moves.push_back({move, picker.last_score()});
-
-    return moves;
+std::vector<Move> picked_main_search(
+    Board& board, KillerMoves& killers, HistoryTable& history, int ply, Move tt_move = NULL_MOVE) {
+    MovePicker picker = MovePicker::main_search(board, killers, history, ply, tt_move);
+    return collect_moves(picker);
 }
 
-std::vector<std::pair<Move, MoveScore>> staged_picked_moves_with_scores(Board&        board,
-                                                                        KillerMoves&  killers,
-                                                                        HistoryTable& history,
-                                                                        int           ply,
-                                                                        Move pv_move = NULL_MOVE,
-                                                                        Move tt_move = NULL_MOVE) {
-    std::vector<std::pair<Move, MoveScore>> moves;
-    MovePicker picker{{board, killers, history, ply, pv_move, tt_move}, MovePickerMode::MainSearch};
-
-    for (Move move = picker.next(); !move.is_null(); move = picker.next())
-        moves.push_back({move, picker.last_score()});
-
-    return moves;
+std::vector<Move> picked_qsearch(Board& board, HistoryTable& history, Move tt_move = NULL_MOVE) {
+    MovePicker picker = MovePicker::qsearch(board, history, tt_move);
+    return collect_moves(picker);
 }
 
-std::vector<std::pair<Move, MovePickSource>>
-staged_picked_moves_with_sources(Board&        board,
-                                 KillerMoves&  killers,
-                                 HistoryTable& history,
-                                 int           ply,
-                                 Move          pv_move = NULL_MOVE,
-                                 Move          tt_move = NULL_MOVE) {
-    std::vector<std::pair<Move, MovePickSource>> moves;
-    MovePicker picker{{board, killers, history, ply, pv_move, tt_move}, MovePickerMode::MainSearch};
-
-    for (Move move = picker.next(); !move.is_null(); move = picker.next())
-        moves.push_back({move, picker.last_source()});
-
-    return moves;
+void expect_hash_move_first_once(const std::vector<Move>& moves, Move expected) {
+    ASSERT_FALSE(moves.empty());
+    EXPECT_EQ(moves.front(), expected);
+    EXPECT_EQ(std::count(moves.begin(), moves.end(), expected), 1);
 }
 
-std::vector<Move> staged_picked_moves(Board&        board,
-                                      KillerMoves&  killers,
-                                      HistoryTable& history,
-                                      int           ply,
-                                      Move          pv_move = NULL_MOVE,
-                                      Move          tt_move = NULL_MOVE) {
-    std::vector<Move> moves;
-    for (const auto& [move, score] :
-         staged_picked_moves_with_scores(board, killers, history, ply, pv_move, tt_move)) {
-        (void)score;
-        moves.push_back(move);
-    }
-    return moves;
-}
-
-MoveScore priority_band(MoveScore score) {
-    if (score >= PRIORITY_PV)
-        return PRIORITY_PV;
-    if (score >= PRIORITY_HASH)
-        return PRIORITY_HASH;
-    if (score >= PRIORITY_PROM)
-        return PRIORITY_PROM;
-    if (score >= PRIORITY_CAPTURE)
-        return PRIORITY_CAPTURE;
-    if (score >= PRIORITY_KILLER)
-        return PRIORITY_KILLER;
-    if (score > PRIORITY_WEAK)
-        return PRIORITY_HISTORY;
-    return PRIORITY_WEAK;
+std::vector<Move> picked_root_order(
+    Board& board, KillerMoves& killers, HistoryTable& history, int ply, Move tt_move = NULL_MOVE) {
+    return picked_main_search(board, killers, history, ply, tt_move);
 }
 
 MoveScore expected_capture_score(const Board& board, Move move) {
@@ -147,19 +82,10 @@ MoveScore expected_capture_score(const Board& board, Move move) {
            EXPECTED_CAPTURE_VICTIM_WEIGHT * eval::piece(board.captured_piece_type(move)).mg +
            see_score;
 }
-
-std::vector<MoveScore> picked_priority_bands(const std::vector<std::pair<Move, MoveScore>>& moves) {
-    std::vector<MoveScore> bands;
-    for (const auto& [move, score] : moves) {
-        (void)move;
-        bands.push_back(priority_band(score));
-    }
-    return bands;
-}
 } // namespace
 
 TEST_F(MovePickerTest, MainSearchPicksGeneratedMoves) {
-    const auto moves = picked_moves(board, killers, history, ply, MovePickerMode::MainSearch);
+    const auto moves = picked_main_search(board, killers, history, ply);
 
     EXPECT_FALSE(moves.empty());
 }
@@ -172,7 +98,7 @@ TEST_F(MovePickerTest, MainSearchKeepsHistoryBelowKillerPriority) {
     for (int i = 0; i < 8; ++i)
         history.update(board.side_to_move(), hist_move.from(), hist_move.to(), MAX_SEARCH_DEPTH);
 
-    const auto moves     = picked_moves(board, killers, history, ply, MovePickerMode::MainSearch);
+    const auto moves     = picked_main_search(board, killers, history, ply);
     const auto killer_it = std::find(moves.begin(), moves.end(), killer_move);
     const auto hist_it   = std::find(moves.begin(), moves.end(), hist_move);
 
@@ -194,8 +120,8 @@ TEST_F(MovePickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKil
         history.update(
             board.side_to_move(), saturated_move.from(), saturated_move.to(), MAX_SEARCH_DEPTH);
 
-    const auto moves     = picked_moves(board, killers, history, ply, MovePickerMode::MainSearch);
-    const auto killer_it = std::find(moves.begin(), moves.end(), killer_move);
+    const auto moves        = picked_main_search(board, killers, history, ply);
+    const auto killer_it    = std::find(moves.begin(), moves.end(), killer_move);
     const auto saturated_it = std::find(moves.begin(), moves.end(), saturated_move);
     const auto light_it     = std::find(moves.begin(), moves.end(), light_move);
 
@@ -217,7 +143,7 @@ TEST_F(MovePickerTest, MainSearchKeepsCaptureKillerAndHistoryOrder) {
     killers.update(killer_move, ply);
     history.update(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
 
-    const auto moves = picked_moves(board, killers, history, ply, MovePickerMode::MainSearch);
+    const auto moves = picked_main_search(board, killers, history, ply);
 
     ASSERT_GT(moves.size(), 3U);
     EXPECT_EQ(moves[0], Move(B4, F4));
@@ -225,53 +151,10 @@ TEST_F(MovePickerTest, MainSearchKeepsCaptureKillerAndHistoryOrder) {
     EXPECT_EQ(moves[2], hist_move);
 }
 
-TEST_F(MovePickerTest, GoodCaptureScoreIncludesVictimBonusAndSee) {
-    TestBoard capture_board{"1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1"};
-
-    const auto moves =
-        picked_moves_with_scores(capture_board, killers, history, ply, MovePickerMode::QSearch);
-    const auto move_it = std::find_if(moves.begin(), moves.end(), [](const auto& move_and_score) {
-        return move_and_score.first == Move(E1, E5);
-    });
-
-    ASSERT_NE(move_it, moves.end());
-    EXPECT_EQ(move_it->second,
-              PRIORITY_CAPTURE + EXPECTED_CAPTURE_VICTIM_WEIGHT * PAWN_MG +
-                  capture_board.seeMove(Move(E1, E5)));
-}
-
-TEST_F(MovePickerTest, MainSearchWeakCaptureScoreRemainsWeakPriority) {
-    TestBoard weak_capture_board{std::string(WEAK_CAPTURE_FEN)};
-
-    const auto moves = picked_moves_with_scores(
-        weak_capture_board, killers, history, ply, MovePickerMode::MainSearch);
-    const auto move_it = std::find_if(moves.begin(), moves.end(), [](const auto& move_and_score) {
-        return move_and_score.first == Move(D1, D7);
-    });
-
-    ASSERT_NE(move_it, moves.end());
-    EXPECT_EQ(move_it->second, PRIORITY_WEAK);
-}
-
-TEST_F(MovePickerTest, EnPassantCaptureScoreUsesPawnVictim) {
-    TestBoard ep_board{ENPASSANT_A3};
-
-    const auto moves =
-        picked_moves_with_scores(ep_board, killers, history, ply, MovePickerMode::QSearch);
-    const auto move_it = std::find_if(moves.begin(), moves.end(), [](const auto& move_and_score) {
-        return move_and_score.first == Move(B4, A3, MOVE_EP);
-    });
-
-    ASSERT_NE(move_it, moves.end());
-    EXPECT_EQ(move_it->second,
-              PRIORITY_CAPTURE + EXPECTED_CAPTURE_VICTIM_WEIGHT * PAWN_MG +
-                  ep_board.seeMove(Move(B4, A3, MOVE_EP)));
-}
-
 TEST_F(MovePickerTest, QSearchNotInCheckGeneratesNoisyMovesOnly) {
     ASSERT_FALSE(board.is_check());
 
-    const auto moves = picked_moves(board, killers, history, ply, MovePickerMode::QSearch);
+    const auto moves = picked_qsearch(board, history);
 
     MoveList expected;
     for (const Move& move : movegen::generate_noisy(board)) {
@@ -290,89 +173,96 @@ TEST_F(MovePickerTest, QSearchNotInCheckGeneratesNoisyMovesOnly) {
 TEST_F(MovePickerTest, QSearchNotInCheckDoesNotReturnWeakCaptures) {
     TestBoard weak_capture_board{std::string(WEAK_CAPTURE_FEN)};
 
-    const auto moves =
-        picked_moves(weak_capture_board, killers, history, ply, MovePickerMode::QSearch);
+    const auto moves = picked_qsearch(weak_capture_board, history);
 
     EXPECT_EQ(std::find(moves.begin(), moves.end(), Move(D1, D7)), moves.end());
+}
+
+TEST_F(MovePickerTest, QSearchReturnsHashCaptureFirstOutsideCheck) {
+    Move tt_capture = Move(B4, F4);
+    ASSERT_FALSE(board.is_check());
+    ASSERT_TRUE(board.is_capture(tt_capture));
+
+    const auto moves = picked_qsearch(board, history, tt_capture);
+
+    expect_hash_move_first_once(moves, tt_capture);
+}
+
+TEST_F(MovePickerTest, QSearchReturnsHashPromotionFirstOutsideCheck) {
+    TestBoard promotion_board{std::string(PROMOTION_FEN)};
+    Move      tt_promotion = Move(A7, A8, MOVE_PROM, QUEEN);
+    ASSERT_FALSE(promotion_board.is_check());
+    ASSERT_TRUE(promotion_board.is_pseudo_legal(tt_promotion));
+
+    const auto moves = picked_qsearch(promotion_board, history, tt_promotion);
+
+    expect_hash_move_first_once(moves, tt_promotion);
+}
+
+TEST_F(MovePickerTest, QSearchIgnoresQuietHashMoveWhenNotInCheck) {
+    Move quiet_tt_move = Move(E2, E3);
+    ASSERT_FALSE(board.is_check());
+    ASSERT_TRUE(board.is_pseudo_legal(quiet_tt_move));
+    ASSERT_FALSE(board.is_capture(quiet_tt_move));
+
+    const auto moves = picked_qsearch(board, history, quiet_tt_move);
+
+    ASSERT_FALSE(moves.empty());
+    EXPECT_NE(moves.front(), quiet_tt_move);
+    EXPECT_EQ(std::find(moves.begin(), moves.end(), quiet_tt_move), moves.end());
 }
 
 TEST_F(MovePickerTest, QSearchInCheckGeneratesEvasionsIncludingQuietEvasions) {
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     ASSERT_TRUE(evasion_board.is_check());
 
-    const auto moves = picked_moves(evasion_board, killers, history, ply, MovePickerMode::QSearch);
+    const auto moves = picked_qsearch(evasion_board, history);
 
     EXPECT_EQ(sorted_move_bits(moves), sorted_move_bits(movegen::generate_evasions(evasion_board)));
     EXPECT_NE(std::find(moves.begin(), moves.end(), Move(A8, B8)), moves.end());
 }
 
-TEST_F(MovePickerTest, QSearchInCheckDoesNotUseKillerStagesForQuietEvasions) {
+TEST_F(MovePickerTest, QSearchReturnsQuietHashEvasionFirstWhileInCheck) {
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     Move      quiet_evasion = Move(A8, B8);
-    killers.update(quiet_evasion, ply);
     ASSERT_TRUE(evasion_board.is_check());
+    ASSERT_TRUE(evasion_board.is_legal_pseudo_move(quiet_evasion));
 
-    MovePicker picker{{evasion_board, killers, history, ply}, MovePickerMode::QSearch};
+    const auto moves = picked_qsearch(evasion_board, history, quiet_evasion);
 
-    MovePickSource quiet_evasion_source = MovePickSource::None;
-    for (Move picked = picker.next(); !picked.is_null(); picked = picker.next()) {
-        if (picked == quiet_evasion) {
-            quiet_evasion_source = picker.last_source();
-            break;
-        }
-    }
-
-    EXPECT_EQ(quiet_evasion_source, MovePickSource::Evasion);
+    expect_hash_move_first_once(moves, quiet_evasion);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsPVAndHashFirst) {
-    Move pv_move = Move(B4, C4);
-    Move tt_move = Move(E2, E3);
-
-    const auto moves =
-        picked_moves(board, killers, history, ply, MovePickerMode::MainSearch, pv_move, tt_move);
-
-    ASSERT_GT(moves.size(), 1U);
-    EXPECT_EQ(moves[0], pv_move);
-    EXPECT_EQ(moves[1], tt_move);
-}
-
-TEST_F(MovePickerTest, MainSearchKeepsGeneratedOrderForEqualPriorityMoves) {
+TEST_F(MovePickerTest, MainSearchKeepsSameMoveSetForEqualPriorityMoves) {
     TestBoard quiet_board{STARTFEN};
 
-    MoveList          generated = movegen::generate_pseudo_legal(quiet_board);
-    std::vector<Move> generated_order(generated.begin(), generated.end());
-    const auto        picked_order =
-        picked_moves(quiet_board, killers, history, ply, MovePickerMode::MainSearch);
+    MoveList   generated    = movegen::generate_pseudo_legal(quiet_board);
+    const auto picked_order = picked_main_search(quiet_board, killers, history, ply);
 
-    EXPECT_EQ(picked_order, generated_order);
+    EXPECT_EQ(sorted_move_bits(picked_order), sorted_move_bits(generated));
 }
 
 TEST_F(MovePickerTest, MainSearchIsDeterministicForEqualPriorityMoves) {
     TestBoard quiet_board{STARTFEN};
 
-    const auto first_order =
-        picked_moves(quiet_board, killers, history, ply, MovePickerMode::MainSearch);
-    const auto second_order =
-        picked_moves(quiet_board, killers, history, ply, MovePickerMode::MainSearch);
+    const auto first_order  = picked_main_search(quiet_board, killers, history, ply);
+    const auto second_order = picked_main_search(quiet_board, killers, history, ply);
 
     ASSERT_GT(first_order.size(), 1U);
     EXPECT_EQ(second_order, first_order);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsHashMoveFirstWithoutPV) {
+TEST_F(MovePickerTest, MainSearchKeepsHashMoveFirst) {
     TestBoard quiet_board{STARTFEN};
     Move      tt_move = Move(E2, E4);
 
-    const auto moves = picked_moves(
-        quiet_board, killers, history, ply, MovePickerMode::MainSearch, NULL_MOVE, tt_move);
+    const auto moves = picked_main_search(quiet_board, killers, history, ply, tt_move);
 
     ASSERT_FALSE(moves.empty());
     EXPECT_EQ(moves[0], tt_move);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsPVHashKillerAndHistoryOrder) {
-    Move pv_move     = Move(B4, C4);
+TEST_F(MovePickerTest, MainSearchKeepsHashCaptureKillerAndHistoryOrder) {
     Move tt_move     = Move(E2, E3);
     Move killer_move = Move(A5, A4);
     Move hist_move   = Move(A5, A6);
@@ -380,32 +270,29 @@ TEST_F(MovePickerTest, MainSearchKeepsPVHashKillerAndHistoryOrder) {
     killers.update(killer_move, ply);
     history.update(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
 
-    const auto moves =
-        picked_moves(board, killers, history, ply, MovePickerMode::MainSearch, pv_move, tt_move);
+    const auto moves = picked_main_search(board, killers, history, ply, tt_move);
 
-    ASSERT_GT(moves.size(), 4U);
-    EXPECT_EQ(moves[0], pv_move);
-    EXPECT_EQ(moves[1], tt_move);
-    EXPECT_EQ(moves[2], Move(B4, F4));
-    EXPECT_EQ(moves[3], killer_move);
-    EXPECT_EQ(moves[4], hist_move);
+    ASSERT_GT(moves.size(), 3U);
+    EXPECT_EQ(moves[0], tt_move);
+    EXPECT_EQ(moves[1], Move(B4, F4));
+    EXPECT_EQ(moves[2], killer_move);
+    EXPECT_EQ(moves[3], hist_move);
 }
 
 TEST_F(MovePickerTest, MainSearchKeepsHashFirstAndDeterministicEqualPriorityOrder) {
     TestBoard quiet_board{STARTFEN};
     Move      tt_move = Move(E2, E4);
 
-    const auto first_order = picked_moves(
-        quiet_board, killers, history, ply, MovePickerMode::MainSearch, NULL_MOVE, tt_move);
-    const auto second_order = picked_moves(
-        quiet_board, killers, history, ply, MovePickerMode::MainSearch, NULL_MOVE, tt_move);
+    const auto first_order  = picked_main_search(quiet_board, killers, history, ply, tt_move);
+    const auto second_order = picked_main_search(quiet_board, killers, history, ply, tt_move);
 
     ASSERT_GT(first_order.size(), 2U);
     EXPECT_EQ(first_order.front(), tt_move);
+    EXPECT_EQ(std::count(first_order.begin(), first_order.end(), tt_move), 1);
     EXPECT_EQ(second_order, first_order);
 }
 
-TEST_F(MovePickerTest, StagedMainSearchPicksSamePseudoLegalMoveSet) {
+TEST_F(MovePickerTest, MainSearchPicksSamePseudoLegalMoveSet) {
     for (std::string_view fen : {std::string_view{STARTFEN},
                                  std::string_view{POS2},
                                  std::string_view{POS3},
@@ -416,12 +303,12 @@ TEST_F(MovePickerTest, StagedMainSearchPicksSamePseudoLegalMoveSet) {
         TestBoard board{std::string(fen)};
         ASSERT_FALSE(board.is_check()) << fen;
 
-        const auto staged = staged_picked_moves(board, killers, history, ply);
-        MoveList   staged_list;
-        for (Move move : staged)
-            staged_list.add(move);
+        const auto picked = picked_root_order(board, killers, history, ply);
+        MoveList   picked_list;
+        for (Move move : picked)
+            picked_list.add(move);
 
-        EXPECT_EQ(sorted_move_bits(staged_list),
+        EXPECT_EQ(sorted_move_bits(picked_list),
                   sorted_move_bits(movegen::generate_pseudo_legal(board)))
             << fen;
     }
@@ -431,30 +318,10 @@ TEST_F(MovePickerTest, MainSearchInCheckGeneratesEvasionsThroughMainSearchMode) 
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     ASSERT_TRUE(evasion_board.is_check());
 
-    const auto moves =
-        picked_moves(evasion_board, killers, history, ply, MovePickerMode::MainSearch);
+    const auto moves = picked_main_search(evasion_board, killers, history, ply);
 
     EXPECT_EQ(sorted_move_bits(moves), sorted_move_bits(movegen::generate_evasions(evasion_board)));
     EXPECT_NE(std::find(moves.begin(), moves.end(), Move(A8, B8)), moves.end());
-}
-
-TEST_F(MovePickerTest, MainSearchInCheckUsesDedicatedEvasionStage) {
-    TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
-    Move      quiet_evasion = Move(A8, B8);
-    killers.update(quiet_evasion, ply);
-    ASSERT_TRUE(evasion_board.is_check());
-
-    MovePicker picker{{evasion_board, killers, history, ply}, MovePickerMode::MainSearch};
-
-    MovePickSource quiet_evasion_source = MovePickSource::None;
-    for (Move picked = picker.next(); !picked.is_null(); picked = picker.next()) {
-        if (picked == quiet_evasion) {
-            quiet_evasion_source = picker.last_source();
-            break;
-        }
-    }
-
-    EXPECT_EQ(quiet_evasion_source, MovePickSource::Evasion);
 }
 
 TEST_F(MovePickerTest, MainSearchInCheckDoesNotReturnNonEvasionHintsAsHints) {
@@ -464,85 +331,31 @@ TEST_F(MovePickerTest, MainSearchInCheckDoesNotReturnNonEvasionHintsAsHints) {
     ASSERT_TRUE(evasion_board.is_pseudo_legal(non_evasion_king_move));
     ASSERT_FALSE(evasion_board.is_legal_pseudo_move(non_evasion_king_move));
 
-    MovePicker picker{
-        {evasion_board, killers, history, ply, non_evasion_king_move, non_evasion_king_move},
-        MovePickerMode::MainSearch};
+    const auto hinted =
+        picked_main_search(evasion_board, killers, history, ply, non_evasion_king_move);
+    const auto baseline = picked_main_search(evasion_board, killers, history, ply);
 
-    for (Move picked = picker.next(); !picked.is_null(); picked = picker.next()) {
-        EXPECT_NE(picker.last_source(), MovePickSource::PV);
-        EXPECT_NE(picker.last_source(), MovePickSource::Hash);
-    }
+    EXPECT_EQ(hinted, baseline);
 }
 
-TEST_F(MovePickerTest, StagedMainSearchKeepsPVAndHashFirst) {
-    Move pv_move = Move(B4, C4);
+TEST_F(MovePickerTest, MainSearchKeepsHashFirstWithoutDuplicates) {
     Move tt_move = Move(E2, E3);
 
-    const auto moves = staged_picked_moves(board, killers, history, ply, pv_move, tt_move);
+    const auto moves = picked_root_order(board, killers, history, ply, tt_move);
 
-    ASSERT_GT(moves.size(), 1U);
-    EXPECT_EQ(moves[0], pv_move);
-    EXPECT_EQ(moves[1], tt_move);
-    EXPECT_EQ(std::count(moves.begin(), moves.end(), pv_move), 1);
+    ASSERT_FALSE(moves.empty());
+    EXPECT_EQ(moves[0], tt_move);
     EXPECT_EQ(std::count(moves.begin(), moves.end(), tt_move), 1);
 }
 
-TEST_F(MovePickerTest, StagedMainSearchSourcesFollowStagedContract) {
-    Move pv_move     = Move(B4, C4);
-    Move tt_move     = Move(E2, E3);
+TEST_F(MovePickerTest, MainSearchKeepsCaptureKillerAndHistoryPriorityBands) {
     Move killer_move = Move(A5, A4);
     Move hist_move   = Move(A5, A6);
 
     killers.update(killer_move, ply);
     history.update(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
 
-    const auto moves =
-        staged_picked_moves_with_sources(board, killers, history, ply, pv_move, tt_move);
-
-    ASSERT_GT(moves.size(), 4U);
-    EXPECT_EQ(moves[0], std::make_pair(pv_move, MovePickSource::PV));
-    EXPECT_EQ(moves[1], std::make_pair(tt_move, MovePickSource::Hash));
-    EXPECT_EQ(moves[2], std::make_pair(Move(B4, F4), MovePickSource::GoodNoisy));
-    EXPECT_EQ(moves[3], std::make_pair(killer_move, MovePickSource::Killer));
-    EXPECT_EQ(moves[4], std::make_pair(hist_move, MovePickSource::Quiet));
-}
-
-TEST_F(MovePickerTest, StagedMainSearchMatchesGeneratedOrderForQuietStartPosition) {
-    TestBoard quiet_board{STARTFEN};
-
-    const auto              staged    = staged_picked_moves(quiet_board, killers, history, ply);
-    const auto              generated = movegen::generate_pseudo_legal(quiet_board);
-    const std::vector<Move> generated_order(generated.begin(), generated.end());
-
-    EXPECT_EQ(staged, generated_order);
-}
-
-TEST_F(MovePickerTest, StagedMainSearchPriorityBandsAreOrderedForRepresentativePositions) {
-    for (std::string_view fen : {std::string_view{STARTFEN},
-                                 std::string_view{POS2},
-                                 std::string_view{POS3},
-                                 std::string_view{ENPASSANT_A3},
-                                 PROMOTION_FEN,
-                                 CAPTURE_PROMOTION_FEN,
-                                 CASTLE_FEN}) {
-        TestBoard board{std::string(fen)};
-        ASSERT_FALSE(board.is_check()) << fen;
-
-        const auto staged = staged_picked_moves_with_scores(board, killers, history, ply);
-        const auto bands  = picked_priority_bands(staged);
-
-        EXPECT_TRUE(std::is_sorted(bands.begin(), bands.end(), std::greater<>())) << fen;
-    }
-}
-
-TEST_F(MovePickerTest, StagedMainSearchKeepsCaptureKillerAndHistoryPriorityBands) {
-    Move killer_move = Move(A5, A4);
-    Move hist_move   = Move(A5, A6);
-
-    killers.update(killer_move, ply);
-    history.update(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
-
-    const auto moves = staged_picked_moves(board, killers, history, ply);
+    const auto moves = picked_root_order(board, killers, history, ply);
 
     ASSERT_GT(moves.size(), 4U);
     EXPECT_EQ(moves[0], Move(B4, F4));
@@ -550,7 +363,7 @@ TEST_F(MovePickerTest, StagedMainSearchKeepsCaptureKillerAndHistoryPriorityBands
     EXPECT_EQ(moves[2], hist_move);
 }
 
-TEST_F(MovePickerTest, StagedMainSearchSuppressesKillerDuplicates) {
+TEST_F(MovePickerTest, MainSearchSuppressesKillerDuplicates) {
     TestBoard quiet_board{STARTFEN};
     Move      killer_1 = Move(E2, E4);
     Move      killer_2 = Move(D2, D4);
@@ -558,7 +371,7 @@ TEST_F(MovePickerTest, StagedMainSearchSuppressesKillerDuplicates) {
     killers.update(killer_2, ply);
     killers.update(killer_1, ply);
 
-    const auto moves = staged_picked_moves(quiet_board, killers, history, ply);
+    const auto moves = picked_root_order(quiet_board, killers, history, ply);
 
     ASSERT_GT(moves.size(), 2U);
     EXPECT_EQ(moves[0], killer_1);
@@ -567,15 +380,13 @@ TEST_F(MovePickerTest, StagedMainSearchSuppressesKillerDuplicates) {
     EXPECT_EQ(std::count(moves.begin(), moves.end(), killer_2), 1);
 }
 
-TEST_F(MovePickerTest, StagedMainSearchKeepsWeakTacticalsAfterQuiets) {
+TEST_F(MovePickerTest, MainSearchKeepsWeakTacticalsAfterQuiets) {
     TestBoard board{std::string(WEAK_CAPTURE_FEN)};
 
-    const auto moves    = staged_picked_moves_with_scores(board, killers, history, ply);
-    const auto weak_it  = std::find_if(moves.begin(), moves.end(), [](const auto& move_and_score) {
-        return move_and_score.first == Move(D1, D7) && move_and_score.second == PRIORITY_WEAK;
-    });
-    const auto quiet_it = std::find_if(moves.begin(), moves.end(), [&](const auto& move_and_score) {
-        return move_and_score.first.type() != MOVE_PROM && !board.is_capture(move_and_score.first);
+    const auto moves    = picked_root_order(board, killers, history, ply);
+    const auto weak_it  = std::find(moves.begin(), moves.end(), Move(D1, D7));
+    const auto quiet_it = std::find_if(moves.begin(), moves.end(), [&](Move move) {
+        return move.type() != MOVE_PROM && !board.is_capture(move);
     });
 
     ASSERT_NE(weak_it, moves.end());
@@ -583,29 +394,17 @@ TEST_F(MovePickerTest, StagedMainSearchKeepsWeakTacticalsAfterQuiets) {
     EXPECT_LT(quiet_it, weak_it);
 }
 
-TEST_F(MovePickerTest, StagedMainSearchMarksWeakTacticalsAsBadNoisy) {
-    TestBoard board{std::string(WEAK_CAPTURE_FEN)};
-
-    const auto moves   = staged_picked_moves_with_sources(board, killers, history, ply);
-    const auto weak_it = std::find_if(moves.begin(), moves.end(), [](const auto& move_and_source) {
-        return move_and_source.first == Move(D1, D7);
-    });
-
-    ASSERT_NE(weak_it, moves.end());
-    EXPECT_EQ(weak_it->second, MovePickSource::BadNoisy);
-}
-
-TEST_F(MovePickerTest, StagedMainSearchCoversSpecialMoveStages) {
+TEST_F(MovePickerTest, MainSearchCoversSpecialMoveStages) {
     TestBoard promotion_board{std::string(PROMOTION_FEN)};
     TestBoard capture_promotion_board{std::string(CAPTURE_PROMOTION_FEN)};
     TestBoard castle_board{std::string(CASTLE_FEN)};
     TestBoard ep_board{ENPASSANT_A3};
 
-    const auto promotions = staged_picked_moves(promotion_board, killers, history, ply);
+    const auto promotions = picked_root_order(promotion_board, killers, history, ply);
     const auto capture_promotions =
-        staged_picked_moves(capture_promotion_board, killers, history, ply);
-    const auto castles = staged_picked_moves(castle_board, killers, history, ply);
-    const auto eps     = staged_picked_moves(ep_board, killers, history, ply);
+        picked_root_order(capture_promotion_board, killers, history, ply);
+    const auto castles = picked_root_order(castle_board, killers, history, ply);
+    const auto eps     = picked_root_order(ep_board, killers, history, ply);
 
     EXPECT_NE(std::find(promotions.begin(), promotions.end(), Move(A7, A8, MOVE_PROM, QUEEN)),
               promotions.end());
@@ -618,108 +417,49 @@ TEST_F(MovePickerTest, StagedMainSearchCoversSpecialMoveStages) {
     EXPECT_NE(std::find(eps.begin(), eps.end(), Move(B4, A3, MOVE_EP)), eps.end());
 }
 
-TEST_F(MovePickerTest, StagedMainSearchKeepsDeterministicEqualPriorityQuietOrder) {
+TEST_F(MovePickerTest, MainSearchKeepsDeterministicEqualPriorityQuietOrder) {
     TestBoard quiet_board{STARTFEN};
 
-    const auto first_order  = staged_picked_moves(quiet_board, killers, history, ply);
-    const auto second_order = staged_picked_moves(quiet_board, killers, history, ply);
+    const auto first_order  = picked_root_order(quiet_board, killers, history, ply);
+    const auto second_order = picked_root_order(quiet_board, killers, history, ply);
 
     ASSERT_GT(first_order.size(), 1U);
     EXPECT_EQ(second_order, first_order);
 }
 
-TEST_F(MovePickerTest, StagedMainSearchDefersQuietGenerationUntilAfterGoodNoisy) {
-    MovePicker picker{{board, killers, history, ply}, MovePickerMode::MainSearch};
-
-    EXPECT_FALSE(picker.noisy_generated());
-    EXPECT_FALSE(picker.quiet_generated());
-
-    Move first = picker.next();
-
-    ASSERT_FALSE(first.is_null());
-    EXPECT_EQ(first, Move(B4, F4));
-    EXPECT_EQ(picker.last_source(), MovePickSource::GoodNoisy);
-    EXPECT_TRUE(picker.noisy_generated());
-    EXPECT_FALSE(picker.quiet_generated());
-}
-
-TEST_F(MovePickerTest, StagedMainSearchDefersQuietGenerationUntilAfterKillers) {
-    TestBoard quiet_board{STARTFEN};
-    Move      killer_move = Move(E2, E4);
+TEST_F(MovePickerTest, SkipQuietMovesSkipsKillersAndQuietsButKeepsBadNoisyMoves) {
+    TestBoard weak_capture_board{std::string(WEAK_CAPTURE_FEN)};
+    Move      killer_move = Move(D1, D2);
+    ASSERT_TRUE(weak_capture_board.is_pseudo_legal(killer_move));
+    ASSERT_FALSE(weak_capture_board.is_capture(killer_move));
     killers.update(killer_move, ply);
 
-    MovePicker picker{{quiet_board, killers, history, ply}, MovePickerMode::MainSearch};
+    MovePicker picker =
+        MovePicker::main_search(weak_capture_board, killers, history, ply, NULL_MOVE);
+    picker.skip_quiet_moves();
+    const auto moves = collect_moves(picker);
 
-    Move first = picker.next();
-
-    ASSERT_FALSE(first.is_null());
-    EXPECT_EQ(first, killer_move);
-    EXPECT_EQ(picker.last_source(), MovePickSource::Killer);
-    EXPECT_TRUE(picker.noisy_generated());
-    EXPECT_FALSE(picker.quiet_generated());
+    EXPECT_EQ(std::find(moves.begin(), moves.end(), killer_move), moves.end());
+    EXPECT_NE(std::find(moves.begin(), moves.end(), Move(D1, D7)), moves.end());
+    for (Move move : moves) {
+        EXPECT_TRUE(move.type() == MOVE_PROM || weak_capture_board.is_capture(move)) << move.str();
+    }
 }
 
-TEST_F(MovePickerTest, SkipQuietMovesSkipsRemainingQuietsAndKeepsBadNoisy) {
-    TestBoard  weak_capture_board{std::string(WEAK_CAPTURE_FEN)};
-    MovePicker picker{{weak_capture_board, killers, history, ply}, MovePickerMode::MainSearch};
-
-    Move first_quiet = NULL_MOVE;
-    for (Move picked = picker.next(); !picked.is_null(); picked = picker.next()) {
-        if (picker.last_source() == MovePickSource::Quiet) {
-            first_quiet = picked;
-            break;
-        }
-    }
-
-    ASSERT_FALSE(first_quiet.is_null());
-    EXPECT_TRUE(picker.noisy_generated());
-    EXPECT_TRUE(picker.quiet_generated());
-
+TEST_F(MovePickerTest, SkipQuietMovesIsNoOpForQSearch) {
+    MovePicker picker = MovePicker::qsearch(board, history, NULL_MOVE);
     picker.skip_quiet_moves();
 
-    Move next = picker.next();
-    ASSERT_FALSE(next.is_null());
-    EXPECT_EQ(next, Move(D1, D7));
-    EXPECT_EQ(picker.last_source(), MovePickSource::BadNoisy);
-
-    for (Move picked = picker.next(); !picked.is_null(); picked = picker.next())
-        EXPECT_NE(picker.last_source(), MovePickSource::Quiet);
+    EXPECT_EQ(collect_moves(picker), picked_qsearch(board, history));
 }
 
-TEST_F(MovePickerTest, SkipQuietMovesDoesNotSuppressEvasions) {
+TEST_F(MovePickerTest, SkipQuietMovesIsNoOpForInCheckMainSearch) {
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     ASSERT_TRUE(evasion_board.is_check());
 
-    MovePicker picker{{evasion_board, killers, history, ply}, MovePickerMode::MainSearch};
+    MovePicker picker = MovePicker::main_search(evasion_board, killers, history, ply, NULL_MOVE);
     picker.skip_quiet_moves();
 
-    std::vector<Move> moves;
-    for (Move picked = picker.next(); !picked.is_null(); picked = picker.next()) {
-        moves.push_back(picked);
-        EXPECT_EQ(picker.last_source(), MovePickSource::Evasion);
-    }
-
-    EXPECT_EQ(sorted_move_bits(moves), sorted_move_bits(movegen::generate_evasions(evasion_board)));
-    EXPECT_NE(std::find(moves.begin(), moves.end(), Move(A8, B8)), moves.end());
-}
-
-TEST_F(MovePickerTest, StagedMainSearchKeepsExpectedPriorityBands) {
-    Move pv_move     = Move(B4, C4);
-    Move tt_move     = Move(E2, E3);
-    Move killer_move = Move(A5, A4);
-    Move hist_move   = Move(A5, A6);
-
-    killers.update(killer_move, ply);
-    history.update(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
-
-    const auto staged =
-        staged_picked_moves_with_scores(board, killers, history, ply, pv_move, tt_move);
-    const auto bands = picked_priority_bands(staged);
-
-    ASSERT_GE(bands.size(), 5U);
-    EXPECT_EQ(bands[0], PRIORITY_PV);
-    EXPECT_EQ(bands[1], PRIORITY_HASH);
-    EXPECT_EQ(bands[2], PRIORITY_CAPTURE);
-    EXPECT_EQ(bands[3], PRIORITY_KILLER);
-    EXPECT_EQ(bands[4], PRIORITY_HISTORY);
+    EXPECT_EQ(sorted_move_bits(collect_moves(picker)),
+              sorted_move_bits(movegen::generate_evasions(evasion_board)));
 }

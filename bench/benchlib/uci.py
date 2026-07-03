@@ -12,13 +12,11 @@ from pathlib import Path
 
 from .common import (
     BENCH_DIR,
-    DEFAULT_DIRECT_BUILD_PRESET,
     add_common_run_args,
     average,
     base_manifest,
     build_binary,
     default_engine_path,
-    delta_points,
     format_num,
     make_run_dir,
     num,
@@ -28,7 +26,7 @@ from .common import (
     write_tsv,
 )
 
-DIRECT_UCI_FORMAT = "direct-uci"
+SEARCH_FORMAT = "search"
 DEFAULT_ARASAN20_EPD = BENCH_DIR / "arasan20.epd"
 STARTPOS_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 SUITE_POSITION_IDS = [
@@ -40,53 +38,16 @@ SUITE_POSITION_IDS = [
     "arasan20-30",
 ]
 
-DIRECT_PROFILES = {
-    "smoke": {"positions": "startpos,arasan20-01", "threads": "1,4", "movetime": 500, "repeats": 1, "hash": 64},
-    "mid": {"positions": "suite", "threads": "1,4", "movetime": 1500, "repeats": 3, "hash": 64},
-    "wide": {"positions": "suite", "threads": "1,2,4,8", "movetime": 2000, "repeats": 3, "hash": 64},
-}
+SEARCH_HASH_MB = 64
+SEARCH_REPEATS = 1
 
-STATS_COLUMNS = [
-    "stats_beta_cutoffs",
-    "stats_cutoff_early_pct",
-    "stats_cutoff_late_pct",
-    "stats_cutoff_avg_index",
-    "stats_cutoff_1_pct",
-    "stats_cutoff_2_pct",
-    "stats_cutoff_3_4_pct",
-    "stats_cutoff_5_plus_pct",
-    "stats_pvs_researches",
-    "stats_aspiration_fail_low",
-    "stats_aspiration_fail_high",
-    "stats_aspiration_researches",
-    "stats_main_tt_hit_pct",
-    "stats_main_tt_cutoff_pct",
-    "stats_q_tt_hit_pct",
-    "stats_q_tt_cutoff_pct",
-    "stats_qnode_pct",
-    "stats_staged_nodes",
-    "stats_staged_noisy_generated",
-    "stats_staged_noisy_generated_pct",
-    "stats_staged_quiet_generated",
-    "stats_staged_quiet_generated_pct",
-    "stats_staged_skip_quiet",
-    "stats_staged_skip_quiet_pct",
-    "stats_staged_cutoff_before_quiet",
-    "stats_staged_cutoff_before_quiet_pct",
-    "stats_staged_cutoff_quiet",
-    "stats_staged_cutoff_quiet_pct",
-    "stats_staged_cutoff_bad_noisy",
-    "stats_staged_cutoff_bad_noisy_pct",
-    "stats_ebf",
-    "stats_cumulative_ebf",
-]
-
-DIRECT_RESULT_COLUMNS = [
+SEARCH_COLUMNS = [
     "result_format",
     "position_id",
     "repeat",
     "threads",
-    "movetime_ms",
+    "depth_target",
+    "hash_mb",
     "depth",
     "seldepth",
     "score_type",
@@ -96,22 +57,77 @@ DIRECT_RESULT_COLUMNS = [
     "nps",
     "bestmove",
     "pv",
-    *STATS_COLUMNS,
     "raw_output_file",
 ]
 
 
-def add_direct_uci_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("direct-uci", help="run stats-enabled direct-UCI benchmark suite")
-    add_common_run_args(parser, build_preset=DEFAULT_DIRECT_BUILD_PRESET)
-    parser.add_argument("--profile", choices=sorted(DIRECT_PROFILES), default="mid")
-    parser.add_argument("--positions", help="suite, arasan20-full, or comma-separated position ids")
-    parser.add_argument("--threads", help="comma-separated thread counts")
-    parser.add_argument("--movetime", type=int)
-    parser.add_argument("--repeats", type=int)
-    parser.add_argument("--hash", type=int)
-    parser.add_argument("--epd-file", type=Path, default=DEFAULT_ARASAN20_EPD)
-    parser.add_argument("--engine", type=Path, help="engine binary path")
+def add_search_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    parser = subparsers.add_parser("search", help="run fixed-depth search benchmark")
+    add_common_run_args(parser)
+    parser.add_argument("--depth", type=int, required=True)
+    parser.add_argument("--threads", type=int, default=1)
+
+
+def command_run_search(args: argparse.Namespace) -> int:
+    build_binary(args, "latrunculi")
+    engine = default_engine_path(args.build_preset)
+    if not engine.exists():
+        raise FileNotFoundError(f"engine binary not found: {engine}")
+    if args.depth <= 0:
+        raise ValueError("--depth must be positive")
+    if args.threads <= 0:
+        raise ValueError("--threads must be positive")
+
+    epd_file = DEFAULT_ARASAN20_EPD.resolve()
+    selected_positions = select_positions(load_benchmark_positions(epd_file), "suite")
+    timeout = max(120.0, float(args.depth) * 60.0)
+
+    run_dir = make_run_dir(args.output_root, args.label)
+    manifest = base_manifest(args, run_dir, SEARCH_FORMAT)
+    manifest.update(
+        {
+            "engine_path": str(engine.resolve()),
+            "epd_file": str(epd_file),
+            "selected_positions": [position["id"] for position in selected_positions],
+            "threads": args.threads,
+            "depth_target": args.depth,
+            "hash_mb": SEARCH_HASH_MB,
+            "repeats": SEARCH_REPEATS,
+            "timeout_seconds": timeout,
+        }
+    )
+    write_manifest(run_dir / "manifest.json", manifest)
+
+    rows: list[dict[str, str]] = []
+    for repeat in range(1, SEARCH_REPEATS + 1):
+        for position in selected_positions:
+            result = run_position(
+                engine,
+                position["fen"],
+                SEARCH_HASH_MB,
+                depth=args.depth,
+                threads=args.threads,
+                search_timeout=timeout,
+            )
+            raw_name = f"{position['id']}-t{args.threads}-d{args.depth}-r{repeat}.log"
+            (run_dir / "raw" / raw_name).write_text(result.pop("raw_output", "") + "\n", encoding="utf-8")
+            rows.append(
+                {
+                    "result_format": SEARCH_FORMAT,
+                    "position_id": position["id"],
+                    "repeat": str(repeat),
+                    "threads": str(args.threads),
+                    "depth_target": str(args.depth),
+                    "hash_mb": str(SEARCH_HASH_MB),
+                    "raw_output_file": f"raw/{raw_name}",
+                    **result,
+                }
+            )
+
+    write_tsv(run_dir / "results.tsv", rows, SEARCH_COLUMNS)
+    (run_dir / "summary.md").write_text(render_search_summary(manifest, rows), encoding="utf-8")
+    print(run_dir)
+    return 0
 
 
 def load_benchmark_positions(epd_file: Path) -> list[dict[str, str]]:
@@ -156,12 +172,8 @@ def normalize_arasan_id(epd_id: str) -> str:
 
 
 def select_positions(positions: list[dict[str, str]], selection: str) -> list[dict[str, str]]:
-    if selection == "all":
-        raise ValueError("position selector 'all' is ambiguous; use 'suite' or 'arasan20-full'")
     if selection == "suite":
         return positions_by_id(positions, SUITE_POSITION_IDS)
-    if selection == "arasan20-full":
-        return [position for position in positions if position["id"].startswith("arasan20-")]
     wanted = [item.strip() for item in selection.split(",") if item.strip()]
     return positions_by_id(positions, wanted)
 
@@ -174,88 +186,6 @@ def positions_by_id(positions: list[dict[str, str]], wanted: list[str]) -> list[
     if missing:
         raise ValueError(f"unknown position ids: {', '.join(missing)}")
     return chosen
-
-
-def parse_threads(raw: str) -> list[int]:
-    values = [int(item.strip()) for item in raw.split(",") if item.strip()]
-    if not values:
-        raise ValueError("at least one thread count is required")
-    if any(value <= 0 for value in values):
-        raise ValueError("thread counts must be positive integers")
-    return values
-
-
-def effective_direct_config(args: argparse.Namespace) -> dict[str, object]:
-    profile = dict(DIRECT_PROFILES[args.profile])
-    for name in ("positions", "threads", "movetime", "repeats", "hash"):
-        value = getattr(args, name)
-        if value is not None:
-            profile[name] = value
-    if int(profile["repeats"]) <= 0:
-        raise ValueError("--repeats must be positive")
-    if int(profile["movetime"]) <= 0:
-        raise ValueError("--movetime must be positive")
-    if int(profile["hash"]) <= 0:
-        raise ValueError("--hash must be positive")
-    return profile
-
-
-def command_run_direct_uci(args: argparse.Namespace) -> int:
-    build_binary(args, "latrunculi")
-    engine = args.engine or default_engine_path(args.build_preset)
-    if not engine.exists():
-        raise FileNotFoundError(f"engine binary not found: {engine}")
-
-    config = effective_direct_config(args)
-    epd_file = args.epd_file.resolve()
-    selected_positions = select_positions(load_benchmark_positions(epd_file), str(config["positions"]))
-    threads = parse_threads(str(config["threads"]))
-
-    run_dir = make_run_dir(args.output_root, args.label)
-    manifest = base_manifest(args, run_dir, DIRECT_UCI_FORMAT)
-    manifest.update(
-        {
-            "engine_path": str(engine.resolve()),
-            "epd_file": str(epd_file),
-            "selected_positions": [position["id"] for position in selected_positions],
-            "threads": threads,
-            "movetime_ms": int(config["movetime"]),
-            "hash_mb": int(config["hash"]),
-            "repeats": int(config["repeats"]),
-            "search_stats_enabled": args.build_preset in {"release-stats", "release-stats-dev"},
-        }
-    )
-    write_manifest(run_dir / "manifest.json", manifest)
-
-    rows: list[dict[str, str]] = []
-    for repeat in range(1, int(config["repeats"]) + 1):
-        for position in selected_positions:
-            for thread_count in threads:
-                result = run_position(
-                    engine,
-                    position["fen"],
-                    thread_count,
-                    int(config["movetime"]),
-                    int(config["hash"]),
-                )
-                raw_name = f"{position['id']}-t{thread_count}-r{repeat}.log"
-                (run_dir / "raw" / raw_name).write_text(result.pop("raw_output", "") + "\n", encoding="utf-8")
-                rows.append(
-                    {
-                        "result_format": DIRECT_UCI_FORMAT,
-                        "position_id": position["id"],
-                        "repeat": str(repeat),
-                        "threads": str(thread_count),
-                        "movetime_ms": str(config["movetime"]),
-                        "raw_output_file": f"raw/{raw_name}",
-                        **result,
-                    }
-                )
-
-    write_tsv(run_dir / "results.tsv", rows, DIRECT_RESULT_COLUMNS)
-    (run_dir / "summary.md").write_text(render_direct_summary(manifest, rows), encoding="utf-8")
-    print(run_dir)
-    return 0
 
 
 def parse_info_line(line: str) -> dict[str, str]:
@@ -283,9 +213,11 @@ def parse_info_line(line: str) -> dict[str, str]:
 def run_position(
     engine: Path,
     fen: str,
-    threads: int,
-    movetime: int,
     hash_mb: int,
+    *,
+    depth: int,
+    threads: int,
+    search_timeout: float,
 ) -> dict[str, str]:
     result = {
         "depth": "",
@@ -363,8 +295,7 @@ def run_position(
 
             send("ucinewgame")
             send(f"position fen {fen}")
-            send(f"go movetime {movetime}")
-            search_timeout = max(5.0, movetime / 1000.0 + 5.0)
+            send(f"go depth {depth}")
             while True:
                 stripped = read_line(timeout_seconds=search_timeout)
                 raw_lines.append(stripped)
@@ -401,197 +332,46 @@ def run_position(
 
     if not result["bestmove"]:
         raise RuntimeError(f"engine produced no bestmove for fen: {fen}")
-    result.update(parse_search_stats_lines(raw_lines))
     result["raw_output"] = "\n".join(raw_lines).strip()
     return result
 
 
-def parse_search_stats_lines(lines: list[str]) -> dict[str, str]:
-    stats: dict[str, str] = {column: "" for column in STATS_COLUMNS}
-    table_rows: list[dict[str, str]] = []
-    capture = False
-    for line in lines:
-        stripped = line.strip()
-        aspiration_match = re.search(
-            r"^Aspiration:\s+fail-low=(\d+)\s+fail-high=(\d+)\s+re-searches=(\d+)",
-            stripped,
-        )
-        if aspiration_match:
-            stats["stats_aspiration_fail_low"] = aspiration_match.group(1)
-            stats["stats_aspiration_fail_high"] = aspiration_match.group(2)
-            stats["stats_aspiration_researches"] = aspiration_match.group(3)
-            continue
-        staged_match = re.search(
-            r"^StagedPicker:\s+nodes=(\d+)\s+noisy-generated=(\d+)\s+"
-            r"\(([-+0-9.]+)%\)\s+quiet-generated=(\d+)\s+\(([-+0-9.]+)%\)\s+"
-            r"skip-quiet=(\d+)\s+\(([-+0-9.]+)%\)\s+"
-            r"cutoff-before-quiet=(\d+)\s+\(([-+0-9.]+)%\)\s+"
-            r"cutoff-quiet=(\d+)\s+\(([-+0-9.]+)%\)\s+"
-            r"cutoff-bad-noisy=(\d+)\s+\(([-+0-9.]+)%\)",
-            stripped,
-        )
-        if staged_match:
-            stats["stats_staged_nodes"] = staged_match.group(1)
-            stats["stats_staged_noisy_generated"] = staged_match.group(2)
-            stats["stats_staged_noisy_generated_pct"] = staged_match.group(3)
-            stats["stats_staged_quiet_generated"] = staged_match.group(4)
-            stats["stats_staged_quiet_generated_pct"] = staged_match.group(5)
-            stats["stats_staged_skip_quiet"] = staged_match.group(6)
-            stats["stats_staged_skip_quiet_pct"] = staged_match.group(7)
-            stats["stats_staged_cutoff_before_quiet"] = staged_match.group(8)
-            stats["stats_staged_cutoff_before_quiet_pct"] = staged_match.group(9)
-            stats["stats_staged_cutoff_quiet"] = staged_match.group(10)
-            stats["stats_staged_cutoff_quiet_pct"] = staged_match.group(11)
-            stats["stats_staged_cutoff_bad_noisy"] = staged_match.group(12)
-            stats["stats_staged_cutoff_bad_noisy_pct"] = staged_match.group(13)
-            continue
-        if "Depth" in stripped and "Nodes (QNode%)" in stripped and "Cutoffs" in stripped:
-            capture = True
-            continue
-        if not capture:
-            continue
-        if not stripped:
-            break
-        parts = [part.strip() for part in line.split("|")]
-        if len(parts) != 8 or not parts[0].isdigit():
-            continue
-        row = parse_search_stats_row(parts)
-        if row:
-            table_rows.append(row)
-    if table_rows:
-        stats.update(aggregate_search_stats_rows(table_rows))
-    return stats
-
-
-def parse_search_stats_row(parts: list[str]) -> dict[str, str]:
-    parsed: dict[str, str] = {}
-    nodes_match = re.search(r"^(\d+)\s+\(\s*([-+0-9.]+)%\)", parts[1])
-    cutoff_match = re.search(r"^(\d+)\s+\(\s*([-+0-9.]+)\s*/\s*([-+0-9.]+)%\)", parts[2])
-    cutoff_index_match = re.search(
-        r"^([-+0-9.]+)\s*/\s*([-+0-9.]+)\s*/\s*([-+0-9.]+)\s*/\s*([-+0-9.]+)\s*/\s*([-+0-9.]+)%",
-        parts[3],
-    )
-    pvs_match = re.search(r"^(\d+)$", parts[4])
-    main_tt_match = re.search(r"([-+0-9.]+)\s*/\s*([-+0-9.]+)%", parts[5])
-    q_tt_match = re.search(r"([-+0-9.]+)\s*/\s*([-+0-9.]+)%", parts[6])
-    ebf_match = re.search(r"([-+0-9.]+)\s*/\s*([-+0-9.]+)", parts[7])
-    if nodes_match:
-        nodes = int(nodes_match.group(1))
-        qnode_pct = float(nodes_match.group(2))
-        parsed["stats_nodes"] = str(nodes)
-        parsed["stats_qnodes"] = f"{nodes * qnode_pct / 100.0:.3f}"
-        parsed["stats_qnode_pct"] = nodes_match.group(2)
-    if cutoff_match:
-        cutoffs = int(cutoff_match.group(1))
-        early_pct = float(cutoff_match.group(2))
-        late_pct = float(cutoff_match.group(3))
-        parsed["stats_beta_cutoffs"] = str(cutoffs)
-        parsed["stats_cutoff_early_count"] = f"{cutoffs * early_pct / 100.0:.3f}"
-        parsed["stats_cutoff_late_count"] = f"{cutoffs * late_pct / 100.0:.3f}"
-        parsed["stats_cutoff_early_pct"] = cutoff_match.group(2)
-        parsed["stats_cutoff_late_pct"] = cutoff_match.group(3)
-    if cutoff_index_match:
-        avg_index = float(cutoff_index_match.group(1))
-        one_pct = float(cutoff_index_match.group(2))
-        two_pct = float(cutoff_index_match.group(3))
-        three_four_pct = float(cutoff_index_match.group(4))
-        five_plus_pct = float(cutoff_index_match.group(5))
-        cutoffs = int(parsed.get("stats_beta_cutoffs", "0") or 0)
-        parsed["stats_cutoff_avg_index"] = cutoff_index_match.group(1)
-        parsed["stats_cutoff_index_total"] = f"{avg_index * cutoffs:.3f}"
-        parsed["stats_cutoff_1_pct"] = cutoff_index_match.group(2)
-        parsed["stats_cutoff_2_pct"] = cutoff_index_match.group(3)
-        parsed["stats_cutoff_3_4_pct"] = cutoff_index_match.group(4)
-        parsed["stats_cutoff_5_plus_pct"] = cutoff_index_match.group(5)
-        parsed["stats_cutoff_1_count"] = f"{cutoffs * one_pct / 100.0:.3f}"
-        parsed["stats_cutoff_2_count"] = f"{cutoffs * two_pct / 100.0:.3f}"
-        parsed["stats_cutoff_3_4_count"] = f"{cutoffs * three_four_pct / 100.0:.3f}"
-        parsed["stats_cutoff_5_plus_count"] = f"{cutoffs * five_plus_pct / 100.0:.3f}"
-    if pvs_match:
-        parsed["stats_pvs_researches"] = pvs_match.group(1)
-    if main_tt_match:
-        parsed["stats_main_tt_hit_pct"] = main_tt_match.group(1)
-        parsed["stats_main_tt_cutoff_pct"] = main_tt_match.group(2)
-    if q_tt_match:
-        parsed["stats_q_tt_hit_pct"] = q_tt_match.group(1)
-        parsed["stats_q_tt_cutoff_pct"] = q_tt_match.group(2)
-    if ebf_match:
-        parsed["stats_ebf"] = ebf_match.group(1)
-        parsed["stats_cumulative_ebf"] = ebf_match.group(2)
-    return parsed
-
-
-def aggregate_search_stats_rows(rows: list[dict[str, str]]) -> dict[str, str]:
-    total_nodes = sum(int(row.get("stats_nodes", "0") or 0) for row in rows)
-    total_cutoffs = sum(int(row.get("stats_beta_cutoffs", "0") or 0) for row in rows)
-    total_qnodes = sum(float(row.get("stats_qnodes", "0") or 0.0) for row in rows)
-    total_early = sum(float(row.get("stats_cutoff_early_count", "0") or 0.0) for row in rows)
-    total_late = sum(float(row.get("stats_cutoff_late_count", "0") or 0.0) for row in rows)
-    total_cutoff_index = sum(float(row.get("stats_cutoff_index_total", "0") or 0.0) for row in rows)
-    total_cutoff_1 = sum(float(row.get("stats_cutoff_1_count", "0") or 0.0) for row in rows)
-    total_cutoff_2 = sum(float(row.get("stats_cutoff_2_count", "0") or 0.0) for row in rows)
-    total_cutoff_3_4 = sum(float(row.get("stats_cutoff_3_4_count", "0") or 0.0) for row in rows)
-    total_cutoff_5_plus = sum(float(row.get("stats_cutoff_5_plus_count", "0") or 0.0) for row in rows)
-    total_pvs_researches = sum(int(row.get("stats_pvs_researches", "0") or 0) for row in rows)
-    weighted_main_tt_hit = weighted_average(rows, "stats_main_tt_hit_pct", "stats_nodes")
-    weighted_main_tt_cut = weighted_average(rows, "stats_main_tt_cutoff_pct", "stats_nodes")
-    weighted_q_tt_hit = weighted_average(rows, "stats_q_tt_hit_pct", "stats_nodes")
-    weighted_q_tt_cut = weighted_average(rows, "stats_q_tt_cutoff_pct", "stats_nodes")
-    last = rows[-1]
-    return {
-        "stats_beta_cutoffs": str(total_cutoffs),
-        "stats_cutoff_early_pct": f"{(100.0 * total_early / total_cutoffs):.1f}" if total_cutoffs else "0.0",
-        "stats_cutoff_late_pct": f"{(100.0 * total_late / total_cutoffs):.1f}" if total_cutoffs else "0.0",
-        "stats_cutoff_avg_index": f"{(total_cutoff_index / total_cutoffs):.1f}" if total_cutoffs else "0.0",
-        "stats_cutoff_1_pct": f"{(100.0 * total_cutoff_1 / total_cutoffs):.1f}" if total_cutoffs else "0.0",
-        "stats_cutoff_2_pct": f"{(100.0 * total_cutoff_2 / total_cutoffs):.1f}" if total_cutoffs else "0.0",
-        "stats_cutoff_3_4_pct": f"{(100.0 * total_cutoff_3_4 / total_cutoffs):.1f}" if total_cutoffs else "0.0",
-        "stats_cutoff_5_plus_pct": f"{(100.0 * total_cutoff_5_plus / total_cutoffs):.1f}" if total_cutoffs else "0.0",
-        "stats_pvs_researches": str(total_pvs_researches),
-        "stats_main_tt_hit_pct": f"{weighted_main_tt_hit:.1f}" if weighted_main_tt_hit is not None else "",
-        "stats_main_tt_cutoff_pct": f"{weighted_main_tt_cut:.1f}" if weighted_main_tt_cut is not None else "",
-        "stats_q_tt_hit_pct": f"{weighted_q_tt_hit:.1f}" if weighted_q_tt_hit is not None else "",
-        "stats_q_tt_cutoff_pct": f"{weighted_q_tt_cut:.1f}" if weighted_q_tt_cut is not None else "",
-        "stats_qnode_pct": f"{(100.0 * total_qnodes / total_nodes):.1f}" if total_nodes else "",
-        "stats_ebf": last.get("stats_ebf", ""),
-        "stats_cumulative_ebf": last.get("stats_cumulative_ebf", ""),
-    }
-
-def weighted_average(rows: list[dict[str, str]], value_key: str, weight_key: str) -> float | None:
-    total_weight = 0.0
-    total = 0.0
+def aggregate_search_rows(rows: list[dict[str, str]]) -> dict[str, dict[str, float | str | None]]:
+    grouped: dict[str, list[dict[str, str]]] = defaultdict(list)
     for row in rows:
-        try:
-            value = float(row.get(value_key, ""))
-            weight = float(row.get(weight_key, ""))
-        except ValueError:
-            continue
-        total += value * weight
-        total_weight += weight
-    return total / total_weight if total_weight else None
+        grouped[row["position_id"]].append(row)
 
-
-def group_direct_rows(rows: list[dict[str, str]]) -> dict[tuple[str, str], list[dict[str, str]]]:
-    grouped: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
-    for row in rows:
-        grouped[(row["position_id"], row["threads"])].append(row)
-    return dict(sorted(grouped.items()))
-
-
-def aggregate_direct_rows(rows: list[dict[str, str]]) -> dict[tuple[str, str], dict[str, float | str | None]]:
-    grouped = group_direct_rows(rows)
-    fields = ["depth", "nodes", "nps", *STATS_COLUMNS]
-    result: dict[tuple[str, str], dict[str, float | str | None]] = {}
-    for key, group in grouped.items():
-        result[key] = {field: average(num(row.get(field, "")) for row in group) for field in fields}
-        result[key]["bestmove"] = ", ".join(sorted({row["bestmove"] for row in group if row.get("bestmove")}))
+    result: dict[str, dict[str, float | str | None]] = {}
+    for position_id, group in grouped.items():
+        result[position_id] = {
+            "depth": average(num(row.get("depth")) for row in group),
+            "nodes": average(num(row.get("nodes")) for row in group),
+            "time_ms": average(num(row.get("time_ms")) for row in group),
+            "nps": average(num(row.get("nps")) for row in group),
+            "score": unique_join(format_score(row) for row in group),
+            "bestmove": unique_join(row.get("bestmove", "") for row in group),
+        }
     return result
 
 
-def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]]) -> str:
-    grouped = aggregate_direct_rows(rows)
+def format_score(row: dict[str, str]) -> str:
+    score_type = row.get("score_type", "")
+    score_value = row.get("score_value", "")
+    return f"{score_type} {score_value}".strip()
+
+
+def unique_join(values: object) -> str:
+    seen: list[str] = []
+    for value in values:
+        if value and value not in seen:
+            seen.append(value)
+    return ", ".join(seen)
+
+
+def render_search_summary(manifest: dict[str, object], rows: list[dict[str, str]]) -> str:
+    grouped = aggregate_search_rows(rows)
     lines = [
-        f"# Direct-UCI benchmark: {manifest['label']}",
+        f"# Search benchmark: {manifest['label']}",
         "",
         "## Metadata",
         f"- Run directory: `{manifest['run_dir']}`",
@@ -600,50 +380,28 @@ def render_direct_summary(manifest: dict[str, object], rows: list[dict[str, str]
         f"- Engine: `{manifest['engine_path']}`",
         f"- Build preset: `{manifest['build_preset']}`",
         f"- Positions: `{manifest['selected_positions']}`",
-        f"- Threads: `{','.join(str(t) for t in manifest['threads'])}`",
-        f"- Movetime: `{manifest['movetime_ms']} ms`; repeats: `{manifest['repeats']}`; hash: `{manifest['hash_mb']} MiB`",
+        f"- Depth: `{manifest['depth_target']}`; threads: `{manifest['threads']}`; hash: `{manifest['hash_mb']} MiB`",
         "",
         "## Averaged results",
-        "| Position | Threads | Depth | Nodes | NPS | Beta cutoffs | Early% | CutIdx | MainTT Hit/Cut% | QTT Hit/Cut% | QNode% | Staged QuietGen% | SkipQ% | Staged Cut PreQ/Quiet/Bad% | Bestmove(s) |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---:|---:|---|---|",
+        "| Position | Depth | Nodes | Time ms | NPS | Score(s) | Bestmove(s) |",
+        "|---|---:|---:|---:|---:|---|---|",
     ]
-    for (position_id, threads), agg in grouped.items():
+    for position_id, agg in grouped.items():
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {} | {} | {} | {}/{}/{} | {} |".format(
+            "| {} | {} | {} | {} | {} | {} | {} |".format(
                 position_id,
-                threads,
                 format_num(agg["depth"]),
                 format_num(agg["nodes"]),
+                format_num(agg["time_ms"]),
                 format_num(agg["nps"]),
-                format_num(agg["stats_beta_cutoffs"]),
-                format_num(agg["stats_cutoff_early_pct"]),
-                format_num(agg["stats_cutoff_avg_index"]),
-                format_num(agg["stats_main_tt_hit_pct"]),
-                format_num(agg["stats_main_tt_cutoff_pct"]),
-                format_num(agg["stats_q_tt_hit_pct"]),
-                format_num(agg["stats_q_tt_cutoff_pct"]),
-                format_num(agg["stats_qnode_pct"]),
-                format_num(agg["stats_staged_quiet_generated_pct"]),
-                format_num(agg["stats_staged_skip_quiet_pct"]),
-                format_num(agg["stats_staged_cutoff_before_quiet_pct"]),
-                format_num(agg["stats_staged_cutoff_quiet_pct"]),
-                format_num(agg["stats_staged_cutoff_bad_noisy_pct"]),
-                agg["bestmove"] or "",
+                agg["score"],
+                agg["bestmove"],
             )
         )
-    lines.extend(
-        [
-            "",
-            "## Files",
-            "- `manifest.json`: metadata needed for safe comparisons.",
-            "- `results.tsv`: stable direct-UCI columns with parsed search stats.",
-            "- `raw/*.log`: combined engine output, including SearchStats diagnostics.",
-        ]
-    )
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_direct_compare(
+def render_search_compare(
     old_dir: Path,
     new_dir: Path,
     old_manifest: dict[str, object],
@@ -651,60 +409,37 @@ def render_direct_compare(
 ) -> str:
     _, old_rows = read_tsv(old_dir / "results.tsv")
     _, new_rows = read_tsv(new_dir / "results.tsv")
-    old = aggregate_direct_rows(old_rows)
-    new = aggregate_direct_rows(new_rows)
+    old = aggregate_search_rows(old_rows)
+    new = aggregate_search_rows(new_rows)
     keys = sorted(set(old) | set(new))
     lines = [
-        f"# Direct-UCI comparison: {old_manifest.get('label')} vs {new_manifest.get('label')}",
+        f"# Search comparison: {old_manifest.get('label')} vs {new_manifest.get('label')}",
         "",
         "## Runs",
         f"- Baseline: `{old_dir}`",
         f"- Candidate: `{new_dir}`",
         "",
         "## Averaged deltas",
-        "| Position | Threads | Depth old/new | Nodes delta | NPS old/new | NPS delta | Beta cutoff delta | Early delta | CutIdx delta | MainTT Hit delta | QTT Hit delta | QNode delta | QuietGen delta | SkipQ delta | PreQ Cut delta | Quiet Cut delta | Bad Cut delta | Bestmove old/new |",
-        "|---|---:|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| Position | Depth old/new | Nodes delta | Time old/new | Time delta | NPS old/new | NPS delta | Score old/new | Bestmove old/new |",
+        "|---|---|---:|---|---:|---|---:|---|---|",
     ]
     for key in keys:
-        position_id, threads = key
         old_agg = old.get(key, {})
         new_agg = new.get(key, {})
         lines.append(
-            "| {} | {} | {} / {} | {} | {} / {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} / {} |".format(
-                position_id,
-                threads,
+            "| {} | {} / {} | {} | {} / {} | {} | {} / {} | {} | {} / {} | {} / {} |".format(
+                key,
                 format_num(old_agg.get("depth")),
                 format_num(new_agg.get("depth")),
                 percent_delta(old_agg.get("nodes"), new_agg.get("nodes")),
+                format_num(old_agg.get("time_ms")),
+                format_num(new_agg.get("time_ms")),
+                percent_delta(old_agg.get("time_ms"), new_agg.get("time_ms")),
                 format_num(old_agg.get("nps")),
                 format_num(new_agg.get("nps")),
                 percent_delta(old_agg.get("nps"), new_agg.get("nps")),
-                percent_delta(old_agg.get("stats_beta_cutoffs"), new_agg.get("stats_beta_cutoffs")),
-                delta_points(old_agg.get("stats_cutoff_early_pct"), new_agg.get("stats_cutoff_early_pct")),
-                delta_points(old_agg.get("stats_cutoff_avg_index"), new_agg.get("stats_cutoff_avg_index")),
-                delta_points(old_agg.get("stats_main_tt_hit_pct"), new_agg.get("stats_main_tt_hit_pct")),
-                delta_points(old_agg.get("stats_q_tt_hit_pct"), new_agg.get("stats_q_tt_hit_pct")),
-                delta_points(old_agg.get("stats_qnode_pct"), new_agg.get("stats_qnode_pct")),
-                delta_points(
-                    old_agg.get("stats_staged_quiet_generated_pct"),
-                    new_agg.get("stats_staged_quiet_generated_pct"),
-                ),
-                delta_points(
-                    old_agg.get("stats_staged_skip_quiet_pct"),
-                    new_agg.get("stats_staged_skip_quiet_pct"),
-                ),
-                delta_points(
-                    old_agg.get("stats_staged_cutoff_before_quiet_pct"),
-                    new_agg.get("stats_staged_cutoff_before_quiet_pct"),
-                ),
-                delta_points(
-                    old_agg.get("stats_staged_cutoff_quiet_pct"),
-                    new_agg.get("stats_staged_cutoff_quiet_pct"),
-                ),
-                delta_points(
-                    old_agg.get("stats_staged_cutoff_bad_noisy_pct"),
-                    new_agg.get("stats_staged_cutoff_bad_noisy_pct"),
-                ),
+                old_agg.get("score", ""),
+                new_agg.get("score", ""),
                 old_agg.get("bestmove", ""),
                 new_agg.get("bestmove", ""),
             )

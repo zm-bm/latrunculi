@@ -20,8 +20,8 @@ Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
       err(err),
       in(in),
       protocol(out, err),
-      config({.hash_callback   = [this](const int& value) { tt.resize(value); },
-              .thread_callback = [this](const int& value) { thread_pool.resize(value); }}),
+      config({.hash_callback   = [this](int value) { tt.resize(value); },
+              .thread_callback = [this](int value) { thread_pool.resize(value); }}),
       position_states{PositionState()},
       position_ply(0),
       board(position_states.front(), Board::startfen),
@@ -126,7 +126,7 @@ bool Engine::is_ready(std::istringstream& iss) {
 }
 
 bool Engine::set_option(std::istringstream& iss) {
-    if (thread_pool.is_busy())
+    if (thread_pool.is_searching())
         throw std::runtime_error("cannot set option while search is in progress");
 
     auto [name, value] = parse_option(iss);
@@ -139,7 +139,7 @@ bool Engine::set_option(std::istringstream& iss) {
 }
 
 bool Engine::new_game(std::istringstream& iss) {
-    if (thread_pool.is_busy())
+    if (thread_pool.is_searching())
         throw std::runtime_error("cannot start new game while search is in progress");
 
     // UCI new game policy: drop all cached TT data so a fresh game starts from an empty table
@@ -159,7 +159,7 @@ bool Engine::position(std::istringstream& iss) {
     while (moves_stream >> token) {
         auto move = get_move(token);
         if (move.is_null())
-            break;
+            throw std::runtime_error("invalid move in position command: " + token);
         make_board_move(move);
     }
     return true;
@@ -167,18 +167,18 @@ bool Engine::position(std::istringstream& iss) {
 
 bool Engine::go(std::istringstream& iss) {
     SearchOptions options(iss, &board);
-    if (!thread_pool.start_all(options))
+    if (!thread_pool.start_search(options))
         protocol.info("search already in progress");
     return true;
 }
 
 bool Engine::stop(std::istringstream& iss) {
-    thread_pool.halt_all();
+    thread_pool.request_stop();
     return true;
 }
 
 bool Engine::quit(std::istringstream& iss) {
-    thread_pool.shutdown_all();
+    thread_pool.shutdown();
     return false;
 }
 
@@ -223,8 +223,11 @@ bool Engine::move(std::istringstream& iss) {
 
 bool Engine::moves(std::istringstream& iss) {
     auto movelist = movegen::generate_pseudo_legal(board);
-    for (auto& move : movelist)
+    for (auto& move : movelist) {
+        if (!board.is_legal_generated_move(move))
+            continue;
         protocol.diagnostic_output(move.str());
+    }
     return true;
 }
 
@@ -233,7 +236,7 @@ bool Engine::perft(std::istringstream& iss) {
 
     if (iss >> depth) {
         depth = std::max(1, depth);
-        board.perft<ROOT>(depth, err);
+        board.perft(depth, err);
     }
 
     return true;

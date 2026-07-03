@@ -13,17 +13,18 @@ from typing import Iterable
 BENCH_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BENCH_DIR.parent
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "scratch/bench-runs"
-DEFAULT_CPP_BUILD_PRESET = "release-dev"
-DEFAULT_DIRECT_BUILD_PRESET = "release-stats-dev"
+DEFAULT_BUILD_PRESET = "release-dev"
 FORMAT_VERSION = 1
 
 
-def add_common_run_args(parser: argparse.ArgumentParser, *, build_preset: str) -> None:
+def add_common_run_args(parser: argparse.ArgumentParser, *, build_preset: str = DEFAULT_BUILD_PRESET) -> None:
     parser.add_argument("--label", required=True, help="short label included in the run directory name")
-    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--repo", type=Path, default=REPO_ROOT)
-    parser.add_argument("--build-preset", default=build_preset)
-    parser.add_argument("--skip-build", action="store_true", help="skip configure/build")
+    parser.set_defaults(
+        output_root=DEFAULT_OUTPUT_ROOT,
+        repo=REPO_ROOT,
+        build_preset=build_preset,
+        skip_build=False,
+    )
 
 
 def run_command(command: list[str], *, cwd: Path) -> str:

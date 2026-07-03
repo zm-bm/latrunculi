@@ -1,6 +1,9 @@
-
 #include <algorithm>
-#include <utility>
+#include <array>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <type_traits>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -8,579 +11,604 @@
 #include "board.hpp"
 #include "evaluator.hpp"
 #include "move_picker.hpp"
-
+#include "movegen.hpp"
 #include "search_options.hpp"
+#include "search_worker.hpp"
 #include "test_util.hpp"
-#include "thread.hpp"
-#include "thread_pool.hpp"
+#include "thread_test_access.hpp"
+#include "threading.hpp"
 #include "tt.hpp"
 #include "uci.hpp"
 
-int                depth    = 8;
-int                movetime = 2000;
-std::ostringstream oss;
-constexpr auto     AnyMove = "ANY";
+namespace {
+
+constexpr auto AnyMove = "ANY";
+
+} // namespace
 
 class SearchTest : public ::testing::Test {
 protected:
-    uci::Protocol protocol{std::cout, std::cerr};
-    ThreadPool    pool{1, protocol};
-    Thread*       thread;
-    SearchOptions options;
-    KillerMoves   sort_killers;
-    HistoryTable  sort_history;
-    int           sort_ply = 5;
+    std::ostringstream protocol_out;
+    std::ostringstream protocol_err;
+    uci::Protocol      protocol{protocol_out, protocol_err};
+    ThreadPool         pool{1, protocol};
+    Thread*            thread;
+    SearchWorker*      worker;
+    SearchOptions      options;
 
     void SetUp() override {
-        thread        = pool.threads[0].get();
+        thread        = &ThreadTestAccess::thread(pool);
+        worker        = &ThreadTestAccess::worker(pool);
         options       = SearchOptions();
-        options.depth = depth;
-        // options.movetime = movetime;
+        options.depth = 4;
+        tt.clear();
     }
 
-    int testQuiescence(const std::string& fen, int alpha = -INF_VALUE, int beta = INF_VALUE) {
-        TestBoard board{fen};
+    void loadWorkerBoard(Board& board, int search_depth = 4) {
         tt.clear();
         options.board = &board;
-        thread->set_options(options);
-        thread->reset();
-        return thread->quiescence(alpha, beta);
+        options.depth = search_depth;
+        worker->configure_search(options);
+        worker->reset_search_state();
     }
 
-    int testQuiescenceAfterMove(const std::string& fen,
-                                const std::string& move_str,
-                                int                alpha = -INF_VALUE,
-                                int                beta  = INF_VALUE) {
-        TestBoard board{fen};
-        tt.clear();
-        options.board = &board;
-        thread->set_options(options);
-        thread->reset();
-
-        auto movelist = movegen::generate_pseudo_legal(thread->board);
+    Move findWorkerMove(const std::string& move_str) {
+        auto movelist = movegen::generate_pseudo_legal(worker->board);
         auto move_it  = std::find_if(movelist.begin(), movelist.end(), [&](const Move& move) {
-            return move.str() == move_str && thread->board.is_legal_generated_move(move);
+            return move.str() == move_str && worker->board.is_legal_generated_move(move);
         });
-        EXPECT_NE(move_it, movelist.end()) << fen;
-        if (move_it == movelist.end())
-            return 0;
+        EXPECT_NE(move_it, movelist.end()) << worker->board.toFEN();
+        return move_it == movelist.end() ? NULL_MOVE : *move_it;
+    }
 
-        thread->board.make(*move_it, thread->position_states[thread->ply + 1]);
-        ++thread->ply;
-        int score = thread->quiescence(alpha, beta);
-        thread->board.unmake(thread->position_states[thread->ply - 1]);
-        --thread->ply;
-        return score;
+    int runNonPvAlphaBeta(int alpha, int beta, int search_depth, bool can_null = true) {
+        return worker->alphabeta<NON_PV>(alpha, beta, search_depth, nullptr, can_null);
+    }
+
+    int runPvAlphaBeta(int alpha, int beta, int search_depth, PrincipalVariation& pv) {
+        return worker->alphabeta<PV>(alpha, beta, search_depth, &pv);
+    }
+
+    void buildRootLines() { worker->build_root_lines(); }
+
+    int runRootSearch() {
+        worker->build_root_lines();
+        return worker->search_root();
+    }
+
+    bool runRootDepth(int search_depth, int previous_value) {
+        worker->build_root_lines();
+        return worker->search_root_depth(search_depth, previous_value);
+    }
+
+    bool runRootWindow(int search_depth, int alpha, int beta) {
+        return worker->search_root_window(search_depth, alpha, beta);
+    }
+
+    int runQuiescence(int alpha, int beta) { return worker->quiescence<NON_PV>(alpha, beta); }
+
+    int runPvQuiescence(int alpha, int beta, PrincipalVariation& pv) {
+        return worker->quiescence<PV>(alpha, beta, &pv);
+    }
+
+    int runWorkerSearch() { return worker->search(); }
+
+    template <typename Fn>
+    auto withWorkerMove(Move move, Fn&& fn) {
+        using Result = std::invoke_result_t<Fn&>;
+
+        if (move.is_null()) {
+            ADD_FAILURE() << "withWorkerMove requires a non-null move";
+            if constexpr (std::is_void_v<Result>) {
+                return;
+            } else {
+                return Result{};
+            }
+        }
+
+        worker->board.make(move, worker->position_states.child(worker->ply));
+        ++worker->ply;
+
+        if constexpr (std::is_void_v<Result>) {
+            fn();
+            worker->board.unmake(worker->position_states.parent(worker->ply));
+            --worker->ply;
+        } else {
+            Result result = fn();
+            worker->board.unmake(worker->position_states.parent(worker->ply));
+            --worker->ply;
+            return result;
+        }
     }
 
     int testAlphaBetaAfterMove(const std::string& fen,
                                const std::string& move_str,
                                int                alpha,
                                int                beta,
-                               int                search_depth,
-                               bool               can_null = true) {
+                               int                search_depth) {
         TestBoard board{fen};
-        tt.clear();
-        options.board = &board;
-        thread->set_options(options);
-        thread->reset();
+        loadWorkerBoard(board, search_depth);
 
-        auto movelist = movegen::generate_pseudo_legal(thread->board);
-        auto move_it  = std::find_if(movelist.begin(), movelist.end(), [&](const Move& move) {
-            return move.str() == move_str && thread->board.is_legal_generated_move(move);
-        });
-        EXPECT_NE(move_it, movelist.end()) << fen;
-        if (move_it == movelist.end())
+        Move move = findWorkerMove(move_str);
+        if (move.is_null())
             return 0;
 
-        thread->board.make(*move_it, thread->position_states[thread->ply + 1]);
-        ++thread->ply;
-        int score = thread->alphabeta<NON_PV>(alpha, beta, search_depth, can_null);
-        thread->board.unmake(thread->position_states[thread->ply - 1]);
-        --thread->ply;
-        return score;
+        return withWorkerMove(move,
+                              [&] { return worker->alphabeta<NON_PV>(alpha, beta, search_depth); });
     }
 
-    std::pair<int, uint64_t>
-    testQuiescenceWithNodes(const std::string& fen, int alpha = -INF_VALUE, int beta = INF_VALUE) {
+    int testQuiescenceAfterMove(const std::string& fen,
+                                const std::string& move_str,
+                                int                alpha,
+                                int                beta) {
         TestBoard board{fen};
-        tt.clear();
-        options.board = &board;
-        thread->set_options(options);
-        thread->reset();
-        return {thread->quiescence(alpha, beta), thread->nodes};
+        loadWorkerBoard(board);
+
+        Move move = findWorkerMove(move_str);
+        if (move.is_null())
+            return 0;
+
+        return withWorkerMove(move, [&] { return worker->quiescence<NON_PV>(alpha, beta); });
     }
 
-    Move firstLegalPickedMove(Board& board, Move pv_move = NULL_MOVE, Move tt_move = NULL_MOVE) {
-        MovePicker picker{{board, sort_killers, sort_history, sort_ply, pv_move, tt_move},
-                          MovePickerMode::MainSearch};
+    void storeQsearchTtAfterMove(Move move, int score, TT_Flag flag) {
+        ASSERT_FALSE(move.is_null());
 
+        withWorkerMove(
+            move, [&] { tt.store_search(workerKey(), NULL_MOVE, score, 0, flag, workerPly()); });
+    }
+
+    Move firstWorkerPickerMove(Move tt_move = NULL_MOVE) {
+        MovePicker picker = MovePicker::main_search(
+            worker->board, worker->killers, worker->history, worker->ply, tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-            if (board.is_legal_generated_move(move))
+            if (worker->board.is_legal_generated_move(move))
                 return move;
         }
         return NULL_MOVE;
     }
 
-    std::vector<std::pair<Move, MoveScore>> pickedLegalQuiescenceMovesWithScores(Board& board) {
-        MovePicker picker{{board, sort_killers, sort_history, sort_ply}, MovePickerMode::QSearch};
-
-        std::vector<std::pair<Move, MoveScore>> moves;
-        for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-            if (board.is_legal_generated_move(move))
-                moves.push_back({move, picker.last_score()});
-        }
-        return moves;
-    }
-
-    std::vector<Move> pickedLegalQuiescenceMoves(Board& board) {
+    std::vector<Move> workerPickerLegalMoves(Move tt_move = NULL_MOVE) {
         std::vector<Move> moves;
-        for (const auto& [move, score] : pickedLegalQuiescenceMovesWithScores(board)) {
-            (void)score;
-            moves.push_back(move);
+        MovePicker        picker = MovePicker::main_search(
+            worker->board, worker->killers, worker->history, worker->ply, tt_move);
+        for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+            if (worker->board.is_legal_generated_move(move))
+                moves.push_back(move);
         }
         return moves;
     }
 
-    void loadThreadBoard(Board& board) {
-        tt.clear();
-        options.board = &board;
-        thread->set_options(options);
-        thread->reset();
-    }
-
-    Move findThreadMove(const std::string& move_str) {
-        auto movelist = movegen::generate_pseudo_legal(thread->board);
-        auto move_it  = std::find_if(movelist.begin(), movelist.end(), [&](const Move& move) {
-            return move.str() == move_str && thread->board.is_legal_generated_move(move);
+    int scoreWorkerChild(Move move, int alpha, int beta, int search_depth) {
+        return withWorkerMove(move, [&] {
+            return -worker->alphabeta<NON_PV>(-beta, -alpha, search_depth, nullptr, true);
         });
-        EXPECT_NE(move_it, movelist.end()) << thread->board.toFEN();
-        return move_it == movelist.end() ? NULL_MOVE : *move_it;
     }
 
-    bool threadInCheck() const { return thread->board.is_check(); }
+    void storeWorkerChildSearchTt(Move move, int score, int depth, TT_Flag flag) {
+        ASSERT_FALSE(move.is_null());
 
-    int threadNonPawnMaterial() const {
-        return thread->board.nonPawnMaterial(thread->board.side_to_move());
+        withWorkerMove(move, [&] {
+            tt.store_search(workerKey(), NULL_MOVE, score, depth, flag, workerPly());
+        });
     }
 
-    uint64_t threadKey() const { return thread->board.key(); }
+    bool workerLegalGeneratedMove(Move move) const {
+        return worker->board.is_legal_generated_move(move);
+    }
 
-    uint64_t threadNullChildKey() const {
-        TestBoard board_copy{thread->board.toFEN()};
+    void seedWorkerKiller(Move move) { worker->killers.update(move, worker->ply); }
+
+    void boostWorkerHistory(Move move, int depth) {
+        worker->history.update(worker->board.side_to_move(), move.from(), move.to(), depth);
+    }
+
+    uint64_t workerKey() const { return worker->board.key(); }
+
+    uint64_t workerNullChildKey() const {
+        TestBoard board_copy{worker->board.toFEN()};
         board_copy.make_null();
         return board_copy.key();
     }
 
-    bool threadDescendantInCheck(Move move) const {
-        TestBoard board_copy{thread->board.toFEN()};
-        board_copy.make(move);
-        return board_copy.is_check();
-    }
-
-    int threadDescendantNonPawnMaterial(Move move) const {
-        TestBoard board_copy{thread->board.toFEN()};
-        board_copy.make(move);
-        return board_copy.nonPawnMaterial(board_copy.side_to_move());
-    }
-
-    uint64_t threadDescendantNullKey(Move move) const {
-        TestBoard board_copy{thread->board.toFEN()};
+    uint64_t workerDescendantNullKey(Move move) const {
+        TestBoard board_copy{worker->board.toFEN()};
         board_copy.make(move);
         board_copy.make_null();
         return board_copy.key();
     }
 
-    int runNonPvAlphaBeta(int alpha, int beta, int search_depth, bool can_null) {
-        return thread->alphabeta<NON_PV>(alpha, beta, search_depth, can_null);
-    }
+    std::optional<TT_Record> workerTtRecord() const { return tt.probe(workerKey()); }
 
-    int runRootSearchWiden(int search_depth, int prior_value) {
-        return thread->search_widen(search_depth, prior_value);
-    }
+    void expectNoWorkerTtRecord() const { EXPECT_FALSE(workerTtRecord().has_value()); }
 
-    int runLoadedQuiescence(int alpha, int beta) { return thread->quiescence(alpha, beta); }
+    uint64_t workerNodes() const { return worker->node_count(); }
 
-    int runLoadedPvQuiescence(int alpha, int beta) { return thread->quiescence<PV>(alpha, beta); }
+    bool workerBoardIsDraw() const { return worker->board.is_draw(); }
+
+    Move rootMove() const { return worker->root_result.root_move; }
+
+    bool rootCompleted() const { return worker->root_result.completed; }
+
+    bool rootMoveIsLegal() const { return worker->board.is_legal_move(rootMove()); }
+
+    bool rootPvEmpty() const { return worker->root_result.pv.empty(); }
+
+    int rootPvSize() const { return worker->root_result.pv.size(); }
+
+    Move rootPvFront() const { return worker->root_result.pv.front(); }
+
+    int rootValue() const { return worker->root_result.value; }
+
+    int rootDepth() const { return worker->root_result.depth; }
+
+    const std::vector<RootLine>& rootLines() const { return worker->root_lines; }
+
+    std::vector<RootLine>& mutableRootLines() { return worker->root_lines; }
+
+    RootLine rootSnapshot() const { return worker->root_snapshot(); }
+
+    int workerPly() const { return worker->ply; }
+
+    void setWorkerPly(int search_ply) { worker->ply = search_ply; }
 
 #if LATRUNCULI_SEARCH_STATS
-    void resetThreadStats() { thread->stats.reset(); }
-
-    uint64_t qTtProbes(int search_ply) const { return thread->stats.q_tt_probes[search_ply]; }
-    uint64_t qTtHits(int search_ply) const { return thread->stats.q_tt_hits[search_ply]; }
-    uint64_t qTtCutoffs(int search_ply) const { return thread->stats.q_tt_cutoffs[search_ply]; }
-#endif
-
-    void setThreadPly(int search_ply) { thread->ply = search_ply; }
-
-    std::string currentPv(int pv_depth) const { return thread->get_pv(pv_depth); }
-
-    bool threadMoveIsPseudoLegal(Move move) const { return thread->board.is_pseudo_legal(move); }
-
-    bool threadMoveIsLegal(Move move) const { return thread->board.is_legal_move(move); }
-
-    void testSearch(const std::string fen, int score, std::string move) {
-        TestBoard board{fen};
-        options.board = &board;
-        thread->start(options);
-        thread->wait();
-
-        EXPECT_EQ(thread->root_value, score) << fen;
-        if (move != AnyMove) {
-            EXPECT_EQ(thread->root_move.str(), move) << fen;
-        }
+    uint64_t statNodesAt(int search_ply) const {
+        return worker->stats.raw_counters().nodes[search_ply];
     }
 
-    void testSearchGT(const std::string fen, int score, std::string move) {
+    uint64_t qnodesAt(int search_ply) const {
+        return worker->stats.raw_counters().qnodes[search_ply];
+    }
+
+    uint64_t mainTtProbesAt(int search_ply) const {
+        return worker->stats.raw_counters().main_tt_probes[search_ply];
+    }
+
+    uint64_t mainTtHitsAt(int search_ply) const {
+        return worker->stats.raw_counters().main_tt_hits[search_ply];
+    }
+
+    uint64_t mainTtCutoffsAt(int search_ply) const {
+        return worker->stats.raw_counters().main_tt_cutoffs[search_ply];
+    }
+
+    uint64_t qTtProbesAt(int search_ply) const {
+        return worker->stats.raw_counters().q_tt_probes[search_ply];
+    }
+
+    uint64_t qTtHitsAt(int search_ply) const {
+        return worker->stats.raw_counters().q_tt_hits[search_ply];
+    }
+
+    uint64_t qTtCutoffsAt(int search_ply) const {
+        return worker->stats.raw_counters().q_tt_cutoffs[search_ply];
+    }
+
+    uint64_t aspirationFailLows() const {
+        return worker->stats.raw_counters().aspiration_fail_lows;
+    }
+
+    uint64_t aspirationFailHighs() const {
+        return worker->stats.raw_counters().aspiration_fail_highs;
+    }
+
+    uint64_t aspirationResearches() const {
+        return worker->stats.raw_counters().aspiration_researches;
+    }
+
+    uint64_t pvsResearchesAt(int search_ply) const {
+        return worker->stats.raw_counters().pvs_researches[search_ply];
+    }
+
+    uint64_t nullMoveTriesAt(int search_ply) const {
+        return worker->stats.raw_counters().null_move_tries[search_ply];
+    }
+
+    uint64_t nullMoveCutoffsAt(int search_ply) const {
+        return worker->stats.raw_counters().null_move_cutoffs[search_ply];
+    }
+
+    uint64_t razorTriesAt(int search_ply) const {
+        return worker->stats.raw_counters().razor_tries[search_ply];
+    }
+
+    uint64_t razorCutoffsAt(int search_ply) const {
+        return worker->stats.raw_counters().razor_cutoffs[search_ply];
+    }
+
+    uint64_t futilitySkipsAt(int search_ply) const {
+        return worker->stats.raw_counters().futility_skips[search_ply];
+    }
+
+    uint64_t lmrTriesAt(int search_ply) const {
+        return worker->stats.raw_counters().lmr_tries[search_ply];
+    }
+
+    uint64_t lmrResearchesAt(int search_ply) const {
+        return worker->stats.raw_counters().lmr_researches[search_ply];
+    }
+#endif
+
+    void testSearch(const std::string& fen, int search_depth, int score, std::string move) {
         TestBoard board{fen};
         options.board = &board;
-        thread->start(options);
-        thread->wait();
+        options.depth = search_depth;
+        ThreadTestAccess::start_search(*thread, options);
+        ThreadTestAccess::wait_for_idle(*thread);
 
-        EXPECT_GT(thread->root_value, score) << fen;
+        EXPECT_EQ(rootValue(), score) << fen;
         if (move != AnyMove) {
-            EXPECT_EQ(thread->root_move.str(), move) << fen;
+            EXPECT_EQ(rootMove().str(), move) << fen;
         }
     }
 };
 
-TEST_F(SearchTest, basicMates) {
-    auto searchpos1 = "7R/8/8/8/8/1K6/8/1k6 w - - 0 1";
-    auto searchpos2 = "5rk1/pb2npp1/1pq4p/5p2/5B2/1B6/P2RQ1PP/2r1R2K b - - 0 2";
-    auto searchpos3 = "5rk1/pb2npp1/1p5p/5p2/5B2/1B6/P2RQ1qP/2r1R2K w - - 0 3";
-    auto searchpos4 = "5rk1/pb2npp1/1p5p/5p2/5B2/1B6/P2R2QP/2r1R2K b - - 0 4";
-
-    std::vector<std::tuple<std::string, int, std::string>> test_cases = {
-        {searchpos1, +(MATE_VALUE - 1), "h8h1"},
-        {searchpos2, +(MATE_VALUE - 3), "c6g2"},
-        {searchpos3, -(MATE_VALUE - 2), "e2g2"},
-        {searchpos4, +(MATE_VALUE - 1), "c1e1"},
-    };
-
-    for (auto& [fen, expectedScore, expectedMove] : test_cases) {
-        testSearch(fen, expectedScore, expectedMove);
-    }
+TEST_F(SearchTest, BasicMateAndStalemateTerminals) {
+    testSearch("7R/8/8/8/8/1K6/8/1k6 w - - 0 1", 2, MATE_VALUE - 1, "h8h1");
+    testSearch("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1", 1, -MATE_VALUE, "none");
+    testSearch("k7/8/KQ6/8/8/8/8/8 b - - 0 1", 1, DRAW_VALUE, "none");
 }
 
-TEST_F(SearchTest, basicDraws) {
-    auto searchpos1 = "r7/5kPK/7P/8/8/8/8/8 b - -";
-    auto searchpos2 = "1r6/5kPK/7P/8/8/8/8/8 w - -";
-    auto searchpos3 = "1r4Q1/5k1K/7P/8/8/8/8/8 b - -";
-
-    std::vector<std::tuple<std::string, int, std::string>> test_cases = {
-        {searchpos1, DRAW_VALUE, AnyMove},
-        {searchpos2, DRAW_VALUE, "g7g8q"},
-        {searchpos3, DRAW_VALUE, "b8g8"},
-    };
-
-    for (auto& [fen, expectedScore, expectedMove] : test_cases) {
-        testSearch(fen, expectedScore, expectedMove);
-    }
-}
-
-TEST_F(SearchTest, QuiescenceInCheckSearchesForcedQuietEvasion) {
-    auto      in_check_with_one_quiet_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
-    TestBoard board{in_check_with_one_quiet_evasion};
-
-    ASSERT_TRUE(board.is_check()) << in_check_with_one_quiet_evasion;
-
-    int actual   = testQuiescence(in_check_with_one_quiet_evasion);
-    int expected = -testQuiescenceAfterMove(in_check_with_one_quiet_evasion, "a8b8");
-
-    EXPECT_EQ(actual, expected) << in_check_with_one_quiet_evasion;
-    EXPECT_NE(actual, evaluate(board)) << "in-check qsearch must not stand pat";
-}
-
-TEST_F(SearchTest, QuiescenceOutOfCheckUsesStandPatInsteadOfSearchingQuiets) {
-    auto      quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard board{quiet_control};
-
-    ASSERT_FALSE(board.is_check()) << quiet_control;
-
-    EXPECT_EQ(testQuiescence(quiet_control), evaluate(board)) << quiet_control;
-}
-
-TEST_F(SearchTest, FirstLegalPickedMoveSkipsIllegalHashMove) {
-    TestBoard board{POS3};
-    Move      illegal_hash_move = Move(B5, B6);
-
-    ASSERT_FALSE(board.is_legal_move(illegal_hash_move));
-
-    EXPECT_EQ(firstLegalPickedMove(board, NULL_MOVE, illegal_hash_move), Move(B4, F4));
-}
-
-TEST_F(SearchTest, QuiescenceOutOfCheckIncludesPromotions) {
-    constexpr auto promotion_fen = "7k/P7/8/8/8/8/8/4K3 w - - 0 1";
-    TestBoard      board{promotion_fen};
-
-    ASSERT_FALSE(board.is_check()) << promotion_fen;
-
-    const auto legal_moves = pickedLegalQuiescenceMoves(board);
-    ASSERT_EQ(legal_moves.size(), 4U) << promotion_fen;
-    EXPECT_EQ(legal_moves[0].str(), "a7a8q");
-    EXPECT_EQ(legal_moves[1].str(), "a7a8r");
-    EXPECT_EQ(legal_moves[2].str(), "a7a8b");
-    EXPECT_EQ(legal_moves[3].str(), "a7a8n");
-
-    const int actual   = testQuiescence(promotion_fen);
-    const int expected = std::max({-testQuiescenceAfterMove(promotion_fen, "a7a8q"),
-                                   -testQuiescenceAfterMove(promotion_fen, "a7a8r"),
-                                   -testQuiescenceAfterMove(promotion_fen, "a7a8b"),
-                                   -testQuiescenceAfterMove(promotion_fen, "a7a8n")});
-
-    EXPECT_EQ(actual, expected) << promotion_fen;
-}
-
-TEST_F(SearchTest, QuiescenceOutOfCheckSuppressesWeakCapturesInPicker) {
-    constexpr auto weak_capture_fen = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
-    TestBoard      board{weak_capture_fen};
-
-    loadThreadBoard(board);
-    ASSERT_FALSE(threadInCheck()) << weak_capture_fen;
-
-    const auto legal_captures = pickedLegalQuiescenceMovesWithScores(board);
-    EXPECT_TRUE(legal_captures.empty()) << weak_capture_fen;
-
-    const int stand_pat       = evaluate(board);
-    const auto [score, nodes] = testQuiescenceWithNodes(weak_capture_fen);
-
-    EXPECT_EQ(score, stand_pat);
-    EXPECT_EQ(nodes, 1U) << "weak captures should not enter recursive qsearch";
-}
-
-TEST_F(SearchTest, QuiescenceFailLowReturnsStandPatInsteadOfAlpha) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-
-    const int     stand_pat = evaluate(board);
-    constexpr int alpha     = 100;
-    constexpr int beta      = 200;
-
-    ASSERT_LT(stand_pat, alpha) << quiet_control;
-    EXPECT_EQ(testQuiescence(quiet_control, alpha, beta), stand_pat) << quiet_control;
-}
-
-TEST_F(SearchTest, QuiescenceFailLowInCheckReturnsBestEvasionInsteadOfAlpha) {
-    constexpr auto in_check_with_one_quiet_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
-    constexpr int  alpha                           = 100;
-    constexpr int  beta                            = 200;
-
-    const int expected =
-        -testQuiescenceAfterMove(in_check_with_one_quiet_evasion, "a8b8", -beta, -alpha);
-
-    ASSERT_LT(expected, alpha) << in_check_with_one_quiet_evasion;
-    EXPECT_EQ(testQuiescence(in_check_with_one_quiet_evasion, alpha, beta), expected)
-        << in_check_with_one_quiet_evasion;
-}
-
-TEST_F(SearchTest, QuiescenceFailHighReturnsRawScoreInsteadOfBeta) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      quiet_board{quiet_control};
-    const int      stand_pat = evaluate(quiet_board);
-
-    EXPECT_EQ(testQuiescence(quiet_control, stand_pat - 100, stand_pat - 50), stand_pat)
-        << "stand-pat fail-high should return the raw stand-pat score";
-
-    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
-    TestBoard      capture_board{winning_capture};
-    const int      capture_stand_pat = evaluate(capture_board);
-    const int      alpha             = capture_stand_pat - 50;
-    const int      beta              = capture_stand_pat + 50;
-    const int      capture_score = -testQuiescenceAfterMove(winning_capture, "d1e2", -beta, -alpha);
-
-    ASSERT_GT(capture_score, beta) << winning_capture;
-    EXPECT_EQ(testQuiescence(winning_capture, alpha, beta), capture_score)
-        << "capture fail-high should return the raw capture score";
-}
-
-TEST_F(SearchTest, QuiescenceTranspositionTableExactCutoffReturnsStoredScore) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-    loadThreadBoard(board);
-
-    const int stored_score = evaluate(board) + 500;
-    tt.store(threadKey(), NULL_MOVE, stored_score, 0, TT_Flag::Exact, 0);
-
-    EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, INF_VALUE), stored_score);
-}
-
-TEST_F(SearchTest, QuiescenceTranspositionTableLowerboundCutsOnlyAtBeta) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-    const int      stand_pat = evaluate(board);
-    const int      alpha     = stand_pat - 100;
-    const int      beta      = stand_pat + 100;
-
-    loadThreadBoard(board);
-    tt.store(threadKey(), NULL_MOVE, beta + 25, 0, TT_Flag::Lowerbound, 0);
-    EXPECT_EQ(runLoadedQuiescence(alpha, beta), beta + 25)
-        << "lowerbound qsearch TT cutoffs should return the raw stored score";
-
-    TestBoard no_cutoff_board{quiet_control};
-    loadThreadBoard(no_cutoff_board);
-    tt.store(threadKey(), NULL_MOVE, beta - 1, 0, TT_Flag::Lowerbound, 0);
-    EXPECT_EQ(runLoadedQuiescence(alpha, beta), stand_pat)
-        << "lowerbound qsearch TT entries below beta must not replace search";
-}
-
-TEST_F(SearchTest, QuiescenceTranspositionTableUpperboundCutsOnlyAtAlpha) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-    const int      stand_pat = evaluate(board);
-    const int      alpha     = stand_pat - 100;
-    const int      beta      = stand_pat + 100;
-
-    loadThreadBoard(board);
-    tt.store(threadKey(), NULL_MOVE, alpha - 25, 0, TT_Flag::Upperbound, 0);
-    EXPECT_EQ(runLoadedQuiescence(alpha, beta), alpha - 25)
-        << "upperbound qsearch TT cutoffs should return the raw stored score";
-
-    TestBoard no_cutoff_board{quiet_control};
-    loadThreadBoard(no_cutoff_board);
-    tt.store(threadKey(), NULL_MOVE, alpha + 1, 0, TT_Flag::Upperbound, 0);
-    EXPECT_EQ(runLoadedQuiescence(alpha, beta), stand_pat)
-        << "upperbound qsearch TT entries above alpha must not replace search";
-}
-
-TEST_F(SearchTest, QuiescenceTranspositionTableDoesNotCutOffPvNode) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-    const int      stand_pat    = evaluate(board);
-    const int      stored_score = stand_pat + 500;
-
-    loadThreadBoard(board);
-    tt.store(threadKey(), NULL_MOVE, stored_score, 0, TT_Flag::Exact, 0);
-
-    EXPECT_EQ(runLoadedPvQuiescence(-INF_VALUE, INF_VALUE), stand_pat)
-        << "PV qsearch should not return a stored TT score without searching";
-}
-
-TEST_F(SearchTest, QuiescenceTranspositionTableStoresStandPatLowerbound) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-    const int      stand_pat = evaluate(board);
-    const int      alpha     = stand_pat - 100;
-    const int      beta      = stand_pat - 50;
-
-    loadThreadBoard(board);
-    EXPECT_EQ(runLoadedQuiescence(alpha, beta), stand_pat);
-
-    auto entry = tt.probe(threadKey());
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(entry->flag, TT_Flag::Lowerbound);
-    EXPECT_EQ(entry->depth, 0);
-    EXPECT_EQ(entry->move, NULL_MOVE);
-    EXPECT_EQ(entry->get_score(0), stand_pat);
-}
-
-TEST_F(SearchTest, QuiescenceTranspositionTableStoresFailLowUpperbound) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-    const int      stand_pat = evaluate(board);
-    const int      alpha     = stand_pat + 100;
-    const int      beta      = stand_pat + 200;
-
-    loadThreadBoard(board);
-    EXPECT_EQ(runLoadedQuiescence(alpha, beta), stand_pat);
-
-    auto entry = tt.probe(threadKey());
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(entry->flag, TT_Flag::Upperbound);
-    EXPECT_EQ(entry->depth, 0);
-    EXPECT_EQ(entry->move, NULL_MOVE);
-    EXPECT_EQ(entry->get_score(0), stand_pat);
-}
-
-TEST_F(SearchTest, QuiescenceTranspositionTableStoresExactWhenScoreRaisesAlpha) {
-    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
-    TestBoard      capture_board{winning_capture};
-    const int      stand_pat = evaluate(capture_board);
-    const int      alpha     = stand_pat - 50;
-    const int      beta      = INF_VALUE;
-
-    const int expected = -testQuiescenceAfterMove(winning_capture, "d1e2", -beta, -alpha);
-    ASSERT_GT(expected, alpha) << winning_capture;
-    ASSERT_LT(expected, beta) << winning_capture;
-
-    TestBoard board{winning_capture};
-    loadThreadBoard(board);
-
-    EXPECT_EQ(runLoadedQuiescence(alpha, beta), expected);
-
-    auto entry = tt.probe(threadKey());
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(entry->flag, TT_Flag::Exact);
-    EXPECT_EQ(entry->depth, 0);
-    EXPECT_EQ(entry->move, NULL_MOVE);
-    EXPECT_EQ(entry->get_score(0), expected);
-}
-
-TEST_F(SearchTest, QuiescenceTranspositionTableStoresMateWithPlyAdjustment) {
-    constexpr auto checkmate = "k7/1Q6/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{checkmate};
-    loadThreadBoard(board);
-    ASSERT_TRUE(threadInCheck()) << checkmate;
-
-    constexpr int search_ply = 4;
-    constexpr int mate_score = -MATE_VALUE + search_ply;
-    setThreadPly(search_ply);
-
-    EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, INF_VALUE), mate_score);
-
-    auto entry = tt.probe(threadKey());
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(entry->flag, TT_Flag::Exact);
-    EXPECT_EQ(entry->depth, 0);
-    EXPECT_EQ(entry->move, NULL_MOVE);
-    EXPECT_EQ(entry->get_score(search_ply), mate_score);
-}
-
-TEST_F(SearchTest, QuiescenceTranspositionTableStoresDrawForStalemate) {
-    constexpr auto stalemate = "k7/8/KQ6/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{stalemate};
-    const int      stand_pat = evaluate(board);
-    const int      alpha     = stand_pat - 100;
-    const int      beta      = stand_pat - 1;
-
-    loadThreadBoard(board);
-    ASSERT_TRUE(board.is_stalemate()) << stalemate;
-    EXPECT_EQ(runLoadedQuiescence(alpha, beta), DRAW_VALUE);
-
-    auto entry = tt.probe(threadKey());
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(entry->flag, TT_Flag::Exact);
-    EXPECT_EQ(entry->depth, 0);
-    EXPECT_EQ(entry->move, NULL_MOVE);
-    EXPECT_EQ(entry->get_score(0), DRAW_VALUE);
-}
-
-TEST_F(SearchTest, QuiescenceTranspositionTableDoesNotOverrideDrawDetection) {
+TEST_F(SearchTest, DrawByRuleReturnsDrawValue) {
     constexpr auto drawn_by_fifty_move = "k7/8/2K5/8/8/8/8/8 b - - 100 1";
     TestBoard      board{drawn_by_fifty_move};
-    loadThreadBoard(board);
-    ASSERT_TRUE(board.is_draw()) << drawn_by_fifty_move;
+    loadWorkerBoard(board);
 
-    tt.store(threadKey(), NULL_MOVE, 1234, 0, TT_Flag::Exact, 0);
-
-    EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, INF_VALUE), DRAW_VALUE);
+    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 2), DRAW_VALUE);
 }
 
+TEST_F(SearchTest, DepthZeroEntersQuiescenceAndSearchesWinningCapture) {
+    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    TestBoard      board{winning_capture};
+    loadWorkerBoard(board);
+
+    const int static_eval = evaluate(board);
+    EXPECT_GT(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 0), static_eval);
+    EXPECT_GT(workerNodes(), 1U);
+}
+
+TEST_F(SearchTest, DepthZeroDrawByRuleReturnsDrawBeforeStaticEval) {
+    constexpr auto drawn_winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
+    TestBoard      board{drawn_winning_capture};
+    loadWorkerBoard(board);
+
+    EXPECT_NE(evaluate(board), DRAW_VALUE);
+    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 0), DRAW_VALUE);
+    EXPECT_EQ(workerNodes(), 1U);
+}
+
+TEST_F(SearchTest, QuiescenceDrawByRuleDoesNotStoreTranspositionTableEntry) {
+    constexpr auto drawn_winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
+    TestBoard      board{drawn_winning_capture};
+    loadWorkerBoard(board);
+
+    EXPECT_EQ(runQuiescence(-INF_VALUE, INF_VALUE), DRAW_VALUE);
+    EXPECT_EQ(workerNodes(), 1U);
 #if LATRUNCULI_SEARCH_STATS
-TEST_F(SearchTest, QuiescenceTranspositionTableStatsCountersIncrement) {
+    EXPECT_EQ(qnodesAt(0), 1U);
+#endif
+    expectNoWorkerTtRecord();
+}
+
+TEST_F(SearchTest, QuiescenceAtMaxPlyDoesNotStoreTranspositionTableEntry) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     TestBoard      board{quiet_control};
-    loadThreadBoard(board);
-    resetThreadStats();
+    loadWorkerBoard(board);
+    setWorkerPly(MAX_SEARCH_PLY);
 
-    constexpr int stored_score = 321;
-    tt.store(threadKey(), NULL_MOVE, stored_score, 0, TT_Flag::Exact, 0);
+    const int static_eval = evaluate(board);
 
-    EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, INF_VALUE), stored_score);
-    EXPECT_EQ(qTtProbes(0), 1);
-    EXPECT_EQ(qTtHits(0), 1);
-    EXPECT_EQ(qTtCutoffs(0), 1);
+    EXPECT_EQ(runQuiescence(-INF_VALUE, INF_VALUE), static_eval);
+    EXPECT_EQ(workerNodes(), 1U);
+    expectNoWorkerTtRecord();
 }
+
+TEST_F(SearchTest, QuiescenceStandPatFailHighReturnsEvalAndStoresLowerbound) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    const int static_eval = evaluate(board);
+    const int value       = runQuiescence(static_eval - 100, static_eval);
+
+    EXPECT_EQ(value, static_eval);
+    EXPECT_EQ(workerNodes(), 1U);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_EQ(record->flag, TT_Flag::Lowerbound);
+    EXPECT_EQ(record->move, NULL_MOVE);
+}
+
+TEST_F(SearchTest, QuiescenceInCheckSearchesLegalEvasion) {
+    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr int  alpha             = -INF_VALUE;
+    constexpr int  beta              = INF_VALUE;
+
+    const int expected = -testQuiescenceAfterMove(one_legal_evasion, "a8b8", -beta, -alpha);
+
+    TestBoard board{one_legal_evasion};
+    loadWorkerBoard(board);
+    ASSERT_TRUE(board.is_check()) << one_legal_evasion;
+
+    EXPECT_EQ(runQuiescence(alpha, beta), expected);
+}
+
+TEST_F(SearchTest, QuiescenceBuildsPrincipalVariationFromTacticalMove) {
+    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    TestBoard      board{winning_capture};
+    loadWorkerBoard(board);
+
+    PrincipalVariation pv;
+    const int          static_eval = evaluate(board);
+
+    EXPECT_GT(runPvQuiescence(-INF_VALUE, INF_VALUE, pv), static_eval);
+    ASSERT_FALSE(pv.empty());
+    EXPECT_TRUE(board.is_legal_move(pv.front()));
+}
+
+TEST_F(SearchTest, QuiescenceUsesTranspositionTableCutoffForEligibleBounds) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+
+    struct Case {
+        const char* name;
+        TT_Flag     flag;
+        int         score;
+        int         alpha;
+        int         beta;
+    };
+
+    const std::array cases{
+        Case{"exact", TT_Flag::Exact, 321, -INF_VALUE, INF_VALUE},
+        Case{"lowerbound", TT_Flag::Lowerbound, 500, 100, 200},
+        Case{"upperbound", TT_Flag::Upperbound, -500, -200, -100},
+    };
+
+    for (const auto& tc : cases) {
+        TestBoard board{quiet_control};
+        loadWorkerBoard(board);
+
+        tt.store_search(workerKey(), NULL_MOVE, tc.score, 0, tc.flag, workerPly());
+
+        EXPECT_EQ(runQuiescence(tc.alpha, tc.beta), tc.score) << tc.name;
+
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_EQ(qTtProbesAt(0), 1U) << tc.name;
+        EXPECT_EQ(qTtHitsAt(0), 1U) << tc.name;
+        EXPECT_EQ(qTtCutoffsAt(0), 1U) << tc.name;
 #endif
+    }
+}
+
+TEST_F(SearchTest, QuiescenceIgnoresQuietNonCheckTranspositionTableMove) {
+    TestBoard baseline_board{POS3};
+    loadWorkerBoard(baseline_board);
+    const int baseline = runQuiescence(-INF_VALUE, INF_VALUE);
+
+    TestBoard board{POS3};
+    loadWorkerBoard(board);
+
+    Move quiet_tt_move = Move(E2, E3);
+    ASSERT_TRUE(board.is_pseudo_legal(quiet_tt_move));
+    ASSERT_FALSE(board.is_capture(quiet_tt_move));
+    tt.store_search(
+        workerKey(), quiet_tt_move, -INF_VALUE + 1000, 0, TT_Flag::Lowerbound, workerPly());
+
+    EXPECT_EQ(runQuiescence(-INF_VALUE, INF_VALUE), baseline);
+}
+
+TEST_F(SearchTest, QuiescenceCaptureBetaCutoffStoresLowerboundMove) {
+    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+
+    TestBoard exact_board{winning_capture};
+    loadWorkerBoard(exact_board);
+    const int static_eval = evaluate(exact_board);
+    const int exact       = runQuiescence(-INF_VALUE, INF_VALUE);
+    ASSERT_GT(exact, static_eval);
+
+    TestBoard board{winning_capture};
+    loadWorkerBoard(board);
+
+    const int beta  = static_eval + std::max(1, (exact - static_eval) / 2);
+    const int alpha = beta - 100;
+    const int value = runQuiescence(alpha, beta);
+    ASSERT_GE(value, beta);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_EQ(record->flag, TT_Flag::Lowerbound);
+    EXPECT_FALSE(record->move.is_null());
+    EXPECT_TRUE(board.is_capture(record->move) || record->move.type() == MOVE_PROM);
+}
+
+TEST_F(SearchTest, QuiescenceStoresUpperboundOnFailLow) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    const int static_eval = evaluate(board);
+    const int value       = runQuiescence(static_eval + 1, static_eval + 100);
+    ASSERT_LT(value, static_eval + 1);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_EQ(record->flag, TT_Flag::Upperbound);
+    EXPECT_EQ(record->move, NULL_MOVE);
+}
+
+TEST_F(SearchTest, QuiescenceStoresExactOnNormalExit) {
+    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    TestBoard      board{winning_capture};
+    loadWorkerBoard(board);
+
+    const int static_eval = evaluate(board);
+    const int value       = runQuiescence(static_eval - 1, INF_VALUE);
+    ASSERT_GT(value, static_eval);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_EQ(record->flag, TT_Flag::Exact);
+    EXPECT_FALSE(record->move.is_null());
+}
+
+TEST_F(SearchTest, QuiescenceCheckmateWithNoEvasionsReturnsMateAndStoresExact) {
+    constexpr auto checkmate  = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_ply = 3;
+    TestBoard      board{checkmate};
+    loadWorkerBoard(board);
+    setWorkerPly(search_ply);
+
+    const int value = runQuiescence(-INF_VALUE, INF_VALUE);
+    EXPECT_EQ(value, -MATE_VALUE + search_ply);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->score, -MATE_VALUE);
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_EQ(record->flag, TT_Flag::Exact);
+    EXPECT_EQ(record->move, NULL_MOVE);
+}
+
+TEST_F(SearchTest, QuiescenceRecordsQNodeInStatsBuild) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    (void)runQuiescence(-INF_VALUE, INF_VALUE);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(statNodesAt(0), 1U);
+    EXPECT_EQ(qnodesAt(0), 1U);
+#endif
+}
+
+TEST_F(SearchTest, RootDrawByRuleStillSearchesForLegalBestMove) {
+    constexpr auto drawn_root = "k7/8/2K5/8/8/8/8/8 b - - 100 1";
+    TestBoard      board{drawn_root};
+    loadWorkerBoard(board, 1);
+
+    ASSERT_TRUE(workerBoardIsDraw());
+
+    EXPECT_EQ(runWorkerSearch(), DRAW_VALUE);
+    EXPECT_TRUE(rootCompleted());
+    EXPECT_FALSE(rootMove().is_null());
+    EXPECT_TRUE(rootMoveIsLegal());
+    EXPECT_GT(workerNodes(), 1U);
+
+    const RootLine snapshot = rootSnapshot();
+    EXPECT_TRUE(snapshot.usable_root_move());
+    EXPECT_EQ(snapshot.root_move, rootMove());
+}
 
 TEST_F(SearchTest, AlphaBetaFailLowReturnsBestMoveScoreInsteadOfAlpha) {
     constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
@@ -589,14 +617,14 @@ TEST_F(SearchTest, AlphaBetaFailLowReturnsBestMoveScoreInsteadOfAlpha) {
     constexpr int  beta              = 0;
 
     const int expected =
-        -testAlphaBetaAfterMove(one_legal_evasion, "a8b8", -beta, -alpha, search_depth);
+        -testAlphaBetaAfterMove(one_legal_evasion, "a8b8", -beta, -alpha, search_depth - 1);
     ASSERT_LT(expected, alpha) << one_legal_evasion;
 
     TestBoard board{one_legal_evasion};
-    loadThreadBoard(board);
-    ASSERT_TRUE(threadInCheck()) << one_legal_evasion;
+    loadWorkerBoard(board);
+    ASSERT_TRUE(board.is_check()) << one_legal_evasion;
 
-    const int actual = runNonPvAlphaBeta(alpha, beta, search_depth, true);
+    const int actual = runNonPvAlphaBeta(alpha, beta, search_depth);
     EXPECT_EQ(actual, expected) << one_legal_evasion;
     EXPECT_NE(actual, alpha) << "fail-low should return the discovered child score, not alpha";
 }
@@ -606,296 +634,1203 @@ TEST_F(SearchTest, AlphaBetaFailHighReturnsRawScoreInsteadOfBeta) {
     constexpr int  search_depth      = 1;
 
     TestBoard exact_board{one_legal_evasion};
-    loadThreadBoard(exact_board);
-    const int exact = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth, true);
+    loadWorkerBoard(exact_board);
+    const int exact = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
 
     const int beta  = exact - 50;
     const int alpha = beta - 100;
     const int expected =
-        -testAlphaBetaAfterMove(one_legal_evasion, "a8b8", -beta, -alpha, search_depth);
+        -testAlphaBetaAfterMove(one_legal_evasion, "a8b8", -beta, -alpha, search_depth - 1);
     ASSERT_GT(expected, beta) << one_legal_evasion;
 
     TestBoard board{one_legal_evasion};
-    loadThreadBoard(board);
-    ASSERT_TRUE(threadInCheck()) << one_legal_evasion;
+    loadWorkerBoard(board);
+    ASSERT_TRUE(board.is_check()) << one_legal_evasion;
 
-    const int actual = runNonPvAlphaBeta(alpha, beta, search_depth, true);
+    const int actual = runNonPvAlphaBeta(alpha, beta, search_depth);
     EXPECT_EQ(actual, expected) << one_legal_evasion;
     EXPECT_NE(actual, beta) << "fail-high should return the raw child score, not beta";
-}
-
-TEST_F(SearchTest, QuiescenceMateDistanceLowerClampReturnsBound) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-    loadThreadBoard(board);
-
-    constexpr int search_ply  = 4;
-    constexpr int lower_bound = -MATE_VALUE + search_ply;
-    setThreadPly(search_ply);
-
-    EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, lower_bound - 1), lower_bound);
-}
-
-TEST_F(SearchTest, QuiescenceMateDistanceUpperClampReturnsBound) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-    loadThreadBoard(board);
-
-    constexpr int search_ply  = 4;
-    constexpr int upper_bound = MATE_VALUE - search_ply - 1;
-    setThreadPly(search_ply);
-
-    EXPECT_EQ(runLoadedQuiescence(upper_bound + 1, INF_VALUE), upper_bound);
-}
-
-TEST_F(SearchTest, QuiescenceMateDistanceUpperClampAtRootReturnsMateInOneBound) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
-    loadThreadBoard(board);
-
-    constexpr int root_ply    = 0;
-    constexpr int upper_bound = MATE_VALUE - root_ply - 1;
-    setThreadPly(root_ply);
-
-    EXPECT_EQ(runLoadedQuiescence(upper_bound + 1, INF_VALUE), upper_bound);
 }
 
 TEST_F(SearchTest, AlphaBetaMateDistanceLowerClampReturnsBound) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     TestBoard      board{quiet_control};
-    loadThreadBoard(board);
+    loadWorkerBoard(board);
 
     constexpr int search_ply  = 4;
     constexpr int lower_bound = -MATE_VALUE + search_ply;
-    setThreadPly(search_ply);
+    setWorkerPly(search_ply);
 
-    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, lower_bound - 1, 1, true), lower_bound);
+    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, lower_bound - 1, 1), lower_bound);
 }
 
 TEST_F(SearchTest, AlphaBetaMateDistanceUpperClampReturnsBound) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     TestBoard      board{quiet_control};
-    loadThreadBoard(board);
+    loadWorkerBoard(board);
 
-    constexpr int search_ply  = 4;
-    constexpr int upper_bound = MATE_VALUE - search_ply - 1;
-    setThreadPly(search_ply);
+    constexpr int search_ply      = 4;
+    constexpr int upper_bound     = MATE_VALUE - search_ply - 1;
+    constexpr int collapsed_alpha = upper_bound + 1;
+    setWorkerPly(search_ply);
 
-    EXPECT_EQ(runNonPvAlphaBeta(upper_bound + 1, INF_VALUE, 1, true), upper_bound);
+    EXPECT_EQ(runNonPvAlphaBeta(collapsed_alpha, INF_VALUE, 1), collapsed_alpha);
 }
 
-TEST_F(SearchTest, QuiescenceInCheckAtMaxDepthReturnsStaticEval) {
-    constexpr auto in_check_with_one_quiet_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
-    TestBoard      board{in_check_with_one_quiet_evasion};
-    loadThreadBoard(board);
+TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsStaticEval) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
 
-    ASSERT_TRUE(threadInCheck()) << in_check_with_one_quiet_evasion;
     const int static_eval = evaluate(board);
+    setWorkerPly(MAX_SEARCH_PLY);
 
-    setThreadPly(MAX_SEARCH_PLY);
-
-    EXPECT_EQ(runLoadedQuiescence(-INF_VALUE, INF_VALUE), static_eval);
+    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 1), static_eval);
+    EXPECT_EQ(workerNodes(), 1U);
 }
 
-TEST_F(SearchTest, QuiescenceStalemateStandPatFailHighReturnsDraw) {
-    constexpr auto stalemate = "k7/8/KQ6/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{stalemate};
+TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsDrawBeforeStaticEval) {
+    constexpr auto drawn_winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
+    TestBoard      board{drawn_winning_capture};
+    loadWorkerBoard(board);
 
-    ASSERT_FALSE(board.is_check()) << stalemate;
-    ASSERT_TRUE(board.is_stalemate()) << stalemate;
+    EXPECT_NE(evaluate(board), DRAW_VALUE);
+    setWorkerPly(MAX_SEARCH_PLY);
 
-    const int stand_pat = evaluate(board);
-    ASSERT_NE(stand_pat, DRAW_VALUE) << stalemate;
-
-    const int beta  = stand_pat - 1;
-    const int alpha = beta - 100;
-
-    EXPECT_EQ(testQuiescence(stalemate, alpha, beta), DRAW_VALUE);
+    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 1), DRAW_VALUE);
+    EXPECT_EQ(workerNodes(), 1U);
 }
 
-TEST_F(SearchTest, RootSearchIgnoresTranspositionTableBoundsExceptForOrdering) {
-    constexpr auto one_legal_root_move = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
-    constexpr int  search_depth        = 1;
+TEST_F(SearchTest, AlphaBetaUsesTranspositionTableCutoffForEligibleBounds) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
 
-    TestBoard baseline_board{one_legal_root_move};
-    loadThreadBoard(baseline_board);
-    const int baseline = runRootSearchWiden(search_depth, evaluate(baseline_board));
-
-    const int alpha = baseline - 50;
-    const int beta  = baseline + 50;
-    ASSERT_LT(alpha, baseline);
-    ASSERT_GT(beta, baseline);
-
-    auto search_with_root_tt = [&](TT_Flag flag, int score) {
-        TestBoard board{one_legal_root_move};
-        loadThreadBoard(board);
-        Move root_move = findThreadMove("a8b8");
-        EXPECT_FALSE(root_move.is_null());
-
-        tt.store(threadKey(), root_move, score, search_depth + 2, flag, 0);
-        return runRootSearchWiden(search_depth, baseline);
+    struct Case {
+        const char* name;
+        TT_Flag     flag;
+        int         score;
+        int         alpha;
+        int         beta;
     };
 
-    EXPECT_EQ(search_with_root_tt(TT_Flag::Lowerbound, beta + 500), baseline);
-    EXPECT_EQ(search_with_root_tt(TT_Flag::Upperbound, alpha - 500), baseline);
-    EXPECT_EQ(search_with_root_tt(TT_Flag::Exact, baseline + 500), baseline);
+    const std::array cases{
+        Case{"exact", TT_Flag::Exact, 321, -INF_VALUE, INF_VALUE},
+        Case{"lowerbound", TT_Flag::Lowerbound, 500, 100, 200},
+        Case{"upperbound", TT_Flag::Upperbound, -500, -200, -100},
+    };
+
+    for (const auto& tc : cases) {
+        TestBoard board{quiet_control};
+        loadWorkerBoard(board);
+
+        tt.store_search(workerKey(), NULL_MOVE, tc.score, search_depth, tc.flag, workerPly());
+
+        EXPECT_EQ(runNonPvAlphaBeta(tc.alpha, tc.beta, search_depth), tc.score) << tc.name;
+    }
 }
 
-TEST_F(SearchTest, RootSearchWidenResearchesFailedAspirationWindows) {
-    constexpr auto one_legal_root_move = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
-    constexpr int  search_depth        = 1;
-
-    TestBoard baseline_board{one_legal_root_move};
-    loadThreadBoard(baseline_board);
-    const int baseline = runRootSearchWiden(search_depth, evaluate(baseline_board));
-
-    TestBoard fail_low_board{one_legal_root_move};
-    loadThreadBoard(fail_low_board);
-    EXPECT_EQ(runRootSearchWiden(search_depth, baseline + 1000), baseline);
-
-    TestBoard fail_high_board{one_legal_root_move};
-    loadThreadBoard(fail_high_board);
-    EXPECT_EQ(runRootSearchWiden(search_depth, baseline - 1000), baseline);
-}
-
-TEST_F(SearchTest, HaltedSearchReturnsAbortSentinelValues) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  alpha         = -123;
-    constexpr int  beta          = 456;
-
-    TestBoard alpha_beta_board{quiet_control};
-    loadThreadBoard(alpha_beta_board);
-    thread->halt();
-    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, 2, true), alpha);
-
-    TestBoard qsearch_board{quiet_control};
-    loadThreadBoard(qsearch_board);
-    thread->halt();
-    EXPECT_EQ(runLoadedQuiescence(alpha, beta), alpha);
-}
-
-TEST_F(SearchTest, TranspositionTableExactWithNonPseudoLegalMoveStillCutsOff) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  search_depth  = 1;
-
-    TestBoard baseline_board{quiet_control};
-    loadThreadBoard(baseline_board);
-    const int baseline = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth, false);
-
-    TestBoard board{quiet_control};
-    loadThreadBoard(board);
-
-    Move invalid_tt_move{H1, H2};
-    ASSERT_FALSE(board.is_legal_move(invalid_tt_move));
-    ASSERT_FALSE(board.is_pseudo_legal(invalid_tt_move));
-
-    const int bogus_score = baseline + 500;
-    ASSERT_NE(bogus_score, baseline);
-
-    tt.store(threadKey(), invalid_tt_move, bogus_score, search_depth + 2, TT_Flag::Exact, 0);
-
-    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth, false), bogus_score);
-}
-
-TEST_F(SearchTest, PrincipalVariationSkipsNonPseudoLegalTranspositionTableMove) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-
-    TestBoard board{quiet_control};
-    loadThreadBoard(board);
-
-    Move invalid_tt_move{H1, H2};
-    ASSERT_FALSE(board.is_legal_move(invalid_tt_move));
-    ASSERT_FALSE(board.is_pseudo_legal(invalid_tt_move));
-
-    tt.store(threadKey(), invalid_tt_move, 0, 1, TT_Flag::Exact, 0);
-
-    EXPECT_EQ(currentPv(1), "");
-}
-
-TEST_F(SearchTest, PrincipalVariationPrintsPseudoLegalTranspositionTableMove) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-
-    TestBoard board{quiet_control};
-    loadThreadBoard(board);
-
-    Move pv_move = findThreadMove("a8b8");
-    ASSERT_FALSE(pv_move.is_null());
-    ASSERT_TRUE(threadMoveIsPseudoLegal(pv_move));
-    ASSERT_TRUE(threadMoveIsLegal(pv_move));
-
-    tt.store(threadKey(), pv_move, 0, 1, TT_Flag::Exact, 0);
-
-    EXPECT_EQ(currentPv(1), "a8b8 ");
-}
-
-TEST_F(SearchTest, NonPvTranspositionTableBoundsAreCutoffOnly) {
+TEST_F(SearchTest, AlphaBetaDoesNotCutoffWithShallowTranspositionTableEntry) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     constexpr int  search_depth  = 2;
 
     TestBoard baseline_board{quiet_control};
-    loadThreadBoard(baseline_board);
-    const int baseline = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth, false);
+    loadWorkerBoard(baseline_board);
+    const int baseline = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
 
-    const int alpha = baseline - 100;
-    const int beta  = baseline + 100;
-    ASSERT_LT(alpha, baseline);
-    ASSERT_GT(beta, baseline);
+    TestBoard board{quiet_control};
+    loadWorkerBoard(board);
 
-    auto search_with_tt_bound = [&](TT_Flag flag, int score) {
-        TestBoard board{quiet_control};
-        loadThreadBoard(board);
-        Move tt_move = findThreadMove("a8b8");
-        EXPECT_FALSE(tt_move.is_null());
+    Move invalid_tt_move{H1, H2};
+    ASSERT_FALSE(board.is_pseudo_legal(invalid_tt_move));
 
-        tt.store(threadKey(), tt_move, score, search_depth + 2, flag, 0);
-        return runNonPvAlphaBeta(alpha, beta, search_depth, false);
+    tt.store_search(
+        workerKey(), invalid_tt_move, baseline + 500, search_depth - 1, TT_Flag::Exact, 0);
+
+    EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth), baseline);
+}
+
+TEST_F(SearchTest, AlphaBetaStoresExactTranspositionTableEntry) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    const uint64_t key = workerKey();
+    ASSERT_FALSE(tt.probe(key).has_value());
+
+    const int value = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
+
+    auto record = tt.probe(key);
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, search_depth);
+    EXPECT_EQ(record->flag, TT_Flag::Exact);
+    EXPECT_FALSE(record->move.is_null());
+    EXPECT_TRUE(board.is_legal_move(record->move));
+}
+
+TEST_F(SearchTest, AlphaBetaStoresLowerboundOnBetaCutoff) {
+    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr int  search_depth      = 1;
+
+    TestBoard exact_board{one_legal_evasion};
+    loadWorkerBoard(exact_board);
+    const int exact = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
+
+    TestBoard board{one_legal_evasion};
+    loadWorkerBoard(board);
+
+    const int beta  = exact - 50;
+    const int alpha = beta - 100;
+    const int value = runNonPvAlphaBeta(alpha, beta, search_depth);
+    ASSERT_GE(value, beta);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, search_depth);
+    EXPECT_EQ(record->flag, TT_Flag::Lowerbound);
+    EXPECT_FALSE(record->move.is_null());
+}
+
+TEST_F(SearchTest, AlphaBetaStoresUpperboundOnFailLow) {
+    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr int  search_depth      = 1;
+    constexpr int  alpha             = -100;
+    constexpr int  beta              = 0;
+
+    TestBoard board{one_legal_evasion};
+    loadWorkerBoard(board);
+
+    const int value = runNonPvAlphaBeta(alpha, beta, search_depth);
+    ASSERT_LT(value, alpha);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->depth, search_depth);
+    EXPECT_EQ(record->flag, TT_Flag::Upperbound);
+    EXPECT_FALSE(record->move.is_null());
+}
+
+TEST_F(SearchTest, AlphaBetaStoresNoLegalMoveTerminalAsExactTranspositionTableEntry) {
+    constexpr auto checkmate    = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth = 2;
+    constexpr int  search_ply   = 3;
+    TestBoard      board{checkmate};
+    loadWorkerBoard(board);
+    setWorkerPly(search_ply);
+
+    const int value = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
+    ASSERT_EQ(value, -MATE_VALUE + search_ply);
+
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->score_at_ply(workerPly()), value);
+    EXPECT_EQ(record->score, -MATE_VALUE);
+    EXPECT_EQ(record->depth, search_depth);
+    EXPECT_EQ(record->flag, TT_Flag::Exact);
+    EXPECT_EQ(record->move, NULL_MOVE);
+}
+
+TEST_F(SearchTest, RootSearchDoesNotStoreRootPositionTranspositionTableEntry) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 1);
+
+    const uint64_t root_key = workerKey();
+    (void)runRootSearch();
+
+    EXPECT_FALSE(tt.probe(root_key).has_value());
+}
+
+TEST_F(SearchTest, AlphaBetaMainTTCutoffDoesNotEnterQSearchTT) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
+    constexpr int  tt_score      = 321;
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    tt.store_search(workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Exact, workerPly());
+    (void)runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(mainTtProbesAt(0), 1U);
+    EXPECT_EQ(mainTtHitsAt(0), 1U);
+    EXPECT_EQ(mainTtCutoffsAt(0), 1U);
+    EXPECT_EQ(qTtProbesAt(0), 0U);
+    EXPECT_EQ(qTtHitsAt(0), 0U);
+    EXPECT_EQ(qTtCutoffsAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaNullMovePruningReturnsFailSoftCutoffFromNullChild) {
+    constexpr int search_depth     = 4;
+    constexpr int alpha            = -50;
+    constexpr int beta             = 50;
+    constexpr int null_child_score = -200;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const uint64_t root_key       = workerKey();
+    const uint64_t null_child_key = workerNullChildKey();
+    ASSERT_FALSE(tt.probe(root_key).has_value());
+    ASSERT_FALSE(tt.probe(null_child_key).has_value());
+
+    tt.store_search(
+        null_child_key, NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), -null_child_score);
+    EXPECT_FALSE(tt.probe(root_key).has_value());
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(nullMoveTriesAt(0), 1U);
+    EXPECT_EQ(nullMoveCutoffsAt(0), 1U);
+#endif
+}
+
+TEST_F(SearchTest, PvAlphaBetaDoesNotUseNullMovePruning) {
+    constexpr int search_depth     = 4;
+    constexpr int alpha            = -50;
+    constexpr int beta             = 50;
+    constexpr int null_child_score = -200;
+
+    TestBoard baseline_board{STARTFEN};
+    loadWorkerBoard(baseline_board, search_depth);
+    PrincipalVariation baseline_pv;
+    const int          baseline = runPvAlphaBeta(alpha, beta, search_depth, baseline_pv);
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+    const uint64_t null_child_key = workerNullChildKey();
+    tt.store_search(
+        null_child_key, NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
+
+    PrincipalVariation pv;
+    EXPECT_EQ(runPvAlphaBeta(alpha, beta, search_depth, pv), baseline);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(nullMoveTriesAt(0), 0U);
+    EXPECT_EQ(nullMoveCutoffsAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaNullMovePruningRequiresAllGuards) {
+    constexpr int alpha            = -50;
+    constexpr int beta             = 50;
+    constexpr int null_child_score = -200;
+
+    struct Case {
+        const char* name;
+        const char* fen;
+        int         depth;
+        bool        can_null;
     };
 
-    EXPECT_EQ(search_with_tt_bound(TT_Flag::Lowerbound, baseline + 50), baseline);
-    EXPECT_EQ(search_with_tt_bound(TT_Flag::Upperbound, baseline - 50), baseline);
-    EXPECT_EQ(search_with_tt_bound(TT_Flag::Lowerbound, beta + 25), beta + 25);
-    EXPECT_EQ(search_with_tt_bound(TT_Flag::Upperbound, alpha - 25), alpha - 25);
+    const std::array cases{
+        Case{"in check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", 4, true},
+        Case{"insufficient material", "k7/8/2K5/8/8/8/8/8 b - - 0 1", 4, true},
+        Case{"lone rook material", "4k3/8/8/8/8/8/8/4K2R w - - 0 1", 4, true},
+        Case{"shallower than reduction", STARTFEN, 2, true},
+        Case{"immediate repeated null",
+             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1",
+             4,
+             false},
+    };
+
+    const auto expectNullMoveBlocked = [&](const Case& tc) {
+        SCOPED_TRACE(tc.name);
+
+        TestBoard baseline_board{tc.fen};
+        loadWorkerBoard(baseline_board, tc.depth);
+        const int baseline = runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null);
+
+        TestBoard board{tc.fen};
+        loadWorkerBoard(board, tc.depth);
+        tt.store_search(workerNullChildKey(),
+                        NULL_MOVE,
+                        null_child_score,
+                        std::max(0, tc.depth - 3),
+                        TT_Flag::Exact,
+                        1);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null), baseline);
+
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_EQ(nullMoveTriesAt(0), 0U);
+        EXPECT_EQ(nullMoveCutoffsAt(0), 0U);
+#endif
+    };
+
+    for (const auto& tc : cases) {
+        expectNullMoveBlocked(tc);
+    }
+}
+
+TEST_F(SearchTest, AlphaBetaNullMovePruningHonorsParentUpperBoundVeto) {
+    constexpr int search_depth     = 4;
+    constexpr int alpha            = -50;
+    constexpr int beta             = 50;
+    constexpr int null_child_score = -200;
+
+    TestBoard baseline_board{STARTFEN};
+    loadWorkerBoard(baseline_board, search_depth);
+    tt.store_search(
+        workerKey(), NULL_MOVE, beta - 1, search_depth, TT_Flag::Upperbound, workerPly());
+    tt.store_search(
+        workerNullChildKey(), NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
+    const int baseline = runNonPvAlphaBeta(alpha, beta, search_depth, false);
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+    tt.store_search(
+        workerKey(), NULL_MOVE, beta - 1, search_depth, TT_Flag::Upperbound, workerPly());
+    tt.store_search(
+        workerNullChildKey(), NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), baseline);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(nullMoveTriesAt(0), 0U);
+    EXPECT_EQ(nullMoveCutoffsAt(0), 0U);
+#endif
 }
 
 TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendants) {
     constexpr auto immediate_null_child =
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1";
+    constexpr int search_depth = 5;
+
     TestBoard board{immediate_null_child};
-    loadThreadBoard(board);
+    loadWorkerBoard(board, search_depth);
 
-    ASSERT_FALSE(threadInCheck());
-    ASSERT_GT(threadNonPawnMaterial(), BISHOP_MG);
+    ASSERT_FALSE(board.is_check());
+    ASSERT_GT(board.nonPawnMaterial(board.side_to_move()), ROOK_MG);
 
-    Move real_move = findThreadMove("e7e5");
+    const Move real_move = findWorkerMove("e7e5");
     ASSERT_FALSE(real_move.is_null());
-    ASSERT_FALSE(threadDescendantInCheck(real_move));
-    ASSERT_GT(threadDescendantNonPawnMaterial(real_move), BISHOP_MG);
 
-    const auto immediate_null_key  = threadNullChildKey();
-    const auto descendant_null_key = threadDescendantNullKey(real_move);
-
+    const uint64_t immediate_null_key  = workerNullChildKey();
+    const uint64_t descendant_null_key = workerDescendantNullKey(real_move);
     ASSERT_FALSE(tt.probe(immediate_null_key).has_value());
     ASSERT_FALSE(tt.probe(descendant_null_key).has_value());
 
-    tt.store(threadKey(), real_move, 0, 0, TT_Flag::Lowerbound, 0);
-    (void)runNonPvAlphaBeta(-50, 50, 5, false);
+    tt.store_search(workerKey(), real_move, 0, 0, TT_Flag::Lowerbound, workerPly());
+    (void)runNonPvAlphaBeta(-50, 50, search_depth, false);
 
     EXPECT_FALSE(tt.probe(immediate_null_key).has_value())
         << "the immediate null child must still forbid a second null move";
     EXPECT_TRUE(tt.probe(descendant_null_key).has_value())
         << "after a real move from the null child, descendants should regain null-move eligibility";
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(nullMoveTriesAt(0), 0U);
+    EXPECT_GT(nullMoveTriesAt(1), 0U);
+#endif
 }
 
-TEST_F(SearchTest, basicTactics) {
-    auto searchpos1 = "k7/4r3/8/8/8/3Q4/4p3/K7 w - -";
-    auto searchpos2 = "3r4/pbb1qBk1/2p4p/1p2N1p1/3r4/P3Q2P/1P3PP1/2RR2K1 w - -";
+TEST_F(SearchTest, AlphaBetaRazoringReturnsQsearchFailLowWithoutParentMainTtStore) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
 
-    std::vector<std::tuple<std::string, int, std::string>> test_cases = {
-        {searchpos1, eval::piece(ROOK).mg, "d3d8"},
-        {searchpos2, eval::piece(PAWN).mg, "d1d4"},
+    TestBoard board{quiet_control};
+    loadWorkerBoard(board, search_depth);
+
+    const int static_eval = evaluate(board);
+    const int alpha       = static_eval + 901;
+    const int beta        = alpha + 100;
+    const int value       = runNonPvAlphaBeta(alpha, beta, search_depth);
+
+    EXPECT_EQ(value, static_eval);
+    auto record = workerTtRecord();
+    ASSERT_TRUE(record.has_value());
+    EXPECT_EQ(record->depth, 0);
+    EXPECT_NE(record->depth, search_depth);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(razorTriesAt(0), 1U);
+    EXPECT_EQ(razorCutoffsAt(0), 1U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaRazoringRequiresAllGuards) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
+
+    struct Case {
+        const char* name;
+        const char* fen;
+        int         depth;
+        bool        can_null;
+        bool        pv;
+        bool        seed_tt_move;
+        int         alpha_offset;
     };
 
-    for (auto& [fen, expectedScore, expectedMove] : test_cases) {
-        testSearchGT(fen, expectedScore, expectedMove);
+    const std::array cases{
+        Case{"PV node", quiet_control, search_depth, true, true, false, 901},
+        Case{"in check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", search_depth, true, false, false, 901},
+        Case{"depth above max", quiet_control, 4, true, false, false, 1901},
+        Case{"can_null false", STARTFEN, search_depth, false, false, false, 901},
+        Case{"TT move available", STARTFEN, search_depth, true, false, true, 901},
+        Case{"static eval above margin", STARTFEN, search_depth, true, false, false, 899},
+    };
+
+    const auto expectRazoringBlocked = [&](const Case& tc) {
+        SCOPED_TRACE(tc.name);
+
+        TestBoard board{tc.fen};
+        loadWorkerBoard(board, tc.depth);
+
+        if (tc.seed_tt_move) {
+            const Move tt_move = firstWorkerPickerMove();
+            ASSERT_FALSE(tt_move.is_null()) << tc.fen;
+            tt.store_search(workerKey(), tt_move, 0, 0, TT_Flag::Exact, workerPly());
+        }
+
+        const int static_eval = evaluate(board);
+        const int alpha       = static_eval + tc.alpha_offset;
+        const int beta        = alpha + 100;
+        if (tc.pv) {
+            PrincipalVariation pv;
+            (void)runPvAlphaBeta(alpha, beta, tc.depth, pv);
+        } else {
+            (void)runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null);
+        }
+
+        auto record = workerTtRecord();
+        ASSERT_TRUE(record.has_value()) << tc.fen;
+        EXPECT_EQ(record->depth, tc.depth) << tc.fen;
+
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_EQ(razorTriesAt(0), 0U) << tc.fen;
+        EXPECT_EQ(razorCutoffsAt(0), 0U) << tc.fen;
+#endif
+    };
+
+    for (const auto& tc : cases) {
+        expectRazoringBlocked(tc);
     }
+}
+
+TEST_F(SearchTest, AlphaBetaFutilitySkipsOnlyAfterFirstLegalQuietMove) {
+    constexpr int search_depth = 2;
+
+    TestBoard expected_board{STARTFEN};
+    loadWorkerBoard(expected_board, search_depth);
+
+    const int  alpha      = evaluate(expected_board) + 401;
+    const int  beta       = alpha + 100;
+    const Move first_move = firstWorkerPickerMove();
+    ASSERT_FALSE(first_move.is_null());
+
+    const int expected = scoreWorkerChild(first_move, alpha, beta, search_depth - 1);
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), expected);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(futilitySkipsAt(0), 1U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaFutilityRequiresAllGuards) {
+    constexpr int search_depth = 2;
+
+    struct Case {
+        const char* name;
+        const char* fen;
+        int         depth;
+        int         alpha;
+        bool        pv;
+    };
+
+    TestBoard static_eval_board{STARTFEN};
+    const int static_eval = evaluate(static_eval_board);
+
+    const std::array cases{
+        Case{"PV node", STARTFEN, search_depth, static_eval + 401, true},
+        Case{"in check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", search_depth, 1000, false},
+        Case{"depth above max", STARTFEN, 4, static_eval + 401, false},
+        Case{"mate-adjacent alpha", STARTFEN, search_depth, MATE_BOUND, false},
+        Case{"static eval above margin", STARTFEN, search_depth, static_eval + 399, false},
+    };
+
+    const auto expectFutilityBlocked = [&](const Case& tc) {
+        SCOPED_TRACE(tc.name);
+
+        TestBoard board{tc.fen};
+        loadWorkerBoard(board, tc.depth);
+
+        const int beta = tc.alpha + 100;
+        if (tc.pv) {
+            PrincipalVariation pv;
+            (void)runPvAlphaBeta(tc.alpha, beta, tc.depth, pv);
+        } else {
+            (void)runNonPvAlphaBeta(tc.alpha, beta, tc.depth, false);
+        }
+
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_EQ(futilitySkipsAt(0), 0U) << tc.fen;
+#endif
+    };
+
+    for (const auto& tc : cases) {
+        expectFutilityBlocked(tc);
+    }
+}
+
+TEST_F(SearchTest, AlphaBetaFutilityKeepsCapturesPromotionsAndCheckingMoves) {
+    constexpr int search_depth = 2;
+
+    struct Case {
+        const char* fen;
+        Move        first;
+        Move        candidate;
+        bool        candidate_is_killer;
+    };
+
+    const std::array cases{
+        Case{"4k3/8/8/8/8/8/R6r/4K3 w - - 0 1", Move(E1, D1), Move(A2, H2), false},
+        Case{
+            "4k3/P6p/8/8/8/8/8/4K3 w - - 0 1", Move(E1, D1), Move(A7, A8, MOVE_PROM, QUEEN), false},
+        Case{"4k3/8/8/8/8/8/R7/4K3 w - - 0 1", Move(A2, A3), Move(A2, E2), true},
+    };
+
+    for (const auto& tc : cases) {
+        TestBoard board{tc.fen};
+        loadWorkerBoard(board, search_depth);
+        ASSERT_TRUE(workerLegalGeneratedMove(tc.first)) << tc.fen;
+        ASSERT_TRUE(workerLegalGeneratedMove(tc.candidate)) << tc.fen;
+
+        const int alpha       = evaluate(board) + 401;
+        const int beta        = alpha + 1000;
+        const int child_score = -(beta + 100);
+
+        tt.store_search(workerKey(), tc.first, 0, 0, TT_Flag::Exact, workerPly());
+        if (tc.candidate_is_killer)
+            seedWorkerKiller(tc.candidate);
+        storeWorkerChildSearchTt(tc.candidate, child_score, search_depth - 1, TT_Flag::Exact);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), -child_score) << tc.fen;
+    }
+}
+
+TEST_F(SearchTest, PvAlphaBetaMatchesFullWindowBaselineAndBuildsPv) {
+    struct Case {
+        const char* fen;
+        int         depth;
+    };
+
+    const std::array cases{
+        Case{STARTFEN, 3},
+        Case{POS6, 3},
+    };
+
+    for (const auto& tc : cases) {
+        TestBoard baseline_board{tc.fen};
+        loadWorkerBoard(baseline_board, tc.depth);
+        const int baseline = runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, tc.depth);
+
+        TestBoard pvs_board{tc.fen};
+        loadWorkerBoard(pvs_board, tc.depth);
+        PrincipalVariation pv;
+        const int          pvs_value = runPvAlphaBeta(-INF_VALUE, INF_VALUE, tc.depth, pv);
+
+        EXPECT_EQ(pvs_value, baseline) << tc.fen;
+        ASSERT_FALSE(pv.empty()) << tc.fen;
+        EXPECT_TRUE(pvs_board.is_legal_move(pv.front())) << tc.fen;
+    }
+}
+
+TEST_F(SearchTest, PvNodesIgnoreNonExactMainAndQsearchTtBounds) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth  = 2;
+
+    TestBoard baseline_board{quiet_control};
+    loadWorkerBoard(baseline_board, search_depth);
+    PrincipalVariation baseline_pv;
+    const int          baseline = runPvAlphaBeta(-INF_VALUE, INF_VALUE, search_depth, baseline_pv);
+
+    const int alpha       = baseline - 100;
+    const int beta        = baseline + 100;
+    const int bogus_score = beta + 25;
+
+    TestBoard non_pv_board{quiet_control};
+    loadWorkerBoard(non_pv_board, search_depth);
+    tt.store_search(
+        workerKey(), NULL_MOVE, bogus_score, search_depth, TT_Flag::Lowerbound, workerPly());
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), bogus_score);
+
+    TestBoard pv_board{quiet_control};
+    loadWorkerBoard(pv_board, search_depth);
+    tt.store_search(
+        workerKey(), NULL_MOVE, bogus_score, search_depth, TT_Flag::Lowerbound, workerPly());
+    PrincipalVariation pv;
+    EXPECT_EQ(runPvAlphaBeta(alpha, beta, search_depth, pv), baseline);
+
+    TestBoard q_baseline_board{quiet_control};
+    loadWorkerBoard(q_baseline_board);
+    PrincipalVariation q_pv;
+    const int          q_baseline = runPvQuiescence(-INF_VALUE, INF_VALUE, q_pv);
+    const int          q_alpha    = q_baseline - 100;
+    const int          q_beta     = q_baseline + 100;
+    const int          q_bogus    = q_beta + 25;
+
+    TestBoard q_non_pv_board{quiet_control};
+    loadWorkerBoard(q_non_pv_board);
+    tt.store_search(workerKey(), NULL_MOVE, q_bogus, 0, TT_Flag::Lowerbound, workerPly());
+    EXPECT_EQ(runQuiescence(q_alpha, q_beta), q_bogus);
+
+    TestBoard q_pv_board{quiet_control};
+    loadWorkerBoard(q_pv_board);
+    tt.store_search(workerKey(), NULL_MOVE, q_bogus, 0, TT_Flag::Lowerbound, workerPly());
+    PrincipalVariation bounded_q_pv;
+    EXPECT_EQ(runPvQuiescence(q_alpha, q_beta, bounded_q_pv), q_baseline);
+}
+
+TEST_F(SearchTest, PvQuiescencePropagatesPvNodeToChildTtBounds) {
+    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    TestBoard      baseline_board{winning_capture};
+    loadWorkerBoard(baseline_board);
+
+    const int static_eval = evaluate(baseline_board);
+    const int alpha       = static_eval - 100;
+    const int beta        = static_eval + 500;
+    const int child_score = -static_eval + 10;
+
+    PrincipalVariation baseline_pv;
+    const int          baseline = runPvQuiescence(alpha, beta, baseline_pv);
+
+    TestBoard bounded_board{winning_capture};
+    loadWorkerBoard(bounded_board);
+
+    const Move capture = findWorkerMove("d1e2");
+    storeQsearchTtAfterMove(capture, child_score, TT_Flag::Lowerbound);
+
+    PrincipalVariation pv;
+    EXPECT_EQ(runPvQuiescence(alpha, beta, pv), baseline);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(qTtProbesAt(0), 1U);
+    EXPECT_EQ(qTtHitsAt(0), 0U);
+    EXPECT_GT(qTtProbesAt(1), 0U);
+    EXPECT_GT(qTtHitsAt(1), 0U);
+    EXPECT_EQ(qTtCutoffsAt(1), 0U);
+#endif
+}
+
+TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
+    constexpr auto tactic       = "k7/4r3/8/8/8/3Q4/4p3/K7 w - - 0 1";
+    constexpr int  search_depth = 1;
+    TestBoard      board{tactic};
+    loadWorkerBoard(board, search_depth);
+
+    buildRootLines();
+
+    const Move first_move = findWorkerMove("d3e2");
+    const Move best_move  = findWorkerMove("d3d8");
+    ASSERT_FALSE(first_move.is_null());
+    ASSERT_FALSE(best_move.is_null());
+
+    RootLine first_line;
+    RootLine best_line;
+    bool     found_first = false;
+    bool     found_best  = false;
+    for (const RootLine& line : rootLines()) {
+        if (line.root_move == first_move) {
+            first_line  = line;
+            found_first = true;
+        }
+        if (line.root_move == best_move) {
+            best_line  = line;
+            found_best = true;
+        }
+    }
+    ASSERT_TRUE(found_first);
+    ASSERT_TRUE(found_best);
+
+    mutableRootLines() = {first_line, best_line};
+    ASSERT_TRUE(runRootWindow(search_depth, -INF_VALUE, INF_VALUE));
+
+    ASSERT_EQ(rootLines().size(), 2U);
+    EXPECT_GT(rootLines()[1].value, rootLines()[0].value);
+
+    std::stable_sort(mutableRootLines().begin(), mutableRootLines().end(), is_better_root_line);
+    EXPECT_EQ(rootLines().front().root_move, best_move);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_GT(pvsResearchesAt(1), 0U);
+#endif
+}
+
+TEST_F(SearchTest, ResetDoesNotSeedRootLineWithFallbackMove) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board);
+
+    EXPECT_EQ(rootMove(), NULL_MOVE);
+    EXPECT_EQ(rootValue(), evaluate(board));
+    EXPECT_EQ(rootDepth(), 0);
+    EXPECT_TRUE(rootPvEmpty());
+}
+
+TEST_F(SearchTest, RootLineListContainsLegalGeneratedRootMoves) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 1);
+
+    int legal_move_count = 0;
+    for (Move move : movegen::generate_pseudo_legal(board)) {
+        if (board.is_legal_generated_move(move))
+            ++legal_move_count;
+    }
+
+    buildRootLines();
+
+    ASSERT_EQ(rootLines().size(), static_cast<size_t>(legal_move_count));
+    for (const RootLine& line : rootLines()) {
+        EXPECT_FALSE(line.root_move.is_null());
+        EXPECT_TRUE(board.is_legal_generated_move(line.root_move));
+        EXPECT_FALSE(line.completed);
+        EXPECT_EQ(line.depth, 0);
+        EXPECT_TRUE(line.pv.empty());
+    }
+}
+
+TEST_F(SearchTest, RootSearchCompletesAndOrdersRootLinesByBestCompletedLine) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 2);
+
+    (void)runRootSearch();
+
+    ASSERT_TRUE(rootCompleted());
+    ASSERT_TRUE(rootMoveIsLegal());
+    ASSERT_FALSE(rootLines().empty());
+    EXPECT_EQ(rootLines().front().root_move, rootMove());
+    EXPECT_EQ(rootLines().front().value, rootValue());
+    EXPECT_EQ(rootLines().front().depth, rootDepth());
+    EXPECT_EQ(rootDepth(), 2);
+
+    for (size_t index = 1; index < rootLines().size(); ++index)
+        EXPECT_FALSE(is_better_root_line(rootLines()[index], rootLines()[index - 1]));
+}
+
+TEST_F(SearchTest, RootSearchBuildsPrincipalVariationForRootLine) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 2);
+
+    (void)runRootSearch();
+
+    ASSERT_TRUE(rootCompleted());
+    ASSERT_FALSE(rootPvEmpty());
+    EXPECT_EQ(rootPvFront(), rootMove());
+    EXPECT_EQ(rootPvSize(), 2);
+}
+
+TEST_F(SearchTest, RootAspirationWidensAfterFailHighAndCompletes) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 1);
+
+    ASSERT_TRUE(runRootDepth(1, -1000));
+
+    EXPECT_TRUE(rootCompleted());
+    EXPECT_TRUE(rootMoveIsLegal());
+    EXPECT_EQ(rootDepth(), 1);
+    EXPECT_GT(rootValue(), -950);
+    ASSERT_FALSE(rootPvEmpty());
+    EXPECT_EQ(rootPvFront(), rootMove());
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_GT(aspirationFailHighs(), 0U);
+    EXPECT_EQ(aspirationFailLows(), 0U);
+    EXPECT_EQ(aspirationResearches(), aspirationFailHighs());
+#endif
+}
+
+TEST_F(SearchTest, RootAspirationWidensAfterFailLowAndCompletes) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 1);
+
+    ASSERT_TRUE(runRootDepth(1, 1000));
+
+    EXPECT_TRUE(rootCompleted());
+    EXPECT_TRUE(rootMoveIsLegal());
+    EXPECT_EQ(rootDepth(), 1);
+    EXPECT_LT(rootValue(), 950);
+    ASSERT_FALSE(rootPvEmpty());
+    EXPECT_EQ(rootPvFront(), rootMove());
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_GT(aspirationFailLows(), 0U);
+    EXPECT_EQ(aspirationFailHighs(), 0U);
+    EXPECT_EQ(aspirationResearches(), aspirationFailLows());
+#endif
+}
+
+TEST_F(SearchTest, StoppedRootAspirationPreservesLastAcceptedRootSnapshot) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 2);
+
+    ASSERT_TRUE(runRootDepth(1, evaluate(board)));
+    const RootLine accepted = rootSnapshot();
+    ASSERT_TRUE(accepted.usable_root_move());
+    ASSERT_EQ(accepted.depth, 1);
+
+    ThreadTestAccess::request_stop(*thread);
+
+    EXPECT_FALSE(runRootDepth(2, accepted.value));
+
+    const RootLine snapshot = rootSnapshot();
+    EXPECT_EQ(snapshot.root_move, accepted.root_move);
+    EXPECT_EQ(snapshot.value, accepted.value);
+    EXPECT_EQ(snapshot.depth, accepted.depth);
+    EXPECT_EQ(snapshot.completed, accepted.completed);
+    EXPECT_EQ(snapshot.pv.size(), accepted.pv.size());
+    ASSERT_FALSE(snapshot.pv.empty());
+    EXPECT_EQ(snapshot.pv.front(), accepted.root_move);
+}
+
+TEST_F(SearchTest, AlphaBetaLmrResearchesFullDepthWhenReducedSearchImprovesAlpha) {
+    constexpr int search_depth         = 4;
+    constexpr int alpha                = -2000;
+    constexpr int beta                 = 2000;
+    constexpr int reduced_parent_value = 1500;
+
+    TestBoard baseline_board{STARTFEN};
+    loadWorkerBoard(baseline_board, search_depth);
+    const int expected = runNonPvAlphaBeta(alpha, beta, search_depth, false);
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 3U);
+    const Move reduced_move = moves[2];
+
+    storeWorkerChildSearchTt(reduced_move, -reduced_parent_value, search_depth - 2, TT_Flag::Exact);
+
+    const int actual = runNonPvAlphaBeta(alpha, beta, search_depth, false);
+    EXPECT_EQ(actual, expected);
+    EXPECT_NE(actual, reduced_parent_value);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_GT(lmrTriesAt(0), 0U);
+    EXPECT_GT(lmrResearchesAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaLmrRequiresMinimumDepth) {
+    constexpr int search_depth = 2;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    (void)runNonPvAlphaBeta(-2000, 2000, search_depth, false);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(lmrTriesAt(0), 0U);
+    EXPECT_EQ(lmrResearchesAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaLmrRequiresThirdLegalMove) {
+    constexpr auto two_legal_moves = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth    = 4;
+
+    TestBoard board{two_legal_moves};
+    loadWorkerBoard(board, search_depth);
+    ASSERT_EQ(workerPickerLegalMoves().size(), 2U);
+
+    (void)runNonPvAlphaBeta(-2000, 2000, search_depth, false);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(lmrTriesAt(0), 0U);
+    EXPECT_EQ(lmrResearchesAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaLmrSkipsTacticalVetoMoves) {
+    constexpr int search_depth        = 4;
+    constexpr int alpha               = -2000;
+    constexpr int beta                = -1000;
+    constexpr int low_parent_value    = alpha - 100;
+    constexpr int cutoff_parent_value = beta + 100;
+
+    struct Case {
+        const char* fen;
+        Move        tt_move;
+        Move        killer_move;
+        Move        candidate;
+    };
+
+    const std::array cases{
+        Case{"4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+             Move(E1, D1),
+             NULL_MOVE,
+             Move(A7, A8, MOVE_PROM, ROOK)},
+        Case{"4k3/8/8/8/6N1/8/8/RB1QK3 w - - 0 1", Move(A1, A8), Move(B1, G6), Move(D1, A4)},
+    };
+
+    for (const auto& tc : cases) {
+        TestBoard board{tc.fen};
+        loadWorkerBoard(board, search_depth);
+        ASSERT_TRUE(workerLegalGeneratedMove(tc.tt_move)) << tc.fen;
+        ASSERT_TRUE(workerLegalGeneratedMove(tc.candidate)) << tc.fen;
+        ASSERT_TRUE(board.is_checking_move(tc.candidate) || tc.candidate.type() == MOVE_PROM)
+            << tc.fen;
+
+        tt.store_search(workerKey(), tc.tt_move, 0, 0, TT_Flag::Exact, workerPly());
+        if (!tc.killer_move.is_null()) {
+            ASSERT_TRUE(workerLegalGeneratedMove(tc.killer_move)) << tc.fen;
+            ASSERT_TRUE(board.is_checking_move(tc.killer_move)) << tc.fen;
+            seedWorkerKiller(tc.killer_move);
+        }
+        boostWorkerHistory(tc.candidate, search_depth);
+
+        const auto moves        = workerPickerLegalMoves(tc.tt_move);
+        const auto candidate_it = std::find(moves.begin(), moves.end(), tc.candidate);
+        ASSERT_NE(candidate_it, moves.end()) << tc.fen;
+        ASSERT_EQ(std::distance(moves.begin(), candidate_it), 2) << tc.fen;
+
+        for (auto it = moves.begin(); it != candidate_it; ++it)
+            storeWorkerChildSearchTt(*it, -low_parent_value, search_depth - 1, TT_Flag::Exact);
+        storeWorkerChildSearchTt(
+            tc.candidate, -cutoff_parent_value, search_depth - 1, TT_Flag::Exact);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_parent_value)
+            << tc.fen;
+
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_EQ(lmrTriesAt(0), 0U) << tc.fen;
+        EXPECT_EQ(lmrResearchesAt(0), 0U) << tc.fen;
+#endif
+    }
+}
+
+TEST_F(SearchTest, AlphaBetaLmrSkipsCheckEvasions) {
+    constexpr auto in_check            = "4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1";
+    constexpr int  search_depth        = 4;
+    constexpr int  alpha               = -2000;
+    constexpr int  beta                = -1000;
+    constexpr int  low_parent_value    = alpha - 100;
+    constexpr int  cutoff_parent_value = beta + 100;
+
+    TestBoard board{in_check};
+    loadWorkerBoard(board, search_depth);
+    ASSERT_TRUE(board.is_check()) << in_check;
+
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 3U) << in_check;
+    const Move candidate = moves[2];
+
+    for (auto it = moves.begin(); it != moves.begin() + 2; ++it)
+        storeWorkerChildSearchTt(*it, -low_parent_value, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(candidate, -cutoff_parent_value, search_depth - 1, TT_Flag::Exact);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_parent_value);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(lmrTriesAt(0), 0U);
+    EXPECT_EQ(lmrResearchesAt(0), 0U);
+#endif
+}
+
+TEST_F(SearchTest, RootSearchSetsNullMoveForCheckmate) {
+    constexpr auto checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{checkmate};
+    loadWorkerBoard(board);
+
+    EXPECT_EQ(runRootSearch(), -MATE_VALUE);
+    EXPECT_EQ(rootMove(), NULL_MOVE);
+    EXPECT_EQ(rootValue(), -MATE_VALUE);
+    EXPECT_EQ(rootDepth(), options.depth);
+    EXPECT_TRUE(rootCompleted());
+    EXPECT_TRUE(rootLines().empty());
+}
+
+TEST_F(SearchTest, RootSearchSetsNullMoveForStalemate) {
+    constexpr auto stalemate = "k7/8/KQ6/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{stalemate};
+    loadWorkerBoard(board);
+
+    EXPECT_EQ(runRootSearch(), DRAW_VALUE);
+    EXPECT_EQ(rootMove(), NULL_MOVE);
+    EXPECT_EQ(rootValue(), DRAW_VALUE);
+    EXPECT_EQ(rootDepth(), options.depth);
+    EXPECT_TRUE(rootCompleted());
+    EXPECT_TRUE(rootLines().empty());
+}
+
+TEST_F(SearchTest, CompletedSearchPublishesRootLineSnapshot) {
+    constexpr auto mate_in_one = "7R/8/8/8/8/1K6/8/1k6 w - - 0 1";
+    TestBoard      board{mate_in_one};
+    options.board = &board;
+    options.depth = 2;
+
+    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::wait_for_idle(*thread);
+
+    const auto snapshot = rootSnapshot();
+    EXPECT_TRUE(snapshot.completed);
+    EXPECT_TRUE(snapshot.has_completed_depth());
+    EXPECT_TRUE(snapshot.usable_root_move());
+    EXPECT_EQ(snapshot.root_move.str(), "h8h1");
+    ASSERT_FALSE(snapshot.pv.empty());
+    EXPECT_EQ(snapshot.pv.front(), snapshot.root_move);
+    EXPECT_EQ(snapshot.pv.size(), 1);
+    EXPECT_EQ(snapshot.value, MATE_VALUE - 1);
+    EXPECT_EQ(snapshot.depth, 2);
+    EXPECT_GT(workerNodes(), 0U);
+}
+
+TEST_F(SearchTest, CompletedNonTerminalSearchPublishesFullRootPv) {
+    TestBoard board{STARTFEN};
+    options.board = &board;
+    options.depth = 2;
+
+    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::wait_for_idle(*thread);
+
+    const auto snapshot = rootSnapshot();
+    ASSERT_TRUE(snapshot.completed);
+    ASSERT_TRUE(snapshot.usable_root_move());
+    ASSERT_EQ(snapshot.pv.size(), 2);
+    EXPECT_EQ(snapshot.pv.front(), snapshot.root_move);
+}
+
+TEST_F(SearchTest, CompletedNoLegalMoveSearchPublishesCompletedNullMove) {
+    constexpr auto checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{checkmate};
+    options.board = &board;
+    options.depth = 1;
+
+    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::wait_for_idle(*thread);
+
+    const auto snapshot = rootSnapshot();
+    EXPECT_TRUE(snapshot.completed);
+    EXPECT_TRUE(snapshot.has_completed_depth());
+    EXPECT_FALSE(snapshot.usable_root_move());
+    EXPECT_EQ(snapshot.root_move, NULL_MOVE);
+    EXPECT_EQ(snapshot.value, -MATE_VALUE);
+    EXPECT_EQ(snapshot.depth, 1);
+    EXPECT_TRUE(snapshot.pv.empty());
+}
+
+TEST_F(SearchTest, StoppedSearchPublishesIncompleteRootLineSnapshot) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    TestBoard      board{quiet_control};
+    loadWorkerBoard(board, 2);
+
+    ThreadTestAccess::request_stop(*thread);
+    (void)runWorkerSearch();
+
+    const auto snapshot = rootSnapshot();
+    EXPECT_FALSE(snapshot.completed);
+    EXPECT_EQ(snapshot.root_move, NULL_MOVE);
+    EXPECT_EQ(snapshot.depth, 0);
+    EXPECT_FALSE(snapshot.has_completed_depth());
+    EXPECT_FALSE(snapshot.usable_root_move());
+    EXPECT_TRUE(snapshot.pv.empty());
+}
+
+TEST_F(SearchTest, StoppedSearchPreservesLastCompletedRootLine) {
+    TestBoard board{STARTFEN};
+    options.board = &board;
+    options.depth = 8;
+    options.nodes = 100;
+
+    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::wait_for_idle(*thread);
+
+    const auto snapshot = rootSnapshot();
+    ASSERT_TRUE(snapshot.has_completed_depth());
+    EXPECT_TRUE(snapshot.usable_root_move());
+    EXPECT_LT(snapshot.depth, options.depth);
+    ASSERT_FALSE(snapshot.pv.empty());
+    EXPECT_EQ(snapshot.pv.front(), snapshot.root_move);
+}
+
+TEST_F(SearchTest, StoppedSearchReturnsAbortSentinelValue) {
+    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  alpha         = -123;
+    constexpr int  beta          = 456;
+
+    TestBoard board{quiet_control};
+    loadWorkerBoard(board);
+    ThreadTestAccess::request_stop(*thread);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, 2), alpha);
+}
+
+TEST_F(SearchTest, SelectBestRootLinePrefersHigherCompletedDepth) {
+    const RootLine fallback{.root_move = Move(E2, E4), .value = 50, .depth = 2, .completed = true};
+    const std::array<RootLine, 2> lines{
+        RootLine{.root_move = Move(G1, F3), .value = 0, .depth = 3, .completed = true},
+        RootLine{.root_move = Move(D2, D4), .value = 200, .depth = 1, .completed = true},
+    };
+
+    const RootLine selected = select_best_root_line(fallback, lines);
+
+    EXPECT_EQ(selected.root_move, Move(G1, F3));
+    EXPECT_EQ(selected.depth, 3);
+}
+
+TEST_F(SearchTest, SelectBestRootLineTieBreaksByHigherValue) {
+    const RootLine fallback{.root_move = Move(E2, E4), .value = 10, .depth = 3, .completed = true};
+    const std::array<RootLine, 2> lines{
+        RootLine{.root_move = Move(G1, F3), .value = 25, .depth = 3, .completed = true},
+        RootLine{.root_move = Move(D2, D4), .value = 20, .depth = 3, .completed = true},
+    };
+
+    const RootLine selected = select_best_root_line(fallback, lines);
+
+    EXPECT_EQ(selected.root_move, Move(G1, F3));
+    EXPECT_EQ(selected.value, 25);
+}
+
+TEST_F(SearchTest, SelectBestRootLineTieBreaksByLowerMoveBits) {
+    const RootLine fallback{.root_move = Move(H2, H3), .value = 10, .depth = 3, .completed = true};
+    const RootLine first{.root_move = Move(G2, G3), .value = 10, .depth = 3, .completed = true};
+    const RootLine second{.root_move = Move(A2, A3), .value = 10, .depth = 3, .completed = true};
+    const std::array<RootLine, 2> lines{first, second};
+
+    const RootLine selected = select_best_root_line(fallback, lines);
+    const Move     expected =
+        first.root_move.bits < second.root_move.bits ? first.root_move : second.root_move;
+
+    EXPECT_LT(expected.bits, fallback.root_move.bits);
+    EXPECT_EQ(selected.root_move, expected);
+}
+
+TEST_F(SearchTest, SelectBestRootLineIgnoresUnusableLines) {
+    const RootLine fallback{.root_move = Move(E2, E4), .value = 10, .depth = 2, .completed = true};
+    const std::array<RootLine, 3> lines{
+        RootLine{.root_move = Move(G1, F3), .value = 1000, .depth = 99, .completed = false},
+        RootLine{.root_move = NULL_MOVE, .value = 1000, .depth = 99, .completed = true},
+        RootLine{.root_move = Move(D2, D4), .value = 1000, .depth = 0, .completed = true},
+    };
+
+    const RootLine selected = select_best_root_line(fallback, lines);
+
+    EXPECT_EQ(selected.root_move, fallback.root_move);
+    EXPECT_EQ(selected.value, fallback.value);
+    EXPECT_EQ(selected.depth, fallback.depth);
+}
+
+TEST_F(SearchTest, SelectBestRootLineReturnsFallbackWhenNoUsableLineExists) {
+    const RootLine fallback{
+        .root_move = NULL_MOVE, .value = DRAW_VALUE, .depth = 1, .completed = true};
+    const std::array<RootLine, 2> lines{
+        RootLine{.root_move = Move(G1, F3), .value = 1000, .depth = 2, .completed = false},
+        RootLine{.root_move = NULL_MOVE, .value = -MATE_VALUE, .depth = 2, .completed = true},
+    };
+
+    const RootLine selected = select_best_root_line(fallback, lines);
+
+    EXPECT_TRUE(selected.root_move.is_null());
+    EXPECT_TRUE(selected.completed);
+    EXPECT_TRUE(selected.has_completed_depth());
+    EXPECT_FALSE(selected.usable_root_move());
+    EXPECT_EQ(selected.value, DRAW_VALUE);
 }

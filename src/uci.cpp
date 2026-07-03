@@ -2,11 +2,62 @@
 
 #include "board.hpp"
 #include "evaluator.hpp"
-#include "search_stats.hpp"
+#include "position_state.hpp"
+#include "root_line.hpp"
+#include "search_instrumentation.hpp"
 
 #include <cctype>
+#include <cstdlib>
+#include <format>
+#include <utility>
 
 namespace uci {
+
+namespace {
+
+std::string format_option(const SpinOption& opt) {
+    return std::format(
+        "type spin default {} min {} max {}", opt.def_value, opt.min_value, opt.max_value);
+}
+
+std::string format_option(const CheckOption& opt) {
+    return std::format("type check default {}", opt.def_value ? "true" : "false");
+}
+
+std::string format_search_info(const SearchInfo& info) {
+    return std::format("depth {} score {} nodes {} time {} nps {} pv {}",
+                       info.depth,
+                       info.score_text(),
+                       info.nodes,
+                       info.time.count(),
+                       info.nps_text(),
+                       info.pv);
+}
+
+std::string format_root_pv(const RootLine& line, const Board& root_board) {
+    if (!line.usable_root_move() || line.pv.empty() || line.pv.front() != line.root_move)
+        return "";
+
+    PositionStateStack pv_states;
+    Board              pv_board{pv_states.root()};
+    pv_board.load_board(&root_board);
+
+    std::string pv;
+    for (int i = 0; i < line.pv.size(); ++i) {
+        const Move move = line.pv.move_at(i);
+        if (!pv_board.is_legal_move(move))
+            return "";
+
+        pv += move.str() + " ";
+
+        if (i + 1 < line.pv.size())
+            pv_board.make(move, pv_states.child(i));
+    }
+
+    return pv;
+}
+
+} // namespace
 
 void SpinOption::set(std::string value_str) {
     size_t pos = 0;
@@ -18,7 +69,7 @@ void SpinOption::set(std::string value_str) {
     if (val < min_value || val > max_value)
         throw std::out_of_range("Value out of range");
     value = val;
-};
+}
 
 void CheckOption::set(std::string val_str) {
     if (val_str == "true" || val_str == "on") {
@@ -46,7 +97,7 @@ void Config::set_option(const std::string& name, const std::string& value) {
     }
 }
 
-std::string PV::get_score() const {
+std::string SearchInfo::score_text() const {
     if (std::abs(score) > MATE_BOUND) {
         int mate_distance = MATE_VALUE - std::abs(score);
         int mate_in_n     = (mate_distance + 1) / 2;
@@ -55,10 +106,15 @@ std::string PV::get_score() const {
     return "cp " + std::to_string(score);
 }
 
-std::string PV::get_nps() const {
+std::string SearchInfo::nps_text() const {
     auto count = time.count();
     auto nps   = count > 0 ? (nodes * 1000 / count) : 0;
     return std::to_string(nps);
+}
+
+SearchInfo
+make_search_info(const RootLine& line, const Board& root_board, uint64_t nodes, Milliseconds time) {
+    return SearchInfo{line.value, line.depth, nodes, time, format_root_pv(line, root_board)};
 }
 
 void Protocol::help() const {
@@ -90,7 +146,11 @@ option name Hash {}
 option name Threads {}
 option name Debug {}
 uciok)";
-    out << std::format(format_str, LATRUNCULI_VERSION, config.hash, config.threads, config.debug)
+    out << std::format(format_str,
+                       LATRUNCULI_VERSION,
+                       format_option(config.hash),
+                       format_option(config.threads),
+                       format_option(config.debug))
         << '\n';
 }
 
@@ -106,8 +166,8 @@ void Protocol::info(const std::string& str) const {
     out << std::format("info string {}", str) << '\n';
 }
 
-void Protocol::info(const uci::PV& pv) const {
-    out << std::format("info {}", pv) << '\n';
+void Protocol::info(const uci::SearchInfo& info) const {
+    out << std::format("info {}", format_search_info(info)) << '\n';
 }
 
 template <typename T>
@@ -119,6 +179,6 @@ template void Protocol::diagnostic_output(std::string& str) const;
 template void Protocol::diagnostic_output(std::string&& str) const;
 template void Protocol::diagnostic_output(Board& board) const;
 template void Protocol::diagnostic_output(EvaluatorDebug& evaluator) const;
-template void Protocol::diagnostic_output(SearchStats<>& evaluator) const;
+template void Protocol::diagnostic_output(SearchInstrumentation<>& evaluator) const;
 
-}; // namespace uci
+} // namespace uci

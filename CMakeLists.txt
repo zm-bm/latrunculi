@@ -22,10 +22,11 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/move.cpp
     src/move_picker.cpp
     src/movegen.cpp
+    src/root_line.cpp
     src/search.cpp
+    src/search_worker.cpp
     src/search_options.cpp
-    src/thread.cpp
-    src/thread_pool.cpp
+    src/threading.cpp
     src/tt.cpp
     src/uci.cpp
     src/zobrist.cpp
@@ -69,9 +70,9 @@ if(BUILD_TESTING)
         tests/score.test.cpp
         tests/search.test.cpp
         tests/search_options.test.cpp
-        tests/search_stats.test.cpp
-        tests/thread.test.cpp
-        tests/thread_pool.test.cpp
+        tests/search_instrumentation.test.cpp
+        tests/search_worker.test.cpp
+        tests/threading.test.cpp
         tests/tt.test.cpp
         tests/types.test.cpp
         tests/uci.test.cpp

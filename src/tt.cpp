@@ -105,14 +105,19 @@ void TT_Table::store(
         score -= ply;
 
     // replacement policy: prefer same key, then lowest replacement score
-    TT_Entry* target                   = &cluster.entries[0];
+    TT_Entry* target = &cluster.entries[0];
+    TT_Record target_record{};
     int       target_replacement_score = std::numeric_limits<int>::max();
     bool      target_is_same_key       = false;
 
     for (TT_Entry& entry : cluster.entries) {
         auto snapshot = load_snapshot(entry);
         if (snapshot && snapshot->key == zkey) {
+            if (flag != TT_Flag::Exact && depth + 2 < snapshot->record.depth)
+                return;
+
             target             = &entry;
+            target_record      = snapshot->record;
             target_is_same_key = true;
             break;
         }
@@ -124,6 +129,9 @@ void TT_Table::store(
             target_replacement_score = replacement_score;
         }
     }
+
+    if (target_is_same_key && move.is_null())
+        move = target_record.move;
 
     const TT_Record record{
         .move  = move,
