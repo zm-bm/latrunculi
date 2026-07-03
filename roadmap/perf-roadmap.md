@@ -4,9 +4,8 @@
 
 The reference audit found no open correctness blockers. This roadmap is the
 single durable backlog for measured engine-improvement work. Keep changes small
-enough to revert, compare fixed-depth and fixed-time evidence when search shape
-changes, and avoid importing reference-engine constants without local
-measurement.
+enough to revert, compare fixed-depth search evidence when search shape changes,
+and avoid importing reference-engine constants without local measurement.
 
 Current focus: P4 move-ordering heuristics. P3 search foundations are closed as
 the current search baseline for future tuning.
@@ -28,14 +27,12 @@ Performance gates when search shape, move ordering, pruning, TT behavior, or
 eval cost changes:
 
 ```bash
-python3 bench/bench.py run board-core --label board-core-smoke --profile smoke --repeats 3
-python3 bench/bench.py run perft --label perft-smoke --profile smoke --repeats 2
-python3 bench/bench.py run search-smoke --label search-smoke --profile smoke
-python3 bench/bench.py run direct-uci --label direct-uci-mid --profile mid
+python3 bench/bench.py run perft --profile smoke --label perft-smoke
+python3 bench/bench.py run search --depth 14 --threads 1 --label search-d14-t1
 python3 bench/bench.py compare <baseline-run-dir> <candidate-run-dir>
 ```
 
-Use `bench/bench.py` as the benchmark front door. C++ timed code remains
+Use `bench/bench.py` as the benchmark front door. C++ perft timing remains
 canonical in `bench/benchmark.cpp`; Python builds, runs, captures metadata, and
 compares run directories under:
 
@@ -47,11 +44,12 @@ scratch/bench-runs/<timestamp>-<label>/
   raw/
 ```
 
-Direct-UCI selections:
+Search benchmark:
 
-- `suite`: `startpos` plus five curated Arasan positions.
-- `arasan20-full`: all 200 rows from `bench/arasan20.epd`, excluding
-  `startpos`.
+- fixed six-position suite: `startpos` plus five curated Arasan positions;
+- caller chooses `--depth`;
+- caller may choose `--threads`, defaulting to `1`;
+- hash is fixed at `64 MiB`.
 
 Roadmap policy: keep the current durable baseline and the active backlog here.
 Intermediate experiment runs, rejected variants, and step-by-step implementation
@@ -62,10 +60,10 @@ history belong in commit history or scratch run directories, not in this file.
 | Task | Status | Key Result | Boundary |
 |---|---|---|---|
 | P0: Search-shape instrumentation | kept | Search stats are available behind stats builds. | Normal builds should stay free of stats output/cost. |
-| P1: Qsearch TT integration | kept | Non-PV qsearch-root TT probe/store reduced fixed-depth nodes/time and was fixed-time neutral. | Deeper qTT use, qTT move ordering, or TT static-eval payloads need separate evidence. |
+| P1: Qsearch TT integration | kept | Non-PV qsearch-root TT probe/store reduced fixed-depth nodes/time. | Deeper qTT use, qTT move ordering, or TT static-eval payloads need separate evidence. |
 | P2: Good enough move ordering | closed | Single owning staged `MovePicker` is accepted as the baseline. Closure stats show no obvious pathology. | Deeper ordering heuristics move to P4 or later. |
-| P2.5: Benchmark infrastructure | kept | `bench/bench.py` covers board-core, perft, search-smoke, direct-UCI, compare, and local cutechess match runs. | Use this before board, movegen, search, or eval performance work. |
-| P3: Search foundations | kept | Fail-soft alpha-beta, qsearch, root iterative deepening, TT, aspiration, PVS, null move, razoring/futility, and LMR are restored with focused tests and depth-10 evidence. | Treat this as the search baseline; future pruning or tuning changes need fresh fixed-depth and fixed-time evidence. |
+| P2.5: Benchmark infrastructure | kept | `bench/bench.py` covers search, perft, and compare runs. | Use this before board, movegen, search, or eval performance work. |
+| P3: Search foundations | kept | Fail-soft alpha-beta, qsearch, root iterative deepening, TT, aspiration, PVS, null move, razoring/futility, and LMR are restored with focused tests and depth-14 baseline evidence. | Treat this as the search baseline; future pruning or tuning changes need fresh fixed-depth search evidence. |
 
 ## Current P3 Search Baseline
 
@@ -80,32 +78,16 @@ Final S10 validation passed: release and stats focused
 passed `77/77`, full `ctest --preset release-dev` passed, benchmark parser
 compile passed, and `git diff --check` passed.
 
-Final fixed-depth depth-10 baseline:
-`scratch/bench-runs/20260703-112102-p3-final-fixeddepth-d10`. The six-position
-suite searched `1.002M` nodes in `558 ms`.
+Current search baselines:
+`scratch/bench-runs/20260703-115701-bench-cli-search-d12-t1` and
+`scratch/bench-runs/20260703-120344-bench-cli-search-d14-t1`. The depth-12,
+single-thread run searched `2.693M` nodes in `1633 ms`; the depth-14 run
+searched `8.881M` nodes in `5258 ms` and is the higher-confidence search check.
 
-Direct-UCI sanity:
-`scratch/bench-runs/20260703-112105-p3-final-smoke` and
-`scratch/bench-runs/20260703-112110-p3-final-mid`. The mid run averaged
-`4.889M` NPS, `7.338M` nodes, and depth `15.97`, compared with the P2 mid
-baseline's `4.594M` NPS, `6.896M` nodes, and depth `15.78`.
-
-Stats spot-check:
-`scratch/bench-runs/20260703-112213-p3-final-stats-arasan20-01-d10` reported
-`32409` LMR tries at `0.1%` re-searches, `5825` null tries at `71.5%` cutoffs,
-`1138` razor tries at `95.5%` cutoffs, `3301` futility skips, main TT
-`64.8%/37.7%` hit/cutoff, qsearch TT `23.4%/87.8%` hit/cutoff, and `63.4%`
-qnodes. Stats smoke:
-`scratch/bench-runs/20260703-112208-p3-final-stats`.
-
-## Board-Core Notes
-
-Board-core work should start from fresh board-core rows plus profiler data, not
-from broad make/unmake or legality-filter rewrites based on suspicion. The last
-kept board-core pass showed `MoveList::add` was worth simplifying, while
-isolated legality checks were not the standalone bottleneck. En passant and
-capture-promotion remain correctness-sensitive paths; only touch them with
-focused profiling and perft coverage.
+Current perft baseline:
+`scratch/bench-runs/20260703-115036-bench-cli-perft-standard`. Use perft for
+recursive move generation correctness and board make/unmake cost, and use search
+for engine behavior and search-shape comparisons.
 
 ## Active Backlog
 
@@ -131,15 +113,15 @@ unless a focused experiment proves a different shape is better. Avoid copying
 reference-engine constants; use Stockfish/Ethereal/Minic as shape references.
 
 Evidence: move-ordering tests, history/killer tests, beta-cutoff-by-index data,
-staged cutoff-source stats, fixed-depth search results, direct-UCI runs, and
-eventually local cutechess sanity matches.
+staged cutoff-source stats, search benchmark runs, and perft when movegen or
+make/unmake behavior is touched.
 
 Keep criteria: earlier cutoffs, fewer searched moves before beta, and neutral or
-better fixed-depth/fixed-time results.
+better fixed-depth search results.
 
 Revert criteria: larger state with no cutoff improvement, worse killer/history
 priority behavior, copied tuning constants, or a regression that only looks good
-under fixed-time but loses fixed-depth efficiency.
+in timing while losing fixed-depth efficiency.
 
 ## P5: UCI And Time Management
 
@@ -151,7 +133,7 @@ Scope: consider optimum/max-time budgeting, `go infinite`, `searchmoves`,
 specific lifecycle or compatibility evidence exists.
 
 Evidence: protocol/engine/thread tests, repeated lifecycle tests for threading
-changes, direct UCI smoke tests, and compatibility cases from real GUI use.
+changes, search smoke tests, and compatibility cases from real GUI use.
 
 Keep criteria: simpler or more reliable lifecycle behavior, better time use, or
 needed GUI compatibility without destabilizing async search.
