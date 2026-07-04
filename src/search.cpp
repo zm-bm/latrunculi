@@ -158,6 +158,8 @@ bool SearchWorker::search_root_depth(int depth, int previous_value) {
             // Window hit: accept and publish the completed depth.
             root_result = best_line;
             update_root_snapshot();
+            if (is_main_worker())
+                report_changed_search_info(root_result);
             return true;
         }
 
@@ -216,6 +218,9 @@ bool SearchWorker::search_root_window(int depth, int alpha, int beta) {
 
         if (value > alpha) {
             // A new root move improved alpha.
+            if (is_main_worker())
+                report_changed_search_info(line);
+
             alpha         = value;
             pv_move_found = true;
         } else if (move_count > 1 && pv_move_found && value == alpha && alpha > -INF_VALUE) {

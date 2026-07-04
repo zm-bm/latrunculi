@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <vector>
 
 #include "board.hpp"
@@ -64,6 +65,9 @@ private:
     mutable std::mutex root_snapshot_mutex;
     RootLine           root_result_snapshot;
 
+    // Search info reporting.
+    std::optional<RootLine> last_reported_root_line;
+
     // Search lifecycle.
     void     reset_search_state();
     void     prepare_shared_search_state();
@@ -74,6 +78,7 @@ private:
     bool     search_root_window(int depth, int alpha, int beta);
     void     record_root_result(int value);
     void     report_final_result();
+    void     report_changed_search_info(const RootLine& line);
 
     // Root snapshot publication.
     void clear_root_snapshot();

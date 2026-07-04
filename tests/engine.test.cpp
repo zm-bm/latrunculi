@@ -2,6 +2,7 @@
 
 #include <format>
 #include <sstream>
+#include <string_view>
 #include <thread>
 
 #include "test_util.hpp"
@@ -22,6 +23,19 @@ protected:
     bool        execute(const std::string& command) { return engine.execute(command); }
     Board&      board() { return engine.board; }
     ThreadPool& threadpool() { return engine.thread_pool; }
+
+    int count_output_lines_starting_with(std::string_view prefix) const {
+        std::istringstream lines{output.str()};
+        std::string        line;
+        int                count = 0;
+
+        while (std::getline(lines, line)) {
+            if (line.starts_with(prefix))
+                ++count;
+        }
+
+        return count;
+    }
 
     bool wait_for_busy(std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
         auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -55,6 +69,30 @@ TEST_F(EngineTest, GoAndStopCommands) {
     // Wait for threads to finish and check output for best move
     threadpool().wait();
     EXPECT_NE(output.str().find("bestmove"), std::string::npos);
+}
+
+TEST_F(EngineTest, GoDepthReportsEveryCompletedDepthBeforeBestmove) {
+    EXPECT_TRUE(execute("go depth 3"));
+    threadpool().wait();
+
+    const std::string transcript = output.str();
+    EXPECT_GE(count_output_lines_starting_with("info depth 1 "), 1) << transcript;
+    EXPECT_GE(count_output_lines_starting_with("info depth 2 "), 1) << transcript;
+    EXPECT_GE(count_output_lines_starting_with("info depth 3 "), 1) << transcript;
+    EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
+
+    const auto depth1   = transcript.find("info depth 1 ");
+    const auto depth2   = transcript.find("info depth 2 ");
+    const auto depth3   = transcript.find("info depth 3 ");
+    const auto bestmove = transcript.find("bestmove ");
+
+    ASSERT_NE(depth1, std::string::npos) << transcript;
+    ASSERT_NE(depth2, std::string::npos) << transcript;
+    ASSERT_NE(depth3, std::string::npos) << transcript;
+    ASSERT_NE(bestmove, std::string::npos) << transcript;
+    EXPECT_LT(depth1, depth2) << transcript;
+    EXPECT_LT(depth2, depth3) << transcript;
+    EXPECT_LT(depth3, bestmove) << transcript;
 }
 
 TEST_F(EngineTest, GoWhileSearchInProgressIsRejected) {

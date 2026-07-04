@@ -160,14 +160,17 @@ void Protocol::ready() const {
 
 void Protocol::bestmove(std::string move) const {
     out << std::format("bestmove {}", move) << '\n';
+    out.flush();
 }
 
 void Protocol::info(const std::string& str) const {
     out << std::format("info string {}", str) << '\n';
+    out.flush();
 }
 
 void Protocol::info(const uci::SearchInfo& info) const {
     out << std::format("info {}", format_search_info(info)) << '\n';
+    out.flush();
 }
 
 template <typename T>

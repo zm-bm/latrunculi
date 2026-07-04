@@ -68,6 +68,7 @@ if(BUILD_TESTING)
         tests/move_ordering.test.cpp
         tests/move_picker.test.cpp
         tests/movegen.test.cpp
+        tests/principal_variation.test.cpp
         tests/score.test.cpp
         tests/search.test.cpp
         tests/search_options.test.cpp

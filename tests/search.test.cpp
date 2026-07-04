@@ -3,6 +3,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
@@ -23,6 +24,20 @@
 namespace {
 
 constexpr auto AnyMove = "ANY";
+
+PrincipalVariation pv_for_move(Move move) {
+    PrincipalVariation pv;
+    PrincipalVariation child;
+    pv.update(move, child);
+    return pv;
+}
+
+PrincipalVariation pv_for_line(Move first, Move second) {
+    PrincipalVariation child = pv_for_move(second);
+    PrincipalVariation pv;
+    pv.update(first, child);
+    return pv;
+}
 
 } // namespace
 
@@ -92,6 +107,21 @@ protected:
     }
 
     int runWorkerSearch() { return worker->search(); }
+
+    void reportChangedSearchInfo(const RootLine& line) { worker->report_changed_search_info(line); }
+
+    int count_protocol_lines_starting_with(std::string_view prefix) const {
+        std::istringstream lines{protocol_out.str()};
+        std::string        line;
+        int                count = 0;
+
+        while (std::getline(lines, line)) {
+            if (line.starts_with(prefix))
+                ++count;
+        }
+
+        return count;
+    }
 
     template <typename Fn>
     auto withWorkerMove(Move move, Fn&& fn) {
@@ -1989,6 +2019,7 @@ TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
 
     std::stable_sort(mutableRootLines().begin(), mutableRootLines().end(), is_better_root_line);
     EXPECT_EQ(rootLines().front().root_move, best_move);
+    EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 2) << protocol_out.str();
 
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_GT(pvsResearchesAt(1), 0U);
@@ -2058,6 +2089,38 @@ TEST_F(SearchTest, RootSearchBuildsPrincipalVariationForRootLine) {
     EXPECT_EQ(rootPvSize(), 2);
 }
 
+TEST_F(SearchTest, SearchInfoReportingSuppressesOnlyIdenticalRootLines) {
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, 2);
+
+    RootLine line{
+        .root_move = Move(E2, E4),
+        .value     = 20,
+        .depth     = 1,
+        .completed = true,
+        .pv        = pv_for_move(Move(E2, E4)),
+    };
+
+    reportChangedSearchInfo(line);
+    reportChangedSearchInfo(line);
+    EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 1) << protocol_out.str();
+
+    RootLine score_changed = line;
+    score_changed.value    = 21;
+    reportChangedSearchInfo(score_changed);
+    EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 2) << protocol_out.str();
+
+    RootLine pv_changed = score_changed;
+    pv_changed.pv       = pv_for_line(Move(E2, E4), Move(E7, E5));
+    reportChangedSearchInfo(pv_changed);
+    EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 3) << protocol_out.str();
+
+    RootLine depth_changed = pv_changed;
+    depth_changed.depth    = 2;
+    reportChangedSearchInfo(depth_changed);
+    EXPECT_EQ(count_protocol_lines_starting_with("info depth 2 "), 1) << protocol_out.str();
+}
+
 TEST_F(SearchTest, RootAspirationWidensAfterFailHighAndCompletes) {
     TestBoard board{STARTFEN};
     loadWorkerBoard(board, 1);
@@ -2070,6 +2133,9 @@ TEST_F(SearchTest, RootAspirationWidensAfterFailHighAndCompletes) {
     EXPECT_GT(rootValue(), -950);
     ASSERT_FALSE(rootPvEmpty());
     EXPECT_EQ(rootPvFront(), rootMove());
+
+    const std::string transcript = protocol_out.str();
+    EXPECT_GE(count_protocol_lines_starting_with("info depth 1 "), 1) << transcript;
 
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_GT(aspirationFailHighs(), 0U);
@@ -2090,6 +2156,9 @@ TEST_F(SearchTest, RootAspirationWidensAfterFailLowAndCompletes) {
     EXPECT_LT(rootValue(), 950);
     ASSERT_FALSE(rootPvEmpty());
     EXPECT_EQ(rootPvFront(), rootMove());
+
+    const std::string transcript = protocol_out.str();
+    EXPECT_GE(count_protocol_lines_starting_with("info depth 1 "), 1) << transcript;
 
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_GT(aspirationFailLows(), 0U);
@@ -2119,6 +2188,10 @@ TEST_F(SearchTest, StoppedRootAspirationPreservesLastAcceptedRootSnapshot) {
     EXPECT_EQ(snapshot.pv.size(), accepted.pv.size());
     ASSERT_FALSE(snapshot.pv.empty());
     EXPECT_EQ(snapshot.pv.front(), accepted.root_move);
+
+    const std::string transcript = protocol_out.str();
+    EXPECT_GE(count_protocol_lines_starting_with("info depth 1 "), 1) << transcript;
+    EXPECT_EQ(count_protocol_lines_starting_with("info depth 2 "), 0) << transcript;
 }
 
 TEST_F(SearchTest, AlphaBetaLmrResearchesFullDepthWhenReducedSearchImprovesAlpha) {

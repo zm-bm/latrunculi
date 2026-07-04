@@ -73,6 +73,7 @@ void SearchWorker::reset_search_state() {
     ply         = 0;
     root_result = RootLine{NULL_MOVE, evaluate(board), 0, false};
     root_lines.clear();
+    last_reported_root_line.reset();
 
     ordering.clear();
 
@@ -128,13 +129,22 @@ void SearchWorker::report_final_result() {
 
     const RootLine selected = select_best_root_line(root_result, thread_pool.root_snapshots());
 
-    protocol.info(uci::make_search_info(selected, board, total_nodes(), runtime()));
+    report_changed_search_info(selected);
+
     protocol.bestmove(selected.root_move.str());
 
     if constexpr (SEARCH_STATS) {
         auto stats = thread_pool.aggregate_instrumentation();
         protocol.diagnostic_output(stats);
     }
+}
+
+void SearchWorker::report_changed_search_info(const RootLine& line) {
+    if (last_reported_root_line && line == *last_reported_root_line)
+        return;
+
+    protocol.info(uci::make_search_info(line, board, total_nodes(), runtime()));
+    last_reported_root_line = line;
 }
 
 // Accounting and limits.

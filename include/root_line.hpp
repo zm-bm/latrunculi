@@ -33,6 +33,8 @@ struct RootLine {
     bool has_completed_depth() const noexcept { return completed && depth > 0; }
     bool has_root_move() const noexcept { return !root_move.is_null(); }
     bool usable_root_move() const noexcept { return has_completed_depth() && has_root_move(); }
+
+    bool operator==(const RootLine& rhs) const noexcept = default;
 };
 
 bool is_better_root_line(const RootLine& candidate, const RootLine& current) noexcept;

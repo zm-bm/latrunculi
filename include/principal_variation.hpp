@@ -25,6 +25,13 @@ struct PrincipalVariation {
 
     PrincipalVariation& operator=(PrincipalVariation&& rhs) noexcept { return *this = rhs; }
 
+    bool operator==(const PrincipalVariation& rhs) const noexcept {
+        if (length != rhs.length)
+            return false;
+
+        return std::equal(moves.begin(), moves.begin() + length, rhs.moves.begin());
+    }
+
     void clear() noexcept { length = 0; }
     bool empty() const noexcept { return length == 0; }
     int  size() const noexcept { return length; }
