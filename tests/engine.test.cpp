@@ -289,6 +289,12 @@ TEST_F(EngineTest, MovesCommandFiltersIllegalPseudoLegalMoves) {
     EXPECT_EQ(output.str().find("e2a2"), std::string::npos) << output.str();
 }
 
+TEST_F(EngineTest, MoveCommandReportsInvalidMoveToken) {
+    EXPECT_TRUE(execute("move notamove"));
+
+    EXPECT_NE(output.str().find("invalid move: notamove"), std::string::npos) << output.str();
+}
+
 // setoption tests
 
 struct SetOptionCase {
