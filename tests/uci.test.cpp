@@ -2,6 +2,7 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <variant>
 
 #include "root_line.hpp"
 #include "test_util.hpp"
@@ -22,6 +23,13 @@ PrincipalVariation pv_for_line(Move first, Move second) {
     PrincipalVariation pv;
     pv.update(first, child);
     return pv;
+}
+
+template <typename T>
+T parse_as(std::string_view line) {
+    auto command = uci::parse_command(line);
+    EXPECT_TRUE(std::holds_alternative<T>(command));
+    return std::get<T>(command);
 }
 
 } // namespace
@@ -222,4 +230,78 @@ TEST_F(ProtocolTest, DebugOutput) {
     std::string logMessage = "This is a log message";
     protocol.debug(logMessage);
     EXPECT_EQ(err.str(), logMessage + "\n");
+}
+
+TEST(UciCommandParserTest, ParsesCoreUciCommands) {
+    EXPECT_TRUE(std::holds_alternative<uci::UciCommand>(uci::parse_command("uci")));
+    EXPECT_TRUE(std::holds_alternative<uci::DebugCommand>(uci::parse_command("debug on")));
+    EXPECT_TRUE(std::holds_alternative<uci::IsReadyCommand>(uci::parse_command("isready")));
+    EXPECT_TRUE(std::holds_alternative<uci::SetOptionCommand>(
+        uci::parse_command("setoption name Hash value 32")));
+    EXPECT_TRUE(std::holds_alternative<uci::NewGameCommand>(uci::parse_command("ucinewgame")));
+    EXPECT_TRUE(
+        std::holds_alternative<uci::PositionCommand>(uci::parse_command("position startpos")));
+    EXPECT_TRUE(std::holds_alternative<uci::GoCommand>(uci::parse_command("go depth 3")));
+    EXPECT_TRUE(std::holds_alternative<uci::StopCommand>(uci::parse_command("stop")));
+    EXPECT_TRUE(std::holds_alternative<uci::PonderHitCommand>(uci::parse_command("ponderhit")));
+    EXPECT_TRUE(std::holds_alternative<uci::QuitCommand>(uci::parse_command("quit")));
+    EXPECT_TRUE(std::holds_alternative<uci::ExitCommand>(uci::parse_command("exit")));
+    EXPECT_TRUE(std::holds_alternative<uci::EmptyCommand>(uci::parse_command(" \t ")));
+}
+
+TEST(UciCommandParserTest, ParsesSetOptionNameAndValueWithSpaces) {
+    const auto command =
+        parse_as<uci::SetOptionCommand>("setoption name Clear Hash value reset now");
+
+    EXPECT_EQ(command.name, "Clear Hash");
+    EXPECT_TRUE(command.has_value);
+    EXPECT_EQ(command.value, "reset now");
+}
+
+TEST(UciCommandParserTest, ParsesSetOptionButtonWithoutValue) {
+    const auto command = parse_as<uci::SetOptionCommand>("setoption name Clear Hash");
+
+    EXPECT_EQ(command.name, "Clear Hash");
+    EXPECT_FALSE(command.has_value);
+    EXPECT_TRUE(command.value.empty());
+}
+
+TEST(UciCommandParserTest, ParsesPositionStartposMoves) {
+    const auto command = parse_as<uci::PositionCommand>("\tposition\tstartpos\tmoves\te2e4 e7e5 ");
+
+    EXPECT_EQ(command.source, uci::PositionCommand::Source::Startpos);
+    EXPECT_EQ(command.fen, Board::startfen);
+    ASSERT_EQ(command.moves.size(), 2U);
+    EXPECT_EQ(command.moves[0], "e2e4");
+    EXPECT_EQ(command.moves[1], "e7e5");
+}
+
+TEST(UciCommandParserTest, ParsesPositionFenMoves) {
+    const auto command =
+        parse_as<uci::PositionCommand>("position fen 8/8/8/8/8/8/8/8 w - - 0 1 moves a1a2");
+
+    EXPECT_EQ(command.source, uci::PositionCommand::Source::Fen);
+    EXPECT_EQ(command.fen, "8/8/8/8/8/8/8/8 w - - 0 1");
+    ASSERT_EQ(command.moves.size(), 1U);
+    EXPECT_EQ(command.moves[0], "a1a2");
+}
+
+TEST(UciCommandParserTest, KeepsGoArgumentsForSearchOptionConversion) {
+    const auto command =
+        parse_as<uci::GoCommand>("go depth 3 movetime 20 nodes 1000 unknown token");
+
+    EXPECT_EQ(command.arguments, "depth 3 movetime 20 nodes 1000 unknown token");
+}
+
+TEST(UciCommandParserTest, SeparatesConsoleCommandsFromUciCommands) {
+    const auto command = parse_as<uci::ConsoleCommand>("perft 3");
+
+    EXPECT_EQ(command.name, uci::ConsoleCommand::Name::Perft);
+    EXPECT_EQ(command.arguments, "3");
+}
+
+TEST(UciCommandParserTest, ParsesUnknownCommand) {
+    const auto command = parse_as<uci::UnknownCommand>("notacommand arg");
+
+    EXPECT_EQ(command.token, "notacommand");
 }

@@ -9,11 +9,113 @@
 #include <cctype>
 #include <cstdlib>
 #include <format>
+#include <sstream>
 #include <utility>
 
 namespace uci {
 
 namespace {
+
+std::vector<std::string> tokenize(std::string_view line) {
+    std::istringstream       stream{std::string(line)};
+    std::vector<std::string> tokens;
+    std::string              token;
+
+    while (stream >> token)
+        tokens.push_back(token);
+
+    return tokens;
+}
+
+std::string join_tokens(const std::vector<std::string>& tokens, size_t first) {
+    std::string joined;
+    for (size_t i = first; i < tokens.size(); ++i) {
+        if (!joined.empty())
+            joined += ' ';
+        joined += tokens[i];
+    }
+    return joined;
+}
+
+SetOptionCommand parse_setoption_command(const std::vector<std::string>& tokens) {
+    SetOptionCommand command;
+
+    bool in_name  = false;
+    bool in_value = false;
+
+    for (size_t i = 1; i < tokens.size(); ++i) {
+        const std::string& token = tokens[i];
+
+        if (token == "name") {
+            in_name  = true;
+            in_value = false;
+            continue;
+        }
+        if (token == "value") {
+            command.has_value = true;
+            in_name           = false;
+            in_value          = true;
+            continue;
+        }
+
+        if (in_name) {
+            if (!command.name.empty())
+                command.name += ' ';
+            command.name += token;
+        } else if (in_value) {
+            if (!command.value.empty())
+                command.value += ' ';
+            command.value += token;
+        }
+    }
+
+    return command;
+}
+
+PositionCommand parse_position_command(const std::vector<std::string>& tokens) {
+    PositionCommand command;
+
+    bool in_fen   = false;
+    bool in_moves = false;
+
+    for (size_t i = 1; i < tokens.size(); ++i) {
+        const std::string& token = tokens[i];
+
+        if (token == "startpos") {
+            command.source = PositionCommand::Source::Startpos;
+            command.fen    = Board::startfen;
+            in_fen         = false;
+            in_moves       = false;
+            continue;
+        }
+        if (token == "fen") {
+            command.source = PositionCommand::Source::Fen;
+            command.fen.clear();
+            in_fen   = true;
+            in_moves = false;
+            continue;
+        }
+        if (token == "moves") {
+            in_fen   = false;
+            in_moves = true;
+            continue;
+        }
+
+        if (in_fen) {
+            if (!command.fen.empty())
+                command.fen += ' ';
+            command.fen += token;
+        } else if (in_moves) {
+            command.moves.push_back(token);
+        }
+    }
+
+    return command;
+}
+
+ConsoleCommand console_command(ConsoleCommand::Name name, const std::vector<std::string>& tokens) {
+    return ConsoleCommand{.name = name, .arguments = join_tokens(tokens, 1)};
+}
 
 std::string format_search_info_fields(const SearchInfo& info) {
     return std::format("depth {} score {} nodes {} time {} nps {} pv {}",
@@ -49,6 +151,51 @@ std::string format_root_pv(const RootLine& line, const Board& root_board) {
 }
 
 } // namespace
+
+Command parse_command(std::string_view line) {
+    const auto tokens = tokenize(line);
+    if (tokens.empty())
+        return EmptyCommand{};
+
+    const std::string& command = tokens.front();
+
+    if (command == "uci")
+        return UciCommand{};
+    if (command == "debug")
+        return DebugCommand{.value = tokens.size() > 1 ? tokens[1] : ""};
+    if (command == "isready")
+        return IsReadyCommand{};
+    if (command == "setoption")
+        return parse_setoption_command(tokens);
+    if (command == "ucinewgame")
+        return NewGameCommand{};
+    if (command == "position")
+        return parse_position_command(tokens);
+    if (command == "go")
+        return GoCommand{.arguments = join_tokens(tokens, 1)};
+    if (command == "stop")
+        return StopCommand{};
+    if (command == "ponderhit")
+        return PonderHitCommand{};
+    if (command == "quit")
+        return QuitCommand{};
+    if (command == "exit")
+        return ExitCommand{};
+    if (command == "help")
+        return console_command(ConsoleCommand::Name::Help, tokens);
+    if (command == "board")
+        return console_command(ConsoleCommand::Name::Board, tokens);
+    if (command == "eval")
+        return console_command(ConsoleCommand::Name::Eval, tokens);
+    if (command == "move")
+        return console_command(ConsoleCommand::Name::Move, tokens);
+    if (command == "moves")
+        return console_command(ConsoleCommand::Name::Moves, tokens);
+    if (command == "perft")
+        return console_command(ConsoleCommand::Name::Perft, tokens);
+
+    return UnknownCommand{.token = command};
+}
 
 std::string format_uci_move(Move move) {
     return move.is_null() ? "0000" : move.str();

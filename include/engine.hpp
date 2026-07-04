@@ -2,10 +2,7 @@
 
 #include <cstddef>
 #include <deque>
-#include <functional>
-#include <sstream>
 #include <string>
-#include <unordered_map>
 
 #include "board.hpp"
 #include "threading.hpp"
@@ -17,34 +14,33 @@ public:
     Engine(std::ostream& out, std::ostream& err, std::istream& in);
     void loop();
 
-    using Command    = std::function<bool(std::istringstream&)>;
-    using CommandMap = std::unordered_map<std::string, Command>;
-
 private:
     bool execute(const std::string&) noexcept;
+    bool dispatch(const uci::Command& command);
 
     // UCI commands
-    bool uci(std::istringstream& iss);
-    bool set_debug(std::istringstream& iss);
-    bool is_ready(std::istringstream& iss);
-    bool set_option(std::istringstream& iss);
-    bool new_game(std::istringstream& iss);
-    bool position(std::istringstream& iss);
-    bool go(std::istringstream& iss);
-    bool stop(std::istringstream& iss);
-    bool quit(std::istringstream& iss);
-    bool ponder_hit(std::istringstream& iss);
+    bool uci(const uci::UciCommand&);
+    bool set_debug(const uci::DebugCommand& command);
+    bool is_ready(const uci::IsReadyCommand&);
+    bool set_option(const uci::SetOptionCommand& command);
+    bool new_game(const uci::NewGameCommand&);
+    bool position(const uci::PositionCommand& command);
+    bool go(const uci::GoCommand& command);
+    bool stop(const uci::StopCommand&);
+    bool quit(const uci::QuitCommand&);
+    bool ponder_hit(const uci::PonderHitCommand&);
+    bool exit(const uci::ExitCommand& command);
+    bool unknown(const uci::UnknownCommand& command);
+    bool empty(const uci::EmptyCommand&);
 
     // Non-UCI commands
-    bool help(std::istringstream& iss);
-    bool display_board(std::istringstream& iss);
-    bool evaluate(std::istringstream& iss);
-    bool perft(std::istringstream& iss);
-    bool move(std::istringstream& iss);
-    bool moves(std::istringstream& iss);
-
-    std::pair<std::string, std::string> parse_position(std::istringstream& iss);
-    std::pair<std::string, std::string> parse_option(std::istringstream& iss);
+    bool console(const uci::ConsoleCommand& command);
+    bool help();
+    bool display_board();
+    bool evaluate();
+    bool perft(const std::string& arguments);
+    bool move(const std::string& arguments);
+    bool moves();
 
     Move           get_move(const std::string& token);
     PositionState& next_position_state();
@@ -61,7 +57,6 @@ private:
     size_t                    position_ply    = 0;
     Board                     board;
     ThreadPool                thread_pool;
-    CommandMap                command_map;
 
     friend class EngineTest;
     friend class Benchmark;

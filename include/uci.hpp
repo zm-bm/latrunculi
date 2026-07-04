@@ -5,6 +5,8 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <variant>
+#include <vector>
 
 #include "defs.hpp"
 #include "move.hpp"
@@ -66,6 +68,59 @@ struct SearchInfo {
     std::string score_text() const;
     std::string nps_text() const;
 };
+
+struct EmptyCommand {};
+struct UciCommand {};
+struct DebugCommand {
+    std::string value;
+};
+struct IsReadyCommand {};
+struct SetOptionCommand {
+    std::string name;
+    std::string value;
+    bool        has_value{false};
+};
+struct NewGameCommand {};
+struct PositionCommand {
+    enum class Source { Invalid, Startpos, Fen };
+
+    Source                   source{Source::Invalid};
+    std::string              fen;
+    std::vector<std::string> moves;
+};
+struct GoCommand {
+    std::string arguments;
+};
+struct StopCommand {};
+struct PonderHitCommand {};
+struct QuitCommand {};
+struct ExitCommand {};
+struct ConsoleCommand {
+    enum class Name { Help, Board, Eval, Move, Moves, Perft };
+
+    Name        name;
+    std::string arguments;
+};
+struct UnknownCommand {
+    std::string token;
+};
+
+using Command = std::variant<EmptyCommand,
+                             UciCommand,
+                             DebugCommand,
+                             IsReadyCommand,
+                             SetOptionCommand,
+                             NewGameCommand,
+                             PositionCommand,
+                             GoCommand,
+                             StopCommand,
+                             PonderHitCommand,
+                             QuitCommand,
+                             ExitCommand,
+                             ConsoleCommand,
+                             UnknownCommand>;
+
+Command parse_command(std::string_view line);
 
 SearchInfo
 make_search_info(const RootLine& line, const Board& root_board, uint64_t nodes, Milliseconds time);
