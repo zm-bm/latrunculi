@@ -193,14 +193,14 @@ bool Engine::help(std::istringstream& iss) {
 }
 
 bool Engine::display_board(std::istringstream& iss) {
-    protocol.diagnostic_output(board);
+    protocol.debug(board);
     return true;
 }
 
 bool Engine::evaluate(std::istringstream& iss) {
     EvaluatorDebug e{board};
     e.evaluate();
-    protocol.diagnostic_output(e);
+    protocol.debug(e);
     return true;
 }
 
@@ -226,7 +226,7 @@ bool Engine::moves(std::istringstream& iss) {
     for (auto& move : movelist) {
         if (!board.is_legal_generated_move(move))
             continue;
-        protocol.diagnostic_output(move.str());
+        protocol.debug(move.str());
     }
     return true;
 }

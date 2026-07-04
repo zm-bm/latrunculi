@@ -15,16 +15,7 @@ namespace uci {
 
 namespace {
 
-std::string format_option(const SpinOption& opt) {
-    return std::format(
-        "type spin default {} min {} max {}", opt.def_value, opt.min_value, opt.max_value);
-}
-
-std::string format_option(const CheckOption& opt) {
-    return std::format("type check default {}", opt.def_value ? "true" : "false");
-}
-
-std::string format_search_info(const SearchInfo& info) {
+std::string format_search_info_fields(const SearchInfo& info) {
     return std::format("depth {} score {} nodes {} time {} nps {} pv {}",
                        info.depth,
                        info.score_text(),
@@ -58,6 +49,52 @@ std::string format_root_pv(const RootLine& line, const Board& root_board) {
 }
 
 } // namespace
+
+std::string format_uci_move(Move move) {
+    return move.is_null() ? "0000" : move.str();
+}
+
+std::string format_option(std::string_view name, const SpinOption& opt) {
+    return std::format("option name {} type spin default {} min {} max {}",
+                       name,
+                       opt.def_value,
+                       opt.min_value,
+                       opt.max_value);
+}
+
+std::string format_option(std::string_view name, const CheckOption& opt) {
+    return std::format(
+        "option name {} type check default {}", name, opt.def_value ? "true" : "false");
+}
+
+std::string format_identification(const uci::Config& config) {
+    return std::format("id name Latrunculi {}\n"
+                       "id author Eric VanderHelm\n"
+                       "{}\n"
+                       "{}\n"
+                       "{}\n"
+                       "uciok",
+                       LATRUNCULI_VERSION,
+                       format_option("Hash", config.hash),
+                       format_option("Threads", config.threads),
+                       format_option("Debug", config.debug));
+}
+
+std::string format_ready() {
+    return "readyok";
+}
+
+std::string format_bestmove(Move move) {
+    return std::format("bestmove {}", format_uci_move(move));
+}
+
+std::string format_info(const uci::SearchInfo& info) {
+    return std::format("info {}", format_search_info_fields(info));
+}
+
+std::string format_info_string(std::string_view str) {
+    return std::format("info string {}", str);
+}
 
 void SpinOption::set(std::string value_str) {
     size_t pos = 0;
@@ -139,49 +176,39 @@ For UCI protocol details, see: https://www.wbec-ridderkerk.nl/html/UCIProtocol.h
 }
 
 void Protocol::identify(const uci::Config& config) const {
-    constexpr auto format_str = R"(
-id name Latrunculi {}
-id author Eric VanderHelm
-option name Hash {}
-option name Threads {}
-option name Debug {}
-uciok)";
-    out << std::format(format_str,
-                       LATRUNCULI_VERSION,
-                       format_option(config.hash),
-                       format_option(config.threads),
-                       format_option(config.debug))
-        << '\n';
+    out << format_identification(config) << '\n';
+    out.flush();
 }
 
 void Protocol::ready() const {
-    out << "readyok\n";
+    out << format_ready() << '\n';
+    out.flush();
 }
 
-void Protocol::bestmove(std::string move) const {
-    out << std::format("bestmove {}", move) << '\n';
+void Protocol::bestmove(Move move) const {
+    out << format_bestmove(move) << '\n';
     out.flush();
 }
 
 void Protocol::info(const std::string& str) const {
-    out << std::format("info string {}", str) << '\n';
+    out << format_info_string(str) << '\n';
     out.flush();
 }
 
 void Protocol::info(const uci::SearchInfo& info) const {
-    out << std::format("info {}", format_search_info(info)) << '\n';
+    out << format_info(info) << '\n';
     out.flush();
 }
 
 template <typename T>
-void Protocol::diagnostic_output(T&& obj) const {
+void Protocol::debug(T&& obj) const {
     err << std::format("{}", std::forward<T>(obj)) << '\n';
 }
 
-template void Protocol::diagnostic_output(std::string& str) const;
-template void Protocol::diagnostic_output(std::string&& str) const;
-template void Protocol::diagnostic_output(Board& board) const;
-template void Protocol::diagnostic_output(EvaluatorDebug& evaluator) const;
-template void Protocol::diagnostic_output(SearchInstrumentation<>& evaluator) const;
+template void Protocol::debug(std::string& str) const;
+template void Protocol::debug(std::string&& str) const;
+template void Protocol::debug(Board& board) const;
+template void Protocol::debug(EvaluatorDebug& evaluator) const;
+template void Protocol::debug(SearchInstrumentation<>& evaluator) const;
 
 } // namespace uci

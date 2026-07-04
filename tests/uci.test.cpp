@@ -76,9 +76,18 @@ TEST_F(ProtocolTest, Ready) {
 }
 
 TEST_F(ProtocolTest, Bestmove) {
-    std::string move = "e2e4";
+    Move move{E2, E4};
     protocol.bestmove(move);
     EXPECT_EQ(oss.str(), "bestmove e2e4\n");
+}
+
+TEST_F(ProtocolTest, BestmoveFormatsNullMoveAsUciNullMove) {
+    protocol.bestmove(NULL_MOVE);
+    EXPECT_EQ(oss.str(), "bestmove 0000\n");
+}
+
+TEST_F(ProtocolTest, FormatBestmoveFormatsNullMoveAsUciNullMove) {
+    EXPECT_EQ(uci::format_bestmove(NULL_MOVE), "bestmove 0000");
 }
 
 TEST_F(ProtocolTest, InfoSearchInfo) {
@@ -111,6 +120,23 @@ TEST_F(ProtocolTest, InfoMate) {
 
     EXPECT_NE(oss.str().find("depth 10"), std::string::npos);
     EXPECT_NE(oss.str().find("score mate 2"), std::string::npos);
+    EXPECT_NE(oss.str().find("nps 10"), std::string::npos);
+    EXPECT_NE(oss.str().find("pv e2e4 e7e5"), std::string::npos);
+}
+
+TEST_F(ProtocolTest, InfoNegativeMate) {
+    uci::SearchInfo info{
+        .score = -(MATE_VALUE - 4),
+        .depth = 10,
+        .nodes = 1000,
+        .time  = Milliseconds{100},
+        .pv    = "e2e4 e7e5",
+    };
+
+    protocol.info(info);
+
+    EXPECT_NE(oss.str().find("depth 10"), std::string::npos);
+    EXPECT_NE(oss.str().find("score mate -2"), std::string::npos);
     EXPECT_NE(oss.str().find("nps 10"), std::string::npos);
     EXPECT_NE(oss.str().find("pv e2e4 e7e5"), std::string::npos);
 }
@@ -192,8 +218,8 @@ TEST_F(ProtocolTest, InfoString) {
     EXPECT_NE(oss.str().find(info), std::string::npos);
 }
 
-TEST_F(ProtocolTest, LogOutput) {
+TEST_F(ProtocolTest, DebugOutput) {
     std::string logMessage = "This is a log message";
-    protocol.diagnostic_output(logMessage);
+    protocol.debug(logMessage);
     EXPECT_EQ(err.str(), logMessage + "\n");
 }

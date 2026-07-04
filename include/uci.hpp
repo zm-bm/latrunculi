@@ -4,8 +4,10 @@
 #include <functional>
 #include <ostream>
 #include <string>
+#include <string_view>
 
 #include "defs.hpp"
+#include "move.hpp"
 
 class Board;
 struct RootLine;
@@ -68,6 +70,16 @@ struct SearchInfo {
 SearchInfo
 make_search_info(const RootLine& line, const Board& root_board, uint64_t nodes, Milliseconds time);
 
+std::string format_uci_move(Move move);
+std::string format_option(std::string_view name, const SpinOption& opt);
+std::string format_option(std::string_view name, const CheckOption& opt);
+std::string format_identification(const uci::Config& config);
+std::string format_ready();
+std::string format_bestmove(Move move);
+std::string format_info(const uci::SearchInfo& info);
+std::string format_info_string(std::string_view str);
+
+// Stateless writer for UCI stdout lines and local debug-console stderr output.
 class Protocol {
 public:
     explicit Protocol(std::ostream& out, std::ostream& err) : out(out), err(err) {}
@@ -75,12 +87,12 @@ public:
     void help() const;
     void identify(const uci::Config& config) const;
     void ready() const;
-    void bestmove(std::string move) const;
+    void bestmove(Move move) const;
     void info(const uci::SearchInfo& info) const;
     void info(const std::string& str) const;
 
     template <typename T>
-    void diagnostic_output(T&& obj) const;
+    void debug(T&& obj) const;
 
 private:
     std::ostream& out;

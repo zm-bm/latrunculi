@@ -163,7 +163,7 @@ TEST_F(EngineTest, SearchDoesNotReuseStaleBestMoveWhenNoLegalMoves) {
     EXPECT_TRUE(execute("go depth 1"));
     threadpool().wait();
 
-    EXPECT_NE(output.str().find("bestmove none"), std::string::npos) << output.str();
+    EXPECT_NE(output.str().find("bestmove 0000"), std::string::npos) << output.str();
     EXPECT_EQ(output.str().find("bestmove e2e4"), std::string::npos) << output.str();
 }
 

@@ -131,11 +131,11 @@ void SearchWorker::report_final_result() {
 
     report_changed_search_info(selected);
 
-    protocol.bestmove(selected.root_move.str());
+    protocol.bestmove(selected.root_move);
 
     if constexpr (SEARCH_STATS) {
         auto stats = thread_pool.aggregate_instrumentation();
-        protocol.diagnostic_output(stats);
+        protocol.debug(stats);
     }
 }
 
