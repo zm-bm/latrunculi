@@ -48,6 +48,7 @@ private:
     void           reset_board(const std::string& fen);
     void           make_board_move(Move move);
     void           unmake_board_move();
+    void           apply_option_side_effect(uci::ConfigOption option);
 
     std::ostream&             out;
     std::ostream&             err;

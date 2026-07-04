@@ -343,24 +343,22 @@ void CheckOption::set(std::string val_str) {
     }
 }
 
-void Config::set_option(const std::string& name, const std::string& value) {
+ConfigOption Config::set_option(const std::string& name, const std::string& value) {
     const std::string option_name = lower_ascii(name);
 
     if (option_name == "hash") {
         hash.set(value);
-        if (hash_callback)
-            hash_callback(hash.value);
+        return ConfigOption::Hash;
     } else if (option_name == "threads") {
         threads.set(value);
-        if (thread_callback)
-            thread_callback(threads.value);
+        return ConfigOption::Threads;
     } else if (option_name == "debug") {
         debug.set(value);
+        return ConfigOption::Debug;
     } else if (option_name == "clear hash") {
         if (!value.empty())
             throw std::invalid_argument("Clear Hash does not take a value");
-        if (clear_hash_callback)
-            clear_hash_callback();
+        return ConfigOption::ClearHash;
     } else {
         throw std::invalid_argument("Unknown UCI option: " + name);
     }

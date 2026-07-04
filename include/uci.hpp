@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <functional>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -35,6 +34,8 @@ struct CheckOption {
 
 struct ButtonOption {};
 
+enum class ConfigOption { Hash, Threads, Debug, ClearHash };
+
 struct Config {
     SpinOption hash = {
         .value     = DEFAULT_HASH,
@@ -57,11 +58,7 @@ struct Config {
 
     ButtonOption clear_hash;
 
-    std::function<void(int)> hash_callback;
-    std::function<void(int)> thread_callback;
-    std::function<void()>    clear_hash_callback;
-
-    void set_option(const std::string& name, const std::string& value);
+    ConfigOption set_option(const std::string& name, const std::string& value);
 };
 
 struct SearchInfo {

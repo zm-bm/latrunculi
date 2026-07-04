@@ -46,9 +46,6 @@ Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
       err(err),
       in(in),
       protocol(out, err),
-      config({.hash_callback       = [this](int value) { tt.resize(value); },
-              .thread_callback     = [this](int value) { thread_pool.resize(value); },
-              .clear_hash_callback = [] { tt.clear(); }}),
       position_states{PositionState()},
       position_ply(0),
       board(position_states.front(), Board::startfen),
@@ -81,6 +78,15 @@ void Engine::unmake_board_move() {
 
     board.unmake(position_states[position_ply - 1]);
     --position_ply;
+}
+
+void Engine::apply_option_side_effect(uci::ConfigOption option) {
+    switch (option) {
+    case uci::ConfigOption::Hash:      tt.resize(config.hash.value); break;
+    case uci::ConfigOption::Threads:   thread_pool.resize(config.threads.value); break;
+    case uci::ConfigOption::Debug:     break;
+    case uci::ConfigOption::ClearHash: tt.clear(); break;
+    }
 }
 
 void Engine::loop() {
@@ -147,7 +153,7 @@ bool Engine::uci(const uci::UciCommand&) {
 }
 
 bool Engine::set_debug(const uci::DebugCommand& command) {
-    config.set_option("Debug", command.value);
+    apply_option_side_effect(config.set_option("Debug", command.value));
     return true;
 }
 
@@ -162,7 +168,7 @@ bool Engine::set_option(const uci::SetOptionCommand& command) {
 
     if (command.name.empty())
         throw std::runtime_error("missing option name");
-    config.set_option(command.name, command.value);
+    apply_option_side_effect(config.set_option(command.name, command.value));
     return true;
 }
 

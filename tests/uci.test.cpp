@@ -60,26 +60,22 @@ TEST_F(ProtocolTest, Identify) {
     EXPECT_NE(oss.str().find("option name Debug type check default false"), std::string::npos);
 }
 
-TEST_F(ProtocolTest, ConfigSetOptionWorksWithoutCallbacks) {
+TEST_F(ProtocolTest, ConfigSetOptionUpdatesValuesAndReturnsOption) {
     uci::Config config;
 
-    EXPECT_NO_THROW(config.set_option("hash", "16"));
-    EXPECT_NO_THROW(config.set_option("THREADS", "2"));
-    EXPECT_NO_THROW(config.set_option("dEbUg", "ON"));
+    EXPECT_EQ(config.set_option("hash", "16"), uci::ConfigOption::Hash);
+    EXPECT_EQ(config.set_option("THREADS", "2"), uci::ConfigOption::Threads);
+    EXPECT_EQ(config.set_option("dEbUg", "ON"), uci::ConfigOption::Debug);
 
     EXPECT_EQ(config.hash.value, 16);
     EXPECT_EQ(config.threads.value, 2);
     EXPECT_TRUE(config.debug.value);
 }
 
-TEST_F(ProtocolTest, ConfigClearHashButtonCallsCallbackWithoutValue) {
+TEST_F(ProtocolTest, ConfigClearHashButtonReturnsButtonOptionWithoutValue) {
     uci::Config config;
-    bool        called         = false;
-    config.clear_hash_callback = [&] { called = true; };
 
-    EXPECT_NO_THROW(config.set_option("clear hash", ""));
-
-    EXPECT_TRUE(called);
+    EXPECT_EQ(config.set_option("clear hash", ""), uci::ConfigOption::ClearHash);
 }
 
 TEST_F(ProtocolTest, ConfigRejectsMalformedOptionValues) {
