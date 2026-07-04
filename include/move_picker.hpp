@@ -8,18 +8,18 @@
 class Board;
 class KillerMoves;
 class MoveList;
-struct HistoryTable;
+struct QuietHistory;
 
 class MovePicker {
 public:
     static MovePicker main_search(const Board&        board,
                                   const KillerMoves&  killers,
-                                  const HistoryTable& history,
+                                  const QuietHistory& history,
                                   int                 ply,
                                   Move                tt_move = NULL_MOVE);
 
     static MovePicker
-    qsearch(const Board& board, const HistoryTable& history, Move tt_move = NULL_MOVE);
+    qsearch(const Board& board, const QuietHistory& history, Move tt_move = NULL_MOVE);
 
     MovePicker(const MovePicker&)            = delete;
     MovePicker(MovePicker&&)                 = delete;
@@ -69,7 +69,7 @@ private:
     };
 
     MovePicker(const Board&        board,
-               const HistoryTable& history,
+               const QuietHistory& history,
                Mode                mode,
                Move                tt_move,
                Move                killer_1,
@@ -92,7 +92,7 @@ private:
     Move pick(ScoredBand& band);
 
     const Board&                      board;
-    const HistoryTable&               history;
+    const QuietHistory&               history;
     Move                              tt_move{NULL_MOVE};
     const Mode                        mode;
     const bool                        in_check;

@@ -53,6 +53,10 @@ struct SearchCounters<true> {
     StatsArray futility_skips{0};
     StatsArray lmr_tries{0};
     StatsArray lmr_researches{0};
+    StatsArray quiet_cutoffs{0};
+    StatsArray quiet_malus_eligible_nodes{0};
+    StatsArray quiet_malus_failed_quiets{0};
+    StatsArray quiet_malus_updates{0};
 
     uint64_t aspiration_fail_lows{0};
     uint64_t aspiration_fail_highs{0};
@@ -83,6 +87,10 @@ struct SearchCounters<true> {
         futility_skips.fill(0);
         lmr_tries.fill(0);
         lmr_researches.fill(0);
+        quiet_cutoffs.fill(0);
+        quiet_malus_eligible_nodes.fill(0);
+        quiet_malus_failed_quiets.fill(0);
+        quiet_malus_updates.fill(0);
         aspiration_fail_lows  = 0;
         aspiration_fail_highs = 0;
         aspiration_researches = 0;
@@ -90,30 +98,34 @@ struct SearchCounters<true> {
 
     SearchCounters& operator+=(const SearchCounters& other) {
         for (size_t i = 0; i < MAX_SEARCH_PLY; ++i) {
-            nodes[i]               += other.nodes[i];
-            qnodes[i]              += other.qnodes[i];
-            cutoffs[i]             += other.cutoffs[i];
-            fail_high_early[i]     += other.fail_high_early[i];
-            fail_high_late[i]      += other.fail_high_late[i];
-            cutoff_index_sum[i]    += other.cutoff_index_sum[i];
-            cutoff_index_1[i]      += other.cutoff_index_1[i];
-            cutoff_index_2[i]      += other.cutoff_index_2[i];
-            cutoff_index_3_4[i]    += other.cutoff_index_3_4[i];
-            cutoff_index_5_plus[i] += other.cutoff_index_5_plus[i];
-            pvs_researches[i]      += other.pvs_researches[i];
-            main_tt_probes[i]      += other.main_tt_probes[i];
-            main_tt_hits[i]        += other.main_tt_hits[i];
-            main_tt_cutoffs[i]     += other.main_tt_cutoffs[i];
-            q_tt_probes[i]         += other.q_tt_probes[i];
-            q_tt_hits[i]           += other.q_tt_hits[i];
-            q_tt_cutoffs[i]        += other.q_tt_cutoffs[i];
-            null_move_tries[i]     += other.null_move_tries[i];
-            null_move_cutoffs[i]   += other.null_move_cutoffs[i];
-            razor_tries[i]         += other.razor_tries[i];
-            razor_cutoffs[i]       += other.razor_cutoffs[i];
-            futility_skips[i]      += other.futility_skips[i];
-            lmr_tries[i]           += other.lmr_tries[i];
-            lmr_researches[i]      += other.lmr_researches[i];
+            nodes[i]                      += other.nodes[i];
+            qnodes[i]                     += other.qnodes[i];
+            cutoffs[i]                    += other.cutoffs[i];
+            fail_high_early[i]            += other.fail_high_early[i];
+            fail_high_late[i]             += other.fail_high_late[i];
+            cutoff_index_sum[i]           += other.cutoff_index_sum[i];
+            cutoff_index_1[i]             += other.cutoff_index_1[i];
+            cutoff_index_2[i]             += other.cutoff_index_2[i];
+            cutoff_index_3_4[i]           += other.cutoff_index_3_4[i];
+            cutoff_index_5_plus[i]        += other.cutoff_index_5_plus[i];
+            pvs_researches[i]             += other.pvs_researches[i];
+            main_tt_probes[i]             += other.main_tt_probes[i];
+            main_tt_hits[i]               += other.main_tt_hits[i];
+            main_tt_cutoffs[i]            += other.main_tt_cutoffs[i];
+            q_tt_probes[i]                += other.q_tt_probes[i];
+            q_tt_hits[i]                  += other.q_tt_hits[i];
+            q_tt_cutoffs[i]               += other.q_tt_cutoffs[i];
+            null_move_tries[i]            += other.null_move_tries[i];
+            null_move_cutoffs[i]          += other.null_move_cutoffs[i];
+            razor_tries[i]                += other.razor_tries[i];
+            razor_cutoffs[i]              += other.razor_cutoffs[i];
+            futility_skips[i]             += other.futility_skips[i];
+            lmr_tries[i]                  += other.lmr_tries[i];
+            lmr_researches[i]             += other.lmr_researches[i];
+            quiet_cutoffs[i]              += other.quiet_cutoffs[i];
+            quiet_malus_eligible_nodes[i] += other.quiet_malus_eligible_nodes[i];
+            quiet_malus_failed_quiets[i]  += other.quiet_malus_failed_quiets[i];
+            quiet_malus_updates[i]        += other.quiet_malus_updates[i];
         }
 
         aspiration_fail_lows  += other.aspiration_fail_lows;
@@ -155,6 +167,10 @@ public:
     void        futility_skip(int) {}
     void        lmr_try(int) {}
     void        lmr_research(int) {}
+    void        quiet_cutoff(int) {}
+    void        quiet_malus_eligible_node(int) {}
+    void        quiet_malus_failed_quiet(int) {}
+    void        quiet_malus_update(int) {}
     std::string str() const;
 
     SearchInstrumentation& operator+=(const SearchInstrumentation&) { return *this; }
@@ -279,6 +295,26 @@ public:
             counters.lmr_researches[ply]++;
     }
 
+    void quiet_cutoff(const int depth) {
+        if (SearchCounters<true>::valid_ply(depth))
+            counters.quiet_cutoffs[depth]++;
+    }
+
+    void quiet_malus_eligible_node(const int depth) {
+        if (SearchCounters<true>::valid_ply(depth))
+            counters.quiet_malus_eligible_nodes[depth]++;
+    }
+
+    void quiet_malus_failed_quiet(const int depth) {
+        if (SearchCounters<true>::valid_ply(depth))
+            counters.quiet_malus_failed_quiets[depth]++;
+    }
+
+    void quiet_malus_update(const int depth) {
+        if (SearchCounters<true>::valid_ply(depth))
+            counters.quiet_malus_updates[depth]++;
+    }
+
     SearchInstrumentation& operator+=(const SearchInstrumentation& other) {
         counters += other.counters;
         return *this;
@@ -344,6 +380,41 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
                              lmr_tries,
                              lmr_researches,
                              pct(lmr_researches, lmr_tries));
+
+        const uint64_t quiet_cutoffs              = sum(stats.quiet_cutoffs);
+        const uint64_t quiet_malus_eligible_nodes = sum(stats.quiet_malus_eligible_nodes);
+        const uint64_t quiet_malus_failed_quiets  = sum(stats.quiet_malus_failed_quiets);
+        const uint64_t quiet_malus_updates        = sum(stats.quiet_malus_updates);
+        out                                       = std::format_to(out,
+                             "QuietHistory: quiet-cutoffs={} malus-eligible={} failed-quiets={} "
+                                                                   "malus-updates={}\n",
+                             quiet_cutoffs,
+                             quiet_malus_eligible_nodes,
+                             quiet_malus_failed_quiets,
+                             quiet_malus_updates);
+
+        const int max_qhist_depth = max_quiet_history_depth(stats);
+        if (max_qhist_depth > 0) {
+            out = std::format_to(out,
+                                 "{:>5} | {:>13} | {:>13} | {:>13} | {:>13}\n",
+                                 "QH D",
+                                 "Cutoffs",
+                                 "Eligible",
+                                 "FailedQuiet",
+                                 "MalusUpdate");
+            for (int d = 1; d <= max_qhist_depth; ++d) {
+                if (!has_quiet_history_stats(stats, d))
+                    continue;
+
+                out = std::format_to(out,
+                                     "{:>5} | {:>13} | {:>13} | {:>13} | {:>13}\n",
+                                     d,
+                                     stats.quiet_cutoffs[d],
+                                     stats.quiet_malus_eligible_nodes[d],
+                                     stats.quiet_malus_failed_quiets[d],
+                                     stats.quiet_malus_updates[d]);
+            }
+        }
 
         out =
             std::format_to(out,
@@ -414,6 +485,19 @@ private:
 
     static double pct(const uint64_t count, const uint64_t total) {
         return total > 0 ? 100.0 * count / total : 0.0;
+    }
+
+    static bool has_quiet_history_stats(const SearchCounters<true>& stats, int depth) {
+        return stats.quiet_cutoffs[depth] != 0 || stats.quiet_malus_eligible_nodes[depth] != 0 ||
+               stats.quiet_malus_failed_quiets[depth] != 0 || stats.quiet_malus_updates[depth] != 0;
+    }
+
+    static int max_quiet_history_depth(const SearchCounters<true>& stats) {
+        for (int depth = MAX_SEARCH_PLY - 1; depth > 0; --depth) {
+            if (has_quiet_history_stats(stats, depth))
+                return depth;
+        }
+        return 0;
     }
 };
 

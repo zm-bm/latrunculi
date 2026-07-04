@@ -20,7 +20,7 @@ constexpr MoveScore WeakCaptureScore     = 0;
 // Orders SEE-safe captures within the good-capture band.
 constexpr MoveScore CaptureVictimWeight = 7;
 
-static_assert(HistoryTable::MAX_SCORE < GoodCaptureScoreBase);
+static_assert(QuietHistory::MAX_SCORE < GoodCaptureScoreBase);
 
 MoveScore capture_score(const Board& board, Move move) {
     const int see_score = board.seeMove(move);
@@ -35,19 +35,19 @@ MoveScore capture_score(const Board& board, Move move) {
 
 MovePicker MovePicker::main_search(const Board&        board,
                                    const KillerMoves&  killers,
-                                   const HistoryTable& history,
+                                   const QuietHistory& history,
                                    int                 ply,
                                    Move                tt_move) {
     return MovePicker(
         board, history, Mode::MainSearch, tt_move, killers.primary(ply), killers.secondary(ply));
 }
 
-MovePicker MovePicker::qsearch(const Board& board, const HistoryTable& history, Move tt_move) {
+MovePicker MovePicker::qsearch(const Board& board, const QuietHistory& history, Move tt_move) {
     return MovePicker(board, history, Mode::QSearch, tt_move, NULL_MOVE, NULL_MOVE);
 }
 
 MovePicker::MovePicker(const Board&        board,
-                       const HistoryTable& history,
+                       const QuietHistory& history,
                        Mode                mode,
                        Move                tt_move,
                        Move                killer_1,

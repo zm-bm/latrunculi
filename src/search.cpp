@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 
 #include "defs.hpp"
 #include "evaluator.hpp"
@@ -27,6 +28,11 @@ constexpr int FutilityMargin[]      = {0, 250, 400, 550};
 // Late-move reduction defaults.
 constexpr int LmrMinDepth     = 3;
 constexpr int LmrMinMoveCount = 3;
+
+// Quiet-history malus defaults.
+constexpr int QuietMalusMinDepth  = 4;
+constexpr int QuietMalusMinFailed = 2;
+constexpr int QuietMalusDivisor   = 2;
 
 // Apply the PV/non-PV TT cutoff policy.
 template <NodeType Node>
@@ -67,6 +73,33 @@ int lmr_reduction(int  depth,
     // Do not extend or drop straight into qsearch.
     return std::clamp(static_cast<int>(r), 1, depth - 2);
 }
+
+struct SearchedQuietMoves {
+    static constexpr int Capacity = 32;
+
+    bool add(Move move) {
+        if (count_ >= Capacity)
+            return false;
+
+        move_bits_[count_++] = move.bits;
+        return true;
+    }
+
+    int size() const { return count_; }
+
+    template <typename Fn>
+    void for_each(Fn fn) const {
+        for (int i = 0; i < count_; ++i) {
+            Move move;
+            move.bits = move_bits_[i];
+            fn(move);
+        }
+    }
+
+private:
+    uint16_t move_bits_[Capacity];
+    int      count_{0};
+};
 
 } // namespace
 
@@ -307,6 +340,11 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
     Move               best_move  = NULL_MOVE;
     MovePicker         picker     = MovePicker::main_search(board, killers, history, ply, tt_move);
     PrincipalVariation child_pv;
+    SearchedQuietMoves searched_quiets;
+
+    const bool quiet_malus_eligible = depth >= QuietMalusMinDepth && !in_check;
+    if (quiet_malus_eligible)
+        stats.quiet_malus_eligible_node(depth);
 
     // Step 8. Move Loop. Search ordered legal moves until cutoff or exhaustion.
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
@@ -379,8 +417,15 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         if (value >= beta) {
             // Step 12. Beta Cutoff. Return fail-soft value and store a lower bound.
             if (is_quiet) {
+                stats.quiet_cutoff(depth);
                 killers.update(move, ply);
-                history.update(turn, move.from(), move.to(), depth);
+                history.reward(turn, move.from(), move.to(), depth);
+                if (quiet_malus_eligible && searched_quiets.size() >= QuietMalusMinFailed) {
+                    searched_quiets.for_each([&](Move quiet) {
+                        history.penalize(turn, quiet.from(), quiet.to(), depth, QuietMalusDivisor);
+                        stats.quiet_malus_update(depth);
+                    });
+                }
             }
 
             if (pv)
@@ -389,6 +434,11 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
             stats.beta_cutoff(ply, move_count);
             tt.store_search(position_key, move, value, depth, TT_Flag::Lowerbound, ply);
             return value;
+        }
+
+        if (quiet_malus_eligible && is_quiet && !(move == tt_move) && !is_killer) {
+            if (searched_quiets.add(move))
+                stats.quiet_malus_failed_quiet(depth);
         }
 
         // Step 13. Best Move Update. Raise alpha and PV when this move improves the node.

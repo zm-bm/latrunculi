@@ -200,7 +200,11 @@ protected:
     void seedWorkerKiller(Move move) { worker->killers.update(move, worker->ply); }
 
     void boostWorkerHistory(Move move, int depth) {
-        worker->history.update(worker->board.side_to_move(), move.from(), move.to(), depth);
+        worker->history.reward(worker->board.side_to_move(), move.from(), move.to(), depth);
+    }
+
+    int workerQuietHistory(Move move) const {
+        return worker->history.get(worker->board.side_to_move(), move.from(), move.to());
     }
 
     uint64_t workerKey() const { return worker->board.key(); }
@@ -327,6 +331,22 @@ protected:
 
     uint64_t lmrResearchesAt(int search_ply) const {
         return worker->stats.raw_counters().lmr_researches[search_ply];
+    }
+
+    uint64_t quietCutoffsAt(int remaining_depth) const {
+        return worker->stats.raw_counters().quiet_cutoffs[remaining_depth];
+    }
+
+    uint64_t quietMalusEligibleNodesAt(int remaining_depth) const {
+        return worker->stats.raw_counters().quiet_malus_eligible_nodes[remaining_depth];
+    }
+
+    uint64_t quietMalusFailedQuietsAt(int remaining_depth) const {
+        return worker->stats.raw_counters().quiet_malus_failed_quiets[remaining_depth];
+    }
+
+    uint64_t quietMalusUpdatesAt(int remaining_depth) const {
+        return worker->stats.raw_counters().quiet_malus_updates[remaining_depth];
     }
 #endif
 
@@ -1215,6 +1235,232 @@ TEST_F(SearchTest, AlphaBetaFutilityKeepsCapturesPromotionsAndCheckingMoves) {
 
         EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), -child_score) << tc.fen;
     }
+}
+
+TEST_F(SearchTest, AlphaBetaQuietCutoffRewardsMoveAndLeavesEarlierQuietUnchanged) {
+    constexpr int search_depth = 2;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 2U);
+
+    const Move failed_quiet = moves[0];
+    const Move cutoff_quiet = moves[1];
+    ASSERT_FALSE(board.is_capture(failed_quiet));
+    ASSERT_FALSE(board.is_capture(cutoff_quiet));
+    ASSERT_NE(failed_quiet.type(), MOVE_PROM);
+    ASSERT_NE(cutoff_quiet.type(), MOVE_PROM);
+
+    storeWorkerChildSearchTt(failed_quiet, 0, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    EXPECT_EQ(workerQuietHistory(failed_quiet), 0);
+    EXPECT_GT(workerQuietHistory(cutoff_quiet), 0);
+}
+
+TEST_F(SearchTest, AlphaBetaQuietCutoffLeavesFailedQuietTtHintUnchanged) {
+    constexpr int search_depth = 2;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 2U);
+
+    const Move failed_tt_quiet = moves[0];
+    const Move cutoff_quiet    = moves[1];
+    ASSERT_FALSE(board.is_capture(failed_tt_quiet));
+    ASSERT_FALSE(board.is_capture(cutoff_quiet));
+    ASSERT_NE(failed_tt_quiet.type(), MOVE_PROM);
+    ASSERT_NE(cutoff_quiet.type(), MOVE_PROM);
+
+    tt.store_search(workerKey(), failed_tt_quiet, 0, 0, TT_Flag::Upperbound, workerPly());
+    storeWorkerChildSearchTt(failed_tt_quiet, 0, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    EXPECT_EQ(workerQuietHistory(failed_tt_quiet), 0);
+    EXPECT_GT(workerQuietHistory(cutoff_quiet), 0);
+}
+
+TEST_F(SearchTest, AlphaBetaQuietMalusPenalizesTwoFailedOrdinaryQuiets) {
+    constexpr int search_depth = 4;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 3U);
+
+    const Move failed_quiet_1 = moves[0];
+    const Move failed_quiet_2 = moves[1];
+    const Move cutoff_quiet   = moves[2];
+    ASSERT_FALSE(board.is_capture(failed_quiet_1));
+    ASSERT_FALSE(board.is_capture(failed_quiet_2));
+    ASSERT_FALSE(board.is_capture(cutoff_quiet));
+    ASSERT_NE(failed_quiet_1.type(), MOVE_PROM);
+    ASSERT_NE(failed_quiet_2.type(), MOVE_PROM);
+    ASSERT_NE(cutoff_quiet.type(), MOVE_PROM);
+
+    storeWorkerChildSearchTt(failed_quiet_1, 0, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(failed_quiet_2, 50, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    EXPECT_LT(workerQuietHistory(failed_quiet_1), 0);
+    EXPECT_LT(workerQuietHistory(failed_quiet_2), 0);
+    EXPECT_GT(workerQuietHistory(cutoff_quiet), 0);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(quietCutoffsAt(search_depth), 1U);
+    EXPECT_EQ(quietMalusEligibleNodesAt(search_depth), 1U);
+    EXPECT_EQ(quietMalusFailedQuietsAt(search_depth), 2U);
+    EXPECT_EQ(quietMalusUpdatesAt(search_depth), 2U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaQuietMalusRequiresTwoFailedOrdinaryQuiets) {
+    constexpr int search_depth = 4;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 2U);
+
+    const Move failed_quiet = moves[0];
+    const Move cutoff_quiet = moves[1];
+    ASSERT_FALSE(board.is_capture(failed_quiet));
+    ASSERT_FALSE(board.is_capture(cutoff_quiet));
+    ASSERT_NE(failed_quiet.type(), MOVE_PROM);
+    ASSERT_NE(cutoff_quiet.type(), MOVE_PROM);
+
+    storeWorkerChildSearchTt(failed_quiet, 0, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    EXPECT_EQ(workerQuietHistory(failed_quiet), 0);
+    EXPECT_GT(workerQuietHistory(cutoff_quiet), 0);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(quietCutoffsAt(search_depth), 1U);
+    EXPECT_EQ(quietMalusEligibleNodesAt(search_depth), 1U);
+    EXPECT_EQ(quietMalusFailedQuietsAt(search_depth), 1U);
+    EXPECT_EQ(quietMalusUpdatesAt(search_depth), 0U);
+#endif
+}
+
+TEST_F(SearchTest, AlphaBetaQuietMalusSkipsFailedTtQuiet) {
+    constexpr int search_depth = 4;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 4U);
+
+    const Move failed_tt_quiet = moves[0];
+    const Move failed_quiet_1  = moves[1];
+    const Move failed_quiet_2  = moves[2];
+    const Move cutoff_quiet    = moves[3];
+    ASSERT_FALSE(board.is_capture(failed_tt_quiet));
+    ASSERT_FALSE(board.is_capture(failed_quiet_1));
+    ASSERT_FALSE(board.is_capture(failed_quiet_2));
+    ASSERT_FALSE(board.is_capture(cutoff_quiet));
+
+    tt.store_search(
+        workerKey(), failed_tt_quiet, 0, search_depth, TT_Flag::Upperbound, workerPly());
+    storeWorkerChildSearchTt(failed_tt_quiet, 0, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(failed_quiet_1, 25, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(failed_quiet_2, 50, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    EXPECT_EQ(workerQuietHistory(failed_tt_quiet), 0);
+    EXPECT_LT(workerQuietHistory(failed_quiet_1), 0);
+    EXPECT_LT(workerQuietHistory(failed_quiet_2), 0);
+    EXPECT_GT(workerQuietHistory(cutoff_quiet), 0);
+}
+
+TEST_F(SearchTest, AlphaBetaQuietMalusSkipsFailedKillerQuiet) {
+    constexpr int search_depth = 4;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 4U);
+
+    const Move failed_killer  = moves[0];
+    const Move failed_quiet_1 = moves[1];
+    const Move failed_quiet_2 = moves[2];
+    const Move cutoff_quiet   = moves[3];
+    ASSERT_FALSE(board.is_capture(failed_killer));
+    ASSERT_FALSE(board.is_capture(failed_quiet_1));
+    ASSERT_FALSE(board.is_capture(failed_quiet_2));
+    ASSERT_FALSE(board.is_capture(cutoff_quiet));
+
+    seedWorkerKiller(failed_killer);
+    storeWorkerChildSearchTt(failed_killer, 0, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(failed_quiet_1, 25, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(failed_quiet_2, 50, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    EXPECT_EQ(workerQuietHistory(failed_killer), 0);
+    EXPECT_LT(workerQuietHistory(failed_quiet_1), 0);
+    EXPECT_LT(workerQuietHistory(failed_quiet_2), 0);
+    EXPECT_GT(workerQuietHistory(cutoff_quiet), 0);
+}
+
+TEST_F(SearchTest, AlphaBetaQuietMalusRequiresMinimumDepth) {
+    constexpr int search_depth = 3;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const auto moves = workerPickerLegalMoves();
+    ASSERT_GE(moves.size(), 3U);
+
+    const Move failed_quiet_1 = moves[0];
+    const Move failed_quiet_2 = moves[1];
+    const Move cutoff_quiet   = moves[2];
+    ASSERT_FALSE(board.is_capture(failed_quiet_1));
+    ASSERT_FALSE(board.is_capture(failed_quiet_2));
+    ASSERT_FALSE(board.is_capture(cutoff_quiet));
+
+    storeWorkerChildSearchTt(failed_quiet_1, 0, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(failed_quiet_2, 50, search_depth - 1, TT_Flag::Exact);
+    storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    EXPECT_EQ(workerQuietHistory(failed_quiet_1), 0);
+    EXPECT_EQ(workerQuietHistory(failed_quiet_2), 0);
+    EXPECT_GT(workerQuietHistory(cutoff_quiet), 0);
 }
 
 TEST_F(SearchTest, PvAlphaBetaMatchesFullWindowBaselineAndBuildsPv) {

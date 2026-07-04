@@ -15,7 +15,7 @@ protected:
     int          ply = 5;
     TestBoard    board{POS3};
     KillerMoves  killers;
-    HistoryTable history;
+    QuietHistory history;
 };
 
 namespace {
@@ -50,12 +50,12 @@ std::vector<Move> collect_moves(MovePicker& picker) {
 }
 
 std::vector<Move> picked_main_search(
-    Board& board, KillerMoves& killers, HistoryTable& history, int ply, Move tt_move = NULL_MOVE) {
+    Board& board, KillerMoves& killers, QuietHistory& history, int ply, Move tt_move = NULL_MOVE) {
     MovePicker picker = MovePicker::main_search(board, killers, history, ply, tt_move);
     return collect_moves(picker);
 }
 
-std::vector<Move> picked_qsearch(Board& board, HistoryTable& history, Move tt_move = NULL_MOVE) {
+std::vector<Move> picked_qsearch(Board& board, QuietHistory& history, Move tt_move = NULL_MOVE) {
     MovePicker picker = MovePicker::qsearch(board, history, tt_move);
     return collect_moves(picker);
 }
@@ -67,7 +67,7 @@ void expect_hash_move_first_once(const std::vector<Move>& moves, Move expected) 
 }
 
 std::vector<Move> picked_root_order(
-    Board& board, KillerMoves& killers, HistoryTable& history, int ply, Move tt_move = NULL_MOVE) {
+    Board& board, KillerMoves& killers, QuietHistory& history, int ply, Move tt_move = NULL_MOVE) {
     return picked_main_search(board, killers, history, ply, tt_move);
 }
 
@@ -88,7 +88,7 @@ TEST_F(MovePickerTest, MainSearchKeepsHistoryBelowKillerPriority) {
 
     killers.update(killer_move, ply);
     for (int i = 0; i < 8; ++i)
-        history.update(board.side_to_move(), hist_move.from(), hist_move.to(), MAX_SEARCH_DEPTH);
+        history.reward(board.side_to_move(), hist_move.from(), hist_move.to(), MAX_SEARCH_DEPTH);
 
     const auto moves     = picked_main_search(board, killers, history, ply);
     const auto killer_it = std::find(moves.begin(), moves.end(), killer_move);
@@ -98,7 +98,7 @@ TEST_F(MovePickerTest, MainSearchKeepsHistoryBelowKillerPriority) {
     ASSERT_NE(hist_it, moves.end());
     EXPECT_LT(killer_it, hist_it);
     EXPECT_LE(history.get(board.side_to_move(), hist_move.from(), hist_move.to()),
-              HistoryTable::MAX_SCORE);
+              QuietHistory::MAX_SCORE);
 }
 
 TEST_F(MovePickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKiller) {
@@ -107,9 +107,9 @@ TEST_F(MovePickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKil
     Move light_move     = Move(E2, E3);
 
     killers.update(killer_move, ply);
-    history.update(board.side_to_move(), light_move.from(), light_move.to(), 1);
+    history.reward(board.side_to_move(), light_move.from(), light_move.to(), 1);
     for (int i = 0; i < 8; ++i)
-        history.update(
+        history.reward(
             board.side_to_move(), saturated_move.from(), saturated_move.to(), MAX_SEARCH_DEPTH);
 
     const auto moves        = picked_main_search(board, killers, history, ply);
@@ -123,7 +123,7 @@ TEST_F(MovePickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKil
     EXPECT_LT(killer_it, saturated_it);
     EXPECT_LT(saturated_it, light_it);
     EXPECT_LE(history.get(board.side_to_move(), saturated_move.from(), saturated_move.to()),
-              HistoryTable::MAX_SCORE);
+              QuietHistory::MAX_SCORE);
     EXPECT_GT(history.get(board.side_to_move(), saturated_move.from(), saturated_move.to()),
               history.get(board.side_to_move(), light_move.from(), light_move.to()));
 }
@@ -133,7 +133,7 @@ TEST_F(MovePickerTest, MainSearchKeepsCaptureKillerAndHistoryOrder) {
     Move hist_move   = Move(A5, A6);
 
     killers.update(killer_move, ply);
-    history.update(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
+    history.reward(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
 
     const auto moves = picked_main_search(board, killers, history, ply);
 
@@ -258,7 +258,7 @@ TEST_F(MovePickerTest, MainSearchKeepsHashCaptureKillerAndHistoryOrder) {
     Move hist_move   = Move(A5, A6);
 
     killers.update(killer_move, ply);
-    history.update(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
+    history.reward(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
 
     const auto moves = picked_main_search(board, killers, history, ply, tt_move);
 
@@ -343,7 +343,7 @@ TEST_F(MovePickerTest, MainSearchKeepsCaptureKillerAndHistoryPriorityBands) {
     Move hist_move   = Move(A5, A6);
 
     killers.update(killer_move, ply);
-    history.update(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
+    history.reward(board.side_to_move(), hist_move.from(), hist_move.to(), ply);
 
     const auto moves = picked_root_order(board, killers, history, ply);
 
