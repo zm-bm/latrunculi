@@ -61,12 +61,11 @@ if(BUILD_TESTING)
         tests/eval.test.cpp
         tests/evaluator.test.cpp
         tests/fen.test.cpp
-        tests/history.test.cpp
-        tests/killers.test.cpp
         tests/magic.test.cpp
         tests/main.cpp
         tests/move.test.cpp
         tests/move_list.test.cpp
+        tests/move_ordering.test.cpp
         tests/move_picker.test.cpp
         tests/movegen.test.cpp
         tests/score.test.cpp

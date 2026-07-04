@@ -335,10 +335,10 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
                    alpha < MATE_BOUND && static_eval + FutilityMargin[depth] <= alpha;
     }
 
-    int        move_count = 0;
-    int        best_value = -INF_VALUE;
-    Move       best_move  = NULL_MOVE;
-    MovePicker picker     = MovePicker::main_search(board, killers, quiet_history, ply, tt_move);
+    int                move_count = 0;
+    int                best_value = -INF_VALUE;
+    Move               best_move  = NULL_MOVE;
+    MovePicker         picker     = MovePicker::main_search(board, ordering, ply, tt_move);
     PrincipalVariation child_pv;
     SearchedMoves      searched_quiets;
 
@@ -357,7 +357,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         const bool is_promotion = move.type() == MOVE_PROM;
         const bool is_capture   = board.is_capture(move);
         const bool is_quiet     = !is_capture && !is_promotion;
-        const bool is_killer    = is_quiet && killers.is_killer(move, ply);
+        const bool is_killer    = is_quiet && ordering.is_killer(move, ply);
         board.make(move, position_states.child(ply));
         ++ply;
 
@@ -417,11 +417,11 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
             // Step 12. Beta Cutoff. Return fail-soft value and store a lower bound.
             if (is_quiet) {
                 stats.quiet_cutoff(depth);
-                killers.update(move, ply);
-                quiet_history.reward(turn, move.from(), move.to(), depth);
+                ordering.update_quiet_refutations(board, move, ply);
+                ordering.quiets.reward(turn, move.from(), move.to(), depth);
                 if (quiet_malus_eligible && searched_quiets.size() >= QuietMalusMinFailed) {
                     searched_quiets.for_each([&](Move quiet) {
-                        quiet_history.penalize(
+                        ordering.quiets.penalize(
                             turn, quiet.from(), quiet.to(), depth, QuietMalusDivisor);
                         stats.quiet_malus_update(depth);
                     });
@@ -529,7 +529,7 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
             alpha = best_value;
     }
 
-    MovePicker         picker = MovePicker::qsearch(board, quiet_history, tt_move);
+    MovePicker         picker = MovePicker::qsearch(board, ordering, tt_move);
     PrincipalVariation child_pv;
 
     // Step 5. Tactical Move Loop. Search noisy moves, or all evasions in check.

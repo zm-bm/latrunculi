@@ -6,20 +6,19 @@
 #include "move.hpp"
 
 class Board;
-class KillerMoves;
 class MoveList;
+struct MoveOrdering;
 struct QuietHistory;
 
 class MovePicker {
 public:
     static MovePicker main_search(const Board&        board,
-                                  const KillerMoves&  killers,
-                                  const QuietHistory& quiet_history,
+                                  const MoveOrdering& ordering,
                                   int                 ply,
                                   Move                tt_move = NULL_MOVE);
 
     static MovePicker
-    qsearch(const Board& board, const QuietHistory& quiet_history, Move tt_move = NULL_MOVE);
+    qsearch(const Board& board, const MoveOrdering& ordering, Move tt_move = NULL_MOVE);
 
     MovePicker(const MovePicker&)            = delete;
     MovePicker(MovePicker&&)                 = delete;
@@ -44,6 +43,7 @@ private:
         PICK_GOOD_NOISY,
         KILLER_1,
         KILLER_2,
+        COUNTERMOVE,
         LOAD_QUIET,
         PICK_QUIET,
         PICK_BAD_NOISY,
@@ -68,18 +68,26 @@ private:
         ScoredMove* end{nullptr};
     };
 
+    struct QuietHints {
+        Move killer_1{NULL_MOVE};
+        Move killer_2{NULL_MOVE};
+        Move counter{NULL_MOVE};
+
+        bool contains(Move move) const;
+    };
+
     MovePicker(const Board&        board,
                const QuietHistory& quiet_history,
                Mode                mode,
                Move                tt_move,
-               Move                killer_1,
-               Move                killer_2);
+               QuietHints          quiet_hints);
 
-    bool is_tt_duplicate(Move move) const;
-    bool is_quiet_hint_duplicate(Move move) const;
-    bool is_valid_hint(Move move) const;
-    bool is_valid_tt_hint(Move move) const;
-    bool is_returnable_killer(Move move, Move previous_killer) const;
+    void set_quiet_hints(QuietHints quiet_hints);
+    bool accepts_quiet_hints() const;
+    bool matches_tt(Move move) const;
+    bool matches_quiet_hint(Move move) const;
+    Move accepted_tt_hint(Move move) const;
+    Move accepted_quiet_hint(Move move, QuietHints duplicates) const;
 
     template <ScoreKind Kind>
     MoveScore score_move(Move move) const;
@@ -107,5 +115,6 @@ private:
     ScoredBand quiet;
     Move       killer_1{NULL_MOVE};
     Move       killer_2{NULL_MOVE};
+    Move       counter_move{NULL_MOVE};
     bool       skip_quiets{false};
 };

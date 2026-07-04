@@ -74,8 +74,7 @@ void SearchWorker::reset_search_state() {
     root_result = RootLine{NULL_MOVE, evaluate(board), 0, false};
     root_lines.clear();
 
-    killers.clear();
-    quiet_history.clear();
+    ordering.clear();
 
     if constexpr (SEARCH_STATS)
         stats.reset();
@@ -90,7 +89,7 @@ void SearchWorker::build_root_lines() {
     root_lines.clear();
 
     // Root candidates start in the current MovePicker order.
-    MovePicker picker = MovePicker::main_search(board, killers, quiet_history, 0);
+    MovePicker picker = MovePicker::main_search(board, ordering, 0);
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (board.is_legal_generated_move(move))
             root_lines.push_back(RootLine{.root_move = move, .value = -INF_VALUE});

@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cstdint>
 
+#include "board.hpp"
 #include "defs.hpp"
+#include "move.hpp"
 
 namespace history_detail {
 
@@ -17,6 +19,73 @@ inline void apply_signed_gravity(int16_t& entry, int max_score, int bonus) {
 }
 
 } // namespace history_detail
+
+struct KillerMoves {
+    Move killers[MAX_SEARCH_PLY][2] = {NULL_MOVE};
+
+    void update(Move killer, int ply);
+    bool is_killer(Move move, int ply) const;
+    Move primary(int ply) const;
+    Move secondary(int ply) const;
+    void clear();
+};
+
+inline void KillerMoves::update(Move killer, int ply) {
+    if (killers[ply][0] == killer)
+        return;
+    killers[ply][1] = killers[ply][0];
+    killers[ply][0] = killer;
+}
+
+inline bool KillerMoves::is_killer(Move move, int ply) const {
+    return move == killers[ply][0] || move == killers[ply][1];
+}
+
+inline Move KillerMoves::primary(int ply) const {
+    return killers[ply][0];
+}
+
+inline Move KillerMoves::secondary(int ply) const {
+    return killers[ply][1];
+}
+
+inline void KillerMoves::clear() {
+    for (int ply = 0; ply < MAX_SEARCH_PLY; ++ply) {
+        killers[ply][0] = NULL_MOVE;
+        killers[ply][1] = NULL_MOVE;
+    }
+}
+
+struct CounterMoves {
+    Move get(Color previous_mover, PieceType previous_piece, Square previous_to) const;
+    void update(Color previous_mover, PieceType previous_piece, Square previous_to, Move counter);
+    void clear();
+
+private:
+    Move table[N_COLORS][N_PIECES][N_SQUARES] = {NULL_MOVE};
+};
+
+inline Move
+CounterMoves::get(Color previous_mover, PieceType previous_piece, Square previous_to) const {
+    return table[previous_mover][previous_piece][previous_to];
+}
+
+inline void CounterMoves::update(Color     previous_mover,
+                                 PieceType previous_piece,
+                                 Square    previous_to,
+                                 Move      counter) {
+    table[previous_mover][previous_piece][previous_to] = counter;
+}
+
+inline void CounterMoves::clear() {
+    for (int color = 0; color < N_COLORS; ++color) {
+        for (int piece = 0; piece < N_PIECES; ++piece) {
+            for (int to = 0; to < N_SQUARES; ++to) {
+                table[color][piece][to] = NULL_MOVE;
+            }
+        }
+    }
+}
 
 struct QuietHistory {
     static constexpr int MAX_SCORE = 1024;
@@ -132,4 +201,67 @@ inline void CaptureHistory::clear() {
             }
         }
     }
+}
+
+struct MoveOrdering {
+    KillerMoves  killers;
+    CounterMoves counters;
+    QuietHistory quiets;
+
+    void clear();
+    bool is_killer(Move move, int ply) const;
+    Move counter_hint(const Board& board) const;
+    void update_quiet_refutations(const Board& board, Move move, int ply);
+
+private:
+    struct CounterKey {
+        Color     previous_mover{WHITE};
+        PieceType previous_piece{NO_PIECETYPE};
+        Square    previous_to{INVALID};
+        bool      valid{false};
+    };
+
+    static CounterKey counter_key(const Board& board);
+};
+
+inline void MoveOrdering::clear() {
+    killers.clear();
+    counters.clear();
+    quiets.clear();
+}
+
+inline bool MoveOrdering::is_killer(Move move, int ply) const {
+    return killers.is_killer(move, ply);
+}
+
+inline Move MoveOrdering::counter_hint(const Board& board) const {
+    const CounterKey key = counter_key(board);
+    return key.valid ? counters.get(key.previous_mover, key.previous_piece, key.previous_to)
+                     : NULL_MOVE;
+}
+
+inline void MoveOrdering::update_quiet_refutations(const Board& board, Move move, int ply) {
+    killers.update(move, ply);
+
+    const CounterKey key = counter_key(board);
+    if (key.valid)
+        counters.update(key.previous_mover, key.previous_piece, key.previous_to, move);
+}
+
+inline MoveOrdering::CounterKey MoveOrdering::counter_key(const Board& board) {
+    const Move previous_move = board.position_state().previous_move;
+    if (previous_move.is_null())
+        return {};
+
+    const PieceType previous_piece =
+        previous_move.type() == MOVE_PROM ? PAWN : type_of(board.piece_on(previous_move.to()));
+    if (previous_piece == NO_PIECETYPE)
+        return {};
+
+    return CounterKey{
+        .previous_mover = ~board.side_to_move(),
+        .previous_piece = previous_piece,
+        .previous_to    = previous_move.to(),
+        .valid          = true,
+    };
 }

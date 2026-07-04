@@ -7,8 +7,7 @@
 
 #include "board.hpp"
 #include "defs.hpp"
-#include "history.hpp"
-#include "killers.hpp"
+#include "move_ordering.hpp"
 #include "position_state.hpp"
 #include "root_line.hpp"
 #include "search_instrumentation.hpp"
@@ -43,8 +42,7 @@ private:
     int                   ply{0};
     RootLine              root_result;
     std::vector<RootLine> root_lines;
-    KillerMoves           killers;
-    QuietHistory          quiet_history;
+    MoveOrdering          ordering;
 
     // Current search request.
     SearchOptions options;

@@ -5,8 +5,7 @@
 
 #include "board.hpp"
 #include "eval.hpp"
-#include "history.hpp"
-#include "killers.hpp"
+#include "move_ordering.hpp"
 #include "movegen.hpp"
 
 namespace {
@@ -24,72 +23,90 @@ static_assert(QuietHistory::MAX_SCORE < GoodCaptureScoreBase);
 
 } // namespace
 
-MovePicker MovePicker::main_search(const Board&        board,
-                                   const KillerMoves&  killers,
-                                   const QuietHistory& quiet_history,
-                                   int                 ply,
-                                   Move                tt_move) {
+MovePicker
+MovePicker::main_search(const Board& board, const MoveOrdering& ordering, int ply, Move tt_move) {
     return MovePicker(board,
-                      quiet_history,
+                      ordering.quiets,
                       Mode::MainSearch,
                       tt_move,
-                      killers.primary(ply),
-                      killers.secondary(ply));
+                      QuietHints{
+                          .killer_1 = ordering.killers.primary(ply),
+                          .killer_2 = ordering.killers.secondary(ply),
+                          .counter  = ordering.counter_hint(board),
+                      });
 }
 
-MovePicker
-MovePicker::qsearch(const Board& board, const QuietHistory& quiet_history, Move tt_move) {
-    return MovePicker(board, quiet_history, Mode::QSearch, tt_move, NULL_MOVE, NULL_MOVE);
+MovePicker MovePicker::qsearch(const Board& board, const MoveOrdering& ordering, Move tt_move) {
+    return MovePicker(board, ordering.quiets, Mode::QSearch, tt_move, QuietHints{});
 }
 
 MovePicker::MovePicker(const Board&        board,
                        const QuietHistory& quiet_history,
                        Mode                mode,
                        Move                tt_move,
-                       Move                killer_1,
-                       Move                killer_2)
+                       QuietHints          quiet_hints)
     : board(board),
       quiet_history(quiet_history),
       mode(mode),
       in_check(board.is_check()),
       side(board.side_to_move()),
       stage(Stage::TT_MOVE) {
-    this->tt_move = is_valid_tt_hint(tt_move) ? tt_move : NULL_MOVE;
-
-    if (mode == Mode::MainSearch && !in_check) {
-        this->killer_1 = is_returnable_killer(killer_1, NULL_MOVE) ? killer_1 : NULL_MOVE;
-        this->killer_2 = is_returnable_killer(killer_2, this->killer_1) ? killer_2 : NULL_MOVE;
-    }
+    this->tt_move = accepted_tt_hint(tt_move);
+    set_quiet_hints(quiet_hints);
 }
 
-bool MovePicker::is_tt_duplicate(Move move) const {
+bool MovePicker::QuietHints::contains(Move move) const {
+    return !move.is_null() && (move == killer_1 || move == killer_2 || move == counter);
+}
+
+void MovePicker::set_quiet_hints(QuietHints quiet_hints) {
+    if (!accepts_quiet_hints())
+        return;
+
+    killer_1     = accepted_quiet_hint(quiet_hints.killer_1, QuietHints{});
+    killer_2     = accepted_quiet_hint(quiet_hints.killer_2, QuietHints{.killer_1 = killer_1});
+    counter_move = accepted_quiet_hint(quiet_hints.counter,
+                                       QuietHints{.killer_1 = killer_1, .killer_2 = killer_2});
+}
+
+bool MovePicker::accepts_quiet_hints() const {
+    return mode == Mode::MainSearch && !in_check;
+}
+
+bool MovePicker::matches_tt(Move move) const {
     return move == tt_move;
 }
 
-bool MovePicker::is_quiet_hint_duplicate(Move move) const {
-    return is_tt_duplicate(move) || move == killer_1 || move == killer_2;
+bool MovePicker::matches_quiet_hint(Move move) const {
+    return QuietHints{
+        .killer_1 = killer_1,
+        .killer_2 = killer_2,
+        .counter  = counter_move,
+    }
+        .contains(move);
 }
 
-bool MovePicker::is_valid_hint(Move move) const {
+Move MovePicker::accepted_tt_hint(Move move) const {
     if (move.is_null() || !board.is_pseudo_legal(move))
-        return false;
+        return NULL_MOVE;
 
-    return !in_check || board.is_legal_pseudo_move(move);
+    if (in_check && !board.is_legal_pseudo_move(move))
+        return NULL_MOVE;
+
+    if (mode == Mode::QSearch && !in_check && move.type() != MOVE_PROM && !board.is_capture(move))
+        return NULL_MOVE;
+
+    return move;
 }
 
-bool MovePicker::is_valid_tt_hint(Move move) const {
-    if (!is_valid_hint(move))
-        return false;
+Move MovePicker::accepted_quiet_hint(Move move, QuietHints duplicates) const {
+    if (move.is_null() || duplicates.contains(move) || matches_tt(move))
+        return NULL_MOVE;
 
-    if (mode != Mode::QSearch || in_check)
-        return true;
+    if (move.type() == MOVE_PROM || board.is_capture(move) || !board.is_pseudo_legal(move))
+        return NULL_MOVE;
 
-    return move.type() == MOVE_PROM || board.is_capture(move);
-}
-
-bool MovePicker::is_returnable_killer(Move move, Move previous_killer) const {
-    return !move.is_null() && move != previous_killer && move.type() != MOVE_PROM &&
-           !board.is_capture(move) && !is_tt_duplicate(move) && board.is_pseudo_legal(move);
+    return move;
 }
 
 MoveScore MovePicker::score_quiet(Move move) const {
@@ -142,15 +159,17 @@ bool MovePicker::is_pickable(const ScoredMove& scored_move) const {
     const Move      move  = scored_move.move;
     const MoveScore score = scored_move.score;
 
+    if (matches_tt(move))
+        return false;
+
     if constexpr (Kind == PickKind::Evasion) {
-        return !is_tt_duplicate(move);
+        return true;
     } else if constexpr (Kind == PickKind::GoodNoisy) {
-        return !is_tt_duplicate(move) &&
-               (move.type() == MOVE_PROM || score >= GoodCaptureScoreBase);
+        return move.type() == MOVE_PROM || score >= GoodCaptureScoreBase;
     } else if constexpr (Kind == PickKind::Quiet) {
-        return !is_quiet_hint_duplicate(move);
+        return !matches_quiet_hint(move);
     } else {
-        return !is_tt_duplicate(move) && move.type() != MOVE_PROM && score < GoodCaptureScoreBase;
+        return move.type() != MOVE_PROM && score < GoodCaptureScoreBase;
     }
 }
 
@@ -184,8 +203,8 @@ void MovePicker::skip_quiet_moves() {
         return;
 
     skip_quiets = true;
-    if (stage == Stage::KILLER_1 || stage == Stage::KILLER_2 || stage == Stage::LOAD_QUIET ||
-        stage == Stage::PICK_QUIET)
+    if (stage == Stage::KILLER_1 || stage == Stage::KILLER_2 || stage == Stage::COUNTERMOVE ||
+        stage == Stage::LOAD_QUIET || stage == Stage::PICK_QUIET)
         stage = Stage::PICK_BAD_NOISY;
 }
 
@@ -245,9 +264,15 @@ Move MovePicker::next() {
             break;
 
         case Stage::KILLER_2:
-            stage = Stage::LOAD_QUIET;
+            stage = Stage::COUNTERMOVE;
             if (!killer_2.is_null())
                 return killer_2;
+            break;
+
+        case Stage::COUNTERMOVE:
+            stage = Stage::LOAD_QUIET;
+            if (!counter_move.is_null())
+                return counter_move;
             break;
 
         case Stage::LOAD_QUIET: {

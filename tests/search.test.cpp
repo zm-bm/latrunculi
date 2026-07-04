@@ -121,6 +121,25 @@ protected:
         }
     }
 
+    template <typename Fn>
+    auto withWorkerNullMove(Fn&& fn) {
+        using Result = std::invoke_result_t<Fn&>;
+
+        worker->board.make_null(worker->position_states.child(worker->ply));
+        ++worker->ply;
+
+        if constexpr (std::is_void_v<Result>) {
+            fn();
+            worker->board.unmake_null(worker->position_states.parent(worker->ply));
+            --worker->ply;
+        } else {
+            Result result = fn();
+            worker->board.unmake_null(worker->position_states.parent(worker->ply));
+            --worker->ply;
+            return result;
+        }
+    }
+
     int testAlphaBetaAfterMove(const std::string& fen,
                                const std::string& move_str,
                                int                alpha,
@@ -159,8 +178,8 @@ protected:
     }
 
     Move firstWorkerPickerMove(Move tt_move = NULL_MOVE) {
-        MovePicker picker = MovePicker::main_search(
-            worker->board, worker->killers, worker->quiet_history, worker->ply, tt_move);
+        MovePicker picker =
+            MovePicker::main_search(worker->board, worker->ordering, worker->ply, tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
             if (worker->board.is_legal_generated_move(move))
                 return move;
@@ -170,8 +189,8 @@ protected:
 
     std::vector<Move> workerPickerLegalMoves(Move tt_move = NULL_MOVE) {
         std::vector<Move> moves;
-        MovePicker        picker = MovePicker::main_search(
-            worker->board, worker->killers, worker->quiet_history, worker->ply, tt_move);
+        MovePicker        picker =
+            MovePicker::main_search(worker->board, worker->ordering, worker->ply, tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
             if (worker->board.is_legal_generated_move(move))
                 moves.push_back(move);
@@ -197,14 +216,27 @@ protected:
         return worker->board.is_legal_generated_move(move);
     }
 
-    void seedWorkerKiller(Move move) { worker->killers.update(move, worker->ply); }
+    bool workerLegalMove(Move move) const { return worker->board.is_legal_move(move); }
+
+    bool workerIsCapture(Move move) const { return worker->board.is_capture(move); }
+
+    PieceType workerPieceTypeOn(Square sq) const { return worker->board.piecetype_on(sq); }
+
+    Color workerSideToMove() const { return worker->board.side_to_move(); }
+
+    void seedWorkerKiller(Move move) { worker->ordering.killers.update(move, worker->ply); }
 
     void boostWorkerHistory(Move move, int depth) {
-        worker->quiet_history.reward(worker->board.side_to_move(), move.from(), move.to(), depth);
+        worker->ordering.quiets.reward(worker->board.side_to_move(), move.from(), move.to(), depth);
     }
 
     int workerQuietHistory(Move move) const {
-        return worker->quiet_history.get(worker->board.side_to_move(), move.from(), move.to());
+        return worker->ordering.quiets.get(worker->board.side_to_move(), move.from(), move.to());
+    }
+
+    Move
+    workerCounterMove(Color previous_mover, PieceType previous_piece, Square previous_to) const {
+        return worker->ordering.counters.get(previous_mover, previous_piece, previous_to);
     }
 
     uint64_t workerKey() const { return worker->board.key(); }
@@ -1290,6 +1322,169 @@ TEST_F(SearchTest, AlphaBetaQuietCutoffLeavesFailedQuietTtHintUnchanged) {
     EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
     EXPECT_EQ(workerQuietHistory(failed_tt_quiet), 0);
     EXPECT_GT(workerQuietHistory(cutoff_quiet), 0);
+}
+
+TEST_F(SearchTest, AlphaBetaQuietCutoffStoresCounterForPreviousMove) {
+    constexpr int search_depth = 2;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const Move previous = findWorkerMove("e2e4");
+    Move       cutoff_quiet;
+
+    withWorkerMove(previous, [&] {
+        const auto moves = workerPickerLegalMoves();
+        const auto it    = std::find_if(moves.begin(), moves.end(), [&](Move move) {
+            return !workerIsCapture(move) && move.type() != MOVE_PROM;
+        });
+        ASSERT_NE(it, moves.end());
+        cutoff_quiet = *it;
+
+        storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    });
+
+    EXPECT_EQ(workerCounterMove(WHITE, PAWN, E4), cutoff_quiet);
+}
+
+TEST_F(SearchTest, AlphaBetaQuietTtHintCutoffStoresCounterWhenSearched) {
+    constexpr int search_depth = 2;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const Move previous = findWorkerMove("e2e4");
+    Move       cutoff_quiet;
+
+    withWorkerMove(previous, [&] {
+        const auto moves = workerPickerLegalMoves();
+        const auto it    = std::find_if(moves.begin(), moves.end(), [&](Move move) {
+            return !workerIsCapture(move) && move.type() != MOVE_PROM;
+        });
+        ASSERT_NE(it, moves.end());
+        cutoff_quiet = *it;
+
+        tt.store_search(workerKey(), cutoff_quiet, 0, 0, TT_Flag::Upperbound, workerPly());
+        storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    });
+
+    EXPECT_EQ(workerCounterMove(WHITE, PAWN, E4), cutoff_quiet);
+}
+
+TEST_F(SearchTest, AlphaBetaQuietCutoffWithoutPreviousMoveDoesNotStoreCounter) {
+    constexpr int search_depth = 2;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    const auto moves = workerPickerLegalMoves();
+    const auto it    = std::find_if(moves.begin(), moves.end(), [&](Move move) {
+        return !workerIsCapture(move) && move.type() != MOVE_PROM;
+    });
+    ASSERT_NE(it, moves.end());
+    const Move      cutoff_quiet = *it;
+    const PieceType moved_piece  = workerPieceTypeOn(cutoff_quiet.from());
+
+    storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+    EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    EXPECT_EQ(workerCounterMove(workerSideToMove(), moved_piece, cutoff_quiet.to()), NULL_MOVE);
+}
+
+TEST_F(SearchTest, AlphaBetaQuietCutoffAfterNullMoveDoesNotStoreCounter) {
+    constexpr int search_depth = 2;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{STARTFEN};
+    loadWorkerBoard(board, search_depth);
+
+    Move      cutoff_quiet;
+    PieceType moved_piece = NO_PIECETYPE;
+    Color     mover       = WHITE;
+
+    withWorkerNullMove([&] {
+        mover            = workerSideToMove();
+        const auto moves = workerPickerLegalMoves();
+        const auto it    = std::find_if(moves.begin(), moves.end(), [&](Move move) {
+            return !workerIsCapture(move) && move.type() != MOVE_PROM;
+        });
+        ASSERT_NE(it, moves.end());
+        cutoff_quiet = *it;
+        moved_piece  = workerPieceTypeOn(cutoff_quiet.from());
+
+        storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    });
+
+    EXPECT_EQ(workerCounterMove(mover, moved_piece, cutoff_quiet.to()), NULL_MOVE);
+}
+
+TEST_F(SearchTest, AlphaBetaCaptureCutoffDoesNotStoreCounter) {
+    constexpr int search_depth = 2;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{"r3k3/B7/8/8/8/8/8/4K3 w - - 0 1"};
+    loadWorkerBoard(board, search_depth);
+
+    const Move previous = Move(E1, D1);
+    const Move capture  = Move(A8, A7);
+    ASSERT_TRUE(workerLegalMove(previous));
+
+    withWorkerMove(previous, [&] {
+        ASSERT_TRUE(workerIsCapture(capture));
+        ASSERT_TRUE(workerLegalMove(capture));
+
+        tt.store_search(workerKey(), capture, 0, 0, TT_Flag::Upperbound, workerPly());
+        storeWorkerChildSearchTt(capture, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    });
+
+    EXPECT_EQ(workerCounterMove(WHITE, KING, D1), NULL_MOVE);
+}
+
+TEST_F(SearchTest, AlphaBetaPromotionCutoffDoesNotStoreCounter) {
+    constexpr int search_depth = 2;
+    constexpr int alpha        = -200;
+    constexpr int beta         = 100;
+    constexpr int cutoff_value = beta + 100;
+
+    TestBoard board{"4k3/8/8/8/8/8/p7/4K3 w - - 0 1"};
+    loadWorkerBoard(board, search_depth);
+
+    const Move previous  = Move(E1, D1);
+    const Move promotion = Move(A2, A1, MOVE_PROM, QUEEN);
+    ASSERT_TRUE(workerLegalMove(previous));
+
+    withWorkerMove(previous, [&] {
+        ASSERT_EQ(promotion.type(), MOVE_PROM);
+        ASSERT_TRUE(workerLegalMove(promotion));
+
+        tt.store_search(workerKey(), promotion, 0, 0, TT_Flag::Upperbound, workerPly());
+        storeWorkerChildSearchTt(promotion, -cutoff_value, search_depth - 1, TT_Flag::Exact);
+
+        EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
+    });
+
+    EXPECT_EQ(workerCounterMove(WHITE, KING, D1), NULL_MOVE);
 }
 
 TEST_F(SearchTest, AlphaBetaQuietMalusPenalizesTwoFailedOrdinaryQuiets) {
