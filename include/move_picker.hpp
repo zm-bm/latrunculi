@@ -14,12 +14,12 @@ class MovePicker {
 public:
     static MovePicker main_search(const Board&        board,
                                   const KillerMoves&  killers,
-                                  const QuietHistory& history,
+                                  const QuietHistory& quiet_history,
                                   int                 ply,
                                   Move                tt_move = NULL_MOVE);
 
     static MovePicker
-    qsearch(const Board& board, const QuietHistory& history, Move tt_move = NULL_MOVE);
+    qsearch(const Board& board, const QuietHistory& quiet_history, Move tt_move = NULL_MOVE);
 
     MovePicker(const MovePicker&)            = delete;
     MovePicker(MovePicker&&)                 = delete;
@@ -69,7 +69,7 @@ private:
     };
 
     MovePicker(const Board&        board,
-               const QuietHistory& history,
+               const QuietHistory& quiet_history,
                Mode                mode,
                Move                tt_move,
                Move                killer_1,
@@ -83,6 +83,9 @@ private:
 
     template <ScoreKind Kind>
     MoveScore score_move(Move move) const;
+    MoveScore score_quiet(Move move) const;
+    MoveScore score_noisy(Move move) const;
+
     template <ScoreKind Kind>
     ScoredMove* score_moves(const MoveList& list, ScoredMove* out);
 
@@ -92,7 +95,7 @@ private:
     Move pick(ScoredBand& band);
 
     const Board&                      board;
-    const QuietHistory&               history;
+    const QuietHistory&               quiet_history;
     Move                              tt_move{NULL_MOVE};
     const Mode                        mode;
     const bool                        in_check;

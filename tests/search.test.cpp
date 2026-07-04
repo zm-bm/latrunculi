@@ -160,7 +160,7 @@ protected:
 
     Move firstWorkerPickerMove(Move tt_move = NULL_MOVE) {
         MovePicker picker = MovePicker::main_search(
-            worker->board, worker->killers, worker->history, worker->ply, tt_move);
+            worker->board, worker->killers, worker->quiet_history, worker->ply, tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
             if (worker->board.is_legal_generated_move(move))
                 return move;
@@ -171,7 +171,7 @@ protected:
     std::vector<Move> workerPickerLegalMoves(Move tt_move = NULL_MOVE) {
         std::vector<Move> moves;
         MovePicker        picker = MovePicker::main_search(
-            worker->board, worker->killers, worker->history, worker->ply, tt_move);
+            worker->board, worker->killers, worker->quiet_history, worker->ply, tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
             if (worker->board.is_legal_generated_move(move))
                 moves.push_back(move);
@@ -200,11 +200,11 @@ protected:
     void seedWorkerKiller(Move move) { worker->killers.update(move, worker->ply); }
 
     void boostWorkerHistory(Move move, int depth) {
-        worker->history.reward(worker->board.side_to_move(), move.from(), move.to(), depth);
+        worker->quiet_history.reward(worker->board.side_to_move(), move.from(), move.to(), depth);
     }
 
     int workerQuietHistory(Move move) const {
-        return worker->history.get(worker->board.side_to_move(), move.from(), move.to());
+        return worker->quiet_history.get(worker->board.side_to_move(), move.from(), move.to());
     }
 
     uint64_t workerKey() const { return worker->board.key(); }

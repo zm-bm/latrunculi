@@ -25,8 +25,9 @@ int see_initial_gain(const Board& board, Move move) {
 // Threshold static exchange evaluation. Returns true when the exchange after
 // move is at least threshold.
 bool Board::seeAtLeast(Move move, int threshold) const {
-    // Keep general threshold semantics exact; only zero has a measured fast path so far.
-    if (threshold != 0)
+    // The fast threshold path is only used by move ordering for ordinary
+    // captures with small negative margins. Keep broader API calls exact.
+    if (move.type() != BASIC_MOVE || threshold > 0 || threshold < -PAWN_MG)
         return seeMove(move) >= threshold;
 
     const Square from = move.from();

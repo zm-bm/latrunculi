@@ -17,43 +17,39 @@ constexpr MoveScore GoodCaptureScoreBase = MoveScore{1} << 22;
 constexpr MoveScore PromotionScore       = GoodCaptureScoreBase << 6;
 constexpr MoveScore WeakCaptureScore     = 0;
 
-// Orders SEE-safe captures within the good-capture band.
+// Orders captures within the good-capture band.
 constexpr MoveScore CaptureVictimWeight = 7;
 
 static_assert(QuietHistory::MAX_SCORE < GoodCaptureScoreBase);
-
-MoveScore capture_score(const Board& board, Move move) {
-    const int see_score = board.seeMove(move);
-    if (see_score < 0)
-        return WeakCaptureScore;
-
-    const int victim_value = eval::piece(board.captured_piece_type(move)).mg;
-    return GoodCaptureScoreBase + CaptureVictimWeight * victim_value + see_score;
-}
 
 } // namespace
 
 MovePicker MovePicker::main_search(const Board&        board,
                                    const KillerMoves&  killers,
-                                   const QuietHistory& history,
+                                   const QuietHistory& quiet_history,
                                    int                 ply,
                                    Move                tt_move) {
-    return MovePicker(
-        board, history, Mode::MainSearch, tt_move, killers.primary(ply), killers.secondary(ply));
+    return MovePicker(board,
+                      quiet_history,
+                      Mode::MainSearch,
+                      tt_move,
+                      killers.primary(ply),
+                      killers.secondary(ply));
 }
 
-MovePicker MovePicker::qsearch(const Board& board, const QuietHistory& history, Move tt_move) {
-    return MovePicker(board, history, Mode::QSearch, tt_move, NULL_MOVE, NULL_MOVE);
+MovePicker
+MovePicker::qsearch(const Board& board, const QuietHistory& quiet_history, Move tt_move) {
+    return MovePicker(board, quiet_history, Mode::QSearch, tt_move, NULL_MOVE, NULL_MOVE);
 }
 
 MovePicker::MovePicker(const Board&        board,
-                       const QuietHistory& history,
+                       const QuietHistory& quiet_history,
                        Mode                mode,
                        Move                tt_move,
                        Move                killer_1,
                        Move                killer_2)
     : board(board),
-      history(history),
+      quiet_history(quiet_history),
       mode(mode),
       in_check(board.is_check()),
       side(board.side_to_move()),
@@ -96,19 +92,34 @@ bool MovePicker::is_returnable_killer(Move move, Move previous_killer) const {
            !board.is_capture(move) && !is_tt_duplicate(move) && board.is_pseudo_legal(move);
 }
 
+MoveScore MovePicker::score_quiet(Move move) const {
+    return static_cast<MoveScore>(quiet_history.get(side, move.from(), move.to()));
+}
+
+MoveScore MovePicker::score_noisy(Move move) const {
+    if (move.type() == MOVE_PROM)
+        return PromotionScore;
+
+    const int see_score = board.seeMove(move);
+    if (see_score < 0)
+        return WeakCaptureScore;
+
+    const int victim_value = eval::piece(board.captured_piece_type(move)).mg;
+    return GoodCaptureScoreBase + CaptureVictimWeight * victim_value + see_score;
+}
+
 template <MovePicker::ScoreKind Kind>
 MoveScore MovePicker::score_move(Move move) const {
-    if constexpr (Kind == ScoreKind::Noisy) {
-        return move.type() == MOVE_PROM ? PromotionScore : capture_score(board, move);
-    } else if constexpr (Kind == ScoreKind::Quiet) {
-        return static_cast<MoveScore>(history.get(side, move.from(), move.to()));
-    } else {
-        if (move.type() == MOVE_PROM)
-            return PromotionScore;
-        if (board.is_capture(move))
-            return capture_score(board, move);
-        return static_cast<MoveScore>(history.get(side, move.from(), move.to()));
-    }
+    if constexpr (Kind == ScoreKind::Quiet)
+        return score_quiet(move);
+
+    if constexpr (Kind == ScoreKind::Noisy)
+        return score_noisy(move);
+
+    if (move.type() == MOVE_PROM || board.is_capture(move))
+        return score_noisy(move);
+
+    return score_quiet(move);
 }
 
 template <MovePicker::ScoreKind Kind>

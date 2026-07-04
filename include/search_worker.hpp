@@ -44,7 +44,7 @@ private:
     RootLine              root_result;
     std::vector<RootLine> root_lines;
     KillerMoves           killers;
-    QuietHistory          history;
+    QuietHistory          quiet_history;
 
     // Current search request.
     SearchOptions options;

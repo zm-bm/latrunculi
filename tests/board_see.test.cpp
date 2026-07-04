@@ -21,7 +21,7 @@ constexpr std::string_view ARASAN20_30 = "b2rk3/r4p2/p3p3/P3Q1Np/2Pp3P/8/6P1/6K1
 void expect_see_at_least_matches_exact(const Board& board, Move move) {
     const int exact = board.seeMove(move);
 
-    for (int threshold : std::array{exact - 1, exact, exact + 1, -1000, -1, 0, 1, 100, 1000})
+    for (int threshold : std::array{exact - 1, exact, exact + 1, -1000, -100, -1, 0, 1, 100, 1000})
         EXPECT_EQ(board.seeAtLeast(move, threshold), exact >= threshold)
             << move.str() << " threshold " << threshold << " exact " << exact;
 }
