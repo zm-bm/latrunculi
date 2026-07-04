@@ -67,9 +67,6 @@ struct SearchInfo {
     uint64_t     nodes;
     Milliseconds time;
     std::string  pv;
-
-    std::string score_text() const;
-    std::string nps_text() const;
 };
 
 struct EmptyCommand {};

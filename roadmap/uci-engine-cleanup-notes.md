@@ -156,3 +156,38 @@ Start with the output side:
 - keep search-progress duplicate suppression in `SearchWorker`;
 - add tests around any newly public formatter API, especially `bestmove 0000`
   once null move wire formatting is fixed.
+
+## String Audit Result
+
+Audit command run:
+
+```sh
+rg -n "to_string\\(|std::format|operator<<|\\.str\\(|score_text|nps_text|string\\(\\) const|std::ostringstream|std::stringstream|std::istringstream" include src tests -g '*.hpp' -g '*.cpp'
+```
+
+Low-risk cleanup applied:
+
+- `SearchInfo::score_text()` and `SearchInfo::nps_text()` were removed.
+  UCI score and NPS text are now private UCI formatter helpers because that
+  spelling is protocol-specific.
+
+Remaining string families:
+
+| Family | Classification | Decision |
+|---|---|---|
+| `Move::str()` | domain notation; canonical coordinate move spelling | Keep for now. It is widely used for move matching, tests, debug output, and UCI move text. A rename would be broad and mechanical but not required for this cleanup. |
+| `to_string(Square)` | primitive coordinate formatter | Keep as the narrow square-coordinate convention. Do not add broader generic `to_string()` overloads for richer domain objects. |
+| `Board::toFEN()` and FEN parsing streams | domain notation/parser | Keep near board/FEN code. FEN is not owned by the UCI handler even though UCI `position fen` transports it. |
+| `std::formatter<Board>`, `EvaluatorDebug`, `SearchInstrumentation` | debug/developer display | Keep as stable debug formatting surfaces routed through the debug writer. |
+| `std::ostringstream`/`std::istringstream` in tests | test harness plumbing | Keep. These are stream harnesses, not production parser ownership. |
+| `std::istringstream` in `src/uci.cpp` | UCI parser boundary | Keep. The parser may use streams internally as long as stream state does not leak into `Engine`. |
+| `std::istringstream` in `src/engine.cpp` for `move`/`perft` arguments | debug-console parser boundary | Keep until debug-console commands are split into a separate typed parser. They are not UCI protocol parsing. |
+
+Follow-ups left explicit:
+
+- If move text is renamed later, do it mechanically across the repo with focused
+  move/text tests.
+- If debug-console command parsing grows, split debug-console command argument
+  parsing out of `Engine` the same way UCI command parsing was split.
+- If board/FEN string APIs are revisited, keep them as domain notation APIs,
+  not UCI formatter APIs.

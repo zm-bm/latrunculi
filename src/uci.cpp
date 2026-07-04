@@ -186,13 +186,28 @@ ConsoleCommand console_command(ConsoleCommand::Name name, const std::vector<std:
     return ConsoleCommand{.name = name, .arguments = join_tokens(tokens, 1)};
 }
 
+std::string format_score(int score) {
+    if (std::abs(score) > MATE_BOUND) {
+        int mate_distance = MATE_VALUE - std::abs(score);
+        int mate_in_n     = (mate_distance + 1) / 2;
+        return "mate " + std::to_string(mate_in_n * (score > 0 ? 1 : -1));
+    }
+    return "cp " + std::to_string(score);
+}
+
+std::string format_nps(uint64_t nodes, Milliseconds time) {
+    auto count = time.count();
+    auto nps   = count > 0 ? (nodes * 1000 / count) : 0;
+    return std::to_string(nps);
+}
+
 std::string format_search_info_fields(const SearchInfo& info) {
     return std::format("depth {} score {} nodes {} time {} nps {} pv {}",
                        info.depth,
-                       info.score_text(),
+                       format_score(info.score),
                        info.nodes,
                        info.time.count(),
-                       info.nps_text(),
+                       format_nps(info.nodes, info.time),
                        info.pv);
 }
 
@@ -362,21 +377,6 @@ ConfigOption Config::set_option(const std::string& name, const std::string& valu
     } else {
         throw std::invalid_argument("Unknown UCI option: " + name);
     }
-}
-
-std::string SearchInfo::score_text() const {
-    if (std::abs(score) > MATE_BOUND) {
-        int mate_distance = MATE_VALUE - std::abs(score);
-        int mate_in_n     = (mate_distance + 1) / 2;
-        return "mate " + std::to_string(mate_in_n * (score > 0 ? 1 : -1));
-    }
-    return "cp " + std::to_string(score);
-}
-
-std::string SearchInfo::nps_text() const {
-    auto count = time.count();
-    auto nps   = count > 0 ? (nodes * 1000 / count) : 0;
-    return std::to_string(nps);
 }
 
 SearchInfo
