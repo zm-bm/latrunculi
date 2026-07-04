@@ -29,6 +29,7 @@ private:
     bool stop(const uci::StopCommand&);
     bool quit(const uci::QuitCommand&);
     bool ponder_hit(const uci::PonderHitCommand&);
+    bool register_command(const uci::RegisterCommand&);
     bool exit(const uci::ExitCommand& command);
     bool unknown(const uci::UnknownCommand& command);
     bool empty(const uci::EmptyCommand&);

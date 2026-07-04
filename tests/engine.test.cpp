@@ -23,6 +23,7 @@ protected:
     bool        execute(const std::string& command) { return engine.execute(command); }
     Board&      board() { return engine.board; }
     ThreadPool& threadpool() { return engine.thread_pool; }
+    bool        debug_enabled() const { return engine.config.debug.value; }
 
     int count_output_lines_starting_with(std::string_view prefix) const {
         std::istringstream lines{output.str()};
@@ -179,6 +180,61 @@ TEST_F(EngineTest, UciNewGameClearsTTAndResetsGeneration) {
     EXPECT_EQ(tt.current_age(), uint8_t{0});
 }
 
+TEST_F(EngineTest, SetOptionNameMatchingIsCaseInsensitive) {
+    EXPECT_TRUE(execute("setoption name tHrEaDs value 2"));
+
+    EXPECT_EQ(threadpool().thread_count(), 2U);
+}
+
+TEST_F(EngineTest, SetOptionCheckValuesAreCaseInsensitive) {
+    EXPECT_TRUE(execute("setoption name dEbUg value ON"));
+    EXPECT_TRUE(debug_enabled());
+
+    EXPECT_TRUE(execute("setoption name DEBUG value oFf"));
+    EXPECT_FALSE(debug_enabled());
+}
+
+TEST_F(EngineTest, ClearHashButtonClearsTT) {
+    tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TT_Flag::Exact, 0);
+    ASSERT_TRUE(tt.probe(board().key()).has_value());
+
+    EXPECT_TRUE(execute("setoption name Clear Hash"));
+
+    EXPECT_FALSE(tt.probe(board().key()).has_value());
+}
+
+TEST_F(EngineTest, RegisterCommandIsSilentNoop) {
+    EXPECT_TRUE(execute("register later"));
+
+    EXPECT_TRUE(output.str().empty()) << output.str();
+}
+
+TEST_F(EngineTest, PonderHitIsSilentNoopWhilePonderIsUnsupported) {
+    EXPECT_TRUE(execute("ponderhit"));
+
+    EXPECT_TRUE(output.str().empty()) << output.str();
+}
+
+TEST_F(EngineTest, UnknownCommandIsSilentNoop) {
+    EXPECT_TRUE(execute("invalidcommand"));
+
+    EXPECT_TRUE(output.str().empty()) << output.str();
+}
+
+TEST_F(EngineTest, IsReadyRespondsWhileSearchIsActive) {
+    EXPECT_TRUE(execute("go"));
+    ASSERT_TRUE(wait_for_busy());
+
+    output.str("");
+    output.clear();
+
+    EXPECT_TRUE(execute("isready"));
+    EXPECT_NE(output.str().find("readyok"), std::string::npos) << output.str();
+
+    EXPECT_TRUE(execute("stop"));
+    threadpool().wait();
+}
+
 // Basic engine command tests
 
 struct CommandCase {
@@ -202,7 +258,7 @@ INSTANTIATE_TEST_SUITE_P(
     EngineCommandsTests,
     EngineCommandsTest,
     ::testing::Values(CommandCase{{"uci"}, STARTFEN, "id name Latrunculi"},
-                      CommandCase{{"invalidcommand"}, STARTFEN, "unknown command"},
+                      CommandCase{{"invalidcommand"}, STARTFEN, ""},
                       CommandCase{{"isready"}, STARTFEN, "readyok"},
                       CommandCase{{"ucinewgame"}, STARTFEN, ""},
                       CommandCase{{"debug on"}, STARTFEN, ""},

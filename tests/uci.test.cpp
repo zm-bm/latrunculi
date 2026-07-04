@@ -56,19 +56,30 @@ TEST_F(ProtocolTest, Identify) {
     uci::Config config;
     protocol.identify(config);
     EXPECT_NE(oss.str().find("uciok"), std::string::npos);
+    EXPECT_NE(oss.str().find("option name Clear Hash type button"), std::string::npos);
     EXPECT_NE(oss.str().find("option name Debug type check default false"), std::string::npos);
 }
 
 TEST_F(ProtocolTest, ConfigSetOptionWorksWithoutCallbacks) {
     uci::Config config;
 
-    EXPECT_NO_THROW(config.set_option("Hash", "16"));
-    EXPECT_NO_THROW(config.set_option("Threads", "2"));
-    EXPECT_NO_THROW(config.set_option("Debug", "on"));
+    EXPECT_NO_THROW(config.set_option("hash", "16"));
+    EXPECT_NO_THROW(config.set_option("THREADS", "2"));
+    EXPECT_NO_THROW(config.set_option("dEbUg", "ON"));
 
     EXPECT_EQ(config.hash.value, 16);
     EXPECT_EQ(config.threads.value, 2);
     EXPECT_TRUE(config.debug.value);
+}
+
+TEST_F(ProtocolTest, ConfigClearHashButtonCallsCallbackWithoutValue) {
+    uci::Config config;
+    bool        called         = false;
+    config.clear_hash_callback = [&] { called = true; };
+
+    EXPECT_NO_THROW(config.set_option("clear hash", ""));
+
+    EXPECT_TRUE(called);
 }
 
 TEST_F(ProtocolTest, ConfigRejectsMalformedOptionValues) {
@@ -76,6 +87,7 @@ TEST_F(ProtocolTest, ConfigRejectsMalformedOptionValues) {
 
     EXPECT_THROW(config.set_option("Threads", "2 extra"), std::invalid_argument);
     EXPECT_THROW(config.set_option("Debug", "maybe"), std::invalid_argument);
+    EXPECT_THROW(config.set_option("Clear Hash", "now"), std::invalid_argument);
 }
 
 TEST_F(ProtocolTest, Ready) {
@@ -244,6 +256,7 @@ TEST(UciCommandParserTest, ParsesCoreUciCommands) {
     EXPECT_TRUE(std::holds_alternative<uci::GoCommand>(uci::parse_command("go depth 3")));
     EXPECT_TRUE(std::holds_alternative<uci::StopCommand>(uci::parse_command("stop")));
     EXPECT_TRUE(std::holds_alternative<uci::PonderHitCommand>(uci::parse_command("ponderhit")));
+    EXPECT_TRUE(std::holds_alternative<uci::RegisterCommand>(uci::parse_command("register later")));
     EXPECT_TRUE(std::holds_alternative<uci::QuitCommand>(uci::parse_command("quit")));
     EXPECT_TRUE(std::holds_alternative<uci::ExitCommand>(uci::parse_command("exit")));
     EXPECT_TRUE(std::holds_alternative<uci::EmptyCommand>(uci::parse_command(" \t ")));

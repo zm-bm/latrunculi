@@ -46,8 +46,9 @@ Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
       err(err),
       in(in),
       protocol(out, err),
-      config({.hash_callback   = [this](int value) { tt.resize(value); },
-              .thread_callback = [this](int value) { thread_pool.resize(value); }}),
+      config({.hash_callback       = [this](int value) { tt.resize(value); },
+              .thread_callback     = [this](int value) { thread_pool.resize(value); },
+              .clear_hash_callback = [] { tt.clear(); }}),
       position_states{PositionState()},
       position_ply(0),
       board(position_states.front(), Board::startfen),
@@ -126,6 +127,8 @@ bool Engine::dispatch(const uci::Command& command) {
                 return stop(parsed);
             else if constexpr (std::is_same_v<Command, uci::PonderHitCommand>)
                 return ponder_hit(parsed);
+            else if constexpr (std::is_same_v<Command, uci::RegisterCommand>)
+                return register_command(parsed);
             else if constexpr (std::is_same_v<Command, uci::QuitCommand>)
                 return quit(parsed);
             else if constexpr (std::is_same_v<Command, uci::ExitCommand>)
@@ -159,8 +162,6 @@ bool Engine::set_option(const uci::SetOptionCommand& command) {
 
     if (command.name.empty())
         throw std::runtime_error("missing option name");
-    if (!command.has_value || command.value.empty())
-        throw std::runtime_error("missing option value");
     config.set_option(command.name, command.value);
     return true;
 }
@@ -207,7 +208,10 @@ bool Engine::quit(const uci::QuitCommand&) {
 }
 
 bool Engine::ponder_hit(const uci::PonderHitCommand&) {
-    protocol.info("ponderhit received");
+    return true;
+}
+
+bool Engine::register_command(const uci::RegisterCommand&) {
     return true;
 }
 
@@ -216,7 +220,6 @@ bool Engine::exit(const uci::ExitCommand&) {
 }
 
 bool Engine::unknown(const uci::UnknownCommand& command) {
-    protocol.info("unknown command: " + command.token + ", type help for a list of commands");
     return true;
 }
 

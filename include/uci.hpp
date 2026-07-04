@@ -33,6 +33,8 @@ struct CheckOption {
     void set(std::string val_str);
 };
 
+struct ButtonOption {};
+
 struct Config {
     SpinOption hash = {
         .value     = DEFAULT_HASH,
@@ -53,8 +55,11 @@ struct Config {
         .def_value = false,
     };
 
+    ButtonOption clear_hash;
+
     std::function<void(int)> hash_callback;
     std::function<void(int)> thread_callback;
+    std::function<void()>    clear_hash_callback;
 
     void set_option(const std::string& name, const std::string& value);
 };
@@ -110,6 +115,7 @@ struct GoCommand {
 };
 struct StopCommand {};
 struct PonderHitCommand {};
+struct RegisterCommand {};
 struct QuitCommand {};
 struct ExitCommand {};
 struct ConsoleCommand {
@@ -132,6 +138,7 @@ using Command = std::variant<EmptyCommand,
                              GoCommand,
                              StopCommand,
                              PonderHitCommand,
+                             RegisterCommand,
                              QuitCommand,
                              ExitCommand,
                              ConsoleCommand,
@@ -145,6 +152,7 @@ make_search_info(const RootLine& line, const Board& root_board, uint64_t nodes, 
 std::string format_uci_move(Move move);
 std::string format_option(std::string_view name, const SpinOption& opt);
 std::string format_option(std::string_view name, const CheckOption& opt);
+std::string format_option(std::string_view name, const ButtonOption& opt);
 std::string format_identification(const uci::Config& config);
 std::string format_ready();
 std::string format_bestmove(Move move);

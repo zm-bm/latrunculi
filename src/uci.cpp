@@ -6,6 +6,7 @@
 #include "root_line.hpp"
 #include "search_instrumentation.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <format>
@@ -35,6 +36,12 @@ std::string join_tokens(const std::vector<std::string>& tokens, size_t first) {
         joined += tokens[i];
     }
     return joined;
+}
+
+std::string lower_ascii(std::string value) {
+    std::ranges::transform(
+        value, value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return value;
 }
 
 std::optional<int> parse_int_token(const std::string& token) {
@@ -239,6 +246,8 @@ Command parse_command(std::string_view line) {
         return StopCommand{};
     if (command == "ponderhit")
         return PonderHitCommand{};
+    if (command == "register")
+        return RegisterCommand{};
     if (command == "quit")
         return QuitCommand{};
     if (command == "exit")
@@ -276,15 +285,21 @@ std::string format_option(std::string_view name, const CheckOption& opt) {
         "option name {} type check default {}", name, opt.def_value ? "true" : "false");
 }
 
+std::string format_option(std::string_view name, const ButtonOption&) {
+    return std::format("option name {} type button", name);
+}
+
 std::string format_identification(const uci::Config& config) {
     return std::format("id name Latrunculi {}\n"
                        "id author Eric VanderHelm\n"
                        "{}\n"
                        "{}\n"
                        "{}\n"
+                       "{}\n"
                        "uciok",
                        LATRUNCULI_VERSION,
                        format_option("Hash", config.hash),
+                       format_option("Clear Hash", config.clear_hash),
                        format_option("Threads", config.threads),
                        format_option("Debug", config.debug));
 }
@@ -318,6 +333,7 @@ void SpinOption::set(std::string value_str) {
 }
 
 void CheckOption::set(std::string val_str) {
+    val_str = lower_ascii(std::move(val_str));
     if (val_str == "true" || val_str == "on") {
         value = true;
     } else if (val_str == "false" || val_str == "off") {
@@ -328,16 +344,23 @@ void CheckOption::set(std::string val_str) {
 }
 
 void Config::set_option(const std::string& name, const std::string& value) {
-    if (name == "Hash") {
+    const std::string option_name = lower_ascii(name);
+
+    if (option_name == "hash") {
         hash.set(value);
         if (hash_callback)
             hash_callback(hash.value);
-    } else if (name == "Threads") {
+    } else if (option_name == "threads") {
         threads.set(value);
         if (thread_callback)
             thread_callback(threads.value);
-    } else if (name == "Debug") {
+    } else if (option_name == "debug") {
         debug.set(value);
+    } else if (option_name == "clear hash") {
+        if (!value.empty())
+            throw std::invalid_argument("Clear Hash does not take a value");
+        if (clear_hash_callback)
+            clear_hash_callback();
     } else {
         throw std::invalid_argument("Unknown UCI option: " + name);
     }
