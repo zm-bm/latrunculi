@@ -286,11 +286,41 @@ TEST(UciCommandParserTest, ParsesPositionFenMoves) {
     EXPECT_EQ(command.moves[0], "a1a2");
 }
 
-TEST(UciCommandParserTest, KeepsGoArgumentsForSearchOptionConversion) {
-    const auto command =
-        parse_as<uci::GoCommand>("go depth 3 movetime 20 nodes 1000 unknown token");
+TEST(UciCommandParserTest, ParsesGoSupportedLimits) {
+    const auto command = parse_as<uci::GoCommand>(
+        "go depth 3 movetime 20 nodes 1000 wtime 3000 btime 4000 winc 12 binc 13 movestogo 5");
 
-    EXPECT_EQ(command.arguments, "depth 3 movetime 20 nodes 1000 unknown token");
+    EXPECT_EQ(command.limits.depth, 3);
+    EXPECT_EQ(command.limits.movetime, 20);
+    EXPECT_EQ(command.limits.nodes, 1000);
+    EXPECT_EQ(command.limits.wtime, 3000);
+    EXPECT_EQ(command.limits.btime, 4000);
+    EXPECT_EQ(command.limits.winc, 12);
+    EXPECT_EQ(command.limits.binc, 13);
+    EXPECT_EQ(command.limits.movestogo, 5);
+}
+
+TEST(UciCommandParserTest, IgnoresInvalidGoNumericValues) {
+    const auto command = parse_as<uci::GoCommand>("go depth abc movetime -50 movestogo twenty");
+
+    EXPECT_FALSE(command.limits.depth.has_value());
+    EXPECT_EQ(command.limits.movetime, -50);
+    EXPECT_FALSE(command.limits.movestogo.has_value());
+    ASSERT_EQ(command.limits.unknown_tokens.size(), 2U);
+    EXPECT_EQ(command.limits.unknown_tokens[0], "abc");
+    EXPECT_EQ(command.limits.unknown_tokens[1], "twenty");
+}
+
+TEST(UciCommandParserTest, RecordsUnsupportedAndUnknownGoTokens) {
+    const auto command =
+        parse_as<uci::GoCommand>("go infinite ponder mate 4 unknown searchmoves e2e4 d2d4");
+
+    EXPECT_TRUE(command.limits.infinite);
+    EXPECT_TRUE(command.limits.ponder);
+    EXPECT_EQ(command.limits.mate, 4);
+    ASSERT_EQ(command.limits.unknown_tokens.size(), 1U);
+    EXPECT_EQ(command.limits.unknown_tokens[0], "unknown");
+    EXPECT_TRUE(command.limits.searchmoves);
 }
 
 TEST(UciCommandParserTest, SeparatesConsoleCommandsFromUciCommands) {

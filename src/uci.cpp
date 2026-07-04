@@ -37,6 +37,17 @@ std::string join_tokens(const std::vector<std::string>& tokens, size_t first) {
     return joined;
 }
 
+std::optional<int> parse_int_token(const std::string& token) {
+    try {
+        size_t pos   = 0;
+        int    value = std::stoi(token, &pos);
+        if (pos == token.size())
+            return value;
+    } catch (...) {
+    }
+    return std::nullopt;
+}
+
 SetOptionCommand parse_setoption_command(const std::vector<std::string>& tokens) {
     SetOptionCommand command;
 
@@ -70,6 +81,57 @@ SetOptionCommand parse_setoption_command(const std::vector<std::string>& tokens)
     }
 
     return command;
+}
+
+GoLimits parse_go_limits(const std::vector<std::string>& tokens) {
+    GoLimits limits;
+
+    auto read_value = [&](size_t& index, std::optional<int>& target) {
+        if (index + 1 >= tokens.size())
+            return;
+
+        auto value = parse_int_token(tokens[index + 1]);
+        if (!value)
+            return;
+
+        target = *value;
+        ++index;
+    };
+
+    for (size_t i = 1; i < tokens.size(); ++i) {
+        const std::string& token = tokens[i];
+
+        if (token == "depth")
+            read_value(i, limits.depth);
+        else if (token == "movetime")
+            read_value(i, limits.movetime);
+        else if (token == "nodes")
+            read_value(i, limits.nodes);
+        else if (token == "wtime")
+            read_value(i, limits.wtime);
+        else if (token == "btime")
+            read_value(i, limits.btime);
+        else if (token == "winc")
+            read_value(i, limits.winc);
+        else if (token == "binc")
+            read_value(i, limits.binc);
+        else if (token == "movestogo")
+            read_value(i, limits.movestogo);
+        else if (token == "searchmoves") {
+            limits.searchmoves = true;
+            break;
+        } else if (token == "ponder") {
+            limits.ponder = true;
+        } else if (token == "infinite") {
+            limits.infinite = true;
+        } else if (token == "mate") {
+            read_value(i, limits.mate);
+        } else {
+            limits.unknown_tokens.push_back(token);
+        }
+    }
+
+    return limits;
 }
 
 PositionCommand parse_position_command(const std::vector<std::string>& tokens) {
@@ -172,7 +234,7 @@ Command parse_command(std::string_view line) {
     if (command == "position")
         return parse_position_command(tokens);
     if (command == "go")
-        return GoCommand{.arguments = join_tokens(tokens, 1)};
+        return GoCommand{.limits = parse_go_limits(tokens)};
     if (command == "stop")
         return StopCommand{};
     if (command == "ponderhit")

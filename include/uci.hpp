@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -88,8 +89,24 @@ struct PositionCommand {
     std::string              fen;
     std::vector<std::string> moves;
 };
+struct GoLimits {
+    std::optional<int> depth;
+    std::optional<int> movetime;
+    std::optional<int> nodes;
+    std::optional<int> wtime;
+    std::optional<int> btime;
+    std::optional<int> winc;
+    std::optional<int> binc;
+    std::optional<int> movestogo;
+
+    bool                     searchmoves{false};
+    bool                     ponder{false};
+    bool                     infinite{false};
+    std::optional<int>       mate;
+    std::vector<std::string> unknown_tokens;
+};
 struct GoCommand {
-    std::string arguments;
+    GoLimits limits;
 };
 struct StopCommand {};
 struct PonderHitCommand {};

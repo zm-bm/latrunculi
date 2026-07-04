@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <sstream>
 
 #include "board.hpp"
 #include "defs.hpp"
@@ -21,7 +20,6 @@ struct SearchOptions {
     int       movestogo = OPTION_NOT_SET;
 
     SearchOptions() = default;
-    SearchOptions(std::istringstream& iss, Board* board = nullptr);
 
     void set_depth(int d) { depth = std::clamp(d, 1, MAX_SEARCH_DEPTH); }
     void set_movetime(int mt) { movetime = std::max(mt, 1); }

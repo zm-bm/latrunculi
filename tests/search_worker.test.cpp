@@ -14,7 +14,6 @@ namespace {
 
 class SearchWorkerTest : public ::testing::Test {
 protected:
-    std::istringstream iss;
     std::ostringstream oss;
     uci::Protocol      protocol{oss, oss};
     ThreadPool         pool{1, protocol};
@@ -22,7 +21,8 @@ protected:
     Thread& test_thread() { return ThreadTestAccess::thread(pool); }
 
     void load_worker_board(Board& board) {
-        SearchOptions options(iss, &board);
+        SearchOptions options;
+        options.board = &board;
         ThreadTestAccess::configure_search(test_thread(), options);
         ThreadTestAccess::reset_search_state(test_thread());
     }

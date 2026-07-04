@@ -13,6 +13,34 @@
 #include "search_options.hpp"
 #include "tt.hpp"
 
+namespace {
+
+SearchOptions make_search_options(const uci::GoLimits& limits, Board& board) {
+    SearchOptions options;
+    options.board = &board;
+
+    if (limits.depth)
+        options.set_depth(*limits.depth);
+    if (limits.movetime)
+        options.set_movetime(*limits.movetime);
+    if (limits.nodes)
+        options.set_nodes(*limits.nodes);
+    if (limits.wtime)
+        options.set_wtime(*limits.wtime);
+    if (limits.btime)
+        options.set_btime(*limits.btime);
+    if (limits.winc)
+        options.set_winc(*limits.winc);
+    if (limits.binc)
+        options.set_binc(*limits.binc);
+    if (limits.movestogo)
+        options.set_movestogo(*limits.movestogo);
+
+    return options;
+}
+
+} // namespace
+
 Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
     : out(out),
       err(err),
@@ -162,8 +190,7 @@ bool Engine::position(const uci::PositionCommand& command) {
 }
 
 bool Engine::go(const uci::GoCommand& command) {
-    std::istringstream iss(command.arguments);
-    SearchOptions      options(iss, &board);
+    SearchOptions options = make_search_options(command.limits, board);
     if (!thread_pool.start_search(options))
         protocol.info("search already in progress");
     return true;

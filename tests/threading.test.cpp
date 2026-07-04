@@ -16,9 +16,14 @@ namespace {
 
 constexpr int THREAD_COUNT = 4;
 
+SearchOptions options_for(Board& board) {
+    SearchOptions options;
+    options.board = &board;
+    return options;
+}
+
 class ThreadLifecycleTest : public ::testing::Test {
 protected:
-    std::istringstream iss;
     std::ostringstream oss;
     uci::Protocol      protocol{oss, oss};
     ThreadPool         pool{1, protocol};
@@ -46,12 +51,11 @@ protected:
 
 class ThreadPoolTest : public ::testing::Test {
 protected:
-    std::istringstream iss;
     std::ostringstream oss;
     uci::Protocol      protocol{oss, oss};
     ThreadPool         pool{THREAD_COUNT, protocol};
     TestBoard          board{STARTFEN};
-    SearchOptions      options{iss, &board};
+    SearchOptions      options{options_for(board)};
 
     uint64_t nodes_searched() const { return pool.nodes_searched(); }
 
@@ -108,7 +112,7 @@ protected:
 
 TEST_F(ThreadLifecycleTest, ThreadShutsDownCorrectly) {
     TestBoard     board{STARTFEN};
-    SearchOptions options(iss, &board);
+    SearchOptions options = options_for(board);
 
     ThreadTestAccess::start_search(test_thread(), options);
     ASSERT_TRUE(wait_for_worker_running());
@@ -120,7 +124,7 @@ TEST_F(ThreadLifecycleTest, ThreadShutsDownCorrectly) {
 
 TEST_F(ThreadLifecycleTest, ThreadStopsSearchCorrectly) {
     TestBoard     board{STARTFEN};
-    SearchOptions options(iss, &board);
+    SearchOptions options = options_for(board);
 
     ThreadTestAccess::start_search(test_thread(), options);
     ASSERT_TRUE(wait_for_worker_running());
@@ -134,8 +138,8 @@ TEST_F(ThreadLifecycleTest, ThreadStopsSearchCorrectly) {
 TEST_F(ThreadLifecycleTest, ThreadHandlesMultipleSearches) {
     TestBoard     board1{STARTFEN};
     TestBoard     board2{EMPTYFEN};
-    SearchOptions options1(iss, &board1);
-    SearchOptions options2(iss, &board2);
+    SearchOptions options1 = options_for(board1);
+    SearchOptions options2 = options_for(board2);
 
     ThreadTestAccess::start_search(test_thread(), options1);
     ThreadTestAccess::request_stop(test_thread());
