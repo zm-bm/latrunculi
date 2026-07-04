@@ -170,6 +170,93 @@ TEST(CaptureHistoryTest, Clear) {
     EXPECT_EQ(hist.get(BLACK, BISHOP, D4, KNIGHT), 0);
 }
 
+TEST(ContinuationHistoryTest, RewardAndRetrieve) {
+    ContinuationHistory hist;
+    hist.reward(WHITE, PAWN, E4, KNIGHT, F6, 3);
+
+    auto value = hist.get(WHITE, PAWN, E4, KNIGHT, F6);
+    EXPECT_GT(value, 0);
+    EXPECT_EQ(hist.get(BLACK, PAWN, E4, KNIGHT, F6), 0);
+    EXPECT_EQ(hist.get(WHITE, KNIGHT, E4, KNIGHT, F6), 0);
+    EXPECT_EQ(hist.get(WHITE, PAWN, D4, KNIGHT, F6), 0);
+    EXPECT_EQ(hist.get(WHITE, PAWN, E4, BISHOP, F6), 0);
+    EXPECT_EQ(hist.get(WHITE, PAWN, E4, KNIGHT, G4), 0);
+
+    hist.reward(WHITE, PAWN, E4, KNIGHT, F6, 2);
+    EXPECT_GT(hist.get(WHITE, PAWN, E4, KNIGHT, F6), value);
+}
+
+TEST(ContinuationHistoryTest, PenalizeAndRetrieve) {
+    ContinuationHistory hist;
+    hist.penalize(WHITE, PAWN, E4, KNIGHT, F6, 3);
+
+    auto value = hist.get(WHITE, PAWN, E4, KNIGHT, F6);
+    EXPECT_LT(value, 0);
+    EXPECT_EQ(hist.get(BLACK, PAWN, E4, KNIGHT, F6), 0);
+    EXPECT_EQ(hist.get(WHITE, KNIGHT, E4, KNIGHT, F6), 0);
+    EXPECT_EQ(hist.get(WHITE, PAWN, D4, KNIGHT, F6), 0);
+    EXPECT_EQ(hist.get(WHITE, PAWN, E4, BISHOP, F6), 0);
+    EXPECT_EQ(hist.get(WHITE, PAWN, E4, KNIGHT, G4), 0);
+
+    hist.penalize(WHITE, PAWN, E4, KNIGHT, F6, 2);
+    EXPECT_LT(hist.get(WHITE, PAWN, E4, KNIGHT, F6), value);
+}
+
+TEST(ContinuationHistoryTest, PenalizeCanScaleMalus) {
+    ContinuationHistory full;
+    ContinuationHistory half;
+
+    full.penalize(WHITE, PAWN, E4, KNIGHT, F6, 4);
+    half.penalize(WHITE, PAWN, E4, KNIGHT, F6, 4, 2);
+
+    EXPECT_EQ(full.get(WHITE, PAWN, E4, KNIGHT, F6), -16);
+    EXPECT_EQ(half.get(WHITE, PAWN, E4, KNIGHT, F6), -8);
+}
+
+TEST(ContinuationHistoryTest, UpdatesStayWithinHistoryBand) {
+    ContinuationHistory positive;
+    for (int i = 0; i < 8; ++i)
+        positive.reward(WHITE, PAWN, E4, KNIGHT, F6, MAX_SEARCH_DEPTH);
+
+    EXPECT_GE(positive.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
+    EXPECT_LE(positive.get(WHITE, PAWN, E4, KNIGHT, F6), ContinuationHistory::MAX_SCORE);
+
+    ContinuationHistory negative;
+    for (int i = 0; i < 8; ++i)
+        negative.penalize(WHITE, PAWN, E4, KNIGHT, F6, MAX_SEARCH_DEPTH);
+
+    EXPECT_LE(negative.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
+    EXPECT_GE(negative.get(WHITE, PAWN, E4, KNIGHT, F6), -ContinuationHistory::MAX_SCORE);
+}
+
+TEST(ContinuationHistoryTest, AgePositiveEntryByDivision) {
+    ContinuationHistory hist;
+    hist.reward(WHITE, PAWN, E4, KNIGHT, F6, 3);
+
+    ASSERT_EQ(hist.get(WHITE, PAWN, E4, KNIGHT, F6), 9);
+    hist.age();
+    EXPECT_EQ(hist.get(WHITE, PAWN, E4, KNIGHT, F6), 4);
+}
+
+TEST(ContinuationHistoryTest, AgeNegativeEntryByDivision) {
+    ContinuationHistory hist;
+    hist.penalize(BLACK, BISHOP, D4, PAWN, E3, 3);
+
+    ASSERT_EQ(hist.get(BLACK, BISHOP, D4, PAWN, E3), -9);
+    hist.age();
+    EXPECT_EQ(hist.get(BLACK, BISHOP, D4, PAWN, E3), -4);
+}
+
+TEST(ContinuationHistoryTest, Clear) {
+    ContinuationHistory hist;
+    hist.reward(WHITE, PAWN, E4, KNIGHT, F6, 3);
+    hist.penalize(BLACK, BISHOP, D4, PAWN, E3, 3);
+
+    hist.clear();
+    EXPECT_EQ(hist.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
+    EXPECT_EQ(hist.get(BLACK, BISHOP, D4, PAWN, E3), 0);
+}
+
 TEST(KillerMovesTest, AddAndRetrieve) {
     KillerMoves killers;
     killers.update(Move(E2, E4), 0);

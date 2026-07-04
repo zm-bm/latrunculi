@@ -44,6 +44,7 @@ bool tt_cutoff_allowed(
     return record.can_cutoff(adjusted_score, depth, alpha, beta);
 }
 
+// Late-move reduction formula.
 template <NodeType Node>
 int lmr_reduction(int  depth,
                   int  move_count,
@@ -286,7 +287,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
     }
 
     const bool  in_check = board.is_check();
-    const Color turn     = board.side_to_move();
+    const Color c        = board.side_to_move();
     bool        futility = false;
 
     if constexpr (Node == NON_PV) {
@@ -311,7 +312,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth &&
                                    tt_record->flag == TT_Flag::Upperbound &&
                                    tt_record->score_at_ply(ply) < beta;
-        if (can_null && !in_check && depth >= reduction && board.nonPawnMaterial(turn) > ROOK_MG &&
+        if (can_null && !in_check && depth >= reduction && board.nonPawnMaterial(c) > ROOK_MG &&
             !tt_upper_veto) {
             stats.null_move_try(ply);
 
@@ -335,10 +336,12 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
                    alpha < MATE_BOUND && static_eval + FutilityMargin[depth] <= alpha;
     }
 
-    int                move_count = 0;
-    int                best_value = -INF_VALUE;
-    Move               best_move  = NULL_MOVE;
-    MovePicker         picker     = MovePicker::main_search(board, ordering, ply, tt_move);
+    int  move_count = 0;
+    int  best_value = -INF_VALUE;
+    Move best_move  = NULL_MOVE;
+
+    const auto         ctx    = MoveOrdering::make_context(board);
+    MovePicker         picker = MovePicker::main_search(board, ordering, ctx, ply, tt_move);
     PrincipalVariation child_pv;
     SearchedMoves      searched_quiets;
 
@@ -417,12 +420,11 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
             // Step 12. Beta Cutoff. Return fail-soft value and store a lower bound.
             if (is_quiet) {
                 stats.quiet_cutoff(depth);
-                ordering.update_quiet_refutations(board, move, ply);
-                ordering.quiets.reward(turn, move.from(), move.to(), depth);
+                ordering.update_quiet_refutations(ctx, move, ply);
+                ordering.reward_quiet(ctx, board, move, depth);
                 if (quiet_malus_eligible && searched_quiets.size() >= QuietMalusMinFailed) {
                     searched_quiets.for_each([&](Move quiet) {
-                        ordering.quiets.penalize(
-                            turn, quiet.from(), quiet.to(), depth, QuietMalusDivisor);
+                        ordering.penalize_quiet(ctx, board, quiet, depth, QuietMalusDivisor);
                         stats.quiet_malus_update(depth);
                     });
                 }
@@ -529,7 +531,8 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
             alpha = best_value;
     }
 
-    MovePicker         picker = MovePicker::qsearch(board, ordering, tt_move);
+    const auto         ctx    = MoveOrdering::make_context(board, false);
+    MovePicker         picker = MovePicker::qsearch(board, ordering, ctx, tt_move);
     PrincipalVariation child_pv;
 
     // Step 5. Tactical Move Loop. Search noisy moves, or all evasions in check.

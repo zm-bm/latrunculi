@@ -4,21 +4,23 @@
 #include <cstdint>
 
 #include "move.hpp"
+#include "move_ordering.hpp"
 
 class Board;
 class MoveList;
-struct MoveOrdering;
-struct QuietHistory;
 
 class MovePicker {
 public:
-    static MovePicker main_search(const Board&        board,
-                                  const MoveOrdering& ordering,
-                                  int                 ply,
-                                  Move                tt_move = NULL_MOVE);
+    static MovePicker main_search(const Board&                 board,
+                                  const MoveOrdering&          ordering,
+                                  const MoveOrdering::Context& context,
+                                  int                          ply,
+                                  Move                         tt_move = NULL_MOVE);
 
-    static MovePicker
-    qsearch(const Board& board, const MoveOrdering& ordering, Move tt_move = NULL_MOVE);
+    static MovePicker qsearch(const Board&                 board,
+                              const MoveOrdering&          ordering,
+                              const MoveOrdering::Context& context,
+                              Move                         tt_move = NULL_MOVE);
 
     MovePicker(const MovePicker&)            = delete;
     MovePicker(MovePicker&&)                 = delete;
@@ -76,22 +78,22 @@ private:
         bool contains(Move move) const;
     };
 
-    MovePicker(const Board&        board,
-               const QuietHistory& quiet_history,
-               Mode                mode,
-               Move                tt_move,
-               QuietHints          quiet_hints);
+    MovePicker(const Board&                 board,
+               const MoveOrdering&          ordering,
+               const MoveOrdering::Context& context,
+               Mode                         mode,
+               Move                         tt,
+               QuietHints                   hints);
 
-    void set_quiet_hints(QuietHints quiet_hints);
+    void set_hints(QuietHints hints);
     bool accepts_quiet_hints() const;
     bool matches_tt(Move move) const;
     bool matches_quiet_hint(Move move) const;
     Move accepted_tt_hint(Move move) const;
-    Move accepted_quiet_hint(Move move, QuietHints duplicates) const;
+    Move accepted_quiet_hint(Move move, QuietHints used_hints) const;
 
     template <ScoreKind Kind>
     MoveScore score_move(Move move) const;
-    MoveScore score_quiet(Move move) const;
     MoveScore score_noisy(Move move) const;
 
     template <ScoreKind Kind>
@@ -103,11 +105,11 @@ private:
     Move pick(ScoredBand& band);
 
     const Board&                      board;
-    const QuietHistory&               quiet_history;
+    const MoveOrdering&               ordering;
+    const MoveOrdering::Context       context;
     Move                              tt_move{NULL_MOVE};
     const Mode                        mode;
     const bool                        in_check;
-    const Color                       side;
     Stage                             stage{Stage::TT_MOVE};
     std::array<ScoredMove, MAX_MOVES> moves;
     // Generated holds noisy moves or evasions; quiets are appended after it.
@@ -115,6 +117,6 @@ private:
     ScoredBand quiet;
     Move       killer_1{NULL_MOVE};
     Move       killer_2{NULL_MOVE};
-    Move       counter_move{NULL_MOVE};
+    Move       counter{NULL_MOVE};
     bool       skip_quiets{false};
 };

@@ -19,12 +19,13 @@ protected:
 };
 
 namespace {
-constexpr std::string_view PROMOTION_FEN             = "4k3/P6p/8/8/8/8/p6P/4K3 w - - 0 1";
-constexpr std::string_view CAPTURE_PROMOTION_FEN     = "1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1";
-constexpr std::string_view CASTLE_FEN                = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
-constexpr std::string_view QUIET_EVASION_FEN         = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
-constexpr std::string_view WEAK_CAPTURE_FEN          = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
-constexpr std::string_view PROMOTION_AND_CAPTURE_FEN = "4k3/P7/8/1p6/3N4/8/8/4K3 w - - 0 1";
+constexpr std::string_view PROMOTION_FEN              = "4k3/P6p/8/8/8/8/p6P/4K3 w - - 0 1";
+constexpr std::string_view CAPTURE_PROMOTION_FEN      = "1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1";
+constexpr std::string_view CASTLE_FEN                 = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
+constexpr std::string_view QUIET_EVASION_FEN          = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+constexpr std::string_view CHECK_BY_PREVIOUS_MOVE_FEN = "k7/8/2K5/8/8/8/8/R7 w - - 0 1";
+constexpr std::string_view WEAK_CAPTURE_FEN           = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
+constexpr std::string_view PROMOTION_AND_CAPTURE_FEN  = "4k3/P7/8/1p6/3N4/8/8/4K3 w - - 0 1";
 
 std::vector<uint16_t> sorted_move_bits(MoveList movelist) {
     std::vector<uint16_t> bits;
@@ -50,35 +51,53 @@ std::vector<Move> collect_moves(MovePicker& picker) {
     return moves;
 }
 
-void seed_counter_hint(const Board& board, MoveOrdering& ordering, Move counter_move) {
-    if (counter_move.is_null())
+void seed_counter_hint(const Board& board, MoveOrdering& ordering, Move counter) {
+    if (counter.is_null())
         return;
 
-    const Move previous_move = board.position_state().previous_move;
-    if (previous_move.is_null())
+    const Move prev_move = board.position_state().previous_move;
+    if (prev_move.is_null())
         return;
 
-    const PieceType previous_piece =
-        previous_move.type() == MOVE_PROM ? PAWN : type_of(board.piece_on(previous_move.to()));
-    if (previous_piece == NO_PIECETYPE)
+    const PieceType prev_piece =
+        prev_move.type() == MOVE_PROM ? PAWN : type_of(board.piece_on(prev_move.to()));
+    if (prev_piece == NO_PIECETYPE)
         return;
 
-    ordering.counters.update(
-        ~board.side_to_move(), previous_piece, previous_move.to(), counter_move);
+    ordering.counters.update(~board.side_to_move(), prev_piece, prev_move.to(), counter);
+}
+
+void boost_continuation_hint(const Board& board, MoveOrdering& ordering, Move move) {
+    const Move prev_move = board.position_state().previous_move;
+    if (prev_move.is_null())
+        return;
+
+    const PieceType prev_piece =
+        prev_move.type() == MOVE_PROM ? PAWN : type_of(board.piece_on(prev_move.to()));
+    const PieceType piece = board.piecetype_on(move.from());
+    if (prev_piece == NO_PIECETYPE || piece == NO_PIECETYPE)
+        return;
+
+    for (int i = 0; i < 8; ++i) {
+        ordering.continuations.reward(
+            ~board.side_to_move(), prev_piece, prev_move.to(), piece, move.to(), MAX_SEARCH_DEPTH);
+    }
 }
 
 std::vector<Move> picked_main_search(Board&        board,
                                      MoveOrdering& ordering,
                                      int           ply,
-                                     Move          tt_move      = NULL_MOVE,
-                                     Move          counter_move = NULL_MOVE) {
-    seed_counter_hint(board, ordering, counter_move);
-    MovePicker picker = MovePicker::main_search(board, ordering, ply, tt_move);
+                                     Move          tt_move = NULL_MOVE,
+                                     Move          counter = NULL_MOVE) {
+    seed_counter_hint(board, ordering, counter);
+    const auto context = MoveOrdering::make_context(board);
+    MovePicker picker  = MovePicker::main_search(board, ordering, context, ply, tt_move);
     return collect_moves(picker);
 }
 
 std::vector<Move> picked_qsearch(Board& board, MoveOrdering& ordering, Move tt_move = NULL_MOVE) {
-    MovePicker picker = MovePicker::qsearch(board, ordering, tt_move);
+    const auto context = MoveOrdering::make_context(board, false);
+    MovePicker picker  = MovePicker::qsearch(board, ordering, context, tt_move);
     return collect_moves(picker);
 }
 
@@ -91,9 +110,9 @@ void expect_hash_move_first_once(const std::vector<Move>& moves, Move expected) 
 std::vector<Move> picked_root_order(Board&        board,
                                     MoveOrdering& ordering,
                                     int           ply,
-                                    Move          tt_move      = NULL_MOVE,
-                                    Move          counter_move = NULL_MOVE) {
-    return picked_main_search(board, ordering, ply, tt_move, counter_move);
+                                    Move          tt_move = NULL_MOVE,
+                                    Move          counter = NULL_MOVE) {
+    return picked_main_search(board, ordering, ply, tt_move, counter);
 }
 
 bool expected_good_noisy(const Board& board, Move move) {
@@ -152,6 +171,82 @@ TEST_F(MovePickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKil
               QuietHistory::MAX_SCORE);
     EXPECT_GT(quiet_history.get(board.side_to_move(), saturated_move.from(), saturated_move.to()),
               quiet_history.get(board.side_to_move(), light_move.from(), light_move.to()));
+}
+
+TEST_F(MovePickerTest, MainSearchContinuationHistoryReordersGeneratedQuiets) {
+    TestBoard quiet_board{STARTFEN};
+    quiet_board.make(Move(E2, E4));
+
+    const auto baseline = picked_main_search(quiet_board, ordering, ply);
+    ASSERT_GE(baseline.size(), 2U);
+
+    Move first   = baseline[0];
+    Move boosted = baseline[1];
+    ASSERT_FALSE(quiet_board.is_capture(first));
+    ASSERT_FALSE(quiet_board.is_capture(boosted));
+
+    boost_continuation_hint(quiet_board, ordering, boosted);
+
+    const auto moves      = picked_main_search(quiet_board, ordering, ply);
+    const auto first_it   = std::find(moves.begin(), moves.end(), first);
+    const auto boosted_it = std::find(moves.begin(), moves.end(), boosted);
+
+    ASSERT_NE(first_it, moves.end());
+    ASSERT_NE(boosted_it, moves.end());
+    EXPECT_LT(boosted_it, first_it);
+}
+
+TEST_F(MovePickerTest, MainSearchContinuationHistoryRequiresMatchingPreviousMove) {
+    TestBoard quiet_board{STARTFEN};
+    quiet_board.make(Move(E2, E4));
+
+    const auto baseline = picked_main_search(quiet_board, ordering, ply);
+    ASSERT_GE(baseline.size(), 2U);
+
+    Move target = baseline[1];
+    ASSERT_FALSE(quiet_board.is_capture(target));
+
+    const PieceType piece = quiet_board.piecetype_on(target.from());
+    for (int i = 0; i < 8; ++i)
+        ordering.continuations.reward(BLACK, PAWN, E4, piece, target.to(), MAX_SEARCH_DEPTH);
+
+    EXPECT_EQ(picked_main_search(quiet_board, ordering, ply), baseline);
+}
+
+TEST_F(MovePickerTest, MainSearchKeepsKillerAndCounterAboveContinuationQuiets) {
+    TestBoard quiet_board{STARTFEN};
+    quiet_board.make(Move(E2, E4));
+
+    const auto baseline = picked_main_search(quiet_board, ordering, ply);
+    ASSERT_GE(baseline.size(), 4U);
+
+    Move killer_1 = baseline[0];
+    Move killer_2 = baseline[1];
+    Move counter  = baseline[2];
+    Move boosted  = baseline[3];
+    ASSERT_FALSE(quiet_board.is_capture(killer_1));
+    ASSERT_FALSE(quiet_board.is_capture(killer_2));
+    ASSERT_FALSE(quiet_board.is_capture(counter));
+    ASSERT_FALSE(quiet_board.is_capture(boosted));
+
+    killers.update(killer_2, ply);
+    killers.update(killer_1, ply);
+    seed_counter_hint(quiet_board, ordering, counter);
+    boost_continuation_hint(quiet_board, ordering, boosted);
+
+    const auto moves      = picked_main_search(quiet_board, ordering, ply);
+    const auto killer1_it = std::find(moves.begin(), moves.end(), killer_1);
+    const auto killer2_it = std::find(moves.begin(), moves.end(), killer_2);
+    const auto counter_it = std::find(moves.begin(), moves.end(), counter);
+    const auto boosted_it = std::find(moves.begin(), moves.end(), boosted);
+
+    ASSERT_NE(killer1_it, moves.end());
+    ASSERT_NE(killer2_it, moves.end());
+    ASSERT_NE(counter_it, moves.end());
+    ASSERT_NE(boosted_it, moves.end());
+    EXPECT_LT(killer1_it, boosted_it);
+    EXPECT_LT(killer2_it, boosted_it);
+    EXPECT_LT(counter_it, boosted_it);
 }
 
 TEST_F(MovePickerTest, MainSearchKeepsCaptureKillerAndHistoryOrder) {
@@ -247,6 +342,25 @@ TEST_F(MovePickerTest, QSearchReturnsQuietHashEvasionFirstWhileInCheck) {
     const auto moves = picked_qsearch(evasion_board, ordering, quiet_evasion);
 
     expect_hash_move_first_once(moves, quiet_evasion);
+}
+
+TEST_F(MovePickerTest, QSearchAndEvasionsIgnoreContinuationHistory) {
+    TestBoard evasion_board{std::string(CHECK_BY_PREVIOUS_MOVE_FEN)};
+    Move      checking_move = Move(A1, A2);
+    Move      quiet_evasion = Move(A8, B8);
+    ASSERT_TRUE(evasion_board.is_legal_move(checking_move));
+
+    evasion_board.make(checking_move);
+    ASSERT_TRUE(evasion_board.is_check());
+    ASSERT_TRUE(evasion_board.is_legal_pseudo_move(quiet_evasion));
+
+    const auto main_baseline = picked_main_search(evasion_board, ordering, ply);
+    const auto q_baseline    = picked_qsearch(evasion_board, ordering);
+
+    boost_continuation_hint(evasion_board, ordering, quiet_evasion);
+
+    EXPECT_EQ(picked_main_search(evasion_board, ordering, ply), main_baseline);
+    EXPECT_EQ(picked_qsearch(evasion_board, ordering), q_baseline);
 }
 
 TEST_F(MovePickerTest, MainSearchKeepsSameMoveSetForEqualPriorityMoves) {
@@ -552,7 +666,9 @@ TEST_F(MovePickerTest, SkipQuietMovesSkipsKillersAndQuietsButKeepsBadNoisyMoves)
     ASSERT_FALSE(weak_capture_board.is_capture(killer_move));
     killers.update(killer_move, ply);
 
-    MovePicker picker = MovePicker::main_search(weak_capture_board, ordering, ply, NULL_MOVE);
+    const auto context = MoveOrdering::make_context(weak_capture_board);
+    MovePicker picker =
+        MovePicker::main_search(weak_capture_board, ordering, context, ply, NULL_MOVE);
     picker.skip_quiet_moves();
     const auto moves = collect_moves(picker);
 
@@ -571,7 +687,9 @@ TEST_F(MovePickerTest, SkipQuietMovesSkipsCounterButKeepsBadNoisyMoves) {
     ASSERT_FALSE(weak_capture_board.is_capture(counter));
 
     seed_counter_hint(weak_capture_board, ordering, counter);
-    MovePicker picker = MovePicker::main_search(weak_capture_board, ordering, ply, NULL_MOVE);
+    const auto context = MoveOrdering::make_context(weak_capture_board);
+    MovePicker picker =
+        MovePicker::main_search(weak_capture_board, ordering, context, ply, NULL_MOVE);
     picker.skip_quiet_moves();
     const auto moves = collect_moves(picker);
 
@@ -583,7 +701,8 @@ TEST_F(MovePickerTest, SkipQuietMovesSkipsCounterButKeepsBadNoisyMoves) {
 }
 
 TEST_F(MovePickerTest, SkipQuietMovesIsNoOpForQSearch) {
-    MovePicker picker = MovePicker::qsearch(board, ordering, NULL_MOVE);
+    const auto context = MoveOrdering::make_context(board, false);
+    MovePicker picker  = MovePicker::qsearch(board, ordering, context, NULL_MOVE);
     picker.skip_quiet_moves();
 
     EXPECT_EQ(collect_moves(picker), picked_qsearch(board, ordering));
@@ -593,7 +712,8 @@ TEST_F(MovePickerTest, SkipQuietMovesIsNoOpForInCheckMainSearch) {
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     ASSERT_TRUE(evasion_board.is_check());
 
-    MovePicker picker = MovePicker::main_search(evasion_board, ordering, ply, NULL_MOVE);
+    const auto context = MoveOrdering::make_context(evasion_board);
+    MovePicker picker  = MovePicker::main_search(evasion_board, ordering, context, ply, NULL_MOVE);
     picker.skip_quiet_moves();
 
     EXPECT_EQ(sorted_move_bits(collect_moves(picker)),
