@@ -11,9 +11,9 @@
 #include "tt.hpp"
 #include "uci.hpp"
 
-SearchWorker::SearchWorker(int id, uci::Protocol& protocol, ThreadPool& pool)
+SearchWorker::SearchWorker(int id, uci::Writer& writer, ThreadPool& pool)
     : board(position_states.root(), Board::startfen),
-      protocol(protocol),
+      writer(writer),
       thread_pool(pool),
       thread_id(id) {}
 
@@ -131,11 +131,11 @@ void SearchWorker::report_final_result() {
 
     report_changed_search_info(selected);
 
-    protocol.bestmove(selected.root_move);
+    writer.bestmove(selected.root_move);
 
     if constexpr (SEARCH_STATS) {
         auto stats = thread_pool.aggregate_instrumentation();
-        protocol.debug(stats);
+        writer.debug(stats);
     }
 }
 
@@ -143,7 +143,7 @@ void SearchWorker::report_changed_search_info(const RootLine& line) {
     if (last_reported_root_line && line == *last_reported_root_line)
         return;
 
-    protocol.info(uci::make_search_info(line, board, total_nodes(), runtime()));
+    writer.search_info(line, board, total_nodes(), runtime());
     last_reported_root_line = line;
 }
 

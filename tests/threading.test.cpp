@@ -25,8 +25,8 @@ SearchOptions options_for(Board& board) {
 class ThreadLifecycleTest : public ::testing::Test {
 protected:
     std::ostringstream oss;
-    uci::Protocol      protocol{oss, oss};
-    ThreadPool         pool{1, protocol};
+    uci::Writer        writer{oss, oss};
+    ThreadPool         pool{1, writer};
 
     void SetUp() override {
         oss.str("");
@@ -52,8 +52,8 @@ protected:
 class ThreadPoolTest : public ::testing::Test {
 protected:
     std::ostringstream oss;
-    uci::Protocol      protocol{oss, oss};
-    ThreadPool         pool{THREAD_COUNT, protocol};
+    uci::Writer        writer{oss, oss};
+    ThreadPool         pool{THREAD_COUNT, writer};
     TestBoard          board{STARTFEN};
     SearchOptions      options{options_for(board)};
 
@@ -170,7 +170,7 @@ TEST_F(ThreadPoolTest, Constructor) {
 }
 
 TEST_F(ThreadPoolTest, StartSearchRejectsEmptyPool) {
-    ThreadPool empty_pool{0, protocol};
+    ThreadPool empty_pool{0, writer};
 
     EXPECT_FALSE(empty_pool.start_search(options));
     EXPECT_EQ(tt.current_age(), uint8_t{0});
@@ -285,7 +285,7 @@ TEST_F(ThreadPoolTest, DestructorShutsDownActiveSearch) {
     options.depth = 5;
 
     {
-        ThreadPool local_pool{THREAD_COUNT, protocol};
+        ThreadPool local_pool{THREAD_COUNT, writer};
         EXPECT_TRUE(local_pool.start_search(options));
     }
 

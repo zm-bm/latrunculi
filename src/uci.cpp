@@ -152,7 +152,6 @@ PositionCommand parse_position_command(const std::vector<std::string>& tokens) {
 
         if (token == "startpos") {
             command.source = PositionCommand::Source::Startpos;
-            command.fen    = Board::startfen;
             in_fen         = false;
             in_moves       = false;
             continue;
@@ -201,16 +200,6 @@ std::string format_nps(uint64_t nodes, Milliseconds time) {
     return std::to_string(nps);
 }
 
-std::string format_search_info_fields(const SearchInfo& info) {
-    return std::format("depth {} score {} nodes {} time {} nps {} pv {}",
-                       info.depth,
-                       format_score(info.score),
-                       info.nodes,
-                       info.time.count(),
-                       format_nps(info.nodes, info.time),
-                       info.pv);
-}
-
 std::string format_root_pv(const RootLine& line, const Board& root_board) {
     if (!line.usable_root_move() || line.pv.empty() || line.pv.front() != line.root_move)
         return "";
@@ -232,6 +221,19 @@ std::string format_root_pv(const RootLine& line, const Board& root_board) {
     }
 
     return pv;
+}
+
+std::string format_search_info(const RootLine& line,
+                               const Board&    root_board,
+                               uint64_t        nodes,
+                               Milliseconds    time) {
+    return std::format("info depth {} score {} nodes {} time {} nps {} pv {}",
+                       line.depth,
+                       format_score(line.value),
+                       nodes,
+                       time.count(),
+                       format_nps(nodes, time),
+                       format_root_pv(line, root_board));
 }
 
 } // namespace
@@ -327,10 +329,6 @@ std::string format_bestmove(Move move) {
     return std::format("bestmove {}", format_uci_move(move));
 }
 
-std::string format_info(const uci::SearchInfo& info) {
-    return std::format("info {}", format_search_info_fields(info));
-}
-
 std::string format_info_string(std::string_view str) {
     return std::format("info string {}", str);
 }
@@ -379,12 +377,7 @@ ConfigOption Config::set_option(const std::string& name, const std::string& valu
     }
 }
 
-SearchInfo
-make_search_info(const RootLine& line, const Board& root_board, uint64_t nodes, Milliseconds time) {
-    return SearchInfo{line.value, line.depth, nodes, time, format_root_pv(line, root_board)};
-}
-
-void Protocol::help() const {
+void Writer::help() const {
     constexpr auto format_str = R"(
 Available commands:
   uci           - Show engine identity and supported options
@@ -405,40 +398,43 @@ For UCI protocol details, see: https://www.wbec-ridderkerk.nl/html/UCIProtocol.h
     err << format_str << '\n';
 }
 
-void Protocol::identify(const uci::Config& config) const {
+void Writer::identify(const uci::Config& config) const {
     out << format_identification(config) << '\n';
     out.flush();
 }
 
-void Protocol::ready() const {
+void Writer::ready() const {
     out << format_ready() << '\n';
     out.flush();
 }
 
-void Protocol::bestmove(Move move) const {
+void Writer::bestmove(Move move) const {
     out << format_bestmove(move) << '\n';
     out.flush();
 }
 
-void Protocol::info(const std::string& str) const {
+void Writer::search_info(const RootLine& line,
+                         const Board&    root_board,
+                         uint64_t        nodes,
+                         Milliseconds    time) const {
+    out << format_search_info(line, root_board, nodes, time) << '\n';
+    out.flush();
+}
+
+void Writer::info(const std::string& str) const {
     out << format_info_string(str) << '\n';
     out.flush();
 }
 
-void Protocol::info(const uci::SearchInfo& info) const {
-    out << format_info(info) << '\n';
-    out.flush();
-}
-
 template <typename T>
-void Protocol::debug(T&& obj) const {
+void Writer::debug(T&& obj) const {
     err << std::format("{}", std::forward<T>(obj)) << '\n';
 }
 
-template void Protocol::debug(std::string& str) const;
-template void Protocol::debug(std::string&& str) const;
-template void Protocol::debug(Board& board) const;
-template void Protocol::debug(EvaluatorDebug& evaluator) const;
-template void Protocol::debug(SearchInstrumentation<>& evaluator) const;
+template void Writer::debug(std::string& str) const;
+template void Writer::debug(std::string&& str) const;
+template void Writer::debug(Board& board) const;
+template void Writer::debug(EvaluatorDebug& evaluator) const;
+template void Writer::debug(SearchInstrumentation<>& evaluator) const;
 
 } // namespace uci

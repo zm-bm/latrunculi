@@ -25,7 +25,7 @@ public:
     ~Thread();
 
 private:
-    Thread(int id, uci::Protocol& protocol, ThreadPool& pool);
+    Thread(int id, uci::Writer& writer, ThreadPool& pool);
 
     // ThreadPool-facing lifecycle.
     void start_search(const SearchOptions& options);
@@ -58,7 +58,7 @@ private:
 class ThreadPool {
 public:
     ThreadPool() = delete;
-    ThreadPool(size_t thread_count, uci::Protocol& protocol);
+    ThreadPool(size_t thread_count, uci::Writer& writer);
     ~ThreadPool();
 
     // Search lifecycle.
@@ -84,7 +84,7 @@ private:
     std::vector<std::unique_ptr<Thread>> threads;
 
     // Output sink.
-    uci::Protocol& protocol;
+    uci::Writer& writer;
 
     // Pool lifecycle state.
     bool shutdown_requested{false};

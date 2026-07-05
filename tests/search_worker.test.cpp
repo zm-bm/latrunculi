@@ -15,8 +15,8 @@ namespace {
 class SearchWorkerTest : public ::testing::Test {
 protected:
     std::ostringstream oss;
-    uci::Protocol      protocol{oss, oss};
-    ThreadPool         pool{1, protocol};
+    uci::Writer        writer{oss, oss};
+    ThreadPool         pool{1, writer};
 
     Thread& test_thread() { return ThreadTestAccess::thread(pool); }
 

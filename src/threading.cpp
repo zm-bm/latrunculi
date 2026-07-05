@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cassert>
 
-Thread::Thread(int id, uci::Protocol& protocol, ThreadPool& pool)
-    : worker(id, protocol, pool),
+Thread::Thread(int id, uci::Writer& writer, ThreadPool& pool)
+    : worker(id, writer, pool),
       native_thread(&Thread::idle_loop, this) {}
 
 Thread::~Thread() {
@@ -87,9 +87,9 @@ void Thread::wake_for_search() {
     state_cv.notify_one();
 }
 
-ThreadPool::ThreadPool(size_t thread_count, uci::Protocol& protocol) : protocol(protocol) {
+ThreadPool::ThreadPool(size_t thread_count, uci::Writer& writer) : writer(writer) {
     for (size_t i = 0; i < thread_count; ++i) {
-        threads.emplace_back(new Thread(static_cast<int>(i), protocol, *this));
+        threads.emplace_back(new Thread(static_cast<int>(i), writer, *this));
     }
 }
 
@@ -154,7 +154,7 @@ bool ThreadPool::resize(size_t thread_count) {
         threads.resize(thread_count);
     } else {
         for (size_t i = threads.size(); i < thread_count; ++i) {
-            threads.emplace_back(new Thread(static_cast<int>(i), protocol, *this));
+            threads.emplace_back(new Thread(static_cast<int>(i), writer, *this));
         }
     }
 

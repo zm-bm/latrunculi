@@ -168,6 +168,15 @@ TEST_F(EngineTest, SearchDoesNotReuseStaleBestMoveWhenNoLegalMoves) {
     EXPECT_EQ(output.str().find("bestmove e2e4"), std::string::npos) << output.str();
 }
 
+TEST_F(EngineTest, PositionStartposResetsFromNonStartPosition) {
+    EXPECT_TRUE(execute(std::format("position fen {}", EMPTYFEN)));
+    ASSERT_EQ(board().toFEN(), EMPTYFEN);
+
+    EXPECT_TRUE(execute("position startpos"));
+
+    EXPECT_EQ(board().toFEN(), STARTFEN);
+}
+
 TEST_F(EngineTest, UciNewGameClearsTTAndResetsGeneration) {
     tt.age_table();
     tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TT_Flag::Exact, 0);

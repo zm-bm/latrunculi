@@ -39,17 +39,32 @@ SearchOptions make_search_options(const uci::GoLimits& limits, Board& board) {
     return options;
 }
 
+std::string position_root_fen(const uci::PositionCommand& command) {
+    using Source = uci::PositionCommand::Source;
+
+    switch (command.source) {
+    case Source::Startpos: return Board::startfen;
+    case Source::Fen:
+        if (!command.fen.empty())
+            return command.fen;
+        break;
+    case Source::Invalid: break;
+    }
+
+    throw std::runtime_error("invalid position command");
+}
+
 } // namespace
 
 Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
     : out(out),
       err(err),
       in(in),
-      protocol(out, err),
+      writer(out, err),
       position_states{PositionState()},
       position_ply(0),
       board(position_states.front(), Board::startfen),
-      thread_pool(DEFAULT_THREADS, protocol) {}
+      thread_pool(DEFAULT_THREADS, writer) {}
 
 PositionState& Engine::next_position_state() {
     if (position_states.size() <= position_ply + 1)
@@ -101,10 +116,10 @@ bool Engine::execute(const std::string& line) noexcept {
     try {
         return dispatch(uci::parse_command(line));
     } catch (const std::exception& e) {
-        protocol.info("error: " + std::string(e.what()));
+        writer.info("error: " + std::string(e.what()));
         return true;
     } catch (...) {
-        protocol.info("unknown error occurred");
+        writer.info("unknown error occurred");
         return true;
     }
 }
@@ -148,7 +163,7 @@ bool Engine::dispatch(const uci::Command& command) {
 }
 
 bool Engine::uci(const uci::UciCommand&) {
-    protocol.identify(config);
+    writer.identify(config);
     return true;
 }
 
@@ -158,7 +173,7 @@ bool Engine::set_debug(const uci::DebugCommand& command) {
 }
 
 bool Engine::is_ready(const uci::IsReadyCommand&) {
-    protocol.ready();
+    writer.ready();
     return true;
 }
 
@@ -183,9 +198,7 @@ bool Engine::new_game(const uci::NewGameCommand&) {
 }
 
 bool Engine::position(const uci::PositionCommand& command) {
-    if (command.source == uci::PositionCommand::Source::Invalid || command.fen.empty())
-        throw std::runtime_error("invalid position command");
-    reset_board(command.fen);
+    reset_board(position_root_fen(command));
 
     for (const auto& token : command.moves) {
         auto move = get_move(token);
@@ -199,7 +212,7 @@ bool Engine::position(const uci::PositionCommand& command) {
 bool Engine::go(const uci::GoCommand& command) {
     SearchOptions options = make_search_options(command.limits, board);
     if (!thread_pool.start_search(options))
-        protocol.info("search already in progress");
+        writer.info("search already in progress");
     return true;
 }
 
@@ -247,19 +260,19 @@ bool Engine::console(const uci::ConsoleCommand& command) {
 }
 
 bool Engine::help() {
-    protocol.help();
+    writer.help();
     return true;
 }
 
 bool Engine::display_board() {
-    protocol.debug(board);
+    writer.debug(board);
     return true;
 }
 
 bool Engine::evaluate() {
     EvaluatorDebug e{board};
     e.evaluate();
-    protocol.debug(e);
+    writer.debug(e);
     return true;
 }
 
@@ -273,7 +286,7 @@ bool Engine::move(const std::string& arguments) {
     } else {
         auto move = get_move(token);
         if (move.is_null()) {
-            protocol.info("invalid move: " + token);
+            writer.info("invalid move: " + token);
         } else {
             make_board_move(move);
         }
@@ -286,7 +299,7 @@ bool Engine::moves() {
     for (auto& move : movelist) {
         if (!board.is_legal_generated_move(move))
             continue;
-        protocol.debug(move.str());
+        writer.debug(move.str());
     }
     return true;
 }

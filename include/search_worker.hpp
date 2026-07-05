@@ -18,14 +18,14 @@ class ThreadPool;
 class ThreadTestAccess;
 
 namespace uci {
-class Protocol;
+class Writer;
 }
 
 // Per-thread search state and search execution.
 class SearchWorker {
 public:
     SearchWorker() = delete;
-    SearchWorker(int id, uci::Protocol& protocol, ThreadPool& pool);
+    SearchWorker(int id, uci::Writer& writer, ThreadPool& pool);
 
     // Thread-facing lifecycle.
     void configure_search(const SearchOptions& options);
@@ -54,9 +54,9 @@ private:
     SearchInstrumentation<> stats;
 
     // Shared services.
-    uci::Protocol& protocol;
-    ThreadPool&    thread_pool;
-    const int      thread_id;
+    uci::Writer& writer;
+    ThreadPool&  thread_pool;
+    const int    thread_id;
 
     // Stop state.
     std::atomic<bool> stop_requested_flag{false};

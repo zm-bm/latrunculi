@@ -45,8 +45,8 @@ class SearchTest : public ::testing::Test {
 protected:
     std::ostringstream protocol_out;
     std::ostringstream protocol_err;
-    uci::Protocol      protocol{protocol_out, protocol_err};
-    ThreadPool         pool{1, protocol};
+    uci::Writer        writer{protocol_out, protocol_err};
+    ThreadPool         pool{1, writer};
     Thread*            thread;
     SearchWorker*      worker;
     SearchOptions      options;
@@ -108,7 +108,9 @@ protected:
 
     int runWorkerSearch() { return worker->search(); }
 
-    void reportChangedSearchInfo(const RootLine& line) { worker->report_changed_search_info(line); }
+    void reportChangedSearchProgress(const RootLine& line) {
+        worker->report_changed_search_info(line);
+    }
 
     int count_protocol_lines_starting_with(std::string_view prefix) const {
         std::istringstream lines{protocol_out.str()};
@@ -2089,7 +2091,7 @@ TEST_F(SearchTest, RootSearchBuildsPrincipalVariationForRootLine) {
     EXPECT_EQ(rootPvSize(), 2);
 }
 
-TEST_F(SearchTest, SearchInfoReportingSuppressesOnlyIdenticalRootLines) {
+TEST_F(SearchTest, SearchReportingSuppressesOnlyIdenticalRootLines) {
     TestBoard board{STARTFEN};
     loadWorkerBoard(board, 2);
 
@@ -2101,23 +2103,23 @@ TEST_F(SearchTest, SearchInfoReportingSuppressesOnlyIdenticalRootLines) {
         .pv        = pv_for_move(Move(E2, E4)),
     };
 
-    reportChangedSearchInfo(line);
-    reportChangedSearchInfo(line);
+    reportChangedSearchProgress(line);
+    reportChangedSearchProgress(line);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 1) << protocol_out.str();
 
     RootLine score_changed = line;
     score_changed.value    = 21;
-    reportChangedSearchInfo(score_changed);
+    reportChangedSearchProgress(score_changed);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 2) << protocol_out.str();
 
     RootLine pv_changed = score_changed;
     pv_changed.pv       = pv_for_line(Move(E2, E4), Move(E7, E5));
-    reportChangedSearchInfo(pv_changed);
+    reportChangedSearchProgress(pv_changed);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 3) << protocol_out.str();
 
     RootLine depth_changed = pv_changed;
     depth_changed.depth    = 2;
-    reportChangedSearchInfo(depth_changed);
+    reportChangedSearchProgress(depth_changed);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 2 "), 1) << protocol_out.str();
 }
 

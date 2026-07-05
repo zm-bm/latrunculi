@@ -53,7 +53,7 @@ private:
     std::ostream&             out;
     std::ostream&             err;
     std::istream&             in;
-    uci::Protocol             protocol;
+    uci::Writer               writer;
     uci::Config               config;
     std::deque<PositionState> position_states = {PositionState()};
     size_t                    position_ply    = 0;

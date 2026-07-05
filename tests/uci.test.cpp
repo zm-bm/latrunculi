@@ -34,10 +34,10 @@ T parse_as(std::string_view line) {
 
 } // namespace
 
-class ProtocolTest : public ::testing::Test {
+class WriterTest : public ::testing::Test {
 protected:
     std::ostringstream oss, err;
-    uci::Protocol      protocol{oss, err};
+    uci::Writer        writer{oss, err};
 
     void SetUp() override {
         oss.str("");
@@ -45,22 +45,33 @@ protected:
         err.str("");
         err.clear();
     }
+
+    std::string write_search_info(const RootLine& line,
+                                  const Board&    board,
+                                  uint64_t        nodes = 0,
+                                  Milliseconds    time  = Milliseconds{0}) {
+        writer.search_info(line, board, nodes, time);
+        std::string output = oss.str();
+        oss.str("");
+        oss.clear();
+        return output;
+    }
 };
 
-TEST_F(ProtocolTest, Help) {
-    protocol.help();
+TEST_F(WriterTest, Help) {
+    writer.help();
     EXPECT_NE(err.str().find("Available commands"), std::string::npos);
 }
 
-TEST_F(ProtocolTest, Identify) {
+TEST_F(WriterTest, Identify) {
     uci::Config config;
-    protocol.identify(config);
+    writer.identify(config);
     EXPECT_NE(oss.str().find("uciok"), std::string::npos);
     EXPECT_NE(oss.str().find("option name Clear Hash type button"), std::string::npos);
     EXPECT_NE(oss.str().find("option name Debug type check default false"), std::string::npos);
 }
 
-TEST_F(ProtocolTest, ConfigSetOptionUpdatesValuesAndReturnsOption) {
+TEST_F(WriterTest, ConfigSetOptionUpdatesValuesAndReturnsOption) {
     uci::Config config;
 
     EXPECT_EQ(config.set_option("hash", "16"), uci::ConfigOption::Hash);
@@ -72,13 +83,13 @@ TEST_F(ProtocolTest, ConfigSetOptionUpdatesValuesAndReturnsOption) {
     EXPECT_TRUE(config.debug.value);
 }
 
-TEST_F(ProtocolTest, ConfigClearHashButtonReturnsButtonOptionWithoutValue) {
+TEST_F(WriterTest, ConfigClearHashButtonReturnsButtonOptionWithoutValue) {
     uci::Config config;
 
     EXPECT_EQ(config.set_option("clear hash", ""), uci::ConfigOption::ClearHash);
 }
 
-TEST_F(ProtocolTest, ConfigRejectsMalformedOptionValues) {
+TEST_F(WriterTest, ConfigRejectsMalformedOptionValues) {
     uci::Config config;
 
     EXPECT_THROW(config.set_option("Threads", "2 extra"), std::invalid_argument);
@@ -86,36 +97,37 @@ TEST_F(ProtocolTest, ConfigRejectsMalformedOptionValues) {
     EXPECT_THROW(config.set_option("Clear Hash", "now"), std::invalid_argument);
 }
 
-TEST_F(ProtocolTest, Ready) {
-    protocol.ready();
+TEST_F(WriterTest, Ready) {
+    writer.ready();
     EXPECT_EQ(oss.str(), "readyok\n");
 }
 
-TEST_F(ProtocolTest, Bestmove) {
+TEST_F(WriterTest, Bestmove) {
     Move move{E2, E4};
-    protocol.bestmove(move);
+    writer.bestmove(move);
     EXPECT_EQ(oss.str(), "bestmove e2e4\n");
 }
 
-TEST_F(ProtocolTest, BestmoveFormatsNullMoveAsUciNullMove) {
-    protocol.bestmove(NULL_MOVE);
+TEST_F(WriterTest, BestmoveFormatsNullMoveAsUciNullMove) {
+    writer.bestmove(NULL_MOVE);
     EXPECT_EQ(oss.str(), "bestmove 0000\n");
 }
 
-TEST_F(ProtocolTest, FormatBestmoveFormatsNullMoveAsUciNullMove) {
+TEST_F(WriterTest, FormatBestmoveFormatsNullMoveAsUciNullMove) {
     EXPECT_EQ(uci::format_bestmove(NULL_MOVE), "bestmove 0000");
 }
 
-TEST_F(ProtocolTest, InfoSearchInfo) {
-    uci::SearchInfo info{
-        .score = 50,
-        .depth = 10,
-        .nodes = 1000,
-        .time  = Milliseconds{100},
-        .pv    = "e2e4 e7e5",
+TEST_F(WriterTest, SearchProgressWritesCentipawnScore) {
+    TestBoard board{STARTFEN};
+    RootLine  line{
+         .root_move = Move{E2, E4},
+         .value     = 50,
+         .depth     = 10,
+         .completed = true,
+         .pv        = pv_for_line(Move{E2, E4}, Move{E7, E5}),
     };
 
-    protocol.info(info);
+    writer.search_info(line, board, 1000, Milliseconds{100});
 
     EXPECT_NE(oss.str().find("depth 10"), std::string::npos);
     EXPECT_NE(oss.str().find("score cp 50"), std::string::npos);
@@ -123,16 +135,17 @@ TEST_F(ProtocolTest, InfoSearchInfo) {
     EXPECT_NE(oss.str().find("pv e2e4 e7e5"), std::string::npos);
 }
 
-TEST_F(ProtocolTest, InfoMate) {
-    uci::SearchInfo info{
-        .score = MATE_VALUE - 4,
-        .depth = 10,
-        .nodes = 1000,
-        .time  = Milliseconds{100},
-        .pv    = "e2e4 e7e5",
+TEST_F(WriterTest, SearchProgressWritesPositiveMateScore) {
+    TestBoard board{STARTFEN};
+    RootLine  line{
+         .root_move = Move{E2, E4},
+         .value     = MATE_VALUE - 4,
+         .depth     = 10,
+         .completed = true,
+         .pv        = pv_for_line(Move{E2, E4}, Move{E7, E5}),
     };
 
-    protocol.info(info);
+    writer.search_info(line, board, 1000, Milliseconds{100});
 
     EXPECT_NE(oss.str().find("depth 10"), std::string::npos);
     EXPECT_NE(oss.str().find("score mate 2"), std::string::npos);
@@ -140,16 +153,17 @@ TEST_F(ProtocolTest, InfoMate) {
     EXPECT_NE(oss.str().find("pv e2e4 e7e5"), std::string::npos);
 }
 
-TEST_F(ProtocolTest, InfoNegativeMate) {
-    uci::SearchInfo info{
-        .score = -(MATE_VALUE - 4),
-        .depth = 10,
-        .nodes = 1000,
-        .time  = Milliseconds{100},
-        .pv    = "e2e4 e7e5",
+TEST_F(WriterTest, SearchProgressWritesNegativeMateScore) {
+    TestBoard board{STARTFEN};
+    RootLine  line{
+         .root_move = Move{E2, E4},
+         .value     = -(MATE_VALUE - 4),
+         .depth     = 10,
+         .completed = true,
+         .pv        = pv_for_line(Move{E2, E4}, Move{E7, E5}),
     };
 
-    protocol.info(info);
+    writer.search_info(line, board, 1000, Milliseconds{100});
 
     EXPECT_NE(oss.str().find("depth 10"), std::string::npos);
     EXPECT_NE(oss.str().find("score mate -2"), std::string::npos);
@@ -157,7 +171,7 @@ TEST_F(ProtocolTest, InfoNegativeMate) {
     EXPECT_NE(oss.str().find("pv e2e4 e7e5"), std::string::npos);
 }
 
-TEST_F(ProtocolTest, MakeSearchInfoSerializesLegalRootPv) {
+TEST_F(WriterTest, SearchProgressSerializesLegalRootPv) {
     TestBoard board{STARTFEN};
     RootLine  line{
          .root_move = Move{E2, E4},
@@ -167,16 +181,11 @@ TEST_F(ProtocolTest, MakeSearchInfoSerializesLegalRootPv) {
          .pv        = pv_for_line(Move{E2, E4}, Move{E7, E5}),
     };
 
-    const auto info = uci::make_search_info(line, board, 1234, Milliseconds{56});
-
-    EXPECT_EQ(info.score, line.value);
-    EXPECT_EQ(info.depth, line.depth);
-    EXPECT_EQ(info.nodes, 1234U);
-    EXPECT_EQ(info.time, Milliseconds{56});
-    EXPECT_EQ(info.pv, "e2e4 e7e5 ");
+    EXPECT_EQ(write_search_info(line, board, 1234, Milliseconds{56}),
+              "info depth 2 score cp 20 nodes 1234 time 56 nps 22035 pv e2e4 e7e5 \n");
 }
 
-TEST_F(ProtocolTest, MakeSearchInfoClearsUnusableRootPv) {
+TEST_F(WriterTest, SearchProgressClearsUnusableRootPv) {
     TestBoard board{STARTFEN};
 
     RootLine null_best{
@@ -185,7 +194,8 @@ TEST_F(ProtocolTest, MakeSearchInfoClearsUnusableRootPv) {
         .depth     = 1,
         .completed = true,
     };
-    EXPECT_EQ(uci::make_search_info(null_best, board, 0, Milliseconds{0}).pv, "");
+    EXPECT_EQ(write_search_info(null_best, board),
+              "info depth 1 score cp 0 nodes 0 time 0 nps 0 pv \n");
 
     RootLine incomplete{
         .root_move = Move{E2, E4},
@@ -194,7 +204,8 @@ TEST_F(ProtocolTest, MakeSearchInfoClearsUnusableRootPv) {
         .completed = false,
         .pv        = pv_for_move(Move{E2, E4}),
     };
-    EXPECT_EQ(uci::make_search_info(incomplete, board, 0, Milliseconds{0}).pv, "");
+    EXPECT_EQ(write_search_info(incomplete, board),
+              "info depth 1 score cp 0 nodes 0 time 0 nps 0 pv \n");
 
     RootLine depth_zero{
         .root_move = Move{E2, E4},
@@ -203,10 +214,11 @@ TEST_F(ProtocolTest, MakeSearchInfoClearsUnusableRootPv) {
         .completed = true,
         .pv        = pv_for_move(Move{E2, E4}),
     };
-    EXPECT_EQ(uci::make_search_info(depth_zero, board, 0, Milliseconds{0}).pv, "");
+    EXPECT_EQ(write_search_info(depth_zero, board),
+              "info depth 0 score cp 0 nodes 0 time 0 nps 0 pv \n");
 }
 
-TEST_F(ProtocolTest, MakeSearchInfoRejectsStaleRootPv) {
+TEST_F(WriterTest, SearchProgressRejectsStaleRootPv) {
     TestBoard board{STARTFEN};
 
     RootLine first_move_mismatch{
@@ -216,7 +228,8 @@ TEST_F(ProtocolTest, MakeSearchInfoRejectsStaleRootPv) {
         .completed = true,
         .pv        = pv_for_move(Move{D2, D4}),
     };
-    EXPECT_EQ(uci::make_search_info(first_move_mismatch, board, 0, Milliseconds{0}).pv, "");
+    EXPECT_EQ(write_search_info(first_move_mismatch, board),
+              "info depth 1 score cp 0 nodes 0 time 0 nps 0 pv \n");
 
     RootLine illegal_child{
         .root_move = Move{E2, E4},
@@ -225,18 +238,19 @@ TEST_F(ProtocolTest, MakeSearchInfoRejectsStaleRootPv) {
         .completed = true,
         .pv        = pv_for_line(Move{E2, E4}, Move{H1, H2}),
     };
-    EXPECT_EQ(uci::make_search_info(illegal_child, board, 0, Milliseconds{0}).pv, "");
+    EXPECT_EQ(write_search_info(illegal_child, board),
+              "info depth 2 score cp 0 nodes 0 time 0 nps 0 pv \n");
 }
 
-TEST_F(ProtocolTest, InfoString) {
+TEST_F(WriterTest, InfoString) {
     std::string info = "This is a test info string";
-    protocol.info(info);
+    writer.info(info);
     EXPECT_NE(oss.str().find(info), std::string::npos);
 }
 
-TEST_F(ProtocolTest, DebugOutput) {
+TEST_F(WriterTest, DebugOutput) {
     std::string logMessage = "This is a log message";
-    protocol.debug(logMessage);
+    writer.debug(logMessage);
     EXPECT_EQ(err.str(), logMessage + "\n");
 }
 
@@ -279,7 +293,7 @@ TEST(UciCommandParserTest, ParsesPositionStartposMoves) {
     const auto command = parse_as<uci::PositionCommand>("\tposition\tstartpos\tmoves\te2e4 e7e5 ");
 
     EXPECT_EQ(command.source, uci::PositionCommand::Source::Startpos);
-    EXPECT_EQ(command.fen, Board::startfen);
+    EXPECT_TRUE(command.fen.empty());
     ASSERT_EQ(command.moves.size(), 2U);
     EXPECT_EQ(command.moves[0], "e2e4");
     EXPECT_EQ(command.moves[1], "e7e5");

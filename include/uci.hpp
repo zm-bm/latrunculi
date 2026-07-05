@@ -61,14 +61,6 @@ struct Config {
     ConfigOption set_option(const std::string& name, const std::string& value);
 };
 
-struct SearchInfo {
-    int          score;
-    int          depth;
-    uint64_t     nodes;
-    Milliseconds time;
-    std::string  pv;
-};
-
 struct EmptyCommand {};
 struct UciCommand {};
 struct DebugCommand {
@@ -84,7 +76,8 @@ struct NewGameCommand {};
 struct PositionCommand {
     enum class Source { Invalid, Startpos, Fen };
 
-    Source                   source{Source::Invalid};
+    Source source{Source::Invalid};
+    // Populated only when source == Source::Fen; Startpos is resolved by Engine.
     std::string              fen;
     std::vector<std::string> moves;
 };
@@ -140,9 +133,6 @@ using Command = std::variant<EmptyCommand,
 
 Command parse_command(std::string_view line);
 
-SearchInfo
-make_search_info(const RootLine& line, const Board& root_board, uint64_t nodes, Milliseconds time);
-
 std::string format_uci_move(Move move);
 std::string format_option(std::string_view name, const SpinOption& opt);
 std::string format_option(std::string_view name, const CheckOption& opt);
@@ -150,19 +140,21 @@ std::string format_option(std::string_view name, const ButtonOption& opt);
 std::string format_identification(const uci::Config& config);
 std::string format_ready();
 std::string format_bestmove(Move move);
-std::string format_info(const uci::SearchInfo& info);
 std::string format_info_string(std::string_view str);
 
 // Stateless writer for UCI stdout lines and local debug-console stderr output.
-class Protocol {
+class Writer {
 public:
-    explicit Protocol(std::ostream& out, std::ostream& err) : out(out), err(err) {}
+    explicit Writer(std::ostream& out, std::ostream& err) : out(out), err(err) {}
 
     void help() const;
     void identify(const uci::Config& config) const;
     void ready() const;
     void bestmove(Move move) const;
-    void info(const uci::SearchInfo& info) const;
+    void search_info(const RootLine& line,
+                     const Board&    root_board,
+                     uint64_t        nodes,
+                     Milliseconds    time) const;
     void info(const std::string& str) const;
 
     template <typename T>
