@@ -107,8 +107,8 @@ protected:
 
     int runWorkerSearch() { return worker->search(); }
 
-    void reportChangedSearchProgress(const RootLine& line) {
-        worker->report_changed_search_info(line);
+    void reportRootProgress(const RootLine& line) {
+        worker->report_root_progress(line);
     }
 
     int count_protocol_lines_starting_with(std::string_view prefix) const {
@@ -1989,10 +1989,10 @@ TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
 
     buildRootLines();
 
-    const Move first_move = findWorkerMove("d3e2");
-    const Move best_move  = findWorkerMove("d3d8");
+    const Move first_move   = findWorkerMove("d3e2");
+    const Move winning_move = findWorkerMove("d3d8");
     ASSERT_FALSE(first_move.is_null());
-    ASSERT_FALSE(best_move.is_null());
+    ASSERT_FALSE(winning_move.is_null());
 
     RootLine first_line;
     RootLine best_line;
@@ -2003,7 +2003,7 @@ TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
             first_line  = line;
             found_first = true;
         }
-        if (line.root_move == best_move) {
+        if (line.root_move == winning_move) {
             best_line  = line;
             found_best = true;
         }
@@ -2018,7 +2018,7 @@ TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
     EXPECT_GT(rootLines()[1].value, rootLines()[0].value);
 
     std::stable_sort(mutableRootLines().begin(), mutableRootLines().end(), is_better_root_line);
-    EXPECT_EQ(rootLines().front().root_move, best_move);
+    EXPECT_EQ(rootLines().front().root_move, winning_move);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 2) << protocol_out.str();
 
 #if LATRUNCULI_SEARCH_STATS
@@ -2101,23 +2101,23 @@ TEST_F(SearchTest, SearchReportingSuppressesOnlyIdenticalRootLines) {
         .pv        = pv_for_move(Move(E2, E4)),
     };
 
-    reportChangedSearchProgress(line);
-    reportChangedSearchProgress(line);
+    reportRootProgress(line);
+    reportRootProgress(line);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 1) << protocol_out.str();
 
     RootLine score_changed = line;
     score_changed.value    = 21;
-    reportChangedSearchProgress(score_changed);
+    reportRootProgress(score_changed);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 2) << protocol_out.str();
 
     RootLine pv_changed = score_changed;
     pv_changed.pv       = pv_for_line(Move(E2, E4), Move(E7, E5));
-    reportChangedSearchProgress(pv_changed);
+    reportRootProgress(pv_changed);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 3) << protocol_out.str();
 
     RootLine depth_changed = pv_changed;
     depth_changed.depth    = 2;
-    reportChangedSearchProgress(depth_changed);
+    reportRootProgress(depth_changed);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 2 "), 1) << protocol_out.str();
 }
 

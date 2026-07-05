@@ -132,7 +132,7 @@ void SearchWorker::report_final_result() {
 
     const RootLine selected = select_best_root_line(root_result, thread_pool.root_snapshots());
 
-    report_changed_search_info(selected);
+    report_root_progress(selected);
 
     writer.bestmove(selected.root_move);
 
@@ -142,7 +142,7 @@ void SearchWorker::report_final_result() {
     }
 }
 
-void SearchWorker::report_changed_search_info(const RootLine& line) {
+void SearchWorker::report_root_progress(const RootLine& line) {
     if (last_reported_root_line && line == *last_reported_root_line)
         return;
 

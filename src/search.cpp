@@ -159,7 +159,7 @@ bool SearchWorker::search_root_depth(int depth, int previous_value) {
             root_result = best_line;
             update_root_snapshot();
             if (is_main_worker())
-                report_changed_search_info(root_result);
+                report_root_progress(root_result);
             return true;
         }
 
@@ -219,7 +219,7 @@ bool SearchWorker::search_root_window(int depth, int alpha, int beta) {
         if (value > alpha) {
             // A new root move improved alpha.
             if (is_main_worker())
-                report_changed_search_info(line);
+                report_root_progress(line);
 
             alpha         = value;
             pv_move_found = true;
@@ -341,9 +341,9 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
                    alpha < MATE_BOUND && static_eval + FutilityMargin[depth] <= alpha;
     }
 
-    int  move_count = 0;
-    int  best_value = -INF_VALUE;
-    Move best_move  = NULL_MOVE;
+    int  move_count     = 0;
+    int  best_value     = -INF_VALUE;
+    Move top_score_move = NULL_MOVE;
 
     const auto         ctx    = MoveOrdering::make_context(board);
     MovePicker         picker = MovePicker::main_search(board, ordering, ctx, ply, tt_move);
@@ -449,8 +449,8 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         }
         // Step 13. Best Move Update. Raise alpha and PV when this move improves the node.
         if (value > best_value) {
-            best_value = value;
-            best_move  = move;
+            best_value     = value;
+            top_score_move = move;
 
             if (value > alpha) {
                 alpha = value;
@@ -469,7 +469,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
 
     // Step 15. Store Result. Use the original window to classify the bound.
     tt.store_search(position_key,
-                    best_move,
+                    top_score_move,
                     best_value,
                     depth,
                     tt_bound_for_window(best_value, original_alpha, beta),
@@ -520,9 +520,9 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
     }
 
     const bool in_check   = board.is_check();
-    int        move_count = 0;
-    int        best_value = -INF_VALUE;
-    Move       best_move  = NULL_MOVE;
+    int        move_count     = 0;
+    int        best_value     = -INF_VALUE;
+    Move       top_score_move = NULL_MOVE;
 
     // Step 4. Stand Pat. Use static eval as the initial lower bound when legal.
     if (!in_check) {
@@ -567,8 +567,8 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
 
         // Step 7. Best Move Update. Raise alpha and PV when this move improves qsearch.
         if (value > best_value) {
-            best_value = value;
-            best_move  = move;
+            best_value     = value;
+            top_score_move = move;
             if (value > alpha) {
                 alpha = value;
                 if (pv)
@@ -586,7 +586,7 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
 
     // Step 9. Store Result. Use the original window to classify the qsearch bound.
     tt.store_search(position_key,
-                    best_move,
+                    top_score_move,
                     best_value,
                     qsearch_tt_depth,
                     tt_bound_for_window(best_value, original_alpha, beta),

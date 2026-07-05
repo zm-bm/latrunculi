@@ -79,7 +79,7 @@ private:
     bool     search_root_window(int depth, int alpha, int beta);
     void     record_root_result(int value);
     void     report_final_result();
-    void     report_changed_search_info(const RootLine& line);
+    void     report_root_progress(const RootLine& line);
 
     // Root snapshot publication.
     void clear_root_snapshot();

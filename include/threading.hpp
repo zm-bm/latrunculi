@@ -13,10 +13,13 @@
 #include "search_instrumentation.hpp"
 #include "search_limits.hpp"
 #include "search_worker.hpp"
-#include "uci.hpp"
 
 class ThreadPool;
 class ThreadTestAccess;
+
+namespace uci {
+class Writer;
+}
 
 // Native thread wrapper. Owns a SearchWorker and OS thread.
 class Thread {
