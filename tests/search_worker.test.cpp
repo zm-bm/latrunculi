@@ -4,7 +4,7 @@
 
 #include <sstream>
 
-#include "search_options.hpp"
+#include "search_limits.hpp"
 #include "test_util.hpp"
 #include "thread_test_access.hpp"
 #include "threading.hpp"
@@ -21,9 +21,7 @@ protected:
     Thread& test_thread() { return ThreadTestAccess::thread(pool); }
 
     void load_worker_board(Board& board) {
-        SearchOptions options;
-        options.board = &board;
-        ThreadTestAccess::configure_search(test_thread(), options);
+        ThreadTestAccess::configure_search(test_thread(), board, SearchLimits{});
         ThreadTestAccess::reset_search_state(test_thread());
     }
 

@@ -12,7 +12,7 @@
 #include "position_state.hpp"
 #include "root_line.hpp"
 #include "search_instrumentation.hpp"
-#include "search_options.hpp"
+#include "search_limits.hpp"
 
 class ThreadPool;
 class ThreadTestAccess;
@@ -28,7 +28,7 @@ public:
     SearchWorker(int id, uci::Writer& writer, ThreadPool& pool);
 
     // Thread-facing lifecycle.
-    void configure_search(const SearchOptions& options);
+    void configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
     int  search();
     void request_stop() noexcept;
 
@@ -46,8 +46,9 @@ private:
     MoveOrdering          ordering;
 
     // Current search request.
-    SearchOptions options;
-    int64_t       searchtime_ms{OPTION_NOT_SET};
+    SearchLimits                limits;
+    TimePoint                   start_time{};
+    std::optional<Milliseconds> allocated_time;
 
     // Progress and diagnostics.
     std::atomic<uint64_t>   nodes{0};

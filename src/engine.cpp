@@ -10,33 +10,32 @@
 #include "evaluator.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
-#include "search_options.hpp"
+#include "search_limits.hpp"
 #include "tt.hpp"
 
 namespace {
 
-SearchOptions make_search_options(const uci::GoLimits& limits, Board& board) {
-    SearchOptions options;
-    options.board = &board;
+SearchLimits make_search_limits(const uci::GoLimits& go_limits) {
+    SearchLimits limits;
 
-    if (limits.depth)
-        options.set_depth(*limits.depth);
-    if (limits.movetime)
-        options.set_movetime(*limits.movetime);
-    if (limits.nodes)
-        options.set_nodes(*limits.nodes);
-    if (limits.wtime)
-        options.set_wtime(*limits.wtime);
-    if (limits.btime)
-        options.set_btime(*limits.btime);
-    if (limits.winc)
-        options.set_winc(*limits.winc);
-    if (limits.binc)
-        options.set_binc(*limits.binc);
-    if (limits.movestogo)
-        options.set_movestogo(*limits.movestogo);
+    if (go_limits.depth)
+        limits.set_depth(*go_limits.depth);
+    if (go_limits.movetime)
+        limits.set_movetime(*go_limits.movetime);
+    if (go_limits.nodes)
+        limits.set_nodes(*go_limits.nodes);
+    if (go_limits.wtime)
+        limits.set_wtime(*go_limits.wtime);
+    if (go_limits.btime)
+        limits.set_btime(*go_limits.btime);
+    if (go_limits.winc)
+        limits.set_winc(*go_limits.winc);
+    if (go_limits.binc)
+        limits.set_binc(*go_limits.binc);
+    if (go_limits.movestogo)
+        limits.set_movestogo(*go_limits.movestogo);
 
-    return options;
+    return limits;
 }
 
 std::string position_root_fen(const uci::PositionCommand& command) {
@@ -210,8 +209,8 @@ bool Engine::position(const uci::PositionCommand& command) {
 }
 
 bool Engine::go(const uci::GoCommand& command) {
-    SearchOptions options = make_search_options(command.limits, board);
-    if (!thread_pool.start_search(options))
+    SearchLimits limits = make_search_limits(command.limits);
+    if (!thread_pool.start_search(board, limits))
         writer.info("search already in progress");
     return true;
 }

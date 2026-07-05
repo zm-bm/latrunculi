@@ -113,7 +113,7 @@ int SearchWorker::search_root() {
     }
 
     // Iterative deepening searches one completed depth at a time.
-    for (int depth = 1; depth <= options.depth && !stop_requested(); ++depth) {
+    for (int depth = 1; depth <= limits.depth && !stop_requested(); ++depth) {
         if (!search_root_depth(depth, root_result.value))
             break;
     }

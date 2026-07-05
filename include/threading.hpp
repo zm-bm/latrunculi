@@ -11,7 +11,7 @@
 
 #include "root_line.hpp"
 #include "search_instrumentation.hpp"
-#include "search_options.hpp"
+#include "search_limits.hpp"
 #include "search_worker.hpp"
 #include "uci.hpp"
 
@@ -28,7 +28,7 @@ private:
     Thread(int id, uci::Writer& writer, ThreadPool& pool);
 
     // ThreadPool-facing lifecycle.
-    void start_search(const SearchOptions& options);
+    void start_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
     void request_stop();
     void wait_for_idle();
     void shutdown();
@@ -47,7 +47,7 @@ private:
 
     // Internal state transitions.
     void idle_loop();
-    void configure_search(const SearchOptions& options);
+    void configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
     void wake_for_search();
 
     friend class ThreadPool;
@@ -62,7 +62,7 @@ public:
     ~ThreadPool();
 
     // Search lifecycle.
-    bool start_search(const SearchOptions&);
+    bool start_search(const Board& root_board, SearchLimits limits);
     void request_stop();
     void wait();
     void shutdown();

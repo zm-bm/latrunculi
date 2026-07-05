@@ -26,7 +26,7 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/root_line.cpp
     src/search.cpp
     src/search_worker.cpp
-    src/search_options.cpp
+    src/search_limits.cpp
     src/threading.cpp
     src/tt.cpp
     src/uci.cpp
@@ -71,7 +71,7 @@ if(BUILD_TESTING)
         tests/principal_variation.test.cpp
         tests/score.test.cpp
         tests/search.test.cpp
-        tests/search_options.test.cpp
+        tests/search_limits.test.cpp
         tests/search_instrumentation.test.cpp
         tests/search_worker.test.cpp
         tests/threading.test.cpp

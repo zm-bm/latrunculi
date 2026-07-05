@@ -15,8 +15,8 @@ Thread::~Thread() {
 }
 
 // ThreadPool-facing lifecycle.
-void Thread::start_search(const SearchOptions& options) {
-    configure_search(options);
+void Thread::start_search(const Board& root_board, SearchLimits limits, TimePoint start_time) {
+    configure_search(root_board, limits, start_time);
     wake_for_search();
 }
 
@@ -66,13 +66,13 @@ void Thread::idle_loop() {
     }
 }
 
-void Thread::configure_search(const SearchOptions& options) {
+void Thread::configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time) {
     std::lock_guard<std::mutex> lock(state_mutex);
 
     assert(!searching);
     assert(!shutdown_requested);
 
-    worker.configure_search(options);
+    worker.configure_search(root_board, limits, start_time);
     worker_running.store(false, std::memory_order_release);
 }
 
@@ -98,15 +98,17 @@ ThreadPool::~ThreadPool() {
 }
 
 // Search lifecycle.
-bool ThreadPool::start_search(const SearchOptions& options) {
+bool ThreadPool::start_search(const Board& root_board, SearchLimits limits) {
     if (shutdown_requested || threads.empty() || is_searching())
         return false;
+
+    const TimePoint start_time = Clock::now();
 
     // Close the gate so helpers wait for the main worker.
     close_helper_gate();
 
     for (auto& thread : threads) {
-        thread->start_search(options);
+        thread->start_search(root_board, limits, start_time);
     }
 
     return true;

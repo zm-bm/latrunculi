@@ -18,13 +18,16 @@ SearchWorker::SearchWorker(int id, uci::Writer& writer, ThreadPool& pool)
       thread_id(id) {}
 
 // Configuration.
-void SearchWorker::configure_search(const SearchOptions& search_options) {
+void SearchWorker::configure_search(const Board& root_board,
+                                    SearchLimits limits,
+                                    TimePoint    search_start_time) {
     board.bind_position_state(position_states.root());
-    board.load_board(search_options.board);
+    board.load_board(&root_board);
     ply = 0;
 
-    options       = search_options;
-    searchtime_ms = options.calc_searchtime_ms(board.side_to_move());
+    this->limits   = limits;
+    start_time     = search_start_time;
+    allocated_time = this->limits.allocated_time(board.side_to_move());
 
     clear_root_snapshot();
     stop_requested_flag.store(false, std::memory_order_relaxed);
@@ -106,7 +109,7 @@ RootLine SearchWorker::terminal_root_result() const {
     return RootLine{
         .root_move = NULL_MOVE,
         .value     = board.is_check() ? -MATE_VALUE : DRAW_VALUE,
-        .depth     = options.depth,
+        .depth     = limits.depth,
         .completed = true,
     };
 }
@@ -114,7 +117,7 @@ RootLine SearchWorker::terminal_root_result() const {
 void SearchWorker::record_root_result(int value) {
     if (!root_result.completed && !stop_requested()) {
         root_result.value     = value;
-        root_result.depth     = options.depth;
+        root_result.depth     = limits.depth;
         root_result.completed = true;
     }
 
@@ -149,7 +152,7 @@ void SearchWorker::report_changed_search_info(const RootLine& line) {
 
 // Accounting and limits.
 Milliseconds SearchWorker::runtime() const {
-    return std::chrono::duration_cast<Milliseconds>(Clock::now() - options.starttime);
+    return std::chrono::duration_cast<Milliseconds>(Clock::now() - start_time);
 }
 
 uint64_t SearchWorker::total_nodes() const {
@@ -157,15 +160,14 @@ uint64_t SearchWorker::total_nodes() const {
 }
 
 void SearchWorker::poll_search_limits() {
-    if (options.nodes != OPTION_NOT_SET) {
+    if (limits.nodes) {
         auto searched = total_nodes();
-        if (searched >= options.nodes)
+        if (searched >= *limits.nodes)
             thread_pool.request_stop();
     }
 
-    if (searchtime_ms != OPTION_NOT_SET) {
-        auto runtime_ms = runtime().count();
-        if (runtime_ms >= searchtime_ms)
+    if (allocated_time) {
+        if (runtime() >= *allocated_time)
             thread_pool.request_stop();
     }
 }

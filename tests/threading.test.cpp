@@ -6,7 +6,7 @@
 #include <sstream>
 #include <thread>
 
-#include "search_options.hpp"
+#include "search_limits.hpp"
 #include "test_util.hpp"
 #include "thread_test_access.hpp"
 #include "tt.hpp"
@@ -16,10 +16,8 @@ namespace {
 
 constexpr int THREAD_COUNT = 4;
 
-SearchOptions options_for(Board& board) {
-    SearchOptions options;
-    options.board = &board;
-    return options;
+SearchLimits default_limits() {
+    return SearchLimits{};
 }
 
 class ThreadLifecycleTest : public ::testing::Test {
@@ -55,7 +53,7 @@ protected:
     uci::Writer        writer{oss, oss};
     ThreadPool         pool{THREAD_COUNT, writer};
     TestBoard          board{STARTFEN};
-    SearchOptions      options{options_for(board)};
+    SearchLimits       options{default_limits()};
 
     uint64_t nodes_searched() const { return pool.nodes_searched(); }
 
@@ -111,10 +109,10 @@ protected:
 } // namespace
 
 TEST_F(ThreadLifecycleTest, ThreadShutsDownCorrectly) {
-    TestBoard     board{STARTFEN};
-    SearchOptions options = options_for(board);
+    TestBoard    board{STARTFEN};
+    SearchLimits options = default_limits();
 
-    ThreadTestAccess::start_search(test_thread(), options);
+    ThreadTestAccess::start_search(test_thread(), board, options);
     ASSERT_TRUE(wait_for_worker_running());
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     ThreadTestAccess::shutdown(test_thread());
@@ -123,10 +121,10 @@ TEST_F(ThreadLifecycleTest, ThreadShutsDownCorrectly) {
 }
 
 TEST_F(ThreadLifecycleTest, ThreadStopsSearchCorrectly) {
-    TestBoard     board{STARTFEN};
-    SearchOptions options = options_for(board);
+    TestBoard    board{STARTFEN};
+    SearchLimits options = default_limits();
 
-    ThreadTestAccess::start_search(test_thread(), options);
+    ThreadTestAccess::start_search(test_thread(), board, options);
     ASSERT_TRUE(wait_for_worker_running());
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     ThreadTestAccess::request_stop(test_thread());
@@ -136,12 +134,12 @@ TEST_F(ThreadLifecycleTest, ThreadStopsSearchCorrectly) {
 }
 
 TEST_F(ThreadLifecycleTest, ThreadHandlesMultipleSearches) {
-    TestBoard     board1{STARTFEN};
-    TestBoard     board2{EMPTYFEN};
-    SearchOptions options1 = options_for(board1);
-    SearchOptions options2 = options_for(board2);
+    TestBoard    board1{STARTFEN};
+    TestBoard    board2{EMPTYFEN};
+    SearchLimits options1 = default_limits();
+    SearchLimits options2 = default_limits();
 
-    ThreadTestAccess::start_search(test_thread(), options1);
+    ThreadTestAccess::start_search(test_thread(), board1, options1);
     ThreadTestAccess::request_stop(test_thread());
 
     ThreadTestAccess::wait_for_idle(test_thread());
@@ -149,7 +147,7 @@ TEST_F(ThreadLifecycleTest, ThreadHandlesMultipleSearches) {
     oss.str("");
     oss.clear();
 
-    ThreadTestAccess::start_search(test_thread(), options2);
+    ThreadTestAccess::start_search(test_thread(), board2, options2);
     ThreadTestAccess::request_stop(test_thread());
 
     ThreadTestAccess::wait_for_idle(test_thread());
@@ -172,20 +170,20 @@ TEST_F(ThreadPoolTest, Constructor) {
 TEST_F(ThreadPoolTest, StartSearchRejectsEmptyPool) {
     ThreadPool empty_pool{0, writer};
 
-    EXPECT_FALSE(empty_pool.start_search(options));
+    EXPECT_FALSE(empty_pool.start_search(board, options));
     EXPECT_EQ(tt.current_age(), uint8_t{0});
 }
 
 TEST_F(ThreadPoolTest, StartSearchRejectsAfterShutdown) {
     pool.shutdown();
 
-    EXPECT_FALSE(pool.start_search(options));
+    EXPECT_FALSE(pool.start_search(board, options));
     EXPECT_EQ(tt.current_age(), uint8_t{0});
 }
 
 TEST_F(ThreadPoolTest, StartSearchCompletes) {
     options.depth = 5;
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
 
     EXPECT_NO_THROW(pool.wait());
     EXPECT_TRUE(has_bestmove_output()) << oss.str();
@@ -195,7 +193,7 @@ TEST_F(ThreadPoolTest, IsSearchingTracksLifecycle) {
     options.depth = 5;
 
     EXPECT_FALSE(pool.is_searching());
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     ASSERT_TRUE(wait_for_worker_running());
     EXPECT_TRUE(pool.is_searching());
 
@@ -208,7 +206,7 @@ TEST_F(ThreadPoolTest, IsSearchingTracksLifecycle) {
 TEST_F(ThreadPoolTest, MainWorkerReleasesHelperSearches) {
     options.depth = 5;
 
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
 
     bool helper_searched = false;
@@ -220,12 +218,12 @@ TEST_F(ThreadPoolTest, MainWorkerReleasesHelperSearches) {
 }
 
 TEST_F(ThreadPoolTest, StartSearchRejectsConcurrentSearch) {
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     ASSERT_TRUE(wait_for_worker_running());
     ASSERT_TRUE(wait_for_tt_age(1));
     const auto age = tt.current_age();
 
-    EXPECT_FALSE(pool.start_search(options));
+    EXPECT_FALSE(pool.start_search(board, options));
     EXPECT_EQ(tt.current_age(), age);
 
     pool.request_stop();
@@ -233,7 +231,7 @@ TEST_F(ThreadPoolTest, StartSearchRejectsConcurrentSearch) {
 }
 
 TEST_F(ThreadPoolTest, RequestStopStopsSearch) {
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     ASSERT_TRUE(wait_for_worker_running());
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     pool.request_stop();
@@ -245,7 +243,7 @@ TEST_F(ThreadPoolTest, RequestStopStopsSearch) {
 TEST_F(ThreadPoolTest, RequestStopImmediatelyAfterStartDoesNotDeadlock) {
     options.depth = 5;
 
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.request_stop();
     EXPECT_NO_THROW(pool.wait());
 
@@ -257,14 +255,14 @@ TEST_F(ThreadPoolTest, RequestStopWhileIdleDoesNotPoisonNextSearch) {
     EXPECT_NO_THROW(pool.wait());
 
     options.depth = 1;
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
 
     EXPECT_TRUE(has_bestmove_output()) << oss.str();
 }
 
 TEST_F(ThreadPoolTest, ShutdownStopsSearch) {
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     ASSERT_TRUE(wait_for_worker_running());
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     pool.shutdown();
@@ -275,7 +273,7 @@ TEST_F(ThreadPoolTest, ShutdownStopsSearch) {
 TEST_F(ThreadPoolTest, ShutdownImmediatelyAfterStartDoesNotDeadlock) {
     options.depth = 5;
 
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     EXPECT_NO_THROW(pool.shutdown());
 
     EXPECT_TRUE(has_bestmove_output()) << oss.str();
@@ -286,7 +284,7 @@ TEST_F(ThreadPoolTest, DestructorShutsDownActiveSearch) {
 
     {
         ThreadPool local_pool{THREAD_COUNT, writer};
-        EXPECT_TRUE(local_pool.start_search(options));
+        EXPECT_TRUE(local_pool.start_search(board, options));
     }
 
     EXPECT_TRUE(has_bestmove_output()) << oss.str();
@@ -295,7 +293,7 @@ TEST_F(ThreadPoolTest, DestructorShutsDownActiveSearch) {
 TEST_F(ThreadPoolTest, NodesSearchedAggregatesThreadCounters) {
     options.depth = 1;
 
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
 
     EXPECT_GT(nodes_searched(), 0);
@@ -305,11 +303,12 @@ TEST_F(ThreadPoolTest, NodeLimitedSearchUsesThreadSafeNodeCount) {
     options.depth = 5;
     options.nodes = 1;
 
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
 
     EXPECT_TRUE(has_bestmove_output()) << oss.str();
-    EXPECT_GE(nodes_searched(), static_cast<uint64_t>(options.nodes));
+    ASSERT_TRUE(options.nodes.has_value());
+    EXPECT_GE(nodes_searched(), *options.nodes);
 }
 
 TEST_F(ThreadPoolTest, RootSearchAgesSharedTTOncePerStartSearch) {
@@ -317,17 +316,17 @@ TEST_F(ThreadPoolTest, RootSearchAgesSharedTTOncePerStartSearch) {
 
     EXPECT_EQ(tt.current_age(), uint8_t{0});
 
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
     EXPECT_EQ(tt.current_age(), uint8_t{1});
 
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
     EXPECT_EQ(tt.current_age(), uint8_t{2});
 }
 
 TEST_F(ThreadPoolTest, ResizeRejectsWhileSearchInProgress) {
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     ASSERT_TRUE(wait_for_worker_running());
 
     EXPECT_FALSE(pool.resize(THREAD_COUNT + 1));
@@ -348,7 +347,7 @@ TEST_F(ThreadPoolTest, ShutdownIsIdempotent) {
     pool.shutdown();
     pool.shutdown();
 
-    EXPECT_FALSE(pool.start_search(options));
+    EXPECT_FALSE(pool.start_search(board, options));
     EXPECT_FALSE(pool.resize(THREAD_COUNT + 1));
     EXPECT_EQ(pool.thread_count(), THREAD_COUNT);
 }
@@ -358,7 +357,7 @@ TEST_F(ThreadPoolTest, ResizeGrowsAndShrinksIdlePool) {
 
     ASSERT_TRUE(pool.resize(THREAD_COUNT + 2));
     EXPECT_EQ(pool.thread_count(), THREAD_COUNT + 2);
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
     EXPECT_TRUE(has_bestmove_output()) << oss.str();
 
@@ -367,7 +366,7 @@ TEST_F(ThreadPoolTest, ResizeGrowsAndShrinksIdlePool) {
 
     ASSERT_TRUE(pool.resize(1));
     EXPECT_EQ(pool.thread_count(), 1U);
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
     EXPECT_TRUE(has_bestmove_output()) << oss.str();
 }
@@ -377,11 +376,11 @@ TEST_F(ThreadPoolTest, ResizeToZeroThenBackUp) {
 
     ASSERT_TRUE(pool.resize(0));
     EXPECT_EQ(pool.thread_count(), 0U);
-    EXPECT_FALSE(pool.start_search(options));
+    EXPECT_FALSE(pool.start_search(board, options));
 
     ASSERT_TRUE(pool.resize(THREAD_COUNT));
     EXPECT_EQ(pool.thread_count(), THREAD_COUNT);
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
     EXPECT_TRUE(has_bestmove_output()) << oss.str();
 }
@@ -389,7 +388,7 @@ TEST_F(ThreadPoolTest, ResizeToZeroThenBackUp) {
 TEST_F(ThreadPoolTest, RootLineSnapshotsPublishOnlyCompletedRequestedDepths) {
     options.depth = 1;
 
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
 
     expect_completed_depths(options.depth);
@@ -398,7 +397,7 @@ TEST_F(ThreadPoolTest, RootLineSnapshotsPublishOnlyCompletedRequestedDepths) {
 TEST_F(ThreadPoolTest, RootSnapshotsReturnsWorkerSnapshots) {
     options.depth = 1;
 
-    EXPECT_TRUE(pool.start_search(options));
+    EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
 
     const auto snapshots = pool.root_snapshots();

@@ -13,7 +13,7 @@
 #include "evaluator.hpp"
 #include "move_picker.hpp"
 #include "movegen.hpp"
-#include "search_options.hpp"
+#include "search_limits.hpp"
 #include "search_worker.hpp"
 #include "test_util.hpp"
 #include "thread_test_access.hpp"
@@ -49,21 +49,20 @@ protected:
     ThreadPool         pool{1, writer};
     Thread*            thread;
     SearchWorker*      worker;
-    SearchOptions      options;
+    SearchLimits       limits;
 
     void SetUp() override {
-        thread        = &ThreadTestAccess::thread(pool);
-        worker        = &ThreadTestAccess::worker(pool);
-        options       = SearchOptions();
-        options.depth = 4;
+        thread       = &ThreadTestAccess::thread(pool);
+        worker       = &ThreadTestAccess::worker(pool);
+        limits       = SearchLimits();
+        limits.depth = 4;
         tt.clear();
     }
 
     void loadWorkerBoard(Board& board, int search_depth = 4) {
         tt.clear();
-        options.board = &board;
-        options.depth = search_depth;
-        worker->configure_search(options);
+        limits.depth = search_depth;
+        worker->configure_search(board, limits, Clock::now());
         worker->reset_search_state();
     }
 
@@ -423,9 +422,8 @@ protected:
 
     void testSearch(const std::string& fen, int search_depth, int score, std::string move) {
         TestBoard board{fen};
-        options.board = &board;
-        options.depth = search_depth;
-        ThreadTestAccess::start_search(*thread, options);
+        limits.depth = search_depth;
+        ThreadTestAccess::start_search(*thread, board, limits);
         ThreadTestAccess::wait_for_idle(*thread);
 
         EXPECT_EQ(rootValue(), score) << fen;
@@ -2348,7 +2346,7 @@ TEST_F(SearchTest, RootSearchSetsNullMoveForCheckmate) {
     EXPECT_EQ(runRootSearch(), -MATE_VALUE);
     EXPECT_EQ(rootMove(), NULL_MOVE);
     EXPECT_EQ(rootValue(), -MATE_VALUE);
-    EXPECT_EQ(rootDepth(), options.depth);
+    EXPECT_EQ(rootDepth(), limits.depth);
     EXPECT_TRUE(rootCompleted());
     EXPECT_TRUE(rootLines().empty());
 }
@@ -2361,7 +2359,7 @@ TEST_F(SearchTest, RootSearchSetsNullMoveForStalemate) {
     EXPECT_EQ(runRootSearch(), DRAW_VALUE);
     EXPECT_EQ(rootMove(), NULL_MOVE);
     EXPECT_EQ(rootValue(), DRAW_VALUE);
-    EXPECT_EQ(rootDepth(), options.depth);
+    EXPECT_EQ(rootDepth(), limits.depth);
     EXPECT_TRUE(rootCompleted());
     EXPECT_TRUE(rootLines().empty());
 }
@@ -2369,10 +2367,9 @@ TEST_F(SearchTest, RootSearchSetsNullMoveForStalemate) {
 TEST_F(SearchTest, CompletedSearchPublishesRootLineSnapshot) {
     constexpr auto mate_in_one = "7R/8/8/8/8/1K6/8/1k6 w - - 0 1";
     TestBoard      board{mate_in_one};
-    options.board = &board;
-    options.depth = 2;
+    limits.depth = 2;
 
-    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::start_search(*thread, board, limits);
     ThreadTestAccess::wait_for_idle(*thread);
 
     const auto snapshot = rootSnapshot();
@@ -2390,10 +2387,9 @@ TEST_F(SearchTest, CompletedSearchPublishesRootLineSnapshot) {
 
 TEST_F(SearchTest, CompletedNonTerminalSearchPublishesFullRootPv) {
     TestBoard board{STARTFEN};
-    options.board = &board;
-    options.depth = 2;
+    limits.depth = 2;
 
-    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::start_search(*thread, board, limits);
     ThreadTestAccess::wait_for_idle(*thread);
 
     const auto snapshot = rootSnapshot();
@@ -2406,10 +2402,9 @@ TEST_F(SearchTest, CompletedNonTerminalSearchPublishesFullRootPv) {
 TEST_F(SearchTest, CompletedNoLegalMoveSearchPublishesCompletedNullMove) {
     constexpr auto checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
     TestBoard      board{checkmate};
-    options.board = &board;
-    options.depth = 1;
+    limits.depth = 1;
 
-    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::start_search(*thread, board, limits);
     ThreadTestAccess::wait_for_idle(*thread);
 
     const auto snapshot = rootSnapshot();
@@ -2441,17 +2436,16 @@ TEST_F(SearchTest, StoppedSearchPublishesIncompleteRootLineSnapshot) {
 
 TEST_F(SearchTest, StoppedSearchPreservesLastCompletedRootLine) {
     TestBoard board{STARTFEN};
-    options.board = &board;
-    options.depth = 8;
-    options.nodes = 100;
+    limits.depth = 8;
+    limits.nodes = 100;
 
-    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::start_search(*thread, board, limits);
     ThreadTestAccess::wait_for_idle(*thread);
 
     const auto snapshot = rootSnapshot();
     ASSERT_TRUE(snapshot.has_completed_depth());
     EXPECT_TRUE(snapshot.usable_root_move());
-    EXPECT_LT(snapshot.depth, options.depth);
+    EXPECT_LT(snapshot.depth, limits.depth);
     ASSERT_FALSE(snapshot.pv.empty());
     EXPECT_EQ(snapshot.pv.front(), snapshot.root_move);
 }
