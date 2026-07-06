@@ -2,40 +2,44 @@
 
 #include <cstddef>
 #include <deque>
+#include <iosfwd>
 #include <string>
 
 #include "board.hpp"
 #include "threading.hpp"
-#include "uci.hpp"
+#include "uci_input.hpp"
+#include "uci_options.hpp"
+#include "uci_writer.hpp"
 
 class Engine {
 public:
     Engine() = delete;
-    Engine(std::ostream& out, std::ostream& err, std::istream& in);
+    Engine(std::ostream& out, std::ostream& err, std::istream& source);
     void loop();
 
 private:
     bool execute(const std::string&) noexcept;
+    bool execute(const uci::Command& command) noexcept;
     bool dispatch(const uci::Command& command);
 
-    // UCI commands
-    bool uci(const uci::UciCommand&);
-    bool set_debug(const uci::DebugCommand& command);
-    bool is_ready(const uci::IsReadyCommand&);
-    bool set_option(const uci::SetOptionCommand& command);
-    bool new_game(const uci::NewGameCommand&);
-    bool position(const uci::PositionCommand& command);
-    bool go(const uci::GoCommand& command);
-    bool stop(const uci::StopCommand&);
-    bool quit(const uci::QuitCommand&);
-    bool ponder_hit(const uci::PonderHitCommand&);
-    bool register_command(const uci::RegisterCommand&);
-    bool exit(const uci::ExitCommand& command);
-    bool unknown(const uci::UnknownCommand& command);
-    bool empty(const uci::EmptyCommand&);
+    // Command handlers
+    bool handle(const uci::EmptyCommand&);
+    bool handle(const uci::UciCommand&);
+    bool handle(const uci::DebugCommand& command);
+    bool handle(const uci::IsReadyCommand&);
+    bool handle(const uci::SetOptionCommand& command);
+    bool handle(const uci::NewGameCommand&);
+    bool handle(const uci::PositionCommand& command);
+    bool handle(const uci::GoCommand& command);
+    bool handle(const uci::StopCommand&);
+    bool handle(const uci::PonderHitCommand&);
+    bool handle(const uci::RegisterCommand&);
+    bool handle(const uci::QuitCommand&);
+    bool handle(const uci::ExitCommand&);
+    bool handle(const uci::ConsoleCommand& command);
+    bool handle(const uci::UnknownCommand&);
 
-    // Non-UCI commands
-    bool console(const uci::ConsoleCommand& command);
+    // Console extension handlers
     bool help();
     bool display_board();
     bool evaluate();
@@ -43,18 +47,19 @@ private:
     bool move(const std::string& arguments);
     bool moves();
 
-    Move           get_move(const std::string& token);
+    // Board position helpers
+    Move           find_legal_move(const std::string& token);
     PositionState& next_position_state();
     void           reset_board(const std::string& fen);
     void           make_board_move(Move move);
     void           unmake_board_move();
-    void           apply_option_side_effect(uci::ConfigOption option);
 
-    std::ostream&             out;
-    std::ostream&             err;
-    std::istream&             in;
+    // Option and search helpers
+    void apply_option_effect(uci::OptionId option);
+
+    uci::Reader               reader;
     uci::Writer               writer;
-    uci::Config               config;
+    uci::Options              options;
     std::deque<PositionState> position_states = {PositionState()};
     size_t                    position_ply    = 0;
     Board                     board;

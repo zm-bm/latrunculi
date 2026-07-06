@@ -1,69 +1,24 @@
 #include "engine.hpp"
 
-#include <algorithm>
 #include <sstream>
 #include <stdexcept>
-#include <type_traits>
 #include <variant>
 
 #include "board.hpp"
 #include "evaluator.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
+#include "perft.hpp"
 #include "search_limits.hpp"
 #include "tt.hpp"
 
-namespace {
-
-SearchLimits make_search_limits(const uci::GoLimits& go_limits) {
-    SearchLimits limits;
-
-    if (go_limits.depth)
-        limits.set_depth(*go_limits.depth);
-    if (go_limits.movetime)
-        limits.set_movetime(*go_limits.movetime);
-    if (go_limits.nodes)
-        limits.set_nodes(*go_limits.nodes);
-    if (go_limits.wtime)
-        limits.set_wtime(*go_limits.wtime);
-    if (go_limits.btime)
-        limits.set_btime(*go_limits.btime);
-    if (go_limits.winc)
-        limits.set_winc(*go_limits.winc);
-    if (go_limits.binc)
-        limits.set_binc(*go_limits.binc);
-    if (go_limits.movestogo)
-        limits.set_movestogo(*go_limits.movestogo);
-
-    return limits;
-}
-
-std::string position_root_fen(const uci::PositionCommand& command) {
-    using Source = uci::PositionCommand::Source;
-
-    switch (command.source) {
-    case Source::Startpos: return Board::startfen;
-    case Source::Fen:
-        if (!command.fen.empty())
-            return command.fen;
-        break;
-    case Source::Invalid: break;
-    }
-
-    throw std::runtime_error("invalid position command");
-}
-
-} // namespace
-
-Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
-    : out(out),
-      err(err),
-      in(in),
+Engine::Engine(std::ostream& out, std::ostream& err, std::istream& source)
+    : reader(source),
       writer(out, err),
       position_states{PositionState()},
       position_ply(0),
       board(position_states.front(), Board::startfen),
-      thread_pool(DEFAULT_THREADS, writer) {}
+      thread_pool(options.threads.value, writer) {}
 
 PositionState& Engine::next_position_state() {
     if (position_states.size() <= position_ply + 1)
@@ -94,99 +49,76 @@ void Engine::unmake_board_move() {
     --position_ply;
 }
 
-void Engine::apply_option_side_effect(uci::ConfigOption option) {
+void Engine::apply_option_effect(uci::OptionId option) {
     switch (option) {
-    case uci::ConfigOption::Hash:      tt.resize(config.hash.value); break;
-    case uci::ConfigOption::Threads:   thread_pool.resize(config.threads.value); break;
-    case uci::ConfigOption::Debug:     break;
-    case uci::ConfigOption::ClearHash: tt.clear(); break;
+    case uci::OptionId::Hash:      tt.resize(options.hash.value); break;
+    case uci::OptionId::Threads:   thread_pool.resize(options.threads.value); break;
+    case uci::OptionId::Debug:     break;
+    case uci::OptionId::ClearHash: tt.clear(); break;
     }
 }
 
 void Engine::loop() {
-    std::string line;
-    while (std::getline(in, line)) {
-        if (!execute(line))
+    while (auto command = reader.read_command()) {
+        if (!execute(*command))
             break;
     }
 }
 
 bool Engine::execute(const std::string& line) noexcept {
     try {
-        return dispatch(uci::parse_command(line));
+        return execute(uci::parse_command(line));
     } catch (const std::exception& e) {
-        writer.info("error: " + std::string(e.what()));
+        writer.info_string("error: " + std::string(e.what()));
         return true;
     } catch (...) {
-        writer.info("unknown error occurred");
+        writer.info_string("unknown error occurred");
+        return true;
+    }
+}
+
+bool Engine::execute(const uci::Command& command) noexcept {
+    try {
+        return dispatch(command);
+    } catch (const std::exception& e) {
+        writer.info_string("error: " + std::string(e.what()));
+        return true;
+    } catch (...) {
+        writer.info_string("unknown error occurred");
         return true;
     }
 }
 
 bool Engine::dispatch(const uci::Command& command) {
-    return std::visit(
-        [this](const auto& parsed) -> bool {
-            using Command = std::decay_t<decltype(parsed)>;
-            if constexpr (std::is_same_v<Command, uci::EmptyCommand>)
-                return empty(parsed);
-            else if constexpr (std::is_same_v<Command, uci::UciCommand>)
-                return uci(parsed);
-            else if constexpr (std::is_same_v<Command, uci::DebugCommand>)
-                return set_debug(parsed);
-            else if constexpr (std::is_same_v<Command, uci::IsReadyCommand>)
-                return is_ready(parsed);
-            else if constexpr (std::is_same_v<Command, uci::SetOptionCommand>)
-                return set_option(parsed);
-            else if constexpr (std::is_same_v<Command, uci::NewGameCommand>)
-                return new_game(parsed);
-            else if constexpr (std::is_same_v<Command, uci::PositionCommand>)
-                return position(parsed);
-            else if constexpr (std::is_same_v<Command, uci::GoCommand>)
-                return go(parsed);
-            else if constexpr (std::is_same_v<Command, uci::StopCommand>)
-                return stop(parsed);
-            else if constexpr (std::is_same_v<Command, uci::PonderHitCommand>)
-                return ponder_hit(parsed);
-            else if constexpr (std::is_same_v<Command, uci::RegisterCommand>)
-                return register_command(parsed);
-            else if constexpr (std::is_same_v<Command, uci::QuitCommand>)
-                return quit(parsed);
-            else if constexpr (std::is_same_v<Command, uci::ExitCommand>)
-                return exit(parsed);
-            else if constexpr (std::is_same_v<Command, uci::ConsoleCommand>)
-                return console(parsed);
-            else if constexpr (std::is_same_v<Command, uci::UnknownCommand>)
-                return unknown(parsed);
-        },
-        command);
+    return std::visit([this](const auto& parsed) { return handle(parsed); }, command);
 }
 
-bool Engine::uci(const uci::UciCommand&) {
-    writer.identify(config);
+bool Engine::handle(const uci::UciCommand&) {
+    writer.identify(options);
     return true;
 }
 
-bool Engine::set_debug(const uci::DebugCommand& command) {
-    apply_option_side_effect(config.set_option("Debug", command.value));
+bool Engine::handle(const uci::DebugCommand& command) {
+    apply_option_effect(options.set("Debug", command.value, true));
     return true;
 }
 
-bool Engine::is_ready(const uci::IsReadyCommand&) {
+bool Engine::handle(const uci::IsReadyCommand&) {
     writer.ready();
     return true;
 }
 
-bool Engine::set_option(const uci::SetOptionCommand& command) {
+bool Engine::handle(const uci::SetOptionCommand& command) {
     if (thread_pool.is_searching())
         throw std::runtime_error("cannot set option while search is in progress");
 
     if (command.name.empty())
         throw std::runtime_error("missing option name");
-    apply_option_side_effect(config.set_option(command.name, command.value));
+    apply_option_effect(options.set(command.name, command.value, command.has_value));
     return true;
 }
 
-bool Engine::new_game(const uci::NewGameCommand&) {
+bool Engine::handle(const uci::NewGameCommand&) {
     if (thread_pool.is_searching())
         throw std::runtime_error("cannot start new game while search is in progress");
 
@@ -196,11 +128,21 @@ bool Engine::new_game(const uci::NewGameCommand&) {
     return true;
 }
 
-bool Engine::position(const uci::PositionCommand& command) {
-    reset_board(position_root_fen(command));
+bool Engine::handle(const uci::PositionCommand& command) {
+    using Source = uci::PositionCommand::Source;
+
+    switch (command.source) {
+    case Source::Startpos: reset_board(Board::startfen); break;
+    case Source::Fen:
+        if (command.fen.empty())
+            throw std::runtime_error("invalid position command");
+        reset_board(command.fen);
+        break;
+    case Source::Invalid: throw std::runtime_error("invalid position command");
+    }
 
     for (const auto& token : command.moves) {
-        auto move = get_move(token);
+        auto move = find_legal_move(token);
         if (move.is_null())
             throw std::runtime_error("invalid move in position command: " + token);
         make_board_move(move);
@@ -208,44 +150,63 @@ bool Engine::position(const uci::PositionCommand& command) {
     return true;
 }
 
-bool Engine::go(const uci::GoCommand& command) {
-    SearchLimits limits = make_search_limits(command.limits);
+bool Engine::handle(const uci::GoCommand& command) {
+    const auto& go_limits = command.limits;
+    SearchLimits limits;
+
+    if (go_limits.depth)
+        limits.set_depth(*go_limits.depth);
+    if (go_limits.movetime)
+        limits.set_movetime(*go_limits.movetime);
+    if (go_limits.nodes)
+        limits.set_nodes(*go_limits.nodes);
+    if (go_limits.wtime)
+        limits.set_wtime(*go_limits.wtime);
+    if (go_limits.btime)
+        limits.set_btime(*go_limits.btime);
+    if (go_limits.winc)
+        limits.set_winc(*go_limits.winc);
+    if (go_limits.binc)
+        limits.set_binc(*go_limits.binc);
+    if (go_limits.movestogo)
+        limits.set_movestogo(*go_limits.movestogo);
+
     if (!thread_pool.start_search(board, limits))
-        writer.info("search already in progress");
+        writer.info_string("search already in progress");
     return true;
 }
 
-bool Engine::stop(const uci::StopCommand&) {
+bool Engine::handle(const uci::StopCommand&) {
     thread_pool.request_stop();
     return true;
 }
 
-bool Engine::quit(const uci::QuitCommand&) {
+bool Engine::handle(const uci::QuitCommand&) {
     thread_pool.shutdown();
     return false;
 }
 
-bool Engine::ponder_hit(const uci::PonderHitCommand&) {
+bool Engine::handle(const uci::PonderHitCommand&) {
     return true;
 }
 
-bool Engine::register_command(const uci::RegisterCommand&) {
+bool Engine::handle(const uci::RegisterCommand&) {
     return true;
 }
 
-bool Engine::exit(const uci::ExitCommand&) {
-    return quit(uci::QuitCommand{});
+bool Engine::handle(const uci::ExitCommand&) {
+    return handle(uci::QuitCommand{});
 }
 
-bool Engine::unknown(const uci::UnknownCommand& command) {
+bool Engine::handle(const uci::UnknownCommand&) {
     return true;
 }
 
-bool Engine::empty(const uci::EmptyCommand&) {
+bool Engine::handle(const uci::EmptyCommand&) {
     return true;
 }
 
-bool Engine::console(const uci::ConsoleCommand& command) {
+bool Engine::handle(const uci::ConsoleCommand& command) {
     switch (command.name) {
     case uci::ConsoleCommand::Name::Help:  return help();
     case uci::ConsoleCommand::Name::Board: return display_board();
@@ -283,9 +244,9 @@ bool Engine::move(const std::string& arguments) {
     if (token == "undo") {
         unmake_board_move();
     } else {
-        auto move = get_move(token);
+        auto move = find_legal_move(token);
         if (move.is_null()) {
-            writer.info("invalid move: " + token);
+            writer.info_string("invalid move: " + token);
         } else {
             make_board_move(move);
         }
@@ -298,7 +259,7 @@ bool Engine::moves() {
     for (auto& move : movelist) {
         if (!board.is_legal_generated_move(move))
             continue;
-        writer.debug(move.str());
+        writer.debug(uci::format_uci_move(move));
     }
     return true;
 }
@@ -308,17 +269,16 @@ bool Engine::perft(const std::string& arguments) {
     int                depth;
 
     if (stream >> depth) {
-        depth = std::max(1, depth);
-        board.perft(depth, err);
+        writer.debug_text(format_perft_result(perft_root(board, depth)));
     }
 
     return true;
 }
 
-Move Engine::get_move(const std::string& token) {
+Move Engine::find_legal_move(const std::string& token) {
     auto movelist = movegen::generate_pseudo_legal(board);
     for (auto& move : movelist) {
-        if (move.str() == token && board.is_legal_generated_move(move)) {
+        if (uci::format_uci_move(move) == token && board.is_legal_generated_move(move)) {
             return move;
         }
     }

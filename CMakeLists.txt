@@ -23,13 +23,16 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/move.cpp
     src/move_picker.cpp
     src/movegen.cpp
+    src/perft.cpp
     src/root_line.cpp
     src/search.cpp
     src/search_worker.cpp
     src/search_limits.cpp
     src/threading.cpp
     src/tt.cpp
-    src/uci.cpp
+    src/uci_input.cpp
+    src/uci_options.cpp
+    src/uci_writer.cpp
     src/zobrist.cpp
 )
 
@@ -68,6 +71,7 @@ if(BUILD_TESTING)
         tests/move_ordering.test.cpp
         tests/move_picker.test.cpp
         tests/movegen.test.cpp
+        tests/perft.test.cpp
         tests/principal_variation.test.cpp
         tests/score.test.cpp
         tests/search.test.cpp
@@ -77,7 +81,9 @@ if(BUILD_TESTING)
         tests/threading.test.cpp
         tests/tt.test.cpp
         tests/types.test.cpp
-        tests/uci.test.cpp
+        tests/uci_input.test.cpp
+        tests/uci_options.test.cpp
+        tests/uci_writer.test.cpp
     )
 
     add_executable(tests ${LATRUNCULI_TEST_SOURCES})

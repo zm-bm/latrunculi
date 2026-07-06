@@ -4,7 +4,6 @@
 
 #include <cstdlib>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -465,20 +464,6 @@ TEST(BoardRepresentationTest, EMPTYFEN) {
 TEST(BoardRepresentationTest, BoardObjectStaysCompact) {
     EXPECT_EQ(sizeof(PositionState), 104U);
     EXPECT_LT(sizeof(Board), 4096U);
-}
-
-TEST(BoardRepresentationTest, PerftDepthZeroReturnsOne) {
-    TestBoard          board(STARTFEN);
-    std::ostringstream output;
-
-    EXPECT_EQ(board.perft(0, output), 1U);
-}
-
-TEST(BoardRepresentationTest, PerftRejectsDepthBeyondStateSlots) {
-    TestBoard          board(STARTFEN);
-    std::ostringstream output;
-
-    EXPECT_THROW(board.perft(MAX_SEARCH_PLY + 1, output), std::invalid_argument);
 }
 
 TEST(BoardRepresentationTest, STARTFEN) {

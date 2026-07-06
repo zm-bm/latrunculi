@@ -19,7 +19,7 @@
 #include "thread_test_access.hpp"
 #include "threading.hpp"
 #include "tt.hpp"
-#include "uci.hpp"
+#include "uci_writer.hpp"
 
 namespace {
 

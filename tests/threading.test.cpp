@@ -10,7 +10,7 @@
 #include "test_util.hpp"
 #include "thread_test_access.hpp"
 #include "tt.hpp"
-#include "uci.hpp"
+#include "uci_writer.hpp"
 
 namespace {
 

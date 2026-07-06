@@ -9,7 +9,7 @@
 #include "search_worker.hpp"
 #include "threading.hpp"
 #include "tt.hpp"
-#include "uci.hpp"
+#include "uci_writer.hpp"
 
 SearchWorker::SearchWorker(int id, uci::Writer& writer, ThreadPool& pool)
     : board(position_states.root(), Board::startfen),

@@ -23,7 +23,7 @@ protected:
     bool        execute(const std::string& command) { return engine.execute(command); }
     Board&      board() { return engine.board; }
     ThreadPool& threadpool() { return engine.thread_pool; }
-    bool        debug_enabled() const { return engine.config.debug.value; }
+    bool        debug_enabled() const { return engine.options.debug.value; }
 
     int count_output_lines_starting_with(std::string_view prefix) const {
         std::istringstream lines{output.str()};
@@ -276,7 +276,8 @@ INSTANTIATE_TEST_SUITE_P(
                       CommandCase{{"position startpos", "move e2e4"}, E2E4, ""},
                       CommandCase{{"position startpos", "move e2e4", "move undo"}, STARTFEN, ""},
                       CommandCase{{"position startpos", "moves"}, STARTFEN, "e2e4"},
-                      CommandCase{{"position startpos", "perft 1"}, STARTFEN, "NODES: 20"}));
+                      CommandCase{{"position startpos", "perft 1"}, STARTFEN, "NODES: 20"},
+                      CommandCase{{"position startpos", "perft 0"}, STARTFEN, "NODES: 1"}));
 
 TEST_F(EngineTest, PositionReportsInvalidMoveToken) {
     EXPECT_TRUE(execute("position startpos moves e7e5"));
@@ -341,6 +342,7 @@ INSTANTIATE_TEST_SUITE_P(
         SetOptionCase{.command = "setoption name Threads value -1"},
         SetOptionCase{.command = "setoption name Threads value 0"},
         SetOptionCase{.command = "setoption name Threads value 99999"},
+        SetOptionCase{.command = "setoption name Clear Hash value"},
         SetOptionCase{.command = "setoption name Threads value 4", .threads = 4, .output = ""}));
 
 // position command tests

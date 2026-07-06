@@ -69,6 +69,7 @@ public:
     uint8_t      halfmove() const { return position_state().halfmove_clk; }
     Square       legal_enpassant_sq() const;
 
+    PositionState&       position_state() { return *active_position_state; }
     const PositionState& position_state() const { return *active_position_state; }
 
     // castling
@@ -141,11 +142,6 @@ public:
 
     std::string toFEN() const;
     std::string toSAN(Move) const;
-
-    // perft
-
-    template <bool Root = true>
-    uint64_t perft(int, std::ostream& = std::cout);
 
     // eval helpers
 
