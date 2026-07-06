@@ -6,7 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "search/root_line.hpp"
-#include "test_util.hpp"
+#include "support/test_util.hpp"
 
 namespace {
 

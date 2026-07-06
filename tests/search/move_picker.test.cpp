@@ -7,7 +7,7 @@
 
 #include "search/move_ordering.hpp"
 #include "movegen/movegen.hpp"
-#include "test_util.hpp"
+#include "support/test_util.hpp"
 
 class MovePickerTest : public ::testing::Test {
 protected:

@@ -5,8 +5,8 @@
 #include <sstream>
 
 #include "search/search_limits.hpp"
-#include "test_util.hpp"
-#include "thread_test_access.hpp"
+#include "support/test_util.hpp"
+#include "support/thread_test_access.hpp"
 #include "uci/threading.hpp"
 #include "uci/uci_writer.hpp"
 

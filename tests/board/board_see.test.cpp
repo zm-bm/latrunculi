@@ -6,7 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "movegen/movegen.hpp"
-#include "test_util.hpp"
+#include "support/test_util.hpp"
 
 namespace {
 

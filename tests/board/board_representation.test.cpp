@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "movegen/movegen.hpp"
-#include "test_util.hpp"
+#include "support/test_util.hpp"
 #include "board/zobrist.hpp"
 
 namespace {

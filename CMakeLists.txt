@@ -55,38 +55,39 @@ if(BUILD_TESTING)
     add_subdirectory(third_party/googletest)
 
     set(LATRUNCULI_TEST_SOURCES
-        tests/bb.test.cpp
-        tests/board.test.cpp
-        tests/board_fen.test.cpp
-        tests/board_representation.test.cpp
-        tests/board_see.test.cpp
-        tests/engine.test.cpp
-        tests/eval.test.cpp
-        tests/evaluator.test.cpp
-        tests/fen.test.cpp
-        tests/magic.test.cpp
+        tests/board/board.test.cpp
+        tests/board/board_fen.test.cpp
+        tests/board/board_representation.test.cpp
+        tests/board/board_see.test.cpp
+        tests/board/fen.test.cpp
+        tests/core/bb.test.cpp
+        tests/core/magic.test.cpp
+        tests/core/move.test.cpp
+        tests/core/score.test.cpp
+        tests/core/types.test.cpp
+        tests/eval/eval.test.cpp
+        tests/eval/evaluator.test.cpp
         tests/main.cpp
-        tests/move.test.cpp
-        tests/move_list.test.cpp
-        tests/move_ordering.test.cpp
-        tests/move_picker.test.cpp
-        tests/movegen.test.cpp
-        tests/perft.test.cpp
-        tests/principal_variation.test.cpp
-        tests/score.test.cpp
-        tests/search.test.cpp
-        tests/search_limits.test.cpp
-        tests/search_instrumentation.test.cpp
-        tests/search_worker.test.cpp
-        tests/threading.test.cpp
-        tests/tt.test.cpp
-        tests/types.test.cpp
-        tests/uci_input.test.cpp
-        tests/uci_options.test.cpp
-        tests/uci_writer.test.cpp
+        tests/movegen/move_list.test.cpp
+        tests/movegen/movegen.test.cpp
+        tests/movegen/perft.test.cpp
+        tests/search/move_ordering.test.cpp
+        tests/search/move_picker.test.cpp
+        tests/search/principal_variation.test.cpp
+        tests/search/search.test.cpp
+        tests/search/search_instrumentation.test.cpp
+        tests/search/search_limits.test.cpp
+        tests/search/search_worker.test.cpp
+        tests/search/tt.test.cpp
+        tests/uci/engine.test.cpp
+        tests/uci/threading.test.cpp
+        tests/uci/uci_input.test.cpp
+        tests/uci/uci_options.test.cpp
+        tests/uci/uci_writer.test.cpp
     )
 
     add_executable(tests ${LATRUNCULI_TEST_SOURCES})
+    target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
     target_link_libraries(tests PRIVATE latrunculi_lib gtest gmock Threads::Threads)
     add_test(NAME unit_tests COMMAND tests)
 endif()

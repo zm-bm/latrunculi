@@ -7,7 +7,7 @@
 
 #include <gtest/gtest.h>
 
-#include "test_util.hpp"
+#include "support/test_util.hpp"
 
 namespace {
 

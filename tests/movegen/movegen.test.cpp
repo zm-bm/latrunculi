@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
-#include "test_util.hpp"
+#include "support/test_util.hpp"
 
 namespace {
 

@@ -10,7 +10,7 @@
 #include "core/defs.hpp"
 #include "eval/eval.hpp"
 #include "core/score.hpp"
-#include "test_util.hpp"
+#include "support/test_util.hpp"
 
 class EvaluatorTest : public ::testing::Test {
 protected:

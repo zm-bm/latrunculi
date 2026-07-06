@@ -5,7 +5,7 @@
 #include <string_view>
 #include <thread>
 
-#include "test_util.hpp"
+#include "support/test_util.hpp"
 #include "search/tt.hpp"
 #include "gtest/gtest.h"
 

@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "test_util.hpp"
+#include "support/test_util.hpp"
 #include "gtest/gtest.h"
 
 TEST(FenParserTests, InitialPosition) {

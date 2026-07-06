@@ -6,7 +6,7 @@
 #include <string>
 
 #include "movegen/movegen.hpp"
-#include "test_util.hpp"
+#include "support/test_util.hpp"
 
 TEST(BoardTest, is_stalemate) {
     EXPECT_TRUE(TestBoard("k7/8/KQ6/8/8/8/8/8 b - - 0 1").is_stalemate());
