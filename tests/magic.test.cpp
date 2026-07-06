@@ -1,8 +1,8 @@
-#include "magic.hpp"
+#include "core/magic.hpp"
 
 #include <gtest/gtest.h>
 
-#include "bb.hpp"
+#include "core/bb.hpp"
 
 struct MagicTest {
     Square   sq;

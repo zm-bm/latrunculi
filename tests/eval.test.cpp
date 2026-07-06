@@ -1,4 +1,4 @@
-#include "eval.hpp"
+#include "eval/eval.hpp"
 #include <gtest/gtest.h>
 
 TEST(EvalTest, PieceScores) {

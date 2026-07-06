@@ -12,32 +12,32 @@ find_package(Threads REQUIRED)
 option(LATRUNCULI_SEARCH_STATS "Enable detailed search statistics diagnostics" OFF)
 
 set(LATRUNCULI_ENGINE_SOURCES
-    src/board.cpp
-    src/board_fen.cpp
-    src/board_representation.cpp
-    src/board_see.cpp
-    src/engine.cpp
-    src/evaluator.cpp
-    src/fen.cpp
-    src/magic.cpp
-    src/move.cpp
-    src/move_picker.cpp
-    src/movegen.cpp
-    src/perft.cpp
-    src/root_line.cpp
-    src/search.cpp
-    src/search_worker.cpp
-    src/search_limits.cpp
-    src/threading.cpp
-    src/tt.cpp
-    src/uci_input.cpp
-    src/uci_options.cpp
-    src/uci_writer.cpp
-    src/zobrist.cpp
+    src/board/board.cpp
+    src/board/board_fen.cpp
+    src/board/board_representation.cpp
+    src/board/board_see.cpp
+    src/board/fen.cpp
+    src/board/zobrist.cpp
+    src/core/magic.cpp
+    src/core/move.cpp
+    src/eval/evaluator.cpp
+    src/movegen/movegen.cpp
+    src/movegen/perft.cpp
+    src/search/move_picker.cpp
+    src/search/root_line.cpp
+    src/search/search.cpp
+    src/search/search_limits.cpp
+    src/search/search_worker.cpp
+    src/search/tt.cpp
+    src/uci/engine.cpp
+    src/uci/threading.cpp
+    src/uci/uci_input.cpp
+    src/uci/uci_options.cpp
+    src/uci/uci_writer.cpp
 )
 
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
-target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
 target_compile_definitions(latrunculi_lib PRIVATE LATRUNCULI_VERSION="${PROJECT_VERSION}")
 

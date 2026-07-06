@@ -1,4 +1,4 @@
-#include "perft.hpp"
+#include "movegen/perft.hpp"
 
 #include <cstdint>
 #include <stdexcept>

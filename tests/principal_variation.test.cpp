@@ -1,4 +1,4 @@
-#include "principal_variation.hpp"
+#include "search/principal_variation.hpp"
 
 #include <gtest/gtest.h>
 

@@ -1,4 +1,4 @@
-#include "uci_input.hpp"
+#include "uci/uci_input.hpp"
 
 #include <sstream>
 #include <string_view>

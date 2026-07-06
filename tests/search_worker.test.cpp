@@ -1,14 +1,14 @@
-#include "search_worker.hpp"
+#include "search/search_worker.hpp"
 
 #include <gtest/gtest.h>
 
 #include <sstream>
 
-#include "search_limits.hpp"
+#include "search/search_limits.hpp"
 #include "test_util.hpp"
 #include "thread_test_access.hpp"
-#include "threading.hpp"
-#include "uci_writer.hpp"
+#include "uci/threading.hpp"
+#include "uci/uci_writer.hpp"
 
 namespace {
 

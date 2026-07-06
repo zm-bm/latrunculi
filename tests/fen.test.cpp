@@ -1,4 +1,4 @@
-#include "fen.hpp"
+#include "board/fen.hpp"
 
 #include <stdexcept>
 #include <vector>

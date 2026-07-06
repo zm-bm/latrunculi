@@ -1,4 +1,4 @@
-#include "threading.hpp"
+#include "uci/threading.hpp"
 
 #include <gtest/gtest.h>
 
@@ -6,11 +6,11 @@
 #include <sstream>
 #include <thread>
 
-#include "search_limits.hpp"
+#include "search/search_limits.hpp"
 #include "test_util.hpp"
 #include "thread_test_access.hpp"
-#include "tt.hpp"
-#include "uci_writer.hpp"
+#include "search/tt.hpp"
+#include "uci/uci_writer.hpp"
 
 namespace {
 

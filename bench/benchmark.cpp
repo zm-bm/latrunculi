@@ -9,11 +9,11 @@
 #include <string_view>
 #include <vector>
 
-#include "board.hpp"
-#include "magic.hpp"
-#include "movegen.hpp"
-#include "position_state.hpp"
-#include "zobrist.hpp"
+#include "board/board.hpp"
+#include "core/magic.hpp"
+#include "movegen/movegen.hpp"
+#include "board/position_state.hpp"
+#include "board/zobrist.hpp"
 
 namespace {
 

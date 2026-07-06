@@ -1,8 +1,8 @@
-#include "search_limits.hpp"
+#include "search/search_limits.hpp"
 
 #include <gtest/gtest.h>
 
-#include "defs.hpp"
+#include "core/defs.hpp"
 
 namespace {
 

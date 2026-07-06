@@ -1,12 +1,12 @@
-#include "move_picker.hpp"
+#include "search/move_picker.hpp"
 
 #include <algorithm>
 #include <vector>
 
 #include <gtest/gtest.h>
 
-#include "move_ordering.hpp"
-#include "movegen.hpp"
+#include "search/move_ordering.hpp"
+#include "movegen/movegen.hpp"
 #include "test_util.hpp"
 
 class MovePickerTest : public ::testing::Test {

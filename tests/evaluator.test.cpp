@@ -1,15 +1,15 @@
-#include "evaluator.hpp"
+#include "eval/evaluator.hpp"
 
 #include <gtest/gtest.h>
 
 #include <format>
 
-#include "bb.hpp"
-#include "board.hpp"
+#include "core/bb.hpp"
+#include "board/board.hpp"
 
-#include "defs.hpp"
-#include "eval.hpp"
-#include "score.hpp"
+#include "core/defs.hpp"
+#include "eval/eval.hpp"
+#include "core/score.hpp"
 #include "test_util.hpp"
 
 class EvaluatorTest : public ::testing::Test {

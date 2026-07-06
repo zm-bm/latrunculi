@@ -1,8 +1,8 @@
-#include "move.hpp"
+#include "core/move.hpp"
 
 #include <gtest/gtest.h>
 
-#include "defs.hpp"
+#include "core/defs.hpp"
 
 TEST(MoveTest, DefaultConstructor) {
     Move move;

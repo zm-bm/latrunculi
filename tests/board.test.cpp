@@ -1,11 +1,11 @@
-#include "board.hpp"
+#include "board/board.hpp"
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <string>
 
-#include "movegen.hpp"
+#include "movegen/movegen.hpp"
 #include "test_util.hpp"
 
 TEST(BoardTest, is_stalemate) {

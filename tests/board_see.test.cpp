@@ -1,11 +1,11 @@
-#include "board.hpp"
+#include "board/board.hpp"
 
 #include <array>
 #include <string_view>
 
 #include <gtest/gtest.h>
 
-#include "movegen.hpp"
+#include "movegen/movegen.hpp"
 #include "test_util.hpp"
 
 namespace {
@@ -104,7 +104,13 @@ TEST(BoardTest, static_exchange_at_least_matches_exact_generated_noisy_moves) {
         TestBoard b{std::string(fen)};
         SCOPED_TRACE(fen);
 
-        for (Move move : movegen::generate_noisy(b))
+        const MoveList moves =
+            b.is_check() ? movegen::generate_evasions(b) : movegen::generate_noisy(b);
+        for (Move move : moves) {
+            if (move.type() != MOVE_PROM && !b.is_capture(move))
+                continue;
+
             expect_see_at_least_matches_exact(b, move);
+        }
     }
 }

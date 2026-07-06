@@ -1,4 +1,4 @@
-#include "score.hpp"
+#include "core/score.hpp"
 
 #include <gtest/gtest.h>
 

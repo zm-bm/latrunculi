@@ -1,5 +1,5 @@
-#include "defs.hpp"
-#include "util.hpp"
+#include "core/defs.hpp"
+#include "core/util.hpp"
 
 #include <gtest/gtest.h>
 

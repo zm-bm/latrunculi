@@ -1,4 +1,4 @@
-#include "uci_options.hpp"
+#include "uci/uci_options.hpp"
 
 #include <stdexcept>
 

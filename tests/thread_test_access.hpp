@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <mutex>
 
-#include "threading.hpp"
+#include "uci/threading.hpp"
 
 class ThreadTestAccess {
 public:

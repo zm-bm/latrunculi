@@ -1,8 +1,8 @@
-#include "bb.hpp"
+#include "core/bb.hpp"
 
 #include <gtest/gtest.h>
 
-#include "defs.hpp"
+#include "core/defs.hpp"
 
 TEST(bbTest, SetAndClear) {
     for (Square sq = A1; sq < INVALID; ++sq) {

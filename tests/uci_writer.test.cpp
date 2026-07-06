@@ -1,11 +1,11 @@
-#include "uci_writer.hpp"
+#include "uci/uci_writer.hpp"
 
 #include <sstream>
 #include <string>
 
 #include <gtest/gtest.h>
 
-#include "root_line.hpp"
+#include "search/root_line.hpp"
 #include "test_util.hpp"
 
 namespace {

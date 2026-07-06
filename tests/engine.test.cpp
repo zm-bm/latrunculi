@@ -1,4 +1,4 @@
-#include "engine.hpp"
+#include "uci/engine.hpp"
 
 #include <format>
 #include <sstream>
@@ -6,7 +6,7 @@
 #include <thread>
 
 #include "test_util.hpp"
-#include "tt.hpp"
+#include "search/tt.hpp"
 #include "gtest/gtest.h"
 
 class EngineTest : public ::testing::Test {

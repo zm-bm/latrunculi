@@ -1,4 +1,4 @@
-#include "tt.hpp"
+#include "search/tt.hpp"
 
 #include <array>
 #include <atomic>

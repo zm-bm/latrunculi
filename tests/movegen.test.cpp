@@ -1,4 +1,4 @@
-#include "movegen.hpp"
+#include "movegen/movegen.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -8,7 +8,7 @@
 
 #include <gtest/gtest.h>
 
-#include "board.hpp"
+#include "board/board.hpp"
 #include "test_util.hpp"
 
 namespace {

@@ -9,17 +9,17 @@
 
 #include <gtest/gtest.h>
 
-#include "board.hpp"
-#include "evaluator.hpp"
-#include "move_picker.hpp"
-#include "movegen.hpp"
-#include "search_limits.hpp"
-#include "search_worker.hpp"
+#include "board/board.hpp"
+#include "eval/evaluator.hpp"
+#include "search/move_picker.hpp"
+#include "movegen/movegen.hpp"
+#include "search/search_limits.hpp"
+#include "search/search_worker.hpp"
 #include "test_util.hpp"
 #include "thread_test_access.hpp"
-#include "threading.hpp"
-#include "tt.hpp"
-#include "uci_writer.hpp"
+#include "uci/threading.hpp"
+#include "search/tt.hpp"
+#include "uci/uci_writer.hpp"
 
 namespace {
 

@@ -1,4 +1,4 @@
-#include "board.hpp"
+#include "board/board.hpp"
 
 #include <gtest/gtest.h>
 
@@ -9,9 +9,9 @@
 #include <utility>
 #include <vector>
 
-#include "movegen.hpp"
+#include "movegen/movegen.hpp"
 #include "test_util.hpp"
-#include "zobrist.hpp"
+#include "board/zobrist.hpp"
 
 namespace {
 
