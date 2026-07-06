@@ -4,26 +4,24 @@
 
 #include <sstream>
 
-#include "search_options.hpp"
+#include "search_limits.hpp"
 #include "test_util.hpp"
 #include "thread_test_access.hpp"
 #include "threading.hpp"
-#include "uci.hpp"
+#include "uci_writer.hpp"
 
 namespace {
 
 class SearchWorkerTest : public ::testing::Test {
 protected:
-    std::istringstream iss;
     std::ostringstream oss;
-    uci::Protocol      protocol{oss, oss};
-    ThreadPool         pool{1, protocol};
+    uci::Writer        writer{oss, oss};
+    ThreadPool         pool{1, writer};
 
     Thread& test_thread() { return ThreadTestAccess::thread(pool); }
 
     void load_worker_board(Board& board) {
-        SearchOptions options(iss, &board);
-        ThreadTestAccess::configure_search(test_thread(), options);
+        ThreadTestAccess::configure_search(test_thread(), board, SearchLimits{});
         ThreadTestAccess::reset_search_state(test_thread());
     }
 

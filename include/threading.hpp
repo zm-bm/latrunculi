@@ -11,12 +11,15 @@
 
 #include "root_line.hpp"
 #include "search_instrumentation.hpp"
-#include "search_options.hpp"
+#include "search_limits.hpp"
 #include "search_worker.hpp"
-#include "uci.hpp"
 
 class ThreadPool;
 class ThreadTestAccess;
+
+namespace uci {
+class Writer;
+}
 
 // Native thread wrapper. Owns a SearchWorker and OS thread.
 class Thread {
@@ -25,10 +28,10 @@ public:
     ~Thread();
 
 private:
-    Thread(int id, uci::Protocol& protocol, ThreadPool& pool);
+    Thread(int id, uci::Writer& writer, ThreadPool& pool);
 
     // ThreadPool-facing lifecycle.
-    void start_search(const SearchOptions& options);
+    void start_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
     void request_stop();
     void wait_for_idle();
     void shutdown();
@@ -47,7 +50,7 @@ private:
 
     // Internal state transitions.
     void idle_loop();
-    void configure_search(const SearchOptions& options);
+    void configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
     void wake_for_search();
 
     friend class ThreadPool;
@@ -58,11 +61,11 @@ private:
 class ThreadPool {
 public:
     ThreadPool() = delete;
-    ThreadPool(size_t thread_count, uci::Protocol& protocol);
+    ThreadPool(size_t thread_count, uci::Writer& writer);
     ~ThreadPool();
 
     // Search lifecycle.
-    bool start_search(const SearchOptions&);
+    bool start_search(const Board& root_board, SearchLimits limits);
     void request_stop();
     void wait();
     void shutdown();
@@ -84,7 +87,7 @@ private:
     std::vector<std::unique_ptr<Thread>> threads;
 
     // Output sink.
-    uci::Protocol& protocol;
+    uci::Writer& writer;
 
     // Pool lifecycle state.
     bool shutdown_requested{false};

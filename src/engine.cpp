@@ -1,53 +1,24 @@
 #include "engine.hpp"
 
-#include <functional>
 #include <sstream>
 #include <stdexcept>
+#include <variant>
 
 #include "board.hpp"
 #include "evaluator.hpp"
 #include "move.hpp"
 #include "movegen.hpp"
-#include "search_options.hpp"
+#include "perft.hpp"
+#include "search_limits.hpp"
 #include "tt.hpp"
 
-static Engine::Command make_cmd(Engine* engine, bool (Engine::*func)(std::istringstream&)) {
-    return [engine, func](std::istringstream& iss) { return (engine->*func)(iss); };
-}
-
-Engine::Engine(std::ostream& out, std::ostream& err, std::istream& in)
-    : out(out),
-      err(err),
-      in(in),
-      protocol(out, err),
-      config({.hash_callback   = [this](int value) { tt.resize(value); },
-              .thread_callback = [this](int value) { thread_pool.resize(value); }}),
+Engine::Engine(std::ostream& out, std::ostream& err, std::istream& source)
+    : reader(source),
+      writer(out, err),
       position_states{PositionState()},
       position_ply(0),
       board(position_states.front(), Board::startfen),
-      thread_pool(DEFAULT_THREADS, protocol),
-      command_map({
-          // UCI commands
-          {"uci", make_cmd(this, &Engine::uci)},
-          {"debug", make_cmd(this, &Engine::set_debug)},
-          {"isready", make_cmd(this, &Engine::is_ready)},
-          {"setoption", make_cmd(this, &Engine::set_option)},
-          {"ucinewgame", make_cmd(this, &Engine::new_game)},
-          {"position", make_cmd(this, &Engine::position)},
-          {"go", make_cmd(this, &Engine::go)},
-          {"stop", make_cmd(this, &Engine::stop)},
-          {"ponderhit", make_cmd(this, &Engine::ponder_hit)},
-          {"quit", make_cmd(this, &Engine::quit)},
-          // Non-UCI commands
-          {"help", make_cmd(this, &Engine::help)},
-          {"board", make_cmd(this, &Engine::display_board)},
-          {"eval", make_cmd(this, &Engine::evaluate)},
-          {"move", make_cmd(this, &Engine::move)},
-          {"moves", make_cmd(this, &Engine::moves)},
-          {"perft", make_cmd(this, &Engine::perft)},
-          {"exit", make_cmd(this, &Engine::quit)},
-          {"", [](std::istringstream&) { return true; }},
-      }) {}
+      thread_pool(options.threads.value, writer) {}
 
 PositionState& Engine::next_position_state() {
     if (position_states.size() <= position_ply + 1)
@@ -78,67 +49,76 @@ void Engine::unmake_board_move() {
     --position_ply;
 }
 
+void Engine::apply_option_effect(uci::OptionId option) {
+    switch (option) {
+    case uci::OptionId::Hash:      tt.resize(options.hash.value); break;
+    case uci::OptionId::Threads:   thread_pool.resize(options.threads.value); break;
+    case uci::OptionId::Debug:     break;
+    case uci::OptionId::ClearHash: tt.clear(); break;
+    }
+}
+
 void Engine::loop() {
-    std::string line;
-    while (std::getline(in, line)) {
-        if (!execute(line))
+    while (auto command = reader.read_command()) {
+        if (!execute(*command))
             break;
     }
 }
 
 bool Engine::execute(const std::string& line) noexcept {
     try {
-        std::istringstream iss(line);
-        std::string        token;
-        iss >> token;
-
-        auto it = command_map.find(token);
-        if (it != command_map.end()) {
-            return it->second(iss);
-        } else {
-            protocol.info("unknown command: " + token + ", type help for a list of commands");
-            return true;
-        }
+        return execute(uci::parse_command(line));
     } catch (const std::exception& e) {
-        protocol.info("error: " + std::string(e.what()));
+        writer.info_string("error: " + std::string(e.what()));
         return true;
     } catch (...) {
-        protocol.info("unknown error occurred");
+        writer.info_string("unknown error occurred");
         return true;
     }
 }
 
-bool Engine::uci(std::istringstream& iss) {
-    protocol.identify(config);
+bool Engine::execute(const uci::Command& command) noexcept {
+    try {
+        return dispatch(command);
+    } catch (const std::exception& e) {
+        writer.info_string("error: " + std::string(e.what()));
+        return true;
+    } catch (...) {
+        writer.info_string("unknown error occurred");
+        return true;
+    }
+}
+
+bool Engine::dispatch(const uci::Command& command) {
+    return std::visit([this](const auto& parsed) { return handle(parsed); }, command);
+}
+
+bool Engine::handle(const uci::UciCommand&) {
+    writer.identify(options);
     return true;
 }
 
-bool Engine::set_debug(std::istringstream& iss) {
-    std::string token;
-    iss >> token;
-    config.set_option("Debug", token);
+bool Engine::handle(const uci::DebugCommand& command) {
+    apply_option_effect(options.set("Debug", command.value, true));
     return true;
 }
 
-bool Engine::is_ready(std::istringstream& iss) {
-    protocol.ready();
+bool Engine::handle(const uci::IsReadyCommand&) {
+    writer.ready();
     return true;
 }
 
-bool Engine::set_option(std::istringstream& iss) {
+bool Engine::handle(const uci::SetOptionCommand& command) {
     if (thread_pool.is_searching())
         throw std::runtime_error("cannot set option while search is in progress");
 
-    auto [name, value] = parse_option(iss);
-    if (name.empty())
+    if (command.name.empty())
         throw std::runtime_error("missing option name");
-    if (value.empty())
-        throw std::runtime_error("missing option value");
-    config.set_option(name, value);
+    apply_option_effect(options.set(command.name, command.value, command.has_value));
     return true;
 }
 
-bool Engine::new_game(std::istringstream& iss) {
+bool Engine::handle(const uci::NewGameCommand&) {
     if (thread_pool.is_searching())
         throw std::runtime_error("cannot start new game while search is in progress");
 
@@ -148,16 +128,21 @@ bool Engine::new_game(std::istringstream& iss) {
     return true;
 }
 
-bool Engine::position(std::istringstream& iss) {
-    auto [fen, moves] = parse_position(iss);
-    if (fen.empty())
-        throw std::runtime_error("invalid position command");
-    reset_board(fen);
+bool Engine::handle(const uci::PositionCommand& command) {
+    using Source = uci::PositionCommand::Source;
 
-    std::istringstream moves_stream(moves);
-    std::string        token;
-    while (moves_stream >> token) {
-        auto move = get_move(token);
+    switch (command.source) {
+    case Source::Startpos: reset_board(Board::startfen); break;
+    case Source::Fen:
+        if (command.fen.empty())
+            throw std::runtime_error("invalid position command");
+        reset_board(command.fen);
+        break;
+    case Source::Invalid: throw std::runtime_error("invalid position command");
+    }
+
+    for (const auto& token : command.moves) {
+        auto move = find_legal_move(token);
         if (move.is_null())
             throw std::runtime_error("invalid move in position command: " + token);
         make_board_move(move);
@@ -165,55 +150,103 @@ bool Engine::position(std::istringstream& iss) {
     return true;
 }
 
-bool Engine::go(std::istringstream& iss) {
-    SearchOptions options(iss, &board);
-    if (!thread_pool.start_search(options))
-        protocol.info("search already in progress");
+bool Engine::handle(const uci::GoCommand& command) {
+    const auto& go_limits = command.limits;
+    SearchLimits limits;
+
+    if (go_limits.depth)
+        limits.set_depth(*go_limits.depth);
+    if (go_limits.movetime)
+        limits.set_movetime(*go_limits.movetime);
+    if (go_limits.nodes)
+        limits.set_nodes(*go_limits.nodes);
+    if (go_limits.wtime)
+        limits.set_wtime(*go_limits.wtime);
+    if (go_limits.btime)
+        limits.set_btime(*go_limits.btime);
+    if (go_limits.winc)
+        limits.set_winc(*go_limits.winc);
+    if (go_limits.binc)
+        limits.set_binc(*go_limits.binc);
+    if (go_limits.movestogo)
+        limits.set_movestogo(*go_limits.movestogo);
+
+    if (!thread_pool.start_search(board, limits))
+        writer.info_string("search already in progress");
     return true;
 }
 
-bool Engine::stop(std::istringstream& iss) {
+bool Engine::handle(const uci::StopCommand&) {
     thread_pool.request_stop();
     return true;
 }
 
-bool Engine::quit(std::istringstream& iss) {
+bool Engine::handle(const uci::QuitCommand&) {
     thread_pool.shutdown();
     return false;
 }
 
-bool Engine::ponder_hit(std::istringstream& iss) {
-    protocol.info("ponderhit received");
+bool Engine::handle(const uci::PonderHitCommand&) {
     return true;
 }
 
-bool Engine::help(std::istringstream& iss) {
-    protocol.help();
+bool Engine::handle(const uci::RegisterCommand&) {
     return true;
 }
 
-bool Engine::display_board(std::istringstream& iss) {
-    protocol.diagnostic_output(board);
+bool Engine::handle(const uci::ExitCommand&) {
+    return handle(uci::QuitCommand{});
+}
+
+bool Engine::handle(const uci::UnknownCommand&) {
     return true;
 }
 
-bool Engine::evaluate(std::istringstream& iss) {
+bool Engine::handle(const uci::EmptyCommand&) {
+    return true;
+}
+
+bool Engine::handle(const uci::ConsoleCommand& command) {
+    switch (command.name) {
+    case uci::ConsoleCommand::Name::Help:  return help();
+    case uci::ConsoleCommand::Name::Board: return display_board();
+    case uci::ConsoleCommand::Name::Eval:  return evaluate();
+    case uci::ConsoleCommand::Name::Move:  return move(command.arguments);
+    case uci::ConsoleCommand::Name::Moves: return moves();
+    case uci::ConsoleCommand::Name::Perft: return perft(command.arguments);
+    }
+
+    return true;
+}
+
+bool Engine::help() {
+    writer.help();
+    return true;
+}
+
+bool Engine::display_board() {
+    writer.debug(board);
+    return true;
+}
+
+bool Engine::evaluate() {
     EvaluatorDebug e{board};
     e.evaluate();
-    protocol.diagnostic_output(e);
+    writer.debug(e);
     return true;
 }
 
-bool Engine::move(std::istringstream& iss) {
-    std::string token;
-    iss >> token;
+bool Engine::move(const std::string& arguments) {
+    std::istringstream stream(arguments);
+    std::string        token;
+    stream >> token;
 
     if (token == "undo") {
         unmake_board_move();
     } else {
-        auto move = get_move(token);
+        auto move = find_legal_move(token);
         if (move.is_null()) {
-            protocol.info("invalid move: " + token);
+            writer.info_string("invalid move: " + token);
         } else {
             make_board_move(move);
         }
@@ -221,102 +254,31 @@ bool Engine::move(std::istringstream& iss) {
     return true;
 }
 
-bool Engine::moves(std::istringstream& iss) {
+bool Engine::moves() {
     auto movelist = movegen::generate_pseudo_legal(board);
     for (auto& move : movelist) {
         if (!board.is_legal_generated_move(move))
             continue;
-        protocol.diagnostic_output(move.str());
+        writer.debug(uci::format_uci_move(move));
     }
     return true;
 }
 
-bool Engine::perft(std::istringstream& iss) {
-    int depth;
+bool Engine::perft(const std::string& arguments) {
+    std::istringstream stream(arguments);
+    int                depth;
 
-    if (iss >> depth) {
-        depth = std::max(1, depth);
-        board.perft(depth, err);
+    if (stream >> depth) {
+        writer.debug_text(format_perft_result(perft_root(board, depth)));
     }
 
     return true;
 }
 
-std::pair<std::string, std::string> Engine::parse_position(std::istringstream& iss) {
-    std::string token;
-    std::string fen;
-    std::string moves;
-
-    bool in_fen   = false;
-    bool in_moves = false;
-
-    while (iss >> token) {
-        if (token == "startpos") {
-            fen      = Board::startfen;
-            in_fen   = false;
-            in_moves = false;
-            continue;
-        } else if (token == "fen") {
-            in_fen   = true;
-            in_moves = false;
-            continue;
-        } else if (token == "moves") {
-            in_fen   = false;
-            in_moves = true;
-            continue;
-        }
-
-        if (in_fen) {
-            if (!fen.empty())
-                fen += ' ';
-            fen += token;
-        } else if (in_moves) {
-            if (!moves.empty())
-                moves += ' ';
-            moves += token;
-        }
-    }
-
-    return {fen, moves};
-}
-
-std::pair<std::string, std::string> Engine::parse_option(std::istringstream& iss) {
-    std::string token;
-    std::string name;
-    std::string value;
-
-    bool in_name  = false;
-    bool in_value = false;
-
-    while (iss >> token) {
-        if (token == "name") {
-            in_name  = true;
-            in_value = false;
-            continue;
-        } else if (token == "value") {
-            in_name  = false;
-            in_value = true;
-            continue;
-        }
-
-        if (in_name) {
-            if (!name.empty())
-                name += ' ';
-            name += token;
-        } else if (in_value) {
-            if (!value.empty())
-                value += ' ';
-            value += token;
-        }
-    }
-
-    return {name, value};
-}
-
-Move Engine::get_move(const std::string& token) {
+Move Engine::find_legal_move(const std::string& token) {
     auto movelist = movegen::generate_pseudo_legal(board);
     for (auto& move : movelist) {
-        if (move.str() == token && board.is_legal_generated_move(move)) {
+        if (uci::format_uci_move(move) == token && board.is_legal_generated_move(move)) {
             return move;
         }
     }

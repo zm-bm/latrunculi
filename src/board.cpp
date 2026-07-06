@@ -1,11 +1,8 @@
 #include "board.hpp"
 
 #include "movegen.hpp"
-#include "position_state.hpp"
-
 #include <algorithm>
 #include <cassert>
-#include <stdexcept>
 
 namespace {
 bool valid_promotion_piece(PieceType piece) {
@@ -16,38 +13,6 @@ constexpr int direct_check_idx(PieceType piece) {
     return int(piece) * int(piece != KING);
 }
 
-template <bool Root>
-uint64_t perft_impl(Board&              board,
-                    int                 depth,
-                    std::ostream&       oss,
-                    PositionStateStack& states,
-                    int                 ply,
-                    PositionState&      current_state) {
-    if (depth == 0)
-        return 1;
-
-    uint64_t nodes    = 0;
-    auto     movelist = movegen::generate_pseudo_legal(board);
-
-    for (auto& move : movelist) {
-        if (!board.is_legal_generated_move(move))
-            continue;
-
-        board.make(move, states.child(ply));
-        uint64_t count =
-            perft_impl<false>(board, depth - 1, oss, states, ply + 1, states.child(ply));
-        nodes += count;
-        board.unmake(current_state);
-
-        if constexpr (Root)
-            oss << move.str() << ": " << count << '\n';
-    }
-
-    if constexpr (Root)
-        oss << "NODES: " << nodes << std::endl;
-
-    return nodes;
-}
 } // namespace
 
 bool Board::is_pseudo_legal(Move mv) const {
@@ -485,16 +450,3 @@ std::string Board::toSAN(Move move) const {
 
     return result;
 }
-
-// perform a perft search to find # of legal moves at a given depth
-template <bool Root>
-uint64_t Board::perft(int depth, std::ostream& oss) {
-    if (depth < 0 || depth > MAX_SEARCH_PLY)
-        throw std::invalid_argument("perft depth out of range");
-
-    PositionStateStack states;
-    return perft_impl<Root>(*this, depth, oss, states, 0, active_state());
-}
-
-template uint64_t Board::perft<true>(int, std::ostream&);
-template uint64_t Board::perft<false>(int, std::ostream&);

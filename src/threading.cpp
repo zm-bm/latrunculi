@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cassert>
 
-Thread::Thread(int id, uci::Protocol& protocol, ThreadPool& pool)
-    : worker(id, protocol, pool),
+Thread::Thread(int id, uci::Writer& writer, ThreadPool& pool)
+    : worker(id, writer, pool),
       native_thread(&Thread::idle_loop, this) {}
 
 Thread::~Thread() {
@@ -15,8 +15,8 @@ Thread::~Thread() {
 }
 
 // ThreadPool-facing lifecycle.
-void Thread::start_search(const SearchOptions& options) {
-    configure_search(options);
+void Thread::start_search(const Board& root_board, SearchLimits limits, TimePoint start_time) {
+    configure_search(root_board, limits, start_time);
     wake_for_search();
 }
 
@@ -66,13 +66,13 @@ void Thread::idle_loop() {
     }
 }
 
-void Thread::configure_search(const SearchOptions& options) {
+void Thread::configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time) {
     std::lock_guard<std::mutex> lock(state_mutex);
 
     assert(!searching);
     assert(!shutdown_requested);
 
-    worker.configure_search(options);
+    worker.configure_search(root_board, limits, start_time);
     worker_running.store(false, std::memory_order_release);
 }
 
@@ -87,9 +87,9 @@ void Thread::wake_for_search() {
     state_cv.notify_one();
 }
 
-ThreadPool::ThreadPool(size_t thread_count, uci::Protocol& protocol) : protocol(protocol) {
+ThreadPool::ThreadPool(size_t thread_count, uci::Writer& writer) : writer(writer) {
     for (size_t i = 0; i < thread_count; ++i) {
-        threads.emplace_back(new Thread(static_cast<int>(i), protocol, *this));
+        threads.emplace_back(new Thread(static_cast<int>(i), writer, *this));
     }
 }
 
@@ -98,15 +98,17 @@ ThreadPool::~ThreadPool() {
 }
 
 // Search lifecycle.
-bool ThreadPool::start_search(const SearchOptions& options) {
+bool ThreadPool::start_search(const Board& root_board, SearchLimits limits) {
     if (shutdown_requested || threads.empty() || is_searching())
         return false;
+
+    const TimePoint start_time = Clock::now();
 
     // Close the gate so helpers wait for the main worker.
     close_helper_gate();
 
     for (auto& thread : threads) {
-        thread->start_search(options);
+        thread->start_search(root_board, limits, start_time);
     }
 
     return true;
@@ -154,7 +156,7 @@ bool ThreadPool::resize(size_t thread_count) {
         threads.resize(thread_count);
     } else {
         for (size_t i = threads.size(); i < thread_count; ++i) {
-            threads.emplace_back(new Thread(static_cast<int>(i), protocol, *this));
+            threads.emplace_back(new Thread(static_cast<int>(i), writer, *this));
         }
     }
 

@@ -4,6 +4,40 @@ This document is a subsystem-oriented roadmap for the engine. Each section
 should describe the current implementation, the boundaries that should be
 preserved, and practical improvements to consider next.
 
+## Engine / UCI
+
+The engine boundary is intentionally small: `Engine` coordinates command
+handling, board/history state, UCI options, and search lifecycle. `uci::Reader`
+owns stdin line reading and delegates parsing to `parse_command()`;
+`uci::Writer` owns UCI and debug-output formatting and flushing; `uci::Options`
+owns option parsing and validation while `Engine` applies option side effects.
+Search runs through `ThreadPool` from the resolved root board and `SearchLimits`.
+
+Current UCI support covers the core loop: `uci`, `isready`, `setoption`,
+`ucinewgame`, `position`, `go`, `stop`, and `quit`. `ponderhit`, `register`,
+and unknown commands are accepted as silent compatibility no-ops. Advertised
+options are `Hash`, `Clear Hash`, `Threads`, and `Debug`. Search output includes
+`info depth`, `score cp`/`score mate`, nodes, time, nps, legal PV text, and
+`bestmove 0000` when no legal move is available.
+
+The same command loop also accepts local debug-console extensions: `help`,
+`board`/`d`, `eval`, `move`, `moves`, and `perft`. These are local inspection
+tools, not protocol features.
+
+### Potential Improvements
+
+Future UCI work should focus on common GUI compatibility rather than broad
+protocol surface area. The likely next protocol gaps are real ponder support,
+`go searchmoves`, true `go infinite` semantics, `go mate`, MultiPV,
+lowerbound/upperbound score reporting, richer progress fields such as
+`currmove`, `currmovenumber`, `hashfull`, `tbhits`, and `cpuload`, and
+Chess960 support if the board/search layer grows that capability.
+
+Likely future options include `SyzygyPath`, `SyzygyProbeDepth`,
+`Syzygy50MoveRule`, `UCI_Chess960`, `MultiPV`, and optional strength controls
+such as `UCI_LimitStrength` and `UCI_Elo`. Treat these as compatibility targets,
+not commitments to add unsupported engine features prematurely.
+
 ## Move Ordering
 
 Move ordering is currently a solid staged baseline. The engine uses one

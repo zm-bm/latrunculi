@@ -13,13 +13,13 @@
 #include "evaluator.hpp"
 #include "move_picker.hpp"
 #include "movegen.hpp"
-#include "search_options.hpp"
+#include "search_limits.hpp"
 #include "search_worker.hpp"
 #include "test_util.hpp"
 #include "thread_test_access.hpp"
 #include "threading.hpp"
 #include "tt.hpp"
-#include "uci.hpp"
+#include "uci_writer.hpp"
 
 namespace {
 
@@ -45,25 +45,24 @@ class SearchTest : public ::testing::Test {
 protected:
     std::ostringstream protocol_out;
     std::ostringstream protocol_err;
-    uci::Protocol      protocol{protocol_out, protocol_err};
-    ThreadPool         pool{1, protocol};
+    uci::Writer        writer{protocol_out, protocol_err};
+    ThreadPool         pool{1, writer};
     Thread*            thread;
     SearchWorker*      worker;
-    SearchOptions      options;
+    SearchLimits       limits;
 
     void SetUp() override {
-        thread        = &ThreadTestAccess::thread(pool);
-        worker        = &ThreadTestAccess::worker(pool);
-        options       = SearchOptions();
-        options.depth = 4;
+        thread       = &ThreadTestAccess::thread(pool);
+        worker       = &ThreadTestAccess::worker(pool);
+        limits       = SearchLimits();
+        limits.depth = 4;
         tt.clear();
     }
 
     void loadWorkerBoard(Board& board, int search_depth = 4) {
         tt.clear();
-        options.board = &board;
-        options.depth = search_depth;
-        worker->configure_search(options);
+        limits.depth = search_depth;
+        worker->configure_search(board, limits, Clock::now());
         worker->reset_search_state();
     }
 
@@ -108,7 +107,9 @@ protected:
 
     int runWorkerSearch() { return worker->search(); }
 
-    void reportChangedSearchInfo(const RootLine& line) { worker->report_changed_search_info(line); }
+    void reportRootProgress(const RootLine& line) {
+        worker->report_root_progress(line);
+    }
 
     int count_protocol_lines_starting_with(std::string_view prefix) const {
         std::istringstream lines{protocol_out.str()};
@@ -421,9 +422,8 @@ protected:
 
     void testSearch(const std::string& fen, int search_depth, int score, std::string move) {
         TestBoard board{fen};
-        options.board = &board;
-        options.depth = search_depth;
-        ThreadTestAccess::start_search(*thread, options);
+        limits.depth = search_depth;
+        ThreadTestAccess::start_search(*thread, board, limits);
         ThreadTestAccess::wait_for_idle(*thread);
 
         EXPECT_EQ(rootValue(), score) << fen;
@@ -1989,10 +1989,10 @@ TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
 
     buildRootLines();
 
-    const Move first_move = findWorkerMove("d3e2");
-    const Move best_move  = findWorkerMove("d3d8");
+    const Move first_move   = findWorkerMove("d3e2");
+    const Move winning_move = findWorkerMove("d3d8");
     ASSERT_FALSE(first_move.is_null());
-    ASSERT_FALSE(best_move.is_null());
+    ASSERT_FALSE(winning_move.is_null());
 
     RootLine first_line;
     RootLine best_line;
@@ -2003,7 +2003,7 @@ TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
             first_line  = line;
             found_first = true;
         }
-        if (line.root_move == best_move) {
+        if (line.root_move == winning_move) {
             best_line  = line;
             found_best = true;
         }
@@ -2018,7 +2018,7 @@ TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
     EXPECT_GT(rootLines()[1].value, rootLines()[0].value);
 
     std::stable_sort(mutableRootLines().begin(), mutableRootLines().end(), is_better_root_line);
-    EXPECT_EQ(rootLines().front().root_move, best_move);
+    EXPECT_EQ(rootLines().front().root_move, winning_move);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 2) << protocol_out.str();
 
 #if LATRUNCULI_SEARCH_STATS
@@ -2089,7 +2089,7 @@ TEST_F(SearchTest, RootSearchBuildsPrincipalVariationForRootLine) {
     EXPECT_EQ(rootPvSize(), 2);
 }
 
-TEST_F(SearchTest, SearchInfoReportingSuppressesOnlyIdenticalRootLines) {
+TEST_F(SearchTest, SearchReportingSuppressesOnlyIdenticalRootLines) {
     TestBoard board{STARTFEN};
     loadWorkerBoard(board, 2);
 
@@ -2101,23 +2101,23 @@ TEST_F(SearchTest, SearchInfoReportingSuppressesOnlyIdenticalRootLines) {
         .pv        = pv_for_move(Move(E2, E4)),
     };
 
-    reportChangedSearchInfo(line);
-    reportChangedSearchInfo(line);
+    reportRootProgress(line);
+    reportRootProgress(line);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 1) << protocol_out.str();
 
     RootLine score_changed = line;
     score_changed.value    = 21;
-    reportChangedSearchInfo(score_changed);
+    reportRootProgress(score_changed);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 2) << protocol_out.str();
 
     RootLine pv_changed = score_changed;
     pv_changed.pv       = pv_for_line(Move(E2, E4), Move(E7, E5));
-    reportChangedSearchInfo(pv_changed);
+    reportRootProgress(pv_changed);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 1 "), 3) << protocol_out.str();
 
     RootLine depth_changed = pv_changed;
     depth_changed.depth    = 2;
-    reportChangedSearchInfo(depth_changed);
+    reportRootProgress(depth_changed);
     EXPECT_EQ(count_protocol_lines_starting_with("info depth 2 "), 1) << protocol_out.str();
 }
 
@@ -2346,7 +2346,7 @@ TEST_F(SearchTest, RootSearchSetsNullMoveForCheckmate) {
     EXPECT_EQ(runRootSearch(), -MATE_VALUE);
     EXPECT_EQ(rootMove(), NULL_MOVE);
     EXPECT_EQ(rootValue(), -MATE_VALUE);
-    EXPECT_EQ(rootDepth(), options.depth);
+    EXPECT_EQ(rootDepth(), limits.depth);
     EXPECT_TRUE(rootCompleted());
     EXPECT_TRUE(rootLines().empty());
 }
@@ -2359,7 +2359,7 @@ TEST_F(SearchTest, RootSearchSetsNullMoveForStalemate) {
     EXPECT_EQ(runRootSearch(), DRAW_VALUE);
     EXPECT_EQ(rootMove(), NULL_MOVE);
     EXPECT_EQ(rootValue(), DRAW_VALUE);
-    EXPECT_EQ(rootDepth(), options.depth);
+    EXPECT_EQ(rootDepth(), limits.depth);
     EXPECT_TRUE(rootCompleted());
     EXPECT_TRUE(rootLines().empty());
 }
@@ -2367,10 +2367,9 @@ TEST_F(SearchTest, RootSearchSetsNullMoveForStalemate) {
 TEST_F(SearchTest, CompletedSearchPublishesRootLineSnapshot) {
     constexpr auto mate_in_one = "7R/8/8/8/8/1K6/8/1k6 w - - 0 1";
     TestBoard      board{mate_in_one};
-    options.board = &board;
-    options.depth = 2;
+    limits.depth = 2;
 
-    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::start_search(*thread, board, limits);
     ThreadTestAccess::wait_for_idle(*thread);
 
     const auto snapshot = rootSnapshot();
@@ -2388,10 +2387,9 @@ TEST_F(SearchTest, CompletedSearchPublishesRootLineSnapshot) {
 
 TEST_F(SearchTest, CompletedNonTerminalSearchPublishesFullRootPv) {
     TestBoard board{STARTFEN};
-    options.board = &board;
-    options.depth = 2;
+    limits.depth = 2;
 
-    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::start_search(*thread, board, limits);
     ThreadTestAccess::wait_for_idle(*thread);
 
     const auto snapshot = rootSnapshot();
@@ -2404,10 +2402,9 @@ TEST_F(SearchTest, CompletedNonTerminalSearchPublishesFullRootPv) {
 TEST_F(SearchTest, CompletedNoLegalMoveSearchPublishesCompletedNullMove) {
     constexpr auto checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
     TestBoard      board{checkmate};
-    options.board = &board;
-    options.depth = 1;
+    limits.depth = 1;
 
-    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::start_search(*thread, board, limits);
     ThreadTestAccess::wait_for_idle(*thread);
 
     const auto snapshot = rootSnapshot();
@@ -2439,17 +2436,16 @@ TEST_F(SearchTest, StoppedSearchPublishesIncompleteRootLineSnapshot) {
 
 TEST_F(SearchTest, StoppedSearchPreservesLastCompletedRootLine) {
     TestBoard board{STARTFEN};
-    options.board = &board;
-    options.depth = 8;
-    options.nodes = 100;
+    limits.depth = 8;
+    limits.nodes = 100;
 
-    ThreadTestAccess::start_search(*thread, options);
+    ThreadTestAccess::start_search(*thread, board, limits);
     ThreadTestAccess::wait_for_idle(*thread);
 
     const auto snapshot = rootSnapshot();
     ASSERT_TRUE(snapshot.has_completed_depth());
     EXPECT_TRUE(snapshot.usable_root_move());
-    EXPECT_LT(snapshot.depth, options.depth);
+    EXPECT_LT(snapshot.depth, limits.depth);
     ASSERT_FALSE(snapshot.pv.empty());
     EXPECT_EQ(snapshot.pv.front(), snapshot.root_move);
 }

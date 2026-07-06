@@ -12,23 +12,23 @@
 #include "position_state.hpp"
 #include "root_line.hpp"
 #include "search_instrumentation.hpp"
-#include "search_options.hpp"
+#include "search_limits.hpp"
 
 class ThreadPool;
 class ThreadTestAccess;
 
 namespace uci {
-class Protocol;
+class Writer;
 }
 
 // Per-thread search state and search execution.
 class SearchWorker {
 public:
     SearchWorker() = delete;
-    SearchWorker(int id, uci::Protocol& protocol, ThreadPool& pool);
+    SearchWorker(int id, uci::Writer& writer, ThreadPool& pool);
 
     // Thread-facing lifecycle.
-    void configure_search(const SearchOptions& options);
+    void configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
     int  search();
     void request_stop() noexcept;
 
@@ -46,17 +46,18 @@ private:
     MoveOrdering          ordering;
 
     // Current search request.
-    SearchOptions options;
-    int64_t       searchtime_ms{OPTION_NOT_SET};
+    SearchLimits                limits;
+    TimePoint                   start_time{};
+    std::optional<Milliseconds> allocated_time;
 
     // Progress and diagnostics.
     std::atomic<uint64_t>   nodes{0};
     SearchInstrumentation<> stats;
 
     // Shared services.
-    uci::Protocol& protocol;
-    ThreadPool&    thread_pool;
-    const int      thread_id;
+    uci::Writer& writer;
+    ThreadPool&  thread_pool;
+    const int    thread_id;
 
     // Stop state.
     std::atomic<bool> stop_requested_flag{false};
@@ -78,7 +79,7 @@ private:
     bool     search_root_window(int depth, int alpha, int beta);
     void     record_root_result(int value);
     void     report_final_result();
-    void     report_changed_search_info(const RootLine& line);
+    void     report_root_progress(const RootLine& line);
 
     // Root snapshot publication.
     void clear_root_snapshot();
