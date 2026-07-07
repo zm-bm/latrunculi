@@ -2,8 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include "core/defs.hpp"
-
 namespace {
 
 void expect_allocated_time(const SearchLimits& limits, Color side, Milliseconds expected) {
@@ -48,7 +46,7 @@ TEST(SearchLimitsTest, SettersClampOutOfRangeValues) {
     limits.set_binc(-1);
     limits.set_movestogo(0);
 
-    EXPECT_EQ(limits.depth, MAX_SEARCH_DEPTH);
+    EXPECT_EQ(limits.depth, SearchLimits::max_depth);
     EXPECT_EQ(limits.movetime, Milliseconds{1});
     EXPECT_EQ(limits.nodes, 0U);
     EXPECT_EQ(limits.wtime, Milliseconds{0});
@@ -61,7 +59,7 @@ TEST(SearchLimitsTest, SettersClampOutOfRangeValues) {
 TEST(SearchLimitsTest, DefaultsLeaveOptionalLimitsUnset) {
     SearchLimits limits;
 
-    EXPECT_EQ(limits.depth, MAX_SEARCH_DEPTH);
+    EXPECT_EQ(limits.depth, SearchLimits::max_depth);
     EXPECT_FALSE(limits.movetime.has_value());
     EXPECT_FALSE(limits.nodes.has_value());
     EXPECT_FALSE(limits.wtime.has_value());

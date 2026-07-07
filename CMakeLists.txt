@@ -63,6 +63,7 @@ if(BUILD_TESTING)
         tests/core/bb.test.cpp
         tests/core/magic.test.cpp
         tests/core/move.test.cpp
+        tests/core/notation.test.cpp
         tests/core/score.test.cpp
         tests/core/types.test.cpp
         tests/eval/eval.test.cpp

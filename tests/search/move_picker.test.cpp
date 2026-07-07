@@ -7,6 +7,7 @@
 
 #include "search/move_ordering.hpp"
 #include "movegen/movegen.hpp"
+#include "search/search_limits.hpp"
 #include "support/test_util.hpp"
 
 class MovePickerTest : public ::testing::Test {
@@ -45,7 +46,7 @@ std::vector<uint16_t> sorted_move_bits(const std::vector<Move>& moves) {
 
 std::vector<Move> collect_moves(MovePicker& picker) {
     std::vector<Move> moves;
-    moves.reserve(MAX_MOVES);
+    moves.reserve(MoveList::capacity);
     for (Move move = picker.next(); !move.is_null(); move = picker.next())
         moves.push_back(move);
     return moves;
@@ -79,8 +80,12 @@ void boost_continuation_hint(const Board& board, MoveOrdering& ordering, Move mo
         return;
 
     for (int i = 0; i < 8; ++i) {
-        ordering.continuations.reward(
-            ~board.side_to_move(), prev_piece, prev_move.to(), piece, move.to(), MAX_SEARCH_DEPTH);
+        ordering.continuations.reward(~board.side_to_move(),
+                                      prev_piece,
+                                      prev_move.to(),
+                                      piece,
+                                      move.to(),
+                                      SearchLimits::max_depth);
     }
 }
 
@@ -132,8 +137,10 @@ TEST_F(MovePickerTest, MainSearchKeepsHistoryBelowKillerPriority) {
 
     killers.update(killer_move, ply);
     for (int i = 0; i < 8; ++i)
-        quiet_history.reward(
-            board.side_to_move(), hist_move.from(), hist_move.to(), MAX_SEARCH_DEPTH);
+        quiet_history.reward(board.side_to_move(),
+                             hist_move.from(),
+                             hist_move.to(),
+                             SearchLimits::max_depth);
 
     const auto moves     = picked_main_search(board, ordering, ply);
     const auto killer_it = std::find(moves.begin(), moves.end(), killer_move);
@@ -154,8 +161,10 @@ TEST_F(MovePickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKil
     killers.update(killer_move, ply);
     quiet_history.reward(board.side_to_move(), light_move.from(), light_move.to(), 1);
     for (int i = 0; i < 8; ++i)
-        quiet_history.reward(
-            board.side_to_move(), saturated_move.from(), saturated_move.to(), MAX_SEARCH_DEPTH);
+        quiet_history.reward(board.side_to_move(),
+                             saturated_move.from(),
+                             saturated_move.to(),
+                             SearchLimits::max_depth);
 
     const auto moves        = picked_main_search(board, ordering, ply);
     const auto killer_it    = std::find(moves.begin(), moves.end(), killer_move);
@@ -208,7 +217,8 @@ TEST_F(MovePickerTest, MainSearchContinuationHistoryRequiresMatchingPreviousMove
 
     const PieceType piece = quiet_board.piecetype_on(target.from());
     for (int i = 0; i < 8; ++i)
-        ordering.continuations.reward(BLACK, PAWN, E4, piece, target.to(), MAX_SEARCH_DEPTH);
+        ordering.continuations.reward(
+            BLACK, PAWN, E4, piece, target.to(), SearchLimits::max_depth);
 
     EXPECT_EQ(picked_main_search(quiet_board, ordering, ply), baseline);
 }
@@ -519,7 +529,10 @@ TEST_F(MovePickerTest, MainSearchOrdersCounterAfterKillersBeforeHistoryQuiets) {
 
     killers.update(killer_2, ply);
     killers.update(killer_1, ply);
-    quiet_history.reward(quiet_board.side_to_move(), hist.from(), hist.to(), MAX_SEARCH_DEPTH);
+    quiet_history.reward(quiet_board.side_to_move(),
+                         hist.from(),
+                         hist.to(),
+                         SearchLimits::max_depth);
 
     const auto moves       = picked_root_order(quiet_board, ordering, ply, NULL_MOVE, counter);
     const auto killer_1_it = std::find(moves.begin(), moves.end(), killer_1);

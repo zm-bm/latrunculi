@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include "search/search_limits.hpp"
+
 TEST(QuietHistoryTest, RewardAndRetrieve) {
     QuietHistory hist;
     hist.reward(WHITE, E2, E4, 3);
@@ -43,14 +45,14 @@ TEST(QuietHistoryTest, UpdatesStayWithinHistoryBand) {
     QuietHistory positive;
 
     for (int i = 0; i < 8; ++i)
-        positive.reward(WHITE, E2, E4, MAX_SEARCH_DEPTH);
+        positive.reward(WHITE, E2, E4, SearchLimits::max_depth);
 
     EXPECT_GE(positive.get(WHITE, E2, E4), 0);
     EXPECT_LE(positive.get(WHITE, E2, E4), QuietHistory::MAX_SCORE);
 
     QuietHistory negative;
     for (int i = 0; i < 8; ++i)
-        negative.penalize(WHITE, E2, E4, MAX_SEARCH_DEPTH);
+        negative.penalize(WHITE, E2, E4, SearchLimits::max_depth);
 
     EXPECT_LE(negative.get(WHITE, E2, E4), 0);
     EXPECT_GE(negative.get(WHITE, E2, E4), -QuietHistory::MAX_SCORE);
@@ -129,14 +131,14 @@ TEST(CaptureHistoryTest, PenalizeCanScaleMalus) {
 TEST(CaptureHistoryTest, UpdatesStayWithinHistoryBand) {
     CaptureHistory positive;
     for (int i = 0; i < 8; ++i)
-        positive.reward(WHITE, QUEEN, E5, ROOK, MAX_SEARCH_DEPTH);
+        positive.reward(WHITE, QUEEN, E5, ROOK, SearchLimits::max_depth);
 
     EXPECT_GE(positive.get(WHITE, QUEEN, E5, ROOK), 0);
     EXPECT_LE(positive.get(WHITE, QUEEN, E5, ROOK), CaptureHistory::MAX_SCORE);
 
     CaptureHistory negative;
     for (int i = 0; i < 8; ++i)
-        negative.penalize(WHITE, QUEEN, E5, ROOK, MAX_SEARCH_DEPTH);
+        negative.penalize(WHITE, QUEEN, E5, ROOK, SearchLimits::max_depth);
 
     EXPECT_LE(negative.get(WHITE, QUEEN, E5, ROOK), 0);
     EXPECT_GE(negative.get(WHITE, QUEEN, E5, ROOK), -CaptureHistory::MAX_SCORE);
@@ -216,14 +218,14 @@ TEST(ContinuationHistoryTest, PenalizeCanScaleMalus) {
 TEST(ContinuationHistoryTest, UpdatesStayWithinHistoryBand) {
     ContinuationHistory positive;
     for (int i = 0; i < 8; ++i)
-        positive.reward(WHITE, PAWN, E4, KNIGHT, F6, MAX_SEARCH_DEPTH);
+        positive.reward(WHITE, PAWN, E4, KNIGHT, F6, SearchLimits::max_depth);
 
     EXPECT_GE(positive.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
     EXPECT_LE(positive.get(WHITE, PAWN, E4, KNIGHT, F6), ContinuationHistory::MAX_SCORE);
 
     ContinuationHistory negative;
     for (int i = 0; i < 8; ++i)
-        negative.penalize(WHITE, PAWN, E4, KNIGHT, F6, MAX_SEARCH_DEPTH);
+        negative.penalize(WHITE, PAWN, E4, KNIGHT, F6, SearchLimits::max_depth);
 
     EXPECT_LE(negative.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
     EXPECT_GE(negative.get(WHITE, PAWN, E4, KNIGHT, F6), -ContinuationHistory::MAX_SCORE);

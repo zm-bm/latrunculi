@@ -1,8 +1,9 @@
 #include "uci/uci_writer.hpp"
 
 #include "board/board.hpp"
-#include "eval/evaluator.hpp"
 #include "board/position_state.hpp"
+#include "core/defs.hpp"
+#include "eval/evaluator.hpp"
 #include "search/root_line.hpp"
 #include "search/search_instrumentation.hpp"
 

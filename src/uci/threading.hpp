@@ -9,6 +9,7 @@
 #include <thread>
 #include <vector>
 
+#include "core/types.hpp"
 #include "search/root_line.hpp"
 #include "search/search_instrumentation.hpp"
 #include "search/search_limits.hpp"

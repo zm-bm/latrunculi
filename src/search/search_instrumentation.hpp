@@ -9,10 +9,16 @@
 
 #include "core/defs.hpp"
 
-template <bool Enable = SEARCH_STATS>
+#ifndef LATRUNCULI_SEARCH_STATS
+#define LATRUNCULI_SEARCH_STATS 0
+#endif
+
+constexpr bool SEARCH_STATS_ENABLED = LATRUNCULI_SEARCH_STATS;
+
+template <bool Enable = SEARCH_STATS_ENABLED>
 struct SearchCounters;
 
-template <bool Enable = SEARCH_STATS>
+template <bool Enable = SEARCH_STATS_ENABLED>
 class SearchInstrumentation;
 
 template <>

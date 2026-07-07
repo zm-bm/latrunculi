@@ -62,7 +62,7 @@ protected:
     void loadWorkerBoard(Board& board, int search_depth = 4) {
         tt.clear();
         limits.depth = search_depth;
-        worker->configure_search(board, limits, Clock::now());
+        worker->configure_search(board, limits, SearchClock::now());
         worker->reset_search_state();
     }
 

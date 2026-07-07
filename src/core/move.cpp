@@ -3,7 +3,7 @@
 #include <format>
 #include <ostream>
 
-#include "core/defs.hpp"
+#include "core/notation.hpp"
 
 std::ostream& operator<<(std::ostream& os, const Move& move) {
     os << move.str();

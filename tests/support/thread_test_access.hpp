@@ -45,7 +45,7 @@ public:
     }
 
     static void start_search(Thread& thread, const Board& root_board, SearchLimits limits) {
-        thread.start_search(root_board, limits, Clock::now());
+        thread.start_search(root_board, limits, SearchClock::now());
     }
 
     static void request_stop(Thread& thread) { thread.request_stop(); }
@@ -55,7 +55,7 @@ public:
     static void shutdown(Thread& thread) { thread.shutdown(); }
 
     static void configure_search(Thread& thread, const Board& root_board, SearchLimits limits) {
-        thread.configure_search(root_board, limits, Clock::now());
+        thread.configure_search(root_board, limits, SearchClock::now());
     }
 
     static void reset_search_state(Thread& thread) { worker(thread).reset_search_state(); }

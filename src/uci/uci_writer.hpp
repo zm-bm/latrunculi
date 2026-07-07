@@ -5,8 +5,8 @@
 #include <string>
 #include <string_view>
 
-#include "core/defs.hpp"
 #include "core/move.hpp"
+#include "core/types.hpp"
 #include "uci/uci_options.hpp"
 
 class Board;

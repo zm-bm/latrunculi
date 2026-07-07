@@ -4,10 +4,12 @@
 #include <cstdint>
 #include <optional>
 
-#include "core/defs.hpp"
+#include "core/types.hpp"
 
 struct SearchLimits {
-    int depth = MAX_SEARCH_DEPTH;
+    static constexpr int max_depth = 64;
+
+    int depth = max_depth;
 
     std::optional<Milliseconds> movetime;
     std::optional<uint64_t>     nodes;
@@ -19,7 +21,7 @@ struct SearchLimits {
 
     SearchLimits() = default;
 
-    void set_depth(int d) { depth = std::clamp(d, 1, MAX_SEARCH_DEPTH); }
+    void set_depth(int d) { depth = std::clamp(d, 1, max_depth); }
     void set_movetime(int mt) { movetime = Milliseconds{std::max(mt, 1)}; }
     void set_nodes(int n) { nodes = static_cast<uint64_t>(std::max(n, 0)); }
     void set_wtime(int wt) { wtime = Milliseconds{std::max(wt, 0)}; }

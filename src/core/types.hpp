@@ -1,6 +1,11 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
+
+using SearchClock  = std::chrono::steady_clock;
+using TimePoint    = SearchClock::time_point;
+using Milliseconds = std::chrono::milliseconds;
 
 enum Color : uint8_t { BLACK, WHITE, N_COLORS };
 

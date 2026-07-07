@@ -7,6 +7,7 @@
 #include "core/defs.hpp"
 #include "eval/eval.hpp"
 #include "core/move.hpp"
+#include "core/notation.hpp"
 #include "board/position_key_history.hpp"
 #include "board/position_state.hpp"
 #include "core/score.hpp"

@@ -4,10 +4,10 @@
 #include <cstdint>
 
 #include "core/move.hpp"
+#include "movegen/move_list.hpp"
 #include "search/move_ordering.hpp"
 
 class Board;
-class MoveList;
 
 class MovePicker {
 public:
@@ -111,7 +111,7 @@ private:
     const Mode                        mode;
     const bool                        in_check;
     Stage                             stage{Stage::TT_MOVE};
-    std::array<ScoredMove, MAX_MOVES> moves;
+    std::array<ScoredMove, MoveList::capacity> moves;
     // Generated holds noisy moves or evasions; quiets are appended after it.
     ScoredBand generated;
     ScoredBand quiet;

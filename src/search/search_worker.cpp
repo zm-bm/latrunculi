@@ -80,7 +80,7 @@ void SearchWorker::reset_search_state() {
 
     ordering.clear();
 
-    if constexpr (SEARCH_STATS)
+    if constexpr (SEARCH_STATS_ENABLED)
         stats.reset();
 }
 
@@ -136,7 +136,7 @@ void SearchWorker::report_final_result() {
 
     writer.bestmove(selected.root_move);
 
-    if constexpr (SEARCH_STATS) {
+    if constexpr (SEARCH_STATS_ENABLED) {
         auto stats = thread_pool.aggregate_instrumentation();
         writer.debug(stats);
     }
@@ -152,7 +152,7 @@ void SearchWorker::report_root_progress(const RootLine& line) {
 
 // Accounting and limits.
 Milliseconds SearchWorker::runtime() const {
-    return std::chrono::duration_cast<Milliseconds>(Clock::now() - start_time);
+    return std::chrono::duration_cast<Milliseconds>(SearchClock::now() - start_time);
 }
 
 uint64_t SearchWorker::total_nodes() const {

@@ -1,6 +1,7 @@
 #include "board/board.hpp"
 
 #include "board/fen.hpp"
+#include "core/notation.hpp"
 
 #include <sstream>
 

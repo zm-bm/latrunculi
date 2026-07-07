@@ -120,7 +120,7 @@ TEST_F(EngineTest, SetOptionWhileSearchInProgressIsRejected) {
     EXPECT_TRUE(execute("setoption name Threads value 2"));
     EXPECT_NE(output.str().find("cannot set option while search is in progress"), std::string::npos)
         << output.str();
-    EXPECT_EQ(threadpool().thread_count(), DEFAULT_THREADS);
+    EXPECT_EQ(threadpool().thread_count(), uci::Options::default_threads);
 
     EXPECT_TRUE(execute("stop"));
     threadpool().wait();
@@ -309,7 +309,7 @@ TEST_F(EngineTest, MoveCommandReportsInvalidMoveToken) {
 
 struct SetOptionCase {
     std::string command;
-    int         threads = DEFAULT_THREADS;
+    int         threads = uci::Options::default_threads;
     std::string output  = "error";
 };
 

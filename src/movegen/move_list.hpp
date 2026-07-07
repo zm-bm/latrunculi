@@ -4,11 +4,12 @@
 #include <cassert>
 #include <cstddef>
 
-#include "core/defs.hpp"
 #include "core/move.hpp"
 
 class MoveList {
 public:
+    static constexpr std::size_t capacity = 256;
+
     MoveList() = default;
 
     void add(Move move);
@@ -35,7 +36,7 @@ public:
 private:
     void copy_active_range_from(const MoveList& other);
 
-    std::array<Move, MAX_MOVES> moves;
+    std::array<Move, capacity> moves;
     Move*                       last{moves.data()};
 };
 

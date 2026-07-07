@@ -1,9 +1,6 @@
 #pragma once
 
-#include <chrono>
 #include <cstdint>
-#include <iostream>
-#include <string>
 
 #include "core/types.hpp"
 
@@ -11,21 +8,7 @@
 #define LATRUNCULI_VERSION "0.0.0"
 #endif
 
-#ifndef LATRUNCULI_SEARCH_STATS
-#define LATRUNCULI_SEARCH_STATS 0
-#endif
-
-using Clock        = std::chrono::high_resolution_clock;
-using TimePoint    = std::chrono::high_resolution_clock::time_point;
-using Milliseconds = std::chrono::milliseconds;
-
-constexpr int  MAX_SEARCH_DEPTH = 64;
-constexpr int  MAX_SEARCH_PLY   = 128;
-constexpr int  MAX_KEY_HISTORY  = 256;
-constexpr int  MAX_MOVES        = 256;
-constexpr int  DEFAULT_THREADS  = 1;
-constexpr int  DEFAULT_HASH     = 4;
-constexpr bool SEARCH_STATS     = LATRUNCULI_SEARCH_STATS;
+constexpr int MAX_SEARCH_PLY = 128;
 
 enum Value : int16_t {
     DRAW_VALUE    = 0,
@@ -98,61 +81,6 @@ constexpr CastleRights& operator|=(CastleRights& lhs, CastleRights rhs) {
 constexpr CastleRights& operator&=(CastleRights& lhs, CastleRights rhs) {
     lhs = lhs & rhs;
     return lhs;
-}
-
-namespace {
-constexpr char pieces[] = {
-    ' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
-};
-
-constexpr char to_char(Piece p) {
-    return pieces[p];
-}
-
-constexpr char to_char(PieceType pt) {
-    return pieces[pt];
-}
-
-constexpr char to_char(Rank rank) {
-    return static_cast<char>('1' + int(rank));
-}
-
-constexpr char to_char(File file) {
-    return static_cast<char>('a' + int(file));
-}
-
-inline std::string to_string(Square sq) {
-    return std::string{to_char(File(sq & 7))} + to_char(Rank(sq >> 3));
-}
-
-inline std::ostream& operator<<(std::ostream& os, Color color) {
-    os << (color == WHITE ? "white" : "black");
-    return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, File file) {
-    os << to_char(file);
-    return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, Rank rank) {
-    os << to_char(rank);
-    return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, Square sq) {
-    os << to_string(sq);
-    return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, Piece piece) {
-    os << to_char(piece);
-    return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, PieceType pieceType) {
-    os << to_char(pieceType);
-    return os;
 }
 
 namespace masks {

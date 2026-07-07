@@ -1,7 +1,5 @@
 #include "search/search_limits.hpp"
 
-#include "core/defs.hpp"
-
 std::optional<Milliseconds> SearchLimits::allocated_time(Color c) const {
     if (movetime) {
         return movetime;

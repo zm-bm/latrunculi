@@ -1,8 +1,9 @@
 #include "movegen/perft.hpp"
 
 #include "board/board.hpp"
-#include "movegen/movegen.hpp"
 #include "board/position_state.hpp"
+#include "core/defs.hpp"
+#include "movegen/movegen.hpp"
 
 #include <sstream>
 #include <stdexcept>

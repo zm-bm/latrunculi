@@ -2,13 +2,14 @@
 
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
-
-#include "core/defs.hpp"
 
 // Previous position keys for repetition detection.
 struct PositionKeyHistory {
-    std::array<uint64_t, MAX_KEY_HISTORY> keys{};
+    static constexpr std::size_t capacity = 256;
+
+    std::array<uint64_t, capacity> keys{};
     uint16_t                              size{};
 
     void clear() { size = 0; }

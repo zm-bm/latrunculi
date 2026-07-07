@@ -102,7 +102,7 @@ bool ThreadPool::start_search(const Board& root_board, SearchLimits limits) {
     if (shutdown_requested || threads.empty() || is_searching())
         return false;
 
-    const TimePoint start_time = Clock::now();
+    const TimePoint start_time = SearchClock::now();
 
     // Close the gate so helpers wait for the main worker.
     close_helper_gate();
