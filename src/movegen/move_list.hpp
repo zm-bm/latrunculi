@@ -37,7 +37,7 @@ private:
     void copy_active_range_from(const MoveList& other);
 
     std::array<Move, capacity> moves;
-    Move*                       last{moves.data()};
+    Move*                      last{moves.data()};
 };
 
 inline void MoveList::add(Move move) {

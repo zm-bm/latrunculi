@@ -10,10 +10,10 @@
 #include <vector>
 
 #include "board/board.hpp"
-#include "core/magic.hpp"
-#include "movegen/movegen.hpp"
 #include "board/position_state.hpp"
 #include "board/zobrist.hpp"
+#include "core/magic.hpp"
+#include "movegen/movegen.hpp"
 
 namespace {
 

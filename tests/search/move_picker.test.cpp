@@ -5,8 +5,8 @@
 
 #include <gtest/gtest.h>
 
-#include "search/move_ordering.hpp"
 #include "movegen/movegen.hpp"
+#include "search/move_ordering.hpp"
 #include "search/search_limits.hpp"
 #include "support/test_util.hpp"
 
@@ -137,10 +137,8 @@ TEST_F(MovePickerTest, MainSearchKeepsHistoryBelowKillerPriority) {
 
     killers.update(killer_move, ply);
     for (int i = 0; i < 8; ++i)
-        quiet_history.reward(board.side_to_move(),
-                             hist_move.from(),
-                             hist_move.to(),
-                             SearchLimits::max_depth);
+        quiet_history.reward(
+            board.side_to_move(), hist_move.from(), hist_move.to(), SearchLimits::max_depth);
 
     const auto moves     = picked_main_search(board, ordering, ply);
     const auto killer_it = std::find(moves.begin(), moves.end(), killer_move);
@@ -217,8 +215,7 @@ TEST_F(MovePickerTest, MainSearchContinuationHistoryRequiresMatchingPreviousMove
 
     const PieceType piece = quiet_board.piecetype_on(target.from());
     for (int i = 0; i < 8; ++i)
-        ordering.continuations.reward(
-            BLACK, PAWN, E4, piece, target.to(), SearchLimits::max_depth);
+        ordering.continuations.reward(BLACK, PAWN, E4, piece, target.to(), SearchLimits::max_depth);
 
     EXPECT_EQ(picked_main_search(quiet_board, ordering, ply), baseline);
 }
@@ -529,10 +526,8 @@ TEST_F(MovePickerTest, MainSearchOrdersCounterAfterKillersBeforeHistoryQuiets) {
 
     killers.update(killer_2, ply);
     killers.update(killer_1, ply);
-    quiet_history.reward(quiet_board.side_to_move(),
-                         hist.from(),
-                         hist.to(),
-                         SearchLimits::max_depth);
+    quiet_history.reward(
+        quiet_board.side_to_move(), hist.from(), hist.to(), SearchLimits::max_depth);
 
     const auto moves       = picked_root_order(quiet_board, ordering, ply, NULL_MOVE, counter);
     const auto killer_1_it = std::find(moves.begin(), moves.end(), killer_1);

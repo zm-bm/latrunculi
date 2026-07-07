@@ -98,7 +98,7 @@ TEST(PerftTest, RejectsInvalidDepths) {
 }
 
 TEST(PerftTest, RestoresBoardState) {
-    TestBoard board(POS2);
+    TestBoard  board(POS2);
     const auto original_fen = board.toFEN();
     const auto original_key = board.key();
 
@@ -107,7 +107,7 @@ TEST(PerftTest, RestoresBoardState) {
     EXPECT_EQ(board.toFEN(), original_fen);
     EXPECT_EQ(board.key(), original_key);
 
-    TestBoard root_board(POS2);
+    TestBoard  root_board(POS2);
     const auto original_root_fen = root_board.toFEN();
     const auto original_root_key = root_board.key();
 

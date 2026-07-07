@@ -5,8 +5,8 @@
 #include <string_view>
 #include <thread>
 
-#include "support/test_util.hpp"
 #include "search/tt.hpp"
+#include "support/test_util.hpp"
 #include "gtest/gtest.h"
 
 class EngineTest : public ::testing::Test {

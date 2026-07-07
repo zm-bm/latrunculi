@@ -5,8 +5,8 @@
 #include <variant>
 
 #include "board/board.hpp"
-#include "eval/evaluator.hpp"
 #include "core/move.hpp"
+#include "eval/evaluator.hpp"
 #include "movegen/movegen.hpp"
 #include "movegen/perft.hpp"
 #include "search/search_limits.hpp"
@@ -151,7 +151,7 @@ bool Engine::handle(const uci::PositionCommand& command) {
 }
 
 bool Engine::handle(const uci::GoCommand& command) {
-    const auto& go_limits = command.limits;
+    const auto&  go_limits = command.limits;
     SearchLimits limits;
 
     if (go_limits.depth)

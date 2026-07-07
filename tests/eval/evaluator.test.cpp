@@ -4,12 +4,12 @@
 
 #include <format>
 
-#include "core/bb.hpp"
 #include "board/board.hpp"
+#include "core/bb.hpp"
 
 #include "core/defs.hpp"
-#include "eval/eval.hpp"
 #include "core/score.hpp"
+#include "eval/eval.hpp"
 #include "support/test_util.hpp"
 
 class EvaluatorTest : public ::testing::Test {

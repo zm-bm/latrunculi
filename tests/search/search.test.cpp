@@ -11,14 +11,14 @@
 
 #include "board/board.hpp"
 #include "eval/evaluator.hpp"
-#include "search/move_picker.hpp"
 #include "movegen/movegen.hpp"
+#include "search/move_picker.hpp"
 #include "search/search_limits.hpp"
 #include "search/search_worker.hpp"
+#include "search/tt.hpp"
 #include "support/test_util.hpp"
 #include "support/thread_test_access.hpp"
 #include "uci/threading.hpp"
-#include "search/tt.hpp"
 #include "uci/uci_writer.hpp"
 
 namespace {
@@ -107,9 +107,7 @@ protected:
 
     int runWorkerSearch() { return worker->search(); }
 
-    void reportRootProgress(const RootLine& line) {
-        worker->report_root_progress(line);
-    }
+    void reportRootProgress(const RootLine& line) { worker->report_root_progress(line); }
 
     int count_protocol_lines_starting_with(std::string_view prefix) const {
         std::istringstream lines{protocol_out.str()};

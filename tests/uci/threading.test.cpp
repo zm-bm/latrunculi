@@ -7,9 +7,9 @@
 #include <thread>
 
 #include "search/search_limits.hpp"
+#include "search/tt.hpp"
 #include "support/test_util.hpp"
 #include "support/thread_test_access.hpp"
-#include "search/tt.hpp"
 #include "uci/uci_writer.hpp"
 
 namespace {

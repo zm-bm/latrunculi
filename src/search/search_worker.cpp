@@ -7,8 +7,8 @@
 #include "eval/evaluator.hpp"
 #include "search/move_picker.hpp"
 #include "search/search_worker.hpp"
-#include "uci/threading.hpp"
 #include "search/tt.hpp"
+#include "uci/threading.hpp"
 #include "uci/uci_writer.hpp"
 
 SearchWorker::SearchWorker(int id, uci::Writer& writer, ThreadPool& pool)

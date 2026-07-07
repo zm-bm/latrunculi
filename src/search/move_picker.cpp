@@ -5,8 +5,8 @@
 
 #include "board/board.hpp"
 #include "eval/eval.hpp"
-#include "search/move_ordering.hpp"
 #include "movegen/movegen.hpp"
+#include "search/move_ordering.hpp"
 
 namespace {
 

@@ -9,9 +9,9 @@
 #include <utility>
 #include <vector>
 
+#include "board/zobrist.hpp"
 #include "movegen/movegen.hpp"
 #include "support/test_util.hpp"
-#include "board/zobrist.hpp"
 
 namespace {
 

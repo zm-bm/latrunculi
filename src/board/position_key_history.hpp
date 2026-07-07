@@ -10,7 +10,7 @@ struct PositionKeyHistory {
     static constexpr std::size_t capacity = 256;
 
     std::array<uint64_t, capacity> keys{};
-    uint16_t                              size{};
+    uint16_t                       size{};
 
     void clear() { size = 0; }
 

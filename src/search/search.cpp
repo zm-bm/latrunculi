@@ -519,7 +519,7 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
         tt_move = record->move;
     }
 
-    const bool in_check   = board.is_check();
+    const bool in_check       = board.is_check();
     int        move_count     = 0;
     int        best_value     = -INF_VALUE;
     Move       top_score_move = NULL_MOVE;

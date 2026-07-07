@@ -1,8 +1,8 @@
 #include <iostream>
 
-#include "uci/engine.hpp"
-#include "core/magic.hpp"
 #include "board/zobrist.hpp"
+#include "core/magic.hpp"
+#include "uci/engine.hpp"
 
 int main() {
     magic::init();

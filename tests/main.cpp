@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "core/magic.hpp"
 #include "board/zobrist.hpp"
+#include "core/magic.hpp"
 
 class GlobalTestSetup : public ::testing::Environment {
 public:

@@ -15,11 +15,8 @@ void validate_perft_depth(int depth) {
         throw std::invalid_argument("perft depth out of range");
 }
 
-uint64_t perft_impl(Board&              board,
-                    int                 depth,
-                    PositionStateStack& states,
-                    int                 ply,
-                    PositionState&      current_state) {
+uint64_t perft_impl(
+    Board& board, int depth, PositionStateStack& states, int ply, PositionState& current_state) {
     if (depth == 0)
         return 1;
 
@@ -31,8 +28,8 @@ uint64_t perft_impl(Board&              board,
             continue;
 
         board.make(move, states.child(ply));
-        uint64_t count = perft_impl(board, depth - 1, states, ply + 1, states.child(ply));
-        nodes += count;
+        uint64_t count  = perft_impl(board, depth - 1, states, ply + 1, states.child(ply));
+        nodes          += count;
         board.unmake(current_state);
     }
 
@@ -70,8 +67,8 @@ PerftResult perft_root(Board& board, int depth) {
             continue;
 
         board.make(move, states.child(0));
-        const uint64_t nodes = perft_impl(board, depth - 1, states, 1, states.child(0));
-        result.nodes += nodes;
+        const uint64_t nodes  = perft_impl(board, depth - 1, states, 1, states.child(0));
+        result.nodes         += nodes;
         result.root_moves.push_back({.move = move, .nodes = nodes});
         board.unmake(root_state);
     }

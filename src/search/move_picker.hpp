@@ -104,13 +104,13 @@ private:
     template <PickKind Kind>
     Move pick(ScoredBand& band);
 
-    const Board&                      board;
-    const MoveOrdering&               ordering;
-    const MoveOrdering::Context       context;
-    Move                              tt_move{NULL_MOVE};
-    const Mode                        mode;
-    const bool                        in_check;
-    Stage                             stage{Stage::TT_MOVE};
+    const Board&                               board;
+    const MoveOrdering&                        ordering;
+    const MoveOrdering::Context                context;
+    Move                                       tt_move{NULL_MOVE};
+    const Mode                                 mode;
+    const bool                                 in_check;
+    Stage                                      stage{Stage::TT_MOVE};
     std::array<ScoredMove, MoveList::capacity> moves;
     // Generated holds noisy moves or evasions; quiets are appended after it.
     ScoredBand generated;
