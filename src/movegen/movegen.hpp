@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "board/board.hpp"
+#include "board/castling.hpp"
 #include "core/defs.hpp"
 #include "core/move.hpp"
 #include "movegen/move_list.hpp"

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "board/castling.hpp"
 #include "core/defs.hpp"
 
 struct PieceSquare {

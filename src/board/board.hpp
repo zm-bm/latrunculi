@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "board/castling.hpp"
 #include "core/bb.hpp"
 
 #include "board/position_key_history.hpp"

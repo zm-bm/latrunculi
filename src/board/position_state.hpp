@@ -3,6 +3,7 @@
 #include <array>
 #include <cassert>
 
+#include "board/castling.hpp"
 #include "core/defs.hpp"
 #include "core/move.hpp"
 
