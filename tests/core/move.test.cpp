@@ -2,8 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include "core/defs.hpp"
-
 TEST(MoveTest, DefaultConstructor) {
     Move move;
     EXPECT_TRUE(move.is_null()) << "should create null move by default";

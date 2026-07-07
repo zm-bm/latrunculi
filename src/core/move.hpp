@@ -5,7 +5,7 @@
 #include <string>
 #include <type_traits>
 
-#include "core/defs.hpp"
+#include "core/types.hpp"
 
 struct Move {
     constexpr Move() = default;
@@ -49,6 +49,8 @@ struct Move {
 };
 
 constexpr Move NULL_MOVE{};
+
+using MoveScore = int;
 
 struct ScoredMove {
     Move      move;

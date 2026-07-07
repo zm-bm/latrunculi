@@ -1,6 +1,8 @@
 #pragma once
 
-#include "core/defs.hpp"
+#include <string>
+
+#include "core/types.hpp"
 
 constexpr Square make_square(const File file, const Rank rank) {
     return static_cast<Square>((rank << 3) + file);

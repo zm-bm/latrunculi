@@ -3,6 +3,8 @@
 #include <format>
 #include <ostream>
 
+#include "core/defs.hpp"
+
 std::ostream& operator<<(std::ostream& os, const Move& move) {
     os << move.str();
     return os;

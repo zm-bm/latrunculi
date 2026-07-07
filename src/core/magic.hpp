@@ -29,7 +29,9 @@
 
 #pragma once
 
-#include "core/defs.hpp"
+#include <cstdint>
+
+#include "core/types.hpp"
 
 namespace magic {
 
