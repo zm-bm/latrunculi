@@ -5,6 +5,7 @@
 #include "core/defs.hpp"
 #include "core/score.hpp"
 #include "core/util.hpp"
+#include "eval/types.hpp"
 
 namespace eval {
 

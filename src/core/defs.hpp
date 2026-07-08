@@ -24,19 +24,3 @@ enum Value : int16_t {
     ROOK_EG   = 1100,
     QUEEN_EG  = 2150,
 };
-
-enum EvalTerm {
-    TERM_MATERIAL,
-    TERM_SQUARES,
-    TERM_PAWNS,
-    TERM_KNIGHTS,
-    TERM_BISHOPS,
-    TERM_ROOKS,
-    TERM_QUEENS,
-    TERM_KING,
-    TERM_MOBILITY,
-    TERM_THREATS,
-    N_TERMS,
-};
-
-enum Phase { MIDGAME, ENDGAME, N_PHASES };

@@ -8,6 +8,7 @@
 #include "core/defs.hpp"
 #include "core/score.hpp"
 #include "eval/eval.hpp"
+#include "eval/types.hpp"
 
 class EvaluatorDebug;
 
