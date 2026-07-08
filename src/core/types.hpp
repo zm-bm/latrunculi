@@ -6,6 +6,7 @@
 using SearchClock  = std::chrono::steady_clock;
 using TimePoint    = SearchClock::time_point;
 using Milliseconds = std::chrono::milliseconds;
+using EvalValue    = std::int32_t;
 
 enum Color : uint8_t { BLACK, WHITE, N_COLORS };
 

@@ -648,14 +648,15 @@ TEST(BoardRepresentationTest, ZobristKey) {
 }
 
 TEST(BoardRepresentationTest, NonPawnMaterial) {
-    int mat = 2 * KNIGHT_MG + 2 * BISHOP_MG + 2 * ROOK_MG + QUEEN_MG;
+    int mat = 2 * piece_value::knight_mg + 2 * piece_value::bishop_mg + 2 * piece_value::rook_mg +
+              piece_value::queen_mg;
     std::vector<std::tuple<std::string, Color, int>> test_cases = {
         {EMPTYFEN, WHITE, 0},
         {EMPTYFEN, BLACK, 0},
         {STARTFEN, WHITE, mat},
         {STARTFEN, BLACK, mat},
-        {"4k3/8/8/8/8/8/8/4K1NR w K - 0 1", WHITE, KNIGHT_MG + ROOK_MG},
-        {"4k1nr/8/8/8/8/8/8/4K3 w k - 0 1", BLACK, KNIGHT_MG + ROOK_MG},
+        {"4k3/8/8/8/8/8/8/4K1NR w K - 0 1", WHITE, piece_value::knight_mg + piece_value::rook_mg},
+        {"4k1nr/8/8/8/8/8/8/4K3 w k - 0 1", BLACK, piece_value::knight_mg + piece_value::rook_mg},
     };
 
     for (const auto& [fen, color, expected] : test_cases) {

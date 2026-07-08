@@ -2,8 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include "core/defs.hpp"
-
 TEST(bbTest, SetAndClear) {
     for (Square sq = A1; sq < INVALID; ++sq) {
         ASSERT_EQ(bb::set(sq), ~bb::clear(sq));

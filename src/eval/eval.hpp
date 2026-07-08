@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "core/defs.hpp"
+#include "core/constants.hpp"
 #include "core/score.hpp"
 #include "core/util.hpp"
 #include "eval/types.hpp"
@@ -15,11 +15,11 @@ constexpr int phase_limit = 128;
 constexpr int material_mg = 10000;
 constexpr int material_eg = 2500;
 
-constexpr Score pawn   = {PAWN_MG, PAWN_EG};
-constexpr Score knight = {KNIGHT_MG, KNIGHT_EG};
-constexpr Score bishop = {BISHOP_MG, BISHOP_EG};
-constexpr Score rook   = {ROOK_MG, ROOK_EG};
-constexpr Score queen  = {QUEEN_MG, QUEEN_EG};
+constexpr Score pawn   = {piece_value::pawn_mg, piece_value::pawn_eg};
+constexpr Score knight = {piece_value::knight_mg, piece_value::knight_eg};
+constexpr Score bishop = {piece_value::bishop_mg, piece_value::bishop_eg};
+constexpr Score rook   = {piece_value::rook_mg, piece_value::rook_eg};
+constexpr Score queen  = {piece_value::queen_mg, piece_value::queen_eg};
 
 namespace masks {
 

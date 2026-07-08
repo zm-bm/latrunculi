@@ -1,7 +1,7 @@
 #pragma once
 
 #include "board/castling.hpp"
-#include "core/defs.hpp"
+#include "core/types.hpp"
 #include "core/util.hpp"
 
 namespace zob {

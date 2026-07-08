@@ -3,7 +3,6 @@
 #include "board/board.hpp"
 #include "board/position_state.hpp"
 #include "core/constants.hpp"
-#include "core/defs.hpp"
 #include "eval/evaluator.hpp"
 #include "search/root_line.hpp"
 #include "search/search_instrumentation.hpp"
@@ -16,9 +15,9 @@ namespace uci {
 
 namespace {
 
-std::string format_score(int score) {
-    if (std::abs(score) > MATE_BOUND) {
-        int mate_distance = MATE_VALUE - std::abs(score);
+std::string format_score(EvalValue score) {
+    if (std::abs(score) > eval_value::mate_bound) {
+        int mate_distance = eval_value::mate - std::abs(score);
         int mate_in_n     = (mate_distance + 1) / 2;
         return "mate " + std::to_string(mate_in_n * (score > 0 ? 1 : -1));
     }

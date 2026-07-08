@@ -5,7 +5,7 @@
 
 #include "board/board.hpp"
 #include "core/bb.hpp"
-#include "core/defs.hpp"
+#include "core/constants.hpp"
 #include "core/score.hpp"
 #include "eval/eval.hpp"
 #include "eval/types.hpp"
@@ -19,7 +19,7 @@ public:
 
     Evaluator() = delete;
     Evaluator(const Board&, TermCallback callback = nullptr);
-    int evaluate();
+    EvalValue evaluate();
 
 private:
     const Board& board;
@@ -37,15 +37,15 @@ private:
     } zones;
 
     struct KingAttackersData {
-        int count[N_COLORS] = {0};
-        int value[N_COLORS] = {0};
+        int       count[N_COLORS] = {0};
+        EvalValue value[N_COLORS] = {0};
     } king_attackers;
 
     struct ScoreData {
-        Score mobility[N_COLORS] = {Score::Zero};
-        Score threats[N_COLORS]  = {Score::Zero};
-        Score final_score        = Score::Zero;
-        int   final_value        = 0;
+        Score     mobility[N_COLORS] = {Score::Zero};
+        Score     threats[N_COLORS]  = {Score::Zero};
+        Score     final_score        = Score::Zero;
+        EvalValue final_value        = 0;
     } scores;
 
     struct PieceContext {
@@ -138,9 +138,9 @@ private:
 
     // Helpers
 
-    int scale_factor(const Color c) const;
-    int taper_score(const Score score) const;
-    int phase() const;
+    int       scale_factor(const Color c) const;
+    EvalValue taper_score(const Score score) const;
+    int       phase() const;
 
     friend class EvaluatorDebug;
     friend class EvaluatorTest;
@@ -148,7 +148,7 @@ private:
 };
 
 /// returns static evaluation of a chess board
-inline int evaluate(const Board& board) {
+inline EvalValue evaluate(const Board& board) {
     return Evaluator(board).evaluate();
 }
 
@@ -157,7 +157,7 @@ inline Evaluator::Evaluator(const Board& b, TermCallback callback) : board{b}, c
     initialize<BLACK>();
 }
 
-inline int Evaluator::evaluate() {
+inline EvalValue Evaluator::evaluate() {
     Score score;
 
     // basic terms
@@ -645,7 +645,7 @@ inline int Evaluator::scale_factor(const Color c) const {
 }
 
 // blend midgame / endgame scores based on game phase
-inline int Evaluator::taper_score(const Score score) const {
+inline EvalValue Evaluator::taper_score(const Score score) const {
     int mg_phase = phase();
     int eg_phase = eval::phase_limit - mg_phase;
 
@@ -678,7 +678,7 @@ struct ScoreTracker {
 class EvaluatorDebug {
 public:
     EvaluatorDebug(const Board& b);
-    int evaluate() { return evaluator.evaluate(); }
+    EvalValue evaluate() { return evaluator.evaluate(); }
     friend std::formatter<EvaluatorDebug>;
 
 private:
@@ -691,8 +691,8 @@ struct std::formatter<Score> : std::formatter<std::string_view> {
     auto format(const Score& score, std::format_context& ctx) const {
         return std::format_to(ctx.out(),
                               "{:5.2f} {:5.2f}",
-                              double(score.mg) / int(PAWN_MG),
-                              double(score.eg) / int(PAWN_MG));
+                              double(score.mg) / int(piece_value::pawn_mg),
+                              double(score.eg) / int(piece_value::pawn_mg));
     }
 };
 
@@ -734,7 +734,8 @@ struct std::formatter<EvaluatorDebug> : std::formatter<std::string_view> {
         out = std::format_to(out, "{:>12}{}\n", "Threats", tracker.scores[TERM_THREATS]);
         out = std::format_to(out, " ------------+-------------+-------------+------------\n");
         out = std::format_to(out, "{:>12}{}\n\n", "Total", TermScore{score});
-        out = std::format_to(out, "Evaluation:\t{:.2f}\n", double(result) / int(PAWN_MG));
+        out = std::format_to(
+            out, "Evaluation:\t{:.2f}\n", double(result) / int(piece_value::pawn_mg));
         return out;
     }
 };

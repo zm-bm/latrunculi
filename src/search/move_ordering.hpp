@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "board/board.hpp"
-#include "core/defs.hpp"
+#include "core/constants.hpp"
 #include "core/move.hpp"
 
 namespace mo_detail {

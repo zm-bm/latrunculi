@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-#include "core/defs.hpp"
+#include "core/constants.hpp"
 
 #ifndef LATRUNCULI_SEARCH_STATS
 #define LATRUNCULI_SEARCH_STATS 0

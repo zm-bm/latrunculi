@@ -99,9 +99,9 @@ void TT_Table::store(
     TT_Cluster& cluster = table[cluster_key(zkey)];
 
     // convert mate from root score into mate from current position
-    if (score >= TT_MATE_BOUND)
+    if (score >= eval_value::tt_mate_bound)
         score += ply;
-    else if (score <= -TT_MATE_BOUND)
+    else if (score <= -eval_value::tt_mate_bound)
         score -= ply;
 
     // replacement policy: prefer same key, then lowest replacement score

@@ -50,7 +50,7 @@ RootLine SearchWorker::root_snapshot() const {
 }
 
 // Search lifecycle.
-int SearchWorker::search() {
+EvalValue SearchWorker::search() {
     reset_search_state();
 
     if (is_main_worker()) {
@@ -61,7 +61,7 @@ int SearchWorker::search() {
     }
 
     build_root_lines();
-    const int value = search_root();
+    const EvalValue value = search_root();
 
     record_root_result(value);
 
@@ -98,7 +98,7 @@ void SearchWorker::build_root_lines() {
 
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (board.is_legal_generated_move(move))
-            root_lines.push_back(RootLine{.root_move = move, .value = -INF_VALUE});
+            root_lines.push_back(RootLine{.root_move = move, .value = -eval_value::inf});
     }
 }
 
@@ -108,13 +108,13 @@ RootLine SearchWorker::terminal_root_result() const {
 
     return RootLine{
         .root_move = NULL_MOVE,
-        .value     = board.is_check() ? -MATE_VALUE : DRAW_VALUE,
+        .value     = board.is_check() ? -eval_value::mate : eval_value::draw,
         .depth     = limits.depth,
         .completed = true,
     };
 }
 
-void SearchWorker::record_root_result(int value) {
+void SearchWorker::record_root_result(EvalValue value) {
     if (!root_result.completed && !stop_requested()) {
         root_result.value     = value;
         root_result.depth     = limits.depth;

@@ -3,7 +3,7 @@
 #include <cmath>
 #include <cstdint>
 
-#include "core/defs.hpp"
+#include "core/constants.hpp"
 #include "eval/evaluator.hpp"
 #include "search/move_picker.hpp"
 #include "search/search_worker.hpp"
@@ -12,8 +12,8 @@
 namespace {
 
 // Aspiration-window defaults.
-constexpr int AspirationWindow = 50;
-constexpr int SearchInf        = static_cast<int>(INF_VALUE);
+constexpr EvalValue AspirationWindow = 50;
+constexpr EvalValue SearchInf        = eval_value::inf;
 
 // Null-move pruning defaults.
 constexpr int NullMoveReductionBase = 3;
@@ -37,7 +37,7 @@ constexpr int QuietMalusDivisor   = 2;
 // Apply the PV/non-PV TT cutoff policy.
 template <NodeType Node>
 bool tt_cutoff_allowed(
-    const TT_Record& record, int adjusted_score, int depth, int alpha, int beta) {
+    const TT_Record& record, EvalValue adjusted_score, int depth, EvalValue alpha, EvalValue beta) {
     if constexpr (Node == PV)
         return record.depth >= depth && record.flag == TT_Flag::Exact;
 
@@ -105,7 +105,7 @@ private:
 } // namespace
 
 // Main root search driver.
-int SearchWorker::search_root() {
+EvalValue SearchWorker::search_root() {
     // Terminal root: return immediately when no legal root move exists.
     if (root_lines.empty()) {
         root_result = terminal_root_result();
@@ -122,10 +122,10 @@ int SearchWorker::search_root() {
 }
 
 // Root aspiration loop for a single depth.
-bool SearchWorker::search_root_depth(int depth, int previous_value) {
-    int delta = AspirationWindow;
-    int alpha = std::max(previous_value - delta, -SearchInf);
-    int beta  = std::min(previous_value + delta, SearchInf);
+bool SearchWorker::search_root_depth(int depth, EvalValue previous_value) {
+    EvalValue delta = AspirationWindow;
+    EvalValue alpha = std::max(previous_value - delta, -SearchInf);
+    EvalValue beta  = std::min(previous_value + delta, SearchInf);
 
     while (!stop_requested()) {
         // Keep root order but clear stale attempt state.
@@ -141,7 +141,7 @@ bool SearchWorker::search_root_depth(int depth, int previous_value) {
         std::stable_sort(root_lines.begin(), root_lines.end(), is_better_root_line);
         const RootLine& best_line = root_lines.front();
         assert(best_line.has_completed_depth());
-        const int value = best_line.value;
+        const EvalValue value = best_line.value;
         assert(value > -SearchInf && value < SearchInf);
 
         if (value <= alpha) {
@@ -171,7 +171,7 @@ bool SearchWorker::search_root_depth(int depth, int previous_value) {
 }
 
 // Fixed-window root pass. Caller owns attempt reset and result ordering.
-bool SearchWorker::search_root_window(int depth, int alpha, int beta) {
+bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta) {
     assert(!root_lines.empty());
 
     int  move_count    = 0;
@@ -191,7 +191,7 @@ bool SearchWorker::search_root_window(int depth, int alpha, int beta) {
         // Root PVS searches full-window until a root PV is established.
         // Scout later root moves and re-search only strict alpha improvements.
         PrincipalVariation child_pv;
-        int                value;
+        EvalValue          value;
         if (move_count == 1 || !pv_move_found) {
             value = -alphabeta<PV>(-beta, -alpha, depth - 1, &child_pv);
         } else {
@@ -223,7 +223,7 @@ bool SearchWorker::search_root_window(int depth, int alpha, int beta) {
 
             alpha         = value;
             pv_move_found = true;
-        } else if (move_count > 1 && pv_move_found && value == alpha && alpha > -INF_VALUE) {
+        } else if (move_count > 1 && pv_move_found && value == alpha && alpha > -eval_value::inf) {
             // Keep the full-window alpha raiser ordered first on scout ties.
             line.value = alpha - 1;
         }
@@ -234,7 +234,8 @@ bool SearchWorker::search_root_window(int depth, int alpha, int beta) {
 
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
 template <NodeType Node>
-int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* pv, bool can_null) {
+EvalValue SearchWorker::alphabeta(
+    EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv, bool can_null) {
     // Step 1. PV and Abort Checks. Clear caller PV and honor pending stops.
     if (pv)
         pv->clear();
@@ -250,7 +251,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
     if (drawn) {
         increment_nodes();
         stats.node(ply);
-        return DRAW_VALUE;
+        return eval_value::draw;
     }
 
     if (ply >= engine::max_search_ply) {
@@ -266,14 +267,14 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
     stats.node(ply);
 
     // Step 3. Mate Distance Pruning. Clamp scores that cannot improve this line.
-    alpha = std::max(alpha, -MATE_VALUE + ply);
-    beta  = std::min(beta, MATE_VALUE - ply - 1);
+    alpha = std::max(alpha, -eval_value::mate + ply);
+    beta  = std::min(beta, eval_value::mate - ply - 1);
     if (alpha >= beta)
         return alpha;
 
-    const int      original_alpha = alpha;
-    const uint64_t position_key   = board.key();
-    Move           tt_move        = NULL_MOVE;
+    const EvalValue original_alpha = alpha;
+    const uint64_t  position_key   = board.key();
+    Move            tt_move        = NULL_MOVE;
 
     // Step 4. Transposition Table. Probe for a cutoff or a hash move.
     stats.main_tt_probe(ply);
@@ -282,7 +283,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         stats.main_tt_hit(ply);
 
         const TT_Record& record   = *tt_record;
-        const int        tt_score = record.score_at_ply(ply);
+        const EvalValue  tt_score = record.score_at_ply(ply);
         if (tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
             stats.main_tt_cutoff(ply);
             return tt_score;
@@ -297,11 +298,11 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
 
     if constexpr (Node == NON_PV) {
         // Step 5. Razoring. At shallow fail-low nodes, verify with qsearch.
-        const int static_eval = evaluate(board);
+        const EvalValue static_eval = evaluate(board);
         if (can_null && !in_check && depth <= RazorFutilityMaxDepth && tt_move.is_null() &&
             static_eval + RazorMargin[depth] <= alpha) {
             stats.razor_try(ply);
-            const int value = quiescence<NON_PV>(alpha - 1, alpha);
+            const EvalValue value = quiescence<NON_PV>(alpha - 1, alpha);
             if (stop_requested())
                 return alpha;
             if (value < alpha) {
@@ -317,13 +318,13 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth &&
                                    tt_record->flag == TT_Flag::Upperbound &&
                                    tt_record->score_at_ply(ply) < beta;
-        if (can_null && !in_check && depth >= reduction && board.nonPawnMaterial(c) > ROOK_MG &&
-            !tt_upper_veto) {
+        if (can_null && !in_check && depth >= reduction &&
+            board.nonPawnMaterial(c) > piece_value::rook_mg && !tt_upper_veto) {
             stats.null_move_try(ply);
 
             board.make_null(position_states.child(ply));
             ++ply;
-            const int value =
+            const EvalValue value =
                 -alphabeta<NON_PV>(-beta, -beta + 1, depth - reduction, nullptr, false);
             board.unmake_null(position_states.parent(ply));
             --ply;
@@ -337,13 +338,13 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         }
 
         // Prepare shallow futility pruning. The move loop performs the actual skip.
-        futility = depth <= RazorFutilityMaxDepth && !in_check && alpha > -MATE_BOUND &&
-                   alpha < MATE_BOUND && static_eval + FutilityMargin[depth] <= alpha;
+        futility = depth <= RazorFutilityMaxDepth && !in_check && alpha > -eval_value::mate_bound &&
+                   alpha < eval_value::mate_bound && static_eval + FutilityMargin[depth] <= alpha;
     }
 
-    int  move_count     = 0;
-    int  best_value     = -INF_VALUE;
-    Move top_score_move = NULL_MOVE;
+    int       move_count     = 0;
+    EvalValue best_value     = -eval_value::inf;
+    Move      top_score_move = NULL_MOVE;
 
     const auto         ctx    = MoveOrdering::make_context(board);
     MovePicker         picker = MovePicker::main_search(board, ordering, ctx, ply, tt_move);
@@ -381,7 +382,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
 
         // Step 10. Late Move Reductions. Search late moves at reduced depth first.
         // If the reduced search beats alpha, research the move at full depth.
-        int       value;
+        EvalValue value;
         const int reduction = lmr_reduction<Node>(
             depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer);
         if (reduction > 0) {
@@ -462,7 +463,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
 
     // Step 14. Mate and Stalemate Detection. No legal moves ends the node.
     if (move_count == 0) {
-        best_value = in_check ? -MATE_VALUE + ply : DRAW_VALUE;
+        best_value = in_check ? -eval_value::mate + ply : eval_value::draw;
         tt.store_search(position_key, NULL_MOVE, best_value, depth, TT_Flag::Exact, ply);
         return best_value;
     }
@@ -480,7 +481,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
 
 // Quiescence search for tactical depth-zero nodes.
 template <NodeType Node>
-int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
+EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv) {
     // Step 1. PV and Abort Checks. Clear caller PV and honor pending stops.
     if (pv)
         pv->clear();
@@ -495,22 +496,22 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
 
     // Step 2. Early Exit Conditions. Qsearch is below root, so draws may return.
     if (board.is_draw(ply))
-        return DRAW_VALUE;
+        return eval_value::draw;
 
     if (ply >= engine::max_search_ply)
         return evaluate(board);
 
-    constexpr int  qsearch_tt_depth = 0;
-    const int      original_alpha   = alpha;
-    const uint64_t position_key     = board.key();
-    Move           tt_move          = NULL_MOVE;
+    constexpr int   qsearch_tt_depth = 0;
+    const EvalValue original_alpha   = alpha;
+    const uint64_t  position_key     = board.key();
+    Move            tt_move          = NULL_MOVE;
 
     // Step 3. Transposition Table. Use depth-0 records with the PV cutoff policy.
     stats.q_tt_probe(ply);
     if (auto record = tt.probe(position_key)) {
         stats.q_tt_hit(ply);
 
-        const int tt_score = record->score_at_ply(ply);
+        const EvalValue tt_score = record->score_at_ply(ply);
         if (tt_cutoff_allowed<Node>(*record, tt_score, qsearch_tt_depth, alpha, beta)) {
             stats.q_tt_cutoff(ply);
             return tt_score;
@@ -521,7 +522,7 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
 
     const bool in_check       = board.is_check();
     int        move_count     = 0;
-    int        best_value     = -INF_VALUE;
+    EvalValue  best_value     = -eval_value::inf;
     Move       top_score_move = NULL_MOVE;
 
     // Step 4. Stand Pat. Use static eval as the initial lower bound when legal.
@@ -549,7 +550,7 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
 
         board.make(move, position_states.child(ply));
         ++ply;
-        const int value = -quiescence<Node>(-beta, -alpha, pv ? &child_pv : nullptr);
+        const EvalValue value = -quiescence<Node>(-beta, -alpha, pv ? &child_pv : nullptr);
         board.unmake(position_states.parent(ply));
         --ply;
 
@@ -579,7 +580,7 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
 
     // Step 8. Checkmate Detection. In-check qsearch must find a legal evasion.
     if (in_check && move_count == 0) {
-        best_value = -MATE_VALUE + ply;
+        best_value = -eval_value::mate + ply;
         tt.store_search(position_key, NULL_MOVE, best_value, qsearch_tt_depth, TT_Flag::Exact, ply);
         return best_value;
     }
@@ -596,7 +597,9 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
 }
 
 // Template definitions live in this translation unit; instantiate the node types we use.
-template int SearchWorker::alphabeta<PV>(int, int, int, PrincipalVariation*, bool);
-template int SearchWorker::alphabeta<NON_PV>(int, int, int, PrincipalVariation*, bool);
-template int SearchWorker::quiescence<PV>(int, int, PrincipalVariation*);
-template int SearchWorker::quiescence<NON_PV>(int, int, PrincipalVariation*);
+template EvalValue
+SearchWorker::alphabeta<PV>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
+template EvalValue
+SearchWorker::alphabeta<NON_PV>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
+template EvalValue SearchWorker::quiescence<PV>(EvalValue, EvalValue, PrincipalVariation*);
+template EvalValue SearchWorker::quiescence<NON_PV>(EvalValue, EvalValue, PrincipalVariation*);

@@ -8,12 +8,12 @@ namespace {
 
 constexpr PieceType see_attacker_order[] = {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING};
 
-constexpr int see_piece_value(PieceType piece) {
+constexpr EvalValue see_piece_value(PieceType piece) {
     return piece == NO_PIECETYPE ? 0 : eval::piece(piece).mg;
 }
 
-int see_initial_gain(const Board& board, Move move) {
-    int gain = see_piece_value(board.captured_piece_type(move));
+EvalValue see_initial_gain(const Board& board, Move move) {
+    EvalValue gain = see_piece_value(board.captured_piece_type(move));
     if (move.type() == MOVE_PROM)
         gain += see_piece_value(move.prom_piece()) - see_piece_value(PAWN);
 
@@ -24,10 +24,10 @@ int see_initial_gain(const Board& board, Move move) {
 
 // Threshold static exchange evaluation. Returns true when the exchange after
 // move is at least threshold.
-bool Board::seeAtLeast(Move move, int threshold) const {
+bool Board::seeAtLeast(Move move, EvalValue threshold) const {
     // The fast threshold path is only used by move ordering for ordinary
     // captures with small negative margins. Keep broader API calls exact.
-    if (move.type() != BASIC_MOVE || threshold > 0 || threshold < -PAWN_MG)
+    if (move.type() != BASIC_MOVE || threshold > 0 || threshold < -piece_value::pawn_mg)
         return seeMove(move) >= threshold;
 
     const Square from = move.from();
@@ -39,7 +39,7 @@ bool Board::seeAtLeast(Move move, int threshold) const {
     const PieceType moved_piece = move.type() == MOVE_PROM ? move.prom_piece() : piecetype_on(from);
 
     // Threshold SEE can often resolve before walking the full recapture chain.
-    int balance = see_initial_gain(*this, move) - threshold;
+    EvalValue balance = see_initial_gain(*this, move) - threshold;
     if (balance < 0)
         return false;
 
@@ -110,7 +110,7 @@ bool Board::seeAtLeast(Move move, int threshold) const {
 
 // Static exchange evaluation. Returns the likely material gain after a sequence
 // of least-valuable recaptures on move.to().
-int Board::seeMove(Move move) const {
+EvalValue Board::seeMove(Move move) const {
     const Square from = move.from();
     const Square to   = move.to();
 
@@ -134,8 +134,8 @@ int Board::seeMove(Move move) const {
     const uint64_t rook_sliders   = pieces<ROOK, QUEEN>();
 
     // Swap-list of best case material gain for each depth.
-    int gain[32] = {};
-    gain[0]      = see_initial_gain(*this, move);
+    EvalValue gain[32] = {};
+    gain[0]            = see_initial_gain(*this, move);
 
     int depth = 0;
     do {

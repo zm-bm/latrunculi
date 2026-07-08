@@ -8,7 +8,7 @@
 #include "board/position_key_history.hpp"
 #include "board/position_state.hpp"
 #include "board/zobrist.hpp"
-#include "core/defs.hpp"
+#include "core/constants.hpp"
 #include "core/move.hpp"
 #include "core/notation.hpp"
 #include "core/score.hpp"
@@ -116,10 +116,10 @@ public:
     // Requires a move from local movegen/picker output; fast-paths ordinary legal moves.
     bool is_legal_generated_move(Move move) const;
     // Full legality check for arbitrary/untrusted moves.
-    bool is_legal_move(Move move) const;
-    bool is_checking_move(Move move) const;
-    bool seeAtLeast(Move move, int threshold) const;
-    int  seeMove(Move move) const;
+    bool      is_legal_move(Move move) const;
+    bool      is_checking_move(Move move) const;
+    bool      seeAtLeast(Move move, EvalValue threshold) const;
+    EvalValue seeMove(Move move) const;
 
     // make moves
 
@@ -147,7 +147,7 @@ public:
 
     // eval helpers
 
-    int nonPawnMaterial(Color c) const;
+    EvalValue nonPawnMaterial(Color c) const;
 
     static constexpr char startfen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 };
@@ -318,9 +318,10 @@ inline void Board::update_pinners_and_blockers(Color c) {
     }
 }
 
-inline int Board::nonPawnMaterial(Color c) const {
-    return ((count(c, KNIGHT) * KNIGHT_MG) + (count(c, BISHOP) * BISHOP_MG) +
-            (count(c, ROOK) * ROOK_MG) + (count(c, QUEEN) * QUEEN_MG));
+inline EvalValue Board::nonPawnMaterial(Color c) const {
+    return ((count(c, KNIGHT) * piece_value::knight_mg) +
+            (count(c, BISHOP) * piece_value::bishop_mg) + (count(c, ROOK) * piece_value::rook_mg) +
+            (count(c, QUEEN) * piece_value::queen_mg));
 }
 
 template <>

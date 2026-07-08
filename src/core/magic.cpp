@@ -32,7 +32,6 @@
 #include <vector>
 
 #include "core/bb.hpp"
-#include "core/defs.hpp"
 
 namespace magic {
 

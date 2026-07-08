@@ -1,14 +1,16 @@
 #pragma once
 
+#include "core/constants.hpp"
+
 struct Score {
-    int mg = 0;
-    int eg = 0;
+    EvalValue mg = 0;
+    EvalValue eg = 0;
 
     static Score const Zero;
 
     constexpr Score operator+(const Score& other) const;
     constexpr Score operator-(const Score& other) const;
-    constexpr Score operator*(int scalar) const;
+    constexpr Score operator*(EvalValue scalar) const;
     constexpr Score operator-() const;
     constexpr bool  operator==(const Score& other) const;
     constexpr bool  operator!=(const Score& other) const;
@@ -16,7 +18,7 @@ struct Score {
 
     Score& operator+=(const Score& other);
     Score& operator-=(const Score& other);
-    Score& operator*=(int scalar);
+    Score& operator*=(EvalValue scalar);
 };
 
 constexpr Score Score::Zero = {0, 0};
@@ -29,7 +31,7 @@ constexpr Score Score::operator-(const Score& other) const {
     return {mg - other.mg, eg - other.eg};
 }
 
-constexpr Score Score::operator*(int scalar) const {
+constexpr Score Score::operator*(EvalValue scalar) const {
     return {mg * scalar, eg * scalar};
 }
 
@@ -61,7 +63,7 @@ inline Score& Score::operator-=(const Score& other) {
     return *this;
 }
 
-inline Score& Score::operator*=(int scalar) {
+inline Score& Score::operator*=(EvalValue scalar) {
     mg *= scalar;
     eg *= scalar;
     return *this;

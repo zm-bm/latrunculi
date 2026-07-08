@@ -4,7 +4,7 @@
 #include <array>
 #include <cassert>
 
-#include "core/defs.hpp"
+#include "core/constants.hpp"
 #include "core/move.hpp"
 
 // Principal variation line built during search.

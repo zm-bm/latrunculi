@@ -3,8 +3,8 @@
 #include <array>
 #include <ostream>
 
-#include "core/defs.hpp"
 #include "core/magic.hpp"
+#include "core/types.hpp"
 #include "core/util.hpp"
 
 namespace bb {

@@ -93,8 +93,8 @@ TEST_F(UciWriterTest, SearchProgressWritesScoreFormats) {
 
     const ScoreCase cases[] = {
         {.value = 50, .expected_score = "score cp 50"},
-        {.value = MATE_VALUE - 4, .expected_score = "score mate 2"},
-        {.value = -(MATE_VALUE - 4), .expected_score = "score mate -2"},
+        {.value = eval_value::mate - 4, .expected_score = "score mate 2"},
+        {.value = -(eval_value::mate - 4), .expected_score = "score mate -2"},
     };
 
     TestBoard board{STARTFEN};
@@ -135,7 +135,7 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
 
     RootLine null_best{
         .root_move = NULL_MOVE,
-        .value     = DRAW_VALUE,
+        .value     = eval_value::draw,
         .depth     = 1,
         .completed = true,
     };
@@ -144,7 +144,7 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
 
     RootLine incomplete{
         .root_move = Move{E2, E4},
-        .value     = DRAW_VALUE,
+        .value     = eval_value::draw,
         .depth     = 1,
         .completed = false,
         .pv        = pv_for_move(Move{E2, E4}),
@@ -154,7 +154,7 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
 
     RootLine depth_zero{
         .root_move = Move{E2, E4},
-        .value     = DRAW_VALUE,
+        .value     = eval_value::draw,
         .depth     = 0,
         .completed = true,
         .pv        = pv_for_move(Move{E2, E4}),
@@ -168,7 +168,7 @@ TEST_F(UciWriterTest, SearchProgressRejectsStaleRootPv) {
 
     RootLine first_move_mismatch{
         .root_move = Move{E2, E4},
-        .value     = DRAW_VALUE,
+        .value     = eval_value::draw,
         .depth     = 1,
         .completed = true,
         .pv        = pv_for_move(Move{D2, D4}),
@@ -178,7 +178,7 @@ TEST_F(UciWriterTest, SearchProgressRejectsStaleRootPv) {
 
     RootLine illegal_child{
         .root_move = Move{E2, E4},
-        .value     = DRAW_VALUE,
+        .value     = eval_value::draw,
         .depth     = 2,
         .completed = true,
         .pv        = pv_for_line(Move{E2, E4}, Move{H1, H2}),

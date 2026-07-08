@@ -6,8 +6,6 @@
 
 #include "board/board.hpp"
 #include "core/bb.hpp"
-
-#include "core/defs.hpp"
 #include "core/score.hpp"
 #include "eval/eval.hpp"
 #include "support/test_util.hpp"

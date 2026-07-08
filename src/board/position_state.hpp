@@ -4,7 +4,7 @@
 #include <cassert>
 
 #include "board/castling.hpp"
-#include "core/defs.hpp"
+#include "core/constants.hpp"
 #include "core/move.hpp"
 
 /**

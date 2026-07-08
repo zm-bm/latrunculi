@@ -30,9 +30,9 @@ public:
     SearchWorker(int id, uci::Writer& writer, ThreadPool& pool);
 
     // Thread-facing lifecycle.
-    void configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
-    int  search();
-    void request_stop() noexcept;
+    void      configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
+    EvalValue search();
+    void      request_stop() noexcept;
 
     // ThreadPool-facing progress and results.
     uint64_t node_count() const noexcept;
@@ -72,16 +72,16 @@ private:
     std::optional<RootLine> last_reported_root_line;
 
     // Search lifecycle.
-    void     reset_search_state();
-    void     prepare_shared_search_state();
-    void     build_root_lines();
-    int      search_root();
-    RootLine terminal_root_result() const;
-    bool     search_root_depth(int depth, int previous_value);
-    bool     search_root_window(int depth, int alpha, int beta);
-    void     record_root_result(int value);
-    void     report_final_result();
-    void     report_root_progress(const RootLine& line);
+    void      reset_search_state();
+    void      prepare_shared_search_state();
+    void      build_root_lines();
+    EvalValue search_root();
+    RootLine  terminal_root_result() const;
+    bool      search_root_depth(int depth, EvalValue previous_value);
+    bool      search_root_window(int depth, EvalValue alpha, EvalValue beta);
+    void      record_root_result(EvalValue value);
+    void      report_final_result();
+    void      report_root_progress(const RootLine& line);
 
     // Root snapshot publication.
     void clear_root_snapshot();
@@ -89,10 +89,13 @@ private:
 
     // Search algorithm. (search.cpp)
     template <NodeType Node = NON_PV>
-    int alphabeta(
-        int alpha, int beta, int depth, PrincipalVariation* pv = nullptr, bool can_null = true);
+    EvalValue alphabeta(EvalValue           alpha,
+                        EvalValue           beta,
+                        int                 depth,
+                        PrincipalVariation* pv       = nullptr,
+                        bool                can_null = true);
     template <NodeType Node = NON_PV>
-    int quiescence(int alpha, int beta, PrincipalVariation* pv = nullptr);
+    EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
 
     // Accounting and limits.
     Milliseconds runtime() const;

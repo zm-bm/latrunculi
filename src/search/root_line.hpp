@@ -2,14 +2,14 @@
 
 #include <span>
 
-#include "core/defs.hpp"
+#include "core/constants.hpp"
 #include "core/move.hpp"
 #include "search/principal_variation.hpp"
 
 // Root-search result passed between workers and final reporting.
 struct RootLine {
-    Move root_move{NULL_MOVE};
-    int  value{DRAW_VALUE};
+    Move      root_move{NULL_MOVE};
+    EvalValue value{eval_value::draw};
 
     int  depth{0};
     bool completed{false};
@@ -17,13 +17,13 @@ struct RootLine {
     PrincipalVariation pv;
 
     void reset_attempt() noexcept {
-        value     = -INF_VALUE;
+        value     = -eval_value::inf;
         depth     = 0;
         completed = false;
         pv.clear();
     }
 
-    void complete(int completed_depth, int score, const PrincipalVariation& child_pv) {
+    void complete(int completed_depth, EvalValue score, const PrincipalVariation& child_pv) {
         value     = score;
         depth     = completed_depth;
         completed = true;

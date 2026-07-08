@@ -2,7 +2,7 @@
 
 #include "board/board.hpp"
 #include "board/position_state.hpp"
-#include "core/defs.hpp"
+#include "core/constants.hpp"
 #include "movegen/movegen.hpp"
 
 #include <sstream>

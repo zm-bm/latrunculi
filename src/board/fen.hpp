@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "board/castling.hpp"
-#include "core/defs.hpp"
+#include "core/types.hpp"
 
 struct PieceSquare {
     Color     color;

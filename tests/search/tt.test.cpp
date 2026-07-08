@@ -134,8 +134,8 @@ TEST_F(TT_Test, MateScoresRoundTripThroughStorage) {
     };
 
     const std::array cases{
-        Case{.root_score = MATE_VALUE - 5, .ply = 2, .stored_score = MATE_VALUE - 3},
-        Case{.root_score = -MATE_VALUE + 6, .ply = 5, .stored_score = -MATE_VALUE + 1},
+        Case{.root_score = eval_value::mate - 5, .ply = 2, .stored_score = eval_value::mate - 3},
+        Case{.root_score = -eval_value::mate + 6, .ply = 5, .stored_score = -eval_value::mate + 1},
     };
 
     for (const auto& tc : cases) {
@@ -152,7 +152,7 @@ TEST_F(TT_Test, MateScoresRoundTripThroughStorage) {
 TEST_F(TT_Test, StoreSearchConvertsDepthAndMateScore) {
     constexpr int search_depth = 7;
     constexpr int ply          = 3;
-    constexpr int mate_score   = MATE_VALUE - 10;
+    constexpr int mate_score   = eval_value::mate - 10;
 
     tt.store_search(key, move, mate_score, search_depth, TT_Flag::Exact, ply);
 
