@@ -30,7 +30,7 @@ struct SearchCounters<false> {
 
 template <>
 struct SearchCounters<true> {
-    using StatsArray = std::array<uint64_t, MAX_SEARCH_PLY>;
+    using StatsArray = std::array<uint64_t, engine::max_search_ply>;
 
     StatsArray nodes{0};
     StatsArray qnodes{0};
@@ -103,7 +103,7 @@ struct SearchCounters<true> {
     }
 
     SearchCounters& operator+=(const SearchCounters& other) {
-        for (size_t i = 0; i < MAX_SEARCH_PLY; ++i) {
+        for (size_t i = 0; i < engine::max_search_ply; ++i) {
             nodes[i]                      += other.nodes[i];
             qnodes[i]                     += other.qnodes[i];
             cutoffs[i]                    += other.cutoffs[i];
@@ -146,7 +146,7 @@ struct SearchCounters<true> {
         return result;
     }
 
-    static bool valid_ply(const int ply) { return ply >= 0 && ply < MAX_SEARCH_PLY; }
+    static bool valid_ply(const int ply) { return ply >= 0 && ply < engine::max_search_ply; }
 };
 
 template <>
@@ -434,7 +434,7 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
                            "QTT Hit/Cut%",
                            "EBF / Cumul");
 
-        int maxDepth = MAX_SEARCH_PLY - 1;
+        int maxDepth = engine::max_search_ply - 1;
         while (maxDepth > 0 && stats.nodes[maxDepth] == 0)
             --maxDepth;
 
@@ -499,7 +499,7 @@ private:
     }
 
     static int max_quiet_history_depth(const SearchCounters<true>& stats) {
-        for (int depth = MAX_SEARCH_PLY - 1; depth > 0; --depth) {
+        for (int depth = engine::max_search_ply - 1; depth > 0; --depth) {
             if (has_quiet_history_stats(stats, depth))
                 return depth;
         }

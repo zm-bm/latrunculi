@@ -39,7 +39,7 @@ set(LATRUNCULI_ENGINE_SOURCES
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
 target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
-target_compile_definitions(latrunculi_lib PRIVATE LATRUNCULI_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_VERSION="${PROJECT_VERSION}")
 
 add_executable(latrunculi src/main.cpp)
 target_link_libraries(latrunculi PRIVATE latrunculi_lib Threads::Threads)

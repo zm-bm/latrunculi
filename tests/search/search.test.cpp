@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
+#include "core/constants.hpp"
 #include "eval/evaluator.hpp"
 #include "movegen/movegen.hpp"
 #include "search/move_picker.hpp"
@@ -482,7 +483,7 @@ TEST_F(SearchTest, QuiescenceAtMaxPlyDoesNotStoreTranspositionTableEntry) {
     constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
     TestBoard      board{quiet_control};
     loadWorkerBoard(board);
-    setWorkerPly(MAX_SEARCH_PLY);
+    setWorkerPly(engine::max_search_ply);
 
     const int static_eval = evaluate(board);
 
@@ -770,7 +771,7 @@ TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsStaticEval) {
     loadWorkerBoard(board);
 
     const int static_eval = evaluate(board);
-    setWorkerPly(MAX_SEARCH_PLY);
+    setWorkerPly(engine::max_search_ply);
 
     EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 1), static_eval);
     EXPECT_EQ(workerNodes(), 1U);
@@ -782,7 +783,7 @@ TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsDrawBeforeStaticEval) {
     loadWorkerBoard(board);
 
     EXPECT_NE(evaluate(board), DRAW_VALUE);
-    setWorkerPly(MAX_SEARCH_PLY);
+    setWorkerPly(engine::max_search_ply);
 
     EXPECT_EQ(runNonPvAlphaBeta(-INF_VALUE, INF_VALUE, 1), DRAW_VALUE);
     EXPECT_EQ(workerNodes(), 1U);

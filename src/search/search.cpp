@@ -253,7 +253,7 @@ int SearchWorker::alphabeta(int alpha, int beta, int depth, PrincipalVariation* 
         return DRAW_VALUE;
     }
 
-    if (ply >= MAX_SEARCH_PLY) {
+    if (ply >= engine::max_search_ply) {
         increment_nodes();
         stats.node(ply);
         return evaluate(board);
@@ -497,7 +497,7 @@ int SearchWorker::quiescence(int alpha, int beta, PrincipalVariation* pv) {
     if (board.is_draw(ply))
         return DRAW_VALUE;
 
-    if (ply >= MAX_SEARCH_PLY)
+    if (ply >= engine::max_search_ply)
         return evaluate(board);
 
     constexpr int  qsearch_tt_depth = 0;

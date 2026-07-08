@@ -50,7 +50,7 @@ struct KillerMoves {
     void clear();
 
 private:
-    Move table[MAX_SEARCH_PLY][2] = {NULL_MOVE};
+    Move table[engine::max_search_ply][2] = {NULL_MOVE};
 };
 
 inline void KillerMoves::update(Move killer, int ply) {
@@ -73,7 +73,7 @@ inline Move KillerMoves::secondary(int ply) const {
 }
 
 inline void KillerMoves::clear() {
-    for (int ply = 0; ply < MAX_SEARCH_PLY; ++ply) {
+    for (int ply = 0; ply < engine::max_search_ply; ++ply) {
         table[ply][0] = NULL_MOVE;
         table[ply][1] = NULL_MOVE;
     }

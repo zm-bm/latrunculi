@@ -48,15 +48,15 @@ public:
     PositionState& root() noexcept { return stack[0]; }
 
     PositionState& child(int ply) noexcept {
-        assert(ply >= 0 && ply < MAX_SEARCH_PLY);
+        assert(ply >= 0 && ply < engine::max_search_ply);
         return stack[ply + 1];
     }
 
     PositionState& parent(int ply) noexcept {
-        assert(ply > 0 && ply <= MAX_SEARCH_PLY);
+        assert(ply > 0 && ply <= engine::max_search_ply);
         return stack[ply - 1];
     }
 
 private:
-    std::array<PositionState, MAX_SEARCH_PLY + 1> stack{};
+    std::array<PositionState, engine::max_search_ply + 1> stack{};
 };

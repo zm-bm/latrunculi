@@ -2,20 +2,15 @@
 
 #include <cstdint>
 
+#include "core/constants.hpp"
 #include "core/types.hpp"
-
-#ifndef LATRUNCULI_VERSION
-#define LATRUNCULI_VERSION "0.0.0"
-#endif
-
-constexpr int MAX_SEARCH_PLY = 128;
 
 enum Value : int16_t {
     DRAW_VALUE    = 0,
     INF_VALUE     = INT16_MAX,
     MATE_VALUE    = INT16_MAX - 1,
-    MATE_BOUND    = MATE_VALUE - MAX_SEARCH_PLY,
-    TT_MATE_BOUND = MATE_VALUE - 2 * MAX_SEARCH_PLY,
+    MATE_BOUND    = MATE_VALUE - engine::max_search_ply,
+    TT_MATE_BOUND = MATE_VALUE - 2 * engine::max_search_ply,
 
     PAWN_MG   = 100,
     KNIGHT_MG = 630,

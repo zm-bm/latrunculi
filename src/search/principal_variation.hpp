@@ -50,7 +50,8 @@ struct PrincipalVariation {
     void update(Move head, const PrincipalVariation& child) noexcept {
         assert(this != &child);
 
-        const int child_length = child.length < MAX_SEARCH_PLY ? child.length : MAX_SEARCH_PLY;
+        const int child_length =
+            child.length < engine::max_search_ply ? child.length : engine::max_search_ply;
 
         moves[0] = head;
         std::copy_n(child.moves.begin(), child_length, moves.begin() + 1);
@@ -59,6 +60,6 @@ struct PrincipalVariation {
 
 private:
     // Only [0, length) is valid PV data.
-    std::array<Move, MAX_SEARCH_PLY + 1> moves;
-    int                                  length{0};
+    std::array<Move, engine::max_search_ply + 1> moves;
+    int                                          length{0};
 };

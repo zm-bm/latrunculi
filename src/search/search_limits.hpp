@@ -4,10 +4,11 @@
 #include <cstdint>
 #include <optional>
 
+#include "core/constants.hpp"
 #include "core/types.hpp"
 
 struct SearchLimits {
-    static constexpr int max_depth = 64;
+    static constexpr int max_depth = engine::max_search_depth;
 
     int depth = max_depth;
 

@@ -2,6 +2,7 @@
 
 #include "board/board.hpp"
 #include "board/position_state.hpp"
+#include "core/constants.hpp"
 #include "core/defs.hpp"
 #include "eval/evaluator.hpp"
 #include "search/root_line.hpp"
@@ -104,7 +105,7 @@ std::string format_identification(const uci::Options& options) {
                        "{}\n"
                        "{}\n"
                        "uciok",
-                       LATRUNCULI_VERSION,
+                       engine::version,
                        format_option("Hash", options.hash),
                        format_option("Clear Hash", options.clear_hash),
                        format_option("Threads", options.threads),

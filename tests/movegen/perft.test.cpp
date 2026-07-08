@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include "core/constants.hpp"
 #include "support/test_util.hpp"
 
 namespace {
@@ -93,8 +94,8 @@ TEST(PerftTest, RejectsInvalidDepths) {
 
     EXPECT_THROW(perft(board, -1), std::invalid_argument);
     EXPECT_THROW(perft_root(board, -1), std::invalid_argument);
-    EXPECT_THROW(perft(board, MAX_SEARCH_PLY + 1), std::invalid_argument);
-    EXPECT_THROW(perft_root(board, MAX_SEARCH_PLY + 1), std::invalid_argument);
+    EXPECT_THROW(perft(board, engine::max_search_ply + 1), std::invalid_argument);
+    EXPECT_THROW(perft_root(board, engine::max_search_ply + 1), std::invalid_argument);
 }
 
 TEST(PerftTest, RestoresBoardState) {

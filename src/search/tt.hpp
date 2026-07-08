@@ -121,7 +121,7 @@ inline int TT_Record::score_at_ply(int ply) const noexcept {
 
 inline bool
 TT_Record::can_cutoff(int adjusted_score, int search_depth, int alpha, int beta) const noexcept {
-    assert(search_depth >= 0 && search_depth <= MAX_SEARCH_PLY);
+    assert(search_depth >= 0 && search_depth <= engine::max_search_ply);
 
     if (depth < search_depth)
         return false;
@@ -138,7 +138,7 @@ TT_Record::can_cutoff(int adjusted_score, int search_depth, int alpha, int beta)
 
 inline void
 TT_Table::store_search(uint64_t zkey, Move move, int score, int depth, TT_Flag flag, int ply) {
-    assert(depth >= 0 && depth <= MAX_SEARCH_PLY);
+    assert(depth >= 0 && depth <= engine::max_search_ply);
     assert(score >= std::numeric_limits<int16_t>::min() &&
            score <= std::numeric_limits<int16_t>::max());
 

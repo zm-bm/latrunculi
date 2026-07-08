@@ -11,7 +11,7 @@
 namespace {
 
 void validate_perft_depth(int depth) {
-    if (depth < 0 || depth > MAX_SEARCH_PLY)
+    if (depth < 0 || depth > engine::max_search_ply)
         throw std::invalid_argument("perft depth out of range");
 }
 
