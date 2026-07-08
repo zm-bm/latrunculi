@@ -24,7 +24,7 @@ struct ButtonOption {};
 enum class OptionId { Hash, Threads, Debug, ClearHash };
 
 struct Options {
-    static constexpr int default_hash_mb = 4;
+    static constexpr int default_hash_mb = 32;
     static constexpr int default_threads = 1;
 
     SpinOption hash = {
