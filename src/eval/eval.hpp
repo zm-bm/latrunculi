@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 
 #include "core/constants.hpp"
@@ -32,7 +33,8 @@ constexpr uint64_t b_outposts     = 0x000000FFFFFF0000ull;
 
 }; // namespace masks
 
-constexpr Score pieces[N_PIECES - 1][N_COLORS] = {
+constexpr Score pieces[N_PIECES][N_COLORS] = {
+    {Score::Zero, Score::Zero},
     {-pawn, pawn},
     {-knight, knight},
     {-bishop, bishop},
@@ -186,10 +188,12 @@ constexpr int piece_squares[6][2][64] = {
 };
 
 constexpr Score piece(PieceType pt, Color c = WHITE) {
-    return pieces[pt - 1][c];
+    assert(pt <= KING);
+    return pieces[pt][c];
 }
 
 constexpr Score piece_sq(PieceType pt, Color c, Square sq) {
+    assert(pt >= PAWN && pt <= KING);
     Square relative = relative_square(sq, c);
     Score  score    = {.mg = piece_squares[pt - 1][MIDGAME][relative],
                        .eg = piece_squares[pt - 1][ENDGAME][relative]};

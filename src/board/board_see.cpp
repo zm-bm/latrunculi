@@ -8,14 +8,10 @@ namespace {
 
 constexpr PieceType see_attacker_order[] = {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING};
 
-constexpr EvalValue see_piece_value(PieceType piece) {
-    return piece == NO_PIECETYPE ? 0 : eval::piece(piece).mg;
-}
-
 EvalValue see_initial_gain(const Board& board, Move move) {
-    EvalValue gain = see_piece_value(board.captured_piece_type(move));
+    EvalValue gain = eval::piece(board.captured_piece_type(move)).mg;
     if (move.type() == MOVE_PROM)
-        gain += see_piece_value(move.prom_piece()) - see_piece_value(PAWN);
+        gain += eval::piece(move.prom_piece()).mg - eval::piece(PAWN).mg;
 
     return gain;
 }
@@ -43,7 +39,7 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
     if (balance < 0)
         return false;
 
-    balance = see_piece_value(moved_piece) - balance;
+    balance = eval::piece(moved_piece).mg - balance;
     if (balance <= 0)
         return true;
 
@@ -98,7 +94,7 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
         attackers |= (bb::moves<BISHOP>(to, occupied) & bishop_sliders) |
                      (bb::moves<ROOK>(to, occupied) & rook_sliders);
 
-        balance = see_piece_value(attacker) - balance;
+        balance = eval::piece(attacker).mg - balance;
         if (balance < static_cast<int>(result))
             break;
 
