@@ -45,16 +45,3 @@ enum EvalTerm {
 };
 
 enum Phase { MIDGAME, ENDGAME, N_PHASES };
-
-enum NodeType { PV, NON_PV };
-
-namespace masks {
-
-constexpr uint64_t dark_squares   = 0xAA55AA55AA55AA55ull;
-constexpr uint64_t light_squares  = 0x55AA55AA55AA55AAull;
-constexpr uint64_t center_files   = 0x3C3C3C3C3C3C3C3Cull;
-constexpr uint64_t center_squares = 0x0000001818000000ull;
-constexpr uint64_t w_outposts     = 0x0000FFFFFF000000ull;
-constexpr uint64_t b_outposts     = 0x000000FFFFFF0000ull;
-
-}; // namespace masks

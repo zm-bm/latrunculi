@@ -8,7 +8,7 @@
 
 #include "board/board.hpp"
 #include "board/position_state.hpp"
-#include "core/defs.hpp"
+#include "core/types.hpp"
 #include "search/move_ordering.hpp"
 #include "search/root_line.hpp"
 #include "search/search_instrumentation.hpp"
@@ -16,6 +16,8 @@
 
 class ThreadPool;
 class ThreadTestAccess;
+
+enum NodeType { PV, NON_PV };
 
 namespace uci {
 class Writer;

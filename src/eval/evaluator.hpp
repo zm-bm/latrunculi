@@ -208,7 +208,7 @@ inline uint64_t Evaluator::outposts_zone(const uint64_t pawns, const uint64_t op
 
     const uint64_t behind_pawns = ~bb::attack_span<Opp>(opp_pawns);
     const uint64_t supported    = bb::pawn_attacks<C>(pawns);
-    constexpr auto outpost_mask = (C == WHITE) ? masks::w_outposts : masks::b_outposts;
+    constexpr auto outpost_mask = (C == WHITE) ? eval::masks::w_outposts : eval::masks::b_outposts;
     return (behind_pawns & supported & outpost_mask);
 }
 
@@ -448,7 +448,7 @@ inline Score Evaluator::evaluate_bishops(const PieceContext& ctx) const {
     Score score;
 
     const uint64_t xray_moves = bb::moves<BISHOP>(ctx.square, ctx.pawns);
-    if (bb::is_many(masks::center_squares & xray_moves))
+    if (bb::is_many(eval::masks::center_squares & xray_moves))
         score += eval::bishop_long_diag;
 
     score += evaluate_bishop_blockers<C>(ctx);
@@ -461,14 +461,15 @@ template <Color C>
 inline Score Evaluator::evaluate_bishop_blockers(const PieceContext& ctx) const {
     constexpr Color Opp = ~C;
 
-    const bool     dark_square = ctx.piece_bb & masks::dark_squares;
-    const uint64_t color_mask  = dark_square ? masks::dark_squares : masks::light_squares;
+    const bool     dark_square = ctx.piece_bb & eval::masks::dark_squares;
+    const uint64_t color_mask =
+        dark_square ? eval::masks::dark_squares : eval::masks::light_squares;
     const uint64_t color_pawns = ctx.pawns & color_mask;
     const int      pawn_count  = bb::count(color_pawns);
 
-    const uint64_t blocked_pawns   = ctx.pawns & bb::pawn_moves<PAWN_PUSH, Opp>(ctx.occupied);
-    const uint64_t pawn_chain      = ctx.piece_bb & bb::pawn_attacks<C>(ctx.pawns);
-    const int      blocking_factor = bb::count(blocked_pawns & masks::center_files) + !pawn_chain;
+    const uint64_t blocked_pawns = ctx.pawns & bb::pawn_moves<PAWN_PUSH, Opp>(ctx.occupied);
+    const uint64_t pawn_chain    = ctx.piece_bb & bb::pawn_attacks<C>(ctx.pawns);
+    const int blocking_factor = bb::count(blocked_pawns & eval::masks::center_files) + !pawn_chain;
 
     return eval::bishop_blockers * (pawn_count * blocking_factor);
 }

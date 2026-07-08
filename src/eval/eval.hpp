@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "core/defs.hpp"
 #include "core/score.hpp"
 #include "core/util.hpp"
@@ -17,6 +19,17 @@ constexpr Score knight = {KNIGHT_MG, KNIGHT_EG};
 constexpr Score bishop = {BISHOP_MG, BISHOP_EG};
 constexpr Score rook   = {ROOK_MG, ROOK_EG};
 constexpr Score queen  = {QUEEN_MG, QUEEN_EG};
+
+namespace masks {
+
+constexpr uint64_t dark_squares   = 0xAA55AA55AA55AA55ull;
+constexpr uint64_t light_squares  = 0x55AA55AA55AA55AAull;
+constexpr uint64_t center_files   = 0x3C3C3C3C3C3C3Cull;
+constexpr uint64_t center_squares = 0x0000001818000000ull;
+constexpr uint64_t w_outposts     = 0x0000FFFFFF000000ull;
+constexpr uint64_t b_outposts     = 0x000000FFFFFF0000ull;
+
+}; // namespace masks
 
 constexpr Score pieces[N_PIECES - 1][N_COLORS] = {
     {-pawn, pawn},
