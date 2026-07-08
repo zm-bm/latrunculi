@@ -27,7 +27,7 @@ constexpr int FutilityMargin[]      = {0, 250, 400, 550};
 
 // Late-move reduction defaults.
 constexpr int LmrMinDepth     = 3;
-constexpr int LmrMinMoveCount = 3;
+constexpr int LmrMinMoveCount = 4;
 
 // Quiet-history malus defaults.
 constexpr int QuietMalusMinDepth  = 4;

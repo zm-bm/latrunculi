@@ -2207,8 +2207,8 @@ TEST_F(SearchTest, AlphaBetaLmrResearchesFullDepthWhenReducedSearchImprovesAlpha
     TestBoard board{STARTFEN};
     loadWorkerBoard(board, search_depth);
     const auto moves = workerPickerLegalMoves();
-    ASSERT_GE(moves.size(), 3U);
-    const Move reduced_move = moves[2];
+    ASSERT_GE(moves.size(), 4U);
+    const Move reduced_move = moves[3];
 
     storeWorkerChildSearchTt(reduced_move, -reduced_parent_value, search_depth - 2, TT_Flag::Exact);
 
@@ -2236,13 +2236,13 @@ TEST_F(SearchTest, AlphaBetaLmrRequiresMinimumDepth) {
 #endif
 }
 
-TEST_F(SearchTest, AlphaBetaLmrRequiresThirdLegalMove) {
-    constexpr auto two_legal_moves = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  search_depth    = 4;
+TEST_F(SearchTest, AlphaBetaLmrRequiresFourthLegalMove) {
+    constexpr auto three_legal_moves = "1k6/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr int  search_depth      = 4;
 
-    TestBoard board{two_legal_moves};
+    TestBoard board{three_legal_moves};
     loadWorkerBoard(board, search_depth);
-    ASSERT_EQ(workerPickerLegalMoves().size(), 2U);
+    ASSERT_EQ(workerPickerLegalMoves().size(), 3U);
 
     (void)runNonPvAlphaBeta(-2000, 2000, search_depth, false);
 
