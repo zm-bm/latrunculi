@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
 
 #include "board/zobrist.hpp"
-#include "core/magic.hpp"
+#include "core/attacks.hpp"
 
 class GlobalTestSetup : public ::testing::Environment {
 public:
     void SetUp() override {
-        magic::init();
+        attacks::init();
         zob::init();
     }
 };

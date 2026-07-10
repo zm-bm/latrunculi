@@ -1,48 +1,14 @@
-#include "core/bb.hpp"
+#include "core/bitboard.hpp"
+#include "core/square.hpp"
+
+#include <vector>
 
 #include <gtest/gtest.h>
 
 TEST(bbTest, SetAndClear) {
-    for (Square sq = A1; sq < INVALID; ++sq) {
-        ASSERT_EQ(bb::set(sq), ~bb::clear(sq));
+    for (int sq = A1; sq < INVALID; ++sq) {
+        ASSERT_EQ(bb::set(Square(sq)), ~bb::clear(Square(sq)));
     }
-}
-
-TEST(bbTest, Distance) {
-    EXPECT_EQ(bb::distance(A1, A1), 0);
-    EXPECT_EQ(bb::distance(A1, A2), 1);
-    EXPECT_EQ(bb::distance(A1, B1), 1);
-    EXPECT_EQ(bb::distance(A1, B2), 1);
-    EXPECT_EQ(bb::distance(A1, G7), 6);
-    EXPECT_EQ(bb::distance(A1, H7), 7);
-    EXPECT_EQ(bb::distance(A1, G8), 7);
-    EXPECT_EQ(bb::distance(A1, H8), 7);
-}
-
-TEST(bbTest, Collinear) {
-    std::vector<std::tuple<Square, Square, uint64_t>> test_cases = {
-        {B2, D2, bb::rank(RANK2)},
-        {B2, B4, bb::file(FILE2)},
-        {A1, H8, bb::set(A1, B2, C3, D4, E5, F6, G7, H8)},
-        {A8, H1, bb::set(A8, B7, C6, D5, E4, F3, G2, H1)},
-        {C1, A3, bb::set(A3, B2, C1)},
-        {F1, H3, bb::set(F1, G2, H3)},
-        {B2, C4, 0},
-    };
-
-    for (const auto& [sq1, sq2, expected] : test_cases) {
-        EXPECT_EQ(bb::collinear(sq1, sq2), expected);
-        EXPECT_EQ(bb::collinear(sq2, sq1), expected);
-    }
-}
-
-TEST(bbTest, Between) {
-    EXPECT_EQ(bb::between(B2, D2), bb::set(C2));
-    EXPECT_EQ(bb::between(D2, B2), bb::set(C2));
-    EXPECT_EQ(bb::between(B2, B4), bb::set(B3));
-    EXPECT_EQ(bb::between(B4, B2), bb::set(B3));
-    EXPECT_EQ(bb::between(B2, C4), 0);
-    EXPECT_EQ(bb::between(C4, B2), 0);
 }
 
 TEST(bbTest, IsMany) {
@@ -188,48 +154,3 @@ TEST(bbTest, CorrectPawnFullSpanValues) {
     EXPECT_EQ(bb::full_span<WHITE>(bb::set(D6)), bb::set(C7, D7, E7, C8, D8, E8));
     EXPECT_EQ(bb::full_span<BLACK>(bb::set(D3)), bb::set(C2, D2, E2, C1, D1, E1));
 }
-
-TEST(bbTest, CorrectPawnMoves) {
-    uint64_t pawns = bb::set(D4);
-    EXPECT_EQ(bb::pawn_moves<PAWN_PUSH>(pawns, WHITE), bb::set(D5));
-    EXPECT_EQ(bb::pawn_moves<PAWN_PUSH>(pawns, BLACK), bb::set(D3));
-    EXPECT_EQ(bb::pawn_moves<PAWN_LEFT>(pawns, WHITE), bb::set(C5));
-    EXPECT_EQ(bb::pawn_moves<PAWN_RIGHT>(pawns, WHITE), bb::set(E5));
-    EXPECT_EQ(bb::pawn_moves<PAWN_LEFT>(pawns, BLACK), bb::set(E3));
-    EXPECT_EQ(bb::pawn_moves<PAWN_RIGHT>(pawns, BLACK), bb::set(C3));
-    EXPECT_EQ(bb::pawn_moves<PAWN_PUSH2>(pawns, WHITE), bb::set(D6));
-    EXPECT_EQ(bb::pawn_moves<PAWN_PUSH2>(pawns, BLACK), bb::set(D2));
-
-    uint64_t pawns_left = bb::set(A4);
-    EXPECT_EQ(bb::pawn_moves<PAWN_LEFT>(pawns_left, WHITE), 0);
-    EXPECT_EQ(bb::pawn_moves<PAWN_RIGHT>(pawns_left, BLACK), 0);
-
-    uint64_t pawns_right = bb::set(H4);
-    EXPECT_EQ(bb::pawn_moves<PAWN_RIGHT>(pawns_right, WHITE), 0);
-    EXPECT_EQ(bb::pawn_moves<PAWN_LEFT>(pawns_right, BLACK), 0);
-}
-
-TEST(bbTest, CorrectPawnAttacks) {
-    uint64_t pawns = bb::set(A4, D4, H4);
-    EXPECT_EQ(bb::pawn_attacks(pawns, WHITE), bb::set(B5, C5, E5, G5));
-    EXPECT_EQ(bb::pawn_attacks(pawns, BLACK), bb::set(B3, C3, E3, G3));
-}
-
-TEST(bbTest, CorrectMovesKnights) {
-    EXPECT_EQ(bb::moves<KNIGHT>(A1), bb::set(B3, C2));
-    EXPECT_EQ(bb::moves<KNIGHT>(H1), bb::set(G3, F2));
-    EXPECT_EQ(bb::moves<KNIGHT>(A8), bb::set(B6, C7));
-    EXPECT_EQ(bb::moves<KNIGHT>(H8), bb::set(G6, F7));
-    EXPECT_EQ(bb::moves<KNIGHT>(G2), bb::set(E1, E3, F4, H4));
-    EXPECT_EQ(bb::moves<KNIGHT>(C6), bb::set(A5, A7, B4, B8, D4, D8, E5, E7));
-}
-
-TEST(bbTest, CorrectMovesKings) {
-    EXPECT_EQ(bb::moves<KING>(A1), bb::set(A2, B2, B1));
-    EXPECT_EQ(bb::moves<KING>(H1), bb::set(H2, G2, G1));
-    EXPECT_EQ(bb::moves<KING>(A8), bb::set(A7, B7, B8));
-    EXPECT_EQ(bb::moves<KING>(H8), bb::set(H7, G7, G8));
-    EXPECT_EQ(bb::moves<KING>(G2), bb::set(F1, F2, F3, G1, G3, H1, H2, H3));
-}
-
-// magic attacks are not tested here, as they are tested in magic.test.cpp

@@ -12,7 +12,7 @@
 #include "board/board.hpp"
 #include "board/position_state.hpp"
 #include "board/zobrist.hpp"
-#include "core/magic.hpp"
+#include "core/attacks.hpp"
 #include "movegen/movegen.hpp"
 
 namespace {
@@ -214,7 +214,7 @@ Options parse_args(int argc, char* argv[]) {
 } // namespace
 
 int main(int argc, char* argv[]) {
-    magic::init();
+    attacks::init();
     zob::init();
 
     try {

@@ -9,6 +9,8 @@
 #include "board/board.hpp"
 #include "core/constants.hpp"
 #include "core/move.hpp"
+#include "core/piece.hpp"
+#include "core/square.hpp"
 
 namespace mo_detail {
 

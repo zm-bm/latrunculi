@@ -31,9 +31,9 @@
 
 #include <cstdint>
 
-#include "core/types.hpp"
+#include "core/square.hpp"
 
-namespace magic {
+namespace attacks::magic {
 
 extern uint64_t        rook_table[102400];
 extern uint64_t        bishop_table[5248];
@@ -64,4 +64,4 @@ inline uint64_t queen_moves(Square sq, uint64_t occupied) {
     return bishop_moves(sq, occupied) | rook_moves(sq, occupied);
 }
 
-} // namespace magic
+} // namespace attacks::magic

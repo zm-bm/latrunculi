@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "core/square.hpp"
 #include "core/types.hpp"
 
 enum CastleSide { CASTLE_KINGSIDE, CASTLE_QUEENSIDE, N_CASTLES };

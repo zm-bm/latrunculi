@@ -4,8 +4,9 @@
 #include <cstdint>
 
 #include "core/constants.hpp"
+#include "core/piece.hpp"
 #include "core/score.hpp"
-#include "core/util.hpp"
+#include "core/square.hpp"
 #include "eval/types.hpp"
 
 namespace eval {
@@ -194,7 +195,7 @@ constexpr Score piece(PieceType pt, Color c = WHITE) {
 
 constexpr Score piece_sq(PieceType pt, Color c, Square sq) {
     assert(pt >= PAWN && pt <= KING);
-    Square relative = relative_square(sq, c);
+    Square relative = square::relative(sq, c);
     Score  score    = {.mg = piece_squares[pt - 1][MIDGAME][relative],
                        .eg = piece_squares[pt - 1][ENDGAME][relative]};
 

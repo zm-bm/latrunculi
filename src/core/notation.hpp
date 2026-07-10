@@ -1,9 +1,12 @@
 #pragma once
 
+#include <cstdint>
 #include <ostream>
 #include <string>
+#include <string_view>
 
-#include "core/types.hpp"
+#include "core/piece.hpp"
+#include "core/square.hpp"
 
 namespace notation_detail {
 inline constexpr char pieces[] = {
@@ -27,7 +30,13 @@ constexpr char to_char(File file) {
 }
 
 inline std::string to_string(Square sq) {
-    return std::string{to_char(File(sq & 7))} + to_char(Rank(sq >> 3));
+    return std::string{to_char(square::file_of(sq))} + to_char(square::rank_of(sq));
+}
+
+constexpr Square parse_square(std::string_view text) {
+    auto file = static_cast<File>(text[0] - 'a');
+    auto rank = static_cast<Rank>(text[1] - '1');
+    return square::make(file, rank);
 }
 
 inline std::ostream& operator<<(std::ostream& os, Color color) {
@@ -59,3 +68,12 @@ inline std::ostream& operator<<(std::ostream& os, PieceType pieceType) {
     os << to_char(pieceType);
     return os;
 }
+
+// Stream wrapper for printing a raw uint64_t as an 8x8 bitboard during debugging.
+struct BitboardDebug {
+    uint64_t bitboard;
+};
+
+BitboardDebug debug_bitboard(uint64_t bitboard);
+void          print_bitboard(uint64_t bitboard);
+std::ostream& operator<<(std::ostream& os, BitboardDebug debug);

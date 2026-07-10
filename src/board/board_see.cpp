@@ -1,5 +1,7 @@
 #include "board/board.hpp"
 
+#include "core/attacks.hpp"
+#include "core/square.hpp"
 #include "eval/eval.hpp"
 
 #include <algorithm>
@@ -46,7 +48,7 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
     // Play the capture on an occupancy bitboard, including en passant's off-target pawn.
     uint64_t occupied = occupancy();
     if (move.type() == MOVE_EP) {
-        const Square captured = to + (us == WHITE ? SOUTH : NORTH);
+        const Square captured = to + (us == WHITE ? square::south : square::north);
         occupied              = (occupied ^ bb::set(captured)) | target_bb;
     }
     occupied ^= from_bb;
@@ -91,8 +93,8 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
         occupied ^= attacker_bb;
 
         // Removing the recapturer can reveal x-ray bishop, rook, or queen attacks.
-        attackers |= (bb::moves<BISHOP>(to, occupied) & bishop_sliders) |
-                     (bb::moves<ROOK>(to, occupied) & rook_sliders);
+        attackers |= (attacks::piece_moves<BISHOP>(to, occupied) & bishop_sliders) |
+                     (attacks::piece_moves<ROOK>(to, occupied) & rook_sliders);
 
         balance = eval::piece(attacker).mg - balance;
         if (balance < static_cast<int>(result))
@@ -118,7 +120,7 @@ EvalValue Board::seeMove(Move move) const {
 
     // Play the capture on an occupancy bitboard, including en passant's off-target pawn.
     if (move.type() == MOVE_EP) {
-        const Square captured = to + (side == WHITE ? SOUTH : NORTH);
+        const Square captured = to + (side == WHITE ? square::south : square::north);
         occupied              = (occupied ^ bb::set(captured)) | target_bb;
     }
 
@@ -145,8 +147,8 @@ EvalValue Board::seeMove(Move move) const {
         occupied ^= from_bb;
 
         // Removing the recapturer can reveal x-ray bishop, rook, or queen attacks.
-        attackers |= (bb::moves<BISHOP>(to, occupied) & bishop_sliders) |
-                     (bb::moves<ROOK>(to, occupied) & rook_sliders);
+        attackers |= (attacks::piece_moves<BISHOP>(to, occupied) & bishop_sliders) |
+                     (attacks::piece_moves<ROOK>(to, occupied) & rook_sliders);
         attackers &= occupied;
 
         from_bb = 0;

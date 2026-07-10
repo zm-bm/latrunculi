@@ -5,7 +5,11 @@
 #include <string>
 #include <type_traits>
 
+#include "core/piece.hpp"
+#include "core/square.hpp"
 #include "core/types.hpp"
+
+enum MoveType : uint8_t { BASIC_MOVE, MOVE_PROM, MOVE_EP, MOVE_CASTLE };
 
 struct Move {
     constexpr Move() = default;

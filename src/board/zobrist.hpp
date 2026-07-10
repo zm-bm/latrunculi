@@ -1,8 +1,9 @@
 #pragma once
 
 #include "board/castling.hpp"
+#include "core/piece.hpp"
+#include "core/square.hpp"
 #include "core/types.hpp"
-#include "core/util.hpp"
 
 namespace zob {
 
@@ -18,7 +19,7 @@ inline uint64_t hash_piece(const Color c, const PieceType pt, const Square sq) {
 }
 
 inline uint64_t hash_ep(const Square sq) {
-    return ep[file_of(sq)];
+    return ep[square::file_of(sq)];
 }
 
 } // namespace zob

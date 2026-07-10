@@ -27,13 +27,15 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#include "core/magic.hpp"
+#include "core/attack_magic.hpp"
 
+#include <array>
+#include <utility>
 #include <vector>
 
-#include "core/bb.hpp"
+#include "core/bitboard.hpp"
 
-namespace magic {
+namespace attacks::magic {
 
 uint64_t rook_table[102400];
 uint64_t bishop_table[5248];
@@ -163,14 +165,14 @@ using Directions = std::array<Direction, 4>;
 uint64_t generate_moves(int sq, uint64_t occ, const Directions& directions) {
     uint64_t attacks = 0ULL;
 
-    Square square = Square(sq);
+    Square from = Square(sq);
     for (const auto [f_delta, r_delta] : directions) {
-        File f = file_of(square);
-        Rank r = rank_of(square);
+        File f = square::file_of(from);
+        Rank r = square::rank_of(from);
 
         // slide until we hit the board edge or an occupied square
         while (r >= RANK1 && r <= RANK8 && f >= FILE1 && f <= FILE8) {
-            auto occ_sq = bb::set(make_square(f, r));
+            auto occ_sq = bb::set(square::make(f, r));
 
             attacks |= occ_sq;
             if (occ & occ_sq)
@@ -181,7 +183,7 @@ uint64_t generate_moves(int sq, uint64_t occ, const Directions& directions) {
         }
     }
 
-    attacks &= bb::clear(square);
+    attacks &= bb::clear(from);
     return attacks;
 }
 
@@ -228,4 +230,4 @@ void init() {
     init_magic(rook_mask, rook_magic, rook_shift, rook_moves_table, rook_dirs);
 }
 
-} // namespace magic
+} // namespace attacks::magic

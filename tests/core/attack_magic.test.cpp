@@ -1,8 +1,8 @@
-#include "core/magic.hpp"
+#include "core/attack_magic.hpp"
 
 #include <gtest/gtest.h>
 
-#include "core/bb.hpp"
+#include "core/bitboard.hpp"
 
 struct MagicTest {
     Square   sq;
@@ -14,7 +14,7 @@ class MagicBishopAttacksTest : public ::testing::TestWithParam<MagicTest> {};
 
 TEST_P(MagicBishopAttacksTest, ComputesAttacks) {
     auto param = GetParam();
-    EXPECT_EQ(magic::bishop_moves(param.sq, param.occ), param.exp);
+    EXPECT_EQ(attacks::magic::bishop_moves(param.sq, param.occ), param.exp);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -36,7 +36,7 @@ class MagicRookAttacksTest : public ::testing::TestWithParam<MagicTest> {};
 
 TEST_P(MagicRookAttacksTest, ComputesAttacks) {
     auto param = GetParam();
-    EXPECT_EQ(magic::rook_moves(param.sq, param.occ), param.exp);
+    EXPECT_EQ(attacks::magic::rook_moves(param.sq, param.occ), param.exp);
 }
 
 INSTANTIATE_TEST_SUITE_P(

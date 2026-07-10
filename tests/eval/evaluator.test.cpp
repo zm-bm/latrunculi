@@ -5,7 +5,7 @@
 #include <format>
 
 #include "board/board.hpp"
-#include "core/bb.hpp"
+#include "core/bitboard.hpp"
 #include "core/score.hpp"
 #include "eval/eval.hpp"
 #include "support/test_util.hpp"

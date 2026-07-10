@@ -1,5 +1,5 @@
 #include "board/fen.hpp"
-#include "core/util.hpp"
+#include "core/notation.hpp"
 
 #include <charconv>
 #include <limits>
@@ -111,7 +111,7 @@ void FenParser::parse_pieces(const std::string& section) {
             if (file >= 8)
                 throw std::invalid_argument("invalid fen, invalid piece placement");
 
-            auto p = make_piece_square(ch, make_square(File(file), Rank(rank)));
+            auto p = make_piece_square(ch, square::make(File(file), Rank(rank)));
             if (p.type == PAWN && (rank == 0 || rank == 7))
                 throw std::invalid_argument("invalid fen, invalid pawn placement");
             if (p.type == KING)
@@ -170,7 +170,7 @@ void FenParser::parse_enpassant(const std::string& section) {
     if (section[1] != expected_rank)
         throw std::invalid_argument("invalid fen, invalid en passant square");
 
-    enpassant = make_square(section);
+    enpassant = parse_square(section);
 }
 
 void FenParser::parse_halfmove(const std::string& section) {

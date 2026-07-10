@@ -4,9 +4,11 @@
 #include <string>
 
 #include "board/board.hpp"
-#include "core/bb.hpp"
+#include "core/attacks.hpp"
 #include "core/constants.hpp"
+#include "core/piece.hpp"
 #include "core/score.hpp"
+#include "core/square.hpp"
 #include "eval/eval.hpp"
 #include "eval/types.hpp"
 
@@ -191,7 +193,7 @@ inline void Evaluator::initialize() {
     constexpr Color Opp = ~C;
 
     const Square   king_sq    = board.king_sq(C);
-    const uint64_t king_moves = bb::moves<KING>(king_sq);
+    const uint64_t king_moves = attacks::piece_moves<KING>(king_sq);
     update_attacks<C, KING>(king_moves);
 
     const uint64_t pawns     = board.pieces<PAWN>(C);
@@ -208,7 +210,7 @@ inline uint64_t Evaluator::outposts_zone(const uint64_t pawns, const uint64_t op
     constexpr Color Opp = ~C;
 
     const uint64_t behind_pawns = ~bb::attack_span<Opp>(opp_pawns);
-    const uint64_t supported    = bb::pawn_attacks<C>(pawns);
+    const uint64_t supported    = attacks::pawn_attacks<C>(pawns);
     constexpr auto outpost_mask = (C == WHITE) ? eval::masks::w_outposts : eval::masks::b_outposts;
     return (behind_pawns & supported & outpost_mask);
 }
@@ -222,18 +224,18 @@ inline uint64_t Evaluator::mobility_zone(const uint64_t pawns,
 
     constexpr auto rank2    = (C == WHITE) ? bb::rank(RANK2) : bb::rank(RANK7);
     const uint64_t occupied = bb::set(king_sq) | (pawns & rank2);
-    const uint64_t safe     = ~bb::pawn_attacks<Opp>(opp_pawns);
+    const uint64_t safe     = ~attacks::pawn_attacks<Opp>(opp_pawns);
     return (safe & ~occupied);
 }
 
 /// king zone: 3x3 king neighborhood for king safety evaluation
 template <Color C>
 inline uint64_t Evaluator::king_zone(const Square king_sq) const {
-    const File   file   = std::clamp(file_of(king_sq), FILE2, FILE7);
-    const Rank   rank   = std::clamp(rank_of(king_sq), RANK2, RANK7);
-    const Square center = make_square(file, rank);
+    const File   file   = std::clamp(square::file_of(king_sq), FILE2, FILE7);
+    const Rank   rank   = std::clamp(square::rank_of(king_sq), RANK2, RANK7);
+    const Square center = square::make(file, rank);
 
-    return bb::moves<KING>(center) | bb::set(center);
+    return attacks::piece_moves<KING>(center) | bb::set(center);
 }
 
 /// dispatch a single eval term -> score
@@ -268,8 +270,8 @@ Score Evaluator::evaluate_pawns() {
 
     const uint64_t pawns         = board.pieces<PAWN>(C);
     const uint64_t opp_pawns     = board.pieces<PAWN>(Opp);
-    const uint64_t left_attacks  = bb::pawn_moves<PAWN_LEFT, C>(pawns);
-    const uint64_t right_attacks = bb::pawn_moves<PAWN_RIGHT, C>(pawns);
+    const uint64_t left_attacks  = attacks::pawn_moves<PAWN_LEFT, C>(pawns);
+    const uint64_t right_attacks = attacks::pawn_moves<PAWN_RIGHT, C>(pawns);
     const uint64_t pawn_attacks  = left_attacks | right_attacks;
     const uint64_t pawn_attacks2 = left_attacks & right_attacks;
 
@@ -284,11 +286,11 @@ Score Evaluator::evaluate_pawns() {
     Score score = eval::iso_pawn * bb::count(iso_pawns);
 
     // backwards pawns: pawns that can't advance safely
-    const uint64_t stops       = bb::pawn_moves<PAWN_PUSH, C>(pawns);
+    const uint64_t stops       = attacks::pawn_moves<PAWN_PUSH, C>(pawns);
     const uint64_t attack_span = bb::attack_span<C>(pawns);
-    const uint64_t opp_attacks = bb::pawn_attacks<Opp>(opp_pawns);
+    const uint64_t opp_attacks = attacks::pawn_attacks<Opp>(opp_pawns);
     const uint64_t backwards_pawns =
-        bb::pawn_moves<PAWN_PUSH, Opp>(stops & opp_attacks & ~attack_span);
+        attacks::pawn_moves<PAWN_PUSH, Opp>(stops & opp_attacks & ~attack_span);
     score += eval::backward_pawn * bb::count(backwards_pawns);
 
     // doubled pawns: unsupported pawn with friendly pawns behind
@@ -400,7 +402,7 @@ inline Score Evaluator::update_attackers(const PieceContext& ctx, const uint64_t
         king_attackers.count[Opp]++;
         king_attackers.value[Opp] += eval::kingzone_att_danger[P];
     } else if constexpr (P == BISHOP || P == ROOK) {
-        const uint64_t xray_moves = bb::moves<P>(ctx.square, ctx.pawns);
+        const uint64_t xray_moves = attacks::piece_moves<P>(ctx.square, ctx.pawns);
         if (zones.king[Opp] & xray_moves)
             return eval::kingzone_xray_att;
     }
@@ -410,10 +412,10 @@ inline Score Evaluator::update_attackers(const PieceContext& ctx, const uint64_t
 
 template <Color C, PieceType P>
 inline uint64_t Evaluator::get_moves(const PieceContext& ctx) const {
-    uint64_t       moves  = bb::moves<P>(ctx.square, ctx.occupied);
+    uint64_t       moves  = attacks::piece_moves<P>(ctx.square, ctx.occupied);
     const uint64_t pinned = board.blockers(C) & ctx.piece_bb;
     if (pinned)
-        moves &= bb::collinear(board.king_sq(C), ctx.square);
+        moves &= square::collinear(board.king_sq(C), ctx.square);
 
     return moves;
 }
@@ -436,7 +438,7 @@ inline Score Evaluator::evaluate_minor_pieces(const PieceContext& ctx, const uin
         }
     }
 
-    if (ctx.piece_bb & bb::pawn_moves<PAWN_PUSH, Opp>(ctx.pawns)) {
+    if (ctx.piece_bb & attacks::pawn_moves<PAWN_PUSH, Opp>(ctx.pawns)) {
         score += eval::minor_pawn_shield;
     }
 
@@ -448,7 +450,7 @@ template <Color C>
 inline Score Evaluator::evaluate_bishops(const PieceContext& ctx) const {
     Score score;
 
-    const uint64_t xray_moves = bb::moves<BISHOP>(ctx.square, ctx.pawns);
+    const uint64_t xray_moves = attacks::piece_moves<BISHOP>(ctx.square, ctx.pawns);
     if (bb::is_many(eval::masks::center_squares & xray_moves))
         score += eval::bishop_long_diag;
 
@@ -468,8 +470,8 @@ inline Score Evaluator::evaluate_bishop_blockers(const PieceContext& ctx) const 
     const uint64_t color_pawns = ctx.pawns & color_mask;
     const int      pawn_count  = bb::count(color_pawns);
 
-    const uint64_t blocked_pawns = ctx.pawns & bb::pawn_moves<PAWN_PUSH, Opp>(ctx.occupied);
-    const uint64_t pawn_chain    = ctx.piece_bb & bb::pawn_attacks<C>(ctx.pawns);
+    const uint64_t blocked_pawns = ctx.pawns & attacks::pawn_moves<PAWN_PUSH, Opp>(ctx.occupied);
+    const uint64_t pawn_chain    = ctx.piece_bb & attacks::pawn_attacks<C>(ctx.pawns);
     const int blocking_factor = bb::count(blocked_pawns & eval::masks::center_files) + !pawn_chain;
 
     return eval::bishop_blockers * (pawn_count * blocking_factor);
@@ -480,7 +482,7 @@ template <Color C>
 inline Score Evaluator::evaluate_rook(const PieceContext& ctx) const {
     constexpr Color Opp = ~C;
 
-    const uint64_t file_mask  = bb::file(file_of(ctx.square));
+    const uint64_t file_mask  = bb::file(square::file_of(ctx.square));
     const uint64_t file_pawns = ctx.pawns & file_mask;
 
     const bool semi_open = !file_pawns;
@@ -489,7 +491,7 @@ inline Score Evaluator::evaluate_rook(const PieceContext& ctx) const {
         return eval::rook_open_file[fully_open];
     }
 
-    const bool blocked = file_pawns & bb::pawn_moves<PAWN_PUSH, Opp>(ctx.occupied);
+    const bool blocked = file_pawns & attacks::pawn_moves<PAWN_PUSH, Opp>(ctx.occupied);
     if (blocked) {
         return eval::rook_closed_file;
     }
@@ -511,12 +513,12 @@ template <Color C, PieceType P>
 inline bool Evaluator::discovery_attack(const PieceContext& ctx) const {
     constexpr Color Opp = ~C;
 
-    uint64_t attackers = board.pieces<P>(Opp) & bb::moves<P>(ctx.square, 0);
+    uint64_t attackers = board.pieces<P>(Opp) & attacks::piece_moves<P>(ctx.square, 0);
     while (attackers) {
-        const Square   attacker = bb::lsb_pop(attackers);
-        const uint64_t between  = bb::between(ctx.square, attacker) & ctx.occupied;
+        const Square   attacker       = bb::lsb_pop(attackers);
+        const uint64_t pieces_between = square::between(ctx.square, attacker) & ctx.occupied;
 
-        if (!bb::is_many(between))
+        if (!bb::is_many(pieces_between))
             return true;
     }
 
@@ -528,13 +530,13 @@ template <Color C>
 Score Evaluator::evaluate_shelter(const Square king_sq) const {
     constexpr Color Opp = ~C;
 
-    const File king_file = file_of(king_sq);
-    const Rank king_rank = rank_of(king_sq);
+    const File king_file = square::file_of(king_sq);
+    const Rank king_rank = square::rank_of(king_sq);
     const auto pawns     = board.pieces<PAWN>(C);
     const auto opp_pawns = board.pieces<PAWN>(Opp);
     const auto pawn_mask = bb::span_front<C>(bb::rank(king_rank));
 
-    const uint64_t pawns_ahead     = pawns & pawn_mask & ~bb::pawn_attacks<Opp>(opp_pawns);
+    const uint64_t pawns_ahead     = pawns & pawn_mask & ~attacks::pawn_attacks<Opp>(opp_pawns);
     const uint64_t opp_pawns_ahead = opp_pawns & pawn_mask;
     const File     file            = std::clamp(king_file, FILE2, FILE7);
 
@@ -567,8 +569,8 @@ inline Score Evaluator::evaluate_shelter_file(const uint64_t pawns,
     const Square pawn_sq     = bb::select<Opp>(file_pawns);
     const Square opp_pawn_sq = bb::select<Opp>(file_opp_pawns);
 
-    const Rank rank     = file_pawns ? relative_rank(pawn_sq, C) : RANK1;
-    const Rank opp_rank = file_opp_pawns ? relative_rank(opp_pawn_sq, C) : RANK1;
+    const Rank rank     = file_pawns ? square::relative_rank(pawn_sq, C) : RANK1;
+    const Rank opp_rank = file_opp_pawns ? square::relative_rank(opp_pawn_sq, C) : RANK1;
     const bool blocked  = file_pawns && (rank + 1 == opp_rank);
 
     Score score;
@@ -602,12 +604,12 @@ int Evaluator::calculate_raw_danger(Square king_sq) const {
     const uint64_t safe_checks  = ~our_pieces & (~defended | (weak_defense & attacks.by2[Opp]));
 
     const uint64_t knight_moves  = attacks.by[Opp][KNIGHT];
-    const uint64_t knight_checks = bb::moves<KNIGHT>(king_sq) & knight_moves;
+    const uint64_t knight_checks = attacks::piece_moves<KNIGHT>(king_sq) & knight_moves;
     danger += calculate_check_danger<KNIGHT>(knight_checks & safe_checks, knight_checks);
 
     const uint64_t occupancy   = board.occupancy();
-    const uint64_t line_checks = bb::moves<ROOK>(king_sq, occupancy);
-    const uint64_t diag_checks = bb::moves<BISHOP>(king_sq, occupancy);
+    const uint64_t line_checks = attacks::piece_moves<ROOK>(king_sq, occupancy);
+    const uint64_t diag_checks = attacks::piece_moves<BISHOP>(king_sq, occupancy);
 
     const uint64_t rook_checks = line_checks & attacks.by[Opp][ROOK];
     danger += calculate_check_danger<ROOK>(rook_checks & safe_checks, rook_checks);

@@ -1,5 +1,7 @@
 #include "board/board.hpp"
 
+#include "core/attacks.hpp"
+#include "core/square.hpp"
 #include "movegen/movegen.hpp"
 #include <algorithm>
 #include <cassert>
@@ -39,10 +41,10 @@ bool Board::is_pseudo_legal(Move mv) const {
     switch (mv.type()) {
     case BASIC_MOVE: {
         if (piecetype == PAWN) {
-            const int push_delta = (turn == WHITE) ? NORTH : SOUTH;
+            const int push_delta = (turn == WHITE) ? square::north : square::south;
             const int move_delta = int(to) - int(from);
 
-            if (relative_rank(to, turn) == RANK8)
+            if (square::relative_rank(to, turn) == RANK8)
                 return false;
 
             if (move_delta == push_delta)
@@ -50,42 +52,42 @@ bool Board::is_pseudo_legal(Move mv) const {
 
             if (move_delta == 2 * push_delta) {
                 const Square mid = from + push_delta;
-                return relative_rank(from, turn) == RANK2 && target == NO_PIECE &&
+                return square::relative_rank(from, turn) == RANK2 && target == NO_PIECE &&
                        piece_on(mid) == NO_PIECE;
             }
 
-            return (bb::pawn_attacks(bb::set(from), turn) & to_bb) && target != NO_PIECE &&
+            return (attacks::pawn_attacks(bb::set(from), turn) & to_bb) && target != NO_PIECE &&
                    color_of(target) == ~turn;
         }
 
         if (piecetype == KING)
-            return bb::moves<KING>(from) & to_bb;
+            return attacks::piece_moves<KING>(from) & to_bb;
 
         return piecetype != NO_PIECETYPE && piecetype != ALL_PIECES && piecetype != KING &&
-               (bb::moves(from, piecetype, occupied) & to_bb);
+               (attacks::piece_moves(from, piecetype, occupied) & to_bb);
     }
 
     case MOVE_PROM: {
         if (piecetype != PAWN || !valid_promotion_piece(mv.prom_piece()))
             return false;
-        if (relative_rank(from, turn) != RANK7 || relative_rank(to, turn) != RANK8)
+        if (square::relative_rank(from, turn) != RANK7 || square::relative_rank(to, turn) != RANK8)
             return false;
 
-        const int push_delta = (turn == WHITE) ? NORTH : SOUTH;
+        const int push_delta = (turn == WHITE) ? square::north : square::south;
         if (int(to) - int(from) == push_delta)
             return target == NO_PIECE;
 
-        return (bb::pawn_attacks(bb::set(from), turn) & to_bb) && target != NO_PIECE &&
+        return (attacks::pawn_attacks(bb::set(from), turn) & to_bb) && target != NO_PIECE &&
                color_of(target) == ~turn;
     }
 
     case MOVE_EP: {
         if (piecetype != PAWN || to != enpassant_sq() || target != NO_PIECE)
             return false;
-        if (!(bb::pawn_attacks(bb::set(from), turn) & to_bb))
+        if (!(attacks::pawn_attacks(bb::set(from), turn) & to_bb))
             return false;
 
-        const Square captured = to + (turn == WHITE ? SOUTH : NORTH);
+        const Square captured = to + (turn == WHITE ? square::south : square::north);
         return piece_on(captured) == make_piece(~turn, PAWN);
     }
 
@@ -152,10 +154,10 @@ bool Board::is_legal_pseudo_move(Move mv) const {
 
     // enpassant: check if captured pawn is blocking check
     else if (mv.type() == MOVE_EP) {
-        Square   pawn = to + (turn == WHITE ? SOUTH : NORTH);
+        Square   pawn = to + (turn == WHITE ? square::south : square::north);
         uint64_t occ  = (occupancy() ^ bb::set(from, pawn)) | bb::set(to);
-        return !(pieces<BISHOP, QUEEN>(~turn) & bb::moves<BISHOP>(king, occ)) &&
-               !(pieces<ROOK, QUEEN>(~turn) & bb::moves<ROOK>(king, occ));
+        return !(pieces<BISHOP, QUEEN>(~turn) & attacks::piece_moves<BISHOP>(king, occ)) &&
+               !(pieces<ROOK, QUEEN>(~turn) & attacks::piece_moves<ROOK>(king, occ));
     }
 
     // non-king moves must resolve any current check
@@ -165,13 +167,13 @@ bool Board::is_legal_pseudo_move(Move mv) const {
             return false;
 
         Square checker = bb::lsb(checkers_bb);
-        if (to != checker && !(bb::between(king, checker) & bb::set(to)))
+        if (to != checker && !(square::between(king, checker) & bb::set(to)))
             return false;
     }
 
     // check if moved piece is pinned or moving in-line with check
     uint64_t pins = blockers(turn);
-    return (!pins || !(pins & bb::set(from)) || (bb::collinear(from, to) & bb::set(king)));
+    return (!pins || !(pins & bb::set(from)) || (square::collinear(from, to) & bb::set(king)));
 }
 
 // Determine if a move gives check for the current board
@@ -186,22 +188,22 @@ bool Board::is_checking_move(Move mv) const {
     const PieceType piecetype = type_of(piece_on(from));
     if (state.checks[direct_check_idx(piecetype)] & bb::set(to))
         return true;
-    if ((state.blockers[opp] & bb::set(from)) && !(bb::collinear(from, to) & bb::set(opp_king)))
+    if ((state.blockers[opp] & bb::set(from)) && !(square::collinear(from, to) & bb::set(opp_king)))
         return true;
 
     switch (mv.type()) {
     case MOVE_PROM: {
         // check if a promotion attacks the enemy king
         uint64_t occupied = occupancy() ^ bb::set(from);
-        return bb::moves(to, mv.prom_piece(), occupied) & bb::set(opp_king);
+        return attacks::piece_moves(to, mv.prom_piece(), occupied) & bb::set(opp_king);
     }
 
     case MOVE_EP: {
         // check if captured pawn was blocking enemy king from attack
-        Square   pawn     = to + (turn == WHITE ? SOUTH : NORTH);
+        Square   pawn     = to + (turn == WHITE ? square::south : square::north);
         uint64_t occupied = (occupancy() ^ bb::set(from, pawn)) | bb::set(to);
-        return ((pieces<BISHOP, QUEEN>(turn) & bb::moves<BISHOP>(opp_king, occupied)) ||
-                (pieces<ROOK, QUEEN>(turn) & bb::moves<ROOK>(opp_king, occupied)));
+        return ((pieces<BISHOP, QUEEN>(turn) & attacks::piece_moves<BISHOP>(opp_king, occupied)) ||
+                (pieces<ROOK, QUEEN>(turn) & attacks::piece_moves<ROOK>(opp_king, occupied)));
     }
 
     case MOVE_CASTLE: {
@@ -209,7 +211,7 @@ bool Board::is_checking_move(Move mv) const {
         Square   rook_from = castle::rook_from[to < from][turn];
         Square   rook_to   = castle::rook_to[to < from][turn];
         uint64_t occupied  = occupancy() ^ bb::set(from, rook_from, to, rook_to);
-        return bb::moves<ROOK>(rook_to, occupied) & bb::set(opp_king);
+        return attacks::piece_moves<ROOK>(rook_to, occupied) & bb::set(opp_king);
     }
 
     case BASIC_MOVE: return false;
@@ -231,7 +233,7 @@ void Board::make(Move move, PositionState& next_state) {
     PieceType    capt_piecetype = captured_piece_type(move);
 
     if (movetype == MOVE_EP) {
-        capt_sq          = to + (turn == WHITE ? SOUTH : NORTH);
+        capt_sq          = to + (turn == WHITE ? square::south : square::north);
         squares[capt_sq] = NO_PIECE;
     }
 
@@ -268,7 +270,7 @@ void Board::make(Move move, PositionState& next_state) {
         // set enpassant square,
         state.halfmove_clk = 0;
         if (std::abs(to - from) == PAWN_PUSH2) {
-            state.enpassant = to + (turn == WHITE ? SOUTH : NORTH);
+            state.enpassant = to + (turn == WHITE ? square::south : square::north);
         } else if (movetype == MOVE_PROM) {
             remove_piece<true>(to, turn, PAWN);
             add_piece<true>(to, turn, move.prom_piece());
@@ -333,7 +335,8 @@ void Board::unmake(PositionState& prior_state) {
         Square rook_to     = castle::rook_to[castle_side][turn];
         move_piece<false>(rook_to, rook_from, turn, ROOK);
     } else if (capt_piecetype != NO_PIECETYPE) {
-        Square capt_sq = (movetype != MOVE_EP) ? to : to + (turn == WHITE ? SOUTH : NORTH);
+        Square capt_sq =
+            (movetype != MOVE_EP) ? to : to + (turn == WHITE ? square::south : square::north);
         add_piece<false>(capt_sq, opp, capt_piecetype);
     }
 
@@ -428,17 +431,17 @@ std::string Board::toSAN(Move move) const {
         bool ambiguous =
             (piecetype_on(m.from()) == piecetype) && (m.to() == to) && (m.from() != from);
         if (ambiguous && is_legal_generated_move(m)) {
-            if (file_of(m.from()) != file_of(from))
-                result += to_char(file_of(from));
-            if (rank_of(m.from()) != rank_of(from))
-                result += to_char(rank_of(from));
+            if (square::file_of(m.from()) != square::file_of(from))
+                result += to_char(square::file_of(from));
+            if (square::rank_of(m.from()) != square::rank_of(from))
+                result += to_char(square::rank_of(from));
             break;
         }
     }
 
     if (is_capture(move)) {
         if (piecetype == PAWN)
-            result += to_char(file_of(from));
+            result += to_char(square::file_of(from));
         result += 'x';
     }
 

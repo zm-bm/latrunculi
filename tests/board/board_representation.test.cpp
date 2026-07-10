@@ -203,14 +203,14 @@ bool on_board(int file, int rank) {
 
 uint64_t slow_leaper_attacks(Square from, const std::vector<std::pair<int, int>>& offsets) {
     uint64_t  attacks = 0;
-    const int file    = file_of(from);
-    const int rank    = rank_of(from);
+    const int file    = square::file_of(from);
+    const int rank    = square::rank_of(from);
 
     for (const auto& [df, dr] : offsets) {
         const int to_file = file + df;
         const int to_rank = rank + dr;
         if (on_board(to_file, to_rank))
-            attacks |= bb::set(make_square(File(to_file), Rank(to_rank)));
+            attacks |= bb::set(square::make(File(to_file), Rank(to_rank)));
     }
 
     return attacks;
@@ -227,8 +227,8 @@ uint64_t slow_king_attacks(Square from) {
 }
 
 uint64_t slow_pawn_attackers_to(Square target, Color attacker) {
-    const int file = file_of(target);
-    const int rank = rank_of(target);
+    const int file = square::file_of(target);
+    const int rank = square::rank_of(target);
     const int dr   = attacker == WHITE ? -1 : 1;
 
     uint64_t attackers = 0;
@@ -236,15 +236,15 @@ uint64_t slow_pawn_attackers_to(Square target, Color attacker) {
         const int from_file = file + df;
         const int from_rank = rank + dr;
         if (on_board(from_file, from_rank))
-            attackers |= bb::set(make_square(File(from_file), Rank(from_rank)));
+            attackers |= bb::set(square::make(File(from_file), Rank(from_rank)));
     }
 
     return attackers;
 }
 
 bool ray_step(Square from, Square to, PieceType slider, int& df, int& dr) {
-    const int  file_delta = file_of(to) - file_of(from);
-    const int  rank_delta = rank_of(to) - rank_of(from);
+    const int  file_delta = square::file_of(to) - square::file_of(from);
+    const int  rank_delta = square::rank_of(to) - square::rank_of(from);
     const bool diagonal   = std::abs(file_delta) == std::abs(rank_delta);
     const bool straight   = file_delta == 0 || rank_delta == 0;
 
@@ -273,10 +273,10 @@ uint64_t slow_between(Square from, Square to) {
         return 0;
 
     uint64_t between = 0;
-    int      file    = file_of(from) + df;
-    int      rank    = rank_of(from) + dr;
-    while (file != file_of(to) || rank != rank_of(to)) {
-        between |= bb::set(make_square(File(file), Rank(rank)));
+    int      file    = square::file_of(from) + df;
+    int      rank    = square::rank_of(from) + dr;
+    while (file != square::file_of(to) || rank != square::rank_of(to)) {
+        between |= bb::set(square::make(File(file), Rank(rank)));
         file    += df;
         rank    += dr;
     }
@@ -291,10 +291,10 @@ uint64_t slow_sliding_attacks(Square from, PieceType slider, uint64_t occupancy)
     uint64_t attacks = 0;
     auto     scan    = [&](const std::vector<std::pair<int, int>>& dirs) {
         for (const auto& [df, dr] : dirs) {
-            int file = file_of(from) + df;
-            int rank = rank_of(from) + dr;
+            int file = square::file_of(from) + df;
+            int rank = square::rank_of(from) + dr;
             while (on_board(file, rank)) {
-                const Square sq  = make_square(File(file), Rank(rank));
+                const Square sq  = square::make(File(file), Rank(rank));
                 attacks         |= bb::set(sq);
                 if (occupancy & bb::set(sq))
                     break;

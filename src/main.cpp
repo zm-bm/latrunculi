@@ -1,11 +1,11 @@
 #include <iostream>
 
 #include "board/zobrist.hpp"
-#include "core/magic.hpp"
+#include "core/attacks.hpp"
 #include "uci/engine.hpp"
 
 int main() {
-    magic::init();
+    attacks::init();
     zob::init();
 
     Engine engine(std::cout, std::cerr, std::cin);

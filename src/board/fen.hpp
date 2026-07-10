@@ -4,6 +4,8 @@
 #include <vector>
 
 #include "board/castling.hpp"
+#include "core/piece.hpp"
+#include "core/square.hpp"
 #include "core/types.hpp"
 
 struct PieceSquare {

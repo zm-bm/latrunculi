@@ -6,6 +6,8 @@
 #include "board/castling.hpp"
 #include "core/constants.hpp"
 #include "core/move.hpp"
+#include "core/piece.hpp"
+#include "core/square.hpp"
 
 /**
  * Per-ply board state owned by the caller and used by Board.

@@ -3,7 +3,7 @@
 #include <string>
 
 #include "board/castling.hpp"
-#include "core/bb.hpp"
+#include "core/attacks.hpp"
 
 #include "board/position_key_history.hpp"
 #include "board/position_state.hpp"
@@ -11,7 +11,9 @@
 #include "core/constants.hpp"
 #include "core/move.hpp"
 #include "core/notation.hpp"
+#include "core/piece.hpp"
 #include "core/score.hpp"
+#include "core/square.hpp"
 #include "eval/eval.hpp"
 
 class Board {
@@ -55,7 +57,7 @@ public:
     uint64_t  occupancy() const { return pieces<ALL_PIECES>(); }
     uint8_t   count(Color c, PieceType p) const { return piece_counts[c][p]; }
     Piece     piece_on(Square sq) const { return squares[sq]; }
-    Piece     piece_on(File f, Rank r) const { return squares[make_square(f, r)]; };
+    Piece     piece_on(File f, Rank r) const { return squares[square::make(f, r)]; };
     PieceType piecetype_on(Square sq) const { return type_of(squares[sq]); }
     Square    king_sq(Color c) const { return king_square[c]; }
     Color     side_to_move() const { return turn; }
@@ -214,21 +216,21 @@ inline void Board::disable_castle(Color c, Square sq) {
 
 // Returns a bitboard of pieces of color c which attack a square
 inline uint64_t Board::attacks_to(Square sq, Color c, uint64_t occupied) const {
-    return (pieces<PAWN>(c) & bb::pawn_attacks(bb::set(sq), ~c)) |
-           (pieces<KNIGHT>(c) & bb::moves<KNIGHT>(sq, occupied)) |
-           (pieces<KING>(c) & bb::moves<KING>(sq, occupied)) |
-           (pieces<BISHOP, QUEEN>(c) & bb::moves<BISHOP>(sq, occupied)) |
-           (pieces<ROOK, QUEEN>(c) & bb::moves<ROOK>(sq, occupied));
+    return (pieces<PAWN>(c) & attacks::pawn_attacks(bb::set(sq), ~c)) |
+           (pieces<KNIGHT>(c) & attacks::piece_moves<KNIGHT>(sq, occupied)) |
+           (pieces<KING>(c) & attacks::piece_moves<KING>(sq, occupied)) |
+           (pieces<BISHOP, QUEEN>(c) & attacks::piece_moves<BISHOP>(sq, occupied)) |
+           (pieces<ROOK, QUEEN>(c) & attacks::piece_moves<ROOK>(sq, occupied));
 }
 
 // Returns a bitboard of pieces of any color which attack a square
 inline uint64_t Board::attacks_to(Square sq, uint64_t occupied) const {
-    return (pieces<PAWN>(WHITE) & bb::pawn_attacks<BLACK>(bb::set(sq))) |
-           (pieces<PAWN>(BLACK) & bb::pawn_attacks<WHITE>(bb::set(sq))) |
-           (pieces<KNIGHT>() & bb::moves<KNIGHT>(sq, occupied)) |
-           (pieces<KING>() & bb::moves<KING>(sq, occupied)) |
-           (pieces<BISHOP, QUEEN>() & bb::moves<BISHOP>(sq, occupied)) |
-           (pieces<ROOK, QUEEN>() & bb::moves<ROOK>(sq, occupied));
+    return (pieces<PAWN>(WHITE) & attacks::pawn_attacks<BLACK>(bb::set(sq))) |
+           (pieces<PAWN>(BLACK) & attacks::pawn_attacks<WHITE>(bb::set(sq))) |
+           (pieces<KNIGHT>() & attacks::piece_moves<KNIGHT>(sq, occupied)) |
+           (pieces<KING>() & attacks::piece_moves<KING>(sq, occupied)) |
+           (pieces<BISHOP, QUEEN>() & attacks::piece_moves<BISHOP>(sq, occupied)) |
+           (pieces<ROOK, QUEEN>() & attacks::piece_moves<ROOK>(sq, occupied));
 }
 
 // Determine if any bitboard is attacked by color c
@@ -285,10 +287,10 @@ inline void Board::update_check_data() {
     auto&    state    = this->active_state();
 
     state.checkers       = attacks_to(king_sq(turn), opp);
-    state.checks[PAWN]   = bb::pawn_attacks(bb::set(opp_king), opp);
-    state.checks[KNIGHT] = bb::moves<KNIGHT>(opp_king, occ);
-    state.checks[BISHOP] = bb::moves<BISHOP>(opp_king, occ);
-    state.checks[ROOK]   = bb::moves<ROOK>(opp_king, occ);
+    state.checks[PAWN]   = attacks::pawn_attacks(bb::set(opp_king), opp);
+    state.checks[KNIGHT] = attacks::piece_moves<KNIGHT>(opp_king, occ);
+    state.checks[BISHOP] = attacks::piece_moves<BISHOP>(opp_king, occ);
+    state.checks[ROOK]   = attacks::piece_moves<ROOK>(opp_king, occ);
     state.checks[QUEEN]  = state.checks[BISHOP] | state.checks[ROOK];
     update_pinners_and_blockers(WHITE);
     update_pinners_and_blockers(BLACK);
@@ -298,8 +300,8 @@ inline void Board::update_check_data() {
 inline void Board::update_pinners_and_blockers(Color c) {
     Color    opp     = ~c;
     Square   king    = king_sq(c);
-    uint64_t snipers = (bb::moves<BISHOP>(king) & pieces<BISHOP, QUEEN>(opp)) |
-                       (bb::moves<ROOK>(king) & pieces<ROOK, QUEEN>(opp));
+    uint64_t snipers = (attacks::piece_moves<BISHOP>(king) & pieces<BISHOP, QUEEN>(opp)) |
+                       (attacks::piece_moves<ROOK>(king) & pieces<ROOK, QUEEN>(opp));
     uint64_t occ   = occupancy() ^ snipers;
     auto&    state = this->active_state();
 
@@ -308,7 +310,7 @@ inline void Board::update_pinners_and_blockers(Color c) {
 
     while (snipers) {
         Square   pinner         = bb::lsb_pop(snipers);
-        uint64_t pieces_between = occ & bb::between(king, pinner);
+        uint64_t pieces_between = occ & square::between(king, pinner);
 
         if (pieces_between && !bb::is_many(pieces_between)) {
             state.blockers[c] |= pieces_between;

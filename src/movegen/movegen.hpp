@@ -5,7 +5,10 @@
 
 #include "board/board.hpp"
 #include "board/castling.hpp"
+#include "core/attacks.hpp"
 #include "core/move.hpp"
+#include "core/piece.hpp"
+#include "core/square.hpp"
 #include "core/types.hpp"
 #include "movegen/move_list.hpp"
 
@@ -68,7 +71,7 @@ private:
             return enemy_pieces;
         else if constexpr (Type == MoveGenType::Evasions) {
             const uint64_t checks = board.checkers();
-            return checks | bb::between(bb::select<Us>(checks), king_sq);
+            return checks | square::between(bb::select<Us>(checks), king_sq);
         }
         return empty_squares;
     }
@@ -78,7 +81,7 @@ private:
         uint64_t bitboard = board.template pieces<P>(Us);
 
         bb::scan<Us>(bitboard, [&](Square from) {
-            uint64_t moves = bb::moves<P>(from, occupancy) & targets;
+            uint64_t moves = attacks::piece_moves<P>(from, occupancy) & targets;
             bb::scan<Us>(moves, [&](Square to) { write(from, to); });
         });
     }
@@ -106,7 +109,7 @@ private:
     void pawn_enpassants(uint64_t pawns, Square enpassant) {
         constexpr int offset = (Us == WHITE) ? -P : P;
 
-        if (bb::pawn_moves<P, Us>(pawns) & bb::set(enpassant))
+        if (attacks::pawn_moves<P, Us>(pawns) & bb::set(enpassant))
             write(enpassant + offset, enpassant, MOVE_EP);
     }
 
@@ -132,22 +135,22 @@ private:
     }
 
     void pawn_promotions(uint64_t targets, uint64_t enemies, uint64_t pawns) {
-        uint64_t push_moves = bb::pawn_moves<PAWN_PUSH, Us>(pawns) & ~occupancy;
+        uint64_t push_moves = attacks::pawn_moves<PAWN_PUSH, Us>(pawns) & ~occupancy;
         if constexpr (Type == MoveGenType::Evasions)
             push_moves &= targets;
 
         pawn_promotions_to<PAWN_PUSH>(push_moves);
 
-        uint64_t left_moves = bb::pawn_moves<PAWN_LEFT, Us>(pawns) & enemies;
+        uint64_t left_moves = attacks::pawn_moves<PAWN_LEFT, Us>(pawns) & enemies;
         pawn_promotions_to<PAWN_LEFT>(left_moves);
 
-        uint64_t right_moves = bb::pawn_moves<PAWN_RIGHT, Us>(pawns) & enemies;
+        uint64_t right_moves = attacks::pawn_moves<PAWN_RIGHT, Us>(pawns) & enemies;
         pawn_promotions_to<PAWN_RIGHT>(right_moves);
     }
 
     void pawn_captures(uint64_t targets, uint64_t enemies, uint64_t pawns) {
-        uint64_t left_moves  = bb::pawn_moves<PAWN_LEFT, Us>(pawns) & enemies;
-        uint64_t right_moves = bb::pawn_moves<PAWN_RIGHT, Us>(pawns) & enemies;
+        uint64_t left_moves  = attacks::pawn_moves<PAWN_LEFT, Us>(pawns) & enemies;
+        uint64_t right_moves = attacks::pawn_moves<PAWN_RIGHT, Us>(pawns) & enemies;
         pawn_moves_to<PAWN_LEFT>(left_moves);
         pawn_moves_to<PAWN_RIGHT>(right_moves);
 
@@ -168,8 +171,8 @@ private:
     void pawn_pushes(uint64_t targets, uint64_t pawns) {
         constexpr uint64_t rank3 = (Us == WHITE) ? bb::rank(RANK3) : bb::rank(RANK6);
 
-        uint64_t push_moves  = bb::pawn_moves<PAWN_PUSH, Us>(pawns) & ~occupancy;
-        uint64_t push2_moves = bb::pawn_moves<PAWN_PUSH, Us>(push_moves & rank3) & ~occupancy;
+        uint64_t push_moves  = attacks::pawn_moves<PAWN_PUSH, Us>(pawns) & ~occupancy;
+        uint64_t push2_moves = attacks::pawn_moves<PAWN_PUSH, Us>(push_moves & rank3) & ~occupancy;
 
         if constexpr (Type == MoveGenType::Evasions) {
             push_moves  &= targets;
@@ -181,7 +184,7 @@ private:
     }
 
     void king(uint64_t targets) {
-        uint64_t moves = bb::moves<KING>(king_sq) & targets;
+        uint64_t moves = attacks::piece_moves<KING>(king_sq) & targets;
 
         bb::scan<Us>(moves, [&](Square to) { write(king_sq, to); });
 

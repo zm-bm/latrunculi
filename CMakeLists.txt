@@ -12,13 +12,14 @@ find_package(Threads REQUIRED)
 option(LATRUNCULI_SEARCH_STATS "Enable detailed search statistics diagnostics" OFF)
 
 set(LATRUNCULI_ENGINE_SOURCES
+    src/core/attack_magic.cpp
+    src/core/notation.cpp
     src/board/board.cpp
     src/board/board_fen.cpp
     src/board/board_representation.cpp
     src/board/board_see.cpp
     src/board/fen.cpp
     src/board/zobrist.cpp
-    src/core/magic.cpp
     src/core/move.cpp
     src/eval/evaluator.cpp
     src/movegen/movegen.cpp
@@ -55,16 +56,19 @@ if(BUILD_TESTING)
     add_subdirectory(third_party/googletest)
 
     set(LATRUNCULI_TEST_SOURCES
+        tests/core/attacks.test.cpp
+        tests/core/attack_magic.test.cpp
         tests/board/board.test.cpp
         tests/board/board_fen.test.cpp
         tests/board/board_representation.test.cpp
         tests/board/board_see.test.cpp
         tests/board/fen.test.cpp
-        tests/core/bb.test.cpp
-        tests/core/magic.test.cpp
+        tests/core/bitboard.test.cpp
         tests/core/move.test.cpp
         tests/core/notation.test.cpp
+        tests/core/piece.test.cpp
         tests/core/score.test.cpp
+        tests/core/square.test.cpp
         tests/core/types.test.cpp
         tests/eval/eval.test.cpp
         tests/eval/evaluator.test.cpp
