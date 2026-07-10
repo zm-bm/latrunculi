@@ -54,13 +54,6 @@ struct Move {
 
 constexpr Move NULL_MOVE{};
 
-using MoveScore = int;
-
-struct ScoredMove {
-    Move      move;
-    MoveScore score;
-};
-
 constexpr Move::Move(Square from, Square to, MoveType move_type, PieceType promotion)
     : bits{pack(from, to, move_type, promotion)} {}
 
@@ -90,4 +83,3 @@ constexpr PieceType Move::unpack_prom(uint16_t packed) noexcept {
 
 static_assert(sizeof(Move) == sizeof(uint16_t));
 static_assert(std::is_trivially_copyable_v<Move>);
-static_assert(std::is_trivially_copyable_v<ScoredMove>);

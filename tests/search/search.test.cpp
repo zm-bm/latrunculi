@@ -209,8 +209,8 @@ protected:
 
     Move firstWorkerPickerMove(Move tt_move = NULL_MOVE) {
         const auto context = MoveOrdering::make_context(worker->board);
-        MovePicker picker =
-            MovePicker::main_search(worker->board, worker->ordering, context, worker->ply, tt_move);
+        auto       picker  = move_picker::main_search(
+            worker->board, worker->ordering, context, worker->ply, tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
             if (worker->board.is_legal_generated_move(move))
                 return move;
@@ -221,8 +221,8 @@ protected:
     std::vector<Move> workerPickerLegalMoves(Move tt_move = NULL_MOVE) {
         std::vector<Move> moves;
         const auto        context = MoveOrdering::make_context(worker->board);
-        MovePicker        picker =
-            MovePicker::main_search(worker->board, worker->ordering, context, worker->ply, tt_move);
+        auto              picker  = move_picker::main_search(
+            worker->board, worker->ordering, context, worker->ply, tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
             if (worker->board.is_legal_generated_move(move))
                 moves.push_back(move);

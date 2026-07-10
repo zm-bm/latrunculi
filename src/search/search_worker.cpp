@@ -92,9 +92,9 @@ void SearchWorker::prepare_shared_search_state() {
 void SearchWorker::build_root_lines() {
     root_lines.clear();
 
-    // Root candidates start in the current MovePicker order.
+    // Root candidates start in the current picker order.
     const auto ctx    = MoveOrdering::make_context(board);
-    MovePicker picker = MovePicker::main_search(board, ordering, ctx, 0);
+    auto       picker = move_picker::main_search(board, ordering, ctx, 0);
 
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (board.is_legal_generated_move(move))

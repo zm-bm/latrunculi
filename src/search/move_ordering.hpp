@@ -342,7 +342,7 @@ inline void ContinuationHistory::clear() {
 
 /*
  * MoveOrdering owns the active per-worker move-ordering tables and exposes the
- * shared node context used by MovePicker and search history updates.
+ * shared node context used by the picker and search history updates.
  */
 struct MoveOrdering {
     /*

@@ -347,7 +347,7 @@ EvalValue SearchWorker::alphabeta(
     Move      top_score_move = NULL_MOVE;
 
     const auto         ctx    = MoveOrdering::make_context(board);
-    MovePicker         picker = MovePicker::main_search(board, ordering, ctx, ply, tt_move);
+    auto               picker = move_picker::main_search(board, ordering, ctx, ply, tt_move);
     PrincipalVariation child_pv;
     SearchedMoves      searched_quiets;
 
@@ -538,7 +538,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
     }
 
     const auto         ctx    = MoveOrdering::make_context(board, false);
-    MovePicker         picker = MovePicker::qsearch(board, ordering, ctx, tt_move);
+    auto               picker = move_picker::qsearch(board, ordering, ctx, tt_move);
     PrincipalVariation child_pv;
 
     // Step 5. Tactical Move Loop. Search noisy moves, or all evasions in check.

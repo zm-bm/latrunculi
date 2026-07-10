@@ -10,7 +10,7 @@
 #include "search/search_limits.hpp"
 #include "support/test_util.hpp"
 
-class MovePickerTest : public ::testing::Test {
+class PickerTest : public ::testing::Test {
 protected:
     int           ply = 5;
     TestBoard     board{POS3};
@@ -44,7 +44,7 @@ std::vector<uint16_t> sorted_move_bits(const std::vector<Move>& moves) {
     return bits;
 }
 
-std::vector<Move> collect_moves(MovePicker& picker) {
+std::vector<Move> collect_moves(move_picker::Picker& picker) {
     std::vector<Move> moves;
     moves.reserve(MoveList::capacity);
     for (Move move = picker.next(); !move.is_null(); move = picker.next())
@@ -96,13 +96,13 @@ std::vector<Move> picked_main_search(Board&        board,
                                      Move          counter = NULL_MOVE) {
     seed_counter_hint(board, ordering, counter);
     const auto context = MoveOrdering::make_context(board);
-    MovePicker picker  = MovePicker::main_search(board, ordering, context, ply, tt_move);
+    auto       picker  = move_picker::main_search(board, ordering, context, ply, tt_move);
     return collect_moves(picker);
 }
 
 std::vector<Move> picked_qsearch(Board& board, MoveOrdering& ordering, Move tt_move = NULL_MOVE) {
     const auto context = MoveOrdering::make_context(board, false);
-    MovePicker picker  = MovePicker::qsearch(board, ordering, context, tt_move);
+    auto       picker  = move_picker::qsearch(board, ordering, context, tt_move);
     return collect_moves(picker);
 }
 
@@ -125,13 +125,13 @@ bool expected_good_noisy(const Board& board, Move move) {
 }
 } // namespace
 
-TEST_F(MovePickerTest, MainSearchPicksGeneratedMoves) {
+TEST_F(PickerTest, MainSearchPicksGeneratedMoves) {
     const auto moves = picked_main_search(board, ordering, ply);
 
     EXPECT_FALSE(moves.empty());
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsHistoryBelowKillerPriority) {
+TEST_F(PickerTest, MainSearchKeepsHistoryBelowKillerPriority) {
     Move killer_move = Move(A5, A4);
     Move hist_move   = Move(A5, A6);
 
@@ -151,7 +151,7 @@ TEST_F(MovePickerTest, MainSearchKeepsHistoryBelowKillerPriority) {
               QuietHistory::MAX_SCORE);
 }
 
-TEST_F(MovePickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKiller) {
+TEST_F(PickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKiller) {
     Move killer_move    = Move(A5, A4);
     Move saturated_move = Move(A5, A6);
     Move light_move     = Move(E2, E3);
@@ -180,7 +180,7 @@ TEST_F(MovePickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKil
               quiet_history.get(board.side_to_move(), light_move.from(), light_move.to()));
 }
 
-TEST_F(MovePickerTest, MainSearchContinuationHistoryReordersGeneratedQuiets) {
+TEST_F(PickerTest, MainSearchContinuationHistoryReordersGeneratedQuiets) {
     TestBoard quiet_board{STARTFEN};
     quiet_board.make(Move(E2, E4));
 
@@ -203,7 +203,7 @@ TEST_F(MovePickerTest, MainSearchContinuationHistoryReordersGeneratedQuiets) {
     EXPECT_LT(boosted_it, first_it);
 }
 
-TEST_F(MovePickerTest, MainSearchContinuationHistoryRequiresMatchingPreviousMove) {
+TEST_F(PickerTest, MainSearchContinuationHistoryRequiresMatchingPreviousMove) {
     TestBoard quiet_board{STARTFEN};
     quiet_board.make(Move(E2, E4));
 
@@ -220,7 +220,7 @@ TEST_F(MovePickerTest, MainSearchContinuationHistoryRequiresMatchingPreviousMove
     EXPECT_EQ(picked_main_search(quiet_board, ordering, ply), baseline);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsKillerAndCounterAboveContinuationQuiets) {
+TEST_F(PickerTest, MainSearchKeepsKillerAndCounterAboveContinuationQuiets) {
     TestBoard quiet_board{STARTFEN};
     quiet_board.make(Move(E2, E4));
 
@@ -256,7 +256,7 @@ TEST_F(MovePickerTest, MainSearchKeepsKillerAndCounterAboveContinuationQuiets) {
     EXPECT_LT(counter_it, boosted_it);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsCaptureKillerAndHistoryOrder) {
+TEST_F(PickerTest, MainSearchKeepsCaptureKillerAndHistoryOrder) {
     Move killer_move = Move(A5, A4);
     Move hist_move   = Move(A5, A6);
 
@@ -271,7 +271,7 @@ TEST_F(MovePickerTest, MainSearchKeepsCaptureKillerAndHistoryOrder) {
     EXPECT_EQ(moves[2], hist_move);
 }
 
-TEST_F(MovePickerTest, QSearchNotInCheckGeneratesNoisyMovesOnly) {
+TEST_F(PickerTest, QSearchNotInCheckGeneratesNoisyMovesOnly) {
     ASSERT_FALSE(board.is_check());
 
     const auto moves = picked_qsearch(board, ordering);
@@ -288,7 +288,7 @@ TEST_F(MovePickerTest, QSearchNotInCheckGeneratesNoisyMovesOnly) {
     }
 }
 
-TEST_F(MovePickerTest, QSearchNotInCheckDoesNotReturnWeakCaptures) {
+TEST_F(PickerTest, QSearchNotInCheckDoesNotReturnWeakCaptures) {
     TestBoard weak_capture_board{std::string(WEAK_CAPTURE_FEN)};
 
     const auto moves = picked_qsearch(weak_capture_board, ordering);
@@ -296,7 +296,7 @@ TEST_F(MovePickerTest, QSearchNotInCheckDoesNotReturnWeakCaptures) {
     EXPECT_EQ(std::find(moves.begin(), moves.end(), Move(D1, D7)), moves.end());
 }
 
-TEST_F(MovePickerTest, QSearchReturnsHashCaptureFirstOutsideCheck) {
+TEST_F(PickerTest, QSearchReturnsHashCaptureFirstOutsideCheck) {
     Move tt_capture = Move(B4, F4);
     ASSERT_FALSE(board.is_check());
     ASSERT_TRUE(board.is_capture(tt_capture));
@@ -306,7 +306,7 @@ TEST_F(MovePickerTest, QSearchReturnsHashCaptureFirstOutsideCheck) {
     expect_hash_move_first_once(moves, tt_capture);
 }
 
-TEST_F(MovePickerTest, QSearchReturnsHashPromotionFirstOutsideCheck) {
+TEST_F(PickerTest, QSearchReturnsHashPromotionFirstOutsideCheck) {
     TestBoard promotion_board{std::string(PROMOTION_FEN)};
     Move      tt_promotion = Move(A7, A8, MOVE_PROM, QUEEN);
     ASSERT_FALSE(promotion_board.is_check());
@@ -317,7 +317,7 @@ TEST_F(MovePickerTest, QSearchReturnsHashPromotionFirstOutsideCheck) {
     expect_hash_move_first_once(moves, tt_promotion);
 }
 
-TEST_F(MovePickerTest, QSearchIgnoresQuietHashMoveWhenNotInCheck) {
+TEST_F(PickerTest, QSearchIgnoresQuietHashMoveWhenNotInCheck) {
     Move quiet_tt_move = Move(E2, E3);
     ASSERT_FALSE(board.is_check());
     ASSERT_TRUE(board.is_pseudo_legal(quiet_tt_move));
@@ -330,7 +330,7 @@ TEST_F(MovePickerTest, QSearchIgnoresQuietHashMoveWhenNotInCheck) {
     EXPECT_EQ(std::find(moves.begin(), moves.end(), quiet_tt_move), moves.end());
 }
 
-TEST_F(MovePickerTest, QSearchInCheckGeneratesEvasionsIncludingQuietEvasions) {
+TEST_F(PickerTest, QSearchInCheckGeneratesEvasionsIncludingQuietEvasions) {
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     ASSERT_TRUE(evasion_board.is_check());
 
@@ -340,7 +340,7 @@ TEST_F(MovePickerTest, QSearchInCheckGeneratesEvasionsIncludingQuietEvasions) {
     EXPECT_NE(std::find(moves.begin(), moves.end(), Move(A8, B8)), moves.end());
 }
 
-TEST_F(MovePickerTest, QSearchReturnsQuietHashEvasionFirstWhileInCheck) {
+TEST_F(PickerTest, QSearchReturnsQuietHashEvasionFirstWhileInCheck) {
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     Move      quiet_evasion = Move(A8, B8);
     ASSERT_TRUE(evasion_board.is_check());
@@ -351,7 +351,7 @@ TEST_F(MovePickerTest, QSearchReturnsQuietHashEvasionFirstWhileInCheck) {
     expect_hash_move_first_once(moves, quiet_evasion);
 }
 
-TEST_F(MovePickerTest, QSearchAndEvasionsIgnoreContinuationHistory) {
+TEST_F(PickerTest, QSearchAndEvasionsIgnoreContinuationHistory) {
     TestBoard evasion_board{std::string(CHECK_BY_PREVIOUS_MOVE_FEN)};
     Move      checking_move = Move(A1, A2);
     Move      quiet_evasion = Move(A8, B8);
@@ -370,7 +370,7 @@ TEST_F(MovePickerTest, QSearchAndEvasionsIgnoreContinuationHistory) {
     EXPECT_EQ(picked_qsearch(evasion_board, ordering), q_baseline);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsSameMoveSetForEqualPriorityMoves) {
+TEST_F(PickerTest, MainSearchKeepsSameMoveSetForEqualPriorityMoves) {
     TestBoard quiet_board{STARTFEN};
 
     MoveList   generated    = movegen::generate_pseudo_legal(quiet_board);
@@ -379,7 +379,7 @@ TEST_F(MovePickerTest, MainSearchKeepsSameMoveSetForEqualPriorityMoves) {
     EXPECT_EQ(sorted_move_bits(picked_order), sorted_move_bits(generated));
 }
 
-TEST_F(MovePickerTest, MainSearchIsDeterministicForEqualPriorityMoves) {
+TEST_F(PickerTest, MainSearchIsDeterministicForEqualPriorityMoves) {
     TestBoard quiet_board{STARTFEN};
 
     const auto first_order  = picked_main_search(quiet_board, ordering, ply);
@@ -389,7 +389,7 @@ TEST_F(MovePickerTest, MainSearchIsDeterministicForEqualPriorityMoves) {
     EXPECT_EQ(second_order, first_order);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsHashMoveFirst) {
+TEST_F(PickerTest, MainSearchKeepsHashMoveFirst) {
     TestBoard quiet_board{STARTFEN};
     Move      tt_move = Move(E2, E4);
 
@@ -399,7 +399,7 @@ TEST_F(MovePickerTest, MainSearchKeepsHashMoveFirst) {
     EXPECT_EQ(moves[0], tt_move);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsHashCaptureKillerAndHistoryOrder) {
+TEST_F(PickerTest, MainSearchKeepsHashCaptureKillerAndHistoryOrder) {
     Move tt_move     = Move(E2, E3);
     Move killer_move = Move(A5, A4);
     Move hist_move   = Move(A5, A6);
@@ -416,7 +416,7 @@ TEST_F(MovePickerTest, MainSearchKeepsHashCaptureKillerAndHistoryOrder) {
     EXPECT_EQ(moves[3], hist_move);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsHashFirstAndDeterministicEqualPriorityOrder) {
+TEST_F(PickerTest, MainSearchKeepsHashFirstAndDeterministicEqualPriorityOrder) {
     TestBoard quiet_board{STARTFEN};
     Move      tt_move = Move(E2, E4);
 
@@ -429,7 +429,7 @@ TEST_F(MovePickerTest, MainSearchKeepsHashFirstAndDeterministicEqualPriorityOrde
     EXPECT_EQ(second_order, first_order);
 }
 
-TEST_F(MovePickerTest, MainSearchPicksSamePseudoLegalMoveSet) {
+TEST_F(PickerTest, MainSearchPicksSamePseudoLegalMoveSet) {
     for (std::string_view fen : {std::string_view{STARTFEN},
                                  std::string_view{POS2},
                                  std::string_view{POS3},
@@ -451,7 +451,7 @@ TEST_F(MovePickerTest, MainSearchPicksSamePseudoLegalMoveSet) {
     }
 }
 
-TEST_F(MovePickerTest, MainSearchInCheckGeneratesEvasionsThroughMainSearchMode) {
+TEST_F(PickerTest, MainSearchInCheckGeneratesEvasionsThroughMainSearchMode) {
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     ASSERT_TRUE(evasion_board.is_check());
 
@@ -461,7 +461,7 @@ TEST_F(MovePickerTest, MainSearchInCheckGeneratesEvasionsThroughMainSearchMode) 
     EXPECT_NE(std::find(moves.begin(), moves.end(), Move(A8, B8)), moves.end());
 }
 
-TEST_F(MovePickerTest, MainSearchInCheckDoesNotReturnNonEvasionHintsAsHints) {
+TEST_F(PickerTest, MainSearchInCheckDoesNotReturnNonEvasionHintsAsHints) {
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     Move      non_evasion_king_move = Move(A8, A7);
     ASSERT_TRUE(evasion_board.is_check());
@@ -474,7 +474,7 @@ TEST_F(MovePickerTest, MainSearchInCheckDoesNotReturnNonEvasionHintsAsHints) {
     EXPECT_EQ(hinted, baseline);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsHashFirstWithoutDuplicates) {
+TEST_F(PickerTest, MainSearchKeepsHashFirstWithoutDuplicates) {
     Move tt_move = Move(E2, E3);
 
     const auto moves = picked_root_order(board, ordering, ply, tt_move);
@@ -484,7 +484,7 @@ TEST_F(MovePickerTest, MainSearchKeepsHashFirstWithoutDuplicates) {
     EXPECT_EQ(std::count(moves.begin(), moves.end(), tt_move), 1);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsCaptureKillerAndHistoryPriorityBands) {
+TEST_F(PickerTest, MainSearchKeepsCaptureKillerAndHistoryPriorityBands) {
     Move killer_move = Move(A5, A4);
     Move hist_move   = Move(A5, A6);
 
@@ -499,7 +499,7 @@ TEST_F(MovePickerTest, MainSearchKeepsCaptureKillerAndHistoryPriorityBands) {
     EXPECT_EQ(moves[2], hist_move);
 }
 
-TEST_F(MovePickerTest, MainSearchSuppressesKillerDuplicates) {
+TEST_F(PickerTest, MainSearchSuppressesKillerDuplicates) {
     TestBoard quiet_board{STARTFEN};
     Move      killer_1 = Move(E2, E4);
     Move      killer_2 = Move(D2, D4);
@@ -516,7 +516,7 @@ TEST_F(MovePickerTest, MainSearchSuppressesKillerDuplicates) {
     EXPECT_EQ(std::count(moves.begin(), moves.end(), killer_2), 1);
 }
 
-TEST_F(MovePickerTest, MainSearchOrdersCounterAfterKillersBeforeHistoryQuiets) {
+TEST_F(PickerTest, MainSearchOrdersCounterAfterKillersBeforeHistoryQuiets) {
     TestBoard quiet_board{E2E4};
     quiet_board.make(Move(G8, F6));
     Move killer_1 = Move(D2, D4);
@@ -545,7 +545,7 @@ TEST_F(MovePickerTest, MainSearchOrdersCounterAfterKillersBeforeHistoryQuiets) {
     EXPECT_EQ(std::count(moves.begin(), moves.end(), counter), 1);
 }
 
-TEST_F(MovePickerTest, MainSearchSuppressesCounterDuplicates) {
+TEST_F(PickerTest, MainSearchSuppressesCounterDuplicates) {
     TestBoard quiet_board{E2E4};
     quiet_board.make(Move(G8, F6));
     Move counter = Move(G1, F3);
@@ -567,7 +567,7 @@ TEST_F(MovePickerTest, MainSearchSuppressesCounterDuplicates) {
     EXPECT_EQ(std::count(moves.begin(), moves.end(), counter), 1);
 }
 
-TEST_F(MovePickerTest, MainSearchIgnoresInvalidCounterHints) {
+TEST_F(PickerTest, MainSearchIgnoresInvalidCounterHints) {
     TestBoard quiet_board{E2E4};
     quiet_board.make(Move(G8, F6));
     Move stale_counter = Move(A1, A3);
@@ -595,7 +595,7 @@ TEST_F(MovePickerTest, MainSearchIgnoresInvalidCounterHints) {
     EXPECT_EQ(std::count(moves.begin(), moves.end(), promotion), 1);
 }
 
-TEST_F(MovePickerTest, MainSearchInCheckDoesNotReturnCounterHint) {
+TEST_F(PickerTest, MainSearchInCheckDoesNotReturnCounterHint) {
     TestBoard evasion_board{"k7/8/2K5/8/8/8/1R6/8 w - - 0 1"};
     evasion_board.make(Move(B2, A2));
     ASSERT_TRUE(evasion_board.is_check());
@@ -608,7 +608,7 @@ TEST_F(MovePickerTest, MainSearchInCheckDoesNotReturnCounterHint) {
     EXPECT_EQ(hinted, baseline);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsWeakTacticalsAfterQuiets) {
+TEST_F(PickerTest, MainSearchKeepsWeakTacticalsAfterQuiets) {
     TestBoard board{std::string(WEAK_CAPTURE_FEN)};
 
     const auto moves    = picked_root_order(board, ordering, ply);
@@ -622,7 +622,7 @@ TEST_F(MovePickerTest, MainSearchKeepsWeakTacticalsAfterQuiets) {
     EXPECT_LT(quiet_it, weak_it);
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsPromotionsAboveOrdinaryCaptures) {
+TEST_F(PickerTest, MainSearchKeepsPromotionsAboveOrdinaryCaptures) {
     TestBoard board{std::string(PROMOTION_AND_CAPTURE_FEN)};
     Move      promotion = Move(A7, A8, MOVE_PROM, QUEEN);
     Move      capture   = Move(D4, B5);
@@ -635,7 +635,7 @@ TEST_F(MovePickerTest, MainSearchKeepsPromotionsAboveOrdinaryCaptures) {
     EXPECT_LT(promotion_it, capture_it);
 }
 
-TEST_F(MovePickerTest, MainSearchCoversSpecialMoveStages) {
+TEST_F(PickerTest, MainSearchCoversSpecialMoveStages) {
     TestBoard promotion_board{std::string(PROMOTION_FEN)};
     TestBoard capture_promotion_board{std::string(CAPTURE_PROMOTION_FEN)};
     TestBoard castle_board{std::string(CASTLE_FEN)};
@@ -657,7 +657,7 @@ TEST_F(MovePickerTest, MainSearchCoversSpecialMoveStages) {
     EXPECT_NE(std::find(eps.begin(), eps.end(), Move(B4, A3, MOVE_EP)), eps.end());
 }
 
-TEST_F(MovePickerTest, MainSearchKeepsDeterministicEqualPriorityQuietOrder) {
+TEST_F(PickerTest, MainSearchKeepsDeterministicEqualPriorityQuietOrder) {
     TestBoard quiet_board{STARTFEN};
 
     const auto first_order  = picked_root_order(quiet_board, ordering, ply);
@@ -667,7 +667,7 @@ TEST_F(MovePickerTest, MainSearchKeepsDeterministicEqualPriorityQuietOrder) {
     EXPECT_EQ(second_order, first_order);
 }
 
-TEST_F(MovePickerTest, SkipQuietMovesSkipsKillersAndQuietsButKeepsBadNoisyMoves) {
+TEST_F(PickerTest, SkipQuietMovesSkipsKillersAndQuietsButKeepsBadNoisyMoves) {
     TestBoard weak_capture_board{std::string(WEAK_CAPTURE_FEN)};
     Move      killer_move = Move(D1, D2);
     ASSERT_TRUE(weak_capture_board.is_pseudo_legal(killer_move));
@@ -675,8 +675,7 @@ TEST_F(MovePickerTest, SkipQuietMovesSkipsKillersAndQuietsButKeepsBadNoisyMoves)
     killers.update(killer_move, ply);
 
     const auto context = MoveOrdering::make_context(weak_capture_board);
-    MovePicker picker =
-        MovePicker::main_search(weak_capture_board, ordering, context, ply, NULL_MOVE);
+    auto picker = move_picker::main_search(weak_capture_board, ordering, context, ply, NULL_MOVE);
     picker.skip_quiet_moves();
     const auto moves = collect_moves(picker);
 
@@ -687,7 +686,7 @@ TEST_F(MovePickerTest, SkipQuietMovesSkipsKillersAndQuietsButKeepsBadNoisyMoves)
     }
 }
 
-TEST_F(MovePickerTest, SkipQuietMovesSkipsCounterButKeepsBadNoisyMoves) {
+TEST_F(PickerTest, SkipQuietMovesSkipsCounterButKeepsBadNoisyMoves) {
     TestBoard weak_capture_board{"2b3k1/3p4/8/8/8/8/8/3Q2K1 b - - 0 1"};
     weak_capture_board.make(Move(G8, F8));
     Move counter = Move(D1, D2);
@@ -696,8 +695,7 @@ TEST_F(MovePickerTest, SkipQuietMovesSkipsCounterButKeepsBadNoisyMoves) {
 
     seed_counter_hint(weak_capture_board, ordering, counter);
     const auto context = MoveOrdering::make_context(weak_capture_board);
-    MovePicker picker =
-        MovePicker::main_search(weak_capture_board, ordering, context, ply, NULL_MOVE);
+    auto picker = move_picker::main_search(weak_capture_board, ordering, context, ply, NULL_MOVE);
     picker.skip_quiet_moves();
     const auto moves = collect_moves(picker);
 
@@ -708,20 +706,20 @@ TEST_F(MovePickerTest, SkipQuietMovesSkipsCounterButKeepsBadNoisyMoves) {
     }
 }
 
-TEST_F(MovePickerTest, SkipQuietMovesIsNoOpForQSearch) {
+TEST_F(PickerTest, SkipQuietMovesIsNoOpForQSearch) {
     const auto context = MoveOrdering::make_context(board, false);
-    MovePicker picker  = MovePicker::qsearch(board, ordering, context, NULL_MOVE);
+    auto       picker  = move_picker::qsearch(board, ordering, context, NULL_MOVE);
     picker.skip_quiet_moves();
 
     EXPECT_EQ(collect_moves(picker), picked_qsearch(board, ordering));
 }
 
-TEST_F(MovePickerTest, SkipQuietMovesIsNoOpForInCheckMainSearch) {
+TEST_F(PickerTest, SkipQuietMovesIsNoOpForInCheckMainSearch) {
     TestBoard evasion_board{std::string(QUIET_EVASION_FEN)};
     ASSERT_TRUE(evasion_board.is_check());
 
     const auto context = MoveOrdering::make_context(evasion_board);
-    MovePicker picker  = MovePicker::main_search(evasion_board, ordering, context, ply, NULL_MOVE);
+    auto       picker  = move_picker::main_search(evasion_board, ordering, context, ply, NULL_MOVE);
     picker.skip_quiet_moves();
 
     EXPECT_EQ(sorted_move_bits(collect_moves(picker)),
