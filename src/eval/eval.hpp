@@ -5,8 +5,8 @@
 
 #include "core/constants.hpp"
 #include "core/piece.hpp"
-#include "core/score.hpp"
 #include "core/square.hpp"
+#include "eval/tapered_score.hpp"
 #include "eval/types.hpp"
 
 namespace eval {
@@ -17,11 +17,11 @@ constexpr int phase_limit = 128;
 constexpr int material_mg = 10000;
 constexpr int material_eg = 2500;
 
-constexpr Score pawn   = {piece_value::pawn_mg, piece_value::pawn_eg};
-constexpr Score knight = {piece_value::knight_mg, piece_value::knight_eg};
-constexpr Score bishop = {piece_value::bishop_mg, piece_value::bishop_eg};
-constexpr Score rook   = {piece_value::rook_mg, piece_value::rook_eg};
-constexpr Score queen  = {piece_value::queen_mg, piece_value::queen_eg};
+constexpr TaperedScore pawn   = {piece_value::pawn_mg, piece_value::pawn_eg};
+constexpr TaperedScore knight = {piece_value::knight_mg, piece_value::knight_eg};
+constexpr TaperedScore bishop = {piece_value::bishop_mg, piece_value::bishop_eg};
+constexpr TaperedScore rook   = {piece_value::rook_mg, piece_value::rook_eg};
+constexpr TaperedScore queen  = {piece_value::queen_mg, piece_value::queen_eg};
 
 namespace masks {
 
@@ -34,17 +34,17 @@ constexpr uint64_t b_outposts     = 0x000000FFFFFF0000ull;
 
 }; // namespace masks
 
-constexpr Score pieces[N_PIECES][N_COLORS] = {
-    {Score::Zero, Score::Zero},
+constexpr TaperedScore pieces[N_PIECETYPES][N_COLORS] = {
+    {TaperedScore::Zero, TaperedScore::Zero},
     {-pawn, pawn},
     {-knight, knight},
     {-bishop, bishop},
     {-rook, rook},
     {-queen, queen},
-    {Score::Zero, Score::Zero},
+    {TaperedScore::Zero, TaperedScore::Zero},
 };
 
-constexpr int piece_squares[6][2][64] = {
+constexpr int piece_squares[piece_slots][2][64] = {
     // clang-format off
     {
         // Pawn midgame bonuses
@@ -188,63 +188,63 @@ constexpr int piece_squares[6][2][64] = {
     // clang-format on
 };
 
-constexpr Score piece(PieceType pt, Color c = WHITE) {
+constexpr TaperedScore piece(PieceType pt, Color c = WHITE) {
     assert(pt <= KING);
     return pieces[pt][c];
 }
 
-constexpr Score piece_sq(PieceType pt, Color c, Square sq) {
-    assert(pt >= PAWN && pt <= KING);
-    Square relative = square::relative(sq, c);
-    Score  score    = {.mg = piece_squares[pt - 1][MIDGAME][relative],
-                       .eg = piece_squares[pt - 1][ENDGAME][relative]};
+constexpr TaperedScore piece_sq(PieceType pt, Color c, Square sq) {
+    assert(is_piece_type(pt));
+    Square       relative = square::relative(sq, c);
+    TaperedScore score    = {.mg = piece_squares[piece_slot(pt)][MIDGAME][relative],
+                             .eg = piece_squares[piece_slot(pt)][ENDGAME][relative]};
 
     return (score * c * 2) - score;
 }
 
-constexpr Score iso_pawn           = {-5, -15};
-constexpr Score backward_pawn      = {-10, -25};
-constexpr Score doubled_pawn       = {-10, -50};
-constexpr Score reachable_outpost  = {30, 20};
-constexpr Score bishop_outpost     = {30, 20};
-constexpr Score knight_outpost     = {50, 30};
-constexpr Score minor_pawn_shield  = {20, 5};
-constexpr Score bishop_long_diag   = {40, 0};
-constexpr Score bishop_pair        = {50, 80};
-constexpr Score bishop_blockers    = {-2, -6};
-constexpr Score rook_closed_file   = {-10, -5};
-constexpr Score kingzone_xray_att  = {20, 0};
-constexpr Score queen_discover_att = {-50, -25};
+constexpr TaperedScore iso_pawn           = {-5, -15};
+constexpr TaperedScore backward_pawn      = {-10, -25};
+constexpr TaperedScore doubled_pawn       = {-10, -50};
+constexpr TaperedScore reachable_outpost  = {30, 20};
+constexpr TaperedScore bishop_outpost     = {30, 20};
+constexpr TaperedScore knight_outpost     = {50, 30};
+constexpr TaperedScore minor_pawn_shield  = {20, 5};
+constexpr TaperedScore bishop_long_diag   = {40, 0};
+constexpr TaperedScore bishop_pair        = {50, 80};
+constexpr TaperedScore bishop_blockers    = {-2, -6};
+constexpr TaperedScore rook_closed_file   = {-10, -5};
+constexpr TaperedScore kingzone_xray_att  = {20, 0};
+constexpr TaperedScore queen_discover_att = {-50, -25};
 
 // bonus for rook on open files: [0 = semi-open, 1 = fully open]
-constexpr Score rook_open_file[] = {{20, 10}, {40, 20}};
+constexpr TaperedScore rook_open_file[] = {{20, 10}, {40, 20}};
 
 // shelter bonus for friendly pawn rank [index = pawn rank, 0 = no pawn]
-constexpr Score pawn_shelter[] = {
+constexpr TaperedScore pawn_shelter[] = {
     {-30, 0}, {60, 0}, {35, 0}, {-20, 0}, {-5, 0}, {-20, 0}, {-80, 0}};
 
 // Pawn storm penalty by pawn rank:
 // [0 = unblocked, 1 = blocked][index = pawn rank, 0 = no pawn)]
-constexpr Score pawn_storm[][7] = {
+constexpr TaperedScore pawn_storm[][7] = {
     {{0, 0}, {-20, 0}, {-120, 0}, {-60, 0}, {-45, 0}, {-20, 0}, {-10, 0}},
     {{0, 0}, {0, 0}, {-60, -60}, {0, -20}, {5, -15}, {10, -10}, {15, -5}}};
 
 // score for king on open/closed files: [friendly file][enemy file] (0 = closed, 1 = open)
-constexpr Score king_open_file[][2] = {
+constexpr TaperedScore king_open_file[][2] = {
     {{20, -10}, {10, 5}},
     {{0, 0}, {-10, 5}},
 };
 
-// Score for king based on file [index = king file]
-constexpr Score king_file[] = {
+// Bonus for king based on file [index = king file]
+constexpr TaperedScore king_file[] = {
     {20, 0}, {5, 0}, {-15, 0}, {-30, 0}, {-30, 0}, {-15, 0}, {5, 0}, {20, 0}};
 
-// Score for potentially hanging piece [index = piece type]
-constexpr Score weak_piece[] = {
-    Score::Zero, Score::Zero, {-20, -10}, {-25, -15}, {-50, -25}, {-100, -50}};
+// Penalty for potentially hanging piece [index = piece type]
+constexpr TaperedScore weak_piece[] = {
+    TaperedScore::Zero, TaperedScore::Zero, {-20, -10}, {-25, -15}, {-50, -25}, {-100, -50}};
 
 // Piece mobility scores (index = # of legal moves)
-constexpr Score knight_mob[] = {
+constexpr TaperedScore knight_mob[] = {
     {-40, -48},
     {-32, -36},
     {-8, -20},
@@ -256,7 +256,7 @@ constexpr Score knight_mob[] = {
     {24, 16},
 };
 
-constexpr Score bishop_mob[] = {
+constexpr TaperedScore bishop_mob[] = {
     {-32, -40},
     {-16, -16},
     {8, -4},
@@ -273,7 +273,7 @@ constexpr Score bishop_mob[] = {
     {64, 64},
 };
 
-constexpr Score rook_mob[] = {
+constexpr TaperedScore rook_mob[] = {
     {-40, -56},
     {-16, -8},
     {0, 12},
@@ -291,14 +291,14 @@ constexpr Score rook_mob[] = {
     {44, 120},
 };
 
-constexpr Score queen_mob[] = {
+constexpr TaperedScore queen_mob[] = {
     {-20, -32}, {-12, -20}, {-4, -4},  {-4, 12},  {12, 24},  {16, 36},  {16, 40},
     {24, 48},   {28, 48},   {36, 60},  {40, 60},  {44, 64},  {44, 80},  {48, 80},
     {48, 88},   {48, 88},   {48, 88},  {48, 92},  {52, 96},  {56, 96},  {60, 100},
     {68, 108},  {68, 112},  {68, 112}, {72, 116}, {72, 120}, {76, 124}, {80, 140},
 };
 
-constexpr const Score* mobility[] = {
+constexpr const TaperedScore* mobility[] = {
     nullptr,
     nullptr,
     knight_mob,
@@ -308,9 +308,9 @@ constexpr const Score* mobility[] = {
 };
 
 // danger values [index = piece type]
-constexpr int kingzone_att_danger[N_PIECES] = {0, 0, 30, 22, 18, 5};
-constexpr int safe_check_danger[N_PIECES]   = {0, 0, 320, 240, 360, 280};
-constexpr int unsafe_check_danger[N_PIECES] = {0, 0, 35, 30, 25, 5};
+constexpr int kingzone_att_danger[N_PIECETYPES] = {0, 0, 30, 22, 18, 5};
+constexpr int safe_check_danger[N_PIECETYPES]   = {0, 0, 320, 240, 360, 280};
+constexpr int unsafe_check_danger[N_PIECETYPES] = {0, 0, 35, 30, 25, 5};
 
 constexpr int pinned_piece_danger  = 30;
 constexpr int weak_kingzone_danger = 80;

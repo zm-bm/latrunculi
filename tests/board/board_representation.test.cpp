@@ -30,14 +30,13 @@ const std::string representation_fens[] = {
 
 uint64_t piece_bits(const Board& board, Color color, PieceType piece) {
     switch (piece) {
-    case ALL_PIECES: return board.pieces<ALL_PIECES>(color);
-    case PAWN:       return board.pieces<PAWN>(color);
-    case KNIGHT:     return board.pieces<KNIGHT>(color);
-    case BISHOP:     return board.pieces<BISHOP>(color);
-    case ROOK:       return board.pieces<ROOK>(color);
-    case QUEEN:      return board.pieces<QUEEN>(color);
-    case KING:       return board.pieces<KING>(color);
-    default:         return 0;
+    case PAWN:   return board.pieces<PAWN>(color);
+    case KNIGHT: return board.pieces<KNIGHT>(color);
+    case BISHOP: return board.pieces<BISHOP>(color);
+    case ROOK:   return board.pieces<ROOK>(color);
+    case QUEEN:  return board.pieces<QUEEN>(color);
+    case KING:   return board.pieces<KING>(color);
+    default:     return 0;
     }
 }
 
@@ -55,11 +54,11 @@ struct BoardSnapshot {
     uint64_t     blockers[N_COLORS];
     uint64_t     pinners[N_COLORS];
     Square       kings[N_COLORS];
-    Score        material;
-    Score        psq;
+    TaperedScore material;
+    TaperedScore psq;
     Piece        squares[N_SQUARES];
-    uint64_t     piece_bb[N_COLORS][N_PIECES];
-    uint8_t      counts[N_COLORS][N_PIECES];
+    uint64_t     piece_bb[N_COLORS][N_PIECETYPES];
+    uint8_t      counts[N_COLORS][N_PIECETYPES];
 };
 
 BoardSnapshot snapshot(const Board& board) {
@@ -84,7 +83,8 @@ BoardSnapshot snapshot(const Board& board) {
         snap.pinners[c]  = board.pinners(color);
         snap.kings[c]    = board.king_sq(color);
 
-        for (int p = ALL_PIECES; p < N_PIECES; ++p)
+        snap.piece_bb[c][all_pieces_slot] = board.pieces(color);
+        for (int p = PAWN; p <= KING; ++p)
             snap.piece_bb[c][p] = piece_bits(board, color, PieceType(p));
         for (int p = PAWN; p <= KING; ++p)
             snap.counts[c][p] = board.count(color, PieceType(p));
@@ -108,7 +108,9 @@ void expect_same_durable_representation(const Board& board, const BoardSnapshot&
         const auto color = Color(c);
         EXPECT_EQ(board.king_sq(color), snap.kings[c]);
 
-        for (int p = ALL_PIECES; p < N_PIECES; ++p)
+        EXPECT_EQ(board.pieces(color), snap.piece_bb[c][all_pieces_slot])
+            << "color " << c << " all pieces";
+        for (int p = PAWN; p <= KING; ++p)
             EXPECT_EQ(piece_bits(board, color, PieceType(p)), snap.piece_bb[c][p])
                 << "color " << c << " piece " << p;
         for (int p = PAWN; p <= KING; ++p)
@@ -136,11 +138,11 @@ void expect_same_board_snapshot(const Board& board, const BoardSnapshot& snap) {
 }
 
 void expect_board_consistent(const Board& board) {
-    uint64_t expected_piece_bb[N_COLORS][N_PIECES] = {};
-    uint8_t  expected_counts[N_COLORS][N_PIECES]   = {};
-    Square   expected_kings[N_COLORS]              = {INVALID, INVALID};
-    Score    expected_material                     = Score::Zero;
-    Score    expected_psq                          = Score::Zero;
+    uint64_t     expected_piece_bb[N_COLORS][N_PIECETYPES] = {};
+    uint8_t      expected_counts[N_COLORS][N_PIECETYPES]   = {};
+    Square       expected_kings[N_COLORS]                  = {INVALID, INVALID};
+    TaperedScore expected_material                         = TaperedScore::Zero;
+    TaperedScore expected_psq                              = TaperedScore::Zero;
 
     for (auto sq = A1; sq != INVALID; ++sq) {
         const Piece piece = board.piece_on(sq);
@@ -151,8 +153,8 @@ void expect_board_consistent(const Board& board) {
         const PieceType type  = type_of(piece);
         const uint64_t  sq_bb = bb::set(sq);
 
-        expected_piece_bb[color][type]       |= sq_bb;
-        expected_piece_bb[color][ALL_PIECES] |= sq_bb;
+        expected_piece_bb[color][type]            |= sq_bb;
+        expected_piece_bb[color][all_pieces_slot] |= sq_bb;
         expected_counts[color][type]++;
         expected_material += eval::piece(type, color);
         expected_psq      += eval::piece_sq(type, color, sq);
@@ -175,22 +177,21 @@ void expect_board_consistent(const Board& board) {
             EXPECT_EQ(board.count(color, piece), bb::count(piece_bits(board, color, piece)))
                 << "color " << c << " piece " << p;
         }
-        EXPECT_EQ(piece_bits(board, color, ALL_PIECES), expected_piece_bb[c][ALL_PIECES]);
+        EXPECT_EQ(board.pieces(color), expected_piece_bb[c][all_pieces_slot]);
     }
 
-    EXPECT_EQ(piece_bits(board, WHITE, ALL_PIECES) & piece_bits(board, BLACK, ALL_PIECES), 0);
-    EXPECT_EQ(board.occupancy(),
-              piece_bits(board, WHITE, ALL_PIECES) | piece_bits(board, BLACK, ALL_PIECES));
+    EXPECT_EQ(board.pieces(WHITE) & board.pieces(BLACK), 0);
+    EXPECT_EQ(board.occupancy(), board.pieces(WHITE) | board.pieces(BLACK));
     EXPECT_EQ(board.material_score(), expected_material);
     EXPECT_EQ(board.psq_bonus_score(), expected_psq);
     EXPECT_EQ(board.key(), board.calculate_key());
 }
 
 struct ExpectedCheckData {
-    uint64_t checkers             = 0;
-    uint64_t blockers[N_COLORS]   = {0};
-    uint64_t pinners[N_COLORS]    = {0};
-    uint64_t checks[N_PIECES - 1] = {0};
+    uint64_t checkers            = 0;
+    uint64_t blockers[N_COLORS]  = {0};
+    uint64_t pinners[N_COLORS]   = {0};
+    uint64_t checks[piece_slots] = {0};
 };
 
 int sign(int value) {
@@ -334,12 +335,13 @@ ExpectedCheckData expected_check_data(const Board& board) {
     const Square      them_king = board.king_sq(them);
     const uint64_t    occupancy = board.occupancy();
 
-    expected.checkers       = slow_attackers_to(board, board.king_sq(us), them);
-    expected.checks[PAWN]   = slow_pawn_attackers_to(them_king, us);
-    expected.checks[KNIGHT] = slow_knight_attacks(them_king);
-    expected.checks[BISHOP] = slow_sliding_attacks(them_king, BISHOP, occupancy);
-    expected.checks[ROOK]   = slow_sliding_attacks(them_king, ROOK, occupancy);
-    expected.checks[QUEEN]  = expected.checks[BISHOP] | expected.checks[ROOK];
+    expected.checkers                   = slow_attackers_to(board, board.king_sq(us), them);
+    expected.checks[piece_slot(PAWN)]   = slow_pawn_attackers_to(them_king, us);
+    expected.checks[piece_slot(KNIGHT)] = slow_knight_attacks(them_king);
+    expected.checks[piece_slot(BISHOP)] = slow_sliding_attacks(them_king, BISHOP, occupancy);
+    expected.checks[piece_slot(ROOK)]   = slow_sliding_attacks(them_king, ROOK, occupancy);
+    expected.checks[piece_slot(QUEEN)] =
+        expected.checks[piece_slot(BISHOP)] | expected.checks[piece_slot(ROOK)];
 
     for (int c = BLACK; c < N_COLORS; ++c) {
         const Color  king_color   = Color(c);
@@ -366,7 +368,7 @@ ExpectedCheckData expected_check_data(const Board& board) {
 
             if (pieces_between && !bb::is_many(pieces_between)) {
                 expected.blockers[king_color] |= pieces_between;
-                if (pieces_between & board.pieces<ALL_PIECES>(king_color))
+                if (pieces_between & board.pieces(king_color))
                     expected.pinners[sniper_color] |= bb::set(sniper);
             }
         }
@@ -383,8 +385,9 @@ void expect_check_data_matches_slow_oracle(const Board& board) {
         EXPECT_EQ(board.blockers(Color(c)), expected.blockers[c]) << board.toFEN();
         EXPECT_EQ(board.pinners(Color(c)), expected.pinners[c]) << board.toFEN();
     }
-    for (int p = PAWN; p <= QUEEN; ++p) {
-        EXPECT_EQ(board.position_state().checks[p], expected.checks[p])
+    for (int p = PAWN; p <= KING; ++p) {
+        EXPECT_EQ(board.position_state().checks[piece_slot(PieceType(p))],
+                  expected.checks[piece_slot(PieceType(p))])
             << board.toFEN() << " piece " << PieceType(p);
     }
 }
@@ -441,8 +444,8 @@ TEST(BoardRepresentationTest, EMPTYFEN) {
     EXPECT_EQ(b.piecetype_on(E1), KING);
     EXPECT_EQ(b.piecetype_on(E2), NO_PIECETYPE);
 
-    EXPECT_EQ(b.material_score(), Score::Zero);
-    EXPECT_EQ(b.psq_bonus_score(), Score::Zero);
+    EXPECT_EQ(b.material_score(), TaperedScore::Zero);
+    EXPECT_EQ(b.psq_bonus_score(), TaperedScore::Zero);
 
     EXPECT_EQ(b.castle_rights(), NO_CASTLE);
     EXPECT_FALSE(b.can_castle(WHITE));
@@ -507,8 +510,8 @@ TEST(BoardRepresentationTest, STARTFEN) {
     EXPECT_EQ(b.piecetype_on(A2), PAWN);
     EXPECT_EQ(b.piecetype_on(A3), NO_PIECETYPE);
 
-    EXPECT_EQ(b.material_score(), Score::Zero);
-    EXPECT_EQ(b.psq_bonus_score(), Score::Zero);
+    EXPECT_EQ(b.material_score(), TaperedScore::Zero);
+    EXPECT_EQ(b.psq_bonus_score(), TaperedScore::Zero);
 
     EXPECT_EQ(b.castle_rights(), ALL_CASTLE);
     EXPECT_TRUE(b.can_castle(WHITE));

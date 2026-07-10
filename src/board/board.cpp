@@ -6,17 +6,6 @@
 #include <algorithm>
 #include <cassert>
 
-namespace {
-bool valid_promotion_piece(PieceType piece) {
-    return piece >= KNIGHT && piece <= QUEEN;
-}
-
-constexpr int direct_check_idx(PieceType piece) {
-    return int(piece) * int(piece != KING);
-}
-
-} // namespace
-
 bool Board::is_pseudo_legal(Move mv) const {
     if (mv.is_null())
         return false;
@@ -63,7 +52,7 @@ bool Board::is_pseudo_legal(Move mv) const {
         if (piecetype == KING)
             return attacks::piece_moves<KING>(from) & to_bb;
 
-        return piecetype != NO_PIECETYPE && piecetype != ALL_PIECES && piecetype != KING &&
+        return is_piece_type(piecetype) && piecetype != KING &&
                (attacks::piece_moves(from, piecetype, occupied) & to_bb);
     }
 
@@ -186,7 +175,7 @@ bool Board::is_checking_move(Move mv) const {
 
     // check if piece directly attacks the king or was a blocker
     const PieceType piecetype = type_of(piece_on(from));
-    if (state.checks[direct_check_idx(piecetype)] & bb::set(to))
+    if (state.checking_squares(piecetype) & bb::set(to))
         return true;
     if ((state.blockers[opp] & bb::set(from)) && !(square::collinear(from, to) & bb::set(opp_king)))
         return true;

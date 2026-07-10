@@ -12,23 +12,23 @@
 #include "core/move.hpp"
 #include "core/notation.hpp"
 #include "core/piece.hpp"
-#include "core/score.hpp"
 #include "core/square.hpp"
 #include "eval/eval.hpp"
+#include "eval/tapered_score.hpp"
 
 class Board {
 private:
-    uint64_t piece_bb[N_COLORS][N_PIECES]     = {0};
-    uint8_t  piece_counts[N_COLORS][N_PIECES] = {0};
-    Piece    squares[N_SQUARES]               = {NO_PIECE};
-    Square   king_square[N_COLORS]            = {E1, E8};
-    Color    turn                             = WHITE;
+    uint64_t piece_bb[N_COLORS][N_PIECETYPES]     = {0};
+    uint8_t  piece_counts[N_COLORS][N_PIECETYPES] = {0};
+    Piece    squares[N_SQUARES]                   = {NO_PIECE};
+    Square   king_square[N_COLORS]                = {E1, E8};
+    Color    turn                                 = WHITE;
 
     uint32_t game_ply     = 0;
     uint32_t fullmove_clk = 0;
 
-    Score material  = {0, 0};
-    Score psq_bonus = {0, 0};
+    TaperedScore material  = {0, 0};
+    TaperedScore psq_bonus = {0, 0};
 
     PositionState*     active_position_state = nullptr;
     PositionKeyHistory position_key_history;
@@ -49,21 +49,23 @@ public:
 
     // accessors
 
+    uint64_t pieces() const;
+    uint64_t pieces(Color c) const;
     template <PieceType... Ps>
     uint64_t pieces() const;
     template <PieceType... Ps>
     uint64_t pieces(Color c) const;
 
-    uint64_t  occupancy() const { return pieces<ALL_PIECES>(); }
-    uint8_t   count(Color c, PieceType p) const { return piece_counts[c][p]; }
-    Piece     piece_on(Square sq) const { return squares[sq]; }
-    Piece     piece_on(File f, Rank r) const { return squares[square::make(f, r)]; };
-    PieceType piecetype_on(Square sq) const { return type_of(squares[sq]); }
-    Square    king_sq(Color c) const { return king_square[c]; }
-    Color     side_to_move() const { return turn; }
-    Score     material_score() const { return material; }
-    Score     psq_bonus_score() const { return psq_bonus; }
-    uint32_t  fullmove() const { return (fullmove_clk / 2) + 1; }
+    uint64_t     occupancy() const { return pieces(); }
+    uint8_t      count(Color c, PieceType p) const { return piece_counts[c][p]; }
+    Piece        piece_on(Square sq) const { return squares[sq]; }
+    Piece        piece_on(File f, Rank r) const { return squares[square::make(f, r)]; };
+    PieceType    piecetype_on(Square sq) const { return type_of(squares[sq]); }
+    Square       king_sq(Color c) const { return king_square[c]; }
+    Color        side_to_move() const { return turn; }
+    TaperedScore material_score() const { return material; }
+    TaperedScore psq_bonus_score() const { return psq_bonus; }
+    uint32_t     fullmove() const { return (fullmove_clk / 2) + 1; }
 
     CastleRights castle_rights() const { return position_state().castle; }
     uint64_t     checkers() const { return position_state().checkers; }
@@ -159,13 +161,23 @@ inline Board::Board(PositionState& root_state, const std::string& fen) {
     load_fen(fen);
 }
 
+inline uint64_t Board::pieces() const {
+    return pieces(WHITE) | pieces(BLACK);
+}
+
+inline uint64_t Board::pieces(Color c) const {
+    return piece_bb[c][all_pieces_slot];
+}
+
 template <PieceType... Ps>
 inline uint64_t Board::pieces() const {
+    static_assert((is_piece_type(Ps) && ...));
     return ((piece_bb[WHITE][Ps] | piece_bb[BLACK][Ps]) | ...);
 }
 
 template <PieceType... Ps>
 inline uint64_t Board::pieces(Color c) const {
+    static_assert((is_piece_type(Ps) && ...));
     return (piece_bb[c][Ps] | ...);
 };
 
@@ -247,11 +259,11 @@ inline uint64_t Board::attacks_to(uint64_t bitboard, Color c) const {
 template <bool apply_hash>
 inline void Board::add_piece(Square sq, Color c, PieceType pt) {
     piece_counts[c][pt]++;
-    piece_bb[c][pt]         ^= bb::set(sq);
-    piece_bb[c][ALL_PIECES] ^= bb::set(sq);
-    squares[sq]              = make_piece(c, pt);
-    material                += eval::piece(pt, c);
-    psq_bonus               += eval::piece_sq(pt, c, sq);
+    piece_bb[c][pt]              ^= bb::set(sq);
+    piece_bb[c][all_pieces_slot] ^= bb::set(sq);
+    squares[sq]                   = make_piece(c, pt);
+    material                     += eval::piece(pt, c);
+    psq_bonus                    += eval::piece_sq(pt, c, sq);
     if constexpr (apply_hash)
         active_state().zkey ^= zob::hash_piece(c, pt, sq);
 }
@@ -259,23 +271,23 @@ inline void Board::add_piece(Square sq, Color c, PieceType pt) {
 template <bool apply_hash>
 inline void Board::remove_piece(Square sq, Color c, PieceType pt) {
     piece_counts[c][pt]--;
-    piece_bb[c][pt]         ^= bb::set(sq);
-    piece_bb[c][ALL_PIECES] ^= bb::set(sq);
-    squares[sq]              = NO_PIECE;
-    material                -= eval::piece(pt, c);
-    psq_bonus               -= eval::piece_sq(pt, c, sq);
+    piece_bb[c][pt]              ^= bb::set(sq);
+    piece_bb[c][all_pieces_slot] ^= bb::set(sq);
+    squares[sq]                   = NO_PIECE;
+    material                     -= eval::piece(pt, c);
+    psq_bonus                    -= eval::piece_sq(pt, c, sq);
     if constexpr (apply_hash)
         active_state().zkey ^= zob::hash_piece(c, pt, sq);
 }
 
 template <bool apply_hash>
 inline void Board::move_piece(Square from, Square to, Color c, PieceType pt) {
-    uint64_t mask            = bb::set(from) | bb::set(to);
-    piece_bb[c][pt]         ^= mask;
-    piece_bb[c][ALL_PIECES] ^= mask;
-    squares[from]            = NO_PIECE;
-    squares[to]              = make_piece(c, pt);
-    psq_bonus               += eval::piece_sq(pt, c, to) - eval::piece_sq(pt, c, from);
+    uint64_t mask                 = bb::set(from) | bb::set(to);
+    piece_bb[c][pt]              ^= mask;
+    piece_bb[c][all_pieces_slot] ^= mask;
+    squares[from]                 = NO_PIECE;
+    squares[to]                   = make_piece(c, pt);
+    psq_bonus                    += eval::piece_sq(pt, c, to) - eval::piece_sq(pt, c, from);
     if constexpr (apply_hash)
         active_state().zkey ^= zob::hash_piece(c, pt, from) ^ zob::hash_piece(c, pt, to);
 }
@@ -286,12 +298,14 @@ inline void Board::update_check_data() {
     uint64_t occ      = occupancy();
     auto&    state    = this->active_state();
 
-    state.checkers       = attacks_to(king_sq(turn), opp);
-    state.checks[PAWN]   = attacks::pawn_attacks(bb::set(opp_king), opp);
-    state.checks[KNIGHT] = attacks::piece_moves<KNIGHT>(opp_king, occ);
-    state.checks[BISHOP] = attacks::piece_moves<BISHOP>(opp_king, occ);
-    state.checks[ROOK]   = attacks::piece_moves<ROOK>(opp_king, occ);
-    state.checks[QUEEN]  = state.checks[BISHOP] | state.checks[ROOK];
+    state.checkers = attacks_to(king_sq(turn), opp);
+    state.set_checking_squares(PAWN, attacks::pawn_attacks(bb::set(opp_king), opp));
+    state.set_checking_squares(KNIGHT, attacks::piece_moves<KNIGHT>(opp_king, occ));
+    state.set_checking_squares(BISHOP, attacks::piece_moves<BISHOP>(opp_king, occ));
+    state.set_checking_squares(ROOK, attacks::piece_moves<ROOK>(opp_king, occ));
+    state.set_checking_squares(QUEEN,
+                               state.checking_squares(BISHOP) | state.checking_squares(ROOK));
+    state.set_checking_squares(KING, 0);
     update_pinners_and_blockers(WHITE);
     update_pinners_and_blockers(BLACK);
 }
@@ -314,7 +328,7 @@ inline void Board::update_pinners_and_blockers(Color c) {
 
         if (pieces_between && !bb::is_many(pieces_between)) {
             state.blockers[c] |= pieces_between;
-            if (pieces_between & pieces<ALL_PIECES>(c))
+            if (pieces_between & pieces(c))
                 state.pinners[opp] |= bb::set(pinner);
         }
     }

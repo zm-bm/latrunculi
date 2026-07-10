@@ -26,8 +26,8 @@ public:
           moves(moves),
           king_sq(board.king_sq(Us)),
           occupancy(board.occupancy()),
-          own_pieces(board.template pieces<ALL_PIECES>(Us)),
-          enemy_pieces(board.template pieces<ALL_PIECES>(~Us)),
+          own_pieces(board.pieces(Us)),
+          enemy_pieces(board.pieces(~Us)),
           empty_squares(~occupancy) {}
 
     void run() {

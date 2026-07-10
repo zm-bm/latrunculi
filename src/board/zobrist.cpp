@@ -4,7 +4,7 @@
 
 namespace zob {
 
-uint64_t piece[N_COLORS][N_PIECES][N_SQUARES];
+uint64_t piece[N_COLORS][N_PIECETYPES][N_SQUARES];
 uint64_t turn;
 uint64_t ep[8];
 uint64_t castle[2][N_COLORS];
@@ -13,7 +13,7 @@ void init() {
     std::mt19937_64 r;
 
     for (int i = 0; i < N_COLORS; i++)
-        for (int j = 0; j < N_PIECES; j++)
+        for (int j = 0; j < N_PIECETYPES; j++)
             for (int k = 0; k < N_SQUARES; k++)
                 piece[i][j][k] = r();
 

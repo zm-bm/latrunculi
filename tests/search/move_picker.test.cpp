@@ -148,7 +148,7 @@ TEST_F(PickerTest, MainSearchKeepsHistoryBelowKillerPriority) {
     ASSERT_NE(hist_it, moves.end());
     EXPECT_LT(killer_it, hist_it);
     EXPECT_LE(quiet_history.get(board.side_to_move(), hist_move.from(), hist_move.to()),
-              QuietHistory::MAX_SCORE);
+              QuietHistory::max_score);
 }
 
 TEST_F(PickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKiller) {
@@ -175,7 +175,7 @@ TEST_F(PickerTest, MainSearchOrdersSaturatedHistoryAboveLightHistoryBelowKiller)
     EXPECT_LT(killer_it, saturated_it);
     EXPECT_LT(saturated_it, light_it);
     EXPECT_LE(quiet_history.get(board.side_to_move(), saturated_move.from(), saturated_move.to()),
-              QuietHistory::MAX_SCORE);
+              QuietHistory::max_score);
     EXPECT_GT(quiet_history.get(board.side_to_move(), saturated_move.from(), saturated_move.to()),
               quiet_history.get(board.side_to_move(), light_move.from(), light_move.to()));
 }

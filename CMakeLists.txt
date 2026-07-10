@@ -67,15 +67,16 @@ if(BUILD_TESTING)
         tests/core/move.test.cpp
         tests/core/notation.test.cpp
         tests/core/piece.test.cpp
-        tests/core/score.test.cpp
         tests/core/square.test.cpp
         tests/core/types.test.cpp
         tests/eval/eval.test.cpp
         tests/eval/evaluator.test.cpp
+        tests/eval/tapered_score.test.cpp
         tests/main.cpp
         tests/movegen/move_list.test.cpp
         tests/movegen/movegen.test.cpp
         tests/movegen/perft.test.cpp
+        tests/search/history.test.cpp
         tests/search/move_ordering.test.cpp
         tests/search/move_picker.test.cpp
         tests/search/principal_variation.test.cpp

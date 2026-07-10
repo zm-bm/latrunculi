@@ -7,9 +7,9 @@
 #include "core/attacks.hpp"
 #include "core/constants.hpp"
 #include "core/piece.hpp"
-#include "core/score.hpp"
 #include "core/square.hpp"
 #include "eval/eval.hpp"
+#include "eval/tapered_score.hpp"
 #include "eval/types.hpp"
 
 class EvaluatorDebug;
@@ -17,7 +17,7 @@ class EvaluatorDebug;
 // Evaluates chess positions using material, mobility, king safety + other positional factors
 class Evaluator {
 public:
-    using TermCallback = std::function<void(EvalTerm, Color, Score)>;
+    using TermCallback = std::function<void(EvalTerm, Color, TaperedScore)>;
 
     Evaluator() = delete;
     Evaluator(const Board&, TermCallback callback = nullptr);
@@ -28,8 +28,8 @@ private:
     TermCallback callback = nullptr;
 
     struct AttackData {
-        uint64_t by[N_COLORS][N_PIECES] = {{0}};
-        uint64_t by2[N_COLORS]          = {0};
+        uint64_t by[N_COLORS][N_PIECETYPES] = {{0}};
+        uint64_t by2[N_COLORS]              = {0};
     } attacks;
 
     struct ZoneData {
@@ -44,10 +44,10 @@ private:
     } king_attackers;
 
     struct ScoreData {
-        Score     mobility[N_COLORS] = {Score::Zero};
-        Score     threats[N_COLORS]  = {Score::Zero};
-        Score     final_score        = Score::Zero;
-        EvalValue final_value        = 0;
+        TaperedScore mobility[N_COLORS] = {TaperedScore::Zero};
+        TaperedScore threats[N_COLORS]  = {TaperedScore::Zero};
+        TaperedScore final_score        = TaperedScore::Zero;
+        EvalValue    final_value        = 0;
     } scores;
 
     struct PieceContext {
@@ -74,16 +74,16 @@ private:
     // Core evaluation methods
 
     template <EvalTerm Term, Color C = WHITE>
-    Score evaluate_term();
+    TaperedScore evaluate_term();
 
     template <Color C>
-    Score evaluate_pawns();
+    TaperedScore evaluate_pawns();
 
     template <Color C, PieceType P>
-    Score evaluate_pieces();
+    TaperedScore evaluate_pieces();
 
     template <Color>
-    Score evaluate_king_safety() const;
+    TaperedScore evaluate_king_safety() const;
 
     template <Color C, PieceType P>
     void update_attacks(const uint64_t moves);
@@ -95,7 +95,7 @@ private:
     void update_threats(const PieceContext& ctx);
 
     template <Color C, PieceType P>
-    Score update_attackers(const PieceContext& ctx, const uint64_t moves);
+    TaperedScore update_attackers(const PieceContext& ctx, const uint64_t moves);
 
     // Piece specific evaluation methods
 
@@ -103,19 +103,19 @@ private:
     uint64_t get_moves(const PieceContext& ctx) const;
 
     template <Color C, PieceType P>
-    Score evaluate_minor_pieces(const PieceContext& ctx, const uint64_t moves) const;
+    TaperedScore evaluate_minor_pieces(const PieceContext& ctx, const uint64_t moves) const;
 
     template <Color C>
-    Score evaluate_bishops(const PieceContext& ctx) const;
+    TaperedScore evaluate_bishops(const PieceContext& ctx) const;
 
     template <Color C>
-    Score evaluate_bishop_blockers(const PieceContext& ctx) const;
+    TaperedScore evaluate_bishop_blockers(const PieceContext& ctx) const;
 
     template <Color C>
-    Score evaluate_rook(const PieceContext& ctx) const;
+    TaperedScore evaluate_rook(const PieceContext& ctx) const;
 
     template <Color C>
-    Score evaluate_queen(const PieceContext& ctx) const;
+    TaperedScore evaluate_queen(const PieceContext& ctx) const;
 
     template <Color C, PieceType P>
     bool discovery_attack(const PieceContext& ctx) const;
@@ -123,14 +123,14 @@ private:
     // King evaluation methods
 
     template <Color C>
-    Score evaluate_shelter(const Square king_sq) const;
+    TaperedScore evaluate_shelter(const Square king_sq) const;
 
     template <Color C>
-    Score
+    TaperedScore
     evaluate_shelter_file(const uint64_t pawns, const uint64_t opp_pawns, const File file) const;
 
     template <Color C>
-    Score evaluate_danger(const Square king_sq) const;
+    TaperedScore evaluate_danger(const Square king_sq) const;
 
     template <Color C>
     int calculate_raw_danger(const Square king_sq) const;
@@ -141,7 +141,7 @@ private:
     // Helpers
 
     int       scale_factor(const Color c) const;
-    EvalValue taper_score(const Score score) const;
+    EvalValue taper_score(const TaperedScore score) const;
     int       phase() const;
 
     friend class EvaluatorDebug;
@@ -160,7 +160,7 @@ inline Evaluator::Evaluator(const Board& b, TermCallback callback) : board{b}, c
 }
 
 inline EvalValue Evaluator::evaluate() {
-    Score score;
+    TaperedScore score;
 
     // basic terms
     score += evaluate_term<TERM_MATERIAL>();
@@ -240,8 +240,8 @@ inline uint64_t Evaluator::king_zone(const Square king_sq) const {
 
 /// dispatch a single eval term -> score
 template <EvalTerm Term, Color C>
-inline Score Evaluator::evaluate_term() {
-    Score score;
+inline TaperedScore Evaluator::evaluate_term() {
+    TaperedScore score;
 
     switch (Term) {
     case TERM_MATERIAL: score = board.material_score(); break;
@@ -265,7 +265,7 @@ inline Score Evaluator::evaluate_term() {
 
 /// eval pawn structure: isolated + backward + doubled
 template <Color C>
-Score Evaluator::evaluate_pawns() {
+TaperedScore Evaluator::evaluate_pawns() {
     constexpr Color Opp = ~C;
 
     const uint64_t pawns         = board.pieces<PAWN>(C);
@@ -275,15 +275,15 @@ Score Evaluator::evaluate_pawns() {
     const uint64_t pawn_attacks  = left_attacks | right_attacks;
     const uint64_t pawn_attacks2 = left_attacks & right_attacks;
 
-    attacks.by2[C]            |= pawn_attacks2 | (attacks.by[C][ALL_PIECES] & pawn_attacks);
-    attacks.by[C][ALL_PIECES] |= pawn_attacks;
-    attacks.by[C][PAWN]       |= pawn_attacks;
+    attacks.by2[C] |= pawn_attacks2 | (attacks.by[C][all_pieces_slot] & pawn_attacks);
+    attacks.by[C][all_pieces_slot] |= pawn_attacks;
+    attacks.by[C][PAWN]            |= pawn_attacks;
 
     // isolated pawns: no friendly pawns on adjacent files
     const uint64_t pawn_files = bb::fill(pawns);
     const uint64_t iso_pawns =
         (pawns & ~bb::shift_west(pawn_files)) & (pawns & ~bb::shift_east(pawn_files));
-    Score score = eval::iso_pawn * bb::count(iso_pawns);
+    TaperedScore score = eval::iso_pawn * bb::count(iso_pawns);
 
     // backwards pawns: pawns that can't advance safely
     const uint64_t stops       = attacks::pawn_moves<PAWN_PUSH, C>(pawns);
@@ -303,15 +303,15 @@ Score Evaluator::evaluate_pawns() {
 
 /// eval all pieces of type p for color c
 template <Color C, PieceType P>
-Score Evaluator::evaluate_pieces() {
+TaperedScore Evaluator::evaluate_pieces() {
     constexpr Color Opp = ~C;
 
     const uint64_t occupied  = board.occupancy();
     const uint64_t pawns     = board.pieces<PAWN>(C);
     const uint64_t opp_pawns = board.pieces<PAWN>(Opp);
 
-    Score    score;
-    uint64_t piece_bb = board.pieces<P>(C);
+    TaperedScore score;
+    uint64_t     piece_bb = board.pieces<P>(C);
     bb::scan<C>(piece_bb, [&](Square sq) {
         const PieceContext context{.square    = sq,
                                    .piece_bb  = bb::set(sq),
@@ -348,19 +348,19 @@ Score Evaluator::evaluate_pieces() {
 
 /// king safety: pawn shelter and king danger
 template <Color C>
-Score Evaluator::evaluate_king_safety() const {
+TaperedScore Evaluator::evaluate_king_safety() const {
     constexpr Square kingside_sq  = C == WHITE ? G1 : G8;
     constexpr Square queenside_sq = C == WHITE ? C1 : C8;
 
     const Square king_sq = board.king_sq(C);
-    Score        shelter = evaluate_shelter<C>(king_sq);
+    TaperedScore shelter = evaluate_shelter<C>(king_sq);
 
     if (board.can_castle_kingside(C))
         shelter = std::max(shelter, evaluate_shelter<C>(kingside_sq));
     if (board.can_castle_queenside(C))
         shelter = std::max(shelter, evaluate_shelter<C>(queenside_sq));
 
-    const Score danger = evaluate_danger<C>(king_sq);
+    const TaperedScore danger = evaluate_danger<C>(king_sq);
 
     return shelter - danger;
 }
@@ -368,9 +368,9 @@ Score Evaluator::evaluate_king_safety() const {
 /// merge moves into attack bitboards
 template <Color C, PieceType P>
 inline void Evaluator::update_attacks(const uint64_t moves) {
-    attacks.by2[C]            |= (attacks.by[C][ALL_PIECES] & moves);
-    attacks.by[C][ALL_PIECES] |= moves;
-    attacks.by[C][P]          |= moves;
+    attacks.by2[C]                 |= (attacks.by[C][all_pieces_slot] & moves);
+    attacks.by[C][all_pieces_slot] |= moves;
+    attacks.by[C][P]               |= moves;
 }
 
 /// add mobility bonus for # of moves
@@ -395,7 +395,7 @@ inline void Evaluator::update_threats(const PieceContext& ctx) {
 
 /// update king attackers with attacks on enemy king zone
 template <Color C, PieceType P>
-inline Score Evaluator::update_attackers(const PieceContext& ctx, const uint64_t moves) {
+inline TaperedScore Evaluator::update_attackers(const PieceContext& ctx, const uint64_t moves) {
     constexpr Color Opp = ~C;
 
     if (moves & zones.king[Opp]) {
@@ -407,7 +407,7 @@ inline Score Evaluator::update_attackers(const PieceContext& ctx, const uint64_t
             return eval::kingzone_xray_att;
     }
 
-    return Score::Zero;
+    return TaperedScore::Zero;
 }
 
 template <Color C, PieceType P>
@@ -422,11 +422,12 @@ inline uint64_t Evaluator::get_moves(const PieceContext& ctx) const {
 
 /// minor piece eval: outposts + pawn shields
 template <Color C, PieceType P>
-inline Score Evaluator::evaluate_minor_pieces(const PieceContext& ctx, const uint64_t moves) const {
+inline TaperedScore Evaluator::evaluate_minor_pieces(const PieceContext& ctx,
+                                                     const uint64_t      moves) const {
     constexpr Color Opp = ~C;
     static_assert(P == KNIGHT || P == BISHOP);
 
-    Score score;
+    TaperedScore score;
     if (ctx.piece_bb & zones.outposts[C]) {
         if constexpr (P == KNIGHT)
             score += eval::knight_outpost;
@@ -447,8 +448,8 @@ inline Score Evaluator::evaluate_minor_pieces(const PieceContext& ctx, const uin
 
 /// bishop eval: long diagonals + pawn block penalty
 template <Color C>
-inline Score Evaluator::evaluate_bishops(const PieceContext& ctx) const {
-    Score score;
+inline TaperedScore Evaluator::evaluate_bishops(const PieceContext& ctx) const {
+    TaperedScore score;
 
     const uint64_t xray_moves = attacks::piece_moves<BISHOP>(ctx.square, ctx.pawns);
     if (bb::is_many(eval::masks::center_squares & xray_moves))
@@ -461,7 +462,7 @@ inline Score Evaluator::evaluate_bishops(const PieceContext& ctx) const {
 
 /// penalize bishops blocked by pawns on the same color squares
 template <Color C>
-inline Score Evaluator::evaluate_bishop_blockers(const PieceContext& ctx) const {
+inline TaperedScore Evaluator::evaluate_bishop_blockers(const PieceContext& ctx) const {
     constexpr Color Opp = ~C;
 
     const bool     dark_square = ctx.piece_bb & eval::masks::dark_squares;
@@ -479,7 +480,7 @@ inline Score Evaluator::evaluate_bishop_blockers(const PieceContext& ctx) const 
 
 /// rook eval: open/semi-open file bonus, closed+blocked penalty
 template <Color C>
-inline Score Evaluator::evaluate_rook(const PieceContext& ctx) const {
+inline TaperedScore Evaluator::evaluate_rook(const PieceContext& ctx) const {
     constexpr Color Opp = ~C;
 
     const uint64_t file_mask  = bb::file(square::file_of(ctx.square));
@@ -496,16 +497,16 @@ inline Score Evaluator::evaluate_rook(const PieceContext& ctx) const {
         return eval::rook_closed_file;
     }
 
-    return Score::Zero;
+    return TaperedScore::Zero;
 }
 
 /// queen eval: penalize discovered attacks
 template <Color C>
-inline Score Evaluator::evaluate_queen(const PieceContext& ctx) const {
+inline TaperedScore Evaluator::evaluate_queen(const PieceContext& ctx) const {
     if (discovery_attack<C, BISHOP>(ctx) || discovery_attack<C, ROOK>(ctx)) {
         return eval::queen_discover_att;
     }
-    return Score::Zero;
+    return TaperedScore::Zero;
 }
 
 /// penalize discovered attacks on the piece
@@ -527,7 +528,7 @@ inline bool Evaluator::discovery_attack(const PieceContext& ctx) const {
 
 /// king pawn-shelter score: friendly pawn shield vs enemy pawn storm
 template <Color C>
-Score Evaluator::evaluate_shelter(const Square king_sq) const {
+TaperedScore Evaluator::evaluate_shelter(const Square king_sq) const {
     constexpr Color Opp = ~C;
 
     const File king_file = square::file_of(king_sq);
@@ -540,7 +541,7 @@ Score Evaluator::evaluate_shelter(const Square king_sq) const {
     const uint64_t opp_pawns_ahead = opp_pawns & pawn_mask;
     const File     file            = std::clamp(king_file, FILE2, FILE7);
 
-    Score score;
+    TaperedScore score;
     score += evaluate_shelter_file<C>(pawns_ahead, opp_pawns_ahead, file - 1);
     score += evaluate_shelter_file<C>(pawns_ahead, opp_pawns_ahead, file);
     score += evaluate_shelter_file<C>(pawns_ahead, opp_pawns_ahead, file + 1);
@@ -558,9 +559,9 @@ Score Evaluator::evaluate_shelter(const Square king_sq) const {
 
 /// shelter score for one file: friendly pawn rank + enemy pawn rank
 template <Color C>
-inline Score Evaluator::evaluate_shelter_file(const uint64_t pawns,
-                                              const uint64_t opp_pawns,
-                                              const File     file) const {
+inline TaperedScore Evaluator::evaluate_shelter_file(const uint64_t pawns,
+                                                     const uint64_t opp_pawns,
+                                                     const File     file) const {
     constexpr Color Opp = ~C;
 
     const uint64_t file_pawns     = pawns & bb::file(file);
@@ -573,7 +574,7 @@ inline Score Evaluator::evaluate_shelter_file(const uint64_t pawns,
     const Rank opp_rank = file_opp_pawns ? square::relative_rank(opp_pawn_sq, C) : RANK1;
     const bool blocked  = file_pawns && (rank + 1 == opp_rank);
 
-    Score score;
+    TaperedScore score;
     score += eval::pawn_shelter[rank];
     score += eval::pawn_storm[blocked][opp_rank];
 
@@ -582,7 +583,7 @@ inline Score Evaluator::evaluate_shelter_file(const uint64_t pawns,
 
 /// convert raw danger into score {mg=quadratic scaling, eg=linear scaling}
 template <Color C>
-inline Score Evaluator::evaluate_danger(Square king_sq) const {
+inline TaperedScore Evaluator::evaluate_danger(Square king_sq) const {
     const int danger  = calculate_raw_danger<C>(king_sq);
     const int midgame = danger * danger / 2048;
     const int endgame = danger / 8;
@@ -596,11 +597,11 @@ int Evaluator::calculate_raw_danger(Square king_sq) const {
 
     int danger = 0;
 
-    const uint64_t defended     = attacks.by[C][ALL_PIECES];
-    const uint64_t attacked     = attacks.by[Opp][ALL_PIECES];
+    const uint64_t defended     = attacks.by[C][all_pieces_slot];
+    const uint64_t attacked     = attacks.by[Opp][all_pieces_slot];
     const uint64_t kq_defense   = attacks.by[C][QUEEN] | attacks.by[C][KING];
     const uint64_t weak_defense = (~defended | kq_defense) & attacked & ~attacks.by2[C];
-    const uint64_t our_pieces   = board.pieces<ALL_PIECES>(Opp);
+    const uint64_t our_pieces   = board.pieces(Opp);
     const uint64_t safe_checks  = ~our_pieces & (~defended | (weak_defense & attacks.by2[Opp]));
 
     const uint64_t knight_moves  = attacks.by[Opp][KNIGHT];
@@ -647,7 +648,7 @@ inline int Evaluator::scale_factor(const Color c) const {
 }
 
 // blend midgame / endgame scores based on game phase
-inline EvalValue Evaluator::taper_score(const Score score) const {
+inline EvalValue Evaluator::taper_score(const TaperedScore score) const {
     int mg_phase = phase();
     int eg_phase = eval::phase_limit - mg_phase;
 
@@ -665,14 +666,14 @@ inline int Evaluator::phase() const {
 
 // track scores for a single evaluation term
 struct TermScore {
-    void  add_score(Score score, Color color);
-    Score white    = Score::Zero;
-    Score black    = Score::Zero;
-    bool  has_both = false;
+    void         add_score(TaperedScore score, Color color);
+    TaperedScore white    = TaperedScore::Zero;
+    TaperedScore black    = TaperedScore::Zero;
+    bool         has_both = false;
 };
 
 struct ScoreTracker {
-    void      add_score(EvalTerm term, Score score, Color color);
+    void      add_score(EvalTerm term, TaperedScore score, Color color);
     TermScore scores[N_TERMS];
 };
 
@@ -689,8 +690,8 @@ private:
 };
 
 template <>
-struct std::formatter<Score> : std::formatter<std::string_view> {
-    auto format(const Score& score, std::format_context& ctx) const {
+struct std::formatter<TaperedScore> : std::formatter<std::string_view> {
+    auto format(const TaperedScore& score, std::format_context& ctx) const {
         return std::format_to(ctx.out(),
                               "{:5.2f} {:5.2f}",
                               double(score.mg) / int(piece_value::pawn_mg),

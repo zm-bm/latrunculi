@@ -6,8 +6,8 @@
 
 #include "board/board.hpp"
 #include "core/bitboard.hpp"
-#include "core/score.hpp"
 #include "eval/eval.hpp"
+#include "eval/tapered_score.hpp"
 #include "support/test_util.hpp"
 
 class EvaluatorTest : public ::testing::Test {
@@ -26,7 +26,8 @@ protected:
         EXPECT_EQ(e.zones.mobility[BLACK], b_expected) << fen;
     }
 
-    void test_mobility_score(const std::string fen, Score w_expected, Score b_expected) {
+    void
+    test_mobility_score(const std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
         TestBoard board(fen);
         Evaluator e(board);
         e.evaluate();
@@ -47,7 +48,8 @@ protected:
         return e.get_moves<C, P>(ctx);
     }
 
-    void test_threat_score(const std::string& fen, Score w_expected, Score b_expected) {
+    void
+    test_threat_score(const std::string& fen, TaperedScore w_expected, TaperedScore b_expected) {
         TestBoard board(fen);
         Evaluator e(board);
         e.evaluate();
@@ -55,7 +57,7 @@ protected:
         EXPECT_EQ(e.scores.threats[BLACK], b_expected) << fen;
     }
 
-    void test_evaluate_pawns(std::string fen, Score w_expected, Score b_expected) {
+    void test_evaluate_pawns(std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
         TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.evaluate_pawns<WHITE>(), w_expected) << fen;
@@ -63,16 +65,16 @@ protected:
     }
 
     template <PieceType p>
-    void test_evaluate_pieces(std::string fen, Score w_expected, Score b_expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
-        Score     w_score = e.evaluate_pieces<WHITE, p>();
-        Score     b_score = e.evaluate_pieces<BLACK, p>();
+    void test_evaluate_pieces(std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
+        TestBoard    board(fen);
+        Evaluator    e(board);
+        TaperedScore w_score = e.evaluate_pieces<WHITE, p>();
+        TaperedScore b_score = e.evaluate_pieces<BLACK, p>();
         EXPECT_EQ(w_score, w_expected) << fen;
         EXPECT_EQ(b_score, b_expected) << fen;
     }
 
-    void test_king_safety(std::string fen, Score expected) {
+    void test_king_safety(std::string fen, TaperedScore expected) {
         TestBoard board(fen);
         Evaluator e(board);
         e.evaluate();
@@ -80,14 +82,17 @@ protected:
         EXPECT_EQ(e.evaluate_king_safety<BLACK>(), expected) << fen;
     }
 
-    void test_shelter(std::string fen, Score w_expected, Score b_expected) {
+    void test_shelter(std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
         TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.evaluate_shelter<WHITE>(board.king_sq(WHITE)), w_expected) << fen;
         EXPECT_EQ(e.evaluate_shelter<BLACK>(board.king_sq(BLACK)), b_expected) << fen;
     }
 
-    void test_shelter_file(std::string fen, Score w_expected, Score b_expected, File file) {
+    void test_shelter_file(std::string  fen,
+                           TaperedScore w_expected,
+                           TaperedScore b_expected,
+                           File         file) {
         TestBoard board(fen);
         Evaluator e(board);
         uint64_t  w_pawns = board.pieces<PAWN>(WHITE);
@@ -116,7 +121,7 @@ protected:
         EXPECT_EQ(e.scale_factor(board.side_to_move()), expected) << fen;
     }
 
-    void test_taper_score(std::string fen, Score score, int expected) {
+    void test_taper_score(std::string fen, TaperedScore score, int expected) {
         TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.taper_score(score), expected) << fen;
@@ -195,7 +200,7 @@ TEST_F(EvaluatorTest, MobilityZone) {
 }
 
 TEST_F(EvaluatorTest, MobilityScore) {
-    std::vector<std::tuple<std::string, Score>> test_cases = {
+    std::vector<std::tuple<std::string, TaperedScore>> test_cases = {
         {EMPTYFEN, {0}},
         // no mobility area restriction
         {"3nk3/8/8/8/8/8/8/3NK3 w - - 0 1", eval::knight_mob[4]},
@@ -234,23 +239,23 @@ TEST_F(EvaluatorTest, EvaluatePawns) {
     auto doubled2    = "4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 8";
     auto iso_doubled = "k7/8/8/8/8/P7/P7/K7 w KQkq - 0 9";
 
-    std::vector<std::tuple<std::string, Score, Score>> test_cases = {
+    std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
         // sanity check
-        {EMPTYFEN, Score::Zero, Score::Zero},
-        {STARTFEN, Score::Zero, Score::Zero},
+        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
+        {STARTFEN, TaperedScore::Zero, TaperedScore::Zero},
         // isolated pawns
         {iso1, eval::iso_pawn, eval::iso_pawn},
-        {iso2, eval::iso_pawn, Score::Zero},
-        {iso3, Score::Zero, eval::iso_pawn},
+        {iso2, eval::iso_pawn, TaperedScore::Zero},
+        {iso3, TaperedScore::Zero, eval::iso_pawn},
         // backwards pawns
         {backward1, eval::backward_pawn, eval::backward_pawn},
-        {backward2, eval::backward_pawn, Score::Zero},
-        {backward3, Score::Zero, eval::backward_pawn},
+        {backward2, eval::backward_pawn, TaperedScore::Zero},
+        {backward3, TaperedScore::Zero, eval::backward_pawn},
         // doubled pawns
-        {doubled1, eval::doubled_pawn, Score::Zero},
-        {doubled2, Score::Zero, eval::doubled_pawn},
+        {doubled1, eval::doubled_pawn, TaperedScore::Zero},
+        {doubled2, TaperedScore::Zero, eval::doubled_pawn},
         // isolated and doubled pawns
-        {iso_doubled, eval::iso_pawn * 2 + eval::doubled_pawn, Score::Zero},
+        {iso_doubled, eval::iso_pawn * 2 + eval::doubled_pawn, TaperedScore::Zero},
     };
 
     for (const auto& [fen, w_expected, b_expected] : test_cases) {
@@ -259,18 +264,22 @@ TEST_F(EvaluatorTest, EvaluatePawns) {
 }
 
 TEST_F(EvaluatorTest, KnightsScore) {
-    std::vector<std::tuple<std::string, Score, Score>> test_cases = {
-        {EMPTYFEN, Score::Zero, Score::Zero},
+    std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
+        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
         {STARTFEN, eval::minor_pawn_shield * 2, eval::minor_pawn_shield * 2},
         // knight outposts
-        {"6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1", eval::knight_outpost, Score::Zero},
-        {"6k1/8/2p5/3Np1p1/4PnP1/2P5/8/6K1 w - - 0 2", Score::Zero, eval::knight_outpost},
+        {"6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1", eval::knight_outpost, TaperedScore::Zero},
+        {"6k1/8/2p5/3Np1p1/4PnP1/2P5/8/6K1 w - - 0 2", TaperedScore::Zero, eval::knight_outpost},
         // knight with reachable outposts
-        {"6k1/8/2p5/1n2p1p1/4P1PN/2P5/8/6K1 w - - 0 3", eval::reachable_outpost, Score::Zero},
-        {"6k1/8/2p5/4p1pn/1N2P1P1/2P5/8/6K1 w - - 0 4", Score::Zero, eval::reachable_outpost},
+        {"6k1/8/2p5/1n2p1p1/4P1PN/2P5/8/6K1 w - - 0 3",
+         eval::reachable_outpost,
+         TaperedScore::Zero},
+        {"6k1/8/2p5/4p1pn/1N2P1P1/2P5/8/6K1 w - - 0 4",
+         TaperedScore::Zero,
+         eval::reachable_outpost},
         // knight behind pawn
-        {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 5", eval::minor_pawn_shield, Score::Zero},
-        {"6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 6", Score::Zero, eval::minor_pawn_shield},
+        {"6k1/8/4p3/8/8/4P3/4N3/6K1 w - - 0 5", eval::minor_pawn_shield, TaperedScore::Zero},
+        {"6k1/4n3/4p3/8/8/4P3/8/6K1 w - - 0 6", TaperedScore::Zero, eval::minor_pawn_shield},
     };
 
     for (const auto& [fen, w_expected, b_expected] : test_cases) {
@@ -279,32 +288,33 @@ TEST_F(EvaluatorTest, KnightsScore) {
 }
 
 TEST_F(EvaluatorTest, BishopsScore) {
-    Score startScore  = eval::minor_pawn_shield * 2 + eval::bishop_pair + eval::bishop_blockers * 8,
-          hasOutpost  = eval::bishop_outpost + eval::bishop_blockers * 2,
-          noOutpost   = eval::bishop_blockers * 4,
-          hasLongDiag = eval::bishop_long_diag + eval::bishop_blockers,
-          noLongDiag  = eval::bishop_blockers * 2,
-          twoPawnsDefended   = eval::bishop_blockers * 2 + eval::bishop_outpost,
-          twoPawnsOneBlocked = eval::bishop_blockers * 4,
-          twoPawnsTwoBlocked = eval::bishop_blockers * 6;
+    TaperedScore startScore =
+                     eval::minor_pawn_shield * 2 + eval::bishop_pair + eval::bishop_blockers * 8,
+                 hasOutpost         = eval::bishop_outpost + eval::bishop_blockers * 2,
+                 noOutpost          = eval::bishop_blockers * 4,
+                 hasLongDiag        = eval::bishop_long_diag + eval::bishop_blockers,
+                 noLongDiag         = eval::bishop_blockers * 2,
+                 twoPawnsDefended   = eval::bishop_blockers * 2 + eval::bishop_outpost,
+                 twoPawnsOneBlocked = eval::bishop_blockers * 4,
+                 twoPawnsTwoBlocked = eval::bishop_blockers * 6;
 
-    std::vector<std::tuple<std::string, Score, Score>> test_cases = {
-        {EMPTYFEN, Score::Zero, Score::Zero},
+    std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
+        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
         {STARTFEN, startScore, startScore},
         // bishop outposts
         {"6k1/8/2p5/4pBp1/4P1P1/2P3b1/8/6K1 w - - 0 1", hasOutpost, noOutpost},
         {"6k1/8/2p3B1/4p1p1/4PbP1/2P5/8/6K1 w - - 0 2", noOutpost, hasOutpost},
         // bishop behind pawn
-        {"6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 3", eval::minor_pawn_shield, Score::Zero},
-        {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 4", Score::Zero, eval::minor_pawn_shield},
+        {"6k1/8/4p3/8/8/4P3/4B3/6K1 w - - 0 3", eval::minor_pawn_shield, TaperedScore::Zero},
+        {"6k1/4b3/4p3/8/8/4P3/8/6K1 w - - 0 4", TaperedScore::Zero, eval::minor_pawn_shield},
         // bishop on long diagonal
         {"6k1/6b1/8/3P4/3p4/8/6B1/6K1 w - - 0 5", hasLongDiag, hasLongDiag},
         {"6k1/6b1/8/4p3/4P3/8/6B1/6K1 w - - 0 6", noLongDiag, noLongDiag},
         // bishop pair
-        {"5bk1/8/8/8/8/8/8/4BBK1 w - - 0 7", eval::bishop_pair, Score::Zero},
-        {"4bbk1/8/8/8/8/8/8/5BK1 w - - 0 8", Score::Zero, eval::bishop_pair},
+        {"5bk1/8/8/8/8/8/8/4BBK1 w - - 0 7", eval::bishop_pair, TaperedScore::Zero},
+        {"4bbk1/8/8/8/8/8/8/5BK1 w - - 0 8", TaperedScore::Zero, eval::bishop_pair},
         // bishop/pawn penalty
-        {"4k3/8/8/2BPp3/2bpP3/8/8/4K3 w - - 0 9", Score::Zero, Score::Zero},
+        {"4k3/8/8/2BPp3/2bpP3/8/8/4K3 w - - 0 9", TaperedScore::Zero, TaperedScore::Zero},
         {"4k3/8/8/2bPp3/2BpP3/8/8/4K3 w - - 0 10", twoPawnsOneBlocked, twoPawnsOneBlocked},
         {"4k3/8/8/3PpB2/3pPb2/8/8/4K3 w - - 0 11", twoPawnsDefended, twoPawnsDefended},
         {"4k3/4b3/8/4p3/3pP3/3P4/4B3/4K3 w - - 0 12", twoPawnsTwoBlocked, twoPawnsTwoBlocked},
@@ -316,9 +326,9 @@ TEST_F(EvaluatorTest, BishopsScore) {
 }
 
 TEST_F(EvaluatorTest, RookScore) {
-    std::vector<std::tuple<std::string, Score, Score>> test_cases = {
-        {STARTFEN, Score::Zero, Score::Zero},
-        {EMPTYFEN, Score::Zero, Score::Zero},
+    std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
+        {STARTFEN, TaperedScore::Zero, TaperedScore::Zero},
+        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
         {"6kr/8/8/8/8/8/8/RK6 w - - 0 1", eval::rook_open_file[1], eval::rook_open_file[1]},
         {"6kr/p7/8/8/8/8/7P/RK6 w - - 0 2", eval::rook_open_file[0], eval::rook_open_file[0]},
         {"rn5k/8/8/p7/P7/8/8/RN5K w - - 0 3", eval::rook_closed_file, eval::rook_closed_file},
@@ -330,15 +340,15 @@ TEST_F(EvaluatorTest, RookScore) {
 }
 
 TEST_F(EvaluatorTest, QueenScore) {
-    std::vector<std::tuple<std::string, Score, Score>> test_cases = {
-        {STARTFEN, Score::Zero, Score::Zero},
-        {EMPTYFEN, Score::Zero, Score::Zero},
+    std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
+        {STARTFEN, TaperedScore::Zero, TaperedScore::Zero},
+        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
         // bishop discovered attack
-        {"3qk3/2P5/1P6/B7/b7/1p6/8/3QK3 w - - 0 1", eval::queen_discover_att, Score::Zero},
-        {"3qk3/8/1P6/B7/b7/1p6/2p5/3QK3 w - - 0 2", Score::Zero, eval::queen_discover_att},
+        {"3qk3/2P5/1P6/B7/b7/1p6/8/3QK3 w - - 0 1", eval::queen_discover_att, TaperedScore::Zero},
+        {"3qk3/8/1P6/B7/b7/1p6/2p5/3QK3 w - - 0 2", TaperedScore::Zero, eval::queen_discover_att},
         // rook discovered attack
-        {"RNNqk3/8/8/8/8/8/8/rn1QK3 w - - 0 3", eval::queen_discover_att, Score::Zero},
-        {"RN1qk3/8/8/8/8/8/8/rnnQK3 w - - 0 4", Score::Zero, eval::queen_discover_att},
+        {"RNNqk3/8/8/8/8/8/8/rn1QK3 w - - 0 3", eval::queen_discover_att, TaperedScore::Zero},
+        {"RN1qk3/8/8/8/8/8/8/rnnQK3 w - - 0 4", TaperedScore::Zero, eval::queen_discover_att},
     };
 
     for (const auto& [fen, w_expected, b_expected] : test_cases) {
@@ -347,10 +357,10 @@ TEST_F(EvaluatorTest, QueenScore) {
 }
 
 TEST_F(EvaluatorTest, ThreatScore) {
-    std::vector<std::tuple<std::string, Score, Score>> test_cases = {
-        {EMPTYFEN, Score::Zero, Score::Zero},
-        {"4k3/8/8/7b/8/8/r3N3/4K3 w - - 0 1", eval::weak_piece[KNIGHT], Score::Zero},
-        {"4k3/8/R3n3/8/7B/8/8/4K3 w - - 0 2", Score::Zero, eval::weak_piece[KNIGHT]},
+    std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
+        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
+        {"4k3/8/8/7b/8/8/r3N3/4K3 w - - 0 1", eval::weak_piece[KNIGHT], TaperedScore::Zero},
+        {"4k3/8/R3n3/8/7B/8/8/4K3 w - - 0 2", TaperedScore::Zero, eval::weak_piece[KNIGHT]},
     };
 
     for (const auto& [fen, w_expected, b_expected] : test_cases) {
@@ -358,10 +368,10 @@ TEST_F(EvaluatorTest, ThreatScore) {
     }
 }
 
-Score shelter(const std::vector<Rank>& shelter_ranks,
-              const std::vector<Rank>& storm_ranks,
-              const std::vector<Rank>& blocked_ranks) {
-    Score score;
+TaperedScore shelter(const std::vector<Rank>& shelter_ranks,
+                     const std::vector<Rank>& storm_ranks,
+                     const std::vector<Rank>& blocked_ranks) {
+    TaperedScore score;
     for (auto r : shelter_ranks)
         score += eval::pawn_shelter[r];
     for (auto r : storm_ranks)
@@ -372,12 +382,12 @@ Score shelter(const std::vector<Rank>& shelter_ranks,
 }
 
 TEST_F(EvaluatorTest, KingSafety) {
-    Score empty = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {}) +
-                  eval::king_file[FILE5] + eval::king_open_file[true][true];
-    Score start = shelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
-                  eval::king_file[FILE7] + eval::king_open_file[false][false];
+    TaperedScore empty = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {}) +
+                         eval::king_file[FILE5] + eval::king_open_file[true][true];
+    TaperedScore start = shelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
+                         eval::king_file[FILE7] + eval::king_open_file[false][false];
 
-    std::vector<std::tuple<std::string, Score>> test_cases = {
+    std::vector<std::tuple<std::string, TaperedScore>> test_cases = {
         {EMPTYFEN, empty},
         {STARTFEN, start},
     };
@@ -388,22 +398,22 @@ TEST_F(EvaluatorTest, KingSafety) {
 }
 
 TEST_F(EvaluatorTest, Shelter) {
-    Score empty = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {}) +
-                  eval::king_file[int(FILE5)] + eval::king_open_file[true][true];
-    Score start = shelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
-                  eval::king_file[int(FILE5)] + eval::king_open_file[false][false];
-    Score blocked = shelter({RANK3, RANK4, RANK5}, {RANK6, RANK4}, {RANK5}) +
-                    eval::king_file[int(FILE1)] + eval::king_open_file[false][false];
-    Score semiopen1 = shelter({RANK2, RANK2, RANK2}, {RANK1, RANK1, RANK1}, {}) +
-                      eval::king_file[int(FILE1)] + eval::king_open_file[false][true];
-    Score semiopen2 = shelter({RANK1, RANK1, RANK1}, {RANK7, RANK7, RANK7}, {}) +
-                      eval::king_file[int(FILE1)] + eval::king_open_file[true][false];
-    Score rank2 = shelter({RANK1, RANK1, RANK3}, {RANK7, RANK7, RANK6}, {}) +
-                  eval::king_file[int(FILE2)] + eval::king_open_file[false][false];
-    Score attacked = shelter({RANK2, RANK2, RANK1}, {RANK7, RANK7, RANK7}, {}) +
-                     eval::king_file[int(FILE1)] + eval::king_open_file[false][false];
+    TaperedScore empty = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {}) +
+                         eval::king_file[int(FILE5)] + eval::king_open_file[true][true];
+    TaperedScore start = shelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
+                         eval::king_file[int(FILE5)] + eval::king_open_file[false][false];
+    TaperedScore blocked = shelter({RANK3, RANK4, RANK5}, {RANK6, RANK4}, {RANK5}) +
+                           eval::king_file[int(FILE1)] + eval::king_open_file[false][false];
+    TaperedScore semiopen1 = shelter({RANK2, RANK2, RANK2}, {RANK1, RANK1, RANK1}, {}) +
+                             eval::king_file[int(FILE1)] + eval::king_open_file[false][true];
+    TaperedScore semiopen2 = shelter({RANK1, RANK1, RANK1}, {RANK7, RANK7, RANK7}, {}) +
+                             eval::king_file[int(FILE1)] + eval::king_open_file[true][false];
+    TaperedScore rank2 = shelter({RANK1, RANK1, RANK3}, {RANK7, RANK7, RANK6}, {}) +
+                         eval::king_file[int(FILE2)] + eval::king_open_file[false][false];
+    TaperedScore attacked = shelter({RANK2, RANK2, RANK1}, {RANK7, RANK7, RANK7}, {}) +
+                            eval::king_file[int(FILE1)] + eval::king_open_file[false][false];
 
-    std::vector<std::tuple<std::string, Score, Score>> test_cases = {
+    std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
         {EMPTYFEN, empty, empty},
         {STARTFEN, start, start},
         {"k7/8/p7/1pP5/1Pp5/P7/8/K7 w - - 0 1", blocked, blocked},
@@ -419,11 +429,11 @@ TEST_F(EvaluatorTest, Shelter) {
 }
 
 TEST_F(EvaluatorTest, FileShelter) {
-    Score empty   = shelter({RANK1}, {RANK1}, {});
-    Score start   = shelter({RANK2}, {RANK7}, {});
-    Score blocked = shelter({RANK4}, {}, {RANK5});
+    TaperedScore empty   = shelter({RANK1}, {RANK1}, {});
+    TaperedScore start   = shelter({RANK2}, {RANK7}, {});
+    TaperedScore blocked = shelter({RANK4}, {}, {RANK5});
 
-    std::vector<std::tuple<std::string, Score, Score, File>> test_cases = {
+    std::vector<std::tuple<std::string, TaperedScore, TaperedScore, File>> test_cases = {
         {EMPTYFEN, empty, empty, FILE5},
         {STARTFEN, start, start, FILE5},
         {"1k6/8/8/1p6/1P6/8/8/1K6 w - - 0 1", blocked, blocked, FILE2},
@@ -468,7 +478,7 @@ TEST_F(EvaluatorTest, ScaleFactor) {
 }
 
 TEST_F(EvaluatorTest, TaperScore) {
-    std::vector<std::tuple<std::string, Score, int>> test_cases = {
+    std::vector<std::tuple<std::string, TaperedScore, int>> test_cases = {
         {EMPTYFEN, {100, 200}, 200},
         {STARTFEN, {100, 200}, 100},
     };

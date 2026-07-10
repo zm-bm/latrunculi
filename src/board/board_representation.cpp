@@ -1,17 +1,30 @@
 #include "board/board.hpp"
 
 #include <algorithm>
+#include <cstddef>
+
+namespace {
+
+template <typename T, std::size_t N>
+void copy_array(const T (&source)[N], T (&target)[N]) {
+    std::copy_n(source, N, target);
+}
+
+template <typename T, std::size_t Rows, std::size_t Cols>
+void copy_array(const T (&source)[Rows][Cols], T (&target)[Rows][Cols]) {
+    std::copy_n(&source[0][0], Rows * Cols, &target[0][0]);
+}
+
+} // namespace
 
 void Board::load_board(const Board* other) {
     if (!other || other == this)
         return;
 
-    const auto piece_slots = static_cast<size_t>(N_COLORS) * static_cast<size_t>(N_PIECES);
-    std::copy(&other->piece_bb[0][0], &other->piece_bb[0][0] + piece_slots, &piece_bb[0][0]);
-    std::copy(
-        &other->piece_counts[0][0], &other->piece_counts[0][0] + piece_slots, &piece_counts[0][0]);
-    std::copy(other->squares, other->squares + N_SQUARES, squares);
-    std::copy(other->king_square, other->king_square + N_COLORS, king_square);
+    copy_array(other->piece_bb, piece_bb);
+    copy_array(other->piece_counts, piece_counts);
+    copy_array(other->squares, squares);
+    copy_array(other->king_square, king_square);
     turn                 = other->turn;
     fullmove_clk         = other->fullmove_clk;
     material             = other->material;
@@ -23,7 +36,7 @@ void Board::load_board(const Board* other) {
 
 void Board::reset() {
     for (int c = 0; c < N_COLORS; ++c) {
-        for (int p = 0; p < N_PIECES; ++p) {
+        for (int p = 0; p < N_PIECETYPES; ++p) {
             piece_bb[c][p]     = 0;
             piece_counts[c][p] = 0;
         }

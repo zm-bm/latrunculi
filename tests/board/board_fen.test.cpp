@@ -85,10 +85,10 @@ TEST(BoardFenTest, PreservesRawUnhashableEnPassantSquare) {
 TEST(BoardFenTest, InvalidFenDoesNotMutateBoard) {
     TestBoard board(E2E4);
 
-    const auto  fen      = board.toFEN();
-    const auto  key      = board.key();
-    const Score material = board.material_score();
-    const Score psq      = board.psq_bonus_score();
+    const auto         fen      = board.toFEN();
+    const auto         key      = board.key();
+    const TaperedScore material = board.material_score();
+    const TaperedScore psq      = board.psq_bonus_score();
 
     const std::vector<std::string> invalid_fens = {
         "4k3/8/8/8/8/8/8/4K3 w - - 0",

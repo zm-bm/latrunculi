@@ -18,6 +18,7 @@ TEST(PieceTest, MakePiece) {
 }
 
 TEST(PieceTest, PieceTypeOf) {
+    EXPECT_EQ(type_of(NO_PIECE), NO_PIECETYPE);
     EXPECT_EQ(type_of(W_PAWN), PAWN);
     EXPECT_EQ(type_of(W_KNIGHT), KNIGHT);
     EXPECT_EQ(type_of(W_BISHOP), BISHOP);
@@ -30,6 +31,26 @@ TEST(PieceTest, PieceTypeOf) {
     EXPECT_EQ(type_of(B_ROOK), ROOK);
     EXPECT_EQ(type_of(B_QUEEN), QUEEN);
     EXPECT_EQ(type_of(B_KING), KING);
+}
+
+TEST(PieceTest, PieceTypeIndexing) {
+    EXPECT_EQ(N_PIECETYPES, 7);
+    EXPECT_EQ(piece_slots, 6);
+    EXPECT_EQ(piece_slot(PAWN), 0);
+    EXPECT_EQ(piece_slot(KING), 5);
+    EXPECT_FALSE(is_piece_type(NO_PIECETYPE));
+    EXPECT_TRUE(is_piece_type(PAWN));
+    EXPECT_TRUE(is_piece_type(KING));
+}
+
+TEST(PieceTest, PromotionPieceValidation) {
+    EXPECT_FALSE(valid_promotion_piece(NO_PIECETYPE));
+    EXPECT_FALSE(valid_promotion_piece(PAWN));
+    EXPECT_TRUE(valid_promotion_piece(KNIGHT));
+    EXPECT_TRUE(valid_promotion_piece(BISHOP));
+    EXPECT_TRUE(valid_promotion_piece(ROOK));
+    EXPECT_TRUE(valid_promotion_piece(QUEEN));
+    EXPECT_FALSE(valid_promotion_piece(KING));
 }
 
 TEST(PieceTest, PieceColorOf) {

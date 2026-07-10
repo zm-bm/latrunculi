@@ -25,8 +25,14 @@ struct PositionState {
     uint64_t blockers[N_COLORS]{};
     // pinners[c]: sliders of color c pinning enemy blockers.
     uint64_t pinners[N_COLORS]{};
-    // Squares where each piece type would check the enemy king.
-    uint64_t checks[N_PIECES - 1]{};
+    // Squares where each concrete piece type would check the enemy king.
+    uint64_t checks[piece_slots]{};
+
+    uint64_t checking_squares(PieceType piece) const { return checks[piece_slot(piece)]; }
+
+    void set_checking_squares(PieceType piece, uint64_t squares) {
+        checks[piece_slot(piece)] = squares;
+    }
 
     // Incremental key and compact undo data for the move that reached this ply.
     uint64_t     zkey{};

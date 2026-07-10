@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 
 TEST(EvalTest, PieceScores) {
-    EXPECT_EQ(eval::piece(NO_PIECETYPE), Score::Zero);
+    EXPECT_EQ(eval::piece(NO_PIECETYPE), TaperedScore::Zero);
 
     EXPECT_EQ(eval::piece(PAWN), eval::pawn);
     EXPECT_EQ(eval::piece(KNIGHT), eval::knight);

@@ -19,7 +19,7 @@ constexpr int WeakCaptureScore     = 0;
 // Orders captures within the good-capture band.
 constexpr int CaptureVictimWeight = 7;
 
-static_assert(QuietHistory::MAX_SCORE + ContinuationHistory::MAX_SCORE < GoodCaptureScoreBase);
+static_assert(QuietHistory::max_score + ContinuationHistory::max_score < GoodCaptureScoreBase);
 
 } // namespace
 
