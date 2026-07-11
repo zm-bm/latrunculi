@@ -32,8 +32,8 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
     const Square to   = move.to();
 
     const Color     us          = side_to_move();
-    const uint64_t  from_bb     = bb::set(from);
-    const uint64_t  target_bb   = bb::set(to);
+    const Bitboard  from_bb     = bb::set(from);
+    const Bitboard  target_bb   = bb::set(to);
     const PieceType moved_piece = move.type() == MOVE_PROM ? move.prom_piece() : piecetype_on(from);
 
     // Threshold SEE can often resolve before walking the full recapture chain.
@@ -46,7 +46,7 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
         return true;
 
     // Play the capture on an occupancy bitboard, including en passant's off-target pawn.
-    uint64_t occupied = occupancy();
+    Bitboard occupied = occupancy();
     if (move.type() == MOVE_EP) {
         const Square captured = to + (us == WHITE ? square::south : square::north);
         occupied              = (occupied ^ bb::set(captured)) | target_bb;
@@ -55,10 +55,10 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
 
     // Get all pieces which attack the target square. Mask with occupied so that
     // a removed piece cannot attack twice.
-    uint64_t attackers = attacks_to(to, occupied) & occupied;
+    Bitboard attackers = attacks_to(to, occupied) & occupied;
 
-    const uint64_t bishop_sliders = pieces<BISHOP, QUEEN>();
-    const uint64_t rook_sliders   = pieces<ROOK, QUEEN>();
+    const Bitboard bishop_sliders = pieces<BISHOP, QUEEN>();
+    const Bitboard rook_sliders   = pieces<ROOK, QUEEN>();
 
     Color side   = ~us;
     bool  result = true;
@@ -66,17 +66,17 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
     while (true) {
         attackers &= occupied;
 
-        uint64_t  attacker_bb = 0;
+        Bitboard  attacker_bb = 0;
         PieceType attacker    = NO_PIECETYPE;
         for (PieceType p : see_attacker_order) {
-            uint64_t candidates = attackers & piece_bb[side][p];
+            Bitboard candidates = attackers & piece_bb[side][p];
             if (!candidates)
                 continue;
 
             candidates &= -candidates;
             if (p == KING) {
                 // A king cannot recapture onto a square still attacked by the opponent.
-                const uint64_t kingless_occupied = occupied ^ candidates;
+                const Bitboard kingless_occupied = occupied ^ candidates;
                 if (attacks_to(to, ~side, kingless_occupied) & kingless_occupied)
                     continue;
             }
@@ -112,11 +112,11 @@ EvalValue Board::seeMove(Move move) const {
     const Square from = move.from();
     const Square to   = move.to();
 
-    const uint64_t target_bb = bb::set(to);
+    const Bitboard target_bb = bb::set(to);
     Color          side      = side_to_move();
     PieceType      piece     = move.type() == MOVE_PROM ? move.prom_piece() : piecetype_on(from);
-    uint64_t       occupied  = occupancy();
-    uint64_t       from_bb   = bb::set(from);
+    Bitboard       occupied  = occupancy();
+    Bitboard       from_bb   = bb::set(from);
 
     // Play the capture on an occupancy bitboard, including en passant's off-target pawn.
     if (move.type() == MOVE_EP) {
@@ -126,10 +126,10 @@ EvalValue Board::seeMove(Move move) const {
 
     // Get all pieces which attack the target square. Mask with occupied so that
     // a removed piece cannot attack twice.
-    uint64_t attackers = attacks_to(to, occupied) & occupied;
+    Bitboard attackers = attacks_to(to, occupied) & occupied;
 
-    const uint64_t bishop_sliders = pieces<BISHOP, QUEEN>();
-    const uint64_t rook_sliders   = pieces<ROOK, QUEEN>();
+    const Bitboard bishop_sliders = pieces<BISHOP, QUEEN>();
+    const Bitboard rook_sliders   = pieces<ROOK, QUEEN>();
 
     // Swap-list of best case material gain for each depth.
     EvalValue gain[32] = {};
@@ -153,14 +153,14 @@ EvalValue Board::seeMove(Move move) const {
 
         from_bb = 0;
         for (PieceType p : see_attacker_order) {
-            uint64_t attacker_bb = attackers & piece_bb[side][p];
+            Bitboard attacker_bb = attackers & piece_bb[side][p];
             if (!attacker_bb)
                 continue;
 
             attacker_bb &= -attacker_bb; // get least significant bit
             if (p == KING) {
                 // A king cannot recapture onto a square still attacked by the opponent.
-                const uint64_t kingless_occupied = occupied ^ attacker_bb;
+                const Bitboard kingless_occupied = occupied ^ attacker_bb;
                 if (attacks_to(to, ~side, kingless_occupied) & kingless_occupied)
                     continue;
             }

@@ -30,7 +30,7 @@ struct SearchCounters<false> {
 
 template <>
 struct SearchCounters<true> {
-    using StatsArray = std::array<uint64_t, engine::max_search_ply>;
+    using StatsArray = std::array<std::uint64_t, engine::max_search_ply>;
 
     StatsArray nodes{0};
     StatsArray qnodes{0};
@@ -64,9 +64,9 @@ struct SearchCounters<true> {
     StatsArray quiet_malus_failed_quiets{0};
     StatsArray quiet_malus_updates{0};
 
-    uint64_t aspiration_fail_lows{0};
-    uint64_t aspiration_fail_highs{0};
-    uint64_t aspiration_researches{0};
+    std::uint64_t aspiration_fail_lows{0};
+    std::uint64_t aspiration_fail_highs{0};
+    std::uint64_t aspiration_researches{0};
 
     void reset() {
         nodes.fill(0);
@@ -211,7 +211,7 @@ public:
             return;
 
         counters.cutoffs[ply]++;
-        counters.cutoff_index_sum[ply] += static_cast<uint64_t>(move_index);
+        counters.cutoff_index_sum[ply] += static_cast<std::uint64_t>(move_index);
 
         if (move_index == 1) {
             counters.fail_high_early[ply]++;
@@ -360,40 +360,40 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
                              stats.aspiration_fail_highs,
                              stats.aspiration_researches);
 
-        const uint64_t null_move_tries   = sum(stats.null_move_tries);
-        const uint64_t null_move_cutoffs = sum(stats.null_move_cutoffs);
-        out                              = std::format_to(out,
+        const std::uint64_t null_move_tries   = sum(stats.null_move_tries);
+        const std::uint64_t null_move_cutoffs = sum(stats.null_move_cutoffs);
+        out                                   = std::format_to(out,
                              "NullMove: tries={} cutoffs={} cutoff-rate={:.1f}%\n",
                              null_move_tries,
                              null_move_cutoffs,
                              pct(null_move_cutoffs, null_move_tries));
 
-        const uint64_t razor_tries    = sum(stats.razor_tries);
-        const uint64_t razor_cutoffs  = sum(stats.razor_cutoffs);
-        const uint64_t futility_skips = sum(stats.futility_skips);
-        out                           = std::format_to(out,
+        const std::uint64_t razor_tries    = sum(stats.razor_tries);
+        const std::uint64_t razor_cutoffs  = sum(stats.razor_cutoffs);
+        const std::uint64_t futility_skips = sum(stats.futility_skips);
+        out                                = std::format_to(out,
                              "RazorFutility: razor-tries={} razor-cutoffs={} "
-                                                       "razor-cutoff-rate={:.1f}% futility-skips={}\n",
+                                                            "razor-cutoff-rate={:.1f}% futility-skips={}\n",
                              razor_tries,
                              razor_cutoffs,
                              pct(razor_cutoffs, razor_tries),
                              futility_skips);
 
-        const uint64_t lmr_tries      = sum(stats.lmr_tries);
-        const uint64_t lmr_researches = sum(stats.lmr_researches);
-        out                           = std::format_to(out,
+        const std::uint64_t lmr_tries      = sum(stats.lmr_tries);
+        const std::uint64_t lmr_researches = sum(stats.lmr_researches);
+        out                                = std::format_to(out,
                              "LMR: tries={} re-searches={} re-search-rate={:.1f}%\n",
                              lmr_tries,
                              lmr_researches,
                              pct(lmr_researches, lmr_tries));
 
-        const uint64_t quiet_cutoffs              = sum(stats.quiet_cutoffs);
-        const uint64_t quiet_malus_eligible_nodes = sum(stats.quiet_malus_eligible_nodes);
-        const uint64_t quiet_malus_failed_quiets  = sum(stats.quiet_malus_failed_quiets);
-        const uint64_t quiet_malus_updates        = sum(stats.quiet_malus_updates);
-        out                                       = std::format_to(out,
+        const std::uint64_t quiet_cutoffs              = sum(stats.quiet_cutoffs);
+        const std::uint64_t quiet_malus_eligible_nodes = sum(stats.quiet_malus_eligible_nodes);
+        const std::uint64_t quiet_malus_failed_quiets  = sum(stats.quiet_malus_failed_quiets);
+        const std::uint64_t quiet_malus_updates        = sum(stats.quiet_malus_updates);
+        out                                            = std::format_to(out,
                              "QuietHistory: quiet-cutoffs={} malus-eligible={} failed-quiets={} "
-                                                                   "malus-updates={}\n",
+                                                                        "malus-updates={}\n",
                              quiet_cutoffs,
                              quiet_malus_eligible_nodes,
                              quiet_malus_failed_quiets,
@@ -439,13 +439,13 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
             --maxDepth;
 
         for (size_t d = 1; d <= static_cast<size_t>(maxDepth); ++d) {
-            uint64_t nodes          = stats.nodes[d];
-            uint64_t prev           = d > 1 ? stats.nodes[d - 1] : 0;
-            uint64_t qnodes         = stats.qnodes[d];
-            uint64_t cutoffs        = stats.cutoffs[d];
-            uint64_t early          = stats.fail_high_early[d];
-            uint64_t late           = stats.fail_high_late[d];
-            uint64_t pvs_researches = stats.pvs_researches[d];
+            std::uint64_t nodes          = stats.nodes[d];
+            std::uint64_t prev           = d > 1 ? stats.nodes[d - 1] : 0;
+            std::uint64_t qnodes         = stats.qnodes[d];
+            std::uint64_t cutoffs        = stats.cutoffs[d];
+            std::uint64_t early          = stats.fail_high_early[d];
+            std::uint64_t late           = stats.fail_high_late[d];
+            std::uint64_t pvs_researches = stats.pvs_researches[d];
 
             double qnode_pct      = pct(qnodes, nodes);
             double early_pct      = pct(early, cutoffs);
@@ -482,14 +482,14 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
     }
 
 private:
-    static uint64_t sum(const SearchCounters<true>::StatsArray& values) {
-        uint64_t total = 0;
-        for (const uint64_t value : values)
+    static std::uint64_t sum(const SearchCounters<true>::StatsArray& values) {
+        std::uint64_t total = 0;
+        for (const std::uint64_t value : values)
             total += value;
         return total;
     }
 
-    static double pct(const uint64_t count, const uint64_t total) {
+    static double pct(const std::uint64_t count, const std::uint64_t total) {
         return total > 0 ? 100.0 * count / total : 0.0;
     }
 

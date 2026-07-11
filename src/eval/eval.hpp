@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cassert>
-#include <cstdint>
 
 #include "core/constants.hpp"
 #include "core/piece.hpp"
@@ -25,12 +24,12 @@ constexpr TaperedScore queen  = {piece_value::queen_mg, piece_value::queen_eg};
 
 namespace masks {
 
-constexpr uint64_t dark_squares   = 0xAA55AA55AA55AA55ull;
-constexpr uint64_t light_squares  = 0x55AA55AA55AA55AAull;
-constexpr uint64_t center_files   = 0x3C3C3C3C3C3C3Cull;
-constexpr uint64_t center_squares = 0x0000001818000000ull;
-constexpr uint64_t w_outposts     = 0x0000FFFFFF000000ull;
-constexpr uint64_t b_outposts     = 0x000000FFFFFF0000ull;
+constexpr Bitboard dark_squares   = 0xAA55AA55AA55AA55ull;
+constexpr Bitboard light_squares  = 0x55AA55AA55AA55AAull;
+constexpr Bitboard center_files   = 0x3C3C3C3C3C3C3Cull;
+constexpr Bitboard center_squares = 0x0000001818000000ull;
+constexpr Bitboard w_outposts     = 0x0000FFFFFF000000ull;
+constexpr Bitboard b_outposts     = 0x000000FFFFFF0000ull;
 
 }; // namespace masks
 

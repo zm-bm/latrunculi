@@ -13,7 +13,7 @@
 class TT_Table;
 extern TT_Table tt;
 
-enum class TT_Flag : uint8_t {
+enum class TT_Flag : std::uint8_t {
     None,
     Exact,
     Lowerbound,
@@ -30,16 +30,17 @@ tt_bound_for_window(EvalValue value, EvalValue alpha, EvalValue beta) noexcept {
 }
 
 struct TT_Entry {
-    std::atomic<uint64_t> payload   = 0;
-    std::atomic<uint64_t> signature = 0;
+    std::atomic<std::uint64_t> payload   = 0;
+    std::atomic<std::uint64_t> signature = 0;
 };
 
+// Decoded compact TT payload record; search/eval arithmetic stays wider at API boundaries.
 struct TT_Record {
-    Move    move  = NULL_MOVE;
-    int16_t score = 0;
-    uint8_t depth = 0;
-    uint8_t age   = 0;
-    TT_Flag flag  = TT_Flag::None;
+    Move         move  = NULL_MOVE;
+    std::int16_t score = 0;
+    std::uint8_t depth = 0;
+    std::uint8_t age   = 0;
+    TT_Flag      flag  = TT_Flag::None;
 
     [[nodiscard]] bool is_valid() const {
         switch (flag) {
@@ -57,9 +58,10 @@ struct TT_Record {
                                   EvalValue alpha,
                                   EvalValue beta) const noexcept;
 };
+static_assert(sizeof(TT_Record) == 8);
 
 struct alignas(64) TT_Cluster {
-    static constexpr uint32_t size = 4;
+    static constexpr int size = 4;
 
     TT_Entry entries[size] = {};
 };
@@ -76,50 +78,53 @@ public:
     // forbidden.
     // - TT internals publish payload first and a full-key XOR signature last, so racing reads
     //   degrade to a miss, an old hit, or a new hit rather than accepting a mixed entry.
-    [[nodiscard]] std::optional<TT_Record> probe(uint64_t zkey) const;
-    void store(uint64_t zkey, Move move, int16_t score, uint8_t depth, TT_Flag flag, int ply);
-    void store_search(uint64_t zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply);
+    [[nodiscard]] std::optional<TT_Record> probe(PositionKey zkey) const;
+    void store(PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply);
+    void
+    store_search(PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply);
     void resize(size_t megabytes);
     void clear();
     // Advance the shared TT generation once per root-search lifecycle event.
-    void                  age_table() { ++age; }
-    [[nodiscard]] uint8_t current_age() const { return age; }
-    const void*           prefetch_addr(uint64_t zkey) const;
+    void                       age_table() { ++age; }
+    [[nodiscard]] std::uint8_t current_age() const { return age; }
+    const void*                prefetch_addr(PositionKey zkey) const;
 
     static constexpr size_t default_mb = 4;
 
 private:
-    uint64_t cluster_key(uint64_t zkey) const;
+    std::uint64_t cluster_key(PositionKey zkey) const;
 
     std::unique_ptr<TT_Cluster[]> table = nullptr;
 
-    size_t   length = 0;
-    uint32_t shift  = 0;
-    uint8_t  age    = 0;
+    size_t       length = 0;
+    int          shift  = 0;
+    std::uint8_t age    = 0;
 };
 
-inline const void* TT_Table::prefetch_addr(uint64_t zkey) const {
-    uint64_t idx = cluster_key(zkey);
+inline const void* TT_Table::prefetch_addr(PositionKey zkey) const {
+    std::uint64_t idx = cluster_key(zkey);
     return &table[idx];
 }
 
-inline uint64_t TT_Table::cluster_key(uint64_t zkey) const {
+inline std::uint64_t TT_Table::cluster_key(PositionKey zkey) const {
     return (zkey * 0x9e3779b97f4a7c15ull) >> shift;
 }
 
 // lower score = better replacement candidate: prefer shallow entries, then older entries
 inline int TT_Record::replacement_score(int tt_age) const noexcept {
-    const int relative_age = uint8_t(uint8_t(tt_age) - age);
-    return depth - 4 * relative_age;
+    const int relative_age = std::uint8_t(std::uint8_t(tt_age) - age);
+    return int(depth) - 4 * relative_age;
 }
 
 // Convert a stored current-position mate score back into a root-relative search score.
 inline EvalValue TT_Record::score_at_ply(int ply) const noexcept {
-    if (score >= eval_value::tt_mate_bound)
-        return score - ply;
-    if (score <= -eval_value::tt_mate_bound)
-        return score + ply;
-    return score;
+    const EvalValue value = score;
+
+    if (value >= eval_value::tt_mate_bound)
+        return value - ply;
+    if (value <= -eval_value::tt_mate_bound)
+        return value + ply;
+    return value;
 }
 
 inline bool TT_Record::can_cutoff(EvalValue adjusted_score,
@@ -128,7 +133,7 @@ inline bool TT_Record::can_cutoff(EvalValue adjusted_score,
                                   EvalValue beta) const noexcept {
     assert(search_depth >= 0 && search_depth <= engine::max_search_ply);
 
-    if (depth < search_depth)
+    if (int(depth) < search_depth)
         return false;
 
     switch (flag) {
@@ -142,10 +147,10 @@ inline bool TT_Record::can_cutoff(EvalValue adjusted_score,
 }
 
 inline void TT_Table::store_search(
-    uint64_t zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply) {
+    PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply) {
     assert(depth >= 0 && depth <= engine::max_search_ply);
     assert(score >= std::numeric_limits<std::int16_t>::min() &&
            score <= std::numeric_limits<std::int16_t>::max());
 
-    store(zkey, move, static_cast<int16_t>(score), static_cast<uint8_t>(depth), flag, ply);
+    store(zkey, move, score, depth, flag, ply);
 }

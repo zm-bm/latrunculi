@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <cstdint>
 
 #include "core/constants.hpp"
 #include "eval/evaluator.hpp"
@@ -39,7 +38,7 @@ template <NodeType Node>
 bool tt_cutoff_allowed(
     const TT_Record& record, EvalValue adjusted_score, int depth, EvalValue alpha, EvalValue beta) {
     if constexpr (Node == PV)
-        return record.depth >= depth && record.flag == TT_Flag::Exact;
+        return int(record.depth) >= depth && record.flag == TT_Flag::Exact;
 
     return record.can_cutoff(adjusted_score, depth, alpha, beta);
 }
@@ -82,7 +81,7 @@ struct SearchedMoves {
         if (count_ >= Capacity)
             return false;
 
-        move_bits_[count_++] = move.bits;
+        moves_[count_++] = move;
         return true;
     }
 
@@ -90,16 +89,13 @@ struct SearchedMoves {
 
     template <typename Fn>
     void for_each(Fn fn) const {
-        for (int i = 0; i < count_; ++i) {
-            Move move;
-            move.bits = move_bits_[i];
-            fn(move);
-        }
+        for (int i = 0; i < count_; ++i)
+            fn(moves_[i]);
     }
 
 private:
-    uint16_t move_bits_[Capacity];
-    int      count_{0};
+    Move moves_[Capacity];
+    int  count_{0};
 };
 
 } // namespace
@@ -272,9 +268,9 @@ EvalValue SearchWorker::alphabeta(
     if (alpha >= beta)
         return alpha;
 
-    const EvalValue original_alpha = alpha;
-    const uint64_t  position_key   = board.key();
-    Move            tt_move        = NULL_MOVE;
+    const EvalValue   original_alpha = alpha;
+    const PositionKey position_key   = board.key();
+    Move              tt_move        = NULL_MOVE;
 
     // Step 4. Transposition Table. Probe for a cutoff or a hash move.
     stats.main_tt_probe(ply);
@@ -501,10 +497,10 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
     if (ply >= engine::max_search_ply)
         return evaluate(board);
 
-    constexpr int   qsearch_tt_depth = 0;
-    const EvalValue original_alpha   = alpha;
-    const uint64_t  position_key     = board.key();
-    Move            tt_move          = NULL_MOVE;
+    constexpr int     qsearch_tt_depth = 0;
+    const EvalValue   original_alpha   = alpha;
+    const PositionKey position_key     = board.key();
+    Move              tt_move          = NULL_MOVE;
 
     // Step 3. Transposition Table. Use depth-0 records with the PV cutoff policy.
     stats.q_tt_probe(ply);

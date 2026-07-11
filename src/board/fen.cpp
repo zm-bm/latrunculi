@@ -2,6 +2,7 @@
 #include "core/notation.hpp"
 
 #include <charconv>
+#include <cstdint>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
@@ -14,7 +15,7 @@ bool is_digit(char ch) {
     return ch >= '0' && ch <= '9';
 }
 
-uint32_t parse_uint32(std::string_view section, const char* name) {
+int parse_int(std::string_view section, const char* name) {
     if (section.empty())
         throw std::invalid_argument(std::string("invalid fen, missing ") + name);
 
@@ -23,7 +24,7 @@ uint32_t parse_uint32(std::string_view section, const char* name) {
             throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
     }
 
-    uint32_t value       = 0;
+    int value            = 0;
     const auto [ptr, ec] = std::from_chars(section.data(), section.data() + section.size(), value);
     if (ec != std::errc{} || ptr != section.data() + section.size())
         throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
@@ -31,18 +32,18 @@ uint32_t parse_uint32(std::string_view section, const char* name) {
     return value;
 }
 
-uint8_t parse_uint8(std::string_view section, const char* name) {
-    const uint32_t value = parse_uint32(section, name);
-    if (value > std::numeric_limits<uint8_t>::max())
+std::uint8_t parse_uint8(std::string_view section, const char* name) {
+    const int value = parse_int(section, name);
+    if (value > std::numeric_limits<std::uint8_t>::max())
         throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
-    return static_cast<uint8_t>(value);
+    return static_cast<std::uint8_t>(value);
 }
 
-uint32_t fen_fullmove_to_ply(uint32_t fullmove_num, Color turn) {
-    const uint64_t value = 2ull * (fullmove_num - 1) + (turn == WHITE ? 0 : 1);
-    if (value > std::numeric_limits<uint32_t>::max())
+int fen_fullmove_to_ply(int fullmove_num, Color turn) {
+    const long long value = 2LL * (fullmove_num - 1) + (turn == WHITE ? 0 : 1);
+    if (value > std::numeric_limits<int>::max())
         throw std::invalid_argument("invalid fen, fullmove number is too large");
-    return static_cast<uint32_t>(value);
+    return static_cast<int>(value);
 }
 
 PieceSquare make_piece_square(char ch, Square sq) {
@@ -178,7 +179,7 @@ void FenParser::parse_halfmove(const std::string& section) {
 }
 
 void FenParser::parse_fullmove(const std::string& section) {
-    const uint32_t fullmove_num = parse_uint32(section, "fullmove number");
+    const int fullmove_num = parse_int(section, "fullmove number");
     if (fullmove_num == 0)
         throw std::invalid_argument("invalid fen, invalid fullmove number");
     fullmove_clk = fen_fullmove_to_ply(fullmove_num, turn);

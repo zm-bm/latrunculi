@@ -1,10 +1,11 @@
 #pragma once
 
 #include <cassert>
+#include <cstdint>
 
 #include "core/types.hpp"
 
-enum PieceType : uint8_t {
+enum PieceType : std::uint8_t {
     NO_PIECETYPE = 0,
     PAWN         = 1,
     KNIGHT       = 2,
@@ -15,7 +16,7 @@ enum PieceType : uint8_t {
     N_PIECETYPES = 7,
 };
 
-enum Piece : uint8_t {
+enum Piece : std::uint8_t {
     NO_PIECE = 0,
     B_PAWN   = 1,
     B_KNIGHT = 2,

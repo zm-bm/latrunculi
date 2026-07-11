@@ -30,6 +30,7 @@
 #include "core/attack_magic.hpp"
 
 #include <array>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -37,10 +38,10 @@
 
 namespace attacks::magic {
 
-uint64_t rook_table[102400];
-uint64_t bishop_table[5248];
+Bitboard rook_table[102400];
+Bitboard bishop_table[5248];
 
-uint64_t* const rook_moves_table[64] = {
+Bitboard* const rook_moves_table[64] = {
     rook_table + 86016, rook_table + 73728, rook_table + 36864, rook_table + 43008,
     rook_table + 47104, rook_table + 51200, rook_table + 77824, rook_table + 94208,
     rook_table + 69632, rook_table + 32768, rook_table + 38912, rook_table + 10240,
@@ -58,7 +59,7 @@ uint64_t* const rook_moves_table[64] = {
     rook_table + 90112, rook_table + 75776, rook_table + 40960, rook_table + 45056,
     rook_table + 49152, rook_table + 55296, rook_table + 79872, rook_table + 98304};
 
-uint64_t* const bishop_moves_table[64] = {
+Bitboard* const bishop_moves_table[64] = {
     bishop_table + 4992, bishop_table + 2624, bishop_table + 256,  bishop_table + 896,
     bishop_table + 1280, bishop_table + 1664, bishop_table + 4800, bishop_table + 5120,
     bishop_table + 2560, bishop_table + 2656, bishop_table + 288,  bishop_table + 928,
@@ -76,7 +77,7 @@ uint64_t* const bishop_moves_table[64] = {
     bishop_table + 5056, bishop_table + 2720, bishop_table + 864,  bishop_table + 1248,
     bishop_table + 1632, bishop_table + 2272, bishop_table + 4896, bishop_table + 5184};
 
-const uint64_t rook_magic[64] = {
+const std::uint64_t rook_magic[64] = {
     0x0080001020400080ull, 0x0040001000200040ull, 0x0080081000200080ull, 0x0080040800100080ull,
     0x0080020400080080ull, 0x0080010200040080ull, 0x0080008001000200ull, 0x0080002040800100ull,
     0x0000800020400080ull, 0x0000400020005000ull, 0x0000801000200080ull, 0x0000800800100080ull,
@@ -94,7 +95,7 @@ const uint64_t rook_magic[64] = {
     0x00FFFCDDFCED714Aull, 0x007FFCDDFCED714Aull, 0x003FFFCDFFD88096ull, 0x0000040810002101ull,
     0x0001000204080011ull, 0x0001000204000801ull, 0x0001000082000401ull, 0x0001FFFAABFAD1A2ull};
 
-const uint64_t bishop_magic[64] = {
+const std::uint64_t bishop_magic[64] = {
     0x0002020202020200ull, 0x0002020202020000ull, 0x0004010202000000ull, 0x0004040080000000ull,
     0x0001104000000000ull, 0x0000821040000000ull, 0x0000410410400000ull, 0x0000104104104000ull,
     0x0000040404040400ull, 0x0000020202020200ull, 0x0000040102020000ull, 0x0000040400800000ull,
@@ -112,7 +113,7 @@ const uint64_t bishop_magic[64] = {
     0x0000104104104000ull, 0x0000002082082000ull, 0x0000000020841000ull, 0x0000000000208800ull,
     0x0000000010020200ull, 0x0000000404080200ull, 0x0000040404040400ull, 0x0002020202020200ull};
 
-const uint64_t rook_mask[64] = {
+const Bitboard rook_mask[64] = {
     0x000101010101017Eull, 0x000202020202027Cull, 0x000404040404047Aull, 0x0008080808080876ull,
     0x001010101010106Eull, 0x002020202020205Eull, 0x004040404040403Eull, 0x008080808080807Eull,
     0x0001010101017E00ull, 0x0002020202027C00ull, 0x0004040404047A00ull, 0x0008080808087600ull,
@@ -130,7 +131,7 @@ const uint64_t rook_mask[64] = {
     0x7E01010101010100ull, 0x7C02020202020200ull, 0x7A04040404040400ull, 0x7608080808080800ull,
     0x6E10101010101000ull, 0x5E20202020202000ull, 0x3E40404040404000ull, 0x7E80808080808000ull};
 
-const uint64_t bishop_mask[64] = {
+const Bitboard bishop_mask[64] = {
     0x0040201008040200ull, 0x0000402010080400ull, 0x0000004020100A00ull, 0x0000000040221400ull,
     0x0000000002442800ull, 0x0000000204085000ull, 0x0000020408102000ull, 0x0002040810204000ull,
     0x0020100804020000ull, 0x0040201008040000ull, 0x00004020100A0000ull, 0x0000004022140000ull,
@@ -162,8 +163,8 @@ using Direction  = std::pair<int, int>;
 using Directions = std::array<Direction, 4>;
 
 // calculate moves for sliding pieces based on occupancy and directions
-uint64_t generate_moves(int sq, uint64_t occ, const Directions& directions) {
-    uint64_t attacks = 0ULL;
+Bitboard generate_moves(int sq, Bitboard occ, const Directions& directions) {
+    Bitboard attacks = 0ULL;
 
     Square from = Square(sq);
     for (const auto [f_delta, r_delta] : directions) {
@@ -188,34 +189,34 @@ uint64_t generate_moves(int sq, uint64_t occ, const Directions& directions) {
 }
 
 // translate line occupancy into an occupied-square bitboard
-uint64_t calc_occupancy(std::vector<Square> squares, uint64_t line_occ) {
-    uint64_t ret = 0;
+Bitboard calc_occupancy(std::vector<Square> squares, std::uint64_t line_occ) {
+    Bitboard ret = 0;
     for (auto i = 0; i < squares.size(); i++) {
-        if (line_occ & (1 << i))
+        if (line_occ & bb::set(Square(i)))
             ret |= bb::set(squares[i]);
     }
     return ret;
 }
 
 // populate magic tables for rook and bishop moves
-void init_magic(const uint64_t  masks[64],
-                const uint64_t  magic_nums[64],
-                const int       shifts[64],
-                uint64_t* const moves[64],
-                Directions      directions) {
+void init_magic(const Bitboard      masks[64],
+                const std::uint64_t magic_nums[64],
+                const int           shifts[64],
+                Bitboard* const     moves[64],
+                Directions          directions) {
 
     for (Square sq = A1; sq < INVALID; ++sq) {
-        uint64_t mask = masks[sq];
+        Bitboard mask = masks[sq];
 
         std::vector<Square> squares;
         while (mask)
             squares.push_back(bb::lsb_pop(mask));
 
         // Enumerate all occupancy variations and generate attacks
-        uint64_t max_occ = 1 << squares.size();
-        for (uint64_t line_occ = 0; line_occ < max_occ; line_occ++) {
-            uint64_t occ    = calc_occupancy(squares, line_occ);
-            uint64_t offset = (occ * magic_nums[sq]) >> shifts[sq];
+        Bitboard max_occ = bb::set(Square(squares.size()));
+        for (std::uint64_t line_occ = 0; line_occ < max_occ; line_occ++) {
+            Bitboard      occ    = calc_occupancy(squares, line_occ);
+            std::uint64_t offset = (occ * magic_nums[sq]) >> shifts[sq];
 
             *(moves[sq] + offset) = generate_moves(sq, occ, directions);
         }

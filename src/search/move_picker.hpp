@@ -11,12 +11,12 @@ class Board;
 
 namespace move_picker {
 
-enum class Mode : uint8_t {
+enum class Mode : std::uint8_t {
     MainSearch,
     QSearch,
 };
 
-enum class Stage : uint8_t {
+enum class Stage : std::uint8_t {
     TT_MOVE,
     LOAD_EVASIONS,
     PICK_EVASION,
@@ -29,13 +29,13 @@ enum class Stage : uint8_t {
     DONE,
 };
 
-enum class ScorePolicy : uint8_t {
+enum class ScorePolicy : std::uint8_t {
     Noisy,
     Quiet,
     Evasion,
 };
 
-enum class PickPolicy : uint8_t {
+enum class PickPolicy : std::uint8_t {
     Evasion,
     GoodNoisy,
     Quiet,

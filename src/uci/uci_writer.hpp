@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -35,7 +34,7 @@ public:
     void bestmove(Move move) const;
     void search_info(const RootLine& line,
                      const Board&    root_board,
-                     uint64_t        nodes,
+                     NodeCount       nodes,
                      Milliseconds    time) const;
     void info_string(std::string_view str) const;
     void debug_text(std::string_view str) const;

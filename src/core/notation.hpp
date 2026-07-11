@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -69,11 +68,11 @@ inline std::ostream& operator<<(std::ostream& os, PieceType pieceType) {
     return os;
 }
 
-// Stream wrapper for printing a raw uint64_t as an 8x8 bitboard during debugging.
+// Stream wrapper for printing a Bitboard as an 8x8 board during debugging.
 struct BitboardDebug {
-    uint64_t bitboard;
+    Bitboard bitboard;
 };
 
-BitboardDebug debug_bitboard(uint64_t bitboard);
-void          print_bitboard(uint64_t bitboard);
+BitboardDebug debug_bitboard(Bitboard bitboard);
+void          print_bitboard(Bitboard bitboard);
 std::ostream& operator<<(std::ostream& os, BitboardDebug debug);

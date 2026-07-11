@@ -28,16 +28,16 @@ constexpr std::string_view CHECK_BY_PREVIOUS_MOVE_FEN = "k7/8/2K5/8/8/8/8/R7 w -
 constexpr std::string_view WEAK_CAPTURE_FEN           = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
 constexpr std::string_view PROMOTION_AND_CAPTURE_FEN  = "4k3/P7/8/1p6/3N4/8/8/4K3 w - - 0 1";
 
-std::vector<uint16_t> sorted_move_bits(MoveList movelist) {
-    std::vector<uint16_t> bits;
+std::vector<MoveBits> sorted_move_bits(MoveList movelist) {
+    std::vector<MoveBits> bits;
     for (const Move& move : movelist)
         bits.push_back(move.bits);
     std::sort(bits.begin(), bits.end());
     return bits;
 }
 
-std::vector<uint16_t> sorted_move_bits(const std::vector<Move>& moves) {
-    std::vector<uint16_t> bits;
+std::vector<MoveBits> sorted_move_bits(const std::vector<Move>& moves) {
+    std::vector<MoveBits> bits;
     for (const Move& move : moves)
         bits.push_back(move.bits);
     std::sort(bits.begin(), bits.end());

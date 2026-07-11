@@ -15,21 +15,21 @@ void validate_perft_depth(int depth) {
         throw std::invalid_argument("perft depth out of range");
 }
 
-uint64_t perft_impl(
+NodeCount perft_impl(
     Board& board, int depth, PositionStateStack& states, int ply, PositionState& current_state) {
     if (depth == 0)
         return 1;
 
-    uint64_t nodes    = 0;
-    auto     movelist = movegen::generate_pseudo_legal(board);
+    NodeCount nodes    = 0;
+    auto      movelist = movegen::generate_pseudo_legal(board);
 
     for (auto& move : movelist) {
         if (!board.is_legal_generated_move(move))
             continue;
 
         board.make(move, states.child(ply));
-        uint64_t count  = perft_impl(board, depth - 1, states, ply + 1, states.child(ply));
-        nodes          += count;
+        NodeCount count  = perft_impl(board, depth - 1, states, ply + 1, states.child(ply));
+        nodes           += count;
         board.unmake(current_state);
     }
 
@@ -38,7 +38,7 @@ uint64_t perft_impl(
 
 } // namespace
 
-uint64_t perft(Board& board, int depth) {
+NodeCount perft(Board& board, int depth) {
     validate_perft_depth(depth);
 
     PositionStateStack states;
@@ -67,8 +67,8 @@ PerftResult perft_root(Board& board, int depth) {
             continue;
 
         board.make(move, states.child(0));
-        const uint64_t nodes  = perft_impl(board, depth - 1, states, 1, states.child(0));
-        result.nodes         += nodes;
+        const NodeCount nodes  = perft_impl(board, depth - 1, states, 1, states.child(0));
+        result.nodes          += nodes;
         result.root_moves.push_back({.move = move, .nodes = nodes});
         board.unmake(root_state);
     }

@@ -35,32 +35,32 @@
 
 namespace attacks::magic {
 
-extern uint64_t        rook_table[102400];
-extern uint64_t        bishop_table[5248];
-extern uint64_t* const rook_moves_table[64];
-extern uint64_t* const bishop_moves_table[64];
-extern const uint64_t  rook_magic[64];
-extern const uint64_t  bishop_magic[64];
-extern const uint64_t  rook_mask[64];
-extern const uint64_t  bishop_mask[64];
-extern const int       rook_shift[64];
-extern const int       bishop_shift[64];
+extern Bitboard            rook_table[102400];
+extern Bitboard            bishop_table[5248];
+extern Bitboard* const     rook_moves_table[64];
+extern Bitboard* const     bishop_moves_table[64];
+extern const std::uint64_t rook_magic[64];
+extern const std::uint64_t bishop_magic[64];
+extern const Bitboard      rook_mask[64];
+extern const Bitboard      bishop_mask[64];
+extern const int           rook_shift[64];
+extern const int           bishop_shift[64];
 
 void init();
 
-inline uint64_t rook_moves(Square sq, uint64_t occupied) {
+inline Bitboard rook_moves(Square sq, Bitboard occupied) {
     const auto occ   = occupied & rook_mask[sq];
     const auto index = (occ * rook_magic[sq]) >> rook_shift[sq];
     return rook_moves_table[sq][index];
 }
 
-inline uint64_t bishop_moves(Square sq, uint64_t occupied) {
+inline Bitboard bishop_moves(Square sq, Bitboard occupied) {
     const auto occ   = occupied & bishop_mask[sq];
     const auto index = (occ * bishop_magic[sq]) >> bishop_shift[sq];
     return bishop_moves_table[sq][index];
 }
 
-inline uint64_t queen_moves(Square sq, uint64_t occupied) {
+inline Bitboard queen_moves(Square sq, Bitboard occupied) {
     return bishop_moves(sq, occupied) | rook_moves(sq, occupied);
 }
 

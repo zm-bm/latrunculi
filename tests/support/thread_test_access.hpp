@@ -3,7 +3,6 @@
 #include <atomic>
 #include <cassert>
 #include <cstddef>
-#include <cstdint>
 #include <mutex>
 
 #include "uci/threading.hpp"
@@ -62,9 +61,9 @@ public:
 
     static int ply(const Thread& thread) { return worker(thread).ply; }
 
-    static uint64_t node_count(const Thread& thread) { return worker(thread).node_count(); }
+    static NodeCount node_count(const Thread& thread) { return worker(thread).node_count(); }
 
-    static uint64_t node_count(const ThreadPool& pool, size_t index) {
+    static NodeCount node_count(const ThreadPool& pool, size_t index) {
         return node_count(thread(pool, index));
     }
 

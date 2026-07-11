@@ -24,7 +24,7 @@ std::string format_score(EvalValue score) {
     return "cp " + std::to_string(score);
 }
 
-std::string format_nps(uint64_t nodes, Milliseconds time) {
+std::string format_nps(NodeCount nodes, Milliseconds time) {
     auto count = time.count();
     auto nps   = count > 0 ? (nodes * 1000 / count) : 0;
     return std::to_string(nps);
@@ -57,7 +57,7 @@ std::string format_root_pv(const RootLine& line, const Board& root_board) {
 
 std::string format_search_info(const RootLine& line,
                                const Board&    root_board,
-                               uint64_t        nodes,
+                               NodeCount       nodes,
                                Milliseconds    time) {
     std::string info = std::format("info depth {} score {} nodes {} time {} nps {}",
                                    line.depth,
@@ -167,7 +167,7 @@ void Writer::bestmove(Move move) const {
 
 void Writer::search_info(const RootLine& line,
                          const Board&    root_board,
-                         uint64_t        nodes,
+                         NodeCount       nodes,
                          Milliseconds    time) const {
     out << format_search_info(line, root_board, nodes, time) << '\n';
     out.flush();

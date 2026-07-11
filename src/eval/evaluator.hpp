@@ -28,14 +28,14 @@ private:
     TermCallback callback = nullptr;
 
     struct AttackData {
-        uint64_t by[N_COLORS][N_PIECETYPES] = {{0}};
-        uint64_t by2[N_COLORS]              = {0};
+        Bitboard by[N_COLORS][N_PIECETYPES] = {{0}};
+        Bitboard by2[N_COLORS]              = {0};
     } attacks;
 
     struct ZoneData {
-        uint64_t outposts[N_COLORS] = {0};
-        uint64_t mobility[N_COLORS] = {0};
-        uint64_t king[N_COLORS]     = {0};
+        Bitboard outposts[N_COLORS] = {0};
+        Bitboard mobility[N_COLORS] = {0};
+        Bitboard king[N_COLORS]     = {0};
     } zones;
 
     struct KingAttackersData {
@@ -52,24 +52,24 @@ private:
 
     struct PieceContext {
         Square   square    = INVALID;
-        uint64_t piece_bb  = 0;
-        uint64_t occupied  = 0;
-        uint64_t pawns     = 0;
-        uint64_t opp_pawns = 0;
+        Bitboard piece_bb  = 0;
+        Bitboard occupied  = 0;
+        Bitboard pawns     = 0;
+        Bitboard opp_pawns = 0;
     };
 
     template <Color C>
     void initialize();
 
     template <Color C>
-    uint64_t outposts_zone(const uint64_t pawns, const uint64_t opp_pawns) const;
+    Bitboard outposts_zone(const Bitboard pawns, const Bitboard opp_pawns) const;
 
     template <Color C>
-    uint64_t
-    mobility_zone(const uint64_t pawns, const uint64_t opp_pawns, const Square king_sq) const;
+    Bitboard
+    mobility_zone(const Bitboard pawns, const Bitboard opp_pawns, const Square king_sq) const;
 
     template <Color C>
-    uint64_t king_zone(const Square king_sq) const;
+    Bitboard king_zone(const Square king_sq) const;
 
     // Core evaluation methods
 
@@ -86,24 +86,24 @@ private:
     TaperedScore evaluate_king_safety() const;
 
     template <Color C, PieceType P>
-    void update_attacks(const uint64_t moves);
+    void update_attacks(const Bitboard moves);
 
     template <Color C, PieceType P>
-    void update_mobility(const uint64_t moves);
+    void update_mobility(const Bitboard moves);
 
     template <Color C, PieceType P>
     void update_threats(const PieceContext& ctx);
 
     template <Color C, PieceType P>
-    TaperedScore update_attackers(const PieceContext& ctx, const uint64_t moves);
+    TaperedScore update_attackers(const PieceContext& ctx, const Bitboard moves);
 
     // Piece specific evaluation methods
 
     template <Color C, PieceType P>
-    uint64_t get_moves(const PieceContext& ctx) const;
+    Bitboard get_moves(const PieceContext& ctx) const;
 
     template <Color C, PieceType P>
-    TaperedScore evaluate_minor_pieces(const PieceContext& ctx, const uint64_t moves) const;
+    TaperedScore evaluate_minor_pieces(const PieceContext& ctx, const Bitboard moves) const;
 
     template <Color C>
     TaperedScore evaluate_bishops(const PieceContext& ctx) const;
@@ -127,7 +127,7 @@ private:
 
     template <Color C>
     TaperedScore
-    evaluate_shelter_file(const uint64_t pawns, const uint64_t opp_pawns, const File file) const;
+    evaluate_shelter_file(const Bitboard pawns, const Bitboard opp_pawns, const File file) const;
 
     template <Color C>
     TaperedScore evaluate_danger(const Square king_sq) const;
@@ -136,7 +136,7 @@ private:
     int calculate_raw_danger(const Square king_sq) const;
 
     template <PieceType P>
-    int calculate_check_danger(const uint64_t safe_checks, const uint64_t all_checks) const;
+    int calculate_check_danger(const Bitboard safe_checks, const Bitboard all_checks) const;
 
     // Helpers
 
@@ -193,11 +193,11 @@ inline void Evaluator::initialize() {
     constexpr Color Opp = ~C;
 
     const Square   king_sq    = board.king_sq(C);
-    const uint64_t king_moves = attacks::piece_moves<KING>(king_sq);
+    const Bitboard king_moves = attacks::piece_moves<KING>(king_sq);
     update_attacks<C, KING>(king_moves);
 
-    const uint64_t pawns     = board.pieces<PAWN>(C);
-    const uint64_t opp_pawns = board.pieces<PAWN>(Opp);
+    const Bitboard pawns     = board.pieces<PAWN>(C);
+    const Bitboard opp_pawns = board.pieces<PAWN>(Opp);
 
     zones.outposts[C] = outposts_zone<C>(pawns, opp_pawns);
     zones.mobility[C] = mobility_zone<C>(pawns, opp_pawns, king_sq);
@@ -206,31 +206,31 @@ inline void Evaluator::initialize() {
 
 /// outposts mask: behind enemy pawns, supported by friendly pawns, on ranks 4-6
 template <Color C>
-inline uint64_t Evaluator::outposts_zone(const uint64_t pawns, const uint64_t opp_pawns) const {
+inline Bitboard Evaluator::outposts_zone(const Bitboard pawns, const Bitboard opp_pawns) const {
     constexpr Color Opp = ~C;
 
-    const uint64_t behind_pawns = ~bb::attack_span<Opp>(opp_pawns);
-    const uint64_t supported    = attacks::pawn_attacks<C>(pawns);
+    const Bitboard behind_pawns = ~bb::attack_span<Opp>(opp_pawns);
+    const Bitboard supported    = attacks::pawn_attacks<C>(pawns);
     constexpr auto outpost_mask = (C == WHITE) ? eval::masks::w_outposts : eval::masks::b_outposts;
     return (behind_pawns & supported & outpost_mask);
 }
 
 /// mobility mask: safe from enemy pawns, not occupied by the king or rank 2 pawns
 template <Color C>
-inline uint64_t Evaluator::mobility_zone(const uint64_t pawns,
-                                         const uint64_t opp_pawns,
+inline Bitboard Evaluator::mobility_zone(const Bitboard pawns,
+                                         const Bitboard opp_pawns,
                                          const Square   king_sq) const {
     constexpr Color Opp = ~C;
 
     constexpr auto rank2    = (C == WHITE) ? bb::rank(RANK2) : bb::rank(RANK7);
-    const uint64_t occupied = bb::set(king_sq) | (pawns & rank2);
-    const uint64_t safe     = ~attacks::pawn_attacks<Opp>(opp_pawns);
+    const Bitboard occupied = bb::set(king_sq) | (pawns & rank2);
+    const Bitboard safe     = ~attacks::pawn_attacks<Opp>(opp_pawns);
     return (safe & ~occupied);
 }
 
 /// king zone: 3x3 king neighborhood for king safety evaluation
 template <Color C>
-inline uint64_t Evaluator::king_zone(const Square king_sq) const {
+inline Bitboard Evaluator::king_zone(const Square king_sq) const {
     const File   file   = std::clamp(square::file_of(king_sq), FILE2, FILE7);
     const Rank   rank   = std::clamp(square::rank_of(king_sq), RANK2, RANK7);
     const Square center = square::make(file, rank);
@@ -268,34 +268,34 @@ template <Color C>
 TaperedScore Evaluator::evaluate_pawns() {
     constexpr Color Opp = ~C;
 
-    const uint64_t pawns         = board.pieces<PAWN>(C);
-    const uint64_t opp_pawns     = board.pieces<PAWN>(Opp);
-    const uint64_t left_attacks  = attacks::pawn_moves<PAWN_LEFT, C>(pawns);
-    const uint64_t right_attacks = attacks::pawn_moves<PAWN_RIGHT, C>(pawns);
-    const uint64_t pawn_attacks  = left_attacks | right_attacks;
-    const uint64_t pawn_attacks2 = left_attacks & right_attacks;
+    const Bitboard pawns         = board.pieces<PAWN>(C);
+    const Bitboard opp_pawns     = board.pieces<PAWN>(Opp);
+    const Bitboard left_attacks  = attacks::pawn_moves<PAWN_LEFT, C>(pawns);
+    const Bitboard right_attacks = attacks::pawn_moves<PAWN_RIGHT, C>(pawns);
+    const Bitboard pawn_attacks  = left_attacks | right_attacks;
+    const Bitboard pawn_attacks2 = left_attacks & right_attacks;
 
     attacks.by2[C] |= pawn_attacks2 | (attacks.by[C][all_pieces_slot] & pawn_attacks);
     attacks.by[C][all_pieces_slot] |= pawn_attacks;
     attacks.by[C][PAWN]            |= pawn_attacks;
 
     // isolated pawns: no friendly pawns on adjacent files
-    const uint64_t pawn_files = bb::fill(pawns);
-    const uint64_t iso_pawns =
+    const Bitboard pawn_files = bb::fill(pawns);
+    const Bitboard iso_pawns =
         (pawns & ~bb::shift_west(pawn_files)) & (pawns & ~bb::shift_east(pawn_files));
     TaperedScore score = eval::iso_pawn * bb::count(iso_pawns);
 
     // backwards pawns: pawns that can't advance safely
-    const uint64_t stops       = attacks::pawn_moves<PAWN_PUSH, C>(pawns);
-    const uint64_t attack_span = bb::attack_span<C>(pawns);
-    const uint64_t opp_attacks = attacks::pawn_attacks<Opp>(opp_pawns);
-    const uint64_t backwards_pawns =
+    const Bitboard stops       = attacks::pawn_moves<PAWN_PUSH, C>(pawns);
+    const Bitboard attack_span = bb::attack_span<C>(pawns);
+    const Bitboard opp_attacks = attacks::pawn_attacks<Opp>(opp_pawns);
+    const Bitboard backwards_pawns =
         attacks::pawn_moves<PAWN_PUSH, Opp>(stops & opp_attacks & ~attack_span);
     score += eval::backward_pawn * bb::count(backwards_pawns);
 
     // doubled pawns: unsupported pawn with friendly pawns behind
-    uint64_t pawns_behind   = pawns & bb::span_front<C>(pawns);
-    uint64_t doubled_pawns  = pawns_behind & ~pawn_attacks;
+    Bitboard pawns_behind   = pawns & bb::span_front<C>(pawns);
+    Bitboard doubled_pawns  = pawns_behind & ~pawn_attacks;
     score                  += eval::doubled_pawn * bb::count(doubled_pawns);
 
     return score;
@@ -306,12 +306,12 @@ template <Color C, PieceType P>
 TaperedScore Evaluator::evaluate_pieces() {
     constexpr Color Opp = ~C;
 
-    const uint64_t occupied  = board.occupancy();
-    const uint64_t pawns     = board.pieces<PAWN>(C);
-    const uint64_t opp_pawns = board.pieces<PAWN>(Opp);
+    const Bitboard occupied  = board.occupancy();
+    const Bitboard pawns     = board.pieces<PAWN>(C);
+    const Bitboard opp_pawns = board.pieces<PAWN>(Opp);
 
     TaperedScore score;
-    uint64_t     piece_bb = board.pieces<P>(C);
+    Bitboard     piece_bb = board.pieces<P>(C);
     bb::scan<C>(piece_bb, [&](Square sq) {
         const PieceContext context{.square    = sq,
                                    .piece_bb  = bb::set(sq),
@@ -319,7 +319,7 @@ TaperedScore Evaluator::evaluate_pieces() {
                                    .pawns     = pawns,
                                    .opp_pawns = opp_pawns};
 
-        const uint64_t moves = get_moves<C, P>(context);
+        const Bitboard moves = get_moves<C, P>(context);
         update_attacks<C, P>(moves);
         update_mobility<C, P>(moves);
         update_threats<C, P>(context);
@@ -367,7 +367,7 @@ TaperedScore Evaluator::evaluate_king_safety() const {
 
 /// merge moves into attack bitboards
 template <Color C, PieceType P>
-inline void Evaluator::update_attacks(const uint64_t moves) {
+inline void Evaluator::update_attacks(const Bitboard moves) {
     attacks.by2[C]                 |= (attacks.by[C][all_pieces_slot] & moves);
     attacks.by[C][all_pieces_slot] |= moves;
     attacks.by[C][P]               |= moves;
@@ -375,9 +375,9 @@ inline void Evaluator::update_attacks(const uint64_t moves) {
 
 /// add mobility bonus for # of moves
 template <Color C, PieceType P>
-inline void Evaluator::update_mobility(const uint64_t moves) {
-    const uint64_t move_count  = bb::count(moves & zones.mobility[C]);
-    scores.mobility[C]        += eval::mobility[P][move_count];
+inline void Evaluator::update_mobility(const Bitboard moves) {
+    const int move_count  = bb::count(moves & zones.mobility[C]);
+    scores.mobility[C]   += eval::mobility[P][move_count];
 }
 
 /// penalize weak pieces if attackers > defenders
@@ -385,8 +385,8 @@ template <Color C, PieceType P>
 inline void Evaluator::update_threats(const PieceContext& ctx) {
     constexpr Color Opp = ~C;
 
-    const uint64_t defenders = board.attacks_to(ctx.square, C);
-    const uint64_t attackers = board.attacks_to(ctx.square, Opp);
+    const Bitboard defenders = board.attacks_to(ctx.square, C);
+    const Bitboard attackers = board.attacks_to(ctx.square, Opp);
 
     if (bb::count(attackers) > bb::count(defenders)) {
         scores.threats[C] += eval::weak_piece[P];
@@ -395,14 +395,14 @@ inline void Evaluator::update_threats(const PieceContext& ctx) {
 
 /// update king attackers with attacks on enemy king zone
 template <Color C, PieceType P>
-inline TaperedScore Evaluator::update_attackers(const PieceContext& ctx, const uint64_t moves) {
+inline TaperedScore Evaluator::update_attackers(const PieceContext& ctx, const Bitboard moves) {
     constexpr Color Opp = ~C;
 
     if (moves & zones.king[Opp]) {
         king_attackers.count[Opp]++;
         king_attackers.value[Opp] += eval::kingzone_att_danger[P];
     } else if constexpr (P == BISHOP || P == ROOK) {
-        const uint64_t xray_moves = attacks::piece_moves<P>(ctx.square, ctx.pawns);
+        const Bitboard xray_moves = attacks::piece_moves<P>(ctx.square, ctx.pawns);
         if (zones.king[Opp] & xray_moves)
             return eval::kingzone_xray_att;
     }
@@ -411,9 +411,9 @@ inline TaperedScore Evaluator::update_attackers(const PieceContext& ctx, const u
 }
 
 template <Color C, PieceType P>
-inline uint64_t Evaluator::get_moves(const PieceContext& ctx) const {
-    uint64_t       moves  = attacks::piece_moves<P>(ctx.square, ctx.occupied);
-    const uint64_t pinned = board.blockers(C) & ctx.piece_bb;
+inline Bitboard Evaluator::get_moves(const PieceContext& ctx) const {
+    Bitboard       moves  = attacks::piece_moves<P>(ctx.square, ctx.occupied);
+    const Bitboard pinned = board.blockers(C) & ctx.piece_bb;
     if (pinned)
         moves &= square::collinear(board.king_sq(C), ctx.square);
 
@@ -423,7 +423,7 @@ inline uint64_t Evaluator::get_moves(const PieceContext& ctx) const {
 /// minor piece eval: outposts + pawn shields
 template <Color C, PieceType P>
 inline TaperedScore Evaluator::evaluate_minor_pieces(const PieceContext& ctx,
-                                                     const uint64_t      moves) const {
+                                                     const Bitboard      moves) const {
     constexpr Color Opp = ~C;
     static_assert(P == KNIGHT || P == BISHOP);
 
@@ -451,7 +451,7 @@ template <Color C>
 inline TaperedScore Evaluator::evaluate_bishops(const PieceContext& ctx) const {
     TaperedScore score;
 
-    const uint64_t xray_moves = attacks::piece_moves<BISHOP>(ctx.square, ctx.pawns);
+    const Bitboard xray_moves = attacks::piece_moves<BISHOP>(ctx.square, ctx.pawns);
     if (bb::is_many(eval::masks::center_squares & xray_moves))
         score += eval::bishop_long_diag;
 
@@ -466,13 +466,13 @@ inline TaperedScore Evaluator::evaluate_bishop_blockers(const PieceContext& ctx)
     constexpr Color Opp = ~C;
 
     const bool     dark_square = ctx.piece_bb & eval::masks::dark_squares;
-    const uint64_t color_mask =
+    const Bitboard color_mask =
         dark_square ? eval::masks::dark_squares : eval::masks::light_squares;
-    const uint64_t color_pawns = ctx.pawns & color_mask;
+    const Bitboard color_pawns = ctx.pawns & color_mask;
     const int      pawn_count  = bb::count(color_pawns);
 
-    const uint64_t blocked_pawns = ctx.pawns & attacks::pawn_moves<PAWN_PUSH, Opp>(ctx.occupied);
-    const uint64_t pawn_chain    = ctx.piece_bb & attacks::pawn_attacks<C>(ctx.pawns);
+    const Bitboard blocked_pawns = ctx.pawns & attacks::pawn_moves<PAWN_PUSH, Opp>(ctx.occupied);
+    const Bitboard pawn_chain    = ctx.piece_bb & attacks::pawn_attacks<C>(ctx.pawns);
     const int blocking_factor = bb::count(blocked_pawns & eval::masks::center_files) + !pawn_chain;
 
     return eval::bishop_blockers * (pawn_count * blocking_factor);
@@ -483,8 +483,8 @@ template <Color C>
 inline TaperedScore Evaluator::evaluate_rook(const PieceContext& ctx) const {
     constexpr Color Opp = ~C;
 
-    const uint64_t file_mask  = bb::file(square::file_of(ctx.square));
-    const uint64_t file_pawns = ctx.pawns & file_mask;
+    const Bitboard file_mask  = bb::file(square::file_of(ctx.square));
+    const Bitboard file_pawns = ctx.pawns & file_mask;
 
     const bool semi_open = !file_pawns;
     if (semi_open) {
@@ -514,10 +514,10 @@ template <Color C, PieceType P>
 inline bool Evaluator::discovery_attack(const PieceContext& ctx) const {
     constexpr Color Opp = ~C;
 
-    uint64_t attackers = board.pieces<P>(Opp) & attacks::piece_moves<P>(ctx.square, 0);
+    Bitboard attackers = board.pieces<P>(Opp) & attacks::piece_moves<P>(ctx.square, 0);
     while (attackers) {
         const Square   attacker       = bb::lsb_pop(attackers);
-        const uint64_t pieces_between = square::between(ctx.square, attacker) & ctx.occupied;
+        const Bitboard pieces_between = square::between(ctx.square, attacker) & ctx.occupied;
 
         if (!bb::is_many(pieces_between))
             return true;
@@ -537,8 +537,8 @@ TaperedScore Evaluator::evaluate_shelter(const Square king_sq) const {
     const auto opp_pawns = board.pieces<PAWN>(Opp);
     const auto pawn_mask = bb::span_front<C>(bb::rank(king_rank));
 
-    const uint64_t pawns_ahead     = pawns & pawn_mask & ~attacks::pawn_attacks<Opp>(opp_pawns);
-    const uint64_t opp_pawns_ahead = opp_pawns & pawn_mask;
+    const Bitboard pawns_ahead     = pawns & pawn_mask & ~attacks::pawn_attacks<Opp>(opp_pawns);
+    const Bitboard opp_pawns_ahead = opp_pawns & pawn_mask;
     const File     file            = std::clamp(king_file, FILE2, FILE7);
 
     TaperedScore score;
@@ -548,7 +548,7 @@ TaperedScore Evaluator::evaluate_shelter(const Square king_sq) const {
 
     score += eval::king_file[king_file];
 
-    const uint64_t file_mask     = bb::file(king_file);
+    const Bitboard file_mask     = bb::file(king_file);
     const bool     open_file     = !(pawns & file_mask);
     const bool     opp_open_file = !(opp_pawns & file_mask);
 
@@ -559,13 +559,13 @@ TaperedScore Evaluator::evaluate_shelter(const Square king_sq) const {
 
 /// shelter score for one file: friendly pawn rank + enemy pawn rank
 template <Color C>
-inline TaperedScore Evaluator::evaluate_shelter_file(const uint64_t pawns,
-                                                     const uint64_t opp_pawns,
+inline TaperedScore Evaluator::evaluate_shelter_file(const Bitboard pawns,
+                                                     const Bitboard opp_pawns,
                                                      const File     file) const {
     constexpr Color Opp = ~C;
 
-    const uint64_t file_pawns     = pawns & bb::file(file);
-    const uint64_t file_opp_pawns = opp_pawns & bb::file(file);
+    const Bitboard file_pawns     = pawns & bb::file(file);
+    const Bitboard file_opp_pawns = opp_pawns & bb::file(file);
 
     const Square pawn_sq     = bb::select<Opp>(file_pawns);
     const Square opp_pawn_sq = bb::select<Opp>(file_opp_pawns);
@@ -597,31 +597,31 @@ int Evaluator::calculate_raw_danger(Square king_sq) const {
 
     int danger = 0;
 
-    const uint64_t defended     = attacks.by[C][all_pieces_slot];
-    const uint64_t attacked     = attacks.by[Opp][all_pieces_slot];
-    const uint64_t kq_defense   = attacks.by[C][QUEEN] | attacks.by[C][KING];
-    const uint64_t weak_defense = (~defended | kq_defense) & attacked & ~attacks.by2[C];
-    const uint64_t our_pieces   = board.pieces(Opp);
-    const uint64_t safe_checks  = ~our_pieces & (~defended | (weak_defense & attacks.by2[Opp]));
+    const Bitboard defended     = attacks.by[C][all_pieces_slot];
+    const Bitboard attacked     = attacks.by[Opp][all_pieces_slot];
+    const Bitboard kq_defense   = attacks.by[C][QUEEN] | attacks.by[C][KING];
+    const Bitboard weak_defense = (~defended | kq_defense) & attacked & ~attacks.by2[C];
+    const Bitboard our_pieces   = board.pieces(Opp);
+    const Bitboard safe_checks  = ~our_pieces & (~defended | (weak_defense & attacks.by2[Opp]));
 
-    const uint64_t knight_moves  = attacks.by[Opp][KNIGHT];
-    const uint64_t knight_checks = attacks::piece_moves<KNIGHT>(king_sq) & knight_moves;
+    const Bitboard knight_moves  = attacks.by[Opp][KNIGHT];
+    const Bitboard knight_checks = attacks::piece_moves<KNIGHT>(king_sq) & knight_moves;
     danger += calculate_check_danger<KNIGHT>(knight_checks & safe_checks, knight_checks);
 
-    const uint64_t occupancy   = board.occupancy();
-    const uint64_t line_checks = attacks::piece_moves<ROOK>(king_sq, occupancy);
-    const uint64_t diag_checks = attacks::piece_moves<BISHOP>(king_sq, occupancy);
+    const Bitboard occupancy   = board.occupancy();
+    const Bitboard line_checks = attacks::piece_moves<ROOK>(king_sq, occupancy);
+    const Bitboard diag_checks = attacks::piece_moves<BISHOP>(king_sq, occupancy);
 
-    const uint64_t rook_checks = line_checks & attacks.by[Opp][ROOK];
+    const Bitboard rook_checks = line_checks & attacks.by[Opp][ROOK];
     danger += calculate_check_danger<ROOK>(rook_checks & safe_checks, rook_checks);
 
-    const uint64_t queen_checks      = (line_checks | diag_checks) & attacks.by[Opp][QUEEN];
-    const uint64_t bad_queen_checks  = rook_checks | attacks.by[C][QUEEN];
-    const uint64_t safe_queen_checks = queen_checks & safe_checks & ~bad_queen_checks;
+    const Bitboard queen_checks      = (line_checks | diag_checks) & attacks.by[Opp][QUEEN];
+    const Bitboard bad_queen_checks  = rook_checks | attacks.by[C][QUEEN];
+    const Bitboard safe_queen_checks = queen_checks & safe_checks & ~bad_queen_checks;
     danger += calculate_check_danger<QUEEN>(safe_queen_checks, queen_checks);
 
-    const uint64_t bishop_checks      = diag_checks & attacks.by[Opp][BISHOP];
-    const uint64_t safe_bishop_checks = bishop_checks & safe_checks & ~queen_checks;
+    const Bitboard bishop_checks      = diag_checks & attacks.by[Opp][BISHOP];
+    const Bitboard safe_bishop_checks = bishop_checks & safe_checks & ~queen_checks;
     danger += calculate_check_danger<BISHOP>(safe_bishop_checks, bishop_checks);
 
     danger += king_attackers.value[C] * king_attackers.count[C];
@@ -633,8 +633,8 @@ int Evaluator::calculate_raw_danger(Square king_sq) const {
 
 /// scale danger non-linearly, 1 check = 1×, 2 checks = ~1.3×, 3 checks = 1.5×, asymptotes to 2×
 template <PieceType P>
-inline int Evaluator::calculate_check_danger(const uint64_t safe_checks,
-                                             const uint64_t all_checks) const {
+inline int Evaluator::calculate_check_danger(const Bitboard safe_checks,
+                                             const Bitboard all_checks) const {
     const int  count  = bb::count(safe_checks ? safe_checks : all_checks);
     const auto danger = safe_checks ? eval::safe_check_danger : eval::unsafe_check_danger;
 

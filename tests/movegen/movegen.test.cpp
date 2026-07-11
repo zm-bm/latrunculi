@@ -1,7 +1,6 @@
 #include "movegen/movegen.hpp"
 
 #include <algorithm>
-#include <cstdint>
 #include <iterator>
 #include <string_view>
 #include <vector>
@@ -18,8 +17,8 @@ constexpr std::string_view CAPTURE_PROMOTION_FEN = "1n2k3/P7/8/8/8/8/8/4K3 w - -
 constexpr std::string_view CASTLE_FEN            = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
 constexpr std::string_view EVASION_FEN           = "k3r3/8/8/8/8/8/8/2B1K1N1 w - - 0 1";
 
-std::vector<uint16_t> sorted_move_bits(const MoveList& movelist) {
-    std::vector<uint16_t> bits;
+std::vector<MoveBits> sorted_move_bits(const MoveList& movelist) {
+    std::vector<MoveBits> bits;
     bits.reserve(movelist.size());
     for (const Move& move : movelist)
         bits.push_back(move.bits);
@@ -27,18 +26,18 @@ std::vector<uint16_t> sorted_move_bits(const MoveList& movelist) {
     return bits;
 }
 
-bool has_duplicates(const std::vector<uint16_t>& sorted_bits) {
+bool has_duplicates(const std::vector<MoveBits>& sorted_bits) {
     return std::adjacent_find(sorted_bits.begin(), sorted_bits.end()) != sorted_bits.end();
 }
 
-bool are_disjoint(const std::vector<uint16_t>& lhs, const std::vector<uint16_t>& rhs) {
-    std::vector<uint16_t> intersection;
+bool are_disjoint(const std::vector<MoveBits>& lhs, const std::vector<MoveBits>& rhs) {
+    std::vector<MoveBits> intersection;
     std::set_intersection(
         lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), std::back_inserter(intersection));
     return intersection.empty();
 }
 
-std::vector<uint16_t> sorted_union(std::vector<uint16_t> lhs, const std::vector<uint16_t>& rhs) {
+std::vector<MoveBits> sorted_union(std::vector<MoveBits> lhs, const std::vector<MoveBits>& rhs) {
     lhs.insert(lhs.end(), rhs.begin(), rhs.end());
     std::sort(lhs.begin(), lhs.end());
     return lhs;

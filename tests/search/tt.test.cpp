@@ -3,6 +3,7 @@
 #include <array>
 #include <atomic>
 #include <barrier>
+#include <cstdint>
 #include <limits>
 #include <thread>
 #include <vector>
@@ -10,14 +11,14 @@
 #include "gtest/gtest.h"
 
 namespace {
-constexpr uint64_t tt_cluster_multiplier = 0x9e3779b97f4a7c15ull;
-constexpr uint32_t one_mb_cluster_shift  = 50;
+constexpr std::uint64_t tt_cluster_multiplier = 0x9e3779b97f4a7c15ull;
+constexpr std::uint32_t one_mb_cluster_shift  = 50;
 
 struct TT_ExpectedSnapshot {
-    Move    move;
-    int16_t score;
-    uint8_t depth;
-    TT_Flag flag;
+    Move      move;
+    EvalValue score;
+    int       depth;
+    TT_Flag   flag;
 };
 
 [[nodiscard]] bool
@@ -33,15 +34,15 @@ matches_expected_snapshot(const TT_Record&                          record,
     return false;
 }
 
-[[nodiscard]] uint64_t cluster_key_for_one_mb_table(uint64_t zkey) {
+[[nodiscard]] std::uint64_t cluster_key_for_one_mb_table(PositionKey zkey) {
     return (zkey * tt_cluster_multiplier) >> one_mb_cluster_shift;
 }
 
-[[nodiscard]] uint64_t find_same_one_mb_cluster_key(uint64_t zkey) {
-    const uint64_t target_cluster = cluster_key_for_one_mb_table(zkey);
+[[nodiscard]] PositionKey find_same_one_mb_cluster_key(PositionKey zkey) {
+    const std::uint64_t target_cluster = cluster_key_for_one_mb_table(zkey);
 
-    for (uint64_t offset = 1; offset < 2'000'000; ++offset) {
-        const uint64_t candidate = zkey + offset;
+    for (std::uint64_t offset = 1; offset < 2'000'000; ++offset) {
+        const PositionKey candidate = zkey + offset;
         if (cluster_key_for_one_mb_table(candidate) == target_cluster)
             return candidate;
     }
@@ -49,12 +50,13 @@ matches_expected_snapshot(const TT_Record&                          record,
     return zkey;
 }
 
-[[nodiscard]] std::vector<uint64_t> find_same_one_mb_cluster_keys(uint64_t zkey, size_t count) {
-    const uint64_t        target_cluster = cluster_key_for_one_mb_table(zkey);
-    std::vector<uint64_t> keys{zkey};
+[[nodiscard]] std::vector<PositionKey> find_same_one_mb_cluster_keys(PositionKey zkey,
+                                                                     size_t      count) {
+    const std::uint64_t      target_cluster = cluster_key_for_one_mb_table(zkey);
+    std::vector<PositionKey> keys{zkey};
 
-    for (uint64_t offset = 1; offset < 2'000'000 && keys.size() < count; ++offset) {
-        const uint64_t candidate = zkey + offset;
+    for (std::uint64_t offset = 1; offset < 2'000'000 && keys.size() < count; ++offset) {
+        const PositionKey candidate = zkey + offset;
         if (cluster_key_for_one_mb_table(candidate) == target_cluster)
             keys.push_back(candidate);
     }
@@ -62,11 +64,11 @@ matches_expected_snapshot(const TT_Record&                          record,
     return keys;
 }
 
-void expect_record(uint64_t zkey,
-                   Move     expected_move,
-                   int      expected_score,
-                   uint8_t  expected_depth,
-                   TT_Flag  expected_flag) {
+void expect_record(PositionKey zkey,
+                   Move        expected_move,
+                   int         expected_score,
+                   int         expected_depth,
+                   TT_Flag     expected_flag) {
     auto entry = tt.probe(zkey);
     ASSERT_TRUE(entry.has_value());
     EXPECT_EQ(expected_move, entry->move);
@@ -78,11 +80,11 @@ void expect_record(uint64_t zkey,
 
 class TT_Test : public ::testing::Test {
 protected:
-    uint64_t key   = 0x123456789ABCDEF;
-    Move     move  = Move(Square::A2, Square::A4);
-    int16_t  score = 100;
-    uint8_t  depth = 5;
-    TT_Flag  flag  = TT_Flag::Exact;
+    PositionKey key   = 0x123456789ABCDEF;
+    Move        move  = Move(Square::A2, Square::A4);
+    EvalValue   score = 100;
+    int         depth = 5;
+    TT_Flag     flag  = TT_Flag::Exact;
 
     void SetUp() override { tt.clear(); }
 };
@@ -98,15 +100,15 @@ TEST_F(TT_Test, StoreAndProbe) {
 }
 
 TEST_F(TT_Test, PackedFieldBoundariesRoundTrip) {
-    for (int i = 0; i < std::numeric_limits<uint8_t>::max(); ++i)
+    for (int i = 0; i < std::numeric_limits<std::uint8_t>::max(); ++i)
         tt.age_table();
 
     Move packed_move;
-    packed_move.bits = std::numeric_limits<uint16_t>::max();
+    packed_move.bits = std::numeric_limits<MoveBits>::max();
 
-    constexpr int16_t packed_score = -12345;
-    constexpr uint8_t packed_depth = std::numeric_limits<uint8_t>::max();
-    constexpr TT_Flag packed_flag  = TT_Flag::Upperbound;
+    constexpr std::int16_t packed_score = -12345;
+    constexpr std::uint8_t packed_depth = std::numeric_limits<std::uint8_t>::max();
+    constexpr TT_Flag      packed_flag  = TT_Flag::Upperbound;
 
     tt.store(key, packed_move, packed_score, packed_depth, packed_flag, 0);
 
@@ -115,7 +117,7 @@ TEST_F(TT_Test, PackedFieldBoundariesRoundTrip) {
     EXPECT_EQ(packed_move, entry->move);
     EXPECT_EQ(packed_score, entry->score);
     EXPECT_EQ(packed_depth, entry->depth);
-    EXPECT_EQ(std::numeric_limits<uint8_t>::max(), entry->age);
+    EXPECT_EQ(std::numeric_limits<std::uint8_t>::max(), entry->age);
     EXPECT_EQ(packed_flag, entry->flag);
 }
 
@@ -128,9 +130,9 @@ TEST_F(TT_Test, ClearRemovesEntries) {
 
 TEST_F(TT_Test, MateScoresRoundTripThroughStorage) {
     struct Case {
-        int16_t root_score;
-        int     ply;
-        int16_t stored_score;
+        EvalValue root_score;
+        int       ply;
+        EvalValue stored_score;
     };
 
     const std::array cases{
@@ -166,8 +168,8 @@ TEST_F(TT_Test, StoreSearchConvertsDepthAndMateScore) {
 TEST_F(TT_Test, RecordCanCutoffWithSufficientDepthAndMatchingBound) {
     TT_Record record{
         .move  = move,
-        .score = score,
-        .depth = 5,
+        .score = std::int16_t(score),
+        .depth = std::uint8_t{5},
         .age   = 0,
         .flag  = TT_Flag::Exact,
     };
@@ -216,8 +218,8 @@ TEST_F(TT_Test, ResizeZeroKeepsUsableTable) {
 }
 
 TEST_F(TT_Test, StoreAndProbeDifferentFullKeys) {
-    uint64_t key2 = 0xFEDCBA9876543210;
-    uint64_t key1 = 0x123456789ABC3210;
+    PositionKey key2 = 0xFEDCBA9876543210;
+    PositionKey key1 = 0x123456789ABC3210;
 
     tt.store(key1, move, score, depth, flag, 0);
     Move move2 = Move(Square::E2, Square::E4);
@@ -230,8 +232,8 @@ TEST_F(TT_Test, StoreAndProbeDifferentFullKeys) {
 TEST_F(TT_Test, ProbeRejectsDifferentFullKeyInSameCluster) {
     tt.resize(1);
 
-    const uint64_t key1 = key;
-    const uint64_t key2 = find_same_one_mb_cluster_key(key1);
+    const PositionKey key1 = key;
+    const PositionKey key2 = find_same_one_mb_cluster_key(key1);
 
     ASSERT_NE(key1, key2);
     ASSERT_EQ(cluster_key_for_one_mb_table(key1), cluster_key_for_one_mb_table(key2));
@@ -245,9 +247,9 @@ TEST_F(TT_Test, ProbeRejectsDifferentFullKeyInSameCluster) {
 TEST_F(TT_Test, ReplacementScoreUsesDepthMinusWrappedAgeDistance) {
     TT_Record record{
         .move  = move,
-        .score = score,
-        .depth = depth,
-        .age   = uint8_t{255},
+        .score = std::int16_t(score),
+        .depth = std::uint8_t(depth),
+        .age   = std::uint8_t{255},
         .flag  = flag,
     };
 
@@ -255,7 +257,7 @@ TEST_F(TT_Test, ReplacementScoreUsesDepthMinusWrappedAgeDistance) {
     EXPECT_EQ(record.replacement_score(0), depth - 4);
 
     TT_Record deeper_record = record;
-    deeper_record.depth     = depth + 3;
+    deeper_record.depth     = std::uint8_t(depth + 3);
     EXPECT_GT(deeper_record.replacement_score(0), record.replacement_score(0));
 }
 
@@ -303,7 +305,7 @@ TEST_F(TT_Test, DifferentKeyNullMoveReplacementKeepsNullMove) {
     const std::array<Move, 4> moves = {Move(A2, A3), Move(B2, B3), Move(C2, C3), Move(D2, D3)};
 
     for (size_t i = 0; i < moves.size(); ++i) {
-        tt.store(keys[i], moves[i], score + int16_t(i), uint8_t(i + 1), TT_Flag::Exact, 0);
+        tt.store(keys[i], moves[i], score + int(i), int(i + 1), TT_Flag::Exact, 0);
         ASSERT_TRUE(tt.probe(keys[i]).has_value());
     }
 
@@ -318,12 +320,12 @@ TEST_F(TT_Test, FullClusterReplacementChoosesLowestReplacementScore) {
     const auto keys = find_same_one_mb_cluster_keys(key, 5);
     ASSERT_EQ(5U, keys.size());
 
-    const std::array<uint8_t, 4> depths = {9, 1, 5, 7};
-    const std::array<Move, 5>    moves  = {
+    const std::array<int, 4>  depths = {9, 1, 5, 7};
+    const std::array<Move, 5> moves  = {
         Move(A2, A3), Move(B2, B3), Move(C2, C3), Move(D2, D3), Move(E2, E3)};
 
     for (size_t i = 0; i < depths.size(); ++i) {
-        tt.store(keys[i], moves[i], score + int16_t(i), depths[i], TT_Flag::Exact, 0);
+        tt.store(keys[i], moves[i], score + int(i), depths[i], TT_Flag::Exact, 0);
         ASSERT_TRUE(tt.probe(keys[i]).has_value());
     }
 
@@ -343,8 +345,8 @@ TEST_F(TT_Test, ProbeReturnsDetachedSnapshot) {
     auto first_probe = tt.probe(key);
     ASSERT_TRUE(first_probe.has_value());
 
-    Move    new_move  = Move(Square::E2, Square::E4);
-    int16_t new_score = 200;
+    Move      new_move  = Move(Square::E2, Square::E4);
+    EvalValue new_score = 200;
     tt.store(key, new_move, new_score, depth + 1, TT_Flag::Lowerbound, 0);
 
     EXPECT_EQ(move, first_probe->move);
@@ -366,7 +368,7 @@ TEST_F(TT_Test, StoreAndProbeRoundTripPublishedAge) {
     auto entry = tt.probe(key);
 
     ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(uint8_t{2}, entry->age);
+    EXPECT_EQ(std::uint8_t{2}, entry->age);
     EXPECT_EQ(move, entry->move);
     EXPECT_EQ(score, entry->score);
     EXPECT_EQ(depth, entry->depth);
@@ -384,7 +386,7 @@ TEST_F(TT_Test, InvalidFlagEntriesProbeAsMiss) {
 }
 
 TEST_F(TT_Test, ConcurrentStoreAndProbeYieldOnlyCompleteSnapshots) {
-    constexpr uint64_t                       shared_key = 0x0F0E0D0C0B0A0908ULL;
+    constexpr PositionKey                    shared_key = 0x0F0E0D0C0B0A0908ULL;
     const std::array<TT_ExpectedSnapshot, 4> expected_snapshots{{
         {Move(Square::A2, Square::A4), 111, 4, TT_Flag::Exact},
         {Move(Square::B2, Square::B4), -77, 6, TT_Flag::Lowerbound},

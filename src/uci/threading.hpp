@@ -3,7 +3,6 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -77,7 +76,7 @@ public:
 
     // Search progress and results.
     bool                  is_searching() const;
-    uint64_t              nodes_searched() const;
+    NodeCount             nodes_searched() const;
     std::vector<RootLine> root_snapshots() const;
 
     friend class SearchWorker;

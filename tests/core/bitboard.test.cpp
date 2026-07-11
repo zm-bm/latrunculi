@@ -12,8 +12,8 @@ TEST(bbTest, SetAndClear) {
 }
 
 TEST(bbTest, IsMany) {
-    EXPECT_EQ(bb::is_many(0b100), 0);
-    EXPECT_NE(bb::is_many(0b110), 0);
+    EXPECT_FALSE(bb::is_many(0b100));
+    EXPECT_TRUE(bb::is_many(0b110));
 }
 
 TEST(bbTest, Count) {
@@ -38,7 +38,7 @@ TEST(bbTest, Msb) {
 }
 
 TEST(bbTest, LsbPop) {
-    uint64_t bitboard = bb::set(A1, B2, C3);
+    Bitboard bitboard = bb::set(A1, B2, C3);
     EXPECT_EQ(bb::lsb_pop(bitboard), A1);
     EXPECT_EQ(bb::lsb_pop(bitboard), B2);
     EXPECT_EQ(bb::lsb_pop(bitboard), C3);
@@ -46,7 +46,7 @@ TEST(bbTest, LsbPop) {
 }
 
 TEST(bbTest, MsbPop) {
-    uint64_t bitboard = bb::set(A1, B2, C3);
+    Bitboard bitboard = bb::set(A1, B2, C3);
     EXPECT_EQ(bb::msb_pop(bitboard), C3);
     EXPECT_EQ(bb::msb_pop(bitboard), B2);
     EXPECT_EQ(bb::msb_pop(bitboard), A1);
@@ -54,13 +54,13 @@ TEST(bbTest, MsbPop) {
 }
 
 TEST(bbTest, SelectSquare) {
-    uint64_t bitboard = bb::set(A1, B2, C3);
+    Bitboard bitboard = bb::set(A1, B2, C3);
     EXPECT_EQ(bb::select<WHITE>(bitboard), C3);
     EXPECT_EQ(bb::select<BLACK>(bitboard), A1);
 }
 
 TEST(bbTest, PopSquare) {
-    uint64_t bitboard = bb::set(A1, B2, C3);
+    Bitboard bitboard = bb::set(A1, B2, C3);
     EXPECT_EQ(bb::pop<WHITE>(bitboard), C3);
     EXPECT_EQ(bitboard, bb::set(A1, B2));
     EXPECT_EQ(bb::pop<BLACK>(bitboard), A1);
@@ -70,7 +70,7 @@ TEST(bbTest, PopSquare) {
 TEST(bbTest, Scan) {
     std::vector<Square> squares;
 
-    uint64_t bitboard = bb::set(A1, B2, C3);
+    Bitboard bitboard = bb::set(A1, B2, C3);
     bb::scan<WHITE>(bitboard, [&squares](Square sq) { squares.push_back(sq); });
 
     EXPECT_EQ(squares.size(), 3);

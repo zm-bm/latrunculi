@@ -40,7 +40,7 @@ protected:
 
     std::string write_search_info(const RootLine& line,
                                   const Board&    board,
-                                  uint64_t        nodes = 0,
+                                  NodeCount       nodes = 0,
                                   Milliseconds    time  = Milliseconds{0}) {
         writer.search_info(line, board, nodes, time);
         std::string output = oss.str();

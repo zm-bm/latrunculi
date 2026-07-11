@@ -40,37 +40,37 @@ struct PerftCase {
     std::string_view id;
     std::string_view fen;
     int              smoke_depth;
-    uint64_t         smoke_nodes;
+    NodeCount        smoke_nodes;
     int              standard_depth;
-    uint64_t         standard_nodes;
+    NodeCount        standard_nodes;
 };
 
 struct PerftRow {
-    std::string case_id;
-    std::string profile;
-    int         depth{0};
-    uint64_t    nodes{0};
-    uint64_t    expected_nodes{0};
-    uint64_t    total_ns{0};
-    double      nodes_per_sec{0.0};
+    std::string   case_id;
+    std::string   profile;
+    int           depth{0};
+    NodeCount     nodes{0};
+    NodeCount     expected_nodes{0};
+    std::uint64_t total_ns{0};
+    double        nodes_per_sec{0.0};
 };
 
 template <typename Fn>
-uint64_t measure_ns(Fn&& fn) {
+std::uint64_t measure_ns(Fn&& fn) {
     const auto start = BenchClock::now();
     fn();
     const auto end = BenchClock::now();
-    return static_cast<uint64_t>(
+    return static_cast<std::uint64_t>(
         std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count());
 }
 
-uint64_t perft_nodes(
+NodeCount perft_nodes(
     Board& board, int depth, PositionStateStack& states, int ply, PositionState& current_state) {
     if (depth == 0)
         return 1;
 
-    uint64_t nodes    = 0;
-    auto     movelist = movegen::generate_pseudo_legal(board);
+    NodeCount nodes    = 0;
+    auto      movelist = movegen::generate_pseudo_legal(board);
 
     for (auto& move : movelist) {
         if (!board.is_legal_generated_move(move))
@@ -112,11 +112,11 @@ PerftRow run_perft_case(const PerftCase& perft_case, Profile profile) {
     const auto    initial_key = board.key();
     const int     depth =
         profile == Profile::Smoke ? perft_case.smoke_depth : perft_case.standard_depth;
-    const uint64_t expected =
+    const NodeCount expected =
         profile == Profile::Smoke ? perft_case.smoke_nodes : perft_case.standard_nodes;
-    uint64_t nodes = 0;
+    NodeCount nodes = 0;
 
-    const uint64_t total_ns =
+    const std::uint64_t total_ns =
         measure_ns([&] { nodes = perft_nodes(board, depth, states, 0, root); });
 
     if (nodes != expected) {

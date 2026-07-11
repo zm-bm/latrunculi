@@ -1,5 +1,6 @@
 #include "uci/engine.hpp"
 
+#include <cstdint>
 #include <format>
 #include <sstream>
 #include <string_view>
@@ -181,12 +182,12 @@ TEST_F(EngineTest, UciNewGameClearsTTAndResetsGeneration) {
     tt.age_table();
     tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TT_Flag::Exact, 0);
     ASSERT_TRUE(tt.probe(board().key()).has_value());
-    ASSERT_EQ(tt.current_age(), uint8_t{1});
+    ASSERT_EQ(tt.current_age(), std::uint8_t{1});
 
     EXPECT_TRUE(execute("ucinewgame"));
 
     EXPECT_FALSE(tt.probe(board().key()).has_value());
-    EXPECT_EQ(tt.current_age(), uint8_t{0});
+    EXPECT_EQ(tt.current_age(), std::uint8_t{0});
 }
 
 TEST_F(EngineTest, SetOptionNameMatchingIsCaseInsensitive) {

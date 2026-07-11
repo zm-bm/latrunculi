@@ -18,7 +18,7 @@ TEST(MoveListTest, MoveIsValueOnly) {
     Move lhs(E2, E4);
     Move rhs(E2, E4);
 
-    EXPECT_EQ(sizeof(Move), sizeof(uint16_t));
+    EXPECT_EQ(sizeof(Move), sizeof(MoveBits));
     EXPECT_TRUE(std::is_trivially_copyable_v<Move>);
     EXPECT_EQ(lhs, rhs);
     EXPECT_EQ(lhs.bits, rhs.bits);

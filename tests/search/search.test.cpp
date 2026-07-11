@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -276,15 +277,15 @@ protected:
         return worker->ordering.counters.get(prev_c, prev_piece, prev_to);
     }
 
-    uint64_t workerKey() const { return worker->board.key(); }
+    PositionKey workerKey() const { return worker->board.key(); }
 
-    uint64_t workerNullChildKey() const {
+    PositionKey workerNullChildKey() const {
         TestBoard board_copy{worker->board.toFEN()};
         board_copy.make_null();
         return board_copy.key();
     }
 
-    uint64_t workerDescendantNullKey(Move move) const {
+    PositionKey workerDescendantNullKey(Move move) const {
         TestBoard board_copy{worker->board.toFEN()};
         board_copy.make(move);
         board_copy.make_null();
@@ -295,7 +296,7 @@ protected:
 
     void expectNoWorkerTtRecord() const { EXPECT_FALSE(workerTtRecord().has_value()); }
 
-    uint64_t workerNodes() const { return worker->node_count(); }
+    NodeCount workerNodes() const { return worker->node_count(); }
 
     bool workerBoardIsDraw() const { return worker->board.is_draw(); }
 
@@ -326,95 +327,95 @@ protected:
     void setWorkerPly(int search_ply) { worker->ply = search_ply; }
 
 #if LATRUNCULI_SEARCH_STATS
-    uint64_t statNodesAt(int search_ply) const {
+    std::uint64_t statNodesAt(int search_ply) const {
         return worker->stats.raw_counters().nodes[search_ply];
     }
 
-    uint64_t qnodesAt(int search_ply) const {
+    std::uint64_t qnodesAt(int search_ply) const {
         return worker->stats.raw_counters().qnodes[search_ply];
     }
 
-    uint64_t mainTtProbesAt(int search_ply) const {
+    std::uint64_t mainTtProbesAt(int search_ply) const {
         return worker->stats.raw_counters().main_tt_probes[search_ply];
     }
 
-    uint64_t mainTtHitsAt(int search_ply) const {
+    std::uint64_t mainTtHitsAt(int search_ply) const {
         return worker->stats.raw_counters().main_tt_hits[search_ply];
     }
 
-    uint64_t mainTtCutoffsAt(int search_ply) const {
+    std::uint64_t mainTtCutoffsAt(int search_ply) const {
         return worker->stats.raw_counters().main_tt_cutoffs[search_ply];
     }
 
-    uint64_t qTtProbesAt(int search_ply) const {
+    std::uint64_t qTtProbesAt(int search_ply) const {
         return worker->stats.raw_counters().q_tt_probes[search_ply];
     }
 
-    uint64_t qTtHitsAt(int search_ply) const {
+    std::uint64_t qTtHitsAt(int search_ply) const {
         return worker->stats.raw_counters().q_tt_hits[search_ply];
     }
 
-    uint64_t qTtCutoffsAt(int search_ply) const {
+    std::uint64_t qTtCutoffsAt(int search_ply) const {
         return worker->stats.raw_counters().q_tt_cutoffs[search_ply];
     }
 
-    uint64_t aspirationFailLows() const {
+    std::uint64_t aspirationFailLows() const {
         return worker->stats.raw_counters().aspiration_fail_lows;
     }
 
-    uint64_t aspirationFailHighs() const {
+    std::uint64_t aspirationFailHighs() const {
         return worker->stats.raw_counters().aspiration_fail_highs;
     }
 
-    uint64_t aspirationResearches() const {
+    std::uint64_t aspirationResearches() const {
         return worker->stats.raw_counters().aspiration_researches;
     }
 
-    uint64_t pvsResearchesAt(int search_ply) const {
+    std::uint64_t pvsResearchesAt(int search_ply) const {
         return worker->stats.raw_counters().pvs_researches[search_ply];
     }
 
-    uint64_t nullMoveTriesAt(int search_ply) const {
+    std::uint64_t nullMoveTriesAt(int search_ply) const {
         return worker->stats.raw_counters().null_move_tries[search_ply];
     }
 
-    uint64_t nullMoveCutoffsAt(int search_ply) const {
+    std::uint64_t nullMoveCutoffsAt(int search_ply) const {
         return worker->stats.raw_counters().null_move_cutoffs[search_ply];
     }
 
-    uint64_t razorTriesAt(int search_ply) const {
+    std::uint64_t razorTriesAt(int search_ply) const {
         return worker->stats.raw_counters().razor_tries[search_ply];
     }
 
-    uint64_t razorCutoffsAt(int search_ply) const {
+    std::uint64_t razorCutoffsAt(int search_ply) const {
         return worker->stats.raw_counters().razor_cutoffs[search_ply];
     }
 
-    uint64_t futilitySkipsAt(int search_ply) const {
+    std::uint64_t futilitySkipsAt(int search_ply) const {
         return worker->stats.raw_counters().futility_skips[search_ply];
     }
 
-    uint64_t lmrTriesAt(int search_ply) const {
+    std::uint64_t lmrTriesAt(int search_ply) const {
         return worker->stats.raw_counters().lmr_tries[search_ply];
     }
 
-    uint64_t lmrResearchesAt(int search_ply) const {
+    std::uint64_t lmrResearchesAt(int search_ply) const {
         return worker->stats.raw_counters().lmr_researches[search_ply];
     }
 
-    uint64_t quietCutoffsAt(int remaining_depth) const {
+    std::uint64_t quietCutoffsAt(int remaining_depth) const {
         return worker->stats.raw_counters().quiet_cutoffs[remaining_depth];
     }
 
-    uint64_t quietMalusEligibleNodesAt(int remaining_depth) const {
+    std::uint64_t quietMalusEligibleNodesAt(int remaining_depth) const {
         return worker->stats.raw_counters().quiet_malus_eligible_nodes[remaining_depth];
     }
 
-    uint64_t quietMalusFailedQuietsAt(int remaining_depth) const {
+    std::uint64_t quietMalusFailedQuietsAt(int remaining_depth) const {
         return worker->stats.raw_counters().quiet_malus_failed_quiets[remaining_depth];
     }
 
-    uint64_t quietMalusUpdatesAt(int remaining_depth) const {
+    std::uint64_t quietMalusUpdatesAt(int remaining_depth) const {
         return worker->stats.raw_counters().quiet_malus_updates[remaining_depth];
     }
 #endif
@@ -843,7 +844,7 @@ TEST_F(SearchTest, AlphaBetaStoresExactTranspositionTableEntry) {
     TestBoard      board{quiet_control};
     loadWorkerBoard(board);
 
-    const uint64_t key = workerKey();
+    const PositionKey key = workerKey();
     ASSERT_FALSE(tt.probe(key).has_value());
 
     const int value = runNonPvAlphaBeta(-eval_value::inf, eval_value::inf, search_depth);
@@ -925,7 +926,7 @@ TEST_F(SearchTest, RootSearchDoesNotStoreRootPositionTranspositionTableEntry) {
     TestBoard board{STARTFEN};
     loadWorkerBoard(board, 1);
 
-    const uint64_t root_key = workerKey();
+    const PositionKey root_key = workerKey();
     (void)runRootSearch();
 
     EXPECT_FALSE(tt.probe(root_key).has_value());
@@ -960,8 +961,8 @@ TEST_F(SearchTest, AlphaBetaNullMovePruningReturnsFailSoftCutoffFromNullChild) {
     TestBoard board{STARTFEN};
     loadWorkerBoard(board, search_depth);
 
-    const uint64_t root_key       = workerKey();
-    const uint64_t null_child_key = workerNullChildKey();
+    const PositionKey root_key       = workerKey();
+    const PositionKey null_child_key = workerNullChildKey();
     ASSERT_FALSE(tt.probe(root_key).has_value());
     ASSERT_FALSE(tt.probe(null_child_key).has_value());
 
@@ -990,7 +991,7 @@ TEST_F(SearchTest, PvAlphaBetaDoesNotUseNullMovePruning) {
 
     TestBoard board{STARTFEN};
     loadWorkerBoard(board, search_depth);
-    const uint64_t null_child_key = workerNullChildKey();
+    const PositionKey null_child_key = workerNullChildKey();
     tt.store_search(
         null_child_key, NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
 
@@ -1098,8 +1099,8 @@ TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendant
     const Move real_move = findWorkerMove("e7e5");
     ASSERT_FALSE(real_move.is_null());
 
-    const uint64_t immediate_null_key  = workerNullChildKey();
-    const uint64_t descendant_null_key = workerDescendantNullKey(real_move);
+    const PositionKey immediate_null_key  = workerNullChildKey();
+    const PositionKey descendant_null_key = workerDescendantNullKey(real_move);
     ASSERT_FALSE(tt.probe(immediate_null_key).has_value());
     ASSERT_FALSE(tt.probe(descendant_null_key).has_value());
 

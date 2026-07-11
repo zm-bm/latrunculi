@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstdint>
 #include <sstream>
 #include <thread>
 
@@ -55,7 +56,7 @@ protected:
     TestBoard          board{STARTFEN};
     SearchLimits       options{default_limits()};
 
-    uint64_t nodes_searched() const { return pool.nodes_searched(); }
+    NodeCount nodes_searched() const { return pool.nodes_searched(); }
 
     void expect_completed_depths(int depth) {
         bool saw_completed_depth = false;
@@ -86,7 +87,7 @@ protected:
         return worker_running();
     }
 
-    bool wait_for_tt_age(uint8_t                   expected,
+    bool wait_for_tt_age(std::uint8_t              expected,
                          std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
         auto deadline = std::chrono::steady_clock::now() + timeout;
         while (std::chrono::steady_clock::now() < deadline) {
@@ -171,14 +172,14 @@ TEST_F(ThreadPoolTest, StartSearchRejectsEmptyPool) {
     ThreadPool empty_pool{0, writer};
 
     EXPECT_FALSE(empty_pool.start_search(board, options));
-    EXPECT_EQ(tt.current_age(), uint8_t{0});
+    EXPECT_EQ(tt.current_age(), std::uint8_t{0});
 }
 
 TEST_F(ThreadPoolTest, StartSearchRejectsAfterShutdown) {
     pool.shutdown();
 
     EXPECT_FALSE(pool.start_search(board, options));
-    EXPECT_EQ(tt.current_age(), uint8_t{0});
+    EXPECT_EQ(tt.current_age(), std::uint8_t{0});
 }
 
 TEST_F(ThreadPoolTest, StartSearchCompletes) {
@@ -314,15 +315,15 @@ TEST_F(ThreadPoolTest, NodeLimitedSearchUsesThreadSafeNodeCount) {
 TEST_F(ThreadPoolTest, RootSearchAgesSharedTTOncePerStartSearch) {
     options.depth = 1;
 
-    EXPECT_EQ(tt.current_age(), uint8_t{0});
+    EXPECT_EQ(tt.current_age(), std::uint8_t{0});
 
     EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
-    EXPECT_EQ(tt.current_age(), uint8_t{1});
+    EXPECT_EQ(tt.current_age(), std::uint8_t{1});
 
     EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
-    EXPECT_EQ(tt.current_age(), uint8_t{2});
+    EXPECT_EQ(tt.current_age(), std::uint8_t{2});
 }
 
 TEST_F(ThreadPoolTest, ResizeRejectsWhileSearchInProgress) {

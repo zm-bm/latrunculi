@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cassert>
+#include <cstdint>
 
 #include "board/castling.hpp"
 #include "core/constants.hpp"
@@ -20,27 +21,27 @@ struct PositionState {
 
     // Refreshed after FEN load, make, and null moves.
     // Enemy pieces checking the side-to-move king.
-    uint64_t checkers{};
+    Bitboard checkers{};
     // blockers[c]: single blockers between king c and enemy sliders.
-    uint64_t blockers[N_COLORS]{};
+    Bitboard blockers[N_COLORS]{};
     // pinners[c]: sliders of color c pinning enemy blockers.
-    uint64_t pinners[N_COLORS]{};
+    Bitboard pinners[N_COLORS]{};
     // Squares where each concrete piece type would check the enemy king.
-    uint64_t checks[piece_slots]{};
+    Bitboard checks[piece_slots]{};
 
-    uint64_t checking_squares(PieceType piece) const { return checks[piece_slot(piece)]; }
+    Bitboard checking_squares(PieceType piece) const { return checks[piece_slot(piece)]; }
 
-    void set_checking_squares(PieceType piece, uint64_t squares) {
+    void set_checking_squares(PieceType piece, Bitboard squares) {
         checks[piece_slot(piece)] = squares;
     }
 
     // Incremental key and compact undo data for the move that reached this ply.
-    uint64_t     zkey{};
+    PositionKey  zkey{};
     Move         previous_move{NULL_MOVE};
     PieceType    captured{NO_PIECETYPE};
     CastleRights castle{NO_CASTLE};
     Square       enpassant{INVALID};
-    uint8_t      halfmove_clk{};
+    std::uint8_t halfmove_clk{};
 
     PositionState(const PositionState& prior_state, Move move)
         : zkey(prior_state.zkey),

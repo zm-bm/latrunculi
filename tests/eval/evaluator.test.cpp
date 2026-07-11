@@ -12,14 +12,14 @@
 
 class EvaluatorTest : public ::testing::Test {
 protected:
-    void test_outpost_zone(std::string fen, uint64_t w_expected, uint64_t b_expected) {
+    void test_outpost_zone(std::string fen, Bitboard w_expected, Bitboard b_expected) {
         TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.zones.outposts[WHITE], w_expected) << fen;
         EXPECT_EQ(e.zones.outposts[BLACK], b_expected) << fen;
     }
 
-    void test_mobility_zone(std::string fen, uint64_t w_expected, uint64_t b_expected) {
+    void test_mobility_zone(std::string fen, Bitboard w_expected, Bitboard b_expected) {
         TestBoard board(fen);
         Evaluator e(board);
         EXPECT_EQ(e.zones.mobility[WHITE], w_expected) << fen;
@@ -36,7 +36,7 @@ protected:
     }
 
     template <Color C, PieceType P>
-    uint64_t test_piece_moves(const std::string& fen, Square sq) {
+    Bitboard test_piece_moves(const std::string& fen, Square sq) {
         constexpr Color         Opp = ~C;
         TestBoard               board(fen);
         Evaluator               e(board);
@@ -95,8 +95,8 @@ protected:
                            File         file) {
         TestBoard board(fen);
         Evaluator e(board);
-        uint64_t  w_pawns = board.pieces<PAWN>(WHITE);
-        uint64_t  b_pawns = board.pieces<PAWN>(BLACK);
+        Bitboard  w_pawns = board.pieces<PAWN>(WHITE);
+        Bitboard  b_pawns = board.pieces<PAWN>(BLACK);
         EXPECT_EQ(e.evaluate_shelter_file<WHITE>(w_pawns, b_pawns, file), w_expected) << fen;
         EXPECT_EQ(e.evaluate_shelter_file<BLACK>(b_pawns, w_pawns, file), b_expected) << fen;
     }
@@ -172,7 +172,7 @@ TEST_F(EvaluatorTest, NullMoveOnlyChangesPerspectiveAndTempo) {
 }
 
 TEST_F(EvaluatorTest, OutpostZone) {
-    std::vector<std::tuple<std::string, uint64_t, uint64_t>> test_cases = {
+    std::vector<std::tuple<std::string, Bitboard, Bitboard>> test_cases = {
         {STARTFEN, 0, 0},
         {EMPTYFEN, 0, 0},
         {"r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1", 0, 0},
@@ -186,10 +186,10 @@ TEST_F(EvaluatorTest, OutpostZone) {
 }
 
 TEST_F(EvaluatorTest, MobilityZone) {
-    uint64_t white = bb::rank(RANK2) | bb::rank(RANK6) | bb::set(E1);
-    uint64_t black = bb::rank(RANK7) | bb::rank(RANK3) | bb::set(E8);
+    Bitboard white = bb::rank(RANK2) | bb::rank(RANK6) | bb::set(E1);
+    Bitboard black = bb::rank(RANK7) | bb::rank(RANK3) | bb::set(E8);
 
-    std::vector<std::tuple<std::string, uint64_t, uint64_t>> test_cases = {
+    std::vector<std::tuple<std::string, Bitboard, Bitboard>> test_cases = {
         {STARTFEN, ~white, ~black},
         {EMPTYFEN, ~bb::set(E1), ~bb::set(E8)},
     };
@@ -221,7 +221,7 @@ TEST_F(EvaluatorTest, MobilityScore) {
 }
 
 TEST_F(EvaluatorTest, PinnedPieceMobilityStaysOnPinRay) {
-    const uint64_t moves = test_piece_moves<WHITE, ROOK>("k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1", E2);
+    const Bitboard moves = test_piece_moves<WHITE, ROOK>("k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1", E2);
 
     EXPECT_EQ(moves & ~bb::file(FILE5), 0ULL);
     EXPECT_EQ(bb::count(moves), 7);

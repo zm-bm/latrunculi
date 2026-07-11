@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cstddef>
-#include <cstdint>
 
 #include "core/attack_magic.hpp"
 #include "core/bitboard.hpp"
@@ -19,14 +18,14 @@ enum PawnMove {
 namespace attacks::tables {
 
 template <std::size_t N>
-constexpr std::array<uint64_t, N_SQUARES> make_move_table(const int (&offsets)[N][2]) {
-    std::array<uint64_t, N_SQUARES> table = {};
+constexpr std::array<Bitboard, N_SQUARES> make_move_table(const int (&offsets)[N][2]) {
+    std::array<Bitboard, N_SQUARES> table = {};
 
     for (int sq = A1; sq < N_SQUARES; ++sq) {
         const Rank rank = square::rank_of(Square(sq));
         const File file = square::file_of(Square(sq));
 
-        uint64_t mask = 0;
+        Bitboard mask = 0;
         for (const auto& offset : offsets) {
             const Rank to_rank = rank + offset[0];
             const File to_file = file + offset[1];
@@ -40,7 +39,7 @@ constexpr std::array<uint64_t, N_SQUARES> make_move_table(const int (&offsets)[N
     return table;
 }
 
-constexpr std::array<uint64_t, N_SQUARES> knight_moves = make_move_table({
+constexpr std::array<Bitboard, N_SQUARES> knight_moves = make_move_table({
     {+2, -1},
     {+1, -2},
     {+1, +2},
@@ -51,7 +50,7 @@ constexpr std::array<uint64_t, N_SQUARES> knight_moves = make_move_table({
     {-2, +1},
 });
 
-constexpr std::array<uint64_t, N_SQUARES> king_moves =
+constexpr std::array<Bitboard, N_SQUARES> king_moves =
     make_move_table({{+1, -1}, {+1, 0}, {+1, +1}, {0, -1}, {0, +1}, {-1, -1}, {-1, 0}, {-1, +1}});
 
 } // namespace attacks::tables
@@ -66,7 +65,7 @@ inline void init() {
 }
 
 template <PieceType p>
-constexpr uint64_t piece_moves(Square sq, uint64_t occupancy = 0) {
+constexpr Bitboard piece_moves(Square sq, Bitboard occupancy = 0) {
     switch (p) {
     case KNIGHT: return tables::knight_moves[sq];
     case BISHOP: return magic::bishop_moves(sq, occupancy);
@@ -77,7 +76,7 @@ constexpr uint64_t piece_moves(Square sq, uint64_t occupancy = 0) {
     }
 }
 
-constexpr uint64_t piece_moves(Square sq, PieceType p, uint64_t occupancy) {
+constexpr Bitboard piece_moves(Square sq, PieceType p, Bitboard occupancy) {
     switch (p) {
     case KNIGHT: return tables::knight_moves[sq];
     case BISHOP: return magic::bishop_moves(sq, occupancy);
@@ -89,7 +88,7 @@ constexpr uint64_t piece_moves(Square sq, PieceType p, uint64_t occupancy) {
 }
 
 template <PawnMove M, Color C>
-constexpr uint64_t pawn_moves(uint64_t pawns) {
+constexpr Bitboard pawn_moves(Bitboard pawns) {
     if constexpr (M == PAWN_LEFT || M == PAWN_RIGHT) {
         constexpr File edge  = ((M == PAWN_LEFT) ^ (C == BLACK)) ? FILE1 : FILE8;
         pawns               &= ~bb::file(edge);
@@ -99,16 +98,16 @@ constexpr uint64_t pawn_moves(uint64_t pawns) {
 }
 
 template <PawnMove M>
-constexpr uint64_t pawn_moves(uint64_t pawns, Color c) {
+constexpr Bitboard pawn_moves(Bitboard pawns, Color c) {
     return (c == WHITE) ? pawn_moves<M, WHITE>(pawns) : pawn_moves<M, BLACK>(pawns);
 };
 
 template <Color C>
-constexpr uint64_t pawn_attacks(uint64_t pawns) {
+constexpr Bitboard pawn_attacks(Bitboard pawns) {
     return pawn_moves<PAWN_LEFT, C>(pawns) | pawn_moves<PAWN_RIGHT, C>(pawns);
 }
 
-constexpr uint64_t pawn_attacks(uint64_t pawns, Color c) {
+constexpr Bitboard pawn_attacks(Bitboard pawns, Color c) {
     return pawn_moves<PAWN_LEFT>(pawns, c) | pawn_moves<PAWN_RIGHT>(pawns, c);
 }
 

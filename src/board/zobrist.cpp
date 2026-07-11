@@ -4,10 +4,10 @@
 
 namespace zob {
 
-uint64_t piece[N_COLORS][N_PIECETYPES][N_SQUARES];
-uint64_t turn;
-uint64_t ep[8];
-uint64_t castle[2][N_COLORS];
+PositionKey piece[N_COLORS][N_PIECETYPES][N_SQUARES];
+PositionKey turn;
+PositionKey ep[8];
+PositionKey castle[2][N_COLORS];
 
 void init() {
     std::mt19937_64 r;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 #include "board/castling.hpp"
@@ -18,14 +19,14 @@
 
 class Board {
 private:
-    uint64_t piece_bb[N_COLORS][N_PIECETYPES]     = {0};
-    uint8_t  piece_counts[N_COLORS][N_PIECETYPES] = {0};
-    Piece    squares[N_SQUARES]                   = {NO_PIECE};
-    Square   king_square[N_COLORS]                = {E1, E8};
-    Color    turn                                 = WHITE;
+    Bitboard     piece_bb[N_COLORS][N_PIECETYPES]     = {0};
+    std::uint8_t piece_counts[N_COLORS][N_PIECETYPES] = {0};
+    Piece        squares[N_SQUARES]                   = {NO_PIECE};
+    Square       king_square[N_COLORS]                = {E1, E8};
+    Color        turn                                 = WHITE;
 
-    uint32_t game_ply     = 0;
-    uint32_t fullmove_clk = 0;
+    int game_ply     = 0;
+    int fullmove_clk = 0;
 
     TaperedScore material  = {0, 0};
     TaperedScore psq_bonus = {0, 0};
@@ -49,15 +50,15 @@ public:
 
     // accessors
 
-    uint64_t pieces() const;
-    uint64_t pieces(Color c) const;
+    Bitboard pieces() const;
+    Bitboard pieces(Color c) const;
     template <PieceType... Ps>
-    uint64_t pieces() const;
+    Bitboard pieces() const;
     template <PieceType... Ps>
-    uint64_t pieces(Color c) const;
+    Bitboard pieces(Color c) const;
 
-    uint64_t     occupancy() const { return pieces(); }
-    uint8_t      count(Color c, PieceType p) const { return piece_counts[c][p]; }
+    Bitboard     occupancy() const { return pieces(); }
+    std::uint8_t count(Color c, PieceType p) const { return piece_counts[c][p]; }
     Piece        piece_on(Square sq) const { return squares[sq]; }
     Piece        piece_on(File f, Rank r) const { return squares[square::make(f, r)]; };
     PieceType    piecetype_on(Square sq) const { return type_of(squares[sq]); }
@@ -65,14 +66,14 @@ public:
     Color        side_to_move() const { return turn; }
     TaperedScore material_score() const { return material; }
     TaperedScore psq_bonus_score() const { return psq_bonus; }
-    uint32_t     fullmove() const { return (fullmove_clk / 2) + 1; }
+    int          fullmove() const { return (fullmove_clk / 2) + 1; }
 
     CastleRights castle_rights() const { return position_state().castle; }
-    uint64_t     checkers() const { return position_state().checkers; }
-    uint64_t     blockers(Color c) const { return position_state().blockers[c]; }
-    uint64_t     pinners(Color c) const { return position_state().pinners[c]; }
+    Bitboard     checkers() const { return position_state().checkers; }
+    Bitboard     blockers(Color c) const { return position_state().blockers[c]; }
+    Bitboard     pinners(Color c) const { return position_state().pinners[c]; }
     Square       enpassant_sq() const { return position_state().enpassant; }
-    uint8_t      halfmove() const { return position_state().halfmove_clk; }
+    std::uint8_t halfmove() const { return position_state().halfmove_clk; }
     Square       legal_enpassant_sq() const;
 
     PositionState&       position_state() { return *active_position_state; }
@@ -88,11 +89,11 @@ public:
 
     // attack bitboards
 
-    uint64_t attacks_to(Square sq, Color c, uint64_t occupancy) const;
-    uint64_t attacks_to(Square sq, uint64_t occupancy) const;
-    uint64_t attacks_to(Square sq) const { return attacks_to(sq, occupancy()); }
-    uint64_t attacks_to(Square sq, Color c) const { return attacks_to(sq, c, occupancy()); }
-    uint64_t attacks_to(uint64_t bitboard, Color c) const;
+    Bitboard attacks_to(Square sq, Color c, Bitboard occupancy) const;
+    Bitboard attacks_to(Square sq, Bitboard occupancy) const;
+    Bitboard attacks_to(Square sq) const { return attacks_to(sq, occupancy()); }
+    Bitboard attacks_to(Square sq, Color c) const { return attacks_to(sq, c, occupancy()); }
+    bool     attacks_to(Bitboard bitboard, Color c) const;
 
     // piece modifiers
 
@@ -134,8 +135,8 @@ public:
 
     // zobrist keys
 
-    uint64_t key() const { return position_state().zkey; }
-    uint64_t calculate_key() const;
+    PositionKey key() const { return position_state().zkey; }
+    PositionKey calculate_key() const;
 
     // checks and draws
 
@@ -161,22 +162,22 @@ inline Board::Board(PositionState& root_state, const std::string& fen) {
     load_fen(fen);
 }
 
-inline uint64_t Board::pieces() const {
+inline Bitboard Board::pieces() const {
     return pieces(WHITE) | pieces(BLACK);
 }
 
-inline uint64_t Board::pieces(Color c) const {
+inline Bitboard Board::pieces(Color c) const {
     return piece_bb[c][all_pieces_slot];
 }
 
 template <PieceType... Ps>
-inline uint64_t Board::pieces() const {
+inline Bitboard Board::pieces() const {
     static_assert((is_piece_type(Ps) && ...));
     return ((piece_bb[WHITE][Ps] | piece_bb[BLACK][Ps]) | ...);
 }
 
 template <PieceType... Ps>
-inline uint64_t Board::pieces(Color c) const {
+inline Bitboard Board::pieces(Color c) const {
     static_assert((is_piece_type(Ps) && ...));
     return (piece_bb[c][Ps] | ...);
 };
@@ -227,7 +228,7 @@ inline void Board::disable_castle(Color c, Square sq) {
 }
 
 // Returns a bitboard of pieces of color c which attack a square
-inline uint64_t Board::attacks_to(Square sq, Color c, uint64_t occupied) const {
+inline Bitboard Board::attacks_to(Square sq, Color c, Bitboard occupied) const {
     return (pieces<PAWN>(c) & attacks::pawn_attacks(bb::set(sq), ~c)) |
            (pieces<KNIGHT>(c) & attacks::piece_moves<KNIGHT>(sq, occupied)) |
            (pieces<KING>(c) & attacks::piece_moves<KING>(sq, occupied)) |
@@ -236,7 +237,7 @@ inline uint64_t Board::attacks_to(Square sq, Color c, uint64_t occupied) const {
 }
 
 // Returns a bitboard of pieces of any color which attack a square
-inline uint64_t Board::attacks_to(Square sq, uint64_t occupied) const {
+inline Bitboard Board::attacks_to(Square sq, Bitboard occupied) const {
     return (pieces<PAWN>(WHITE) & attacks::pawn_attacks<BLACK>(bb::set(sq))) |
            (pieces<PAWN>(BLACK) & attacks::pawn_attacks<WHITE>(bb::set(sq))) |
            (pieces<KNIGHT>() & attacks::piece_moves<KNIGHT>(sq, occupied)) |
@@ -246,8 +247,8 @@ inline uint64_t Board::attacks_to(Square sq, uint64_t occupied) const {
 }
 
 // Determine if any bitboard is attacked by color c
-inline uint64_t Board::attacks_to(uint64_t bitboard, Color c) const {
-    uint64_t occ = occupancy();
+inline bool Board::attacks_to(Bitboard bitboard, Color c) const {
+    Bitboard occ = occupancy();
     while (bitboard) {
         Square sq = bb::lsb_pop(bitboard);
         if (attacks_to(sq, c, occ))
@@ -282,7 +283,7 @@ inline void Board::remove_piece(Square sq, Color c, PieceType pt) {
 
 template <bool apply_hash>
 inline void Board::move_piece(Square from, Square to, Color c, PieceType pt) {
-    uint64_t mask                 = bb::set(from) | bb::set(to);
+    Bitboard mask                 = bb::set(from) | bb::set(to);
     piece_bb[c][pt]              ^= mask;
     piece_bb[c][all_pieces_slot] ^= mask;
     squares[from]                 = NO_PIECE;
@@ -295,7 +296,7 @@ inline void Board::move_piece(Square from, Square to, Color c, PieceType pt) {
 inline void Board::update_check_data() {
     Color    opp      = ~turn;
     Square   opp_king = king_sq(opp);
-    uint64_t occ      = occupancy();
+    Bitboard occ      = occupancy();
     auto&    state    = this->active_state();
 
     state.checkers = attacks_to(king_sq(turn), opp);
@@ -314,9 +315,9 @@ inline void Board::update_check_data() {
 inline void Board::update_pinners_and_blockers(Color c) {
     Color    opp     = ~c;
     Square   king    = king_sq(c);
-    uint64_t snipers = (attacks::piece_moves<BISHOP>(king) & pieces<BISHOP, QUEEN>(opp)) |
+    Bitboard snipers = (attacks::piece_moves<BISHOP>(king) & pieces<BISHOP, QUEEN>(opp)) |
                        (attacks::piece_moves<ROOK>(king) & pieces<ROOK, QUEEN>(opp));
-    uint64_t occ   = occupancy() ^ snipers;
+    Bitboard occ   = occupancy() ^ snipers;
     auto&    state = this->active_state();
 
     state.blockers[c]  = 0;
@@ -324,7 +325,7 @@ inline void Board::update_pinners_and_blockers(Color c) {
 
     while (snipers) {
         Square   pinner         = bb::lsb_pop(snipers);
-        uint64_t pieces_between = occ & square::between(king, pinner);
+        Bitboard pieces_between = occ & square::between(king, pinner);
 
         if (pieces_between && !bb::is_many(pieces_between)) {
             state.blockers[c] |= pieces_between;

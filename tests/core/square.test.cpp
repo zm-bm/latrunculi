@@ -53,7 +53,7 @@ TEST(SquareTest, Distance) {
 }
 
 TEST(SquareTest, Collinear) {
-    std::vector<std::tuple<Square, Square, uint64_t>> test_cases = {
+    std::vector<std::tuple<Square, Square, Bitboard>> test_cases = {
         {B2, D2, bb::rank(RANK2)},
         {B2, B4, bb::file(FILE2)},
         {A1, H8, bb::set(A1, B2, C3, D4, E5, F6, G7, H8)},

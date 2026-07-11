@@ -1,7 +1,6 @@
 #pragma once
 
 #include <atomic>
-#include <cstdint>
 #include <mutex>
 #include <optional>
 #include <vector>
@@ -35,8 +34,8 @@ public:
     void      request_stop() noexcept;
 
     // ThreadPool-facing progress and results.
-    uint64_t node_count() const noexcept;
-    RootLine root_snapshot() const;
+    NodeCount node_count() const noexcept;
+    RootLine  root_snapshot() const;
 
 private:
     // Board and search state.
@@ -53,7 +52,7 @@ private:
     std::optional<Milliseconds> allocated_time;
 
     // Progress and diagnostics.
-    std::atomic<uint64_t>   nodes{0};
+    std::atomic<NodeCount>  nodes{0};
     SearchInstrumentation<> stats;
 
     // Shared services.
@@ -99,7 +98,7 @@ private:
 
     // Accounting and limits.
     Milliseconds runtime() const;
-    uint64_t     total_nodes() const;
+    NodeCount    total_nodes() const;
     void         poll_search_limits();
     void         reset_nodes() noexcept;
     void         increment_nodes() noexcept;
@@ -114,7 +113,7 @@ private:
     friend class ::ThreadTestAccess;
 };
 
-inline uint64_t SearchWorker::node_count() const noexcept {
+inline NodeCount SearchWorker::node_count() const noexcept {
     return nodes.load(std::memory_order_relaxed);
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -24,8 +25,8 @@ public:
     Color        turn         = WHITE;
     CastleRights castle       = NO_CASTLE;
     Square       enpassant    = INVALID;
-    uint8_t      halfmove_clk = 0;
-    uint32_t     fullmove_clk = 0;
+    std::uint8_t halfmove_clk = 0;
+    int          fullmove_clk = 0;
 
 private:
     void parse_pieces(const std::string& section);

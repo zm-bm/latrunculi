@@ -155,7 +155,7 @@ Milliseconds SearchWorker::runtime() const {
     return std::chrono::duration_cast<Milliseconds>(SearchClock::now() - start_time);
 }
 
-uint64_t SearchWorker::total_nodes() const {
+NodeCount SearchWorker::total_nodes() const {
     return thread_pool.nodes_searched();
 }
 

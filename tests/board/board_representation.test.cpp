@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <cstdlib>
 #include <sstream>
 #include <string>
@@ -28,7 +29,7 @@ const std::string representation_fens[] = {
     E2E4,
 };
 
-uint64_t piece_bits(const Board& board, Color color, PieceType piece) {
+Bitboard piece_bits(const Board& board, Color color, PieceType piece) {
     switch (piece) {
     case PAWN:   return board.pieces<PAWN>(color);
     case KNIGHT: return board.pieces<KNIGHT>(color);
@@ -46,19 +47,19 @@ struct BoardSnapshot {
     CastleRights castle;
     Square       enpassant;
     Square       legal_enpassant;
-    uint8_t      halfmove;
-    uint32_t     fullmove;
-    uint64_t     key;
-    uint64_t     occupancy;
-    uint64_t     checkers;
-    uint64_t     blockers[N_COLORS];
-    uint64_t     pinners[N_COLORS];
+    std::uint8_t halfmove;
+    int          fullmove;
+    PositionKey  key;
+    Bitboard     occupancy;
+    Bitboard     checkers;
+    Bitboard     blockers[N_COLORS];
+    Bitboard     pinners[N_COLORS];
     Square       kings[N_COLORS];
     TaperedScore material;
     TaperedScore psq;
     Piece        squares[N_SQUARES];
-    uint64_t     piece_bb[N_COLORS][N_PIECETYPES];
-    uint8_t      counts[N_COLORS][N_PIECETYPES];
+    Bitboard     piece_bb[N_COLORS][N_PIECETYPES];
+    std::uint8_t counts[N_COLORS][N_PIECETYPES];
 };
 
 BoardSnapshot snapshot(const Board& board) {
@@ -138,8 +139,8 @@ void expect_same_board_snapshot(const Board& board, const BoardSnapshot& snap) {
 }
 
 void expect_board_consistent(const Board& board) {
-    uint64_t     expected_piece_bb[N_COLORS][N_PIECETYPES] = {};
-    uint8_t      expected_counts[N_COLORS][N_PIECETYPES]   = {};
+    Bitboard     expected_piece_bb[N_COLORS][N_PIECETYPES] = {};
+    std::uint8_t expected_counts[N_COLORS][N_PIECETYPES]   = {};
     Square       expected_kings[N_COLORS]                  = {INVALID, INVALID};
     TaperedScore expected_material                         = TaperedScore::Zero;
     TaperedScore expected_psq                              = TaperedScore::Zero;
@@ -151,7 +152,7 @@ void expect_board_consistent(const Board& board) {
 
         const Color     color = color_of(piece);
         const PieceType type  = type_of(piece);
-        const uint64_t  sq_bb = bb::set(sq);
+        const Bitboard  sq_bb = bb::set(sq);
 
         expected_piece_bb[color][type]            |= sq_bb;
         expected_piece_bb[color][all_pieces_slot] |= sq_bb;
@@ -188,10 +189,10 @@ void expect_board_consistent(const Board& board) {
 }
 
 struct ExpectedCheckData {
-    uint64_t checkers            = 0;
-    uint64_t blockers[N_COLORS]  = {0};
-    uint64_t pinners[N_COLORS]   = {0};
-    uint64_t checks[piece_slots] = {0};
+    Bitboard checkers            = 0;
+    Bitboard blockers[N_COLORS]  = {0};
+    Bitboard pinners[N_COLORS]   = {0};
+    Bitboard checks[piece_slots] = {0};
 };
 
 int sign(int value) {
@@ -202,8 +203,8 @@ bool on_board(int file, int rank) {
     return file >= FILE1 && file <= FILE8 && rank >= RANK1 && rank <= RANK8;
 }
 
-uint64_t slow_leaper_attacks(Square from, const std::vector<std::pair<int, int>>& offsets) {
-    uint64_t  attacks = 0;
+Bitboard slow_leaper_attacks(Square from, const std::vector<std::pair<int, int>>& offsets) {
+    Bitboard  attacks = 0;
     const int file    = square::file_of(from);
     const int rank    = square::rank_of(from);
 
@@ -217,22 +218,22 @@ uint64_t slow_leaper_attacks(Square from, const std::vector<std::pair<int, int>>
     return attacks;
 }
 
-uint64_t slow_knight_attacks(Square from) {
+Bitboard slow_knight_attacks(Square from) {
     return slow_leaper_attacks(
         from, {{1, 2}, {2, 1}, {2, -1}, {1, -2}, {-1, -2}, {-2, -1}, {-2, 1}, {-1, 2}});
 }
 
-uint64_t slow_king_attacks(Square from) {
+Bitboard slow_king_attacks(Square from) {
     return slow_leaper_attacks(
         from, {{1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}, {0, 1}});
 }
 
-uint64_t slow_pawn_attackers_to(Square target, Color attacker) {
+Bitboard slow_pawn_attackers_to(Square target, Color attacker) {
     const int file = square::file_of(target);
     const int rank = square::rank_of(target);
     const int dr   = attacker == WHITE ? -1 : 1;
 
-    uint64_t attackers = 0;
+    Bitboard attackers = 0;
     for (const int df : {-1, 1}) {
         const int from_file = file + df;
         const int from_rank = rank + dr;
@@ -267,13 +268,13 @@ bool ray_step(Square from, Square to, PieceType slider, int& df, int& dr) {
     return false;
 }
 
-uint64_t slow_between(Square from, Square to) {
+Bitboard slow_between(Square from, Square to) {
     int df = 0;
     int dr = 0;
     if (!ray_step(from, to, QUEEN, df, dr))
         return 0;
 
-    uint64_t between = 0;
+    Bitboard between = 0;
     int      file    = square::file_of(from) + df;
     int      rank    = square::rank_of(from) + dr;
     while (file != square::file_of(to) || rank != square::rank_of(to)) {
@@ -285,11 +286,11 @@ uint64_t slow_between(Square from, Square to) {
     return between;
 }
 
-uint64_t slow_sliding_attacks(Square from, PieceType slider, uint64_t occupancy) {
+Bitboard slow_sliding_attacks(Square from, PieceType slider, Bitboard occupancy) {
     const std::vector<std::pair<int, int>> bishop_dirs = {{1, 1}, {1, -1}, {-1, -1}, {-1, 1}};
     const std::vector<std::pair<int, int>> rook_dirs   = {{1, 0}, {0, -1}, {-1, 0}, {0, 1}};
 
-    uint64_t attacks = 0;
+    Bitboard attacks = 0;
     auto     scan    = [&](const std::vector<std::pair<int, int>>& dirs) {
         for (const auto& [df, dr] : dirs) {
             int file = square::file_of(from) + df;
@@ -317,8 +318,8 @@ bool is_slider(PieceType piece) {
     return piece == BISHOP || piece == ROOK || piece == QUEEN;
 }
 
-uint64_t slow_attackers_to(const Board& board, Square target, Color attacker) {
-    const uint64_t occupancy = board.occupancy();
+Bitboard slow_attackers_to(const Board& board, Square target, Color attacker) {
+    const Bitboard occupancy = board.occupancy();
 
     return (board.pieces<PAWN>(attacker) & slow_pawn_attackers_to(target, attacker)) |
            (board.pieces<KNIGHT>(attacker) & slow_knight_attacks(target)) |
@@ -333,7 +334,7 @@ ExpectedCheckData expected_check_data(const Board& board) {
     const Color       us        = board.side_to_move();
     const Color       them      = ~us;
     const Square      them_king = board.king_sq(them);
-    const uint64_t    occupancy = board.occupancy();
+    const Bitboard    occupancy = board.occupancy();
 
     expected.checkers                   = slow_attackers_to(board, board.king_sq(us), them);
     expected.checks[piece_slot(PAWN)]   = slow_pawn_attackers_to(them_king, us);
@@ -347,7 +348,7 @@ ExpectedCheckData expected_check_data(const Board& board) {
         const Color  king_color   = Color(c);
         const Color  sniper_color = ~king_color;
         const Square king         = board.king_sq(king_color);
-        uint64_t     snipers      = 0;
+        Bitboard     snipers      = 0;
 
         for (auto sq = A1; sq != INVALID; ++sq) {
             const Piece piece = board.piece_on(sq);
@@ -360,11 +361,11 @@ ExpectedCheckData expected_check_data(const Board& board) {
                 snipers |= bb::set(sq);
         }
 
-        const uint64_t occupancy_without_snipers = occupancy ^ snipers;
-        uint64_t       remaining_snipers         = snipers;
+        const Bitboard occupancy_without_snipers = occupancy ^ snipers;
+        Bitboard       remaining_snipers         = snipers;
         while (remaining_snipers) {
             const Square   sniper         = bb::lsb_pop(remaining_snipers);
-            const uint64_t pieces_between = occupancy_without_snipers & slow_between(king, sniper);
+            const Bitboard pieces_between = occupancy_without_snipers & slow_between(king, sniper);
 
             if (pieces_between && !bb::is_many(pieces_between)) {
                 expected.blockers[king_color] |= pieces_between;
@@ -599,8 +600,8 @@ TEST(BoardRepresentationTest, material_psq_bonus) {
 }
 
 TEST(BoardRepresentationTest, add_piece) {
-    TestBoard board = TestBoard(EMPTYFEN);
-    uint64_t  key   = board.key() ^ zob::hash_piece(WHITE, PAWN, E2);
+    TestBoard   board = TestBoard(EMPTYFEN);
+    PositionKey key   = board.key() ^ zob::hash_piece(WHITE, PAWN, E2);
     board.add_piece<true>(E2, WHITE, PAWN);
 
     EXPECT_EQ(board.piece_on(E2), make_piece(WHITE, PAWN));
@@ -613,8 +614,8 @@ TEST(BoardRepresentationTest, add_piece) {
 }
 
 TEST(BoardRepresentationTest, remove_piece) {
-    TestBoard board = TestBoard(PAWN_E2);
-    uint64_t  key   = board.key() ^ zob::hash_piece(WHITE, PAWN, E2);
+    TestBoard   board = TestBoard(PAWN_E2);
+    PositionKey key   = board.key() ^ zob::hash_piece(WHITE, PAWN, E2);
     board.remove_piece<true>(E2, WHITE, PAWN);
 
     EXPECT_EQ(board.piece_on(E2), NO_PIECE);
@@ -627,10 +628,10 @@ TEST(BoardRepresentationTest, remove_piece) {
 }
 
 TEST(BoardRepresentationTest, move_piece) {
-    TestBoard board  = TestBoard(PAWN_E2);
-    uint64_t  key    = board.key();
-    key             ^= zob::hash_piece(WHITE, PAWN, E2);
-    key             ^= zob::hash_piece(WHITE, PAWN, E4);
+    TestBoard   board  = TestBoard(PAWN_E2);
+    PositionKey key    = board.key();
+    key               ^= zob::hash_piece(WHITE, PAWN, E2);
+    key               ^= zob::hash_piece(WHITE, PAWN, E4);
     board.move_piece<true>(E2, E4, WHITE, PAWN);
 
     EXPECT_EQ(board.piece_on(E2), NO_PIECE);

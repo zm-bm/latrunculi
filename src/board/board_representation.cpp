@@ -61,7 +61,7 @@ Square Board::legal_enpassant_sq() const {
         return INVALID;
 
     const Color side      = side_to_move();
-    uint64_t    capturers = pieces<PAWN>(side) & attacks::pawn_attacks(bb::set(enpassant), ~side);
+    Bitboard    capturers = pieces<PAWN>(side) & attacks::pawn_attacks(bb::set(enpassant), ~side);
 
     while (capturers) {
         const Square from = bb::lsb_pop(capturers);
@@ -72,8 +72,8 @@ Square Board::legal_enpassant_sq() const {
     return INVALID;
 }
 
-uint64_t Board::calculate_key() const {
-    uint64_t zkey = 0;
+PositionKey Board::calculate_key() const {
+    PositionKey zkey = 0;
 
     for (auto sq = A1; sq != INVALID; ++sq) {
         auto piece = piece_on(sq);

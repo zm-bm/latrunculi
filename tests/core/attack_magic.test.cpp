@@ -6,8 +6,8 @@
 
 struct MagicTest {
     Square   sq;
-    uint64_t occ;
-    uint64_t exp;
+    Bitboard occ;
+    Bitboard exp;
 };
 
 class MagicBishopAttacksTest : public ::testing::TestWithParam<MagicTest> {};

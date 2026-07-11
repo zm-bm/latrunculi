@@ -3,7 +3,7 @@
 #include <gtest/gtest.h>
 
 TEST(AttacksTest, CorrectPawnMoves) {
-    uint64_t pawns = bb::set(D4);
+    Bitboard pawns = bb::set(D4);
     EXPECT_EQ(attacks::pawn_moves<PAWN_PUSH>(pawns, WHITE), bb::set(D5));
     EXPECT_EQ(attacks::pawn_moves<PAWN_PUSH>(pawns, BLACK), bb::set(D3));
     EXPECT_EQ(attacks::pawn_moves<PAWN_LEFT>(pawns, WHITE), bb::set(C5));
@@ -13,17 +13,17 @@ TEST(AttacksTest, CorrectPawnMoves) {
     EXPECT_EQ(attacks::pawn_moves<PAWN_PUSH2>(pawns, WHITE), bb::set(D6));
     EXPECT_EQ(attacks::pawn_moves<PAWN_PUSH2>(pawns, BLACK), bb::set(D2));
 
-    uint64_t pawns_left = bb::set(A4);
+    Bitboard pawns_left = bb::set(A4);
     EXPECT_EQ(attacks::pawn_moves<PAWN_LEFT>(pawns_left, WHITE), 0);
     EXPECT_EQ(attacks::pawn_moves<PAWN_RIGHT>(pawns_left, BLACK), 0);
 
-    uint64_t pawns_right = bb::set(H4);
+    Bitboard pawns_right = bb::set(H4);
     EXPECT_EQ(attacks::pawn_moves<PAWN_RIGHT>(pawns_right, WHITE), 0);
     EXPECT_EQ(attacks::pawn_moves<PAWN_LEFT>(pawns_right, BLACK), 0);
 }
 
 TEST(AttacksTest, CorrectPawnAttacks) {
-    uint64_t pawns = bb::set(A4, D4, H4);
+    Bitboard pawns = bb::set(A4, D4, H4);
     EXPECT_EQ(attacks::pawn_attacks(pawns, WHITE), bb::set(B5, C5, E5, G5));
     EXPECT_EQ(attacks::pawn_attacks(pawns, BLACK), bb::set(B3, C3, E3, G3));
 }

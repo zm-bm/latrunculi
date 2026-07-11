@@ -6,11 +6,11 @@
 #include "core/bitboard.hpp"
 #include "core/types.hpp"
 
-enum Rank : int8_t { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8 };
+enum Rank : std::int8_t { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8 };
 
-enum File : int8_t { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8 };
+enum File : std::int8_t { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8 };
 
-enum Square : int8_t {
+enum Square : std::int8_t {
     // clang-format off
     A1, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
@@ -59,15 +59,15 @@ constexpr Rank relative_rank(const Square square, const Color color) {
 // Compile-time builders for the distance, collinear, and between lookup tables.
 namespace tables {
 
-using SquareDistanceTable = std::array<std::array<uint8_t, N_SQUARES>, N_SQUARES>;
-using SquareMaskTable     = std::array<std::array<uint64_t, N_SQUARES>, N_SQUARES>;
+using SquareDistanceTable = std::array<std::array<std::uint8_t, N_SQUARES>, N_SQUARES>;
+using SquareMaskTable     = std::array<std::array<Bitboard, N_SQUARES>, N_SQUARES>;
 
-constexpr uint8_t distance_value(Square sq1, Square sq2) {
+constexpr std::uint8_t distance_value(Square sq1, Square sq2) {
     const int file_diff = file_of(sq1) - file_of(sq2);
     const int rank_diff = rank_of(sq1) - rank_of(sq2);
 
-    const uint8_t file_distance = uint8_t(file_diff < 0 ? -file_diff : file_diff);
-    const uint8_t rank_distance = uint8_t(rank_diff < 0 ? -rank_diff : rank_diff);
+    const std::uint8_t file_distance = std::uint8_t(file_diff < 0 ? -file_diff : file_diff);
+    const std::uint8_t rank_distance = std::uint8_t(rank_diff < 0 ? -rank_diff : rank_diff);
 
     return (file_distance > rank_distance) ? file_distance : rank_distance;
 }
@@ -81,8 +81,8 @@ constexpr SquareDistanceTable make_distance_table() {
     return table;
 }
 
-constexpr uint64_t collinear_helper(int file, int rank, int file_delta, int rank_delta) {
-    uint64_t mask = 0;
+constexpr Bitboard collinear_helper(int file, int rank, int file_delta, int rank_delta) {
+    Bitboard mask = 0;
     while (0 <= rank && rank < 8 && 0 <= file && file < 8) {
         mask |= bb::set(make(File(file), Rank(rank)));
         file += file_delta;
@@ -91,7 +91,7 @@ constexpr uint64_t collinear_helper(int file, int rank, int file_delta, int rank
     return mask;
 }
 
-constexpr uint64_t collinear_mask(Square sq1, Square sq2) {
+constexpr Bitboard collinear_mask(Square sq1, Square sq2) {
     const int r1 = rank_of(sq1), r2 = rank_of(sq2);
     const int f1 = file_of(sq1), f2 = file_of(sq2);
 
@@ -118,17 +118,17 @@ constexpr SquareMaskTable make_collinear_table() {
     return table;
 }
 
-constexpr uint64_t between_helper(Square sq1, Square sq2, int delta) {
+constexpr Bitboard between_helper(Square sq1, Square sq2, int delta) {
     const int min_sq = (sq1 < sq2) ? sq1 : sq2;
     const int max_sq = (sq1 < sq2) ? sq2 : sq1;
 
-    uint64_t mask = 0;
+    Bitboard mask = 0;
     for (int sq = min_sq + delta; sq < max_sq; sq += delta)
         mask |= bb::set(Square(sq));
     return mask;
 }
 
-constexpr uint64_t between_mask(Square sq1, Square sq2) {
+constexpr Bitboard between_mask(Square sq1, Square sq2) {
     const int r1 = rank_of(sq1), r2 = rank_of(sq2);
     const int f1 = file_of(sq1), f2 = file_of(sq2);
 
@@ -160,17 +160,17 @@ constexpr SquareMaskTable     between_table   = make_between_table();
 } // namespace tables
 
 // Chebyshev distance: the number of king moves between two squares.
-constexpr uint8_t distance(const Square sq1, const Square sq2) {
+constexpr int distance(const Square sq1, const Square sq2) {
     return tables::distance_table[sq1][sq2];
 }
 
 // Bitboard containing the full rank, file, or diagonal shared by two squares.
-constexpr uint64_t collinear(const Square sq1, const Square sq2) {
+constexpr Bitboard collinear(const Square sq1, const Square sq2) {
     return tables::collinear_table[sq1][sq2];
 }
 
 // Bitboard containing the squares strictly between two aligned squares.
-constexpr uint64_t between(const Square sq1, const Square sq2) {
+constexpr Bitboard between(const Square sq1, const Square sq2) {
     return tables::between_table[sq1][sq2];
 }
 

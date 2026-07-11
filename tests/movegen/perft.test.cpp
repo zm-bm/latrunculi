@@ -1,6 +1,5 @@
 #include "movegen/perft.hpp"
 
-#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -17,8 +16,8 @@ namespace {
 constexpr int depth_limit = 4;
 
 struct PerftPosition {
-    std::string           fen;
-    std::vector<uint64_t> expected;
+    std::string            fen;
+    std::vector<NodeCount> expected;
 };
 
 const std::vector<PerftPosition> perft_positions = {
@@ -62,7 +61,7 @@ TEST(PerftTest, ChessProgrammingPositionsMatchExpectedDepths) {
             if (depth > depth_limit)
                 break;
 
-            const uint64_t result = perft(board, depth);
+            const NodeCount result = perft(board, depth);
             EXPECT_EQ(result, position.expected[depth - 1]) << "Failed at depth " << depth;
         }
     }

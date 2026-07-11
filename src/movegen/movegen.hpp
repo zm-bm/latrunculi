@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cassert>
-#include <cstdint>
 
 #include "board/board.hpp"
 #include "board/castling.hpp"
@@ -31,7 +30,7 @@ public:
           empty_squares(~occupancy) {}
 
     void run() {
-        uint64_t target_squares = 0;
+        Bitboard target_squares = 0;
 
         if constexpr (Type == MoveGenType::Evasions) {
             if (!board.is_double_check()) {
@@ -64,36 +63,36 @@ private:
         write(Move(from, to, move_type, promotion));
     }
 
-    uint64_t piece_targets() const {
+    Bitboard piece_targets() const {
         if constexpr (Type == MoveGenType::NonEvasions)
             return ~own_pieces;
         else if constexpr (Type == MoveGenType::Noisy)
             return enemy_pieces;
         else if constexpr (Type == MoveGenType::Evasions) {
-            const uint64_t checks = board.checkers();
+            const Bitboard checks = board.checkers();
             return checks | square::between(bb::select<Us>(checks), king_sq);
         }
         return empty_squares;
     }
 
     template <PieceType P>
-    void pieces(uint64_t targets) {
-        uint64_t bitboard = board.template pieces<P>(Us);
+    void pieces(Bitboard targets) {
+        Bitboard bitboard = board.template pieces<P>(Us);
 
         bb::scan<Us>(bitboard, [&](Square from) {
-            uint64_t moves = attacks::piece_moves<P>(from, occupancy) & targets;
+            Bitboard moves = attacks::piece_moves<P>(from, occupancy) & targets;
             bb::scan<Us>(moves, [&](Square to) { write(from, to); });
         });
     }
 
     template <PawnMove P>
-    void pawn_moves_to(uint64_t moves) {
+    void pawn_moves_to(Bitboard moves) {
         constexpr int offset = (Us == WHITE) ? -P : P;
         bb::scan<Us>(moves, [&](Square to) { write(to + offset, to); });
     }
 
     template <PawnMove P>
-    void pawn_promotions_to(uint64_t moves) {
+    void pawn_promotions_to(Bitboard moves) {
         constexpr int offset = (Us == WHITE) ? -P : P;
 
         bb::scan<Us>(moves, [&](Square to) {
@@ -106,51 +105,51 @@ private:
     }
 
     template <PawnMove P>
-    void pawn_enpassants(uint64_t pawns, Square enpassant) {
+    void pawn_enpassants(Bitboard pawns, Square enpassant) {
         constexpr int offset = (Us == WHITE) ? -P : P;
 
         if (attacks::pawn_moves<P, Us>(pawns) & bb::set(enpassant))
             write(enpassant + offset, enpassant, MOVE_EP);
     }
 
-    void pawns(uint64_t targets) {
-        constexpr uint64_t rank7 = (Us == WHITE) ? bb::rank(RANK7) : bb::rank(RANK2);
+    void pawns(Bitboard targets) {
+        constexpr Bitboard rank7 = (Us == WHITE) ? bb::rank(RANK7) : bb::rank(RANK2);
 
-        uint64_t enemies = enemy_pieces;
+        Bitboard enemies = enemy_pieces;
         if constexpr (Type == MoveGenType::Evasions)
             enemies &= targets;
 
-        const uint64_t all_pawns   = board.template pieces<PAWN>(Us);
-        uint64_t       pawns_rank7 = all_pawns & rank7;
+        const Bitboard all_pawns   = board.template pieces<PAWN>(Us);
+        Bitboard       pawns_rank7 = all_pawns & rank7;
         if constexpr (Type != MoveGenType::Quiet) {
             if (pawns_rank7)
                 pawn_promotions(targets, enemies, pawns_rank7);
         }
 
-        uint64_t normal_pawns = all_pawns & ~rank7;
+        Bitboard normal_pawns = all_pawns & ~rank7;
         if constexpr (Type != MoveGenType::Quiet)
             pawn_captures(targets, enemies, normal_pawns);
         if constexpr (Type != MoveGenType::Noisy)
             pawn_pushes(targets, normal_pawns);
     }
 
-    void pawn_promotions(uint64_t targets, uint64_t enemies, uint64_t pawns) {
-        uint64_t push_moves = attacks::pawn_moves<PAWN_PUSH, Us>(pawns) & ~occupancy;
+    void pawn_promotions(Bitboard targets, Bitboard enemies, Bitboard pawns) {
+        Bitboard push_moves = attacks::pawn_moves<PAWN_PUSH, Us>(pawns) & ~occupancy;
         if constexpr (Type == MoveGenType::Evasions)
             push_moves &= targets;
 
         pawn_promotions_to<PAWN_PUSH>(push_moves);
 
-        uint64_t left_moves = attacks::pawn_moves<PAWN_LEFT, Us>(pawns) & enemies;
+        Bitboard left_moves = attacks::pawn_moves<PAWN_LEFT, Us>(pawns) & enemies;
         pawn_promotions_to<PAWN_LEFT>(left_moves);
 
-        uint64_t right_moves = attacks::pawn_moves<PAWN_RIGHT, Us>(pawns) & enemies;
+        Bitboard right_moves = attacks::pawn_moves<PAWN_RIGHT, Us>(pawns) & enemies;
         pawn_promotions_to<PAWN_RIGHT>(right_moves);
     }
 
-    void pawn_captures(uint64_t targets, uint64_t enemies, uint64_t pawns) {
-        uint64_t left_moves  = attacks::pawn_moves<PAWN_LEFT, Us>(pawns) & enemies;
-        uint64_t right_moves = attacks::pawn_moves<PAWN_RIGHT, Us>(pawns) & enemies;
+    void pawn_captures(Bitboard targets, Bitboard enemies, Bitboard pawns) {
+        Bitboard left_moves  = attacks::pawn_moves<PAWN_LEFT, Us>(pawns) & enemies;
+        Bitboard right_moves = attacks::pawn_moves<PAWN_RIGHT, Us>(pawns) & enemies;
         pawn_moves_to<PAWN_LEFT>(left_moves);
         pawn_moves_to<PAWN_RIGHT>(right_moves);
 
@@ -168,11 +167,11 @@ private:
         pawn_enpassants<PAWN_RIGHT>(pawns, enpassant);
     }
 
-    void pawn_pushes(uint64_t targets, uint64_t pawns) {
-        constexpr uint64_t rank3 = (Us == WHITE) ? bb::rank(RANK3) : bb::rank(RANK6);
+    void pawn_pushes(Bitboard targets, Bitboard pawns) {
+        constexpr Bitboard rank3 = (Us == WHITE) ? bb::rank(RANK3) : bb::rank(RANK6);
 
-        uint64_t push_moves  = attacks::pawn_moves<PAWN_PUSH, Us>(pawns) & ~occupancy;
-        uint64_t push2_moves = attacks::pawn_moves<PAWN_PUSH, Us>(push_moves & rank3) & ~occupancy;
+        Bitboard push_moves  = attacks::pawn_moves<PAWN_PUSH, Us>(pawns) & ~occupancy;
+        Bitboard push2_moves = attacks::pawn_moves<PAWN_PUSH, Us>(push_moves & rank3) & ~occupancy;
 
         if constexpr (Type == MoveGenType::Evasions) {
             push_moves  &= targets;
@@ -183,8 +182,8 @@ private:
         pawn_moves_to<PAWN_PUSH>(push_moves);
     }
 
-    void king(uint64_t targets) {
-        uint64_t moves = attacks::piece_moves<KING>(king_sq) & targets;
+    void king(Bitboard targets) {
+        Bitboard moves = attacks::piece_moves<KING>(king_sq) & targets;
 
         bb::scan<Us>(moves, [&](Square to) { write(king_sq, to); });
 
@@ -204,18 +203,18 @@ private:
 
     template <CastleSide Side>
     bool legal_castle() const {
-        constexpr uint64_t path     = castle::path[Side][Us];
-        constexpr uint64_t kingpath = castle::kingpath[Side][Us];
+        constexpr Bitboard path     = castle::path[Side][Us];
+        constexpr Bitboard kingpath = castle::kingpath[Side][Us];
         return !(occupancy & path) && !board.attacks_to(kingpath, ~Us);
     }
 
     const Board& board;
     MoveList&    moves;
     Square       king_sq;
-    uint64_t     occupancy;
-    uint64_t     own_pieces;
-    uint64_t     enemy_pieces;
-    uint64_t     empty_squares;
+    Bitboard     occupancy;
+    Bitboard     own_pieces;
+    Bitboard     enemy_pieces;
+    Bitboard     empty_squares;
 };
 
 template <MoveGenType Type, Color Us>

@@ -3,31 +3,32 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
-#include <cstdint>
+
+#include "core/types.hpp"
 
 // Previous position keys for repetition detection.
 struct PositionKeyHistory {
     static constexpr std::size_t capacity = 256;
 
-    std::array<uint64_t, capacity> keys{};
-    uint16_t                       size{};
+    std::array<PositionKey, capacity> keys{};
+    int                               size{};
 
     void clear() { size = 0; }
 
-    void push(uint64_t key) {
-        assert(size < keys.size());
+    void push(PositionKey key) {
+        assert(size >= 0 && static_cast<std::size_t>(size) < keys.size());
         keys[size++] = key;
     }
 
-    void pop(uint64_t expected_key) {
+    void pop(PositionKey expected_key) {
         assert(size > 0);
         assert(keys[size - 1] == expected_key);
         --size;
     }
 
-    uint64_t operator[](int index) const {
+    PositionKey operator[](int index) const {
         assert(index >= 0 && index < size);
-        return keys[index];
+        return keys[static_cast<std::size_t>(index)];
     }
 
     int count() const { return size; }

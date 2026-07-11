@@ -24,8 +24,8 @@ bool Board::is_pseudo_legal(Move mv) const {
         return false;
 
     const PieceType piecetype = type_of(piece);
-    const uint64_t  to_bb     = bb::set(to);
-    const uint64_t  occupied  = occupancy();
+    const Bitboard  to_bb     = bb::set(to);
+    const Bitboard  occupied  = occupancy();
 
     switch (mv.type()) {
     case BASIC_MOVE: {
@@ -144,13 +144,13 @@ bool Board::is_legal_pseudo_move(Move mv) const {
     // enpassant: check if captured pawn is blocking check
     else if (mv.type() == MOVE_EP) {
         Square   pawn = to + (turn == WHITE ? square::south : square::north);
-        uint64_t occ  = (occupancy() ^ bb::set(from, pawn)) | bb::set(to);
+        Bitboard occ  = (occupancy() ^ bb::set(from, pawn)) | bb::set(to);
         return !(pieces<BISHOP, QUEEN>(~turn) & attacks::piece_moves<BISHOP>(king, occ)) &&
                !(pieces<ROOK, QUEEN>(~turn) & attacks::piece_moves<ROOK>(king, occ));
     }
 
     // non-king moves must resolve any current check
-    uint64_t checkers_bb = checkers();
+    Bitboard checkers_bb = checkers();
     if (checkers_bb) {
         if (bb::is_many(checkers_bb))
             return false;
@@ -161,7 +161,7 @@ bool Board::is_legal_pseudo_move(Move mv) const {
     }
 
     // check if moved piece is pinned or moving in-line with check
-    uint64_t pins = blockers(turn);
+    Bitboard pins = blockers(turn);
     return (!pins || !(pins & bb::set(from)) || (square::collinear(from, to) & bb::set(king)));
 }
 
@@ -183,14 +183,14 @@ bool Board::is_checking_move(Move mv) const {
     switch (mv.type()) {
     case MOVE_PROM: {
         // check if a promotion attacks the enemy king
-        uint64_t occupied = occupancy() ^ bb::set(from);
+        Bitboard occupied = occupancy() ^ bb::set(from);
         return attacks::piece_moves(to, mv.prom_piece(), occupied) & bb::set(opp_king);
     }
 
     case MOVE_EP: {
         // check if captured pawn was blocking enemy king from attack
         Square   pawn     = to + (turn == WHITE ? square::south : square::north);
-        uint64_t occupied = (occupancy() ^ bb::set(from, pawn)) | bb::set(to);
+        Bitboard occupied = (occupancy() ^ bb::set(from, pawn)) | bb::set(to);
         return ((pieces<BISHOP, QUEEN>(turn) & attacks::piece_moves<BISHOP>(opp_king, occupied)) ||
                 (pieces<ROOK, QUEEN>(turn) & attacks::piece_moves<ROOK>(opp_king, occupied)));
     }
@@ -199,7 +199,7 @@ bool Board::is_checking_move(Move mv) const {
         // check if rook attacks enemy king
         Square   rook_from = castle::rook_from[to < from][turn];
         Square   rook_to   = castle::rook_to[to < from][turn];
-        uint64_t occupied  = occupancy() ^ bb::set(from, rook_from, to, rook_to);
+        Bitboard occupied  = occupancy() ^ bb::set(from, rook_from, to, rook_to);
         return attacks::piece_moves<ROOK>(rook_to, occupied) & bb::set(opp_king);
     }
 

@@ -173,8 +173,8 @@ bool ThreadPool::is_searching() const {
     return std::any_of(threads.begin(), threads.end(), is_searching);
 }
 
-uint64_t ThreadPool::nodes_searched() const {
-    uint64_t total = 0;
+NodeCount ThreadPool::nodes_searched() const {
+    NodeCount total = 0;
     for (const auto& thread : threads) {
         total += thread->worker.node_count();
     }
