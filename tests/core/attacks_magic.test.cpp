@@ -1,4 +1,4 @@
-#include "core/attack_magic.hpp"
+#include "core/attacks_magic.hpp"
 
 #include <gtest/gtest.h>
 

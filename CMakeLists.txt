@@ -12,7 +12,7 @@ find_package(Threads REQUIRED)
 option(LATRUNCULI_SEARCH_STATS "Enable detailed search statistics diagnostics" OFF)
 
 set(LATRUNCULI_ENGINE_SOURCES
-    src/core/attack_magic.cpp
+    src/core/attacks_magic.cpp
     src/core/notation.cpp
     src/board/board.cpp
     src/board/board_fen.cpp
@@ -57,7 +57,7 @@ if(BUILD_TESTING)
 
     set(LATRUNCULI_TEST_SOURCES
         tests/core/attacks.test.cpp
-        tests/core/attack_magic.test.cpp
+        tests/core/attacks_magic.test.cpp
         tests/board/board.test.cpp
         tests/board/board_fen.test.cpp
         tests/board/board_representation.test.cpp

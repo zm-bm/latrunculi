@@ -25,6 +25,15 @@ enum Square : std::int8_t {
     N_SQUARES = 64
 };
 
+namespace pawn_delta {
+
+inline constexpr int left        = 7;
+inline constexpr int push        = 8;
+inline constexpr int right       = 9;
+inline constexpr int double_push = 16;
+
+} // namespace pawn_delta
+
 namespace square {
 
 inline constexpr int north_east = 9;

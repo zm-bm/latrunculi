@@ -85,15 +85,15 @@ private:
         });
     }
 
-    template <PawnMove P>
+    template <int Delta>
     void pawn_moves_to(Bitboard moves) {
-        constexpr int offset = (Us == WHITE) ? -P : P;
+        constexpr int offset = (Us == WHITE) ? -Delta : Delta;
         bb::scan<Us>(moves, [&](Square to) { write(to + offset, to); });
     }
 
-    template <PawnMove P>
+    template <int Delta>
     void pawn_promotions_to(Bitboard moves) {
-        constexpr int offset = (Us == WHITE) ? -P : P;
+        constexpr int offset = (Us == WHITE) ? -Delta : Delta;
 
         bb::scan<Us>(moves, [&](Square to) {
             Square from = to + offset;
@@ -104,11 +104,11 @@ private:
         });
     }
 
-    template <PawnMove P>
+    template <int Delta>
     void pawn_enpassants(Bitboard pawns, Square enpassant) {
-        constexpr int offset = (Us == WHITE) ? -P : P;
+        constexpr int offset = (Us == WHITE) ? -Delta : Delta;
 
-        if (attacks::pawn_moves<P, Us>(pawns) & bb::set(enpassant))
+        if (attacks::pawn_moves<Delta, Us>(pawns) & bb::set(enpassant))
             write(enpassant + offset, enpassant, MOVE_EP);
     }
 
@@ -134,52 +134,53 @@ private:
     }
 
     void pawn_promotions(Bitboard targets, Bitboard enemies, Bitboard pawns) {
-        Bitboard push_moves = attacks::pawn_moves<PAWN_PUSH, Us>(pawns) & ~occupancy;
+        Bitboard push_moves = attacks::pawn_moves<pawn_delta::push, Us>(pawns) & ~occupancy;
         if constexpr (Type == MoveGenType::Evasions)
             push_moves &= targets;
 
-        pawn_promotions_to<PAWN_PUSH>(push_moves);
+        pawn_promotions_to<pawn_delta::push>(push_moves);
 
-        Bitboard left_moves = attacks::pawn_moves<PAWN_LEFT, Us>(pawns) & enemies;
-        pawn_promotions_to<PAWN_LEFT>(left_moves);
+        Bitboard left_moves = attacks::pawn_moves<pawn_delta::left, Us>(pawns) & enemies;
+        pawn_promotions_to<pawn_delta::left>(left_moves);
 
-        Bitboard right_moves = attacks::pawn_moves<PAWN_RIGHT, Us>(pawns) & enemies;
-        pawn_promotions_to<PAWN_RIGHT>(right_moves);
+        Bitboard right_moves = attacks::pawn_moves<pawn_delta::right, Us>(pawns) & enemies;
+        pawn_promotions_to<pawn_delta::right>(right_moves);
     }
 
     void pawn_captures(Bitboard targets, Bitboard enemies, Bitboard pawns) {
-        Bitboard left_moves  = attacks::pawn_moves<PAWN_LEFT, Us>(pawns) & enemies;
-        Bitboard right_moves = attacks::pawn_moves<PAWN_RIGHT, Us>(pawns) & enemies;
-        pawn_moves_to<PAWN_LEFT>(left_moves);
-        pawn_moves_to<PAWN_RIGHT>(right_moves);
+        Bitboard left_moves  = attacks::pawn_moves<pawn_delta::left, Us>(pawns) & enemies;
+        Bitboard right_moves = attacks::pawn_moves<pawn_delta::right, Us>(pawns) & enemies;
+        pawn_moves_to<pawn_delta::left>(left_moves);
+        pawn_moves_to<pawn_delta::right>(right_moves);
 
         Square enpassant = board.legal_enpassant_sq();
         if (enpassant == INVALID)
             return;
 
-        constexpr int offset = (Us == WHITE) ? -PAWN_PUSH : PAWN_PUSH;
+        constexpr int offset = (Us == WHITE) ? -pawn_delta::push : pawn_delta::push;
         if constexpr (Type == MoveGenType::Evasions) {
             if (!(targets & bb::set(enpassant + offset)))
                 return;
         }
 
-        pawn_enpassants<PAWN_LEFT>(pawns, enpassant);
-        pawn_enpassants<PAWN_RIGHT>(pawns, enpassant);
+        pawn_enpassants<pawn_delta::left>(pawns, enpassant);
+        pawn_enpassants<pawn_delta::right>(pawns, enpassant);
     }
 
     void pawn_pushes(Bitboard targets, Bitboard pawns) {
         constexpr Bitboard rank3 = (Us == WHITE) ? bb::rank(RANK3) : bb::rank(RANK6);
 
-        Bitboard push_moves  = attacks::pawn_moves<PAWN_PUSH, Us>(pawns) & ~occupancy;
-        Bitboard push2_moves = attacks::pawn_moves<PAWN_PUSH, Us>(push_moves & rank3) & ~occupancy;
+        Bitboard push_moves = attacks::pawn_moves<pawn_delta::push, Us>(pawns) & ~occupancy;
+        Bitboard double_push_moves =
+            attacks::pawn_moves<pawn_delta::push, Us>(push_moves & rank3) & ~occupancy;
 
         if constexpr (Type == MoveGenType::Evasions) {
-            push_moves  &= targets;
-            push2_moves &= targets;
+            push_moves        &= targets;
+            double_push_moves &= targets;
         }
 
-        pawn_moves_to<PAWN_PUSH2>(push2_moves);
-        pawn_moves_to<PAWN_PUSH>(push_moves);
+        pawn_moves_to<pawn_delta::double_push>(double_push_moves);
+        pawn_moves_to<pawn_delta::push>(push_moves);
     }
 
     void king(Bitboard targets) {

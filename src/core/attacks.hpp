@@ -3,17 +3,10 @@
 #include <array>
 #include <cstddef>
 
-#include "core/attack_magic.hpp"
+#include "core/attacks_magic.hpp"
 #include "core/bitboard.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
-
-enum PawnMove {
-    PAWN_LEFT  = 7,
-    PAWN_PUSH  = 8,
-    PAWN_RIGHT = 9,
-    PAWN_PUSH2 = 16,
-};
 
 namespace attacks::tables {
 
@@ -87,28 +80,28 @@ constexpr Bitboard piece_moves(Square sq, PieceType p, Bitboard occupancy) {
     }
 }
 
-template <PawnMove M, Color C>
+template <int Delta, Color C>
 constexpr Bitboard pawn_moves(Bitboard pawns) {
-    if constexpr (M == PAWN_LEFT || M == PAWN_RIGHT) {
-        constexpr File edge  = ((M == PAWN_LEFT) ^ (C == BLACK)) ? FILE1 : FILE8;
+    if constexpr (Delta == pawn_delta::left || Delta == pawn_delta::right) {
+        constexpr File edge  = ((Delta == pawn_delta::left) ^ (C == BLACK)) ? FILE1 : FILE8;
         pawns               &= ~bb::file(edge);
     }
 
-    return (C == WHITE) ? pawns << M : pawns >> M;
+    return (C == WHITE) ? pawns << Delta : pawns >> Delta;
 }
 
-template <PawnMove M>
+template <int Delta>
 constexpr Bitboard pawn_moves(Bitboard pawns, Color c) {
-    return (c == WHITE) ? pawn_moves<M, WHITE>(pawns) : pawn_moves<M, BLACK>(pawns);
+    return (c == WHITE) ? pawn_moves<Delta, WHITE>(pawns) : pawn_moves<Delta, BLACK>(pawns);
 };
 
 template <Color C>
 constexpr Bitboard pawn_attacks(Bitboard pawns) {
-    return pawn_moves<PAWN_LEFT, C>(pawns) | pawn_moves<PAWN_RIGHT, C>(pawns);
+    return pawn_moves<pawn_delta::left, C>(pawns) | pawn_moves<pawn_delta::right, C>(pawns);
 }
 
 constexpr Bitboard pawn_attacks(Bitboard pawns, Color c) {
-    return pawn_moves<PAWN_LEFT>(pawns, c) | pawn_moves<PAWN_RIGHT>(pawns, c);
+    return pawn_moves<pawn_delta::left>(pawns, c) | pawn_moves<pawn_delta::right>(pawns, c);
 }
 
 } // namespace attacks

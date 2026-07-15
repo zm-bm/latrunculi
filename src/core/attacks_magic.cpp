@@ -27,7 +27,7 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#include "core/attack_magic.hpp"
+#include "core/attacks_magic.hpp"
 
 #include <array>
 #include <cstdint>

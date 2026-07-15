@@ -258,7 +258,7 @@ void Board::make(Move move, PositionState& next_state) {
     case PAWN:
         // set enpassant square,
         state.halfmove_clk = 0;
-        if (std::abs(to - from) == PAWN_PUSH2) {
+        if (std::abs(to - from) == pawn_delta::double_push) {
             state.enpassant = to + (turn == WHITE ? square::south : square::north);
         } else if (movetype == MOVE_PROM) {
             remove_piece<true>(to, turn, PAWN);
