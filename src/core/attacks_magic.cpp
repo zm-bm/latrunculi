@@ -30,6 +30,7 @@
 #include "core/attacks_magic.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -38,9 +39,11 @@
 
 namespace attacks::magic {
 
+// Dense backing stores for all generated attacks.
 Bitboard rook_table[102400];
 Bitboard bishop_table[5248];
 
+// Per-square slice heads into the dense tables.
 Bitboard* const rook_moves_table[64] = {
     rook_table + 86016, rook_table + 73728, rook_table + 36864, rook_table + 43008,
     rook_table + 47104, rook_table + 51200, rook_table + 77824, rook_table + 94208,
@@ -77,6 +80,7 @@ Bitboard* const bishop_moves_table[64] = {
     bishop_table + 5056, bishop_table + 2720, bishop_table + 864,  bishop_table + 1248,
     bishop_table + 1632, bishop_table + 2272, bishop_table + 4896, bishop_table + 5184};
 
+// Per-square multipliers for hashing relevant blockers.
 const std::uint64_t rook_magic[64] = {
     0x0080001020400080ull, 0x0040001000200040ull, 0x0080081000200080ull, 0x0080040800100080ull,
     0x0080020400080080ull, 0x0080010200040080ull, 0x0080008001000200ull, 0x0080002040800100ull,
@@ -113,6 +117,8 @@ const std::uint64_t bishop_magic[64] = {
     0x0000104104104000ull, 0x0000002082082000ull, 0x0000000020841000ull, 0x0000000000208800ull,
     0x0000000010020200ull, 0x0000000404080200ull, 0x0000040404040400ull, 0x0002020202020200ull};
 
+// Relevant blocker masks. Edge blockers are still attacked, with no farther
+// squares behind them, so they do not affect the lookup key.
 const Bitboard rook_mask[64] = {
     0x000101010101017Eull, 0x000202020202027Cull, 0x000404040404047Aull, 0x0008080808080876ull,
     0x001010101010106Eull, 0x002020202020205Eull, 0x004040404040403Eull, 0x008080808080807Eull,
@@ -149,6 +155,7 @@ const Bitboard bishop_mask[64] = {
     0x0002040810204000ull, 0x0004081020400000ull, 0x000A102040000000ull, 0x0014224000000000ull,
     0x0028440200000000ull, 0x0050080402000000ull, 0x0020100804020000ull, 0x0040201008040200ull};
 
+// Right shifts that compact each magic product into its table slice.
 const int rook_shift[64] = {52, 53, 53, 53, 53, 53, 53, 52, 53, 54, 54, 54, 54, 54, 54, 53,
                             53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53,
                             53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53,
@@ -159,51 +166,53 @@ const int bishop_shift[64] = {58, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59
                               59, 59, 57, 55, 55, 57, 59, 59, 59, 59, 57, 57, 57, 57, 59, 59,
                               59, 59, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 58};
 
-using Direction  = std::pair<int, int>;
-using Directions = std::array<Direction, 4>;
+// File/rank delta for one slider ray.
+using SliderDirection  = std::pair<int, int>;
+using SliderDirections = std::array<SliderDirection, 4>;
 
-// calculate moves for sliding pieces based on occupancy and directions
-Bitboard generate_moves(int sq, Bitboard occ, const Directions& directions) {
+// Slow slider walk used only while building lookup tables.
+Bitboard generate_slider_moves(Square from, Bitboard occupied, const SliderDirections& directions) {
     Bitboard attacks = 0ULL;
 
-    Square from = Square(sq);
-    for (const auto [f_delta, r_delta] : directions) {
-        File f = square::file_of(from);
-        Rank r = square::rank_of(from);
+    for (const SliderDirection& direction : directions) {
+        const int file_delta = direction.first;
+        const int rank_delta = direction.second;
 
-        // slide until we hit the board edge or an occupied square
-        while (r >= RANK1 && r <= RANK8 && f >= FILE1 && f <= FILE8) {
-            auto occ_sq = bb::set(square::make(f, r));
+        // Start one step away; the source square is never attacked.
+        int file = square::file_of(from) + file_delta;
+        int rank = square::rank_of(from) + rank_delta;
 
-            attacks |= occ_sq;
-            if (occ & occ_sq)
+        while (0 <= rank && rank < 8 && 0 <= file && file < 8) {
+            const Bitboard to_bb = bb::set(square::make(File(file), Rank(rank)));
+
+            attacks |= to_bb;
+            if (occupied & to_bb)
                 break;
 
-            f = f + f_delta;
-            r = r + r_delta;
+            file += file_delta;
+            rank += rank_delta;
         }
     }
 
-    bb::remove(attacks, from);
     return attacks;
 }
 
-// translate line occupancy into an occupied-square bitboard
-Bitboard calc_occupancy(std::vector<Square> squares, std::uint64_t line_occ) {
-    Bitboard ret = 0;
-    for (auto i = 0; i < squares.size(); i++) {
-        if (bb::contains(line_occ, Square(i)))
-            bb::add(ret, squares[i]);
+// Decode subset bits onto the mask squares: bit i controls squares[i].
+Bitboard reconstruct_occupancy(const std::vector<Square>& squares, std::uint64_t subset) {
+    Bitboard occupied = 0;
+    for (std::size_t i = 0; i < squares.size(); i++) {
+        if (bb::contains(subset, Square(i)))
+            bb::add(occupied, squares[i]);
     }
-    return ret;
+    return occupied;
 }
 
-// populate magic tables for rook and bishop moves
-void init_magic(const Bitboard      masks[64],
-                const std::uint64_t magic_nums[64],
-                const int           shifts[64],
-                Bitboard* const     moves[64],
-                Directions          directions) {
+// Fill each square's slice with attacks for every blocker subset.
+void init_slider_magic(const Bitboard          masks[64],
+                       const std::uint64_t     magic_nums[64],
+                       const int               shifts[64],
+                       Bitboard* const         moves[64],
+                       const SliderDirections& directions) {
 
     for (Square sq = A1; sq < INVALID; ++sq) {
         Bitboard mask = masks[sq];
@@ -212,23 +221,24 @@ void init_magic(const Bitboard      masks[64],
         while (mask)
             squares.push_back(bb::lsb_pop(mask));
 
-        // Enumerate all occupancy variations and generate attacks
+        // There are 2^N subsets for N relevant blocker squares.
         Bitboard max_occ = bb::set(Square(squares.size()));
-        for (std::uint64_t line_occ = 0; line_occ < max_occ; line_occ++) {
-            Bitboard      occ    = calc_occupancy(squares, line_occ);
-            std::uint64_t offset = (occ * magic_nums[sq]) >> shifts[sq];
+        for (std::uint64_t subset = 0; subset < max_occ; subset++) {
+            Bitboard      occupied = reconstruct_occupancy(squares, subset);
+            std::uint64_t offset   = (occupied * magic_nums[sq]) >> shifts[sq];
 
-            *(moves[sq] + offset) = generate_moves(sq, occ, directions);
+            *(moves[sq] + offset) = generate_slider_moves(sq, occupied, directions);
         }
     }
 }
 
 void init() {
-    Directions bishop_dirs = {{{-1, 1}, {1, 1}, {-1, -1}, {1, -1}}};
-    init_magic(bishop_mask, bishop_magic, bishop_shift, bishop_moves_table, bishop_dirs);
+    // Directions are file/rank deltas from the source square.
+    SliderDirections bishop_dirs = {{{-1, 1}, {1, 1}, {-1, -1}, {1, -1}}};
+    SliderDirections rook_dirs   = {{{0, 1}, {1, 0}, {0, -1}, {-1, 0}}};
 
-    Directions rook_dirs = {{{0, 1}, {1, 0}, {0, -1}, {-1, 0}}};
-    init_magic(rook_mask, rook_magic, rook_shift, rook_moves_table, rook_dirs);
+    init_slider_magic(bishop_mask, bishop_magic, bishop_shift, bishop_moves_table, bishop_dirs);
+    init_slider_magic(rook_mask, rook_magic, rook_shift, rook_moves_table, rook_dirs);
 }
 
 } // namespace attacks::magic

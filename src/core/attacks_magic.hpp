@@ -35,10 +35,13 @@
 
 namespace attacks::magic {
 
-extern Bitboard            rook_table[102400];
-extern Bitboard            bishop_table[5248];
-extern Bitboard* const     rook_moves_table[64];
-extern Bitboard* const     bishop_moves_table[64];
+// Dense backing storage; *_moves_table[sq] points at sq's slice.
+extern Bitboard        rook_table[102400];
+extern Bitboard        bishop_table[5248];
+extern Bitboard* const rook_moves_table[64];
+extern Bitboard* const bishop_moves_table[64];
+
+// Per-square blocker masks, hash multipliers, and shifts.
 extern const std::uint64_t rook_magic[64];
 extern const std::uint64_t bishop_magic[64];
 extern const Bitboard      rook_mask[64];
@@ -46,17 +49,20 @@ extern const Bitboard      bishop_mask[64];
 extern const int           rook_shift[64];
 extern const int           bishop_shift[64];
 
+// Populates rook_table and bishop_table once at startup.
 void init();
 
+// Keep relevant blockers, hash the subset, then index sq's slice.
 inline Bitboard rook_moves(Square sq, Bitboard occupied) {
-    const auto occ   = occupied & rook_mask[sq];
-    const auto index = (occ * rook_magic[sq]) >> rook_shift[sq];
+    const Bitboard      occ   = occupied & rook_mask[sq];
+    const std::uint64_t index = (occ * rook_magic[sq]) >> rook_shift[sq];
     return rook_moves_table[sq][index];
 }
 
+// Keep relevant blockers, hash the subset, then index sq's slice.
 inline Bitboard bishop_moves(Square sq, Bitboard occupied) {
-    const auto occ   = occupied & bishop_mask[sq];
-    const auto index = (occ * bishop_magic[sq]) >> bishop_shift[sq];
+    const Bitboard      occ   = occupied & bishop_mask[sq];
+    const std::uint64_t index = (occ * bishop_magic[sq]) >> bishop_shift[sq];
     return bishop_moves_table[sq][index];
 }
 
