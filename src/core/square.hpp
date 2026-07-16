@@ -93,7 +93,7 @@ constexpr SquareDistanceTable make_distance_table() {
 constexpr Bitboard collinear_helper(int file, int rank, int file_delta, int rank_delta) {
     Bitboard mask = 0;
     while (0 <= rank && rank < 8 && 0 <= file && file < 8) {
-        mask |= bb::set(make(File(file), Rank(rank)));
+        bb::add(mask, make(File(file), Rank(rank)));
         file += file_delta;
         rank += rank_delta;
     }
@@ -133,7 +133,7 @@ constexpr Bitboard between_helper(Square sq1, Square sq2, int delta) {
 
     Bitboard mask = 0;
     for (int sq = min_sq + delta; sq < max_sq; sq += delta)
-        mask |= bb::set(Square(sq));
+        bb::add(mask, Square(sq));
     return mask;
 }
 

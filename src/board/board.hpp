@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <string>
 
@@ -229,7 +230,7 @@ inline void Board::disable_castle(Color c, Square sq) {
 
 // Returns a bitboard of pieces of color c which attack a square
 inline Bitboard Board::attacks_to(Square sq, Color c, Bitboard occupied) const {
-    return (pieces<PAWN>(c) & attacks::pawn_attacks(bb::set(sq), ~c)) |
+    return (pieces<PAWN>(c) & attacks::pawn_attacks(sq, ~c)) |
            (pieces<KNIGHT>(c) & attacks::piece_moves<KNIGHT>(sq, occupied)) |
            (pieces<KING>(c) & attacks::piece_moves<KING>(sq, occupied)) |
            (pieces<BISHOP, QUEEN>(c) & attacks::piece_moves<BISHOP>(sq, occupied)) |
@@ -238,8 +239,8 @@ inline Bitboard Board::attacks_to(Square sq, Color c, Bitboard occupied) const {
 
 // Returns a bitboard of pieces of any color which attack a square
 inline Bitboard Board::attacks_to(Square sq, Bitboard occupied) const {
-    return (pieces<PAWN>(WHITE) & attacks::pawn_attacks<BLACK>(bb::set(sq))) |
-           (pieces<PAWN>(BLACK) & attacks::pawn_attacks<WHITE>(bb::set(sq))) |
+    return (pieces<PAWN>(WHITE) & attacks::pawn_attacks<BLACK>(sq)) |
+           (pieces<PAWN>(BLACK) & attacks::pawn_attacks<WHITE>(sq)) |
            (pieces<KNIGHT>() & attacks::piece_moves<KNIGHT>(sq, occupied)) |
            (pieces<KING>() & attacks::piece_moves<KING>(sq, occupied)) |
            (pieces<BISHOP, QUEEN>() & attacks::piece_moves<BISHOP>(sq, occupied)) |
@@ -259,36 +260,42 @@ inline bool Board::attacks_to(Bitboard bitboard, Color c) const {
 
 template <bool apply_hash>
 inline void Board::add_piece(Square sq, Color c, PieceType pt) {
+    assert(squares[sq] == NO_PIECE);
+
     piece_counts[c][pt]++;
-    piece_bb[c][pt]              ^= bb::set(sq);
-    piece_bb[c][all_pieces_slot] ^= bb::set(sq);
-    squares[sq]                   = make_piece(c, pt);
-    material                     += eval::piece(pt, c);
-    psq_bonus                    += eval::piece_sq(pt, c, sq);
+    bb::add(piece_bb[c][pt], sq);
+    bb::add(piece_bb[c][all_pieces_slot], sq);
+    squares[sq]  = make_piece(c, pt);
+    material    += eval::piece(pt, c);
+    psq_bonus   += eval::piece_sq(pt, c, sq);
     if constexpr (apply_hash)
         active_state().zkey ^= zob::hash_piece(c, pt, sq);
 }
 
 template <bool apply_hash>
 inline void Board::remove_piece(Square sq, Color c, PieceType pt) {
+    assert(squares[sq] == make_piece(c, pt));
+
     piece_counts[c][pt]--;
-    piece_bb[c][pt]              ^= bb::set(sq);
-    piece_bb[c][all_pieces_slot] ^= bb::set(sq);
-    squares[sq]                   = NO_PIECE;
-    material                     -= eval::piece(pt, c);
-    psq_bonus                    -= eval::piece_sq(pt, c, sq);
+    bb::remove(piece_bb[c][pt], sq);
+    bb::remove(piece_bb[c][all_pieces_slot], sq);
+    squares[sq]  = NO_PIECE;
+    material    -= eval::piece(pt, c);
+    psq_bonus   -= eval::piece_sq(pt, c, sq);
     if constexpr (apply_hash)
         active_state().zkey ^= zob::hash_piece(c, pt, sq);
 }
 
 template <bool apply_hash>
 inline void Board::move_piece(Square from, Square to, Color c, PieceType pt) {
-    Bitboard mask                 = bb::set(from) | bb::set(to);
-    piece_bb[c][pt]              ^= mask;
-    piece_bb[c][all_pieces_slot] ^= mask;
-    squares[from]                 = NO_PIECE;
-    squares[to]                   = make_piece(c, pt);
-    psq_bonus                    += eval::piece_sq(pt, c, to) - eval::piece_sq(pt, c, from);
+    assert(squares[from] == make_piece(c, pt));
+    assert(squares[to] == NO_PIECE);
+
+    bb::move(piece_bb[c][pt], from, to);
+    bb::move(piece_bb[c][all_pieces_slot], from, to);
+    squares[from]  = NO_PIECE;
+    squares[to]    = make_piece(c, pt);
+    psq_bonus     += eval::piece_sq(pt, c, to) - eval::piece_sq(pt, c, from);
     if constexpr (apply_hash)
         active_state().zkey ^= zob::hash_piece(c, pt, from) ^ zob::hash_piece(c, pt, to);
 }
@@ -300,7 +307,7 @@ inline void Board::update_check_data() {
     auto&    state    = this->active_state();
 
     state.checkers = attacks_to(king_sq(turn), opp);
-    state.set_checking_squares(PAWN, attacks::pawn_attacks(bb::set(opp_king), opp));
+    state.set_checking_squares(PAWN, attacks::pawn_attacks(opp_king, opp));
     state.set_checking_squares(KNIGHT, attacks::piece_moves<KNIGHT>(opp_king, occ));
     state.set_checking_squares(BISHOP, attacks::piece_moves<BISHOP>(opp_king, occ));
     state.set_checking_squares(ROOK, attacks::piece_moves<ROOK>(opp_king, occ));
@@ -327,10 +334,10 @@ inline void Board::update_pinners_and_blockers(Color c) {
         Square   pinner         = bb::lsb_pop(snipers);
         Bitboard pieces_between = occ & square::between(king, pinner);
 
-        if (pieces_between && !bb::is_many(pieces_between)) {
+        if (bb::is_one(pieces_between)) {
             state.blockers[c] |= pieces_between;
             if (pieces_between & pieces(c))
-                state.pinners[opp] |= bb::set(pinner);
+                bb::add(state.pinners[opp], pinner);
         }
     }
 }

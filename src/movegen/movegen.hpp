@@ -70,7 +70,7 @@ private:
             return enemy_pieces;
         else if constexpr (Type == MoveGenType::Evasions) {
             const Bitboard checks = board.checkers();
-            return checks | square::between(bb::select<Us>(checks), king_sq);
+            return checks | square::between(bb::frontmost<Us>(checks), king_sq);
         }
         return empty_squares;
     }
@@ -108,7 +108,7 @@ private:
     void pawn_enpassants(Bitboard pawns, Square enpassant) {
         constexpr int offset = (Us == WHITE) ? -Delta : Delta;
 
-        if (attacks::pawn_moves<Delta, Us>(pawns) & bb::set(enpassant))
+        if (bb::contains(attacks::pawn_moves<Delta, Us>(pawns), enpassant))
             write(enpassant + offset, enpassant, MOVE_EP);
     }
 
@@ -159,7 +159,7 @@ private:
 
         constexpr int offset = (Us == WHITE) ? -pawn_delta::push : pawn_delta::push;
         if constexpr (Type == MoveGenType::Evasions) {
-            if (!(targets & bb::set(enpassant + offset)))
+            if (!bb::contains(targets, enpassant + offset))
                 return;
         }
 

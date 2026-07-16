@@ -26,6 +26,11 @@ TEST(AttacksTest, CorrectPawnAttacks) {
     Bitboard pawns = bb::set(A4, D4, H4);
     EXPECT_EQ(attacks::pawn_attacks(pawns, WHITE), bb::set(B5, C5, E5, G5));
     EXPECT_EQ(attacks::pawn_attacks(pawns, BLACK), bb::set(B3, C3, E3, G3));
+
+    EXPECT_EQ(attacks::pawn_attacks(D4, WHITE), bb::set(C5, E5));
+    EXPECT_EQ(attacks::pawn_attacks(D4, BLACK), bb::set(C3, E3));
+    EXPECT_EQ(attacks::pawn_attacks<WHITE>(D4), bb::set(C5, E5));
+    EXPECT_EQ(attacks::pawn_attacks<BLACK>(D4), bb::set(C3, E3));
 }
 
 TEST(AttacksTest, CorrectMovesKnights) {

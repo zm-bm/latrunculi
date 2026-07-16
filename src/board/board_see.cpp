@@ -32,9 +32,7 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
     const Square to   = move.to();
 
     const Color     us          = side_to_move();
-    const Bitboard  from_bb     = bb::set(from);
-    const Bitboard  target_bb   = bb::set(to);
-    const PieceType moved_piece = move.type() == MOVE_PROM ? move.prom_piece() : piecetype_on(from);
+    const PieceType moved_piece = piecetype_on(from);
 
     // Threshold SEE can often resolve before walking the full recapture chain.
     EvalValue balance = see_initial_gain(*this, move) - threshold;
@@ -45,13 +43,9 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
     if (balance <= 0)
         return true;
 
-    // Play the capture on an occupancy bitboard, including en passant's off-target pawn.
+    // Play the capture on an occupancy bitboard.
     Bitboard occupied = occupancy();
-    if (move.type() == MOVE_EP) {
-        const Square captured = to + (us == WHITE ? square::south : square::north);
-        occupied              = (occupied ^ bb::set(captured)) | target_bb;
-    }
-    occupied ^= from_bb;
+    bb::remove(occupied, from);
 
     // Get all pieces which attack the target square. Mask with occupied so that
     // a removed piece cannot attack twice.
@@ -73,7 +67,7 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
             if (!candidates)
                 continue;
 
-            candidates &= -candidates;
+            candidates = bb::lsb_mask(candidates);
             if (p == KING) {
                 // A king cannot recapture onto a square still attacked by the opponent.
                 const Bitboard kingless_occupied = occupied ^ candidates;
@@ -112,16 +106,16 @@ EvalValue Board::seeMove(Move move) const {
     const Square from = move.from();
     const Square to   = move.to();
 
-    const Bitboard target_bb = bb::set(to);
-    Color          side      = side_to_move();
-    PieceType      piece     = move.type() == MOVE_PROM ? move.prom_piece() : piecetype_on(from);
-    Bitboard       occupied  = occupancy();
-    Bitboard       from_bb   = bb::set(from);
+    Color     side     = side_to_move();
+    PieceType piece    = move.type() == MOVE_PROM ? move.prom_piece() : piecetype_on(from);
+    Bitboard  occupied = occupancy();
+    Bitboard  from_bb  = bb::set(from);
 
     // Play the capture on an occupancy bitboard, including en passant's off-target pawn.
     if (move.type() == MOVE_EP) {
         const Square captured = to + (side == WHITE ? square::south : square::north);
-        occupied              = (occupied ^ bb::set(captured)) | target_bb;
+        bb::remove(occupied, captured);
+        bb::add(occupied, to);
     }
 
     // Get all pieces which attack the target square. Mask with occupied so that
@@ -157,7 +151,7 @@ EvalValue Board::seeMove(Move move) const {
             if (!attacker_bb)
                 continue;
 
-            attacker_bb &= -attacker_bb; // get least significant bit
+            attacker_bb = bb::lsb_mask(attacker_bb);
             if (p == KING) {
                 // A king cannot recapture onto a square still attacked by the opponent.
                 const Bitboard kingless_occupied = occupied ^ attacker_bb;

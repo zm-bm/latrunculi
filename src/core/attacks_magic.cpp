@@ -184,7 +184,7 @@ Bitboard generate_moves(int sq, Bitboard occ, const Directions& directions) {
         }
     }
 
-    attacks &= bb::clear(from);
+    bb::remove(attacks, from);
     return attacks;
 }
 
@@ -192,8 +192,8 @@ Bitboard generate_moves(int sq, Bitboard occ, const Directions& directions) {
 Bitboard calc_occupancy(std::vector<Square> squares, std::uint64_t line_occ) {
     Bitboard ret = 0;
     for (auto i = 0; i < squares.size(); i++) {
-        if (line_occ & bb::set(Square(i)))
-            ret |= bb::set(squares[i]);
+        if (bb::contains(line_occ, Square(i)))
+            bb::add(ret, squares[i]);
     }
     return ret;
 }

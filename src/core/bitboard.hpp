@@ -1,5 +1,8 @@
 #pragma once
 
+#include <bit>
+#include <cassert>
+
 #include "core/types.hpp"
 
 namespace bb {
@@ -15,13 +18,30 @@ constexpr Bitboard set(const Square sq) {
     return 0x1ULL << sq;
 }
 
-constexpr Bitboard clear(const Square sq) {
-    return ~(0x1ULL << sq);
-}
-
 template <typename... Squares>
 constexpr Bitboard set(const Squares... sqs) {
     return (set(sqs) | ...);
+}
+
+constexpr Bitboard clear_mask(const Square sq) {
+    return ~set(sq);
+}
+
+constexpr void add(Bitboard& bitboard, const Square sq) {
+    bitboard |= set(sq);
+}
+
+constexpr void remove(Bitboard& bitboard, const Square sq) {
+    bitboard &= clear_mask(sq);
+}
+
+constexpr void move(Bitboard& bitboard, const Square from, const Square to) {
+    remove(bitboard, from);
+    add(bitboard, to);
+}
+
+constexpr bool contains(const Bitboard bitboard, const Square sq) {
+    return bitboard & set(sq);
 }
 
 constexpr Bitboard file(const File file) {
@@ -33,35 +53,46 @@ constexpr Bitboard rank(const Rank rank) {
 }
 
 constexpr int count(const Bitboard bitboard) {
-    return __builtin_popcountll(bitboard);
+    return std::popcount(bitboard);
 }
 
 constexpr bool is_many(const Bitboard bitboard) {
     return bitboard & (bitboard - 1);
 }
 
+constexpr bool is_one(const Bitboard bitboard) {
+    return bitboard && !is_many(bitboard);
+}
+
+constexpr Bitboard lsb_mask(const Bitboard bitboard) {
+    assert(bitboard);
+    return bitboard & -bitboard;
+}
+
 constexpr Square lsb(const Bitboard bitboard) {
+    assert(bitboard);
     return Square(__builtin_ctzll(bitboard));
 }
 
 constexpr Square msb(const Bitboard bitboard) {
+    assert(bitboard);
     return Square(63 - __builtin_clzll(bitboard));
 }
 
 template <Color C>
-constexpr Square select(const Bitboard bitboard) {
+constexpr Square frontmost(const Bitboard bitboard) {
     return (C == WHITE) ? msb(bitboard) : lsb(bitboard);
 }
 
 constexpr Square lsb_pop(Bitboard& bitboard) {
-    auto sq   = lsb(bitboard);
-    bitboard &= clear(sq);
+    const Square sq  = lsb(bitboard);
+    bitboard        &= bitboard - 1;
     return sq;
 }
 
 constexpr Square msb_pop(Bitboard& bitboard) {
-    auto sq   = msb(bitboard);
-    bitboard &= clear(sq);
+    const Square sq = msb(bitboard);
+    remove(bitboard, sq);
     return sq;
 }
 
@@ -71,11 +102,9 @@ constexpr Square pop(Bitboard& bitboard) {
 }
 
 template <Color C, typename Func>
-inline void scan(Bitboard& bitboard, Func action) {
-    while (bitboard) {
-        auto sq = bb::pop<C>(bitboard);
-        action(sq);
-    }
+inline void scan(Bitboard bitboard, Func action) {
+    while (bitboard)
+        action(bb::pop<C>(bitboard));
 }
 
 constexpr Bitboard fill_north(Bitboard bitboard) {

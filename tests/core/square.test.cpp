@@ -1,11 +1,11 @@
 #include "core/square.hpp"
 
+#include "core/bitboard.hpp"
+
 #include <tuple>
 #include <vector>
 
 #include <gtest/gtest.h>
-
-#include "core/bitboard.hpp"
 
 TEST(SquareTest, MakeSquareFromFileRank) {
     for (Square sq = A1; sq < INVALID; ++sq) {
@@ -53,7 +53,7 @@ TEST(SquareTest, Distance) {
 }
 
 TEST(SquareTest, Collinear) {
-    std::vector<std::tuple<Square, Square, Bitboard>> test_cases = {
+    const std::vector<std::tuple<Square, Square, Bitboard>> test_cases = {
         {B2, D2, bb::rank(RANK2)},
         {B2, B4, bb::file(FILE2)},
         {A1, H8, bb::set(A1, B2, C3, D4, E5, F6, G7, H8)},
@@ -70,10 +70,14 @@ TEST(SquareTest, Collinear) {
 }
 
 TEST(SquareTest, Between) {
-    EXPECT_EQ(square::between(B2, D2), bb::set(C2));
-    EXPECT_EQ(square::between(D2, B2), bb::set(C2));
-    EXPECT_EQ(square::between(B2, B4), bb::set(B3));
-    EXPECT_EQ(square::between(B4, B2), bb::set(B3));
-    EXPECT_EQ(square::between(B2, C4), 0);
-    EXPECT_EQ(square::between(C4, B2), 0);
+    const std::vector<std::tuple<Square, Square, Bitboard>> test_cases = {
+        {B2, D2, bb::set(C2)},
+        {B2, B4, bb::set(B3)},
+        {B2, C4, 0},
+    };
+
+    for (const auto& [sq1, sq2, expected] : test_cases) {
+        EXPECT_EQ(square::between(sq1, sq2), expected);
+        EXPECT_EQ(square::between(sq2, sq1), expected);
+    }
 }

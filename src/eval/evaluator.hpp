@@ -429,7 +429,7 @@ inline TaperedScore Evaluator::evaluate_minor_pieces(const PieceContext& ctx,
     static_assert(P == KNIGHT || P == BISHOP);
 
     TaperedScore score;
-    if (ctx.piece_bb & zones.outposts[C]) {
+    if (bb::contains(zones.outposts[C], ctx.square)) {
         if constexpr (P == KNIGHT)
             score += eval::knight_outpost;
         else
@@ -440,7 +440,7 @@ inline TaperedScore Evaluator::evaluate_minor_pieces(const PieceContext& ctx,
         }
     }
 
-    if (ctx.piece_bb & attacks::pawn_moves<pawn_delta::push, Opp>(ctx.pawns)) {
+    if (bb::contains(attacks::pawn_moves<pawn_delta::push, Opp>(ctx.pawns), ctx.square)) {
         score += eval::minor_pawn_shield;
     }
 
@@ -569,12 +569,10 @@ inline TaperedScore Evaluator::evaluate_shelter_file(const Bitboard pawns,
     const Bitboard file_pawns     = pawns & bb::file(file);
     const Bitboard file_opp_pawns = opp_pawns & bb::file(file);
 
-    const Square pawn_sq     = bb::select<Opp>(file_pawns);
-    const Square opp_pawn_sq = bb::select<Opp>(file_opp_pawns);
-
-    const Rank rank     = file_pawns ? square::relative_rank(pawn_sq, C) : RANK1;
-    const Rank opp_rank = file_opp_pawns ? square::relative_rank(opp_pawn_sq, C) : RANK1;
-    const bool blocked  = file_pawns && (rank + 1 == opp_rank);
+    const Rank rank = file_pawns ? square::relative_rank(bb::frontmost<Opp>(file_pawns), C) : RANK1;
+    const Rank opp_rank =
+        file_opp_pawns ? square::relative_rank(bb::frontmost<Opp>(file_opp_pawns), C) : RANK1;
+    const bool blocked = file_pawns && (rank + 1 == opp_rank);
 
     TaperedScore score;
     score += eval::pawn_shelter[rank];

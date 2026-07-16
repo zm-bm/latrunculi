@@ -298,7 +298,7 @@ Bitboard slow_sliding_attacks(Square from, PieceType slider, Bitboard occupancy)
             while (on_board(file, rank)) {
                 const Square sq  = square::make(File(file), Rank(rank));
                 attacks         |= bb::set(sq);
-                if (occupancy & bb::set(sq))
+                if (bb::contains(occupancy, sq))
                     break;
                 file += df;
                 rank += dr;
@@ -367,7 +367,7 @@ ExpectedCheckData expected_check_data(const Board& board) {
             const Square   sniper         = bb::lsb_pop(remaining_snipers);
             const Bitboard pieces_between = occupancy_without_snipers & slow_between(king, sniper);
 
-            if (pieces_between && !bb::is_many(pieces_between)) {
+            if (bb::is_one(pieces_between)) {
                 expected.blockers[king_color] |= pieces_between;
                 if (pieces_between & board.pieces(king_color))
                     expected.pinners[sniper_color] |= bb::set(sniper);

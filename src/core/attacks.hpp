@@ -23,7 +23,7 @@ constexpr std::array<Bitboard, N_SQUARES> make_move_table(const int (&offsets)[N
             const Rank to_rank = rank + offset[0];
             const File to_file = file + offset[1];
             if (0 <= to_file && to_file < 8 && 0 <= to_rank && to_rank < 8)
-                mask |= bb::set(square::make(to_file, to_rank));
+                bb::add(mask, square::make(to_file, to_rank));
         }
 
         table[sq] = mask;
@@ -100,8 +100,17 @@ constexpr Bitboard pawn_attacks(Bitboard pawns) {
     return pawn_moves<pawn_delta::left, C>(pawns) | pawn_moves<pawn_delta::right, C>(pawns);
 }
 
+template <Color C>
+constexpr Bitboard pawn_attacks(Square sq) {
+    return pawn_attacks<C>(bb::set(sq));
+}
+
 constexpr Bitboard pawn_attacks(Bitboard pawns, Color c) {
     return pawn_moves<pawn_delta::left>(pawns, c) | pawn_moves<pawn_delta::right>(pawns, c);
+}
+
+constexpr Bitboard pawn_attacks(Square sq, Color c) {
+    return pawn_attacks(bb::set(sq), c);
 }
 
 } // namespace attacks

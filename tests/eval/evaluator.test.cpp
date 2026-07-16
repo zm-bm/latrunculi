@@ -225,7 +225,7 @@ TEST_F(EvaluatorTest, PinnedPieceMobilityStaysOnPinRay) {
 
     EXPECT_EQ(moves & ~bb::file(FILE5), 0ULL);
     EXPECT_EQ(bb::count(moves), 7);
-    EXPECT_NE(moves & bb::set(E8), 0ULL);
+    EXPECT_TRUE(bb::contains(moves, E8));
 }
 
 TEST_F(EvaluatorTest, EvaluatePawns) {

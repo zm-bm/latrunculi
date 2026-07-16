@@ -61,7 +61,7 @@ Square Board::legal_enpassant_sq() const {
         return INVALID;
 
     const Color side      = side_to_move();
-    Bitboard    capturers = pieces<PAWN>(side) & attacks::pawn_attacks(bb::set(enpassant), ~side);
+    Bitboard    capturers = pieces<PAWN>(side) & attacks::pawn_attacks(enpassant, ~side);
 
     while (capturers) {
         const Square from = bb::lsb_pop(capturers);
