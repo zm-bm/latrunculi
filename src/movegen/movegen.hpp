@@ -113,20 +113,20 @@ private:
     }
 
     void pawns(Bitboard targets) {
-        constexpr Bitboard rank7 = (Us == WHITE) ? bb::rank(RANK7) : bb::rank(RANK2);
+        constexpr Bitboard promotion_rank = bb::relative_rank<Us>(RANK7);
 
         Bitboard enemies = enemy_pieces;
         if constexpr (Type == MoveGenType::Evasions)
             enemies &= targets;
 
-        const Bitboard all_pawns   = board.template pieces<PAWN>(Us);
-        Bitboard       pawns_rank7 = all_pawns & rank7;
+        const Bitboard all_pawns       = board.template pieces<PAWN>(Us);
+        Bitboard       promotion_pawns = all_pawns & promotion_rank;
         if constexpr (Type != MoveGenType::Quiet) {
-            if (pawns_rank7)
-                pawn_promotions(targets, enemies, pawns_rank7);
+            if (promotion_pawns)
+                pawn_promotions(targets, enemies, promotion_pawns);
         }
 
-        Bitboard normal_pawns = all_pawns & ~rank7;
+        Bitboard normal_pawns = all_pawns & ~promotion_rank;
         if constexpr (Type != MoveGenType::Quiet)
             pawn_captures(targets, enemies, normal_pawns);
         if constexpr (Type != MoveGenType::Noisy)
@@ -168,11 +168,11 @@ private:
     }
 
     void pawn_pushes(Bitboard targets, Bitboard pawns) {
-        constexpr Bitboard rank3 = (Us == WHITE) ? bb::rank(RANK3) : bb::rank(RANK6);
+        constexpr Bitboard double_push_rank = bb::relative_rank<Us>(RANK3);
 
         Bitboard push_moves = attacks::pawn_moves<pawn_delta::push, Us>(pawns) & ~occupancy;
         Bitboard double_push_moves =
-            attacks::pawn_moves<pawn_delta::push, Us>(push_moves & rank3) & ~occupancy;
+            attacks::pawn_moves<pawn_delta::push, Us>(push_moves & double_push_rank) & ~occupancy;
 
         if constexpr (Type == MoveGenType::Evasions) {
             push_moves        &= targets;

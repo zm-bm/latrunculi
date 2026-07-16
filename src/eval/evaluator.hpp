@@ -223,9 +223,9 @@ inline Bitboard Evaluator::mobility_zone(const Bitboard pawns,
                                          const Square   king_sq) const {
     constexpr Color Opp = ~C;
 
-    constexpr auto rank2    = (C == WHITE) ? bb::rank(RANK2) : bb::rank(RANK7);
-    const Bitboard occupied = bb::set(king_sq) | (pawns & rank2);
-    const Bitboard safe     = ~attacks::pawn_attacks<Opp>(opp_pawns);
+    constexpr auto home_pawn_rank = bb::relative_rank<C>(RANK2);
+    const Bitboard occupied       = bb::set(king_sq) | (pawns & home_pawn_rank);
+    const Bitboard safe           = ~attacks::pawn_attacks<Opp>(opp_pawns);
     return (safe & ~occupied);
 }
 

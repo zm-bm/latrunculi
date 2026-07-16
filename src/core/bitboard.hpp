@@ -7,12 +7,9 @@
 
 namespace bb {
 
-namespace detail {
-
-constexpr Bitboard file1_mask = 0x0101010101010101ULL;
-constexpr Bitboard file8_mask = 0x8080808080808080ULL;
-
-} // namespace detail
+inline constexpr Bitboard file1_mask = 0x0101010101010101ULL;
+inline constexpr Bitboard file8_mask = 0x8080808080808080ULL;
+inline constexpr Bitboard rank1_mask = 0xFFULL;
 
 constexpr Bitboard set(const Square sq) {
     return 0x1ULL << sq;
@@ -45,11 +42,16 @@ constexpr bool contains(const Bitboard bitboard, const Square sq) {
 }
 
 constexpr Bitboard file(const File file) {
-    return detail::file1_mask << file;
+    return file1_mask << file;
 }
 
 constexpr Bitboard rank(const Rank rank) {
-    return 0xFFULL << (rank * 8);
+    return rank1_mask << (rank * 8);
+}
+
+template <Color C>
+constexpr Bitboard relative_rank(const Rank rank) {
+    return bb::rank(Rank(int(rank) ^ (int(~C) * 7)));
 }
 
 constexpr int count(const Bitboard bitboard) {
@@ -134,11 +136,11 @@ constexpr Bitboard shift_north(Bitboard bitboard) {
 }
 
 constexpr Bitboard shift_east(Bitboard bitboard) {
-    return (bitboard << 1) & ~detail::file1_mask;
+    return (bitboard << 1) & ~file1_mask;
 }
 
 constexpr Bitboard shift_west(Bitboard bitboard) {
-    return (bitboard >> 1) & ~detail::file8_mask;
+    return (bitboard >> 1) & ~file8_mask;
 }
 
 constexpr Bitboard span_north(Bitboard bitboard) {

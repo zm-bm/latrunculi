@@ -24,12 +24,13 @@ constexpr TaperedScore queen  = {piece_value::queen_mg, piece_value::queen_eg};
 
 namespace masks {
 
-constexpr Bitboard dark_squares   = 0xAA55AA55AA55AA55ull;
-constexpr Bitboard light_squares  = 0x55AA55AA55AA55AAull;
-constexpr Bitboard center_files   = 0x3C3C3C3C3C3C3Cull;
-constexpr Bitboard center_squares = 0x0000001818000000ull;
-constexpr Bitboard w_outposts     = 0x0000FFFFFF000000ull;
-constexpr Bitboard b_outposts     = 0x000000FFFFFF0000ull;
+constexpr Bitboard dark_squares  = 0xAA55AA55AA55AA55ull;
+constexpr Bitboard light_squares = 0x55AA55AA55AA55AAull;
+constexpr Bitboard center_files =
+    (bb::file(FILE3) | bb::file(FILE4) | bb::file(FILE5) | bb::file(FILE6)) & ~bb::rank(RANK8);
+constexpr Bitboard center_squares = bb::set(D4, E4, D5, E5);
+constexpr Bitboard w_outposts     = bb::rank(RANK4) | bb::rank(RANK5) | bb::rank(RANK6);
+constexpr Bitboard b_outposts     = bb::rank(RANK3) | bb::rank(RANK4) | bb::rank(RANK5);
 
 }; // namespace masks
 
