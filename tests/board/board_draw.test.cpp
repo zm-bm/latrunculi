@@ -3,13 +3,6 @@
 #include "support/board_fixtures.hpp"
 #include "support/board_harness.hpp"
 
-TEST(BoardDrawTest, DetectsStalemate) {
-    EXPECT_TRUE(board_test::Harness(board_test::fen::stalemate).is_stalemate());
-    EXPECT_FALSE(board_test::Harness("k7/8/KQ6/8/8/8/8/8 w - - 0 1").is_stalemate());
-    EXPECT_TRUE(board_test::Harness("8/8/8/8/8/kq6/8/K7 w - - 0 1").is_stalemate());
-    EXPECT_FALSE(board_test::Harness("8/8/8/8/8/kq6/8/K7 b - - 0 1").is_stalemate());
-}
-
 TEST(BoardDrawTest, AppliesFiftyMoveRule) {
     EXPECT_TRUE(board_test::Harness("k7/8/8/8/8/8/8/K7 w - - 100 50").is_draw());
     EXPECT_FALSE(board_test::Harness("k7/8/8/8/8/8/8/K7 w - - 99 50").is_draw());

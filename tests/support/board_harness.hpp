@@ -7,18 +7,19 @@
 #include <string_view>
 
 #include "board/board.hpp"
+#include "board/ply_state.hpp"
 
 namespace board_test {
 
 // This storage must be a base so its root state exists before Board is constructed.
 class StateStack {
 protected:
-    std::deque<PositionState> states_{1};
-    std::size_t               ply_ = 0;
+    std::deque<PlyState> states_{1};
+    std::size_t          ply_ = 0;
 
-    PositionState& root_state() { return states_.front(); }
+    PlyState& root_state() { return states_.front(); }
 
-    PositionState& next_state() {
+    PlyState& next_state() {
         if (states_.size() <= ply_ + 1)
             states_.emplace_back();
         return states_[ply_ + 1];
@@ -64,11 +65,11 @@ public:
     void reset(std::string_view fen = Board::startfen) {
         load_fen(std::string(fen));
 
-        const auto root_state = position_state();
+        const auto root_state = ply_state();
         states_.clear();
         states_.push_back(root_state);
         ply_ = 0;
-        bind_position_state(states_.front());
+        bind_ply_state(states_.front());
     }
 };
 

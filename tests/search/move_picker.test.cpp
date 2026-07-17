@@ -54,7 +54,7 @@ void seed_counter_hint(const Board& board, MoveOrdering& ordering, Move counter)
     if (counter.is_null())
         return;
 
-    const Move prev_move = board.position_state().previous_move;
+    const Move prev_move = board.ply_state().previous_move;
     if (prev_move.is_null())
         return;
 
@@ -67,7 +67,7 @@ void seed_counter_hint(const Board& board, MoveOrdering& ordering, Move counter)
 }
 
 void boost_continuation_hint(const Board& board, MoveOrdering& ordering, Move move) {
-    const Move prev_move = board.position_state().previous_move;
+    const Move prev_move = board.ply_state().previous_move;
     if (prev_move.is_null())
         return;
 

@@ -57,8 +57,8 @@ inline BoardSnapshot snapshot_board(const Board& board) {
     snapshot.halfmove        = board.halfmove();
     snapshot.fullmove        = board.fullmove();
     snapshot.key             = board.key();
-    snapshot.previous_move   = board.position_state().previous_move;
-    snapshot.captured        = board.position_state().captured;
+    snapshot.previous_move   = board.ply_state().previous_move;
+    snapshot.captured        = board.ply_state().captured;
     snapshot.occupancy       = board.occupancy();
     snapshot.checkers        = board.checkers();
     snapshot.material        = board.material_score();
@@ -79,7 +79,7 @@ inline BoardSnapshot snapshot_board(const Board& board) {
 
     for (int p = PAWN; p <= KING; ++p)
         snapshot.checking_squares[piece_slot(PieceType(p))] =
-            board.position_state().checking_squares(PieceType(p));
+            board.ply_state().tactical.checking_squares(PieceType(p));
 
     for (auto sq = A1; sq != INVALID; ++sq)
         snapshot.squares[sq] = board.piece_on(sq);
@@ -121,8 +121,8 @@ inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& 
     EXPECT_EQ(board.halfmove(), expected.halfmove);
     EXPECT_EQ(board.fullmove(), expected.fullmove);
     EXPECT_EQ(board.key(), expected.key);
-    EXPECT_EQ(board.position_state().previous_move, expected.previous_move);
-    EXPECT_EQ(board.position_state().captured, expected.captured);
+    EXPECT_EQ(board.ply_state().previous_move, expected.previous_move);
+    EXPECT_EQ(board.ply_state().captured, expected.captured);
     EXPECT_EQ(board.checkers(), expected.checkers);
 
     for (int c = BLACK; c < N_COLORS; ++c) {
@@ -131,7 +131,7 @@ inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& 
     }
 
     for (int p = PAWN; p <= KING; ++p) {
-        EXPECT_EQ(board.position_state().checking_squares(PieceType(p)),
+        EXPECT_EQ(board.ply_state().tactical.checking_squares(PieceType(p)),
                   expected.checking_squares[piece_slot(PieceType(p))]);
     }
 }

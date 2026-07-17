@@ -138,16 +138,16 @@ protected:
             }
         }
 
-        worker->board.make(move, worker->position_states.child(worker->ply));
+        worker->board.make(move, worker->ply_states.child(worker->ply));
         ++worker->ply;
 
         if constexpr (std::is_void_v<Result>) {
             fn();
-            worker->board.unmake(worker->position_states.parent(worker->ply));
+            worker->board.unmake(worker->ply_states.parent(worker->ply));
             --worker->ply;
         } else {
             Result result = fn();
-            worker->board.unmake(worker->position_states.parent(worker->ply));
+            worker->board.unmake(worker->ply_states.parent(worker->ply));
             --worker->ply;
             return result;
         }
@@ -157,16 +157,16 @@ protected:
     auto withWorkerNullMove(Fn&& fn) {
         using Result = std::invoke_result_t<Fn&>;
 
-        worker->board.make_null(worker->position_states.child(worker->ply));
+        worker->board.make_null(worker->ply_states.child(worker->ply));
         ++worker->ply;
 
         if constexpr (std::is_void_v<Result>) {
             fn();
-            worker->board.unmake_null(worker->position_states.parent(worker->ply));
+            worker->board.unmake_null(worker->ply_states.parent(worker->ply));
             --worker->ply;
         } else {
             Result result = fn();
-            worker->board.unmake_null(worker->position_states.parent(worker->ply));
+            worker->board.unmake_null(worker->ply_states.parent(worker->ply));
             --worker->ply;
             return result;
         }

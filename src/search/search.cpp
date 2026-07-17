@@ -181,7 +181,7 @@ bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta
 
         ++move_count;
 
-        board.make(root_move, position_states.child(ply));
+        board.make(root_move, ply_states.child(ply));
         ++ply;
 
         // Root PVS searches full-window until a root PV is established.
@@ -199,7 +199,7 @@ bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta
             }
         }
 
-        board.unmake(position_states.parent(ply));
+        board.unmake(ply_states.parent(ply));
         --ply;
 
         // Do not record partial root-line state after a stop.
@@ -318,11 +318,11 @@ EvalValue SearchWorker::alphabeta(
             board.nonPawnMaterial(c) > piece_value::rook_mg && !tt_upper_veto) {
             stats.null_move_try(ply);
 
-            board.make_null(position_states.child(ply));
+            board.make_null(ply_states.child(ply));
             ++ply;
             const EvalValue value =
                 -alphabeta<NON_PV>(-beta, -beta + 1, depth - reduction, nullptr, false);
-            board.unmake_null(position_states.parent(ply));
+            board.unmake_null(ply_states.parent(ply));
             --ply;
 
             if (stop_requested())
@@ -363,13 +363,13 @@ EvalValue SearchWorker::alphabeta(
         const bool is_capture   = board.is_capture(move);
         const bool is_quiet     = !is_capture && !is_promotion;
         const bool is_killer    = is_quiet && ordering.is_killer(move, ply);
-        board.make(move, position_states.child(ply));
+        board.make(move, ply_states.child(ply));
         ++ply;
 
         const bool gives_check = board.is_check();
         if (futility && !first_legal && is_quiet && !gives_check) {
             // Step 9. Futility Pruning. Skip late quiet moves that cannot raise alpha.
-            board.unmake(position_states.parent(ply));
+            board.unmake(ply_states.parent(ply));
             --ply;
             picker.skip_quiet_moves();
             stats.futility_skip(ply);
@@ -412,7 +412,7 @@ EvalValue SearchWorker::alphabeta(
             }
         }
 
-        board.unmake(position_states.parent(ply));
+        board.unmake(ply_states.parent(ply));
         --ply;
 
         if (stop_requested())
@@ -544,10 +544,10 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
 
         ++move_count;
 
-        board.make(move, position_states.child(ply));
+        board.make(move, ply_states.child(ply));
         ++ply;
         const EvalValue value = -quiescence<Node>(-beta, -alpha, pv ? &child_pv : nullptr);
-        board.unmake(position_states.parent(ply));
+        board.unmake(ply_states.parent(ply));
         --ply;
 
         if (stop_requested())

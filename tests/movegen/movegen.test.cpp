@@ -7,7 +7,6 @@
 
 #include <gtest/gtest.h>
 
-#include "board/board.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/board_harness.hpp"
 

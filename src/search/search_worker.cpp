@@ -12,7 +12,7 @@
 #include "uci/uci_writer.hpp"
 
 SearchWorker::SearchWorker(int id, uci::Writer& writer, ThreadPool& pool)
-    : board(position_states.root(), Board::startfen),
+    : board(ply_states.root(), Board::startfen),
       writer(writer),
       thread_pool(pool),
       thread_id(id) {}
@@ -21,7 +21,7 @@ SearchWorker::SearchWorker(int id, uci::Writer& writer, ThreadPool& pool)
 void SearchWorker::configure_search(const Board& root_board,
                                     SearchLimits limits,
                                     TimePoint    search_start_time) {
-    board.bind_position_state(position_states.root());
+    board.bind_ply_state(ply_states.root());
     board.load_board(&root_board);
     ply = 0;
 

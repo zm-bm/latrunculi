@@ -1,5 +1,7 @@
 #include "board/board.hpp"
 
+#include "board/ply_state.hpp"
+
 #include <algorithm>
 #include <cstddef>
 
@@ -31,7 +33,7 @@ void Board::load_board(const Board* other) {
     psq_bonus            = other->psq_bonus;
     game_ply             = other->game_ply;
     position_key_history = other->position_key_history;
-    active_state()       = other->position_state();
+    active_state()       = other->ply_state();
 }
 
 void Board::reset() {
@@ -50,26 +52,9 @@ void Board::reset() {
     king_square[BLACK] = INVALID;
     turn               = WHITE;
     fullmove_clk       = 0;
-    active_state()     = PositionState{};
+    active_state()     = PlyState{};
     game_ply           = 0;
     position_key_history.clear();
-}
-
-Square Board::legal_enpassant_sq() const {
-    const Square enpassant = enpassant_sq();
-    if (enpassant == INVALID)
-        return INVALID;
-
-    const Color side      = side_to_move();
-    Bitboard    capturers = pieces<PAWN>(side) & attacks::pawn_attacks(enpassant, ~side);
-
-    while (capturers) {
-        const Square from = bb::lsb_pop(capturers);
-        if (is_legal_move(Move(from, enpassant, MOVE_EP)))
-            return enpassant;
-    }
-
-    return INVALID;
 }
 
 PositionKey Board::calculate_key() const {

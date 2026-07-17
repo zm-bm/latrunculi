@@ -1,4 +1,5 @@
 #include "board/fen.hpp"
+
 #include "core/notation.hpp"
 
 #include <charconv>
@@ -6,8 +7,10 @@
 #include <limits>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 namespace {
 
@@ -64,38 +67,13 @@ PieceSquare make_piece_square(char ch, Square sq) {
     }
 }
 
-} // namespace
-
-FenParser::FenParser(const std::string& fen) {
-    std::istringstream       iss(fen);
-    std::vector<std::string> sections;
-    std::string              section;
-
-    while (iss >> section)
-        sections.push_back(section);
-
-    if (sections.size() != 4 && sections.size() != 6)
-        throw std::invalid_argument("invalid fen, must have 4 or 6 sections");
-
-    parse_pieces(sections[0]);
-    parse_turn(sections[1]);
-    parse_castles(sections[2]);
-    parse_enpassant(sections[3]);
-
-    if (sections.size() == 6) {
-        parse_halfmove(sections[4]);
-        parse_fullmove(sections[5]);
-    } else {
-        fullmove_clk = fen_fullmove_to_ply(1, turn);
-    }
-}
-
-void FenParser::parse_pieces(const std::string& section) {
+void parse_pieces(ParsedFen& parsed, std::string_view section) {
     int white_kings = 0;
     int black_kings = 0;
     int file        = 0;
     int rank        = 7;
 
+    parsed.pieces.reserve(32);
     for (char ch : section) {
         if (is_digit(ch)) {
             if (ch == '0')
@@ -112,13 +90,13 @@ void FenParser::parse_pieces(const std::string& section) {
             if (file >= 8)
                 throw std::invalid_argument("invalid fen, invalid piece placement");
 
-            auto p = make_piece_square(ch, square::make(File(file), Rank(rank)));
-            if (p.type == PAWN && (rank == 0 || rank == 7))
+            auto piece = make_piece_square(ch, square::make(File(file), Rank(rank)));
+            if (piece.type == PAWN && (rank == 0 || rank == 7))
                 throw std::invalid_argument("invalid fen, invalid pawn placement");
-            if (p.type == KING)
-                (p.color == WHITE ? white_kings : black_kings)++;
+            if (piece.type == KING)
+                (piece.color == WHITE ? white_kings : black_kings)++;
 
-            pieces.emplace_back(p);
+            parsed.pieces.emplace_back(piece);
             ++file;
         }
     }
@@ -127,23 +105,23 @@ void FenParser::parse_pieces(const std::string& section) {
         throw std::invalid_argument("invalid fen, invalid piece placement");
 }
 
-void FenParser::parse_turn(const std::string& section) {
+void parse_turn(ParsedFen& parsed, std::string_view section) {
     if (section == "w")
-        turn = WHITE;
+        parsed.turn = WHITE;
     else if (section == "b")
-        turn = BLACK;
+        parsed.turn = BLACK;
     else
         throw std::invalid_argument("invalid fen, invalid side to move");
 }
 
-void FenParser::parse_castles(const std::string& section) {
+void parse_castles(ParsedFen& parsed, std::string_view section) {
     if (section == "-")
         return;
     if (section.empty())
         throw std::invalid_argument("invalid fen, invalid castling rights");
 
-    std::string_view order = "KQkq";
-    size_t           next  = 0;
+    constexpr std::string_view order = "KQkq";
+    size_t                     next  = 0;
 
     for (char ch : section) {
         const size_t pos = order.find(ch, next);
@@ -152,35 +130,56 @@ void FenParser::parse_castles(const std::string& section) {
         next = pos + 1;
 
         switch (ch) {
-        case 'K': castle |= W_KINGSIDE; break;
-        case 'Q': castle |= W_QUEENSIDE; break;
-        case 'k': castle |= B_KINGSIDE; break;
-        case 'q': castle |= B_QUEENSIDE; break;
+        case 'K': parsed.castle |= W_KINGSIDE; break;
+        case 'Q': parsed.castle |= W_QUEENSIDE; break;
+        case 'k': parsed.castle |= B_KINGSIDE; break;
+        case 'q': parsed.castle |= B_QUEENSIDE; break;
         default:  break;
         }
     }
 }
 
-void FenParser::parse_enpassant(const std::string& section) {
+void parse_enpassant(ParsedFen& parsed, std::string_view section) {
     if (section == "-")
         return;
     if (section.size() != 2 || section[0] < 'a' || section[0] > 'h')
         throw std::invalid_argument("invalid fen, invalid en passant square");
 
-    const char expected_rank = (turn == WHITE) ? '6' : '3';
+    const char expected_rank = (parsed.turn == WHITE) ? '6' : '3';
     if (section[1] != expected_rank)
         throw std::invalid_argument("invalid fen, invalid en passant square");
 
-    enpassant = parse_square(section);
+    parsed.enpassant = parse_square(section);
 }
 
-void FenParser::parse_halfmove(const std::string& section) {
-    halfmove_clk = parse_uint8(section, "halfmove clock");
-}
+} // namespace
 
-void FenParser::parse_fullmove(const std::string& section) {
-    const int fullmove_num = parse_int(section, "fullmove number");
-    if (fullmove_num == 0)
-        throw std::invalid_argument("invalid fen, invalid fullmove number");
-    fullmove_clk = fen_fullmove_to_ply(fullmove_num, turn);
+ParsedFen parse_fen(std::string_view fen) {
+    std::istringstream       iss{std::string(fen)};
+    std::vector<std::string> sections;
+    std::string              section;
+
+    while (iss >> section)
+        sections.push_back(section);
+
+    if (sections.size() != 4 && sections.size() != 6)
+        throw std::invalid_argument("invalid fen, must have 4 or 6 sections");
+
+    ParsedFen parsed;
+    parse_pieces(parsed, sections[0]);
+    parse_turn(parsed, sections[1]);
+    parse_castles(parsed, sections[2]);
+    parse_enpassant(parsed, sections[3]);
+
+    if (sections.size() == 6) {
+        parsed.halfmove_clk    = parse_uint8(sections[4], "halfmove clock");
+        const int fullmove_num = parse_int(sections[5], "fullmove number");
+        if (fullmove_num == 0)
+            throw std::invalid_argument("invalid fen, invalid fullmove number");
+        parsed.fullmove_ply = fen_fullmove_to_ply(fullmove_num, parsed.turn);
+    } else {
+        parsed.fullmove_ply = fen_fullmove_to_ply(1, parsed.turn);
+    }
+
+    return parsed;
 }

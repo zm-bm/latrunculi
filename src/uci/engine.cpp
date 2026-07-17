@@ -15,29 +15,29 @@
 Engine::Engine(std::ostream& out, std::ostream& err, std::istream& source)
     : reader(source),
       writer(out, err),
-      position_states{PositionState()},
+      ply_states{PlyState()},
       position_ply(0),
-      board(position_states.front(), Board::startfen),
+      board(ply_states.front(), Board::startfen),
       thread_pool(options.threads.value, writer) {}
 
-PositionState& Engine::next_position_state() {
-    if (position_states.size() <= position_ply + 1)
-        position_states.emplace_back();
-    return position_states[position_ply + 1];
+PlyState& Engine::next_ply_state() {
+    if (ply_states.size() <= position_ply + 1)
+        ply_states.emplace_back();
+    return ply_states[position_ply + 1];
 }
 
 void Engine::reset_board(const std::string& fen) {
     board.load_fen(fen);
 
-    const auto root_state = board.position_state();
-    position_states.clear();
-    position_states.push_back(root_state);
+    const auto root_state = board.ply_state();
+    ply_states.clear();
+    ply_states.push_back(root_state);
     position_ply = 0;
-    board.bind_position_state(position_states.front());
+    board.bind_ply_state(ply_states.front());
 }
 
 void Engine::make_board_move(Move move) {
-    board.make(move, next_position_state());
+    board.make(move, next_ply_state());
     ++position_ply;
 }
 
@@ -45,7 +45,7 @@ void Engine::unmake_board_move() {
     if (position_ply == 0)
         throw std::runtime_error("no move to undo");
 
-    board.unmake(position_states[position_ply - 1]);
+    board.unmake(ply_states[position_ply - 1]);
     --position_ply;
 }
 

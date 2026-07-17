@@ -1,7 +1,7 @@
 #include "uci/uci_writer.hpp"
 
-#include "board/board.hpp"
-#include "board/position_state.hpp"
+#include "board/board_format.hpp"
+#include "board/ply_state.hpp"
 #include "core/constants.hpp"
 #include "eval/evaluator.hpp"
 #include "search/root_line.hpp"
@@ -34,8 +34,8 @@ std::string format_root_pv(const RootLine& line, const Board& root_board) {
     if (!line.usable_root_move() || line.pv.empty() || line.pv.front() != line.root_move)
         return "";
 
-    PositionStateStack pv_states;
-    Board              pv_board{pv_states.root()};
+    PlyStateStack pv_states;
+    Board         pv_board{pv_states.root()};
     pv_board.load_board(&root_board);
 
     std::string pv;

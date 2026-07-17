@@ -2,9 +2,74 @@
 
 #include "core/attacks.hpp"
 #include "core/square.hpp"
-#include "movegen/movegen.hpp"
-#include <algorithm>
-#include <cassert>
+
+namespace {
+
+[[gnu::always_inline]] inline void
+calculate_pins(const Board& board, Color color, TacticalState& tactical) {
+    const Color  opponent = ~color;
+    const Square king     = board.king_sq(color);
+    Bitboard     snipers =
+        (attacks::piece_moves<BISHOP>(king) & board.pieces<BISHOP, QUEEN>(opponent)) |
+        (attacks::piece_moves<ROOK>(king) & board.pieces<ROOK, QUEEN>(opponent));
+    const Bitboard occupancy = board.occupancy() ^ snipers;
+
+    tactical.blockers[color]   = 0;
+    tactical.pinners[opponent] = 0;
+
+    while (snipers) {
+        const Square   pinner         = bb::lsb_pop(snipers);
+        const Bitboard pieces_between = occupancy & square::between(king, pinner);
+
+        if (bb::is_one(pieces_between)) {
+            tactical.blockers[color] |= pieces_between;
+            if (pieces_between & board.pieces(color))
+                bb::add(tactical.pinners[opponent], pinner);
+        }
+    }
+}
+
+[[gnu::always_inline]] inline void calculate_tactical_state(const Board&   board,
+                                                            TacticalState& tactical) {
+    const Color    opponent      = ~board.side_to_move();
+    const Square   opponent_king = board.king_sq(opponent);
+    const Bitboard occupancy     = board.occupancy();
+
+    tactical.checkers = board.attacks_to(board.king_sq(board.side_to_move()), opponent);
+    tactical.checks[piece_slot(PAWN)]   = attacks::pawn_attacks(opponent_king, opponent);
+    tactical.checks[piece_slot(KNIGHT)] = attacks::piece_moves<KNIGHT>(opponent_king, occupancy);
+    tactical.checks[piece_slot(BISHOP)] = attacks::piece_moves<BISHOP>(opponent_king, occupancy);
+    tactical.checks[piece_slot(ROOK)]   = attacks::piece_moves<ROOK>(opponent_king, occupancy);
+    tactical.checks[piece_slot(QUEEN)] =
+        tactical.checking_squares(BISHOP) | tactical.checking_squares(ROOK);
+    tactical.checks[piece_slot(KING)] = 0;
+
+    calculate_pins(board, WHITE, tactical);
+    calculate_pins(board, BLACK, tactical);
+}
+
+} // namespace
+
+void Board::update_check_data() {
+    calculate_tactical_state(*this, active_state().tactical);
+}
+
+Square Board::legal_enpassant_sq() const {
+    const Square enpassant = enpassant_sq();
+    if (enpassant == INVALID)
+        return INVALID;
+
+    const Color side      = side_to_move();
+    Bitboard    capturers = pieces<PAWN>(side) & attacks::pawn_attacks(enpassant, ~side);
+
+    while (capturers) {
+        const Square from = bb::lsb_pop(capturers);
+        if (is_legal_move(Move(from, enpassant, MOVE_EP)))
+            return enpassant;
+    }
+
+    return INVALID;
+}
 
 bool Board::is_pseudo_legal(Move mv) const {
     if (mv.is_null())
@@ -175,13 +240,13 @@ bool Board::is_checking_move(Move mv) const {
     Square      to       = mv.to();
     Color       opp      = ~turn;
     Square      opp_king = king_sq(opp);
-    const auto& state    = position_state();
+    const auto& state    = ply_state();
 
     // check if piece directly attacks the king or was a blocker
     const PieceType piecetype = type_of(piece_on(from));
-    if (bb::contains(state.checking_squares(piecetype), to))
+    if (bb::contains(state.tactical.checking_squares(piecetype), to))
         return true;
-    if (bb::contains(state.blockers[opp], from) &&
+    if (bb::contains(state.tactical.blockers[opp], from) &&
         !bb::contains(square::collinear(from, to), opp_king))
         return true;
 
@@ -216,238 +281,4 @@ bool Board::is_checking_move(Move mv) const {
     case BASIC_MOVE: return false;
     default:         return false;
     }
-}
-
-void Board::make(Move move, PositionState& next_state) {
-    assert(&next_state != active_position_state);
-    position_key_history.push(key());
-
-    const Square from           = move.from();
-    const Square to             = move.to();
-    const Square enpassant      = legal_enpassant_sq();
-    const auto   piecetype      = piecetype_on(from);
-    const auto   movetype       = move.type();
-    const Color  opp            = ~turn;
-    Square       capt_sq        = to;
-    PieceType    capt_piecetype = captured_piece_type(move);
-
-    if (movetype == MOVE_EP) {
-        capt_sq = to + (turn == WHITE ? square::south : square::north);
-    }
-
-    // create new state and update counters
-    next_state            = PositionState(active_state(), move);
-    active_position_state = &next_state;
-    ++game_ply;
-    auto& state = this->active_state();
-    ++fullmove_clk;
-
-    // handle piece capture
-    state.captured = capt_piecetype;
-    if (capt_piecetype != NO_PIECETYPE) {
-        state.halfmove_clk = 0;
-        remove_piece<true>(capt_sq, opp, capt_piecetype);
-        if (can_castle(opp) && capt_piecetype == ROOK)
-            disable_castle(opp, capt_sq);
-    }
-
-    if (enpassant != INVALID)
-        state.zkey ^= zob::hash_ep(enpassant);
-
-    // move the piece / castle
-    move_piece<true>(from, to, turn, piecetype);
-    if (movetype == MOVE_CASTLE) {
-        auto   castle_side = CastleSide(to < from);
-        Square rook_from   = castle::rook_from[castle_side][turn];
-        Square rook_to     = castle::rook_to[castle_side][turn];
-        move_piece<true>(rook_from, rook_to, turn, ROOK);
-    }
-
-    switch (piecetype) {
-    case PAWN:
-        // set enpassant square,
-        state.halfmove_clk = 0;
-        if (std::abs(to - from) == pawn_delta::double_push) {
-            state.enpassant = to + (turn == WHITE ? square::south : square::north);
-        } else if (movetype == MOVE_PROM) {
-            remove_piece<true>(to, turn, PAWN);
-            add_piece<true>(to, turn, move.prom_piece());
-        }
-        break;
-
-    case KING:
-        king_square[turn] = to;
-        if (can_castle(turn))
-            disable_castle(turn);
-        break;
-
-    case ROOK:
-        if (can_castle(turn))
-            disable_castle(turn, from);
-        break;
-
-    default: break;
-    }
-
-    turn        = opp;
-    state.zkey ^= zob::turn;
-
-    if (legal_enpassant_sq() != INVALID)
-        state.zkey ^= zob::hash_ep(state.enpassant);
-
-    update_check_data();
-}
-
-void Board::unmake(PositionState& prior_state) {
-    assert(game_ply > 0);
-    assert(&prior_state != active_position_state);
-
-    const Color  opp      = turn;
-    const Move   move     = active_state().previous_move;
-    const Square from     = move.from();
-    const Square to       = move.to();
-    const auto   movetype = move.type();
-
-    auto piecetype      = piecetype_on(to);
-    auto capt_piecetype = active_state().captured;
-
-    // decrement counters and pop state
-    position_key_history.pop(prior_state.zkey);
-    active_position_state = &prior_state;
-    --game_ply;
-    fullmove_clk--;
-    turn = ~turn;
-
-    // replace promoted piece with pawn
-    if (movetype == MOVE_PROM) {
-        remove_piece<false>(to, turn, piecetype);
-        add_piece<false>(to, turn, PAWN);
-        piecetype = PAWN;
-    }
-
-    // move the piece back, restore captured piece
-    move_piece<false>(to, from, turn, piecetype);
-    if (movetype == MOVE_CASTLE) {
-        auto   castle_side = CastleSide(to < from);
-        Square rook_from   = castle::rook_from[castle_side][turn];
-        Square rook_to     = castle::rook_to[castle_side][turn];
-        move_piece<false>(rook_to, rook_from, turn, ROOK);
-    } else if (capt_piecetype != NO_PIECETYPE) {
-        Square capt_sq =
-            (movetype != MOVE_EP) ? to : to + (turn == WHITE ? square::south : square::north);
-        add_piece<false>(capt_sq, opp, capt_piecetype);
-    }
-
-    if (piecetype == KING)
-        king_square[turn] = from;
-}
-
-void Board::make_null(PositionState& next_state) {
-    assert(&next_state != active_position_state);
-    position_key_history.push(key());
-
-    const Square hashed_enpassant = legal_enpassant_sq();
-
-    next_state            = PositionState(active_state(), Move());
-    active_position_state = &next_state;
-    ++game_ply;
-    auto& state = this->active_state();
-
-    turn        = ~turn;
-    state.zkey ^= zob::turn;
-    if (hashed_enpassant != INVALID)
-        state.zkey ^= zob::hash_ep(hashed_enpassant);
-
-    update_check_data();
-}
-
-void Board::unmake_null(PositionState& prior_state) {
-    assert(game_ply > 0);
-    assert(&prior_state != active_position_state);
-
-    position_key_history.pop(prior_state.zkey);
-    active_position_state = &prior_state;
-    --game_ply;
-    turn = ~turn;
-}
-
-// stalemate from no legal moves
-bool Board::is_stalemate() const {
-    auto movelist = movegen::generate_pseudo_legal(*this);
-    for (auto& move : movelist) {
-        if (is_legal_generated_move(move))
-            return false;
-    }
-    return true;
-}
-
-// draws from 50-move rule + 3-fold repetition
-bool Board::is_draw(int search_ply) const {
-    if (halfmove() >= 100)
-        return true;
-
-    const int rewind      = std::min<int>(halfmove(), position_key_history.count());
-    int       repetitions = 0;
-
-    for (int distance = 2; distance <= rewind; distance += 2) {
-        const int index = position_key_history.count() - distance;
-        if (index < 0)
-            break;
-
-        if (position_key_history[index] != key())
-            continue;
-
-        if (distance < search_ply)
-            return true;
-        if (++repetitions == 2)
-            return true;
-    }
-
-    return false;
-}
-
-// convert a move to standard algebraic notation
-std::string Board::toSAN(Move move) const {
-    std::string result    = "";
-    Square      from      = move.from();
-    Square      to        = move.to();
-    PieceType   piecetype = piecetype_on(from);
-
-    if (move.type() == MOVE_CASTLE) {
-        if (move.from() < move.to())
-            return "O-O";
-        else
-            return "O-O-O";
-    }
-
-    if (piecetype != PAWN)
-        result += std::toupper(to_char(piecetype));
-
-    // handle move disambiguation
-    auto movelist = movegen::generate_pseudo_legal(*this);
-    for (auto& m : movelist) {
-        bool ambiguous =
-            (piecetype_on(m.from()) == piecetype) && (m.to() == to) && (m.from() != from);
-        if (ambiguous && is_legal_generated_move(m)) {
-            if (square::file_of(m.from()) != square::file_of(from))
-                result += to_char(square::file_of(from));
-            if (square::rank_of(m.from()) != square::rank_of(from))
-                result += to_char(square::rank_of(from));
-            break;
-        }
-    }
-
-    if (is_capture(move)) {
-        if (piecetype == PAWN)
-            result += to_char(square::file_of(from));
-        result += 'x';
-    }
-
-    result += to_string(to);
-    if (move.type() == MOVE_PROM)
-        result += '=' + to_char(move.prom_piece());
-    if (is_checking_move(move))
-        result += '+';
-
-    return result;
 }

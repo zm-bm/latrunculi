@@ -5,10 +5,25 @@
 #include <cstdint>
 
 #include "board/castling.hpp"
+#include "core/bitboard.hpp"
 #include "core/constants.hpp"
 #include "core/move.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
+#include "core/types.hpp"
+
+struct TacticalState {
+    // Enemy pieces checking the side-to-move king.
+    Bitboard checkers{};
+    // blockers[c]: single blockers between king c and enemy sliders.
+    std::array<Bitboard, N_COLORS> blockers{};
+    // pinners[c]: sliders of color c pinning enemy blockers.
+    std::array<Bitboard, N_COLORS> pinners{};
+    // Squares where each concrete piece type would check the enemy king.
+    std::array<Bitboard, piece_slots> checks{};
+
+    Bitboard checking_squares(PieceType piece) const { return checks[piece_slot(piece)]; }
+};
 
 /**
  * Per-ply board state owned by the caller and used by Board.
@@ -16,24 +31,11 @@
  * Board owns the durable piece representation. This holds the active ply's
  * reversible state plus cached check data for fast legality/search.
  */
-struct PositionState {
-    PositionState() = default;
+struct PlyState {
+    PlyState() = default;
 
     // Refreshed after FEN load, make, and null moves.
-    // Enemy pieces checking the side-to-move king.
-    Bitboard checkers{};
-    // blockers[c]: single blockers between king c and enemy sliders.
-    Bitboard blockers[N_COLORS]{};
-    // pinners[c]: sliders of color c pinning enemy blockers.
-    Bitboard pinners[N_COLORS]{};
-    // Squares where each concrete piece type would check the enemy king.
-    Bitboard checks[piece_slots]{};
-
-    Bitboard checking_squares(PieceType piece) const { return checks[piece_slot(piece)]; }
-
-    void set_checking_squares(PieceType piece, Bitboard squares) {
-        checks[piece_slot(piece)] = squares;
-    }
+    TacticalState tactical{};
 
     // Incremental key and compact undo data for the move that reached this ply.
     PositionKey  zkey{};
@@ -43,7 +45,7 @@ struct PositionState {
     Square       enpassant{INVALID};
     std::uint8_t halfmove_clk{};
 
-    PositionState(const PositionState& prior_state, Move move)
+    PlyState(const PlyState& prior_state, Move move)
         : zkey(prior_state.zkey),
           previous_move(move),
           castle(prior_state.castle),
@@ -52,20 +54,20 @@ struct PositionState {
 
 // Fixed state storage for search/perft. child(ply) is where make() writes the
 // next ply; parent(ply) is what unmake() restores.
-class PositionStateStack {
+class PlyStateStack {
 public:
-    PositionState& root() noexcept { return stack[0]; }
+    PlyState& root() noexcept { return stack[0]; }
 
-    PositionState& child(int ply) noexcept {
+    PlyState& child(int ply) noexcept {
         assert(ply >= 0 && ply < engine::max_search_ply);
         return stack[ply + 1];
     }
 
-    PositionState& parent(int ply) noexcept {
+    PlyState& parent(int ply) noexcept {
         assert(ply > 0 && ply <= engine::max_search_ply);
         return stack[ply - 1];
     }
 
 private:
-    std::array<PositionState, engine::max_search_ply + 1> stack{};
+    std::array<PlyState, engine::max_search_ply + 1> stack{};
 };

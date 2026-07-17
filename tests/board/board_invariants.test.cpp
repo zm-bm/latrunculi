@@ -1,4 +1,5 @@
 #include "board/board.hpp"
+#include "board/ply_state.hpp"
 
 #include <gtest/gtest.h>
 
@@ -259,7 +260,7 @@ void expect_check_data_matches_slow_oracle(const Board& board) {
         EXPECT_EQ(board.pinners(Color(c)), expected.pinners[c]) << board.toFEN();
     }
     for (int p = PAWN; p <= KING; ++p) {
-        EXPECT_EQ(board.position_state().checking_squares(PieceType(p)),
+        EXPECT_EQ(board.ply_state().tactical.checking_squares(PieceType(p)),
                   expected.checks[piece_slot(PieceType(p))])
             << board.toFEN() << " piece " << PieceType(p);
     }
@@ -437,20 +438,20 @@ TEST(BoardInvariantTest, NullMovePreservesDurableRepresentation) {
 }
 
 TEST(BoardInvariantTest, CallerOwnedMakeUnmakeRestoresPosition) {
-    PositionState root_state;
-    Board         board(root_state, std::string(board_test::fen::perft_position_2));
-    const auto    before = board_test::snapshot_board(board);
+    PlyState   root_state;
+    Board      board(root_state, std::string(board_test::fen::perft_position_2));
+    const auto before = board_test::snapshot_board(board);
 
     const Move first = first_legal_move(board);
     ASSERT_FALSE(first.is_null());
-    PositionState first_state;
+    PlyState first_state;
     board.make(first, first_state);
     const auto after_first = board_test::snapshot_board(board);
     expect_board_consistent(board);
 
     const Move second = first_legal_move(board);
     ASSERT_FALSE(second.is_null());
-    PositionState second_state;
+    PlyState second_state;
     board.make(second, second_state);
     expect_board_consistent(board);
 
@@ -464,17 +465,17 @@ TEST(BoardInvariantTest, CallerOwnedMakeUnmakeRestoresPosition) {
 }
 
 TEST(BoardInvariantTest, CallerOwnedNullMoveRestoresPosition) {
-    PositionState root_state;
-    Board         board(root_state, std::string(board_test::fen::perft_position_2));
-    const auto    before = board_test::snapshot_board(board);
+    PlyState   root_state;
+    Board      board(root_state, std::string(board_test::fen::perft_position_2));
+    const auto before = board_test::snapshot_board(board);
 
-    PositionState first_state;
+    PlyState first_state;
     board.make_null(first_state);
     const auto after_first = board_test::snapshot_board(board);
     board_test::expect_same_durable_representation(board, before);
     expect_board_consistent(board);
 
-    PositionState second_state;
+    PlyState second_state;
     board.make_null(second_state);
     board_test::expect_same_durable_representation(board, before);
     expect_board_consistent(board);

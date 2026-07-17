@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "board/board.hpp"
-#include "board/position_state.hpp"
+#include "board/ply_state.hpp"
 #include "core/types.hpp"
 #include "search/move_ordering.hpp"
 #include "search/root_line.hpp"
@@ -39,7 +39,7 @@ public:
 
 private:
     // Board and search state.
-    PositionStateStack    position_states;
+    PlyStateStack         ply_states;
     Board                 board;
     int                   ply{0};
     RootLine              root_result;

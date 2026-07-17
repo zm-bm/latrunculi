@@ -14,9 +14,12 @@ option(LATRUNCULI_SEARCH_STATS "Enable detailed search statistics diagnostics" O
 set(LATRUNCULI_ENGINE_SOURCES
     src/core/attacks_magic.cpp
     src/core/notation.cpp
-    src/board/board.cpp
     src/board/board_fen.cpp
+    src/board/board_legality.cpp
+    src/board/board_move.cpp
+    src/board/board_notation.cpp
     src/board/board_representation.cpp
+    src/board/board_rules.cpp
     src/board/board_see.cpp
     src/board/fen.cpp
     src/board/zobrist.cpp
@@ -60,13 +63,14 @@ if(BUILD_TESTING)
         tests/core/attacks_magic.test.cpp
         tests/board/board_draw.test.cpp
         tests/board/board_fen.test.cpp
+        tests/board/board_format.test.cpp
         tests/board/board_invariants.test.cpp
         tests/board/board_legality.test.cpp
         tests/board/board_move_application.test.cpp
+        tests/board/board_notation.test.cpp
         tests/board/board_representation.test.cpp
         tests/board/board_see.test.cpp
-        tests/board/board_tactical_state.test.cpp
-        tests/board/fen_parser.test.cpp
+        tests/board/fen.test.cpp
         tests/core/bitboard.test.cpp
         tests/core/move.test.cpp
         tests/core/notation.test.cpp

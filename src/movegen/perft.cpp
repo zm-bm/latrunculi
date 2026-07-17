@@ -1,7 +1,7 @@
 #include "movegen/perft.hpp"
 
 #include "board/board.hpp"
-#include "board/position_state.hpp"
+#include "board/ply_state.hpp"
 #include "core/constants.hpp"
 #include "movegen/movegen.hpp"
 
@@ -15,8 +15,8 @@ void validate_perft_depth(int depth) {
         throw std::invalid_argument("perft depth out of range");
 }
 
-NodeCount perft_impl(
-    Board& board, int depth, PositionStateStack& states, int ply, PositionState& current_state) {
+NodeCount
+perft_impl(Board& board, int depth, PlyStateStack& states, int ply, PlyState& current_state) {
     if (depth == 0)
         return 1;
 
@@ -41,8 +41,8 @@ NodeCount perft_impl(
 NodeCount perft(Board& board, int depth) {
     validate_perft_depth(depth);
 
-    PositionStateStack states;
-    return perft_impl(board, depth, states, 0, board.position_state());
+    PlyStateStack states;
+    return perft_impl(board, depth, states, 0, board.ply_state());
 }
 
 PerftResult perft_root(Board& board, int depth) {
@@ -58,9 +58,9 @@ PerftResult perft_root(Board& board, int depth) {
         return result;
     }
 
-    PositionStateStack states;
-    PositionState&     root_state = board.position_state();
-    auto               movelist   = movegen::generate_pseudo_legal(board);
+    PlyStateStack states;
+    PlyState&     root_state = board.ply_state();
+    auto          movelist   = movegen::generate_pseudo_legal(board);
 
     for (auto& move : movelist) {
         if (!board.is_legal_generated_move(move))

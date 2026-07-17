@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "board/board.hpp"
-#include "board/position_state.hpp"
+#include "board/ply_state.hpp"
 #include "board/zobrist.hpp"
 #include "core/attacks.hpp"
 #include "movegen/movegen.hpp"
@@ -64,8 +64,8 @@ std::uint64_t measure_ns(Fn&& fn) {
         std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count());
 }
 
-NodeCount perft_nodes(
-    Board& board, int depth, PositionStateStack& states, int ply, PositionState& current_state) {
+NodeCount
+perft_nodes(Board& board, int depth, PlyStateStack& states, int ply, PlyState& current_state) {
     if (depth == 0)
         return 1;
 
@@ -106,11 +106,11 @@ std::vector<PerftCase> perft_cases(Profile profile) {
 }
 
 PerftRow run_perft_case(const PerftCase& perft_case, Profile profile) {
-    PositionState root;
-    Board         board(root, std::string(perft_case.fen));
-    auto          states      = PositionStateStack{};
-    const auto    initial_key = board.key();
-    const int     depth =
+    PlyState   root;
+    Board      board(root, std::string(perft_case.fen));
+    auto       states      = PlyStateStack{};
+    const auto initial_key = board.key();
+    const int  depth =
         profile == Profile::Smoke ? perft_case.smoke_depth : perft_case.standard_depth;
     const NodeCount expected =
         profile == Profile::Smoke ? perft_case.smoke_nodes : perft_case.standard_nodes;

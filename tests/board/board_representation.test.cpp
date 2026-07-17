@@ -1,4 +1,5 @@
 #include "board/board.hpp"
+#include "board/ply_state.hpp"
 
 #include <gtest/gtest.h>
 
@@ -19,7 +20,7 @@ constexpr std::string_view pawn_e4 = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
 } // namespace
 
 TEST(BoardRepresentationTest, BoardObjectSizesAreReported) {
-    RecordProperty("PositionStateBytes", std::to_string(sizeof(PositionState)));
+    RecordProperty("PlyStateBytes", std::to_string(sizeof(PlyState)));
     RecordProperty("BoardBytes", std::to_string(sizeof(Board)));
 }
 

@@ -5,14 +5,12 @@
 #include <string>
 
 #include "board/castling.hpp"
-#include "core/attacks.hpp"
-
+#include "board/ply_state.hpp"
 #include "board/position_key_history.hpp"
-#include "board/position_state.hpp"
 #include "board/zobrist.hpp"
+#include "core/attacks.hpp"
 #include "core/constants.hpp"
 #include "core/move.hpp"
-#include "core/notation.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "eval/eval.hpp"
@@ -32,14 +30,14 @@ private:
     TaperedScore material  = {0, 0};
     TaperedScore psq_bonus = {0, 0};
 
-    PositionState*     active_position_state = nullptr;
+    PlyState*          active_ply_state = nullptr;
     PositionKeyHistory position_key_history;
 
-    PositionState&       active_state() { return *active_position_state; }
-    const PositionState& active_state() const { return *active_position_state; }
+    PlyState&       active_state() { return *active_ply_state; }
+    const PlyState& active_state() const { return *active_ply_state; }
 
 public:
-    explicit Board(PositionState& root_state, const std::string& fen = startfen);
+    explicit Board(PlyState& root_state, const std::string& fen = startfen);
     Board()                        = delete;
     Board(const Board&)            = delete;
     Board& operator=(const Board&) = delete;
@@ -47,7 +45,7 @@ public:
     void load_board(const Board*);
     void load_fen(const std::string&);
     void reset();
-    void bind_position_state(PositionState& state_slot) { active_position_state = &state_slot; }
+    void bind_ply_state(PlyState& state_slot) { active_ply_state = &state_slot; }
 
     // accessors
 
@@ -69,16 +67,16 @@ public:
     TaperedScore psq_bonus_score() const { return psq_bonus; }
     int          fullmove() const { return (fullmove_clk / 2) + 1; }
 
-    CastleRights castle_rights() const { return position_state().castle; }
-    Bitboard     checkers() const { return position_state().checkers; }
-    Bitboard     blockers(Color c) const { return position_state().blockers[c]; }
-    Bitboard     pinners(Color c) const { return position_state().pinners[c]; }
-    Square       enpassant_sq() const { return position_state().enpassant; }
-    std::uint8_t halfmove() const { return position_state().halfmove_clk; }
+    CastleRights castle_rights() const { return ply_state().castle; }
+    Bitboard     checkers() const { return ply_state().tactical.checkers; }
+    Bitboard     blockers(Color c) const { return ply_state().tactical.blockers[c]; }
+    Bitboard     pinners(Color c) const { return ply_state().tactical.pinners[c]; }
+    Square       enpassant_sq() const { return ply_state().enpassant; }
+    std::uint8_t halfmove() const { return ply_state().halfmove_clk; }
     Square       legal_enpassant_sq() const;
 
-    PositionState&       position_state() { return *active_position_state; }
-    const PositionState& position_state() const { return *active_position_state; }
+    PlyState&       ply_state() { return *active_ply_state; }
+    const PlyState& ply_state() const { return *active_ply_state; }
 
     // castling
 
@@ -108,7 +106,6 @@ public:
     // check data update methods
 
     void update_check_data();
-    void update_pinners_and_blockers(Color);
 
     // move properties
 
@@ -129,27 +126,25 @@ public:
 
     // make moves
 
-    void make(Move, PositionState& next_state);
-    void unmake(PositionState& prior_state);
-    void make_null(PositionState& next_state);
-    void unmake_null(PositionState& prior_state);
+    void make(Move, PlyState& next_state);
+    void unmake(PlyState& prior_state);
+    void make_null(PlyState& next_state);
+    void unmake_null(PlyState& prior_state);
 
     // zobrist keys
 
-    PositionKey key() const { return position_state().zkey; }
+    PositionKey key() const { return ply_state().zkey; }
     PositionKey calculate_key() const;
 
     // checks and draws
 
     bool is_check() const { return checkers(); }
     bool is_double_check() const { return bb::is_many(checkers()); };
-    bool is_stalemate() const;
     bool is_draw(int search_ply = 0) const;
 
     // string conversions
 
     std::string toFEN() const;
-    std::string toSAN(Move) const;
 
     // eval helpers
 
@@ -158,8 +153,8 @@ public:
     static constexpr char startfen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 };
 
-inline Board::Board(PositionState& root_state, const std::string& fen) {
-    bind_position_state(root_state);
+inline Board::Board(PlyState& root_state, const std::string& fen) {
+    bind_ply_state(root_state);
     load_fen(fen);
 }
 
@@ -300,71 +295,8 @@ inline void Board::move_piece(Square from, Square to, Color c, PieceType pt) {
         active_state().zkey ^= zob::hash_piece(c, pt, from) ^ zob::hash_piece(c, pt, to);
 }
 
-inline void Board::update_check_data() {
-    Color    opp      = ~turn;
-    Square   opp_king = king_sq(opp);
-    Bitboard occ      = occupancy();
-    auto&    state    = this->active_state();
-
-    state.checkers = attacks_to(king_sq(turn), opp);
-    state.set_checking_squares(PAWN, attacks::pawn_attacks(opp_king, opp));
-    state.set_checking_squares(KNIGHT, attacks::piece_moves<KNIGHT>(opp_king, occ));
-    state.set_checking_squares(BISHOP, attacks::piece_moves<BISHOP>(opp_king, occ));
-    state.set_checking_squares(ROOK, attacks::piece_moves<ROOK>(opp_king, occ));
-    state.set_checking_squares(QUEEN,
-                               state.checking_squares(BISHOP) | state.checking_squares(ROOK));
-    state.set_checking_squares(KING, 0);
-    update_pinners_and_blockers(WHITE);
-    update_pinners_and_blockers(BLACK);
-}
-
-// Update single blockers on slider lines to king c and sliders pinning own blockers.
-inline void Board::update_pinners_and_blockers(Color c) {
-    Color    opp     = ~c;
-    Square   king    = king_sq(c);
-    Bitboard snipers = (attacks::piece_moves<BISHOP>(king) & pieces<BISHOP, QUEEN>(opp)) |
-                       (attacks::piece_moves<ROOK>(king) & pieces<ROOK, QUEEN>(opp));
-    Bitboard occ   = occupancy() ^ snipers;
-    auto&    state = this->active_state();
-
-    state.blockers[c]  = 0;
-    state.pinners[opp] = 0;
-
-    while (snipers) {
-        Square   pinner         = bb::lsb_pop(snipers);
-        Bitboard pieces_between = occ & square::between(king, pinner);
-
-        if (bb::is_one(pieces_between)) {
-            state.blockers[c] |= pieces_between;
-            if (pieces_between & pieces(c))
-                bb::add(state.pinners[opp], pinner);
-        }
-    }
-}
-
 inline EvalValue Board::nonPawnMaterial(Color c) const {
     return ((count(c, KNIGHT) * piece_value::knight_mg) +
             (count(c, BISHOP) * piece_value::bishop_mg) + (count(c, ROOK) * piece_value::rook_mg) +
             (count(c, QUEEN) * piece_value::queen_mg));
 }
-
-template <>
-struct std::formatter<Board> : std::formatter<std::string_view> {
-    auto format(const Board& b, std::format_context& ctx) const {
-        auto out = ctx.out();
-
-        for (Rank rank = RANK8; rank >= RANK1; --rank) {
-            out = std::format_to(out, "   +---+---+---+---+---+---+---+---+\n");
-            out = std::format_to(out, "   |");
-            for (File file = FILE1; file <= FILE8; ++file) {
-                out = std::format_to(out, " {} |", to_char(b.piece_on(file, rank)));
-            }
-            out = std::format_to(out, " {}\n", to_char(rank));
-        };
-        out = std::format_to(out, "   +---+---+---+---+---+---+---+---+\n");
-        out = std::format_to(out, "     a   b   c   d   e   f   g   h\n\n");
-        out = std::format_to(out, "FEN: {}\n", b.toFEN());
-
-        return out;
-    }
-};

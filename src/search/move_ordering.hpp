@@ -198,7 +198,7 @@ inline MoveOrdering::Context MoveOrdering::make_context(const Board& board, bool
     if (!include_prev)
         return context;
 
-    const Move prev_move = board.position_state().previous_move;
+    const Move prev_move = board.ply_state().previous_move;
     if (prev_move.is_null())
         return context;
 

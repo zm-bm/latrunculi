@@ -6,21 +6,21 @@
 #include <sstream>
 
 void Board::load_fen(const std::string& fen) {
-    FenParser parser(fen);
+    const ParsedFen parsed = parse_fen(fen);
     reset();
 
-    for (const auto p : parser.pieces) {
+    for (const auto p : parsed.pieces) {
         add_piece<true>(p.square, p.color, p.type);
         if (p.type == KING)
             king_square[p.color] = p.square;
     }
 
     auto& state        = this->active_state();
-    turn               = parser.turn;
-    state.castle       = parser.castle;
-    state.enpassant    = parser.enpassant;
-    state.halfmove_clk = parser.halfmove_clk;
-    fullmove_clk       = parser.fullmove_clk;
+    turn               = parsed.turn;
+    state.castle       = parsed.castle;
+    state.enpassant    = parsed.enpassant;
+    state.halfmove_clk = parsed.halfmove_clk;
+    fullmove_clk       = parsed.fullmove_ply;
 
     state.zkey = calculate_key();
     update_check_data();
