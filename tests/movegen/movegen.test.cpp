@@ -8,14 +8,10 @@
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
-#include "support/test_util.hpp"
+#include "support/board_fixtures.hpp"
+#include "support/board_harness.hpp"
 
 namespace {
-
-constexpr std::string_view PROMOTION_FEN         = "4k3/P6p/8/8/8/8/p6P/4K3 w - - 0 1";
-constexpr std::string_view CAPTURE_PROMOTION_FEN = "1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1";
-constexpr std::string_view CASTLE_FEN            = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
-constexpr std::string_view EVASION_FEN           = "k3r3/8/8/8/8/8/8/2B1K1N1 w - - 0 1";
 
 std::vector<MoveBits> sorted_move_bits(const MoveList& movelist) {
     std::vector<MoveBits> bits;
@@ -46,23 +42,23 @@ std::vector<MoveBits> sorted_union(std::vector<MoveBits> lhs, const std::vector<
 } // namespace
 
 TEST(MoveGenTest, NonEvasions) {
-    TestBoard board{STARTFEN};
-    auto      movelist = movegen::generate_non_evasions(board);
+    board_test::Harness board{board_test::fen::start};
+    auto                movelist = movegen::generate_non_evasions(board);
     EXPECT_EQ(movelist.size(), 20);
 }
 
 TEST(MoveGenTest, Noisy) {
-    TestBoard board{POS2};
-    auto      movelist = movegen::generate_noisy(board);
+    board_test::Harness board{board_test::fen::perft_position_2};
+    auto                movelist = movegen::generate_noisy(board);
     EXPECT_EQ(movelist.size(), 8);
 }
 
 TEST(MoveGenTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
-    TestBoard quiet_board{STARTFEN};
+    board_test::Harness quiet_board{board_test::fen::start};
     EXPECT_EQ(sorted_move_bits(movegen::generate_pseudo_legal(quiet_board)),
               sorted_move_bits(movegen::generate_non_evasions(quiet_board)));
 
-    TestBoard evasion_board{std::string(EVASION_FEN)};
+    board_test::Harness evasion_board{board_test::fen::check_evasion};
     ASSERT_TRUE(evasion_board.is_check());
     EXPECT_EQ(sorted_move_bits(movegen::generate_pseudo_legal(evasion_board)),
               sorted_move_bits(movegen::generate_evasions(evasion_board)));
@@ -70,16 +66,16 @@ TEST(MoveGenTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
 
 TEST(MoveGenTest, NoisyAndQuietPartitionNonEvasions) {
     const std::vector<std::string_view> fens = {
-        STARTFEN,
-        POS2,
-        ENPASSANT_A3,
-        PROMOTION_FEN,
-        CAPTURE_PROMOTION_FEN,
-        CASTLE_FEN,
+        board_test::fen::start,
+        board_test::fen::perft_position_2,
+        board_test::fen::legal_en_passant_a3,
+        board_test::fen::promotion_options,
+        board_test::fen::capture_promotion,
+        board_test::fen::castling,
     };
 
     for (const std::string_view fen : fens) {
-        TestBoard board{std::string(fen)};
+        board_test::Harness board{fen};
         ASSERT_FALSE(board.is_check()) << fen;
 
         const auto non_evasions = sorted_move_bits(movegen::generate_non_evasions(board));
@@ -96,14 +92,14 @@ TEST(MoveGenTest, NoisyAndQuietPartitionNonEvasions) {
 
 TEST(MoveGenTest, NoisyMovesAreCapturesEnPassantOrPromotions) {
     const std::vector<std::string_view> fens = {
-        POS2,
-        ENPASSANT_A3,
-        PROMOTION_FEN,
-        CAPTURE_PROMOTION_FEN,
+        board_test::fen::perft_position_2,
+        board_test::fen::legal_en_passant_a3,
+        board_test::fen::promotion_options,
+        board_test::fen::capture_promotion,
     };
 
     for (const std::string_view fen : fens) {
-        TestBoard board{std::string(fen)};
+        board_test::Harness board{fen};
         ASSERT_FALSE(board.is_check()) << fen;
 
         for (const Move& move : movegen::generate_noisy(board)) {
@@ -115,16 +111,16 @@ TEST(MoveGenTest, NoisyMovesAreCapturesEnPassantOrPromotions) {
 
 TEST(MoveGenTest, QuietMovesExcludeCapturesAndPromotions) {
     const std::vector<std::string_view> fens = {
-        STARTFEN,
-        POS2,
-        ENPASSANT_A3,
-        PROMOTION_FEN,
-        CAPTURE_PROMOTION_FEN,
-        CASTLE_FEN,
+        board_test::fen::start,
+        board_test::fen::perft_position_2,
+        board_test::fen::legal_en_passant_a3,
+        board_test::fen::promotion_options,
+        board_test::fen::capture_promotion,
+        board_test::fen::castling,
     };
 
     for (const std::string_view fen : fens) {
-        TestBoard board{std::string(fen)};
+        board_test::Harness board{fen};
         ASSERT_FALSE(board.is_check()) << fen;
 
         for (const Move& move : movegen::generate_quiet(board)) {

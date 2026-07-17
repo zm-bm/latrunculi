@@ -5,7 +5,8 @@
 #include <sstream>
 
 #include "search/search_limits.hpp"
-#include "support/test_util.hpp"
+#include "support/board_fixtures.hpp"
+#include "support/board_harness.hpp"
 #include "support/thread_test_access.hpp"
 #include "uci/threading.hpp"
 #include "uci/uci_writer.hpp"
@@ -40,7 +41,7 @@ protected:
 } // namespace
 
 TEST_F(SearchWorkerTest, NullMoveKeepsWorkerPlyInSync) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     load_worker_board(board);
 
     EXPECT_EQ(worker_ply(), 0);
@@ -65,7 +66,7 @@ TEST_F(SearchWorkerTest, NullMoveKeepsWorkerPlyInSync) {
 }
 
 TEST_F(SearchWorkerTest, RootPositionHistoryFeedsSearchRepetitionAfterSourceReset) {
-    TestBoard board("7k/8/8/8/8/8/8/K7 w - - 0 1");
+    board_test::Harness board(board_test::fen::corner_kings);
 
     board.make(Move(A1, B1));
     board.make(Move(H8, G8));
@@ -74,7 +75,7 @@ TEST_F(SearchWorkerTest, RootPositionHistoryFeedsSearchRepetitionAfterSourceRese
     ASSERT_FALSE(board.is_draw());
 
     load_worker_board(board);
-    board.reset(STARTFEN);
+    board.reset(board_test::fen::start);
 
     make_worker_move(Move(A1, B1));
     EXPECT_FALSE(worker_is_draw());

@@ -18,7 +18,8 @@
 #include "search/search_limits.hpp"
 #include "search/search_worker.hpp"
 #include "search/tt.hpp"
-#include "support/test_util.hpp"
+#include "support/board_fixtures.hpp"
+#include "support/board_harness.hpp"
 #include "support/thread_test_access.hpp"
 #include "uci/threading.hpp"
 #include "uci/uci_writer.hpp"
@@ -176,7 +177,7 @@ protected:
                                int                alpha,
                                int                beta,
                                int                search_depth) {
-        TestBoard board{fen};
+        board_test::Harness board{fen};
         loadWorkerBoard(board, search_depth);
 
         Move move = findWorkerMove(move_str);
@@ -191,7 +192,7 @@ protected:
                                 const std::string& move_str,
                                 int                alpha,
                                 int                beta) {
-        TestBoard board{fen};
+        board_test::Harness board{fen};
         loadWorkerBoard(board);
 
         Move move = findWorkerMove(move_str);
@@ -280,13 +281,13 @@ protected:
     PositionKey workerKey() const { return worker->board.key(); }
 
     PositionKey workerNullChildKey() const {
-        TestBoard board_copy{worker->board.toFEN()};
+        board_test::Harness board_copy{worker->board.toFEN()};
         board_copy.make_null();
         return board_copy.key();
     }
 
     PositionKey workerDescendantNullKey(Move move) const {
-        TestBoard board_copy{worker->board.toFEN()};
+        board_test::Harness board_copy{worker->board.toFEN()};
         board_copy.make(move);
         board_copy.make_null();
         return board_copy.key();
@@ -421,7 +422,7 @@ protected:
 #endif
 
     void testSearch(const std::string& fen, int search_depth, int score, std::string move) {
-        TestBoard board{fen};
+        board_test::Harness board{fen};
         limits.depth = search_depth;
         ThreadTestAccess::start_search(*thread, board, limits);
         ThreadTestAccess::wait_for_idle(*thread);
@@ -436,20 +437,20 @@ protected:
 TEST_F(SearchTest, BasicMateAndStalemateTerminals) {
     testSearch("7R/8/8/8/8/1K6/8/1k6 w - - 0 1", 2, eval_value::mate - 1, "h8h1");
     testSearch("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1", 1, -eval_value::mate, "none");
-    testSearch("k7/8/KQ6/8/8/8/8/8 b - - 0 1", 1, eval_value::draw, "none");
+    testSearch(board_test::fen::stalemate, 1, eval_value::draw, "none");
 }
 
 TEST_F(SearchTest, DrawByRuleReturnsDrawValue) {
-    constexpr auto drawn_by_fifty_move = "k7/8/2K5/8/8/8/8/8 b - - 100 1";
-    TestBoard      board{drawn_by_fifty_move};
+    constexpr auto      drawn_by_fifty_move = "k7/8/2K5/8/8/8/8/8 b - - 100 1";
+    board_test::Harness board{drawn_by_fifty_move};
     loadWorkerBoard(board);
 
     EXPECT_EQ(runNonPvAlphaBeta(-eval_value::inf, eval_value::inf, 2), eval_value::draw);
 }
 
 TEST_F(SearchTest, DepthZeroEntersQuiescenceAndSearchesWinningCapture) {
-    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
-    TestBoard      board{winning_capture};
+    constexpr auto      winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    board_test::Harness board{winning_capture};
     loadWorkerBoard(board);
 
     const int static_eval = evaluate(board);
@@ -458,8 +459,8 @@ TEST_F(SearchTest, DepthZeroEntersQuiescenceAndSearchesWinningCapture) {
 }
 
 TEST_F(SearchTest, DepthZeroDrawByRuleReturnsDrawBeforeStaticEval) {
-    constexpr auto drawn_winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
-    TestBoard      board{drawn_winning_capture};
+    constexpr auto      drawn_winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
+    board_test::Harness board{drawn_winning_capture};
     loadWorkerBoard(board);
 
     EXPECT_NE(evaluate(board), eval_value::draw);
@@ -468,8 +469,8 @@ TEST_F(SearchTest, DepthZeroDrawByRuleReturnsDrawBeforeStaticEval) {
 }
 
 TEST_F(SearchTest, QuiescenceDrawByRuleDoesNotStoreTranspositionTableEntry) {
-    constexpr auto drawn_winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
-    TestBoard      board{drawn_winning_capture};
+    constexpr auto      drawn_winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
+    board_test::Harness board{drawn_winning_capture};
     loadWorkerBoard(board);
 
     EXPECT_EQ(runQuiescence(-eval_value::inf, eval_value::inf), eval_value::draw);
@@ -481,8 +482,8 @@ TEST_F(SearchTest, QuiescenceDrawByRuleDoesNotStoreTranspositionTableEntry) {
 }
 
 TEST_F(SearchTest, QuiescenceAtMaxPlyDoesNotStoreTranspositionTableEntry) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
     setWorkerPly(engine::max_search_ply);
 
@@ -494,8 +495,8 @@ TEST_F(SearchTest, QuiescenceAtMaxPlyDoesNotStoreTranspositionTableEntry) {
 }
 
 TEST_F(SearchTest, QuiescenceStandPatFailHighReturnsEvalAndStoresLowerbound) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
 
     const int static_eval = evaluate(board);
@@ -513,13 +514,13 @@ TEST_F(SearchTest, QuiescenceStandPatFailHighReturnsEvalAndStoresLowerbound) {
 }
 
 TEST_F(SearchTest, QuiescenceInCheckSearchesLegalEvasion) {
-    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr auto one_legal_evasion = board_test::fen::one_legal_evasion;
     constexpr int  alpha             = -eval_value::inf;
     constexpr int  beta              = eval_value::inf;
 
     const int expected = -testQuiescenceAfterMove(one_legal_evasion, "a8b8", -beta, -alpha);
 
-    TestBoard board{one_legal_evasion};
+    board_test::Harness board{one_legal_evasion};
     loadWorkerBoard(board);
     ASSERT_TRUE(board.is_check()) << one_legal_evasion;
 
@@ -527,8 +528,8 @@ TEST_F(SearchTest, QuiescenceInCheckSearchesLegalEvasion) {
 }
 
 TEST_F(SearchTest, QuiescenceBuildsPrincipalVariationFromTacticalMove) {
-    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
-    TestBoard      board{winning_capture};
+    constexpr auto      winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    board_test::Harness board{winning_capture};
     loadWorkerBoard(board);
 
     PrincipalVariation pv;
@@ -540,7 +541,7 @@ TEST_F(SearchTest, QuiescenceBuildsPrincipalVariationFromTacticalMove) {
 }
 
 TEST_F(SearchTest, QuiescenceUsesTranspositionTableCutoffForEligibleBounds) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr auto quiet_control = board_test::fen::quiet_black_to_move;
 
     struct Case {
         const char* name;
@@ -557,7 +558,7 @@ TEST_F(SearchTest, QuiescenceUsesTranspositionTableCutoffForEligibleBounds) {
     };
 
     for (const auto& tc : cases) {
-        TestBoard board{quiet_control};
+        board_test::Harness board{quiet_control};
         loadWorkerBoard(board);
 
         tt.store_search(workerKey(), NULL_MOVE, tc.score, 0, tc.flag, workerPly());
@@ -573,11 +574,11 @@ TEST_F(SearchTest, QuiescenceUsesTranspositionTableCutoffForEligibleBounds) {
 }
 
 TEST_F(SearchTest, QuiescenceIgnoresQuietNonCheckTranspositionTableMove) {
-    TestBoard baseline_board{POS3};
+    board_test::Harness baseline_board{board_test::fen::perft_position_3};
     loadWorkerBoard(baseline_board);
     const int baseline = runQuiescence(-eval_value::inf, eval_value::inf);
 
-    TestBoard board{POS3};
+    board_test::Harness board{board_test::fen::perft_position_3};
     loadWorkerBoard(board);
 
     Move quiet_tt_move = Move(E2, E3);
@@ -592,13 +593,13 @@ TEST_F(SearchTest, QuiescenceIgnoresQuietNonCheckTranspositionTableMove) {
 TEST_F(SearchTest, QuiescenceCaptureBetaCutoffStoresLowerboundMove) {
     constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
 
-    TestBoard exact_board{winning_capture};
+    board_test::Harness exact_board{winning_capture};
     loadWorkerBoard(exact_board);
     const int static_eval = evaluate(exact_board);
     const int exact       = runQuiescence(-eval_value::inf, eval_value::inf);
     ASSERT_GT(exact, static_eval);
 
-    TestBoard board{winning_capture};
+    board_test::Harness board{winning_capture};
     loadWorkerBoard(board);
 
     const int beta  = static_eval + std::max(1, (exact - static_eval) / 2);
@@ -616,8 +617,8 @@ TEST_F(SearchTest, QuiescenceCaptureBetaCutoffStoresLowerboundMove) {
 }
 
 TEST_F(SearchTest, QuiescenceStoresUpperboundOnFailLow) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
 
     const int static_eval = evaluate(board);
@@ -633,8 +634,8 @@ TEST_F(SearchTest, QuiescenceStoresUpperboundOnFailLow) {
 }
 
 TEST_F(SearchTest, QuiescenceStoresExactOnNormalExit) {
-    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
-    TestBoard      board{winning_capture};
+    constexpr auto      winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    board_test::Harness board{winning_capture};
     loadWorkerBoard(board);
 
     const int static_eval = evaluate(board);
@@ -650,9 +651,9 @@ TEST_F(SearchTest, QuiescenceStoresExactOnNormalExit) {
 }
 
 TEST_F(SearchTest, QuiescenceCheckmateWithNoEvasionsReturnsMateAndStoresExact) {
-    constexpr auto checkmate  = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
-    constexpr int  search_ply = 3;
-    TestBoard      board{checkmate};
+    constexpr auto      checkmate  = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    constexpr int       search_ply = 3;
+    board_test::Harness board{checkmate};
     loadWorkerBoard(board);
     setWorkerPly(search_ply);
 
@@ -669,8 +670,8 @@ TEST_F(SearchTest, QuiescenceCheckmateWithNoEvasionsReturnsMateAndStoresExact) {
 }
 
 TEST_F(SearchTest, QuiescenceRecordsQNodeInStatsBuild) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
 
     (void)runQuiescence(-eval_value::inf, eval_value::inf);
@@ -682,8 +683,8 @@ TEST_F(SearchTest, QuiescenceRecordsQNodeInStatsBuild) {
 }
 
 TEST_F(SearchTest, RootDrawByRuleStillSearchesForLegalBestMove) {
-    constexpr auto drawn_root = "k7/8/2K5/8/8/8/8/8 b - - 100 1";
-    TestBoard      board{drawn_root};
+    constexpr auto      drawn_root = "k7/8/2K5/8/8/8/8/8 b - - 100 1";
+    board_test::Harness board{drawn_root};
     loadWorkerBoard(board, 1);
 
     ASSERT_TRUE(workerBoardIsDraw());
@@ -700,7 +701,7 @@ TEST_F(SearchTest, RootDrawByRuleStillSearchesForLegalBestMove) {
 }
 
 TEST_F(SearchTest, AlphaBetaFailLowReturnsBestMoveScoreInsteadOfAlpha) {
-    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr auto one_legal_evasion = board_test::fen::one_legal_evasion;
     constexpr int  search_depth      = 1;
     constexpr int  alpha             = -100;
     constexpr int  beta              = 0;
@@ -709,7 +710,7 @@ TEST_F(SearchTest, AlphaBetaFailLowReturnsBestMoveScoreInsteadOfAlpha) {
         -testAlphaBetaAfterMove(one_legal_evasion, "a8b8", -beta, -alpha, search_depth - 1);
     ASSERT_LT(expected, alpha) << one_legal_evasion;
 
-    TestBoard board{one_legal_evasion};
+    board_test::Harness board{one_legal_evasion};
     loadWorkerBoard(board);
     ASSERT_TRUE(board.is_check()) << one_legal_evasion;
 
@@ -719,10 +720,10 @@ TEST_F(SearchTest, AlphaBetaFailLowReturnsBestMoveScoreInsteadOfAlpha) {
 }
 
 TEST_F(SearchTest, AlphaBetaFailHighReturnsRawScoreInsteadOfBeta) {
-    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr auto one_legal_evasion = board_test::fen::one_legal_evasion;
     constexpr int  search_depth      = 1;
 
-    TestBoard exact_board{one_legal_evasion};
+    board_test::Harness exact_board{one_legal_evasion};
     loadWorkerBoard(exact_board);
     const int exact = runNonPvAlphaBeta(-eval_value::inf, eval_value::inf, search_depth);
 
@@ -732,7 +733,7 @@ TEST_F(SearchTest, AlphaBetaFailHighReturnsRawScoreInsteadOfBeta) {
         -testAlphaBetaAfterMove(one_legal_evasion, "a8b8", -beta, -alpha, search_depth - 1);
     ASSERT_GT(expected, beta) << one_legal_evasion;
 
-    TestBoard board{one_legal_evasion};
+    board_test::Harness board{one_legal_evasion};
     loadWorkerBoard(board);
     ASSERT_TRUE(board.is_check()) << one_legal_evasion;
 
@@ -742,8 +743,8 @@ TEST_F(SearchTest, AlphaBetaFailHighReturnsRawScoreInsteadOfBeta) {
 }
 
 TEST_F(SearchTest, AlphaBetaMateDistanceLowerClampReturnsBound) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
 
     constexpr int search_ply  = 4;
@@ -754,8 +755,8 @@ TEST_F(SearchTest, AlphaBetaMateDistanceLowerClampReturnsBound) {
 }
 
 TEST_F(SearchTest, AlphaBetaMateDistanceUpperClampReturnsBound) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
 
     constexpr int search_ply      = 4;
@@ -767,8 +768,8 @@ TEST_F(SearchTest, AlphaBetaMateDistanceUpperClampReturnsBound) {
 }
 
 TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsStaticEval) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
 
     const int static_eval = evaluate(board);
@@ -779,8 +780,8 @@ TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsStaticEval) {
 }
 
 TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsDrawBeforeStaticEval) {
-    constexpr auto drawn_winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
-    TestBoard      board{drawn_winning_capture};
+    constexpr auto      drawn_winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
+    board_test::Harness board{drawn_winning_capture};
     loadWorkerBoard(board);
 
     EXPECT_NE(evaluate(board), eval_value::draw);
@@ -791,7 +792,7 @@ TEST_F(SearchTest, AlphaBetaAtMaxPlyReturnsDrawBeforeStaticEval) {
 }
 
 TEST_F(SearchTest, AlphaBetaUsesTranspositionTableCutoffForEligibleBounds) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr auto quiet_control = board_test::fen::quiet_black_to_move;
     constexpr int  search_depth  = 2;
 
     struct Case {
@@ -809,7 +810,7 @@ TEST_F(SearchTest, AlphaBetaUsesTranspositionTableCutoffForEligibleBounds) {
     };
 
     for (const auto& tc : cases) {
-        TestBoard board{quiet_control};
+        board_test::Harness board{quiet_control};
         loadWorkerBoard(board);
 
         tt.store_search(workerKey(), NULL_MOVE, tc.score, search_depth, tc.flag, workerPly());
@@ -819,14 +820,14 @@ TEST_F(SearchTest, AlphaBetaUsesTranspositionTableCutoffForEligibleBounds) {
 }
 
 TEST_F(SearchTest, AlphaBetaDoesNotCutoffWithShallowTranspositionTableEntry) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr auto quiet_control = board_test::fen::quiet_black_to_move;
     constexpr int  search_depth  = 2;
 
-    TestBoard baseline_board{quiet_control};
+    board_test::Harness baseline_board{quiet_control};
     loadWorkerBoard(baseline_board);
     const int baseline = runNonPvAlphaBeta(-eval_value::inf, eval_value::inf, search_depth);
 
-    TestBoard board{quiet_control};
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
 
     Move invalid_tt_move{H1, H2};
@@ -839,9 +840,9 @@ TEST_F(SearchTest, AlphaBetaDoesNotCutoffWithShallowTranspositionTableEntry) {
 }
 
 TEST_F(SearchTest, AlphaBetaStoresExactTranspositionTableEntry) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  search_depth  = 2;
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    constexpr int       search_depth  = 2;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
 
     const PositionKey key = workerKey();
@@ -859,14 +860,14 @@ TEST_F(SearchTest, AlphaBetaStoresExactTranspositionTableEntry) {
 }
 
 TEST_F(SearchTest, AlphaBetaStoresLowerboundOnBetaCutoff) {
-    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr auto one_legal_evasion = board_test::fen::one_legal_evasion;
     constexpr int  search_depth      = 1;
 
-    TestBoard exact_board{one_legal_evasion};
+    board_test::Harness exact_board{one_legal_evasion};
     loadWorkerBoard(exact_board);
     const int exact = runNonPvAlphaBeta(-eval_value::inf, eval_value::inf, search_depth);
 
-    TestBoard board{one_legal_evasion};
+    board_test::Harness board{one_legal_evasion};
     loadWorkerBoard(board);
 
     const int beta  = exact - 50;
@@ -883,12 +884,12 @@ TEST_F(SearchTest, AlphaBetaStoresLowerboundOnBetaCutoff) {
 }
 
 TEST_F(SearchTest, AlphaBetaStoresUpperboundOnFailLow) {
-    constexpr auto one_legal_evasion = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
+    constexpr auto one_legal_evasion = board_test::fen::one_legal_evasion;
     constexpr int  search_depth      = 1;
     constexpr int  alpha             = -100;
     constexpr int  beta              = 0;
 
-    TestBoard board{one_legal_evasion};
+    board_test::Harness board{one_legal_evasion};
     loadWorkerBoard(board);
 
     const int value = runNonPvAlphaBeta(alpha, beta, search_depth);
@@ -903,10 +904,10 @@ TEST_F(SearchTest, AlphaBetaStoresUpperboundOnFailLow) {
 }
 
 TEST_F(SearchTest, AlphaBetaStoresNoLegalMoveTerminalAsExactTranspositionTableEntry) {
-    constexpr auto checkmate    = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
-    constexpr int  search_depth = 2;
-    constexpr int  search_ply   = 3;
-    TestBoard      board{checkmate};
+    constexpr auto      checkmate    = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    constexpr int       search_depth = 2;
+    constexpr int       search_ply   = 3;
+    board_test::Harness board{checkmate};
     loadWorkerBoard(board);
     setWorkerPly(search_ply);
 
@@ -923,7 +924,7 @@ TEST_F(SearchTest, AlphaBetaStoresNoLegalMoveTerminalAsExactTranspositionTableEn
 }
 
 TEST_F(SearchTest, RootSearchDoesNotStoreRootPositionTranspositionTableEntry) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, 1);
 
     const PositionKey root_key = workerKey();
@@ -933,10 +934,10 @@ TEST_F(SearchTest, RootSearchDoesNotStoreRootPositionTranspositionTableEntry) {
 }
 
 TEST_F(SearchTest, AlphaBetaMainTTCutoffDoesNotEnterQSearchTT) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    constexpr int  search_depth  = 2;
-    constexpr int  tt_score      = 321;
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    constexpr int       search_depth  = 2;
+    constexpr int       tt_score      = 321;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
 
     tt.store_search(workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Exact, workerPly());
@@ -958,7 +959,7 @@ TEST_F(SearchTest, AlphaBetaNullMovePruningReturnsFailSoftCutoffFromNullChild) {
     constexpr int beta             = 50;
     constexpr int null_child_score = -200;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const PositionKey root_key       = workerKey();
@@ -984,12 +985,12 @@ TEST_F(SearchTest, PvAlphaBetaDoesNotUseNullMovePruning) {
     constexpr int beta             = 50;
     constexpr int null_child_score = -200;
 
-    TestBoard baseline_board{STARTFEN};
+    board_test::Harness baseline_board{board_test::fen::start};
     loadWorkerBoard(baseline_board, search_depth);
     PrincipalVariation baseline_pv;
     const int          baseline = runPvAlphaBeta(alpha, beta, search_depth, baseline_pv);
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
     const PositionKey null_child_key = workerNullChildKey();
     tt.store_search(
@@ -1018,9 +1019,9 @@ TEST_F(SearchTest, AlphaBetaNullMovePruningRequiresAllGuards) {
 
     const std::array cases{
         Case{"in check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", 4, true},
-        Case{"insufficient material", "k7/8/2K5/8/8/8/8/8 b - - 0 1", 4, true},
+        Case{"insufficient material", board_test::fen::quiet_black_to_move, 4, true},
         Case{"lone rook material", "4k3/8/8/8/8/8/8/4K2R w - - 0 1", 4, true},
-        Case{"shallower than reduction", STARTFEN, 2, true},
+        Case{"shallower than reduction", board_test::fen::start, 2, true},
         Case{"immediate repeated null",
              "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1",
              4,
@@ -1030,11 +1031,11 @@ TEST_F(SearchTest, AlphaBetaNullMovePruningRequiresAllGuards) {
     const auto expectNullMoveBlocked = [&](const Case& tc) {
         SCOPED_TRACE(tc.name);
 
-        TestBoard baseline_board{tc.fen};
+        board_test::Harness baseline_board{tc.fen};
         loadWorkerBoard(baseline_board, tc.depth);
         const int baseline = runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null);
 
-        TestBoard board{tc.fen};
+        board_test::Harness board{tc.fen};
         loadWorkerBoard(board, tc.depth);
         tt.store_search(workerNullChildKey(),
                         NULL_MOVE,
@@ -1062,7 +1063,7 @@ TEST_F(SearchTest, AlphaBetaNullMovePruningHonorsParentUpperBoundVeto) {
     constexpr int beta             = 50;
     constexpr int null_child_score = -200;
 
-    TestBoard baseline_board{STARTFEN};
+    board_test::Harness baseline_board{board_test::fen::start};
     loadWorkerBoard(baseline_board, search_depth);
     tt.store_search(
         workerKey(), NULL_MOVE, beta - 1, search_depth, TT_Flag::Upperbound, workerPly());
@@ -1070,7 +1071,7 @@ TEST_F(SearchTest, AlphaBetaNullMovePruningHonorsParentUpperBoundVeto) {
         workerNullChildKey(), NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
     const int baseline = runNonPvAlphaBeta(alpha, beta, search_depth, false);
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
     tt.store_search(
         workerKey(), NULL_MOVE, beta - 1, search_depth, TT_Flag::Upperbound, workerPly());
@@ -1090,7 +1091,7 @@ TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendant
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1";
     constexpr int search_depth = 5;
 
-    TestBoard board{immediate_null_child};
+    board_test::Harness board{immediate_null_child};
     loadWorkerBoard(board, search_depth);
 
     ASSERT_FALSE(board.is_check());
@@ -1119,10 +1120,10 @@ TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendant
 }
 
 TEST_F(SearchTest, AlphaBetaRazoringReturnsQsearchFailLowWithoutParentMainTtStore) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr auto quiet_control = board_test::fen::quiet_black_to_move;
     constexpr int  search_depth  = 2;
 
-    TestBoard board{quiet_control};
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board, search_depth);
 
     const int static_eval = evaluate(board);
@@ -1143,7 +1144,7 @@ TEST_F(SearchTest, AlphaBetaRazoringReturnsQsearchFailLowWithoutParentMainTtStor
 }
 
 TEST_F(SearchTest, AlphaBetaRazoringRequiresAllGuards) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr auto quiet_control = board_test::fen::quiet_black_to_move;
     constexpr int  search_depth  = 2;
 
     struct Case {
@@ -1160,15 +1161,21 @@ TEST_F(SearchTest, AlphaBetaRazoringRequiresAllGuards) {
         Case{"PV node", quiet_control, search_depth, true, true, false, 901},
         Case{"in check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", search_depth, true, false, false, 901},
         Case{"depth above max", quiet_control, 4, true, false, false, 1901},
-        Case{"can_null false", STARTFEN, search_depth, false, false, false, 901},
-        Case{"TT move available", STARTFEN, search_depth, true, false, true, 901},
-        Case{"static eval above margin", STARTFEN, search_depth, true, false, false, 899},
+        Case{"can_null false", board_test::fen::start, search_depth, false, false, false, 901},
+        Case{"TT move available", board_test::fen::start, search_depth, true, false, true, 901},
+        Case{"static eval above margin",
+             board_test::fen::start,
+             search_depth,
+             true,
+             false,
+             false,
+             899},
     };
 
     const auto expectRazoringBlocked = [&](const Case& tc) {
         SCOPED_TRACE(tc.name);
 
-        TestBoard board{tc.fen};
+        board_test::Harness board{tc.fen};
         loadWorkerBoard(board, tc.depth);
 
         if (tc.seed_tt_move) {
@@ -1205,7 +1212,7 @@ TEST_F(SearchTest, AlphaBetaRazoringRequiresAllGuards) {
 TEST_F(SearchTest, AlphaBetaFutilitySkipsOnlyAfterFirstLegalQuietMove) {
     constexpr int search_depth = 2;
 
-    TestBoard expected_board{STARTFEN};
+    board_test::Harness expected_board{board_test::fen::start};
     loadWorkerBoard(expected_board, search_depth);
 
     const int  alpha      = evaluate(expected_board) + 401;
@@ -1215,7 +1222,7 @@ TEST_F(SearchTest, AlphaBetaFutilitySkipsOnlyAfterFirstLegalQuietMove) {
 
     const int expected = scoreWorkerChild(first_move, alpha, beta, search_depth - 1);
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
     EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), expected);
 
@@ -1235,21 +1242,29 @@ TEST_F(SearchTest, AlphaBetaFutilityRequiresAllGuards) {
         bool        pv;
     };
 
-    TestBoard static_eval_board{STARTFEN};
-    const int static_eval = evaluate(static_eval_board);
+    board_test::Harness static_eval_board{board_test::fen::start};
+    const int           static_eval = evaluate(static_eval_board);
 
     const std::array cases{
-        Case{"PV node", STARTFEN, search_depth, static_eval + 401, true},
+        Case{"PV node", board_test::fen::start, search_depth, static_eval + 401, true},
         Case{"in check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", search_depth, 1000, false},
-        Case{"depth above max", STARTFEN, 4, static_eval + 401, false},
-        Case{"mate-adjacent alpha", STARTFEN, search_depth, eval_value::mate_bound, false},
-        Case{"static eval above margin", STARTFEN, search_depth, static_eval + 399, false},
+        Case{"depth above max", board_test::fen::start, 4, static_eval + 401, false},
+        Case{"mate-adjacent alpha",
+             board_test::fen::start,
+             search_depth,
+             eval_value::mate_bound,
+             false},
+        Case{"static eval above margin",
+             board_test::fen::start,
+             search_depth,
+             static_eval + 399,
+             false},
     };
 
     const auto expectFutilityBlocked = [&](const Case& tc) {
         SCOPED_TRACE(tc.name);
 
-        TestBoard board{tc.fen};
+        board_test::Harness board{tc.fen};
         loadWorkerBoard(board, tc.depth);
 
         const int beta = tc.alpha + 100;
@@ -1288,7 +1303,7 @@ TEST_F(SearchTest, AlphaBetaFutilityKeepsCapturesPromotionsAndCheckingMoves) {
     };
 
     for (const auto& tc : cases) {
-        TestBoard board{tc.fen};
+        board_test::Harness board{tc.fen};
         loadWorkerBoard(board, search_depth);
         ASSERT_TRUE(workerLegalGeneratedMove(tc.first)) << tc.fen;
         ASSERT_TRUE(workerLegalGeneratedMove(tc.candidate)) << tc.fen;
@@ -1312,7 +1327,7 @@ TEST_F(SearchTest, AlphaBetaQuietCutoffRewardsMoveAndLeavesEarlierQuietUnchanged
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const auto moves = workerPickerLegalMoves();
@@ -1339,7 +1354,7 @@ TEST_F(SearchTest, AlphaBetaQuietCutoffLeavesFailedQuietTtHintUnchanged) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const auto moves = workerPickerLegalMoves();
@@ -1367,7 +1382,7 @@ TEST_F(SearchTest, AlphaBetaQuietCutoffStoresCounterForPreviousMove) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const Move previous = findWorkerMove("e2e4");
@@ -1395,7 +1410,7 @@ TEST_F(SearchTest, AlphaBetaQuietTtHintCutoffStoresCounterWhenSearched) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const Move previous = findWorkerMove("e2e4");
@@ -1424,7 +1439,7 @@ TEST_F(SearchTest, AlphaBetaQuietCutoffRewardsContinuationHistory) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const Move previous = findWorkerMove("e2e4");
@@ -1450,7 +1465,7 @@ TEST_F(SearchTest, AlphaBetaQuietCutoffWithoutPreviousMoveDoesNotStoreCounter) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const auto moves = workerPickerLegalMoves();
@@ -1473,7 +1488,7 @@ TEST_F(SearchTest, AlphaBetaQuietCutoffAfterNullMoveDoesNotStoreCounter) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     Move      cutoff_quiet;
@@ -1504,7 +1519,7 @@ TEST_F(SearchTest, AlphaBetaQuietCutoffWithoutPreviousMoveDoesNotUpdateContinuat
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const auto moves = workerPickerLegalMoves();
@@ -1526,7 +1541,7 @@ TEST_F(SearchTest, AlphaBetaQuietCutoffAfterNullMoveDoesNotUpdateContinuationHis
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     withWorkerNullMove([&] {
@@ -1550,7 +1565,7 @@ TEST_F(SearchTest, AlphaBetaCaptureCutoffDoesNotStoreCounter) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{"r3k3/B7/8/8/8/8/8/4K3 w - - 0 1"};
+    board_test::Harness board{"r3k3/B7/8/8/8/8/8/4K3 w - - 0 1"};
     loadWorkerBoard(board, search_depth);
 
     const Move previous = Move(E1, D1);
@@ -1576,7 +1591,7 @@ TEST_F(SearchTest, AlphaBetaPromotionCutoffDoesNotStoreCounter) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{"4k3/8/8/8/8/8/p7/4K3 w - - 0 1"};
+    board_test::Harness board{"4k3/8/8/8/8/8/p7/4K3 w - - 0 1"};
     loadWorkerBoard(board, search_depth);
 
     const Move previous  = Move(E1, D1);
@@ -1602,7 +1617,7 @@ TEST_F(SearchTest, AlphaBetaQuietMalusPenalizesTwoFailedOrdinaryQuiets) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const auto moves = workerPickerLegalMoves();
@@ -1641,7 +1656,7 @@ TEST_F(SearchTest, AlphaBetaQuietMalusRequiresTwoFailedOrdinaryQuiets) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const auto moves = workerPickerLegalMoves();
@@ -1675,7 +1690,7 @@ TEST_F(SearchTest, AlphaBetaQuietMalusSkipsFailedTtQuiet) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const auto moves = workerPickerLegalMoves();
@@ -1710,7 +1725,7 @@ TEST_F(SearchTest, AlphaBetaQuietMalusSkipsFailedKillerQuiet) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const auto moves = workerPickerLegalMoves();
@@ -1744,7 +1759,7 @@ TEST_F(SearchTest, AlphaBetaQuietMalusRequiresMinimumDepth) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const auto moves = workerPickerLegalMoves();
@@ -1773,7 +1788,7 @@ TEST_F(SearchTest, AlphaBetaContinuationMalusPenalizesTwoFailedOrdinaryQuiets) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const Move previous = findWorkerMove("e2e4");
@@ -1806,7 +1821,7 @@ TEST_F(SearchTest, AlphaBetaContinuationMalusSkipsFailedTtAndKillerQuiets) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const Move previous = findWorkerMove("e2e4");
@@ -1850,7 +1865,7 @@ TEST_F(SearchTest, AlphaBetaContinuationMalusRequiresMinimumDepth) {
     constexpr int beta         = 100;
     constexpr int cutoff_value = beta + 100;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     const Move previous = findWorkerMove("e2e4");
@@ -1884,16 +1899,16 @@ TEST_F(SearchTest, PvAlphaBetaMatchesFullWindowBaselineAndBuildsPv) {
     };
 
     const std::array cases{
-        Case{STARTFEN, 3},
-        Case{POS6, 3},
+        Case{board_test::fen::start, 3},
+        Case{board_test::fen::perft_position_6, 3},
     };
 
     for (const auto& tc : cases) {
-        TestBoard baseline_board{tc.fen};
+        board_test::Harness baseline_board{tc.fen};
         loadWorkerBoard(baseline_board, tc.depth);
         const int baseline = runNonPvAlphaBeta(-eval_value::inf, eval_value::inf, tc.depth);
 
-        TestBoard pvs_board{tc.fen};
+        board_test::Harness pvs_board{tc.fen};
         loadWorkerBoard(pvs_board, tc.depth);
         PrincipalVariation pv;
         const int pvs_value = runPvAlphaBeta(-eval_value::inf, eval_value::inf, tc.depth, pv);
@@ -1905,10 +1920,10 @@ TEST_F(SearchTest, PvAlphaBetaMatchesFullWindowBaselineAndBuildsPv) {
 }
 
 TEST_F(SearchTest, PvNodesIgnoreNonExactMainAndQsearchTtBounds) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr auto quiet_control = board_test::fen::quiet_black_to_move;
     constexpr int  search_depth  = 2;
 
-    TestBoard baseline_board{quiet_control};
+    board_test::Harness baseline_board{quiet_control};
     loadWorkerBoard(baseline_board, search_depth);
     PrincipalVariation baseline_pv;
     const int          baseline =
@@ -1918,20 +1933,20 @@ TEST_F(SearchTest, PvNodesIgnoreNonExactMainAndQsearchTtBounds) {
     const int beta        = baseline + 100;
     const int bogus_score = beta + 25;
 
-    TestBoard non_pv_board{quiet_control};
+    board_test::Harness non_pv_board{quiet_control};
     loadWorkerBoard(non_pv_board, search_depth);
     tt.store_search(
         workerKey(), NULL_MOVE, bogus_score, search_depth, TT_Flag::Lowerbound, workerPly());
     EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), bogus_score);
 
-    TestBoard pv_board{quiet_control};
+    board_test::Harness pv_board{quiet_control};
     loadWorkerBoard(pv_board, search_depth);
     tt.store_search(
         workerKey(), NULL_MOVE, bogus_score, search_depth, TT_Flag::Lowerbound, workerPly());
     PrincipalVariation pv;
     EXPECT_EQ(runPvAlphaBeta(alpha, beta, search_depth, pv), baseline);
 
-    TestBoard q_baseline_board{quiet_control};
+    board_test::Harness q_baseline_board{quiet_control};
     loadWorkerBoard(q_baseline_board);
     PrincipalVariation q_pv;
     const int          q_baseline = runPvQuiescence(-eval_value::inf, eval_value::inf, q_pv);
@@ -1939,12 +1954,12 @@ TEST_F(SearchTest, PvNodesIgnoreNonExactMainAndQsearchTtBounds) {
     const int          q_beta     = q_baseline + 100;
     const int          q_bogus    = q_beta + 25;
 
-    TestBoard q_non_pv_board{quiet_control};
+    board_test::Harness q_non_pv_board{quiet_control};
     loadWorkerBoard(q_non_pv_board);
     tt.store_search(workerKey(), NULL_MOVE, q_bogus, 0, TT_Flag::Lowerbound, workerPly());
     EXPECT_EQ(runQuiescence(q_alpha, q_beta), q_bogus);
 
-    TestBoard q_pv_board{quiet_control};
+    board_test::Harness q_pv_board{quiet_control};
     loadWorkerBoard(q_pv_board);
     tt.store_search(workerKey(), NULL_MOVE, q_bogus, 0, TT_Flag::Lowerbound, workerPly());
     PrincipalVariation bounded_q_pv;
@@ -1952,8 +1967,8 @@ TEST_F(SearchTest, PvNodesIgnoreNonExactMainAndQsearchTtBounds) {
 }
 
 TEST_F(SearchTest, PvQuiescencePropagatesPvNodeToChildTtBounds) {
-    constexpr auto winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
-    TestBoard      baseline_board{winning_capture};
+    constexpr auto      winning_capture = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    board_test::Harness baseline_board{winning_capture};
     loadWorkerBoard(baseline_board);
 
     const int static_eval = evaluate(baseline_board);
@@ -1964,7 +1979,7 @@ TEST_F(SearchTest, PvQuiescencePropagatesPvNodeToChildTtBounds) {
     PrincipalVariation baseline_pv;
     const int          baseline = runPvQuiescence(alpha, beta, baseline_pv);
 
-    TestBoard bounded_board{winning_capture};
+    board_test::Harness bounded_board{winning_capture};
     loadWorkerBoard(bounded_board);
 
     const Move capture = findWorkerMove("d1e2");
@@ -1983,9 +1998,9 @@ TEST_F(SearchTest, PvQuiescencePropagatesPvNodeToChildTtBounds) {
 }
 
 TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
-    constexpr auto tactic       = "k7/4r3/8/8/8/3Q4/4p3/K7 w - - 0 1";
-    constexpr int  search_depth = 1;
-    TestBoard      board{tactic};
+    constexpr auto      tactic       = "k7/4r3/8/8/8/3Q4/4p3/K7 w - - 0 1";
+    constexpr int       search_depth = 1;
+    board_test::Harness board{tactic};
     loadWorkerBoard(board, search_depth);
 
     buildRootLines();
@@ -2028,8 +2043,8 @@ TEST_F(SearchTest, RootPvsResearchesLateMoveThatImprovesAlpha) {
 }
 
 TEST_F(SearchTest, ResetDoesNotSeedRootLineWithFallbackMove) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
 
     EXPECT_EQ(rootMove(), NULL_MOVE);
@@ -2039,7 +2054,7 @@ TEST_F(SearchTest, ResetDoesNotSeedRootLineWithFallbackMove) {
 }
 
 TEST_F(SearchTest, RootLineListContainsLegalGeneratedRootMoves) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, 1);
 
     int legal_move_count = 0;
@@ -2061,7 +2076,7 @@ TEST_F(SearchTest, RootLineListContainsLegalGeneratedRootMoves) {
 }
 
 TEST_F(SearchTest, RootSearchCompletesAndOrdersRootLinesByBestCompletedLine) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, 2);
 
     (void)runRootSearch();
@@ -2079,7 +2094,7 @@ TEST_F(SearchTest, RootSearchCompletesAndOrdersRootLinesByBestCompletedLine) {
 }
 
 TEST_F(SearchTest, RootSearchBuildsPrincipalVariationForRootLine) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, 2);
 
     (void)runRootSearch();
@@ -2091,7 +2106,7 @@ TEST_F(SearchTest, RootSearchBuildsPrincipalVariationForRootLine) {
 }
 
 TEST_F(SearchTest, SearchReportingSuppressesOnlyIdenticalRootLines) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, 2);
 
     RootLine line{
@@ -2123,7 +2138,7 @@ TEST_F(SearchTest, SearchReportingSuppressesOnlyIdenticalRootLines) {
 }
 
 TEST_F(SearchTest, RootAspirationWidensAfterFailHighAndCompletes) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, 1);
 
     ASSERT_TRUE(runRootDepth(1, -1000));
@@ -2146,7 +2161,7 @@ TEST_F(SearchTest, RootAspirationWidensAfterFailHighAndCompletes) {
 }
 
 TEST_F(SearchTest, RootAspirationWidensAfterFailLowAndCompletes) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, 1);
 
     ASSERT_TRUE(runRootDepth(1, 1000));
@@ -2169,7 +2184,7 @@ TEST_F(SearchTest, RootAspirationWidensAfterFailLowAndCompletes) {
 }
 
 TEST_F(SearchTest, StoppedRootAspirationPreservesLastAcceptedRootSnapshot) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, 2);
 
     ASSERT_TRUE(runRootDepth(1, evaluate(board)));
@@ -2201,11 +2216,11 @@ TEST_F(SearchTest, AlphaBetaLmrResearchesFullDepthWhenReducedSearchImprovesAlpha
     constexpr int beta                 = 2000;
     constexpr int reduced_parent_value = 1500;
 
-    TestBoard baseline_board{STARTFEN};
+    board_test::Harness baseline_board{board_test::fen::start};
     loadWorkerBoard(baseline_board, search_depth);
     const int expected = runNonPvAlphaBeta(alpha, beta, search_depth, false);
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
     const auto moves = workerPickerLegalMoves();
     ASSERT_GE(moves.size(), 4U);
@@ -2226,7 +2241,7 @@ TEST_F(SearchTest, AlphaBetaLmrResearchesFullDepthWhenReducedSearchImprovesAlpha
 TEST_F(SearchTest, AlphaBetaLmrRequiresMinimumDepth) {
     constexpr int search_depth = 2;
 
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
 
     (void)runNonPvAlphaBeta(-2000, 2000, search_depth, false);
@@ -2241,7 +2256,7 @@ TEST_F(SearchTest, AlphaBetaLmrRequiresFourthLegalMove) {
     constexpr auto three_legal_moves = "1k6/8/2K5/8/8/8/8/8 b - - 0 1";
     constexpr int  search_depth      = 4;
 
-    TestBoard board{three_legal_moves};
+    board_test::Harness board{three_legal_moves};
     loadWorkerBoard(board, search_depth);
     ASSERT_EQ(workerPickerLegalMoves().size(), 3U);
 
@@ -2268,15 +2283,15 @@ TEST_F(SearchTest, AlphaBetaLmrSkipsTacticalVetoMoves) {
     };
 
     const std::array cases{
-        Case{"4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+        Case{board_test::fen::white_pawn_on_a7,
              Move(E1, D1),
              NULL_MOVE,
              Move(A7, A8, MOVE_PROM, ROOK)},
-        Case{"4k3/8/8/8/6N1/8/8/RB1QK3 w - - 0 1", Move(A1, A8), Move(B1, G6), Move(D1, A4)},
+        Case{board_test::fen::checking_move_candidates, Move(A1, A8), Move(B1, G6), Move(D1, A4)},
     };
 
     for (const auto& tc : cases) {
-        TestBoard board{tc.fen};
+        board_test::Harness board{tc.fen};
         loadWorkerBoard(board, search_depth);
         ASSERT_TRUE(workerLegalGeneratedMove(tc.tt_move)) << tc.fen;
         ASSERT_TRUE(workerLegalGeneratedMove(tc.candidate)) << tc.fen;
@@ -2319,7 +2334,7 @@ TEST_F(SearchTest, AlphaBetaLmrSkipsCheckEvasions) {
     constexpr int  low_parent_value    = alpha - 100;
     constexpr int  cutoff_parent_value = beta + 100;
 
-    TestBoard board{in_check};
+    board_test::Harness board{in_check};
     loadWorkerBoard(board, search_depth);
     ASSERT_TRUE(board.is_check()) << in_check;
 
@@ -2340,8 +2355,8 @@ TEST_F(SearchTest, AlphaBetaLmrSkipsCheckEvasions) {
 }
 
 TEST_F(SearchTest, RootSearchSetsNullMoveForCheckmate) {
-    constexpr auto checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{checkmate};
+    constexpr auto      checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    board_test::Harness board{checkmate};
     loadWorkerBoard(board);
 
     EXPECT_EQ(runRootSearch(), -eval_value::mate);
@@ -2353,8 +2368,8 @@ TEST_F(SearchTest, RootSearchSetsNullMoveForCheckmate) {
 }
 
 TEST_F(SearchTest, RootSearchSetsNullMoveForStalemate) {
-    constexpr auto stalemate = "k7/8/KQ6/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{stalemate};
+    constexpr auto      stalemate = board_test::fen::stalemate;
+    board_test::Harness board{stalemate};
     loadWorkerBoard(board);
 
     EXPECT_EQ(runRootSearch(), eval_value::draw);
@@ -2366,8 +2381,8 @@ TEST_F(SearchTest, RootSearchSetsNullMoveForStalemate) {
 }
 
 TEST_F(SearchTest, CompletedSearchPublishesRootLineSnapshot) {
-    constexpr auto mate_in_one = "7R/8/8/8/8/1K6/8/1k6 w - - 0 1";
-    TestBoard      board{mate_in_one};
+    constexpr auto      mate_in_one = "7R/8/8/8/8/1K6/8/1k6 w - - 0 1";
+    board_test::Harness board{mate_in_one};
     limits.depth = 2;
 
     ThreadTestAccess::start_search(*thread, board, limits);
@@ -2387,7 +2402,7 @@ TEST_F(SearchTest, CompletedSearchPublishesRootLineSnapshot) {
 }
 
 TEST_F(SearchTest, CompletedNonTerminalSearchPublishesFullRootPv) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     limits.depth = 2;
 
     ThreadTestAccess::start_search(*thread, board, limits);
@@ -2401,8 +2416,8 @@ TEST_F(SearchTest, CompletedNonTerminalSearchPublishesFullRootPv) {
 }
 
 TEST_F(SearchTest, CompletedNoLegalMoveSearchPublishesCompletedNullMove) {
-    constexpr auto checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{checkmate};
+    constexpr auto      checkmate = "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1";
+    board_test::Harness board{checkmate};
     limits.depth = 1;
 
     ThreadTestAccess::start_search(*thread, board, limits);
@@ -2419,8 +2434,8 @@ TEST_F(SearchTest, CompletedNoLegalMoveSearchPublishesCompletedNullMove) {
 }
 
 TEST_F(SearchTest, StoppedSearchPublishesIncompleteRootLineSnapshot) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
-    TestBoard      board{quiet_control};
+    constexpr auto      quiet_control = board_test::fen::quiet_black_to_move;
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board, 2);
 
     ThreadTestAccess::request_stop(*thread);
@@ -2436,7 +2451,7 @@ TEST_F(SearchTest, StoppedSearchPublishesIncompleteRootLineSnapshot) {
 }
 
 TEST_F(SearchTest, StoppedSearchPreservesLastCompletedRootLine) {
-    TestBoard board{STARTFEN};
+    board_test::Harness board{board_test::fen::start};
     limits.depth = 8;
     limits.nodes = 100;
 
@@ -2452,11 +2467,11 @@ TEST_F(SearchTest, StoppedSearchPreservesLastCompletedRootLine) {
 }
 
 TEST_F(SearchTest, StoppedSearchReturnsAbortSentinelValue) {
-    constexpr auto quiet_control = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+    constexpr auto quiet_control = board_test::fen::quiet_black_to_move;
     constexpr int  alpha         = -123;
     constexpr int  beta          = 456;
 
-    TestBoard board{quiet_control};
+    board_test::Harness board{quiet_control};
     loadWorkerBoard(board);
     ThreadTestAccess::request_stop(*thread);
 

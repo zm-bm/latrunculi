@@ -7,7 +7,8 @@
 #include <thread>
 
 #include "search/tt.hpp"
-#include "support/test_util.hpp"
+#include "support/board_fixtures.hpp"
+#include "support/board_harness.hpp"
 #include "gtest/gtest.h"
 
 class EngineTest : public ::testing::Test {
@@ -170,12 +171,12 @@ TEST_F(EngineTest, SearchDoesNotReuseStaleBestMoveWhenNoLegalMoves) {
 }
 
 TEST_F(EngineTest, PositionStartposResetsFromNonStartPosition) {
-    EXPECT_TRUE(execute(std::format("position fen {}", EMPTYFEN)));
-    ASSERT_EQ(board().toFEN(), EMPTYFEN);
+    EXPECT_TRUE(execute(std::format("position fen {}", board_test::fen::kings_only)));
+    ASSERT_EQ(board().toFEN(), board_test::fen::kings_only);
 
     EXPECT_TRUE(execute("position startpos"));
 
-    EXPECT_EQ(board().toFEN(), STARTFEN);
+    EXPECT_EQ(board().toFEN(), board_test::fen::start);
 }
 
 TEST_F(EngineTest, UciNewGameClearsTTAndResetsGeneration) {
@@ -267,30 +268,31 @@ TEST_P(EngineCommandsTest, ValidateCommands) {
 INSTANTIATE_TEST_SUITE_P(
     EngineCommandsTests,
     EngineCommandsTest,
-    ::testing::Values(CommandCase{{"uci"}, STARTFEN, "id name Latrunculi"},
-                      CommandCase{{"invalidcommand"}, STARTFEN, ""},
-                      CommandCase{{"isready"}, STARTFEN, "readyok"},
-                      CommandCase{{"ucinewgame"}, STARTFEN, ""},
-                      CommandCase{{"debug on"}, STARTFEN, ""},
-                      CommandCase{{"debug off"}, STARTFEN, ""},
-                      CommandCase{{"ponderhit"}, STARTFEN, ""},
-                      CommandCase{{"position startpos", "move e2e4"}, E2E4, ""},
-                      CommandCase{{"position startpos", "move e2e4", "move undo"}, STARTFEN, ""},
-                      CommandCase{{"position startpos", "moves"}, STARTFEN, "e2e4"},
-                      CommandCase{{"position startpos", "perft 1"}, STARTFEN, "NODES: 20"},
-                      CommandCase{{"position startpos", "perft 0"}, STARTFEN, "NODES: 1"}));
+    ::testing::Values(
+        CommandCase{{"uci"}, board_test::fen::start, "id name Latrunculi"},
+        CommandCase{{"invalidcommand"}, board_test::fen::start, ""},
+        CommandCase{{"isready"}, board_test::fen::start, "readyok"},
+        CommandCase{{"ucinewgame"}, board_test::fen::start, ""},
+        CommandCase{{"debug on"}, board_test::fen::start, ""},
+        CommandCase{{"debug off"}, board_test::fen::start, ""},
+        CommandCase{{"ponderhit"}, board_test::fen::start, ""},
+        CommandCase{{"position startpos", "move e2e4"}, board_test::fen::after_e2e4, ""},
+        CommandCase{{"position startpos", "move e2e4", "move undo"}, board_test::fen::start, ""},
+        CommandCase{{"position startpos", "moves"}, board_test::fen::start, "e2e4"},
+        CommandCase{{"position startpos", "perft 1"}, board_test::fen::start, "NODES: 20"},
+        CommandCase{{"position startpos", "perft 0"}, board_test::fen::start, "NODES: 1"}));
 
 TEST_F(EngineTest, PositionReportsInvalidMoveToken) {
     EXPECT_TRUE(execute("position startpos moves e7e5"));
 
-    EXPECT_EQ(board().toFEN(), STARTFEN);
+    EXPECT_EQ(board().toFEN(), board_test::fen::start);
     EXPECT_NE(output.str().find("error: invalid move in position command: e7e5"), std::string::npos)
         << output.str();
 }
 
 TEST_F(EngineTest, MovesCommandFiltersIllegalPseudoLegalMoves) {
-    EXPECT_TRUE(execute("position fen k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1"));
-    ASSERT_EQ(board().toFEN(), "k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1");
+    EXPECT_TRUE(execute(std::format("position fen {}", board_test::fen::pinned_rook)));
+    ASSERT_EQ(board().toFEN(), board_test::fen::pinned_rook);
     output.str("");
     output.clear();
 
@@ -369,18 +371,23 @@ INSTANTIATE_TEST_SUITE_P(
     PositionTests,
     PositionTest,
     ::testing::Values(
-        PositionCase{.cmd = "position", .fen = STARTFEN},
-        PositionCase{.cmd = "position abc", .fen = STARTFEN},
-        PositionCase{.cmd = "position startpos", .fen = STARTFEN},
-        PositionCase{.cmd = "position startpos moves", .fen = STARTFEN},
-        PositionCase{.cmd = "position startpos moves e2e4", .fen = E2E4},
-        PositionCase{.cmd = "position startpos moves e7e5", .fen = STARTFEN},
-        PositionCase{.cmd = std::format("position fen {}", EMPTYFEN), .fen = EMPTYFEN},
-        PositionCase{.cmd = std::format("position fen {} abc", EMPTYFEN), .fen = STARTFEN},
-        PositionCase{.cmd = std::format("position fen {} moves", EMPTYFEN), .fen = EMPTYFEN},
-        PositionCase{.cmd = std::format("position fen {} moves abc", EMPTYFEN), .fen = EMPTYFEN},
-        PositionCase{.cmd = std::format("position fen {} moves a1b1", EMPTYFEN), .fen = EMPTYFEN},
-        PositionCase{.cmd = std::format("position fen {} moves e1e2", EMPTYFEN),
+        PositionCase{.cmd = "position", .fen = board_test::fen::start},
+        PositionCase{.cmd = "position abc", .fen = board_test::fen::start},
+        PositionCase{.cmd = "position startpos", .fen = board_test::fen::start},
+        PositionCase{.cmd = "position startpos moves", .fen = board_test::fen::start},
+        PositionCase{.cmd = "position startpos moves e2e4", .fen = board_test::fen::after_e2e4},
+        PositionCase{.cmd = "position startpos moves e7e5", .fen = board_test::fen::start},
+        PositionCase{.cmd = std::format("position fen {}", board_test::fen::kings_only),
+                     .fen = board_test::fen::kings_only},
+        PositionCase{.cmd = std::format("position fen {} abc", board_test::fen::kings_only),
+                     .fen = board_test::fen::start},
+        PositionCase{.cmd = std::format("position fen {} moves", board_test::fen::kings_only),
+                     .fen = board_test::fen::kings_only},
+        PositionCase{.cmd = std::format("position fen {} moves abc", board_test::fen::kings_only),
+                     .fen = board_test::fen::kings_only},
+        PositionCase{.cmd = std::format("position fen {} moves a1b1", board_test::fen::kings_only),
+                     .fen = board_test::fen::kings_only},
+        PositionCase{.cmd = std::format("position fen {} moves e1e2", board_test::fen::kings_only),
                      .fen = "4k3/8/8/8/8/8/4K3/8 b - - 1 1"}));
 
 // go command tests

@@ -1,13 +1,15 @@
 #include "board/fen.hpp"
 
 #include <stdexcept>
+#include <string>
 #include <vector>
 
-#include "support/test_util.hpp"
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
-TEST(FenParserTests, InitialPosition) {
-    FenParser parser(STARTFEN);
+#include "support/board_fixtures.hpp"
+
+TEST(FenParserTest, InitialPosition) {
+    FenParser parser{std::string(board_test::fen::start)};
     EXPECT_EQ(parser.pieces.size(), 32);
     EXPECT_EQ(parser.turn, WHITE);
     EXPECT_EQ(parser.castle, ALL_CASTLE);
@@ -16,8 +18,8 @@ TEST(FenParserTests, InitialPosition) {
     EXPECT_EQ(parser.fullmove_clk, 0);
 }
 
-TEST(FenParserTests, EmptyFen) {
-    FenParser parser(EMPTYFEN);
+TEST(FenParserTest, EmptyFen) {
+    FenParser parser{std::string(board_test::fen::kings_only)};
     EXPECT_EQ(parser.pieces.size(), 2);
     EXPECT_EQ(parser.turn, WHITE);
     EXPECT_EQ(parser.castle, NO_CASTLE);
@@ -26,8 +28,8 @@ TEST(FenParserTests, EmptyFen) {
     EXPECT_EQ(parser.fullmove_clk, 0);
 }
 
-TEST(FenParserTests, EnPassantSquareAndClocks) {
-    std::string fen = "4k3/8/8/3pP3/8/8/8/4K3 w - d6 10 20";
+TEST(FenParserTest, EnPassantSquareAndClocks) {
+    std::string fen = std::string(board_test::fen::en_passant_d6_with_clocks);
     FenParser   parser(fen);
     EXPECT_EQ(parser.pieces.size(), 4);
     EXPECT_EQ(parser.turn, WHITE);
@@ -36,20 +38,20 @@ TEST(FenParserTests, EnPassantSquareAndClocks) {
     EXPECT_EQ(parser.fullmove_clk, 38);
 }
 
-TEST(FenParserTests, FourFieldFenDefaultsClocks) {
+TEST(FenParserTest, FourFieldFenDefaultsClocks) {
     FenParser parser("4k3/8/8/8/8/8/8/4K3 b - -");
     EXPECT_EQ(parser.turn, BLACK);
     EXPECT_EQ(parser.halfmove_clk, 0);
     EXPECT_EQ(parser.fullmove_clk, 1);
 }
 
-TEST(FenParserTests, MaxHalfmoveAndLongFullmove) {
-    FenParser parser("4k3/8/8/8/8/8/8/4K3 w - - 255 300");
+TEST(FenParserTest, MaxHalfmoveAndLongFullmove) {
+    FenParser parser(board_test::fen::max_halfmove_long_fullmove);
     EXPECT_EQ(+parser.halfmove_clk, 255);
     EXPECT_EQ(parser.fullmove_clk, 598);
 }
 
-TEST(FenParserTests, InvalidFEN) {
+TEST(FenParserTest, InvalidFen) {
     const std::vector<std::string> invalid_fens = {
         "invalid fen string",
         "4k3/8/8/8/8/8/8/4K3 w - - 0",

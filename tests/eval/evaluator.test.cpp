@@ -8,28 +8,29 @@
 #include "core/bitboard.hpp"
 #include "eval/eval.hpp"
 #include "eval/tapered_score.hpp"
-#include "support/test_util.hpp"
+#include "support/board_fixtures.hpp"
+#include "support/board_harness.hpp"
 
 class EvaluatorTest : public ::testing::Test {
 protected:
     void test_outpost_zone(std::string fen, Bitboard w_expected, Bitboard b_expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         EXPECT_EQ(e.zones.outposts[WHITE], w_expected) << fen;
         EXPECT_EQ(e.zones.outposts[BLACK], b_expected) << fen;
     }
 
     void test_mobility_zone(std::string fen, Bitboard w_expected, Bitboard b_expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         EXPECT_EQ(e.zones.mobility[WHITE], w_expected) << fen;
         EXPECT_EQ(e.zones.mobility[BLACK], b_expected) << fen;
     }
 
     void
     test_mobility_score(const std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         e.evaluate();
         EXPECT_EQ(e.scores.mobility[WHITE], w_expected) << fen;
         EXPECT_EQ(e.scores.mobility[BLACK], b_expected) << fen;
@@ -38,7 +39,7 @@ protected:
     template <Color C, PieceType P>
     Bitboard test_piece_moves(const std::string& fen, Square sq) {
         constexpr Color         Opp = ~C;
-        TestBoard               board(fen);
+        board_test::Harness     board(fen);
         Evaluator               e(board);
         Evaluator::PieceContext ctx{.square    = sq,
                                     .piece_bb  = bb::set(sq),
@@ -50,41 +51,41 @@ protected:
 
     void
     test_threat_score(const std::string& fen, TaperedScore w_expected, TaperedScore b_expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         e.evaluate();
         EXPECT_EQ(e.scores.threats[WHITE], w_expected) << fen;
         EXPECT_EQ(e.scores.threats[BLACK], b_expected) << fen;
     }
 
     void test_evaluate_pawns(std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         EXPECT_EQ(e.evaluate_pawns<WHITE>(), w_expected) << fen;
         EXPECT_EQ(e.evaluate_pawns<BLACK>(), b_expected) << fen;
     }
 
     template <PieceType p>
     void test_evaluate_pieces(std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
-        TestBoard    board(fen);
-        Evaluator    e(board);
-        TaperedScore w_score = e.evaluate_pieces<WHITE, p>();
-        TaperedScore b_score = e.evaluate_pieces<BLACK, p>();
+        board_test::Harness board(fen);
+        Evaluator           e(board);
+        TaperedScore        w_score = e.evaluate_pieces<WHITE, p>();
+        TaperedScore        b_score = e.evaluate_pieces<BLACK, p>();
         EXPECT_EQ(w_score, w_expected) << fen;
         EXPECT_EQ(b_score, b_expected) << fen;
     }
 
     void test_king_safety(std::string fen, TaperedScore expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         e.evaluate();
         EXPECT_EQ(e.evaluate_king_safety<WHITE>(), expected) << fen;
         EXPECT_EQ(e.evaluate_king_safety<BLACK>(), expected) << fen;
     }
 
     void test_shelter(std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         EXPECT_EQ(e.evaluate_shelter<WHITE>(board.king_sq(WHITE)), w_expected) << fen;
         EXPECT_EQ(e.evaluate_shelter<BLACK>(board.king_sq(BLACK)), b_expected) << fen;
     }
@@ -93,43 +94,43 @@ protected:
                            TaperedScore w_expected,
                            TaperedScore b_expected,
                            File         file) {
-        TestBoard board(fen);
-        Evaluator e(board);
-        Bitboard  w_pawns = board.pieces<PAWN>(WHITE);
-        Bitboard  b_pawns = board.pieces<PAWN>(BLACK);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
+        Bitboard            w_pawns = board.pieces<PAWN>(WHITE);
+        Bitboard            b_pawns = board.pieces<PAWN>(BLACK);
         EXPECT_EQ(e.evaluate_shelter_file<WHITE>(w_pawns, b_pawns, file), w_expected) << fen;
         EXPECT_EQ(e.evaluate_shelter_file<BLACK>(b_pawns, w_pawns, file), b_expected) << fen;
     }
 
     void test_raw_danger(std::string fen, int w_expected, int b_expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         e.evaluate();
         EXPECT_EQ(e.calculate_raw_danger<WHITE>(board.king_sq(WHITE)), w_expected) << fen;
         EXPECT_EQ(e.calculate_raw_danger<BLACK>(board.king_sq(BLACK)), b_expected) << fen;
     }
 
     void test_phase(std::string fen, int expected, int tolerance) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         EXPECT_LE(std::abs(e.phase() - expected), tolerance) << fen;
     }
 
     void test_scale_factor(std::string fen, int expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         EXPECT_EQ(e.scale_factor(board.side_to_move()), expected) << fen;
     }
 
     void test_taper_score(std::string fen, TaperedScore score, int expected) {
-        TestBoard board(fen);
-        Evaluator e(board);
+        board_test::Harness board(fen);
+        Evaluator           e(board);
         EXPECT_EQ(e.taper_score(score), expected) << fen;
     }
 
     std::string debug_output(const std::string& fen) {
-        TestBoard      board(fen);
-        EvaluatorDebug debug(board);
+        board_test::Harness board(fen);
+        EvaluatorDebug      debug(board);
         debug.evaluate();
         return std::format("{}", debug);
     }
@@ -137,12 +138,12 @@ protected:
 
 TEST_F(EvaluatorTest, Evaluate) {
     std::vector<std::tuple<std::string, int>> test_cases = {
-        {EMPTYFEN, 0},
-        {STARTFEN, 0},
+        {board_test::fen::kings_only, 0},
+        {board_test::fen::start, 0},
     };
 
     for (const auto& [fen, expected] : test_cases) {
-        TestBoard board(fen);
+        board_test::Harness board(fen);
         EXPECT_EQ(evaluate(board), expected + eval::tempo_bonus) << fen;
         board.make_null();
         EXPECT_EQ(evaluate(board), expected + eval::tempo_bonus) << fen;
@@ -150,8 +151,8 @@ TEST_F(EvaluatorTest, Evaluate) {
 }
 
 TEST_F(EvaluatorTest, SideToMoveOnlyChangesPerspectiveAndTempo) {
-    TestBoard white_to_move("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
-    TestBoard black_to_move("4k3/8/8/8/8/8/4P3/4K3 b - - 0 1");
+    board_test::Harness white_to_move(board_test::fen::white_pawn_e2);
+    board_test::Harness black_to_move("4k3/8/8/8/8/8/4P3/4K3 b - - 0 1");
 
     const int white_eval = evaluate(white_to_move);
     const int black_eval = evaluate(black_to_move);
@@ -162,7 +163,7 @@ TEST_F(EvaluatorTest, SideToMoveOnlyChangesPerspectiveAndTempo) {
 }
 
 TEST_F(EvaluatorTest, NullMoveOnlyChangesPerspectiveAndTempo) {
-    TestBoard board("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
+    board_test::Harness board(board_test::fen::white_pawn_e2);
 
     const int white_eval = evaluate(board);
     board.make_null();
@@ -173,8 +174,8 @@ TEST_F(EvaluatorTest, NullMoveOnlyChangesPerspectiveAndTempo) {
 
 TEST_F(EvaluatorTest, OutpostZone) {
     std::vector<std::tuple<std::string, Bitboard, Bitboard>> test_cases = {
-        {STARTFEN, 0, 0},
-        {EMPTYFEN, 0, 0},
+        {board_test::fen::start, 0, 0},
+        {board_test::fen::kings_only, 0, 0},
         {"r4rk1/1p2pppp/1P1pn3/2p5/8/pNPPP3/P4PPP/2KRR3 w - - 0 1", 0, 0},
         {"r4rk1/pp3ppp/3p2n1/2p5/4P3/2N5/PPP2PPP/2KRR3 w - - 0 1", bb::set(D5), 0},
         {"r4rk1/pp2pppp/3pn3/2p5/2P1P3/1N6/PP3PPP/2KRR3 w - - 0 1", 0, bb::set(D4)},
@@ -190,8 +191,8 @@ TEST_F(EvaluatorTest, MobilityZone) {
     Bitboard black = bb::rank(RANK7) | bb::rank(RANK3) | bb::set(E8);
 
     std::vector<std::tuple<std::string, Bitboard, Bitboard>> test_cases = {
-        {STARTFEN, ~white, ~black},
-        {EMPTYFEN, ~bb::set(E1), ~bb::set(E8)},
+        {board_test::fen::start, ~white, ~black},
+        {board_test::fen::kings_only, ~bb::set(E1), ~bb::set(E8)},
     };
 
     for (const auto& [fen, w_expected, b_expected] : test_cases) {
@@ -201,7 +202,7 @@ TEST_F(EvaluatorTest, MobilityZone) {
 
 TEST_F(EvaluatorTest, MobilityScore) {
     std::vector<std::tuple<std::string, TaperedScore>> test_cases = {
-        {EMPTYFEN, {0}},
+        {board_test::fen::kings_only, {0}},
         // no mobility area restriction
         {"3nk3/8/8/8/8/8/8/3NK3 w - - 0 1", eval::knight_mob[4]},
         {"3bk3/8/8/8/8/8/8/3BK3 w - - 0 2", eval::bishop_mob[7]},
@@ -221,7 +222,7 @@ TEST_F(EvaluatorTest, MobilityScore) {
 }
 
 TEST_F(EvaluatorTest, PinnedPieceMobilityStaysOnPinRay) {
-    const Bitboard moves = test_piece_moves<WHITE, ROOK>("k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1", E2);
+    const Bitboard moves = test_piece_moves<WHITE, ROOK>(board_test::fen::pinned_rook, E2);
 
     EXPECT_EQ(moves & ~bb::file(FILE5), 0ULL);
     EXPECT_EQ(bb::count(moves), 7);
@@ -241,8 +242,8 @@ TEST_F(EvaluatorTest, EvaluatePawns) {
 
     std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
         // sanity check
-        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
-        {STARTFEN, TaperedScore::Zero, TaperedScore::Zero},
+        {board_test::fen::kings_only, TaperedScore::Zero, TaperedScore::Zero},
+        {board_test::fen::start, TaperedScore::Zero, TaperedScore::Zero},
         // isolated pawns
         {iso1, eval::iso_pawn, eval::iso_pawn},
         {iso2, eval::iso_pawn, TaperedScore::Zero},
@@ -265,8 +266,8 @@ TEST_F(EvaluatorTest, EvaluatePawns) {
 
 TEST_F(EvaluatorTest, KnightsScore) {
     std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
-        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
-        {STARTFEN, eval::minor_pawn_shield * 2, eval::minor_pawn_shield * 2},
+        {board_test::fen::kings_only, TaperedScore::Zero, TaperedScore::Zero},
+        {board_test::fen::start, eval::minor_pawn_shield * 2, eval::minor_pawn_shield * 2},
         // knight outposts
         {"6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1", eval::knight_outpost, TaperedScore::Zero},
         {"6k1/8/2p5/3Np1p1/4PnP1/2P5/8/6K1 w - - 0 2", TaperedScore::Zero, eval::knight_outpost},
@@ -299,8 +300,8 @@ TEST_F(EvaluatorTest, BishopsScore) {
                  twoPawnsTwoBlocked = eval::bishop_blockers * 6;
 
     std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
-        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
-        {STARTFEN, startScore, startScore},
+        {board_test::fen::kings_only, TaperedScore::Zero, TaperedScore::Zero},
+        {board_test::fen::start, startScore, startScore},
         // bishop outposts
         {"6k1/8/2p5/4pBp1/4P1P1/2P3b1/8/6K1 w - - 0 1", hasOutpost, noOutpost},
         {"6k1/8/2p3B1/4p1p1/4PbP1/2P5/8/6K1 w - - 0 2", noOutpost, hasOutpost},
@@ -327,8 +328,8 @@ TEST_F(EvaluatorTest, BishopsScore) {
 
 TEST_F(EvaluatorTest, RookScore) {
     std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
-        {STARTFEN, TaperedScore::Zero, TaperedScore::Zero},
-        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
+        {board_test::fen::start, TaperedScore::Zero, TaperedScore::Zero},
+        {board_test::fen::kings_only, TaperedScore::Zero, TaperedScore::Zero},
         {"6kr/8/8/8/8/8/8/RK6 w - - 0 1", eval::rook_open_file[1], eval::rook_open_file[1]},
         {"6kr/p7/8/8/8/8/7P/RK6 w - - 0 2", eval::rook_open_file[0], eval::rook_open_file[0]},
         {"rn5k/8/8/p7/P7/8/8/RN5K w - - 0 3", eval::rook_closed_file, eval::rook_closed_file},
@@ -341,8 +342,8 @@ TEST_F(EvaluatorTest, RookScore) {
 
 TEST_F(EvaluatorTest, QueenScore) {
     std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
-        {STARTFEN, TaperedScore::Zero, TaperedScore::Zero},
-        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
+        {board_test::fen::start, TaperedScore::Zero, TaperedScore::Zero},
+        {board_test::fen::kings_only, TaperedScore::Zero, TaperedScore::Zero},
         // bishop discovered attack
         {"3qk3/2P5/1P6/B7/b7/1p6/8/3QK3 w - - 0 1", eval::queen_discover_att, TaperedScore::Zero},
         {"3qk3/8/1P6/B7/b7/1p6/2p5/3QK3 w - - 0 2", TaperedScore::Zero, eval::queen_discover_att},
@@ -358,7 +359,7 @@ TEST_F(EvaluatorTest, QueenScore) {
 
 TEST_F(EvaluatorTest, ThreatScore) {
     std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
-        {EMPTYFEN, TaperedScore::Zero, TaperedScore::Zero},
+        {board_test::fen::kings_only, TaperedScore::Zero, TaperedScore::Zero},
         {"4k3/8/8/7b/8/8/r3N3/4K3 w - - 0 1", eval::weak_piece[KNIGHT], TaperedScore::Zero},
         {"4k3/8/R3n3/8/7B/8/8/4K3 w - - 0 2", TaperedScore::Zero, eval::weak_piece[KNIGHT]},
     };
@@ -388,8 +389,8 @@ TEST_F(EvaluatorTest, KingSafety) {
                          eval::king_file[FILE7] + eval::king_open_file[false][false];
 
     std::vector<std::tuple<std::string, TaperedScore>> test_cases = {
-        {EMPTYFEN, empty},
-        {STARTFEN, start},
+        {board_test::fen::kings_only, empty},
+        {board_test::fen::start, start},
     };
 
     for (const auto& [fen, expected] : test_cases) {
@@ -414,8 +415,8 @@ TEST_F(EvaluatorTest, Shelter) {
                             eval::king_file[int(FILE1)] + eval::king_open_file[false][false];
 
     std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
-        {EMPTYFEN, empty, empty},
-        {STARTFEN, start, start},
+        {board_test::fen::kings_only, empty, empty},
+        {board_test::fen::start, start, start},
         {"k7/8/p7/1pP5/1Pp5/P7/8/K7 w - - 0 1", blocked, blocked},
         {"7k/5ppp/8/8/8/8/PPP5/K7 w - - 0 2", semiopen1, semiopen1},
         {"k7/5ppp/8/8/8/8/PPP5/7K w - - 0 3", semiopen2, semiopen2},
@@ -434,8 +435,8 @@ TEST_F(EvaluatorTest, FileShelter) {
     TaperedScore blocked = shelter({RANK4}, {}, {RANK5});
 
     std::vector<std::tuple<std::string, TaperedScore, TaperedScore, File>> test_cases = {
-        {EMPTYFEN, empty, empty, FILE5},
-        {STARTFEN, start, start, FILE5},
+        {board_test::fen::kings_only, empty, empty, FILE5},
+        {board_test::fen::start, start, start, FILE5},
         {"1k6/8/8/1p6/1P6/8/8/1K6 w - - 0 1", blocked, blocked, FILE2},
     };
 
@@ -450,8 +451,8 @@ TEST_F(EvaluatorTest, RawDanger) {
 
     std::vector<std::tuple<std::string, int, int>> test_cases = {
         // No danger
-        {EMPTYFEN, 0, 0},
-        {STARTFEN, 0, 0},
+        {board_test::fen::kings_only, 0, 0},
+        {board_test::fen::start, 0, 0},
         // unsafe rook checks
         {"4k3/5n2/8/8/8/8/4P3/4K1NR w - - 0 2", 0, eval::unsafe_check_danger[ROOK]},
         {"4k1nr/4p3/8/8/8/8/5N2/4K3 w - - 0 3", eval::unsafe_check_danger[ROOK], 0},
@@ -467,8 +468,8 @@ TEST_F(EvaluatorTest, RawDanger) {
 
 TEST_F(EvaluatorTest, ScaleFactor) {
     std::vector<std::pair<std::string, int>> test_cases = {
-        {EMPTYFEN, 36},
-        {STARTFEN, eval::scale_limit},
+        {board_test::fen::kings_only, 36},
+        {board_test::fen::start, eval::scale_limit},
         {"4k3/8/8/8/8/8/4P3/4K3 w K - 0 1", 41}, // Single pawn
     };
 
@@ -479,8 +480,8 @@ TEST_F(EvaluatorTest, ScaleFactor) {
 
 TEST_F(EvaluatorTest, TaperScore) {
     std::vector<std::tuple<std::string, TaperedScore, int>> test_cases = {
-        {EMPTYFEN, {100, 200}, 200},
-        {STARTFEN, {100, 200}, 100},
+        {board_test::fen::kings_only, {100, 200}, 200},
+        {board_test::fen::start, {100, 200}, 100},
     };
 
     for (const auto& [fen, score, expected] : test_cases) {
@@ -490,8 +491,8 @@ TEST_F(EvaluatorTest, TaperScore) {
 
 TEST_F(EvaluatorTest, Phase) {
     std::vector<std::tuple<std::string, int, int>> test_cases = {
-        {STARTFEN, eval::phase_limit, 0},
-        {EMPTYFEN, 0, 0},
+        {board_test::fen::start, eval::phase_limit, 0},
+        {board_test::fen::kings_only, 0, 0},
         {"krrnBRRK/8/8/8/8/8/8/8 w - - 0 1", 50, 10},
         {"kr4RK/8/8/8/8/8/8/8 w - - 0 1", 0, 0},
     };
@@ -502,7 +503,7 @@ TEST_F(EvaluatorTest, Phase) {
 }
 
 TEST_F(EvaluatorTest, DebugOutputContainsStableTermBreakdown) {
-    const std::string output = debug_output(STARTFEN);
+    const std::string output = debug_output(board_test::fen::start);
 
     EXPECT_NE(output.find("Term"), std::string::npos);
     EXPECT_NE(output.find("Material"), std::string::npos);

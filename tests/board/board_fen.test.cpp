@@ -1,94 +1,77 @@
-#include "board/board.hpp"
-
 #include <gtest/gtest.h>
 
+#include <array>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
-#include "support/test_util.hpp"
+#include "support/board_fixtures.hpp"
+#include "support/board_harness.hpp"
+#include "support/board_snapshot.hpp"
 
 namespace {
 
-const std::string round_trip_fens[] = {
-    STARTFEN,
-    POS2,
-    POS3,
-    POS4W,
-    POS4B,
-    POS5,
-    POS6,
-    EMPTYFEN,
-    ENPASSANT_A3,
-    E2E4,
-    "4k3/8/8/8/4P3/8/8/4K3 b - e3 0 1",
+constexpr std::array<std::string_view, 13> round_trip_fens = {
+    board_test::fen::start,
+    board_test::fen::perft_position_2,
+    board_test::fen::perft_position_3,
+    board_test::fen::perft_position_4_white,
+    board_test::fen::perft_position_4_black,
+    board_test::fen::perft_position_5,
+    board_test::fen::perft_position_6,
+    board_test::fen::kings_only,
+    board_test::fen::legal_en_passant_a3,
+    board_test::fen::after_e2e4,
+    board_test::fen::unhashable_en_passant_e3,
+    board_test::fen::en_passant_d6_with_clocks,
+    std::string_view{"r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 255 300"},
 };
 
-void expect_same_reloaded_state(const std::string& fen) {
-    TestBoard board(fen);
-    TestBoard reloaded(board.toFEN());
-
-    EXPECT_EQ(reloaded.toFEN(), board.toFEN());
-    EXPECT_EQ(reloaded.side_to_move(), board.side_to_move());
-    EXPECT_EQ(reloaded.castle_rights(), board.castle_rights());
-    EXPECT_EQ(reloaded.enpassant_sq(), board.enpassant_sq());
-    EXPECT_EQ(reloaded.halfmove(), board.halfmove());
-    EXPECT_EQ(reloaded.fullmove(), board.fullmove());
-    EXPECT_EQ(reloaded.material_score(), board.material_score());
-    EXPECT_EQ(reloaded.psq_bonus_score(), board.psq_bonus_score());
-    EXPECT_EQ(reloaded.checkers(), board.checkers());
-    EXPECT_EQ(reloaded.blockers(WHITE), board.blockers(WHITE));
-    EXPECT_EQ(reloaded.blockers(BLACK), board.blockers(BLACK));
-    EXPECT_EQ(reloaded.key(), board.key());
+void expect_same_reloaded_state(std::string_view fen) {
+    board_test::Harness board(fen);
+    board_test::Harness reloaded(board.toFEN());
+    board_test::expect_same_board_snapshot(reloaded, board_test::snapshot_board(board));
     EXPECT_EQ(reloaded.key(), reloaded.calculate_key());
-
-    for (auto sq = A1; sq != INVALID; ++sq)
-        EXPECT_EQ(reloaded.piece_on(sq), board.piece_on(sq)) << sq;
-
-    for (int c = BLACK; c < N_COLORS; ++c)
-        for (int p = PAWN; p <= KING; ++p)
-            EXPECT_EQ(reloaded.count(Color(c), PieceType(p)), board.count(Color(c), PieceType(p)));
 }
 
 } // namespace
 
 TEST(BoardFenTest, LoadsAndOutputsCorrectFens) {
-    for (auto fen : round_trip_fens) {
-        EXPECT_EQ(TestBoard(fen).toFEN(), fen) << "should return identical fen";
+    for (const std::string_view fen : round_trip_fens) {
+        SCOPED_TRACE(fen);
+        EXPECT_EQ(board_test::Harness(fen).toFEN(), fen) << "should return identical fen";
     }
 }
 
 TEST(BoardFenTest, FourFieldFenNormalizesClocks) {
-    EXPECT_EQ(TestBoard("4k3/8/8/8/8/8/8/4K3 w - -").toFEN(), EMPTYFEN);
-    EXPECT_EQ(TestBoard("4k3/8/8/8/8/8/8/4K3 b - -").toFEN(), "4k3/8/8/8/8/8/8/4K3 b - - 0 1");
+    EXPECT_EQ(board_test::Harness("4k3/8/8/8/8/8/8/4K3 w - -").toFEN(),
+              board_test::fen::kings_only);
+    EXPECT_EQ(board_test::Harness("4k3/8/8/8/8/8/8/4K3 b - -").toFEN(),
+              "4k3/8/8/8/8/8/8/4K3 b - - 0 1");
 }
 
 TEST(BoardFenTest, MaxHalfmoveAndLongFullmoveFensRoundTrip) {
-    const std::string white = "4k3/8/8/8/8/8/8/4K3 w - - 255 300";
+    const std::string white = board_test::fen::max_halfmove_long_fullmove;
     const std::string black = "4k3/8/8/8/8/8/8/4K3 b - - 255 300";
 
-    EXPECT_EQ(TestBoard(white).toFEN(), white);
-    EXPECT_EQ(TestBoard(black).toFEN(), black);
-    EXPECT_EQ(+TestBoard(white).halfmove(), 255);
-    EXPECT_EQ(TestBoard(white).fullmove(), 300);
+    EXPECT_EQ(board_test::Harness(white).toFEN(), white);
+    EXPECT_EQ(board_test::Harness(black).toFEN(), black);
+    EXPECT_EQ(+board_test::Harness(white).halfmove(), 255);
+    EXPECT_EQ(board_test::Harness(white).fullmove(), 300);
 }
 
 TEST(BoardFenTest, PreservesRawUnhashableEnPassantSquare) {
-    const std::string fen = "4k3/8/8/8/4P3/8/8/4K3 b - e3 0 1";
-    TestBoard         board(fen);
+    board_test::Harness board(board_test::fen::unhashable_en_passant_e3);
 
     EXPECT_EQ(board.enpassant_sq(), E3);
     EXPECT_EQ(board.legal_enpassant_sq(), INVALID);
-    EXPECT_EQ(board.toFEN(), fen);
+    EXPECT_EQ(board.toFEN(), board_test::fen::unhashable_en_passant_e3);
 }
 
 TEST(BoardFenTest, InvalidFenDoesNotMutateBoard) {
-    TestBoard board(E2E4);
-
-    const auto         fen      = board.toFEN();
-    const auto         key      = board.key();
-    const TaperedScore material = board.material_score();
-    const TaperedScore psq      = board.psq_bonus_score();
+    board_test::Harness board(board_test::fen::after_e2e4);
+    const auto          before = board_test::snapshot_board(board);
 
     const std::vector<std::string> invalid_fens = {
         "4k3/8/8/8/8/8/8/4K3 w - - 0",
@@ -101,25 +84,16 @@ TEST(BoardFenTest, InvalidFenDoesNotMutateBoard) {
     };
 
     for (const auto& invalid_fen : invalid_fens) {
+        SCOPED_TRACE(invalid_fen);
         EXPECT_THROW(board.load_fen(invalid_fen), std::invalid_argument) << invalid_fen;
-        EXPECT_EQ(board.toFEN(), fen);
-        EXPECT_EQ(board.key(), key);
-        EXPECT_EQ(board.material_score(), material);
-        EXPECT_EQ(board.psq_bonus_score(), psq);
+        board_test::expect_same_board_snapshot(board, before);
         EXPECT_EQ(board.key(), board.calculate_key());
     }
 }
 
 TEST(BoardFenTest, ReloadingFenReproducesLoadedPosition) {
-    const std::vector<std::string> fens = {
-        STARTFEN,
-        POS2,
-        ENPASSANT_A3,
-        "4k3/8/8/3pP3/8/8/8/4K3 w - d6 10 20",
-        "4k3/8/8/8/4P3/8/8/4K3 b - e3 0 1",
-        "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 255 300",
-    };
-
-    for (const auto& fen : fens)
+    for (const std::string_view fen : round_trip_fens) {
+        SCOPED_TRACE(fen);
         expect_same_reloaded_state(fen);
+    }
 }

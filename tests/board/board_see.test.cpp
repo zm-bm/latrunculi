@@ -6,7 +6,8 @@
 #include <gtest/gtest.h>
 
 #include "movegen/movegen.hpp"
-#include "support/test_util.hpp"
+#include "support/board_fixtures.hpp"
+#include "support/board_harness.hpp"
 
 namespace {
 
@@ -28,80 +29,81 @@ void expect_see_at_least_matches_exact(const Board& board, Move move) {
 
 } // namespace
 
-TEST(BoardTest, static_exchange_basic) {
-    TestBoard b("1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - -");
+TEST(BoardSeeTest, BasicExchange) {
+    board_test::Harness b("1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - -");
     EXPECT_EQ(b.seeMove(Move(E1, E5)), eval::piece(PAWN).mg);
 }
 
-TEST(BoardTest, static_exchange_trade) {
-    TestBoard b("1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - -");
+TEST(BoardSeeTest, TradesPieces) {
+    board_test::Harness b("1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - -");
     EXPECT_EQ(b.seeMove(Move(D3, E5)), eval::piece(PAWN).mg - eval::piece(KNIGHT).mg);
 }
 
-TEST(BoardTest, static_exchange_prefers_pawn_over_knight_recapturer) {
-    TestBoard b("7k/1B1p4/4p3/P2p4/2P5/2n5/8/K7 w - - 0 1");
+TEST(BoardSeeTest, PrefersPawnOverKnightRecapturer) {
+    board_test::Harness b("7k/1B1p4/4p3/P2p4/2P5/2n5/8/K7 w - - 0 1");
     EXPECT_EQ(b.seeMove(Move(B7, D5)), eval::piece(PAWN).mg - eval::piece(BISHOP).mg);
 }
 
-TEST(BoardTest, static_exchange_handles_king_recapture) {
-    TestBoard b("8/8/4k3/3p4/3Q4/8/8/K7 w - - 0 1");
+TEST(BoardSeeTest, HandlesKingRecapture) {
+    board_test::Harness b("8/8/4k3/3p4/3Q4/8/8/K7 w - - 0 1");
     EXPECT_EQ(b.seeMove(Move(D4, D5)), eval::piece(PAWN).mg - eval::piece(QUEEN).mg);
 }
 
-TEST(BoardTest, static_exchange_disallows_attacked_king_recapture) {
-    TestBoard b("8/8/4k3/3p4/3Q4/8/8/K2R4 w - - 0 1");
+TEST(BoardSeeTest, DisallowsAttackedKingRecapture) {
+    board_test::Harness b("8/8/4k3/3p4/3Q4/8/8/K2R4 w - - 0 1");
     EXPECT_EQ(b.seeMove(Move(D4, D5)), eval::piece(PAWN).mg);
 }
 
-TEST(BoardTest, static_exchange_accounts_for_capture_promotion) {
-    TestBoard b("4k2r/6P1/8/8/8/8/8/K7 w - - 0 1");
+TEST(BoardSeeTest, AccountsForCapturePromotion) {
+    board_test::Harness b("4k2r/6P1/8/8/8/8/8/K7 w - - 0 1");
     EXPECT_EQ(b.seeMove(Move(G7, H8, MOVE_PROM, QUEEN)),
               eval::piece(ROOK).mg + eval::piece(QUEEN).mg - eval::piece(PAWN).mg);
 }
 
-TEST(BoardTest, static_exchange_en_passant_uses_pawn_victim) {
-    TestBoard b(ENPASSANT_A3);
+TEST(BoardSeeTest, EnPassantUsesPawnVictim) {
+    board_test::Harness b(board_test::fen::legal_en_passant_a3);
     EXPECT_EQ(b.seeMove(Move(B4, A3, MOVE_EP)), eval::piece(PAWN).mg);
 }
 
-TEST(BoardTest, static_exchange_at_least_matches_exact_fixtures) {
+TEST(BoardSeeTest, ThresholdMatchesExactFixtures) {
     {
-        TestBoard b("1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - -");
+        board_test::Harness b("1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - -");
         expect_see_at_least_matches_exact(b, Move(E1, E5));
     }
     {
-        TestBoard b("1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - -");
+        board_test::Harness b("1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - -");
         expect_see_at_least_matches_exact(b, Move(D3, E5));
     }
     {
-        TestBoard b("8/8/4k3/3p4/3Q4/8/8/K2R4 w - - 0 1");
+        board_test::Harness b("8/8/4k3/3p4/3Q4/8/8/K2R4 w - - 0 1");
         expect_see_at_least_matches_exact(b, Move(D4, D5));
     }
     {
-        TestBoard b("4k2r/6P1/8/8/8/8/8/K7 w - - 0 1");
+        board_test::Harness b("4k2r/6P1/8/8/8/8/8/K7 w - - 0 1");
         expect_see_at_least_matches_exact(b, Move(G7, H8, MOVE_PROM, QUEEN));
     }
     {
-        TestBoard b(ENPASSANT_A3);
+        board_test::Harness b(board_test::fen::legal_en_passant_a3);
         expect_see_at_least_matches_exact(b, Move(B4, A3, MOVE_EP));
     }
 }
 
-TEST(BoardTest, static_exchange_at_least_matches_exact_generated_noisy_moves) {
-    for (std::string_view fen : std::array{std::string_view{STARTFEN},
-                                           std::string_view{POS2},
-                                           std::string_view{POS3},
-                                           std::string_view{POS4W},
-                                           std::string_view{POS4B},
-                                           std::string_view{POS5},
-                                           std::string_view{POS6},
-                                           std::string_view{ENPASSANT_A3},
-                                           ARASAN20_01,
-                                           ARASAN20_08,
-                                           ARASAN20_16,
-                                           ARASAN20_21,
-                                           ARASAN20_30}) {
-        TestBoard b{std::string(fen)};
+TEST(BoardSeeTest, ThresholdMatchesExactGeneratedNoisyMoves) {
+    for (std::string_view fen :
+         std::array{std::string_view{board_test::fen::start},
+                    std::string_view{board_test::fen::perft_position_2},
+                    std::string_view{board_test::fen::perft_position_3},
+                    std::string_view{board_test::fen::perft_position_4_white},
+                    std::string_view{board_test::fen::perft_position_4_black},
+                    std::string_view{board_test::fen::perft_position_5},
+                    std::string_view{board_test::fen::perft_position_6},
+                    std::string_view{board_test::fen::legal_en_passant_a3},
+                    ARASAN20_01,
+                    ARASAN20_08,
+                    ARASAN20_16,
+                    ARASAN20_21,
+                    ARASAN20_30}) {
+        board_test::Harness b{fen};
         SCOPED_TRACE(fen);
 
         const MoveList moves =

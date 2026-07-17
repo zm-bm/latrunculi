@@ -7,7 +7,9 @@
 #include <gtest/gtest.h>
 
 #include "core/constants.hpp"
-#include "support/test_util.hpp"
+#include "support/board_fixtures.hpp"
+#include "support/board_harness.hpp"
+#include "support/board_snapshot.hpp"
 
 namespace {
 
@@ -22,31 +24,31 @@ struct PerftPosition {
 
 const std::vector<PerftPosition> perft_positions = {
     {
-        .fen      = STARTFEN,
+        .fen      = board_test::fen::start,
         .expected = {20, 400, 8902, 197281, 4865609, 119060324},
     },
     {
-        .fen      = POS2,
+        .fen      = board_test::fen::perft_position_2,
         .expected = {48, 2039, 97862, 4085603, 193690690, 8031647685},
     },
     {
-        .fen      = POS3,
+        .fen      = board_test::fen::perft_position_3,
         .expected = {14, 191, 2812, 43238, 674624, 11030083},
     },
     {
-        .fen      = POS4W,
+        .fen      = board_test::fen::perft_position_4_white,
         .expected = {6, 264, 9467, 422333, 15833292, 706045033},
     },
     {
-        .fen      = POS4B,
+        .fen      = board_test::fen::perft_position_4_black,
         .expected = {6, 264, 9467, 422333, 15833292, 706045033},
     },
     {
-        .fen      = POS5,
+        .fen      = board_test::fen::perft_position_5,
         .expected = {44, 1486, 62379, 2103487, 89941194},
     },
     {
-        .fen      = POS6,
+        .fen      = board_test::fen::perft_position_6,
         .expected = {46, 2079, 89890, 3894594, 164075551, 6923051137},
     },
 };
@@ -55,7 +57,7 @@ const std::vector<PerftPosition> perft_positions = {
 
 TEST(PerftTest, ChessProgrammingPositionsMatchExpectedDepths) {
     for (const auto& position : perft_positions) {
-        TestBoard board(position.fen);
+        board_test::Harness board(position.fen);
 
         for (int depth = 1; depth <= static_cast<int>(position.expected.size()); ++depth) {
             if (depth > depth_limit)
@@ -68,14 +70,14 @@ TEST(PerftTest, ChessProgrammingPositionsMatchExpectedDepths) {
 }
 
 TEST(PerftTest, DepthZeroReturnsOne) {
-    TestBoard board(STARTFEN);
+    board_test::Harness board(board_test::fen::start);
 
     EXPECT_EQ(perft(board, 0), 1U);
     EXPECT_EQ(format_perft_result(perft_root(board, 0)), "NODES: 1\n");
 }
 
 TEST(PerftTest, RootReturnsMoveBreakdown) {
-    TestBoard board(STARTFEN);
+    board_test::Harness board(board_test::fen::start);
 
     const PerftResult result = perft_root(board, 1);
 
@@ -89,7 +91,7 @@ TEST(PerftTest, RootReturnsMoveBreakdown) {
 }
 
 TEST(PerftTest, RejectsInvalidDepths) {
-    TestBoard board(STARTFEN);
+    board_test::Harness board(board_test::fen::start);
 
     EXPECT_THROW(perft(board, -1), std::invalid_argument);
     EXPECT_THROW(perft_root(board, -1), std::invalid_argument);
@@ -98,22 +100,16 @@ TEST(PerftTest, RejectsInvalidDepths) {
 }
 
 TEST(PerftTest, RestoresBoardState) {
-    TestBoard  board(POS2);
-    const auto original_fen = board.toFEN();
-    const auto original_key = board.key();
+    board_test::Harness board(board_test::fen::perft_position_2);
+    const auto          original = board_test::snapshot_board(board);
 
     EXPECT_GT(perft(board, 2), 0U);
+    board_test::expect_same_board_snapshot(board, original);
 
-    EXPECT_EQ(board.toFEN(), original_fen);
-    EXPECT_EQ(board.key(), original_key);
-
-    TestBoard  root_board(POS2);
-    const auto original_root_fen = root_board.toFEN();
-    const auto original_root_key = root_board.key();
+    board_test::Harness root_board(board_test::fen::perft_position_2);
+    const auto          original_root = board_test::snapshot_board(root_board);
 
     const PerftResult result = perft_root(root_board, 2);
     EXPECT_GT(result.nodes, 0U);
-
-    EXPECT_EQ(root_board.toFEN(), original_root_fen);
-    EXPECT_EQ(root_board.key(), original_root_key);
+    board_test::expect_same_board_snapshot(root_board, original_root);
 }
