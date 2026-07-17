@@ -6,10 +6,13 @@
 #include "core/bitboard.hpp"
 #include "core/types.hpp"
 
+// Zero-based board ranks; RANK1 is the least-significant rank.
 enum Rank : std::int8_t { RANK1, RANK2, RANK3, RANK4, RANK5, RANK6, RANK7, RANK8 };
 
+// Zero-based board files; FILE1 is the A-file.
 enum File : std::int8_t { FILE1, FILE2, FILE3, FILE4, FILE5, FILE6, FILE7, FILE8 };
 
+// Little-endian rank-file square encoding: A1 is 0, H8 is 63.
 enum Square : std::int8_t {
     // clang-format off
     A1, B1, C1, D1, E1, F1, G1, H1,
@@ -25,6 +28,7 @@ enum Square : std::int8_t {
     N_SQUARES = 64
 };
 
+// Pawn movement deltas in the A1=0 layout, measured from White's perspective.
 namespace pawn_delta {
 
 inline constexpr int left        = 7;
@@ -36,6 +40,7 @@ inline constexpr int double_push = 16;
 
 namespace square {
 
+// Single-step square deltas in the A1=0 layout.
 inline constexpr int north_east = 9;
 inline constexpr int north      = 8;
 inline constexpr int north_west = 7;
@@ -45,22 +50,27 @@ inline constexpr int south_east = -7;
 inline constexpr int south      = -8;
 inline constexpr int south_west = -9;
 
+// Builds a square from zero-based file and rank.
 constexpr Square make(const File file, const Rank rank) {
     return static_cast<Square>((rank << 3) + file);
 }
 
+// Maps sq to the same relative square from color c's side.
 constexpr Square relative(const Square sq, const Color c) {
     return static_cast<Square>(sq ^ ((c - 1) & 63));
 }
 
+// Extracts the zero-based rank from the square encoding.
 constexpr Rank rank_of(const Square square) {
     return static_cast<Rank>(square >> 3);
 }
 
+// Extracts the zero-based file from the square encoding.
 constexpr File file_of(const Square square) {
     return static_cast<File>(square & 7);
 }
 
+// Rank number from color's side of the board.
 constexpr Rank relative_rank(const Square square, const Color color) {
     return static_cast<Rank>(rank_of(square) ^ (~color * 7));
 }
@@ -71,6 +81,7 @@ namespace tables {
 using SquareDistanceTable = std::array<std::array<std::uint8_t, N_SQUARES>, N_SQUARES>;
 using SquareMaskTable     = std::array<std::array<Bitboard, N_SQUARES>, N_SQUARES>;
 
+// Chebyshev distance value for one square pair.
 constexpr std::uint8_t distance_value(Square sq1, Square sq2) {
     const int file_diff = file_of(sq1) - file_of(sq2);
     const int rank_diff = rank_of(sq1) - rank_of(sq2);
@@ -81,6 +92,7 @@ constexpr std::uint8_t distance_value(Square sq1, Square sq2) {
     return (file_distance > rank_distance) ? file_distance : rank_distance;
 }
 
+// Builds all pairwise king-move distances.
 constexpr SquareDistanceTable make_distance_table() {
     SquareDistanceTable table = {};
     for (int sq1 = A1; sq1 < N_SQUARES; ++sq1) {
@@ -90,6 +102,7 @@ constexpr SquareDistanceTable make_distance_table() {
     return table;
 }
 
+// Extends a rank/file/diagonal ray in both table-builder directions.
 constexpr Bitboard collinear_helper(int file, int rank, int file_delta, int rank_delta) {
     Bitboard mask = 0;
     while (0 <= rank && rank < 8 && 0 <= file && file < 8) {
@@ -100,6 +113,7 @@ constexpr Bitboard collinear_helper(int file, int rank, int file_delta, int rank
     return mask;
 }
 
+// Full shared rank, file, or diagonal for an aligned square pair.
 constexpr Bitboard collinear_mask(Square sq1, Square sq2) {
     const int r1 = rank_of(sq1), r2 = rank_of(sq2);
     const int f1 = file_of(sq1), f2 = file_of(sq2);
@@ -118,6 +132,7 @@ constexpr Bitboard collinear_mask(Square sq1, Square sq2) {
     return 0;
 }
 
+// Builds all pairwise collinear masks.
 constexpr SquareMaskTable make_collinear_table() {
     SquareMaskTable table = {};
     for (int sq1 = A1; sq1 < N_SQUARES; ++sq1) {
@@ -127,6 +142,7 @@ constexpr SquareMaskTable make_collinear_table() {
     return table;
 }
 
+// Squares strictly between two ordered squares along a fixed delta.
 constexpr Bitboard between_helper(Square sq1, Square sq2, int delta) {
     const int min_sq = (sq1 < sq2) ? sq1 : sq2;
     const int max_sq = (sq1 < sq2) ? sq2 : sq1;
@@ -137,6 +153,7 @@ constexpr Bitboard between_helper(Square sq1, Square sq2, int delta) {
     return mask;
 }
 
+// Strict between mask for an aligned square pair.
 constexpr Bitboard between_mask(Square sq1, Square sq2) {
     const int r1 = rank_of(sq1), r2 = rank_of(sq2);
     const int f1 = file_of(sq1), f2 = file_of(sq2);
@@ -153,6 +170,7 @@ constexpr Bitboard between_mask(Square sq1, Square sq2) {
     return 0;
 }
 
+// Builds all pairwise between masks.
 constexpr SquareMaskTable make_between_table() {
     SquareMaskTable table = {};
     for (int sq1 = A1; sq1 < N_SQUARES; ++sq1) {
@@ -162,6 +180,7 @@ constexpr SquareMaskTable make_between_table() {
     return table;
 }
 
+// Precomputed geometry tables for constant-time square queries.
 constexpr SquareDistanceTable distance_table  = make_distance_table();
 constexpr SquareMaskTable     collinear_table = make_collinear_table();
 constexpr SquareMaskTable     between_table   = make_between_table();

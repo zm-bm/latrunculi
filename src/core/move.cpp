@@ -5,11 +5,13 @@
 
 #include "core/notation.hpp"
 
+// Streams the same UCI-style text returned by Move::str().
 std::ostream& operator<<(std::ostream& os, const Move& move) {
     os << move.str();
     return os;
 }
 
+// Formats a move as UCI text; NULL_MOVE is printed as "none".
 std::string Move::str() const {
     if (is_null())
         return "none";

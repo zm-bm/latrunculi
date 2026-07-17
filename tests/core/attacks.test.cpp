@@ -2,24 +2,24 @@
 
 #include <gtest/gtest.h>
 
-TEST(AttacksTest, CorrectPawnMoves) {
+TEST(AttacksTest, CorrectPawnShift) {
     Bitboard pawns = bb::set(D4);
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::push>(pawns, WHITE), bb::set(D5));
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::push>(pawns, BLACK), bb::set(D3));
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::left>(pawns, WHITE), bb::set(C5));
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::right>(pawns, WHITE), bb::set(E5));
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::left>(pawns, BLACK), bb::set(E3));
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::right>(pawns, BLACK), bb::set(C3));
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::double_push>(pawns, WHITE), bb::set(D6));
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::double_push>(pawns, BLACK), bb::set(D2));
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::push>(pawns, WHITE), bb::set(D5));
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::push>(pawns, BLACK), bb::set(D3));
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::left>(pawns, WHITE), bb::set(C5));
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::right>(pawns, WHITE), bb::set(E5));
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::left>(pawns, BLACK), bb::set(E3));
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::right>(pawns, BLACK), bb::set(C3));
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::double_push>(pawns, WHITE), bb::set(D6));
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::double_push>(pawns, BLACK), bb::set(D2));
 
     Bitboard pawns_left = bb::set(A4);
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::left>(pawns_left, WHITE), 0);
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::right>(pawns_left, BLACK), 0);
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::left>(pawns_left, WHITE), 0);
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::right>(pawns_left, BLACK), 0);
 
     Bitboard pawns_right = bb::set(H4);
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::right>(pawns_right, WHITE), 0);
-    EXPECT_EQ(attacks::pawn_moves<pawn_delta::left>(pawns_right, BLACK), 0);
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::right>(pawns_right, WHITE), 0);
+    EXPECT_EQ(attacks::pawn_shift<pawn_delta::left>(pawns_right, BLACK), 0);
 }
 
 TEST(AttacksTest, CorrectPawnAttacks) {

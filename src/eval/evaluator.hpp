@@ -271,8 +271,8 @@ TaperedScore Evaluator::evaluate_pawns() {
 
     const Bitboard pawns         = board.pieces<PAWN>(C);
     const Bitboard opp_pawns     = board.pieces<PAWN>(Opp);
-    const Bitboard left_attacks  = attacks::pawn_moves<pawn_delta::left, C>(pawns);
-    const Bitboard right_attacks = attacks::pawn_moves<pawn_delta::right, C>(pawns);
+    const Bitboard left_attacks  = attacks::pawn_shift<pawn_delta::left, C>(pawns);
+    const Bitboard right_attacks = attacks::pawn_shift<pawn_delta::right, C>(pawns);
     const Bitboard pawn_attacks  = left_attacks | right_attacks;
     const Bitboard pawn_attacks2 = left_attacks & right_attacks;
 
@@ -287,11 +287,11 @@ TaperedScore Evaluator::evaluate_pawns() {
     TaperedScore score = eval::iso_pawn * bb::count(iso_pawns);
 
     // backwards pawns: pawns that can't advance safely
-    const Bitboard stops       = attacks::pawn_moves<pawn_delta::push, C>(pawns);
+    const Bitboard stops       = attacks::pawn_shift<pawn_delta::push, C>(pawns);
     const Bitboard attack_span = bb::attack_span<C>(pawns);
     const Bitboard opp_attacks = attacks::pawn_attacks<Opp>(opp_pawns);
     const Bitboard backwards_pawns =
-        attacks::pawn_moves<pawn_delta::push, Opp>(stops & opp_attacks & ~attack_span);
+        attacks::pawn_shift<pawn_delta::push, Opp>(stops & opp_attacks & ~attack_span);
     score += eval::backward_pawn * bb::count(backwards_pawns);
 
     // doubled pawns: unsupported pawn with friendly pawns behind
@@ -440,7 +440,7 @@ inline TaperedScore Evaluator::evaluate_minor_pieces(const PieceContext& ctx,
         }
     }
 
-    if (bb::contains(attacks::pawn_moves<pawn_delta::push, Opp>(ctx.pawns), ctx.square)) {
+    if (bb::contains(attacks::pawn_shift<pawn_delta::push, Opp>(ctx.pawns), ctx.square)) {
         score += eval::minor_pawn_shield;
     }
 
@@ -473,7 +473,7 @@ inline TaperedScore Evaluator::evaluate_bishop_blockers(const PieceContext& ctx)
     const int      pawn_count  = bb::count(color_pawns);
 
     const Bitboard blocked_pawns =
-        ctx.pawns & attacks::pawn_moves<pawn_delta::push, Opp>(ctx.occupied);
+        ctx.pawns & attacks::pawn_shift<pawn_delta::push, Opp>(ctx.occupied);
     const Bitboard pawn_chain = ctx.piece_bb & attacks::pawn_attacks<C>(ctx.pawns);
     const int blocking_factor = bb::count(blocked_pawns & eval::masks::center_files) + !pawn_chain;
 
@@ -494,7 +494,7 @@ inline TaperedScore Evaluator::evaluate_rook(const PieceContext& ctx) const {
         return eval::rook_open_file[fully_open];
     }
 
-    const bool blocked = file_pawns & attacks::pawn_moves<pawn_delta::push, Opp>(ctx.occupied);
+    const bool blocked = file_pawns & attacks::pawn_shift<pawn_delta::push, Opp>(ctx.occupied);
     if (blocked) {
         return eval::rook_closed_file;
     }

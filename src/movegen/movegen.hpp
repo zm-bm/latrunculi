@@ -108,7 +108,7 @@ private:
     void pawn_enpassants(Bitboard pawns, Square enpassant) {
         constexpr int offset = (Us == WHITE) ? -Delta : Delta;
 
-        if (bb::contains(attacks::pawn_moves<Delta, Us>(pawns), enpassant))
+        if (bb::contains(attacks::pawn_shift<Delta, Us>(pawns), enpassant))
             write(enpassant + offset, enpassant, MOVE_EP);
     }
 
@@ -134,22 +134,22 @@ private:
     }
 
     void pawn_promotions(Bitboard targets, Bitboard enemies, Bitboard pawns) {
-        Bitboard push_moves = attacks::pawn_moves<pawn_delta::push, Us>(pawns) & ~occupancy;
+        Bitboard push_moves = attacks::pawn_shift<pawn_delta::push, Us>(pawns) & ~occupancy;
         if constexpr (Type == MoveGenType::Evasions)
             push_moves &= targets;
 
         pawn_promotions_to<pawn_delta::push>(push_moves);
 
-        Bitboard left_moves = attacks::pawn_moves<pawn_delta::left, Us>(pawns) & enemies;
+        Bitboard left_moves = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & enemies;
         pawn_promotions_to<pawn_delta::left>(left_moves);
 
-        Bitboard right_moves = attacks::pawn_moves<pawn_delta::right, Us>(pawns) & enemies;
+        Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & enemies;
         pawn_promotions_to<pawn_delta::right>(right_moves);
     }
 
     void pawn_captures(Bitboard targets, Bitboard enemies, Bitboard pawns) {
-        Bitboard left_moves  = attacks::pawn_moves<pawn_delta::left, Us>(pawns) & enemies;
-        Bitboard right_moves = attacks::pawn_moves<pawn_delta::right, Us>(pawns) & enemies;
+        Bitboard left_moves  = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & enemies;
+        Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & enemies;
         pawn_moves_to<pawn_delta::left>(left_moves);
         pawn_moves_to<pawn_delta::right>(right_moves);
 
@@ -170,9 +170,9 @@ private:
     void pawn_pushes(Bitboard targets, Bitboard pawns) {
         constexpr Bitboard double_push_rank = bb::relative_rank<Us>(RANK3);
 
-        Bitboard push_moves = attacks::pawn_moves<pawn_delta::push, Us>(pawns) & ~occupancy;
+        Bitboard push_moves = attacks::pawn_shift<pawn_delta::push, Us>(pawns) & ~occupancy;
         Bitboard double_push_moves =
-            attacks::pawn_moves<pawn_delta::push, Us>(push_moves & double_push_rank) & ~occupancy;
+            attacks::pawn_shift<pawn_delta::push, Us>(push_moves & double_push_rank) & ~occupancy;
 
         if constexpr (Type == MoveGenType::Evasions) {
             push_moves        &= targets;

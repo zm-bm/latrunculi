@@ -66,6 +66,7 @@ inline Bitboard bishop_moves(Square sq, Bitboard occupied) {
     return bishop_moves_table[sq][index];
 }
 
+// Queen slider attacks are the union of bishop and rook lookups.
 inline Bitboard queen_moves(Square sq, Bitboard occupied) {
     return bishop_moves(sq, occupied) | rook_moves(sq, occupied);
 }

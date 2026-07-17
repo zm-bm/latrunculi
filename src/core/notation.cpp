@@ -4,14 +4,17 @@
 
 #include <iostream>
 
+// Wraps a bitboard for board-shaped stream output.
 BitboardDebug debug_bitboard(Bitboard bitboard) {
     return {.bitboard = bitboard};
 }
 
+// Prints a board-shaped bitboard directly to stdout.
 void print_bitboard(Bitboard bitboard) {
     std::cout << debug_bitboard(bitboard);
 }
 
+// Renders set bits from rank 8 to rank 1 for visual debugging.
 std::ostream& operator<<(std::ostream& os, BitboardDebug debug) {
     for (Rank rank = RANK8; rank >= RANK1; --rank) {
         os << " ";
