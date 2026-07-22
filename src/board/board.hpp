@@ -3,10 +3,10 @@
 #include <cassert>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "board/castling.hpp"
 #include "board/ply_state.hpp"
-#include "board/position_key_history.hpp"
 #include "board/zobrist.hpp"
 #include "core/attacks.hpp"
 #include "core/constants.hpp"
@@ -18,8 +18,6 @@
 
 class Board {
 private:
-    static constexpr int fifty_move_rule_halfmoves = 100;
-
     Bitboard     piece_bb[N_COLORS][N_PIECETYPES]     = {0};
     std::uint8_t piece_counts[N_COLORS][N_PIECETYPES] = {0};
     Piece        squares[N_SQUARES]                   = {NO_PIECE};
@@ -32,8 +30,8 @@ private:
     TaperedScore material  = {0, 0};
     TaperedScore psq_bonus = {0, 0};
 
-    PlyState*          active_ply_state = nullptr;
-    PositionKeyHistory position_key_history;
+    PlyState*                active_ply_state = nullptr;
+    std::vector<PositionKey> key_history;
 
     PlyState&       active_state() noexcept { return *active_ply_state; }
     const PlyState& active_state() const noexcept { return *active_ply_state; }
@@ -62,7 +60,7 @@ public:
     void load_fen(const std::string&);
     // Binds independent caller-owned storage and copies source as a search root.
     // Precondition: source is distinct and root_state is destination-owned storage.
-    void copy_root_from(const Board& source, PlyState& root_state) noexcept;
+    void copy_root_from(const Board& source, PlyState& root_state);
 
     // accessors
 
@@ -168,6 +166,7 @@ public:
 };
 
 inline Board::Board(PlyState& root_state, const std::string& fen) {
+    key_history.reserve(engine::max_search_ply + 1);
     bind_ply_state(root_state);
     load_fen(fen);
 }

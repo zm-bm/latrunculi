@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <utility>
 
 namespace {
 
@@ -19,17 +20,14 @@ void copy_array(const T (&source)[Rows][Cols], T (&target)[Rows][Cols]) {
 
 } // namespace
 
-void Board::copy_root_from(const Board& source, PlyState& root_state) noexcept {
+void Board::copy_root_from(const Board& source, PlyState& root_state) {
     assert(this != &source);
     assert(&root_state != &source.ply_state());
-    static_assert(PositionKeyHistory::capacity >=
-                  fifty_move_rule_halfmoves - 1 + engine::max_search_ply);
+
+    auto root_history = source.key_history;
+    root_history.reserve(root_history.size() + engine::max_search_ply + 1);
 
     const PlyState source_state = source.ply_state();
-    const int      retained_history =
-        source_state.halfmove_clk < fifty_move_rule_halfmoves
-                 ? std::min<int>(source_state.halfmove_clk, source.position_key_history.count())
-                 : 0;
 
     copy_array(source.piece_bb, piece_bb);
     copy_array(source.piece_counts, piece_counts);
@@ -43,16 +41,7 @@ void Board::copy_root_from(const Board& source, PlyState& root_state) noexcept {
 
     root_state = source_state;
     bind_ply_state(root_state);
-
-    // Earlier keys cannot affect repetition after the last irreversible move.
-    // A position already drawn by the fifty-move rule needs no repetition keys.
-    position_key_history.clear();
-    const int first = source.position_key_history.count() - retained_history;
-    for (int index = first; index < source.position_key_history.count(); ++index)
-        position_key_history.push(source.position_key_history[index]);
-
-    assert(position_key_history.count() + engine::max_search_ply <=
-           static_cast<int>(PositionKeyHistory::capacity));
+    key_history = std::move(root_history);
 }
 
 void Board::reset() noexcept {
@@ -73,7 +62,7 @@ void Board::reset() noexcept {
     fullmove_clk       = 0;
     active_state()     = PlyState{};
     game_ply           = 0;
-    position_key_history.clear();
+    key_history.clear();
 }
 
 PositionKey Board::calculate_key() const noexcept {

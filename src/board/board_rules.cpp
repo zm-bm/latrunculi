@@ -1,23 +1,28 @@
 #include "board/board.hpp"
 
 #include <algorithm>
+#include <cstddef>
+
+namespace {
+
+constexpr int fifty_move_rule_halfmoves = 100;
+
+} // namespace
 
 bool Board::is_draw(int search_ply) const noexcept {
     if (halfmove() >= fifty_move_rule_halfmoves)
         return true;
 
-    const int rewind      = std::min<int>(halfmove(), position_key_history.count());
-    int       repetitions = 0;
+    const std::size_t rewind      = std::min<std::size_t>(halfmove(), key_history.size());
+    int               repetitions = 0;
 
-    for (int distance = 2; distance <= rewind; distance += 2) {
-        const int index = position_key_history.count() - distance;
-        if (index < 0)
-            break;
+    for (std::size_t distance = 2; distance <= rewind; distance += 2) {
+        const std::size_t index = key_history.size() - distance;
 
-        if (position_key_history[index] != key())
+        if (key_history[index] != key())
             continue;
 
-        if (distance < search_ply)
+        if (search_ply > 0 && distance < static_cast<std::size_t>(search_ply))
             return true;
         if (++repetitions == 2)
             return true;

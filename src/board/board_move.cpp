@@ -7,7 +7,7 @@
 
 void Board::make(Move move, PlyState& next_state) {
     assert(&next_state != active_ply_state);
-    position_key_history.push(key());
+    key_history.push_back(key());
 
     const Square from           = move.from();
     const Square to             = move.to();
@@ -93,7 +93,8 @@ void Board::unmake(PlyState& prior_state) {
     auto piecetype      = piecetype_on(to);
     auto capt_piecetype = active_state().captured;
 
-    position_key_history.pop(prior_state.zkey);
+    assert(!key_history.empty() && key_history.back() == prior_state.zkey);
+    key_history.pop_back();
     active_ply_state = &prior_state;
     --game_ply;
     fullmove_clk--;
@@ -123,7 +124,7 @@ void Board::unmake(PlyState& prior_state) {
 
 void Board::make_null(PlyState& next_state) {
     assert(&next_state != active_ply_state);
-    position_key_history.push(key());
+    key_history.push_back(key());
 
     const Square hashed_enpassant = legal_enpassant_sq();
 
@@ -144,7 +145,8 @@ void Board::unmake_null(PlyState& prior_state) {
     assert(game_ply > 0);
     assert(&prior_state != active_ply_state);
 
-    position_key_history.pop(prior_state.zkey);
+    assert(!key_history.empty() && key_history.back() == prior_state.zkey);
+    key_history.pop_back();
     active_ply_state = &prior_state;
     --game_ply;
     turn = ~turn;
