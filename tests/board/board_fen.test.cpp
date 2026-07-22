@@ -30,7 +30,7 @@ constexpr std::array<std::string_view, 13> round_trip_fens = {
 
 void expect_same_reloaded_state(std::string_view fen) {
     board_test::Harness board(fen);
-    board_test::Harness reloaded(board.toFEN());
+    board_test::Harness reloaded(board.to_fen());
     board_test::expect_same_board_snapshot(reloaded, board_test::snapshot_board(board));
     EXPECT_EQ(reloaded.key(), reloaded.calculate_key());
 }
@@ -40,14 +40,14 @@ void expect_same_reloaded_state(std::string_view fen) {
 TEST(BoardFenTest, LoadsAndOutputsCorrectFens) {
     for (const std::string_view fen : round_trip_fens) {
         SCOPED_TRACE(fen);
-        EXPECT_EQ(board_test::Harness(fen).toFEN(), fen) << "should return identical fen";
+        EXPECT_EQ(board_test::Harness(fen).to_fen(), fen) << "should return identical fen";
     }
 }
 
 TEST(BoardFenTest, FourFieldFenNormalizesClocks) {
-    EXPECT_EQ(board_test::Harness("4k3/8/8/8/8/8/8/4K3 w - -").toFEN(),
+    EXPECT_EQ(board_test::Harness("4k3/8/8/8/8/8/8/4K3 w - -").to_fen(),
               board_test::fen::kings_only);
-    EXPECT_EQ(board_test::Harness("4k3/8/8/8/8/8/8/4K3 b - -").toFEN(),
+    EXPECT_EQ(board_test::Harness("4k3/8/8/8/8/8/8/4K3 b - -").to_fen(),
               "4k3/8/8/8/8/8/8/4K3 b - - 0 1");
 }
 
@@ -55,8 +55,8 @@ TEST(BoardFenTest, MaxHalfmoveAndLongFullmoveFensRoundTrip) {
     const std::string white = board_test::fen::max_halfmove_long_fullmove;
     const std::string black = "4k3/8/8/8/8/8/8/4K3 b - - 255 300";
 
-    EXPECT_EQ(board_test::Harness(white).toFEN(), white);
-    EXPECT_EQ(board_test::Harness(black).toFEN(), black);
+    EXPECT_EQ(board_test::Harness(white).to_fen(), white);
+    EXPECT_EQ(board_test::Harness(black).to_fen(), black);
     EXPECT_EQ(+board_test::Harness(white).halfmove(), 255);
     EXPECT_EQ(board_test::Harness(white).fullmove(), 300);
 }
@@ -66,7 +66,7 @@ TEST(BoardFenTest, PreservesRawUnhashableEnPassantSquare) {
 
     EXPECT_EQ(board.enpassant_sq(), E3);
     EXPECT_EQ(board.legal_enpassant_sq(), INVALID);
-    EXPECT_EQ(board.toFEN(), board_test::fen::unhashable_en_passant_e3);
+    EXPECT_EQ(board.to_fen(), board_test::fen::unhashable_en_passant_e3);
 }
 
 TEST(BoardFenTest, InvalidFenDoesNotMutateBoard) {

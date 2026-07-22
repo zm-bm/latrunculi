@@ -21,8 +21,7 @@ SearchWorker::SearchWorker(int id, uci::Writer& writer, ThreadPool& pool)
 void SearchWorker::configure_search(const Board& root_board,
                                     SearchLimits limits,
                                     TimePoint    search_start_time) {
-    board.bind_ply_state(ply_states.root());
-    board.load_board(&root_board);
+    board.copy_root_from(root_board, ply_states.root());
     ply = 0;
 
     this->limits   = limits;

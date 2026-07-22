@@ -26,7 +26,7 @@ void Board::load_fen(const std::string& fen) {
     update_check_data();
 }
 
-std::string Board::toFEN() const {
+std::string Board::to_fen() const {
     std::ostringstream oss;
     int                empty = 0;
 

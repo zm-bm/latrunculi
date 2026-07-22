@@ -74,7 +74,7 @@ protected:
         auto move_it  = std::find_if(movelist.begin(), movelist.end(), [&](const Move& move) {
             return move.str() == move_str && worker->board.is_legal_generated_move(move);
         });
-        EXPECT_NE(move_it, movelist.end()) << worker->board.toFEN();
+        EXPECT_NE(move_it, movelist.end()) << worker->board.to_fen();
         return move_it == movelist.end() ? NULL_MOVE : *move_it;
     }
 
@@ -281,13 +281,13 @@ protected:
     PositionKey workerKey() const { return worker->board.key(); }
 
     PositionKey workerNullChildKey() const {
-        board_test::Harness board_copy{worker->board.toFEN()};
+        board_test::Harness board_copy{worker->board.to_fen()};
         board_copy.make_null();
         return board_copy.key();
     }
 
     PositionKey workerDescendantNullKey(Move move) const {
-        board_test::Harness board_copy{worker->board.toFEN()};
+        board_test::Harness board_copy{worker->board.to_fen()};
         board_copy.make(move);
         board_copy.make_null();
         return board_copy.key();
@@ -1095,7 +1095,7 @@ TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendant
     loadWorkerBoard(board, search_depth);
 
     ASSERT_FALSE(board.is_check());
-    ASSERT_GT(board.nonPawnMaterial(board.side_to_move()), piece_value::rook_mg);
+    ASSERT_GT(board.non_pawn_material(board.side_to_move()), piece_value::rook_mg);
 
     const Move real_move = findWorkerMove("e7e5");
     ASSERT_FALSE(real_move.is_null());

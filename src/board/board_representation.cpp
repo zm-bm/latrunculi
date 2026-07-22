@@ -19,24 +19,43 @@ void copy_array(const T (&source)[Rows][Cols], T (&target)[Rows][Cols]) {
 
 } // namespace
 
-void Board::load_board(const Board* other) {
-    if (!other || other == this)
-        return;
+void Board::copy_root_from(const Board& source, PlyState& root_state) noexcept {
+    assert(this != &source);
+    assert(&root_state != &source.ply_state());
+    static_assert(PositionKeyHistory::capacity >=
+                  fifty_move_rule_halfmoves - 1 + engine::max_search_ply);
 
-    copy_array(other->piece_bb, piece_bb);
-    copy_array(other->piece_counts, piece_counts);
-    copy_array(other->squares, squares);
-    copy_array(other->king_square, king_square);
-    turn                 = other->turn;
-    fullmove_clk         = other->fullmove_clk;
-    material             = other->material;
-    psq_bonus            = other->psq_bonus;
-    game_ply             = other->game_ply;
-    position_key_history = other->position_key_history;
-    active_state()       = other->ply_state();
+    const PlyState source_state = source.ply_state();
+    const int      retained_history =
+        source_state.halfmove_clk < fifty_move_rule_halfmoves
+                 ? std::min<int>(source_state.halfmove_clk, source.position_key_history.count())
+                 : 0;
+
+    copy_array(source.piece_bb, piece_bb);
+    copy_array(source.piece_counts, piece_counts);
+    copy_array(source.squares, squares);
+    copy_array(source.king_square, king_square);
+    turn         = source.turn;
+    fullmove_clk = source.fullmove_clk;
+    material     = source.material;
+    psq_bonus    = source.psq_bonus;
+    game_ply     = source.game_ply;
+
+    root_state = source_state;
+    bind_ply_state(root_state);
+
+    // Earlier keys cannot affect repetition after the last irreversible move.
+    // A position already drawn by the fifty-move rule needs no repetition keys.
+    position_key_history.clear();
+    const int first = source.position_key_history.count() - retained_history;
+    for (int index = first; index < source.position_key_history.count(); ++index)
+        position_key_history.push(source.position_key_history[index]);
+
+    assert(position_key_history.count() + engine::max_search_ply <=
+           static_cast<int>(PositionKeyHistory::capacity));
 }
 
-void Board::reset() {
+void Board::reset() noexcept {
     for (int c = 0; c < N_COLORS; ++c) {
         for (int p = 0; p < N_PIECETYPES; ++p) {
             piece_bb[c][p]     = 0;
@@ -57,7 +76,7 @@ void Board::reset() {
     position_key_history.clear();
 }
 
-PositionKey Board::calculate_key() const {
+PositionKey Board::calculate_key() const noexcept {
     PositionKey zkey = 0;
 
     for (auto sq = A1; sq != INVALID; ++sq) {

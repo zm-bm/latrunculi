@@ -13,23 +13,23 @@ struct PositionKeyHistory {
     std::array<PositionKey, capacity> keys{};
     int                               size{};
 
-    void clear() { size = 0; }
+    void clear() noexcept { size = 0; }
 
-    void push(PositionKey key) {
+    void push(PositionKey key) noexcept {
         assert(size >= 0 && static_cast<std::size_t>(size) < keys.size());
         keys[size++] = key;
     }
 
-    void pop(PositionKey expected_key) {
+    void pop(PositionKey expected_key) noexcept {
         assert(size > 0);
         assert(keys[size - 1] == expected_key);
         --size;
     }
 
-    PositionKey operator[](int index) const {
+    [[nodiscard]] PositionKey operator[](int index) const noexcept {
         assert(index >= 0 && index < size);
         return keys[static_cast<std::size_t>(index)];
     }
 
-    int count() const { return size; }
+    [[nodiscard]] int count() const noexcept { return size; }
 };

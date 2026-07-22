@@ -63,13 +63,11 @@ public:
     }
 
     void reset(std::string_view fen = Board::startfen) {
-        load_fen(std::string(fen));
+        PlyState root_state;
+        Board    root_board(root_state, std::string(fen));
 
-        const auto root_state = ply_state();
-        states_.clear();
-        states_.push_back(root_state);
+        copy_root_from(root_board, states_.front());
         ply_ = 0;
-        bind_ply_state(states_.front());
     }
 };
 

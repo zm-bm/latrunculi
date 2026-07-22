@@ -3,10 +3,12 @@
 #include "core/attacks.hpp"
 #include "core/square.hpp"
 
+#include <cassert>
+
 namespace {
 
 [[gnu::always_inline]] inline void
-calculate_pins(const Board& board, Color color, TacticalState& tactical) {
+calculate_pins(const Board& board, Color color, TacticalState& tactical) noexcept {
     const Color  opponent = ~color;
     const Square king     = board.king_sq(color);
     Bitboard     snipers =
@@ -30,7 +32,7 @@ calculate_pins(const Board& board, Color color, TacticalState& tactical) {
 }
 
 [[gnu::always_inline]] inline void calculate_tactical_state(const Board&   board,
-                                                            TacticalState& tactical) {
+                                                            TacticalState& tactical) noexcept {
     const Color    opponent      = ~board.side_to_move();
     const Square   opponent_king = board.king_sq(opponent);
     const Bitboard occupancy     = board.occupancy();
@@ -50,11 +52,11 @@ calculate_pins(const Board& board, Color color, TacticalState& tactical) {
 
 } // namespace
 
-void Board::update_check_data() {
+void Board::update_check_data() noexcept {
     calculate_tactical_state(*this, active_state().tactical);
 }
 
-Square Board::legal_enpassant_sq() const {
+Square Board::legal_enpassant_sq() const noexcept {
     const Square enpassant = enpassant_sq();
     if (enpassant == INVALID)
         return INVALID;
@@ -71,7 +73,7 @@ Square Board::legal_enpassant_sq() const {
     return INVALID;
 }
 
-bool Board::is_pseudo_legal(Move mv) const {
+bool Board::is_pseudo_legal(Move mv) const noexcept {
     if (mv.is_null())
         return false;
 
@@ -177,12 +179,14 @@ bool Board::is_pseudo_legal(Move mv) const {
     return false;
 }
 
-bool Board::is_legal_move(Move mv) const {
+bool Board::is_legal_move(Move mv) const noexcept {
     return is_pseudo_legal(mv) && is_legal_pseudo_move(mv);
 }
 
 // Requires a generated pseudo-legal move. Only strict cases can expose or leave king in check.
-bool Board::is_legal_generated_move(Move mv) const {
+bool Board::is_legal_generated_move(Move mv) const noexcept {
+    assert(is_pseudo_legal(mv));
+
     const Square from = mv.from();
 
     if (checkers() || from == king_sq(turn) || mv.type() == MOVE_EP ||
@@ -193,7 +197,9 @@ bool Board::is_legal_generated_move(Move mv) const {
 }
 
 // Requires a pseudo-legal move. Filters moves that expose or leave the king in check.
-bool Board::is_legal_pseudo_move(Move mv) const {
+bool Board::is_legal_pseudo_move(Move mv) const noexcept {
+    assert(is_pseudo_legal(mv));
+
     Square from = mv.from();
     Square to   = mv.to();
     Square king = king_sq(turn);
@@ -235,7 +241,7 @@ bool Board::is_legal_pseudo_move(Move mv) const {
 }
 
 // Determine if a move gives check for the current board
-bool Board::is_checking_move(Move mv) const {
+bool Board::is_checking_move(Move mv) const noexcept {
     Square      from     = mv.from();
     Square      to       = mv.to();
     Color       opp      = ~turn;

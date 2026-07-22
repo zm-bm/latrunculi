@@ -254,15 +254,15 @@ ExpectedCheckData expected_check_data(const Board& board) {
 void expect_check_data_matches_slow_oracle(const Board& board) {
     const ExpectedCheckData expected = expected_check_data(board);
 
-    EXPECT_EQ(board.checkers(), expected.checkers) << board.toFEN();
+    EXPECT_EQ(board.checkers(), expected.checkers) << board.to_fen();
     for (int c = BLACK; c < N_COLORS; ++c) {
-        EXPECT_EQ(board.blockers(Color(c)), expected.blockers[c]) << board.toFEN();
-        EXPECT_EQ(board.pinners(Color(c)), expected.pinners[c]) << board.toFEN();
+        EXPECT_EQ(board.blockers(Color(c)), expected.blockers[c]) << board.to_fen();
+        EXPECT_EQ(board.pinners(Color(c)), expected.pinners[c]) << board.to_fen();
     }
     for (int p = PAWN; p <= KING; ++p) {
         EXPECT_EQ(board.ply_state().tactical.checking_squares(PieceType(p)),
                   expected.checks[piece_slot(PieceType(p))])
-            << board.toFEN() << " piece " << PieceType(p);
+            << board.to_fen() << " piece " << PieceType(p);
     }
 }
 
@@ -382,7 +382,7 @@ TEST(BoardInvariantTest, SeededMultiPlyMakeUnmakePreservesEveryPosition) {
             const auto moves = legal_moves(board);
             if (moves.empty()) {
                 EXPECT_GE(positions.size(), minimum_plies)
-                    << "terminal position at ply " << ply << ": " << board.toFEN();
+                    << "terminal position at ply " << ply << ": " << board.to_fen();
                 break;
             }
 
@@ -408,7 +408,7 @@ TEST(BoardInvariantTest, CapturePromotionRestoresPosition) {
     ASSERT_TRUE(board.is_legal_move(move));
 
     board.make(move);
-    EXPECT_EQ(board.toFEN(), "1Q2k3/8/8/8/8/8/8/4K3 b - - 0 1");
+    EXPECT_EQ(board.to_fen(), "1Q2k3/8/8/8/8/8/8/4K3 b - - 0 1");
     expect_board_consistent(board);
 
     board.unmake();
@@ -513,30 +513,4 @@ TEST(BoardInvariantTest, UnmakeIrreversibleMovePreservesPriorRepetitionHistory) 
     EXPECT_FALSE(board.is_draw());
     EXPECT_TRUE(board.is_draw(5));
     expect_board_consistent(board);
-}
-
-TEST(BoardInvariantTest, LoadBoardPreservesRepetitionHistory) {
-    board_test::Harness board(board_test::fen::repetition_cycle);
-
-    board.make(Move(E6, F5));
-    board.make(Move(H7, G8));
-    board.make(Move(F5, E6));
-    board.make(Move(G8, H7));
-    board.make(Move(E6, F5));
-    board.make(Move(H7, G8));
-    board.make(Move(F5, E6));
-    board.make(Move(G8, H7));
-    board.make(Move(E6, F5));
-    ASSERT_TRUE(board.is_draw());
-    const auto before = board_test::snapshot_board(board);
-
-    board_test::Harness fen_only(board.toFEN());
-    EXPECT_FALSE(fen_only.is_draw());
-
-    board_test::Harness clone(board_test::fen::start);
-    clone.load_board(&board);
-
-    EXPECT_TRUE(clone.is_draw());
-    board_test::expect_same_board_snapshot(clone, before);
-    expect_board_consistent(clone);
 }

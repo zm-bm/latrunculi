@@ -315,7 +315,7 @@ EvalValue SearchWorker::alphabeta(
                                    tt_record->flag == TT_Flag::Upperbound &&
                                    tt_record->score_at_ply(ply) < beta;
         if (can_null && !in_check && depth >= reduction &&
-            board.nonPawnMaterial(c) > piece_value::rook_mg && !tt_upper_veto) {
+            board.non_pawn_material(c) > piece_value::rook_mg && !tt_upper_veto) {
             stats.null_move_try(ply);
 
             board.make_null(ply_states.child(ply));

@@ -36,7 +36,7 @@ std::string format_root_pv(const RootLine& line, const Board& root_board) {
 
     PlyStateStack pv_states;
     Board         pv_board{pv_states.root()};
-    pv_board.load_board(&root_board);
+    pv_board.copy_root_from(root_board, pv_states.root());
 
     std::string pv;
     for (int i = 0; i < line.pv.size(); ++i) {

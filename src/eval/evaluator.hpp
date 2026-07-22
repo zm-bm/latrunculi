@@ -657,7 +657,7 @@ inline EvalValue Evaluator::taper_score(const TaperedScore score) const {
 
 // game phase: 0 = endgame, phase_limit = middlegame
 inline int Evaluator::phase() const {
-    int npm      = board.nonPawnMaterial(WHITE) + board.nonPawnMaterial(BLACK);
+    int npm      = board.non_pawn_material(WHITE) + board.non_pawn_material(BLACK);
     int material = std::clamp(npm, eval::material_eg, eval::material_mg);
 
     return ((material - eval::material_eg) * eval::phase_limit) /

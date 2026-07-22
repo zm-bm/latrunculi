@@ -128,7 +128,7 @@ int Picker::score_noisy(Move move) const {
     if (move.type() == MOVE_PROM)
         return PromotionScore;
 
-    const int see_score = board.seeMove(move);
+    const int see_score = board.see(move);
     if (see_score < 0)
         return WeakCaptureScore;
 

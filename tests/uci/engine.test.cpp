@@ -172,11 +172,11 @@ TEST_F(EngineTest, SearchDoesNotReuseStaleBestMoveWhenNoLegalMoves) {
 
 TEST_F(EngineTest, PositionStartposResetsFromNonStartPosition) {
     EXPECT_TRUE(execute(std::format("position fen {}", board_test::fen::kings_only)));
-    ASSERT_EQ(board().toFEN(), board_test::fen::kings_only);
+    ASSERT_EQ(board().to_fen(), board_test::fen::kings_only);
 
     EXPECT_TRUE(execute("position startpos"));
 
-    EXPECT_EQ(board().toFEN(), board_test::fen::start);
+    EXPECT_EQ(board().to_fen(), board_test::fen::start);
 }
 
 TEST_F(EngineTest, UciNewGameClearsTTAndResetsGeneration) {
@@ -261,7 +261,7 @@ TEST_P(EngineCommandsTest, ValidateCommands) {
 
     for (const auto& cmd : param.commands)
         EXPECT_TRUE(execute(cmd));
-    EXPECT_EQ(board().toFEN(), param.expected_fen);
+    EXPECT_EQ(board().to_fen(), param.expected_fen);
     EXPECT_NE(output.str().find(param.expected_output), std::string::npos);
 }
 
@@ -285,14 +285,14 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_F(EngineTest, PositionReportsInvalidMoveToken) {
     EXPECT_TRUE(execute("position startpos moves e7e5"));
 
-    EXPECT_EQ(board().toFEN(), board_test::fen::start);
+    EXPECT_EQ(board().to_fen(), board_test::fen::start);
     EXPECT_NE(output.str().find("error: invalid move in position command: e7e5"), std::string::npos)
         << output.str();
 }
 
 TEST_F(EngineTest, MovesCommandFiltersIllegalPseudoLegalMoves) {
     EXPECT_TRUE(execute(std::format("position fen {}", board_test::fen::pinned_rook)));
-    ASSERT_EQ(board().toFEN(), board_test::fen::pinned_rook);
+    ASSERT_EQ(board().to_fen(), board_test::fen::pinned_rook);
     output.str("");
     output.clear();
 
@@ -364,7 +364,7 @@ TEST_P(PositionTest, ValidatePosition) {
     EXPECT_TRUE(execute(param.cmd));
 
     // Check if the board is set to the expected FEN
-    EXPECT_EQ(board().toFEN(), param.fen);
+    EXPECT_EQ(board().to_fen(), param.fen);
 }
 
 INSTANTIATE_TEST_SUITE_P(

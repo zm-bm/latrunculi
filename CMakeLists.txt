@@ -69,6 +69,7 @@ if(BUILD_TESTING)
         tests/board/board_move_application.test.cpp
         tests/board/board_notation.test.cpp
         tests/board/board_representation.test.cpp
+        tests/board/board_root_copy.test.cpp
         tests/board/board_see.test.cpp
         tests/board/fen.test.cpp
         tests/core/bitboard.test.cpp

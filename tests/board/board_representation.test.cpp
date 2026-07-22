@@ -13,12 +13,6 @@
 #include "support/board_harness.hpp"
 #include "support/board_snapshot.hpp"
 
-namespace {
-
-constexpr std::string_view pawn_e4 = "4k3/8/8/8/4P3/8/8/4K3 w - - 0 1";
-
-} // namespace
-
 TEST(BoardRepresentationTest, BoardObjectSizesAreReported) {
     RecordProperty("PlyStateBytes", std::to_string(sizeof(PlyState)));
     RecordProperty("BoardBytes", std::to_string(sizeof(Board)));
@@ -120,46 +114,6 @@ TEST(BoardRepresentationTest, MaterialAndPsqtMatchExpectedValues) {
               eval::piece_sq(QUEEN, WHITE, D1) + eval::piece_sq(ROOK, BLACK, D8));
 }
 
-TEST(BoardRepresentationTest, AddPieceUpdatesDurableState) {
-    board_test::Harness board(board_test::fen::kings_only);
-    board.add_piece<true>(E2, WHITE, PAWN);
-    board.update_check_data();
-
-    EXPECT_EQ(board.piece_on(E2), W_PAWN);
-    EXPECT_EQ(board.pieces<PAWN>(WHITE), bb::set(E2));
-    EXPECT_EQ(board.count(WHITE, PAWN), 1);
-    EXPECT_EQ(board.occupancy(), bb::set(E8, E2, E1));
-    EXPECT_EQ(board.toFEN(), board_test::fen::white_pawn_e2);
-    EXPECT_EQ(board.key(), board.calculate_key());
-}
-
-TEST(BoardRepresentationTest, RemovePieceUpdatesDurableState) {
-    board_test::Harness board(board_test::fen::white_pawn_e2);
-    board.remove_piece<true>(E2, WHITE, PAWN);
-    board.update_check_data();
-
-    EXPECT_EQ(board.piece_on(E2), NO_PIECE);
-    EXPECT_EQ(board.pieces<PAWN>(WHITE), 0);
-    EXPECT_EQ(board.count(WHITE, PAWN), 0);
-    EXPECT_EQ(board.occupancy(), bb::set(E8, E1));
-    EXPECT_EQ(board.toFEN(), board_test::fen::kings_only);
-    EXPECT_EQ(board.key(), board.calculate_key());
-}
-
-TEST(BoardRepresentationTest, MovePieceUpdatesDurableState) {
-    board_test::Harness board(board_test::fen::white_pawn_e2);
-    board.move_piece<true>(E2, E4, WHITE, PAWN);
-    board.update_check_data();
-
-    EXPECT_EQ(board.piece_on(E2), NO_PIECE);
-    EXPECT_EQ(board.piece_on(E4), W_PAWN);
-    EXPECT_EQ(board.pieces<PAWN>(WHITE), bb::set(E4));
-    EXPECT_EQ(board.count(WHITE, PAWN), 1);
-    EXPECT_EQ(board.occupancy(), bb::set(E8, E1, E4));
-    EXPECT_EQ(board.toFEN(), pawn_e4);
-    EXPECT_EQ(board.key(), board.calculate_key());
-}
-
 TEST(BoardRepresentationTest, NonPawnMaterialUsesPieceCounts) {
     const int start_material = 2 * piece_value::knight_mg + 2 * piece_value::bishop_mg +
                                2 * piece_value::rook_mg + piece_value::queen_mg;
@@ -175,6 +129,6 @@ TEST(BoardRepresentationTest, NonPawnMaterialUsesPieceCounts) {
     for (const auto& [fen, color, expected] : test_cases) {
         SCOPED_TRACE(fen);
         board_test::Harness board(fen);
-        EXPECT_EQ(board.nonPawnMaterial(color), expected);
+        EXPECT_EQ(board.non_pawn_material(color), expected);
     }
 }

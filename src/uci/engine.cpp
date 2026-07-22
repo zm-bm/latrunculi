@@ -27,13 +27,11 @@ PlyState& Engine::next_ply_state() {
 }
 
 void Engine::reset_board(const std::string& fen) {
-    board.load_fen(fen);
+    PlyState root_state;
+    Board    root_board(root_state, fen);
 
-    const auto root_state = board.ply_state();
-    ply_states.clear();
-    ply_states.push_back(root_state);
+    board.copy_root_from(root_board, ply_states.front());
     position_ply = 0;
-    board.bind_ply_state(ply_states.front());
 }
 
 void Engine::make_board_move(Move move) {

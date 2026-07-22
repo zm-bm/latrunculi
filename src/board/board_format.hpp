@@ -20,7 +20,7 @@ struct std::formatter<Board> : std::formatter<std::string_view> {
         }
         out = std::format_to(out, "   +---+---+---+---+---+---+---+---+\n");
         out = std::format_to(out, "     a   b   c   d   e   f   g   h\n\n");
-        out = std::format_to(out, "FEN: {}\n", board.toFEN());
+        out = std::format_to(out, "FEN: {}\n", board.to_fen());
         return out;
     }
 };

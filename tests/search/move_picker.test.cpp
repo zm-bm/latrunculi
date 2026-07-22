@@ -119,7 +119,7 @@ std::vector<Move> picked_root_order(Board&        board,
 }
 
 bool expected_good_noisy(const Board& board, Move move) {
-    return move.type() == MOVE_PROM || board.seeMove(move) >= 0;
+    return move.type() == MOVE_PROM || board.see(move) >= 0;
 }
 } // namespace
 

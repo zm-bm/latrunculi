@@ -10,7 +10,7 @@ namespace {
 
 constexpr PieceType see_attacker_order[] = {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING};
 
-EvalValue see_initial_gain(const Board& board, Move move) {
+EvalValue see_initial_gain(const Board& board, Move move) noexcept {
     EvalValue gain = eval::piece(board.captured_piece_type(move)).mg;
     if (move.type() == MOVE_PROM)
         gain += eval::piece(move.prom_piece()).mg - eval::piece(PAWN).mg;
@@ -22,11 +22,11 @@ EvalValue see_initial_gain(const Board& board, Move move) {
 
 // Threshold static exchange evaluation. Returns true when the exchange after
 // move is at least threshold.
-bool Board::seeAtLeast(Move move, EvalValue threshold) const {
+bool Board::see_at_least(Move move, EvalValue threshold) const noexcept {
     // The fast threshold path is only used by move ordering for ordinary
     // captures with small negative margins. Keep broader API calls exact.
     if (move.type() != BASIC_MOVE || threshold > 0 || threshold < -piece_value::pawn_mg)
-        return seeMove(move) >= threshold;
+        return see(move) >= threshold;
 
     const Square from = move.from();
     const Square to   = move.to();
@@ -102,7 +102,7 @@ bool Board::seeAtLeast(Move move, EvalValue threshold) const {
 
 // Static exchange evaluation. Returns the likely material gain after a sequence
 // of least-valuable recaptures on move.to().
-EvalValue Board::seeMove(Move move) const {
+EvalValue Board::see(Move move) const noexcept {
     const Square from = move.from();
     const Square to   = move.to();
 

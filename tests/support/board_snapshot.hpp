@@ -49,7 +49,7 @@ struct BoardSnapshot {
 inline BoardSnapshot snapshot_board(const Board& board) {
     BoardSnapshot snapshot{};
 
-    snapshot.fen             = board.toFEN();
+    snapshot.fen             = board.to_fen();
     snapshot.side            = board.side_to_move();
     snapshot.castle          = board.castle_rights();
     snapshot.enpassant       = board.enpassant_sq();
@@ -113,7 +113,7 @@ inline void expect_same_durable_representation(const Board& board, const BoardSn
 inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& expected) {
     expect_same_durable_representation(board, expected);
 
-    EXPECT_EQ(board.toFEN(), expected.fen);
+    EXPECT_EQ(board.to_fen(), expected.fen);
     EXPECT_EQ(board.side_to_move(), expected.side);
     EXPECT_EQ(board.castle_rights(), expected.castle);
     EXPECT_EQ(board.enpassant_sq(), expected.enpassant);

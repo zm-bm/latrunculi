@@ -22,7 +22,9 @@ struct TacticalState {
     // Squares where each concrete piece type would check the enemy king.
     std::array<Bitboard, piece_slots> checks{};
 
-    Bitboard checking_squares(PieceType piece) const { return checks[piece_slot(piece)]; }
+    [[nodiscard]] Bitboard checking_squares(PieceType piece) const noexcept {
+        return checks[piece_slot(piece)];
+    }
 };
 
 /**
@@ -56,14 +58,14 @@ struct PlyState {
 // next ply; parent(ply) is what unmake() restores.
 class PlyStateStack {
 public:
-    PlyState& root() noexcept { return stack[0]; }
+    [[nodiscard]] PlyState& root() noexcept { return stack[0]; }
 
-    PlyState& child(int ply) noexcept {
+    [[nodiscard]] PlyState& child(int ply) noexcept {
         assert(ply >= 0 && ply < engine::max_search_ply);
         return stack[ply + 1];
     }
 
-    PlyState& parent(int ply) noexcept {
+    [[nodiscard]] PlyState& parent(int ply) noexcept {
         assert(ply > 0 && ply <= engine::max_search_ply);
         return stack[ply - 1];
     }
