@@ -15,15 +15,16 @@ void Board::load_fen(const std::string& fen) {
             king_square[p.color] = p.square;
     }
 
-    auto& state        = this->active_state();
-    turn               = parsed.turn;
-    state.castle       = parsed.castle;
-    state.enpassant    = parsed.enpassant;
-    state.halfmove_clk = parsed.halfmove_clk;
-    fullmove_clk       = parsed.fullmove_ply;
+    auto& state            = this->active_state();
+    turn                   = parsed.turn;
+    state.castle           = parsed.castle;
+    state.enpassant_target = parsed.enpassant_target;
+    state.halfmove_clk     = parsed.halfmove_clk;
+    absolute_ply           = parsed.absolute_ply;
 
-    state.zkey = calculate_key();
     update_check_data();
+    update_legal_enpassant_target();
+    state.zkey = calculate_key();
 }
 
 std::string Board::to_fen() const {
@@ -64,7 +65,7 @@ std::string Board::to_fen() const {
         oss << "-";
     }
 
-    Square ep_sq = enpassant_sq();
+    const Square ep_sq = enpassant_target();
     oss << " " << (ep_sq != INVALID ? to_string(ep_sq) : "-");
     oss << " " << +halfmove() << " " << +fullmove();
 

@@ -24,8 +24,10 @@ private:
     Square       king_square[N_COLORS]                = {E1, E8};
     Color        turn                                 = WHITE;
 
-    int game_ply     = 0;
-    int fullmove_clk = 0;
+    // Game ply represented by the FEN move number and side to move.
+    int absolute_ply = 0;
+    // Traversal ply relative to the current root position.
+    int ply_from_root = 0;
 
     TaperedScore material  = {0, 0};
     TaperedScore psq_bonus = {0, 0};
@@ -49,7 +51,9 @@ private:
     template <bool>
     void move_piece(Square, Square, Color, PieceType) noexcept;
 
-    void update_check_data() noexcept;
+    void               update_check_data() noexcept;
+    void               update_legal_enpassant_target() noexcept;
+    [[nodiscard]] bool enpassant_preserves_king_safety(Square from, Square target) const noexcept;
 
 public:
     explicit Board(PlyState& root_state, const std::string& fen = startfen);
@@ -84,7 +88,7 @@ public:
     [[nodiscard]] Color     side_to_move() const noexcept { return turn; }
     [[nodiscard]] TaperedScore material_score() const noexcept { return material; }
     [[nodiscard]] TaperedScore psq_bonus_score() const noexcept { return psq_bonus; }
-    [[nodiscard]] int          fullmove() const noexcept { return (fullmove_clk / 2) + 1; }
+    [[nodiscard]] int          fullmove() const noexcept { return (absolute_ply / 2) + 1; }
 
     [[nodiscard]] CastleRights castle_rights() const noexcept { return ply_state().castle; }
     [[nodiscard]] Bitboard     checkers() const noexcept { return ply_state().tactical.checkers; }
@@ -94,9 +98,11 @@ public:
     [[nodiscard]] Bitboard pinners(Color c) const noexcept {
         return ply_state().tactical.pinners[c];
     }
-    [[nodiscard]] Square       enpassant_sq() const noexcept { return ply_state().enpassant; }
+    [[nodiscard]] Square enpassant_target() const noexcept { return ply_state().enpassant_target; }
+    [[nodiscard]] Square legal_enpassant_target() const noexcept {
+        return ply_state().legal_enpassant_target;
+    }
     [[nodiscard]] std::uint8_t halfmove() const noexcept { return ply_state().halfmove_clk; }
-    [[nodiscard]] Square       legal_enpassant_sq() const noexcept;
 
     [[nodiscard]] PlyState&       ply_state() noexcept { return *active_ply_state; }
     [[nodiscard]] const PlyState& ply_state() const noexcept { return *active_ply_state; }

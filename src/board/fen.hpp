@@ -17,11 +17,11 @@ struct PieceSquare {
 
 struct ParsedFen {
     std::vector<PieceSquare> pieces;
-    Color                    turn         = WHITE;
-    CastleRights             castle       = NO_CASTLE;
-    Square                   enpassant    = INVALID;
-    std::uint8_t             halfmove_clk = 0;
-    int                      fullmove_ply = 0;
+    Color                    turn             = WHITE;
+    CastleRights             castle           = NO_CASTLE;
+    Square                   enpassant_target = INVALID;
+    std::uint8_t             halfmove_clk     = 0;
+    int                      absolute_ply     = 0;
 };
 
 // Parses four- or six-field Forsyth-Edwards Notation

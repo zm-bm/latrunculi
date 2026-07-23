@@ -61,14 +61,6 @@ TEST(BoardFenTest, MaxHalfmoveAndLongFullmoveFensRoundTrip) {
     EXPECT_EQ(board_test::Harness(white).fullmove(), 300);
 }
 
-TEST(BoardFenTest, PreservesRawUnhashableEnPassantSquare) {
-    board_test::Harness board(board_test::fen::unhashable_en_passant_e3);
-
-    EXPECT_EQ(board.enpassant_sq(), E3);
-    EXPECT_EQ(board.legal_enpassant_sq(), INVALID);
-    EXPECT_EQ(board.to_fen(), board_test::fen::unhashable_en_passant_e3);
-}
-
 TEST(BoardFenTest, InvalidFenDoesNotMutateBoard) {
     board_test::Harness board(board_test::fen::after_e2e4);
     const auto          before = board_test::snapshot_board(board);

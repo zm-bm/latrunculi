@@ -33,11 +33,11 @@ void Board::copy_root_from(const Board& source, PlyState& root_state) {
     copy_array(source.piece_counts, piece_counts);
     copy_array(source.squares, squares);
     copy_array(source.king_square, king_square);
-    turn         = source.turn;
-    fullmove_clk = source.fullmove_clk;
-    material     = source.material;
-    psq_bonus    = source.psq_bonus;
-    game_ply     = source.game_ply;
+    turn          = source.turn;
+    absolute_ply  = source.absolute_ply;
+    material      = source.material;
+    psq_bonus     = source.psq_bonus;
+    ply_from_root = 0;
 
     root_state = source_state;
     bind_ply_state(root_state);
@@ -59,9 +59,9 @@ void Board::reset() noexcept {
     king_square[WHITE] = INVALID;
     king_square[BLACK] = INVALID;
     turn               = WHITE;
-    fullmove_clk       = 0;
+    absolute_ply       = 0;
     active_state()     = PlyState{};
-    game_ply           = 0;
+    ply_from_root      = 0;
     key_history.clear();
 }
 
@@ -85,9 +85,9 @@ PositionKey Board::calculate_key() const noexcept {
     if (can_castle_queenside(BLACK))
         zkey ^= zob::castle[CASTLE_QUEENSIDE][BLACK];
 
-    auto sq = legal_enpassant_sq();
-    if (sq != INVALID)
-        zkey ^= zob::hash_ep(sq);
+    const Square enpassant_target = legal_enpassant_target();
+    if (enpassant_target != INVALID)
+        zkey ^= zob::hash_ep(enpassant_target);
 
     return zkey;
 }

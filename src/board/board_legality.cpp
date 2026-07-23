@@ -56,21 +56,37 @@ void Board::update_check_data() noexcept {
     calculate_tactical_state(*this, active_state().tactical);
 }
 
-Square Board::legal_enpassant_sq() const noexcept {
-    const Square enpassant = enpassant_sq();
-    if (enpassant == INVALID)
-        return INVALID;
+bool Board::enpassant_preserves_king_safety(Square from, Square target) const noexcept {
+    const Square captured = target + (turn == WHITE ? square::south : square::north);
+    Bitboard     occupied = occupancy();
+    bb::move(occupied, from, target);
+    bb::remove(occupied, captured);
 
-    const Color side      = side_to_move();
-    Bitboard    capturers = pieces<PAWN>(side) & attacks::pawn_attacks(enpassant, ~side);
+    Bitboard attackers = attacks_to(king_sq(turn), ~turn, occupied);
+    bb::remove(attackers, captured);
+    return !attackers;
+}
 
+void Board::update_legal_enpassant_target() noexcept {
+    auto&        state           = active_state();
+    const Square target          = state.enpassant_target;
+    state.legal_enpassant_target = INVALID;
+
+    if (target == INVALID || piece_on(target) != NO_PIECE)
+        return;
+
+    const Color  side     = side_to_move();
+    const Square captured = target + (side == WHITE ? square::south : square::north);
+    if (piece_on(captured) != make_piece(~side, PAWN))
+        return;
+
+    Bitboard capturers = pieces<PAWN>(side) & attacks::pawn_attacks(target, ~side);
     while (capturers) {
-        const Square from = bb::lsb_pop(capturers);
-        if (is_legal_move(Move(from, enpassant, MOVE_EP)))
-            return enpassant;
+        if (enpassant_preserves_king_safety(bb::lsb_pop(capturers), target)) {
+            state.legal_enpassant_target = target;
+            return;
+        }
     }
-
-    return INVALID;
 }
 
 bool Board::is_pseudo_legal(Move mv) const noexcept {
@@ -137,7 +153,7 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
     }
 
     case MOVE_EP: {
-        if (piecetype != PAWN || to != enpassant_sq() || target != NO_PIECE)
+        if (piecetype != PAWN || to != enpassant_target() || target != NO_PIECE)
             return false;
         if (!bb::contains(attacks::pawn_attacks(from, turn), to))
             return false;
@@ -214,15 +230,8 @@ bool Board::is_legal_pseudo_move(Move mv) const noexcept {
         return true;
     }
 
-    // enpassant: check if captured pawn is blocking check
-    else if (mv.type() == MOVE_EP) {
-        Square   pawn = to + (turn == WHITE ? square::south : square::north);
-        Bitboard occ  = occupancy();
-        bb::move(occ, from, to);
-        bb::remove(occ, pawn);
-        return !(pieces<BISHOP, QUEEN>(~turn) & attacks::piece_moves<BISHOP>(king, occ)) &&
-               !(pieces<ROOK, QUEEN>(~turn) & attacks::piece_moves<ROOK>(king, occ));
-    }
+    else if (mv.type() == MOVE_EP)
+        return enpassant_preserves_king_safety(from, to);
 
     // non-king moves must resolve any current check
     Bitboard checkers_bb = checkers();

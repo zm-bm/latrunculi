@@ -139,55 +139,104 @@ TEST(BoardLegalityTest, CastlingCanGiveCheck) {
 
 // En passant state and hashing.
 
-TEST(BoardLegalityTest, ReportsEnPassantSquare) {
-    EXPECT_EQ(board_test::Harness(board_test::fen::legal_en_passant_a3).enpassant_sq(), A3);
+TEST(BoardLegalityTest, CachesLegalEnPassantForBothColorsIncludingCheckEvasion) {
+    struct TestCase {
+        std::string_view with_enpassant;
+        std::string_view without_enpassant;
+        Square           enpassant_target;
+        Move             move;
+        bool             in_check;
+    };
+
+    constexpr std::array cases = {
+        TestCase{board_test::fen::legal_en_passant_a3,
+                 "4k3/8/8/8/Pp6/8/8/4K3 b - - 0 1",
+                 A3,
+                 Move(B4, A3, MOVE_EP),
+                 false},
+        TestCase{"7k/8/8/3Pp3/3K4/8/8/8 w - e6 0 1",
+                 "7k/8/8/3Pp3/3K4/8/8/8 w - - 0 1",
+                 E6,
+                 Move(D5, E6, MOVE_EP),
+                 true},
+    };
+
+    for (const auto& test : cases) {
+        SCOPED_TRACE(test.with_enpassant);
+        board_test::Harness with_enpassant(test.with_enpassant);
+        board_test::Harness without_enpassant(test.without_enpassant);
+
+        EXPECT_EQ(with_enpassant.is_check(), test.in_check);
+        EXPECT_EQ(with_enpassant.enpassant_target(), test.enpassant_target);
+        EXPECT_EQ(with_enpassant.legal_enpassant_target(), test.enpassant_target);
+        EXPECT_EQ(with_enpassant.key(), with_enpassant.calculate_key());
+        EXPECT_NE(with_enpassant.key(), without_enpassant.key());
+        EXPECT_TRUE(with_enpassant.is_pseudo_legal(test.move));
+        EXPECT_TRUE(with_enpassant.is_legal_move(test.move));
+
+        const auto moves = movegen::generate_pseudo_legal(with_enpassant);
+        EXPECT_NE(std::find(moves.begin(), moves.end(), test.move), moves.end());
+    }
 }
 
-TEST(BoardLegalityTest, ReportsLegalEnPassantSquare) {
-    EXPECT_EQ(board_test::Harness(board_test::fen::legal_en_passant_a3).legal_enpassant_sq(), A3);
+TEST(BoardLegalityTest, AppliesLegalEnPassantCachePerCaptureOrigin) {
+    board_test::Harness board("k2r4/8/8/3PpP2/8/8/8/3K4 w - e6 0 1");
+    const Move          pinned_capture(D5, E6, MOVE_EP);
+    const Move          legal_capture(F5, E6, MOVE_EP);
+
+    EXPECT_EQ(board.legal_enpassant_target(), E6);
+    EXPECT_TRUE(board.is_pseudo_legal(pinned_capture));
+    EXPECT_TRUE(board.is_pseudo_legal(legal_capture));
+    EXPECT_FALSE(board.is_legal_move(pinned_capture));
+    EXPECT_TRUE(board.is_legal_move(legal_capture));
+
+    const auto moves = movegen::generate_pseudo_legal(board);
+    ASSERT_NE(std::find(moves.begin(), moves.end(), pinned_capture), moves.end());
+    ASSERT_NE(std::find(moves.begin(), moves.end(), legal_capture), moves.end());
+    EXPECT_FALSE(board.is_legal_generated_move(pinned_capture));
+    EXPECT_TRUE(board.is_legal_generated_move(legal_capture));
 }
 
-TEST(BoardLegalityTest, UncapturableEnPassantDoesNotAffectKey) {
-    board_test::Harness with_ep(board_test::fen::unhashable_en_passant_e3);
-    board_test::Harness without_ep("4k3/8/8/8/4P3/8/8/4K3 b - - 0 1");
+TEST(BoardLegalityTest, DoesNotCacheUnavailableEnPassantForEitherColor) {
+    struct TestCase {
+        std::string_view with_enpassant;
+        std::string_view without_enpassant;
+        Square           enpassant_target;
+        Move             rejected_move;
+    };
 
-    EXPECT_EQ(with_ep.legal_enpassant_sq(), INVALID);
-    EXPECT_EQ(with_ep.key(), with_ep.calculate_key());
-    EXPECT_EQ(without_ep.key(), without_ep.calculate_key());
-    EXPECT_EQ(with_ep.key(), without_ep.key());
-}
+    constexpr std::array cases = {
+        TestCase{board_test::fen::unhashable_en_passant_e3,
+                 "4k3/8/8/8/4P3/8/8/4K3 b - - 0 1",
+                 E3,
+                 NULL_MOVE},
+        TestCase{board_test::fen::pinned_en_passant_e3,
+                 "8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - - 0 1",
+                 E3,
+                 Move(F4, E3, MOVE_EP)},
+        TestCase{"k7/8/8/3pP3/8/5n2/8/4K3 w - d6 0 1",
+                 "k7/8/8/3pP3/8/5n2/8/4K3 w - - 0 1",
+                 D6,
+                 Move(E5, D6, MOVE_EP)},
+    };
 
-TEST(BoardLegalityTest, LegalEnPassantAffectsKey) {
-    board_test::Harness with_ep(board_test::fen::legal_en_passant_a3);
-    board_test::Harness without_ep("4k3/8/8/8/Pp6/8/8/4K3 b - - 0 1");
+    for (const auto& test : cases) {
+        SCOPED_TRACE(test.with_enpassant);
+        board_test::Harness with_enpassant(test.with_enpassant);
+        board_test::Harness without_enpassant(test.without_enpassant);
 
-    EXPECT_EQ(with_ep.legal_enpassant_sq(), A3);
-    EXPECT_EQ(with_ep.key(), with_ep.calculate_key());
-    EXPECT_EQ(without_ep.key(), without_ep.calculate_key());
-    EXPECT_NE(with_ep.key(), without_ep.key());
-}
+        EXPECT_EQ(with_enpassant.enpassant_target(), test.enpassant_target);
+        EXPECT_EQ(with_enpassant.legal_enpassant_target(), INVALID);
+        EXPECT_EQ(with_enpassant.key(), with_enpassant.calculate_key());
+        EXPECT_EQ(with_enpassant.key(), without_enpassant.key());
 
-TEST(BoardLegalityTest, PinnedEnPassantIsNotLegal) {
-    board_test::Harness b(board_test::fen::pinned_en_passant_e3);
-    EXPECT_EQ(b.legal_enpassant_sq(), INVALID);
-}
-
-TEST(BoardLegalityTest, PinnedEnPassantDoesNotAffectKey) {
-    board_test::Harness with_ep(board_test::fen::pinned_en_passant_e3);
-    board_test::Harness without_ep("8/2p5/3p4/KP5r/1R2Pp1k/8/6P1/8 b - - 0 1");
-
-    EXPECT_EQ(with_ep.legal_enpassant_sq(), INVALID);
-    EXPECT_EQ(with_ep.key(), with_ep.calculate_key());
-    EXPECT_EQ(without_ep.key(), without_ep.calculate_key());
-    EXPECT_EQ(with_ep.key(), without_ep.key());
-}
-
-TEST(BoardLegalityTest, GeneratedMovesSkipIllegalEnPassant) {
-    board_test::Harness b(board_test::fen::pinned_en_passant_e3);
-    auto                movelist = movegen::generate_pseudo_legal(b);
-
-    auto ep_move = std::find(movelist.begin(), movelist.end(), Move(F4, E3, MOVE_EP));
-    EXPECT_EQ(ep_move, movelist.end());
+        if (!test.rejected_move.is_null()) {
+            EXPECT_TRUE(with_enpassant.is_pseudo_legal(test.rejected_move));
+            EXPECT_FALSE(with_enpassant.is_legal_move(test.rejected_move));
+            const auto moves = movegen::generate_pseudo_legal(with_enpassant);
+            EXPECT_EQ(std::find(moves.begin(), moves.end(), test.rejected_move), moves.end());
+        }
+    }
 }
 
 // Move legality.
@@ -213,16 +262,6 @@ TEST(BoardLegalityTest, RejectsNonEvasionWhileInCheck) {
 TEST(BoardLegalityTest, AcceptsLegalCastle) {
     EXPECT_TRUE(board_test::Harness(board_test::fen::perft_position_2)
                     .is_legal_move(Move(E1, G1, MOVE_CASTLE)));
-}
-
-TEST(BoardLegalityTest, AcceptsLegalEnPassant) {
-    EXPECT_TRUE(board_test::Harness(board_test::fen::legal_en_passant_a3)
-                    .is_legal_move(Move(B4, A3, MOVE_EP)));
-}
-
-TEST(BoardLegalityTest, RejectsPinnedEnPassant) {
-    board_test::Harness b(board_test::fen::pinned_en_passant_e3);
-    EXPECT_FALSE(b.is_legal_move(Move(F4, E3, MOVE_EP)));
 }
 
 TEST(BoardLegalityTest, PseudoLegalValidationFiltersGeneratedMoves) {

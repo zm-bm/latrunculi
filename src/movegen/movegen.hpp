@@ -105,11 +105,11 @@ private:
     }
 
     template <int Delta>
-    void pawn_enpassants(Bitboard pawns, Square enpassant) {
+    void pawn_enpassants(Bitboard pawns, Square target) {
         constexpr int offset = (Us == WHITE) ? -Delta : Delta;
 
-        if (bb::contains(attacks::pawn_shift<Delta, Us>(pawns), enpassant))
-            write(enpassant + offset, enpassant, MOVE_EP);
+        if (bb::contains(attacks::pawn_shift<Delta, Us>(pawns), target))
+            write(target + offset, target, MOVE_EP);
     }
 
     void pawns(Bitboard targets) {
@@ -153,18 +153,18 @@ private:
         pawn_moves_to<pawn_delta::left>(left_moves);
         pawn_moves_to<pawn_delta::right>(right_moves);
 
-        Square enpassant = board.legal_enpassant_sq();
-        if (enpassant == INVALID)
+        const Square enpassant_target = board.legal_enpassant_target();
+        if (enpassant_target == INVALID)
             return;
 
         constexpr int offset = (Us == WHITE) ? -pawn_delta::push : pawn_delta::push;
         if constexpr (Type == MoveGenType::Evasions) {
-            if (!bb::contains(targets, enpassant + offset))
+            if (!bb::contains(targets, enpassant_target + offset))
                 return;
         }
 
-        pawn_enpassants<pawn_delta::left>(pawns, enpassant);
-        pawn_enpassants<pawn_delta::right>(pawns, enpassant);
+        pawn_enpassants<pawn_delta::left>(pawns, enpassant_target);
+        pawn_enpassants<pawn_delta::right>(pawns, enpassant_target);
     }
 
     void pawn_pushes(Bitboard targets, Bitboard pawns) {

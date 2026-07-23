@@ -26,8 +26,8 @@ struct BoardSnapshot {
     std::string                                                  fen;
     Color                                                        side;
     CastleRights                                                 castle;
-    Square                                                       enpassant;
-    Square                                                       legal_enpassant;
+    Square                                                       enpassant_target;
+    Square                                                       legal_enpassant_target;
     std::uint8_t                                                 halfmove;
     int                                                          fullmove;
     PositionKey                                                  key;
@@ -49,20 +49,20 @@ struct BoardSnapshot {
 inline BoardSnapshot snapshot_board(const Board& board) {
     BoardSnapshot snapshot{};
 
-    snapshot.fen             = board.to_fen();
-    snapshot.side            = board.side_to_move();
-    snapshot.castle          = board.castle_rights();
-    snapshot.enpassant       = board.enpassant_sq();
-    snapshot.legal_enpassant = board.legal_enpassant_sq();
-    snapshot.halfmove        = board.halfmove();
-    snapshot.fullmove        = board.fullmove();
-    snapshot.key             = board.key();
-    snapshot.previous_move   = board.ply_state().previous_move;
-    snapshot.captured        = board.ply_state().captured;
-    snapshot.occupancy       = board.occupancy();
-    snapshot.checkers        = board.checkers();
-    snapshot.material        = board.material_score();
-    snapshot.psq             = board.psq_bonus_score();
+    snapshot.fen                    = board.to_fen();
+    snapshot.side                   = board.side_to_move();
+    snapshot.castle                 = board.castle_rights();
+    snapshot.enpassant_target       = board.enpassant_target();
+    snapshot.legal_enpassant_target = board.legal_enpassant_target();
+    snapshot.halfmove               = board.halfmove();
+    snapshot.fullmove               = board.fullmove();
+    snapshot.key                    = board.key();
+    snapshot.previous_move          = board.ply_state().previous_move;
+    snapshot.captured               = board.ply_state().captured;
+    snapshot.occupancy              = board.occupancy();
+    snapshot.checkers               = board.checkers();
+    snapshot.material               = board.material_score();
+    snapshot.psq                    = board.psq_bonus_score();
 
     for (int c = BLACK; c < N_COLORS; ++c) {
         const auto color                      = Color(c);
@@ -116,8 +116,8 @@ inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& 
     EXPECT_EQ(board.to_fen(), expected.fen);
     EXPECT_EQ(board.side_to_move(), expected.side);
     EXPECT_EQ(board.castle_rights(), expected.castle);
-    EXPECT_EQ(board.enpassant_sq(), expected.enpassant);
-    EXPECT_EQ(board.legal_enpassant_sq(), expected.legal_enpassant);
+    EXPECT_EQ(board.enpassant_target(), expected.enpassant_target);
+    EXPECT_EQ(board.legal_enpassant_target(), expected.legal_enpassant_target);
     EXPECT_EQ(board.halfmove(), expected.halfmove);
     EXPECT_EQ(board.fullmove(), expected.fullmove);
     EXPECT_EQ(board.key(), expected.key);

@@ -425,10 +425,14 @@ TEST(BoardInvariantTest, NullMovePreservesDurableRepresentation) {
     for (const std::string_view fen : fens) {
         SCOPED_TRACE(fen);
         board_test::Harness board{fen};
-        const auto          before = board_test::snapshot_board(board);
+        const auto          before   = board_test::snapshot_board(board);
+        const int           fullmove = board.fullmove();
 
         board.make_null();
         board_test::expect_same_durable_representation(board, before);
+        EXPECT_EQ(board.enpassant_target(), INVALID);
+        EXPECT_EQ(board.legal_enpassant_target(), INVALID);
+        EXPECT_EQ(board.fullmove(), fullmove);
         expect_board_consistent(board);
 
         board.unmake_null();

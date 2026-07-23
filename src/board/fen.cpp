@@ -149,7 +149,7 @@ void parse_enpassant(ParsedFen& parsed, std::string_view section) {
     if (section[1] != expected_rank)
         throw std::invalid_argument("invalid fen, invalid en passant square");
 
-    parsed.enpassant = parse_square(section);
+    parsed.enpassant_target = parse_square(section);
 }
 
 } // namespace
@@ -176,9 +176,9 @@ ParsedFen parse_fen(std::string_view fen) {
         const int fullmove_num = parse_int(sections[5], "fullmove number");
         if (fullmove_num == 0)
             throw std::invalid_argument("invalid fen, invalid fullmove number");
-        parsed.fullmove_ply = fen_fullmove_to_ply(fullmove_num, parsed.turn);
+        parsed.absolute_ply = fen_fullmove_to_ply(fullmove_num, parsed.turn);
     } else {
-        parsed.fullmove_ply = fen_fullmove_to_ply(1, parsed.turn);
+        parsed.absolute_ply = fen_fullmove_to_ply(1, parsed.turn);
     }
 
     return parsed;

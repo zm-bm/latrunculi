@@ -44,7 +44,7 @@ TEST(BoardRepresentationTest, EmptyPositionEncoding) {
     EXPECT_EQ(board.checkers(), 0);
     EXPECT_EQ(board.blockers(WHITE), 0);
     EXPECT_EQ(board.blockers(BLACK), 0);
-    EXPECT_EQ(board.enpassant_sq(), INVALID);
+    EXPECT_EQ(board.enpassant_target(), INVALID);
     EXPECT_EQ(board.key(), board.calculate_key());
 }
 
@@ -83,7 +83,7 @@ TEST(BoardRepresentationTest, StartPositionEncoding) {
     EXPECT_EQ(board.psq_bonus_score(), TaperedScore::Zero);
     EXPECT_EQ(board.castle_rights(), ALL_CASTLE);
     EXPECT_EQ(board.checkers(), 0);
-    EXPECT_EQ(board.enpassant_sq(), INVALID);
+    EXPECT_EQ(board.enpassant_target(), INVALID);
     EXPECT_EQ(board.key(), board.calculate_key());
 }
 

@@ -36,22 +36,25 @@ struct TacticalState {
 struct PlyState {
     PlyState() = default;
 
-    // Refreshed after FEN load, make, and null moves.
+    // Tactical cache refreshed after FEN load, make, and null moves.
     TacticalState tactical{};
 
-    // Incremental key and compact undo data for the move that reached this ply.
+    // Reversible position state.
     PositionKey  zkey{};
-    Move         previous_move{NULL_MOVE};
-    PieceType    captured{NO_PIECETYPE};
     CastleRights castle{NO_CASTLE};
-    Square       enpassant{INVALID};
+    Square       enpassant_target{INVALID};
+    Square       legal_enpassant_target{INVALID};
     std::uint8_t halfmove_clk{};
+
+    // Undo data for the move that reached this ply.
+    Move      previous_move{NULL_MOVE};
+    PieceType captured{NO_PIECETYPE};
 
     PlyState(const PlyState& prior_state, Move move)
         : zkey(prior_state.zkey),
-          previous_move(move),
           castle(prior_state.castle),
-          halfmove_clk(prior_state.halfmove_clk + 1) {}
+          halfmove_clk(prior_state.halfmove_clk + 1),
+          previous_move(move) {}
 };
 
 // Fixed state storage for search/perft. child(ply) is where make() writes the

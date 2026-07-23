@@ -4,6 +4,7 @@
 
 #include "support/board_fixtures.hpp"
 #include "support/board_harness.hpp"
+#include "support/board_snapshot.hpp"
 
 TEST(BoardMoveApplicationTest, MakesAndUnmakesKnightMove) {
     board_test::Harness board(board_test::fen::start);
@@ -31,21 +32,54 @@ TEST(BoardMoveApplicationTest, RookCaptureDisablesCastlingRights) {
     EXPECT_EQ(board.to_fen(), fen);
 }
 
-TEST(BoardMoveApplicationTest, PawnDoublePushSetsEnPassantSquare) {
-    constexpr std::string_view fen = "4k3/8/8/8/1p6/8/P7/4K3 w - - 0 1";
-    board_test::Harness        board(fen);
-    board.make(Move(A2, A4));
-    EXPECT_EQ(board.to_fen(), board_test::fen::legal_en_passant_a3);
-    board.unmake();
-    EXPECT_EQ(board.to_fen(), fen);
+TEST(BoardMoveApplicationTest, DoublePushStoresTargetAndCachesLegalEnPassantForBothColors) {
+    struct TestCase {
+        std::string_view before;
+        Move             move;
+        std::string_view after;
+        Square           enpassant_target;
+        Square           legal_enpassant_target;
+    };
+
+    constexpr TestCase cases[] = {
+        {"4k3/3p4/8/4P3/8/8/8/4K3 b - - 0 1",
+         Move(D7, D5),
+         "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 2",
+         D6,
+         D6},
+        {board_test::fen::white_pawn_e2,
+         Move(E2, E4),
+         "4k3/8/8/8/4P3/8/8/4K3 b - e3 0 1",
+         E3,
+         INVALID},
+    };
+
+    for (const auto& test : cases) {
+        SCOPED_TRACE(test.before);
+        board_test::Harness board(test.before);
+        const auto          before = board_test::snapshot_board(board);
+
+        board.make(test.move);
+        EXPECT_EQ(board.enpassant_target(), test.enpassant_target);
+        EXPECT_EQ(board.legal_enpassant_target(), test.legal_enpassant_target);
+        EXPECT_EQ(board.to_fen(), test.after);
+        EXPECT_EQ(board.key(), board.calculate_key());
+
+        board.unmake();
+        board_test::expect_same_board_snapshot(board, before);
+    }
 }
 
 TEST(BoardMoveApplicationTest, MakesAndUnmakesEnPassantCapture) {
     board_test::Harness board(board_test::fen::legal_en_passant_a3);
     board.make(Move(B4, A3, MOVE_EP));
     EXPECT_EQ(board.to_fen(), "4k3/8/8/8/8/p7/8/4K3 w - - 0 2");
+    EXPECT_EQ(board.legal_enpassant_target(), INVALID);
+    EXPECT_EQ(board.key(), board.calculate_key());
     board.unmake();
     EXPECT_EQ(board.to_fen(), board_test::fen::legal_en_passant_a3);
+    EXPECT_EQ(board.legal_enpassant_target(), A3);
+    EXPECT_EQ(board.key(), board.calculate_key());
 }
 
 TEST(BoardMoveApplicationTest, MakesAndUnmakesKingsideCastle) {

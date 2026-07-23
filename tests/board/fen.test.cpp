@@ -13,9 +13,9 @@ TEST(FenTest, ParsesInitialPosition) {
     EXPECT_EQ(parsed.pieces.size(), 32);
     EXPECT_EQ(parsed.turn, WHITE);
     EXPECT_EQ(parsed.castle, ALL_CASTLE);
-    EXPECT_EQ(parsed.enpassant, INVALID);
+    EXPECT_EQ(parsed.enpassant_target, INVALID);
     EXPECT_EQ(parsed.halfmove_clk, 0);
-    EXPECT_EQ(parsed.fullmove_ply, 0);
+    EXPECT_EQ(parsed.absolute_ply, 0);
 }
 
 TEST(FenTest, ParsesKingsOnlyPosition) {
@@ -23,31 +23,31 @@ TEST(FenTest, ParsesKingsOnlyPosition) {
     EXPECT_EQ(parsed.pieces.size(), 2);
     EXPECT_EQ(parsed.turn, WHITE);
     EXPECT_EQ(parsed.castle, NO_CASTLE);
-    EXPECT_EQ(parsed.enpassant, INVALID);
+    EXPECT_EQ(parsed.enpassant_target, INVALID);
     EXPECT_EQ(parsed.halfmove_clk, 0);
-    EXPECT_EQ(parsed.fullmove_ply, 0);
+    EXPECT_EQ(parsed.absolute_ply, 0);
 }
 
-TEST(FenTest, ParsesRawEnPassantSquareAndClocks) {
+TEST(FenTest, ParsesEnPassantTargetAndClocks) {
     const ParsedFen parsed = parse_fen(board_test::fen::en_passant_d6_with_clocks);
     EXPECT_EQ(parsed.pieces.size(), 4);
     EXPECT_EQ(parsed.turn, WHITE);
-    EXPECT_EQ(parsed.enpassant, D6);
+    EXPECT_EQ(parsed.enpassant_target, D6);
     EXPECT_EQ(parsed.halfmove_clk, 10);
-    EXPECT_EQ(parsed.fullmove_ply, 38);
+    EXPECT_EQ(parsed.absolute_ply, 38);
 }
 
 TEST(FenTest, FourFieldFenDefaultsClocks) {
     const ParsedFen parsed = parse_fen("4k3/8/8/8/8/8/8/4K3 b - -");
     EXPECT_EQ(parsed.turn, BLACK);
     EXPECT_EQ(parsed.halfmove_clk, 0);
-    EXPECT_EQ(parsed.fullmove_ply, 1);
+    EXPECT_EQ(parsed.absolute_ply, 1);
 }
 
 TEST(FenTest, ParsesClockBounds) {
     const ParsedFen parsed = parse_fen(board_test::fen::max_halfmove_long_fullmove);
     EXPECT_EQ(+parsed.halfmove_clk, 255);
-    EXPECT_EQ(parsed.fullmove_ply, 598);
+    EXPECT_EQ(parsed.absolute_ply, 598);
 }
 
 TEST(FenTest, RejectsInvalidFen) {
