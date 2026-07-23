@@ -71,7 +71,7 @@ void Board::make(Move move, PlyState& next_state) {
     }
 
     turn        = opponent;
-    state.zkey ^= zob::turn;
+    state.zkey ^= zob::hash_turn();
 
     update_check_data();
     if (state.enpassant_target != INVALID) {
@@ -134,7 +134,7 @@ void Board::make_null(PlyState& next_state) {
     auto& state = this->active_state();
 
     turn        = ~turn;
-    state.zkey ^= zob::turn;
+    state.zkey ^= zob::hash_turn();
     if (previous_legal_enpassant != INVALID)
         state.zkey ^= zob::hash_ep(previous_legal_enpassant);
 

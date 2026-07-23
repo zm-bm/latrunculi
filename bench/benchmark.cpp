@@ -11,7 +11,6 @@
 
 #include "board/board.hpp"
 #include "board/ply_state.hpp"
-#include "board/zobrist.hpp"
 #include "core/attacks.hpp"
 #include "movegen/movegen.hpp"
 
@@ -215,7 +214,6 @@ Options parse_args(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
     attacks::init();
-    zob::init();
 
     try {
         const Options         options = parse_args(argc, argv);

@@ -222,9 +222,9 @@ inline void Board::disable_castle(Color c) noexcept {
     auto& state = this->active_state();
 
     if (can_castle_kingside(c))
-        state.zkey ^= zob::castle[CASTLE_KINGSIDE][c];
+        state.zkey ^= zob::hash_castle(CASTLE_KINGSIDE, c);
     if (can_castle_queenside(c))
-        state.zkey ^= zob::castle[CASTLE_QUEENSIDE][c];
+        state.zkey ^= zob::hash_castle(CASTLE_QUEENSIDE, c);
 
     state.castle &= (c == WHITE ? B_CASTLE : W_CASTLE);
 }
@@ -233,13 +233,13 @@ inline void Board::disable_castle(Color c, Square sq) noexcept {
     auto& state = this->active_state();
 
     if (sq == move_geometry::castling(CASTLE_KINGSIDE, c).rook_from && can_castle_kingside(c)) {
-        state.zkey   ^= zob::castle[CASTLE_KINGSIDE][c];
+        state.zkey   ^= zob::hash_castle(CASTLE_KINGSIDE, c);
         state.castle &= ~(c == WHITE ? W_KINGSIDE : B_KINGSIDE);
     }
 
     else if (sq == move_geometry::castling(CASTLE_QUEENSIDE, c).rook_from &&
              can_castle_queenside(c)) {
-        state.zkey   ^= zob::castle[CASTLE_QUEENSIDE][c];
+        state.zkey   ^= zob::hash_castle(CASTLE_QUEENSIDE, c);
         state.castle &= ~(c == WHITE ? W_QUEENSIDE : B_QUEENSIDE);
     }
 }

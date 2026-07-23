@@ -22,7 +22,6 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/board/board_rules.cpp
     src/board/board_see.cpp
     src/board/fen.cpp
-    src/board/zobrist.cpp
     src/core/move.cpp
     src/eval/evaluator.cpp
     src/movegen/movegen.cpp

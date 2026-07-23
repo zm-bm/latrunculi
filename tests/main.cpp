@@ -1,14 +1,10 @@
 #include <gtest/gtest.h>
 
-#include "board/zobrist.hpp"
 #include "core/attacks.hpp"
 
 class GlobalTestSetup : public ::testing::Environment {
 public:
-    void SetUp() override {
-        attacks::init();
-        zob::init();
-    }
+    void SetUp() override { attacks::init(); }
 };
 
 int main(int argc, char** argv) {

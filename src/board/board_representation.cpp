@@ -75,15 +75,15 @@ PositionKey Board::calculate_key() const noexcept {
     }
 
     if (turn == BLACK)
-        zkey ^= zob::turn;
+        zkey ^= zob::hash_turn();
     if (can_castle_kingside(WHITE))
-        zkey ^= zob::castle[CASTLE_KINGSIDE][WHITE];
+        zkey ^= zob::hash_castle(CASTLE_KINGSIDE, WHITE);
     if (can_castle_queenside(WHITE))
-        zkey ^= zob::castle[CASTLE_QUEENSIDE][WHITE];
+        zkey ^= zob::hash_castle(CASTLE_QUEENSIDE, WHITE);
     if (can_castle_kingside(BLACK))
-        zkey ^= zob::castle[CASTLE_KINGSIDE][BLACK];
+        zkey ^= zob::hash_castle(CASTLE_KINGSIDE, BLACK);
     if (can_castle_queenside(BLACK))
-        zkey ^= zob::castle[CASTLE_QUEENSIDE][BLACK];
+        zkey ^= zob::hash_castle(CASTLE_QUEENSIDE, BLACK);
 
     const Square enpassant_target = legal_enpassant_target();
     if (enpassant_target != INVALID)
