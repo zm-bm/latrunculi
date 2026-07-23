@@ -1,6 +1,7 @@
 #include "board/board.hpp"
 
 #include "core/attacks.hpp"
+#include "core/move_geometry.hpp"
 #include "core/square.hpp"
 
 #include <cassert>
@@ -57,7 +58,7 @@ void Board::update_check_data() noexcept {
 }
 
 bool Board::enpassant_preserves_king_safety(Square from, Square target) const noexcept {
-    const Square captured = target + (turn == WHITE ? square::south : square::north);
+    const Square captured = move_geometry::enpassant_captured_square(target, turn);
     Bitboard     occupied = occupancy();
     bb::move(occupied, from, target);
     bb::remove(occupied, captured);
@@ -76,7 +77,7 @@ void Board::update_legal_enpassant_target() noexcept {
         return;
 
     const Color  side     = side_to_move();
-    const Square captured = target + (side == WHITE ? square::south : square::north);
+    const Square captured = move_geometry::enpassant_captured_square(target, side);
     if (piece_on(captured) != make_piece(~side, PAWN))
         return;
 
@@ -112,7 +113,7 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
     switch (mv.type()) {
     case BASIC_MOVE: {
         if (piecetype == PAWN) {
-            const int push_delta = (turn == WHITE) ? square::north : square::south;
+            const int push_delta = move_geometry::pawn_push(turn);
             const int move_delta = int(to) - int(from);
 
             if (square::relative_rank(to, turn) == RANK8)
@@ -144,7 +145,7 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
         if (square::relative_rank(from, turn) != RANK7 || square::relative_rank(to, turn) != RANK8)
             return false;
 
-        const int push_delta = (turn == WHITE) ? square::north : square::south;
+        const int push_delta = move_geometry::pawn_push(turn);
         if (int(to) - int(from) == push_delta)
             return target == NO_PIECE;
 
@@ -158,7 +159,7 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
         if (!bb::contains(attacks::pawn_attacks(from, turn), to))
             return false;
 
-        const Square captured = to + (turn == WHITE ? square::south : square::north);
+        const Square captured = move_geometry::enpassant_captured_square(to, turn);
         return piece_on(captured) == make_piece(~turn, PAWN);
     }
 
@@ -166,14 +167,9 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
         if (piecetype != KING)
             return false;
 
-        const Square expected_from = (turn == WHITE) ? E1 : E8;
-        if (from != expected_from)
-            return false;
-
-        const CastleSide side = (to > from) ? CASTLE_KINGSIDE : CASTLE_QUEENSIDE;
-        const Square     expected_to =
-            (side == CASTLE_KINGSIDE) ? ((turn == WHITE) ? G1 : G8) : ((turn == WHITE) ? C1 : C8);
-        if (to != expected_to)
+        const CastleSide side     = move_geometry::castle_side(from, to);
+        const auto&      castling = move_geometry::castling(side, turn);
+        if (from != castling.king_from || to != castling.king_to)
             return false;
 
         if (side == CASTLE_KINGSIDE) {
@@ -183,12 +179,12 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
             return false;
         }
 
-        if (piece_on(castle::rook_from[side][turn]) != make_piece(turn, ROOK))
+        if (piece_on(castling.rook_from) != make_piece(turn, ROOK))
             return false;
-        if (occupied & castle::path[side][turn])
+        if (occupied & castling.empty_path)
             return false;
 
-        return !attacks_to(castle::kingpath[side][turn], ~turn);
+        return !attacks_to(castling.king_path, ~turn);
     }
     }
 
@@ -275,22 +271,21 @@ bool Board::is_checking_move(Move mv) const noexcept {
 
     case MOVE_EP: {
         // check if captured pawn was blocking enemy king from attack
-        Square   pawn     = to + (turn == WHITE ? square::south : square::north);
+        Square   captured = move_geometry::enpassant_captured_square(to, turn);
         Bitboard occupied = occupancy();
         bb::move(occupied, from, to);
-        bb::remove(occupied, pawn);
+        bb::remove(occupied, captured);
         return ((pieces<BISHOP, QUEEN>(turn) & attacks::piece_moves<BISHOP>(opp_king, occupied)) ||
                 (pieces<ROOK, QUEEN>(turn) & attacks::piece_moves<ROOK>(opp_king, occupied)));
     }
 
     case MOVE_CASTLE: {
         // check if rook attacks enemy king
-        Square   rook_from = castle::rook_from[to < from][turn];
-        Square   rook_to   = castle::rook_to[to < from][turn];
-        Bitboard occupied  = occupancy();
+        const auto& castling = move_geometry::castling(move_geometry::castle_side(from, to), turn);
+        Bitboard    occupied = occupancy();
         bb::move(occupied, from, to);
-        bb::move(occupied, rook_from, rook_to);
-        return bb::contains(attacks::piece_moves<ROOK>(rook_to, occupied), opp_king);
+        bb::move(occupied, castling.rook_from, castling.rook_to);
+        return bb::contains(attacks::piece_moves<ROOK>(castling.rook_to, occupied), opp_king);
     }
 
     case BASIC_MOVE: return false;

@@ -7,7 +7,7 @@ namespace zob {
 PositionKey piece[N_COLORS][N_PIECETYPES][N_SQUARES];
 PositionKey turn;
 PositionKey ep[8];
-PositionKey castle[2][N_COLORS];
+PositionKey castle[N_CASTLES][N_COLORS];
 
 void init() {
     std::mt19937_64 r;

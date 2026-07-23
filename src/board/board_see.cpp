@@ -1,7 +1,7 @@
 #include "board/board.hpp"
 
 #include "core/attacks.hpp"
-#include "core/square.hpp"
+#include "core/move_geometry.hpp"
 #include "eval/eval.hpp"
 
 #include <algorithm>
@@ -113,7 +113,7 @@ EvalValue Board::see(Move move) const noexcept {
 
     // Play the capture on an occupancy bitboard, including en passant's off-target pawn.
     if (move.type() == MOVE_EP) {
-        const Square captured = to + (side == WHITE ? square::south : square::north);
+        const Square captured = move_geometry::enpassant_captured_square(to, side);
         bb::remove(occupied, captured);
         bb::add(occupied, to);
     }

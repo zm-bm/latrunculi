@@ -1,6 +1,7 @@
 #include "board/board_notation.hpp"
 
 #include "board/board.hpp"
+#include "core/move_geometry.hpp"
 #include "core/notation.hpp"
 #include "movegen/movegen.hpp"
 
@@ -48,7 +49,7 @@ std::string to_san(const Board& board, Move move) {
     std::string     result;
 
     if (move.type() == MOVE_CASTLE) {
-        result = from < to ? "O-O" : "O-O-O";
+        result = move_geometry::castle_side(from, to) == CASTLE_KINGSIDE ? "O-O" : "O-O-O";
     } else {
         if (piece != PAWN) {
             result += san_piece(piece);

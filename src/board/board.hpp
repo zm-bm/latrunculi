@@ -5,12 +5,13 @@
 #include <string>
 #include <vector>
 
-#include "board/castling.hpp"
+#include "board/castling_rights.hpp"
 #include "board/ply_state.hpp"
 #include "board/zobrist.hpp"
 #include "core/attacks.hpp"
 #include "core/constants.hpp"
 #include "core/move.hpp"
+#include "core/move_geometry.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "eval/eval.hpp"
@@ -231,12 +232,13 @@ inline void Board::disable_castle(Color c) noexcept {
 inline void Board::disable_castle(Color c, Square sq) noexcept {
     auto& state = this->active_state();
 
-    if (sq == castle::rook_from[CASTLE_KINGSIDE][c] && can_castle_kingside(c)) {
+    if (sq == move_geometry::castling(CASTLE_KINGSIDE, c).rook_from && can_castle_kingside(c)) {
         state.zkey   ^= zob::castle[CASTLE_KINGSIDE][c];
         state.castle &= ~(c == WHITE ? W_KINGSIDE : B_KINGSIDE);
     }
 
-    else if (sq == castle::rook_from[CASTLE_QUEENSIDE][c] && can_castle_queenside(c)) {
+    else if (sq == move_geometry::castling(CASTLE_QUEENSIDE, c).rook_from &&
+             can_castle_queenside(c)) {
         state.zkey   ^= zob::castle[CASTLE_QUEENSIDE][c];
         state.castle &= ~(c == WHITE ? W_QUEENSIDE : B_QUEENSIDE);
     }

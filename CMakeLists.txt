@@ -74,6 +74,7 @@ if(BUILD_TESTING)
         tests/board/fen.test.cpp
         tests/core/bitboard.test.cpp
         tests/core/move.test.cpp
+        tests/core/move_geometry.test.cpp
         tests/core/notation.test.cpp
         tests/core/piece.test.cpp
         tests/core/square.test.cpp

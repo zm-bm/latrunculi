@@ -3,9 +3,9 @@
 #include <cassert>
 
 #include "board/board.hpp"
-#include "board/castling.hpp"
 #include "core/attacks.hpp"
 #include "core/move.hpp"
+#include "core/move_geometry.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "core/types.hpp"
@@ -157,9 +157,9 @@ private:
         if (enpassant_target == INVALID)
             return;
 
-        constexpr int offset = (Us == WHITE) ? -pawn_delta::push : pawn_delta::push;
         if constexpr (Type == MoveGenType::Evasions) {
-            if (!bb::contains(targets, enpassant_target + offset))
+            const Square captured = move_geometry::enpassant_captured_square(enpassant_target, Us);
+            if (!bb::contains(targets, captured))
                 return;
         }
 
@@ -190,23 +190,21 @@ private:
 
         if constexpr (Type == MoveGenType::NonEvasions || Type == MoveGenType::Quiet) {
             if (board.can_castle(Us)) {
-                constexpr Square from         = (Us == WHITE) ? E1 : E8;
-                constexpr Square to_kingside  = (Us == WHITE) ? G1 : G8;
-                constexpr Square to_queenside = (Us == WHITE) ? C1 : C8;
+                constexpr const auto& kingside  = move_geometry::castling(CASTLE_KINGSIDE, Us);
+                constexpr const auto& queenside = move_geometry::castling(CASTLE_QUEENSIDE, Us);
 
                 if (board.can_castle_kingside(Us) && legal_castle<CASTLE_KINGSIDE>())
-                    write(from, to_kingside, MOVE_CASTLE);
+                    write(kingside.king_from, kingside.king_to, MOVE_CASTLE);
                 if (board.can_castle_queenside(Us) && legal_castle<CASTLE_QUEENSIDE>())
-                    write(from, to_queenside, MOVE_CASTLE);
+                    write(queenside.king_from, queenside.king_to, MOVE_CASTLE);
             }
         }
     }
 
     template <CastleSide Side>
     bool legal_castle() const {
-        constexpr Bitboard path     = castle::path[Side][Us];
-        constexpr Bitboard kingpath = castle::kingpath[Side][Us];
-        return !(occupancy & path) && !board.attacks_to(kingpath, ~Us);
+        constexpr const auto& castling = move_geometry::castling(Side, Us);
+        return !(occupancy & castling.empty_path) && !board.attacks_to(castling.king_path, ~Us);
     }
 
     const Board& board;

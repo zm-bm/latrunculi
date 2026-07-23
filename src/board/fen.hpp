@@ -4,7 +4,7 @@
 #include <string_view>
 #include <vector>
 
-#include "board/castling.hpp"
+#include "board/castling_rights.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "core/types.hpp"

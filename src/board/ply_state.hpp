@@ -4,7 +4,7 @@
 #include <cassert>
 #include <cstdint>
 
-#include "board/castling.hpp"
+#include "board/castling_rights.hpp"
 #include "core/bitboard.hpp"
 #include "core/constants.hpp"
 #include "core/move.hpp"
