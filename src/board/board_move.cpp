@@ -6,6 +6,19 @@
 #include <cassert>
 #include <cstdlib>
 
+namespace {
+
+[[gnu::always_inline]] inline void
+initialize_next_ply(PlyState& next, const PlyState& previous, Move move) noexcept {
+    next               = {};
+    next.zkey          = previous.zkey;
+    next.castle        = previous.castle;
+    next.halfmove_clk  = previous.halfmove_clk + 1;
+    next.previous_move = move;
+}
+
+} // namespace
+
 void Board::make(Move move, PlyState& next_state) {
     assert(&next_state != active_ply_state);
     key_history.push_back(key());
@@ -21,7 +34,7 @@ void Board::make(Move move, PlyState& next_state) {
     const PieceType captured_piece           = type == MOVE_EP ? PAWN : piecetype_on(to);
     const Square    previous_legal_enpassant = legal_enpassant_target();
 
-    next_state       = PlyState(active_state(), move);
+    initialize_next_ply(next_state, active_state(), move);
     active_ply_state = &next_state;
     ++ply_from_root;
     auto& state = this->active_state();
@@ -73,7 +86,7 @@ void Board::make(Move move, PlyState& next_state) {
     turn        = opponent;
     state.zkey ^= zob::hash_turn();
 
-    update_check_data();
+    refresh_tactical_cache();
     if (state.enpassant_target != INVALID) {
         update_legal_enpassant_target();
         if (state.legal_enpassant_target != INVALID)
@@ -128,7 +141,7 @@ void Board::make_null(PlyState& next_state) {
 
     const Square previous_legal_enpassant = legal_enpassant_target();
 
-    next_state       = PlyState(active_state(), Move());
+    initialize_next_ply(next_state, active_state(), NULL_MOVE);
     active_ply_state = &next_state;
     ++ply_from_root;
     auto& state = this->active_state();
@@ -138,7 +151,7 @@ void Board::make_null(PlyState& next_state) {
     if (previous_legal_enpassant != INVALID)
         state.zkey ^= zob::hash_ep(previous_legal_enpassant);
 
-    update_check_data();
+    refresh_tactical_cache();
 }
 
 void Board::unmake_null(PlyState& prior_state) {

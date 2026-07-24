@@ -36,8 +36,6 @@ struct BoardSnapshot {
     Bitboard                                                     occupancy;
     Bitboard                                                     checkers;
     std::array<Bitboard, N_COLORS>                               blockers{};
-    std::array<Bitboard, N_COLORS>                               pinners{};
-    std::array<Bitboard, piece_slots>                            checking_squares{};
     std::array<Square, N_COLORS>                                 kings{};
     TaperedScore                                                 material;
     TaperedScore                                                 psq;
@@ -67,7 +65,6 @@ inline BoardSnapshot snapshot_board(const Board& board) {
     for (int c = BLACK; c < N_COLORS; ++c) {
         const auto color                      = Color(c);
         snapshot.blockers[c]                  = board.blockers(color);
-        snapshot.pinners[c]                   = board.pinners(color);
         snapshot.kings[c]                     = board.king_sq(color);
         snapshot.piece_bb[c][all_pieces_slot] = board.pieces(color);
 
@@ -76,10 +73,6 @@ inline BoardSnapshot snapshot_board(const Board& board) {
             snapshot.counts[c][p]   = board.count(color, PieceType(p));
         }
     }
-
-    for (int p = PAWN; p <= KING; ++p)
-        snapshot.checking_squares[piece_slot(PieceType(p))] =
-            board.ply_state().tactical.checking_squares(PieceType(p));
 
     for (auto sq = A1; sq != INVALID; ++sq)
         snapshot.squares[sq] = board.piece_on(sq);
@@ -125,15 +118,8 @@ inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& 
     EXPECT_EQ(board.ply_state().captured, expected.captured);
     EXPECT_EQ(board.checkers(), expected.checkers);
 
-    for (int c = BLACK; c < N_COLORS; ++c) {
+    for (int c = BLACK; c < N_COLORS; ++c)
         EXPECT_EQ(board.blockers(Color(c)), expected.blockers[c]);
-        EXPECT_EQ(board.pinners(Color(c)), expected.pinners[c]);
-    }
-
-    for (int p = PAWN; p <= KING; ++p) {
-        EXPECT_EQ(board.ply_state().tactical.checking_squares(PieceType(p)),
-                  expected.checking_squares[piece_slot(PieceType(p))]);
-    }
 }
 
 } // namespace board_test

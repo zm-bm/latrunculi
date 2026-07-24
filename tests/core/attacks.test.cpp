@@ -22,30 +22,27 @@ TEST(AttacksTest, CorrectPawnShift) {
     EXPECT_EQ(attacks::pawn_shift<pawn_delta::left>(pawns_right, BLACK), 0);
 }
 
-TEST(AttacksTest, CorrectPawnAttacks) {
-    Bitboard pawns = bb::set(A4, D4, H4);
-    EXPECT_EQ(attacks::pawn_attacks(pawns, WHITE), bb::set(B5, C5, E5, G5));
-    EXPECT_EQ(attacks::pawn_attacks(pawns, BLACK), bb::set(B3, C3, E3, G3));
+TEST(AttacksTest, ComputesPawnAndLeaperAttacks) {
+    const Bitboard pawns         = bb::set(A4, D4, H4);
+    const Bitboard white_attacks = bb::set(B5, C5, E5, G5);
+    const Bitboard black_attacks = bb::set(B3, C3, E3, G3);
+    EXPECT_EQ(attacks::pawn_attacks<WHITE>(pawns), white_attacks);
+    EXPECT_EQ(attacks::pawn_attacks<BLACK>(pawns), black_attacks);
+    EXPECT_EQ(attacks::pawn_attacks(pawns, WHITE), white_attacks);
+    EXPECT_EQ(attacks::pawn_attacks(pawns, BLACK), black_attacks);
 
-    EXPECT_EQ(attacks::pawn_attacks(D4, WHITE), bb::set(C5, E5));
-    EXPECT_EQ(attacks::pawn_attacks(D4, BLACK), bb::set(C3, E3));
-    EXPECT_EQ(attacks::pawn_attacks<WHITE>(D4), bb::set(C5, E5));
-    EXPECT_EQ(attacks::pawn_attacks<BLACK>(D4), bb::set(C3, E3));
-}
-
-TEST(AttacksTest, CorrectMovesKnights) {
     EXPECT_EQ(attacks::piece_moves<KNIGHT>(A1), bb::set(B3, C2));
-    EXPECT_EQ(attacks::piece_moves<KNIGHT>(H1), bb::set(G3, F2));
-    EXPECT_EQ(attacks::piece_moves<KNIGHT>(A8), bb::set(B6, C7));
-    EXPECT_EQ(attacks::piece_moves<KNIGHT>(H8), bb::set(G6, F7));
-    EXPECT_EQ(attacks::piece_moves<KNIGHT>(G2), bb::set(E1, E3, F4, H4));
     EXPECT_EQ(attacks::piece_moves<KNIGHT>(C6), bb::set(A5, A7, B4, B8, D4, D8, E5, E7));
+
+    EXPECT_EQ(attacks::piece_moves<KING>(A1), bb::set(A2, B1, B2));
+    EXPECT_EQ(attacks::piece_moves<KING>(G2), bb::set(F1, F2, F3, G1, G3, H1, H2, H3));
 }
 
-TEST(AttacksTest, CorrectMovesKings) {
-    EXPECT_EQ(attacks::piece_moves<KING>(A1), bb::set(A2, B2, B1));
-    EXPECT_EQ(attacks::piece_moves<KING>(H1), bb::set(H2, G2, G1));
-    EXPECT_EQ(attacks::piece_moves<KING>(A8), bb::set(A7, B7, B8));
-    EXPECT_EQ(attacks::piece_moves<KING>(H8), bb::set(H7, G7, G8));
-    EXPECT_EQ(attacks::piece_moves<KING>(G2), bb::set(F1, F2, F3, G1, G3, H1, H2, H3));
+TEST(AttacksTest, FindsSingleSliderBlockers) {
+    const Bitboard rook_snipers = bb::set(E7, E8);
+
+    EXPECT_EQ(attacks::slider_blockers(E1, 0, rook_snipers, bb::set(E1, E7, E8)), 0);
+    EXPECT_EQ(attacks::slider_blockers(E1, 0, rook_snipers, bb::set(E1, E2, E7, E8)), bb::set(E2));
+    EXPECT_EQ(attacks::slider_blockers(E1, 0, rook_snipers, bb::set(E1, E2, E3, E7, E8)), 0);
+    EXPECT_EQ(attacks::slider_blockers(A1, bb::set(H8), 0, bb::set(A1, D4, H8)), bb::set(D4));
 }

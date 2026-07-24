@@ -1,9 +1,8 @@
 #include "core/square.hpp"
 
-#include "core/bitboard.hpp"
+#include <array>
 
-#include <tuple>
-#include <vector>
+#include "core/bitboard.hpp"
 
 #include <gtest/gtest.h>
 
@@ -52,32 +51,26 @@ TEST(SquareTest, Distance) {
     EXPECT_EQ(square::distance(A1, H8), 7);
 }
 
-TEST(SquareTest, Collinear) {
-    const std::vector<std::tuple<Square, Square, Bitboard>> test_cases = {
-        {B2, D2, bb::rank(RANK2)},
-        {B2, B4, bb::file(FILE2)},
-        {A1, H8, bb::set(A1, B2, C3, D4, E5, F6, G7, H8)},
-        {A8, H1, bb::set(A8, B7, C6, D5, E4, F3, G2, H1)},
-        {C1, A3, bb::set(A3, B2, C1)},
-        {F1, H3, bb::set(F1, G2, H3)},
-        {B2, C4, 0},
+TEST(SquareTest, RayMasks) {
+    struct Case {
+        Square   from;
+        Square   to;
+        Bitboard collinear;
+        Bitboard between;
+    };
+    constexpr std::array cases = {
+        Case{B2, D2, bb::rank(RANK2), bb::set(C2)},
+        Case{B2, B4, bb::file(FILE2), bb::set(B3)},
+        Case{A1, H8, bb::set(A1, B2, C3, D4, E5, F6, G7, H8), bb::set(B2, C3, D4, E5, F6, G7)},
+        Case{A8, H1, bb::set(A8, B7, C6, D5, E4, F3, G2, H1), bb::set(B7, C6, D5, E4, F3, G2)},
+        Case{C1, A3, bb::set(A3, B2, C1), bb::set(B2)},
+        Case{B2, C4, 0, 0},
     };
 
-    for (const auto& [sq1, sq2, expected] : test_cases) {
-        EXPECT_EQ(square::collinear(sq1, sq2), expected);
-        EXPECT_EQ(square::collinear(sq2, sq1), expected);
-    }
-}
-
-TEST(SquareTest, Between) {
-    const std::vector<std::tuple<Square, Square, Bitboard>> test_cases = {
-        {B2, D2, bb::set(C2)},
-        {B2, B4, bb::set(B3)},
-        {B2, C4, 0},
-    };
-
-    for (const auto& [sq1, sq2, expected] : test_cases) {
-        EXPECT_EQ(square::between(sq1, sq2), expected);
-        EXPECT_EQ(square::between(sq2, sq1), expected);
+    for (const auto& test : cases) {
+        EXPECT_EQ(square::collinear(test.from, test.to), test.collinear);
+        EXPECT_EQ(square::collinear(test.to, test.from), test.collinear);
+        EXPECT_EQ(square::between(test.from, test.to), test.between);
+        EXPECT_EQ(square::between(test.to, test.from), test.between);
     }
 }

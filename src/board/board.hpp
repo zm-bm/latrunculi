@@ -52,7 +52,7 @@ private:
     template <bool>
     void move_piece(Square, Square, Color, PieceType) noexcept;
 
-    void               update_check_data() noexcept;
+    void               refresh_tactical_cache() noexcept;
     void               update_legal_enpassant_target() noexcept;
     [[nodiscard]] bool enpassant_preserves_king_safety(Square from, Square target) const noexcept;
 
@@ -92,13 +92,8 @@ public:
     [[nodiscard]] int          fullmove() const noexcept { return (absolute_ply / 2) + 1; }
 
     [[nodiscard]] CastleRights castle_rights() const noexcept { return ply_state().castle; }
-    [[nodiscard]] Bitboard     checkers() const noexcept { return ply_state().tactical.checkers; }
-    [[nodiscard]] Bitboard     blockers(Color c) const noexcept {
-        return ply_state().tactical.blockers[c];
-    }
-    [[nodiscard]] Bitboard pinners(Color c) const noexcept {
-        return ply_state().tactical.pinners[c];
-    }
+    [[nodiscard]] Bitboard     checkers() const noexcept { return ply_state().checkers; }
+    [[nodiscard]] Bitboard     blockers(Color c) const noexcept { return ply_state().blockers[c]; }
     [[nodiscard]] Square enpassant_target() const noexcept { return ply_state().enpassant_target; }
     [[nodiscard]] Square legal_enpassant_target() const noexcept {
         return ply_state().legal_enpassant_target;

@@ -22,7 +22,7 @@ void Board::load_fen(const std::string& fen) {
     state.halfmove_clk     = parsed.halfmove_clk;
     absolute_ply           = parsed.absolute_ply;
 
-    update_check_data();
+    refresh_tactical_cache();
     update_legal_enpassant_target();
     state.zkey = calculate_key();
 }

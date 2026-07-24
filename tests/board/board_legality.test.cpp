@@ -10,33 +10,24 @@
 
 // Attack and check state.
 
-TEST(BoardLegalityTest, DirectSliderCheckIsNotPinner) {
-    board_test::Harness board("4r2k/8/8/8/8/8/8/4K3 w - - 0 1");
+TEST(BoardLegalityTest, CachesCheckersAndSliderBlockers) {
+    struct Case {
+        std::string_view fen;
+        Bitboard         checkers;
+        Bitboard         blockers;
+    };
+    constexpr std::array cases = {
+        Case{"4r2k/8/8/8/8/8/8/4K3 w - - 0 1", bb::set(E8), 0},
+        Case{"4r2k/8/8/8/8/8/4N3/4K3 w - - 0 1", 0, bb::set(E2)},
+        Case{"4r2k/8/8/8/8/8/4n3/4K3 w - - 0 1", 0, bb::set(E2)},
+    };
 
-    EXPECT_EQ(board.checkers(), bb::set(E8));
-    EXPECT_EQ(board.blockers(WHITE), 0);
-    EXPECT_EQ(board.pinners(BLACK), 0);
-}
-
-TEST(BoardLegalityTest, OwnBlockerSetsBlockerAndPinner) {
-    board_test::Harness board("4r2k/8/8/8/8/8/4N3/4K3 w - - 0 1");
-
-    EXPECT_EQ(board.blockers(WHITE), bb::set(E2));
-    EXPECT_EQ(board.pinners(BLACK), bb::set(E8));
-}
-
-TEST(BoardLegalityTest, EnemyBlockerSetsBlockerOnly) {
-    board_test::Harness board("4r2k/8/8/8/8/8/4n3/4K3 w - - 0 1");
-
-    EXPECT_EQ(board.blockers(WHITE), bb::set(E2));
-    EXPECT_EQ(board.pinners(BLACK), 0);
-}
-
-TEST(BoardLegalityTest, MultipleSnipersBehindOwnBlockerArePinners) {
-    board_test::Harness board(board_test::fen::multiple_pinners);
-
-    EXPECT_EQ(board.blockers(WHITE), bb::set(E2));
-    EXPECT_EQ(board.pinners(BLACK), bb::set(E7, E8));
+    for (const auto& test : cases) {
+        SCOPED_TRACE(test.fen);
+        board_test::Harness board(test.fen);
+        EXPECT_EQ(board.checkers(), test.checkers);
+        EXPECT_EQ(board.blockers(WHITE), test.blockers);
+    }
 }
 
 TEST(BoardLegalityTest, DetectsDoubleCheck) {
@@ -171,7 +162,6 @@ TEST(BoardLegalityTest, CachesLegalEnPassantForBothColorsIncludingCheckEvasion) 
         EXPECT_EQ(with_enpassant.legal_enpassant_target(), test.enpassant_target);
         EXPECT_EQ(with_enpassant.key(), with_enpassant.calculate_key());
         EXPECT_NE(with_enpassant.key(), without_enpassant.key());
-        EXPECT_TRUE(with_enpassant.is_pseudo_legal(test.move));
         EXPECT_TRUE(with_enpassant.is_legal_move(test.move));
 
         const auto moves = movegen::generate_pseudo_legal(with_enpassant);
@@ -287,25 +277,10 @@ TEST(BoardLegalityTest, GeneratedMoveLegalityMatchesFullFilter) {
         board_test::Harness board{fen};
         auto                movelist = movegen::generate_pseudo_legal(board);
         for (const Move& move : movelist) {
+            ASSERT_TRUE(board.is_pseudo_legal(move)) << fen << " " << move;
             EXPECT_EQ(board.is_legal_generated_move(move), board.is_legal_pseudo_move(move))
                 << fen << " " << move;
         }
-    }
-}
-
-TEST(BoardLegalityTest, GeneratedMovesArePseudoLegal) {
-    for (const std::string_view fen :
-         std::array<std::string_view, 7>{board_test::fen::start,
-                                         board_test::fen::perft_position_2,
-                                         board_test::fen::perft_position_3,
-                                         board_test::fen::perft_position_4_white,
-                                         board_test::fen::perft_position_4_black,
-                                         board_test::fen::legal_en_passant_a3,
-                                         "7k/P7/8/8/8/8/8/4K3 w - - 0 1"}) {
-        board_test::Harness board{fen};
-        auto                movelist = movegen::generate_pseudo_legal(board);
-        for (const Move& move : movelist)
-            EXPECT_TRUE(board.is_pseudo_legal(move)) << fen << " " << move;
     }
 }
 

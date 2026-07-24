@@ -8,53 +8,34 @@
 
 namespace {
 
-[[gnu::always_inline]] inline void
-calculate_pins(const Board& board, Color color, TacticalState& tactical) noexcept {
-    const Color  opponent = ~color;
-    const Square king     = board.king_sq(color);
-    Bitboard     snipers =
-        (attacks::piece_moves<BISHOP>(king) & board.pieces<BISHOP, QUEEN>(opponent)) |
-        (attacks::piece_moves<ROOK>(king) & board.pieces<ROOK, QUEEN>(opponent));
-    const Bitboard occupancy = board.occupancy() ^ snipers;
-
-    tactical.blockers[color]   = 0;
-    tactical.pinners[opponent] = 0;
-
-    while (snipers) {
-        const Square   pinner         = bb::lsb_pop(snipers);
-        const Bitboard pieces_between = occupancy & square::between(king, pinner);
-
-        if (bb::is_one(pieces_between)) {
-            tactical.blockers[color] |= pieces_between;
-            if (pieces_between & board.pieces(color))
-                bb::add(tactical.pinners[opponent], pinner);
-        }
-    }
-}
-
-[[gnu::always_inline]] inline void calculate_tactical_state(const Board&   board,
-                                                            TacticalState& tactical) noexcept {
+[[gnu::always_inline]] inline Bitboard direct_check_targets(const Board& board,
+                                                            PieceType    piece) noexcept {
     const Color    opponent      = ~board.side_to_move();
     const Square   opponent_king = board.king_sq(opponent);
     const Bitboard occupancy     = board.occupancy();
 
-    tactical.checkers = board.attacks_to(board.king_sq(board.side_to_move()), opponent);
-    tactical.checks[piece_slot(PAWN)]   = attacks::pawn_attacks(opponent_king, opponent);
-    tactical.checks[piece_slot(KNIGHT)] = attacks::piece_moves<KNIGHT>(opponent_king, occupancy);
-    tactical.checks[piece_slot(BISHOP)] = attacks::piece_moves<BISHOP>(opponent_king, occupancy);
-    tactical.checks[piece_slot(ROOK)]   = attacks::piece_moves<ROOK>(opponent_king, occupancy);
-    tactical.checks[piece_slot(QUEEN)] =
-        tactical.checking_squares(BISHOP) | tactical.checking_squares(ROOK);
-    tactical.checks[piece_slot(KING)] = 0;
-
-    calculate_pins(board, WHITE, tactical);
-    calculate_pins(board, BLACK, tactical);
+    switch (piece) {
+    case PAWN:   return attacks::pawn_attacks(opponent_king, opponent);
+    case KNIGHT: return attacks::piece_moves<KNIGHT>(opponent_king);
+    case BISHOP: return attacks::piece_moves<BISHOP>(opponent_king, occupancy);
+    case ROOK:   return attacks::piece_moves<ROOK>(opponent_king, occupancy);
+    case QUEEN:  return attacks::piece_moves<QUEEN>(opponent_king, occupancy);
+    default:     return 0;
+    }
 }
 
 } // namespace
 
-void Board::update_check_data() noexcept {
-    calculate_tactical_state(*this, active_state().tactical);
+void Board::refresh_tactical_cache() noexcept {
+    auto&          state    = active_state();
+    const Color    opponent = ~side_to_move();
+    const Bitboard occupied = occupancy();
+
+    state.checkers        = attacks_to(king_sq(side_to_move()), opponent);
+    state.blockers[WHITE] = attacks::slider_blockers(
+        king_sq(WHITE), pieces<BISHOP, QUEEN>(BLACK), pieces<ROOK, QUEEN>(BLACK), occupied);
+    state.blockers[BLACK] = attacks::slider_blockers(
+        king_sq(BLACK), pieces<BISHOP, QUEEN>(WHITE), pieces<ROOK, QUEEN>(WHITE), occupied);
 }
 
 bool Board::enpassant_preserves_king_safety(Square from, Square target) const noexcept {
@@ -216,7 +197,7 @@ bool Board::is_legal_pseudo_move(Move mv) const noexcept {
     Square to   = mv.to();
     Square king = king_sq(turn);
 
-    // king move: check if king is attacked(castle legality handled in movegen)
+    // King moves must not enter check; castling was fully validated as pseudo-legal.
     if (from == king) {
         if (mv.type() != MOVE_CASTLE) {
             Bitboard occupied = occupancy();
@@ -241,24 +222,23 @@ bool Board::is_legal_pseudo_move(Move mv) const noexcept {
     }
 
     // check if moved piece is pinned or moving in-line with check
-    Bitboard pins = blockers(turn);
-    return (!pins || !bb::contains(pins, from) || bb::contains(square::collinear(from, to), king));
+    const Bitboard blockers_bb = blockers(turn);
+    return !blockers_bb || !bb::contains(blockers_bb, from) ||
+           bb::contains(square::collinear(from, to), king);
 }
 
 // Determine if a move gives check for the current board
 bool Board::is_checking_move(Move mv) const noexcept {
-    Square      from     = mv.from();
-    Square      to       = mv.to();
-    Color       opp      = ~turn;
-    Square      opp_king = king_sq(opp);
-    const auto& state    = ply_state();
+    Square from     = mv.from();
+    Square to       = mv.to();
+    Color  opp      = ~turn;
+    Square opp_king = king_sq(opp);
 
     // check if piece directly attacks the king or was a blocker
     const PieceType piecetype = type_of(piece_on(from));
-    if (bb::contains(state.tactical.checking_squares(piecetype), to))
+    if (bb::contains(direct_check_targets(*this, piecetype), to))
         return true;
-    if (bb::contains(state.tactical.blockers[opp], from) &&
-        !bb::contains(square::collinear(from, to), opp_king))
+    if (bb::contains(blockers(opp), from) && !bb::contains(square::collinear(from, to), opp_king))
         return true;
 
     switch (mv.type()) {

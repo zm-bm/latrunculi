@@ -456,6 +456,8 @@ TEST_F(EvaluatorTest, RawDanger) {
         // unsafe rook checks
         {"4k3/5n2/8/8/8/8/4P3/4K1NR w - - 0 2", 0, eval::unsafe_check_danger[ROOK]},
         {"4k1nr/4p3/8/8/8/8/5N2/4K3 w - - 0 3", eval::unsafe_check_danger[ROOK], 0},
+        // An enemy piece blocking its own slider is not a pinned defender.
+        {"4r2k/8/8/8/8/8/4n3/4K3 w - - 0 1", 203, 0},
         // safe queen + bishop checks
         {"r1n1kn1r/8/8/8/8/8/8/R2QKB2 w - - 0 4", 0, danger},
         {"r2qkb2/8/8/8/8/8/8/R1N1KN1R w - - 0 5", danger, 0},

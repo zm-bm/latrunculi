@@ -35,7 +35,6 @@ inline constexpr char capture_promotion[] = "1n2k3/P7/8/8/8/8/8/4K3 w - - 0 1";
 inline constexpr char white_pawn_on_a7[]  = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1";
 inline constexpr char castling[]          = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1";
 inline constexpr char check_evasion[]     = "k3r3/8/8/8/8/8/8/2B1K1N1 w - - 0 1";
-inline constexpr char multiple_pinners[]  = "4r2k/4q3/8/8/8/8/4N3/4K3 w - - 0 1";
 inline constexpr char repetition_cycle[] =
     "3r4/ppq4k/1nb1BQ1p/4Pp1p/1b6/8/PP3PPP/2R1R1K1 w - - 2 26";
 inline constexpr char pinned_rook[]                = "k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1";

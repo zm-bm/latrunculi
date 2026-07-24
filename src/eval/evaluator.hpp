@@ -626,7 +626,7 @@ int Evaluator::calculate_raw_danger(Square king_sq) const {
 
     danger += king_attackers.value[C] * king_attackers.count[C];
     danger += eval::weak_kingzone_danger * bb::count(zones.king[C] & weak_defense);
-    danger += eval::pinned_piece_danger * bb::count(board.blockers(C));
+    danger += eval::pinned_piece_danger * bb::count(board.blockers(C) & board.pieces(C));
 
     return danger;
 }

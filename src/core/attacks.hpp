@@ -85,6 +85,28 @@ constexpr Bitboard piece_moves(Square sq, PieceType p, Bitboard occupancy) {
     }
 }
 
+// Single blockers between a king and opposing diagonal or orthogonal sliders.
+[[gnu::always_inline]] inline Bitboard slider_blockers(Square   king,
+                                                       Bitboard diagonal_sliders,
+                                                       Bitboard orthogonal_sliders,
+                                                       Bitboard occupancy) noexcept {
+    Bitboard snipers = (piece_moves<BISHOP>(king) & diagonal_sliders) |
+                       (piece_moves<ROOK>(king) & orthogonal_sliders);
+    // Exclude aligned snipers so they do not block each other's rays.
+    occupancy ^= snipers;
+
+    Bitboard blockers = 0;
+    while (snipers) {
+        const Square   sniper         = bb::lsb_pop(snipers);
+        const Bitboard pieces_between = occupancy & square::between(king, sniper);
+
+        if (bb::is_one(pieces_between))
+            blockers |= pieces_between;
+    }
+
+    return blockers;
+}
+
 // Color-relative pawn shift; diagonal shifts trim edge-file wraparound.
 template <int Delta, Color C>
 constexpr Bitboard pawn_shift(Bitboard pawns) {
