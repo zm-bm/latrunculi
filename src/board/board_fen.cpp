@@ -23,7 +23,7 @@ void Board::load_fen(std::string_view fen) {
     absolute_ply           = parsed.absolute_ply;
 
     refresh_tactical_cache();
-    update_legal_enpassant_target();
+    refresh_legal_enpassant_target();
     state.zkey = recompute_key();
 }
 

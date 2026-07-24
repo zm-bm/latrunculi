@@ -169,19 +169,29 @@ Commit: `refactor: simplify board state setup`
 
 ## Phase 6: Clarify Legality And Move Flow
 
-- [ ] Rename the internal legal-en-passant update to
+Status: complete.
+
+- [x] Rename the internal legal-en-passant update to
       `refresh_legal_enpassant_target()`.
-- [ ] Normalize locals to `move`, `piece_type`, `opponent`, `opponent_king`,
+- [x] Normalize locals to `move`, `piece_type`, `opponent`, `opponent_king`,
       `occupancy`, `captured_square`, and `destination_piece`.
-- [ ] Remove unnecessary `else` branches after returns and demonstrably
+- [x] Remove unnecessary `else` branches after returns and demonstrably
       redundant guards.
-- [ ] Keep only comments that explain contracts or non-obvious chess behavior.
-- [ ] Do not split `board_legality.cpp` or extract new helper abstractions.
-- [ ] Run 103 focused tests.
-- [ ] Run all 483 GNU debug, GNU release, and Clang debug tests.
-- [ ] Run formatting, stale-name searches, object-size diagnostics, and
+- [x] Keep only comments that explain contracts or non-obvious chess behavior.
+- [x] Do not split `board_legality.cpp` or extract new helper abstractions.
+- [x] Run 103 focused tests.
+- [x] Run all 483 GNU debug, GNU release, and Clang debug tests.
+- [x] Run formatting, stale-name searches, object-size diagnostics, and
       `git diff --check`.
-- [ ] Compare optimized make/unmake and legality output with Phase 0.
-- [ ] If generated code changed, run five balanced standard-perft comparisons.
+- [x] Compare optimized make/unmake and legality output with Phase 0.
+- [x] Run five balanced standard-perft comparisons after generated code changed.
+
+Evidence: 103 focused tests and all 483 tests under GNU debug, GNU release,
+and Clang 18 debug passed. `sizeof(PlyState)` remains 40 bytes and
+`sizeof(Board)` remains 256 bytes. Nine of twelve mapped hot functions compile
+identically to Phase 0; changed `unmake`, pseudo-legality, and full legality
+paths add no calls under GNU or Clang. Five order-balanced Phase 5/current
+standard-perft pairs preserved all 11,168,869 nodes; median total time changed
+from 479.333 ms to 484.563 ms (+1.09%).
 
 Commit: `refactor: clarify board legality flow`

@@ -9,12 +9,12 @@
 namespace {
 
 [[gnu::always_inline]] inline Bitboard direct_check_targets(const Board& board,
-                                                            PieceType    piece) noexcept {
+                                                            PieceType    piece_type) noexcept {
     const Color    opponent      = ~board.side_to_move();
     const Square   opponent_king = board.king_sq(opponent);
     const Bitboard occupancy     = board.occupancy();
 
-    switch (piece) {
+    switch (piece_type) {
     case PAWN:   return attacks::pawn_attacks(opponent_king, opponent);
     case KNIGHT: return attacks::piece_moves<KNIGHT>(opponent_king);
     case BISHOP: return attacks::piece_moves<BISHOP>(opponent_king, occupancy);
@@ -27,29 +27,29 @@ namespace {
 } // namespace
 
 void Board::refresh_tactical_cache() noexcept {
-    auto&          state    = active_state();
-    const Color    opponent = ~side_to_move();
-    const Bitboard occupied = occupancy();
+    auto&          state     = active_state();
+    const Color    opponent  = ~side_to_move();
+    const Bitboard occupancy = this->occupancy();
 
-    state.checkers        = attacks_to(king_sq(side_to_move()), opponent);
+    state.checkers        = attacks_to(king_sq(side_to_move()), opponent, occupancy);
     state.blockers[WHITE] = attacks::slider_blockers(
-        king_sq(WHITE), pieces<BISHOP, QUEEN>(BLACK), pieces<ROOK, QUEEN>(BLACK), occupied);
+        king_sq(WHITE), pieces<BISHOP, QUEEN>(BLACK), pieces<ROOK, QUEEN>(BLACK), occupancy);
     state.blockers[BLACK] = attacks::slider_blockers(
-        king_sq(BLACK), pieces<BISHOP, QUEEN>(WHITE), pieces<ROOK, QUEEN>(WHITE), occupied);
+        king_sq(BLACK), pieces<BISHOP, QUEEN>(WHITE), pieces<ROOK, QUEEN>(WHITE), occupancy);
 }
 
 bool Board::enpassant_preserves_king_safety(Square from, Square target) const noexcept {
-    const Square captured = move_geometry::enpassant_captured_square(target, turn);
-    Bitboard     occupied = occupancy();
-    bb::move(occupied, from, target);
-    bb::remove(occupied, captured);
+    const Square captured_square = move_geometry::enpassant_captured_square(target, turn);
+    Bitboard     occupancy       = this->occupancy();
+    bb::move(occupancy, from, target);
+    bb::remove(occupancy, captured_square);
 
-    Bitboard attackers = attacks_to(king_sq(turn), ~turn, occupied);
-    bb::remove(attackers, captured);
+    Bitboard attackers = attacks_to(king_sq(turn), ~turn, occupancy);
+    bb::remove(attackers, captured_square);
     return !attackers;
 }
 
-void Board::update_legal_enpassant_target() noexcept {
+void Board::refresh_legal_enpassant_target() noexcept {
     auto&        state           = active_state();
     const Square target          = state.enpassant_target;
     state.legal_enpassant_target = INVALID;
@@ -57,9 +57,9 @@ void Board::update_legal_enpassant_target() noexcept {
     if (target == INVALID || piece_on(target) != NO_PIECE)
         return;
 
-    const Color  side     = side_to_move();
-    const Square captured = move_geometry::enpassant_captured_square(target, side);
-    if (piece_on(captured) != make_piece(~side, PAWN))
+    const Color  side            = side_to_move();
+    const Square captured_square = move_geometry::enpassant_captured_square(target, side);
+    if (piece_on(captured_square) != make_piece(~side, PAWN))
         return;
 
     Bitboard capturers = pieces<PAWN>(side) & attacks::pawn_attacks(target, ~side);
@@ -71,29 +71,29 @@ void Board::update_legal_enpassant_target() noexcept {
     }
 }
 
-bool Board::is_pseudo_legal(Move mv) const noexcept {
-    if (mv.is_null())
+bool Board::is_pseudo_legal(Move move) const noexcept {
+    if (move.is_null())
         return false;
 
-    const Square from = mv.from();
-    const Square to   = mv.to();
+    const Square from = move.from();
+    const Square to   = move.to();
     if (from == to)
         return false;
 
-    const Piece piece = piece_on(from);
-    if (piece == NO_PIECE || color_of(piece) != turn)
+    const Piece source_piece = piece_on(from);
+    if (source_piece == NO_PIECE || color_of(source_piece) != turn)
         return false;
 
-    const Piece target = piece_on(to);
-    if (target != NO_PIECE && color_of(target) == turn)
+    const Piece destination_piece = piece_on(to);
+    if (destination_piece != NO_PIECE && color_of(destination_piece) == turn)
         return false;
 
-    const PieceType piecetype = type_of(piece);
-    const Bitboard  occupied  = occupancy();
+    const PieceType piece_type = type_of(source_piece);
+    const Bitboard  occupancy  = this->occupancy();
 
-    switch (mv.type()) {
+    switch (move.type()) {
     case BASIC_MOVE: {
-        if (piecetype == PAWN) {
+        if (piece_type == PAWN) {
             const int push_delta = move_geometry::pawn_push(turn);
             const int move_delta = int(to) - int(from);
 
@@ -101,51 +101,49 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
                 return false;
 
             if (move_delta == push_delta)
-                return target == NO_PIECE;
+                return destination_piece == NO_PIECE;
 
             if (move_delta == 2 * push_delta) {
                 const Square mid = from + push_delta;
-                return square::relative_rank(from, turn) == RANK2 && target == NO_PIECE &&
-                       piece_on(mid) == NO_PIECE;
+                return square::relative_rank(from, turn) == RANK2 &&
+                       destination_piece == NO_PIECE && piece_on(mid) == NO_PIECE;
             }
 
-            return bb::contains(attacks::pawn_attacks(from, turn), to) && target != NO_PIECE &&
-                   color_of(target) == ~turn;
+            return bb::contains(attacks::pawn_attacks(from, turn), to) &&
+                   destination_piece != NO_PIECE;
         }
 
-        if (piecetype == KING)
+        if (piece_type == KING)
             return bb::contains(attacks::piece_moves<KING>(from), to);
 
-        return is_piece_type(piecetype) && piecetype != KING &&
-               bb::contains(attacks::piece_moves(from, piecetype, occupied), to);
+        return bb::contains(attacks::piece_moves(from, piece_type, occupancy), to);
     }
 
     case MOVE_PROM: {
-        if (piecetype != PAWN || !valid_promotion_piece(mv.prom_piece()))
+        if (piece_type != PAWN || !valid_promotion_piece(move.prom_piece()))
             return false;
         if (square::relative_rank(from, turn) != RANK7 || square::relative_rank(to, turn) != RANK8)
             return false;
 
         const int push_delta = move_geometry::pawn_push(turn);
         if (int(to) - int(from) == push_delta)
-            return target == NO_PIECE;
+            return destination_piece == NO_PIECE;
 
-        return bb::contains(attacks::pawn_attacks(from, turn), to) && target != NO_PIECE &&
-               color_of(target) == ~turn;
+        return bb::contains(attacks::pawn_attacks(from, turn), to) && destination_piece != NO_PIECE;
     }
 
     case MOVE_EP: {
-        if (piecetype != PAWN || to != enpassant_target() || target != NO_PIECE)
+        if (piece_type != PAWN || to != enpassant_target() || destination_piece != NO_PIECE)
             return false;
         if (!bb::contains(attacks::pawn_attacks(from, turn), to))
             return false;
 
-        const Square captured = move_geometry::enpassant_captured_square(to, turn);
-        return piece_on(captured) == make_piece(~turn, PAWN);
+        const Square captured_square = move_geometry::enpassant_captured_square(to, turn);
+        return piece_on(captured_square) == make_piece(~turn, PAWN);
     }
 
     case MOVE_CASTLE: {
-        if (piecetype != KING)
+        if (piece_type != KING)
             return false;
 
         const CastleSide side     = move_geometry::castle_side(from, to);
@@ -153,16 +151,12 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
         if (from != castling.king_from || to != castling.king_to)
             return false;
 
-        if (side == CASTLE_KINGSIDE) {
-            if (!has_castling_right(CASTLE_KINGSIDE, turn))
-                return false;
-        } else if (!has_castling_right(CASTLE_QUEENSIDE, turn)) {
+        if (!has_castling_right(side, turn))
             return false;
-        }
 
         if (piece_on(castling.rook_from) != make_piece(turn, ROOK))
             return false;
-        if (occupied & castling.empty_path)
+        if (occupancy & castling.empty_path)
             return false;
 
         return !any_attacked(castling.king_path, ~turn);
@@ -172,100 +166,97 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
     return false;
 }
 
-bool Board::is_legal_move(Move mv) const noexcept {
-    return is_pseudo_legal(mv) && is_legal_pseudo_move(mv);
+bool Board::is_legal_move(Move move) const noexcept {
+    return is_pseudo_legal(move) && is_legal_pseudo_move(move);
 }
 
-// Requires a generated pseudo-legal move. Only strict cases can expose or leave king in check.
-bool Board::is_legal_generated_move(Move mv) const noexcept {
-    assert(is_pseudo_legal(mv));
+// Full validation is needed only while in check, or for king, en-passant, and pinned-piece moves.
+bool Board::is_legal_generated_move(Move move) const noexcept {
+    assert(is_pseudo_legal(move));
 
-    const Square from = mv.from();
+    const Square from = move.from();
 
-    if (checkers() || from == king_sq(turn) || mv.type() == MOVE_EP ||
+    if (checkers() || from == king_sq(turn) || move.type() == MOVE_EP ||
         bb::contains(blockers(turn), from))
-        return is_legal_pseudo_move(mv);
+        return is_legal_pseudo_move(move);
 
     return true;
 }
 
-// Requires a pseudo-legal move. Filters moves that expose or leave the king in check.
-bool Board::is_legal_pseudo_move(Move mv) const noexcept {
-    assert(is_pseudo_legal(mv));
+bool Board::is_legal_pseudo_move(Move move) const noexcept {
+    assert(is_pseudo_legal(move));
 
-    Square from = mv.from();
-    Square to   = mv.to();
-    Square king = king_sq(turn);
+    const Square from = move.from();
+    const Square to   = move.to();
+    const Square king = king_sq(turn);
 
-    // King moves must not enter check; castling was fully validated as pseudo-legal.
+    // Castling king safety was fully validated as pseudo-legal.
     if (from == king) {
-        if (mv.type() != MOVE_CASTLE) {
-            Bitboard occupied = occupancy();
-            bb::move(occupied, from, to);
-            return !attacks_to(to, ~turn, occupied);
-        }
-        return true;
+        if (move.type() == MOVE_CASTLE)
+            return true;
+
+        Bitboard occupancy = this->occupancy();
+        bb::move(occupancy, from, to);
+        return !attacks_to(to, ~turn, occupancy);
     }
 
-    else if (mv.type() == MOVE_EP)
+    if (move.type() == MOVE_EP)
         return enpassant_preserves_king_safety(from, to);
 
-    // non-king moves must resolve any current check
-    Bitboard checkers_bb = checkers();
+    const Bitboard checkers_bb = checkers();
     if (checkers_bb) {
         if (bb::is_many(checkers_bb))
             return false;
 
-        Square checker = bb::lsb(checkers_bb);
+        // A non-king move must capture or interpose against the sole checker.
+        const Square checker = bb::lsb(checkers_bb);
         if (to != checker && !bb::contains(square::between(king, checker), to))
             return false;
     }
 
-    // check if moved piece is pinned or moving in-line with check
-    const Bitboard blockers_bb = blockers(turn);
-    return !blockers_bb || !bb::contains(blockers_bb, from) ||
-           bb::contains(square::collinear(from, to), king);
+    // A pinned piece may move only along the king ray.
+    return !bb::contains(blockers(turn), from) || bb::contains(square::collinear(from, to), king);
 }
 
-// Determine if a move gives check for the current board
-bool Board::gives_check(Move mv) const noexcept {
-    Square from     = mv.from();
-    Square to       = mv.to();
-    Color  opp      = ~turn;
-    Square opp_king = king_sq(opp);
+bool Board::gives_check(Move move) const noexcept {
+    const Square from          = move.from();
+    const Square to            = move.to();
+    const Color  opponent      = ~turn;
+    const Square opponent_king = king_sq(opponent);
 
-    // check if piece directly attacks the king or was a blocker
-    const PieceType piecetype = type_of(piece_on(from));
-    if (bb::contains(direct_check_targets(*this, piecetype), to))
+    // Handle direct and discovered checks.
+    const PieceType piece_type = type_of(piece_on(from));
+    if (bb::contains(direct_check_targets(*this, piece_type), to))
         return true;
-    if (bb::contains(blockers(opp), from) && !bb::contains(square::collinear(from, to), opp_king))
+    if (bb::contains(blockers(opponent), from) &&
+        !bb::contains(square::collinear(from, to), opponent_king))
         return true;
 
-    switch (mv.type()) {
+    switch (move.type()) {
     case MOVE_PROM: {
-        // check if a promotion attacks the enemy king
-        Bitboard occupied = occupancy();
-        bb::remove(occupied, from);
-        return bb::contains(attacks::piece_moves(to, mv.prom_piece(), occupied), opp_king);
+        Bitboard occupancy = this->occupancy();
+        bb::remove(occupancy, from);
+        return bb::contains(attacks::piece_moves(to, move.prom_piece(), occupancy), opponent_king);
     }
 
     case MOVE_EP: {
-        // check if captured pawn was blocking enemy king from attack
-        Square   captured = move_geometry::enpassant_captured_square(to, turn);
-        Bitboard occupied = occupancy();
-        bb::move(occupied, from, to);
-        bb::remove(occupied, captured);
-        return ((pieces<BISHOP, QUEEN>(turn) & attacks::piece_moves<BISHOP>(opp_king, occupied)) ||
-                (pieces<ROOK, QUEEN>(turn) & attacks::piece_moves<ROOK>(opp_king, occupied)));
+        // En passant can uncover a slider by removing a pawn off the destination.
+        const Square captured_square = move_geometry::enpassant_captured_square(to, turn);
+        Bitboard     occupancy       = this->occupancy();
+        bb::move(occupancy, from, to);
+        bb::remove(occupancy, captured_square);
+        return ((pieces<BISHOP, QUEEN>(turn) &
+                 attacks::piece_moves<BISHOP>(opponent_king, occupancy)) ||
+                (pieces<ROOK, QUEEN>(turn) & attacks::piece_moves<ROOK>(opponent_king, occupancy)));
     }
 
     case MOVE_CASTLE: {
-        // check if rook attacks enemy king
-        const auto& castling = move_geometry::castling(move_geometry::castle_side(from, to), turn);
-        Bitboard    occupied = occupancy();
-        bb::move(occupied, from, to);
-        bb::move(occupied, castling.rook_from, castling.rook_to);
-        return bb::contains(attacks::piece_moves<ROOK>(castling.rook_to, occupied), opp_king);
+        // Castling can give check through the relocated rook.
+        const auto& castling  = move_geometry::castling(move_geometry::castle_side(from, to), turn);
+        Bitboard    occupancy = this->occupancy();
+        bb::move(occupancy, from, to);
+        bb::move(occupancy, castling.rook_from, castling.rook_to);
+        return bb::contains(attacks::piece_moves<ROOK>(castling.rook_to, occupancy), opponent_king);
     }
 
     case BASIC_MOVE: return false;

@@ -92,8 +92,8 @@ public:
     [[nodiscard]] bool is_double_check() const noexcept { return bb::is_many(checkers()); }
 
     [[nodiscard]] Bitboard
-    attacks_to(Square target, Color attacker, Bitboard occupied) const noexcept;
-    [[nodiscard]] Bitboard attacks_to(Square target, Bitboard occupied) const noexcept;
+    attacks_to(Square target, Color attacker, Bitboard occupancy) const noexcept;
+    [[nodiscard]] Bitboard attacks_to(Square target, Bitboard occupancy) const noexcept;
     [[nodiscard]] Bitboard attacks_to(Square target, Color attacker) const noexcept {
         return attacks_to(target, attacker, occupancy());
     }
@@ -164,7 +164,7 @@ private:
     inline void clear_rook_castling_right(Color color, Square rook_square) noexcept;
 
     void               refresh_tactical_cache() noexcept;
-    void               update_legal_enpassant_target() noexcept;
+    void               refresh_legal_enpassant_target() noexcept;
     [[nodiscard]] bool enpassant_preserves_king_safety(Square from, Square target) const noexcept;
 
     Bitboard     piece_bb[N_COLORS][N_PIECETYPES]     = {0};
@@ -224,29 +224,30 @@ inline bool Board::has_castling_right(CastleSide side, Color color) const noexce
 }
 
 // Returns pieces of attacker color that attack target.
-inline Bitboard Board::attacks_to(Square target, Color attacker, Bitboard occupied) const noexcept {
+inline Bitboard
+Board::attacks_to(Square target, Color attacker, Bitboard occupancy) const noexcept {
     return (pieces<PAWN>(attacker) & attacks::pawn_attacks(target, ~attacker)) |
-           (pieces<KNIGHT>(attacker) & attacks::piece_moves<KNIGHT>(target, occupied)) |
-           (pieces<KING>(attacker) & attacks::piece_moves<KING>(target, occupied)) |
-           (pieces<BISHOP, QUEEN>(attacker) & attacks::piece_moves<BISHOP>(target, occupied)) |
-           (pieces<ROOK, QUEEN>(attacker) & attacks::piece_moves<ROOK>(target, occupied));
+           (pieces<KNIGHT>(attacker) & attacks::piece_moves<KNIGHT>(target, occupancy)) |
+           (pieces<KING>(attacker) & attacks::piece_moves<KING>(target, occupancy)) |
+           (pieces<BISHOP, QUEEN>(attacker) & attacks::piece_moves<BISHOP>(target, occupancy)) |
+           (pieces<ROOK, QUEEN>(attacker) & attacks::piece_moves<ROOK>(target, occupancy));
 }
 
 // Returns pieces of either color that attack target.
-inline Bitboard Board::attacks_to(Square target, Bitboard occupied) const noexcept {
+inline Bitboard Board::attacks_to(Square target, Bitboard occupancy) const noexcept {
     return (pieces<PAWN>(WHITE) & attacks::pawn_attacks<BLACK>(target)) |
            (pieces<PAWN>(BLACK) & attacks::pawn_attacks<WHITE>(target)) |
-           (pieces<KNIGHT>() & attacks::piece_moves<KNIGHT>(target, occupied)) |
-           (pieces<KING>() & attacks::piece_moves<KING>(target, occupied)) |
-           (pieces<BISHOP, QUEEN>() & attacks::piece_moves<BISHOP>(target, occupied)) |
-           (pieces<ROOK, QUEEN>() & attacks::piece_moves<ROOK>(target, occupied));
+           (pieces<KNIGHT>() & attacks::piece_moves<KNIGHT>(target, occupancy)) |
+           (pieces<KING>() & attacks::piece_moves<KING>(target, occupancy)) |
+           (pieces<BISHOP, QUEEN>() & attacks::piece_moves<BISHOP>(target, occupancy)) |
+           (pieces<ROOK, QUEEN>() & attacks::piece_moves<ROOK>(target, occupancy));
 }
 
 inline bool Board::any_attacked(Bitboard targets, Color attacker) const noexcept {
-    const Bitboard occupied = occupancy();
+    const Bitboard occupancy = this->occupancy();
     while (targets) {
         const Square target = bb::lsb_pop(targets);
-        if (attacks_to(target, attacker, occupied))
+        if (attacks_to(target, attacker, occupancy))
             return true;
     }
     return false;
