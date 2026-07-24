@@ -15,7 +15,8 @@ void copy_array(const T (&source)[N], T (&target)[N]) {
 
 template <typename T, std::size_t Rows, std::size_t Cols>
 void copy_array(const T (&source)[Rows][Cols], T (&target)[Rows][Cols]) {
-    std::copy_n(&source[0][0], Rows * Cols, &target[0][0]);
+    for (std::size_t row = 0; row < Rows; ++row)
+        copy_array(source[row], target[row]);
 }
 
 } // namespace

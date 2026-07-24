@@ -10,7 +10,7 @@ void Board::load_fen(std::string_view fen) {
     reset();
 
     for (const auto p : parsed.pieces) {
-        add_piece<true>(p.square, p.color, p.type);
+        add_piece<false>(p.square, p.color, p.type);
         if (p.type == KING)
             king_square[p.color] = p.square;
     }

@@ -60,7 +60,7 @@ void Board::make(Move move, PlyState& next_state) {
     const Square    previous_legal_enpassant = legal_enpassant_target();
 
     initialize_next_ply(next_state, active_state(), move);
-    active_ply_state = &next_state;
+    bind_ply_state(next_state);
     ++ply_from_root;
     auto& state = this->active_state();
     ++absolute_ply;
@@ -138,7 +138,7 @@ void Board::unmake(PlyState& prior_state) {
 
     assert(!key_history.empty() && key_history.back() == prior_state.zkey);
     key_history.pop_back();
-    active_ply_state = &prior_state;
+    bind_ply_state(prior_state);
     --ply_from_root;
     --absolute_ply;
     turn = mover;
@@ -167,7 +167,7 @@ void Board::make_null(PlyState& next_state) {
     const Square previous_legal_enpassant = legal_enpassant_target();
 
     initialize_next_ply(next_state, active_state(), NULL_MOVE);
-    active_ply_state = &next_state;
+    bind_ply_state(next_state);
     ++ply_from_root;
     auto& state = this->active_state();
 
@@ -185,7 +185,7 @@ void Board::unmake_null(PlyState& prior_state) {
 
     assert(!key_history.empty() && key_history.back() == prior_state.zkey);
     key_history.pop_back();
-    active_ply_state = &prior_state;
+    bind_ply_state(prior_state);
     --ply_from_root;
     turn = ~turn;
 }

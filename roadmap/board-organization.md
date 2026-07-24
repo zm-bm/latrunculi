@@ -153,13 +153,17 @@ Commit: `refactor: organize board interface`
 
 ## Phase 5: Simplify State Setup
 
-- [ ] Copy multidimensional representation arrays one row at a time.
-- [ ] Use `add_piece<false>` during FEN loading before full key recomputation.
-- [ ] Use `bind_ply_state()` consistently in make, unmake, and root copying.
-- [ ] Preserve root history, traversal reset, hashing, ownership, and layout.
-- [ ] Run FEN, representation, root-copy, move-application, invariant, and
+Status: complete.
+
+- [x] Copy multidimensional representation arrays one row at a time.
+- [x] Use `add_piece<false>` during FEN loading before full key recomputation.
+- [x] Use `bind_ply_state()` consistently in make, unmake, and root copying.
+- [x] Preserve root history, traversal reset, hashing, ownership, and layout.
+- [x] Run FEN, representation, root-copy, move-application, invariant, and
       complete GNU debug tests.
-- [ ] Run `git diff --check`.
+- [x] Run `git diff --check`.
+
+Evidence: 40 targeted state-setup tests and all 483 GNU debug tests passed.
 
 Commit: `refactor: simplify board state setup`
 
