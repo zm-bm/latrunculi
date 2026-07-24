@@ -129,19 +129,25 @@ Commit: `refactor: clarify board vocabulary`
 
 ## Phase 4: Organize The Board Interface
 
-- [ ] Put the public contract before private implementation in `board.hpp`.
-- [ ] Group lifecycle, representation, reversible state, attacks/castling,
+Status: complete.
+
+- [x] Put the public contract before private implementation in `board.hpp`.
+- [x] Group lifecycle, representation, reversible state, attacks/castling,
       move validation, transitions, rules/evaluation, and diagnostics.
-- [ ] Add a concise class-level caller-owned `PlyState` contract.
-- [ ] Document make/unmake, checking, SEE, root-copy, draw-search, and
+- [x] Add a concise class-level caller-owned `PlyState` contract.
+- [x] Document make/unmake, checking, SEE, root-copy, draw-search, and
       key-recomputation preconditions.
-- [ ] Preserve every data member's relative order.
-- [ ] Move the cold constructor definition to `board_representation.cpp`.
-- [ ] Move private castling-right mutation definitions to `board_move.cpp`.
-- [ ] Remove redundant semicolons and name declarations by role.
-- [ ] Keep the combined header and genuinely hot inline definitions.
-- [ ] Run focused and complete GNU debug tests and `git diff --check`.
-- [ ] Compare GNU and Clang optimized make/unmake output with Phase 0.
+- [x] Preserve every data member's relative order.
+- [x] Move the cold constructor definition to `board_representation.cpp`.
+- [x] Move private castling-right mutation definitions to `board_move.cpp`.
+- [x] Remove redundant semicolons and name declarations by role.
+- [x] Keep the combined header and genuinely hot inline definitions.
+- [x] Run focused and complete GNU debug tests and `git diff --check`.
+- [x] Compare GNU and Clang optimized make/unmake output with Phase 0.
+
+Evidence: 103 focused and all 483 GNU debug tests passed; `sizeof(PlyState)`
+remains 40 bytes and `sizeof(Board)` remains 256 bytes. GNU and Clang 18
+`board_move` disassembly is byte-identical to Phase 0.
 
 Commit: `refactor: organize board interface`
 

@@ -19,6 +19,31 @@ initialize_next_ply(PlyState& next, const PlyState& previous, Move move) noexcep
 
 } // namespace
 
+inline void Board::clear_castling_rights(Color color) noexcept {
+    auto& state = active_state();
+
+    if (has_castling_right(CASTLE_KINGSIDE, color))
+        state.zkey ^= zob::hash_castle(CASTLE_KINGSIDE, color);
+    if (has_castling_right(CASTLE_QUEENSIDE, color))
+        state.zkey ^= zob::hash_castle(CASTLE_QUEENSIDE, color);
+
+    state.castling_rights &= (color == WHITE ? B_CASTLE : W_CASTLE);
+}
+
+inline void Board::clear_rook_castling_right(Color color, Square rook_square) noexcept {
+    auto& state = active_state();
+
+    if (rook_square == move_geometry::castling(CASTLE_KINGSIDE, color).rook_from &&
+        has_castling_right(CASTLE_KINGSIDE, color)) {
+        state.zkey            ^= zob::hash_castle(CASTLE_KINGSIDE, color);
+        state.castling_rights &= ~(color == WHITE ? W_KINGSIDE : B_KINGSIDE);
+    } else if (rook_square == move_geometry::castling(CASTLE_QUEENSIDE, color).rook_from &&
+               has_castling_right(CASTLE_QUEENSIDE, color)) {
+        state.zkey            ^= zob::hash_castle(CASTLE_QUEENSIDE, color);
+        state.castling_rights &= ~(color == WHITE ? W_QUEENSIDE : B_QUEENSIDE);
+    }
+}
+
 void Board::make(Move move, PlyState& next_state) {
     assert(&next_state != active_ply_state);
     key_history.push_back(key());

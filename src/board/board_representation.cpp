@@ -20,6 +20,12 @@ void copy_array(const T (&source)[Rows][Cols], T (&target)[Rows][Cols]) {
 
 } // namespace
 
+Board::Board(PlyState& root_state, std::string_view fen) {
+    key_history.reserve(engine::max_search_ply + 1);
+    bind_ply_state(root_state);
+    load_fen(fen);
+}
+
 void Board::copy_root_from(const Board& source, PlyState& root_state) {
     assert(this != &source);
     assert(&root_state != &source.ply_state());
