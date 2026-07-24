@@ -6,7 +6,6 @@
 #include <array>
 #include <cstdint>
 #include <random>
-#include <string>
 #include <string_view>
 #include <vector>
 
@@ -229,7 +228,7 @@ TEST(BoardInvariantTest, NullMovePreservesDurableRepresentation) {
 
 TEST(BoardInvariantTest, CallerOwnedMakeUnmakeRestoresPosition) {
     PlyState   root_state;
-    Board      board(root_state, std::string(board_test::fen::perft_position_2));
+    Board      board(root_state, board_test::fen::perft_position_2);
     const auto before = board_test::snapshot_board(board);
 
     const Move first = first_legal_move(board);
@@ -256,7 +255,7 @@ TEST(BoardInvariantTest, CallerOwnedMakeUnmakeRestoresPosition) {
 
 TEST(BoardInvariantTest, CallerOwnedNullMoveRestoresPosition) {
     PlyState   root_state;
-    Board      board(root_state, std::string(board_test::fen::perft_position_2));
+    Board      board(root_state, board_test::fen::perft_position_2);
     const auto before = board_test::snapshot_board(board);
 
     PlyState first_state;

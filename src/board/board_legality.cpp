@@ -165,7 +165,7 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
         if (occupied & castling.empty_path)
             return false;
 
-        return !attacks_to(castling.king_path, ~turn);
+        return !any_attacked(castling.king_path, ~turn);
     }
     }
 

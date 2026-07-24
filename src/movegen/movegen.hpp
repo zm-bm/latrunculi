@@ -204,7 +204,7 @@ private:
     template <CastleSide Side>
     bool legal_castle() const {
         constexpr const auto& castling = move_geometry::castling(Side, Us);
-        return !(occupancy & castling.empty_path) && !board.attacks_to(castling.king_path, ~Us);
+        return !(occupancy & castling.empty_path) && !board.any_attacked(castling.king_path, ~Us);
     }
 
     const Board& board;

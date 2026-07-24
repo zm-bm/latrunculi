@@ -80,18 +80,22 @@ Commit: `refactor: clarify board file responsibilities`
 
 ## Phase 2: Trim The Board API
 
-- [ ] Remove production-unused `see_at_least()` and its two
+Status: complete.
+
+- [x] Remove production-unused `see_at_least()` and its two
       threshold-equivalence tests.
-- [ ] Remove unused `attacks_to(Square)`.
-- [ ] Rename the boolean `attacks_to(Bitboard, Color)` overload to
+- [x] Remove unused `attacks_to(Square)`.
+- [x] Rename the boolean `attacks_to(Bitboard, Color)` overload to
       `any_attacked(Bitboard, Color)`.
-- [ ] Make `load_fen()` private and remove its test-only mutation contract.
-- [ ] Accept `std::string_view` in the constructor and private FEN loader.
-- [ ] Retain exact SEE, parser rejection, construction, FEN round-trip, and
+- [x] Make `load_fen()` private and remove its test-only mutation contract.
+- [x] Accept `std::string_view` in the constructor and private FEN loader.
+- [x] Retain exact SEE, parser rejection, construction, FEN round-trip, and
       invariant coverage.
-- [ ] Confirm 103 focused and 483 total tests.
-- [ ] Run focused and complete GNU debug tests, stale-symbol searches, and
+- [x] Confirm 103 focused and 483 total tests.
+- [x] Run focused and complete GNU debug tests, stale-symbol searches, and
       `git diff --check`.
+
+Evidence: 103 focused tests from 16 suites and all 483 GNU debug tests passed.
 
 Commit: `refactor: trim board api`
 

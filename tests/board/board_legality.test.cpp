@@ -36,10 +36,10 @@ TEST(BoardLegalityTest, DetectsDoubleCheck) {
 
 TEST(BoardLegalityTest, FindsAttacksFromPinnedPieces) {
     board_test::Harness board(board_test::fen::perft_position_3);
-    EXPECT_TRUE(board.attacks_to(bb::file(FILE8), WHITE));
-    EXPECT_TRUE(board.attacks_to(bb::file(FILE2), BLACK));
-    EXPECT_FALSE(board.attacks_to(bb::file(FILE7), WHITE));
-    EXPECT_FALSE(board.attacks_to(bb::file(FILE1), BLACK));
+    EXPECT_TRUE(board.any_attacked(bb::file(FILE8), WHITE));
+    EXPECT_TRUE(board.any_attacked(bb::file(FILE2), BLACK));
+    EXPECT_FALSE(board.any_attacked(bb::file(FILE7), WHITE));
+    EXPECT_FALSE(board.any_attacked(bb::file(FILE1), BLACK));
 }
 
 TEST(BoardLegalityTest, FindsStartPositionAttacks) {
@@ -52,12 +52,12 @@ TEST(BoardLegalityTest, FindsStartPositionAttacks) {
     EXPECT_EQ(board.attacks_to(B3, WHITE), bb::set(A2, C2));
     EXPECT_EQ(board.attacks_to(B4, WHITE), 0);
 
-    EXPECT_TRUE(board.attacks_to(bb::rank(RANK1), WHITE));
-    EXPECT_TRUE(board.attacks_to(bb::rank(RANK3), WHITE));
-    EXPECT_TRUE(board.attacks_to(bb::rank(RANK8), BLACK));
-    EXPECT_TRUE(board.attacks_to(bb::rank(RANK6), BLACK));
-    EXPECT_FALSE(board.attacks_to(bb::rank(RANK4), WHITE));
-    EXPECT_FALSE(board.attacks_to(bb::rank(RANK5), BLACK));
+    EXPECT_TRUE(board.any_attacked(bb::rank(RANK1), WHITE));
+    EXPECT_TRUE(board.any_attacked(bb::rank(RANK3), WHITE));
+    EXPECT_TRUE(board.any_attacked(bb::rank(RANK8), BLACK));
+    EXPECT_TRUE(board.any_attacked(bb::rank(RANK6), BLACK));
+    EXPECT_FALSE(board.any_attacked(bb::rank(RANK4), WHITE));
+    EXPECT_FALSE(board.any_attacked(bb::rank(RANK5), BLACK));
 }
 
 // Move classification.

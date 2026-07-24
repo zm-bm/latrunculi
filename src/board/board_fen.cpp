@@ -5,7 +5,7 @@
 
 #include <sstream>
 
-void Board::load_fen(const std::string& fen) {
+void Board::load_fen(std::string_view fen) {
     const ParsedFen parsed = parse_fen(fen);
     reset();
 

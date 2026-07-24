@@ -106,7 +106,7 @@ std::vector<PerftCase> perft_cases(Profile profile) {
 
 PerftRow run_perft_case(const PerftCase& perft_case, Profile profile) {
     PlyState   root;
-    Board      board(root, std::string(perft_case.fen));
+    Board      board(root, perft_case.fen);
     auto       states      = PlyStateStack{};
     const auto initial_key = board.key();
     const int  depth =

@@ -1,10 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <array>
-#include <stdexcept>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "support/board_fixtures.hpp"
 #include "support/board_harness.hpp"
@@ -59,28 +57,6 @@ TEST(BoardFenTest, MaxHalfmoveAndLongFullmoveFensRoundTrip) {
     EXPECT_EQ(board_test::Harness(black).to_fen(), black);
     EXPECT_EQ(+board_test::Harness(white).halfmove(), 255);
     EXPECT_EQ(board_test::Harness(white).fullmove(), 300);
-}
-
-TEST(BoardFenTest, InvalidFenDoesNotMutateBoard) {
-    board_test::Harness board(board_test::fen::after_e2e4);
-    const auto          before = board_test::snapshot_board(board);
-
-    const std::vector<std::string> invalid_fens = {
-        "4k3/8/8/8/8/8/8/4K3 w - - 0",
-        "4k03/8/8/8/8/8/8/4K3 w - - 0 1",
-        "4k3/8/8/8/8/8/8/4K3 x - - 0 1",
-        "4k3/8/8/8/8/8/8/4K3 w QK - 0 1",
-        "4k3/8/8/8/8/8/8/4K3 w - e3 0 1",
-        "4k3/8/8/8/8/8/8/4K3 w - - 256 1",
-        "4k3/8/8/8/8/8/8/4K3 w - - 0 2147483649",
-    };
-
-    for (const auto& invalid_fen : invalid_fens) {
-        SCOPED_TRACE(invalid_fen);
-        EXPECT_THROW(board.load_fen(invalid_fen), std::invalid_argument) << invalid_fen;
-        board_test::expect_same_board_snapshot(board, before);
-        EXPECT_EQ(board.key(), board.calculate_key());
-    }
 }
 
 TEST(BoardFenTest, ReloadingFenReproducesLoadedPosition) {

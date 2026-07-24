@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <deque>
 #include <stdexcept>
-#include <string>
 #include <string_view>
 
 #include "board/board.hpp"
@@ -29,7 +28,7 @@ protected:
 class Harness : private StateStack, public Board {
 public:
     explicit Harness(std::string_view fen = Board::startfen)
-        : Board(StateStack::root_state(), std::string(fen)) {}
+        : Board(StateStack::root_state(), fen) {}
 
     using Board::make;
     using Board::make_null;
@@ -64,7 +63,7 @@ public:
 
     void reset(std::string_view fen = Board::startfen) {
         PlyState root_state;
-        Board    root_board(root_state, std::string(fen));
+        Board    root_board(root_state, fen);
 
         copy_root_from(root_board, states_.front());
         ply_ = 0;

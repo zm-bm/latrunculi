@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "board/castling_rights.hpp"
@@ -40,6 +41,7 @@ private:
     const PlyState& active_state() const noexcept { return *active_ply_state; }
 
     void reset() noexcept;
+    void load_fen(std::string_view fen);
     void bind_ply_state(PlyState& state_slot) noexcept { active_ply_state = &state_slot; }
 
     void disable_castle(Color c) noexcept;
@@ -57,12 +59,11 @@ private:
     [[nodiscard]] bool enpassant_preserves_king_safety(Square from, Square target) const noexcept;
 
 public:
-    explicit Board(PlyState& root_state, const std::string& fen = startfen);
+    explicit Board(PlyState& root_state, std::string_view fen = startfen);
     Board()                        = delete;
     Board(const Board&)            = delete;
     Board& operator=(const Board&) = delete;
 
-    void load_fen(const std::string&);
     // Binds independent caller-owned storage and copies source as a search root.
     // Precondition: source is distinct and root_state is destination-owned storage.
     void copy_root_from(const Board& source, PlyState& root_state);
@@ -113,13 +114,10 @@ public:
 
     [[nodiscard]] Bitboard attacks_to(Square sq, Color c, Bitboard occupancy) const noexcept;
     [[nodiscard]] Bitboard attacks_to(Square sq, Bitboard occupancy) const noexcept;
-    [[nodiscard]] Bitboard attacks_to(Square sq) const noexcept {
-        return attacks_to(sq, occupancy());
-    }
     [[nodiscard]] Bitboard attacks_to(Square sq, Color c) const noexcept {
         return attacks_to(sq, c, occupancy());
     }
-    [[nodiscard]] bool attacks_to(Bitboard bitboard, Color c) const noexcept;
+    [[nodiscard]] bool any_attacked(Bitboard bitboard, Color c) const noexcept;
 
     // move properties
 
@@ -135,7 +133,6 @@ public:
     // Full legality validation for an arbitrary, untrusted move.
     [[nodiscard]] bool      is_legal_move(Move move) const noexcept;
     [[nodiscard]] bool      is_checking_move(Move move) const noexcept;
-    [[nodiscard]] bool      see_at_least(Move move, EvalValue threshold) const noexcept;
     [[nodiscard]] EvalValue see(Move move) const noexcept;
 
     // make moves
@@ -167,7 +164,7 @@ public:
     static constexpr char startfen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 };
 
-inline Board::Board(PlyState& root_state, const std::string& fen) {
+inline Board::Board(PlyState& root_state, std::string_view fen) {
     key_history.reserve(engine::max_search_ply + 1);
     bind_ply_state(root_state);
     load_fen(fen);
@@ -258,8 +255,8 @@ inline Bitboard Board::attacks_to(Square sq, Bitboard occupied) const noexcept {
            (pieces<ROOK, QUEEN>() & attacks::piece_moves<ROOK>(sq, occupied));
 }
 
-// Determine if any bitboard is attacked by color c
-inline bool Board::attacks_to(Bitboard bitboard, Color c) const noexcept {
+// Determine if any square in bitboard is attacked by color c
+inline bool Board::any_attacked(Bitboard bitboard, Color c) const noexcept {
     Bitboard occ = occupancy();
     while (bitboard) {
         Square sq = bb::lsb_pop(bitboard);
