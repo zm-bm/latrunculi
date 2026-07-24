@@ -44,8 +44,8 @@ private:
     void load_fen(std::string_view fen);
     void bind_ply_state(PlyState& state_slot) noexcept { active_ply_state = &state_slot; }
 
-    void disable_castle(Color c) noexcept;
-    void disable_castle(Color c, Square sq) noexcept;
+    void clear_castling_rights(Color c) noexcept;
+    void clear_rook_castling_right(Color c, Square sq) noexcept;
 
     template <bool>
     void add_piece(Square, Color, PieceType) noexcept;
@@ -59,7 +59,7 @@ private:
     [[nodiscard]] bool enpassant_preserves_king_safety(Square from, Square target) const noexcept;
 
 public:
-    explicit Board(PlyState& root_state, std::string_view fen = startfen);
+    explicit Board(PlyState& root_state, std::string_view fen = start_fen);
     Board()                        = delete;
     Board(const Board&)            = delete;
     Board& operator=(const Board&) = delete;
@@ -85,30 +85,33 @@ public:
     [[nodiscard]] Piece piece_on(File f, Rank r) const noexcept {
         return squares[square::make(f, r)];
     };
-    [[nodiscard]] PieceType piecetype_on(Square sq) const noexcept { return type_of(squares[sq]); }
+    [[nodiscard]] PieceType piece_type_on(Square sq) const noexcept { return type_of(squares[sq]); }
     [[nodiscard]] Square    king_sq(Color c) const noexcept { return king_square[c]; }
     [[nodiscard]] Color     side_to_move() const noexcept { return turn; }
     [[nodiscard]] TaperedScore material_score() const noexcept { return material; }
     [[nodiscard]] TaperedScore psq_bonus_score() const noexcept { return psq_bonus; }
-    [[nodiscard]] int          fullmove() const noexcept { return (absolute_ply / 2) + 1; }
+    [[nodiscard]] int          fullmove_number() const noexcept { return (absolute_ply / 2) + 1; }
 
-    [[nodiscard]] CastleRights castle_rights() const noexcept { return ply_state().castle; }
-    [[nodiscard]] Bitboard     checkers() const noexcept { return ply_state().checkers; }
-    [[nodiscard]] Bitboard     blockers(Color c) const noexcept { return ply_state().blockers[c]; }
+    [[nodiscard]] CastlingRights castling_rights() const noexcept {
+        return ply_state().castling_rights;
+    }
+    [[nodiscard]] Bitboard checkers() const noexcept { return ply_state().checkers; }
+    [[nodiscard]] Bitboard blockers(Color c) const noexcept { return ply_state().blockers[c]; }
     [[nodiscard]] Square enpassant_target() const noexcept { return ply_state().enpassant_target; }
     [[nodiscard]] Square legal_enpassant_target() const noexcept {
         return ply_state().legal_enpassant_target;
     }
-    [[nodiscard]] std::uint8_t halfmove() const noexcept { return ply_state().halfmove_clk; }
+    [[nodiscard]] std::uint8_t halfmove_clock() const noexcept {
+        return ply_state().halfmove_clock;
+    }
 
     [[nodiscard]] PlyState&       ply_state() noexcept { return *active_ply_state; }
     [[nodiscard]] const PlyState& ply_state() const noexcept { return *active_ply_state; }
 
     // castling
 
-    [[nodiscard]] bool can_castle(Color c) const noexcept;
-    [[nodiscard]] bool can_castle_kingside(Color c) const noexcept;
-    [[nodiscard]] bool can_castle_queenside(Color c) const noexcept;
+    [[nodiscard]] bool has_castling_rights(Color c) const noexcept;
+    [[nodiscard]] bool has_castling_right(CastleSide side, Color c) const noexcept;
 
     // attack bitboards
 
@@ -132,7 +135,7 @@ public:
     [[nodiscard]] bool is_legal_generated_move(Move move) const noexcept;
     // Full legality validation for an arbitrary, untrusted move.
     [[nodiscard]] bool      is_legal_move(Move move) const noexcept;
-    [[nodiscard]] bool      is_checking_move(Move move) const noexcept;
+    [[nodiscard]] bool      gives_check(Move move) const noexcept;
     [[nodiscard]] EvalValue see(Move move) const noexcept;
 
     // make moves
@@ -145,13 +148,13 @@ public:
     // zobrist keys
 
     [[nodiscard]] PositionKey key() const noexcept { return ply_state().zkey; }
-    [[nodiscard]] PositionKey calculate_key() const noexcept;
+    [[nodiscard]] PositionKey recompute_key() const noexcept;
 
     // checks and draws
 
     [[nodiscard]] bool is_check() const noexcept { return checkers(); }
     [[nodiscard]] bool is_double_check() const noexcept { return bb::is_many(checkers()); };
-    [[nodiscard]] bool is_draw(int search_ply = 0) const noexcept;
+    [[nodiscard]] bool is_draw(int ply_from_search_root = 0) const noexcept;
 
     // string conversions
 
@@ -161,7 +164,7 @@ public:
 
     [[nodiscard]] EvalValue non_pawn_material(Color c) const noexcept;
 
-    static constexpr char startfen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    static constexpr char start_fen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 };
 
 inline Board::Board(PlyState& root_state, std::string_view fen) {
@@ -191,48 +194,47 @@ inline Bitboard Board::pieces(Color c) const noexcept {
 };
 
 inline PieceType Board::captured_piece_type(Move move) const noexcept {
-    return move.type() == MOVE_EP ? PAWN : piecetype_on(move.to());
+    return move.type() == MOVE_EP ? PAWN : piece_type_on(move.to());
 }
 
 inline bool Board::is_capture(Move move) const noexcept {
     return captured_piece_type(move) != NO_PIECETYPE;
 }
 
-inline bool Board::can_castle(Color c) const noexcept {
-    return castle_rights() & (c ? W_CASTLE : B_CASTLE);
+inline bool Board::has_castling_rights(Color c) const noexcept {
+    return castling_rights() & (c ? W_CASTLE : B_CASTLE);
 };
 
-inline bool Board::can_castle_kingside(Color c) const noexcept {
-    return castle_rights() & (c ? W_KINGSIDE : B_KINGSIDE);
+inline bool Board::has_castling_right(CastleSide side, Color c) const noexcept {
+    if (side == CASTLE_KINGSIDE)
+        return castling_rights() & (c ? W_KINGSIDE : B_KINGSIDE);
+    return castling_rights() & (c ? W_QUEENSIDE : B_QUEENSIDE);
 };
 
-inline bool Board::can_castle_queenside(Color c) const noexcept {
-    return castle_rights() & (c ? W_QUEENSIDE : B_QUEENSIDE);
-};
-
-inline void Board::disable_castle(Color c) noexcept {
+inline void Board::clear_castling_rights(Color c) noexcept {
     auto& state = this->active_state();
 
-    if (can_castle_kingside(c))
+    if (has_castling_right(CASTLE_KINGSIDE, c))
         state.zkey ^= zob::hash_castle(CASTLE_KINGSIDE, c);
-    if (can_castle_queenside(c))
+    if (has_castling_right(CASTLE_QUEENSIDE, c))
         state.zkey ^= zob::hash_castle(CASTLE_QUEENSIDE, c);
 
-    state.castle &= (c == WHITE ? B_CASTLE : W_CASTLE);
+    state.castling_rights &= (c == WHITE ? B_CASTLE : W_CASTLE);
 }
 
-inline void Board::disable_castle(Color c, Square sq) noexcept {
+inline void Board::clear_rook_castling_right(Color c, Square sq) noexcept {
     auto& state = this->active_state();
 
-    if (sq == move_geometry::castling(CASTLE_KINGSIDE, c).rook_from && can_castle_kingside(c)) {
-        state.zkey   ^= zob::hash_castle(CASTLE_KINGSIDE, c);
-        state.castle &= ~(c == WHITE ? W_KINGSIDE : B_KINGSIDE);
+    if (sq == move_geometry::castling(CASTLE_KINGSIDE, c).rook_from &&
+        has_castling_right(CASTLE_KINGSIDE, c)) {
+        state.zkey            ^= zob::hash_castle(CASTLE_KINGSIDE, c);
+        state.castling_rights &= ~(c == WHITE ? W_KINGSIDE : B_KINGSIDE);
     }
 
     else if (sq == move_geometry::castling(CASTLE_QUEENSIDE, c).rook_from &&
-             can_castle_queenside(c)) {
-        state.zkey   ^= zob::hash_castle(CASTLE_QUEENSIDE, c);
-        state.castle &= ~(c == WHITE ? W_QUEENSIDE : B_QUEENSIDE);
+             has_castling_right(CASTLE_QUEENSIDE, c)) {
+        state.zkey            ^= zob::hash_castle(CASTLE_QUEENSIDE, c);
+        state.castling_rights &= ~(c == WHITE ? W_QUEENSIDE : B_QUEENSIDE);
     }
 }
 

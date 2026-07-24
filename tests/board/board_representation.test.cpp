@@ -40,12 +40,12 @@ TEST(BoardRepresentationTest, EmptyPositionEncoding) {
 
     EXPECT_EQ(board.material_score(), TaperedScore::Zero);
     EXPECT_EQ(board.psq_bonus_score(), TaperedScore::Zero);
-    EXPECT_EQ(board.castle_rights(), NO_CASTLE);
+    EXPECT_EQ(board.castling_rights(), NO_CASTLE);
     EXPECT_EQ(board.checkers(), 0);
     EXPECT_EQ(board.blockers(WHITE), 0);
     EXPECT_EQ(board.blockers(BLACK), 0);
     EXPECT_EQ(board.enpassant_target(), INVALID);
-    EXPECT_EQ(board.key(), board.calculate_key());
+    EXPECT_EQ(board.key(), board.recompute_key());
 }
 
 TEST(BoardRepresentationTest, StartPositionEncoding) {
@@ -77,14 +77,14 @@ TEST(BoardRepresentationTest, StartPositionEncoding) {
 
     EXPECT_EQ(board.piece_on(A2), W_PAWN);
     EXPECT_EQ(board.piece_on(F6), NO_PIECE);
-    EXPECT_EQ(board.piecetype_on(A2), PAWN);
-    EXPECT_EQ(board.piecetype_on(A3), NO_PIECETYPE);
+    EXPECT_EQ(board.piece_type_on(A2), PAWN);
+    EXPECT_EQ(board.piece_type_on(A3), NO_PIECETYPE);
     EXPECT_EQ(board.material_score(), TaperedScore::Zero);
     EXPECT_EQ(board.psq_bonus_score(), TaperedScore::Zero);
-    EXPECT_EQ(board.castle_rights(), ALL_CASTLE);
+    EXPECT_EQ(board.castling_rights(), ALL_CASTLE);
     EXPECT_EQ(board.checkers(), 0);
     EXPECT_EQ(board.enpassant_target(), INVALID);
-    EXPECT_EQ(board.key(), board.calculate_key());
+    EXPECT_EQ(board.key(), board.recompute_key());
 }
 
 TEST(BoardRepresentationTest, AsymmetricPositionEncoding) {
@@ -99,11 +99,11 @@ TEST(BoardRepresentationTest, AsymmetricPositionEncoding) {
     EXPECT_EQ(board.piece_on(F6), B_KNIGHT);
     EXPECT_EQ(board.count(WHITE, PAWN), 7);
     EXPECT_EQ(board.count(BLACK, PAWN), 8);
-    EXPECT_EQ(board.castle_rights(), W_CASTLE);
+    EXPECT_EQ(board.castling_rights(), W_CASTLE);
     EXPECT_EQ(board.checkers(), bb::set(B3));
     EXPECT_EQ(board.material_score(), eval::piece(PAWN, BLACK));
     EXPECT_LT(board.psq_bonus_score().mg, 0);
-    EXPECT_EQ(board.key(), board.calculate_key());
+    EXPECT_EQ(board.key(), board.recompute_key());
 }
 
 TEST(BoardRepresentationTest, MaterialAndPsqtMatchExpectedValues) {

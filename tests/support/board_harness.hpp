@@ -27,7 +27,7 @@ protected:
 
 class Harness : private StateStack, public Board {
 public:
-    explicit Harness(std::string_view fen = Board::startfen)
+    explicit Harness(std::string_view fen = Board::start_fen)
         : Board(StateStack::root_state(), fen) {}
 
     using Board::make;
@@ -61,7 +61,7 @@ public:
         --ply_;
     }
 
-    void reset(std::string_view fen = Board::startfen) {
+    void reset(std::string_view fen = Board::start_fen) {
         PlyState root_state;
         Board    root_board(root_state, fen);
 

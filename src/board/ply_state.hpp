@@ -26,11 +26,11 @@ struct PlyState {
     std::array<Bitboard, N_COLORS> blockers{};
 
     // Reversible position state.
-    PositionKey  zkey{};
-    CastleRights castle{NO_CASTLE};
-    Square       enpassant_target{INVALID};
-    Square       legal_enpassant_target{INVALID};
-    std::uint8_t halfmove_clk{};
+    PositionKey    zkey{};
+    CastlingRights castling_rights{NO_CASTLE};
+    Square         enpassant_target{INVALID};
+    Square         legal_enpassant_target{INVALID};
+    std::uint8_t   halfmove_clock{};
 
     // Undo data for the move that reached this ply.
     Move      previous_move{NULL_MOVE};

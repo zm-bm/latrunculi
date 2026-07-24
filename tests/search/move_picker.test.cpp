@@ -73,7 +73,7 @@ void boost_continuation_hint(const Board& board, MoveOrdering& ordering, Move mo
 
     const PieceType prev_piece =
         prev_move.type() == MOVE_PROM ? PAWN : type_of(board.piece_on(prev_move.to()));
-    const PieceType piece = board.piecetype_on(move.from());
+    const PieceType piece = board.piece_type_on(move.from());
     if (prev_piece == NO_PIECETYPE || piece == NO_PIECETYPE)
         return;
 
@@ -211,7 +211,7 @@ TEST_F(PickerTest, MainSearchContinuationHistoryRequiresMatchingPreviousMove) {
     Move target = baseline[1];
     ASSERT_FALSE(quiet_board.is_capture(target));
 
-    const PieceType piece = quiet_board.piecetype_on(target.from());
+    const PieceType piece = quiet_board.piece_type_on(target.from());
     for (int i = 0; i < 8; ++i)
         ordering.continuations.reward(BLACK, PAWN, E4, piece, target.to(), SearchLimits::max_depth);
 

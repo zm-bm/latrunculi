@@ -74,7 +74,7 @@ TEST(BoardRootCopyTest, CopiesDurableAndActiveRootStateWithoutAliasing) {
     EXPECT_EQ(&destination.ply_state(), &destination_states.root());
     EXPECT_NE(&destination.ply_state(), &source.ply_state());
     board_test::expect_same_board_snapshot(destination, expected);
-    EXPECT_EQ(destination.key(), destination.calculate_key());
+    EXPECT_EQ(destination.key(), destination.recompute_key());
 }
 
 TEST(BoardRootCopyTest, CopiesRepresentativeRootStates) {
@@ -93,7 +93,7 @@ TEST(BoardRootCopyTest, CopiesRepresentativeRootStates) {
         destination.copy_root_from(source, destination_state);
 
         board_test::expect_same_board_snapshot(destination, expected);
-        EXPECT_EQ(destination.key(), destination.calculate_key());
+        EXPECT_EQ(destination.key(), destination.recompute_key());
     }
 }
 
@@ -160,9 +160,9 @@ TEST(BoardRootCopyTest, SupportsLongGameAndSearchRootRoundTrips) {
         destination.unmake_null(destination_states.parent(ply));
 
     board_test::expect_same_board_snapshot(destination, root);
-    EXPECT_EQ(destination.key(), destination.calculate_key());
+    EXPECT_EQ(destination.key(), destination.recompute_key());
 
     reverse_long_history(source);
     board_test::expect_same_board_snapshot(source, initial);
-    EXPECT_EQ(source.key(), source.calculate_key());
+    EXPECT_EQ(source.key(), source.recompute_key());
 }

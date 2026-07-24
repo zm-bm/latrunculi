@@ -17,14 +17,14 @@ void Board::load_fen(std::string_view fen) {
 
     auto& state            = this->active_state();
     turn                   = parsed.turn;
-    state.castle           = parsed.castle;
+    state.castling_rights  = parsed.castling_rights;
     state.enpassant_target = parsed.enpassant_target;
-    state.halfmove_clk     = parsed.halfmove_clk;
+    state.halfmove_clock   = parsed.halfmove_clock;
     absolute_ply           = parsed.absolute_ply;
 
     refresh_tactical_cache();
     update_legal_enpassant_target();
-    state.zkey = calculate_key();
+    state.zkey = recompute_key();
 }
 
 std::string Board::to_fen() const {
@@ -56,18 +56,18 @@ std::string Board::to_fen() const {
 
     oss << (turn == WHITE ? " w " : " b ");
 
-    if (can_castle(WHITE) || can_castle(BLACK)) {
-        oss << (can_castle_kingside(WHITE) ? "K" : "");
-        oss << (can_castle_queenside(WHITE) ? "Q" : "");
-        oss << (can_castle_kingside(BLACK) ? "k" : "");
-        oss << (can_castle_queenside(BLACK) ? "q" : "");
+    if (has_castling_rights(WHITE) || has_castling_rights(BLACK)) {
+        oss << (has_castling_right(CASTLE_KINGSIDE, WHITE) ? "K" : "");
+        oss << (has_castling_right(CASTLE_QUEENSIDE, WHITE) ? "Q" : "");
+        oss << (has_castling_right(CASTLE_KINGSIDE, BLACK) ? "k" : "");
+        oss << (has_castling_right(CASTLE_QUEENSIDE, BLACK) ? "q" : "");
     } else {
         oss << "-";
     }
 
     const Square ep_sq = enpassant_target();
     oss << " " << (ep_sq != INVALID ? to_string(ep_sq) : "-");
-    oss << " " << +halfmove() << " " << +fullmove();
+    oss << " " << +halfmove_clock() << " " << +fullmove_number();
 
     return oss.str();
 }

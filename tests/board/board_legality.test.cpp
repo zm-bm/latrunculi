@@ -83,49 +83,49 @@ TEST(BoardLegalityTest, IdentifiesCapturedPieceType) {
 
 TEST(BoardLegalityTest, DetectsCheckingMoves) {
     board_test::Harness board(board_test::fen::checking_move_candidates);
-    EXPECT_TRUE(board.is_checking_move(Move(A1, A8)));
-    EXPECT_TRUE(board.is_checking_move(Move(B1, G6)));
-    EXPECT_TRUE(board.is_checking_move(Move(D1, A4)));
-    EXPECT_TRUE(board.is_checking_move(Move(G4, F6)));
-    EXPECT_FALSE(board.is_checking_move(Move(A1, A7)));
-    EXPECT_FALSE(board.is_checking_move(Move(B1, H7)));
-    EXPECT_FALSE(board.is_checking_move(Move(D1, F3)));
-    EXPECT_FALSE(board.is_checking_move(Move(G4, H6)));
+    EXPECT_TRUE(board.gives_check(Move(A1, A8)));
+    EXPECT_TRUE(board.gives_check(Move(B1, G6)));
+    EXPECT_TRUE(board.gives_check(Move(D1, A4)));
+    EXPECT_TRUE(board.gives_check(Move(G4, F6)));
+    EXPECT_FALSE(board.gives_check(Move(A1, A7)));
+    EXPECT_FALSE(board.gives_check(Move(B1, H7)));
+    EXPECT_FALSE(board.gives_check(Move(D1, F3)));
+    EXPECT_FALSE(board.gives_check(Move(G4, H6)));
 }
 
 TEST(BoardLegalityTest, DetectsDiscoveredChecks) {
     board_test::Harness board("Q1N1k3/8/2N1N3/8/B7/8/4R3/4K3 w - - 0 1");
-    EXPECT_TRUE(board.is_checking_move(Move(C8, B6)));
-    EXPECT_TRUE(board.is_checking_move(Move(C6, B8)));
-    EXPECT_TRUE(board.is_checking_move(Move(E6, C5)));
+    EXPECT_TRUE(board.gives_check(Move(C8, B6)));
+    EXPECT_TRUE(board.gives_check(Move(C6, B8)));
+    EXPECT_TRUE(board.gives_check(Move(E6, C5)));
 }
 
 TEST(BoardLegalityTest, KingMoveDoesNotAlwaysGiveCheck) {
     board_test::Harness board(board_test::fen::kings_only);
-    EXPECT_FALSE(board.is_checking_move(Move(E1, D1)));
+    EXPECT_FALSE(board.gives_check(Move(E1, D1)));
 }
 
 TEST(BoardLegalityTest, KingMoveCanDiscoverCheck) {
     board_test::Harness board("4k3/8/8/8/8/8/4K3/4R3 w - - 0 1");
-    EXPECT_TRUE(board.is_checking_move(Move(E2, D2)));
+    EXPECT_TRUE(board.gives_check(Move(E2, D2)));
 }
 
 TEST(BoardLegalityTest, EnPassantCanGiveDiscoveredCheck) {
     board_test::Harness board("4k3/8/8/1pP5/B7/8/8/4K3 w - b6 0 1");
-    EXPECT_TRUE(board.is_checking_move(Move(C5, B6, MOVE_EP)));
+    EXPECT_TRUE(board.gives_check(Move(C5, B6, MOVE_EP)));
 }
 
 TEST(BoardLegalityTest, PromotionCanGiveCheck) {
     board_test::Harness board(board_test::fen::white_pawn_on_a7);
-    EXPECT_TRUE(board.is_checking_move(Move(A7, A8, MOVE_PROM, QUEEN)));
-    EXPECT_TRUE(board.is_checking_move(Move(A7, A8, MOVE_PROM, ROOK)));
-    EXPECT_FALSE(board.is_checking_move(Move(A7, A8, MOVE_PROM, BISHOP)));
-    EXPECT_FALSE(board.is_checking_move(Move(A7, A8, MOVE_PROM, KNIGHT)));
+    EXPECT_TRUE(board.gives_check(Move(A7, A8, MOVE_PROM, QUEEN)));
+    EXPECT_TRUE(board.gives_check(Move(A7, A8, MOVE_PROM, ROOK)));
+    EXPECT_FALSE(board.gives_check(Move(A7, A8, MOVE_PROM, BISHOP)));
+    EXPECT_FALSE(board.gives_check(Move(A7, A8, MOVE_PROM, KNIGHT)));
 }
 
 TEST(BoardLegalityTest, CastlingCanGiveCheck) {
     board_test::Harness board("5k2/8/8/8/8/8/8/4K2R w K - 0 1");
-    EXPECT_TRUE(board.is_checking_move(Move(E1, G1, MOVE_CASTLE)));
+    EXPECT_TRUE(board.gives_check(Move(E1, G1, MOVE_CASTLE)));
 }
 
 // En passant state and hashing.
@@ -160,7 +160,7 @@ TEST(BoardLegalityTest, CachesLegalEnPassantForBothColorsIncludingCheckEvasion) 
         EXPECT_EQ(with_enpassant.is_check(), test.in_check);
         EXPECT_EQ(with_enpassant.enpassant_target(), test.enpassant_target);
         EXPECT_EQ(with_enpassant.legal_enpassant_target(), test.enpassant_target);
-        EXPECT_EQ(with_enpassant.key(), with_enpassant.calculate_key());
+        EXPECT_EQ(with_enpassant.key(), with_enpassant.recompute_key());
         EXPECT_NE(with_enpassant.key(), without_enpassant.key());
         EXPECT_TRUE(with_enpassant.is_legal_move(test.move));
 
@@ -217,7 +217,7 @@ TEST(BoardLegalityTest, DoesNotCacheUnavailableEnPassantForEitherColor) {
 
         EXPECT_EQ(with_enpassant.enpassant_target(), test.enpassant_target);
         EXPECT_EQ(with_enpassant.legal_enpassant_target(), INVALID);
-        EXPECT_EQ(with_enpassant.key(), with_enpassant.calculate_key());
+        EXPECT_EQ(with_enpassant.key(), with_enpassant.recompute_key());
         EXPECT_EQ(with_enpassant.key(), without_enpassant.key());
 
         if (!test.rejected_move.is_null()) {

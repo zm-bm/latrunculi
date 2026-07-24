@@ -18,7 +18,7 @@ void append_disambiguation(std::string& result, const Board& board, Move move, P
 
     for (const Move candidate : movegen::generate_pseudo_legal(board)) {
         if (candidate.from() == move.from() || candidate.to() != move.to() ||
-            board.piecetype_on(candidate.from()) != piece ||
+            board.piece_type_on(candidate.from()) != piece ||
             !board.is_legal_generated_move(candidate)) {
             continue;
         }
@@ -45,7 +45,7 @@ void append_disambiguation(std::string& result, const Board& board, Move move, P
 std::string to_san(const Board& board, Move move) {
     const Square    from  = move.from();
     const Square    to    = move.to();
-    const PieceType piece = board.piecetype_on(from);
+    const PieceType piece = board.piece_type_on(from);
     std::string     result;
 
     if (move.type() == MOVE_CASTLE) {
@@ -69,7 +69,7 @@ std::string to_san(const Board& board, Move move) {
         }
     }
 
-    if (board.is_checking_move(move))
+    if (board.gives_check(move))
         result += '+';
     return result;
 }

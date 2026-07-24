@@ -101,25 +101,29 @@ Commit: `refactor: trim board api`
 
 ## Phase 3: Normalize Board Vocabulary
 
+Status: complete.
+
 Apply these renames without compatibility aliases:
 
-- [ ] `startfen` to `start_fen`.
-- [ ] `piecetype_on()` to `piece_type_on()`.
-- [ ] `halfmove()` and `halfmove_clk` to `halfmove_clock()` and
+- [x] `startfen` to `start_fen`.
+- [x] `piecetype_on()` to `piece_type_on()`.
+- [x] `halfmove()` and `halfmove_clk` to `halfmove_clock()` and
       `halfmove_clock`.
-- [ ] `fullmove()` to `fullmove_number()`.
-- [ ] `calculate_key()` to `recompute_key()`.
-- [ ] `is_checking_move()` to `gives_check()`.
-- [ ] `search_ply` to `ply_from_search_root`.
-- [ ] `CastleRights` to `CastlingRights`.
-- [ ] `castle_rights()` and stored `castle` fields to `castling_rights`.
-- [ ] Replace `can_castle*` with `has_castling_rights(Color)` and
+- [x] `fullmove()` to `fullmove_number()`.
+- [x] `calculate_key()` to `recompute_key()`.
+- [x] `is_checking_move()` to `gives_check()`.
+- [x] The draw-rule `search_ply` parameter to `ply_from_search_root`.
+- [x] `CastleRights` to `CastlingRights`.
+- [x] `castle_rights()` and stored `castle` fields to `castling_rights`.
+- [x] Replace `can_castle*` with `has_castling_rights(Color)` and
       `has_castling_right(CastleSide, Color)`.
-- [ ] Rename private mutation helpers to `clear_castling_rights()` and
+- [x] Rename private mutation helpers to `clear_castling_rights()` and
       `clear_rook_castling_right()`.
-- [ ] Compile all eval, movegen, search, benchmark, and UCI consumers.
-- [ ] Run the complete GNU debug suite, stale-name searches, and
+- [x] Compile all eval, movegen, search, benchmark, and UCI consumers.
+- [x] Run the complete GNU debug suite, stale-name searches, and
       `git diff --check`.
+
+Evidence: all production consumers compiled and all 483 GNU debug tests passed.
 
 Commit: `refactor: clarify board vocabulary`
 

@@ -17,7 +17,7 @@ Engine::Engine(std::ostream& out, std::ostream& err, std::istream& source)
       writer(out, err),
       ply_states{PlyState()},
       position_ply(0),
-      board(ply_states.front(), Board::startfen),
+      board(ply_states.front(), Board::start_fen),
       thread_pool(options.threads.value, writer) {}
 
 PlyState& Engine::next_ply_state() {
@@ -130,7 +130,7 @@ bool Engine::handle(const uci::PositionCommand& command) {
     using Source = uci::PositionCommand::Source;
 
     switch (command.source) {
-    case Source::Startpos: reset_board(Board::startfen); break;
+    case Source::Startpos: reset_board(Board::start_fen); break;
     case Source::Fen:
         if (command.fen.empty())
             throw std::runtime_error("invalid position command");

@@ -67,5 +67,5 @@ TEST(BoardDrawTest, NullMoveUnmakeRestoresRepetitionHistory) {
 }
 
 TEST(BoardDrawTest, ReadsHalfmoveClock) {
-    EXPECT_EQ(board_test::Harness("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1").halfmove(), 7);
+    EXPECT_EQ(board_test::Harness("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1").halfmove_clock(), 7);
 }

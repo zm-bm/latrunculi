@@ -254,7 +254,7 @@ protected:
 
     bool workerIsCapture(Move move) const { return worker->board.is_capture(move); }
 
-    PieceType workerPieceTypeOn(Square sq) const { return worker->board.piecetype_on(sq); }
+    PieceType workerPieceTypeOn(Square sq) const { return worker->board.piece_type_on(sq); }
 
     Color workerSideToMove() const { return worker->board.side_to_move(); }
 
@@ -270,7 +270,7 @@ protected:
 
     int
     workerContinuationHistory(Color prev_c, PieceType prev_piece, Square prev_to, Move move) const {
-        const PieceType piece = worker->board.piecetype_on(move.from());
+        const PieceType piece = worker->board.piece_type_on(move.from());
         return worker->ordering.continuations.get(prev_c, prev_piece, prev_to, piece, move.to());
     }
 
@@ -2295,13 +2295,12 @@ TEST_F(SearchTest, AlphaBetaLmrSkipsTacticalVetoMoves) {
         loadWorkerBoard(board, search_depth);
         ASSERT_TRUE(workerLegalGeneratedMove(tc.tt_move)) << tc.fen;
         ASSERT_TRUE(workerLegalGeneratedMove(tc.candidate)) << tc.fen;
-        ASSERT_TRUE(board.is_checking_move(tc.candidate) || tc.candidate.type() == MOVE_PROM)
-            << tc.fen;
+        ASSERT_TRUE(board.gives_check(tc.candidate) || tc.candidate.type() == MOVE_PROM) << tc.fen;
 
         tt.store_search(workerKey(), tc.tt_move, 0, 0, TT_Flag::Exact, workerPly());
         if (!tc.killer_move.is_null()) {
             ASSERT_TRUE(workerLegalGeneratedMove(tc.killer_move)) << tc.fen;
-            ASSERT_TRUE(board.is_checking_move(tc.killer_move)) << tc.fen;
+            ASSERT_TRUE(board.gives_check(tc.killer_move)) << tc.fen;
             seedWorkerKiller(tc.killer_move);
         }
         boostWorkerHistory(tc.candidate, search_depth);

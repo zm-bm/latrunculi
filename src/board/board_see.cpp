@@ -27,7 +27,7 @@ EvalValue Board::see(Move move) const noexcept {
     const Square to   = move.to();
 
     Color     side     = side_to_move();
-    PieceType piece    = move.type() == MOVE_PROM ? move.prom_piece() : piecetype_on(from);
+    PieceType piece    = move.type() == MOVE_PROM ? move.prom_piece() : piece_type_on(from);
     Bitboard  occupied = occupancy();
     Bitboard  from_bb  = bb::set(from);
 

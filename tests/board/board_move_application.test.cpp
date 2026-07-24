@@ -63,7 +63,7 @@ TEST(BoardMoveApplicationTest, DoublePushStoresTargetAndCachesLegalEnPassantForB
         EXPECT_EQ(board.enpassant_target(), test.enpassant_target);
         EXPECT_EQ(board.legal_enpassant_target(), test.legal_enpassant_target);
         EXPECT_EQ(board.to_fen(), test.after);
-        EXPECT_EQ(board.key(), board.calculate_key());
+        EXPECT_EQ(board.key(), board.recompute_key());
 
         board.unmake();
         board_test::expect_same_board_snapshot(board, before);
@@ -75,11 +75,11 @@ TEST(BoardMoveApplicationTest, MakesAndUnmakesEnPassantCapture) {
     board.make(Move(B4, A3, MOVE_EP));
     EXPECT_EQ(board.to_fen(), "4k3/8/8/8/8/p7/8/4K3 w - - 0 2");
     EXPECT_EQ(board.legal_enpassant_target(), INVALID);
-    EXPECT_EQ(board.key(), board.calculate_key());
+    EXPECT_EQ(board.key(), board.recompute_key());
     board.unmake();
     EXPECT_EQ(board.to_fen(), board_test::fen::legal_en_passant_a3);
     EXPECT_EQ(board.legal_enpassant_target(), A3);
-    EXPECT_EQ(board.key(), board.calculate_key());
+    EXPECT_EQ(board.key(), board.recompute_key());
 }
 
 TEST(BoardMoveApplicationTest, MakesAndUnmakesKingsideCastle) {

@@ -10,11 +10,11 @@ namespace {
 
 [[gnu::always_inline]] inline void
 initialize_next_ply(PlyState& next, const PlyState& previous, Move move) noexcept {
-    next               = {};
-    next.zkey          = previous.zkey;
-    next.castle        = previous.castle;
-    next.halfmove_clk  = previous.halfmove_clk + 1;
-    next.previous_move = move;
+    next                 = {};
+    next.zkey            = previous.zkey;
+    next.castling_rights = previous.castling_rights;
+    next.halfmove_clock  = previous.halfmove_clock + 1;
+    next.previous_move   = move;
 }
 
 } // namespace
@@ -28,10 +28,10 @@ void Board::make(Move move, PlyState& next_state) {
     const MoveType  type         = move.type();
     const Color     mover        = turn;
     const Color     opponent     = ~mover;
-    const PieceType moving_piece = piecetype_on(from);
+    const PieceType moving_piece = piece_type_on(from);
     const Square    capture_square =
         type == MOVE_EP ? move_geometry::enpassant_captured_square(to, mover) : to;
-    const PieceType captured_piece           = type == MOVE_EP ? PAWN : piecetype_on(to);
+    const PieceType captured_piece           = type == MOVE_EP ? PAWN : piece_type_on(to);
     const Square    previous_legal_enpassant = legal_enpassant_target();
 
     initialize_next_ply(next_state, active_state(), move);
@@ -42,10 +42,10 @@ void Board::make(Move move, PlyState& next_state) {
 
     state.captured = captured_piece;
     if (captured_piece != NO_PIECETYPE) {
-        state.halfmove_clk = 0;
+        state.halfmove_clock = 0;
         remove_piece<true>(capture_square, opponent, captured_piece);
-        if (can_castle(opponent) && captured_piece == ROOK)
-            disable_castle(opponent, capture_square);
+        if (has_castling_rights(opponent) && captured_piece == ROOK)
+            clear_rook_castling_right(opponent, capture_square);
     }
 
     if (previous_legal_enpassant != INVALID)
@@ -59,7 +59,7 @@ void Board::make(Move move, PlyState& next_state) {
 
     switch (moving_piece) {
     case PAWN:
-        state.halfmove_clk = 0;
+        state.halfmove_clock = 0;
         if (std::abs(to - from) == pawn_delta::double_push) {
             state.enpassant_target = move_geometry::enpassant_target(to, mover);
         } else if (type == MOVE_PROM) {
@@ -71,13 +71,13 @@ void Board::make(Move move, PlyState& next_state) {
 
     case KING:
         king_square[mover] = to;
-        if (can_castle(mover))
-            disable_castle(mover);
+        if (has_castling_rights(mover))
+            clear_castling_rights(mover);
         break;
 
     case ROOK:
-        if (can_castle(mover))
-            disable_castle(mover, from);
+        if (has_castling_rights(mover))
+            clear_rook_castling_right(mover, from);
         break;
 
     default: break;
@@ -104,7 +104,7 @@ void Board::unmake(PlyState& prior_state) {
     const MoveType  type            = move.type();
     const Color     opponent        = turn;
     const Color     mover           = ~opponent;
-    const PieceType destination     = piecetype_on(to);
+    const PieceType destination     = piece_type_on(to);
     const PieceType moving_piece    = type == MOVE_PROM ? PAWN : destination;
     const PieceType captured_piece  = active_state().captured;
     const PieceType promotion_piece = type == MOVE_PROM ? destination : NO_PIECETYPE;

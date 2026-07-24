@@ -99,7 +99,7 @@ void expect_board_consistent(const Board& board) {
     EXPECT_EQ(board.occupancy(), board.pieces(WHITE) | board.pieces(BLACK));
     EXPECT_EQ(board.material_score(), expected_material);
     EXPECT_EQ(board.psq_bonus_score(), expected_psq);
-    EXPECT_EQ(board.key(), board.calculate_key());
+    EXPECT_EQ(board.key(), board.recompute_key());
     expect_tactical_cache_consistent(board);
 }
 
@@ -210,14 +210,14 @@ TEST(BoardInvariantTest, NullMovePreservesDurableRepresentation) {
     for (const std::string_view fen : fens) {
         SCOPED_TRACE(fen);
         board_test::Harness board{fen};
-        const auto          before   = board_test::snapshot_board(board);
-        const int           fullmove = board.fullmove();
+        const auto          before          = board_test::snapshot_board(board);
+        const int           fullmove_number = board.fullmove_number();
 
         board.make_null();
         board_test::expect_same_durable_representation(board, before);
         EXPECT_EQ(board.enpassant_target(), INVALID);
         EXPECT_EQ(board.legal_enpassant_target(), INVALID);
-        EXPECT_EQ(board.fullmove(), fullmove);
+        EXPECT_EQ(board.fullmove_number(), fullmove_number);
         expect_board_consistent(board);
 
         board.unmake_null();

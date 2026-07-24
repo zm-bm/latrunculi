@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-enum CastleRights : std::uint8_t {
+enum CastlingRights : std::uint8_t {
     NO_CASTLE   = 0b0000,
     B_QUEENSIDE = 0b0001,
     B_KINGSIDE  = 0b0010,
@@ -13,24 +13,24 @@ enum CastleRights : std::uint8_t {
     ALL_CASTLE  = B_CASTLE | W_CASTLE,
 };
 
-constexpr CastleRights operator~(CastleRights cr) noexcept {
-    return static_cast<CastleRights>(~std::uint8_t(cr));
+constexpr CastlingRights operator~(CastlingRights cr) noexcept {
+    return static_cast<CastlingRights>(~std::uint8_t(cr));
 }
 
-constexpr CastleRights operator|(CastleRights lhs, CastleRights rhs) noexcept {
-    return CastleRights(std::uint8_t(lhs) | std::uint8_t(rhs));
+constexpr CastlingRights operator|(CastlingRights lhs, CastlingRights rhs) noexcept {
+    return CastlingRights(std::uint8_t(lhs) | std::uint8_t(rhs));
 }
 
-constexpr CastleRights operator&(CastleRights lhs, CastleRights rhs) noexcept {
-    return CastleRights(std::uint8_t(lhs) & std::uint8_t(rhs));
+constexpr CastlingRights operator&(CastlingRights lhs, CastlingRights rhs) noexcept {
+    return CastlingRights(std::uint8_t(lhs) & std::uint8_t(rhs));
 }
 
-constexpr CastleRights& operator|=(CastleRights& lhs, CastleRights rhs) noexcept {
+constexpr CastlingRights& operator|=(CastlingRights& lhs, CastlingRights rhs) noexcept {
     lhs = lhs | rhs;
     return lhs;
 }
 
-constexpr CastleRights& operator&=(CastleRights& lhs, CastleRights rhs) noexcept {
+constexpr CastlingRights& operator&=(CastlingRights& lhs, CastlingRights rhs) noexcept {
     lhs = lhs & rhs;
     return lhs;
 }

@@ -30,7 +30,7 @@ void expect_same_reloaded_state(std::string_view fen) {
     board_test::Harness board(fen);
     board_test::Harness reloaded(board.to_fen());
     board_test::expect_same_board_snapshot(reloaded, board_test::snapshot_board(board));
-    EXPECT_EQ(reloaded.key(), reloaded.calculate_key());
+    EXPECT_EQ(reloaded.key(), reloaded.recompute_key());
 }
 
 } // namespace
@@ -55,8 +55,8 @@ TEST(BoardFenTest, MaxHalfmoveAndLongFullmoveFensRoundTrip) {
 
     EXPECT_EQ(board_test::Harness(white).to_fen(), white);
     EXPECT_EQ(board_test::Harness(black).to_fen(), black);
-    EXPECT_EQ(+board_test::Harness(white).halfmove(), 255);
-    EXPECT_EQ(board_test::Harness(white).fullmove(), 300);
+    EXPECT_EQ(+board_test::Harness(white).halfmove_clock(), 255);
+    EXPECT_EQ(board_test::Harness(white).fullmove_number(), 300);
 }
 
 TEST(BoardFenTest, ReloadingFenReproducesLoadedPosition) {

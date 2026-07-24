@@ -18,9 +18,9 @@ struct PieceSquare {
 struct ParsedFen {
     std::vector<PieceSquare> pieces;
     Color                    turn             = WHITE;
-    CastleRights             castle           = NO_CASTLE;
+    CastlingRights           castling_rights  = NO_CASTLE;
     Square                   enpassant_target = INVALID;
-    std::uint8_t             halfmove_clk     = 0;
+    std::uint8_t             halfmove_clock   = 0;
     int                      absolute_ply     = 0;
 };
 

@@ -65,7 +65,7 @@ void Board::reset() noexcept {
     key_history.clear();
 }
 
-PositionKey Board::calculate_key() const noexcept {
+PositionKey Board::recompute_key() const noexcept {
     PositionKey zkey = 0;
 
     for (auto sq = A1; sq != INVALID; ++sq) {
@@ -76,13 +76,13 @@ PositionKey Board::calculate_key() const noexcept {
 
     if (turn == BLACK)
         zkey ^= zob::hash_turn();
-    if (can_castle_kingside(WHITE))
+    if (has_castling_right(CASTLE_KINGSIDE, WHITE))
         zkey ^= zob::hash_castle(CASTLE_KINGSIDE, WHITE);
-    if (can_castle_queenside(WHITE))
+    if (has_castling_right(CASTLE_QUEENSIDE, WHITE))
         zkey ^= zob::hash_castle(CASTLE_QUEENSIDE, WHITE);
-    if (can_castle_kingside(BLACK))
+    if (has_castling_right(CASTLE_KINGSIDE, BLACK))
         zkey ^= zob::hash_castle(CASTLE_KINGSIDE, BLACK);
-    if (can_castle_queenside(BLACK))
+    if (has_castling_right(CASTLE_QUEENSIDE, BLACK))
         zkey ^= zob::hash_castle(CASTLE_QUEENSIDE, BLACK);
 
     const Square enpassant_target = legal_enpassant_target();

@@ -189,13 +189,15 @@ private:
         bb::scan<Us>(moves, [&](Square to) { write(king_sq, to); });
 
         if constexpr (Type == MoveGenType::NonEvasions || Type == MoveGenType::Quiet) {
-            if (board.can_castle(Us)) {
+            if (board.has_castling_rights(Us)) {
                 constexpr const auto& kingside  = move_geometry::castling(CASTLE_KINGSIDE, Us);
                 constexpr const auto& queenside = move_geometry::castling(CASTLE_QUEENSIDE, Us);
 
-                if (board.can_castle_kingside(Us) && legal_castle<CASTLE_KINGSIDE>())
+                if (board.has_castling_right(CASTLE_KINGSIDE, Us) &&
+                    legal_castle<CASTLE_KINGSIDE>())
                     write(kingside.king_from, kingside.king_to, MOVE_CASTLE);
-                if (board.can_castle_queenside(Us) && legal_castle<CASTLE_QUEENSIDE>())
+                if (board.has_castling_right(CASTLE_QUEENSIDE, Us) &&
+                    legal_castle<CASTLE_QUEENSIDE>())
                     write(queenside.king_from, queenside.king_to, MOVE_CASTLE);
             }
         }

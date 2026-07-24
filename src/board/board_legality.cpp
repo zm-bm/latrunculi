@@ -154,9 +154,9 @@ bool Board::is_pseudo_legal(Move mv) const noexcept {
             return false;
 
         if (side == CASTLE_KINGSIDE) {
-            if (!can_castle_kingside(turn))
+            if (!has_castling_right(CASTLE_KINGSIDE, turn))
                 return false;
-        } else if (!can_castle_queenside(turn)) {
+        } else if (!has_castling_right(CASTLE_QUEENSIDE, turn)) {
             return false;
         }
 
@@ -228,7 +228,7 @@ bool Board::is_legal_pseudo_move(Move mv) const noexcept {
 }
 
 // Determine if a move gives check for the current board
-bool Board::is_checking_move(Move mv) const noexcept {
+bool Board::gives_check(Move mv) const noexcept {
     Square from     = mv.from();
     Square to       = mv.to();
     Color  opp      = ~turn;

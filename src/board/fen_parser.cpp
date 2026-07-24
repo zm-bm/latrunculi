@@ -130,10 +130,10 @@ void parse_castles(ParsedFen& parsed, std::string_view section) {
         next = pos + 1;
 
         switch (ch) {
-        case 'K': parsed.castle |= W_KINGSIDE; break;
-        case 'Q': parsed.castle |= W_QUEENSIDE; break;
-        case 'k': parsed.castle |= B_KINGSIDE; break;
-        case 'q': parsed.castle |= B_QUEENSIDE; break;
+        case 'K': parsed.castling_rights |= W_KINGSIDE; break;
+        case 'Q': parsed.castling_rights |= W_QUEENSIDE; break;
+        case 'k': parsed.castling_rights |= B_KINGSIDE; break;
+        case 'q': parsed.castling_rights |= B_QUEENSIDE; break;
         default:  break;
         }
     }
@@ -172,7 +172,7 @@ ParsedFen parse_fen(std::string_view fen) {
     parse_enpassant(parsed, sections[3]);
 
     if (sections.size() == 6) {
-        parsed.halfmove_clk    = parse_uint8(sections[4], "halfmove clock");
+        parsed.halfmove_clock  = parse_uint8(sections[4], "halfmove clock");
         const int fullmove_num = parse_int(sections[5], "fullmove number");
         if (fullmove_num == 0)
             throw std::invalid_argument("invalid fen, invalid fullmove number");

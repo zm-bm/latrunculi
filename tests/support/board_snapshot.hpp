@@ -25,11 +25,11 @@ inline Bitboard piece_bits(const Board& board, Color color, PieceType piece) {
 struct BoardSnapshot {
     std::string                                                  fen;
     Color                                                        side;
-    CastleRights                                                 castle;
+    CastlingRights                                               castling_rights;
     Square                                                       enpassant_target;
     Square                                                       legal_enpassant_target;
-    std::uint8_t                                                 halfmove;
-    int                                                          fullmove;
+    std::uint8_t                                                 halfmove_clock;
+    int                                                          fullmove_number;
     PositionKey                                                  key;
     Move                                                         previous_move;
     PieceType                                                    captured;
@@ -49,11 +49,11 @@ inline BoardSnapshot snapshot_board(const Board& board) {
 
     snapshot.fen                    = board.to_fen();
     snapshot.side                   = board.side_to_move();
-    snapshot.castle                 = board.castle_rights();
+    snapshot.castling_rights        = board.castling_rights();
     snapshot.enpassant_target       = board.enpassant_target();
     snapshot.legal_enpassant_target = board.legal_enpassant_target();
-    snapshot.halfmove               = board.halfmove();
-    snapshot.fullmove               = board.fullmove();
+    snapshot.halfmove_clock         = board.halfmove_clock();
+    snapshot.fullmove_number        = board.fullmove_number();
     snapshot.key                    = board.key();
     snapshot.previous_move          = board.ply_state().previous_move;
     snapshot.captured               = board.ply_state().captured;
@@ -108,11 +108,11 @@ inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& 
 
     EXPECT_EQ(board.to_fen(), expected.fen);
     EXPECT_EQ(board.side_to_move(), expected.side);
-    EXPECT_EQ(board.castle_rights(), expected.castle);
+    EXPECT_EQ(board.castling_rights(), expected.castling_rights);
     EXPECT_EQ(board.enpassant_target(), expected.enpassant_target);
     EXPECT_EQ(board.legal_enpassant_target(), expected.legal_enpassant_target);
-    EXPECT_EQ(board.halfmove(), expected.halfmove);
-    EXPECT_EQ(board.fullmove(), expected.fullmove);
+    EXPECT_EQ(board.halfmove_clock(), expected.halfmove_clock);
+    EXPECT_EQ(board.fullmove_number(), expected.fullmove_number);
     EXPECT_EQ(board.key(), expected.key);
     EXPECT_EQ(board.ply_state().previous_move, expected.previous_move);
     EXPECT_EQ(board.ply_state().captured, expected.captured);

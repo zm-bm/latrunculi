@@ -18,7 +18,7 @@ namespace {
 
 using BenchClock = std::chrono::steady_clock;
 
-constexpr const char* STARTFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+constexpr const char* START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 constexpr const char* POS2 = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 constexpr const char* POS3 = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
 constexpr const char* POS4W = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
@@ -89,7 +89,7 @@ std::string to_string(Profile profile) {
 
 std::vector<PerftCase> perft_cases(Profile profile) {
     std::vector<PerftCase> cases = {
-        {"startpos", STARTFEN, 4, 197281, 4, 197281},
+        {"startpos", START_FEN, 4, 197281, 4, 197281},
         {"pos3", POS3, 4, 43238, 4, 43238},
         {"pos5", POS5, 3, 62379, 4, 2103487},
     };
@@ -124,7 +124,7 @@ PerftRow run_perft_case(const PerftCase& perft_case, Profile profile) {
                 << ", expected " << expected;
         throw std::runtime_error(message.str());
     }
-    if (board.key() != initial_key || board.calculate_key() != initial_key)
+    if (board.key() != initial_key || board.recompute_key() != initial_key)
         throw std::runtime_error("board restoration failed for " + std::string(perft_case.id));
 
     const double seconds = static_cast<double>(total_ns) / 1'000'000'000.0;

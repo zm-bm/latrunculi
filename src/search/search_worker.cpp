@@ -12,7 +12,7 @@
 #include "uci/uci_writer.hpp"
 
 SearchWorker::SearchWorker(int id, uci::Writer& writer, ThreadPool& pool)
-    : board(ply_states.root(), Board::startfen),
+    : board(ply_states.root(), Board::start_fen),
       writer(writer),
       thread_pool(pool),
       thread_id(id) {}
