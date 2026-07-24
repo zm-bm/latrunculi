@@ -1,4 +1,4 @@
-#include "board/board_notation.hpp"
+#include "board/san.hpp"
 
 #include "board/board.hpp"
 #include "core/move_geometry.hpp"

@@ -62,15 +62,19 @@ Planning commit: `docs: add board organization plan`
 
 ## Phase 1: Clarify File Responsibilities
 
-- [ ] Rename `fen.hpp/.cpp` to `fen_parser.hpp/.cpp`.
-- [ ] Rename `tests/board/fen.test.cpp` to `fen_parser.test.cpp`.
-- [ ] Rename `board_rules.cpp` to `board_draw.cpp`.
-- [ ] Rename `board_notation.hpp/.cpp` to `san.hpp/.cpp`.
-- [ ] Rename `board_notation.test.cpp` to `san.test.cpp`.
-- [ ] Update CMake, includes, and affected test-suite names.
-- [ ] Make no symbol or behavioral changes.
-- [ ] Configure, build, and run FEN, draw, SAN, and format tests.
-- [ ] Run the complete GNU debug suite and `git diff --check`.
+Status: complete.
+
+- [x] Rename `fen.hpp/.cpp` to `fen_parser.hpp/.cpp`.
+- [x] Rename `tests/board/fen.test.cpp` to `fen_parser.test.cpp`.
+- [x] Rename `board_rules.cpp` to `board_draw.cpp`.
+- [x] Rename `board_notation.hpp/.cpp` to `san.hpp/.cpp`.
+- [x] Rename `board_notation.test.cpp` to `san.test.cpp`.
+- [x] Update CMake, includes, and affected test-suite names.
+- [x] Make no symbol or behavioral changes.
+- [x] Configure, build, and run FEN, draw, SAN, and format tests.
+- [x] Run the complete GNU debug suite and `git diff --check`.
+
+Evidence: 18 affected tests and all 486 GNU debug tests passed.
 
 Commit: `refactor: clarify board file responsibilities`
 

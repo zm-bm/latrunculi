@@ -1,4 +1,4 @@
-#include "board/fen.hpp"
+#include "board/fen_parser.hpp"
 
 #include <stdexcept>
 #include <string>
@@ -8,7 +8,7 @@
 
 #include "support/board_fixtures.hpp"
 
-TEST(FenTest, ParsesInitialPosition) {
+TEST(FenParserTest, ParsesInitialPosition) {
     const ParsedFen parsed = parse_fen(board_test::fen::start);
     EXPECT_EQ(parsed.pieces.size(), 32);
     EXPECT_EQ(parsed.turn, WHITE);
@@ -18,7 +18,7 @@ TEST(FenTest, ParsesInitialPosition) {
     EXPECT_EQ(parsed.absolute_ply, 0);
 }
 
-TEST(FenTest, ParsesKingsOnlyPosition) {
+TEST(FenParserTest, ParsesKingsOnlyPosition) {
     const ParsedFen parsed = parse_fen(board_test::fen::kings_only);
     EXPECT_EQ(parsed.pieces.size(), 2);
     EXPECT_EQ(parsed.turn, WHITE);
@@ -28,7 +28,7 @@ TEST(FenTest, ParsesKingsOnlyPosition) {
     EXPECT_EQ(parsed.absolute_ply, 0);
 }
 
-TEST(FenTest, ParsesEnPassantTargetAndClocks) {
+TEST(FenParserTest, ParsesEnPassantTargetAndClocks) {
     const ParsedFen parsed = parse_fen(board_test::fen::en_passant_d6_with_clocks);
     EXPECT_EQ(parsed.pieces.size(), 4);
     EXPECT_EQ(parsed.turn, WHITE);
@@ -37,20 +37,20 @@ TEST(FenTest, ParsesEnPassantTargetAndClocks) {
     EXPECT_EQ(parsed.absolute_ply, 38);
 }
 
-TEST(FenTest, FourFieldFenDefaultsClocks) {
+TEST(FenParserTest, FourFieldFenDefaultsClocks) {
     const ParsedFen parsed = parse_fen("4k3/8/8/8/8/8/8/4K3 b - -");
     EXPECT_EQ(parsed.turn, BLACK);
     EXPECT_EQ(parsed.halfmove_clk, 0);
     EXPECT_EQ(parsed.absolute_ply, 1);
 }
 
-TEST(FenTest, ParsesClockBounds) {
+TEST(FenParserTest, ParsesClockBounds) {
     const ParsedFen parsed = parse_fen(board_test::fen::max_halfmove_long_fullmove);
     EXPECT_EQ(+parsed.halfmove_clk, 255);
     EXPECT_EQ(parsed.absolute_ply, 598);
 }
 
-TEST(FenTest, RejectsInvalidFen) {
+TEST(FenParserTest, RejectsInvalidFen) {
     const std::vector<std::string> invalid_fens = {
         "invalid fen string",
         "4k3/8/8/8/8/8/8/4K3 w - - 0",

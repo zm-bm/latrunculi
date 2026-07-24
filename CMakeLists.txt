@@ -17,11 +17,11 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/board/board_fen.cpp
     src/board/board_legality.cpp
     src/board/board_move.cpp
-    src/board/board_notation.cpp
+    src/board/san.cpp
     src/board/board_representation.cpp
-    src/board/board_rules.cpp
+    src/board/board_draw.cpp
     src/board/board_see.cpp
-    src/board/fen.cpp
+    src/board/fen_parser.cpp
     src/core/move.cpp
     src/eval/evaluator.cpp
     src/movegen/movegen.cpp
@@ -66,11 +66,11 @@ if(BUILD_TESTING)
         tests/board/board_invariants.test.cpp
         tests/board/board_legality.test.cpp
         tests/board/board_move_application.test.cpp
-        tests/board/board_notation.test.cpp
+        tests/board/san.test.cpp
         tests/board/board_representation.test.cpp
         tests/board/board_root_copy.test.cpp
         tests/board/board_see.test.cpp
-        tests/board/fen.test.cpp
+        tests/board/fen_parser.test.cpp
         tests/core/bitboard.test.cpp
         tests/core/move.test.cpp
         tests/core/move_geometry.test.cpp
