@@ -158,20 +158,28 @@ Commit: `refactor: clarify board notation support`
 
 ## Phase 4: Clarify Rule Algorithms
 
-Status: pending.
+Status: complete.
 
-- [ ] Explain en-passant occupancy simulation and rename candidate capturers.
-- [ ] Cache side to move once during tactical refresh.
-- [ ] Clarify reversible-history, plies-back, and prior-occurrence vocabulary
+- [x] Explain en-passant occupancy simulation and rename candidate capturers.
+- [x] Cache side to move once during tactical refresh.
+- [x] Clarify reversible-history, plies-back, and prior-occurrence vocabulary
       and document search-line twofold versus game-history threefold handling.
-- [ ] Clarify SEE attacker and gain names, swap-list indexing, early cutoff,
-      parser-backed bound, and explicit unwind flow.
-- [ ] Verify legality/draw/SEE tests and complete GNU debug/release and Clang
+- [x] Clarify SEE attacker and gain names, swap-list indexing, early cutoff,
+      parser-backed bound, and unwind flow.
+- [x] Verify legality/draw/SEE tests and complete GNU debug/release and Clang
       debug suites.
-- [ ] Compare optimized output and run balanced perft or search comparisons
+- [x] Compare optimized output and run balanced perft or search comparisons
       only if relevant output changes.
-- [ ] Run formatting, stale-name searches, layout diagnostics, and
+- [x] Run formatting, stale-name searches, layout diagnostics, and
       `git diff --check`.
+
+Evidence: all 38 legality, draw, and SEE tests passed. All 483 tests passed
+under GNU debug, GNU release, and Clang debug; layouts remain 40-byte
+`PlyState` and 256-byte `Board`. Clean parent comparisons show identical GNU
+and Clang output for every affected function. An explicit SEE unwind was
+tested but retained the compact `while (--depth)` form because the longer form
+increased Clang's `see()` from 1,439 to 1,970 bytes; restoring it recovered
+identical output, so no benchmark was required.
 
 Commit: `refactor: clarify board rule algorithms`
 

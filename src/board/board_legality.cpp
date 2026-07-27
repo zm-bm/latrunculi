@@ -28,10 +28,11 @@ namespace {
 
 void Board::refresh_tactical_cache() noexcept {
     auto&          state     = active_state();
-    const Color    opponent  = ~side_to_move();
+    const Color    side      = side_to_move();
+    const Color    opponent  = ~side;
     const Bitboard occupancy = this->occupancy();
 
-    state.checkers        = attacks_to(king_sq(side_to_move()), opponent, occupancy);
+    state.checkers        = attacks_to(king_sq(side), opponent, occupancy);
     state.blockers[WHITE] = attacks::slider_blockers(
         king_sq(WHITE), pieces<BISHOP, QUEEN>(BLACK), pieces<ROOK, QUEEN>(BLACK), occupancy);
     state.blockers[BLACK] = attacks::slider_blockers(
@@ -44,6 +45,8 @@ bool Board::enpassant_preserves_king_safety(Square from, Square target) const no
     bb::move(occupancy, from, target);
     bb::remove(occupancy, captured_square);
 
+    // Only occupancy is simulated. The unchanged piece bitboards still contain
+    // the captured pawn, so exclude it from the resulting attackers.
     Bitboard attackers = attacks_to(king_sq(turn), ~turn, occupancy);
     bb::remove(attackers, captured_square);
     return !attackers;
@@ -62,9 +65,9 @@ void Board::refresh_legal_enpassant_target() noexcept {
     if (piece_on(captured_square) != make_piece(~side, PAWN))
         return;
 
-    Bitboard capturers = pieces<PAWN>(side) & attacks::pawn_attacks(target, ~side);
-    while (capturers) {
-        if (enpassant_preserves_king_safety(bb::lsb_pop(capturers), target)) {
+    Bitboard candidate_capturers = pieces<PAWN>(side) & attacks::pawn_attacks(target, ~side);
+    while (candidate_capturers) {
+        if (enpassant_preserves_king_safety(bb::lsb_pop(candidate_capturers), target)) {
             state.legal_enpassant_target = target;
             return;
         }

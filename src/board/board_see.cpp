@@ -26,10 +26,10 @@ EvalValue Board::see(Move move) const noexcept {
     const Square from = move.from();
     const Square to   = move.to();
 
-    Color     side       = side_to_move();
-    PieceType piece_type = move.type() == MOVE_PROM ? move.prom_piece() : piece_type_on(from);
-    Bitboard  occupancy  = this->occupancy();
-    Bitboard  from_bb    = bb::set(from);
+    Color     side             = side_to_move();
+    PieceType piece_type       = move.type() == MOVE_PROM ? move.prom_piece() : piece_type_on(from);
+    Bitboard  occupancy        = this->occupancy();
+    Bitboard  current_attacker = bb::set(from);
 
     // Play the capture on an occupancy bitboard, including en passant's off-target pawn.
     if (move.type() == MOVE_EP) {
@@ -44,49 +44,52 @@ EvalValue Board::see(Move move) const noexcept {
     const Bitboard bishop_sliders = pieces<BISHOP, QUEEN>();
     const Bitboard rook_sliders   = pieces<ROOK, QUEEN>();
 
-    // Swap-list of best case material gain for each depth.
-    EvalValue gain[32] = {};
-    gain[0]            = see_initial_gain(*this, move);
+    // The initial gain occupies index zero; later entries describe successive
+    // recaptures. The parser's 32-piece limit bounds the list to 32 entries.
+    EvalValue gains[32] = {};
+    gains[0]            = see_initial_gain(*this, move);
 
     int depth = 0;
     do {
-        depth++;
+        ++depth;
         side = ~side;
 
-        gain[depth] = eval::piece(piece_type).mg - gain[depth - 1];
-        if (std::max(-gain[depth - 1], gain[depth]) < 0)
+        gains[depth] = eval::piece(piece_type).mg - gains[depth - 1];
+        // If stopping and continuing are both losing for the side to move,
+        // deeper recaptures cannot change the backed-up result.
+        if (std::max(-gains[depth - 1], gains[depth]) < 0)
             break;
 
-        occupancy ^= from_bb;
+        occupancy ^= current_attacker;
 
         // Removing the recapturer can reveal x-ray bishop, rook, or queen attacks.
         attackers |= (attacks::piece_moves<BISHOP>(to, occupancy) & bishop_sliders) |
                      (attacks::piece_moves<ROOK>(to, occupancy) & rook_sliders);
         attackers &= occupancy;
 
-        from_bb = 0;
+        current_attacker = 0;
         for (PieceType attacker_type : see_attacker_order) {
-            Bitboard attacker_bb = attackers & piece_bb[side][attacker_type];
-            if (!attacker_bb)
+            Bitboard candidate_attacker = attackers & piece_bb[side][attacker_type];
+            if (!candidate_attacker)
                 continue;
 
-            attacker_bb = bb::lsb_mask(attacker_bb);
+            candidate_attacker = bb::lsb_mask(candidate_attacker);
             if (attacker_type == KING) {
                 // A king cannot recapture onto a square still attacked by the opponent.
-                const Bitboard kingless_occupancy = occupancy ^ attacker_bb;
+                const Bitboard kingless_occupancy = occupancy ^ candidate_attacker;
                 if (attacks_to(to, ~side, kingless_occupancy) & kingless_occupancy)
                     continue;
             }
 
-            piece_type = attacker_type;
-            from_bb    = attacker_bb;
+            piece_type       = attacker_type;
+            current_attacker = candidate_attacker;
             break;
         }
-    } while (from_bb);
+    } while (current_attacker);
 
     // Negamax the swap-list to get the final exchange value.
     while (--depth)
-        gain[depth - 1] = -std::max(-gain[depth - 1], gain[depth]);
+        gains[depth - 1] = -std::max(-gains[depth - 1], gains[depth]);
 
-    return gain[0];
+    return gains[0];
 }
