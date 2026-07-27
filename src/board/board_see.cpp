@@ -63,8 +63,8 @@ EvalValue Board::see(Move move) const noexcept {
         occupancy ^= current_attacker;
 
         // Removing the recapturer can reveal x-ray bishop, rook, or queen attacks.
-        attackers |= (attacks::piece_moves<BISHOP>(to, occupancy) & bishop_sliders) |
-                     (attacks::piece_moves<ROOK>(to, occupancy) & rook_sliders);
+        attackers |= (attacks::piece_moves<BISHOP>(to, occupancy) & bishop_sliders)
+                   | (attacks::piece_moves<ROOK>(to, occupancy) & rook_sliders);
         attackers &= occupancy;
 
         current_attacker = 0;

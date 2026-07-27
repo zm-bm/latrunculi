@@ -119,8 +119,8 @@ TEST(BoardRepresentationTest, NonPawnMaterialUsesPieceCounts) {
         int              expected;
     };
 
-    constexpr int start_material = 2 * piece_value::knight_mg + 2 * piece_value::bishop_mg +
-                                   2 * piece_value::rook_mg + piece_value::queen_mg;
+    constexpr int start_material = 2 * piece_value::knight_mg + 2 * piece_value::bishop_mg
+                                 + 2 * piece_value::rook_mg + piece_value::queen_mg;
     constexpr TestCase test_cases[] = {
         {board_test::fen::kings_only, WHITE, 0},
         {board_test::fen::kings_only, BLACK, 0},

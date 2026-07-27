@@ -80,9 +80,9 @@ constexpr Move::Move(Square from, Square to, MoveType move_type, PieceType promo
 
 constexpr MoveBits
 Move::pack(Square from, Square to, MoveType move_type, PieceType promotion) noexcept {
-    return (from & move_mask) | ((to & move_mask) << to_shift) |
-           ((int(move_type) & flag_mask) << type_shift) |
-           ((int(promotion - KNIGHT) & flag_mask) << prom_shift);
+    return (from & move_mask) | ((to & move_mask) << to_shift)
+         | ((int(move_type) & flag_mask) << type_shift)
+         | ((int(promotion - KNIGHT) & flag_mask) << prom_shift);
 }
 
 constexpr Square Move::unpack_from(MoveBits packed) noexcept {

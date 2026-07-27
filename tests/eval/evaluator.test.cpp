@@ -383,10 +383,10 @@ TaperedScore shelter(const std::vector<Rank>& shelter_ranks,
 }
 
 TEST_F(EvaluatorTest, KingSafety) {
-    TaperedScore empty = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {}) +
-                         eval::king_file[FILE5] + eval::king_open_file[true][true];
-    TaperedScore start = shelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
-                         eval::king_file[FILE7] + eval::king_open_file[false][false];
+    TaperedScore empty = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {})
+                       + eval::king_file[FILE5] + eval::king_open_file[true][true];
+    TaperedScore start = shelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {})
+                       + eval::king_file[FILE7] + eval::king_open_file[false][false];
 
     std::vector<std::tuple<std::string, TaperedScore>> test_cases = {
         {board_test::fen::kings_only, empty},
@@ -399,20 +399,20 @@ TEST_F(EvaluatorTest, KingSafety) {
 }
 
 TEST_F(EvaluatorTest, Shelter) {
-    TaperedScore empty = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {}) +
-                         eval::king_file[int(FILE5)] + eval::king_open_file[true][true];
-    TaperedScore start = shelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {}) +
-                         eval::king_file[int(FILE5)] + eval::king_open_file[false][false];
-    TaperedScore blocked = shelter({RANK3, RANK4, RANK5}, {RANK6, RANK4}, {RANK5}) +
-                           eval::king_file[int(FILE1)] + eval::king_open_file[false][false];
-    TaperedScore semiopen1 = shelter({RANK2, RANK2, RANK2}, {RANK1, RANK1, RANK1}, {}) +
-                             eval::king_file[int(FILE1)] + eval::king_open_file[false][true];
-    TaperedScore semiopen2 = shelter({RANK1, RANK1, RANK1}, {RANK7, RANK7, RANK7}, {}) +
-                             eval::king_file[int(FILE1)] + eval::king_open_file[true][false];
-    TaperedScore rank2 = shelter({RANK1, RANK1, RANK3}, {RANK7, RANK7, RANK6}, {}) +
-                         eval::king_file[int(FILE2)] + eval::king_open_file[false][false];
-    TaperedScore attacked = shelter({RANK2, RANK2, RANK1}, {RANK7, RANK7, RANK7}, {}) +
-                            eval::king_file[int(FILE1)] + eval::king_open_file[false][false];
+    TaperedScore empty = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {})
+                       + eval::king_file[int(FILE5)] + eval::king_open_file[true][true];
+    TaperedScore start = shelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {})
+                       + eval::king_file[int(FILE5)] + eval::king_open_file[false][false];
+    TaperedScore blocked = shelter({RANK3, RANK4, RANK5}, {RANK6, RANK4}, {RANK5})
+                         + eval::king_file[int(FILE1)] + eval::king_open_file[false][false];
+    TaperedScore semiopen1 = shelter({RANK2, RANK2, RANK2}, {RANK1, RANK1, RANK1}, {})
+                           + eval::king_file[int(FILE1)] + eval::king_open_file[false][true];
+    TaperedScore semiopen2 = shelter({RANK1, RANK1, RANK1}, {RANK7, RANK7, RANK7}, {})
+                           + eval::king_file[int(FILE1)] + eval::king_open_file[true][false];
+    TaperedScore rank2 = shelter({RANK1, RANK1, RANK3}, {RANK7, RANK7, RANK6}, {})
+                       + eval::king_file[int(FILE2)] + eval::king_open_file[false][false];
+    TaperedScore attacked = shelter({RANK2, RANK2, RANK1}, {RANK7, RANK7, RANK7}, {})
+                          + eval::king_file[int(FILE1)] + eval::king_open_file[false][false];
 
     std::vector<std::tuple<std::string, TaperedScore, TaperedScore>> test_cases = {
         {board_test::fen::kings_only, empty, empty},
@@ -446,8 +446,8 @@ TEST_F(EvaluatorTest, FileShelter) {
 }
 
 TEST_F(EvaluatorTest, RawDanger) {
-    int danger = (eval::safe_check_danger[QUEEN] + eval::safe_check_danger[BISHOP] +
-                  eval::kingzone_att_danger[QUEEN] + eval::weak_kingzone_danger);
+    int danger = (eval::safe_check_danger[QUEEN] + eval::safe_check_danger[BISHOP]
+                  + eval::kingzone_att_danger[QUEEN] + eval::weak_kingzone_danger);
 
     std::vector<std::tuple<std::string, int, int>> test_cases = {
         // No danger

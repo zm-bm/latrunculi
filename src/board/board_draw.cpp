@@ -25,8 +25,8 @@ bool Board::is_draw(int ply_from_search_root) const noexcept {
 
         // One prior occurrence strictly after the search root is a cycle draw.
         // At or before the root, two are required for threefold repetition.
-        if (ply_from_search_root > 0 &&
-            plies_back < static_cast<std::size_t>(ply_from_search_root)) {
+        if (ply_from_search_root > 0
+            && plies_back < static_cast<std::size_t>(ply_from_search_root)) {
             return true;
         }
         if (++prior_occurrences == 2)

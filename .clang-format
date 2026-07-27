@@ -4,18 +4,33 @@ Language:        Cpp
 AccessModifierOffset: -4
 AlignConsecutiveAssignments:
   Enabled:         true
-  AlignCompound:   true
+  AlignCompound:   false
 AlignConsecutiveDeclarations:
   Enabled:         true
 AlignConsecutiveShortCaseStatements:
   Enabled:         true
-AllowShortFunctionsOnASingleLine: Inline
-AllowShortLambdasOnASingleLine: All
+AlignOperands:   AlignAfterOperator
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: true
+AllowShortEnumsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
 BinPackArguments: false
 BinPackParameters: false
-AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBinaryOperators: NonAssignment
 ColumnLimit:     100
+DerivePointerAlignment: false
+IncludeBlocks:   Preserve
 IndentWidth:     4
+InsertNewlineAtEOF: true
+LineEnding:      LF
 PackConstructorInitializers: CurrentLine
 PointerAlignment: Left
+ReferenceAlignment: Pointer
+SortIncludes:    CaseSensitive
+UseTab:          Never

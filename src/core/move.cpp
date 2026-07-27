@@ -17,6 +17,6 @@ std::string Move::str() const {
         return "none";
 
     return type() == MOVE_PROM
-               ? std::format("{}{}{}", to_string(from()), to_string(to()), to_char(prom_piece()))
-               : std::format("{}{}", to_string(from()), to_string(to()));
+             ? std::format("{}{}{}", to_string(from()), to_string(to()), to_char(prom_piece()))
+             : std::format("{}{}", to_string(from()), to_string(to()));
 }

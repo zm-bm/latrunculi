@@ -295,8 +295,8 @@ EvalValue SearchWorker::alphabeta(
     if constexpr (Node == NON_PV) {
         // Step 5. Razoring. At shallow fail-low nodes, verify with qsearch.
         const EvalValue static_eval = evaluate(board);
-        if (can_null && !in_check && depth <= RazorFutilityMaxDepth && tt_move.is_null() &&
-            static_eval + RazorMargin[depth] <= alpha) {
+        if (can_null && !in_check && depth <= RazorFutilityMaxDepth && tt_move.is_null()
+            && static_eval + RazorMargin[depth] <= alpha) {
             stats.razor_try(ply);
             const EvalValue value = quiescence<NON_PV>(alpha - 1, alpha);
             if (stop_requested())
@@ -311,11 +311,11 @@ EvalValue SearchWorker::alphabeta(
         // Skip NMP when a depth-sufficient TT upper bound suggests it will fail low.
         const int reduction =
             depth > NullMoveDeepDepth ? NullMoveReductionDeep : NullMoveReductionBase;
-        const bool tt_upper_veto = tt_record && tt_record->depth >= depth &&
-                                   tt_record->flag == TT_Flag::Upperbound &&
-                                   tt_record->score_at_ply(ply) < beta;
-        if (can_null && !in_check && depth >= reduction &&
-            board.non_pawn_material(c) > piece_value::rook_mg && !tt_upper_veto) {
+        const bool tt_upper_veto = tt_record && tt_record->depth >= depth
+                                && tt_record->flag == TT_Flag::Upperbound
+                                && tt_record->score_at_ply(ply) < beta;
+        if (can_null && !in_check && depth >= reduction
+            && board.non_pawn_material(c) > piece_value::rook_mg && !tt_upper_veto) {
             stats.null_move_try(ply);
 
             board.make_null(ply_states.child(ply));
@@ -334,8 +334,8 @@ EvalValue SearchWorker::alphabeta(
         }
 
         // Prepare shallow futility pruning. The move loop performs the actual skip.
-        futility = depth <= RazorFutilityMaxDepth && !in_check && alpha > -eval_value::mate_bound &&
-                   alpha < eval_value::mate_bound && static_eval + FutilityMargin[depth] <= alpha;
+        futility = depth <= RazorFutilityMaxDepth && !in_check && alpha > -eval_value::mate_bound
+                && alpha < eval_value::mate_bound && static_eval + FutilityMargin[depth] <= alpha;
     }
 
     int       move_count     = 0;

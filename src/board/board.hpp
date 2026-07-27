@@ -238,10 +238,10 @@ inline bool Board::is_capture(Move move) const noexcept {
 }
 
 inline EvalValue Board::non_pawn_material(Color color) const noexcept {
-    return ((count(color, KNIGHT) * piece_value::knight_mg) +
-            (count(color, BISHOP) * piece_value::bishop_mg) +
-            (count(color, ROOK) * piece_value::rook_mg) +
-            (count(color, QUEEN) * piece_value::queen_mg));
+    return ((count(color, KNIGHT) * piece_value::knight_mg)
+            + (count(color, BISHOP) * piece_value::bishop_mg)
+            + (count(color, ROOK) * piece_value::rook_mg)
+            + (count(color, QUEEN) * piece_value::queen_mg));
 }
 
 // Private inline query helpers
@@ -254,20 +254,20 @@ inline Bitboard Board::pieces() const noexcept {
 
 inline Bitboard
 Board::attacks_to(Square target, Color attacker, Bitboard occupancy) const noexcept {
-    return (pieces<PAWN>(attacker) & attacks::pawn_attacks(target, ~attacker)) |
-           (pieces<KNIGHT>(attacker) & attacks::piece_moves<KNIGHT>(target, occupancy)) |
-           (pieces<KING>(attacker) & attacks::piece_moves<KING>(target, occupancy)) |
-           (pieces<BISHOP, QUEEN>(attacker) & attacks::piece_moves<BISHOP>(target, occupancy)) |
-           (pieces<ROOK, QUEEN>(attacker) & attacks::piece_moves<ROOK>(target, occupancy));
+    return (pieces<PAWN>(attacker) & attacks::pawn_attacks(target, ~attacker))
+         | (pieces<KNIGHT>(attacker) & attacks::piece_moves<KNIGHT>(target, occupancy))
+         | (pieces<KING>(attacker) & attacks::piece_moves<KING>(target, occupancy))
+         | (pieces<BISHOP, QUEEN>(attacker) & attacks::piece_moves<BISHOP>(target, occupancy))
+         | (pieces<ROOK, QUEEN>(attacker) & attacks::piece_moves<ROOK>(target, occupancy));
 }
 
 inline Bitboard Board::all_attackers_to(Square target, Bitboard occupancy) const noexcept {
-    return (pieces<PAWN>(WHITE) & attacks::pawn_attacks<BLACK>(target)) |
-           (pieces<PAWN>(BLACK) & attacks::pawn_attacks<WHITE>(target)) |
-           (pieces<KNIGHT>() & attacks::piece_moves<KNIGHT>(target, occupancy)) |
-           (pieces<KING>() & attacks::piece_moves<KING>(target, occupancy)) |
-           (pieces<BISHOP, QUEEN>() & attacks::piece_moves<BISHOP>(target, occupancy)) |
-           (pieces<ROOK, QUEEN>() & attacks::piece_moves<ROOK>(target, occupancy));
+    return (pieces<PAWN>(WHITE) & attacks::pawn_attacks<BLACK>(target))
+         | (pieces<PAWN>(BLACK) & attacks::pawn_attacks<WHITE>(target))
+         | (pieces<KNIGHT>() & attacks::piece_moves<KNIGHT>(target, occupancy))
+         | (pieces<KING>() & attacks::piece_moves<KING>(target, occupancy))
+         | (pieces<BISHOP, QUEEN>() & attacks::piece_moves<BISHOP>(target, occupancy))
+         | (pieces<ROOK, QUEEN>() & attacks::piece_moves<ROOK>(target, occupancy));
 }
 
 // Private inline representation mutation
@@ -279,9 +279,9 @@ inline void Board::add_piece(Square square, Color color, PieceType piece_type) n
     piece_counts[color][piece_type]++;
     bb::add(piece_bb[color][piece_type], square);
     bb::add(piece_bb[color][all_pieces_slot], square);
-    squares[square]  = make_piece(color, piece_type);
-    material        += eval::piece(piece_type, color);
-    psq_bonus       += eval::piece_sq(piece_type, color, square);
+    squares[square] = make_piece(color, piece_type);
+    material += eval::piece(piece_type, color);
+    psq_bonus += eval::piece_sq(piece_type, color, square);
     if constexpr (apply_hash)
         active_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
@@ -293,9 +293,9 @@ inline void Board::remove_piece(Square square, Color color, PieceType piece_type
     piece_counts[color][piece_type]--;
     bb::remove(piece_bb[color][piece_type], square);
     bb::remove(piece_bb[color][all_pieces_slot], square);
-    squares[square]  = NO_PIECE;
-    material        -= eval::piece(piece_type, color);
-    psq_bonus       -= eval::piece_sq(piece_type, color, square);
+    squares[square] = NO_PIECE;
+    material -= eval::piece(piece_type, color);
+    psq_bonus -= eval::piece_sq(piece_type, color, square);
     if constexpr (apply_hash)
         active_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }

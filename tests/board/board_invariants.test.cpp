@@ -67,11 +67,11 @@ void expect_board_consistent(const Board& board) {
         const PieceType type  = type_of(piece);
         const Bitboard  sq_bb = bb::set(sq);
 
-        expected_piece_bb[color][type]            |= sq_bb;
+        expected_piece_bb[color][type] |= sq_bb;
         expected_piece_bb[color][all_pieces_slot] |= sq_bb;
         expected_counts[color][type]++;
         expected_material += eval::piece(type, color);
-        expected_psq      += eval::piece_sq(type, color, sq);
+        expected_psq += eval::piece_sq(type, color, sq);
         if (type == KING)
             expected_kings[color] = sq;
     }

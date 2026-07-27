@@ -35,13 +35,13 @@ inline void Board::clear_castling_rights(Color color) noexcept {
 inline void Board::clear_rook_castling_right(Color color, Square rook_square) noexcept {
     auto& state = active_state();
 
-    if (rook_square == move_geometry::castling(CASTLE_KINGSIDE, color).rook_from &&
-        has_castling_right(CASTLE_KINGSIDE, color)) {
-        state.zkey            ^= zob::hash_castle(CASTLE_KINGSIDE, color);
+    if (rook_square == move_geometry::castling(CASTLE_KINGSIDE, color).rook_from
+        && has_castling_right(CASTLE_KINGSIDE, color)) {
+        state.zkey ^= zob::hash_castle(CASTLE_KINGSIDE, color);
         state.castling_rights &= ~(color == WHITE ? W_KINGSIDE : B_KINGSIDE);
-    } else if (rook_square == move_geometry::castling(CASTLE_QUEENSIDE, color).rook_from &&
-               has_castling_right(CASTLE_QUEENSIDE, color)) {
-        state.zkey            ^= zob::hash_castle(CASTLE_QUEENSIDE, color);
+    } else if (rook_square == move_geometry::castling(CASTLE_QUEENSIDE, color).rook_from
+               && has_castling_right(CASTLE_QUEENSIDE, color)) {
+        state.zkey ^= zob::hash_castle(CASTLE_QUEENSIDE, color);
         state.castling_rights &= ~(color == WHITE ? W_QUEENSIDE : B_QUEENSIDE);
     }
 }
@@ -110,7 +110,7 @@ void Board::make(Move move, PlyState& next_state) {
     default: break;
     }
 
-    turn        = opponent;
+    turn = opponent;
     state.zkey ^= zob::hash_turn();
 
     refresh_tactical_cache();
@@ -172,7 +172,7 @@ void Board::make_null(PlyState& next_state) {
     ++ply_from_root;
     auto& state = active_state();
 
-    turn        = ~turn;
+    turn = ~turn;
     state.zkey ^= zob::hash_turn();
     if (previous_legal_enpassant_target != INVALID)
         state.zkey ^= zob::hash_ep(previous_legal_enpassant_target);

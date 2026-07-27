@@ -108,12 +108,12 @@ bool Board::is_pseudo_legal(Move move) const noexcept {
 
             if (move_delta == 2 * push_delta) {
                 const Square mid = from + push_delta;
-                return square::relative_rank(from, turn) == RANK2 &&
-                       destination_piece == NO_PIECE && piece_on(mid) == NO_PIECE;
+                return square::relative_rank(from, turn) == RANK2 && destination_piece == NO_PIECE
+                    && piece_on(mid) == NO_PIECE;
             }
 
-            return bb::contains(attacks::pawn_attacks(from, turn), to) &&
-                   destination_piece != NO_PIECE;
+            return bb::contains(attacks::pawn_attacks(from, turn), to)
+                && destination_piece != NO_PIECE;
         }
 
         if (piece_type == KING)
@@ -179,8 +179,8 @@ bool Board::is_legal_generated_move(Move move) const noexcept {
 
     const Square from = move.from();
 
-    if (checkers() || from == king_sq(turn) || move.type() == MOVE_EP ||
-        bb::contains(blockers(turn), from))
+    if (checkers() || from == king_sq(turn) || move.type() == MOVE_EP
+        || bb::contains(blockers(turn), from))
         return is_legal_pseudo_move(move);
 
     return true;
@@ -231,8 +231,8 @@ bool Board::gives_check(Move move) const noexcept {
     const PieceType piece_type = type_of(piece_on(from));
     if (bb::contains(direct_check_targets(*this, piece_type), to))
         return true;
-    if (bb::contains(blockers(opponent), from) &&
-        !bb::contains(square::collinear(from, to), opponent_king))
+    if (bb::contains(blockers(opponent), from)
+        && !bb::contains(square::collinear(from, to), opponent_king))
         return true;
 
     switch (move.type()) {
@@ -248,9 +248,9 @@ bool Board::gives_check(Move move) const noexcept {
         Bitboard     occupancy       = this->occupancy();
         bb::move(occupancy, from, to);
         bb::remove(occupancy, captured_square);
-        return ((pieces<BISHOP, QUEEN>(turn) &
-                 attacks::piece_moves<BISHOP>(opponent_king, occupancy)) ||
-                (pieces<ROOK, QUEEN>(turn) & attacks::piece_moves<ROOK>(opponent_king, occupancy)));
+        return (pieces<BISHOP, QUEEN>(turn)
+                & attacks::piece_moves<BISHOP>(opponent_king, occupancy))
+            || (pieces<ROOK, QUEEN>(turn) & attacks::piece_moves<ROOK>(opponent_king, occupancy));
     }
 
     case MOVE_CASTLE: {

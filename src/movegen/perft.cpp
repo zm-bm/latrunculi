@@ -28,8 +28,8 @@ perft_impl(Board& board, int depth, PlyStateStack& states, int ply, PlyState& cu
             continue;
 
         board.make(move, states.child(ply));
-        NodeCount count  = perft_impl(board, depth - 1, states, ply + 1, states.child(ply));
-        nodes           += count;
+        NodeCount count = perft_impl(board, depth - 1, states, ply + 1, states.child(ply));
+        nodes += count;
         board.unmake(current_state);
     }
 
@@ -67,8 +67,8 @@ PerftResult perft_root(Board& board, int depth) {
             continue;
 
         board.make(move, states.child(0));
-        const NodeCount nodes  = perft_impl(board, depth - 1, states, 1, states.child(0));
-        result.nodes          += nodes;
+        const NodeCount nodes = perft_impl(board, depth - 1, states, 1, states.child(0));
+        result.nodes += nodes;
         result.root_moves.push_back({.move = move, .nodes = nodes});
         board.unmake(root_state);
     }

@@ -106,8 +106,8 @@ constexpr Square frontmost(const Bitboard bitboard) {
 
 // Pops and returns the lowest occupied square.
 constexpr Square lsb_pop(Bitboard& bitboard) {
-    const Square sq  = lsb(bitboard);
-    bitboard        &= bitboard - 1;
+    const Square sq = lsb(bitboard);
+    bitboard &= bitboard - 1;
     return sq;
 }
 

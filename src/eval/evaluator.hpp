@@ -181,8 +181,8 @@ inline EvalValue Evaluator::evaluate() {
     const Color stronger_side = score.eg < 0 ? BLACK : WHITE;
     score.eg                  = (score.eg * scale_factor(stronger_side)) / eval::scale_limit;
 
-    scores.final_score  = score;
-    scores.final_value  = taper_score(score) * (side_to_move == WHITE ? 1 : -1);
+    scores.final_score = score;
+    scores.final_value = taper_score(score) * (side_to_move == WHITE ? 1 : -1);
     scores.final_value += eval::tempo_bonus;
 
     return scores.final_value;
@@ -278,7 +278,7 @@ TaperedScore Evaluator::evaluate_pawns() {
 
     attacks.by2[C] |= pawn_attacks2 | (attacks.by[C][all_pieces_slot] & pawn_attacks);
     attacks.by[C][all_pieces_slot] |= pawn_attacks;
-    attacks.by[C][PAWN]            |= pawn_attacks;
+    attacks.by[C][PAWN] |= pawn_attacks;
 
     // isolated pawns: no friendly pawns on adjacent files
     const Bitboard pawn_files = bb::fill(pawns);
@@ -295,9 +295,9 @@ TaperedScore Evaluator::evaluate_pawns() {
     score += eval::backward_pawn * bb::count(backwards_pawns);
 
     // doubled pawns: unsupported pawn with friendly pawns behind
-    Bitboard pawns_behind   = pawns & bb::span_front<C>(pawns);
-    Bitboard doubled_pawns  = pawns_behind & ~pawn_attacks;
-    score                  += eval::doubled_pawn * bb::count(doubled_pawns);
+    Bitboard pawns_behind  = pawns & bb::span_front<C>(pawns);
+    Bitboard doubled_pawns = pawns_behind & ~pawn_attacks;
+    score += eval::doubled_pawn * bb::count(doubled_pawns);
 
     return score;
 }
@@ -369,16 +369,16 @@ TaperedScore Evaluator::evaluate_king_safety() const {
 /// merge moves into attack bitboards
 template <Color C, PieceType P>
 inline void Evaluator::update_attacks(const Bitboard moves) {
-    attacks.by2[C]                 |= (attacks.by[C][all_pieces_slot] & moves);
+    attacks.by2[C] |= (attacks.by[C][all_pieces_slot] & moves);
     attacks.by[C][all_pieces_slot] |= moves;
-    attacks.by[C][P]               |= moves;
+    attacks.by[C][P] |= moves;
 }
 
 /// add mobility bonus for # of moves
 template <Color C, PieceType P>
 inline void Evaluator::update_mobility(const Bitboard moves) {
-    const int move_count  = bb::count(moves & zones.mobility[C]);
-    scores.mobility[C]   += eval::mobility[P][move_count];
+    const int move_count = bb::count(moves & zones.mobility[C]);
+    scores.mobility[C] += eval::mobility[P][move_count];
 }
 
 /// penalize weak pieces if attackers > defenders
@@ -660,8 +660,8 @@ inline int Evaluator::phase() const {
     int npm      = board.non_pawn_material(WHITE) + board.non_pawn_material(BLACK);
     int material = std::clamp(npm, eval::material_eg, eval::material_mg);
 
-    return ((material - eval::material_eg) * eval::phase_limit) /
-           (eval::material_mg - eval::material_eg);
+    return ((material - eval::material_eg) * eval::phase_limit)
+         / (eval::material_mg - eval::material_eg);
 }
 
 // track scores for a single evaluation term
@@ -706,8 +706,8 @@ struct std::formatter<TermScore> : std::formatter<std::string_view> {
 
     auto format(const TermScore& t, std::format_context& ctx) const {
         return t.has_both
-                   ? std::format_to(ctx.out(), both_format, t.white, t.black, t.white - t.black)
-                   : std::format_to(ctx.out(), single_format, t.white);
+                 ? std::format_to(ctx.out(), both_format, t.white, t.black, t.white - t.black)
+                 : std::format_to(ctx.out(), single_format, t.white);
     }
 };
 

@@ -149,8 +149,8 @@ inline bool TT_Record::can_cutoff(EvalValue adjusted_score,
 inline void TT_Table::store_search(
     PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply) {
     assert(depth >= 0 && depth <= engine::max_search_ply);
-    assert(score >= std::numeric_limits<std::int16_t>::min() &&
-           score <= std::numeric_limits<std::int16_t>::max());
+    assert(score >= std::numeric_limits<std::int16_t>::min()
+           && score <= std::numeric_limits<std::int16_t>::max());
 
     store(zkey, move, score, depth, flag, ply);
 }

@@ -17,13 +17,13 @@ void append_disambiguation(std::string& san, const Board& board, Move move, Piec
     bool same_rank = false;
 
     for (const Move candidate : movegen::generate_pseudo_legal(board)) {
-        if (candidate.from() == move.from() || candidate.to() != move.to() ||
-            board.piece_type_on(candidate.from()) != piece_type ||
-            !board.is_legal_generated_move(candidate)) {
+        if (candidate.from() == move.from() || candidate.to() != move.to()
+            || board.piece_type_on(candidate.from()) != piece_type
+            || !board.is_legal_generated_move(candidate)) {
             continue;
         }
 
-        ambiguous  = true;
+        ambiguous = true;
         same_file |= square::file_of(candidate.from()) == square::file_of(move.from());
         same_rank |= square::rank_of(candidate.from()) == square::rank_of(move.from());
     }

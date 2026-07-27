@@ -104,45 +104,45 @@ struct SearchCounters<true> {
 
     SearchCounters& operator+=(const SearchCounters& other) {
         for (size_t i = 0; i < engine::max_search_ply; ++i) {
-            nodes[i]                      += other.nodes[i];
-            qnodes[i]                     += other.qnodes[i];
-            cutoffs[i]                    += other.cutoffs[i];
-            fail_high_early[i]            += other.fail_high_early[i];
-            fail_high_late[i]             += other.fail_high_late[i];
-            cutoff_index_sum[i]           += other.cutoff_index_sum[i];
-            cutoff_index_1[i]             += other.cutoff_index_1[i];
-            cutoff_index_2[i]             += other.cutoff_index_2[i];
-            cutoff_index_3_4[i]           += other.cutoff_index_3_4[i];
-            cutoff_index_5_plus[i]        += other.cutoff_index_5_plus[i];
-            pvs_researches[i]             += other.pvs_researches[i];
-            main_tt_probes[i]             += other.main_tt_probes[i];
-            main_tt_hits[i]               += other.main_tt_hits[i];
-            main_tt_cutoffs[i]            += other.main_tt_cutoffs[i];
-            q_tt_probes[i]                += other.q_tt_probes[i];
-            q_tt_hits[i]                  += other.q_tt_hits[i];
-            q_tt_cutoffs[i]               += other.q_tt_cutoffs[i];
-            null_move_tries[i]            += other.null_move_tries[i];
-            null_move_cutoffs[i]          += other.null_move_cutoffs[i];
-            razor_tries[i]                += other.razor_tries[i];
-            razor_cutoffs[i]              += other.razor_cutoffs[i];
-            futility_skips[i]             += other.futility_skips[i];
-            lmr_tries[i]                  += other.lmr_tries[i];
-            lmr_researches[i]             += other.lmr_researches[i];
-            quiet_cutoffs[i]              += other.quiet_cutoffs[i];
+            nodes[i] += other.nodes[i];
+            qnodes[i] += other.qnodes[i];
+            cutoffs[i] += other.cutoffs[i];
+            fail_high_early[i] += other.fail_high_early[i];
+            fail_high_late[i] += other.fail_high_late[i];
+            cutoff_index_sum[i] += other.cutoff_index_sum[i];
+            cutoff_index_1[i] += other.cutoff_index_1[i];
+            cutoff_index_2[i] += other.cutoff_index_2[i];
+            cutoff_index_3_4[i] += other.cutoff_index_3_4[i];
+            cutoff_index_5_plus[i] += other.cutoff_index_5_plus[i];
+            pvs_researches[i] += other.pvs_researches[i];
+            main_tt_probes[i] += other.main_tt_probes[i];
+            main_tt_hits[i] += other.main_tt_hits[i];
+            main_tt_cutoffs[i] += other.main_tt_cutoffs[i];
+            q_tt_probes[i] += other.q_tt_probes[i];
+            q_tt_hits[i] += other.q_tt_hits[i];
+            q_tt_cutoffs[i] += other.q_tt_cutoffs[i];
+            null_move_tries[i] += other.null_move_tries[i];
+            null_move_cutoffs[i] += other.null_move_cutoffs[i];
+            razor_tries[i] += other.razor_tries[i];
+            razor_cutoffs[i] += other.razor_cutoffs[i];
+            futility_skips[i] += other.futility_skips[i];
+            lmr_tries[i] += other.lmr_tries[i];
+            lmr_researches[i] += other.lmr_researches[i];
+            quiet_cutoffs[i] += other.quiet_cutoffs[i];
             quiet_malus_eligible_nodes[i] += other.quiet_malus_eligible_nodes[i];
-            quiet_malus_failed_quiets[i]  += other.quiet_malus_failed_quiets[i];
-            quiet_malus_updates[i]        += other.quiet_malus_updates[i];
+            quiet_malus_failed_quiets[i] += other.quiet_malus_failed_quiets[i];
+            quiet_malus_updates[i] += other.quiet_malus_updates[i];
         }
 
-        aspiration_fail_lows  += other.aspiration_fail_lows;
+        aspiration_fail_lows += other.aspiration_fail_lows;
         aspiration_fail_highs += other.aspiration_fail_highs;
         aspiration_researches += other.aspiration_researches;
         return *this;
     }
 
     SearchCounters operator+(const SearchCounters& other) const {
-        SearchCounters result  = *this;
-        result                += other;
+        SearchCounters result = *this;
+        result += other;
         return result;
     }
 
@@ -327,8 +327,8 @@ public:
     }
 
     SearchInstrumentation operator+(const SearchInstrumentation& other) const {
-        SearchInstrumentation result  = *this;
-        result                       += other;
+        SearchInstrumentation result = *this;
+        result += other;
         return result;
     }
 
@@ -362,7 +362,8 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
 
         const std::uint64_t null_move_tries   = sum(stats.null_move_tries);
         const std::uint64_t null_move_cutoffs = sum(stats.null_move_cutoffs);
-        out                                   = std::format_to(out,
+
+        out = std::format_to(out,
                              "NullMove: tries={} cutoffs={} cutoff-rate={:.1f}%\n",
                              null_move_tries,
                              null_move_cutoffs,
@@ -371,9 +372,10 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
         const std::uint64_t razor_tries    = sum(stats.razor_tries);
         const std::uint64_t razor_cutoffs  = sum(stats.razor_cutoffs);
         const std::uint64_t futility_skips = sum(stats.futility_skips);
-        out                                = std::format_to(out,
+
+        out = std::format_to(out,
                              "RazorFutility: razor-tries={} razor-cutoffs={} "
-                                                            "razor-cutoff-rate={:.1f}% futility-skips={}\n",
+                             "razor-cutoff-rate={:.1f}% futility-skips={}\n",
                              razor_tries,
                              razor_cutoffs,
                              pct(razor_cutoffs, razor_tries),
@@ -381,7 +383,8 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
 
         const std::uint64_t lmr_tries      = sum(stats.lmr_tries);
         const std::uint64_t lmr_researches = sum(stats.lmr_researches);
-        out                                = std::format_to(out,
+
+        out = std::format_to(out,
                              "LMR: tries={} re-searches={} re-search-rate={:.1f}%\n",
                              lmr_tries,
                              lmr_researches,
@@ -391,9 +394,10 @@ struct std::formatter<SearchInstrumentation<true>> : std::formatter<std::string_
         const std::uint64_t quiet_malus_eligible_nodes = sum(stats.quiet_malus_eligible_nodes);
         const std::uint64_t quiet_malus_failed_quiets  = sum(stats.quiet_malus_failed_quiets);
         const std::uint64_t quiet_malus_updates        = sum(stats.quiet_malus_updates);
-        out                                            = std::format_to(out,
+
+        out = std::format_to(out,
                              "QuietHistory: quiet-cutoffs={} malus-eligible={} failed-quiets={} "
-                                                                        "malus-updates={}\n",
+                             "malus-updates={}\n",
                              quiet_cutoffs,
                              quiet_malus_eligible_nodes,
                              quiet_malus_failed_quiets,
@@ -494,8 +498,8 @@ private:
     }
 
     static bool has_quiet_history_stats(const SearchCounters<true>& stats, int depth) {
-        return stats.quiet_cutoffs[depth] != 0 || stats.quiet_malus_eligible_nodes[depth] != 0 ||
-               stats.quiet_malus_failed_quiets[depth] != 0 || stats.quiet_malus_updates[depth] != 0;
+        return stats.quiet_cutoffs[depth] != 0 || stats.quiet_malus_eligible_nodes[depth] != 0
+            || stats.quiet_malus_failed_quiets[depth] != 0 || stats.quiet_malus_updates[depth] != 0;
     }
 
     static int max_quiet_history_depth(const SearchCounters<true>& stats) {

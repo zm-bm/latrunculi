@@ -33,11 +33,11 @@ struct TT_Snapshot {
 [[nodiscard]] std::uint64_t pack_payload(const TT_Record& record) {
     const auto packed_score = std::bit_cast<std::uint16_t>(record.score);
 
-    return (std::uint64_t(record.move.bits) << tt_move_shift) |
-           ((std::uint64_t(packed_score) & tt_score_mask) << tt_score_shift) |
-           ((std::uint64_t(record.depth) & tt_depth_mask) << tt_depth_shift) |
-           ((std::uint64_t(record.age) & tt_age_mask) << tt_age_shift) |
-           ((std::uint64_t(std::to_underlying(record.flag)) & tt_flag_mask) << tt_flag_shift);
+    return (std::uint64_t(record.move.bits) << tt_move_shift)
+         | ((std::uint64_t(packed_score) & tt_score_mask) << tt_score_shift)
+         | ((std::uint64_t(record.depth) & tt_depth_mask) << tt_depth_shift)
+         | ((std::uint64_t(record.age) & tt_age_mask) << tt_age_shift)
+         | ((std::uint64_t(std::to_underlying(record.flag)) & tt_flag_mask) << tt_flag_shift);
 }
 
 [[nodiscard]] TT_Record unpack_payload(std::uint64_t payload) {
@@ -101,8 +101,8 @@ std::optional<TT_Record> TT_Table::probe(PositionKey zkey) const {
 void TT_Table::store(
     PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply) {
     assert(depth >= 0 && depth <= std::numeric_limits<std::uint8_t>::max());
-    assert(score >= std::numeric_limits<std::int16_t>::min() &&
-           score <= std::numeric_limits<std::int16_t>::max());
+    assert(score >= std::numeric_limits<std::int16_t>::min()
+           && score <= std::numeric_limits<std::int16_t>::max());
 
     TT_Cluster& cluster = table[cluster_key(zkey)];
 
@@ -111,8 +111,8 @@ void TT_Table::store(
         score += ply;
     else if (score <= -eval_value::tt_mate_bound)
         score -= ply;
-    assert(score >= std::numeric_limits<std::int16_t>::min() &&
-           score <= std::numeric_limits<std::int16_t>::max());
+    assert(score >= std::numeric_limits<std::int16_t>::min()
+           && score <= std::numeric_limits<std::int16_t>::max());
 
     // replacement policy: prefer same key, then lowest replacement score
     TT_Entry* target = &cluster.entries[0];

@@ -25,8 +25,8 @@ struct TT_ExpectedSnapshot {
 matches_expected_snapshot(const TT_Record&                          record,
                           const std::array<TT_ExpectedSnapshot, 4>& expected_snapshots) {
     for (const auto& expected : expected_snapshots) {
-        if (record.move == expected.move && record.score == expected.score &&
-            record.depth == expected.depth && record.flag == expected.flag) {
+        if (record.move == expected.move && record.score == expected.score
+            && record.depth == expected.depth && record.flag == expected.flag) {
             return true;
         }
     }

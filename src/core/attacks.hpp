@@ -90,8 +90,8 @@ constexpr Bitboard piece_moves(Square sq, PieceType p, Bitboard occupancy) {
                                                        Bitboard diagonal_sliders,
                                                        Bitboard orthogonal_sliders,
                                                        Bitboard occupancy) noexcept {
-    Bitboard snipers = (piece_moves<BISHOP>(king) & diagonal_sliders) |
-                       (piece_moves<ROOK>(king) & orthogonal_sliders);
+    Bitboard snipers = (piece_moves<BISHOP>(king) & diagonal_sliders)
+                     | (piece_moves<ROOK>(king) & orthogonal_sliders);
     // Exclude aligned snipers so they do not block each other's rays.
     occupancy ^= snipers;
 
