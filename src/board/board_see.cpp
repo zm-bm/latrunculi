@@ -39,7 +39,7 @@ EvalValue Board::see(Move move) const noexcept {
     }
 
     // Exclude removed pieces so an attacker cannot be selected twice.
-    Bitboard attackers = attacks_to(to, occupancy) & occupancy;
+    Bitboard attackers = all_attackers_to(to, occupancy) & occupancy;
 
     const Bitboard bishop_sliders = pieces<BISHOP, QUEEN>();
     const Bitboard rook_sliders   = pieces<ROOK, QUEEN>();

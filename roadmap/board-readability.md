@@ -85,22 +85,30 @@ Planning commit: `docs: add board readability plan`
 
 ## Phase 1: Refine The Board Interface
 
-Status: pending.
+Status: complete.
 
-- [ ] Correct the `copy_root_from()` root, history, storage-lifetime, and alias
+- [x] Correct the `copy_root_from()` root, history, storage-lifetime, and alias
       contract.
-- [ ] Document raw/legal en-passant, blockers, attack queries, move
+- [x] Document raw/legal en-passant, blockers, attack queries, move
       classification, synchronized representation mutation, and key history.
-- [ ] Remove public no-color `pieces()` and compute `occupancy()` directly from
+- [x] Remove public no-color `pieces()` and compute `occupancy()` directly from
       the two color aggregates.
-- [ ] Make colorless typed pieces and occupancy-aware attack queries private;
+- [x] Make colorless typed pieces and occupancy-aware attack queries private;
       rename the both-color helper to `all_attackers_to()`.
-- [ ] Reorder inline definitions as public queries, private query helpers, then
+- [x] Reorder inline definitions as public queries, private query helpers, then
       private representation mutation.
-- [ ] Normalize template, blocker, and castling-query vocabulary.
-- [ ] Rename `root_history` to `copied_history` and document its sequencing.
-- [ ] Verify consumers, focused/full GNU debug tests, layouts, stale symbols,
+- [x] Normalize template, blocker, and castling-query vocabulary.
+- [x] Rename `root_history` to `copied_history` and document its sequencing.
+- [x] Verify consumers, focused/full GNU debug tests, layouts, stale symbols,
       optimized GNU/Clang output, and `git diff --check`.
+
+Evidence: 103 focused and all 483 GNU debug tests passed;
+`sizeof(PlyState)` remains 40 bytes and `sizeof(Board)` remains 256 bytes.
+Mapped SEE, movegen/perft, evaluation, unmake, and null-move output is
+byte-identical under GNU and Clang. Explicit color comparisons changed only
+`make()` and pseudo-legality paths. Five alternating GNU standard-perft pairs
+preserved all 11,168,869 nodes; median total time changed from 400.773 ms to
+398.311 ms (-0.61%).
 
 Commit: `refactor: refine board interface`
 

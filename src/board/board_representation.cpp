@@ -31,8 +31,9 @@ void Board::copy_root_from(const Board& source, PlyState& root_state) {
     assert(this != &source);
     assert(&root_state != &source.ply_state());
 
-    auto root_history = source.key_history;
-    root_history.reserve(root_history.size() + engine::max_search_ply + 1);
+    // Finish the only allocating work before mutating the destination.
+    auto copied_history = source.key_history;
+    copied_history.reserve(copied_history.size() + engine::max_search_ply + 1);
 
     const PlyState source_state = source.ply_state();
 
@@ -48,7 +49,7 @@ void Board::copy_root_from(const Board& source, PlyState& root_state) {
 
     root_state = source_state;
     bind_ply_state(root_state);
-    key_history = std::move(root_history);
+    key_history = std::move(copied_history);
 }
 
 void Board::reset() noexcept {
