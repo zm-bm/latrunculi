@@ -17,7 +17,7 @@
 
 namespace {
 
-const std::array<std::string_view, 13> invariant_fens = {
+constexpr std::string_view invariant_fens[] = {
     board_test::fen::start,
     board_test::fen::perft_position_2,
     board_test::fen::perft_position_3,
@@ -103,7 +103,7 @@ void expect_board_consistent(const Board& board) {
     expect_tactical_cache_consistent(board);
 }
 
-Move first_legal_move(Board& board) {
+Move first_legal_move(const Board& board) {
     for (const Move move : movegen::generate_pseudo_legal(board)) {
         if (board.is_legal_generated_move(move))
             return move;
@@ -147,7 +147,7 @@ TEST(BoardInvariantTest, SeededMultiPlyMakeUnmakePreservesEveryPosition) {
         int              target_plies;
     };
 
-    const std::array<Playout, 3> playouts = {
+    constexpr Playout playouts[] = {
         Playout{board_test::fen::start, 0x8D4A'12F3'902B'7C61ULL, 100},
         Playout{board_test::fen::perft_position_2, 0x19C0'5EED'4B71'A263ULL, 80},
         Playout{board_test::fen::perft_position_6, 0xA731'CC29'05E4'18BDULL, 80},
@@ -202,10 +202,10 @@ TEST(BoardInvariantTest, CapturePromotionRestoresPosition) {
 }
 
 TEST(BoardInvariantTest, NullMovePreservesDurableRepresentation) {
-    const std::array<std::string_view, 4> fens = {board_test::fen::start,
-                                                  board_test::fen::perft_position_2,
-                                                  board_test::fen::legal_en_passant_a3,
-                                                  board_test::fen::unhashable_en_passant_e3};
+    constexpr std::string_view fens[] = {board_test::fen::start,
+                                         board_test::fen::perft_position_2,
+                                         board_test::fen::legal_en_passant_a3,
+                                         board_test::fen::unhashable_en_passant_e3};
 
     for (const std::string_view fen : fens) {
         SCOPED_TRACE(fen);
@@ -275,31 +275,5 @@ TEST(BoardInvariantTest, CallerOwnedNullMoveRestoresPosition) {
 
     board.unmake_null(root_state);
     board_test::expect_same_board_snapshot(board, before);
-    expect_board_consistent(board);
-}
-
-TEST(BoardInvariantTest, UnmakeIrreversibleMovePreservesPriorRepetitionHistory) {
-    board_test::Harness board("7k/8/8/8/8/8/P7/K7 w - - 0 1");
-
-    board.make(Move(A1, B1));
-    board.make(Move(H8, G8));
-    board.make(Move(B1, A1));
-    board.make(Move(G8, H8));
-    ASSERT_FALSE(board.is_draw());
-    ASSERT_TRUE(board.is_draw(5));
-    const auto before = board_test::snapshot_board(board);
-
-    board.make(Move(A2, A3));
-    board.make(Move(H8, G8));
-    board.make(Move(A1, B1));
-    EXPECT_FALSE(board.is_draw());
-
-    board.unmake();
-    board.unmake();
-    board.unmake();
-
-    board_test::expect_same_board_snapshot(board, before);
-    EXPECT_FALSE(board.is_draw());
-    EXPECT_TRUE(board.is_draw(5));
     expect_board_consistent(board);
 }

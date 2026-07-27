@@ -185,21 +185,28 @@ Commit: `refactor: clarify board rule algorithms`
 
 ## Phase 5: Simplify Board Tests
 
-Status: pending.
+Status: complete.
 
-- [ ] Delete the redundant halfmove-clock accessor test.
-- [ ] Move irreversible-move repetition restoration from invariants to draw
+- [x] Delete the redundant halfmove-clock accessor test.
+- [x] Move irreversible-move repetition restoration from invariants to draw
       coverage.
-- [ ] Rename the kings-only representation test accurately.
-- [ ] Consolidate repeated make/FEN/unmake checks in one local helper while
+- [x] Rename the kings-only representation test accurately.
+- [x] Consolidate repeated make/FEN/unmake checks in one local helper while
       keeping en-passant cache cases explicit.
-- [ ] Make `first_legal_move()` accept `const Board&`.
-- [ ] Replace dynamic fixed-case containers with constexpr arrays and named
+- [x] Make `first_legal_move()` accept `const Board&`.
+- [x] Replace dynamic fixed-case containers with constexpr arrays and named
       case structs.
-- [ ] Confirm 102 focused and 482 total tests under GNU debug/release and Clang
+- [x] Confirm 102 focused and 482 total tests under GNU debug/release and Clang
       debug.
-- [ ] Run formatting, stale-reference searches, layout diagnostics, and
+- [x] Run formatting, stale-reference searches, layout diagnostics, and
       `git diff --check`.
+
+Evidence: all 35 affected Board tests passed. The corrected focused filter
+passed 102 tests from 16 suites, and the complete suite passed all 482 tests
+from 49 suites under GNU debug, GNU release, and Clang debug. Layouts remain
+40-byte `PlyState` and 256-byte `Board`; formatting, stale-name searches, and
+`git diff --check` passed. This phase changes tests only, so no benchmark or
+production codegen comparison was required.
 
 Commit: `tests: simplify board coverage`
 

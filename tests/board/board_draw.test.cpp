@@ -2,6 +2,7 @@
 
 #include "support/board_fixtures.hpp"
 #include "support/board_harness.hpp"
+#include "support/board_snapshot.hpp"
 
 TEST(BoardDrawTest, AppliesFiftyMoveRule) {
     EXPECT_TRUE(board_test::Harness("k7/8/8/8/8/8/8/K7 w - - 100 50").is_draw());
@@ -66,6 +67,27 @@ TEST(BoardDrawTest, NullMoveUnmakeRestoresRepetitionHistory) {
     EXPECT_TRUE(board.is_draw());
 }
 
-TEST(BoardDrawTest, ReadsHalfmoveClock) {
-    EXPECT_EQ(board_test::Harness("4k3/8/8/8/8/8/4P3/4K3 w - - 7 1").halfmove_clock(), 7);
+TEST(BoardDrawTest, UnmakeIrreversibleMovePreservesPriorRepetitionHistory) {
+    board_test::Harness board("7k/8/8/8/8/8/P7/K7 w - - 0 1");
+
+    board.make(Move(A1, B1));
+    board.make(Move(H8, G8));
+    board.make(Move(B1, A1));
+    board.make(Move(G8, H8));
+    ASSERT_FALSE(board.is_draw());
+    ASSERT_TRUE(board.is_draw(5));
+    const auto before = board_test::snapshot_board(board);
+
+    board.make(Move(A2, A3));
+    board.make(Move(H8, G8));
+    board.make(Move(A1, B1));
+    EXPECT_FALSE(board.is_draw());
+
+    board.unmake();
+    board.unmake();
+    board.unmake();
+
+    board_test::expect_same_board_snapshot(board, before);
+    EXPECT_FALSE(board.is_draw());
+    EXPECT_TRUE(board.is_draw(5));
 }

@@ -6,8 +6,6 @@
 #include <array>
 #include <string>
 #include <string_view>
-#include <tuple>
-#include <vector>
 
 #include "support/board_fixtures.hpp"
 #include "support/board_harness.hpp"
@@ -18,7 +16,7 @@ TEST(BoardRepresentationTest, BoardObjectSizesAreReported) {
     RecordProperty("BoardBytes", std::to_string(sizeof(Board)));
 }
 
-TEST(BoardRepresentationTest, EmptyPositionEncoding) {
+TEST(BoardRepresentationTest, KingsOnlyPositionEncoding) {
     board_test::Harness board(board_test::fen::kings_only);
 
     EXPECT_EQ(board.side_to_move(), WHITE);
@@ -115,9 +113,15 @@ TEST(BoardRepresentationTest, MaterialAndPsqtMatchExpectedValues) {
 }
 
 TEST(BoardRepresentationTest, NonPawnMaterialUsesPieceCounts) {
-    const int start_material = 2 * piece_value::knight_mg + 2 * piece_value::bishop_mg +
-                               2 * piece_value::rook_mg + piece_value::queen_mg;
-    const std::vector<std::tuple<std::string_view, Color, int>> test_cases = {
+    struct TestCase {
+        std::string_view fen;
+        Color            color;
+        int              expected;
+    };
+
+    constexpr int start_material = 2 * piece_value::knight_mg + 2 * piece_value::bishop_mg +
+                                   2 * piece_value::rook_mg + piece_value::queen_mg;
+    constexpr TestCase test_cases[] = {
         {board_test::fen::kings_only, WHITE, 0},
         {board_test::fen::kings_only, BLACK, 0},
         {board_test::fen::start, WHITE, start_material},
@@ -126,9 +130,9 @@ TEST(BoardRepresentationTest, NonPawnMaterialUsesPieceCounts) {
         {"4k1nr/8/8/8/8/8/8/4K3 w k - 0 1", BLACK, piece_value::knight_mg + piece_value::rook_mg},
     };
 
-    for (const auto& [fen, color, expected] : test_cases) {
-        SCOPED_TRACE(fen);
-        board_test::Harness board(fen);
-        EXPECT_EQ(board.non_pawn_material(color), expected);
+    for (const auto& test : test_cases) {
+        SCOPED_TRACE(test.fen);
+        board_test::Harness board(test.fen);
+        EXPECT_EQ(board.non_pawn_material(test.color), test.expected);
     }
 }

@@ -1,8 +1,7 @@
 #include "board/fen_parser.hpp"
 
 #include <stdexcept>
-#include <string>
-#include <vector>
+#include <string_view>
 
 #include <gtest/gtest.h>
 
@@ -51,7 +50,7 @@ TEST(FenParserTest, ParsesClockBounds) {
 }
 
 TEST(FenParserTest, RejectsInvalidFen) {
-    const std::vector<std::string> invalid_fens = {
+    constexpr std::string_view invalid_fens[] = {
         "invalid fen string",
         "4k3/8/8/8/8/8/8/4K3 w - - 0",
         "4k3/8/8/8/8/8/8/4K3 w - - 0 1 extra",
