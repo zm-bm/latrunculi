@@ -1,48 +1,83 @@
 # Engine Roadmap
 
 This document is a subsystem-oriented roadmap for the engine. Each section
-should describe the current implementation, the boundaries that should be
-preserved, and practical improvements to consider next.
+describes the current implementation and important boundaries; mature sections
+may also record practical improvements to consider next.
 
 ## Engine / UCI
 
 The engine boundary is intentionally small: `Engine` coordinates command
-handling, board/history state, UCI options, and search lifecycle. `uci::Reader`
-owns stdin line reading and delegates parsing to `parse_command()`;
-`uci::Writer` owns UCI and debug-output formatting and flushing; `uci::Options`
-owns option parsing and validation while `Engine` applies option side effects.
-Search runs through `ThreadPool` from the resolved root board and `SearchLimits`.
+handling, board/history state, UCI options, and asynchronous search lifecycle.
+`uci::Reader` reads one line at a time from its configured input stream and
+delegates parsing to `parse_command()`; `uci::Writer` owns UCI and debug-output
+formatting and flushing; `uci::Options` owns option parsing and validation while
+`Engine` applies option side effects. `ThreadPool` starts workers from the
+resolved root board and `SearchLimits`; each `SearchWorker` owns an independent
+root copy and per-ply state stack.
 
-Current UCI support covers the core loop: `uci`, `isready`, `setoption`,
-`ucinewgame`, `position`, `go`, `stop`, and `quit`. `ponderhit`, `register`,
-and unknown commands are accepted as silent compatibility no-ops. Advertised
-options are `Hash`, `Clear Hash`, `Threads`, and `Debug`. Search output includes
-`info depth`, `score cp`/`score mate`, nodes, time, nps, legal PV text, and
-`bestmove 0000` when no legal move is available.
+Current UCI support covers the core loop: `uci`, `debug`, `isready`,
+`setoption`, `ucinewgame`, `position`, `go`, `stop`, and `quit`. `go` applies
+`depth`, `movetime`, `nodes`, `wtime`/`btime`, `winc`/`binc`, and `movestogo`.
+The parser also records `ponder`, `infinite`, `mate`, `searchmoves`, and unknown
+`go` tokens, but `Engine` does not yet apply them. `ponderhit`, `register`, and
+unknown commands are accepted as silent compatibility no-ops. `ucinewgame`
+clears the transposition table; `position` rebuilds the board and game history.
+
+Advertised options are `Hash`, `Clear Hash`, `Threads`, and `Debug`. Search
+output includes `info depth`, `score cp`/`score mate`, nodes, time, nps, and a
+PV only while the complete line remains legal from the root. Positions without
+a legal move produce `bestmove 0000`.
 
 The same command loop also accepts local debug-console extensions: `help`,
-`board`/`d`, `eval`, `move`, `moves`, and `perft`. These are local inspection
-tools, not protocol features.
+`board`/`d`, `eval`, `move`, `moves`, and `perft`, plus `exit` as a local quit
+alias. These are local inspection tools, not protocol features.
 
 ### Potential Improvements
 
 Future UCI work should focus on common GUI compatibility rather than broad
 protocol surface area. The likely next protocol gaps are real ponder support,
-`go searchmoves`, true `go infinite` semantics, `go mate`, MultiPV,
+applying parsed `go searchmoves`, `go infinite`, and `go mate` limits, MultiPV,
 lowerbound/upperbound score reporting, richer progress fields such as
-`currmove`, `currmovenumber`, `hashfull`, `tbhits`, and `cpuload`, and
-Chess960 support if the board/search layer grows that capability.
+`currmove`, `currmovenumber`, `hashfull`, `tbhits`, and `cpuload`, and Chess960
+support if the board/search layer grows that capability.
 
 Likely future options include `SyzygyPath`, `SyzygyProbeDepth`,
 `Syzygy50MoveRule`, `UCI_Chess960`, `MultiPV`, and optional strength controls
 such as `UCI_LimitStrength` and `UCI_Elo`. Treat these as compatibility targets,
 not commitments to add unsupported engine features prematurely.
 
+## Board
+
+`Board` is the mutable, noncopyable position type used by move generation,
+evaluation, search, perft, and UCI tooling. It owns the durable board
+representation and position-key history while borrowing stable caller-owned
+`PlyState` storage for the active and restorable per-ply state.
+`PlyStateStack` supplies fixed storage for search and perft, and
+`copy_root_from()` creates an independent root bound to a new state slot.
+
+The durable representation combines per-color piece and occupancy bitboards, a
+square mailbox, piece counts, king locations, side to move, game and
+root-relative ply counters, and incremental material and piece-square scores.
+The active `PlyState` holds the Zobrist key, castling rights, raw and legal
+en-passant targets, halfmove clock, cached checkers and slider blockers, and
+undo data. `make()`/`unmake()` maintain these synchronized views incrementally;
+null transitions preserve piece placement while updating side to move,
+reversible state, repetition history, and tactical caches. Board calculations
+reuse attack and move-geometry primitives from `core`.
+
+`board.hpp` is the module map and retains hot query and representation-mutation
+definitions inline. Implementation files separate representation and root
+copying, FEN I/O, make/unmake, legality and check detection, draw rules, and
+static exchange evaluation. FEN parsing, SAN formatting, debug formatting,
+castling rights, per-ply state, and immutable Zobrist tables remain narrow
+support components.
+
 ## Move Ordering
 
 Move ordering is currently a solid staged baseline. The engine uses one
-`MovePicker` interface for main search and qsearch, while `MoveOrdering` owns
-the per-worker heuristic state used by the picker and search updates.
+`move_picker::Picker` for main search and qsearch; mode-specific factories
+configure the staged picker, while `MoveOrdering` owns the per-worker heuristic
+state used by the picker and search updates.
 
 ### Current State
 
@@ -63,7 +98,7 @@ quiet hints.
 Capture ordering is conservative and exact:
 
 - promotions are scored above ordinary captures;
-- ordinary captures are classified with `Board::seeMove()`;
+- ordinary captures are classified with `Board::see()`;
 - SEE-safe captures are ordered by victim value plus exact SEE score;
 - SEE-losing captures remain reachable after quiets in main search;
 - qsearch omits SEE-losing noisy moves outside check.
@@ -80,14 +115,13 @@ Quiet ordering uses a compact set of refutation and history tables:
 
 Quiet-history updates use signed gravity. On a quiet beta cutoff, search rewards
 the cutoff quiet, updates killers and countermoves, and applies a conservative
-malus to a tiny list of previously searched ordinary quiets. The malus path is
-depth-gated, excludes TT and killer quiets, requires at least two failed quiets,
-and uses half-strength penalties.
+malus to a bounded list of previously searched ordinary quiets. The malus path
+is depth-gated, excludes TT and killer quiets, requires at least two failed
+quiets, and uses half-strength penalties.
 
 `CaptureHistory` exists as tested table scaffolding, but it is not part of the
-active search or picker path. Good/bad quiet splitting is also inactive; current
-cutoff-by-index evidence does not show enough late-quiet weakness to justify an
-extra picker stage.
+active search or picker path. Generated quiets currently share one
+history-ordered stage rather than a good/bad quiet split.
 
 ### Potential Improvements
 
@@ -98,9 +132,9 @@ search-policy use of the existing history data before adding new picker stages.
 Recommended next directions:
 
 - Use quiet and continuation history to tune late-move reductions. The current
-  LMR formula only knows whether a move is quiet, a promotion, gives check, or
-  is a killer. History scores could reduce less for strong quiets and reduce
-  more for poor quiets.
+  LMR formula uses depth and move count plus node type, move kind, check state,
+  checking-move status, and killer status, but not history scores. History
+  scores could reduce less for strong quiets and reduce more for poor quiets.
 - Add cautious history-based quiet pruning near the leaves. This should be a
   search-policy step, not a move-generation change, and it should preserve the
   first-legal-move safety assumptions used by current pruning.
