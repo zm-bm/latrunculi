@@ -1,13 +1,14 @@
 #pragma once
 
 #include <format>
-#include <string_view>
 
 #include "board/board.hpp"
 #include "core/notation.hpp"
 
 template <>
-struct std::formatter<Board> : std::formatter<std::string_view> {
+struct std::formatter<Board> {
+    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+
     auto format(const Board& board, std::format_context& ctx) const {
         auto out = ctx.out();
 

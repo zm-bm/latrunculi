@@ -135,19 +135,24 @@ Commit: `refactor: clarify board state flow`
 
 ## Phase 3: Clarify FEN And Notation Support
 
-Status: pending.
+Status: complete.
 
-- [ ] Normalize parser vocabulary around FEN fields, piece placement, side to
+- [x] Normalize parser vocabulary around FEN fields, piece placement, side to
       move, castling rights, en-passant target, and absolute ply conversion.
-- [ ] Reject the 33rd piece and add the known overflowing FEN to the existing
+- [x] Reject the 33rd piece and add the known overflowing FEN to the existing
       invalid-FEN table.
-- [ ] Clarify Board FEN locals and write castling rights with direct
+- [x] Clarify Board FEN locals and write castling rights with direct
       conditionals.
-- [ ] Document `to_san()`'s legal-move precondition and normalize SAN locals.
-- [ ] Replace formatter inheritance with an empty-spec `parse()` while
+- [x] Document `to_san()`'s legal-move precondition and normalize SAN locals.
+- [x] Replace formatter inheritance with an empty-spec `parse()` while
       preserving default output.
-- [ ] Verify parser, FEN round-trip, SAN, formatting, full GNU debug, and
+- [x] Verify parser, FEN round-trip, SAN, formatting, full GNU debug, and
       `git diff --check`.
+
+Evidence: all 17 FEN parser, Board FEN, SAN, and Board formatting tests passed,
+as did all 483 GNU debug tests. The initial position still accepts 32 pieces,
+the sanitizer reproducer is rejected as oversized, and `sizeof(PlyState)` and
+`sizeof(Board)` remain 40 and 256 bytes.
 
 Commit: `refactor: clarify board notation support`
 

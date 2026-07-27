@@ -7,18 +7,18 @@
 
 namespace {
 
-char san_piece(PieceType piece) {
-    return to_char(make_piece(WHITE, piece));
+char san_piece(PieceType piece_type) {
+    return to_char(make_piece(WHITE, piece_type));
 }
 
-void append_disambiguation(std::string& result, const Board& board, Move move, PieceType piece) {
+void append_disambiguation(std::string& san, const Board& board, Move move, PieceType piece_type) {
     bool ambiguous = false;
     bool same_file = false;
     bool same_rank = false;
 
     for (const Move candidate : movegen::generate_pseudo_legal(board)) {
         if (candidate.from() == move.from() || candidate.to() != move.to() ||
-            board.piece_type_on(candidate.from()) != piece ||
+            board.piece_type_on(candidate.from()) != piece_type ||
             !board.is_legal_generated_move(candidate)) {
             continue;
         }
@@ -31,45 +31,45 @@ void append_disambiguation(std::string& result, const Board& board, Move move, P
     if (!ambiguous)
         return;
     if (!same_file) {
-        result += to_char(square::file_of(move.from()));
+        san += to_char(square::file_of(move.from()));
     } else if (!same_rank) {
-        result += to_char(square::rank_of(move.from()));
+        san += to_char(square::rank_of(move.from()));
     } else {
-        result += to_char(square::file_of(move.from()));
-        result += to_char(square::rank_of(move.from()));
+        san += to_char(square::file_of(move.from()));
+        san += to_char(square::rank_of(move.from()));
     }
 }
 
 } // namespace
 
 std::string to_san(const Board& board, Move move) {
-    const Square    from  = move.from();
-    const Square    to    = move.to();
-    const PieceType piece = board.piece_type_on(from);
-    std::string     result;
+    const Square    from       = move.from();
+    const Square    to         = move.to();
+    const PieceType piece_type = board.piece_type_on(from);
+    std::string     san;
 
     if (move.type() == MOVE_CASTLE) {
-        result = move_geometry::castle_side(from, to) == CASTLE_KINGSIDE ? "O-O" : "O-O-O";
+        san = move_geometry::castle_side(from, to) == CASTLE_KINGSIDE ? "O-O" : "O-O-O";
     } else {
-        if (piece != PAWN) {
-            result += san_piece(piece);
-            append_disambiguation(result, board, move, piece);
+        if (piece_type != PAWN) {
+            san += san_piece(piece_type);
+            append_disambiguation(san, board, move, piece_type);
         }
 
         if (board.is_capture(move)) {
-            if (piece == PAWN)
-                result += to_char(square::file_of(from));
-            result += 'x';
+            if (piece_type == PAWN)
+                san += to_char(square::file_of(from));
+            san += 'x';
         }
 
-        result += to_string(to);
+        san += to_string(to);
         if (move.type() == MOVE_PROM) {
-            result += '=';
-            result += san_piece(move.prom_piece());
+            san += '=';
+            san += san_piece(move.prom_piece());
         }
     }
 
     if (board.gives_check(move))
-        result += '+';
-    return result;
+        san += '+';
+    return san;
 }

@@ -9,13 +9,13 @@ void Board::load_fen(std::string_view fen) {
     const ParsedFen parsed = parse_fen(fen);
     reset();
 
-    for (const auto p : parsed.pieces) {
-        add_piece<false>(p.square, p.color, p.type);
-        if (p.type == KING)
-            king_square[p.color] = p.square;
+    for (const auto& piece : parsed.pieces) {
+        add_piece<false>(piece.square, piece.color, piece.type);
+        if (piece.type == KING)
+            king_square[piece.color] = piece.square;
     }
 
-    auto& state            = this->active_state();
+    auto& state            = active_state();
     turn                   = parsed.turn;
     state.castling_rights  = parsed.castling_rights;
     state.enpassant_target = parsed.enpassant_target;
@@ -28,46 +28,50 @@ void Board::load_fen(std::string_view fen) {
 }
 
 std::string Board::to_fen() const {
-    std::ostringstream oss;
-    int                empty = 0;
+    std::ostringstream output;
+    int                empty_squares = 0;
 
-    auto reset_empty = [&]() {
-        if (empty > 0) {
-            oss << empty;
-            empty = 0;
+    auto flush_empty_squares = [&]() {
+        if (empty_squares > 0) {
+            output << empty_squares;
+            empty_squares = 0;
         }
     };
 
     for (Rank rank = RANK8; rank >= RANK1; --rank) {
         for (File file = FILE1; file <= FILE8; ++file) {
-            Piece p = piece_on(file, rank);
-            if (p != NO_PIECE) {
-                reset_empty();
-                oss << p;
+            const Piece piece = piece_on(file, rank);
+            if (piece != NO_PIECE) {
+                flush_empty_squares();
+                output << piece;
             } else {
-                ++empty;
+                ++empty_squares;
             }
         }
 
-        reset_empty();
+        flush_empty_squares();
         if (rank != RANK1)
-            oss << '/';
+            output << '/';
     }
 
-    oss << (turn == WHITE ? " w " : " b ");
+    output << (turn == WHITE ? " w " : " b ");
 
     if (has_castling_rights(WHITE) || has_castling_rights(BLACK)) {
-        oss << (has_castling_right(CASTLE_KINGSIDE, WHITE) ? "K" : "");
-        oss << (has_castling_right(CASTLE_QUEENSIDE, WHITE) ? "Q" : "");
-        oss << (has_castling_right(CASTLE_KINGSIDE, BLACK) ? "k" : "");
-        oss << (has_castling_right(CASTLE_QUEENSIDE, BLACK) ? "q" : "");
+        if (has_castling_right(CASTLE_KINGSIDE, WHITE))
+            output << 'K';
+        if (has_castling_right(CASTLE_QUEENSIDE, WHITE))
+            output << 'Q';
+        if (has_castling_right(CASTLE_KINGSIDE, BLACK))
+            output << 'k';
+        if (has_castling_right(CASTLE_QUEENSIDE, BLACK))
+            output << 'q';
     } else {
-        oss << "-";
+        output << '-';
     }
 
-    const Square ep_sq = enpassant_target();
-    oss << " " << (ep_sq != INVALID ? to_string(ep_sq) : "-");
-    oss << " " << +halfmove_clock() << " " << +fullmove_number();
+    const Square enpassant_target = this->enpassant_target();
+    output << ' ' << (enpassant_target != INVALID ? to_string(enpassant_target) : "-");
+    output << ' ' << +halfmove_clock() << ' ' << fullmove_number();
 
-    return oss.str();
+    return output.str();
 }

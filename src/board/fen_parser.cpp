@@ -3,6 +3,7 @@
 #include "core/notation.hpp"
 
 #include <charconv>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <sstream>
@@ -14,67 +15,70 @@
 
 namespace {
 
+// Legal play never increases the initial 32-piece population.
+constexpr std::size_t max_position_pieces = 32;
+
 bool is_digit(char ch) {
     return ch >= '0' && ch <= '9';
 }
 
-int parse_int(std::string_view section, const char* name) {
-    if (section.empty())
+int parse_int(std::string_view field, const char* name) {
+    if (field.empty())
         throw std::invalid_argument(std::string("invalid fen, missing ") + name);
 
-    for (char ch : section) {
+    for (char ch : field) {
         if (!is_digit(ch))
             throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
     }
 
     int value            = 0;
-    const auto [ptr, ec] = std::from_chars(section.data(), section.data() + section.size(), value);
-    if (ec != std::errc{} || ptr != section.data() + section.size())
+    const auto [ptr, ec] = std::from_chars(field.data(), field.data() + field.size(), value);
+    if (ec != std::errc{} || ptr != field.data() + field.size())
         throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
 
     return value;
 }
 
-std::uint8_t parse_uint8(std::string_view section, const char* name) {
-    const int value = parse_int(section, name);
+std::uint8_t parse_uint8(std::string_view field, const char* name) {
+    const int value = parse_int(field, name);
     if (value > std::numeric_limits<std::uint8_t>::max())
         throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
     return static_cast<std::uint8_t>(value);
 }
 
-int fen_fullmove_to_ply(int fullmove_num, Color turn) {
-    const long long value = 2LL * (fullmove_num - 1) + (turn == WHITE ? 0 : 1);
+int fullmove_to_absolute_ply(int fullmove_number, Color side_to_move) {
+    const long long value = 2LL * (fullmove_number - 1) + (side_to_move == WHITE ? 0 : 1);
     if (value > std::numeric_limits<int>::max())
         throw std::invalid_argument("invalid fen, fullmove number is too large");
     return static_cast<int>(value);
 }
 
-PieceSquare make_piece_square(char ch, Square sq) {
-    switch (ch) {
-    case 'P': return {WHITE, PAWN, sq};
-    case 'N': return {WHITE, KNIGHT, sq};
-    case 'B': return {WHITE, BISHOP, sq};
-    case 'R': return {WHITE, ROOK, sq};
-    case 'Q': return {WHITE, QUEEN, sq};
-    case 'K': return {WHITE, KING, sq};
-    case 'p': return {BLACK, PAWN, sq};
-    case 'n': return {BLACK, KNIGHT, sq};
-    case 'b': return {BLACK, BISHOP, sq};
-    case 'r': return {BLACK, ROOK, sq};
-    case 'q': return {BLACK, QUEEN, sq};
-    case 'k': return {BLACK, KING, sq};
+PieceSquare parse_piece(char symbol, Square square) {
+    switch (symbol) {
+    case 'P': return {WHITE, PAWN, square};
+    case 'N': return {WHITE, KNIGHT, square};
+    case 'B': return {WHITE, BISHOP, square};
+    case 'R': return {WHITE, ROOK, square};
+    case 'Q': return {WHITE, QUEEN, square};
+    case 'K': return {WHITE, KING, square};
+    case 'p': return {BLACK, PAWN, square};
+    case 'n': return {BLACK, KNIGHT, square};
+    case 'b': return {BLACK, BISHOP, square};
+    case 'r': return {BLACK, ROOK, square};
+    case 'q': return {BLACK, QUEEN, square};
+    case 'k': return {BLACK, KING, square};
     default:  throw std::invalid_argument("invalid fen, invalid piece placement");
     }
 }
 
-void parse_pieces(ParsedFen& parsed, std::string_view section) {
+void parse_piece_placement(ParsedFen& parsed, std::string_view field) {
     int white_kings = 0;
     int black_kings = 0;
     int file        = 0;
     int rank        = 7;
 
-    parsed.pieces.reserve(32);
-    for (char ch : section) {
+    parsed.pieces.reserve(max_position_pieces);
+    for (char ch : field) {
         if (is_digit(ch)) {
             if (ch == '0')
                 throw std::invalid_argument("invalid fen, invalid piece placement");
@@ -90,11 +94,13 @@ void parse_pieces(ParsedFen& parsed, std::string_view section) {
             if (file >= 8)
                 throw std::invalid_argument("invalid fen, invalid piece placement");
 
-            auto piece = make_piece_square(ch, square::make(File(file), Rank(rank)));
+            const PieceSquare piece = parse_piece(ch, square::make(File(file), Rank(rank)));
             if (piece.type == PAWN && (rank == 0 || rank == 7))
                 throw std::invalid_argument("invalid fen, invalid pawn placement");
             if (piece.type == KING)
                 (piece.color == WHITE ? white_kings : black_kings)++;
+            if (parsed.pieces.size() == max_position_pieces)
+                throw std::invalid_argument("invalid fen, too many pieces");
 
             parsed.pieces.emplace_back(piece);
             ++file;
@@ -105,25 +111,25 @@ void parse_pieces(ParsedFen& parsed, std::string_view section) {
         throw std::invalid_argument("invalid fen, invalid piece placement");
 }
 
-void parse_turn(ParsedFen& parsed, std::string_view section) {
-    if (section == "w")
+void parse_side_to_move(ParsedFen& parsed, std::string_view field) {
+    if (field == "w")
         parsed.turn = WHITE;
-    else if (section == "b")
+    else if (field == "b")
         parsed.turn = BLACK;
     else
         throw std::invalid_argument("invalid fen, invalid side to move");
 }
 
-void parse_castles(ParsedFen& parsed, std::string_view section) {
-    if (section == "-")
+void parse_castling_rights(ParsedFen& parsed, std::string_view field) {
+    if (field == "-")
         return;
-    if (section.empty())
+    if (field.empty())
         throw std::invalid_argument("invalid fen, invalid castling rights");
 
     constexpr std::string_view order = "KQkq";
     size_t                     next  = 0;
 
-    for (char ch : section) {
+    for (char ch : field) {
         const size_t pos = order.find(ch, next);
         if (pos == std::string_view::npos)
             throw std::invalid_argument("invalid fen, invalid castling rights");
@@ -139,46 +145,46 @@ void parse_castles(ParsedFen& parsed, std::string_view section) {
     }
 }
 
-void parse_enpassant(ParsedFen& parsed, std::string_view section) {
-    if (section == "-")
+void parse_enpassant_target(ParsedFen& parsed, std::string_view field) {
+    if (field == "-")
         return;
-    if (section.size() != 2 || section[0] < 'a' || section[0] > 'h')
+    if (field.size() != 2 || field[0] < 'a' || field[0] > 'h')
         throw std::invalid_argument("invalid fen, invalid en passant square");
 
     const char expected_rank = (parsed.turn == WHITE) ? '6' : '3';
-    if (section[1] != expected_rank)
+    if (field[1] != expected_rank)
         throw std::invalid_argument("invalid fen, invalid en passant square");
 
-    parsed.enpassant_target = parse_square(section);
+    parsed.enpassant_target = parse_square(field);
 }
 
 } // namespace
 
 ParsedFen parse_fen(std::string_view fen) {
-    std::istringstream       iss{std::string(fen)};
-    std::vector<std::string> sections;
-    std::string              section;
+    std::istringstream       input{std::string(fen)};
+    std::vector<std::string> fields;
+    std::string              field;
 
-    while (iss >> section)
-        sections.push_back(section);
+    while (input >> field)
+        fields.push_back(field);
 
-    if (sections.size() != 4 && sections.size() != 6)
-        throw std::invalid_argument("invalid fen, must have 4 or 6 sections");
+    if (fields.size() != 4 && fields.size() != 6)
+        throw std::invalid_argument("invalid fen, must have 4 or 6 fields");
 
     ParsedFen parsed;
-    parse_pieces(parsed, sections[0]);
-    parse_turn(parsed, sections[1]);
-    parse_castles(parsed, sections[2]);
-    parse_enpassant(parsed, sections[3]);
+    parse_piece_placement(parsed, fields[0]);
+    parse_side_to_move(parsed, fields[1]);
+    parse_castling_rights(parsed, fields[2]);
+    parse_enpassant_target(parsed, fields[3]);
 
-    if (sections.size() == 6) {
-        parsed.halfmove_clock  = parse_uint8(sections[4], "halfmove clock");
-        const int fullmove_num = parse_int(sections[5], "fullmove number");
-        if (fullmove_num == 0)
+    if (fields.size() == 6) {
+        parsed.halfmove_clock     = parse_uint8(fields[4], "halfmove clock");
+        const int fullmove_number = parse_int(fields[5], "fullmove number");
+        if (fullmove_number == 0)
             throw std::invalid_argument("invalid fen, invalid fullmove number");
-        parsed.absolute_ply = fen_fullmove_to_ply(fullmove_num, parsed.turn);
+        parsed.absolute_ply = fullmove_to_absolute_ply(fullmove_number, parsed.turn);
     } else {
-        parsed.absolute_ply = fen_fullmove_to_ply(1, parsed.turn);
+        parsed.absolute_ply = fullmove_to_absolute_ply(1, parsed.turn);
     }
 
     return parsed;

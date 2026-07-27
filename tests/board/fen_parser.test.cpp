@@ -75,6 +75,7 @@ TEST(FenParserTest, RejectsInvalidFen) {
         "4k3/8/8/8/8/8/8/4K3 w - - 256 1",
         "4k3/8/8/8/8/8/8/4K3 w - - 0 0",
         "4k3/8/8/8/8/8/8/4K3 w - - 0 4294967296",
+        "3q1k1Q/q2Q2q1/1QNQnQ2/1nQqqN2/qqqqQQqq/1nQQQn2/1QNqNQ2/qK1Q2q1 w - - 0 1",
     };
 
     for (const auto& fen : invalid_fens) {
