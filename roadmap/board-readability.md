@@ -114,17 +114,22 @@ Commit: `refactor: refine board interface`
 
 ## Phase 2: Clarify Board State Flow
 
-Status: pending.
+Status: complete.
 
-- [ ] Rename `PlyState::captured` to `captured_piece_type`.
-- [ ] Normalize dependent snapshot fields to `side_to_move`,
+- [x] Rename `PlyState::captured` to `captured_piece_type`.
+- [x] Normalize dependent snapshot fields to `side_to_move`,
       `captured_piece_type`, and `psq_bonus`.
-- [ ] Rename make/unmake's local `type` to `move_type`.
-- [ ] Document the partial inheritance performed by `initialize_next_ply()`;
+- [x] Rename make/unmake's local `type` to `move_type`.
+- [x] Document the partial inheritance performed by `initialize_next_ply()`;
       keep the helper outside `PlyState`.
-- [ ] Use descriptive reset-loop indices without changing storage or flow.
-- [ ] Verify move application, root copy, invariants, full GNU debug, layouts,
+- [x] Use descriptive reset-loop indices without changing storage or flow.
+- [x] Verify move application, root copy, invariants, full GNU debug, layouts,
       stale names, make/unmake output, and `git diff --check`.
+
+Evidence: 24 targeted state-flow tests and all 483 GNU debug tests passed.
+`sizeof(PlyState)` remains 40 bytes and `sizeof(Board)` remains 256 bytes.
+GNU and Clang make/unmake, null-move, representation, and complete engine
+binaries are byte-identical to Phase 1.
 
 Commit: `refactor: clarify board state flow`
 

@@ -53,14 +53,14 @@ void Board::copy_root_from(const Board& source, PlyState& root_state) {
 }
 
 void Board::reset() noexcept {
-    for (int c = 0; c < N_COLORS; ++c) {
-        for (int p = 0; p < N_PIECETYPES; ++p) {
-            piece_bb[c][p]     = 0;
-            piece_counts[c][p] = 0;
+    for (int color_index = 0; color_index < N_COLORS; ++color_index) {
+        for (int piece_index = 0; piece_index < N_PIECETYPES; ++piece_index) {
+            piece_bb[color_index][piece_index]     = 0;
+            piece_counts[color_index][piece_index] = 0;
         }
     }
-    for (int sq = 0; sq < N_SQUARES; ++sq)
-        squares[sq] = NO_PIECE;
+    for (int square_index = 0; square_index < N_SQUARES; ++square_index)
+        squares[square_index] = NO_PIECE;
 
     material           = {0, 0};
     psq_bonus          = {0, 0};

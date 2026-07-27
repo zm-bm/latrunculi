@@ -8,6 +8,8 @@
 
 namespace {
 
+// Clear ply-local caches and expired en-passant state, then carry forward
+// the key, castling rights, and halfmove clock.
 [[gnu::always_inline]] inline void
 initialize_next_ply(PlyState& next, const PlyState& previous, Move move) noexcept {
     next                 = {};
@@ -50,13 +52,13 @@ void Board::make(Move move, PlyState& next_state) {
 
     const Square    from       = move.from();
     const Square    to         = move.to();
-    const MoveType  type       = move.type();
+    const MoveType  move_type  = move.type();
     const Color     mover      = turn;
     const Color     opponent   = ~mover;
     const PieceType piece_type = piece_type_on(from);
     const Square    captured_square =
-        type == MOVE_EP ? move_geometry::enpassant_captured_square(to, mover) : to;
-    const PieceType captured_piece_type             = type == MOVE_EP ? PAWN : piece_type_on(to);
+        move_type == MOVE_EP ? move_geometry::enpassant_captured_square(to, mover) : to;
+    const PieceType captured_piece_type = move_type == MOVE_EP ? PAWN : piece_type_on(to);
     const Square    previous_legal_enpassant_target = legal_enpassant_target();
 
     initialize_next_ply(next_state, active_state(), move);
@@ -65,7 +67,7 @@ void Board::make(Move move, PlyState& next_state) {
     auto& state = active_state();
     ++absolute_ply;
 
-    state.captured = captured_piece_type;
+    state.captured_piece_type = captured_piece_type;
     if (captured_piece_type != NO_PIECETYPE) {
         state.halfmove_clock = 0;
         remove_piece<true>(captured_square, opponent, captured_piece_type);
@@ -77,7 +79,7 @@ void Board::make(Move move, PlyState& next_state) {
         state.zkey ^= zob::hash_ep(previous_legal_enpassant_target);
 
     move_piece<true>(from, to, mover, piece_type);
-    if (type == MOVE_CASTLE) {
+    if (move_type == MOVE_CASTLE) {
         const auto& castling = move_geometry::castling(move_geometry::castle_side(from, to), mover);
         move_piece<true>(castling.rook_from, castling.rook_to, mover, ROOK);
     }
@@ -87,7 +89,7 @@ void Board::make(Move move, PlyState& next_state) {
         state.halfmove_clock = 0;
         if (std::abs(to - from) == pawn_delta::double_push) {
             state.enpassant_target = move_geometry::enpassant_target(to, mover);
-        } else if (type == MOVE_PROM) {
+        } else if (move_type == MOVE_PROM) {
             const PieceType promotion_piece = move.prom_piece();
             remove_piece<true>(to, mover, PAWN);
             add_piece<true>(to, mover, promotion_piece);
@@ -126,14 +128,14 @@ void Board::unmake(PlyState& prior_state) {
     const Move      move                = active_state().previous_move;
     const Square    from                = move.from();
     const Square    to                  = move.to();
-    const MoveType  type                = move.type();
+    const MoveType  move_type           = move.type();
     const Color     opponent            = turn;
     const Color     mover               = ~opponent;
     const PieceType destination_piece   = piece_type_on(to);
-    const PieceType piece_type          = type == MOVE_PROM ? PAWN : destination_piece;
-    const PieceType captured_piece_type = active_state().captured;
+    const PieceType piece_type          = move_type == MOVE_PROM ? PAWN : destination_piece;
+    const PieceType captured_piece_type = active_state().captured_piece_type;
     const Square    captured_square =
-        type == MOVE_EP ? move_geometry::enpassant_captured_square(to, mover) : to;
+        move_type == MOVE_EP ? move_geometry::enpassant_captured_square(to, mover) : to;
 
     assert(!key_history.empty() && key_history.back() == prior_state.zkey);
     key_history.pop_back();
@@ -142,13 +144,13 @@ void Board::unmake(PlyState& prior_state) {
     --absolute_ply;
     turn = mover;
 
-    if (type == MOVE_PROM) {
+    if (move_type == MOVE_PROM) {
         remove_piece<false>(to, mover, destination_piece);
         add_piece<false>(to, mover, PAWN);
     }
 
     move_piece<false>(to, from, mover, piece_type);
-    if (type == MOVE_CASTLE) {
+    if (move_type == MOVE_CASTLE) {
         const auto& castling = move_geometry::castling(move_geometry::castle_side(from, to), mover);
         move_piece<false>(castling.rook_to, castling.rook_from, mover, ROOK);
     } else if (captured_piece_type != NO_PIECETYPE) {

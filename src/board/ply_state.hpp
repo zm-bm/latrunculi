@@ -34,7 +34,7 @@ struct PlyState {
 
     // Undo data for the move that reached this ply.
     Move      previous_move{NULL_MOVE};
-    PieceType captured{NO_PIECETYPE};
+    PieceType captured_piece_type{NO_PIECETYPE};
 };
 
 // Fixed state storage for search/perft. child(ply) is where make() writes the
