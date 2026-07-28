@@ -144,8 +144,7 @@ Available commands:
   move <move>   - Make a move on the board
   moves         - Show all legal moves
   d / board     - Display the current board position
-  eval          - Evaluate the current position
-For UCI protocol details, see: reference/uci-protocol-specification.txt)";
+  eval          - Evaluate the current position)";
     err << format_str << '\n';
     err.flush();
 }

@@ -55,7 +55,6 @@ TEST_F(UciWriterTest, Help) {
     writer.help();
     EXPECT_NE(err.str().find("Available commands"), std::string::npos);
     EXPECT_NE(err.str().find("d / board"), std::string::npos);
-    EXPECT_NE(err.str().find("reference/uci-protocol-specification.txt"), std::string::npos);
 }
 
 TEST_F(UciWriterTest, Identify) {

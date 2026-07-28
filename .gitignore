@@ -60,7 +60,6 @@ DartConfiguration.tcl
 
 # Ignore generated documentation
 /doc/
-/docs/
 /Doxyfile
 *.html
 *.pdf
