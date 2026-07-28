@@ -68,7 +68,7 @@ void Board::reset() noexcept {
     king_square[BLACK] = INVALID;
     turn               = WHITE;
     absolute_ply       = 0;
-    active_state()     = PlyState{};
+    ply_state()        = PlyState{};
     ply_from_root      = 0;
     key_history.clear();
 }

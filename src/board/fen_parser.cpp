@@ -127,10 +127,10 @@ void parse_castling_rights(ParsedFen& parsed, std::string_view field) {
         throw std::invalid_argument("invalid fen, invalid castling rights");
 
     constexpr std::string_view order = "KQkq";
-    size_t                     next  = 0;
+    std::size_t                next  = 0;
 
     for (char ch : field) {
-        const size_t pos = order.find(ch, next);
+        const std::size_t pos = order.find(ch, next);
         if (pos == std::string_view::npos)
             throw std::invalid_argument("invalid fen, invalid castling rights");
         next = pos + 1;

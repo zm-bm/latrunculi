@@ -4,9 +4,13 @@
 #include "core/move_geometry.hpp"
 #include "core/square.hpp"
 
+#include <algorithm>
 #include <cassert>
+#include <cstddef>
 
 namespace {
+
+constexpr int fifty_move_rule_halfmoves = 100;
 
 [[gnu::always_inline]] inline Bitboard direct_check_targets(const Board& board,
                                                             PieceType    piece_type) noexcept {
@@ -26,8 +30,10 @@ namespace {
 
 } // namespace
 
+// Tactical cache maintenance
+
 void Board::refresh_tactical_cache() noexcept {
-    auto&          state     = active_state();
+    auto&          state     = ply_state();
     const Color    side      = side_to_move();
     const Color    opponent  = ~side;
     const Bitboard occupancy = this->occupancy();
@@ -53,7 +59,7 @@ bool Board::enpassant_preserves_king_safety(Square from, Square target) const no
 }
 
 void Board::refresh_legal_enpassant_target() noexcept {
-    auto&        state           = active_state();
+    auto&        state           = ply_state();
     const Square target          = state.enpassant_target;
     state.legal_enpassant_target = INVALID;
 
@@ -73,6 +79,8 @@ void Board::refresh_legal_enpassant_target() noexcept {
         }
     }
 }
+
+// Move validation and check detection
 
 bool Board::is_pseudo_legal(Move move) const noexcept {
     if (move.is_null())
@@ -265,4 +273,33 @@ bool Board::gives_check(Move move) const noexcept {
     case BASIC_MOVE: return false;
     default:         return false;
     }
+}
+
+// Draw detection
+
+bool Board::is_draw(int ply_from_search_root) const noexcept {
+    if (halfmove_clock() >= fifty_move_rule_halfmoves)
+        return true;
+
+    const std::size_t reversible_history_plies =
+        std::min<std::size_t>(halfmove_clock(), key_history.size());
+    int prior_occurrences = 0;
+
+    for (std::size_t plies_back = 2; plies_back <= reversible_history_plies; plies_back += 2) {
+        const std::size_t index = key_history.size() - plies_back;
+
+        if (key_history[index] != key())
+            continue;
+
+        // One prior occurrence strictly after the search root is a cycle draw.
+        // At or before the root, two are required for threefold repetition.
+        if (ply_from_search_root > 0
+            && plies_back < static_cast<std::size_t>(ply_from_search_root)) {
+            return true;
+        }
+        if (++prior_occurrences == 2)
+            return true;
+    }
+
+    return false;
 }

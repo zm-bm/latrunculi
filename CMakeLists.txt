@@ -15,11 +15,10 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/core/attacks_magic.cpp
     src/core/notation.cpp
     src/board/board_fen.cpp
-    src/board/board_legality.cpp
+    src/board/board_rules.cpp
     src/board/board_move.cpp
-    src/board/san.cpp
+    src/board/notation.cpp
     src/board/board_representation.cpp
-    src/board/board_draw.cpp
     src/board/board_see.cpp
     src/board/fen_parser.cpp
     src/core/move.cpp

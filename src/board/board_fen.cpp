@@ -15,7 +15,7 @@ void Board::load_fen(std::string_view fen) {
             king_square[piece.color] = piece.square;
     }
 
-    auto& state            = active_state();
+    auto& state            = ply_state();
     turn                   = parsed.turn;
     state.castling_rights  = parsed.castling_rights;
     state.enpassant_target = parsed.enpassant_target;

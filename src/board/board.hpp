@@ -28,9 +28,9 @@
  */
 class Board {
 public:
-    // Lifecycle
-
     static constexpr char start_fen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+    // Construction, root copying, and key diagnostics (board_representation.cpp)
 
     explicit Board(PlyState& root_state, std::string_view fen = start_fen);
     Board()                        = delete;
@@ -43,70 +43,65 @@ public:
     // or restorable state and must remain stable while used by this Board.
     void copy_root_from(const Board& source, PlyState& root_state);
 
-    // Representation
+    // Rebuilds the current position key from representation and reversible state.
+    [[nodiscard]] PositionKey recompute_key() const noexcept;
 
-    [[nodiscard]] Bitboard pieces(Color color) const noexcept;
+    // Position and state queries
+
+    Bitboard pieces(Color color) const noexcept { return piece_bb[color][all_pieces_slot]; }
     template <PieceType... Types>
-    [[nodiscard]] Bitboard pieces(Color color) const noexcept;
+    Bitboard pieces(Color color) const noexcept;
+    template <PieceType... Types>
+    Bitboard pieces() const noexcept;
 
-    [[nodiscard]] Bitboard occupancy() const noexcept {
-        return piece_bb[WHITE][all_pieces_slot] | piece_bb[BLACK][all_pieces_slot];
-    }
-    [[nodiscard]] std::uint8_t count(Color color, PieceType piece_type) const noexcept {
-        return piece_counts[color][piece_type];
-    }
-    [[nodiscard]] Piece piece_on(Square square) const noexcept { return squares[square]; }
-    [[nodiscard]] Piece piece_on(File file, Rank rank) const noexcept {
-        return squares[square::make(file, rank)];
-    }
-    [[nodiscard]] PieceType piece_type_on(Square square) const noexcept {
-        return type_of(squares[square]);
-    }
-    [[nodiscard]] Square king_sq(Color color) const noexcept { return king_square[color]; }
-    [[nodiscard]] Color  side_to_move() const noexcept { return turn; }
+    Bitboard     occupancy() const noexcept;
+    std::uint8_t count(Color color, PieceType piece_type) const noexcept;
+    Piece        piece_on(Square square) const noexcept { return squares[square]; }
+    Piece        piece_on(File file, Rank rank) const noexcept;
+    PieceType    piece_type_on(Square square) const noexcept { return type_of(squares[square]); }
+    Square       king_sq(Color color) const noexcept { return king_square[color]; }
+    Color        side_to_move() const noexcept { return turn; }
 
-    // Reversible state
+    int            fullmove_number() const noexcept { return (absolute_ply / 2) + 1; }
+    std::uint8_t   halfmove_clock() const noexcept { return ply_state().halfmove_clock; }
+    CastlingRights castling_rights() const noexcept { return ply_state().castling_rights; }
+    Square         enpassant_target() const noexcept { return ply_state().enpassant_target; }
+    Square legal_enpassant_target() const noexcept { return ply_state().legal_enpassant_target; }
+    PositionKey     key() const noexcept { return ply_state().zkey; }
+    PlyState&       ply_state() noexcept { return *active_ply_state; }
+    const PlyState& ply_state() const noexcept { return *active_ply_state; }
 
-    [[nodiscard]] int          fullmove_number() const noexcept { return (absolute_ply / 2) + 1; }
-    [[nodiscard]] std::uint8_t halfmove_clock() const noexcept {
-        return ply_state().halfmove_clock;
-    }
-    [[nodiscard]] CastlingRights castling_rights() const noexcept {
-        return ply_state().castling_rights;
-    }
-    // Raw FEN target after a double pawn push; it need not be capturable.
-    [[nodiscard]] Square enpassant_target() const noexcept { return ply_state().enpassant_target; }
-    // Cached only when at least one king-safe capture exists; used by movegen and hashing.
-    [[nodiscard]] Square legal_enpassant_target() const noexcept {
-        return ply_state().legal_enpassant_target;
-    }
-    [[nodiscard]] PositionKey     key() const noexcept { return ply_state().zkey; }
-    [[nodiscard]] PlyState&       ply_state() noexcept { return *active_ply_state; }
-    [[nodiscard]] const PlyState& ply_state() const noexcept { return *active_ply_state; }
-
-    // Attacks and castling
-
-    [[nodiscard]] Bitboard checkers() const noexcept { return ply_state().checkers; }
-    // Single pieces shielding king_color from enemy sliders; either color may occupy them.
-    [[nodiscard]] Bitboard blockers(Color king_color) const noexcept {
-        return ply_state().blockers[king_color];
-    }
+    Bitboard checkers() const noexcept { return ply_state().checkers; }
+    Bitboard blockers(Color king_color) const noexcept { return ply_state().blockers[king_color]; }
     [[nodiscard]] bool is_check() const noexcept { return checkers(); }
     [[nodiscard]] bool is_double_check() const noexcept { return bb::is_many(checkers()); }
 
+    TaperedScore material_score() const noexcept { return material; }
+    TaperedScore psq_bonus_score() const noexcept { return psq_bonus; }
+    EvalValue    non_pawn_material(Color color) const noexcept;
+
+    // Attacks, castling, and move classification
+
     // Returns geometric attackers of target, including pinned pieces.
-    [[nodiscard]] Bitboard attacks_to(Square target, Color attacker) const noexcept {
-        return attacks_to(target, attacker, occupancy());
-    }
+    Bitboard attacks_to(Square target, Color attacker) const noexcept;
+    // Supplied occupancy changes slider rays, not membership in the current position.
+    Bitboard attacks_to(Square target, Color attacker, Bitboard occupancy) const noexcept;
+    Bitboard all_attackers_to(Square target, Bitboard occupancy) const noexcept;
+
     [[nodiscard]] bool any_attacked(Bitboard targets, Color attacker) const noexcept;
     [[nodiscard]] bool has_castling_rights(Color color) const noexcept;
     [[nodiscard]] bool has_castling_right(CastleSide side, Color color) const noexcept;
 
-    // Move queries and validation
-
     // Classifies move in the current position without validating it.
     [[nodiscard]] PieceType captured_piece_type(Move move) const noexcept;
     [[nodiscard]] bool      is_capture(Move move) const noexcept;
+
+    // FEN serialization (board_fen.cpp)
+
+    [[nodiscard]] std::string to_fen() const;
+
+    // Move rules and draw detection (board_rules.cpp)
+
     // Full shape validation for an arbitrary move; does not test pins or self-check.
     [[nodiscard]] bool is_pseudo_legal(Move move) const noexcept;
     // Precondition: move is pseudo-legal. Filters pins and self-check.
@@ -117,8 +112,11 @@ public:
     [[nodiscard]] bool is_legal_move(Move move) const noexcept;
     // Precondition: move is pseudo-legal in the current position.
     [[nodiscard]] bool gives_check(Move move) const noexcept;
+    // Checks fifty-move and repetition draws. Pass the current nonnegative search
+    // ply, or zero outside search.
+    [[nodiscard]] bool is_draw(int ply_from_search_root = 0) const noexcept;
 
-    // Transitions
+    // Move application and reversal (board_move.cpp)
 
     // Preconditions: move is legal and non-null; next_state is distinct
     // writable storage.
@@ -130,37 +128,17 @@ public:
     // Precondition: prior_state is the exact unchanged LIFO predecessor.
     void unmake_null(PlyState& prior_state);
 
-    // Rules and evaluation
+    // Static exchange evaluation (board_see.cpp)
 
-    // Checks fifty-move and repetition draws. Pass the current nonnegative search
-    // ply, or zero outside search.
-    [[nodiscard]] bool is_draw(int ply_from_search_root = 0) const noexcept;
     // Precondition: move is a pseudo-legal capture or promotion.
-    [[nodiscard]] EvalValue    see(Move move) const noexcept;
-    [[nodiscard]] TaperedScore material_score() const noexcept { return material; }
-    [[nodiscard]] TaperedScore psq_bonus_score() const noexcept { return psq_bonus; }
-    [[nodiscard]] EvalValue    non_pawn_material(Color color) const noexcept;
-
-    // Serialization and diagnostics
-
-    [[nodiscard]] std::string to_fen() const;
-    // Rebuilds the current position key from representation and reversible state.
-    [[nodiscard]] PositionKey recompute_key() const noexcept;
+    [[nodiscard]] EvalValue see(Move move) const noexcept;
 
 private:
-    PlyState&       active_state() noexcept { return *active_ply_state; }
-    const PlyState& active_state() const noexcept { return *active_ply_state; }
+    // State binding
+
     void bind_ply_state(PlyState& state_slot) noexcept { active_ply_state = &state_slot; }
 
-    void reset() noexcept;
-    void load_fen(std::string_view fen);
-
-    template <PieceType... Types>
-    [[nodiscard]] Bitboard pieces() const noexcept;
-    // Supplied occupancy changes slider rays, not membership in the current position.
-    [[nodiscard]] Bitboard
-    attacks_to(Square target, Color attacker, Bitboard occupancy) const noexcept;
-    [[nodiscard]] Bitboard all_attackers_to(Square target, Bitboard occupancy) const noexcept;
+    // Representation mutation
 
     // Keep bitboards, counts, mailbox, material, PSQT, and optionally the key synchronized.
     // Callers maintain king_square and restore or recompute the key when hashing is disabled.
@@ -171,15 +149,27 @@ private:
     template <bool apply_hash>
     void move_piece(Square from, Square to, Color color, PieceType piece_type) noexcept;
 
+    // Position initialization (board_representation.cpp)
+
+    void reset() noexcept;
+
+    // FEN loading (board_fen.cpp)
+
+    void load_fen(std::string_view fen);
+
+    // Castling rights maintenance (board_move.cpp)
+
     inline void clear_castling_rights(Color color) noexcept;
     inline void clear_rook_castling_right(Color color, Square rook_square) noexcept;
 
-    void               refresh_tactical_cache() noexcept;
-    void               refresh_legal_enpassant_target() noexcept;
-    [[nodiscard]] bool enpassant_preserves_king_safety(Square from, Square target) const noexcept;
+    // Rule support and cache maintenance (board_rules.cpp)
 
-    Bitboard     piece_bb[N_COLORS][N_PIECETYPES]     = {0};
-    std::uint8_t piece_counts[N_COLORS][N_PIECETYPES] = {0};
+    void refresh_tactical_cache() noexcept;
+    void refresh_legal_enpassant_target() noexcept;
+    bool enpassant_preserves_king_safety(Square from, Square target) const noexcept;
+
+    Bitboard     piece_bb[N_COLORS][N_PIECETYPES]     = {};
+    std::uint8_t piece_counts[N_COLORS][N_PIECETYPES] = {};
     Piece        squares[N_SQUARES]                   = {NO_PIECE};
     Square       king_square[N_COLORS]                = {E1, E8};
     Color        turn                                 = WHITE;
@@ -197,16 +187,59 @@ private:
     std::vector<PositionKey> key_history;
 };
 
-// Public inline queries
-
-inline Bitboard Board::pieces(Color color) const noexcept {
-    return piece_bb[color][all_pieces_slot];
-}
+// Inline query definitions
 
 template <PieceType... Types>
 inline Bitboard Board::pieces(Color color) const noexcept {
     static_assert((is_piece_type(Types) && ...));
     return (piece_bb[color][Types] | ...);
+}
+
+template <PieceType... Types>
+inline Bitboard Board::pieces() const noexcept {
+    static_assert((is_piece_type(Types) && ...));
+    return ((piece_bb[WHITE][Types] | piece_bb[BLACK][Types]) | ...);
+}
+
+inline Bitboard Board::occupancy() const noexcept {
+    return piece_bb[WHITE][all_pieces_slot] | piece_bb[BLACK][all_pieces_slot];
+}
+
+inline std::uint8_t Board::count(Color color, PieceType piece_type) const noexcept {
+    return piece_counts[color][piece_type];
+}
+
+inline Piece Board::piece_on(File file, Rank rank) const noexcept {
+    return squares[square::make(file, rank)];
+}
+
+inline EvalValue Board::non_pawn_material(Color color) const noexcept {
+    return ((count(color, KNIGHT) * piece_value::knight_mg)
+            + (count(color, BISHOP) * piece_value::bishop_mg)
+            + (count(color, ROOK) * piece_value::rook_mg)
+            + (count(color, QUEEN) * piece_value::queen_mg));
+}
+
+inline Bitboard Board::attacks_to(Square target, Color attacker) const noexcept {
+    return attacks_to(target, attacker, occupancy());
+}
+
+inline Bitboard
+Board::attacks_to(Square target, Color attacker, Bitboard occupancy) const noexcept {
+    return (pieces<PAWN>(attacker) & attacks::pawn_attacks(target, ~attacker))
+         | (pieces<KNIGHT>(attacker) & attacks::piece_moves<KNIGHT>(target, occupancy))
+         | (pieces<KING>(attacker) & attacks::piece_moves<KING>(target, occupancy))
+         | (pieces<BISHOP, QUEEN>(attacker) & attacks::piece_moves<BISHOP>(target, occupancy))
+         | (pieces<ROOK, QUEEN>(attacker) & attacks::piece_moves<ROOK>(target, occupancy));
+}
+
+inline Bitboard Board::all_attackers_to(Square target, Bitboard occupancy) const noexcept {
+    return (pieces<PAWN>(WHITE) & attacks::pawn_attacks<BLACK>(target))
+         | (pieces<PAWN>(BLACK) & attacks::pawn_attacks<WHITE>(target))
+         | (pieces<KNIGHT>() & attacks::piece_moves<KNIGHT>(target, occupancy))
+         | (pieces<KING>() & attacks::piece_moves<KING>(target, occupancy))
+         | (pieces<BISHOP, QUEEN>() & attacks::piece_moves<BISHOP>(target, occupancy))
+         | (pieces<ROOK, QUEEN>() & attacks::piece_moves<ROOK>(target, occupancy));
 }
 
 inline bool Board::any_attacked(Bitboard targets, Color attacker) const noexcept {
@@ -237,40 +270,7 @@ inline bool Board::is_capture(Move move) const noexcept {
     return captured_piece_type(move) != NO_PIECETYPE;
 }
 
-inline EvalValue Board::non_pawn_material(Color color) const noexcept {
-    return ((count(color, KNIGHT) * piece_value::knight_mg)
-            + (count(color, BISHOP) * piece_value::bishop_mg)
-            + (count(color, ROOK) * piece_value::rook_mg)
-            + (count(color, QUEEN) * piece_value::queen_mg));
-}
-
-// Private inline query helpers
-
-template <PieceType... Types>
-inline Bitboard Board::pieces() const noexcept {
-    static_assert((is_piece_type(Types) && ...));
-    return ((piece_bb[WHITE][Types] | piece_bb[BLACK][Types]) | ...);
-}
-
-inline Bitboard
-Board::attacks_to(Square target, Color attacker, Bitboard occupancy) const noexcept {
-    return (pieces<PAWN>(attacker) & attacks::pawn_attacks(target, ~attacker))
-         | (pieces<KNIGHT>(attacker) & attacks::piece_moves<KNIGHT>(target, occupancy))
-         | (pieces<KING>(attacker) & attacks::piece_moves<KING>(target, occupancy))
-         | (pieces<BISHOP, QUEEN>(attacker) & attacks::piece_moves<BISHOP>(target, occupancy))
-         | (pieces<ROOK, QUEEN>(attacker) & attacks::piece_moves<ROOK>(target, occupancy));
-}
-
-inline Bitboard Board::all_attackers_to(Square target, Bitboard occupancy) const noexcept {
-    return (pieces<PAWN>(WHITE) & attacks::pawn_attacks<BLACK>(target))
-         | (pieces<PAWN>(BLACK) & attacks::pawn_attacks<WHITE>(target))
-         | (pieces<KNIGHT>() & attacks::piece_moves<KNIGHT>(target, occupancy))
-         | (pieces<KING>() & attacks::piece_moves<KING>(target, occupancy))
-         | (pieces<BISHOP, QUEEN>() & attacks::piece_moves<BISHOP>(target, occupancy))
-         | (pieces<ROOK, QUEEN>() & attacks::piece_moves<ROOK>(target, occupancy));
-}
-
-// Private inline representation mutation
+// Inline representation mutation
 
 template <bool apply_hash>
 inline void Board::add_piece(Square square, Color color, PieceType piece_type) noexcept {
@@ -283,7 +283,7 @@ inline void Board::add_piece(Square square, Color color, PieceType piece_type) n
     material += eval::piece(piece_type, color);
     psq_bonus += eval::piece_sq(piece_type, color, square);
     if constexpr (apply_hash)
-        active_state().zkey ^= zob::hash_piece(color, piece_type, square);
+        ply_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
 
 template <bool apply_hash>
@@ -297,7 +297,7 @@ inline void Board::remove_piece(Square square, Color color, PieceType piece_type
     material -= eval::piece(piece_type, color);
     psq_bonus -= eval::piece_sq(piece_type, color, square);
     if constexpr (apply_hash)
-        active_state().zkey ^= zob::hash_piece(color, piece_type, square);
+        ply_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
 
 template <bool apply_hash>
@@ -311,6 +311,6 @@ inline void Board::move_piece(Square from, Square to, Color color, PieceType pie
     squares[to]   = make_piece(color, piece_type);
     psq_bonus += eval::piece_sq(piece_type, color, to) - eval::piece_sq(piece_type, color, from);
     if constexpr (apply_hash)
-        active_state().zkey ^=
+        ply_state().zkey ^=
             zob::hash_piece(color, piece_type, from) ^ zob::hash_piece(color, piece_type, to);
 }

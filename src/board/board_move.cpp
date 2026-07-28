@@ -22,7 +22,7 @@ initialize_next_ply(PlyState& next, const PlyState& previous, Move move) noexcep
 } // namespace
 
 inline void Board::clear_castling_rights(Color color) noexcept {
-    auto& state = active_state();
+    auto& state = ply_state();
 
     if (has_castling_right(CASTLE_KINGSIDE, color))
         state.zkey ^= zob::hash_castle(CASTLE_KINGSIDE, color);
@@ -33,7 +33,7 @@ inline void Board::clear_castling_rights(Color color) noexcept {
 }
 
 inline void Board::clear_rook_castling_right(Color color, Square rook_square) noexcept {
-    auto& state = active_state();
+    auto& state = ply_state();
 
     if (rook_square == move_geometry::castling(CASTLE_KINGSIDE, color).rook_from
         && has_castling_right(CASTLE_KINGSIDE, color)) {
@@ -61,10 +61,10 @@ void Board::make(Move move, PlyState& next_state) {
     const PieceType captured_piece_type = move_type == MOVE_EP ? PAWN : piece_type_on(to);
     const Square    previous_legal_enpassant_target = legal_enpassant_target();
 
-    initialize_next_ply(next_state, active_state(), move);
+    initialize_next_ply(next_state, ply_state(), move);
     bind_ply_state(next_state);
     ++ply_from_root;
-    auto& state = active_state();
+    auto& state = ply_state();
     ++absolute_ply;
 
     state.captured_piece_type = captured_piece_type;
@@ -125,7 +125,7 @@ void Board::unmake(PlyState& prior_state) {
     assert(ply_from_root > 0);
     assert(&prior_state != active_ply_state);
 
-    const Move      move                = active_state().previous_move;
+    const Move      move                = ply_state().previous_move;
     const Square    from                = move.from();
     const Square    to                  = move.to();
     const MoveType  move_type           = move.type();
@@ -133,7 +133,7 @@ void Board::unmake(PlyState& prior_state) {
     const Color     mover               = ~opponent;
     const PieceType destination_piece   = piece_type_on(to);
     const PieceType piece_type          = move_type == MOVE_PROM ? PAWN : destination_piece;
-    const PieceType captured_piece_type = active_state().captured_piece_type;
+    const PieceType captured_piece_type = ply_state().captured_piece_type;
     const Square    captured_square =
         move_type == MOVE_EP ? move_geometry::enpassant_captured_square(to, mover) : to;
 
@@ -167,10 +167,10 @@ void Board::make_null(PlyState& next_state) {
 
     const Square previous_legal_enpassant_target = legal_enpassant_target();
 
-    initialize_next_ply(next_state, active_state(), NULL_MOVE);
+    initialize_next_ply(next_state, ply_state(), NULL_MOVE);
     bind_ply_state(next_state);
     ++ply_from_root;
-    auto& state = active_state();
+    auto& state = ply_state();
 
     turn = ~turn;
     state.zkey ^= zob::hash_turn();

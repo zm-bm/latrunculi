@@ -1,4 +1,4 @@
-#include "board/board_format.hpp"
+#include "board/notation.hpp"
 
 #include <format>
 

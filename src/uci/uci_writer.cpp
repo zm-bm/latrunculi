@@ -1,6 +1,6 @@
 #include "uci/uci_writer.hpp"
 
-#include "board/board_format.hpp"
+#include "board/notation.hpp"
 #include "board/ply_state.hpp"
 #include "core/constants.hpp"
 #include "eval/evaluator.hpp"

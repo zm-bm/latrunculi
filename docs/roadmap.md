@@ -67,10 +67,9 @@ reuse attack and move-geometry primitives from `core`.
 
 `board.hpp` is the module map and retains hot query and representation-mutation
 definitions inline. Implementation files separate representation and root
-copying, FEN I/O, make/unmake, legality and check detection, draw rules, and
-static exchange evaluation. FEN parsing, SAN formatting, debug formatting,
-castling rights, per-ply state, and immutable Zobrist tables remain narrow
-support components.
+copying, FEN I/O, make/unmake, Board rules, static exchange evaluation, and
+notation. FEN parsing, castling rights, per-ply state, and immutable Zobrist
+tables remain narrow support components.
 
 ## Move Ordering
 
