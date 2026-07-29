@@ -1,7 +1,6 @@
 #include "uci/uci_writer.hpp"
 
 #include "board/notation.hpp"
-#include "board/ply_state.hpp"
 #include "core/constants.hpp"
 #include "eval/evaluator.hpp"
 #include "search/root_line.hpp"
@@ -34,9 +33,7 @@ std::string format_root_pv(const RootLine& line, const Board& root_board) {
     if (!line.usable_root_move() || line.pv.empty() || line.pv.front() != line.root_move)
         return "";
 
-    PlyStateStack pv_states;
-    Board         pv_board{pv_states.root()};
-    pv_board.copy_root_from(root_board, pv_states.root());
+    Board pv_board(root_board);
 
     std::string pv;
     for (int i = 0; i < line.pv.size(); ++i) {
@@ -49,7 +46,7 @@ std::string format_root_pv(const RootLine& line, const Board& root_board) {
         pv += move.str();
 
         if (i + 1 < line.pv.size())
-            pv_board.make(move, pv_states.child(i));
+            pv_board.make(move);
     }
 
     return pv;

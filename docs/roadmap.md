@@ -13,7 +13,8 @@ delegates parsing to `parse_command()`; `uci::Writer` owns UCI and debug-output
 formatting and flushing; `uci::Options` owns option parsing and validation while
 `Engine` applies option side effects. `ThreadPool` starts workers from the
 resolved root board and `SearchLimits`; each `SearchWorker` owns an independent
-root copy and per-ply state stack.
+Board copy retaining the reconstructed game history and subsequent search
+traversal.
 
 Current UCI support covers the core loop: `uci`, `debug`, `isready`,
 `setoption`, `ucinewgame`, `position`, `go`, `stop`, and `quit`. `go` applies
@@ -48,28 +49,27 @@ not commitments to add unsupported engine features prematurely.
 
 ## Board
 
-`Board` is the mutable, noncopyable position type used by move generation,
-evaluation, search, perft, and UCI tooling. It owns the durable board
-representation and position-key history while borrowing stable caller-owned
-`PlyState` storage for the active and restorable per-ply state.
-`PlyStateStack` supplies fixed storage for search and perft, and
-`copy_root_from()` creates an independent root bound to a new state slot.
+`Board` is the mutable position type used by move generation, evaluation,
+search, perft, and UCI tooling. It owns the durable board representation and a
+dynamically growable stack of per-ply states. Board copies are independent and
+reserve enough additional state capacity for a complete search.
 
 The durable representation combines per-color piece and occupancy bitboards, a
 square mailbox, piece counts, king locations, side to move, game and
-root-relative ply counters, and incremental material and piece-square scores.
+incremental material and piece-square scores.
 The active `PlyState` holds the Zobrist key, castling rights, raw and legal
 en-passant targets, halfmove clock, cached checkers and slider blockers, and
 undo data. `make()`/`unmake()` maintain these synchronized views incrementally;
 null transitions preserve piece placement while updating side to move,
-reversible state, repetition history, and tactical caches. Board calculations
-reuse attack and move-geometry primitives from `core`.
+reversible state, and tactical caches. Repetition detection scans the keys in
+the owned state stack. Board calculations reuse attack and move-geometry
+primitives from `core`.
 
 `board.hpp` is the module map and retains hot query and representation-mutation
-definitions inline. Implementation files separate representation and root
-copying, FEN I/O, make/unmake, Board rules, static exchange evaluation, and
-notation. FEN parsing, castling rights, per-ply state, and immutable Zobrist
-tables remain narrow support components.
+definitions inline. Implementation files separate representation and copying,
+FEN I/O, make/unmake, Board rules, static exchange evaluation, and notation.
+FEN parsing, castling rights, per-ply state, and immutable Zobrist tables remain
+narrow support components.
 
 ## Move Ordering
 

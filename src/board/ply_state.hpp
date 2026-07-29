@@ -1,22 +1,20 @@
 #pragma once
 
 #include <array>
-#include <cassert>
 #include <cstdint>
 
 #include "board/castling_rights.hpp"
 #include "core/bitboard.hpp"
-#include "core/constants.hpp"
 #include "core/move.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "core/types.hpp"
 
 /**
- * Per-ply board state owned by the caller and used by Board.
+ * Reversible position state and tactical data for one entry in Board's history
+ * stack.
  *
- * Board owns the durable piece representation. This holds the active ply's
- * reversible state plus cached tactical data for fast legality/search.
+ * Board owns and manages these states alongside its durable representation.
  */
 struct PlyState {
     // Derived attack data refreshed after FEN load, make, and null moves.
@@ -44,24 +42,4 @@ struct PlyState {
     Move previous_move{NULL_MOVE};
     // Captured type removed by previous_move, or NO_PIECETYPE when none.
     PieceType captured_piece_type{NO_PIECETYPE};
-};
-
-// Fixed state storage for search/perft. child(ply) is where make() writes the
-// next ply; parent(ply) is what unmake() restores.
-class PlyStateStack {
-public:
-    [[nodiscard]] PlyState& root() noexcept { return stack[0]; }
-
-    [[nodiscard]] PlyState& child(int ply) noexcept {
-        assert(ply >= 0 && ply < engine::max_search_ply);
-        return stack[ply + 1];
-    }
-
-    [[nodiscard]] PlyState& parent(int ply) noexcept {
-        assert(ply > 0 && ply <= engine::max_search_ply);
-        return stack[ply - 1];
-    }
-
-private:
-    std::array<PlyState, engine::max_search_ply + 1> stack{};
 };

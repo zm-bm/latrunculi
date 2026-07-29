@@ -32,7 +32,6 @@ struct BoardSnapshot {
     int                                                          fullmove_number;
     PositionKey                                                  key;
     Move                                                         previous_move;
-    PieceType                                                    captured_piece_type;
     Bitboard                                                     occupancy;
     Bitboard                                                     checkers;
     std::array<Bitboard, N_COLORS>                               blockers{};
@@ -55,8 +54,7 @@ inline BoardSnapshot snapshot_board(const Board& board) {
     snapshot.halfmove_clock         = board.halfmove_clock();
     snapshot.fullmove_number        = board.fullmove_number();
     snapshot.key                    = board.key();
-    snapshot.previous_move          = board.ply_state().previous_move;
-    snapshot.captured_piece_type    = board.ply_state().captured_piece_type;
+    snapshot.previous_move          = board.previous_move();
     snapshot.occupancy              = board.occupancy();
     snapshot.checkers               = board.checkers();
     snapshot.material               = board.material_score();
@@ -114,8 +112,7 @@ inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& 
     EXPECT_EQ(board.halfmove_clock(), expected.halfmove_clock);
     EXPECT_EQ(board.fullmove_number(), expected.fullmove_number);
     EXPECT_EQ(board.key(), expected.key);
-    EXPECT_EQ(board.ply_state().previous_move, expected.previous_move);
-    EXPECT_EQ(board.ply_state().captured_piece_type, expected.captured_piece_type);
+    EXPECT_EQ(board.previous_move(), expected.previous_move);
     EXPECT_EQ(board.checkers(), expected.checkers);
 
     for (int c = BLACK; c < N_COLORS; ++c)

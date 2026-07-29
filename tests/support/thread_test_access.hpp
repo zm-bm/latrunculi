@@ -74,25 +74,25 @@ public:
 
     static void make(Thread& thread, Move move) {
         SearchWorker& search = worker(thread);
-        search.board.make(move, search.ply_states.child(search.ply));
+        search.board.make(move);
         ++search.ply;
     }
 
     static void unmake(Thread& thread) {
         SearchWorker& search = worker(thread);
-        search.board.unmake(search.ply_states.parent(search.ply));
+        search.board.unmake();
         --search.ply;
     }
 
     static void make_null(Thread& thread) {
         SearchWorker& search = worker(thread);
-        search.board.make_null(search.ply_states.child(search.ply));
+        search.board.make_null();
         ++search.ply;
     }
 
     static void unmake_null(Thread& thread) {
         SearchWorker& search = worker(thread);
-        search.board.unmake_null(search.ply_states.parent(search.ply));
+        search.board.unmake_null();
         --search.ply;
     }
 

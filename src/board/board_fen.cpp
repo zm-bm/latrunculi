@@ -7,7 +7,7 @@
 
 void Board::load_fen(std::string_view fen) {
     const ParsedFen parsed = parse_fen(fen);
-    reset();
+    clear_position();
 
     for (const auto& piece : parsed.pieces) {
         add_piece<false>(piece.square, piece.color, piece.type);

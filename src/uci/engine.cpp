@@ -15,36 +15,17 @@
 Engine::Engine(std::ostream& out, std::ostream& err, std::istream& source)
     : reader(source),
       writer(out, err),
-      ply_states{PlyState()},
-      position_ply(0),
-      board(ply_states.front(), Board::start_fen),
       thread_pool(options.threads.value, writer) {}
 
-PlyState& Engine::next_ply_state() {
-    if (ply_states.size() <= position_ply + 1)
-        ply_states.emplace_back();
-    return ply_states[position_ply + 1];
-}
-
-void Engine::reset_board(const std::string& fen) {
-    PlyState root_state;
-    Board    root_board(root_state, fen);
-
-    board.copy_root_from(root_board, ply_states.front());
-    position_ply = 0;
-}
-
 void Engine::make_board_move(Move move) {
-    board.make(move, next_ply_state());
-    ++position_ply;
+    board.make(move);
 }
 
 void Engine::unmake_board_move() {
-    if (position_ply == 0)
+    if (!board.can_unmake())
         throw std::runtime_error("no move to undo");
 
-    board.unmake(ply_states[position_ply - 1]);
-    --position_ply;
+    board.unmake();
 }
 
 void Engine::apply_option_effect(uci::OptionId option) {
@@ -130,11 +111,11 @@ bool Engine::handle(const uci::PositionCommand& command) {
     using Source = uci::PositionCommand::Source;
 
     switch (command.source) {
-    case Source::Startpos: reset_board(Board::start_fen); break;
+    case Source::Startpos: board.load_fen(Board::start_fen); break;
     case Source::Fen:
         if (command.fen.empty())
             throw std::runtime_error("invalid position command");
-        reset_board(command.fen);
+        board.load_fen(command.fen);
         break;
     case Source::Invalid: throw std::runtime_error("invalid position command");
     }

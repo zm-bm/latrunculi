@@ -1,6 +1,5 @@
 #include "board/board.hpp"
 
-#include "board/ply_state.hpp"
 #include "core/move_geometry.hpp"
 
 #include <cassert>
@@ -8,48 +7,37 @@
 
 namespace {
 
-// Clear ply-local caches and expired en-passant state, then carry forward
-// the key, castling rights, and halfmove clock.
-[[gnu::always_inline]] inline void
-initialize_next_ply(PlyState& next, const PlyState& previous, Move move) noexcept {
-    next                 = {};
-    next.zkey            = previous.zkey;
-    next.castling_rights = previous.castling_rights;
-    next.halfmove_clock  = previous.halfmove_clock + 1;
-    next.previous_move   = move;
-}
+[[gnu::always_inline]] inline void clear_castling_rights(PlyState& state, Color color) noexcept {
+    const CastlingRights kingside  = color == WHITE ? W_KINGSIDE : B_KINGSIDE;
+    const CastlingRights queenside = color == WHITE ? W_QUEENSIDE : B_QUEENSIDE;
 
-} // namespace
-
-inline void Board::clear_castling_rights(Color color) noexcept {
-    auto& state = ply_state();
-
-    if (has_castling_right(CASTLE_KINGSIDE, color))
+    if (state.castling_rights & kingside)
         state.zkey ^= zob::hash_castle(CASTLE_KINGSIDE, color);
-    if (has_castling_right(CASTLE_QUEENSIDE, color))
+    if (state.castling_rights & queenside)
         state.zkey ^= zob::hash_castle(CASTLE_QUEENSIDE, color);
 
     state.castling_rights &= (color == WHITE ? B_CASTLE : W_CASTLE);
 }
 
-inline void Board::clear_rook_castling_right(Color color, Square rook_square) noexcept {
-    auto& state = ply_state();
+[[gnu::always_inline]] inline void
+clear_rook_castling_right(PlyState& state, Color color, Square rook_square) noexcept {
+    const CastlingRights kingside  = color == WHITE ? W_KINGSIDE : B_KINGSIDE;
+    const CastlingRights queenside = color == WHITE ? W_QUEENSIDE : B_QUEENSIDE;
 
     if (rook_square == move_geometry::castling(CASTLE_KINGSIDE, color).rook_from
-        && has_castling_right(CASTLE_KINGSIDE, color)) {
+        && (state.castling_rights & kingside)) {
         state.zkey ^= zob::hash_castle(CASTLE_KINGSIDE, color);
-        state.castling_rights &= ~(color == WHITE ? W_KINGSIDE : B_KINGSIDE);
+        state.castling_rights &= ~kingside;
     } else if (rook_square == move_geometry::castling(CASTLE_QUEENSIDE, color).rook_from
-               && has_castling_right(CASTLE_QUEENSIDE, color)) {
+               && (state.castling_rights & queenside)) {
         state.zkey ^= zob::hash_castle(CASTLE_QUEENSIDE, color);
-        state.castling_rights &= ~(color == WHITE ? W_QUEENSIDE : B_QUEENSIDE);
+        state.castling_rights &= ~queenside;
     }
 }
 
-void Board::make(Move move, PlyState& next_state) {
-    assert(&next_state != active_ply_state);
-    key_history.push_back(key());
+} // namespace
 
+void Board::make(Move move) {
     const Square    from       = move.from();
     const Square    to         = move.to();
     const MoveType  move_type  = move.type();
@@ -61,10 +49,7 @@ void Board::make(Move move, PlyState& next_state) {
     const PieceType captured_piece_type = move_type == MOVE_EP ? PAWN : piece_type_on(to);
     const Square    previous_legal_enpassant_target = legal_enpassant_target();
 
-    initialize_next_ply(next_state, ply_state(), move);
-    bind_ply_state(next_state);
-    ++ply_from_root;
-    auto& state = ply_state();
+    auto& state = push_ply_state(move);
     ++absolute_ply;
 
     state.captured_piece_type = captured_piece_type;
@@ -72,7 +57,7 @@ void Board::make(Move move, PlyState& next_state) {
         state.halfmove_clock = 0;
         remove_piece<true>(captured_square, opponent, captured_piece_type);
         if (has_castling_rights(opponent) && captured_piece_type == ROOK)
-            clear_rook_castling_right(opponent, captured_square);
+            clear_rook_castling_right(state, opponent, captured_square);
     }
 
     if (previous_legal_enpassant_target != INVALID)
@@ -99,12 +84,12 @@ void Board::make(Move move, PlyState& next_state) {
     case KING:
         king_square[mover] = to;
         if (has_castling_rights(mover))
-            clear_castling_rights(mover);
+            clear_castling_rights(state, mover);
         break;
 
     case ROOK:
         if (has_castling_rights(mover))
-            clear_rook_castling_right(mover, from);
+            clear_rook_castling_right(state, mover, from);
         break;
 
     default: break;
@@ -121,9 +106,8 @@ void Board::make(Move move, PlyState& next_state) {
     }
 }
 
-void Board::unmake(PlyState& prior_state) {
-    assert(ply_from_root > 0);
-    assert(&prior_state != active_ply_state);
+void Board::unmake() {
+    assert(can_unmake());
 
     const Move      move                = ply_state().previous_move;
     const Square    from                = move.from();
@@ -137,10 +121,7 @@ void Board::unmake(PlyState& prior_state) {
     const Square    captured_square =
         move_type == MOVE_EP ? move_geometry::enpassant_captured_square(to, mover) : to;
 
-    assert(!key_history.empty() && key_history.back() == prior_state.zkey);
-    key_history.pop_back();
-    bind_ply_state(prior_state);
-    --ply_from_root;
+    pop_ply_state();
     --absolute_ply;
     turn = mover;
 
@@ -161,16 +142,10 @@ void Board::unmake(PlyState& prior_state) {
         king_square[mover] = from;
 }
 
-void Board::make_null(PlyState& next_state) {
-    assert(&next_state != active_ply_state);
-    key_history.push_back(key());
-
+void Board::make_null() {
     const Square previous_legal_enpassant_target = legal_enpassant_target();
 
-    initialize_next_ply(next_state, ply_state(), NULL_MOVE);
-    bind_ply_state(next_state);
-    ++ply_from_root;
-    auto& state = ply_state();
+    auto& state = push_ply_state(NULL_MOVE);
 
     turn = ~turn;
     state.zkey ^= zob::hash_turn();
@@ -180,13 +155,9 @@ void Board::make_null(PlyState& next_state) {
     refresh_tactical_cache();
 }
 
-void Board::unmake_null(PlyState& prior_state) {
-    assert(ply_from_root > 0);
-    assert(&prior_state != active_ply_state);
+void Board::unmake_null() {
+    assert(can_unmake());
 
-    assert(!key_history.empty() && key_history.back() == prior_state.zkey);
-    key_history.pop_back();
-    bind_ply_state(prior_state);
-    --ply_from_root;
+    pop_ply_state();
     turn = ~turn;
 }

@@ -179,6 +179,32 @@ TEST_F(EngineTest, PositionStartposResetsFromNonStartPosition) {
     EXPECT_EQ(board().to_fen(), board_test::fen::start);
 }
 
+TEST_F(EngineTest, PositionMovesBuildUndoableHistory) {
+    EXPECT_TRUE(execute("position startpos moves e2e4 e7e5"));
+    ASSERT_TRUE(board().can_unmake());
+
+    board().unmake();
+    EXPECT_EQ(board().to_fen(), board_test::fen::after_e2e4);
+
+    board().unmake();
+    EXPECT_FALSE(board().can_unmake());
+    EXPECT_EQ(board().to_fen(), board_test::fen::start);
+}
+
+TEST_F(EngineTest, PositionMovesBuildRepetitionHistoryThatFenReplacementClears) {
+    const std::string command = std::format("position fen {} moves "
+                                            "e6f5 h7g8 f5e6 g8h7 e6f5 h7g8 f5e6 g8h7 e6f5",
+                                            board_test::fen::repetition_cycle);
+    ASSERT_TRUE(execute(command));
+    ASSERT_TRUE(board().is_draw());
+
+    const std::string repeated_position = board().to_fen();
+    ASSERT_TRUE(execute(std::format("position fen {}", repeated_position)));
+
+    EXPECT_FALSE(board().can_unmake());
+    EXPECT_FALSE(board().is_draw());
+}
+
 TEST_F(EngineTest, UciNewGameClearsTTAndResetsGeneration) {
     tt.age_table();
     tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TT_Flag::Exact, 0);

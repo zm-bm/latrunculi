@@ -1,20 +1,13 @@
 #include "board/board.hpp"
-#include "board/ply_state.hpp"
 
 #include <gtest/gtest.h>
 
 #include <array>
-#include <string>
 #include <string_view>
 
 #include "support/board_fixtures.hpp"
 #include "support/board_harness.hpp"
 #include "support/board_snapshot.hpp"
-
-TEST(BoardRepresentationTest, BoardObjectSizesAreReported) {
-    RecordProperty("PlyStateBytes", std::to_string(sizeof(PlyState)));
-    RecordProperty("BoardBytes", std::to_string(sizeof(Board)));
-}
 
 TEST(BoardRepresentationTest, KingsOnlyPositionEncoding) {
     board_test::Harness board(board_test::fen::kings_only);

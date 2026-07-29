@@ -1,5 +1,4 @@
 #include "board/board.hpp"
-#include "board/ply_state.hpp"
 
 #include <gtest/gtest.h>
 
@@ -226,54 +225,72 @@ TEST(BoardInvariantTest, NullMovePreservesDurableRepresentation) {
     }
 }
 
-TEST(BoardInvariantTest, CallerOwnedMakeUnmakeRestoresPosition) {
-    PlyState   root_state;
-    Board      board(root_state, board_test::fen::perft_position_2);
+TEST(BoardInvariantTest, OwnedStateMakeUnmakeRestoresPosition) {
+    Board      board(board_test::fen::perft_position_2);
     const auto before = board_test::snapshot_board(board);
+    EXPECT_FALSE(board.can_unmake());
+    EXPECT_TRUE(board.previous_move().is_null());
 
     const Move first = first_legal_move(board);
     ASSERT_FALSE(first.is_null());
-    PlyState first_state;
-    board.make(first, first_state);
+    board.make(first);
+    EXPECT_TRUE(board.can_unmake());
+    EXPECT_EQ(board.previous_move(), first);
     const auto after_first = board_test::snapshot_board(board);
     expect_board_consistent(board);
 
     const Move second = first_legal_move(board);
     ASSERT_FALSE(second.is_null());
-    PlyState second_state;
-    board.make(second, second_state);
+    board.make(second);
     expect_board_consistent(board);
 
-    board.unmake(first_state);
+    board.unmake();
+    EXPECT_TRUE(board.can_unmake());
+    EXPECT_EQ(board.previous_move(), first);
     board_test::expect_same_board_snapshot(board, after_first);
     expect_board_consistent(board);
 
-    board.unmake(root_state);
+    board.unmake();
+    EXPECT_FALSE(board.can_unmake());
+    EXPECT_TRUE(board.previous_move().is_null());
     board_test::expect_same_board_snapshot(board, before);
     expect_board_consistent(board);
 }
 
-TEST(BoardInvariantTest, CallerOwnedNullMoveRestoresPosition) {
-    PlyState   root_state;
-    Board      board(root_state, board_test::fen::perft_position_2);
+TEST(BoardInvariantTest, OwnedStateNullMoveRestoresPosition) {
+    Board      board(board_test::fen::perft_position_2);
     const auto before = board_test::snapshot_board(board);
 
-    PlyState first_state;
-    board.make_null(first_state);
+    board.make_null();
     const auto after_first = board_test::snapshot_board(board);
     board_test::expect_same_durable_representation(board, before);
     expect_board_consistent(board);
 
-    PlyState second_state;
-    board.make_null(second_state);
+    board.make_null();
     board_test::expect_same_durable_representation(board, before);
     expect_board_consistent(board);
 
-    board.unmake_null(first_state);
+    board.unmake_null();
     board_test::expect_same_board_snapshot(board, after_first);
     expect_board_consistent(board);
 
-    board.unmake_null(root_state);
+    board.unmake_null();
     board_test::expect_same_board_snapshot(board, before);
     expect_board_consistent(board);
+}
+
+TEST(BoardInvariantTest, NewTraversalReplacesPoppedState) {
+    Board board(board_test::fen::corner_kings);
+    board.make(Move(A1, B1));
+    const auto after_first = board_test::snapshot_board(board);
+
+    board.make(Move(H8, G8));
+    board.unmake();
+    board.make(Move(H8, H7));
+    expect_board_consistent(board);
+
+    board.unmake();
+    board_test::expect_same_board_snapshot(board, after_first);
+    board.unmake();
+    EXPECT_FALSE(board.can_unmake());
 }

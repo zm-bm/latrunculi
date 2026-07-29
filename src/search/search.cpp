@@ -181,7 +181,7 @@ bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta
 
         ++move_count;
 
-        board.make(root_move, ply_states.child(ply));
+        board.make(root_move);
         ++ply;
 
         // Root PVS searches full-window until a root PV is established.
@@ -199,7 +199,7 @@ bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta
             }
         }
 
-        board.unmake(ply_states.parent(ply));
+        board.unmake();
         --ply;
 
         // Do not record partial root-line state after a stop.
@@ -318,11 +318,11 @@ EvalValue SearchWorker::alphabeta(
             && board.non_pawn_material(c) > piece_value::rook_mg && !tt_upper_veto) {
             stats.null_move_try(ply);
 
-            board.make_null(ply_states.child(ply));
+            board.make_null();
             ++ply;
             const EvalValue value =
                 -alphabeta<NON_PV>(-beta, -beta + 1, depth - reduction, nullptr, false);
-            board.unmake_null(ply_states.parent(ply));
+            board.unmake_null();
             --ply;
 
             if (stop_requested())
@@ -363,13 +363,13 @@ EvalValue SearchWorker::alphabeta(
         const bool is_capture   = board.is_capture(move);
         const bool is_quiet     = !is_capture && !is_promotion;
         const bool is_killer    = is_quiet && ordering.is_killer(move, ply);
-        board.make(move, ply_states.child(ply));
+        board.make(move);
         ++ply;
 
         const bool gives_check = board.is_check();
         if (futility && !first_legal && is_quiet && !gives_check) {
             // Step 9. Futility Pruning. Skip late quiet moves that cannot raise alpha.
-            board.unmake(ply_states.parent(ply));
+            board.unmake();
             --ply;
             picker.skip_quiet_moves();
             stats.futility_skip(ply);
@@ -412,7 +412,7 @@ EvalValue SearchWorker::alphabeta(
             }
         }
 
-        board.unmake(ply_states.parent(ply));
+        board.unmake();
         --ply;
 
         if (stop_requested())
@@ -544,10 +544,10 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
 
         ++move_count;
 
-        board.make(move, ply_states.child(ply));
+        board.make(move);
         ++ply;
         const EvalValue value = -quiescence<Node>(-beta, -alpha, pv ? &child_pv : nullptr);
-        board.unmake(ply_states.parent(ply));
+        board.unmake();
         --ply;
 
         if (stop_requested())

@@ -12,6 +12,20 @@ namespace {
 
 constexpr int fifty_move_rule_halfmoves = 100;
 
+bool is_king_safe_after_enpassant(const Board& board, Square from, Square target) noexcept {
+    const Color  side            = board.side_to_move();
+    const Square captured_square = move_geometry::enpassant_captured_square(target, side);
+    Bitboard     occupancy       = board.occupancy();
+    bb::move(occupancy, from, target);
+    bb::remove(occupancy, captured_square);
+
+    // Only occupancy is simulated. The unchanged piece bitboards still contain
+    // the captured pawn, so exclude it from the resulting attackers.
+    Bitboard attackers = board.attacks_to(board.king_sq(side), ~side, occupancy);
+    bb::remove(attackers, captured_square);
+    return !attackers;
+}
+
 [[gnu::always_inline]] inline Bitboard direct_check_targets(const Board& board,
                                                             PieceType    piece_type) noexcept {
     const Color    opponent      = ~board.side_to_move();
@@ -45,19 +59,6 @@ void Board::refresh_tactical_cache() noexcept {
         king_sq(BLACK), pieces<BISHOP, QUEEN>(WHITE), pieces<ROOK, QUEEN>(WHITE), occupancy);
 }
 
-bool Board::enpassant_preserves_king_safety(Square from, Square target) const noexcept {
-    const Square captured_square = move_geometry::enpassant_captured_square(target, turn);
-    Bitboard     occupancy       = this->occupancy();
-    bb::move(occupancy, from, target);
-    bb::remove(occupancy, captured_square);
-
-    // Only occupancy is simulated. The unchanged piece bitboards still contain
-    // the captured pawn, so exclude it from the resulting attackers.
-    Bitboard attackers = attacks_to(king_sq(turn), ~turn, occupancy);
-    bb::remove(attackers, captured_square);
-    return !attackers;
-}
-
 void Board::refresh_legal_enpassant_target() noexcept {
     auto&        state           = ply_state();
     const Square target          = state.enpassant_target;
@@ -73,7 +74,7 @@ void Board::refresh_legal_enpassant_target() noexcept {
 
     Bitboard candidate_capturers = pieces<PAWN>(side) & attacks::pawn_attacks(target, ~side);
     while (candidate_capturers) {
-        if (enpassant_preserves_king_safety(bb::lsb_pop(candidate_capturers), target)) {
+        if (is_king_safe_after_enpassant(*this, bb::lsb_pop(candidate_capturers), target)) {
             state.legal_enpassant_target = target;
             return;
         }
@@ -212,7 +213,7 @@ bool Board::is_legal_pseudo_move(Move move) const noexcept {
     }
 
     if (move.type() == MOVE_EP)
-        return enpassant_preserves_king_safety(from, to);
+        return is_king_safe_after_enpassant(*this, from, to);
 
     const Bitboard checkers_bb = checkers();
     if (checkers_bb) {
@@ -278,23 +279,27 @@ bool Board::gives_check(Move move) const noexcept {
 // Draw detection
 
 bool Board::is_draw(int ply_from_search_root) const noexcept {
+    assert(ply_from_search_root >= 0);
+
     if (halfmove_clock() >= fifty_move_rule_halfmoves)
         return true;
 
+    const PositionKey current_key   = key();
+    const std::size_t current_index = ply_states.size() - 1;
+    const std::size_t search_ply    = static_cast<std::size_t>(ply_from_search_root);
     const std::size_t reversible_history_plies =
-        std::min<std::size_t>(halfmove_clock(), key_history.size());
+        std::min<std::size_t>(halfmove_clock(), current_index);
     int prior_occurrences = 0;
 
     for (std::size_t plies_back = 2; plies_back <= reversible_history_plies; plies_back += 2) {
-        const std::size_t index = key_history.size() - plies_back;
+        const std::size_t index = current_index - plies_back;
 
-        if (key_history[index] != key())
+        if (ply_states[index].zkey != current_key)
             continue;
 
         // One prior occurrence strictly after the search root is a cycle draw.
         // At or before the root, two are required for threefold repetition.
-        if (ply_from_search_root > 0
-            && plies_back < static_cast<std::size_t>(ply_from_search_root)) {
+        if (search_ply > 0 && plies_back < search_ply) {
             return true;
         }
         if (++prior_occurrences == 2)

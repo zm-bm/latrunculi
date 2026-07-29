@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "board/board.hpp"
-#include "board/ply_state.hpp"
 #include "core/attacks.hpp"
 #include "movegen/movegen.hpp"
 
@@ -63,8 +62,7 @@ std::uint64_t measure_ns(Fn&& fn) {
         std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count());
 }
 
-NodeCount
-perft_nodes(Board& board, int depth, PlyStateStack& states, int ply, PlyState& current_state) {
+NodeCount perft_nodes(Board& board, int depth) {
     if (depth == 0)
         return 1;
 
@@ -75,9 +73,9 @@ perft_nodes(Board& board, int depth, PlyStateStack& states, int ply, PlyState& c
         if (!board.is_legal_generated_move(move))
             continue;
 
-        board.make(move, states.child(ply));
-        nodes += perft_nodes(board, depth - 1, states, ply + 1, states.child(ply));
-        board.unmake(current_state);
+        board.make(move);
+        nodes += perft_nodes(board, depth - 1);
+        board.unmake();
     }
 
     return nodes;
@@ -105,9 +103,7 @@ std::vector<PerftCase> perft_cases(Profile profile) {
 }
 
 PerftRow run_perft_case(const PerftCase& perft_case, Profile profile) {
-    PlyState   root;
-    Board      board(root, perft_case.fen);
-    auto       states      = PlyStateStack{};
+    Board      board(perft_case.fen);
     const auto initial_key = board.key();
     const int  depth =
         profile == Profile::Smoke ? perft_case.smoke_depth : perft_case.standard_depth;
@@ -115,8 +111,7 @@ PerftRow run_perft_case(const PerftCase& perft_case, Profile profile) {
         profile == Profile::Smoke ? perft_case.smoke_nodes : perft_case.standard_nodes;
     NodeCount nodes = 0;
 
-    const std::uint64_t total_ns =
-        measure_ns([&] { nodes = perft_nodes(board, depth, states, 0, root); });
+    const std::uint64_t total_ns = measure_ns([&] { nodes = perft_nodes(board, depth); });
 
     if (nodes != expected) {
         std::ostringstream message;

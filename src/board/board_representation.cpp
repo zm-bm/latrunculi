@@ -4,7 +4,10 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <utility>
+#include <type_traits>
+
+static_assert(std::is_nothrow_copy_constructible_v<PlyState>);
+static_assert(std::is_nothrow_copy_assignable_v<PlyState>);
 
 namespace {
 
@@ -21,38 +24,42 @@ void copy_array(const T (&source)[Rows][Cols], T (&target)[Rows][Cols]) {
 
 } // namespace
 
-Board::Board(PlyState& root_state, std::string_view fen) {
-    key_history.reserve(engine::max_search_ply + 1);
-    bind_ply_state(root_state);
+Board::Board(std::string_view fen) {
+    ply_states.reserve(engine::max_search_ply + 1);
+    ply_states.emplace_back();
+    active_state = &ply_states.back();
     load_fen(fen);
 }
 
-void Board::copy_root_from(const Board& source, PlyState& root_state) {
-    assert(this != &source);
-    assert(&root_state != &source.ply_state());
+Board::Board(const Board& source) {
+    *this = source;
+}
 
-    // Finish the only allocating work before mutating the destination.
-    auto copied_history = source.key_history;
-    copied_history.reserve(copied_history.size() + engine::max_search_ply + 1);
+Board& Board::operator=(const Board& source) {
+    if (this == &source)
+        return *this;
 
-    const PlyState source_state = source.ply_state();
+    assert(!source.ply_states.empty());
+
+    // Reserve enough room for the copied history and a complete search before
+    // mutating the destination's observable position.
+    ply_states.reserve(source.ply_states.size() + engine::max_search_ply);
+    ply_states.assign(source.ply_states.begin(), source.ply_states.end());
 
     copy_array(source.piece_bb, piece_bb);
     copy_array(source.piece_counts, piece_counts);
     copy_array(source.squares, squares);
     copy_array(source.king_square, king_square);
-    turn          = source.turn;
-    absolute_ply  = source.absolute_ply;
-    material      = source.material;
-    psq_bonus     = source.psq_bonus;
-    ply_from_root = 0;
+    turn         = source.turn;
+    absolute_ply = source.absolute_ply;
+    material     = source.material;
+    psq_bonus    = source.psq_bonus;
 
-    root_state = source_state;
-    bind_ply_state(root_state);
-    key_history = std::move(copied_history);
+    active_state = &ply_states.back();
+    return *this;
 }
 
-void Board::reset() noexcept {
+void Board::clear_position() noexcept {
     for (int color_index = 0; color_index < N_COLORS; ++color_index) {
         for (int piece_index = 0; piece_index < N_PIECETYPES; ++piece_index) {
             piece_bb[color_index][piece_index]     = 0;
@@ -68,9 +75,9 @@ void Board::reset() noexcept {
     king_square[BLACK] = INVALID;
     turn               = WHITE;
     absolute_ply       = 0;
-    ply_state()        = PlyState{};
-    ply_from_root      = 0;
-    key_history.clear();
+    ply_states.resize(1);
+    active_state = &ply_states.back();
+    ply_state()  = PlyState{};
 }
 
 PositionKey Board::recompute_key() const noexcept {

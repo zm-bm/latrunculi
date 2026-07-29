@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 
+#include "core/constants.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/board_harness.hpp"
 #include "support/board_snapshot.hpp"
@@ -31,6 +33,13 @@ void expect_same_reloaded_state(std::string_view fen) {
     board_test::Harness reloaded(board.to_fen());
     board_test::expect_same_board_snapshot(reloaded, board_test::snapshot_board(board));
     EXPECT_EQ(reloaded.key(), reloaded.recompute_key());
+}
+
+void complete_repetition_cycle(Board& board) {
+    board.make(Move(E6, F5));
+    board.make(Move(H7, G8));
+    board.make(Move(F5, E6));
+    board.make(Move(G8, H7));
 }
 
 } // namespace
@@ -64,4 +73,51 @@ TEST(BoardFenTest, ReloadingFenReproducesLoadedPosition) {
         SCOPED_TRACE(fen);
         expect_same_reloaded_state(fen);
     }
+}
+
+TEST(BoardFenTest, LoadingFenReplacesTraversalAndRepetitionHistory) {
+    Board board(board_test::fen::repetition_cycle);
+    complete_repetition_cycle(board);
+    complete_repetition_cycle(board);
+    board.make(Move(E6, F5));
+    ASSERT_TRUE(board.can_unmake());
+    ASSERT_TRUE(board.is_draw());
+
+    const Board expected(board_test::fen::start);
+    board.load_fen(board_test::fen::start);
+
+    EXPECT_FALSE(board.can_unmake());
+    EXPECT_TRUE(board.previous_move().is_null());
+    EXPECT_FALSE(board.is_draw());
+    board_test::expect_same_board_snapshot(board, board_test::snapshot_board(expected));
+}
+
+TEST(BoardFenTest, InvalidFenLeavesBoardAndTraversalUnchanged) {
+    Board board(board_test::fen::perft_position_2);
+    board.make(Move(E1, G1, MOVE_CASTLE));
+    const auto before = board_test::snapshot_board(board);
+
+    EXPECT_THROW(board.load_fen("invalid fen"), std::invalid_argument);
+
+    EXPECT_TRUE(board.can_unmake());
+    board_test::expect_same_board_snapshot(board, before);
+    board.unmake();
+    EXPECT_FALSE(board.can_unmake());
+}
+
+TEST(BoardFenTest, LoadingFenRebindsRootAfterStateStorageGrowth) {
+    Board board;
+    for (int ply = 0; ply < engine::max_search_ply + 8; ++ply)
+        board.make_null();
+    ASSERT_TRUE(board.can_unmake());
+
+    board.load_fen(board_test::fen::start);
+    const auto root = board_test::snapshot_board(board);
+    EXPECT_FALSE(board.can_unmake());
+
+    board.make(Move(E2, E4));
+    board.unmake();
+
+    EXPECT_FALSE(board.can_unmake());
+    board_test::expect_same_board_snapshot(board, root);
 }

@@ -75,7 +75,7 @@ TEST_F(SearchWorkerTest, RootPositionHistoryFeedsSearchRepetitionAfterSourceRese
     ASSERT_FALSE(board.is_draw());
 
     load_worker_board(board);
-    board.reset(board_test::fen::start);
+    board.load_fen(board_test::fen::start);
 
     make_worker_move(Move(A1, B1));
     EXPECT_FALSE(worker_is_draw());

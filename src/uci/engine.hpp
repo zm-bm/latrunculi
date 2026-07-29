@@ -1,12 +1,9 @@
 #pragma once
 
-#include <cstddef>
-#include <deque>
 #include <iosfwd>
 #include <string>
 
 #include "board/board.hpp"
-#include "board/ply_state.hpp"
 #include "uci/threading.hpp"
 #include "uci/uci_input.hpp"
 #include "uci/uci_options.hpp"
@@ -49,22 +46,18 @@ private:
     bool moves();
 
     // Board position helpers
-    Move      find_legal_move(const std::string& token);
-    PlyState& next_ply_state();
-    void      reset_board(const std::string& fen);
-    void      make_board_move(Move move);
-    void      unmake_board_move();
+    Move find_legal_move(const std::string& token);
+    void make_board_move(Move move);
+    void unmake_board_move();
 
     // Option and search helpers
     void apply_option_effect(uci::OptionId option);
 
-    uci::Reader          reader;
-    uci::Writer          writer;
-    uci::Options         options;
-    std::deque<PlyState> ply_states   = {PlyState()};
-    size_t               position_ply = 0;
-    Board                board;
-    ThreadPool           thread_pool;
+    uci::Reader  reader;
+    uci::Writer  writer;
+    uci::Options options;
+    Board        board;
+    ThreadPool   thread_pool;
 
     friend class EngineTest;
     friend class Benchmark;

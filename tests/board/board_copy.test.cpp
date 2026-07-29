@@ -1,5 +1,4 @@
 #include "board/board.hpp"
-#include "board/ply_state.hpp"
 
 #include <gtest/gtest.h>
 
@@ -54,30 +53,34 @@ void reverse_long_history(board_test::Harness& board) {
 
 } // namespace
 
-static_assert(!std::is_copy_constructible_v<Board>);
-static_assert(!std::is_copy_assignable_v<Board>);
+static_assert(std::is_copy_constructible_v<Board>);
+static_assert(std::is_copy_assignable_v<Board>);
 static_assert(!std::is_move_constructible_v<Board>);
 static_assert(!std::is_move_assignable_v<Board>);
 
-TEST(BoardRootCopyTest, CopiesDurableAndActiveRootStateWithoutAliasing) {
+TEST(BoardCopyTest, CopyAssignmentPreservesCompleteIndependentHistory) {
     constexpr std::string_view source_fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 17 42";
     board_test::Harness        source(source_fen);
     source.make(Move(A1, A8));
     const auto expected = board_test::snapshot_board(source);
 
-    PlyStateStack destination_states;
-    Board         destination(destination_states.root(), board_test::fen::start);
-    destination.make(Move(G1, F3), destination_states.child(0));
+    Board destination(board_test::fen::start);
+    destination.make(Move(G1, F3));
 
-    destination.copy_root_from(source, destination_states.root());
+    destination = source;
 
-    EXPECT_EQ(&destination.ply_state(), &destination_states.root());
-    EXPECT_NE(&destination.ply_state(), &source.ply_state());
+    EXPECT_TRUE(destination.can_unmake());
+    EXPECT_TRUE(source.can_unmake());
     board_test::expect_same_board_snapshot(destination, expected);
     EXPECT_EQ(destination.key(), destination.recompute_key());
+
+    destination.unmake();
+    EXPECT_FALSE(destination.can_unmake());
+    EXPECT_EQ(destination.to_fen(), source_fen);
+    board_test::expect_same_board_snapshot(source, expected);
 }
 
-TEST(BoardRootCopyTest, CopiesRepresentativeRootStates) {
+TEST(BoardCopyTest, CopyConstructionPreservesRepresentativeStates) {
     constexpr std::string_view positions[] = {
         board_test::fen::legal_en_passant_a3,
         "4k3/8/8/8/8/8/8/4K3 b - - 73 42",
@@ -88,26 +91,22 @@ TEST(BoardRootCopyTest, CopiesRepresentativeRootStates) {
         board_test::Harness source(fen);
         const auto          expected = board_test::snapshot_board(source);
 
-        PlyState destination_state;
-        Board    destination(destination_state, board_test::fen::start);
-        destination.copy_root_from(source, destination_state);
+        Board destination(source);
 
         board_test::expect_same_board_snapshot(destination, expected);
         EXPECT_EQ(destination.key(), destination.recompute_key());
     }
 }
 
-TEST(BoardRootCopyTest, SourceAndDestinationRemainIndependent) {
+TEST(BoardCopyTest, SourceAndDestinationRemainIndependent) {
     board_test::Harness source(board_test::fen::perft_position_2);
     const auto          root = board_test::snapshot_board(source);
 
-    PlyStateStack destination_states;
-    Board         destination(destination_states.root());
-    destination.copy_root_from(source, destination_states.root());
+    Board destination(source);
 
-    destination.make(Move(E1, G1, MOVE_CASTLE), destination_states.child(0));
+    destination.make(Move(E1, G1, MOVE_CASTLE));
     board_test::expect_same_board_snapshot(source, root);
-    destination.unmake(destination_states.root());
+    destination.unmake();
     board_test::expect_same_board_snapshot(destination, root);
 
     source.make(Move(E1, C1, MOVE_CASTLE));
@@ -116,7 +115,7 @@ TEST(BoardRootCopyTest, SourceAndDestinationRemainIndependent) {
     board_test::expect_same_board_snapshot(source, root);
 }
 
-TEST(BoardRootCopyTest, ReplacesRepetitionHistoryWhenDestinationIsReused) {
+TEST(BoardCopyTest, ReplacesRepetitionHistoryWhenDestinationIsReused) {
     board_test::Harness repeated(board_test::fen::repetition_cycle);
     complete_repetition_cycle(repeated);
     complete_repetition_cycle(repeated);
@@ -128,40 +127,61 @@ TEST(BoardRootCopyTest, ReplacesRepetitionHistoryWhenDestinationIsReused) {
     EXPECT_FALSE(fen_only.is_draw());
     const auto fen_snapshot = board_test::snapshot_board(fen_only);
 
-    PlyState destination_state;
-    Board    destination(destination_state);
+    Board destination;
 
-    destination.copy_root_from(repeated, destination_state);
+    destination = repeated;
     EXPECT_TRUE(destination.is_draw());
     board_test::expect_same_board_snapshot(destination, repeated_snapshot);
 
-    destination.copy_root_from(fen_only, destination_state);
+    destination = fen_only;
     EXPECT_FALSE(destination.is_draw());
     board_test::expect_same_board_snapshot(destination, fen_snapshot);
 
-    destination.copy_root_from(repeated, destination_state);
+    destination = repeated;
     EXPECT_TRUE(destination.is_draw());
     board_test::expect_same_board_snapshot(destination, repeated_snapshot);
 }
 
-TEST(BoardRootCopyTest, SupportsLongGameAndSearchRootRoundTrips) {
+TEST(BoardCopyTest, SelfAssignmentPreservesPositionAndHistory) {
+    Board board(board_test::fen::repetition_cycle);
+    complete_repetition_cycle(board);
+    const auto before = board_test::snapshot_board(board);
+
+    board = board;
+
+    board_test::expect_same_board_snapshot(board, before);
+    EXPECT_TRUE(board.can_unmake());
+    board.unmake();
+    EXPECT_TRUE(board.can_unmake());
+}
+
+TEST(BoardCopyTest, SupportsLongHistoryCopiesAndSearchRoundTrips) {
     board_test::Harness source(board_test::fen::start);
     const auto          initial = board_test::snapshot_board(source);
     build_long_history(source);
     const auto root = board_test::snapshot_board(source);
 
-    PlyStateStack destination_states;
-    Board         destination(destination_states.root());
-    destination.copy_root_from(source, destination_states.root());
+    Board destination;
+    for (int ply = 0; ply < engine::max_search_ply + 8; ++ply)
+        destination.make_null();
+    ASSERT_TRUE(destination.can_unmake());
+
+    destination = source;
+    EXPECT_TRUE(destination.can_unmake());
 
     for (int ply = 0; ply < engine::max_search_ply; ++ply)
-        destination.make_null(destination_states.child(ply));
+        destination.make_null();
     for (int ply = engine::max_search_ply; ply > 0; --ply)
-        destination.unmake_null(destination_states.parent(ply));
+        destination.unmake_null();
 
+    EXPECT_TRUE(destination.can_unmake());
     board_test::expect_same_board_snapshot(destination, root);
     EXPECT_EQ(destination.key(), destination.recompute_key());
 
+    reverse_long_history(destination);
+    board_test::expect_same_board_snapshot(destination, initial);
+
+    board_test::expect_same_board_snapshot(source, root);
     reverse_long_history(source);
     board_test::expect_same_board_snapshot(source, initial);
     EXPECT_EQ(source.key(), source.recompute_key());

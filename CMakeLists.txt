@@ -67,7 +67,7 @@ if(BUILD_TESTING)
         tests/board/board_move_application.test.cpp
         tests/board/san.test.cpp
         tests/board/board_representation.test.cpp
-        tests/board/board_root_copy.test.cpp
+        tests/board/board_copy.test.cpp
         tests/board/board_see.test.cpp
         tests/board/fen_parser.test.cpp
         tests/core/bitboard.test.cpp

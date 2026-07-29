@@ -1,7 +1,6 @@
 #include "movegen/perft.hpp"
 
 #include "board/board.hpp"
-#include "board/ply_state.hpp"
 #include "core/constants.hpp"
 #include "movegen/movegen.hpp"
 
@@ -15,8 +14,7 @@ void validate_perft_depth(int depth) {
         throw std::invalid_argument("perft depth out of range");
 }
 
-NodeCount
-perft_impl(Board& board, int depth, PlyStateStack& states, int ply, PlyState& current_state) {
+NodeCount perft_impl(Board& board, int depth) {
     if (depth == 0)
         return 1;
 
@@ -27,10 +25,10 @@ perft_impl(Board& board, int depth, PlyStateStack& states, int ply, PlyState& cu
         if (!board.is_legal_generated_move(move))
             continue;
 
-        board.make(move, states.child(ply));
-        NodeCount count = perft_impl(board, depth - 1, states, ply + 1, states.child(ply));
+        board.make(move);
+        NodeCount count = perft_impl(board, depth - 1);
         nodes += count;
-        board.unmake(current_state);
+        board.unmake();
     }
 
     return nodes;
@@ -41,8 +39,7 @@ perft_impl(Board& board, int depth, PlyStateStack& states, int ply, PlyState& cu
 NodeCount perft(Board& board, int depth) {
     validate_perft_depth(depth);
 
-    PlyStateStack states;
-    return perft_impl(board, depth, states, 0, board.ply_state());
+    return perft_impl(board, depth);
 }
 
 PerftResult perft_root(Board& board, int depth) {
@@ -58,19 +55,17 @@ PerftResult perft_root(Board& board, int depth) {
         return result;
     }
 
-    PlyStateStack states;
-    PlyState&     root_state = board.ply_state();
-    auto          movelist   = movegen::generate_pseudo_legal(board);
+    auto movelist = movegen::generate_pseudo_legal(board);
 
     for (auto& move : movelist) {
         if (!board.is_legal_generated_move(move))
             continue;
 
-        board.make(move, states.child(0));
-        const NodeCount nodes = perft_impl(board, depth - 1, states, 1, states.child(0));
+        board.make(move);
+        const NodeCount nodes = perft_impl(board, depth - 1);
         result.nodes += nodes;
         result.root_moves.push_back({.move = move, .nodes = nodes});
-        board.unmake(root_state);
+        board.unmake();
     }
 
     return result;
