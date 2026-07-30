@@ -236,7 +236,7 @@ bool Engine::move(const std::string& arguments) {
 bool Engine::moves() {
     auto movelist = movegen::generate_pseudo_legal(board);
     for (auto& move : movelist) {
-        if (!board.is_legal_generated_move(move))
+        if (!board.is_legal_pseudo_move(move))
             continue;
         writer.debug(uci::format_uci_move(move));
     }
@@ -257,7 +257,7 @@ bool Engine::perft(const std::string& arguments) {
 Move Engine::find_legal_move(const std::string& token) {
     auto movelist = movegen::generate_pseudo_legal(board);
     for (auto& move : movelist) {
-        if (uci::format_uci_move(move) == token && board.is_legal_generated_move(move)) {
+        if (uci::format_uci_move(move) == token && board.is_legal_pseudo_move(move)) {
             return move;
         }
     }

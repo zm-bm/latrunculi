@@ -183,8 +183,8 @@ TEST(BoardLegalityTest, AppliesLegalEnPassantCachePerCaptureOrigin) {
     const auto moves = movegen::generate_pseudo_legal(board);
     ASSERT_NE(std::find(moves.begin(), moves.end(), pinned_capture), moves.end());
     ASSERT_NE(std::find(moves.begin(), moves.end(), legal_capture), moves.end());
-    EXPECT_FALSE(board.is_legal_generated_move(pinned_capture));
-    EXPECT_TRUE(board.is_legal_generated_move(legal_capture));
+    EXPECT_FALSE(board.is_legal_pseudo_move(pinned_capture));
+    EXPECT_TRUE(board.is_legal_pseudo_move(legal_capture));
 }
 
 TEST(BoardLegalityTest, DoesNotCacheUnavailableEnPassantForEitherColor) {
@@ -254,34 +254,13 @@ TEST(BoardLegalityTest, AcceptsLegalCastle) {
                     .is_legal_move(Move(E1, G1, MOVE_CASTLE)));
 }
 
-TEST(BoardLegalityTest, PseudoLegalValidationFiltersGeneratedMoves) {
+TEST(BoardLegalityTest, PseudoLegalMoveFilterHandlesKingSafety) {
     EXPECT_FALSE(
         board_test::Harness(board_test::fen::perft_position_3).is_legal_pseudo_move(Move(B5, B6)));
     EXPECT_FALSE(
         board_test::Harness(board_test::fen::perft_position_3).is_legal_pseudo_move(Move(A5, B6)));
     EXPECT_TRUE(board_test::Harness(board_test::fen::legal_en_passant_a3)
                     .is_legal_pseudo_move(Move(B4, A3, MOVE_EP)));
-}
-
-TEST(BoardLegalityTest, GeneratedMoveLegalityMatchesFullFilter) {
-    for (const std::string_view fen :
-         std::array<std::string_view, 9>{board_test::fen::start,
-                                         board_test::fen::perft_position_2,
-                                         board_test::fen::perft_position_3,
-                                         board_test::fen::perft_position_4_white,
-                                         board_test::fen::perft_position_4_black,
-                                         board_test::fen::legal_en_passant_a3,
-                                         board_test::fen::pinned_en_passant_e3,
-                                         board_test::fen::check_evasion,
-                                         "7k/P7/8/8/8/8/8/4K3 w - - 0 1"}) {
-        board_test::Harness board{fen};
-        auto                movelist = movegen::generate_pseudo_legal(board);
-        for (const Move& move : movelist) {
-            ASSERT_TRUE(board.is_pseudo_legal(move)) << fen << " " << move;
-            EXPECT_EQ(board.is_legal_generated_move(move), board.is_legal_pseudo_move(move))
-                << fen << " " << move;
-        }
-    }
 }
 
 TEST(BoardLegalityTest, RejectsUntrustedNonMoves) {

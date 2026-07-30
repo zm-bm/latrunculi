@@ -104,7 +104,7 @@ void expect_board_consistent(const Board& board) {
 
 Move first_legal_move(const Board& board) {
     for (const Move move : movegen::generate_pseudo_legal(board)) {
-        if (board.is_legal_generated_move(move))
+        if (board.is_legal_pseudo_move(move))
             return move;
     }
     return NULL_MOVE;
@@ -113,7 +113,7 @@ Move first_legal_move(const Board& board) {
 std::vector<Move> legal_moves(const Board& board) {
     std::vector<Move> legal;
     for (const Move move : movegen::generate_pseudo_legal(board)) {
-        if (board.is_legal_generated_move(move))
+        if (board.is_legal_pseudo_move(move))
             legal.push_back(move);
     }
     return legal;

@@ -20,6 +20,7 @@ EvalValue see_initial_gain(const Board& board, Move move) noexcept {
 
 } // namespace
 
+// Precondition: move is a pseudo-legal capture or promotion.
 // Static exchange evaluation. Returns the likely material gain after a sequence
 // of least-valuable recaptures on move.to().
 EvalValue Board::see(Move move) const noexcept {

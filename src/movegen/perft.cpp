@@ -22,7 +22,7 @@ NodeCount perft_impl(Board& board, int depth) {
     auto      movelist = movegen::generate_pseudo_legal(board);
 
     for (auto& move : movelist) {
-        if (!board.is_legal_generated_move(move))
+        if (!board.is_legal_pseudo_move(move))
             continue;
 
         board.make(move);
@@ -58,7 +58,7 @@ PerftResult perft_root(Board& board, int depth) {
     auto movelist = movegen::generate_pseudo_legal(board);
 
     for (auto& move : movelist) {
-        if (!board.is_legal_generated_move(move))
+        if (!board.is_legal_pseudo_move(move))
             continue;
 
         board.make(move);

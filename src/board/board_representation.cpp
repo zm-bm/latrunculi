@@ -59,6 +59,8 @@ Board& Board::operator=(const Board& source) {
     return *this;
 }
 
+// Establish the empty intermediate state used while loading a position. This
+// clears representation and history and does not leave a playable position.
 void Board::clear_position() noexcept {
     for (int color_index = 0; color_index < N_COLORS; ++color_index) {
         for (int piece_index = 0; piece_index < N_PIECETYPES; ++piece_index) {
@@ -80,6 +82,7 @@ void Board::clear_position() noexcept {
     ply_state()  = PlyState{};
 }
 
+// Rebuild the key from the durable representation and active reversible state.
 PositionKey Board::recompute_key() const noexcept {
     PositionKey zkey = 0;
 

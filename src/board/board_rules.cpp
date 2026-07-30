@@ -26,6 +26,42 @@ bool is_king_safe_after_enpassant(const Board& board, Square from, Square target
     return !attackers;
 }
 
+// Precondition: move is pseudo-legal.
+bool is_king_safe_after_move(const Board& board, Move move) noexcept {
+    const Square from = move.from();
+    const Square to   = move.to();
+    const Color  side = board.side_to_move();
+    const Square king = board.king_sq(side);
+
+    // Castling king safety was fully validated as pseudo-legal.
+    if (from == king) {
+        if (move.type() == MOVE_CASTLE)
+            return true;
+
+        Bitboard occupancy = board.occupancy();
+        bb::move(occupancy, from, to);
+        return !board.attacks_to(to, ~side, occupancy);
+    }
+
+    if (move.type() == MOVE_EP)
+        return is_king_safe_after_enpassant(board, from, to);
+
+    const Bitboard checkers = board.checkers();
+    if (checkers) {
+        if (bb::is_many(checkers))
+            return false;
+
+        // A non-king move must capture or interpose against the sole checker.
+        const Square checker = bb::lsb(checkers);
+        if (to != checker && !bb::contains(square::between(king, checker), to))
+            return false;
+    }
+
+    // A pinned piece may move only along the king ray.
+    return !bb::contains(board.blockers(side), from)
+        || bb::contains(square::collinear(from, to), king);
+}
+
 [[gnu::always_inline]] inline Bitboard direct_check_targets(const Board& board,
                                                             PieceType    piece_type) noexcept {
     const Color    opponent      = ~board.side_to_move();
@@ -46,6 +82,8 @@ bool is_king_safe_after_enpassant(const Board& board, Square from, Square target
 
 // Tactical cache maintenance
 
+// Refresh derived active-state caches after representation changes. These
+// functions do not update the position key.
 void Board::refresh_tactical_cache() noexcept {
     auto&          state     = ply_state();
     const Color    side      = side_to_move();
@@ -83,6 +121,8 @@ void Board::refresh_legal_enpassant_target() noexcept {
 
 // Move validation and check detection
 
+// Validates arbitrary move encoding and pseudo-legal movement. Castling path
+// safety is included; other pins and self-check are not.
 bool Board::is_pseudo_legal(Move move) const noexcept {
     if (move.is_null())
         return false;
@@ -178,58 +218,26 @@ bool Board::is_pseudo_legal(Move move) const noexcept {
     return false;
 }
 
-bool Board::is_legal_move(Move move) const noexcept {
-    return is_pseudo_legal(move) && is_legal_pseudo_move(move);
-}
-
-// Full validation is needed only while in check, or for king, en-passant, and pinned-piece moves.
-bool Board::is_legal_generated_move(Move move) const noexcept {
+// Precondition: move is pseudo-legal. Cached tactical state avoids a full
+// king-safety test unless the move can expose or evade check.
+bool Board::is_legal_pseudo_move(Move move) const noexcept {
     assert(is_pseudo_legal(move));
 
     const Square from = move.from();
 
     if (checkers() || from == king_sq(turn) || move.type() == MOVE_EP
         || bb::contains(blockers(turn), from))
-        return is_legal_pseudo_move(move);
+        return is_king_safe_after_move(*this, move);
 
     return true;
 }
 
-bool Board::is_legal_pseudo_move(Move move) const noexcept {
-    assert(is_pseudo_legal(move));
-
-    const Square from = move.from();
-    const Square to   = move.to();
-    const Square king = king_sq(turn);
-
-    // Castling king safety was fully validated as pseudo-legal.
-    if (from == king) {
-        if (move.type() == MOVE_CASTLE)
-            return true;
-
-        Bitboard occupancy = this->occupancy();
-        bb::move(occupancy, from, to);
-        return !attacks_to(to, ~turn, occupancy);
-    }
-
-    if (move.type() == MOVE_EP)
-        return is_king_safe_after_enpassant(*this, from, to);
-
-    const Bitboard checkers_bb = checkers();
-    if (checkers_bb) {
-        if (bb::is_many(checkers_bb))
-            return false;
-
-        // A non-king move must capture or interpose against the sole checker.
-        const Square checker = bb::lsb(checkers_bb);
-        if (to != checker && !bb::contains(square::between(king, checker), to))
-            return false;
-    }
-
-    // A pinned piece may move only along the king ray.
-    return !bb::contains(blockers(turn), from) || bb::contains(square::collinear(from, to), king);
+// Full legality validation for an arbitrary, untrusted move.
+bool Board::is_legal_move(Move move) const noexcept {
+    return is_pseudo_legal(move) && is_legal_pseudo_move(move);
 }
 
+// Precondition: move is pseudo-legal in the current position.
 bool Board::gives_check(Move move) const noexcept {
     const Square from          = move.from();
     const Square to            = move.to();
@@ -278,6 +286,8 @@ bool Board::gives_check(Move move) const noexcept {
 
 // Draw detection
 
+// Checks fifty-move and repetition draws. Pass the current nonnegative search
+// ply, or zero outside search.
 bool Board::is_draw(int ply_from_search_root) const noexcept {
     assert(ply_from_search_root >= 0);
 

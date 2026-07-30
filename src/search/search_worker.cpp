@@ -95,7 +95,7 @@ void SearchWorker::build_root_lines() {
     auto       picker = move_picker::main_search(board, ordering, ctx, 0);
 
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-        if (board.is_legal_generated_move(move))
+        if (board.is_legal_pseudo_move(move))
             root_lines.push_back(RootLine{.root_move = move, .value = -eval_value::inf});
     }
 }

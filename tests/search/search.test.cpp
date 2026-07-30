@@ -72,7 +72,7 @@ protected:
     Move findWorkerMove(const std::string& move_str) {
         auto movelist = movegen::generate_pseudo_legal(worker->board);
         auto move_it  = std::find_if(movelist.begin(), movelist.end(), [&](const Move& move) {
-            return move.str() == move_str && worker->board.is_legal_generated_move(move);
+            return move.str() == move_str && worker->board.is_legal_pseudo_move(move);
         });
         EXPECT_NE(move_it, movelist.end()) << worker->board.to_fen();
         return move_it == movelist.end() ? NULL_MOVE : *move_it;
@@ -214,7 +214,7 @@ protected:
         auto       picker  = move_picker::main_search(
             worker->board, worker->ordering, context, worker->ply, tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-            if (worker->board.is_legal_generated_move(move))
+            if (worker->board.is_legal_pseudo_move(move))
                 return move;
         }
         return NULL_MOVE;
@@ -226,7 +226,7 @@ protected:
         auto              picker  = move_picker::main_search(
             worker->board, worker->ordering, context, worker->ply, tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-            if (worker->board.is_legal_generated_move(move))
+            if (worker->board.is_legal_pseudo_move(move))
                 moves.push_back(move);
         }
         return moves;
@@ -246,9 +246,7 @@ protected:
         });
     }
 
-    bool workerLegalGeneratedMove(Move move) const {
-        return worker->board.is_legal_generated_move(move);
-    }
+    bool workerLegalPseudoMove(Move move) const { return worker->board.is_legal_pseudo_move(move); }
 
     bool workerLegalMove(Move move) const { return worker->board.is_legal_move(move); }
 
@@ -1305,8 +1303,8 @@ TEST_F(SearchTest, AlphaBetaFutilityKeepsCapturesPromotionsAndCheckingMoves) {
     for (const auto& tc : cases) {
         board_test::Harness board{tc.fen};
         loadWorkerBoard(board, search_depth);
-        ASSERT_TRUE(workerLegalGeneratedMove(tc.first)) << tc.fen;
-        ASSERT_TRUE(workerLegalGeneratedMove(tc.candidate)) << tc.fen;
+        ASSERT_TRUE(workerLegalPseudoMove(tc.first)) << tc.fen;
+        ASSERT_TRUE(workerLegalPseudoMove(tc.candidate)) << tc.fen;
 
         const int alpha       = evaluate(board) + 401;
         const int beta        = alpha + 1000;
@@ -2059,7 +2057,7 @@ TEST_F(SearchTest, RootLineListContainsLegalGeneratedRootMoves) {
 
     int legal_move_count = 0;
     for (Move move : movegen::generate_pseudo_legal(board)) {
-        if (board.is_legal_generated_move(move))
+        if (board.is_legal_pseudo_move(move))
             ++legal_move_count;
     }
 
@@ -2068,7 +2066,7 @@ TEST_F(SearchTest, RootLineListContainsLegalGeneratedRootMoves) {
     ASSERT_EQ(rootLines().size(), static_cast<size_t>(legal_move_count));
     for (const RootLine& line : rootLines()) {
         EXPECT_FALSE(line.root_move.is_null());
-        EXPECT_TRUE(board.is_legal_generated_move(line.root_move));
+        EXPECT_TRUE(board.is_legal_pseudo_move(line.root_move));
         EXPECT_FALSE(line.completed);
         EXPECT_EQ(line.depth, 0);
         EXPECT_TRUE(line.pv.empty());
@@ -2293,13 +2291,13 @@ TEST_F(SearchTest, AlphaBetaLmrSkipsTacticalVetoMoves) {
     for (const auto& tc : cases) {
         board_test::Harness board{tc.fen};
         loadWorkerBoard(board, search_depth);
-        ASSERT_TRUE(workerLegalGeneratedMove(tc.tt_move)) << tc.fen;
-        ASSERT_TRUE(workerLegalGeneratedMove(tc.candidate)) << tc.fen;
+        ASSERT_TRUE(workerLegalPseudoMove(tc.tt_move)) << tc.fen;
+        ASSERT_TRUE(workerLegalPseudoMove(tc.candidate)) << tc.fen;
         ASSERT_TRUE(board.gives_check(tc.candidate) || tc.candidate.type() == MOVE_PROM) << tc.fen;
 
         tt.store_search(workerKey(), tc.tt_move, 0, 0, TT_Flag::Exact, workerPly());
         if (!tc.killer_move.is_null()) {
-            ASSERT_TRUE(workerLegalGeneratedMove(tc.killer_move)) << tc.fen;
+            ASSERT_TRUE(workerLegalPseudoMove(tc.killer_move)) << tc.fen;
             ASSERT_TRUE(board.gives_check(tc.killer_move)) << tc.fen;
             seedWorkerKiller(tc.killer_move);
         }

@@ -19,7 +19,7 @@ AllowShortFunctionsOnASingleLine: Inline
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLambdasOnASingleLine: All
 AllowShortLoopsOnASingleLine: false
-AlwaysBreakTemplateDeclarations: Yes
+BreakTemplateDeclarations: Leave
 BinPackArguments: false
 BinPackParameters: false
 BreakBeforeBinaryOperators: NonAssignment
@@ -34,3 +34,4 @@ PointerAlignment: Left
 ReferenceAlignment: Pointer
 SortIncludes:    CaseSensitive
 UseTab:          Never
+RequiresClausePosition: WithPreceding

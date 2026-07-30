@@ -177,7 +177,7 @@ bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta
     for (RootLine& line : root_lines) {
         assert(line.has_root_move());
         const Move root_move = line.root_move;
-        assert(board.is_legal_generated_move(root_move));
+        assert(board.is_legal_pseudo_move(root_move));
 
         ++move_count;
 
@@ -353,7 +353,7 @@ EvalValue SearchWorker::alphabeta(
 
     // Step 8. Move Loop. Search ordered legal moves until cutoff or exhaustion.
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-        if (!board.is_legal_generated_move(move))
+        if (!board.is_legal_pseudo_move(move))
             continue;
 
         ++move_count;
@@ -539,7 +539,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
 
     // Step 5. Tactical Move Loop. Search noisy moves, or all evasions in check.
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-        if (!board.is_legal_generated_move(move))
+        if (!board.is_legal_pseudo_move(move))
             continue;
 
         ++move_count;
