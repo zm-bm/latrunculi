@@ -1,8 +1,9 @@
 #include "movegen/perft.hpp"
 
+#include <array>
 #include <stdexcept>
 #include <string>
-#include <vector>
+#include <string_view>
 
 #include <gtest/gtest.h>
 
@@ -15,41 +16,39 @@ namespace {
 
 // Perft positions and results
 // https://www.chessprogramming.org/Perft_Results
-constexpr int depth_limit = 4;
-
 struct PerftPosition {
-    std::string            fen;
-    std::vector<NodeCount> expected;
+    std::string_view         fen;
+    std::array<NodeCount, 4> expected;
 };
 
-const std::vector<PerftPosition> perft_positions = {
-    {
+constexpr std::array<PerftPosition, 7> perft_positions = {
+    PerftPosition{
         .fen      = board_test::fen::start,
-        .expected = {20, 400, 8902, 197281, 4865609, 119060324},
+        .expected = {20, 400, 8902, 197281},
     },
-    {
+    PerftPosition{
         .fen      = board_test::fen::perft_position_2,
-        .expected = {48, 2039, 97862, 4085603, 193690690, 8031647685},
+        .expected = {48, 2039, 97862, 4085603},
     },
-    {
+    PerftPosition{
         .fen      = board_test::fen::perft_position_3,
-        .expected = {14, 191, 2812, 43238, 674624, 11030083},
+        .expected = {14, 191, 2812, 43238},
     },
-    {
+    PerftPosition{
         .fen      = board_test::fen::perft_position_4_white,
-        .expected = {6, 264, 9467, 422333, 15833292, 706045033},
+        .expected = {6, 264, 9467, 422333},
     },
-    {
+    PerftPosition{
         .fen      = board_test::fen::perft_position_4_black,
-        .expected = {6, 264, 9467, 422333, 15833292, 706045033},
+        .expected = {6, 264, 9467, 422333},
     },
-    {
+    PerftPosition{
         .fen      = board_test::fen::perft_position_5,
-        .expected = {44, 1486, 62379, 2103487, 89941194},
+        .expected = {44, 1486, 62379, 2103487},
     },
-    {
+    PerftPosition{
         .fen      = board_test::fen::perft_position_6,
-        .expected = {46, 2079, 89890, 3894594, 164075551, 6923051137},
+        .expected = {46, 2079, 89890, 3894594},
     },
 };
 
@@ -60,11 +59,9 @@ TEST(PerftTest, ChessProgrammingPositionsMatchExpectedDepths) {
         Board board(position.fen);
 
         for (int depth = 1; depth <= static_cast<int>(position.expected.size()); ++depth) {
-            if (depth > depth_limit)
-                break;
-
             const NodeCount result = perft(board, depth);
-            EXPECT_EQ(result, position.expected[depth - 1]) << "Failed at depth " << depth;
+            EXPECT_EQ(result, position.expected[depth - 1])
+                << position.fen << " at depth " << depth;
         }
     }
 }

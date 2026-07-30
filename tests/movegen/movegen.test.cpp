@@ -1,6 +1,7 @@
 #include "movegen/movegen.hpp"
 
 #include <algorithm>
+#include <array>
 #include <iterator>
 #include <string_view>
 #include <vector>
@@ -40,18 +41,6 @@ std::vector<MoveBits> sorted_union(std::vector<MoveBits> lhs, const std::vector<
 
 } // namespace
 
-TEST(MoveGenTest, NonEvasions) {
-    Board board{board_test::fen::start};
-    auto  movelist = movegen::generate_non_evasions(board);
-    EXPECT_EQ(movelist.size(), 20);
-}
-
-TEST(MoveGenTest, Noisy) {
-    Board board{board_test::fen::perft_position_2};
-    auto  movelist = movegen::generate_noisy(board);
-    EXPECT_EQ(movelist.size(), 8);
-}
-
 TEST(MoveGenTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
     Board quiet_board{board_test::fen::start};
     EXPECT_EQ(sorted_move_bits(movegen::generate_pseudo_legal(quiet_board)),
@@ -63,8 +52,30 @@ TEST(MoveGenTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
               sorted_move_bits(movegen::generate_evasions(evasion_board)));
 }
 
-TEST(MoveGenTest, NoisyAndQuietPartitionNonEvasions) {
-    const std::vector<std::string_view> fens = {
+TEST(MoveGenTest, EnPassantCanInterposeAgainstSliderCheck) {
+    struct TestCase {
+        std::string_view fen;
+        Move             move;
+    };
+
+    constexpr std::array cases = {
+        TestCase{"7k/2K5/8/2Ppb3/8/8/8/8 w - d6 0 1", Move(C5, D6, MOVE_EP)},
+        TestCase{"8/8/8/8/2pPB3/8/2k5/7K b - d3 0 1", Move(C4, D3, MOVE_EP)},
+    };
+
+    for (const auto& test : cases) {
+        Board board{test.fen};
+        ASSERT_TRUE(board.is_check()) << test.fen;
+        ASSERT_TRUE(board.is_legal_move(test.move)) << test.fen;
+
+        const MoveList evasions = movegen::generate_evasions(board);
+        EXPECT_NE(std::find(evasions.begin(), evasions.end(), test.move), evasions.end())
+            << test.fen;
+    }
+}
+
+TEST(MoveGenTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
+    constexpr std::array fens = {
         board_test::fen::start,
         board_test::fen::perft_position_2,
         board_test::fen::legal_en_passant_a3,
@@ -86,45 +97,25 @@ TEST(MoveGenTest, NoisyAndQuietPartitionNonEvasions) {
         EXPECT_FALSE(has_duplicates(quiet)) << fen;
         EXPECT_TRUE(are_disjoint(noisy, quiet)) << fen;
         EXPECT_EQ(non_evasions, sorted_union(noisy, quiet)) << fen;
-    }
-}
-
-TEST(MoveGenTest, NoisyMovesAreCapturesEnPassantOrPromotions) {
-    const std::vector<std::string_view> fens = {
-        board_test::fen::perft_position_2,
-        board_test::fen::legal_en_passant_a3,
-        board_test::fen::promotion_options,
-        board_test::fen::capture_promotion,
-    };
-
-    for (const std::string_view fen : fens) {
-        Board board{fen};
-        ASSERT_FALSE(board.is_check()) << fen;
 
         for (const Move& move : movegen::generate_noisy(board)) {
             EXPECT_TRUE(move.type() == MOVE_PROM || board.is_capture(move))
                 << move << " in " << fen;
         }
-    }
-}
-
-TEST(MoveGenTest, QuietMovesExcludeCapturesAndPromotions) {
-    const std::vector<std::string_view> fens = {
-        board_test::fen::start,
-        board_test::fen::perft_position_2,
-        board_test::fen::legal_en_passant_a3,
-        board_test::fen::promotion_options,
-        board_test::fen::capture_promotion,
-        board_test::fen::castling,
-    };
-
-    for (const std::string_view fen : fens) {
-        Board board{fen};
-        ASSERT_FALSE(board.is_check()) << fen;
 
         for (const Move& move : movegen::generate_quiet(board)) {
             EXPECT_NE(move.type(), MOVE_PROM) << move << " in " << fen;
             EXPECT_FALSE(board.is_capture(move)) << move << " in " << fen;
         }
     }
+}
+
+TEST(MoveGenTest, DoubleCheckEvasionsContainOnlyKingMoves) {
+    Board board{"R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
+    ASSERT_TRUE(board.is_double_check());
+
+    const MoveList evasions = movegen::generate_evasions(board);
+    ASSERT_FALSE(evasions.empty());
+    for (const Move move : evasions)
+        EXPECT_EQ(move.from(), E8) << move;
 }
