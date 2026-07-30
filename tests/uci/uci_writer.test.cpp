@@ -5,9 +5,9 @@
 
 #include <gtest/gtest.h>
 
+#include "board/board.hpp"
 #include "search/root_line.hpp"
 #include "support/board_fixtures.hpp"
-#include "support/board_harness.hpp"
 
 namespace {
 
@@ -99,7 +99,7 @@ TEST_F(UciWriterTest, SearchProgressWritesScoreFormats) {
         {.value = -(eval_value::mate - 4), .expected_score = "score mate -2"},
     };
 
-    board_test::Harness board{board_test::fen::start};
+    Board board{board_test::fen::start};
     for (const ScoreCase& test_case : cases) {
         RootLine line{
             .root_move = Move{E2, E4},
@@ -119,13 +119,13 @@ TEST_F(UciWriterTest, SearchProgressWritesScoreFormats) {
 }
 
 TEST_F(UciWriterTest, SearchProgressSerializesLegalRootPv) {
-    board_test::Harness board{board_test::fen::start};
-    RootLine            line{
-                   .root_move = Move{E2, E4},
-                   .value     = 20,
-                   .depth     = 2,
-                   .completed = true,
-                   .pv        = pv_for_line(Move{E2, E4}, Move{E7, E5}),
+    Board    board{board_test::fen::start};
+    RootLine line{
+        .root_move = Move{E2, E4},
+        .value     = 20,
+        .depth     = 2,
+        .completed = true,
+        .pv        = pv_for_line(Move{E2, E4}, Move{E7, E5}),
     };
 
     EXPECT_EQ(write_search_info(line, board, 1234, Milliseconds{56}),
@@ -133,7 +133,7 @@ TEST_F(UciWriterTest, SearchProgressSerializesLegalRootPv) {
 }
 
 TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
-    board_test::Harness board{board_test::fen::start};
+    Board board{board_test::fen::start};
 
     RootLine null_best{
         .root_move = NULL_MOVE,
@@ -166,7 +166,7 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
 }
 
 TEST_F(UciWriterTest, SearchProgressRejectsStaleRootPv) {
-    board_test::Harness board{board_test::fen::start};
+    Board board{board_test::fen::start};
 
     RootLine first_move_mismatch{
         .root_move = Move{E2, E4},

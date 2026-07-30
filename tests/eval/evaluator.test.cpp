@@ -9,28 +9,27 @@
 #include "eval/eval.hpp"
 #include "eval/tapered_score.hpp"
 #include "support/board_fixtures.hpp"
-#include "support/board_harness.hpp"
 
 class EvaluatorTest : public ::testing::Test {
 protected:
     void test_outpost_zone(std::string fen, Bitboard w_expected, Bitboard b_expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         EXPECT_EQ(e.zones.outposts[WHITE], w_expected) << fen;
         EXPECT_EQ(e.zones.outposts[BLACK], b_expected) << fen;
     }
 
     void test_mobility_zone(std::string fen, Bitboard w_expected, Bitboard b_expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         EXPECT_EQ(e.zones.mobility[WHITE], w_expected) << fen;
         EXPECT_EQ(e.zones.mobility[BLACK], b_expected) << fen;
     }
 
     void
     test_mobility_score(const std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         e.evaluate();
         EXPECT_EQ(e.scores.mobility[WHITE], w_expected) << fen;
         EXPECT_EQ(e.scores.mobility[BLACK], b_expected) << fen;
@@ -39,7 +38,7 @@ protected:
     template <Color C, PieceType P>
     Bitboard test_piece_moves(const std::string& fen, Square sq) {
         constexpr Color         Opp = ~C;
-        board_test::Harness     board(fen);
+        Board                   board(fen);
         Evaluator               e(board);
         Evaluator::PieceContext ctx{.square    = sq,
                                     .piece_bb  = bb::set(sq),
@@ -51,41 +50,41 @@ protected:
 
     void
     test_threat_score(const std::string& fen, TaperedScore w_expected, TaperedScore b_expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         e.evaluate();
         EXPECT_EQ(e.scores.threats[WHITE], w_expected) << fen;
         EXPECT_EQ(e.scores.threats[BLACK], b_expected) << fen;
     }
 
     void test_evaluate_pawns(std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         EXPECT_EQ(e.evaluate_pawns<WHITE>(), w_expected) << fen;
         EXPECT_EQ(e.evaluate_pawns<BLACK>(), b_expected) << fen;
     }
 
     template <PieceType p>
     void test_evaluate_pieces(std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
-        TaperedScore        w_score = e.evaluate_pieces<WHITE, p>();
-        TaperedScore        b_score = e.evaluate_pieces<BLACK, p>();
+        Board        board(fen);
+        Evaluator    e(board);
+        TaperedScore w_score = e.evaluate_pieces<WHITE, p>();
+        TaperedScore b_score = e.evaluate_pieces<BLACK, p>();
         EXPECT_EQ(w_score, w_expected) << fen;
         EXPECT_EQ(b_score, b_expected) << fen;
     }
 
     void test_king_safety(std::string fen, TaperedScore expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         e.evaluate();
         EXPECT_EQ(e.evaluate_king_safety<WHITE>(), expected) << fen;
         EXPECT_EQ(e.evaluate_king_safety<BLACK>(), expected) << fen;
     }
 
     void test_shelter(std::string fen, TaperedScore w_expected, TaperedScore b_expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         EXPECT_EQ(e.evaluate_shelter<WHITE>(board.king_sq(WHITE)), w_expected) << fen;
         EXPECT_EQ(e.evaluate_shelter<BLACK>(board.king_sq(BLACK)), b_expected) << fen;
     }
@@ -94,43 +93,43 @@ protected:
                            TaperedScore w_expected,
                            TaperedScore b_expected,
                            File         file) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
-        Bitboard            w_pawns = board.pieces<PAWN>(WHITE);
-        Bitboard            b_pawns = board.pieces<PAWN>(BLACK);
+        Board     board(fen);
+        Evaluator e(board);
+        Bitboard  w_pawns = board.pieces<PAWN>(WHITE);
+        Bitboard  b_pawns = board.pieces<PAWN>(BLACK);
         EXPECT_EQ(e.evaluate_shelter_file<WHITE>(w_pawns, b_pawns, file), w_expected) << fen;
         EXPECT_EQ(e.evaluate_shelter_file<BLACK>(b_pawns, w_pawns, file), b_expected) << fen;
     }
 
     void test_raw_danger(std::string fen, int w_expected, int b_expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         e.evaluate();
         EXPECT_EQ(e.calculate_raw_danger<WHITE>(board.king_sq(WHITE)), w_expected) << fen;
         EXPECT_EQ(e.calculate_raw_danger<BLACK>(board.king_sq(BLACK)), b_expected) << fen;
     }
 
     void test_phase(std::string fen, int expected, int tolerance) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         EXPECT_LE(std::abs(e.phase() - expected), tolerance) << fen;
     }
 
     void test_scale_factor(std::string fen, int expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         EXPECT_EQ(e.scale_factor(board.side_to_move()), expected) << fen;
     }
 
     void test_taper_score(std::string fen, TaperedScore score, int expected) {
-        board_test::Harness board(fen);
-        Evaluator           e(board);
+        Board     board(fen);
+        Evaluator e(board);
         EXPECT_EQ(e.taper_score(score), expected) << fen;
     }
 
     std::string debug_output(const std::string& fen) {
-        board_test::Harness board(fen);
-        EvaluatorDebug      debug(board);
+        Board          board(fen);
+        EvaluatorDebug debug(board);
         debug.evaluate();
         return std::format("{}", debug);
     }
@@ -143,7 +142,7 @@ TEST_F(EvaluatorTest, Evaluate) {
     };
 
     for (const auto& [fen, expected] : test_cases) {
-        board_test::Harness board(fen);
+        Board board(fen);
         EXPECT_EQ(evaluate(board), expected + eval::tempo_bonus) << fen;
         board.make_null();
         EXPECT_EQ(evaluate(board), expected + eval::tempo_bonus) << fen;
@@ -151,8 +150,8 @@ TEST_F(EvaluatorTest, Evaluate) {
 }
 
 TEST_F(EvaluatorTest, SideToMoveOnlyChangesPerspectiveAndTempo) {
-    board_test::Harness white_to_move(board_test::fen::white_pawn_e2);
-    board_test::Harness black_to_move("4k3/8/8/8/8/8/4P3/4K3 b - - 0 1");
+    Board white_to_move(board_test::fen::white_pawn_e2);
+    Board black_to_move("4k3/8/8/8/8/8/4P3/4K3 b - - 0 1");
 
     const int white_eval = evaluate(white_to_move);
     const int black_eval = evaluate(black_to_move);
@@ -163,7 +162,7 @@ TEST_F(EvaluatorTest, SideToMoveOnlyChangesPerspectiveAndTempo) {
 }
 
 TEST_F(EvaluatorTest, NullMoveOnlyChangesPerspectiveAndTempo) {
-    board_test::Harness board(board_test::fen::white_pawn_e2);
+    Board board(board_test::fen::white_pawn_e2);
 
     const int white_eval = evaluate(board);
     board.make_null();

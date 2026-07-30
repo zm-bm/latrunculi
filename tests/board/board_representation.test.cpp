@@ -2,84 +2,56 @@
 
 #include <gtest/gtest.h>
 
-#include <array>
 #include <string_view>
+#include <type_traits>
 
+#include "core/constants.hpp"
 #include "support/board_fixtures.hpp"
-#include "support/board_harness.hpp"
 #include "support/board_snapshot.hpp"
 
-TEST(BoardRepresentationTest, KingsOnlyPositionEncoding) {
-    board_test::Harness board(board_test::fen::kings_only);
+namespace {
 
-    EXPECT_EQ(board.side_to_move(), WHITE);
-    EXPECT_EQ(board.occupancy(), bb::set(E1, E8));
-    EXPECT_EQ(board.king_sq(WHITE), E1);
-    EXPECT_EQ(board.king_sq(BLACK), E8);
-    EXPECT_EQ(board.piece_on(E1), W_KING);
-    EXPECT_EQ(board.piece_on(E8), B_KING);
-    EXPECT_EQ(board.piece_on(E2), NO_PIECE);
-
-    for (const Color color : {BLACK, WHITE}) {
-        EXPECT_EQ(board.pieces<KING>(color), bb::set(board.king_sq(color)));
-        EXPECT_EQ(board.count(color, KING), 1);
-        for (int p = PAWN; p < KING; ++p) {
-            EXPECT_EQ(board_test::piece_bits(board, color, PieceType(p)), 0) << PieceType(p);
-            EXPECT_EQ(board.count(color, PieceType(p)), 0) << PieceType(p);
-        }
-    }
-
-    EXPECT_EQ(board.material_score(), TaperedScore::Zero);
-    EXPECT_EQ(board.psq_bonus_score(), TaperedScore::Zero);
-    EXPECT_EQ(board.castling_rights(), NO_CASTLE);
-    EXPECT_EQ(board.checkers(), 0);
-    EXPECT_EQ(board.blockers(WHITE), 0);
-    EXPECT_EQ(board.blockers(BLACK), 0);
-    EXPECT_EQ(board.enpassant_target(), INVALID);
-    EXPECT_EQ(board.key(), board.recompute_key());
+void complete_repetition_cycle(Board& board) {
+    board.make(Move(E6, F5));
+    board.make(Move(H7, G8));
+    board.make(Move(F5, E6));
+    board.make(Move(G8, H7));
 }
 
-TEST(BoardRepresentationTest, StartPositionEncoding) {
-    board_test::Harness board(board_test::fen::start);
+void build_long_history(Board& board) {
+    constexpr int null_moves_per_segment = 200;
 
-    EXPECT_EQ(board.side_to_move(), WHITE);
-    EXPECT_EQ(board.king_sq(WHITE), E1);
-    EXPECT_EQ(board.king_sq(BLACK), E8);
-    EXPECT_EQ(board.pieces<PAWN>(WHITE), bb::rank(RANK2));
-    EXPECT_EQ(board.pieces<PAWN>(BLACK), bb::rank(RANK7));
-    EXPECT_EQ(board.pieces<KNIGHT>(WHITE), bb::set(B1, G1));
-    EXPECT_EQ(board.pieces<KNIGHT>(BLACK), bb::set(B8, G8));
-    EXPECT_EQ(board.pieces<BISHOP>(WHITE), bb::set(C1, F1));
-    EXPECT_EQ(board.pieces<BISHOP>(BLACK), bb::set(C8, F8));
-    EXPECT_EQ(board.pieces<ROOK>(WHITE), bb::set(A1, H1));
-    EXPECT_EQ(board.pieces<ROOK>(BLACK), bb::set(A8, H8));
-    EXPECT_EQ(board.pieces<QUEEN>(WHITE), bb::set(D1));
-    EXPECT_EQ(board.pieces<QUEEN>(BLACK), bb::set(D8));
-    EXPECT_EQ(board.pieces<KING>(WHITE), bb::set(E1));
-    EXPECT_EQ(board.pieces<KING>(BLACK), bb::set(E8));
-    EXPECT_EQ(board.occupancy(),
-              bb::rank(RANK1) | bb::rank(RANK2) | bb::rank(RANK7) | bb::rank(RANK8));
+    for (int ply = 0; ply < null_moves_per_segment; ++ply)
+        board.make_null();
+    board.make(Move(E2, E4));
 
-    constexpr std::array<std::uint8_t, N_PIECETYPES> expected_counts = {0, 8, 2, 2, 2, 1, 1};
-    for (const Color color : {BLACK, WHITE}) {
-        for (int p = PAWN; p <= KING; ++p)
-            EXPECT_EQ(board.count(color, PieceType(p)), expected_counts[p]) << PieceType(p);
-    }
+    for (int ply = 0; ply < null_moves_per_segment; ++ply)
+        board.make_null();
+    board.make(Move(E7, E5));
 
-    EXPECT_EQ(board.piece_on(A2), W_PAWN);
-    EXPECT_EQ(board.piece_on(F6), NO_PIECE);
-    EXPECT_EQ(board.piece_type_on(A2), PAWN);
-    EXPECT_EQ(board.piece_type_on(A3), NO_PIECETYPE);
-    EXPECT_EQ(board.material_score(), TaperedScore::Zero);
-    EXPECT_EQ(board.psq_bonus_score(), TaperedScore::Zero);
-    EXPECT_EQ(board.castling_rights(), ALL_CASTLE);
-    EXPECT_EQ(board.checkers(), 0);
-    EXPECT_EQ(board.enpassant_target(), INVALID);
-    EXPECT_EQ(board.key(), board.recompute_key());
+    for (int ply = 0; ply < null_moves_per_segment; ++ply)
+        board.make_null();
+    board.make(Move(G2, G4));
 }
 
-TEST(BoardRepresentationTest, AsymmetricPositionEncoding) {
-    board_test::Harness board(board_test::fen::perft_position_4_black);
+void unwind_history(Board& board) {
+    while (board.can_unmake()) {
+        if (board.previous_move().is_null())
+            board.unmake_null();
+        else
+            board.unmake();
+    }
+}
+
+} // namespace
+
+static_assert(std::is_copy_constructible_v<Board>);
+static_assert(std::is_copy_assignable_v<Board>);
+static_assert(!std::is_move_constructible_v<Board>);
+static_assert(!std::is_move_assignable_v<Board>);
+
+TEST(BoardRepresentationTest, LoadsRepresentativePositionState) {
+    Board board(board_test::fen::perft_position_4_black);
 
     EXPECT_EQ(board.side_to_move(), BLACK);
     EXPECT_EQ(board.king_sq(WHITE), E1);
@@ -98,34 +70,81 @@ TEST(BoardRepresentationTest, AsymmetricPositionEncoding) {
 }
 
 TEST(BoardRepresentationTest, MaterialAndPsqtMatchExpectedValues) {
-    board_test::Harness board("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1");
+    Board board("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1");
 
     EXPECT_EQ(board.material_score(), eval::piece(QUEEN, WHITE) + eval::piece(ROOK, BLACK));
     EXPECT_EQ(board.psq_bonus_score(),
               eval::piece_sq(QUEEN, WHITE, D1) + eval::piece_sq(ROOK, BLACK, D8));
 }
 
-TEST(BoardRepresentationTest, NonPawnMaterialUsesPieceCounts) {
-    struct TestCase {
-        std::string_view fen;
-        Color            color;
-        int              expected;
-    };
+TEST(BoardCopyTest, SourceAndDestinationRemainIndependent) {
+    Board      source(board_test::fen::perft_position_2);
+    const auto root = board_test::snapshot_board(source);
 
-    constexpr int start_material = 2 * piece_value::knight_mg + 2 * piece_value::bishop_mg
-                                 + 2 * piece_value::rook_mg + piece_value::queen_mg;
-    constexpr TestCase test_cases[] = {
-        {board_test::fen::kings_only, WHITE, 0},
-        {board_test::fen::kings_only, BLACK, 0},
-        {board_test::fen::start, WHITE, start_material},
-        {board_test::fen::start, BLACK, start_material},
-        {"4k3/8/8/8/8/8/8/4K1NR w K - 0 1", WHITE, piece_value::knight_mg + piece_value::rook_mg},
-        {"4k1nr/8/8/8/8/8/8/4K3 w k - 0 1", BLACK, piece_value::knight_mg + piece_value::rook_mg},
-    };
+    Board destination(source);
 
-    for (const auto& test : test_cases) {
-        SCOPED_TRACE(test.fen);
-        board_test::Harness board(test.fen);
-        EXPECT_EQ(board.non_pawn_material(test.color), test.expected);
-    }
+    destination.make(Move(E1, G1, MOVE_CASTLE));
+    board_test::expect_same_board_snapshot(source, root);
+    destination.unmake();
+    board_test::expect_same_board_snapshot(destination, root);
+
+    source.make(Move(E1, C1, MOVE_CASTLE));
+    board_test::expect_same_board_snapshot(destination, root);
+    source.unmake();
+    board_test::expect_same_board_snapshot(source, root);
+}
+
+TEST(BoardCopyTest, ReplacesRepetitionHistoryWhenDestinationIsReused) {
+    Board repeated(board_test::fen::repetition_cycle);
+    complete_repetition_cycle(repeated);
+    complete_repetition_cycle(repeated);
+    repeated.make(Move(E6, F5));
+    ASSERT_TRUE(repeated.is_draw());
+    const auto repeated_snapshot = board_test::snapshot_board(repeated);
+
+    Board fen_only(repeated.to_fen());
+    EXPECT_FALSE(fen_only.is_draw());
+    const auto fen_snapshot = board_test::snapshot_board(fen_only);
+
+    Board destination;
+
+    destination = repeated;
+    EXPECT_TRUE(destination.is_draw());
+    board_test::expect_same_board_snapshot(destination, repeated_snapshot);
+
+    destination = fen_only;
+    EXPECT_FALSE(destination.is_draw());
+    board_test::expect_same_board_snapshot(destination, fen_snapshot);
+
+    destination = repeated;
+    EXPECT_TRUE(destination.is_draw());
+    board_test::expect_same_board_snapshot(destination, repeated_snapshot);
+}
+
+TEST(BoardCopyTest, CopiesAndUnwindsHistoryAcrossTheGrowthBoundary) {
+    Board      source(board_test::fen::start);
+    const auto initial = board_test::snapshot_board(source);
+    build_long_history(source);
+    const auto root = board_test::snapshot_board(source);
+
+    Board destination;
+    for (int ply = 0; ply < engine::max_search_ply + 8; ++ply)
+        destination.make_null();
+
+    destination = source;
+    for (int ply = 0; ply < engine::max_search_ply; ++ply)
+        destination.make_null();
+    for (int ply = engine::max_search_ply; ply > 0; --ply)
+        destination.unmake_null();
+
+    board_test::expect_same_board_snapshot(destination, root);
+    EXPECT_EQ(destination.key(), destination.recompute_key());
+
+    unwind_history(destination);
+    board_test::expect_same_board_snapshot(destination, initial);
+
+    board_test::expect_same_board_snapshot(source, root);
+    unwind_history(source);
+    board_test::expect_same_board_snapshot(source, initial);
+    EXPECT_EQ(source.key(), source.recompute_key());
 }

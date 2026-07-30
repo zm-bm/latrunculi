@@ -24,21 +24,16 @@ inline Bitboard piece_bits(const Board& board, Color color, PieceType piece) {
 
 struct BoardSnapshot {
     std::string                                                  fen;
-    Color                                                        side_to_move;
-    CastlingRights                                               castling_rights;
-    Square                                                       enpassant_target;
     Square                                                       legal_enpassant_target;
-    std::uint8_t                                                 halfmove_clock;
-    int                                                          fullmove_number;
     PositionKey                                                  key;
     Move                                                         previous_move;
+    bool                                                         can_unmake;
     Bitboard                                                     occupancy;
     Bitboard                                                     checkers;
     std::array<Bitboard, N_COLORS>                               blockers{};
     std::array<Square, N_COLORS>                                 kings{};
     TaperedScore                                                 material;
     TaperedScore                                                 psq_bonus;
-    std::array<Piece, N_SQUARES>                                 squares{};
     std::array<std::array<Bitboard, N_PIECETYPES>, N_COLORS>     piece_bb{};
     std::array<std::array<std::uint8_t, N_PIECETYPES>, N_COLORS> counts{};
 };
@@ -47,14 +42,10 @@ inline BoardSnapshot snapshot_board(const Board& board) {
     BoardSnapshot snapshot{};
 
     snapshot.fen                    = board.to_fen();
-    snapshot.side_to_move           = board.side_to_move();
-    snapshot.castling_rights        = board.castling_rights();
-    snapshot.enpassant_target       = board.enpassant_target();
     snapshot.legal_enpassant_target = board.legal_enpassant_target();
-    snapshot.halfmove_clock         = board.halfmove_clock();
-    snapshot.fullmove_number        = board.fullmove_number();
     snapshot.key                    = board.key();
     snapshot.previous_move          = board.previous_move();
+    snapshot.can_unmake             = board.can_unmake();
     snapshot.occupancy              = board.occupancy();
     snapshot.checkers               = board.checkers();
     snapshot.material               = board.material_score();
@@ -72,23 +63,24 @@ inline BoardSnapshot snapshot_board(const Board& board) {
         }
     }
 
-    for (auto sq = A1; sq != INVALID; ++sq)
-        snapshot.squares[sq] = board.piece_on(sq);
-
     return snapshot;
 }
 
-inline void expect_same_durable_representation(const Board& board, const BoardSnapshot& expected) {
+inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& expected) {
+    EXPECT_EQ(board.to_fen(), expected.fen);
+    EXPECT_EQ(board.legal_enpassant_target(), expected.legal_enpassant_target);
+    EXPECT_EQ(board.key(), expected.key);
+    EXPECT_EQ(board.previous_move(), expected.previous_move);
+    EXPECT_EQ(board.can_unmake(), expected.can_unmake);
     EXPECT_EQ(board.occupancy(), expected.occupancy);
+    EXPECT_EQ(board.checkers(), expected.checkers);
     EXPECT_EQ(board.material_score(), expected.material);
     EXPECT_EQ(board.psq_bonus_score(), expected.psq_bonus);
-
-    for (auto sq = A1; sq != INVALID; ++sq)
-        EXPECT_EQ(board.piece_on(sq), expected.squares[sq]) << sq;
 
     for (int c = BLACK; c < N_COLORS; ++c) {
         const auto color = Color(c);
         EXPECT_EQ(board.king_sq(color), expected.kings[c]);
+        EXPECT_EQ(board.blockers(color), expected.blockers[c]);
         EXPECT_EQ(board.pieces(color), expected.piece_bb[c][all_pieces_slot])
             << "color " << c << " all pieces";
 
@@ -99,24 +91,6 @@ inline void expect_same_durable_representation(const Board& board, const BoardSn
                 << "color " << c << " piece " << p;
         }
     }
-}
-
-inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& expected) {
-    expect_same_durable_representation(board, expected);
-
-    EXPECT_EQ(board.to_fen(), expected.fen);
-    EXPECT_EQ(board.side_to_move(), expected.side_to_move);
-    EXPECT_EQ(board.castling_rights(), expected.castling_rights);
-    EXPECT_EQ(board.enpassant_target(), expected.enpassant_target);
-    EXPECT_EQ(board.legal_enpassant_target(), expected.legal_enpassant_target);
-    EXPECT_EQ(board.halfmove_clock(), expected.halfmove_clock);
-    EXPECT_EQ(board.fullmove_number(), expected.fullmove_number);
-    EXPECT_EQ(board.key(), expected.key);
-    EXPECT_EQ(board.previous_move(), expected.previous_move);
-    EXPECT_EQ(board.checkers(), expected.checkers);
-
-    for (int c = BLACK; c < N_COLORS; ++c)
-        EXPECT_EQ(board.blockers(Color(c)), expected.blockers[c]);
 }
 
 } // namespace board_test

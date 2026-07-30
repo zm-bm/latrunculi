@@ -7,10 +7,10 @@
 #include <sstream>
 #include <thread>
 
+#include "board/board.hpp"
 #include "search/search_limits.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
-#include "support/board_harness.hpp"
 #include "support/thread_test_access.hpp"
 #include "uci/uci_writer.hpp"
 
@@ -51,11 +51,11 @@ protected:
 
 class ThreadPoolTest : public ::testing::Test {
 protected:
-    std::ostringstream  oss;
-    uci::Writer         writer{oss, oss};
-    ThreadPool          pool{THREAD_COUNT, writer};
-    board_test::Harness board{board_test::fen::start};
-    SearchLimits        options{default_limits()};
+    std::ostringstream oss;
+    uci::Writer        writer{oss, oss};
+    ThreadPool         pool{THREAD_COUNT, writer};
+    Board              board{board_test::fen::start};
+    SearchLimits       options{default_limits()};
 
     NodeCount nodes_searched() const { return pool.nodes_searched(); }
 
@@ -111,8 +111,8 @@ protected:
 } // namespace
 
 TEST_F(ThreadLifecycleTest, ThreadShutsDownCorrectly) {
-    board_test::Harness board{board_test::fen::start};
-    SearchLimits        options = default_limits();
+    Board        board{board_test::fen::start};
+    SearchLimits options = default_limits();
 
     ThreadTestAccess::start_search(test_thread(), board, options);
     ASSERT_TRUE(wait_for_worker_running());
@@ -123,8 +123,8 @@ TEST_F(ThreadLifecycleTest, ThreadShutsDownCorrectly) {
 }
 
 TEST_F(ThreadLifecycleTest, ThreadStopsSearchCorrectly) {
-    board_test::Harness board{board_test::fen::start};
-    SearchLimits        options = default_limits();
+    Board        board{board_test::fen::start};
+    SearchLimits options = default_limits();
 
     ThreadTestAccess::start_search(test_thread(), board, options);
     ASSERT_TRUE(wait_for_worker_running());
@@ -136,10 +136,10 @@ TEST_F(ThreadLifecycleTest, ThreadStopsSearchCorrectly) {
 }
 
 TEST_F(ThreadLifecycleTest, ThreadHandlesMultipleSearches) {
-    board_test::Harness board1{board_test::fen::start};
-    board_test::Harness board2{board_test::fen::kings_only};
-    SearchLimits        options1 = default_limits();
-    SearchLimits        options2 = default_limits();
+    Board        board1{board_test::fen::start};
+    Board        board2{board_test::fen::kings_only};
+    SearchLimits options1 = default_limits();
+    SearchLimits options2 = default_limits();
 
     ThreadTestAccess::start_search(test_thread(), board1, options1);
     ThreadTestAccess::request_stop(test_thread());

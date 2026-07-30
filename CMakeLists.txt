@@ -59,17 +59,13 @@ if(BUILD_TESTING)
     set(LATRUNCULI_TEST_SOURCES
         tests/core/attacks.test.cpp
         tests/core/attacks_magic.test.cpp
-        tests/board/board_draw.test.cpp
         tests/board/board_fen.test.cpp
-        tests/board/board_format.test.cpp
-        tests/board/board_invariants.test.cpp
-        tests/board/board_legality.test.cpp
-        tests/board/board_move_application.test.cpp
-        tests/board/san.test.cpp
+        tests/board/board_move.test.cpp
         tests/board/board_representation.test.cpp
-        tests/board/board_copy.test.cpp
+        tests/board/board_rules.test.cpp
         tests/board/board_see.test.cpp
         tests/board/fen_parser.test.cpp
+        tests/board/notation.test.cpp
         tests/core/bitboard.test.cpp
         tests/core/move.test.cpp
         tests/core/move_geometry.test.cpp

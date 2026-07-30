@@ -6,9 +6,9 @@
 
 #include <gtest/gtest.h>
 
+#include "board/board.hpp"
 #include "core/constants.hpp"
 #include "support/board_fixtures.hpp"
-#include "support/board_harness.hpp"
 #include "support/board_snapshot.hpp"
 
 namespace {
@@ -57,7 +57,7 @@ const std::vector<PerftPosition> perft_positions = {
 
 TEST(PerftTest, ChessProgrammingPositionsMatchExpectedDepths) {
     for (const auto& position : perft_positions) {
-        board_test::Harness board(position.fen);
+        Board board(position.fen);
 
         for (int depth = 1; depth <= static_cast<int>(position.expected.size()); ++depth) {
             if (depth > depth_limit)
@@ -70,14 +70,14 @@ TEST(PerftTest, ChessProgrammingPositionsMatchExpectedDepths) {
 }
 
 TEST(PerftTest, DepthZeroReturnsOne) {
-    board_test::Harness board(board_test::fen::start);
+    Board board(board_test::fen::start);
 
     EXPECT_EQ(perft(board, 0), 1U);
     EXPECT_EQ(format_perft_result(perft_root(board, 0)), "NODES: 1\n");
 }
 
 TEST(PerftTest, RootReturnsMoveBreakdown) {
-    board_test::Harness board(board_test::fen::start);
+    Board board(board_test::fen::start);
 
     const PerftResult result = perft_root(board, 1);
 
@@ -91,7 +91,7 @@ TEST(PerftTest, RootReturnsMoveBreakdown) {
 }
 
 TEST(PerftTest, RejectsInvalidDepths) {
-    board_test::Harness board(board_test::fen::start);
+    Board board(board_test::fen::start);
 
     EXPECT_THROW(perft(board, -1), std::invalid_argument);
     EXPECT_THROW(perft_root(board, -1), std::invalid_argument);
@@ -100,14 +100,14 @@ TEST(PerftTest, RejectsInvalidDepths) {
 }
 
 TEST(PerftTest, RestoresBoardState) {
-    board_test::Harness board(board_test::fen::perft_position_2);
-    const auto          original = board_test::snapshot_board(board);
+    Board      board(board_test::fen::perft_position_2);
+    const auto original = board_test::snapshot_board(board);
 
     EXPECT_GT(perft(board, 2), 0U);
     board_test::expect_same_board_snapshot(board, original);
 
-    board_test::Harness root_board(board_test::fen::perft_position_2);
-    const auto          original_root = board_test::snapshot_board(root_board);
+    Board      root_board(board_test::fen::perft_position_2);
+    const auto original_root = board_test::snapshot_board(root_board);
 
     const PerftResult result = perft_root(root_board, 2);
     EXPECT_GT(result.nodes, 0U);

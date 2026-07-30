@@ -6,9 +6,9 @@
 #include <string_view>
 #include <thread>
 
+#include "board/board.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
-#include "support/board_harness.hpp"
 #include "gtest/gtest.h"
 
 class EngineTest : public ::testing::Test {

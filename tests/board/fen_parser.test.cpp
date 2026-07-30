@@ -17,16 +17,6 @@ TEST(FenParserTest, ParsesInitialPosition) {
     EXPECT_EQ(parsed.absolute_ply, 0);
 }
 
-TEST(FenParserTest, ParsesKingsOnlyPosition) {
-    const ParsedFen parsed = parse_fen(board_test::fen::kings_only);
-    EXPECT_EQ(parsed.pieces.size(), 2);
-    EXPECT_EQ(parsed.turn, WHITE);
-    EXPECT_EQ(parsed.castling_rights, NO_CASTLE);
-    EXPECT_EQ(parsed.enpassant_target, INVALID);
-    EXPECT_EQ(parsed.halfmove_clock, 0);
-    EXPECT_EQ(parsed.absolute_ply, 0);
-}
-
 TEST(FenParserTest, ParsesEnPassantTargetAndClocks) {
     const ParsedFen parsed = parse_fen(board_test::fen::en_passant_d6_with_clocks);
     EXPECT_EQ(parsed.pieces.size(), 4);

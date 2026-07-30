@@ -4,9 +4,9 @@
 
 #include <sstream>
 
+#include "board/board.hpp"
 #include "search/search_limits.hpp"
 #include "support/board_fixtures.hpp"
-#include "support/board_harness.hpp"
 #include "support/thread_test_access.hpp"
 #include "uci/threading.hpp"
 #include "uci/uci_writer.hpp"
@@ -41,7 +41,7 @@ protected:
 } // namespace
 
 TEST_F(SearchWorkerTest, NullMoveKeepsWorkerPlyInSync) {
-    board_test::Harness board{board_test::fen::start};
+    Board board{board_test::fen::start};
     load_worker_board(board);
 
     EXPECT_EQ(worker_ply(), 0);
@@ -66,7 +66,7 @@ TEST_F(SearchWorkerTest, NullMoveKeepsWorkerPlyInSync) {
 }
 
 TEST_F(SearchWorkerTest, RootPositionHistoryFeedsSearchRepetitionAfterSourceReset) {
-    board_test::Harness board(board_test::fen::corner_kings);
+    Board board(board_test::fen::corner_kings);
 
     board.make(Move(A1, B1));
     board.make(Move(H8, G8));
