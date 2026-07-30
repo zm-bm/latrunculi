@@ -48,7 +48,11 @@ FEN: 4k3/8/8/8/8/8/8/4K3 w - - 0 1
 TEST(BoardNotationTest, FormatsOrdinarySanMoves) {
     expect_san(board_test::fen::start, Move(E2, E4), "e4");
     expect_san(board_test::fen::start, Move(G1, F3), "Nf3");
+}
+
+TEST(BoardNotationTest, DistinguishesCheckFromCheckmate) {
     expect_san("4k3/8/8/8/8/8/8/R3K3 w - - 0 1", Move(A1, A8), "Ra8+");
+    expect_san("7k/8/5KQ1/8/8/8/8/8 w - - 0 1", Move(G6, G7), "Qg7#");
 }
 
 TEST(BoardNotationTest, FormatsSanCastling) {
