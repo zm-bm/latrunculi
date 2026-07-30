@@ -37,7 +37,7 @@ clear_rook_castling_right(PlyState& state, Color color, Square rook_square) noex
 
 } // namespace
 
-// Preconditions: move is legal and non-null.
+// Precondition: move is legal and non-null.
 void Board::make(Move move) {
     const Square    from       = move.from();
     const Square    to         = move.to();
@@ -107,9 +107,9 @@ void Board::make(Move move) {
     }
 }
 
-// Precondition: can_unmake().
 void Board::unmake() {
     assert(can_unmake());
+    assert(!previous_move().is_null());
 
     const Move      move                = ply_state().previous_move;
     const Square    from                = move.from();
@@ -157,9 +157,9 @@ void Board::make_null() {
     refresh_tactical_cache();
 }
 
-// Precondition: can_unmake().
 void Board::unmake_null() {
     assert(can_unmake());
+    assert(previous_move().is_null());
 
     pop_ply_state();
     turn = ~turn;

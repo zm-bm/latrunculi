@@ -15,8 +15,8 @@
 
 namespace {
 
-// Legal play never increases the initial 32-piece population.
-constexpr std::size_t max_position_pieces = 32;
+// A legally reachable position contains at most 32 pieces.
+constexpr std::size_t max_legal_pieces = 32;
 
 bool is_digit(char ch) {
     return ch >= '0' && ch <= '9';
@@ -77,7 +77,7 @@ void parse_piece_placement(ParsedFen& parsed, std::string_view field) {
     int file        = 0;
     int rank        = 7;
 
-    parsed.pieces.reserve(max_position_pieces);
+    parsed.pieces.reserve(max_legal_pieces);
     for (char ch : field) {
         if (is_digit(ch)) {
             if (ch == '0')
@@ -99,7 +99,7 @@ void parse_piece_placement(ParsedFen& parsed, std::string_view field) {
                 throw std::invalid_argument("invalid fen, invalid pawn placement");
             if (piece.type == KING)
                 (piece.color == WHITE ? white_kings : black_kings)++;
-            if (parsed.pieces.size() == max_position_pieces)
+            if (parsed.pieces.size() == max_legal_pieces)
                 throw std::invalid_argument("invalid fen, too many pieces");
 
             parsed.pieces.emplace_back(piece);

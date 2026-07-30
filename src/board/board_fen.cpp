@@ -5,8 +5,7 @@
 
 #include <sstream>
 
-// Replaces the current position and clears move and repetition history.
-// If parsing fails, the board is unchanged.
+// Replaces the position and move history; invalid FEN leaves the Board unchanged.
 void Board::load_fen(std::string_view fen) {
     const ParsedFen parsed = parse_fen(fen);
     clear_position();

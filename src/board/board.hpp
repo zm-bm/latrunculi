@@ -20,10 +20,9 @@
 #include "eval/tapered_score.hpp"
 
 /**
- * Mutable chess position supporting reversible move traversal.
- *
- * Board owns the reversible state history since its loaded position. Moves and
- * null moves append state and are unmade in LIFO order.
+ * Mutable chess position with owned, reversible history from the loaded
+ * position. Moves and null moves append history entries and are unmade in LIFO
+ * order.
  */
 class Board {
 public:
@@ -157,7 +156,7 @@ private:
     TaperedScore material  = {0, 0};
     TaperedScore psq_bonus = {0, 0};
 
-    // Reversible history from the loaded root; active_state caches ply_states.back().
+    // Reversible history from the loaded root; active_state points to ply_states.back().
     std::vector<PlyState> ply_states;
     PlyState*             active_state = nullptr;
 };
@@ -255,8 +254,8 @@ inline PieceType Board::captured_piece_type(Move move) const noexcept {
 
 // Inline representation mutation
 
-// Keep bitboards, counts, mailbox, material, and PSQT synchronized. Callers
-// maintain king_square and, when apply_hash is false, the position key.
+// Updates piece storage and incremental scores. apply_hash controls Zobrist
+// updates; callers maintain king_square.
 template <bool apply_hash>
 inline void Board::add_piece(Square square, Color color, PieceType piece_type) noexcept {
     assert(squares[square] == NO_PIECE);

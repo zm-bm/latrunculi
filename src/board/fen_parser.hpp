@@ -24,5 +24,5 @@ struct ParsedFen {
     int                      absolute_ply     = 0;
 };
 
-// Parses four- or six-field Forsyth-Edwards Notation
+// Parses a four- or six-field FEN.
 ParsedFen parse_fen(std::string_view fen);

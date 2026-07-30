@@ -5,6 +5,7 @@
 #include "eval/eval.hpp"
 
 #include <algorithm>
+#include <cassert>
 
 namespace {
 
@@ -20,10 +21,12 @@ EvalValue see_initial_gain(const Board& board, Move move) noexcept {
 
 } // namespace
 
-// Precondition: move is a pseudo-legal capture or promotion.
-// Static exchange evaluation. Returns the likely material gain after a sequence
-// of least-valuable recaptures on move.to().
+// Returns the material result of a least-valuable-attacker exchange sequence on
+// move.to().
 EvalValue Board::see(Move move) const noexcept {
+    assert(is_pseudo_legal(move));
+    assert(is_capture(move) || move.type() == MOVE_PROM);
+
     const Square from = move.from();
     const Square to   = move.to();
 
@@ -46,7 +49,7 @@ EvalValue Board::see(Move move) const noexcept {
     const Bitboard rook_sliders   = pieces<ROOK, QUEEN>();
 
     // The initial gain occupies index zero; later entries describe successive
-    // recaptures. The parser's 32-piece limit bounds the list to 32 entries.
+    // recaptures. The 32-piece legal-position limit bounds the list.
     EvalValue gains[32] = {};
     gains[0]            = see_initial_gain(*this, move);
 

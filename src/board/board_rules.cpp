@@ -26,7 +26,6 @@ bool is_king_safe_after_enpassant(const Board& board, Square from, Square target
     return !attackers;
 }
 
-// Precondition: move is pseudo-legal.
 bool is_king_safe_after_move(const Board& board, Move move) noexcept {
     const Square from = move.from();
     const Square to   = move.to();
@@ -121,8 +120,8 @@ void Board::refresh_legal_enpassant_target() noexcept {
 
 // Move validation and check detection
 
-// Validates arbitrary move encoding and pseudo-legal movement. Castling path
-// safety is included; other pins and self-check are not.
+// Validates move encoding and movement, including castling path safety but
+// excluding other self-check.
 bool Board::is_pseudo_legal(Move move) const noexcept {
     if (move.is_null())
         return false;
@@ -218,8 +217,7 @@ bool Board::is_pseudo_legal(Move move) const noexcept {
     return false;
 }
 
-// Precondition: move is pseudo-legal. Cached tactical state avoids a full
-// king-safety test unless the move can expose or evade check.
+// Cached check and pin data avoid unnecessary king-safety tests.
 bool Board::is_legal_pseudo_move(Move move) const noexcept {
     assert(is_pseudo_legal(move));
 
@@ -237,8 +235,9 @@ bool Board::is_legal_move(Move move) const noexcept {
     return is_pseudo_legal(move) && is_legal_pseudo_move(move);
 }
 
-// Precondition: move is pseudo-legal in the current position.
 bool Board::gives_check(Move move) const noexcept {
+    assert(is_pseudo_legal(move));
+
     const Square from          = move.from();
     const Square to            = move.to();
     const Color  opponent      = ~turn;
@@ -286,8 +285,8 @@ bool Board::gives_check(Move move) const noexcept {
 
 // Draw detection
 
-// Checks fifty-move and repetition draws. Pass the current nonnegative search
-// ply, or zero outside search.
+// Detects fifty-move and repetition draws; search ply distinguishes in-tree
+// cycles from game-history repetition.
 bool Board::is_draw(int ply_from_search_root) const noexcept {
     assert(ply_from_search_root >= 0);
 

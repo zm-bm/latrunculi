@@ -7,6 +7,8 @@
 #include "core/notation.hpp"
 #include "movegen/movegen.hpp"
 
+#include <cassert>
+
 namespace {
 
 char san_piece(PieceType piece_type) {
@@ -59,6 +61,8 @@ bool has_legal_reply(const Board& board) {
 } // namespace
 
 std::string to_san(const Board& board, Move move) {
+    assert(board.is_legal_move(move));
+
     const Square    from       = move.from();
     const Square    to         = move.to();
     const PieceType piece_type = board.piece_type_on(from);

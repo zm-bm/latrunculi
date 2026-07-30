@@ -41,8 +41,7 @@ Board& Board::operator=(const Board& source) {
 
     assert(!source.ply_states.empty());
 
-    // Reserve enough room for the copied history and a complete search before
-    // mutating the destination's observable position.
+    // Allocate copied history plus search headroom before replacing the position.
     ply_states.reserve(source.ply_states.size() + engine::max_search_ply);
     ply_states.assign(source.ply_states.begin(), source.ply_states.end());
 
@@ -59,8 +58,7 @@ Board& Board::operator=(const Board& source) {
     return *this;
 }
 
-// Establish the empty intermediate state used while loading a position. This
-// clears representation and history and does not leave a playable position.
+// Reset to the empty, non-playable state used during FEN loading.
 void Board::clear_position() noexcept {
     for (int color_index = 0; color_index < N_COLORS; ++color_index) {
         for (int piece_index = 0; piece_index < N_PIECETYPES; ++piece_index) {
@@ -82,7 +80,7 @@ void Board::clear_position() noexcept {
     ply_state()  = PlyState{};
 }
 
-// Rebuild the key from the durable representation and active reversible state.
+// Recompute the Zobrist key from piece placement and rule state.
 PositionKey Board::recompute_key() const noexcept {
     PositionKey zkey = 0;
 
