@@ -5,10 +5,10 @@
 The search architecture is fundamentally sound and does not need redesign. This
 roadmap preserves search policy while focusing on:
 
-- two confirmed search-reporting bugs and one TT sizing bug;
+- two confirmed search-reporting bugs;
 - reducing white-box test complexity;
 - moving cold instrumentation machinery out of the header;
-- tightening TT and move-picker APIs;
+- tightening move-picker APIs;
 - improving names, comments, and ownership boundaries without changing tuning.
 
 `docs/search-stability.md`, search tuning, evaluation changes, pruning-policy
@@ -76,7 +76,7 @@ Engine::handle(GoCommand)
 
 ## Baseline
 
-Current baseline:
+Original baseline retained for final comparison:
 
 - Commit: `62dfa65117158140b2618c858ca2f13ad8a90c56`
 - Compiler: GCC 13.3.0
@@ -126,25 +126,14 @@ can contain stale node/time values.
 
 ### Confirmed production bugs
 
-1. **TT resizing rounds upward.**
-
-   `1ULL << std::bit_width(length - 1)` rounds a non-power-of-two cluster count
-   up. A 3 MiB request therefore allocates 4 MiB, violating the intended maximum
-   allocation.
-
-   Use `std::bit_floor()` so capacity is the largest fitting power of two. This
-   approach matches the masked-indexing designs in Minic, Ethereal, and CPW.
-   Stockfish's arbitrary sizing is not directly applicable because it uses
-   multiply-high indexing rather than a power-of-two shift.
-
-2. **An immediate stop can return `bestmove 0000` from a legal position.**
+1. **An immediate stop can return `bestmove 0000` from a legal position.**
 
    Repeated `go` followed immediately by `stop` from startpos consistently
    produces `bestmove 0000`. The internal root snapshot should remain
    incomplete, but final reporting should fall back to the first legal root
    candidate when no completed line exists.
 
-3. **The final UCI information can be stale or omitted.**
+2. **The final UCI information can be stale or omitted.**
 
    `report_final_result()` calls `report_root_progress()`, which suppresses
    output when the `RootLine` matches the last report. Nodes and elapsed time are
@@ -165,9 +154,6 @@ can contain stale node/time values.
 - Reduce and split `search.test.cpp`; replace its approximately 350-line fixture
   surface with a small shared access shim.
 - Consolidate duplicated move-picker ordering, determinism, and hint tests.
-- Remove unused `TT_Table::prefetch_addr()`.
-- Replace the dual `store()`/`store_search()` TT interface with one
-  search-facing `store()`.
 - Internalize move-picker implementation enums and candidate types.
 - Move RootLine selection tests out of `search.test.cpp`.
 
@@ -197,7 +183,7 @@ can contain stale node/time values.
 ## Chunk Order and Dependencies
 
 ```text
-TT
+TT [complete: 3950f0b]
  └─> Search value/result types
       └─> Instrumentation
            └─> Histories and ordering
@@ -207,52 +193,25 @@ TT
                                └─> Final integration
 ```
 
-The chunks should remain separately reviewable. Confirmed fixes receive their
-own commit before cleanup in the same area.
+Each remaining chunk should be separately reviewable. Split correctness fixes
+from cleanup when doing so materially improves reviewability.
 
-## Chunk 1: Transposition Table
+## Chunk 1: Transposition Table — Complete
 
-Files:
+Completed in `3950f0b` (`refactor(search): correct TT sizing and simplify its
+interface`).
 
-- `src/search/tt.hpp`
-- `src/search/tt.cpp`
-- `tests/search/tt.test.cpp`
-
-Changes:
-
-- Fix resize with `std::bit_floor(bytes / sizeof(TT_Cluster))`.
-- Add a narrow `friend class TT_Test` hook so the fixture can verify allocated
-  cluster count without adding a production getter.
-- Add regression cases for 1, 2, 3, and 5 MiB requests.
-- Remove unused `prefetch_addr()`.
-- Retain power-of-two multiplicative indexing and `shift`.
-- Collapse `store_search()` into the single `store()` API with search-depth and
-  score assertions.
-- Shorten the shared-TT comment while retaining the detached-snapshot and
-  publication-order contracts.
-- Preserve entry packing, replacement policy, atomics, generation aging, and
-  mate conversion.
-
-Test cleanup:
-
-- Delete `InitialState`; fixture clearing and `ClearRemovesEntries` cover it.
-- Combine invalid/`None` flag probe cases.
-- Combine same-key replacement cases into a named table.
-- Remove the generic different-full-keys test; the same-cluster full-key
-  rejection test is stronger.
-- Retain packing, mate conversion, replacement, detached snapshots, generation,
-  collision, and concurrency coverage.
-
-Risk: hot-path and correctness-sensitive.
-
-Verification:
-
-- Debug, release, and stats-enabled tests.
-- Full cold and retained-history performance gate.
-- Stable best moves and node accounting.
-- Suggested commits:
-  - `fix(search): honor requested transposition-table capacity`
-  - `refactor(search): streamline transposition-table interface`
+- TT capacity now rounds down to the largest fitting power of two, and resize
+  publishes new storage and metadata only after allocation succeeds.
+- `store()` is the single search-facing storage API; `store_search()` and the
+  unused `prefetch_addr()` were removed.
+- TT coverage was reduced from 24 to 19 focused tests while adding
+  non-power-of-two capacity regression cases.
+- Entry packing, indexing, replacement, concurrency, generation, mate
+  conversion, search results, and node accounting remained unchanged.
+- Debug, release, and stats-enabled tests passed. The repeated final benchmark
+  against the original baseline was neutral: cold -0.16%, retained-history
+  -0.17%, and combined +0.06%.
 
 ## Chunk 2: Search Value and Result Types
 
@@ -609,10 +568,8 @@ Checks:
 
 ## Checklist
 
-- [ ] Preserve the original binary, compiler, flags, affinity, hash, and UCI
+- [x] Preserve the original binary, compiler, flags, affinity, hash, and UCI
       runner.
-- [ ] Fix TT capacity rounding and add regression coverage.
-- [ ] Simplify TT API without changing replacement or concurrency.
 - [ ] Consolidate search value/result tests.
 - [ ] Move instrumentation formatting out of the header.
 - [ ] Remove only derivable instrumentation counters.
@@ -632,8 +589,7 @@ Checks:
 ## Assumptions
 
 - The current search design and selective-search policy remain authoritative.
-- Power-of-two TT sizing remains intentional; only the incorrect upward
-  rounding changes.
+- Power-of-two TT sizing remains intentional.
 - The recently accepted history lifecycle remains unchanged.
 - A final legal fallback move does not make an incomplete root snapshot
   completed.
