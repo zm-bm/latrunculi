@@ -436,7 +436,7 @@ EvalValue SearchWorker::alphabeta(
                 pv->update(move, child_pv);
 
             stats.beta_cutoff(ply, move_count);
-            tt.store_search(position_key, move, value, depth, TT_Flag::Lowerbound, ply);
+            tt.store(position_key, move, value, depth, TT_Flag::Lowerbound, ply);
             return value;
         }
 
@@ -460,17 +460,17 @@ EvalValue SearchWorker::alphabeta(
     // Step 14. Mate and Stalemate Detection. No legal moves ends the node.
     if (move_count == 0) {
         best_value = in_check ? -eval_value::mate + ply : eval_value::draw;
-        tt.store_search(position_key, NULL_MOVE, best_value, depth, TT_Flag::Exact, ply);
+        tt.store(position_key, NULL_MOVE, best_value, depth, TT_Flag::Exact, ply);
         return best_value;
     }
 
     // Step 15. Store Result. Use the original window to classify the bound.
-    tt.store_search(position_key,
-                    top_score_move,
-                    best_value,
-                    depth,
-                    tt_bound_for_window(best_value, original_alpha, beta),
-                    ply);
+    tt.store(position_key,
+             top_score_move,
+             best_value,
+             depth,
+             tt_bound_for_window(best_value, original_alpha, beta),
+             ply);
 
     return best_value;
 }
@@ -525,7 +525,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
     if (!in_check) {
         best_value = evaluate(board);
         if (best_value >= beta) {
-            tt.store_search(
+            tt.store(
                 position_key, NULL_MOVE, best_value, qsearch_tt_depth, TT_Flag::Lowerbound, ply);
             return best_value;
         }
@@ -558,7 +558,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
             if (pv)
                 pv->update(move, child_pv);
             stats.beta_cutoff(ply, move_count);
-            tt.store_search(position_key, move, value, qsearch_tt_depth, TT_Flag::Lowerbound, ply);
+            tt.store(position_key, move, value, qsearch_tt_depth, TT_Flag::Lowerbound, ply);
             return value;
         }
 
@@ -577,17 +577,17 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
     // Step 8. Checkmate Detection. In-check qsearch must find a legal evasion.
     if (in_check && move_count == 0) {
         best_value = -eval_value::mate + ply;
-        tt.store_search(position_key, NULL_MOVE, best_value, qsearch_tt_depth, TT_Flag::Exact, ply);
+        tt.store(position_key, NULL_MOVE, best_value, qsearch_tt_depth, TT_Flag::Exact, ply);
         return best_value;
     }
 
     // Step 9. Store Result. Use the original window to classify the qsearch bound.
-    tt.store_search(position_key,
-                    top_score_move,
-                    best_value,
-                    qsearch_tt_depth,
-                    tt_bound_for_window(best_value, original_alpha, beta),
-                    ply);
+    tt.store(position_key,
+             top_score_move,
+             best_value,
+             qsearch_tt_depth,
+             tt_bound_for_window(best_value, original_alpha, beta),
+             ply);
 
     return best_value;
 }

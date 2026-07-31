@@ -3,7 +3,6 @@
 #include <atomic>
 #include <cassert>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
 
@@ -11,6 +10,7 @@
 #include "core/move.hpp"
 
 class TT_Table;
+class TT_Test;
 extern TT_Table tt;
 
 enum class TT_Flag : std::uint8_t {
@@ -70,28 +70,21 @@ class TT_Table {
 public:
     explicit TT_Table();
 
-    // Shared-TT contract at the API boundary:
-    // - The table storage is globally shared across search threads.
-    // - Callers never receive a pointer/reference to shared TT_Entry storage.
-    // - probe() returns an immutable by-value snapshot of one validated entry, or std::nullopt.
-    // - Search code must use only the returned TT_Record; keeping aliases into shared storage is
-    // forbidden.
-    // - TT internals publish payload first and a full-key XOR signature last, so racing reads
-    //   degrade to a miss, an old hit, or a new hit rather than accepting a mixed entry.
+    // Shared probes return detached, validated snapshots. Stores publish the payload before its
+    // full-key XOR signature, so races produce a miss or a complete old or new record.
     [[nodiscard]] std::optional<TT_Record> probe(PositionKey zkey) const;
     void store(PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply);
-    void
-    store_search(PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply);
     void resize(size_t megabytes);
     void clear();
     // Advance the shared TT generation once per root-search lifecycle event.
     void                       age_table() { ++age; }
     [[nodiscard]] std::uint8_t current_age() const { return age; }
-    const void*                prefetch_addr(PositionKey zkey) const;
 
     static constexpr size_t default_mb = 4;
 
 private:
+    friend class TT_Test;
+
     std::uint64_t cluster_key(PositionKey zkey) const;
 
     std::unique_ptr<TT_Cluster[]> table = nullptr;
@@ -100,11 +93,6 @@ private:
     int          shift  = 0;
     std::uint8_t age    = 0;
 };
-
-inline const void* TT_Table::prefetch_addr(PositionKey zkey) const {
-    std::uint64_t idx = cluster_key(zkey);
-    return &table[idx];
-}
 
 inline std::uint64_t TT_Table::cluster_key(PositionKey zkey) const {
     return (zkey * 0x9e3779b97f4a7c15ull) >> shift;
@@ -144,13 +132,4 @@ inline bool TT_Record::can_cutoff(EvalValue adjusted_score,
     }
 
     return false;
-}
-
-inline void TT_Table::store_search(
-    PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply) {
-    assert(depth >= 0 && depth <= engine::max_search_ply);
-    assert(score >= std::numeric_limits<std::int16_t>::min()
-           && score <= std::numeric_limits<std::int16_t>::max());
-
-    store(zkey, move, score, depth, flag, ply);
 }

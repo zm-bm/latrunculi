@@ -204,8 +204,8 @@ protected:
     void storeQsearchTtAfterMove(Move move, int score, TT_Flag flag) {
         ASSERT_FALSE(move.is_null());
 
-        withWorkerMove(
-            move, [&] { tt.store_search(workerKey(), NULL_MOVE, score, 0, flag, workerPly()); });
+        withWorkerMove(move,
+                       [&] { tt.store(workerKey(), NULL_MOVE, score, 0, flag, workerPly()); });
     }
 
     Move firstWorkerPickerMove(Move tt_move = NULL_MOVE) {
@@ -240,9 +240,8 @@ protected:
     void storeWorkerChildSearchTt(Move move, int score, int depth, TT_Flag flag) {
         ASSERT_FALSE(move.is_null());
 
-        withWorkerMove(move, [&] {
-            tt.store_search(workerKey(), NULL_MOVE, score, depth, flag, workerPly());
-        });
+        withWorkerMove(move,
+                       [&] { tt.store(workerKey(), NULL_MOVE, score, depth, flag, workerPly()); });
     }
 
     bool workerLegalPseudoMove(Move move) const { return worker->board.is_legal_pseudo_move(move); }
@@ -558,7 +557,7 @@ TEST_F(SearchTest, QuiescenceUsesTranspositionTableCutoffForEligibleBounds) {
         Board board{quiet_control};
         loadWorkerBoard(board);
 
-        tt.store_search(workerKey(), NULL_MOVE, tc.score, 0, tc.flag, workerPly());
+        tt.store(workerKey(), NULL_MOVE, tc.score, 0, tc.flag, workerPly());
 
         EXPECT_EQ(runQuiescence(tc.alpha, tc.beta), tc.score) << tc.name;
 
@@ -581,7 +580,7 @@ TEST_F(SearchTest, QuiescenceIgnoresQuietNonCheckTranspositionTableMove) {
     Move quiet_tt_move = Move(E2, E3);
     ASSERT_TRUE(board.is_pseudo_legal(quiet_tt_move));
     ASSERT_FALSE(board.is_capture(quiet_tt_move));
-    tt.store_search(
+    tt.store(
         workerKey(), quiet_tt_move, -eval_value::inf + 1000, 0, TT_Flag::Lowerbound, workerPly());
 
     EXPECT_EQ(runQuiescence(-eval_value::inf, eval_value::inf), baseline);
@@ -810,7 +809,7 @@ TEST_F(SearchTest, AlphaBetaUsesTranspositionTableCutoffForEligibleBounds) {
         Board board{quiet_control};
         loadWorkerBoard(board);
 
-        tt.store_search(workerKey(), NULL_MOVE, tc.score, search_depth, tc.flag, workerPly());
+        tt.store(workerKey(), NULL_MOVE, tc.score, search_depth, tc.flag, workerPly());
 
         EXPECT_EQ(runNonPvAlphaBeta(tc.alpha, tc.beta, search_depth), tc.score) << tc.name;
     }
@@ -830,8 +829,7 @@ TEST_F(SearchTest, AlphaBetaDoesNotCutoffWithShallowTranspositionTableEntry) {
     Move invalid_tt_move{H1, H2};
     ASSERT_FALSE(board.is_pseudo_legal(invalid_tt_move));
 
-    tt.store_search(
-        workerKey(), invalid_tt_move, baseline + 500, search_depth - 1, TT_Flag::Exact, 0);
+    tt.store(workerKey(), invalid_tt_move, baseline + 500, search_depth - 1, TT_Flag::Exact, 0);
 
     EXPECT_EQ(runNonPvAlphaBeta(-eval_value::inf, eval_value::inf, search_depth), baseline);
 }
@@ -937,7 +935,7 @@ TEST_F(SearchTest, AlphaBetaMainTTCutoffDoesNotEnterQSearchTT) {
     Board          board{quiet_control};
     loadWorkerBoard(board);
 
-    tt.store_search(workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Exact, workerPly());
+    tt.store(workerKey(), NULL_MOVE, tt_score, search_depth, TT_Flag::Exact, workerPly());
     (void)runNonPvAlphaBeta(-eval_value::inf, eval_value::inf, search_depth);
 
 #if LATRUNCULI_SEARCH_STATS
@@ -964,8 +962,7 @@ TEST_F(SearchTest, AlphaBetaNullMovePruningReturnsFailSoftCutoffFromNullChild) {
     ASSERT_FALSE(tt.probe(root_key).has_value());
     ASSERT_FALSE(tt.probe(null_child_key).has_value());
 
-    tt.store_search(
-        null_child_key, NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
+    tt.store(null_child_key, NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
 
     EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), -null_child_score);
     EXPECT_FALSE(tt.probe(root_key).has_value());
@@ -990,8 +987,7 @@ TEST_F(SearchTest, PvAlphaBetaDoesNotUseNullMovePruning) {
     Board board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
     const PositionKey null_child_key = workerNullChildKey();
-    tt.store_search(
-        null_child_key, NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
+    tt.store(null_child_key, NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
 
     PrincipalVariation pv;
     EXPECT_EQ(runPvAlphaBeta(alpha, beta, search_depth, pv), baseline);
@@ -1034,12 +1030,12 @@ TEST_F(SearchTest, AlphaBetaNullMovePruningRequiresAllGuards) {
 
         Board board{tc.fen};
         loadWorkerBoard(board, tc.depth);
-        tt.store_search(workerNullChildKey(),
-                        NULL_MOVE,
-                        null_child_score,
-                        std::max(0, tc.depth - 3),
-                        TT_Flag::Exact,
-                        1);
+        tt.store(workerNullChildKey(),
+                 NULL_MOVE,
+                 null_child_score,
+                 std::max(0, tc.depth - 3),
+                 TT_Flag::Exact,
+                 1);
 
         EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, tc.depth, tc.can_null), baseline);
 
@@ -1062,17 +1058,15 @@ TEST_F(SearchTest, AlphaBetaNullMovePruningHonorsParentUpperBoundVeto) {
 
     Board baseline_board{board_test::fen::start};
     loadWorkerBoard(baseline_board, search_depth);
-    tt.store_search(
-        workerKey(), NULL_MOVE, beta - 1, search_depth, TT_Flag::Upperbound, workerPly());
-    tt.store_search(
+    tt.store(workerKey(), NULL_MOVE, beta - 1, search_depth, TT_Flag::Upperbound, workerPly());
+    tt.store(
         workerNullChildKey(), NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
     const int baseline = runNonPvAlphaBeta(alpha, beta, search_depth, false);
 
     Board board{board_test::fen::start};
     loadWorkerBoard(board, search_depth);
-    tt.store_search(
-        workerKey(), NULL_MOVE, beta - 1, search_depth, TT_Flag::Upperbound, workerPly());
-    tt.store_search(
+    tt.store(workerKey(), NULL_MOVE, beta - 1, search_depth, TT_Flag::Upperbound, workerPly());
+    tt.store(
         workerNullChildKey(), NULL_MOVE, null_child_score, search_depth - 3, TT_Flag::Exact, 1);
 
     EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), baseline);
@@ -1102,7 +1096,7 @@ TEST_F(SearchTest, NullMoveDisablesOnlyImmediateChildAndReenablesLaterDescendant
     ASSERT_FALSE(tt.probe(immediate_null_key).has_value());
     ASSERT_FALSE(tt.probe(descendant_null_key).has_value());
 
-    tt.store_search(workerKey(), real_move, 0, 0, TT_Flag::Lowerbound, workerPly());
+    tt.store(workerKey(), real_move, 0, 0, TT_Flag::Lowerbound, workerPly());
     (void)runNonPvAlphaBeta(-50, 50, search_depth, false);
 
     EXPECT_FALSE(tt.probe(immediate_null_key).has_value())
@@ -1178,7 +1172,7 @@ TEST_F(SearchTest, AlphaBetaRazoringRequiresAllGuards) {
         if (tc.seed_tt_move) {
             const Move tt_move = firstWorkerPickerMove();
             ASSERT_FALSE(tt_move.is_null()) << tc.fen;
-            tt.store_search(workerKey(), tt_move, 0, 0, TT_Flag::Exact, workerPly());
+            tt.store(workerKey(), tt_move, 0, 0, TT_Flag::Exact, workerPly());
         }
 
         const int static_eval = evaluate(board);
@@ -1309,7 +1303,7 @@ TEST_F(SearchTest, AlphaBetaFutilityKeepsCapturesPromotionsAndCheckingMoves) {
         const int beta        = alpha + 1000;
         const int child_score = -(beta + 100);
 
-        tt.store_search(workerKey(), tc.first, 0, 0, TT_Flag::Exact, workerPly());
+        tt.store(workerKey(), tc.first, 0, 0, TT_Flag::Exact, workerPly());
         if (tc.candidate_is_killer)
             seedWorkerKiller(tc.candidate);
         storeWorkerChildSearchTt(tc.candidate, child_score, search_depth - 1, TT_Flag::Exact);
@@ -1364,7 +1358,7 @@ TEST_F(SearchTest, AlphaBetaQuietCutoffLeavesFailedQuietTtHintUnchanged) {
     ASSERT_NE(failed_tt_quiet.type(), MOVE_PROM);
     ASSERT_NE(cutoff_quiet.type(), MOVE_PROM);
 
-    tt.store_search(workerKey(), failed_tt_quiet, 0, 0, TT_Flag::Upperbound, workerPly());
+    tt.store(workerKey(), failed_tt_quiet, 0, 0, TT_Flag::Upperbound, workerPly());
     storeWorkerChildSearchTt(failed_tt_quiet, 0, search_depth - 1, TT_Flag::Exact);
     storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
 
@@ -1421,7 +1415,7 @@ TEST_F(SearchTest, AlphaBetaQuietTtHintCutoffStoresCounterWhenSearched) {
         ASSERT_NE(it, moves.end());
         cutoff_quiet = *it;
 
-        tt.store_search(workerKey(), cutoff_quiet, 0, 0, TT_Flag::Upperbound, workerPly());
+        tt.store(workerKey(), cutoff_quiet, 0, 0, TT_Flag::Upperbound, workerPly());
         storeWorkerChildSearchTt(cutoff_quiet, -cutoff_value, search_depth - 1, TT_Flag::Exact);
 
         EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
@@ -1573,7 +1567,7 @@ TEST_F(SearchTest, AlphaBetaCaptureCutoffDoesNotStoreCounter) {
         ASSERT_TRUE(workerIsCapture(capture));
         ASSERT_TRUE(workerLegalMove(capture));
 
-        tt.store_search(workerKey(), capture, 0, 0, TT_Flag::Upperbound, workerPly());
+        tt.store(workerKey(), capture, 0, 0, TT_Flag::Upperbound, workerPly());
         storeWorkerChildSearchTt(capture, -cutoff_value, search_depth - 1, TT_Flag::Exact);
 
         EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
@@ -1599,7 +1593,7 @@ TEST_F(SearchTest, AlphaBetaPromotionCutoffDoesNotStoreCounter) {
         ASSERT_EQ(promotion.type(), MOVE_PROM);
         ASSERT_TRUE(workerLegalMove(promotion));
 
-        tt.store_search(workerKey(), promotion, 0, 0, TT_Flag::Upperbound, workerPly());
+        tt.store(workerKey(), promotion, 0, 0, TT_Flag::Upperbound, workerPly());
         storeWorkerChildSearchTt(promotion, -cutoff_value, search_depth - 1, TT_Flag::Exact);
 
         EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth, false), cutoff_value);
@@ -1702,8 +1696,7 @@ TEST_F(SearchTest, AlphaBetaQuietMalusSkipsFailedTtQuiet) {
     ASSERT_FALSE(board.is_capture(failed_quiet_2));
     ASSERT_FALSE(board.is_capture(cutoff_quiet));
 
-    tt.store_search(
-        workerKey(), failed_tt_quiet, 0, search_depth, TT_Flag::Upperbound, workerPly());
+    tt.store(workerKey(), failed_tt_quiet, 0, search_depth, TT_Flag::Upperbound, workerPly());
     storeWorkerChildSearchTt(failed_tt_quiet, 0, search_depth - 1, TT_Flag::Exact);
     storeWorkerChildSearchTt(failed_quiet_1, 25, search_depth - 1, TT_Flag::Exact);
     storeWorkerChildSearchTt(failed_quiet_2, 50, search_depth - 1, TT_Flag::Exact);
@@ -1838,8 +1831,7 @@ TEST_F(SearchTest, AlphaBetaContinuationMalusSkipsFailedTtAndKillerQuiets) {
         ASSERT_FALSE(workerIsCapture(failed_quiet_2));
         ASSERT_FALSE(workerIsCapture(cutoff_quiet));
 
-        tt.store_search(
-            workerKey(), failed_tt_quiet, 0, search_depth, TT_Flag::Upperbound, workerPly());
+        tt.store(workerKey(), failed_tt_quiet, 0, search_depth, TT_Flag::Upperbound, workerPly());
         seedWorkerKiller(failed_killer);
         storeWorkerChildSearchTt(failed_tt_quiet, 0, search_depth - 1, TT_Flag::Exact);
         storeWorkerChildSearchTt(failed_killer, 10, search_depth - 1, TT_Flag::Exact);
@@ -1932,14 +1924,12 @@ TEST_F(SearchTest, PvNodesIgnoreNonExactMainAndQsearchTtBounds) {
 
     Board non_pv_board{quiet_control};
     loadWorkerBoard(non_pv_board, search_depth);
-    tt.store_search(
-        workerKey(), NULL_MOVE, bogus_score, search_depth, TT_Flag::Lowerbound, workerPly());
+    tt.store(workerKey(), NULL_MOVE, bogus_score, search_depth, TT_Flag::Lowerbound, workerPly());
     EXPECT_EQ(runNonPvAlphaBeta(alpha, beta, search_depth), bogus_score);
 
     Board pv_board{quiet_control};
     loadWorkerBoard(pv_board, search_depth);
-    tt.store_search(
-        workerKey(), NULL_MOVE, bogus_score, search_depth, TT_Flag::Lowerbound, workerPly());
+    tt.store(workerKey(), NULL_MOVE, bogus_score, search_depth, TT_Flag::Lowerbound, workerPly());
     PrincipalVariation pv;
     EXPECT_EQ(runPvAlphaBeta(alpha, beta, search_depth, pv), baseline);
 
@@ -1953,12 +1943,12 @@ TEST_F(SearchTest, PvNodesIgnoreNonExactMainAndQsearchTtBounds) {
 
     Board q_non_pv_board{quiet_control};
     loadWorkerBoard(q_non_pv_board);
-    tt.store_search(workerKey(), NULL_MOVE, q_bogus, 0, TT_Flag::Lowerbound, workerPly());
+    tt.store(workerKey(), NULL_MOVE, q_bogus, 0, TT_Flag::Lowerbound, workerPly());
     EXPECT_EQ(runQuiescence(q_alpha, q_beta), q_bogus);
 
     Board q_pv_board{quiet_control};
     loadWorkerBoard(q_pv_board);
-    tt.store_search(workerKey(), NULL_MOVE, q_bogus, 0, TT_Flag::Lowerbound, workerPly());
+    tt.store(workerKey(), NULL_MOVE, q_bogus, 0, TT_Flag::Lowerbound, workerPly());
     PrincipalVariation bounded_q_pv;
     EXPECT_EQ(runPvQuiescence(q_alpha, q_beta, bounded_q_pv), q_baseline);
 }
@@ -2294,7 +2284,7 @@ TEST_F(SearchTest, AlphaBetaLmrSkipsTacticalVetoMoves) {
         ASSERT_TRUE(workerLegalPseudoMove(tc.candidate)) << tc.fen;
         ASSERT_TRUE(board.gives_check(tc.candidate) || tc.candidate.type() == MOVE_PROM) << tc.fen;
 
-        tt.store_search(workerKey(), tc.tt_move, 0, 0, TT_Flag::Exact, workerPly());
+        tt.store(workerKey(), tc.tt_move, 0, 0, TT_Flag::Exact, workerPly());
         if (!tc.killer_move.is_null()) {
             ASSERT_TRUE(workerLegalPseudoMove(tc.killer_move)) << tc.fen;
             ASSERT_TRUE(board.gives_check(tc.killer_move)) << tc.fen;

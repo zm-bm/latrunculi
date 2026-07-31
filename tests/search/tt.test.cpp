@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <limits>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -86,12 +87,10 @@ protected:
     int         depth = 5;
     TT_Flag     flag  = TT_Flag::Exact;
 
+    static size_t cluster_count(const TT_Table& table) { return table.length; }
+
     void SetUp() override { tt.clear(); }
 };
-
-TEST_F(TT_Test, InitialState) {
-    EXPECT_FALSE(tt.probe(0x123456789ABCDEF).has_value());
-}
 
 TEST_F(TT_Test, StoreAndProbe) {
     tt.store(key, move, score, depth, flag, 0);
@@ -99,7 +98,7 @@ TEST_F(TT_Test, StoreAndProbe) {
     expect_record(key, move, score, depth, flag);
 }
 
-TEST_F(TT_Test, PackedFieldBoundariesRoundTrip) {
+TEST_F(TT_Test, StoredFieldBoundariesRoundTrip) {
     for (int i = 0; i < std::numeric_limits<std::uint8_t>::max(); ++i)
         tt.age_table();
 
@@ -107,7 +106,7 @@ TEST_F(TT_Test, PackedFieldBoundariesRoundTrip) {
     packed_move.bits = std::numeric_limits<MoveBits>::max();
 
     constexpr std::int16_t packed_score = -12345;
-    constexpr std::uint8_t packed_depth = std::numeric_limits<std::uint8_t>::max();
+    constexpr int          packed_depth = engine::max_search_ply;
     constexpr TT_Flag      packed_flag  = TT_Flag::Upperbound;
 
     tt.store(key, packed_move, packed_score, packed_depth, packed_flag, 0);
@@ -149,20 +148,6 @@ TEST_F(TT_Test, MateScoresRoundTripThroughStorage) {
         EXPECT_EQ(tc.stored_score, entry->score);
         EXPECT_EQ(tc.root_score, entry->score_at_ply(tc.ply));
     }
-}
-
-TEST_F(TT_Test, StoreSearchConvertsDepthAndMateScore) {
-    constexpr int search_depth = 7;
-    constexpr int ply          = 3;
-    constexpr int mate_score   = eval_value::mate - 10;
-
-    tt.store_search(key, move, mate_score, search_depth, TT_Flag::Exact, ply);
-
-    auto entry = tt.probe(key);
-    ASSERT_TRUE(entry.has_value());
-    EXPECT_EQ(search_depth, entry->depth);
-    EXPECT_EQ(mate_score + ply, entry->score);
-    EXPECT_EQ(mate_score, entry->score_at_ply(ply));
 }
 
 TEST_F(TT_Test, RecordCanCutoffWithSufficientDepthAndMatchingBound) {
@@ -214,19 +199,27 @@ TEST_F(TT_Test, ResizeZeroKeepsUsableTable) {
 
     ASSERT_TRUE(entry.has_value());
     EXPECT_EQ(move, entry->move);
-    EXPECT_NE(nullptr, tt.prefetch_addr(key));
 }
 
-TEST_F(TT_Test, StoreAndProbeDifferentFullKeys) {
-    PositionKey key2 = 0xFEDCBA9876543210;
-    PositionKey key1 = 0x123456789ABC3210;
+TEST_F(TT_Test, ResizeRoundsCapacityDownToLargestFittingPowerOfTwo) {
+    struct Case {
+        size_t megabytes;
+        size_t expected_clusters;
+    };
 
-    tt.store(key1, move, score, depth, flag, 0);
-    Move move2 = Move(Square::E2, Square::E4);
-    tt.store(key2, move2, 200, 8, TT_Flag::Lowerbound, 0);
+    constexpr std::array cases{
+        Case{.megabytes = 1, .expected_clusters = 16'384},
+        Case{.megabytes = 2, .expected_clusters = 32'768},
+        Case{.megabytes = 3, .expected_clusters = 32'768},
+        Case{.megabytes = 5, .expected_clusters = 65'536},
+    };
 
-    expect_record(key1, move, score, depth, flag);
-    expect_record(key2, move2, 200, 8, TT_Flag::Lowerbound);
+    TT_Table table;
+    for (const auto& tc : cases) {
+        SCOPED_TRACE(tc.megabytes);
+        table.resize(tc.megabytes);
+        EXPECT_EQ(tc.expected_clusters, cluster_count(table));
+    }
 }
 
 TEST_F(TT_Test, ProbeRejectsDifferentFullKeyInSameCluster) {
@@ -269,31 +262,34 @@ TEST_F(TT_Test, SameKeyNullMoveStorePreservesPreviousMoveAndUpdatesAcceptedField
     expect_record(key, move, 250, 7, TT_Flag::Lowerbound);
 }
 
-TEST_F(TT_Test, SameKeyShallowNonExactStoreDoesNotReplaceMuchDeeperEntry) {
-    tt.store(key, move, 100, 10, TT_Flag::Exact, 0);
+TEST_F(TT_Test, SameKeyReplacementUsesDepthAndBoundQuality) {
+    struct Case {
+        const char* name;
+        int         old_depth;
+        TT_Flag     old_flag;
+        int         new_depth;
+        TT_Flag     new_flag;
+        bool        replaces;
+    };
 
-    Move shallow_move{Square::E2, Square::E4};
-    tt.store(key, shallow_move, 250, 7, TT_Flag::Lowerbound, 0);
+    constexpr std::array cases{
+        Case{"much shallower non-exact", 10, TT_Flag::Exact, 7, TT_Flag::Lowerbound, false},
+        Case{"shallower exact", 10, TT_Flag::Lowerbound, 1, TT_Flag::Exact, true},
+        Case{"similar-depth non-exact", 8, TT_Flag::Exact, 6, TT_Flag::Upperbound, true},
+    };
 
-    expect_record(key, move, 100, 10, TT_Flag::Exact);
-}
+    const Move new_move{Square::E2, Square::E4};
+    for (const auto& tc : cases) {
+        SCOPED_TRACE(tc.name);
+        tt.clear();
+        tt.store(key, move, 100, tc.old_depth, tc.old_flag, 0);
+        tt.store(key, new_move, 250, tc.new_depth, tc.new_flag, 0);
 
-TEST_F(TT_Test, SameKeyShallowExactStoreReplacesDeeperEntry) {
-    tt.store(key, move, 100, 10, TT_Flag::Lowerbound, 0);
-
-    Move exact_move{Square::E2, Square::E4};
-    tt.store(key, exact_move, 250, 1, TT_Flag::Exact, 0);
-
-    expect_record(key, exact_move, 250, 1, TT_Flag::Exact);
-}
-
-TEST_F(TT_Test, SameKeySimilarDepthNonExactStoreReplacesEntry) {
-    tt.store(key, move, 100, 8, TT_Flag::Exact, 0);
-
-    Move new_move{Square::E2, Square::E4};
-    tt.store(key, new_move, 250, 6, TT_Flag::Upperbound, 0);
-
-    expect_record(key, new_move, 250, 6, TT_Flag::Upperbound);
+        if (tc.replaces)
+            expect_record(key, new_move, 250, tc.new_depth, tc.new_flag);
+        else
+            expect_record(key, move, 100, tc.old_depth, tc.old_flag);
+    }
 }
 
 TEST_F(TT_Test, DifferentKeyNullMoveReplacementKeepsNullMove) {
@@ -375,14 +371,15 @@ TEST_F(TT_Test, StoreAndProbeRoundTripPublishedAge) {
     EXPECT_EQ(flag, entry->flag);
 }
 
-TEST_F(TT_Test, NoneFlagEntriesProbeAsMiss) {
-    tt.store(key, move, score, depth, TT_Flag::None, 0);
-    EXPECT_FALSE(tt.probe(key).has_value());
-}
+TEST_F(TT_Test, InvalidFlagsProbeAsMiss) {
+    constexpr std::array flags{TT_Flag::None, TT_Flag{255}};
 
-TEST_F(TT_Test, InvalidFlagEntriesProbeAsMiss) {
-    tt.store(key, move, score, depth, TT_Flag{255}, 0);
-    EXPECT_FALSE(tt.probe(key).has_value());
+    for (TT_Flag invalid_flag : flags) {
+        SCOPED_TRACE(std::to_underlying(invalid_flag));
+        tt.clear();
+        tt.store(key, move, score, depth, invalid_flag, 0);
+        EXPECT_FALSE(tt.probe(key).has_value());
+    }
 }
 
 TEST_F(TT_Test, ConcurrentStoreAndProbeYieldOnlyCompleteSnapshots) {

@@ -100,7 +100,7 @@ std::optional<TT_Record> TT_Table::probe(PositionKey zkey) const {
 
 void TT_Table::store(
     PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply) {
-    assert(depth >= 0 && depth <= std::numeric_limits<std::uint8_t>::max());
+    assert(depth >= 0 && depth <= engine::max_search_ply);
     assert(score >= std::numeric_limits<std::int16_t>::min()
            && score <= std::numeric_limits<std::int16_t>::max());
 
@@ -170,12 +170,13 @@ void TT_Table::resize(size_t mb) {
     if (mb == 0)
         mb = 1;
 
-    std::uint64_t bytes = mb << 20;
+    const std::uint64_t bytes      = mb << 20;
+    const size_t        new_length = std::bit_floor(bytes / sizeof(TT_Cluster));
+    const int           new_shift  = 64 - std::countr_zero(new_length);
+    auto                new_table  = std::make_unique<TT_Cluster[]>(new_length);
 
-    length = bytes / sizeof(TT_Cluster);
-    length = 1ULL << std::bit_width(length - 1);
-
-    table = std::make_unique<TT_Cluster[]>(length);
-    shift = 64 - std::countr_zero(length);
-    age   = 0;
+    table  = std::move(new_table);
+    length = new_length;
+    shift  = new_shift;
+    age    = 0;
 }
