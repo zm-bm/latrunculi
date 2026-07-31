@@ -2413,7 +2413,7 @@ TEST_F(SearchTest, CompletedNoLegalMoveSearchPublishesCompletedNullMove) {
     EXPECT_TRUE(snapshot.pv.empty());
 }
 
-TEST_F(SearchTest, StoppedSearchPublishesIncompleteRootLineSnapshot) {
+TEST_F(SearchTest, StoppedSearchReportsFallbackWithoutCompletingRootSnapshot) {
     constexpr auto quiet_control = board_test::fen::quiet_black_to_move;
     Board          board{quiet_control};
     loadWorkerBoard(board, 2);
@@ -2428,6 +2428,15 @@ TEST_F(SearchTest, StoppedSearchPublishesIncompleteRootLineSnapshot) {
     EXPECT_FALSE(snapshot.has_completed_depth());
     EXPECT_FALSE(snapshot.usable_root_move());
     EXPECT_TRUE(snapshot.pv.empty());
+
+    ASSERT_FALSE(rootLines().empty());
+    const std::string transcript = protocol_out.str();
+    EXPECT_EQ(count_protocol_lines_starting_with("info depth 0 "), 1) << transcript;
+    EXPECT_EQ(transcript.find(" pv "), std::string::npos) << transcript;
+    EXPECT_NE(transcript.find(uci::format_bestmove(rootLines().front().root_move)),
+              std::string::npos)
+        << transcript;
+    EXPECT_EQ(transcript.find("bestmove 0000"), std::string::npos) << transcript;
 }
 
 TEST_F(SearchTest, StoppedSearchPreservesLastCompletedRootLine) {

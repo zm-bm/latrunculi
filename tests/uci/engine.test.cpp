@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <format>
 #include <sstream>
+#include <string>
 #include <string_view>
 #include <thread>
 
@@ -62,20 +63,18 @@ TEST(EngineLoopTest, ReadsConfiguredInputStream) {
     EXPECT_NE(output.str().find("readyok"), std::string::npos);
 }
 
-TEST_F(EngineTest, GoAndStopCommands) {
-    // Start a search
+TEST_F(EngineTest, ImmediateStopReportsLegalMove) {
     EXPECT_TRUE(execute("go"));
-
-    // Wait for a short time and stop the search
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     EXPECT_TRUE(execute("stop"));
-
-    // Wait for threads to finish and check output for best move
     threadpool().wait();
-    EXPECT_NE(output.str().find("bestmove"), std::string::npos);
+
+    const std::string transcript = output.str();
+    EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
+    EXPECT_EQ(transcript.find("bestmove 0000"), std::string::npos) << transcript;
 }
 
-TEST_F(EngineTest, GoDepthReportsEveryCompletedDepthBeforeBestmove) {
+TEST_F(EngineTest, GoDepthReportsFreshFinalInformationBeforeBestmove) {
+    ASSERT_TRUE(execute("setoption name Threads value 2"));
     EXPECT_TRUE(execute("go depth 3"));
     threadpool().wait();
 
@@ -85,18 +84,33 @@ TEST_F(EngineTest, GoDepthReportsEveryCompletedDepthBeforeBestmove) {
     EXPECT_GE(count_output_lines_starting_with("info depth 3 "), 1) << transcript;
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
 
-    const auto depth1   = transcript.find("info depth 1 ");
-    const auto depth2   = transcript.find("info depth 2 ");
-    const auto depth3   = transcript.find("info depth 3 ");
-    const auto bestmove = transcript.find("bestmove ");
+    const auto depth1     = transcript.find("info depth 1 ");
+    const auto depth2     = transcript.find("info depth 2 ");
+    const auto depth3     = transcript.find("info depth 3 ");
+    const auto bestmove   = transcript.find("bestmove ");
+    const auto final_info = transcript.rfind("info depth ", bestmove);
 
     ASSERT_NE(depth1, std::string::npos) << transcript;
     ASSERT_NE(depth2, std::string::npos) << transcript;
     ASSERT_NE(depth3, std::string::npos) << transcript;
     ASSERT_NE(bestmove, std::string::npos) << transcript;
+    ASSERT_NE(final_info, std::string::npos) << transcript;
     EXPECT_LT(depth1, depth2) << transcript;
     EXPECT_LT(depth2, depth3) << transcript;
     EXPECT_LT(depth3, bestmove) << transcript;
+
+    const auto final_info_end = transcript.find('\n', final_info);
+    ASSERT_NE(final_info_end, std::string::npos) << transcript;
+    EXPECT_EQ(final_info_end + 1, bestmove) << transcript;
+
+    const auto nodes_begin = transcript.find(" nodes ", final_info);
+    ASSERT_NE(nodes_begin, std::string::npos) << transcript;
+    const auto nodes_value = nodes_begin + std::string_view{" nodes "}.size();
+    const auto nodes_end   = transcript.find(' ', nodes_value);
+    ASSERT_NE(nodes_end, std::string::npos) << transcript;
+    EXPECT_EQ(std::stoull(transcript.substr(nodes_value, nodes_end - nodes_value)),
+              threadpool().nodes_searched())
+        << transcript;
 }
 
 TEST_F(EngineTest, GoWhileSearchInProgressIsRejected) {
@@ -153,22 +167,29 @@ TEST_F(EngineTest, QuitCommand) {
     EXPECT_FALSE(execute("quit"));
 }
 
-TEST_F(EngineTest, SearchDoesNotReuseStaleBestMoveWhenNoLegalMoves) {
+TEST_F(EngineTest, TerminalPositionsReportNullBestMove) {
     // Seed an existing bestmove.
     EXPECT_TRUE(execute("position startpos"));
     EXPECT_TRUE(execute("go depth 1"));
     threadpool().wait();
 
-    // Run a checkmated position; bestmove must not reuse the prior move.
-    output.str("");
-    output.clear();
+    constexpr std::string_view terminal_positions[] = {
+        "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",
+        board_test::fen::stalemate,
+    };
 
-    EXPECT_TRUE(execute("position fen 7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"));
-    EXPECT_TRUE(execute("go depth 1"));
-    threadpool().wait();
+    for (const std::string_view fen : terminal_positions) {
+        output.str("");
+        output.clear();
 
-    EXPECT_NE(output.str().find("bestmove 0000"), std::string::npos) << output.str();
-    EXPECT_EQ(output.str().find("bestmove e2e4"), std::string::npos) << output.str();
+        EXPECT_TRUE(execute(std::format("position fen {}", fen)));
+        EXPECT_TRUE(execute("go depth 1"));
+        threadpool().wait();
+
+        const std::string transcript = output.str();
+        EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << fen << '\n' << transcript;
+        EXPECT_NE(transcript.find("bestmove 0000"), std::string::npos) << fen << '\n' << transcript;
+    }
 }
 
 TEST_F(EngineTest, PositionStartposResetsFromNonStartPosition) {

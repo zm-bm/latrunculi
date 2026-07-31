@@ -1,6 +1,5 @@
 #pragma once
 
-#include <atomic>
 #include <condition_variable>
 #include <cstddef>
 #include <memory>
@@ -31,7 +30,6 @@ private:
     Thread(int id, uci::Writer& writer, ThreadPool& pool);
 
     // ThreadPool-facing lifecycle.
-    void start_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
     void request_stop();
     void wait_for_idle();
     void shutdown();
@@ -44,7 +42,6 @@ private:
     std::condition_variable state_cv;
     bool                    shutdown_requested{false};
     bool                    searching{false};
-    std::atomic<bool>       worker_running{false};
 
     std::thread native_thread;
 
@@ -76,9 +73,8 @@ public:
     size_t thread_count() const;
 
     // Search progress and results.
-    bool                  is_searching() const;
-    NodeCount             nodes_searched() const;
-    std::vector<RootLine> root_snapshots() const;
+    bool      is_searching() const;
+    NodeCount nodes_searched() const;
 
     friend class SearchWorker;
     friend class ::ThreadTestAccess;
@@ -106,6 +102,7 @@ private:
     // Helper worker control.
     void stop_helper_searches();
 
-    // Diagnostics.
+    // Worker results and diagnostics.
+    std::vector<RootLine>   root_snapshots() const;
     SearchInstrumentation<> aggregate_instrumentation() const;
 };

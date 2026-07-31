@@ -5,9 +5,7 @@
 The search architecture is fundamentally sound and does not need redesign. This
 roadmap preserves search policy while focusing on:
 
-- two confirmed search-reporting bugs;
 - reducing white-box test complexity;
-- tightening move-picker APIs;
 - improving names, comments, and ownership boundaries without changing tuning.
 
 `docs/search-stability.md`, search tuning, evaluation changes, pruning-policy
@@ -20,7 +18,8 @@ changes, and new features are explicitly out of scope.
 ```text
 Engine::handle(GoCommand)
   -> ThreadPool::start_search()
-     -> configure and wake every Thread
+     -> configure every Thread
+     -> wake helpers, then main
         -> SearchWorker::search()
            -> reset per-search state
            -> main worker ages TT and releases helpers
@@ -117,33 +116,11 @@ Aggregate medians:
 - Retained-history sequence: 1,475,906 nodes/s
 - Combined: 1,639,851 nodes/s
 
-Until final reporting is fixed, the external runner must calculate throughput
-from the known node boundary and wall time because the last emitted `info` line
-can contain stale node/time values.
+The original baseline can emit stale final node/time values, so comparisons
+against it must still calculate throughput from the known node boundary and
+wall time.
 
-## Prioritized Findings
-
-### Confirmed production bugs
-
-1. **An immediate stop can return `bestmove 0000` from a legal position.**
-
-   Repeated `go` followed immediately by `stop` from startpos consistently
-   produces `bestmove 0000`. The internal root snapshot should remain
-   incomplete, but final reporting should fall back to the first legal root
-   candidate when no completed line exists.
-
-2. **The final UCI information can be stale or omitted.**
-
-   `report_final_result()` calls `report_root_progress()`, which suppresses
-   output when the `RootLine` matches the last report. Nodes and elapsed time are
-   not part of `RootLine`, so the final statistics may describe an earlier depth
-   attempt. Force one final `info` line immediately before `bestmove`.
-
-### Test defect
-
-- `ThreadPoolTest::wait_for_tt_age()` reads the non-atomic TT age while the
-  search thread may be writing it. Remove this concurrent polling rather than
-  making production TT generation atomic solely for a test.
+## Remaining Findings
 
 ### High-value cleanup
 
@@ -181,7 +158,7 @@ TT [complete: 3950f0b]
       └─> Instrumentation [complete: c2946ff]
            └─> Histories and ordering [complete]
                 └─> Move picker [complete]
-                     └─> Worker lifecycle/reporting
+                     └─> Worker lifecycle/reporting [complete]
                           └─> Core search and test restructuring
                                └─> Final integration
 ```
@@ -286,53 +263,31 @@ reporting`).
 - The performance gate measured cold -0.14%, retained-history +0.34%, and
   combined -0.08%, with no per-case regression above 2%.
 
-## Chunk 6: Worker Lifecycle, Threading, and Reporting
+## Chunk 6: Worker Lifecycle, Threading, and Reporting — Complete
 
-Files:
+Completed in the current working tree.
 
-- `src/search/search_worker.hpp`
-- `src/search/search_worker.cpp`
-- `src/uci/threading.hpp`
-- `src/uci/threading.cpp`
-- relevant worker, threading, engine, and writer tests
-
-Correctness fixes:
-
-- Allow `report_root_progress()` to force publication.
-- Force exactly one final `info` line immediately before `bestmove`.
-- When stopped before completing any depth:
-  - keep the published root snapshot incomplete;
-  - select `root_lines.front().root_move` as the reporting fallback;
-  - report depth zero without a PV;
-  - emit that legal move instead of `0000`.
-- Continue emitting `0000` only when the root has no legal moves.
-- Remove concurrent TT-age polling from tests.
-
-Cleanup:
-
-- Keep direct worker ownership and the helper-release gate.
-- Keep per-worker Board copies and heuristics.
-- Keep mutex-protected RootLine snapshots.
-- Remove `ThreadObjectSizeStaysBounded`; its arbitrary threshold does not
-  protect a meaningful engine contract.
-- Remove test-access methods that become unused after the search test
-  restructuring.
-- Do not alter lazy SMP, stopping cadence, node-limit policy, or helper
-  selection.
-
-Risk: cold-path correctness and threading tests; no recursive hot-path change.
-
-Verification:
-
-- Reproduce immediate `go`/`stop` repeatedly from startpos.
-- Verify legal fallback, incomplete snapshot, final-info ordering,
-  checkmate/stalemate `0000`, helper shutdown, resizing, and `ucinewgame`.
-- Run debug, release, stats-enabled, and thread-sanitizer testing if a preset is
-  available.
-- Suggested commits:
-  - `fix(search): report a legal move after an immediate stop`
-  - `fix(uci): always publish final search information`
-  - `test(search): remove unsafe TT generation polling`
+- `ThreadPool` now configures every worker before waking helpers behind the
+  closed gate and waking the main worker last. A fast main search can no longer
+  stop an unconfigured helper that later starts after `bestmove`.
+- An immediate stop retains an incomplete published root snapshot but reports
+  the first legal root candidate at depth zero. Checkmate and stalemate still
+  report `bestmove 0000`.
+- Final reporting bypasses ordinary progress suppression and emits fresh node
+  and time information immediately before `bestmove`, after helpers stop.
+- The test-only `worker_running` atomic was removed, worker snapshot collection
+  became private, and TT generation is no longer polled concurrently.
+- Direct private-`Thread` tests and redundant lifecycle/snapshot cases were
+  removed. Ordinary builds now run 17 focused `ThreadPoolTest` cases; the stats
+  build adds its instrumentation case.
+- `SearchWorker` remained 19,784 bytes and `Thread` remained 19,888 bytes. Six
+  fixed-node search signatures matched the preserved baseline exactly.
+- Debug, release, and stats-enabled tests passed in 8.62, 0.64, and 0.63
+  seconds. Fifty immediate stops, both terminal roots, and thirty immediate
+  32-worker restarts passed; final stats nodes matched the aggregated total.
+- GCC's TSan runtime could not start on this host because of an `unexpected
+  memory mapping` failure. The same focused 20-test suite passed under Clang
+  18's TSan runtime with no race reports.
 
 ## Chunk 7: Core Search and Test Restructuring
 
@@ -386,7 +341,7 @@ Target tests:
   - aspiration widening;
   - iterative-deepening result/PV publication;
   - stopped and partially completed searches;
-  - reporting suppression versus forced final reporting.
+  - progress suppression and final reporting.
 
 Introduce a small `SearchTestAccess` helper exposing only:
 
@@ -467,9 +422,9 @@ Checks:
 - [x] Simplify history and ordering tests without reopening lifecycle policy.
 - [x] Internalize move-picker implementation types.
 - [x] Reduce duplicated move-picker tests and preserve exact order.
-- [ ] Fix immediate-stop legal fallback.
-- [ ] Force final UCI search information.
-- [ ] Remove concurrent TT-age polling.
+- [x] Fix immediate-stop legal fallback.
+- [x] Force final UCI search information.
+- [x] Remove concurrent TT-age polling.
 - [ ] Split and reduce `search.test.cpp`.
 - [ ] Narrow search test access.
 - [ ] Apply only organizational changes to `search.cpp`.

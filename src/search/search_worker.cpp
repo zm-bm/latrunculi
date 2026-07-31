@@ -132,10 +132,17 @@ void SearchWorker::record_root_result(EvalValue value) {
 void SearchWorker::report_final_result() {
     thread_pool.stop_helper_searches();
 
-    const RootLine selected = select_best_root_line(root_result, thread_pool.root_snapshots());
+    RootLine selected = select_best_root_line(root_result, thread_pool.root_snapshots());
 
-    report_root_progress(selected);
+    // A stopped depth-zero search still owes UCI a legal move.
+    if (!selected.usable_root_move() && !root_lines.empty()) {
+        selected.root_move = root_lines.front().root_move;
+        selected.depth     = 0;
+        selected.completed = false;
+        selected.pv.clear();
+    }
 
+    writer.search_info(selected, board, total_nodes(), runtime());
     writer.bestmove(selected.root_move);
 
     if constexpr (SEARCH_STATS_ENABLED) {
