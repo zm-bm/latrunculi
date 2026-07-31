@@ -13,9 +13,9 @@
 #include "search/search_limits.hpp"
 
 class ThreadPool;
-class ThreadTestAccess;
+class SearchTestAccess;
 
-enum NodeType { PV, NON_PV };
+enum class NodeType { Pv, NonPv };
 
 namespace uci {
 class Writer;
@@ -86,13 +86,13 @@ private:
     void update_root_snapshot();
 
     // Search algorithm. (search.cpp)
-    template <NodeType Node = NON_PV>
+    template <NodeType Node = NodeType::NonPv>
     EvalValue alphabeta(EvalValue           alpha,
                         EvalValue           beta,
                         int                 depth,
                         PrincipalVariation* pv       = nullptr,
                         bool                can_null = true);
-    template <NodeType Node = NON_PV>
+    template <NodeType Node = NodeType::NonPv>
     EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
 
     // Accounting and limits.
@@ -107,9 +107,8 @@ private:
     bool is_main_worker() const noexcept;
     bool should_poll_search_limits() const noexcept;
 
-    friend class SearchTest;
+    friend class SearchTestAccess;
     friend class ThreadPool;
-    friend class ::ThreadTestAccess;
 };
 
 inline NodeCount SearchWorker::node_count() const noexcept {

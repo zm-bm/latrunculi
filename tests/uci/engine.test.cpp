@@ -10,6 +10,7 @@
 #include "board/board.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
+#include "support/search_test_access.hpp"
 #include "support/thread_test_access.hpp"
 #include "gtest/gtest.h"
 
@@ -236,7 +237,7 @@ TEST_F(EngineTest, UciNewGameClearsTTAndSearchHeuristics) {
     ASSERT_EQ(tt.current_age(), std::uint8_t{1});
 
     for (size_t index = 0; index < threadpool().thread_count(); ++index) {
-        auto& ordering = ThreadTestAccess::move_ordering(threadpool(), index);
+        auto& ordering = SearchTestAccess::ordering(ThreadTestAccess::worker(threadpool(), index));
         ordering.quiets.reward(WHITE, E2, E4, 4);
         ordering.continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
     }
@@ -247,7 +248,7 @@ TEST_F(EngineTest, UciNewGameClearsTTAndSearchHeuristics) {
     EXPECT_EQ(tt.current_age(), std::uint8_t{0});
 
     for (size_t index = 0; index < threadpool().thread_count(); ++index) {
-        auto& ordering = ThreadTestAccess::move_ordering(threadpool(), index);
+        auto& ordering = SearchTestAccess::ordering(ThreadTestAccess::worker(threadpool(), index));
         EXPECT_EQ(ordering.quiets.get(WHITE, E2, E4), 0);
         EXPECT_EQ(ordering.continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
     }

@@ -37,7 +37,7 @@ constexpr int QuietMalusDivisor   = 2;
 template <NodeType Node>
 bool tt_cutoff_allowed(
     const TT_Record& record, EvalValue adjusted_score, int depth, EvalValue alpha, EvalValue beta) {
-    if constexpr (Node == PV)
+    if constexpr (Node == NodeType::Pv)
         return int(record.depth) >= depth && record.flag == TT_Flag::Exact;
 
     return record.can_cutoff(adjusted_score, depth, alpha, beta);
@@ -65,7 +65,7 @@ int lmr_reduction(int  depth,
     double       r    = base + std::log(depth) * std::log(move_count) / div;
 
     // Reduce less for PV and killer moves.
-    if constexpr (Node == PV)
+    if constexpr (Node == NodeType::Pv)
         r *= 0.7;
     if (is_killer)
         r *= 0.8;
@@ -74,7 +74,7 @@ int lmr_reduction(int  depth,
     return std::clamp(static_cast<int>(r), 1, depth - 2);
 }
 
-struct SearchedMoves {
+struct FailedQuiets {
     static constexpr int Capacity = 32;
 
     bool add(Move move) {
@@ -187,13 +187,13 @@ bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta
         PrincipalVariation child_pv;
         EvalValue          value;
         if (move_count == 1 || !pv_move_found) {
-            value = -alphabeta<PV>(-beta, -alpha, depth - 1, &child_pv);
+            value = -alphabeta<NodeType::Pv>(-beta, -alpha, depth - 1, &child_pv);
         } else {
-            value = -alphabeta<NON_PV>(-alpha - 1, -alpha, depth - 1);
+            value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, depth - 1);
             if (!stop_requested() && value > alpha) {
                 stats.pvs_research(ply);
                 child_pv.clear();
-                value = -alphabeta<PV>(-beta, -alpha, depth - 1, &child_pv);
+                value = -alphabeta<NodeType::Pv>(-beta, -alpha, depth - 1, &child_pv);
             }
         }
 
@@ -230,7 +230,7 @@ bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta
 template <NodeType Node>
 EvalValue SearchWorker::alphabeta(
     EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv, bool can_null) {
-    // Step 1. PV and Abort Checks. Clear caller PV and honor pending stops.
+    // Step 1. PV and stop checks.
     if (pv)
         pv->clear();
 
@@ -239,7 +239,7 @@ EvalValue SearchWorker::alphabeta(
     if (stop_requested())
         return alpha;
 
-    // Step 2. Early Exit Conditions. Resolve draws, max ply, and qsearch entry.
+    // Step 2. Draw, max-ply, and qsearch exits.
     const bool drawn = board.is_draw(ply);
 
     if (drawn) {
@@ -260,7 +260,7 @@ EvalValue SearchWorker::alphabeta(
     increment_nodes();
     stats.node(ply);
 
-    // Step 3. Mate Distance Pruning. Clamp scores that cannot improve this line.
+    // Step 3. Mate-distance pruning.
     alpha = std::max(alpha, -eval_value::mate + ply);
     beta  = std::min(beta, eval_value::mate - ply - 1);
     if (alpha >= beta)
@@ -270,7 +270,7 @@ EvalValue SearchWorker::alphabeta(
     const PositionKey position_key   = board.key();
     Move              tt_move        = NULL_MOVE;
 
-    // Step 4. Transposition Table. Probe for a cutoff or a hash move.
+    // Step 4. TT probe.
     stats.main_tt_probe(ply);
     const auto tt_record = tt.probe(position_key);
     if (tt_record) {
@@ -290,13 +290,13 @@ EvalValue SearchWorker::alphabeta(
     const Color c        = board.side_to_move();
     bool        futility = false;
 
-    if constexpr (Node == NON_PV) {
-        // Step 5. Razoring. At shallow fail-low nodes, verify with qsearch.
+    if constexpr (Node == NodeType::NonPv) {
+        // Step 5. Razoring.
         const EvalValue static_eval = evaluate(board);
         if (can_null && !in_check && depth <= RazorFutilityMaxDepth && tt_move.is_null()
             && static_eval + RazorMargin[depth] <= alpha) {
             stats.razor_try(ply);
-            const EvalValue value = quiescence<NON_PV>(alpha - 1, alpha);
+            const EvalValue value = quiescence<NodeType::NonPv>(alpha - 1, alpha);
             if (stop_requested())
                 return alpha;
             if (value < alpha) {
@@ -305,7 +305,7 @@ EvalValue SearchWorker::alphabeta(
             }
         }
 
-        // Step 6. Null Move Pruning. If passing still maintains beta, prune early.
+        // Step 6. Null-move pruning.
         // Skip NMP when a depth-sufficient TT upper bound suggests it will fail low.
         const int reduction =
             depth > NullMoveDeepDepth ? NullMoveReductionDeep : NullMoveReductionBase;
@@ -319,7 +319,7 @@ EvalValue SearchWorker::alphabeta(
             board.make_null();
             ++ply;
             const EvalValue value =
-                -alphabeta<NON_PV>(-beta, -beta + 1, depth - reduction, nullptr, false);
+                -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, nullptr, false);
             board.unmake_null();
             --ply;
 
@@ -336,6 +336,7 @@ EvalValue SearchWorker::alphabeta(
                 && alpha < eval_value::mate_bound && static_eval + FutilityMargin[depth] <= alpha;
     }
 
+    // Step 7. Move ordering and quiet-malus tracking.
     int       move_count     = 0;
     EvalValue best_value     = -eval_value::inf;
     Move      top_score_move = NULL_MOVE;
@@ -343,13 +344,13 @@ EvalValue SearchWorker::alphabeta(
     const auto         ctx    = MoveOrdering::make_context(board);
     auto               picker = move_picker::main_search(board, ordering, ctx, ply, tt_move);
     PrincipalVariation child_pv;
-    SearchedMoves      searched_quiets;
+    FailedQuiets       searched_quiets;
 
     const bool quiet_malus_eligible = depth >= QuietMalusMinDepth && !in_check;
     if (quiet_malus_eligible)
         stats.quiet_malus_eligible_node(depth);
 
-    // Step 8. Move Loop. Search ordered legal moves until cutoff or exhaustion.
+    // Step 8. Move loop.
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (!board.is_legal_pseudo_move(move))
             continue;
@@ -366,7 +367,7 @@ EvalValue SearchWorker::alphabeta(
 
         const bool gives_check = board.is_check();
         if (futility && !first_legal && is_quiet && !gives_check) {
-            // Step 9. Futility Pruning. Skip late quiet moves that cannot raise alpha.
+            // Step 9. Futility pruning.
             board.unmake();
             --ply;
             picker.skip_quiet_moves();
@@ -374,38 +375,40 @@ EvalValue SearchWorker::alphabeta(
             continue;
         }
 
-        // Step 10. Late Move Reductions. Search late moves at reduced depth first.
+        // Step 10. Late-move reductions.
         // If the reduced search beats alpha, research the move at full depth.
         EvalValue value;
         const int reduction = lmr_reduction<Node>(
             depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer);
         if (reduction > 0) {
             stats.lmr_try(ply - 1);
-            value = -alphabeta<NON_PV>(-alpha - 1, -alpha, depth - 1 - reduction, nullptr, true);
+            value = -alphabeta<NodeType::NonPv>(
+                -alpha - 1, -alpha, depth - 1 - reduction, nullptr, true);
             if (!stop_requested() && value > alpha) {
                 stats.lmr_research(ply - 1);
-                if constexpr (Node == PV) {
+                if constexpr (Node == NodeType::Pv) {
                     stats.pvs_research(ply);
                     child_pv.clear();
-                    value =
-                        -alphabeta<PV>(-beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
+                    value = -alphabeta<NodeType::Pv>(
+                        -beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
                 } else {
-                    value = -alphabeta<NON_PV>(-beta, -alpha, depth - 1, nullptr, true);
+                    value = -alphabeta<NodeType::NonPv>(-beta, -alpha, depth - 1, nullptr, true);
                 }
             }
         } else {
-            // Step 11. Principal Variation Search. Scout later PV moves before re-search.
-            if constexpr (Node == NON_PV) {
-                value = -alphabeta<NON_PV>(-beta, -alpha, depth - 1, nullptr, true);
+            // Step 11. Principal variation search.
+            if constexpr (Node == NodeType::NonPv) {
+                value = -alphabeta<NodeType::NonPv>(-beta, -alpha, depth - 1, nullptr, true);
             } else if (move_count == 1) {
-                value = -alphabeta<PV>(-beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
+                value = -alphabeta<NodeType::Pv>(
+                    -beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
             } else {
-                value = -alphabeta<NON_PV>(-alpha - 1, -alpha, depth - 1, nullptr, true);
+                value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, depth - 1, nullptr, true);
                 if (!stop_requested() && value > alpha) {
                     stats.pvs_research(ply);
                     child_pv.clear();
-                    value =
-                        -alphabeta<PV>(-beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
+                    value = -alphabeta<NodeType::Pv>(
+                        -beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
                 }
             }
         }
@@ -417,7 +420,7 @@ EvalValue SearchWorker::alphabeta(
             return alpha;
 
         if (value >= beta) {
-            // Step 12. Beta Cutoff. Return fail-soft value and store a lower bound.
+            // Step 12. Beta cutoff.
             if (is_quiet) {
                 stats.quiet_cutoff(depth);
                 ordering.update_quiet_refutations(ctx, move, ply);
@@ -442,7 +445,7 @@ EvalValue SearchWorker::alphabeta(
             if (searched_quiets.add(move))
                 stats.quiet_malus_failed_quiet(depth);
         }
-        // Step 13. Best Move Update. Raise alpha and PV when this move improves the node.
+        // Step 13. Best-move update.
         if (value > best_value) {
             best_value     = value;
             top_score_move = move;
@@ -455,14 +458,14 @@ EvalValue SearchWorker::alphabeta(
         }
     }
 
-    // Step 14. Mate and Stalemate Detection. No legal moves ends the node.
+    // Step 14. Mate and stalemate.
     if (move_count == 0) {
         best_value = in_check ? -eval_value::mate + ply : eval_value::draw;
         tt.store(position_key, NULL_MOVE, best_value, depth, TT_Flag::Exact, ply);
         return best_value;
     }
 
-    // Step 15. Store Result. Use the original window to classify the bound.
+    // Step 15. TT store.
     tt.store(position_key,
              top_score_move,
              best_value,
@@ -476,7 +479,7 @@ EvalValue SearchWorker::alphabeta(
 // Quiescence search for tactical depth-zero nodes.
 template <NodeType Node>
 EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv) {
-    // Step 1. PV and Abort Checks. Clear caller PV and honor pending stops.
+    // Step 1. PV and stop checks.
     if (pv)
         pv->clear();
 
@@ -488,7 +491,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
     increment_nodes();
     stats.qnode(ply);
 
-    // Step 2. Early Exit Conditions. Qsearch is below root, so draws may return.
+    // Step 2. Draw and max-ply exits.
     if (board.is_draw(ply))
         return eval_value::draw;
 
@@ -500,7 +503,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
     const PositionKey position_key     = board.key();
     Move              tt_move          = NULL_MOVE;
 
-    // Step 3. Transposition Table. Use depth-0 records with the PV cutoff policy.
+    // Step 3. TT probe.
     stats.q_tt_probe(ply);
     if (auto record = tt.probe(position_key)) {
         stats.q_tt_hit(ply);
@@ -519,7 +522,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
     EvalValue  best_value     = -eval_value::inf;
     Move       top_score_move = NULL_MOVE;
 
-    // Step 4. Stand Pat. Use static eval as the initial lower bound when legal.
+    // Step 4. Stand pat.
     if (!in_check) {
         best_value = evaluate(board);
         if (best_value >= beta) {
@@ -534,7 +537,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
     auto               picker = move_picker::qsearch(board, ordering, tt_move);
     PrincipalVariation child_pv;
 
-    // Step 5. Tactical Move Loop. Search noisy moves, or all evasions in check.
+    // Step 5. Tactical move or evasion loop.
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (!board.is_legal_pseudo_move(move))
             continue;
@@ -551,7 +554,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
             return alpha;
 
         if (value >= beta) {
-            // Step 6. Beta Cutoff. Return fail-soft value and store a lower bound.
+            // Step 6. Beta cutoff.
             if (pv)
                 pv->update(move, child_pv);
             stats.beta_cutoff(ply, move_count);
@@ -559,7 +562,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
             return value;
         }
 
-        // Step 7. Best Move Update. Raise alpha and PV when this move improves qsearch.
+        // Step 7. Best-move update.
         if (value > best_value) {
             best_value     = value;
             top_score_move = move;
@@ -571,14 +574,14 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
         }
     }
 
-    // Step 8. Checkmate Detection. In-check qsearch must find a legal evasion.
+    // Step 8. Checkmate.
     if (in_check && move_count == 0) {
         best_value = -eval_value::mate + ply;
         tt.store(position_key, NULL_MOVE, best_value, qsearch_tt_depth, TT_Flag::Exact, ply);
         return best_value;
     }
 
-    // Step 9. Store Result. Use the original window to classify the qsearch bound.
+    // Step 9. TT store.
     tt.store(position_key,
              top_score_move,
              best_value,
@@ -591,8 +594,10 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
 
 // Template definitions live in this translation unit; instantiate the node types we use.
 template EvalValue
-SearchWorker::alphabeta<PV>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
+SearchWorker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
 template EvalValue
-SearchWorker::alphabeta<NON_PV>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
-template EvalValue SearchWorker::quiescence<PV>(EvalValue, EvalValue, PrincipalVariation*);
-template EvalValue SearchWorker::quiescence<NON_PV>(EvalValue, EvalValue, PrincipalVariation*);
+SearchWorker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
+template EvalValue
+SearchWorker::quiescence<NodeType::Pv>(EvalValue, EvalValue, PrincipalVariation*);
+template EvalValue
+SearchWorker::quiescence<NodeType::NonPv>(EvalValue, EvalValue, PrincipalVariation*);

@@ -7,6 +7,7 @@
 #include "board/board.hpp"
 #include "search/search_limits.hpp"
 #include "support/board_fixtures.hpp"
+#include "support/search_test_access.hpp"
 #include "support/thread_test_access.hpp"
 #include "uci/threading.hpp"
 #include "uci/uci_writer.hpp"
@@ -21,23 +22,37 @@ protected:
 
     Thread& test_thread() { return ThreadTestAccess::thread(pool); }
 
+    SearchWorker& worker() { return ThreadTestAccess::worker(test_thread()); }
+
     void load_worker_board(Board& board) {
-        ThreadTestAccess::configure_search(test_thread(), board, SearchLimits{});
-        ThreadTestAccess::reset_search_state(test_thread());
+        worker().configure_search(board, SearchLimits{}, SearchClock::now());
+        SearchTestAccess::reset(worker());
     }
 
-    int  worker_ply() { return ThreadTestAccess::ply(test_thread()); }
-    bool worker_is_draw() { return ThreadTestAccess::is_draw(test_thread()); }
+    int& worker_ply() { return SearchTestAccess::ply(worker()); }
+    bool worker_is_draw() { return SearchTestAccess::board(worker()).is_draw(worker_ply()); }
 
-    MoveOrdering& worker_ordering() { return ThreadTestAccess::move_ordering(test_thread()); }
+    MoveOrdering& worker_ordering() { return SearchTestAccess::ordering(worker()); }
 
-    void make_worker_move(Move move) { ThreadTestAccess::make(test_thread(), move); }
+    void make_worker_move(Move move) {
+        SearchTestAccess::board(worker()).make(move);
+        ++worker_ply();
+    }
 
-    void unmake_worker_move() { ThreadTestAccess::unmake(test_thread()); }
+    void unmake_worker_move() {
+        SearchTestAccess::board(worker()).unmake();
+        --worker_ply();
+    }
 
-    void make_worker_null_move() { ThreadTestAccess::make_null(test_thread()); }
+    void make_worker_null_move() {
+        SearchTestAccess::board(worker()).make_null();
+        ++worker_ply();
+    }
 
-    void unmake_worker_null_move() { ThreadTestAccess::unmake_null(test_thread()); }
+    void unmake_worker_null_move() {
+        SearchTestAccess::board(worker()).unmake_null();
+        --worker_ply();
+    }
 };
 
 } // namespace
@@ -74,11 +89,11 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeQuietAndPreserveContinuationHistory)
     worker_ordering().quiets.reward(WHITE, E2, E4, 4);
     worker_ordering().continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
 
-    ThreadTestAccess::reset_search_state(test_thread());
+    SearchTestAccess::reset(worker());
     EXPECT_EQ(worker_ordering().quiets.get(WHITE, E2, E4), 8);
     EXPECT_EQ(worker_ordering().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
 
-    ThreadTestAccess::reset_search_state(test_thread());
+    SearchTestAccess::reset(worker());
     EXPECT_EQ(worker_ordering().quiets.get(WHITE, E2, E4), 4);
     EXPECT_EQ(worker_ordering().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
 }
@@ -102,4 +117,26 @@ TEST_F(SearchWorkerTest, RootPositionHistoryFeedsSearchRepetitionAfterSourceRese
     make_worker_move(Move(B1, A1));
     make_worker_move(Move(G8, H8));
     EXPECT_TRUE(worker_is_draw());
+}
+
+TEST_F(SearchWorkerTest, StoppedSearchReportsFallbackWithoutCompletingRootSnapshot) {
+    Board board{board_test::fen::quiet_black_to_move};
+    load_worker_board(board);
+
+    ThreadTestAccess::request_stop(test_thread());
+    (void)worker().search();
+
+    const RootLine snapshot = worker().root_snapshot();
+    EXPECT_FALSE(snapshot.completed);
+    EXPECT_EQ(snapshot.root_move, NULL_MOVE);
+    EXPECT_EQ(snapshot.depth, 0);
+    EXPECT_TRUE(snapshot.pv.empty());
+
+    const auto& root_lines = SearchTestAccess::root_lines(worker());
+    ASSERT_FALSE(root_lines.empty());
+    const std::string transcript = oss.str();
+    EXPECT_NE(transcript.find("info depth 0 "), std::string::npos);
+    EXPECT_EQ(transcript.find(" pv "), std::string::npos);
+    EXPECT_NE(transcript.find("bestmove " + root_lines.front().root_move.str()), std::string::npos);
+    EXPECT_EQ(transcript.find("bestmove 0000"), std::string::npos);
 }
