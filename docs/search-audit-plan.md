@@ -149,8 +149,6 @@ can contain stale node/time values.
 
 - Reduce and split `search.test.cpp`; replace its approximately 350-line fixture
   surface with a small shared access shim.
-- Consolidate duplicated move-picker ordering, determinism, and hint tests.
-- Internalize move-picker implementation enums and candidate types.
 
 ### Optional cleanup
 
@@ -182,7 +180,7 @@ TT [complete: 3950f0b]
  └─> Search value/result types [complete]
       └─> Instrumentation [complete: c2946ff]
            └─> Histories and ordering [complete]
-                └─> Move picker
+                └─> Move picker [complete]
                      └─> Worker lifecycle/reporting
                           └─> Core search and test restructuring
                                └─> Final integration
@@ -269,49 +267,24 @@ reporting`).
 - Debug, release, and stats-enabled tests passed in 8.58, 0.69, and 0.69 seconds.
   No performance gate was required because production code was unchanged.
 
-## Chunk 5: Move Picker
+## Chunk 5: Move Picker — Complete
 
-Files:
-
-- `src/search/move_picker.hpp`
-- `src/search/move_picker.cpp`
-- `tests/search/move_picker.test.cpp`
-
-Changes:
-
-- Keep the stage machine and emitted order.
-- Move `Mode`, `Stage`, policies, `Candidate`, and `CandidateRange` into
-  `Picker`'s private implementation surface.
-- Rename stage enumerators to normal scoped-enum style.
-- Remove the `include_prev` boolean from `MoveOrdering::make_context()`.
-- Let qsearch construct its current-side-only context internally; keep main
-  search's shared context because search also uses it for history updates.
-- Do not change scoring bands, SEE classification, hint precedence, generation
-  timing, or bad-capture placement.
-
-Test cleanup:
-
-- Remove weak `MainSearchPicksGeneratedMoves`.
-- Remove the `picked_root_order()` alias.
-- Retain one representative multi-position move-set test.
-- Merge duplicate capture/killer/history priority tests.
-- Merge hash-first, deterministic-order, and duplicate-suppression tests.
-- Merge counter priority, validation, and duplicate cases into a named table.
-- Merge qsearch TT capture, promotion, quiet rejection, and in-check evasion
-  cases.
-- Merge the two main-search skip-quiet tests.
-- Retain focused continuation-context, in-check, weak-capture, promotion,
-  special-move, and skip behavior.
-
-Risk: hot-path and move-order-sensitive.
-
-Verification:
-
-- Debug and release tests.
-- Exact picker output/order comparison on representative positions.
-- Full cold and retained-history benchmark.
-- Stop on any unexpected tree-shape or best-move change.
-- Suggested commit: `refactor(search): tighten move-picker state machine`
+- Picker-only modes, stages, policies, candidates, and ranges are now private to
+  `Picker`; stage names follow the normal scoped-enum style.
+- `MoveOrdering::make_context()` always builds the full main-search context.
+  Qsearch constructs its current-side-only context internally.
+- Scoring bands, SEE classification, hint precedence, generation timing, stage
+  order, and emitted move order remain unchanged.
+- Focused coverage was reduced from 38 tests and 725 lines to 14 tests and 407
+  lines while retaining move-set, ordering, hint, continuation, evasion,
+  qsearch, special-move, and skip behavior.
+- `Picker` remained 2,136 bytes and `SearchWorker` remained 19,784 bytes.
+  `Picker::next()`, noisy scoring, and main-search construction retained
+  byte-identical machine code.
+- All 18 exact move-order oracle scenarios and all search signatures remained
+  unchanged. Debug, release, and stats-enabled tests passed.
+- The performance gate measured cold -0.14%, retained-history +0.34%, and
+  combined -0.08%, with no per-case regression above 2%.
 
 ## Chunk 6: Worker Lifecycle, Threading, and Reporting
 
@@ -492,8 +465,8 @@ Checks:
 - [x] Remove only derivable instrumentation counters.
 - [x] Verify disabled instrumentation compiles away.
 - [x] Simplify history and ordering tests without reopening lifecycle policy.
-- [ ] Internalize move-picker implementation types.
-- [ ] Reduce duplicated move-picker tests and preserve exact order.
+- [x] Internalize move-picker implementation types.
+- [x] Reduce duplicated move-picker tests and preserve exact order.
 - [ ] Fix immediate-stop legal fallback.
 - [ ] Force final UCI search information.
 - [ ] Remove concurrent TT-age polling.

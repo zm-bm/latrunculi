@@ -104,7 +104,7 @@ struct MoveOrdering {
     QuietHistory        quiets;
     ContinuationHistory continuations;
 
-    static Context make_context(const Board& board, bool include_prev = true);
+    static Context make_context(const Board& board);
 
     void prepare_for_search();
     void clear();
@@ -199,11 +199,8 @@ inline void MoveOrdering::penalize_quiet(
             context.prev_c, context.prev_piece, context.prev_to, piece, to, depth, divisor);
 }
 
-inline MoveOrdering::Context MoveOrdering::make_context(const Board& board, bool include_prev) {
+inline MoveOrdering::Context MoveOrdering::make_context(const Board& board) {
     Context context{.c = board.side_to_move()};
-
-    if (!include_prev)
-        return context;
 
     const Move prev_move = board.previous_move();
     if (prev_move.is_null())

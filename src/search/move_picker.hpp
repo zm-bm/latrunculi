@@ -11,47 +11,6 @@ class Board;
 
 namespace move_picker {
 
-enum class Mode : std::uint8_t {
-    MainSearch,
-    QSearch,
-};
-
-enum class Stage : std::uint8_t {
-    TT_MOVE,
-    LOAD_EVASIONS,
-    PICK_EVASION,
-    LOAD_NOISY,
-    PICK_GOOD_NOISY,
-    PICK_QUIET_HINT,
-    LOAD_QUIET,
-    PICK_QUIET,
-    PICK_BAD_NOISY,
-    DONE,
-};
-
-enum class ScorePolicy : std::uint8_t {
-    Noisy,
-    Quiet,
-    Evasion,
-};
-
-enum class PickPolicy : std::uint8_t {
-    Evasion,
-    GoodNoisy,
-    Quiet,
-    BadNoisy,
-};
-
-struct Candidate {
-    Move move;
-    int  score;
-};
-
-struct CandidateRange {
-    Candidate* next{nullptr};
-    Candidate* end{nullptr};
-};
-
 class Picker {
 public:
     Picker(const Picker&)            = delete;
@@ -64,16 +23,54 @@ public:
     void skip_quiet_moves();
 
 private:
+    enum class Mode : std::uint8_t {
+        MainSearch,
+        QSearch,
+    };
+
+    enum class Stage : std::uint8_t {
+        TtMove,
+        LoadEvasions,
+        PickEvasion,
+        LoadNoisy,
+        PickGoodNoisy,
+        PickQuietHint,
+        LoadQuiet,
+        PickQuiet,
+        PickBadNoisy,
+        Done,
+    };
+
+    enum class ScorePolicy : std::uint8_t {
+        Noisy,
+        Quiet,
+        Evasion,
+    };
+
+    enum class PickPolicy : std::uint8_t {
+        Evasion,
+        GoodNoisy,
+        Quiet,
+        BadNoisy,
+    };
+
+    struct Candidate {
+        Move move;
+        int  score;
+    };
+
+    struct CandidateRange {
+        Candidate* next{nullptr};
+        Candidate* end{nullptr};
+    };
+
     friend Picker main_search(const Board&                 board,
                               const MoveOrdering&          ordering,
                               const MoveOrdering::Context& context,
                               int                          ply,
                               Move                         tt_move);
 
-    friend Picker qsearch(const Board&                 board,
-                          const MoveOrdering&          ordering,
-                          const MoveOrdering::Context& context,
-                          Move                         tt_move);
+    friend Picker qsearch(const Board& board, const MoveOrdering& ordering, Move tt_move);
 
     static constexpr int QuietHintCapacity = 3;
     using QuietHintCandidates              = std::array<Move, QuietHintCapacity>;
@@ -110,7 +107,7 @@ private:
     Move                                      tt_move{NULL_MOVE};
     const Mode                                mode;
     const bool                                in_check;
-    Stage                                     stage{Stage::TT_MOVE};
+    Stage                                     stage{Stage::TtMove};
     std::array<Candidate, MoveList::capacity> moves;
     // Primary holds evasions when in check, otherwise noisy moves.
     CandidateRange                      primary;
@@ -127,9 +124,6 @@ Picker main_search(const Board&                 board,
                    int                          ply,
                    Move                         tt_move = NULL_MOVE);
 
-Picker qsearch(const Board&                 board,
-               const MoveOrdering&          ordering,
-               const MoveOrdering::Context& context,
-               Move                         tt_move = NULL_MOVE);
+Picker qsearch(const Board& board, const MoveOrdering& ordering, Move tt_move = NULL_MOVE);
 
 } // namespace move_picker

@@ -6,7 +6,6 @@
 #include "board/board.hpp"
 #include "eval/eval.hpp"
 #include "movegen/movegen.hpp"
-#include "search/move_ordering.hpp"
 
 namespace {
 
@@ -36,14 +35,13 @@ Picker main_search(const Board&                 board,
         ordering.counter_hint(context),
     };
 
-    return Picker(Mode::MainSearch, board, ordering, context, tt_move, quiet_hint_candidates);
+    return Picker(
+        Picker::Mode::MainSearch, board, ordering, context, tt_move, quiet_hint_candidates);
 }
 
-Picker qsearch(const Board&                 board,
-               const MoveOrdering&          ordering,
-               const MoveOrdering::Context& context,
-               Move                         tt_move) {
-    return Picker(Mode::QSearch, board, ordering, context, tt_move);
+Picker qsearch(const Board& board, const MoveOrdering& ordering, Move tt_move) {
+    const MoveOrdering::Context context{.c = board.side_to_move()};
+    return Picker(Picker::Mode::QSearch, board, ordering, context, tt_move);
 }
 
 Picker::Picker(Mode                         mode,
@@ -57,7 +55,7 @@ Picker::Picker(Mode                         mode,
       context(context),
       mode(mode),
       in_check(board.is_check()),
-      stage(Stage::TT_MOVE) {
+      stage(Stage::TtMove) {
     tt_move = accepted_tt_hint(tt);
 
     if (mode == Mode::MainSearch && !in_check) {
@@ -136,7 +134,7 @@ int Picker::score_noisy(Move move) const {
     return GoodCaptureScoreBase + CaptureVictimWeight * victim_value + see_score;
 }
 
-template <ScorePolicy Policy>
+template <Picker::ScorePolicy Policy>
 int Picker::score_move(Move move) const {
     if constexpr (Policy == ScorePolicy::Quiet)
         return ordering.quiet_score(context, board, move, true);
@@ -150,8 +148,8 @@ int Picker::score_move(Move move) const {
     return ordering.quiet_score(context, board, move, false);
 }
 
-template <ScorePolicy Policy>
-Candidate* Picker::score_moves(const MoveList& list, Candidate* out) {
+template <Picker::ScorePolicy Policy>
+Picker::Candidate* Picker::score_moves(const MoveList& list, Candidate* out) {
     Candidate*       cur   = out;
     Candidate* const limit = moves.data() + moves.size();
 
@@ -165,7 +163,7 @@ Candidate* Picker::score_moves(const MoveList& list, Candidate* out) {
     return cur;
 }
 
-template <PickPolicy Policy>
+template <Picker::PickPolicy Policy>
 bool Picker::is_pickable(const Candidate& candidate) const {
     const Move move  = candidate.move;
     const int  score = candidate.score;
@@ -184,7 +182,7 @@ bool Picker::is_pickable(const Candidate& candidate) const {
     }
 }
 
-template <PickPolicy Policy>
+template <Picker::PickPolicy Policy>
 Move Picker::pick(CandidateRange& range) {
     Candidate* best       = nullptr;
     int        best_score = 0;
@@ -216,101 +214,101 @@ void Picker::skip_quiet_moves() {
     skip_quiets = true;
 
     switch (stage) {
-    case Stage::PICK_QUIET_HINT:
-    case Stage::LOAD_QUIET:
-    case Stage::PICK_QUIET:      stage = Stage::PICK_BAD_NOISY; break;
+    case Stage::PickQuietHint:
+    case Stage::LoadQuiet:
+    case Stage::PickQuiet:     stage = Stage::PickBadNoisy; break;
 
     default: break;
     }
 }
 
 Move Picker::next() {
-    while (stage != Stage::DONE) {
+    while (stage != Stage::Done) {
         switch (stage) {
-        case Stage::TT_MOVE:
-            stage = in_check ? Stage::LOAD_EVASIONS : Stage::LOAD_NOISY;
+        case Stage::TtMove:
+            stage = in_check ? Stage::LoadEvasions : Stage::LoadNoisy;
             if (!tt_move.is_null())
                 return tt_move;
             break;
 
-        case Stage::LOAD_EVASIONS: {
+        case Stage::LoadEvasions: {
             primary.next                 = moves.data();
             const MoveList evasion_moves = movegen::generate_evasions(board);
             primary.end = score_moves<ScorePolicy::Evasion>(evasion_moves, primary.next);
             quiets.next = primary.end;
             quiets.end  = primary.end;
-            stage       = Stage::PICK_EVASION;
+            stage       = Stage::PickEvasion;
             [[fallthrough]];
         }
 
-        case Stage::PICK_EVASION: {
+        case Stage::PickEvasion: {
             Move move = pick<PickPolicy::Evasion>(primary);
             if (!move.is_null())
                 return move;
-            stage = Stage::DONE;
+            stage = Stage::Done;
             break;
         }
 
-        case Stage::LOAD_NOISY: {
+        case Stage::LoadNoisy: {
             primary.next               = moves.data();
             const MoveList noisy_moves = movegen::generate_noisy(board);
             primary.end                = score_moves<ScorePolicy::Noisy>(noisy_moves, primary.next);
             quiets.next                = primary.end;
             quiets.end                 = primary.end;
-            stage                      = Stage::PICK_GOOD_NOISY;
+            stage                      = Stage::PickGoodNoisy;
             [[fallthrough]];
         }
 
-        case Stage::PICK_GOOD_NOISY: {
+        case Stage::PickGoodNoisy: {
             Move move = pick<PickPolicy::GoodNoisy>(primary);
             if (!move.is_null())
                 return move;
 
             if (mode == Mode::QSearch)
-                stage = Stage::DONE;
+                stage = Stage::Done;
             else
-                stage = skip_quiets ? Stage::PICK_BAD_NOISY : Stage::PICK_QUIET_HINT;
+                stage = skip_quiets ? Stage::PickBadNoisy : Stage::PickQuietHint;
             break;
         }
 
-        case Stage::PICK_QUIET_HINT: {
+        case Stage::PickQuietHint: {
             Move move = next_quiet_hint();
             if (!move.is_null())
                 return move;
-            stage = Stage::LOAD_QUIET;
+            stage = Stage::LoadQuiet;
             break;
         }
 
-        case Stage::LOAD_QUIET: {
+        case Stage::LoadQuiet: {
             if (skip_quiets) {
-                stage = Stage::PICK_BAD_NOISY;
+                stage = Stage::PickBadNoisy;
                 break;
             }
             assert(primary.end != nullptr);
             quiets.next                = primary.end;
             const MoveList quiet_moves = movegen::generate_quiet(board);
             quiets.end                 = score_moves<ScorePolicy::Quiet>(quiet_moves, quiets.next);
-            stage                      = Stage::PICK_QUIET;
+            stage                      = Stage::PickQuiet;
             [[fallthrough]];
         }
 
-        case Stage::PICK_QUIET: {
+        case Stage::PickQuiet: {
             Move move = pick<PickPolicy::Quiet>(quiets);
             if (!move.is_null())
                 return move;
-            stage = Stage::PICK_BAD_NOISY;
+            stage = Stage::PickBadNoisy;
             break;
         }
 
-        case Stage::PICK_BAD_NOISY: {
+        case Stage::PickBadNoisy: {
             Move move = pick<PickPolicy::BadNoisy>(primary);
             if (!move.is_null())
                 return move;
-            stage = Stage::DONE;
+            stage = Stage::Done;
             break;
         }
 
-        case Stage::DONE: break;
+        case Stage::Done: break;
         }
     }
 
