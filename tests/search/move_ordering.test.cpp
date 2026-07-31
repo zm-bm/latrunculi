@@ -2,115 +2,73 @@
 
 #include <gtest/gtest.h>
 
-TEST(KillerMovesTest, AddAndRetrieve) {
+TEST(KillerMovesTest, RotatesTwoDistinctKillersPerPly) {
     KillerMoves killers;
-    killers.update(Move(E2, E4), 0);
+    const Move  first{C2, C4};
+    const Move  second{D2, D4};
+    const Move  third{E2, E4};
+    const Move  other_ply{G2, G3};
 
-    EXPECT_TRUE(killers.is_killer(Move(E2, E4), 0));
-    EXPECT_FALSE(killers.is_killer(Move(E2, E3), 0));
-    EXPECT_FALSE(killers.is_killer(Move(E2, E4), 1));
+    killers.update(first, 0);
+    EXPECT_EQ(killers.primary(0), first);
+    EXPECT_EQ(killers.secondary(0), NULL_MOVE);
+
+    killers.update(first, 0);
+    EXPECT_EQ(killers.primary(0), first);
+    EXPECT_EQ(killers.secondary(0), NULL_MOVE);
+
+    killers.update(second, 0);
+    EXPECT_EQ(killers.primary(0), second);
+    EXPECT_EQ(killers.secondary(0), first);
+
+    killers.update(third, 0);
+    EXPECT_EQ(killers.primary(0), third);
+    EXPECT_EQ(killers.secondary(0), second);
+    EXPECT_FALSE(killers.is_killer(first, 0));
+
+    killers.update(other_ply, 1);
+    EXPECT_EQ(killers.primary(1), other_ply);
+    EXPECT_EQ(killers.primary(0), third);
 }
 
-TEST(KillerMovesTest, LimitSize) {
-    KillerMoves killers;
-    killers.update(Move(C2, C4), 0);
-    killers.update(Move(D2, D4), 0);
-    killers.update(Move(E2, E4), 0);
-
-    EXPECT_FALSE(killers.is_killer(Move(C2, C4), 0));
-    EXPECT_TRUE(killers.is_killer(Move(D2, D4), 0));
-    EXPECT_TRUE(killers.is_killer(Move(E2, E4), 0));
-}
-
-TEST(KillerMovesTest, Clear) {
-    KillerMoves killers;
-    killers.update(Move(E2, E4), 0);
-    killers.update(Move(E2, E4), 1);
-    killers.clear();
-
-    EXPECT_FALSE(killers.is_killer(Move(E2, E4), 0));
-    EXPECT_FALSE(killers.is_killer(Move(E2, E4), 1));
-}
-
-TEST(CounterMovesTest, UpdateAndRetrieve) {
+TEST(CounterMovesTest, IndexesAndReplacesByPreviousMove) {
     CounterMoves counters;
-    Move         counter = Move(G8, F6);
+    const Move   white_pawn{G8, F6};
+    const Move   black_pawn{G1, F3};
+    const Move   white_knight{B8, C6};
+    const Move   white_pawn_d4{B1, C3};
+    const Move   replacement{F8, B4};
 
-    counters.update(WHITE, PAWN, E4, counter);
+    counters.update(WHITE, PAWN, E4, white_pawn);
+    counters.update(BLACK, PAWN, E4, black_pawn);
+    counters.update(WHITE, KNIGHT, E4, white_knight);
+    counters.update(WHITE, PAWN, D4, white_pawn_d4);
 
-    EXPECT_EQ(counters.get(WHITE, PAWN, E4), counter);
+    EXPECT_EQ(counters.get(WHITE, PAWN, E4), white_pawn);
+    EXPECT_EQ(counters.get(BLACK, PAWN, E4), black_pawn);
+    EXPECT_EQ(counters.get(WHITE, KNIGHT, E4), white_knight);
+    EXPECT_EQ(counters.get(WHITE, PAWN, D4), white_pawn_d4);
+
+    counters.update(WHITE, PAWN, E4, replacement);
+    EXPECT_EQ(counters.get(WHITE, PAWN, E4), replacement);
 }
 
-TEST(CounterMovesTest, SeparatesPreviousMoverColor) {
-    CounterMoves counters;
-    Move         white_counter = Move(G8, F6);
-    Move         black_counter = Move(G1, F3);
-
-    counters.update(WHITE, PAWN, E4, white_counter);
-    counters.update(BLACK, PAWN, E4, black_counter);
-
-    EXPECT_EQ(counters.get(WHITE, PAWN, E4), white_counter);
-    EXPECT_EQ(counters.get(BLACK, PAWN, E4), black_counter);
-}
-
-TEST(CounterMovesTest, SeparatesPreviousMovedPiece) {
-    CounterMoves counters;
-    Move         pawn_counter   = Move(G8, F6);
-    Move         knight_counter = Move(B8, C6);
-
-    counters.update(WHITE, PAWN, E4, pawn_counter);
-    counters.update(WHITE, KNIGHT, E4, knight_counter);
-
-    EXPECT_EQ(counters.get(WHITE, PAWN, E4), pawn_counter);
-    EXPECT_EQ(counters.get(WHITE, KNIGHT, E4), knight_counter);
-}
-
-TEST(CounterMovesTest, SeparatesPreviousDestination) {
-    CounterMoves counters;
-    Move         e4_counter = Move(G8, F6);
-    Move         d4_counter = Move(B8, C6);
-
-    counters.update(WHITE, PAWN, E4, e4_counter);
-    counters.update(WHITE, PAWN, D4, d4_counter);
-
-    EXPECT_EQ(counters.get(WHITE, PAWN, E4), e4_counter);
-    EXPECT_EQ(counters.get(WHITE, PAWN, D4), d4_counter);
-}
-
-TEST(CounterMovesTest, ReplacesExistingCounter) {
-    CounterMoves counters;
-    Move         first  = Move(G8, F6);
-    Move         second = Move(B8, C6);
-
-    counters.update(WHITE, PAWN, E4, first);
-    counters.update(WHITE, PAWN, E4, second);
-
-    EXPECT_EQ(counters.get(WHITE, PAWN, E4), second);
-}
-
-TEST(CounterMovesTest, Clear) {
-    CounterMoves counters;
-    Move         counter = Move(G8, F6);
-
-    counters.update(WHITE, PAWN, E4, counter);
-    counters.clear();
-
-    EXPECT_EQ(counters.get(WHITE, PAWN, E4), NULL_MOVE);
-}
-
-TEST(MoveOrderingTest, SearchPreparationClearsRefutationsAndAgesQuietHistory) {
+TEST(MoveOrderingTest, SearchPreparationResetsRefutationsAndAgesOnlyQuietHistory) {
     MoveOrdering ordering;
-    const Move   killer{E2, E4};
+    const Move   first_killer{E2, E4};
+    const Move   second_killer{D2, D4};
     const Move   counter{G8, F6};
 
-    ordering.killers.update(killer, 0);
+    ordering.killers.update(first_killer, 0);
+    ordering.killers.update(second_killer, 0);
     ordering.counters.update(WHITE, PAWN, E4, counter);
     ordering.quiets.reward(WHITE, E2, E4, 4);
     ordering.continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
 
     ordering.prepare_for_search();
 
-    EXPECT_FALSE(ordering.killers.is_killer(killer, 0));
+    EXPECT_EQ(ordering.killers.primary(0), NULL_MOVE);
+    EXPECT_EQ(ordering.killers.secondary(0), NULL_MOVE);
     EXPECT_EQ(ordering.counters.get(WHITE, PAWN, E4), NULL_MOVE);
     EXPECT_EQ(ordering.quiets.get(WHITE, E2, E4), 8);
     EXPECT_EQ(ordering.continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);

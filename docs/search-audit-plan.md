@@ -147,9 +147,6 @@ can contain stale node/time values.
 
 ### High-value cleanup
 
-- Split enabled instrumentation formatting and aggregation from its hot inline
-  event API.
-- Derive redundant instrumentation counters instead of storing them.
 - Reduce and split `search.test.cpp`; replace its approximately 350-line fixture
   surface with a small shared access shim.
 - Consolidate duplicated move-picker ordering, determinism, and hint tests.
@@ -183,8 +180,8 @@ can contain stale node/time values.
 ```text
 TT [complete: 3950f0b]
  └─> Search value/result types [complete]
-      └─> Instrumentation
-           └─> Histories and ordering
+      └─> Instrumentation [complete: c2946ff]
+           └─> Histories and ordering [complete]
                 └─> Move picker
                      └─> Worker lifecycle/reporting
                           └─> Core search and test restructuring
@@ -229,6 +226,9 @@ Completed as a test-only consolidation.
 
 ## Chunk 3: Search Instrumentation — Complete
 
+Completed in `c2946ff` (`refactor(search): separate hot instrumentation from
+reporting`).
+
 - Hot event recording remains inline, while enabled reset, aggregation, and
   formatting now live in `search_instrumentation.cpp`. The header was reduced
   from 520 to 226 lines.
@@ -253,43 +253,21 @@ Completed as a test-only consolidation.
   combined +1.34%. A repeat cleared the only per-case outlier and measured cold
   +1.11%, retained-history +0.20%, and combined +0.09%.
 
-## Chunk 4: Histories and Move-Ordering State
+## Chunk 4: Histories and Move-Ordering State — Complete
 
-Files:
-
-- `src/search/history.hpp`
-- `src/search/move_ordering.hpp`
-- `tests/search/history.test.cpp`
-- `tests/search/move_ordering.test.cpp`
-
-Changes:
-
-- Preserve the accepted lifecycle exactly.
-- Preserve `CaptureHistory` as unused ordering scaffolding.
-- Restrict production changes to naming, comments, includes, or provably
-  equivalent loop cleanup.
-- Do not add continuation aging or change gravity formulas.
-- Do not change table dimensions or worker ownership.
-
-Test cleanup:
-
-- Merge the two test files into `move_ordering.test.cpp` if this reduces
-  duplication.
-- Combine killer insertion/rotation coverage.
-- Replace the three separate counter-key dimension tests with one isolation
-  test.
-- Retain representative reward, penalty, saturation, clear, quiet aging,
-  continuation indexing, and search-preparation behavior.
-- Do not duplicate the worker-level persistence test.
-
-Risk: test-only unless inline history code changes.
-
-Verification:
-
-- Debug and release tests.
-- Object-code comparison for inline-only stylistic changes.
-- Full gate only if lookup or update code changes.
-- Suggested commit: `test(search): simplify move-ordering state coverage`
+- `history.hpp` and `move_ordering.hpp` required no production changes; their
+  ownership, layout, formulas, hot paths, and accepted lifecycle remain intact.
+- `CaptureHistory` remains isolated scaffolding for the later capture-ordering
+  review.
+- The two production-aligned test files remain separate. Their coverage was
+  reduced from 29 tests and 359 lines to 8 tests and 169 lines.
+- The retained tests cover signed updates, saturation, aging, clearing, history
+  key isolation, continuation indexing, killer rotation, counter replacement,
+  and per-search preparation.
+- Worker-, search-, and UCI-level tests continue to protect persistence, missing
+  contexts, cutoff updates, and `ucinewgame` clearing.
+- Debug, release, and stats-enabled tests passed in 8.58, 0.69, and 0.69 seconds.
+  No performance gate was required because production code was unchanged.
 
 ## Chunk 5: Move Picker
 
@@ -510,10 +488,10 @@ Checks:
 
 - [x] Preserve the original binary, compiler, flags, affinity, hash, and UCI
       runner.
-- [ ] Move instrumentation formatting out of the header.
-- [ ] Remove only derivable instrumentation counters.
-- [ ] Verify disabled instrumentation compiles away.
-- [ ] Simplify history and ordering tests without reopening lifecycle policy.
+- [x] Move instrumentation formatting out of the header.
+- [x] Remove only derivable instrumentation counters.
+- [x] Verify disabled instrumentation compiles away.
+- [x] Simplify history and ordering tests without reopening lifecycle policy.
 - [ ] Internalize move-picker implementation types.
 - [ ] Reduce duplicated move-picker tests and preserve exact order.
 - [ ] Fix immediate-stop legal fallback.
