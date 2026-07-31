@@ -4,7 +4,6 @@
 #include "core/constants.hpp"
 #include "eval/evaluator.hpp"
 #include "search/root_line.hpp"
-#include "search/search_instrumentation.hpp"
 
 #include <cstdlib>
 #include <format>
@@ -189,6 +188,5 @@ template void Writer::debug(std::string& str) const;
 template void Writer::debug(std::string&& str) const;
 template void Writer::debug(Board& board) const;
 template void Writer::debug(EvaluatorDebug& evaluator) const;
-template void Writer::debug(SearchInstrumentation<>& evaluator) const;
 
 } // namespace uci

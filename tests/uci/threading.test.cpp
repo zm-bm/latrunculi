@@ -191,6 +191,22 @@ TEST_F(ThreadPoolTest, StartSearchCompletes) {
     EXPECT_TRUE(has_bestmove_output()) << oss.str();
 }
 
+#if LATRUNCULI_SEARCH_STATS
+TEST_F(ThreadPoolTest, ReportsAggregatedSearchInstrumentation) {
+    options.depth = 2;
+    ASSERT_TRUE(pool.start_search(board, options));
+    pool.wait();
+
+    const std::string transcript = oss.str();
+    const auto        report     = transcript.find("Aspiration:");
+    ASSERT_NE(report, std::string::npos) << transcript;
+    EXPECT_EQ(report, transcript.rfind("Aspiration:")) << transcript;
+    EXPECT_NE(transcript.find("RazorFutility:", report), std::string::npos) << transcript;
+    EXPECT_NE(transcript.find("QuietHistory:", report), std::string::npos) << transcript;
+    EXPECT_NE(transcript.find("Depth", report), std::string::npos) << transcript;
+}
+#endif
+
 TEST_F(ThreadPoolTest, IsSearchingTracksLifecycle) {
     options.depth = 5;
 

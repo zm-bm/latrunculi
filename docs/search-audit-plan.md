@@ -7,7 +7,6 @@ roadmap preserves search policy while focusing on:
 
 - two confirmed search-reporting bugs;
 - reducing white-box test complexity;
-- moving cold instrumentation machinery out of the header;
 - tightening move-picker APIs;
 - improving names, comments, and ownership boundaries without changing tuning.
 
@@ -228,65 +227,31 @@ Completed as a test-only consolidation.
 - Debug, release, and stats-enabled tests passed in 8.60, 0.69, and 0.69 seconds.
   No performance gate was required because production code was unchanged.
 
-## Chunk 3: Search Instrumentation
+## Chunk 3: Search Instrumentation — Complete
 
-Files:
-
-- `src/search/search_instrumentation.hpp`
-- new `src/search/search_instrumentation.cpp`
-- `src/search/search_worker.cpp`
-- `src/uci/uci_writer.cpp`
-- instrumentation tests and CMake
-
-Counter map:
-
-| Counters | Producer | Consumer |
-|---|---|---|
-| nodes, qnodes | alpha-beta and quiescence entry | per-depth node/QNode table |
-| cutoff index sum and buckets | beta cutoffs in both searches | cutoff timing and average index |
-| PVS researches | root and recursive PVS | per-depth table |
-| aspiration failures | root aspiration loop | aspiration summary |
-| main TT probes/hits/cutoffs | alpha-beta | TT percentages |
-| qsearch TT probes/hits/cutoffs | quiescence | TT percentages |
-| null tries/cutoffs | null-move pruning | null summary |
-| razor tries/cutoffs, futility skips | shallow pruning | razor/futility summary |
-| LMR tries/researches | reduced searches | LMR summary |
-| quiet cutoff/malus counters | quiet cutoff handling | history summary and depth table |
-
-Changes:
-
-- Keep only hot event methods and disabled no-op methods inline.
-- Move enabled reset, aggregation, formatting helpers, and `str()` into the
-  `.cpp`.
-- Remove `std::formatter` specializations.
-- Have the stats-enabled final report pass `stats.str()` to
-  `Writer::debug_text()`, removing the explicit UCI writer instantiation for
-  instrumentation.
-- Remove stored counters that are exactly derivable:
-  - total cutoffs from cutoff buckets;
-  - early/late cutoffs from bucket 1 versus remaining buckets;
-  - aspiration researches from fail-low plus fail-high.
-- Keep every other counter; each has a distinct diagnostic consumer.
-- Make the disabled specialization empty and assert
-  `std::is_empty_v<SearchInstrumentation<false>>`.
-- Verify the release binary contains no enabled event logic, branching, or
-  large worker storage.
-
-Assessment:
-
-The instrumentation facility is useful and should remain coherent. Its current
-520-line header is not justified because most of that size is cold formatting
-and repetitive aggregation, not hot instrumentation.
-
-Risk: hot-path-sensitive despite intended code-generation neutrality.
-
-Verification:
-
-- Debug, release, and stats-enabled tests.
-- Compare disabled `SearchWorker` size and generated search code.
-- Full performance gate.
-- Suggested commit:
-  `refactor(search): separate hot instrumentation from reporting`
+- Hot event recording remains inline, while enabled reset, aggregation, and
+  formatting now live in `search_instrumentation.cpp`. The header was reduced
+  from 520 to 226 lines.
+- The disabled specialization is an empty no-op type. Ordinary builds contain
+  no enabled instrumentation symbols, branches, calls, or reporting code.
+- Total, early, and late cutoffs are derived from the cutoff buckets;
+  aspiration re-searches are derived from fail-low plus fail-high. All other
+  counters retain their original meanings and denominators.
+- Instrumentation-specific formatters were removed. Final reporting formats a
+  string through the existing debug writer, preserving the diagnostic text and
+  trailing newline.
+- Enabled instrumentation shrank from 28,696 to 25,616 bytes, reducing a stats
+  worker from 48,472 to 45,392 bytes. The disabled worker remained 19,784
+  bytes.
+- Focused coverage now verifies the empty disabled mode, every retained event
+  family, bounds, complete aggregation, derived report values, stable output,
+  and multi-worker reporting.
+- Debug, release, and stats-enabled tests passed. Disabled alpha-beta and
+  quiescence machine code remained byte-identical, and all benchmark search
+  signatures were unchanged.
+- The first performance gate measured cold -0.10%, retained-history +0.96%, and
+  combined +1.34%. A repeat cleared the only per-case outlier and measured cold
+  +1.11%, retained-history +0.20%, and combined +0.09%.
 
 ## Chunk 4: Histories and Move-Ordering State
 

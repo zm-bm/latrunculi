@@ -364,10 +364,6 @@ protected:
         return worker->stats.raw_counters().aspiration_fail_highs;
     }
 
-    std::uint64_t aspirationResearches() const {
-        return worker->stats.raw_counters().aspiration_researches;
-    }
-
     std::uint64_t pvsResearchesAt(int search_ply) const {
         return worker->stats.raw_counters().pvs_researches[search_ply];
     }
@@ -2143,7 +2139,6 @@ TEST_F(SearchTest, RootAspirationWidensAfterFailHighAndCompletes) {
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_GT(aspirationFailHighs(), 0U);
     EXPECT_EQ(aspirationFailLows(), 0U);
-    EXPECT_EQ(aspirationResearches(), aspirationFailHighs());
 #endif
 }
 
@@ -2166,7 +2161,6 @@ TEST_F(SearchTest, RootAspirationWidensAfterFailLowAndCompletes) {
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_GT(aspirationFailLows(), 0U);
     EXPECT_EQ(aspirationFailHighs(), 0U);
-    EXPECT_EQ(aspirationResearches(), aspirationFailLows());
 #endif
 }
 

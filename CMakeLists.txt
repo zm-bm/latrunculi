@@ -27,6 +27,7 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/search/move_picker.cpp
     src/search/root_line.cpp
     src/search/search.cpp
+    src/search/search_instrumentation.cpp
     src/search/search_limits.cpp
     src/search/search_worker.cpp
     src/search/tt.cpp

@@ -144,12 +144,10 @@ bool SearchWorker::search_root_depth(int depth, EvalValue previous_value) {
             // Fail low: widen the lower bound and re-search.
             stats.aspiration_fail_low();
             alpha = std::max(alpha - delta, -SearchInf);
-            stats.aspiration_research();
         } else if (value >= beta) {
             // Fail high: widen the upper bound and re-search.
             stats.aspiration_fail_high();
             beta = std::min(beta + delta, SearchInf);
-            stats.aspiration_research();
         } else {
             // Window hit: accept and publish the completed depth.
             root_result = best_line;

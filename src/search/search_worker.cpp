@@ -140,7 +140,7 @@ void SearchWorker::report_final_result() {
 
     if constexpr (SEARCH_STATS_ENABLED) {
         auto stats = thread_pool.aggregate_instrumentation();
-        writer.debug(stats);
+        writer.debug(stats.str());
     }
 }
 
