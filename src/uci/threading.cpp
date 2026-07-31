@@ -129,6 +129,13 @@ void ThreadPool::wait() {
     }
 }
 
+void ThreadPool::clear_search_heuristics() {
+    assert(!is_searching());
+
+    for (auto& thread : threads)
+        thread->worker.clear_search_heuristics();
+}
+
 void ThreadPool::shutdown() {
     if (shutdown_requested)
         return;

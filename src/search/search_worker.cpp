@@ -76,10 +76,14 @@ void SearchWorker::reset_search_state() {
     root_lines.clear();
     last_reported_root_line.reset();
 
-    ordering.clear();
+    ordering.prepare_for_search();
 
     if constexpr (SEARCH_STATS_ENABLED)
         stats.reset();
+}
+
+void SearchWorker::clear_search_heuristics() {
+    ordering.clear();
 }
 
 void SearchWorker::prepare_shared_search_state() {

@@ -231,24 +231,6 @@ TEST(ContinuationHistoryTest, UpdatesStayWithinHistoryBand) {
     EXPECT_GE(negative.get(WHITE, PAWN, E4, KNIGHT, F6), -ContinuationHistory::max_score);
 }
 
-TEST(ContinuationHistoryTest, AgePositiveEntryByDivision) {
-    ContinuationHistory hist;
-    hist.reward(WHITE, PAWN, E4, KNIGHT, F6, 3);
-
-    ASSERT_EQ(hist.get(WHITE, PAWN, E4, KNIGHT, F6), 9);
-    hist.age();
-    EXPECT_EQ(hist.get(WHITE, PAWN, E4, KNIGHT, F6), 4);
-}
-
-TEST(ContinuationHistoryTest, AgeNegativeEntryByDivision) {
-    ContinuationHistory hist;
-    hist.penalize(BLACK, BISHOP, D4, PAWN, E3, 3);
-
-    ASSERT_EQ(hist.get(BLACK, BISHOP, D4, PAWN, E3), -9);
-    hist.age();
-    EXPECT_EQ(hist.get(BLACK, BISHOP, D4, PAWN, E3), -4);
-}
-
 TEST(ContinuationHistoryTest, Clear) {
     ContinuationHistory hist;
     hist.reward(WHITE, PAWN, E4, KNIGHT, F6, 3);

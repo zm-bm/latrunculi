@@ -29,6 +29,8 @@ protected:
     int  worker_ply() { return ThreadTestAccess::ply(test_thread()); }
     bool worker_is_draw() { return ThreadTestAccess::is_draw(test_thread()); }
 
+    MoveOrdering& worker_ordering() { return ThreadTestAccess::move_ordering(test_thread()); }
+
     void make_worker_move(Move move) { ThreadTestAccess::make(test_thread(), move); }
 
     void unmake_worker_move() { ThreadTestAccess::unmake(test_thread()); }
@@ -63,6 +65,22 @@ TEST_F(SearchWorkerTest, NullMoveKeepsWorkerPlyInSync) {
 
     unmake_worker_move();
     EXPECT_EQ(worker_ply(), 0);
+}
+
+TEST_F(SearchWorkerTest, RepeatedSearchesAgeQuietAndPreserveContinuationHistory) {
+    Board board{board_test::fen::start};
+    load_worker_board(board);
+
+    worker_ordering().quiets.reward(WHITE, E2, E4, 4);
+    worker_ordering().continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
+
+    ThreadTestAccess::reset_search_state(test_thread());
+    EXPECT_EQ(worker_ordering().quiets.get(WHITE, E2, E4), 8);
+    EXPECT_EQ(worker_ordering().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
+
+    ThreadTestAccess::reset_search_state(test_thread());
+    EXPECT_EQ(worker_ordering().quiets.get(WHITE, E2, E4), 4);
+    EXPECT_EQ(worker_ordering().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
 }
 
 TEST_F(SearchWorkerTest, RootPositionHistoryFeedsSearchRepetitionAfterSourceReset) {

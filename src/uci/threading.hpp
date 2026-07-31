@@ -68,6 +68,7 @@ public:
     bool start_search(const Board& root_board, SearchLimits limits);
     void request_stop();
     void wait();
+    void clear_search_heuristics();
     void shutdown();
 
     // Worker configuration.

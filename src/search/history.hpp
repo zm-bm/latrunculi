@@ -201,7 +201,6 @@ struct ContinuationHistory {
                   int       depth,
                   int       divisor = 1);
 
-    void age();
     void clear();
 
 private:
@@ -268,11 +267,6 @@ inline const history::Score& ContinuationHistory::entry(
     Color prev_c, PieceType prev_piece, Square prev_to, PieceType piece, Square to) const {
     const int key = index(prev_c, prev_piece, prev_to, piece, to);
     return (*table)[key];
-}
-
-inline void ContinuationHistory::age() {
-    for (history::Score& entry : *table)
-        history::age_entry(entry);
 }
 
 inline void ContinuationHistory::clear() {

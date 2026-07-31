@@ -97,3 +97,21 @@ TEST(CounterMovesTest, Clear) {
 
     EXPECT_EQ(counters.get(WHITE, PAWN, E4), NULL_MOVE);
 }
+
+TEST(MoveOrderingTest, SearchPreparationClearsRefutationsAndAgesQuietHistory) {
+    MoveOrdering ordering;
+    const Move   killer{E2, E4};
+    const Move   counter{G8, F6};
+
+    ordering.killers.update(killer, 0);
+    ordering.counters.update(WHITE, PAWN, E4, counter);
+    ordering.quiets.reward(WHITE, E2, E4, 4);
+    ordering.continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
+
+    ordering.prepare_for_search();
+
+    EXPECT_FALSE(ordering.killers.is_killer(killer, 0));
+    EXPECT_EQ(ordering.counters.get(WHITE, PAWN, E4), NULL_MOVE);
+    EXPECT_EQ(ordering.quiets.get(WHITE, E2, E4), 8);
+    EXPECT_EQ(ordering.continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
+}

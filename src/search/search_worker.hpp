@@ -70,6 +70,7 @@ private:
 
     // Search lifecycle.
     void      reset_search_state();
+    void      clear_search_heuristics();
     void      prepare_shared_search_state();
     void      build_root_lines();
     EvalValue search_root();

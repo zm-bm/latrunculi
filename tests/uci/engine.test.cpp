@@ -9,6 +9,7 @@
 #include "board/board.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
+#include "support/thread_test_access.hpp"
 #include "gtest/gtest.h"
 
 class EngineTest : public ::testing::Test {
@@ -205,16 +206,30 @@ TEST_F(EngineTest, PositionMovesBuildRepetitionHistoryThatFenReplacementClears) 
     EXPECT_FALSE(board().is_draw());
 }
 
-TEST_F(EngineTest, UciNewGameClearsTTAndResetsGeneration) {
+TEST_F(EngineTest, UciNewGameClearsTTAndSearchHeuristics) {
+    ASSERT_TRUE(execute("setoption name Threads value 2"));
+
     tt.age_table();
     tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TT_Flag::Exact, 0);
     ASSERT_TRUE(tt.probe(board().key()).has_value());
     ASSERT_EQ(tt.current_age(), std::uint8_t{1});
 
+    for (size_t index = 0; index < threadpool().thread_count(); ++index) {
+        auto& ordering = ThreadTestAccess::move_ordering(threadpool(), index);
+        ordering.quiets.reward(WHITE, E2, E4, 4);
+        ordering.continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
+    }
+
     EXPECT_TRUE(execute("ucinewgame"));
 
     EXPECT_FALSE(tt.probe(board().key()).has_value());
     EXPECT_EQ(tt.current_age(), std::uint8_t{0});
+
+    for (size_t index = 0; index < threadpool().thread_count(); ++index) {
+        auto& ordering = ThreadTestAccess::move_ordering(threadpool(), index);
+        EXPECT_EQ(ordering.quiets.get(WHITE, E2, E4), 0);
+        EXPECT_EQ(ordering.continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
+    }
 }
 
 TEST_F(EngineTest, SetOptionNameMatchingIsCaseInsensitive) {

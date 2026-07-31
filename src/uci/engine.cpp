@@ -101,8 +101,8 @@ bool Engine::handle(const uci::NewGameCommand&) {
     if (thread_pool.is_searching())
         throw std::runtime_error("cannot start new game while search is in progress");
 
-    // UCI new game policy: drop all cached TT data so a fresh game starts from an empty table
-    // with generation 0 instead of carrying entries across unrelated games.
+    // Do not carry search heuristics or TT entries across unrelated games.
+    thread_pool.clear_search_heuristics();
     tt.clear();
     return true;
 }

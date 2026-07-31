@@ -83,8 +83,8 @@ inline void CounterMoves::clear() {
 }
 
 /*
- * MoveOrdering owns the active per-worker move-ordering tables and exposes the
- * shared node context used by the picker and search history updates.
+ * MoveOrdering owns per-worker ordering state. Scored histories persist across
+ * searches within a game; search-local refutations do not.
  */
 struct MoveOrdering {
     /*
@@ -106,6 +106,7 @@ struct MoveOrdering {
 
     static Context make_context(const Board& board, bool include_prev = true);
 
+    void prepare_for_search();
     void clear();
     bool is_killer(Move move, int ply) const;
     Move counter_hint(const Context& context) const;
@@ -121,6 +122,12 @@ struct MoveOrdering {
 private:
     static PieceType moving_piece(const Board& board, Move move);
 };
+
+inline void MoveOrdering::prepare_for_search() {
+    killers.clear();
+    counters.clear();
+    quiets.age();
+}
 
 inline void MoveOrdering::clear() {
     killers.clear();

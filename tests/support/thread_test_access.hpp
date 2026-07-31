@@ -67,6 +67,12 @@ public:
         return node_count(thread(pool, index));
     }
 
+    static MoveOrdering& move_ordering(Thread& thread) { return worker(thread).ordering; }
+
+    static MoveOrdering& move_ordering(ThreadPool& pool, size_t index = 0) {
+        return move_ordering(thread(pool, index));
+    }
+
     static bool is_draw(const Thread& thread) {
         const SearchWorker& search = worker(thread);
         return search.board.is_draw(search.ply);
