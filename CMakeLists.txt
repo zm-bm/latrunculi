@@ -82,10 +82,9 @@ if(BUILD_TESTING)
         tests/search/history.test.cpp
         tests/search/move_ordering.test.cpp
         tests/search/move_picker.test.cpp
-        tests/search/principal_variation.test.cpp
         tests/search/search.test.cpp
         tests/search/search_instrumentation.test.cpp
-        tests/search/search_limits.test.cpp
+        tests/search/search_types.test.cpp
         tests/search/search_worker.test.cpp
         tests/search/tt.test.cpp
         tests/uci/engine.test.cpp

@@ -155,7 +155,6 @@ can contain stale node/time values.
   surface with a small shared access shim.
 - Consolidate duplicated move-picker ordering, determinism, and hint tests.
 - Internalize move-picker implementation enums and candidate types.
-- Move RootLine selection tests out of `search.test.cpp`.
 
 ### Optional cleanup
 
@@ -184,7 +183,7 @@ can contain stale node/time values.
 
 ```text
 TT [complete: 3950f0b]
- └─> Search value/result types
+ └─> Search value/result types [complete]
       └─> Instrumentation
            └─> Histories and ordering
                 └─> Move picker
@@ -213,45 +212,21 @@ interface`).
   against the original baseline was neutral: cold -0.16%, retained-history
   -0.17%, and combined +0.06%.
 
-## Chunk 2: Search Value and Result Types
+## Chunk 2: Search Value and Result Types — Complete
 
-Files:
+Completed as a test-only consolidation.
 
-- `src/search/search_limits.hpp`
-- `src/search/search_limits.cpp`
-- `src/search/principal_variation.hpp`
-- `src/search/root_line.hpp`
-- `src/search/root_line.cpp`
-- related tests and CMake registration
-
-Changes:
-
-- Keep the current fixed-capacity active-range PV representation.
-- Keep `RootLine` value semantics and deterministic depth/value/move-bit
-  ordering.
-- Apply only concise naming, comment, and include cleanup.
-- Rename the local time-allocation constant to project style if the surrounding
-  code supports it.
-- Do not alter time allocation or root-line selection policy.
-
-Test organization:
-
-- Create `tests/search/search_types.test.cpp`.
-- Merge `search_limits.test.cpp`, `principal_variation.test.cpp`, and the
-  RootLine selection tests currently at the end of `search.test.cpp`.
-- Reduce PV equality tests to active-line equality, inequality, and
-  inactive-storage behavior.
-- Express RootLine priority and unusable-line handling with concise named cases.
-- Keep clock-side, increment, movetime-override, minimum-budget, and clamping
-  behavior.
-
-Risk: test-only or cold-path.
-
-Verification:
-
-- Debug and release tests.
-- No full performance gate unless production representation changes.
-- Suggested commit: `test(search): consolidate search value and result coverage`
+- `SearchLimits`, `PrincipalVariation`, and `RootLine` required no production
+  changes; their behavior, representation, timing, and ordering remain intact.
+- Their focused coverage now lives in `search_types.test.cpp`; the separate
+  limits and PV test files were removed.
+- Five fixture-free RootLine selection tests moved out of `search.test.cpp` and
+  became two direct behavioral tests, reducing that file by 72 lines.
+- Focused coverage was reduced from 15 to 12 tests while retaining limit
+  normalization, active-range PV equality, deterministic RootLine selection,
+  and fallback behavior.
+- Debug, release, and stats-enabled tests passed in 8.60, 0.69, and 0.69 seconds.
+  No performance gate was required because production code was unchanged.
 
 ## Chunk 3: Search Instrumentation
 
@@ -570,7 +545,6 @@ Checks:
 
 - [x] Preserve the original binary, compiler, flags, affinity, hash, and UCI
       runner.
-- [ ] Consolidate search value/result tests.
 - [ ] Move instrumentation formatting out of the header.
 - [ ] Remove only derivable instrumentation counters.
 - [ ] Verify disabled instrumentation compiles away.
