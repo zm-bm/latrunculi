@@ -40,7 +40,7 @@ Picker main_search(const Board&                 board,
 }
 
 Picker qsearch(const Board& board, const MoveOrdering& ordering, Move tt_move) {
-    const MoveOrdering::Context context{.c = board.side_to_move()};
+    const MoveOrdering::Context context{.side = board.side_to_move()};
     return Picker(Picker::Mode::QSearch, board, ordering, context, tt_move);
 }
 

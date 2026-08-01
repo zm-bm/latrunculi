@@ -52,15 +52,16 @@ std::vector<Move> collect_moves(move_picker::Picker& picker) {
 }
 
 void seed_counter_hint(const MoveOrdering::Context& context, MoveOrdering& ordering, Move counter) {
-    if (!counter.is_null() && context.has_prev)
-        ordering.counters.update(context.prev_c, context.prev_piece, context.prev_to, counter);
+    if (!counter.is_null() && context.has_previous_move)
+        ordering.counters.update(
+            context.previous_side, context.previous_piece, context.previous_to, counter);
 }
 
 void boost_continuation_hint(const Board&                 board,
                              const MoveOrdering::Context& context,
                              MoveOrdering&                ordering,
                              Move                         move) {
-    if (!context.has_prev)
+    if (!context.has_previous_move)
         return;
 
     const PieceType piece = board.piece_type_on(move.from());
@@ -68,9 +69,9 @@ void boost_continuation_hint(const Board&                 board,
         return;
 
     for (int i = 0; i < 8; ++i) {
-        ordering.continuations.reward(context.prev_c,
-                                      context.prev_piece,
-                                      context.prev_to,
+        ordering.continuations.reward(context.previous_side,
+                                      context.previous_piece,
+                                      context.previous_to,
                                       piece,
                                       move.to(),
                                       SearchLimits::max_depth);

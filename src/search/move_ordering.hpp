@@ -92,11 +92,11 @@ struct MoveOrdering {
      * previous-move extraction in hot move-ordering paths.
      */
     struct Context {
-        Color     c{WHITE};
-        Color     prev_c{WHITE};
-        PieceType prev_piece{NO_PIECETYPE};
-        Square    prev_to{INVALID};
-        bool      has_prev{false};
+        Color     side{WHITE};
+        Color     previous_side{WHITE};
+        PieceType previous_piece{NO_PIECETYPE};
+        Square    previous_to{INVALID};
+        bool      has_previous_move{false};
     };
 
     KillerMoves         killers;
@@ -141,15 +141,16 @@ inline bool MoveOrdering::is_killer(Move move, int ply) const {
 }
 
 inline Move MoveOrdering::counter_hint(const Context& context) const {
-    return context.has_prev ? counters.get(context.prev_c, context.prev_piece, context.prev_to)
-                            : NULL_MOVE;
+    return context.has_previous_move
+             ? counters.get(context.previous_side, context.previous_piece, context.previous_to)
+             : NULL_MOVE;
 }
 
 inline void MoveOrdering::update_quiet_refutations(const Context& context, Move move, int ply) {
     killers.update(move, ply);
 
-    if (context.has_prev)
-        counters.update(context.prev_c, context.prev_piece, context.prev_to, move);
+    if (context.has_previous_move)
+        counters.update(context.previous_side, context.previous_piece, context.previous_to, move);
 }
 
 inline int MoveOrdering::quiet_score(const Context& context,
@@ -158,14 +159,15 @@ inline int MoveOrdering::quiet_score(const Context& context,
                                      bool           include_continuation) const {
     const Square from  = move.from();
     const Square to    = move.to();
-    int          score = quiets.get(context.c, from, to);
+    int          score = quiets.get(context.side, from, to);
 
-    if (!include_continuation || !context.has_prev)
+    if (!include_continuation || !context.has_previous_move)
         return score;
 
     const PieceType piece = moving_piece(board, move);
     if (piece != NO_PIECETYPE)
-        score += continuations.get(context.prev_c, context.prev_piece, context.prev_to, piece, to);
+        score += continuations.get(
+            context.previous_side, context.previous_piece, context.previous_to, piece, to);
 
     return score;
 }
@@ -174,33 +176,39 @@ inline void
 MoveOrdering::reward_quiet(const Context& context, const Board& board, Move move, int depth) {
     const Square from = move.from();
     const Square to   = move.to();
-    quiets.reward(context.c, from, to, depth);
+    quiets.reward(context.side, from, to, depth);
 
-    if (!context.has_prev)
+    if (!context.has_previous_move)
         return;
 
     const PieceType piece = moving_piece(board, move);
     if (piece != NO_PIECETYPE)
-        continuations.reward(context.prev_c, context.prev_piece, context.prev_to, piece, to, depth);
+        continuations.reward(
+            context.previous_side, context.previous_piece, context.previous_to, piece, to, depth);
 }
 
 inline void MoveOrdering::penalize_quiet(
     const Context& context, const Board& board, Move move, int depth, int divisor) {
     const Square from = move.from();
     const Square to   = move.to();
-    quiets.penalize(context.c, from, to, depth, divisor);
+    quiets.penalize(context.side, from, to, depth, divisor);
 
-    if (!context.has_prev)
+    if (!context.has_previous_move)
         return;
 
     const PieceType piece = moving_piece(board, move);
     if (piece != NO_PIECETYPE)
-        continuations.penalize(
-            context.prev_c, context.prev_piece, context.prev_to, piece, to, depth, divisor);
+        continuations.penalize(context.previous_side,
+                               context.previous_piece,
+                               context.previous_to,
+                               piece,
+                               to,
+                               depth,
+                               divisor);
 }
 
 inline MoveOrdering::Context MoveOrdering::make_context(const Board& board) {
-    Context context{.c = board.side_to_move()};
+    Context context{.side = board.side_to_move()};
 
     const Move prev_move = board.previous_move();
     if (prev_move.is_null())
@@ -211,10 +219,10 @@ inline MoveOrdering::Context MoveOrdering::make_context(const Board& board) {
     if (prev_piece == NO_PIECETYPE)
         return context;
 
-    context.prev_c     = ~context.c;
-    context.prev_piece = prev_piece;
-    context.prev_to    = prev_move.to();
-    context.has_prev   = true;
+    context.previous_side     = ~context.side;
+    context.previous_piece    = prev_piece;
+    context.previous_to       = prev_move.to();
+    context.has_previous_move = true;
     return context;
 }
 
