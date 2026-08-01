@@ -8,7 +8,7 @@ public:
 
     static Board& board(SearchWorker& worker) { return worker.board; }
 
-    static int& ply(SearchWorker& worker) { return worker.ply; }
+    static int& search_ply(SearchWorker& worker) { return worker.search_ply; }
 
     static MoveOrdering& ordering(SearchWorker& worker) { return worker.ordering; }
 

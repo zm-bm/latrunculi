@@ -39,7 +39,7 @@ public:
 private:
     // Board and search state.
     Board                 board;
-    int                   ply{0};
+    int                   search_ply{0};
     RootLine              root_result;
     std::vector<RootLine> root_lines;
     MoveOrdering          ordering;
@@ -56,7 +56,7 @@ private:
     // Shared services.
     uci::Writer& writer;
     ThreadPool&  thread_pool;
-    const int    thread_id;
+    const int    worker_id;
 
     // Stop state.
     std::atomic<bool> stop_requested_flag{false};
@@ -132,7 +132,7 @@ inline void SearchWorker::request_stop() noexcept {
 }
 
 inline bool SearchWorker::is_main_worker() const noexcept {
-    return thread_id == 0;
+    return worker_id == 0;
 }
 
 inline bool SearchWorker::should_poll_search_limits() const noexcept {

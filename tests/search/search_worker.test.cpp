@@ -29,57 +29,57 @@ protected:
         SearchTestAccess::reset(worker());
     }
 
-    int& worker_ply() { return SearchTestAccess::ply(worker()); }
-    bool worker_is_draw() { return SearchTestAccess::board(worker()).is_draw(worker_ply()); }
+    int& search_ply() { return SearchTestAccess::search_ply(worker()); }
+    bool worker_is_draw() { return SearchTestAccess::board(worker()).is_draw(search_ply()); }
 
     MoveOrdering& worker_ordering() { return SearchTestAccess::ordering(worker()); }
 
     void make_worker_move(Move move) {
         SearchTestAccess::board(worker()).make(move);
-        ++worker_ply();
+        ++search_ply();
     }
 
     void unmake_worker_move() {
         SearchTestAccess::board(worker()).unmake();
-        --worker_ply();
+        --search_ply();
     }
 
     void make_worker_null_move() {
         SearchTestAccess::board(worker()).make_null();
-        ++worker_ply();
+        ++search_ply();
     }
 
     void unmake_worker_null_move() {
         SearchTestAccess::board(worker()).unmake_null();
-        --worker_ply();
+        --search_ply();
     }
 };
 
 } // namespace
 
-TEST_F(SearchWorkerTest, NullMoveKeepsWorkerPlyInSync) {
+TEST_F(SearchWorkerTest, NullMoveKeepsSearchPlyInSync) {
     Board board{board_test::fen::start};
     load_worker_board(board);
 
-    EXPECT_EQ(worker_ply(), 0);
+    EXPECT_EQ(search_ply(), 0);
 
     make_worker_null_move();
-    EXPECT_EQ(worker_ply(), 1);
+    EXPECT_EQ(search_ply(), 1);
 
     unmake_worker_null_move();
-    EXPECT_EQ(worker_ply(), 0);
+    EXPECT_EQ(search_ply(), 0);
 
     make_worker_move(Move(E2, E4));
-    EXPECT_EQ(worker_ply(), 1);
+    EXPECT_EQ(search_ply(), 1);
 
     make_worker_null_move();
-    EXPECT_EQ(worker_ply(), 2);
+    EXPECT_EQ(search_ply(), 2);
 
     unmake_worker_null_move();
-    EXPECT_EQ(worker_ply(), 1);
+    EXPECT_EQ(search_ply(), 1);
 
     unmake_worker_move();
-    EXPECT_EQ(worker_ply(), 0);
+    EXPECT_EQ(search_ply(), 0);
 }
 
 TEST_F(SearchWorkerTest, RepeatedSearchesAgeQuietAndPreserveContinuationHistory) {

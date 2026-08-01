@@ -38,7 +38,7 @@ protected:
     }
 
     Board& position() { return SearchTestAccess::board(worker); }
-    int&   ply() { return SearchTestAccess::ply(worker); }
+    int&   ply() { return SearchTestAccess::search_ply(worker); }
 
     EvalValue search(EvalValue alpha, EvalValue beta) {
         return SearchTestAccess::quiescence<NodeType::NonPv>(worker, alpha, beta);

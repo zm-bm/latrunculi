@@ -45,7 +45,7 @@ protected:
     }
 
     Board&        position() { return SearchTestAccess::board(worker); }
-    int&          ply() { return SearchTestAccess::ply(worker); }
+    int&          ply() { return SearchTestAccess::search_ply(worker); }
     MoveOrdering& ordering() { return SearchTestAccess::ordering(worker); }
 
     EvalValue search(EvalValue alpha, EvalValue beta, int depth, bool can_null = true) {

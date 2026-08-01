@@ -14,14 +14,14 @@
 SearchWorker::SearchWorker(int id, uci::Writer& writer, ThreadPool& pool)
     : writer(writer),
       thread_pool(pool),
-      thread_id(id) {}
+      worker_id(id) {}
 
 // Configuration.
 void SearchWorker::configure_search(const Board& root_board,
                                     SearchLimits limits,
                                     TimePoint    search_start_time) {
-    board = root_board;
-    ply   = 0;
+    board      = root_board;
+    search_ply = 0;
 
     this->limits   = limits;
     start_time     = search_start_time;
@@ -71,7 +71,7 @@ EvalValue SearchWorker::search() {
 
 void SearchWorker::reset_search_state() {
     reset_nodes();
-    ply         = 0;
+    search_ply  = 0;
     root_result = RootLine{NULL_MOVE, evaluate(board), 0, false};
     root_lines.clear();
     last_reported_root_line.reset();
@@ -95,8 +95,8 @@ void SearchWorker::build_root_lines() {
     root_lines.clear();
 
     // Root candidates start in the current picker order.
-    const auto ctx    = MoveOrdering::make_context(board);
-    auto       picker = move_picker::main_search(board, ordering, ctx, 0);
+    const auto context = MoveOrdering::make_context(board);
+    auto       picker  = move_picker::main_search(board, ordering, context, 0);
 
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (board.is_legal_pseudo_move(move))

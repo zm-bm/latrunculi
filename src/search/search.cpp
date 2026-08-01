@@ -168,8 +168,8 @@ bool SearchWorker::search_root_depth(int depth, EvalValue previous_value) {
 bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta) {
     assert(!root_lines.empty());
 
-    int  move_count    = 0;
-    bool pv_move_found = false;
+    int  move_count  = 0;
+    bool has_pv_move = false;
 
     // Preserve caller order for iterative deepening and aspiration retries.
     for (RootLine& line : root_lines) {
@@ -180,25 +180,25 @@ bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta
         ++move_count;
 
         board.make(root_move);
-        ++ply;
+        ++search_ply;
 
         // Root PVS searches full-window until a root PV is established.
         // Scout later root moves and re-search only strict alpha improvements.
         PrincipalVariation child_pv;
         EvalValue          value;
-        if (move_count == 1 || !pv_move_found) {
+        if (move_count == 1 || !has_pv_move) {
             value = -alphabeta<NodeType::Pv>(-beta, -alpha, depth - 1, &child_pv);
         } else {
             value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, depth - 1);
             if (!stop_requested() && value > alpha) {
-                stats.pvs_research(ply);
+                stats.pvs_research(search_ply);
                 child_pv.clear();
                 value = -alphabeta<NodeType::Pv>(-beta, -alpha, depth - 1, &child_pv);
             }
         }
 
         board.unmake();
-        --ply;
+        --search_ply;
 
         // Do not record partial root-line state after a stop.
         if (stop_requested())
@@ -215,9 +215,9 @@ bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta
             if (is_main_worker())
                 report_root_progress(line);
 
-            alpha         = value;
-            pv_move_found = true;
-        } else if (move_count > 1 && pv_move_found && value == alpha && alpha > -eval_value::inf) {
+            alpha       = value;
+            has_pv_move = true;
+        } else if (move_count > 1 && has_pv_move && value == alpha && alpha > -eval_value::inf) {
             // Keep the full-window alpha raiser ordered first on scout ties.
             line.value = alpha - 1;
         }
@@ -240,17 +240,17 @@ EvalValue SearchWorker::alphabeta(
         return alpha;
 
     // Step 2. Draw, max-ply, and qsearch exits.
-    const bool drawn = board.is_draw(ply);
+    const bool drawn = board.is_draw(search_ply);
 
     if (drawn) {
         increment_nodes();
-        stats.node(ply);
+        stats.node(search_ply);
         return eval_value::draw;
     }
 
-    if (ply >= engine::max_search_ply) {
+    if (search_ply >= engine::max_search_ply) {
         increment_nodes();
-        stats.node(ply);
+        stats.node(search_ply);
         return evaluate(board);
     }
 
@@ -258,11 +258,11 @@ EvalValue SearchWorker::alphabeta(
         return quiescence<Node>(alpha, beta, pv);
 
     increment_nodes();
-    stats.node(ply);
+    stats.node(search_ply);
 
     // Step 3. Mate-distance pruning.
-    alpha = std::max(alpha, -eval_value::mate + ply);
-    beta  = std::min(beta, eval_value::mate - ply - 1);
+    alpha = std::max(alpha, -eval_value::mate + search_ply);
+    beta  = std::min(beta, eval_value::mate - search_ply - 1);
     if (alpha >= beta)
         return alpha;
 
@@ -271,15 +271,15 @@ EvalValue SearchWorker::alphabeta(
     Move              tt_move        = NULL_MOVE;
 
     // Step 4. TT probe.
-    stats.main_tt_probe(ply);
+    stats.main_tt_probe(search_ply);
     const auto tt_record = tt.probe(position_key);
     if (tt_record) {
-        stats.main_tt_hit(ply);
+        stats.main_tt_hit(search_ply);
 
         const TTRecord& record   = *tt_record;
-        const EvalValue tt_score = record.score_at_ply(ply);
+        const EvalValue tt_score = record.score_at_ply(search_ply);
         if (tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
-            stats.main_tt_cutoff(ply);
+            stats.main_tt_cutoff(search_ply);
             return tt_score;
         }
 
@@ -287,7 +287,7 @@ EvalValue SearchWorker::alphabeta(
     }
 
     const bool  in_check = board.is_check();
-    const Color c        = board.side_to_move();
+    const Color side     = board.side_to_move();
     bool        futility = false;
 
     if constexpr (Node == NodeType::NonPv) {
@@ -295,12 +295,12 @@ EvalValue SearchWorker::alphabeta(
         const EvalValue static_eval = evaluate(board);
         if (can_null && !in_check && depth <= RazorFutilityMaxDepth && tt_move.is_null()
             && static_eval + RazorMargin[depth] <= alpha) {
-            stats.razor_try(ply);
+            stats.razor_try(search_ply);
             const EvalValue value = quiescence<NodeType::NonPv>(alpha - 1, alpha);
             if (stop_requested())
                 return alpha;
             if (value < alpha) {
-                stats.razor_cutoff(ply);
+                stats.razor_cutoff(search_ply);
                 return value;
             }
         }
@@ -311,22 +311,22 @@ EvalValue SearchWorker::alphabeta(
             depth > NullMoveDeepDepth ? NullMoveReductionDeep : NullMoveReductionBase;
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
                                 && tt_record->bound == TTBound::UpperBound
-                                && tt_record->score_at_ply(ply) < beta;
+                                && tt_record->score_at_ply(search_ply) < beta;
         if (can_null && !in_check && depth >= reduction
-            && board.non_pawn_material(c) > piece_value::rook_mg && !tt_upper_veto) {
-            stats.null_move_try(ply);
+            && board.non_pawn_material(side) > piece_value::rook_mg && !tt_upper_veto) {
+            stats.null_move_try(search_ply);
 
             board.make_null();
-            ++ply;
+            ++search_ply;
             const EvalValue value =
                 -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, nullptr, false);
             board.unmake_null();
-            --ply;
+            --search_ply;
 
             if (stop_requested())
                 return alpha;
             if (value >= beta) {
-                stats.null_move_cutoff(ply);
+                stats.null_move_cutoff(search_ply);
                 return value;
             }
         }
@@ -337,17 +337,18 @@ EvalValue SearchWorker::alphabeta(
     }
 
     // Step 7. Move ordering and quiet-malus tracking.
-    int       move_count     = 0;
-    EvalValue best_value     = -eval_value::inf;
-    Move      top_score_move = NULL_MOVE;
+    int       move_count = 0;
+    EvalValue best_value = -eval_value::inf;
+    Move      best_move  = NULL_MOVE;
 
-    const auto         ctx    = MoveOrdering::make_context(board);
-    auto               picker = move_picker::main_search(board, ordering, ctx, ply, tt_move);
+    const auto context = MoveOrdering::make_context(board);
+    auto       picker  = move_picker::main_search(board, ordering, context, search_ply, tt_move);
+
     PrincipalVariation child_pv;
-    FailedQuiets       searched_quiets;
+    FailedQuiets       failed_quiets;
 
-    const bool quiet_malus_eligible = depth >= QuietMalusMinDepth && !in_check;
-    if (quiet_malus_eligible)
+    const bool allow_quiet_malus = depth >= QuietMalusMinDepth && !in_check;
+    if (allow_quiet_malus)
         stats.quiet_malus_eligible_node(depth);
 
     // Step 8. Move loop.
@@ -361,17 +362,17 @@ EvalValue SearchWorker::alphabeta(
         const bool is_promotion = move.type() == MOVE_PROM;
         const bool is_capture   = board.is_capture(move);
         const bool is_quiet     = !is_capture && !is_promotion;
-        const bool is_killer    = is_quiet && ordering.is_killer(move, ply);
+        const bool is_killer    = is_quiet && ordering.is_killer(move, search_ply);
         board.make(move);
-        ++ply;
+        ++search_ply;
 
         const bool gives_check = board.is_check();
         if (futility && !first_legal && is_quiet && !gives_check) {
             // Step 9. Futility pruning.
             board.unmake();
-            --ply;
+            --search_ply;
             picker.skip_quiet_moves();
-            stats.futility_skip(ply);
+            stats.futility_skip(search_ply);
             continue;
         }
 
@@ -381,13 +382,13 @@ EvalValue SearchWorker::alphabeta(
         const int reduction = lmr_reduction<Node>(
             depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer);
         if (reduction > 0) {
-            stats.lmr_try(ply - 1);
+            stats.lmr_try(search_ply - 1);
             value = -alphabeta<NodeType::NonPv>(
                 -alpha - 1, -alpha, depth - 1 - reduction, nullptr, true);
             if (!stop_requested() && value > alpha) {
-                stats.lmr_research(ply - 1);
+                stats.lmr_research(search_ply - 1);
                 if constexpr (Node == NodeType::Pv) {
-                    stats.pvs_research(ply);
+                    stats.pvs_research(search_ply);
                     child_pv.clear();
                     value = -alphabeta<NodeType::Pv>(
                         -beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
@@ -405,7 +406,7 @@ EvalValue SearchWorker::alphabeta(
             } else {
                 value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, depth - 1, nullptr, true);
                 if (!stop_requested() && value > alpha) {
-                    stats.pvs_research(ply);
+                    stats.pvs_research(search_ply);
                     child_pv.clear();
                     value = -alphabeta<NodeType::Pv>(
                         -beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
@@ -414,7 +415,7 @@ EvalValue SearchWorker::alphabeta(
         }
 
         board.unmake();
-        --ply;
+        --search_ply;
 
         if (stop_requested())
             return alpha;
@@ -423,11 +424,11 @@ EvalValue SearchWorker::alphabeta(
             // Step 12. Beta cutoff.
             if (is_quiet) {
                 stats.quiet_cutoff(depth);
-                ordering.update_quiet_refutations(ctx, move, ply);
-                ordering.reward_quiet(ctx, board, move, depth);
-                if (quiet_malus_eligible && searched_quiets.size() >= QuietMalusMinFailed) {
-                    searched_quiets.for_each([&](Move quiet) {
-                        ordering.penalize_quiet(ctx, board, quiet, depth, QuietMalusDivisor);
+                ordering.update_quiet_refutations(context, move, search_ply);
+                ordering.reward_quiet(context, board, move, depth);
+                if (allow_quiet_malus && failed_quiets.size() >= QuietMalusMinFailed) {
+                    failed_quiets.for_each([&](Move quiet) {
+                        ordering.penalize_quiet(context, board, quiet, depth, QuietMalusDivisor);
                         stats.quiet_malus_update(depth);
                     });
                 }
@@ -436,19 +437,19 @@ EvalValue SearchWorker::alphabeta(
             if (pv)
                 pv->update(move, child_pv);
 
-            stats.beta_cutoff(ply, move_count);
-            tt.store(position_key, move, value, depth, TTBound::LowerBound, ply);
+            stats.beta_cutoff(search_ply, move_count);
+            tt.store(position_key, move, value, depth, TTBound::LowerBound, search_ply);
             return value;
         }
 
-        if (quiet_malus_eligible && is_quiet && !(move == tt_move) && !is_killer) {
-            if (searched_quiets.add(move))
+        if (allow_quiet_malus && is_quiet && !(move == tt_move) && !is_killer) {
+            if (failed_quiets.add(move))
                 stats.quiet_malus_failed_quiet(depth);
         }
         // Step 13. Best-move update.
         if (value > best_value) {
-            best_value     = value;
-            top_score_move = move;
+            best_value = value;
+            best_move  = move;
 
             if (value > alpha) {
                 alpha = value;
@@ -460,18 +461,18 @@ EvalValue SearchWorker::alphabeta(
 
     // Step 14. Mate and stalemate.
     if (move_count == 0) {
-        best_value = in_check ? -eval_value::mate + ply : eval_value::draw;
-        tt.store(position_key, NULL_MOVE, best_value, depth, TTBound::Exact, ply);
+        best_value = in_check ? -eval_value::mate + search_ply : eval_value::draw;
+        tt.store(position_key, NULL_MOVE, best_value, depth, TTBound::Exact, search_ply);
         return best_value;
     }
 
     // Step 15. TT store.
     tt.store(position_key,
-             top_score_move,
+             best_move,
              best_value,
              depth,
              tt_bound_for_window(best_value, original_alpha, beta),
-             ply);
+             search_ply);
 
     return best_value;
 }
@@ -489,13 +490,13 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
         return alpha;
 
     increment_nodes();
-    stats.qnode(ply);
+    stats.qnode(search_ply);
 
     // Step 2. Draw and max-ply exits.
-    if (board.is_draw(ply))
+    if (board.is_draw(search_ply))
         return eval_value::draw;
 
-    if (ply >= engine::max_search_ply)
+    if (search_ply >= engine::max_search_ply)
         return evaluate(board);
 
     constexpr int     qsearch_tt_depth = 0;
@@ -504,30 +505,34 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
     Move              tt_move          = NULL_MOVE;
 
     // Step 3. TT probe.
-    stats.q_tt_probe(ply);
+    stats.q_tt_probe(search_ply);
     if (auto record = tt.probe(position_key)) {
-        stats.q_tt_hit(ply);
+        stats.q_tt_hit(search_ply);
 
-        const EvalValue tt_score = record->score_at_ply(ply);
+        const EvalValue tt_score = record->score_at_ply(search_ply);
         if (tt_cutoff_allowed<Node>(*record, tt_score, qsearch_tt_depth, alpha, beta)) {
-            stats.q_tt_cutoff(ply);
+            stats.q_tt_cutoff(search_ply);
             return tt_score;
         }
 
         tt_move = record->move;
     }
 
-    const bool in_check       = board.is_check();
-    int        move_count     = 0;
-    EvalValue  best_value     = -eval_value::inf;
-    Move       top_score_move = NULL_MOVE;
+    const bool in_check   = board.is_check();
+    int        move_count = 0;
+    EvalValue  best_value = -eval_value::inf;
+    Move       best_move  = NULL_MOVE;
 
     // Step 4. Stand pat.
     if (!in_check) {
         best_value = evaluate(board);
         if (best_value >= beta) {
-            tt.store(
-                position_key, NULL_MOVE, best_value, qsearch_tt_depth, TTBound::LowerBound, ply);
+            tt.store(position_key,
+                     NULL_MOVE,
+                     best_value,
+                     qsearch_tt_depth,
+                     TTBound::LowerBound,
+                     search_ply);
             return best_value;
         }
         if (best_value > alpha)
@@ -545,10 +550,10 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
         ++move_count;
 
         board.make(move);
-        ++ply;
+        ++search_ply;
         const EvalValue value = -quiescence<Node>(-beta, -alpha, pv ? &child_pv : nullptr);
         board.unmake();
-        --ply;
+        --search_ply;
 
         if (stop_requested())
             return alpha;
@@ -557,15 +562,15 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
             // Step 6. Beta cutoff.
             if (pv)
                 pv->update(move, child_pv);
-            stats.beta_cutoff(ply, move_count);
-            tt.store(position_key, move, value, qsearch_tt_depth, TTBound::LowerBound, ply);
+            stats.beta_cutoff(search_ply, move_count);
+            tt.store(position_key, move, value, qsearch_tt_depth, TTBound::LowerBound, search_ply);
             return value;
         }
 
         // Step 7. Best-move update.
         if (value > best_value) {
-            best_value     = value;
-            top_score_move = move;
+            best_value = value;
+            best_move  = move;
             if (value > alpha) {
                 alpha = value;
                 if (pv)
@@ -576,18 +581,18 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
 
     // Step 8. Checkmate.
     if (in_check && move_count == 0) {
-        best_value = -eval_value::mate + ply;
-        tt.store(position_key, NULL_MOVE, best_value, qsearch_tt_depth, TTBound::Exact, ply);
+        best_value = -eval_value::mate + search_ply;
+        tt.store(position_key, NULL_MOVE, best_value, qsearch_tt_depth, TTBound::Exact, search_ply);
         return best_value;
     }
 
     // Step 9. TT store.
     tt.store(position_key,
-             top_score_move,
+             best_move,
              best_value,
              qsearch_tt_depth,
              tt_bound_for_window(best_value, original_alpha, beta),
-             ply);
+             search_ply);
 
     return best_value;
 }

@@ -53,7 +53,7 @@ protected:
     }
 
     Board&                 position() { return SearchTestAccess::board(worker); }
-    int&                   ply() { return SearchTestAccess::ply(worker); }
+    int&                   ply() { return SearchTestAccess::search_ply(worker); }
     RootLine&              result() { return SearchTestAccess::root_result(worker); }
     std::vector<RootLine>& lines() { return SearchTestAccess::root_lines(worker); }
 
