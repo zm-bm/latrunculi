@@ -6,7 +6,7 @@
 
 #include "core/move.hpp"
 
-// Fixed-capacity, allocation-free list of generated moves.
+// Fixed-capacity list of generated moves.
 class MoveList {
 public:
     static constexpr std::size_t capacity = 256;

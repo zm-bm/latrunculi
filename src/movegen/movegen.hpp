@@ -77,7 +77,7 @@ private:
 
     template <PieceType P>
     void piece_moves(Bitboard targets) {
-        Bitboard bitboard = board.template pieces<P>(Us);
+        Bitboard bitboard = board.pieces<P>(Us);
 
         bb::scan<Us>(bitboard, [&](Square from) {
             Bitboard moves = attacks::piece_moves<P>(from, occupancy) & targets;
@@ -122,7 +122,7 @@ private:
         if constexpr (Type == MoveGenType::Evasions)
             enemies &= targets;
 
-        const Bitboard all_pawns       = board.template pieces<PAWN>(Us);
+        const Bitboard all_pawns       = board.pieces<PAWN>(Us);
         Bitboard       promotion_pawns = all_pawns & promotion_rank;
         if constexpr (Type != MoveGenType::Quiet) {
             if (promotion_pawns)
