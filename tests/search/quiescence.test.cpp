@@ -70,7 +70,7 @@ protected:
         return result;
     }
 
-    std::optional<TT_Record> record() const {
+    std::optional<TTRecord> record() const {
         return tt.probe(SearchTestAccess::board(worker).key());
     }
 
@@ -130,7 +130,7 @@ TEST_F(QuiescenceTest, StandPatFailHighStoresLowerBound) {
     ASSERT_TRUE(stored.has_value());
     EXPECT_EQ(stored->score_at_ply(ply()), static_eval);
     EXPECT_EQ(stored->depth, 0);
-    EXPECT_EQ(stored->flag, TT_Flag::Lowerbound);
+    EXPECT_EQ(stored->bound, TTBound::LowerBound);
     EXPECT_EQ(stored->move, NULL_MOVE);
 }
 
@@ -153,7 +153,7 @@ TEST_F(QuiescenceTest, HandlesCheckEvasionsAndCheckmate) {
     const auto stored = record();
     ASSERT_TRUE(stored.has_value());
     EXPECT_EQ(stored->score, -eval_value::mate);
-    EXPECT_EQ(stored->flag, TT_Flag::Exact);
+    EXPECT_EQ(stored->bound, TTBound::Exact);
     EXPECT_EQ(stored->move, NULL_MOVE);
 }
 
@@ -170,23 +170,23 @@ TEST_F(QuiescenceTest, BuildsPrincipalVariationFromTacticalMove) {
 TEST_F(QuiescenceTest, UsesEligibleTtCutoffs) {
     struct Case {
         const char* name;
-        TT_Flag     flag;
+        TTBound     bound;
         EvalValue   score;
         EvalValue   alpha;
         EvalValue   beta;
     };
 
     constexpr std::array cases{
-        Case{"exact", TT_Flag::Exact, 321, -eval_value::inf, eval_value::inf},
-        Case{"lower", TT_Flag::Lowerbound, 500, 100, 200},
-        Case{"upper", TT_Flag::Upperbound, -500, -200, -100},
+        Case{"exact", TTBound::Exact, 321, -eval_value::inf, eval_value::inf},
+        Case{"lower", TTBound::LowerBound, 500, 100, 200},
+        Case{"upper", TTBound::UpperBound, -500, -200, -100},
     };
 
     for (const auto& tc : cases) {
         SCOPED_TRACE(tc.name);
         Board board{board_test::fen::quiet_black_to_move};
         load(board);
-        tt.store(position().key(), NULL_MOVE, tc.score, 0, tc.flag, ply());
+        tt.store(position().key(), NULL_MOVE, tc.score, 0, tc.bound, ply());
         EXPECT_EQ(search(tc.alpha, tc.beta), tc.score);
 
 #if LATRUNCULI_SEARCH_STATS
@@ -207,7 +207,7 @@ TEST_F(QuiescenceTest, IgnoresQuietNoncheckingTtMove) {
     const Move quiet{E2, E3};
     ASSERT_TRUE(position().is_pseudo_legal(quiet));
     ASSERT_FALSE(position().is_capture(quiet));
-    tt.store(position().key(), quiet, -eval_value::inf + 1000, 0, TT_Flag::Lowerbound, ply());
+    tt.store(position().key(), quiet, -eval_value::inf + 1000, 0, TTBound::LowerBound, ply());
 
     EXPECT_EQ(search(-eval_value::inf, eval_value::inf), baseline);
 }
@@ -227,7 +227,7 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
     EXPECT_GE(search(beta - 100, beta), beta);
     auto stored = record();
     ASSERT_TRUE(stored.has_value());
-    EXPECT_EQ(stored->flag, TT_Flag::Lowerbound);
+    EXPECT_EQ(stored->bound, TTBound::LowerBound);
     EXPECT_FALSE(stored->move.is_null());
 
     Board upper_board{board_test::fen::quiet_black_to_move};
@@ -236,7 +236,7 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
     EXPECT_LT(search(upper_eval + 1, upper_eval + 100), upper_eval + 1);
     stored = record();
     ASSERT_TRUE(stored.has_value());
-    EXPECT_EQ(stored->flag, TT_Flag::Upperbound);
+    EXPECT_EQ(stored->bound, TTBound::UpperBound);
     EXPECT_EQ(stored->move, NULL_MOVE);
 
     Board exact_board{tactical};
@@ -244,7 +244,7 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
     EXPECT_GT(search(static_eval - 1, eval_value::inf), static_eval);
     stored = record();
     ASSERT_TRUE(stored.has_value());
-    EXPECT_EQ(stored->flag, TT_Flag::Exact);
+    EXPECT_EQ(stored->bound, TTBound::Exact);
     EXPECT_FALSE(stored->move.is_null());
 }
 
@@ -260,12 +260,12 @@ TEST_F(QuiescenceTest, PvNodeIgnoresNonExactTtBound) {
 
     Board non_pv_board{board_test::fen::quiet_black_to_move};
     load(non_pv_board);
-    tt.store(position().key(), NULL_MOVE, bogus, 0, TT_Flag::Lowerbound, ply());
+    tt.store(position().key(), NULL_MOVE, bogus, 0, TTBound::LowerBound, ply());
     EXPECT_EQ(search(alpha, beta), bogus);
 
     Board pv_board{board_test::fen::quiet_black_to_move};
     load(pv_board);
-    tt.store(position().key(), NULL_MOVE, bogus, 0, TT_Flag::Lowerbound, ply());
+    tt.store(position().key(), NULL_MOVE, bogus, 0, TTBound::LowerBound, ply());
     PrincipalVariation pv;
     EXPECT_EQ(pv_search(alpha, beta, pv), baseline);
 }
@@ -286,7 +286,7 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
     const Move capture = find_move("d1e2");
     ASSERT_FALSE(capture.is_null());
     with_move(capture, [&] {
-        tt.store(position().key(), NULL_MOVE, -static_eval + 10, 0, TT_Flag::Lowerbound, ply());
+        tt.store(position().key(), NULL_MOVE, -static_eval + 10, 0, TTBound::LowerBound, ply());
         return 0;
     });
 

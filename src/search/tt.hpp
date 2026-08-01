@@ -9,103 +9,103 @@
 #include "core/constants.hpp"
 #include "core/move.hpp"
 
-class TT_Table;
-class TT_Test;
-extern TT_Table tt;
+class TTTable;
+class TTTest;
+extern TTTable tt;
 
-enum class TT_Flag : std::uint8_t {
+enum class TTBound : std::uint8_t {
     None,
     Exact,
-    Lowerbound,
-    Upperbound,
+    LowerBound,
+    UpperBound,
 };
 
-[[nodiscard]] constexpr TT_Flag
+[[nodiscard]] constexpr TTBound
 tt_bound_for_window(EvalValue value, EvalValue alpha, EvalValue beta) noexcept {
     if (value >= beta)
-        return TT_Flag::Lowerbound;
+        return TTBound::LowerBound;
     if (value <= alpha)
-        return TT_Flag::Upperbound;
-    return TT_Flag::Exact;
+        return TTBound::UpperBound;
+    return TTBound::Exact;
 }
 
-struct TT_Entry {
+struct TTEntry {
     std::atomic<std::uint64_t> payload   = 0;
     std::atomic<std::uint64_t> signature = 0;
 };
 
 // Decoded compact TT payload record; search/eval arithmetic stays wider at API boundaries.
-struct TT_Record {
-    Move         move  = NULL_MOVE;
-    std::int16_t score = 0;
-    std::uint8_t depth = 0;
-    std::uint8_t age   = 0;
-    TT_Flag      flag  = TT_Flag::None;
+struct TTRecord {
+    Move         move       = NULL_MOVE;
+    std::int16_t score      = 0;
+    std::uint8_t depth      = 0;
+    std::uint8_t generation = 0;
+    TTBound      bound      = TTBound::None;
 
     [[nodiscard]] bool is_valid() const {
-        switch (flag) {
-        case TT_Flag::Exact:
-        case TT_Flag::Lowerbound:
-        case TT_Flag::Upperbound: return true;
-        case TT_Flag::None:       return false;
+        switch (bound) {
+        case TTBound::Exact:
+        case TTBound::LowerBound:
+        case TTBound::UpperBound: return true;
+        case TTBound::None:       return false;
         }
         return false;
     }
-    int                replacement_score(int tt_age) const noexcept;
+    int                replacement_score(int current_generation) const noexcept;
     EvalValue          score_at_ply(int ply) const noexcept;
     [[nodiscard]] bool can_cutoff(EvalValue adjusted_score,
                                   int       search_depth,
                                   EvalValue alpha,
                                   EvalValue beta) const noexcept;
 };
-static_assert(sizeof(TT_Record) == 8);
+static_assert(sizeof(TTRecord) == 8);
 
-struct alignas(64) TT_Cluster {
+struct alignas(64) TTCluster {
     static constexpr int size = 4;
 
-    TT_Entry entries[size] = {};
+    TTEntry entries[size] = {};
 };
 
-class TT_Table {
+class TTTable {
 public:
-    explicit TT_Table();
+    explicit TTTable();
 
     // Shared probes return detached, validated snapshots. Stores publish the payload before its
     // full-key XOR signature, so races produce a miss or a complete old or new record.
-    [[nodiscard]] std::optional<TT_Record> probe(PositionKey zkey) const;
-    void store(PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply);
+    [[nodiscard]] std::optional<TTRecord> probe(PositionKey zkey) const;
+    void store(PositionKey zkey, Move move, EvalValue score, int depth, TTBound bound, int ply);
     void resize(size_t megabytes);
     void clear();
     // Advance the shared TT generation once per root-search lifecycle event.
-    void                       age_table() { ++age; }
-    [[nodiscard]] std::uint8_t current_age() const { return age; }
+    void                       advance_generation() { ++generation; }
+    [[nodiscard]] std::uint8_t current_generation() const { return generation; }
 
     static constexpr size_t default_mb = 4;
 
 private:
-    friend class TT_Test;
+    friend class TTTest;
 
-    std::uint64_t cluster_key(PositionKey zkey) const;
+    std::uint64_t cluster_index(PositionKey zkey) const;
 
-    std::unique_ptr<TT_Cluster[]> table = nullptr;
+    std::unique_ptr<TTCluster[]> clusters = nullptr;
 
-    size_t       length = 0;
-    int          shift  = 0;
-    std::uint8_t age    = 0;
+    size_t       cluster_count = 0;
+    int          shift         = 0;
+    std::uint8_t generation    = 0;
 };
 
-inline std::uint64_t TT_Table::cluster_key(PositionKey zkey) const {
+inline std::uint64_t TTTable::cluster_index(PositionKey zkey) const {
     return (zkey * 0x9e3779b97f4a7c15ull) >> shift;
 }
 
 // lower score = better replacement candidate: prefer shallow entries, then older entries
-inline int TT_Record::replacement_score(int tt_age) const noexcept {
-    const int relative_age = std::uint8_t(std::uint8_t(tt_age) - age);
-    return int(depth) - 4 * relative_age;
+inline int TTRecord::replacement_score(int current_generation) const noexcept {
+    const int age_distance = std::uint8_t(std::uint8_t(current_generation) - generation);
+    return int(depth) - 4 * age_distance;
 }
 
 // Convert a stored current-position mate score back into a root-relative search score.
-inline EvalValue TT_Record::score_at_ply(int ply) const noexcept {
+inline EvalValue TTRecord::score_at_ply(int ply) const noexcept {
     const EvalValue value = score;
 
     if (value >= eval_value::tt_mate_bound)
@@ -115,20 +115,20 @@ inline EvalValue TT_Record::score_at_ply(int ply) const noexcept {
     return value;
 }
 
-inline bool TT_Record::can_cutoff(EvalValue adjusted_score,
-                                  int       search_depth,
-                                  EvalValue alpha,
-                                  EvalValue beta) const noexcept {
+inline bool TTRecord::can_cutoff(EvalValue adjusted_score,
+                                 int       search_depth,
+                                 EvalValue alpha,
+                                 EvalValue beta) const noexcept {
     assert(search_depth >= 0 && search_depth <= engine::max_search_ply);
 
     if (int(depth) < search_depth)
         return false;
 
-    switch (flag) {
-    case TT_Flag::Exact:      return true;
-    case TT_Flag::Lowerbound: return adjusted_score >= beta;
-    case TT_Flag::Upperbound: return adjusted_score <= alpha;
-    case TT_Flag::None:       return false;
+    switch (bound) {
+    case TTBound::Exact:      return true;
+    case TTBound::LowerBound: return adjusted_score >= beta;
+    case TTBound::UpperBound: return adjusted_score <= alpha;
+    case TTBound::None:       return false;
     }
 
     return false;

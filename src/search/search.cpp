@@ -36,9 +36,9 @@ constexpr int QuietMalusDivisor   = 2;
 // Apply the PV/non-PV TT cutoff policy.
 template <NodeType Node>
 bool tt_cutoff_allowed(
-    const TT_Record& record, EvalValue adjusted_score, int depth, EvalValue alpha, EvalValue beta) {
+    const TTRecord& record, EvalValue adjusted_score, int depth, EvalValue alpha, EvalValue beta) {
     if constexpr (Node == NodeType::Pv)
-        return int(record.depth) >= depth && record.flag == TT_Flag::Exact;
+        return int(record.depth) >= depth && record.bound == TTBound::Exact;
 
     return record.can_cutoff(adjusted_score, depth, alpha, beta);
 }
@@ -276,8 +276,8 @@ EvalValue SearchWorker::alphabeta(
     if (tt_record) {
         stats.main_tt_hit(ply);
 
-        const TT_Record& record   = *tt_record;
-        const EvalValue  tt_score = record.score_at_ply(ply);
+        const TTRecord& record   = *tt_record;
+        const EvalValue tt_score = record.score_at_ply(ply);
         if (tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
             stats.main_tt_cutoff(ply);
             return tt_score;
@@ -310,7 +310,7 @@ EvalValue SearchWorker::alphabeta(
         const int reduction =
             depth > NullMoveDeepDepth ? NullMoveReductionDeep : NullMoveReductionBase;
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
-                                && tt_record->flag == TT_Flag::Upperbound
+                                && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(ply) < beta;
         if (can_null && !in_check && depth >= reduction
             && board.non_pawn_material(c) > piece_value::rook_mg && !tt_upper_veto) {
@@ -437,7 +437,7 @@ EvalValue SearchWorker::alphabeta(
                 pv->update(move, child_pv);
 
             stats.beta_cutoff(ply, move_count);
-            tt.store(position_key, move, value, depth, TT_Flag::Lowerbound, ply);
+            tt.store(position_key, move, value, depth, TTBound::LowerBound, ply);
             return value;
         }
 
@@ -461,7 +461,7 @@ EvalValue SearchWorker::alphabeta(
     // Step 14. Mate and stalemate.
     if (move_count == 0) {
         best_value = in_check ? -eval_value::mate + ply : eval_value::draw;
-        tt.store(position_key, NULL_MOVE, best_value, depth, TT_Flag::Exact, ply);
+        tt.store(position_key, NULL_MOVE, best_value, depth, TTBound::Exact, ply);
         return best_value;
     }
 
@@ -527,7 +527,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
         best_value = evaluate(board);
         if (best_value >= beta) {
             tt.store(
-                position_key, NULL_MOVE, best_value, qsearch_tt_depth, TT_Flag::Lowerbound, ply);
+                position_key, NULL_MOVE, best_value, qsearch_tt_depth, TTBound::LowerBound, ply);
             return best_value;
         }
         if (best_value > alpha)
@@ -558,7 +558,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
             if (pv)
                 pv->update(move, child_pv);
             stats.beta_cutoff(ply, move_count);
-            tt.store(position_key, move, value, qsearch_tt_depth, TT_Flag::Lowerbound, ply);
+            tt.store(position_key, move, value, qsearch_tt_depth, TTBound::LowerBound, ply);
             return value;
         }
 
@@ -577,7 +577,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
     // Step 8. Checkmate.
     if (in_check && move_count == 0) {
         best_value = -eval_value::mate + ply;
-        tt.store(position_key, NULL_MOVE, best_value, qsearch_tt_depth, TT_Flag::Exact, ply);
+        tt.store(position_key, NULL_MOVE, best_value, qsearch_tt_depth, TTBound::Exact, ply);
         return best_value;
     }
 

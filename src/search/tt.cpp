@@ -6,49 +6,49 @@
 #include <utility>
 
 namespace {
-constexpr int tt_score_bits = 16;
-constexpr int tt_move_bits  = 16;
-constexpr int tt_depth_bits = 8;
-constexpr int tt_age_bits   = 8;
-constexpr int tt_flag_bits  = 8;
+constexpr int tt_score_bits      = 16;
+constexpr int tt_move_bits       = 16;
+constexpr int tt_depth_bits      = 8;
+constexpr int tt_generation_bits = 8;
+constexpr int tt_bound_bits      = 8;
 
-constexpr int tt_move_shift  = 0;
-constexpr int tt_score_shift = tt_move_shift + tt_move_bits;
-constexpr int tt_depth_shift = tt_score_shift + tt_score_bits;
-constexpr int tt_age_shift   = tt_depth_shift + tt_depth_bits;
-constexpr int tt_flag_shift  = tt_age_shift + tt_age_bits;
+constexpr int tt_move_shift       = 0;
+constexpr int tt_score_shift      = tt_move_shift + tt_move_bits;
+constexpr int tt_depth_shift      = tt_score_shift + tt_score_bits;
+constexpr int tt_generation_shift = tt_depth_shift + tt_depth_bits;
+constexpr int tt_bound_shift      = tt_generation_shift + tt_generation_bits;
 
-constexpr std::uint64_t tt_move_mask      = (std::uint64_t{1} << tt_move_bits) - 1;
-constexpr std::uint64_t tt_score_mask     = (std::uint64_t{1} << tt_score_bits) - 1;
-constexpr std::uint64_t tt_depth_mask     = (std::uint64_t{1} << tt_depth_bits) - 1;
-constexpr std::uint64_t tt_age_mask       = (std::uint64_t{1} << tt_age_bits) - 1;
-constexpr std::uint64_t tt_flag_mask      = (std::uint64_t{1} << tt_flag_bits) - 1;
-constexpr std::uint64_t tt_signature_salt = 0x9e3779b97f4a7c15ull;
+constexpr std::uint64_t tt_move_mask       = (std::uint64_t{1} << tt_move_bits) - 1;
+constexpr std::uint64_t tt_score_mask      = (std::uint64_t{1} << tt_score_bits) - 1;
+constexpr std::uint64_t tt_depth_mask      = (std::uint64_t{1} << tt_depth_bits) - 1;
+constexpr std::uint64_t tt_generation_mask = (std::uint64_t{1} << tt_generation_bits) - 1;
+constexpr std::uint64_t tt_bound_mask      = (std::uint64_t{1} << tt_bound_bits) - 1;
+constexpr std::uint64_t tt_signature_salt  = 0x9e3779b97f4a7c15ull;
 
-struct TT_Snapshot {
+struct TTSnapshot {
     PositionKey key = 0;
-    TT_Record   record{};
+    TTRecord    record{};
 };
 
-[[nodiscard]] std::uint64_t pack_payload(const TT_Record& record) {
+[[nodiscard]] std::uint64_t pack_payload(const TTRecord& record) {
     const auto packed_score = std::bit_cast<std::uint16_t>(record.score);
 
     return (std::uint64_t(record.move.bits) << tt_move_shift)
          | ((std::uint64_t(packed_score) & tt_score_mask) << tt_score_shift)
          | ((std::uint64_t(record.depth) & tt_depth_mask) << tt_depth_shift)
-         | ((std::uint64_t(record.age) & tt_age_mask) << tt_age_shift)
-         | ((std::uint64_t(std::to_underlying(record.flag)) & tt_flag_mask) << tt_flag_shift);
+         | ((std::uint64_t(record.generation) & tt_generation_mask) << tt_generation_shift)
+         | ((std::uint64_t(std::to_underlying(record.bound)) & tt_bound_mask) << tt_bound_shift);
 }
 
-[[nodiscard]] TT_Record unpack_payload(std::uint64_t payload) {
+[[nodiscard]] TTRecord unpack_payload(std::uint64_t payload) {
     const auto packed_score = std::uint16_t((payload >> tt_score_shift) & tt_score_mask);
 
-    TT_Record record{};
-    record.move.bits = MoveBits((payload >> tt_move_shift) & tt_move_mask);
-    record.score     = std::bit_cast<std::int16_t>(packed_score);
-    record.depth     = std::uint8_t((payload >> tt_depth_shift) & tt_depth_mask);
-    record.age       = std::uint8_t((payload >> tt_age_shift) & tt_age_mask);
-    record.flag      = TT_Flag((payload >> tt_flag_shift) & tt_flag_mask);
+    TTRecord record{};
+    record.move.bits  = MoveBits((payload >> tt_move_shift) & tt_move_mask);
+    record.score      = std::bit_cast<std::int16_t>(packed_score);
+    record.depth      = std::uint8_t((payload >> tt_depth_shift) & tt_depth_mask);
+    record.generation = std::uint8_t((payload >> tt_generation_shift) & tt_generation_mask);
+    record.bound      = TTBound((payload >> tt_bound_shift) & tt_bound_mask);
     return record;
 }
 
@@ -60,36 +60,36 @@ struct TT_Snapshot {
     return signature ^ payload ^ tt_signature_salt;
 }
 
-[[nodiscard]] std::optional<TT_Snapshot> load_snapshot(const TT_Entry& entry) {
+[[nodiscard]] std::optional<TTSnapshot> load_snapshot(const TTEntry& entry) {
     const std::uint64_t signature_before = entry.signature.load(std::memory_order_acquire);
     const std::uint64_t payload          = entry.payload.load(std::memory_order_relaxed);
     const std::uint64_t signature_after  = entry.signature.load(std::memory_order_acquire);
     if (signature_before != signature_after)
         return std::nullopt;
 
-    TT_Record record = unpack_payload(payload);
+    TTRecord record = unpack_payload(payload);
     if (!record.is_valid())
         return std::nullopt;
 
-    return TT_Snapshot{.key = recover_key(signature_after, payload), .record = record};
+    return TTSnapshot{.key = recover_key(signature_after, payload), .record = record};
 }
 
-void clear_entry(TT_Entry& entry) {
+void clear_entry(TTEntry& entry) {
     entry.payload.store(0, std::memory_order_relaxed);
     entry.signature.store(0, std::memory_order_relaxed);
 }
 } // namespace
 
-TT_Table tt{};
+TTTable tt{};
 
-TT_Table::TT_Table() {
+TTTable::TTTable() {
     resize(default_mb);
 }
 
-std::optional<TT_Record> TT_Table::probe(PositionKey zkey) const {
-    const TT_Cluster& cluster = table[cluster_key(zkey)];
+std::optional<TTRecord> TTTable::probe(PositionKey zkey) const {
+    const TTCluster& cluster = clusters[cluster_index(zkey)];
 
-    for (const TT_Entry& entry : cluster.entries) {
+    for (const TTEntry& entry : cluster.entries) {
         auto snapshot = load_snapshot(entry);
         if (snapshot && snapshot->key == zkey)
             return snapshot->record;
@@ -98,13 +98,13 @@ std::optional<TT_Record> TT_Table::probe(PositionKey zkey) const {
     return std::nullopt;
 }
 
-void TT_Table::store(
-    PositionKey zkey, Move move, EvalValue score, int depth, TT_Flag flag, int ply) {
+void TTTable::store(
+    PositionKey zkey, Move move, EvalValue score, int depth, TTBound bound, int ply) {
     assert(depth >= 0 && depth <= engine::max_search_ply);
     assert(score >= std::numeric_limits<std::int16_t>::min()
            && score <= std::numeric_limits<std::int16_t>::max());
 
-    TT_Cluster& cluster = table[cluster_key(zkey)];
+    TTCluster& cluster = clusters[cluster_index(zkey)];
 
     // convert mate from root score into mate from current position
     if (score >= eval_value::tt_mate_bound)
@@ -115,15 +115,15 @@ void TT_Table::store(
            && score <= std::numeric_limits<std::int16_t>::max());
 
     // replacement policy: prefer same key, then lowest replacement score
-    TT_Entry* target = &cluster.entries[0];
-    TT_Record target_record{};
-    int       target_replacement_score = std::numeric_limits<int>::max();
-    bool      target_is_same_key       = false;
+    TTEntry* target = &cluster.entries[0];
+    TTRecord target_record{};
+    int      target_replacement_score = std::numeric_limits<int>::max();
+    bool     target_is_same_key       = false;
 
-    for (TT_Entry& entry : cluster.entries) {
+    for (TTEntry& entry : cluster.entries) {
         auto snapshot = load_snapshot(entry);
         if (snapshot && snapshot->key == zkey) {
-            if (flag != TT_Flag::Exact && depth + 2 < int(snapshot->record.depth))
+            if (bound != TTBound::Exact && depth + 2 < int(snapshot->record.depth))
                 return;
 
             target             = &entry;
@@ -132,8 +132,8 @@ void TT_Table::store(
             break;
         }
 
-        const int replacement_score =
-            snapshot ? snapshot->record.replacement_score(age) : std::numeric_limits<int>::min();
+        const int replacement_score = snapshot ? snapshot->record.replacement_score(generation)
+                                               : std::numeric_limits<int>::min();
         if (!target_is_same_key && replacement_score < target_replacement_score) {
             target                   = &entry;
             target_replacement_score = replacement_score;
@@ -143,12 +143,12 @@ void TT_Table::store(
     if (target_is_same_key && move.is_null())
         move = target_record.move;
 
-    const TT_Record record{
-        .move  = move,
-        .score = std::int16_t(score),
-        .depth = std::uint8_t(depth),
-        .age   = age,
-        .flag  = flag,
+    const TTRecord record{
+        .move       = move,
+        .score      = std::int16_t(score),
+        .depth      = std::uint8_t(depth),
+        .generation = generation,
+        .bound      = bound,
     };
 
     const std::uint64_t payload   = pack_payload(record);
@@ -158,25 +158,25 @@ void TT_Table::store(
     target->signature.store(signature, std::memory_order_release);
 }
 
-void TT_Table::clear() {
-    for (std::size_t i = 0; i < length; ++i) {
-        for (auto& entry : table[i].entries)
+void TTTable::clear() {
+    for (std::size_t i = 0; i < cluster_count; ++i) {
+        for (auto& entry : clusters[i].entries)
             clear_entry(entry);
     }
-    age = 0;
+    generation = 0;
 }
 
-void TT_Table::resize(size_t mb) {
+void TTTable::resize(size_t mb) {
     if (mb == 0)
         mb = 1;
 
-    const std::uint64_t bytes      = mb << 20;
-    const size_t        new_length = std::bit_floor(bytes / sizeof(TT_Cluster));
-    const int           new_shift  = 64 - std::countr_zero(new_length);
-    auto                new_table  = std::make_unique<TT_Cluster[]>(new_length);
+    const std::uint64_t bytes             = mb << 20;
+    const size_t        new_cluster_count = std::bit_floor(bytes / sizeof(TTCluster));
+    const int           new_shift         = 64 - std::countr_zero(new_cluster_count);
+    auto                new_clusters      = std::make_unique<TTCluster[]>(new_cluster_count);
 
-    table  = std::move(new_table);
-    length = new_length;
-    shift  = new_shift;
-    age    = 0;
+    clusters      = std::move(new_clusters);
+    cluster_count = new_cluster_count;
+    shift         = new_shift;
+    generation    = 0;
 }

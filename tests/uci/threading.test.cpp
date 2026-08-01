@@ -57,7 +57,7 @@ TEST_F(ThreadPoolTest, StartSearchRejectsEmptyPool) {
     ThreadPool empty_pool{0, writer};
 
     EXPECT_FALSE(empty_pool.start_search(board, options));
-    EXPECT_EQ(tt.current_age(), std::uint8_t{0});
+    EXPECT_EQ(tt.current_generation(), std::uint8_t{0});
 }
 
 TEST_F(ThreadPoolTest, StartSearchCompletes) {
@@ -120,7 +120,7 @@ TEST_F(ThreadPoolTest, StartSearchRejectsConcurrentSearch) {
 
     pool.request_stop();
     pool.wait();
-    EXPECT_EQ(tt.current_age(), std::uint8_t{1});
+    EXPECT_EQ(tt.current_generation(), std::uint8_t{1});
 }
 
 TEST_F(ThreadPoolTest, RequestStopStopsSearch) {
@@ -200,18 +200,18 @@ TEST_F(ThreadPoolTest, NodeLimitedSearchUsesThreadSafeNodeCount) {
     EXPECT_GE(nodes_searched(), *options.nodes);
 }
 
-TEST_F(ThreadPoolTest, RootSearchAgesSharedTTOncePerStartSearch) {
+TEST_F(ThreadPoolTest, RootSearchAdvancesTTGenerationOncePerSearch) {
     options.depth = 1;
 
-    EXPECT_EQ(tt.current_age(), std::uint8_t{0});
+    EXPECT_EQ(tt.current_generation(), std::uint8_t{0});
 
     EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
-    EXPECT_EQ(tt.current_age(), std::uint8_t{1});
+    EXPECT_EQ(tt.current_generation(), std::uint8_t{1});
 
     EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
-    EXPECT_EQ(tt.current_age(), std::uint8_t{2});
+    EXPECT_EQ(tt.current_generation(), std::uint8_t{2});
 }
 
 TEST_F(ThreadPoolTest, ResizeRejectsWhileSearchInProgress) {

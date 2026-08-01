@@ -231,10 +231,10 @@ TEST_F(EngineTest, PositionMovesBuildRepetitionHistoryThatFenReplacementClears) 
 TEST_F(EngineTest, UciNewGameClearsTTAndSearchHeuristics) {
     ASSERT_TRUE(execute("setoption name Threads value 2"));
 
-    tt.age_table();
-    tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TT_Flag::Exact, 0);
+    tt.advance_generation();
+    tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TTBound::Exact, 0);
     ASSERT_TRUE(tt.probe(board().key()).has_value());
-    ASSERT_EQ(tt.current_age(), std::uint8_t{1});
+    ASSERT_EQ(tt.current_generation(), std::uint8_t{1});
 
     for (size_t index = 0; index < threadpool().thread_count(); ++index) {
         auto& ordering = SearchTestAccess::ordering(ThreadTestAccess::worker(threadpool(), index));
@@ -245,7 +245,7 @@ TEST_F(EngineTest, UciNewGameClearsTTAndSearchHeuristics) {
     EXPECT_TRUE(execute("ucinewgame"));
 
     EXPECT_FALSE(tt.probe(board().key()).has_value());
-    EXPECT_EQ(tt.current_age(), std::uint8_t{0});
+    EXPECT_EQ(tt.current_generation(), std::uint8_t{0});
 
     for (size_t index = 0; index < threadpool().thread_count(); ++index) {
         auto& ordering = SearchTestAccess::ordering(ThreadTestAccess::worker(threadpool(), index));
@@ -269,7 +269,7 @@ TEST_F(EngineTest, SetOptionCheckValuesAreCaseInsensitive) {
 }
 
 TEST_F(EngineTest, ClearHashButtonClearsTT) {
-    tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TT_Flag::Exact, 0);
+    tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TTBound::Exact, 0);
     ASSERT_TRUE(tt.probe(board().key()).has_value());
 
     EXPECT_TRUE(execute("setoption name Clear Hash"));

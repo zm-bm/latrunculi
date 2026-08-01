@@ -88,7 +88,7 @@ void SearchWorker::clear_search_heuristics() {
 
 void SearchWorker::prepare_shared_search_state() {
     assert(is_main_worker());
-    tt.age_table();
+    tt.advance_generation();
 }
 
 void SearchWorker::build_root_lines() {
