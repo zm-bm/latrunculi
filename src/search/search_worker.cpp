@@ -37,7 +37,7 @@ void SearchWorker::clear_root_snapshot() {
     root_result_snapshot = {};
 }
 
-void SearchWorker::update_root_snapshot() {
+void SearchWorker::publish_root_snapshot() {
     std::lock_guard<std::mutex> lock(root_snapshot_mutex);
     root_result_snapshot = root_result;
 }
@@ -52,7 +52,7 @@ EvalValue SearchWorker::search() {
     reset_search_state();
 
     if (is_main_worker()) {
-        prepare_shared_search_state();
+        tt.advance_generation();
         thread_pool.release_helper_searches();
     } else {
         thread_pool.wait_for_helper_release();
@@ -61,7 +61,7 @@ EvalValue SearchWorker::search() {
     build_root_lines();
     const EvalValue value = search_root();
 
-    record_root_result(value);
+    finalize_root_result(value);
 
     if (is_main_worker())
         report_final_result();
@@ -84,11 +84,6 @@ void SearchWorker::reset_search_state() {
 
 void SearchWorker::clear_search_heuristics() {
     ordering.clear();
-}
-
-void SearchWorker::prepare_shared_search_state() {
-    assert(is_main_worker());
-    tt.advance_generation();
 }
 
 void SearchWorker::build_root_lines() {
@@ -116,7 +111,7 @@ RootLine SearchWorker::terminal_root_result() const {
     };
 }
 
-void SearchWorker::record_root_result(EvalValue value) {
+void SearchWorker::finalize_root_result(EvalValue value) {
     if (!root_result.completed && !stop_requested()) {
         root_result.value     = value;
         root_result.depth     = limits.depth;
@@ -126,7 +121,7 @@ void SearchWorker::record_root_result(EvalValue value) {
     if (!root_result.completed)
         root_result.pv.clear();
 
-    update_root_snapshot();
+    publish_root_snapshot();
 }
 
 void SearchWorker::report_final_result() {

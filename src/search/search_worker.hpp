@@ -71,19 +71,18 @@ private:
     // Search lifecycle.
     void      reset_search_state();
     void      clear_search_heuristics();
-    void      prepare_shared_search_state();
     void      build_root_lines();
     EvalValue search_root();
     RootLine  terminal_root_result() const;
     bool      search_root_depth(int depth, EvalValue previous_value);
     bool      search_root_window(int depth, EvalValue alpha, EvalValue beta);
-    void      record_root_result(EvalValue value);
+    void      finalize_root_result(EvalValue value);
     void      report_final_result();
     void      report_root_progress(const RootLine& line);
 
     // Root snapshot publication.
     void clear_root_snapshot();
-    void update_root_snapshot();
+    void publish_root_snapshot();
 
     // Search algorithm. (search.cpp)
     template <NodeType Node = NodeType::NonPv>

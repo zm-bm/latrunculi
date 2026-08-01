@@ -151,7 +151,7 @@ bool SearchWorker::search_root_depth(int depth, EvalValue previous_value) {
         } else {
             // Window hit: accept and publish the completed depth.
             root_result = best_line;
-            update_root_snapshot();
+            publish_root_snapshot();
             if (is_main_worker())
                 report_root_progress(root_result);
             return true;
