@@ -83,10 +83,10 @@ private:
            QuietHintCandidates          quiet_hint_candidates = {});
 
     void add_quiet_hint(Move move);
-    bool matches_tt(Move move) const;
-    bool matches_quiet_hint(Move move) const;
-    Move accepted_tt_hint(Move move) const;
-    Move accepted_quiet_hint(Move move) const;
+    bool is_tt_move(Move move) const;
+    bool is_quiet_hint(Move move) const;
+    Move validate_tt_hint(Move move) const;
+    Move validate_quiet_hint(Move move) const;
     Move next_quiet_hint();
 
     template <ScorePolicy Policy>
@@ -108,10 +108,10 @@ private:
     const Mode                                mode;
     const bool                                in_check;
     Stage                                     stage{Stage::TtMove};
-    std::array<Candidate, MoveList::capacity> moves;
-    // Primary holds evasions when in check, otherwise noisy moves.
-    CandidateRange                      primary;
-    CandidateRange                      quiets;
+    std::array<Candidate, MoveList::capacity> candidates;
+    // Holds evasions when in check, otherwise noisy moves.
+    CandidateRange                      primary_range;
+    CandidateRange                      quiet_range;
     std::array<Move, QuietHintCapacity> quiet_hints{};
     int                                 quiet_hint_count{0};
     int                                 quiet_hint_next{0};

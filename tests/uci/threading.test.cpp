@@ -80,7 +80,7 @@ TEST_F(ThreadPoolTest, ReportsAggregatedSearchInstrumentation) {
     EXPECT_EQ(report, transcript.rfind("Aspiration:")) << transcript;
     EXPECT_NE(transcript.find("RazorFutility:", report), std::string::npos) << transcript;
     EXPECT_NE(transcript.find("QuietHistory:", report), std::string::npos) << transcript;
-    EXPECT_NE(transcript.find("Depth", report), std::string::npos) << transcript;
+    EXPECT_NE(transcript.find("Ply", report), std::string::npos) << transcript;
 }
 #endif
 

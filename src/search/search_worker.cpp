@@ -78,7 +78,7 @@ void SearchWorker::reset_search_state() {
 
     ordering.prepare_for_search();
 
-    if constexpr (SEARCH_STATS_ENABLED)
+    if constexpr (SearchStatsEnabled)
         stats.reset();
 }
 
@@ -140,7 +140,7 @@ void SearchWorker::report_final_result() {
     writer.search_info(selected, board, total_nodes(), runtime());
     writer.bestmove(selected.root_move);
 
-    if constexpr (SEARCH_STATS_ENABLED) {
+    if constexpr (SearchStatsEnabled) {
         auto stats = thread_pool.aggregate_instrumentation();
         writer.debug(stats.str());
     }

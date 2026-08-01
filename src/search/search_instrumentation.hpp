@@ -10,45 +10,45 @@
 #define LATRUNCULI_SEARCH_STATS 0
 #endif
 
-constexpr bool SEARCH_STATS_ENABLED = LATRUNCULI_SEARCH_STATS;
+constexpr bool SearchStatsEnabled = LATRUNCULI_SEARCH_STATS;
 
 struct SearchCounters {
-    using StatsArray = std::array<std::uint64_t, engine::max_search_ply>;
+    using CounterArray = std::array<std::uint64_t, engine::max_search_ply>;
 
-    StatsArray nodes{0};
-    StatsArray qnodes{0};
+    CounterArray nodes{0};
+    CounterArray qnodes{0};
 
-    StatsArray cutoff_index_sum{0};
-    StatsArray cutoff_index_1{0};
-    StatsArray cutoff_index_2{0};
-    StatsArray cutoff_index_3_4{0};
-    StatsArray cutoff_index_5_plus{0};
+    CounterArray cutoff_index_sum{0};
+    CounterArray cutoff_index_1{0};
+    CounterArray cutoff_index_2{0};
+    CounterArray cutoff_index_3_4{0};
+    CounterArray cutoff_index_5_plus{0};
 
-    StatsArray pvs_researches{0};
+    CounterArray pvs_researches{0};
 
-    StatsArray main_tt_probes{0};
-    StatsArray main_tt_hits{0};
-    StatsArray main_tt_cutoffs{0};
-    StatsArray q_tt_probes{0};
-    StatsArray q_tt_hits{0};
-    StatsArray q_tt_cutoffs{0};
-    StatsArray null_move_tries{0};
-    StatsArray null_move_cutoffs{0};
-    StatsArray razor_tries{0};
-    StatsArray razor_cutoffs{0};
-    StatsArray futility_skips{0};
-    StatsArray lmr_tries{0};
-    StatsArray lmr_researches{0};
-    StatsArray quiet_cutoffs{0};
-    StatsArray quiet_malus_eligible_nodes{0};
-    StatsArray quiet_malus_failed_quiets{0};
-    StatsArray quiet_malus_updates{0};
+    CounterArray main_tt_probes{0};
+    CounterArray main_tt_hits{0};
+    CounterArray main_tt_cutoffs{0};
+    CounterArray q_tt_probes{0};
+    CounterArray q_tt_hits{0};
+    CounterArray q_tt_cutoffs{0};
+    CounterArray null_move_tries{0};
+    CounterArray null_move_cutoffs{0};
+    CounterArray razor_tries{0};
+    CounterArray razor_cutoffs{0};
+    CounterArray futility_skips{0};
+    CounterArray lmr_tries{0};
+    CounterArray lmr_researches{0};
+    CounterArray quiet_cutoffs{0};
+    CounterArray quiet_malus_eligible_nodes{0};
+    CounterArray quiet_malus_failed_quiets{0};
+    CounterArray quiet_malus_updates{0};
 
     std::uint64_t aspiration_fail_lows{0};
     std::uint64_t aspiration_fail_highs{0};
 };
 
-template <bool Enable = SEARCH_STATS_ENABLED>
+template <bool Enable = SearchStatsEnabled>
 class SearchInstrumentation;
 
 template <>

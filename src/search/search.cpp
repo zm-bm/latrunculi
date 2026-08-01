@@ -12,17 +12,17 @@ namespace {
 
 // Aspiration-window defaults.
 constexpr EvalValue AspirationWindow = 50;
-constexpr EvalValue SearchInf        = eval_value::inf;
 
 // Null-move pruning defaults.
 constexpr int NullMoveReductionBase = 3;
-constexpr int NullMoveReductionDeep = 4;
-constexpr int NullMoveDeepDepth     = 6;
+constexpr int NullMoveDeepReduction = 4;
+constexpr int NullMoveDeepThreshold = 6;
 
 // Razoring and futility defaults.
-constexpr int RazorFutilityMaxDepth = 3;
-constexpr int RazorMargin[]         = {0, 500, 900, 1800};
-constexpr int FutilityMargin[]      = {0, 250, 400, 550};
+constexpr int RazorMaxDepth    = 3;
+constexpr int FutilityMaxDepth = 3;
+constexpr int RazorMargin[]    = {0, 500, 900, 1800};
+constexpr int FutilityMargin[] = {0, 250, 400, 550};
 
 // Late-move reduction defaults.
 constexpr int LmrMinDepth     = 3;
@@ -120,8 +120,8 @@ EvalValue SearchWorker::search_root() {
 // Root aspiration loop for a single depth.
 bool SearchWorker::search_root_depth(int depth, EvalValue previous_value) {
     EvalValue delta = AspirationWindow;
-    EvalValue alpha = std::max(previous_value - delta, -SearchInf);
-    EvalValue beta  = std::min(previous_value + delta, SearchInf);
+    EvalValue alpha = std::max(previous_value - delta, -eval_value::inf);
+    EvalValue beta  = std::min(previous_value + delta, eval_value::inf);
 
     while (!stop_requested()) {
         // Keep root order but clear stale attempt state.
@@ -138,16 +138,16 @@ bool SearchWorker::search_root_depth(int depth, EvalValue previous_value) {
         const RootLine& best_line = root_lines.front();
         assert(best_line.has_completed_depth());
         const EvalValue value = best_line.value;
-        assert(value > -SearchInf && value < SearchInf);
+        assert(value > -eval_value::inf && value < eval_value::inf);
 
         if (value <= alpha) {
             // Fail low: widen the lower bound and re-search.
             stats.aspiration_fail_low();
-            alpha = std::max(alpha - delta, -SearchInf);
+            alpha = std::max(alpha - delta, -eval_value::inf);
         } else if (value >= beta) {
             // Fail high: widen the upper bound and re-search.
             stats.aspiration_fail_high();
-            beta = std::min(beta + delta, SearchInf);
+            beta = std::min(beta + delta, eval_value::inf);
         } else {
             // Window hit: accept and publish the completed depth.
             root_result = best_line;
@@ -158,7 +158,7 @@ bool SearchWorker::search_root_depth(int depth, EvalValue previous_value) {
         }
 
         // Increase retry width after each aspiration miss.
-        delta = delta >= SearchInf / 2 ? SearchInf : delta * 2;
+        delta = delta >= eval_value::inf / 2 ? eval_value::inf : delta * 2;
     }
 
     return false;
@@ -293,7 +293,7 @@ EvalValue SearchWorker::alphabeta(
     if constexpr (Node == NodeType::NonPv) {
         // Step 5. Razoring.
         const EvalValue static_eval = evaluate(board);
-        if (can_null && !in_check && depth <= RazorFutilityMaxDepth && tt_move.is_null()
+        if (can_null && !in_check && depth <= RazorMaxDepth && tt_move.is_null()
             && static_eval + RazorMargin[depth] <= alpha) {
             stats.razor_try(search_ply);
             const EvalValue value = quiescence<NodeType::NonPv>(alpha - 1, alpha);
@@ -308,7 +308,7 @@ EvalValue SearchWorker::alphabeta(
         // Step 6. Null-move pruning.
         // Skip NMP when a depth-sufficient TT upper bound suggests it will fail low.
         const int reduction =
-            depth > NullMoveDeepDepth ? NullMoveReductionDeep : NullMoveReductionBase;
+            depth > NullMoveDeepThreshold ? NullMoveDeepReduction : NullMoveReductionBase;
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
                                 && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(search_ply) < beta;
@@ -332,7 +332,7 @@ EvalValue SearchWorker::alphabeta(
         }
 
         // Prepare shallow futility pruning. The move loop performs the actual skip.
-        futility = depth <= RazorFutilityMaxDepth && !in_check && alpha > -eval_value::mate_bound
+        futility = depth <= FutilityMaxDepth && !in_check && alpha > -eval_value::mate_bound
                 && alpha < eval_value::mate_bound && static_eval + FutilityMargin[depth] <= alpha;
     }
 

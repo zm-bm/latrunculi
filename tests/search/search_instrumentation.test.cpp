@@ -279,7 +279,7 @@ LMR: tries=20 re-searches=5 re-search-rate=25.0%
 QuietHistory: quiet-cutoffs=6 malus-eligible=7 failed-quiets=8 malus-updates=5
  QH D |       Cutoffs |      Eligible |   FailedQuiet |   MalusUpdate
     4 |             6 |             7 |             8 |             5
-Depth |     Nodes (QNode%) |  Cutoffs (Early%/Late%) |      CutIdx Avg/1/2/3-4/5+% | PVS Re | MainTT Hit/Cut% |  QTT Hit/Cut% |   EBF / Cumul
+  Ply |     Nodes (QNode%) |  Cutoffs (Early%/Late%) |      CutIdx Avg/1/2/3-4/5+% | PVS Re | MainTT Hit/Cut% |  QTT Hit/Cut% |   EBF / Cumul
     1 |       100 ( 50.0%) |       80 ( 50.0/ 50.0%) |  2.1 /  50.0/ 25.0/ 12.5/ 12.5% |      7 |  50.0/ 66.7% |  25.0/ 50.0% |   0.0 / 100.0
     2 |       200 ( 50.0%) |      150 ( 50.0/ 50.0%) |  2.2 /  50.0/ 23.3/ 13.3/ 13.3% |      0 |   0.0/  0.0% |   0.0/  0.0% |   2.0 /  14.1
 )");

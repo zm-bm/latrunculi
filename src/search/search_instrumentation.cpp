@@ -8,7 +8,7 @@
 
 namespace {
 
-std::uint64_t sum(const SearchCounters::StatsArray& values) {
+std::uint64_t sum(const SearchCounters::CounterArray& values) {
     std::uint64_t total = 0;
     for (const std::uint64_t value : values)
         total += value;
@@ -154,7 +154,7 @@ std::string SearchInstrumentation<true>::str() const {
     out = std::format_to(out,
                          "{:>5} | {:>18} | {:>23} | {:>27} | {:>6} | {:>15} | {:>13} | "
                          "{:>13}\n",
-                         "Depth",
+                         "Ply",
                          "Nodes (QNode%)",
                          "Cutoffs (Early%/Late%)",
                          "CutIdx Avg/1/2/3-4/5+%",
@@ -163,42 +163,40 @@ std::string SearchInstrumentation<true>::str() const {
                          "QTT Hit/Cut%",
                          "EBF / Cumul");
 
-    int max_depth = engine::max_search_ply - 1;
-    while (max_depth > 0 && counters.nodes[max_depth] == 0)
-        --max_depth;
+    int max_ply = engine::max_search_ply - 1;
+    while (max_ply > 0 && counters.nodes[max_ply] == 0)
+        --max_ply;
 
-    for (std::size_t depth = 1; depth <= static_cast<std::size_t>(max_depth); ++depth) {
-        const std::uint64_t nodes  = counters.nodes[depth];
-        const std::uint64_t prev   = depth > 1 ? counters.nodes[depth - 1] : 0;
-        const std::uint64_t qnodes = counters.qnodes[depth];
-        const std::uint64_t cutoffs =
-            counters.cutoff_index_1[depth] + counters.cutoff_index_2[depth]
-            + counters.cutoff_index_3_4[depth] + counters.cutoff_index_5_plus[depth];
-        const std::uint64_t early          = counters.cutoff_index_1[depth];
+    for (std::size_t ply = 1; ply <= static_cast<std::size_t>(max_ply); ++ply) {
+        const std::uint64_t nodes   = counters.nodes[ply];
+        const std::uint64_t prev    = ply > 1 ? counters.nodes[ply - 1] : 0;
+        const std::uint64_t qnodes  = counters.qnodes[ply];
+        const std::uint64_t cutoffs = counters.cutoff_index_1[ply] + counters.cutoff_index_2[ply]
+                                    + counters.cutoff_index_3_4[ply]
+                                    + counters.cutoff_index_5_plus[ply];
+        const std::uint64_t early          = counters.cutoff_index_1[ply];
         const std::uint64_t late           = cutoffs - early;
-        const std::uint64_t pvs_researches = counters.pvs_researches[depth];
+        const std::uint64_t pvs_researches = counters.pvs_researches[ply];
 
         const double qnode_pct = percentage(qnodes, nodes);
         const double early_pct = percentage(early, cutoffs);
         const double later_pct = percentage(late, cutoffs);
         const double cutoff_avg =
-            cutoffs > 0 ? double(counters.cutoff_index_sum[depth]) / cutoffs : 0.0;
-        const double cutoff_1_pct   = percentage(counters.cutoff_index_1[depth], cutoffs);
-        const double cutoff_2_pct   = percentage(counters.cutoff_index_2[depth], cutoffs);
-        const double cutoff_3_4_pct = percentage(counters.cutoff_index_3_4[depth], cutoffs);
-        const double cutoff_5_pct   = percentage(counters.cutoff_index_5_plus[depth], cutoffs);
+            cutoffs > 0 ? double(counters.cutoff_index_sum[ply]) / cutoffs : 0.0;
+        const double cutoff_1_pct   = percentage(counters.cutoff_index_1[ply], cutoffs);
+        const double cutoff_2_pct   = percentage(counters.cutoff_index_2[ply], cutoffs);
+        const double cutoff_3_4_pct = percentage(counters.cutoff_index_3_4[ply], cutoffs);
+        const double cutoff_5_pct   = percentage(counters.cutoff_index_5_plus[ply], cutoffs);
         const double main_tt_hit_pct =
-            percentage(counters.main_tt_hits[depth], counters.main_tt_probes[depth]);
+            percentage(counters.main_tt_hits[ply], counters.main_tt_probes[ply]);
         const double main_tt_cut_pct =
-            percentage(counters.main_tt_cutoffs[depth], counters.main_tt_hits[depth]);
-        const double q_tt_hit_pct =
-            percentage(counters.q_tt_hits[depth], counters.q_tt_probes[depth]);
-        const double q_tt_cut_pct =
-            percentage(counters.q_tt_cutoffs[depth], counters.q_tt_hits[depth]);
-        const double ebf        = prev > 0 ? static_cast<double>(nodes) / prev : 0.0;
-        const double cumulative = std::pow(static_cast<double>(nodes), 1.0 / depth);
+            percentage(counters.main_tt_cutoffs[ply], counters.main_tt_hits[ply]);
+        const double q_tt_hit_pct = percentage(counters.q_tt_hits[ply], counters.q_tt_probes[ply]);
+        const double q_tt_cut_pct = percentage(counters.q_tt_cutoffs[ply], counters.q_tt_hits[ply]);
+        const double ebf          = prev > 0 ? static_cast<double>(nodes) / prev : 0.0;
+        const double cumulative   = std::pow(static_cast<double>(nodes), 1.0 / ply);
 
-        out = std::format_to(out, "{:>5} | ", depth);
+        out = std::format_to(out, "{:>5} | ", ply);
         out = std::format_to(out, "{:9} ({:5.1f}%) | ", nodes, qnode_pct);
         out = std::format_to(out, "{:8} ({:5.1f}/{:5.1f}%) | ", cutoffs, early_pct, later_pct);
         out = std::format_to(out,
