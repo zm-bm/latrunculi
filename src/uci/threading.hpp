@@ -25,6 +25,10 @@ class Thread {
 public:
     Thread() = delete;
     ~Thread();
+    Thread(const Thread&)            = delete;
+    Thread& operator=(const Thread&) = delete;
+    Thread(Thread&&)                 = delete;
+    Thread& operator=(Thread&&)      = delete;
 
 private:
     Thread(int id, uci::Writer& writer, ThreadPool& pool);
@@ -60,6 +64,10 @@ public:
     ThreadPool() = delete;
     ThreadPool(size_t thread_count, uci::Writer& writer);
     ~ThreadPool();
+    ThreadPool(const ThreadPool&)            = delete;
+    ThreadPool& operator=(const ThreadPool&) = delete;
+    ThreadPool(ThreadPool&&)                 = delete;
+    ThreadPool& operator=(ThreadPool&&)      = delete;
 
     // Search lifecycle.
     bool start_search(const Board& root_board, SearchLimits limits);
@@ -83,7 +91,8 @@ private:
     // Worker threads. Thread 0 is the main worker; others are helpers.
     std::vector<std::unique_ptr<Thread>> threads;
 
-    // Output sink.
+    // Non-owning, lifetime-bound output sink. The caller must keep it alive for
+    // the entire lifetime of the pool and its workers.
     uci::Writer& writer;
 
     // Pool lifecycle state.

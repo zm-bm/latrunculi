@@ -53,7 +53,7 @@ private:
     std::atomic<NodeCount>  nodes{0};
     SearchInstrumentation<> stats;
 
-    // Shared services.
+    // Non-owning shared services. Both must outlive this worker.
     uci::Writer& writer;
     ThreadPool&  thread_pool;
     const int    worker_id;
