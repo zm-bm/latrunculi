@@ -40,6 +40,10 @@ public:
 
     static EvalValue search_root(SearchWorker& worker) { return worker.search_root(); }
 
+    static bool should_search_root_depth(const SearchWorker& worker, int depth) noexcept {
+        return worker.should_search_root_depth(depth);
+    }
+
     static bool search_root_depth(SearchWorker& worker, int depth, EvalValue previous_value) {
         return worker.search_root_depth(depth, previous_value);
     }

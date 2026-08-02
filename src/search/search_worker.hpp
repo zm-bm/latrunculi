@@ -27,6 +27,10 @@ class SearchWorker {
 public:
     SearchWorker() = delete;
     SearchWorker(int id, uci::Writer& writer, ThreadPool& pool);
+    SearchWorker(const SearchWorker&)            = delete;
+    SearchWorker& operator=(const SearchWorker&) = delete;
+    SearchWorker(SearchWorker&&)                 = delete;
+    SearchWorker& operator=(SearchWorker&&)      = delete;
 
     // Thread-facing lifecycle.
     void      configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
@@ -107,6 +111,7 @@ private:
     // Hot predicates.
     bool stop_requested() const noexcept;
     bool is_main_worker() const noexcept;
+    bool should_search_root_depth(int depth) const noexcept;
     bool should_poll_search_limits() const noexcept;
 
     friend class SearchTestAccess;

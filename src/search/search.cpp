@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 
@@ -12,6 +13,13 @@ namespace {
 
 // Aspiration-window defaults.
 constexpr EvalValue AspirationWindow = 50;
+
+constexpr std::array<int, 20> HelperDepthSkipSize{
+    1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
+};
+constexpr std::array<int, 20> HelperDepthSkipPhase{
+    0, 1, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7,
+};
 
 // Null-move pruning defaults.
 constexpr int NullMoveReductionBase = 3;
@@ -110,11 +118,22 @@ EvalValue SearchWorker::search_root() {
 
     // Iterative deepening searches one completed depth at a time.
     for (int depth = 1; depth <= limits.depth && !stop_requested(); ++depth) {
+        if (!should_search_root_depth(depth))
+            continue;
         if (!search_root_depth(depth, root_result.value))
             break;
     }
 
     return root_result.value;
+}
+
+bool SearchWorker::should_search_root_depth(int depth) const noexcept {
+    if (is_main_worker() || depth == 1)
+        return true;
+
+    // Stagger helper depths to diversify shared-TT work.
+    const size_t index = static_cast<size_t>(worker_id - 1) % HelperDepthSkipSize.size();
+    return ((depth + HelperDepthSkipPhase[index]) / HelperDepthSkipSize[index]) % 2 == 0;
 }
 
 // Root aspiration loop for a single depth.

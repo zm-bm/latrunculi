@@ -44,6 +44,19 @@ def command_compare(args: argparse.Namespace) -> int:
     new_suite = new_manifest.get("suite")
     if old_suite is not None and new_suite is not None and old_suite != new_suite:
         raise ValueError("cannot compare runs from different suites")
+    if old_format == SEARCH_FORMAT:
+        for field in (
+            "limit_type",
+            "limit_value",
+            "repeats",
+            "threads",
+            "hash_mb",
+            "selected_positions",
+        ):
+            if field not in old_manifest or field not in new_manifest:
+                raise ValueError(f"cannot compare search runs without {field}")
+            if old_manifest.get(field) != new_manifest.get(field):
+                raise ValueError(f"cannot compare search runs with different {field}")
 
     output = candidate / f"comparison-vs-{baseline.name}.md"
     if old_format == SEARCH_FORMAT:

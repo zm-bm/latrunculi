@@ -9,16 +9,17 @@ import subprocess
 import time
 from collections import defaultdict
 from pathlib import Path
+from typing import Iterable
 
 from .common import (
     BENCH_DIR,
     add_common_run_args,
-    average,
     base_manifest,
     build_binary,
     default_engine_path,
     format_num,
     make_run_dir,
+    median,
     num,
     percent_delta,
     read_tsv,
@@ -39,14 +40,17 @@ SUITE_POSITION_IDS = [
 ]
 
 SEARCH_HASH_MB = 64
-SEARCH_REPEATS = 1
 
 SEARCH_COLUMNS = [
     "result_format",
     "position_id",
     "repeat",
+    "repeats",
+    "engine_path",
+    "position_selection",
     "threads",
-    "depth_target",
+    "limit_type",
+    "limit_value",
     "hash_mb",
     "depth",
     "seldepth",
@@ -62,25 +66,45 @@ SEARCH_COLUMNS = [
 
 
 def add_search_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("search", help="run fixed-depth search benchmark")
+    parser = subparsers.add_parser("search", help="run a search benchmark")
     add_common_run_args(parser)
-    parser.add_argument("--depth", type=int, required=True)
+    limit = parser.add_mutually_exclusive_group(required=True)
+    limit.add_argument("--depth", type=int)
+    limit.add_argument("--movetime", type=int, help="search time in milliseconds")
     parser.add_argument("--threads", type=int, default=1)
+    parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument("--engine", type=Path, help="engine binary; bypasses the configured build")
+    parser.add_argument(
+        "--positions",
+        default="suite",
+        help="suite or a comma-separated list of benchmark position IDs",
+    )
 
 
 def command_run_search(args: argparse.Namespace) -> int:
-    build_binary(args, "latrunculi")
-    engine = default_engine_path(args.build_preset)
+    if args.engine is None:
+        build_binary(args, "latrunculi")
+        engine = default_engine_path(args.build_preset)
+    else:
+        engine = args.engine.expanduser().resolve()
     if not engine.exists():
         raise FileNotFoundError(f"engine binary not found: {engine}")
-    if args.depth <= 0:
+    engine = engine.resolve()
+    if args.depth is not None and args.depth <= 0:
         raise ValueError("--depth must be positive")
+    if args.movetime is not None and args.movetime <= 0:
+        raise ValueError("--movetime must be positive")
     if args.threads <= 0:
         raise ValueError("--threads must be positive")
+    if args.repeats <= 0:
+        raise ValueError("--repeats must be positive")
 
     epd_file = DEFAULT_ARASAN20_EPD.resolve()
-    selected_positions = select_positions(load_benchmark_positions(epd_file), "suite")
-    timeout = max(120.0, float(args.depth) * 60.0)
+    selected_positions = select_positions(load_benchmark_positions(epd_file), args.positions)
+    limit_type = "depth" if args.depth is not None else "movetime"
+    limit_value = args.depth if args.depth is not None else args.movetime
+    assert limit_value is not None
+    timeout = max(120.0, float(limit_value) * 60.0) if limit_type == "depth" else 120.0
 
     run_dir = make_run_dir(args.output_root, args.label)
     manifest = base_manifest(args, run_dir, SEARCH_FORMAT)
@@ -90,34 +114,44 @@ def command_run_search(args: argparse.Namespace) -> int:
             "epd_file": str(epd_file),
             "selected_positions": [position["id"] for position in selected_positions],
             "threads": args.threads,
-            "depth_target": args.depth,
+            "limit_type": limit_type,
+            "limit_value": limit_value,
             "hash_mb": SEARCH_HASH_MB,
-            "repeats": SEARCH_REPEATS,
+            "repeats": args.repeats,
             "timeout_seconds": timeout,
         }
     )
     write_manifest(run_dir / "manifest.json", manifest)
 
     rows: list[dict[str, str]] = []
-    for repeat in range(1, SEARCH_REPEATS + 1):
+    for repeat in range(1, args.repeats + 1):
         for position in selected_positions:
             result = run_position(
                 engine,
                 position["fen"],
                 SEARCH_HASH_MB,
                 depth=args.depth,
+                movetime=args.movetime,
                 threads=args.threads,
                 search_timeout=timeout,
             )
-            raw_name = f"{position['id']}-t{args.threads}-d{args.depth}-r{repeat}.log"
+            raw_name = (
+                f"{position['id']}-t{args.threads}-{limit_type}{limit_value}-r{repeat}.log"
+            )
             (run_dir / "raw" / raw_name).write_text(result.pop("raw_output", "") + "\n", encoding="utf-8")
             rows.append(
                 {
                     "result_format": SEARCH_FORMAT,
                     "position_id": position["id"],
                     "repeat": str(repeat),
+                    "repeats": str(args.repeats),
+                    "engine_path": str(engine),
+                    "position_selection": ",".join(
+                        selected["id"] for selected in selected_positions
+                    ),
                     "threads": str(args.threads),
-                    "depth_target": str(args.depth),
+                    "limit_type": limit_type,
+                    "limit_value": str(limit_value),
                     "hash_mb": str(SEARCH_HASH_MB),
                     "raw_output_file": f"raw/{raw_name}",
                     **result,
@@ -215,7 +249,8 @@ def run_position(
     fen: str,
     hash_mb: int,
     *,
-    depth: int,
+    depth: int | None,
+    movetime: int | None,
     threads: int,
     search_timeout: float,
 ) -> dict[str, str]:
@@ -295,7 +330,11 @@ def run_position(
 
             send("ucinewgame")
             send(f"position fen {fen}")
-            send(f"go depth {depth}")
+            if depth is not None:
+                send(f"go depth {depth}")
+            else:
+                assert movetime is not None
+                send(f"go movetime {movetime}")
             while True:
                 stripped = read_line(timeout_seconds=search_timeout)
                 raw_lines.append(stripped)
@@ -336,18 +375,29 @@ def run_position(
     return result
 
 
-def aggregate_search_rows(rows: list[dict[str, str]]) -> dict[str, dict[str, float | str | None]]:
+def metric_summary(values: Iterable[object]) -> dict[str, float | None]:
+    clean = [value for value in (num(item) for item in values) if value is not None]
+    return {
+        "median": median(clean),
+        "min": min(clean) if clean else None,
+        "max": max(clean) if clean else None,
+    }
+
+
+def aggregate_search_rows(
+    rows: list[dict[str, str]],
+) -> dict[str, dict[str, dict[str, float | None] | str]]:
     grouped: dict[str, list[dict[str, str]]] = defaultdict(list)
     for row in rows:
         grouped[row["position_id"]].append(row)
 
-    result: dict[str, dict[str, float | str | None]] = {}
+    result: dict[str, dict[str, dict[str, float | None] | str]] = {}
     for position_id, group in grouped.items():
         result[position_id] = {
-            "depth": average(num(row.get("depth")) for row in group),
-            "nodes": average(num(row.get("nodes")) for row in group),
-            "time_ms": average(num(row.get("time_ms")) for row in group),
-            "nps": average(num(row.get("nps")) for row in group),
+            "depth": metric_summary(row.get("depth") for row in group),
+            "nodes": metric_summary(row.get("nodes") for row in group),
+            "time_ms": metric_summary(row.get("time_ms") for row in group),
+            "nps": metric_summary(row.get("nps") for row in group),
             "score": unique_join(format_score(row) for row in group),
             "bestmove": unique_join(row.get("bestmove", "") for row in group),
         }
@@ -360,12 +410,26 @@ def format_score(row: dict[str, str]) -> str:
     return f"{score_type} {score_value}".strip()
 
 
-def unique_join(values: object) -> str:
+def unique_join(values: Iterable[str]) -> str:
     seen: list[str] = []
     for value in values:
         if value and value not in seen:
             seen.append(value)
     return ", ".join(seen)
+
+
+def format_metric(value: dict[str, float | None] | str | None) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return "{} [{}–{}]".format(
+        format_num(value.get("median")),
+        format_num(value.get("min")),
+        format_num(value.get("max")),
+    )
+
+
+def metric_median(value: dict[str, float | None] | str | None) -> float | None:
+    return value.get("median") if isinstance(value, dict) else None
 
 
 def render_search_summary(manifest: dict[str, object], rows: list[dict[str, str]]) -> str:
@@ -380,9 +444,10 @@ def render_search_summary(manifest: dict[str, object], rows: list[dict[str, str]
         f"- Engine: `{manifest['engine_path']}`",
         f"- Build preset: `{manifest['build_preset']}`",
         f"- Positions: `{manifest['selected_positions']}`",
-        f"- Depth: `{manifest['depth_target']}`; threads: `{manifest['threads']}`; hash: `{manifest['hash_mb']} MiB`",
+        f"- Limit: `{manifest['limit_type']} {manifest['limit_value']}`; repeats: `{manifest['repeats']}`",
+        f"- Threads: `{manifest['threads']}`; hash: `{manifest['hash_mb']} MiB`",
         "",
-        "## Averaged results",
+        "## Median results (min–max)",
         "| Position | Depth | Nodes | Time ms | NPS | Score(s) | Bestmove(s) |",
         "|---|---:|---:|---:|---:|---|---|",
     ]
@@ -390,10 +455,10 @@ def render_search_summary(manifest: dict[str, object], rows: list[dict[str, str]
         lines.append(
             "| {} | {} | {} | {} | {} | {} | {} |".format(
                 position_id,
-                format_num(agg["depth"]),
-                format_num(agg["nodes"]),
-                format_num(agg["time_ms"]),
-                format_num(agg["nps"]),
+                format_metric(agg["depth"]),
+                format_metric(agg["nodes"]),
+                format_metric(agg["time_ms"]),
+                format_metric(agg["nps"]),
                 agg["score"],
                 agg["bestmove"],
             )
@@ -419,7 +484,7 @@ def render_search_compare(
         f"- Baseline: `{old_dir}`",
         f"- Candidate: `{new_dir}`",
         "",
-        "## Averaged deltas",
+        "## Median deltas",
         "| Position | Depth old/new | Nodes delta | Time old/new | Time delta | NPS old/new | NPS delta | Score old/new | Bestmove old/new |",
         "|---|---|---:|---|---:|---|---:|---|---|",
     ]
@@ -429,15 +494,22 @@ def render_search_compare(
         lines.append(
             "| {} | {} / {} | {} | {} / {} | {} | {} / {} | {} | {} / {} | {} / {} |".format(
                 key,
-                format_num(old_agg.get("depth")),
-                format_num(new_agg.get("depth")),
-                percent_delta(old_agg.get("nodes"), new_agg.get("nodes")),
-                format_num(old_agg.get("time_ms")),
-                format_num(new_agg.get("time_ms")),
-                percent_delta(old_agg.get("time_ms"), new_agg.get("time_ms")),
-                format_num(old_agg.get("nps")),
-                format_num(new_agg.get("nps")),
-                percent_delta(old_agg.get("nps"), new_agg.get("nps")),
+                format_num(metric_median(old_agg.get("depth"))),
+                format_num(metric_median(new_agg.get("depth"))),
+                percent_delta(
+                    metric_median(old_agg.get("nodes")), metric_median(new_agg.get("nodes"))
+                ),
+                format_num(metric_median(old_agg.get("time_ms"))),
+                format_num(metric_median(new_agg.get("time_ms"))),
+                percent_delta(
+                    metric_median(old_agg.get("time_ms")),
+                    metric_median(new_agg.get("time_ms")),
+                ),
+                format_num(metric_median(old_agg.get("nps"))),
+                format_num(metric_median(new_agg.get("nps"))),
+                percent_delta(
+                    metric_median(old_agg.get("nps")), metric_median(new_agg.get("nps"))
+                ),
                 old_agg.get("score", ""),
                 new_agg.get("score", ""),
                 old_agg.get("bestmove", ""),

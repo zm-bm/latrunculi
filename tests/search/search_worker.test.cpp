@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <sstream>
 
 #include "board/board.hpp"
@@ -80,6 +81,25 @@ TEST_F(SearchWorkerTest, NullMoveKeepsSearchPlyInSync) {
 
     unmake_worker_move();
     EXPECT_EQ(search_ply(), 0);
+}
+
+TEST_F(SearchWorkerTest, HelperDepthsFollowStaggeringSchedule) {
+    constexpr std::array<std::array<bool, 8>, 4> expected{{
+        {true, true, true, true, true, true, true, true},
+        {true, true, false, true, false, true, false, true},
+        {true, false, true, false, true, false, true, false},
+        {true, false, false, true, true, false, false, true},
+    }};
+
+    ThreadPool helper_pool{expected.size(), writer};
+    for (size_t worker_id = 0; worker_id < expected.size(); ++worker_id) {
+        const SearchWorker& search_worker = ThreadTestAccess::worker(helper_pool, worker_id);
+        for (int depth = 1; depth <= static_cast<int>(expected[worker_id].size()); ++depth) {
+            EXPECT_EQ(SearchTestAccess::should_search_root_depth(search_worker, depth),
+                      expected[worker_id][depth - 1])
+                << "worker " << worker_id << ", depth " << depth;
+        }
+    }
 }
 
 TEST_F(SearchWorkerTest, RepeatedSearchesAgeQuietAndPreserveContinuationHistory) {
