@@ -253,7 +253,7 @@ TEST_F(ThreadPoolTest, NodesSearchedAggregatesThreadCounters) {
     EXPECT_EQ(nodes_searched(), worker_nodes);
 }
 
-TEST_F(ThreadPoolTest, NodeLimitedSearchUsesThreadSafeNodeCount) {
+TEST_F(ThreadPoolTest, NodeLimitedSearchUsesFreshThreadSafeNodeCounts) {
     options.depth = 5;
     options.nodes = 1;
 
@@ -263,6 +263,17 @@ TEST_F(ThreadPoolTest, NodeLimitedSearchUsesThreadSafeNodeCount) {
     EXPECT_EQ(bestmove_count(), 1) << oss.str();
     ASSERT_TRUE(options.nodes.has_value());
     EXPECT_GE(nodes_searched(), *options.nodes);
+
+    bool helper_searched = false;
+    for (size_t index = 1; index < pool.thread_count(); ++index)
+        helper_searched |= ThreadTestAccess::node_count(pool, index) > 0;
+    ASSERT_TRUE(helper_searched);
+
+    for (size_t index = 0; index < pool.thread_count(); ++index) {
+        Thread& thread = ThreadTestAccess::thread(pool, index);
+        ThreadTestAccess::configure_search(thread, board, options);
+        EXPECT_EQ(ThreadTestAccess::node_count(thread), 0);
+    }
 }
 
 TEST_F(ThreadPoolTest, RootSearchAdvancesTTGenerationOncePerSearch) {

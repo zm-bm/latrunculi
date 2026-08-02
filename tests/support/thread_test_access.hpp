@@ -19,8 +19,12 @@ public:
         return worker(thread(pool, index));
     }
 
-    static void start_search(Thread& thread, const Board& root_board, SearchLimits limits) {
+    static void configure_search(Thread& thread, const Board& root_board, SearchLimits limits) {
         thread.configure_search(root_board, limits, SearchClock::now());
+    }
+
+    static void start_search(Thread& thread, const Board& root_board, SearchLimits limits) {
+        configure_search(thread, root_board, limits);
         thread.wake_for_search();
     }
 

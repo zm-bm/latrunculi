@@ -27,6 +27,7 @@ void SearchWorker::configure_search(const Board& root_board,
     start_time     = search_start_time;
     allocated_time = this->limits.allocated_time(board.side_to_move());
 
+    reset_nodes();
     clear_root_snapshot();
     stop_requested_flag.store(false, std::memory_order_relaxed);
 }
