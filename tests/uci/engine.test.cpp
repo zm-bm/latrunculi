@@ -118,46 +118,38 @@ TEST_F(EngineTest, GoWhileSearchInProgressIsRejected) {
     EXPECT_TRUE(execute("go"));
     ASSERT_TRUE(wait_for_busy());
 
-    output.str("");
-    output.clear();
-
     EXPECT_TRUE(execute("go depth 1"));
-    EXPECT_NE(output.str().find("search already in progress"), std::string::npos) << output.str();
-
     EXPECT_TRUE(execute("stop"));
     threadpool().wait();
+
+    EXPECT_NE(output.str().find("search already in progress"), std::string::npos) << output.str();
 }
 
 TEST_F(EngineTest, SetOptionWhileSearchInProgressIsRejected) {
     EXPECT_TRUE(execute("go"));
     ASSERT_TRUE(wait_for_busy());
 
-    output.str("");
-    output.clear();
-
     EXPECT_TRUE(execute("setoption name Threads value 2"));
-    EXPECT_NE(output.str().find("cannot set option while search is in progress"), std::string::npos)
-        << output.str();
     EXPECT_EQ(threadpool().thread_count(), uci::Options::default_threads);
 
     EXPECT_TRUE(execute("stop"));
     threadpool().wait();
+
+    EXPECT_NE(output.str().find("cannot set option while search is in progress"), std::string::npos)
+        << output.str();
 }
 
 TEST_F(EngineTest, UciNewGameWhileSearchInProgressIsRejected) {
     EXPECT_TRUE(execute("go"));
     ASSERT_TRUE(wait_for_busy());
 
-    output.str("");
-    output.clear();
-
     EXPECT_TRUE(execute("ucinewgame"));
+    EXPECT_TRUE(execute("stop"));
+    threadpool().wait();
+
     EXPECT_NE(output.str().find("cannot start new game while search is in progress"),
               std::string::npos)
         << output.str();
-
-    EXPECT_TRUE(execute("stop"));
-    threadpool().wait();
 }
 
 TEST_F(EngineTest, ExitCommand) {
@@ -296,17 +288,32 @@ TEST_F(EngineTest, UnknownCommandIsSilentNoop) {
 }
 
 TEST_F(EngineTest, IsReadyRespondsWhileSearchIsActive) {
+    constexpr int ready_requests = 32;
+
     EXPECT_TRUE(execute("go"));
     ASSERT_TRUE(wait_for_busy());
 
-    output.str("");
-    output.clear();
-
-    EXPECT_TRUE(execute("isready"));
-    EXPECT_NE(output.str().find("readyok"), std::string::npos) << output.str();
+    for (int i = 0; i < ready_requests; ++i)
+        EXPECT_TRUE(execute("isready"));
 
     EXPECT_TRUE(execute("stop"));
     threadpool().wait();
+
+    const std::string  transcript     = output.str();
+    int                ready_lines    = 0;
+    int                bestmove_lines = 0;
+    std::istringstream lines{transcript};
+    for (std::string line; std::getline(lines, line);) {
+        if (line == "readyok")
+            ++ready_lines;
+        else if (line.starts_with("bestmove "))
+            ++bestmove_lines;
+        else if (!line.starts_with("info "))
+            ADD_FAILURE() << "interleaved output: " << line;
+    }
+
+    EXPECT_EQ(ready_lines, ready_requests) << transcript;
+    EXPECT_EQ(bestmove_lines, 1) << transcript;
 }
 
 // Basic engine command tests

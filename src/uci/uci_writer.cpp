@@ -124,6 +124,18 @@ std::string format_info_string(std::string_view str) {
     return std::format("info string {}", sanitized);
 }
 
+void Writer::write_text(std::ostream& stream, std::string_view text) const {
+    std::lock_guard<std::mutex> lock(output_mutex);
+    stream << text;
+    stream.flush();
+}
+
+void Writer::write_line(std::ostream& stream, std::string_view text) const {
+    std::lock_guard<std::mutex> lock(output_mutex);
+    stream << text << '\n';
+    stream.flush();
+}
+
 void Writer::help() const {
     constexpr auto format_str = R"(
 Available commands:
@@ -141,47 +153,45 @@ Available commands:
   moves         - Show all legal moves
   d / board     - Display the current board position
   eval          - Evaluate the current position)";
-    err << format_str << '\n';
-    err.flush();
+    write_line(err, format_str);
 }
 
 void Writer::identify(const uci::Options& options) const {
-    out << format_identification(options) << '\n';
-    out.flush();
+    const std::string text = format_identification(options);
+    write_line(out, text);
 }
 
 void Writer::ready() const {
-    out << format_ready() << '\n';
-    out.flush();
+    const std::string text = format_ready();
+    write_line(out, text);
 }
 
 void Writer::bestmove(Move move) const {
-    out << format_bestmove(move) << '\n';
-    out.flush();
+    const std::string text = format_bestmove(move);
+    write_line(out, text);
 }
 
 void Writer::search_info(const RootLine& line,
                          const Board&    root_board,
                          NodeCount       nodes,
                          Milliseconds    time) const {
-    out << format_search_info(line, root_board, nodes, time) << '\n';
-    out.flush();
+    const std::string text = format_search_info(line, root_board, nodes, time);
+    write_line(out, text);
 }
 
 void Writer::info_string(std::string_view str) const {
-    out << format_info_string(str) << '\n';
-    out.flush();
+    const std::string text = format_info_string(str);
+    write_line(out, text);
 }
 
 void Writer::debug_text(std::string_view str) const {
-    err << str;
-    err.flush();
+    write_text(err, str);
 }
 
 template <typename T>
 void Writer::debug(T&& obj) const {
-    err << std::format("{}", std::forward<T>(obj)) << '\n';
-    err.flush();
+    const std::string text = std::format("{}", std::forward<T>(obj));
+    write_line(err, text);
 }
 
 template void Writer::debug(std::string& str) const;

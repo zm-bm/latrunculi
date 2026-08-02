@@ -1,7 +1,9 @@
 #include "uci/uci_writer.hpp"
 
+#include <barrier>
 #include <sstream>
 #include <string>
+#include <thread>
 
 #include <gtest/gtest.h>
 
@@ -211,4 +213,47 @@ TEST_F(UciWriterTest, DebugTextWritesRawText) {
     writer.debug_text("one\ntwo\n");
 
     EXPECT_EQ(err.str(), "one\ntwo\n");
+}
+
+TEST(UciWriterConcurrencyTest, SerializesSharedOutputAndErrorStream) {
+    constexpr int writes_per_thread = 128;
+
+    std::ostringstream output;
+    uci::Writer        writer{output, output};
+    std::barrier       start_line{2};
+
+    std::jthread output_thread([&] {
+        start_line.arrive_and_wait();
+        for (int i = 0; i < writes_per_thread; ++i) {
+            writer.info_string("output");
+            std::this_thread::yield();
+        }
+    });
+
+    std::jthread error_thread([&] {
+        std::string error = "error";
+        start_line.arrive_and_wait();
+        for (int i = 0; i < writes_per_thread; ++i) {
+            writer.debug(error);
+            std::this_thread::yield();
+        }
+    });
+
+    output_thread.join();
+    error_thread.join();
+
+    int                output_lines = 0;
+    int                error_lines  = 0;
+    std::istringstream lines{output.str()};
+    for (std::string line; std::getline(lines, line);) {
+        if (line == "info string output")
+            ++output_lines;
+        else if (line == "error")
+            ++error_lines;
+        else
+            ADD_FAILURE() << "interleaved output: " << line;
+    }
+
+    EXPECT_EQ(output_lines, writes_per_thread);
+    EXPECT_EQ(error_lines, writes_per_thread);
 }

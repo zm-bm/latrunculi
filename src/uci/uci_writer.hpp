@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -27,6 +28,10 @@ std::string format_info_string(std::string_view str);
 class Writer {
 public:
     explicit Writer(std::ostream& out, std::ostream& err) : out(out), err(err) {}
+    Writer(const Writer&)            = delete;
+    Writer& operator=(const Writer&) = delete;
+    Writer(Writer&&)                 = delete;
+    Writer& operator=(Writer&&)      = delete;
 
     void help() const;
     void identify(const uci::Options& options) const;
@@ -43,8 +48,13 @@ public:
     void debug(T&& obj) const;
 
 private:
+    void write_text(std::ostream& stream, std::string_view text) const;
+    void write_line(std::ostream& stream, std::string_view text) const;
+
     std::ostream& out;
     std::ostream& err;
+
+    mutable std::mutex output_mutex;
 };
 
 } // namespace uci
