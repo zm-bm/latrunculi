@@ -58,7 +58,9 @@ private:
     friend class ::ThreadTestAccess;
 };
 
-// Engine-facing search service.
+// External lifecycle and configuration calls must be serialized by the caller.
+// Workers may request a stop, and progress may be queried during search.
+// Structural observations require no concurrent external resize or destruction.
 class ThreadPool {
 public:
     ThreadPool() = delete;
