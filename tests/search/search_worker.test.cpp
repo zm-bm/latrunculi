@@ -124,7 +124,8 @@ TEST_F(SearchWorkerTest, StoppedSearchReportsFallbackWithoutCompletingRootSnapsh
     load_worker_board(board);
 
     ThreadTestAccess::request_stop(test_thread());
-    (void)worker().search();
+    ThreadTestAccess::wake_for_search(test_thread());
+    ThreadTestAccess::wait_for_idle(test_thread());
 
     const RootLine snapshot = worker().root_snapshot();
     EXPECT_FALSE(snapshot.completed);

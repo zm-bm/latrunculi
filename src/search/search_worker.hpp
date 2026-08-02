@@ -13,6 +13,7 @@
 #include "search/search_limits.hpp"
 
 class ThreadPool;
+class Thread;
 class SearchTestAccess;
 
 enum class NodeType { Pv, NonPv };
@@ -67,6 +68,7 @@ private:
 
     // Search info reporting.
     std::optional<RootLine> last_reported_root_line;
+    std::optional<Move>     pending_bestmove;
 
     // Search lifecycle.
     void      reset_search_state();
@@ -77,7 +79,8 @@ private:
     bool      search_root_depth(int depth, EvalValue previous_value);
     bool      search_root_window(int depth, EvalValue alpha, EvalValue beta);
     void      finalize_root_result(EvalValue value);
-    void      report_final_result();
+    void      prepare_final_result();
+    void      publish_final_result();
     void      report_root_progress(const RootLine& line);
 
     // Root snapshot publication.
@@ -107,6 +110,7 @@ private:
     bool should_poll_search_limits() const noexcept;
 
     friend class SearchTestAccess;
+    friend class Thread;
     friend class ThreadPool;
 };
 

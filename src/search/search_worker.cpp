@@ -64,7 +64,7 @@ EvalValue SearchWorker::search() {
     finalize_root_result(value);
 
     if (is_main_worker())
-        report_final_result();
+        prepare_final_result();
 
     return root_result.value;
 }
@@ -75,6 +75,7 @@ void SearchWorker::reset_search_state() {
     root_result = RootLine{NULL_MOVE, evaluate(board), 0, false};
     root_lines.clear();
     last_reported_root_line.reset();
+    pending_bestmove.reset();
 
     ordering.prepare_for_search();
 
@@ -124,7 +125,7 @@ void SearchWorker::finalize_root_result(EvalValue value) {
     publish_root_snapshot();
 }
 
-void SearchWorker::report_final_result() {
+void SearchWorker::prepare_final_result() {
     thread_pool.stop_helper_searches();
 
     RootLine selected = select_best_root_line(root_result, thread_pool.root_snapshots());
@@ -138,7 +139,15 @@ void SearchWorker::report_final_result() {
     }
 
     writer.search_info(selected, board, total_nodes(), runtime());
-    writer.bestmove(selected.root_move);
+    pending_bestmove = selected.root_move;
+}
+
+void SearchWorker::publish_final_result() {
+    if (!pending_bestmove)
+        return;
+
+    writer.bestmove(*pending_bestmove);
+    pending_bestmove.reset();
 
     if constexpr (SearchStatsEnabled) {
         auto stats = thread_pool.aggregate_instrumentation();

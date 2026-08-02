@@ -53,6 +53,9 @@ void Thread::idle_loop() {
         worker.search();
         {
             std::lock_guard<std::mutex> lk(state_mutex);
+            // Keep final output and the idle transition atomic for lifecycle
+            // observers. This lock is acquired before Writer's output lock.
+            worker.publish_final_result();
             searching = false;
         }
         state_cv.notify_all();
