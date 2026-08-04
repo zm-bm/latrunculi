@@ -42,6 +42,9 @@ bool Thread::is_searching() const {
 }
 
 // Internal state transitions.
+// Unexpected search failures are intentionally fatal. Let exceptions escape
+// the std::thread entry and invoke std::terminate rather than leave a partial
+// engine alive.
 void Thread::idle_loop() {
     while (true) {
         {
