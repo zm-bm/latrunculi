@@ -2,6 +2,8 @@
 
 #include <string>
 
+#include "core/constants.hpp"
+
 namespace uci {
 
 // UCI options and engine configuration.
@@ -24,12 +26,11 @@ struct ButtonOption {};
 enum class OptionId { Hash, Threads, Debug, ClearHash };
 
 struct Options {
-    static constexpr int default_hash_mb = 32;
     static constexpr int default_threads = 1;
 
     SpinOption hash = {
-        .value         = default_hash_mb,
-        .default_value = default_hash_mb,
+        .value         = engine::default_hash_mb,
+        .default_value = engine::default_hash_mb,
         .min_value     = 1,
         .max_value     = 2048,
     };

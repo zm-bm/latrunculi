@@ -9,6 +9,7 @@
 
 #include "board/board.hpp"
 #include "search/root_line.hpp"
+#include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
 
 namespace {
@@ -61,7 +62,11 @@ TEST_F(UciWriterTest, Help) {
 
 TEST_F(UciWriterTest, Identify) {
     uci::Options options;
+    TTTable      default_table;
+
     writer.identify(options);
+
+    EXPECT_EQ(default_table.capacity_mb(), static_cast<std::size_t>(options.hash.default_value));
     EXPECT_NE(oss.str().find("uciok"), std::string::npos);
     EXPECT_NE(oss.str().find("option name Hash type spin default 32 min 1 max 2048"),
               std::string::npos);

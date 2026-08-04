@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -76,11 +77,10 @@ public:
     void store(PositionKey zkey, Move move, EvalValue score, int depth, TTBound bound, int ply);
     void resize(size_t megabytes);
     void clear();
+    [[nodiscard]] std::size_t capacity_mb() const noexcept;
     // Advance the shared TT generation once per root-search lifecycle event.
     void                       advance_generation() { ++generation; }
     [[nodiscard]] std::uint8_t current_generation() const { return generation; }
-
-    static constexpr size_t default_mb = 4;
 
 private:
     friend class TTTest;

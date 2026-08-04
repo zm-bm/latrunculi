@@ -286,7 +286,10 @@ TEST_F(EngineTest, SetOptionCheckValuesAreCaseInsensitive) {
     EXPECT_FALSE(debug_enabled());
 }
 
-TEST_F(EngineTest, ClearHashButtonClearsTT) {
+TEST_F(EngineTest, HashOptionResizesAndClearHashClearsTT) {
+    ASSERT_TRUE(execute("setoption name Hash value 8"));
+    ASSERT_EQ(tt.capacity_mb(), 8U);
+
     tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TTBound::Exact, 0);
     ASSERT_TRUE(tt.probe(board().key()).has_value());
 

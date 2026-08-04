@@ -83,7 +83,12 @@ void clear_entry(TTEntry& entry) {
 TTTable tt{};
 
 TTTable::TTTable() {
-    resize(default_mb);
+    resize(engine::default_hash_mb);
+}
+
+std::size_t TTTable::capacity_mb() const noexcept {
+    constexpr std::size_t bytes_per_mb = std::size_t{1} << 20;
+    return cluster_count * sizeof(TTCluster) / bytes_per_mb;
 }
 
 std::optional<TTRecord> TTTable::probe(PositionKey zkey) const {
