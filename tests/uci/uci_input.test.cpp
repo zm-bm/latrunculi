@@ -205,8 +205,17 @@ TEST(UciInputTest, ParsesBoardDisplayAlias) {
     EXPECT_TRUE(command.arguments.empty());
 }
 
-TEST(UciInputTest, ParsesUnknownCommand) {
-    const auto command = parse_as<uci::UnknownCommand>("notacommand arg");
+TEST(UciInputTest, UnknownPrefixesRecoverWithoutRedispatchingPayload) {
+    EXPECT_TRUE(
+        std::holds_alternative<uci::IsReadyCommand>(uci::parse_command("noise ignored isready")));
 
-    EXPECT_EQ(command.token, "notacommand");
+    const auto unknown = parse_as<uci::UnknownCommand>("notacommand arg");
+    const auto debug   = parse_as<uci::DebugCommand>("debug joho isready");
+    const auto option = parse_as<uci::SetOptionCommand>("noise setoption name Debug value isready");
+
+    EXPECT_EQ(unknown.token, "notacommand");
+    EXPECT_EQ(debug.value, "joho");
+    EXPECT_EQ(option.name, "Debug");
+    EXPECT_TRUE(option.has_value);
+    EXPECT_EQ(option.value, "isready");
 }

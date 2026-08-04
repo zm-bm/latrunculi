@@ -2,12 +2,16 @@
 
 #include <charconv>
 #include <concepts>
+#include <span>
 #include <sstream>
 #include <system_error>
+#include <utility>
 
 namespace uci {
 
 namespace {
+
+using Tokens = std::span<const std::string>;
 
 std::vector<std::string> tokenize(std::string_view line) {
     std::istringstream       stream{std::string(line)};
@@ -20,7 +24,7 @@ std::vector<std::string> tokenize(std::string_view line) {
     return tokens;
 }
 
-std::string join_tokens(const std::vector<std::string>& tokens, size_t first) {
+std::string join_tokens(Tokens tokens, size_t first) {
     std::string joined;
     for (size_t i = first; i < tokens.size(); ++i) {
         if (!joined.empty())
@@ -45,7 +49,7 @@ std::optional<T> parse_integer_token(std::string_view token) {
     return value;
 }
 
-SetOptionCommand parse_setoption_command(const std::vector<std::string>& tokens) {
+SetOptionCommand parse_setoption_command(Tokens tokens) {
     SetOptionCommand command;
 
     bool in_name  = false;
@@ -80,7 +84,7 @@ SetOptionCommand parse_setoption_command(const std::vector<std::string>& tokens)
     return command;
 }
 
-GoLimits parse_go_limits(const std::vector<std::string>& tokens) {
+GoLimits parse_go_limits(Tokens tokens) {
     GoLimits limits;
 
     auto read_value = [&]<typename T>(size_t& index, std::optional<T>& target) {
@@ -132,7 +136,7 @@ GoLimits parse_go_limits(const std::vector<std::string>& tokens) {
     return limits;
 }
 
-PositionCommand parse_position_command(const std::vector<std::string>& tokens) {
+PositionCommand parse_position_command(Tokens tokens) {
     PositionCommand command;
 
     bool in_fen   = false;
@@ -172,17 +176,11 @@ PositionCommand parse_position_command(const std::vector<std::string>& tokens) {
     return command;
 }
 
-ConsoleCommand console_command(ConsoleCommand::Name name, const std::vector<std::string>& tokens) {
+ConsoleCommand console_command(ConsoleCommand::Name name, Tokens tokens) {
     return ConsoleCommand{.name = name, .arguments = join_tokens(tokens, 1)};
 }
 
-} // namespace
-
-Command parse_command(std::string_view line) {
-    const auto tokens = tokenize(line);
-    if (tokens.empty())
-        return EmptyCommand{};
-
+std::optional<Command> try_parse_command(Tokens tokens) {
     const std::string& command = tokens.front();
 
     if (command == "uci")
@@ -222,7 +220,25 @@ Command parse_command(std::string_view line) {
     if (command == "perft")
         return console_command(ConsoleCommand::Name::Perft, tokens);
 
-    return UnknownCommand{.token = command};
+    return std::nullopt;
+}
+
+} // namespace
+
+Command parse_command(std::string_view line) {
+    const auto tokens = tokenize(line);
+    if (tokens.empty())
+        return EmptyCommand{};
+
+    // Ignore unknown leading tokens as required by UCI. Once recognized,
+    // a command owns the remaining tokens; do not resume top-level scanning.
+    const Tokens token_view{tokens};
+    for (size_t first = 0; first < token_view.size(); ++first) {
+        if (auto command = try_parse_command(token_view.subspan(first)))
+            return std::move(*command);
+    }
+
+    return UnknownCommand{.token = tokens.front()};
 }
 
 std::optional<Command> Reader::read_command() {

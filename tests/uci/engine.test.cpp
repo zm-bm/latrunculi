@@ -310,9 +310,13 @@ TEST_F(EngineTest, PonderHitIsSilentNoopWhilePonderIsUnsupported) {
     EXPECT_TRUE(output.str().empty()) << output.str();
 }
 
-TEST_F(EngineTest, UnknownCommandIsSilentNoop) {
+TEST_F(EngineTest, UnknownInputIsIgnoredOrRecoversLaterCommand) {
     EXPECT_TRUE(execute("invalidcommand"));
+    EXPECT_TRUE(output.str().empty()) << output.str();
 
+    EXPECT_FALSE(debug_enabled());
+    EXPECT_TRUE(execute("joho debug on"));
+    EXPECT_TRUE(debug_enabled());
     EXPECT_TRUE(output.str().empty()) << output.str();
 }
 
