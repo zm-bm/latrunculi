@@ -77,6 +77,7 @@ private:
     // Search lifecycle.
     void      reset_search_state();
     void      clear_search_heuristics();
+    void      wait_for_stop() const noexcept;
     void      build_root_lines();
     EvalValue search_root();
     RootLine  terminal_root_result() const;
@@ -137,6 +138,11 @@ inline bool SearchWorker::stop_requested() const noexcept {
 
 inline void SearchWorker::request_stop() noexcept {
     stop_requested_flag.store(true, std::memory_order_relaxed);
+    stop_requested_flag.notify_all();
+}
+
+inline void SearchWorker::wait_for_stop() const noexcept {
+    stop_requested_flag.wait(false, std::memory_order_relaxed);
 }
 
 inline bool SearchWorker::is_main_worker() const noexcept {

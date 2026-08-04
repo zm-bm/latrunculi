@@ -143,6 +143,8 @@ bool Engine::handle(const uci::GoCommand& command) {
     const auto&  go_limits = command.limits;
     SearchLimits limits;
 
+    limits.infinite = go_limits.infinite;
+
     if (go_limits.depth)
         limits.set_depth(*go_limits.depth);
     if (go_limits.movetime)

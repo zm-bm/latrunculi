@@ -62,6 +62,9 @@ EvalValue SearchWorker::search() {
     build_root_lines();
     const EvalValue value = search_root();
 
+    if (is_main_worker() && limits.infinite)
+        wait_for_stop();
+
     finalize_root_result(value);
 
     if (is_main_worker())
@@ -174,6 +177,9 @@ NodeCount SearchWorker::total_nodes() const {
 }
 
 void SearchWorker::poll_search_limits() {
+    if (limits.infinite)
+        return;
+
     if (limits.nodes) {
         auto searched = total_nodes();
         if (searched >= *limits.nodes)

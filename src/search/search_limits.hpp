@@ -11,7 +11,8 @@
 struct SearchLimits {
     static constexpr int max_depth = engine::max_search_depth;
 
-    int depth = max_depth;
+    int  depth = max_depth;
+    bool infinite{false};
 
     std::optional<Milliseconds> movetime;
     std::optional<NodeCount>    nodes;

@@ -90,6 +90,25 @@ TEST_F(EngineTest, ImmediateStopReportsLegalMove) {
     EXPECT_EQ(transcript.find("bestmove 0000"), std::string::npos) << transcript;
 }
 
+TEST_F(EngineTest, InfiniteSearchWaitsForStop) {
+    EXPECT_TRUE(execute("go infinite depth 1 nodes 0"));
+
+    SearchWorker& worker   = ThreadTestAccess::worker(threadpool());
+    const auto    deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+    while (worker.root_snapshot().depth < 1 && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    ASSERT_EQ(worker.root_snapshot().depth, 1);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    EXPECT_TRUE(threadpool().is_searching());
+    EXPECT_EQ(count_output_lines_starting_with("bestmove "), 0);
+
+    EXPECT_TRUE(execute("stop"));
+    threadpool().wait();
+
+    EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << output.str();
+}
+
 TEST_F(EngineTest, GoDepthReportsFreshFinalInformationBeforeBestmove) {
     ASSERT_TRUE(execute("setoption name Threads value 2"));
     EXPECT_TRUE(execute("go depth 3"));
