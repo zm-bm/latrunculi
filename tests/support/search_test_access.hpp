@@ -12,6 +12,8 @@ public:
 
     static MoveOrdering& ordering(SearchWorker& worker) { return worker.ordering; }
 
+    static const SearchLimits& limits(const SearchWorker& worker) { return worker.limits; }
+
     static RootLine& root_result(SearchWorker& worker) { return worker.root_result; }
 
     static std::vector<RootLine>& root_lines(SearchWorker& worker) { return worker.root_lines; }

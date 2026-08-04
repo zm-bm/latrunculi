@@ -7,6 +7,8 @@
 #include <variant>
 #include <vector>
 
+#include "core/types.hpp"
+
 namespace uci {
 
 // Parsed commands accepted by the engine input loop.
@@ -30,14 +32,14 @@ struct PositionCommand {
     std::vector<std::string> moves;
 };
 struct GoLimits {
-    std::optional<int> depth;
-    std::optional<int> movetime;
-    std::optional<int> nodes;
-    std::optional<int> wtime;
-    std::optional<int> btime;
-    std::optional<int> winc;
-    std::optional<int> binc;
-    std::optional<int> movestogo;
+    std::optional<int>               depth;
+    std::optional<Milliseconds::rep> movetime;
+    std::optional<NodeCount>         nodes;
+    std::optional<Milliseconds::rep> wtime;
+    std::optional<Milliseconds::rep> btime;
+    std::optional<Milliseconds::rep> winc;
+    std::optional<Milliseconds::rep> binc;
+    std::optional<int>               movestogo;
 
     bool                     ponder{false};
     bool                     infinite{false};

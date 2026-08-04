@@ -1,4 +1,5 @@
 #include <array>
+#include <limits>
 #include <string_view>
 
 #include <gtest/gtest.h>
@@ -57,12 +58,25 @@ TEST(SearchLimitsTest, SettersApplyValidLimits) {
     EXPECT_EQ(limits.movestogo, 5);
 }
 
+TEST(SearchLimitsTest, SettersPreserveWideLimits) {
+    using Rep = Milliseconds::rep;
+
+    constexpr NodeCount max_nodes = std::numeric_limits<NodeCount>::max();
+    constexpr Rep       max_time  = std::numeric_limits<Rep>::max();
+    SearchLimits        limits;
+
+    limits.set_movetime(max_time);
+    limits.set_nodes(max_nodes);
+
+    EXPECT_EQ(limits.movetime, Milliseconds{max_time});
+    EXPECT_EQ(limits.nodes, max_nodes);
+}
+
 TEST(SearchLimitsTest, SettersClampOutOfRangeValues) {
     SearchLimits limits;
 
     limits.set_depth(999);
     limits.set_movetime(-50);
-    limits.set_nodes(-1);
     limits.set_wtime(-1);
     limits.set_btime(-1);
     limits.set_winc(-1);
@@ -71,7 +85,6 @@ TEST(SearchLimitsTest, SettersClampOutOfRangeValues) {
 
     EXPECT_EQ(limits.depth, SearchLimits::max_depth);
     EXPECT_EQ(limits.movetime, Milliseconds{1});
-    EXPECT_EQ(limits.nodes, 0U);
     EXPECT_EQ(limits.wtime, Milliseconds{0});
     EXPECT_EQ(limits.btime, Milliseconds{0});
     EXPECT_EQ(limits.winc, Milliseconds{0});
@@ -133,6 +146,19 @@ TEST(SearchLimitsTest, ClockBudgetUsesMinimumWhenBudgetIsLow) {
 
     expect_allocated_time(limits, WHITE, Milliseconds{10});
     expect_allocated_time(limits, BLACK, Milliseconds{10});
+}
+
+TEST(SearchLimitsTest, ClockBudgetSaturatesWideTimeAndIncrement) {
+    using Rep = Milliseconds::rep;
+
+    constexpr Rep max_time = std::numeric_limits<Rep>::max();
+    SearchLimits  limits;
+    limits.set_wtime(max_time);
+    limits.set_btime(0);
+    limits.set_winc(max_time);
+    limits.set_movestogo(1);
+
+    expect_allocated_time(limits, WHITE, Milliseconds{max_time - 50});
 }
 
 TEST(PrincipalVariationTest, EqualityUsesActiveMoves) {

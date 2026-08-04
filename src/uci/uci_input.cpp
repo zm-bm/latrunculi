@@ -1,6 +1,9 @@
 #include "uci/uci_input.hpp"
 
+#include <charconv>
+#include <concepts>
 #include <sstream>
+#include <system_error>
 
 namespace uci {
 
@@ -27,15 +30,19 @@ std::string join_tokens(const std::vector<std::string>& tokens, size_t first) {
     return joined;
 }
 
-std::optional<int> parse_int_token(const std::string& token) {
-    try {
-        size_t pos   = 0;
-        int    value = std::stoi(token, &pos);
-        if (pos == token.size())
-            return value;
-    } catch (...) {
+template <std::integral T>
+std::optional<T> parse_integer_token(std::string_view token) {
+    if (token.starts_with('+')) {
+        token.remove_prefix(1);
+        if (token.empty() || token.starts_with('+') || token.starts_with('-'))
+            return std::nullopt;
     }
-    return std::nullopt;
+
+    T value{};
+    const auto [ptr, ec] = std::from_chars(token.data(), token.data() + token.size(), value);
+    if (ec != std::errc{} || ptr != token.data() + token.size())
+        return std::nullopt;
+    return value;
 }
 
 SetOptionCommand parse_setoption_command(const std::vector<std::string>& tokens) {
@@ -76,11 +83,11 @@ SetOptionCommand parse_setoption_command(const std::vector<std::string>& tokens)
 GoLimits parse_go_limits(const std::vector<std::string>& tokens) {
     GoLimits limits;
 
-    auto read_value = [&](size_t& index, std::optional<int>& target) {
+    auto read_value = [&]<typename T>(size_t& index, std::optional<T>& target) {
         if (index + 1 >= tokens.size())
             return;
 
-        auto value = parse_int_token(tokens[index + 1]);
+        auto value = parse_integer_token<T>(tokens[index + 1]);
         if (!value)
             return;
 

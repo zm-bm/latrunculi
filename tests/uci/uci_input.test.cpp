@@ -1,6 +1,8 @@
 #include "uci/uci_input.hpp"
 
+#include <limits>
 #include <sstream>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -108,24 +110,71 @@ TEST(UciInputTest, ParsesGoSupportedLimits) {
         "go depth 3 movetime 20 nodes 1000 wtime 3000 btime 4000 winc 12 binc 13 movestogo 5");
 
     EXPECT_EQ(command.limits.depth, 3);
-    EXPECT_EQ(command.limits.movetime, 20);
-    EXPECT_EQ(command.limits.nodes, 1000);
-    EXPECT_EQ(command.limits.wtime, 3000);
-    EXPECT_EQ(command.limits.btime, 4000);
-    EXPECT_EQ(command.limits.winc, 12);
-    EXPECT_EQ(command.limits.binc, 13);
+    EXPECT_EQ(command.limits.movetime, Milliseconds::rep{20});
+    EXPECT_EQ(command.limits.nodes, NodeCount{1000});
+    EXPECT_EQ(command.limits.wtime, Milliseconds::rep{3000});
+    EXPECT_EQ(command.limits.btime, Milliseconds::rep{4000});
+    EXPECT_EQ(command.limits.winc, Milliseconds::rep{12});
+    EXPECT_EQ(command.limits.binc, Milliseconds::rep{13});
     EXPECT_EQ(command.limits.movestogo, 5);
 }
 
-TEST(UciInputTest, IgnoresInvalidGoNumericValues) {
-    const auto command = parse_as<uci::GoCommand>("go depth abc movetime -50 movestogo twenty");
+TEST(UciInputTest, ParsesGoNumericBoundaries) {
+    using Rep = Milliseconds::rep;
 
-    EXPECT_FALSE(command.limits.depth.has_value());
-    EXPECT_EQ(command.limits.movetime, -50);
-    EXPECT_FALSE(command.limits.movestogo.has_value());
-    ASSERT_EQ(command.limits.unknown_tokens.size(), 2U);
-    EXPECT_EQ(command.limits.unknown_tokens[0], "abc");
-    EXPECT_EQ(command.limits.unknown_tokens[1], "twenty");
+    constexpr NodeCount wide_value = NodeCount{1} << 40;
+    constexpr NodeCount max_value  = std::numeric_limits<NodeCount>::max();
+
+    const auto zero = parse_as<uci::GoCommand>("go nodes 0");
+    const auto wide = parse_as<uci::GoCommand>("go nodes +" + std::to_string(wide_value));
+    const auto max  = parse_as<uci::GoCommand>("go nodes " + std::to_string(max_value));
+
+    EXPECT_EQ(zero.limits.nodes, NodeCount{0});
+    EXPECT_EQ(wide.limits.nodes, wide_value);
+    EXPECT_EQ(max.limits.nodes, max_value);
+
+    const auto signed_limits =
+        parse_as<uci::GoCommand>("go depth " + std::to_string(std::numeric_limits<int>::max())
+                                 + " movetime " + std::to_string(std::numeric_limits<Rep>::max()));
+
+    EXPECT_EQ(signed_limits.limits.depth, std::numeric_limits<int>::max());
+    EXPECT_EQ(signed_limits.limits.movetime, std::numeric_limits<Rep>::max());
+}
+
+TEST(UciInputTest, RejectsInvalidGoNumericValuesWithoutConsumingLaterKeywords) {
+    constexpr std::string_view invalid_values[] = {
+        "-1",
+        "-0",
+        "18446744073709551616",
+        "+-1",
+        "1000nodes",
+        "many",
+    };
+
+    for (const auto value : invalid_values) {
+        SCOPED_TRACE(value);
+        const auto command = parse_as<uci::GoCommand>("go nodes " + std::string(value));
+
+        EXPECT_FALSE(command.limits.nodes.has_value());
+        EXPECT_EQ(command.limits.unknown_tokens, std::vector<std::string>{std::string(value)});
+    }
+
+    const auto missing = parse_as<uci::GoCommand>("go nodes");
+    EXPECT_FALSE(missing.limits.nodes.has_value());
+    EXPECT_TRUE(missing.limits.unknown_tokens.empty());
+
+    constexpr NodeCount above_int_max = static_cast<NodeCount>(std::numeric_limits<int>::max()) + 1;
+    const auto          out_of_range  = parse_as<uci::GoCommand>(
+        "go depth " + std::to_string(above_int_max) + " movetime 999999999999999999999999999999");
+
+    EXPECT_FALSE(out_of_range.limits.depth.has_value());
+    EXPECT_FALSE(out_of_range.limits.movetime.has_value());
+
+    const auto recovery = parse_as<uci::GoCommand>("go depth nodes 42 movetime -50");
+    EXPECT_FALSE(recovery.limits.depth.has_value());
+    EXPECT_EQ(recovery.limits.nodes, NodeCount{42});
+    EXPECT_EQ(recovery.limits.movetime, Milliseconds::rep{-50});
+    EXPECT_TRUE(recovery.limits.unknown_tokens.empty());
 }
 
 TEST(UciInputTest, RecordsUnsupportedAndUnknownGoTokens) {

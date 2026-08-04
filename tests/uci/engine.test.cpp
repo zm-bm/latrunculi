@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <format>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -127,6 +128,16 @@ TEST_F(EngineTest, GoDepthReportsFreshFinalInformationBeforeBestmove) {
     EXPECT_EQ(std::stoull(transcript.substr(nodes_value, nodes_end - nodes_value)),
               threadpool().nodes_searched())
         << transcript;
+}
+
+TEST_F(EngineTest, GoPreservesWideNodeLimit) {
+    constexpr NodeCount node_limit = static_cast<NodeCount>(std::numeric_limits<int>::max()) + 1;
+
+    EXPECT_TRUE(execute(std::format("go depth 1 nodes {}", node_limit)));
+    threadpool().wait();
+
+    const auto& limits = SearchTestAccess::limits(ThreadTestAccess::worker(threadpool()));
+    EXPECT_EQ(limits.nodes, node_limit);
 }
 
 TEST_F(EngineTest, GoWhileSearchInProgressIsRejected) {
