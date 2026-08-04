@@ -38,6 +38,13 @@ void Engine::apply_option_effect(uci::OptionId option) {
     }
 }
 
+void Engine::require_idle(std::string_view action) const {
+    // Active searches retain their original board and configuration until completion.
+    // Lifecycle-safe protocol commands are handled without this guard.
+    if (thread_pool.is_searching())
+        throw std::runtime_error("cannot " + std::string(action) + " while search is in progress");
+}
+
 void Engine::loop() {
     while (auto command = reader.read_command()) {
         if (!execute(*command))
@@ -89,8 +96,7 @@ bool Engine::handle(const uci::IsReadyCommand&) {
 }
 
 bool Engine::handle(const uci::SetOptionCommand& command) {
-    if (thread_pool.is_searching())
-        throw std::runtime_error("cannot set option while search is in progress");
+    require_idle("set option");
 
     if (command.name.empty())
         throw std::runtime_error("missing option name");
@@ -99,8 +105,7 @@ bool Engine::handle(const uci::SetOptionCommand& command) {
 }
 
 bool Engine::handle(const uci::NewGameCommand&) {
-    if (thread_pool.is_searching())
-        throw std::runtime_error("cannot start new game while search is in progress");
+    require_idle("start new game");
 
     // Do not carry search heuristics or TT entries across unrelated games.
     thread_pool.clear_search_heuristics();
@@ -110,6 +115,8 @@ bool Engine::handle(const uci::NewGameCommand&) {
 
 bool Engine::handle(const uci::PositionCommand& command) {
     using Source = uci::PositionCommand::Source;
+
+    require_idle("set position");
 
     Board candidate;
 
@@ -211,6 +218,8 @@ bool Engine::handle(const uci::EmptyCommand&) {
 }
 
 bool Engine::handle(const uci::ConsoleCommand& command) {
+    require_idle("run console command");
+
     switch (command.name) {
     case uci::ConsoleCommand::Name::Help:  return help();
     case uci::ConsoleCommand::Name::Board: return display_board();

@@ -2,6 +2,7 @@
 
 #include <iosfwd>
 #include <string>
+#include <string_view>
 
 #include "board/board.hpp"
 #include "uci/threading.hpp"
@@ -52,6 +53,7 @@ private:
 
     // Option and search helpers
     void apply_option_effect(uci::OptionId option);
+    void require_idle(std::string_view action) const;
 
     uci::Reader  reader;
     uci::Writer  writer;

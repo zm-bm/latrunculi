@@ -202,31 +202,30 @@ TEST_F(EngineTest, GoWhileSearchInProgressIsRejected) {
     EXPECT_EQ(output.str().find("invalid searchmove"), std::string::npos) << output.str();
 }
 
-TEST_F(EngineTest, SetOptionWhileSearchInProgressIsRejected) {
-    EXPECT_TRUE(execute("go"));
+TEST_F(EngineTest, StateChangingCommandsWhileSearchInProgressAreRejected) {
+    EXPECT_TRUE(execute("go infinite depth 1"));
     ASSERT_TRUE(wait_for_busy());
 
     EXPECT_TRUE(execute("setoption name Threads value 2"));
-    EXPECT_EQ(threadpool().thread_count(), uci::Options::default_threads);
-
-    EXPECT_TRUE(execute("stop"));
-    threadpool().wait();
-
-    EXPECT_NE(output.str().find("cannot set option while search is in progress"), std::string::npos)
-        << output.str();
-}
-
-TEST_F(EngineTest, UciNewGameWhileSearchInProgressIsRejected) {
-    EXPECT_TRUE(execute("go"));
-    ASSERT_TRUE(wait_for_busy());
-
     EXPECT_TRUE(execute("ucinewgame"));
+    EXPECT_TRUE(execute("position startpos moves e2e4"));
+    EXPECT_TRUE(execute("move d2d4"));
+
+    EXPECT_EQ(threadpool().thread_count(), uci::Options::default_threads);
+    EXPECT_EQ(board().to_fen(), board_test::fen::start);
+    EXPECT_TRUE(threadpool().is_searching());
+
     EXPECT_TRUE(execute("stop"));
     threadpool().wait();
 
-    EXPECT_NE(output.str().find("cannot start new game while search is in progress"),
-              std::string::npos)
-        << output.str();
+    const std::string transcript = output.str();
+    for (const std::string_view message : {
+             "cannot set option while search is in progress",
+             "cannot start new game while search is in progress",
+             "cannot set position while search is in progress",
+             "cannot run console command while search is in progress",
+         })
+        EXPECT_NE(transcript.find(message), std::string::npos) << transcript;
 }
 
 TEST_F(EngineTest, ExitCommand) {
