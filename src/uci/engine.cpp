@@ -110,22 +110,26 @@ bool Engine::handle(const uci::NewGameCommand&) {
 bool Engine::handle(const uci::PositionCommand& command) {
     using Source = uci::PositionCommand::Source;
 
+    Board candidate;
+
     switch (command.source) {
-    case Source::Startpos: board.load_fen(Board::start_fen); break;
+    case Source::Startpos: candidate.load_fen(Board::start_fen); break;
     case Source::Fen:
         if (command.fen.empty())
             throw std::runtime_error("invalid position command");
-        board.load_fen(command.fen);
+        candidate.load_fen(command.fen);
         break;
     case Source::Invalid: throw std::runtime_error("invalid position command");
     }
 
     for (const auto& token : command.moves) {
-        auto move = find_legal_move(token);
+        auto move = find_legal_move(candidate, token);
         if (move.is_null())
             throw std::runtime_error("invalid move in position command: " + token);
-        make_board_move(move);
+        candidate.make(move);
     }
+
+    board = candidate;
     return true;
 }
 
@@ -223,7 +227,7 @@ bool Engine::move(const std::string& arguments) {
     if (token == "undo") {
         unmake_board_move();
     } else {
-        auto move = find_legal_move(token);
+        auto move = find_legal_move(board, token);
         if (move.is_null()) {
             writer.info_string("invalid move: " + token);
         } else {
@@ -254,10 +258,10 @@ bool Engine::perft(const std::string& arguments) {
     return true;
 }
 
-Move Engine::find_legal_move(const std::string& token) {
-    auto movelist = movegen::generate_pseudo_legal(board);
+Move Engine::find_legal_move(const Board& position, const std::string& token) {
+    auto movelist = movegen::generate_pseudo_legal(position);
     for (auto& move : movelist) {
-        if (uci::format_uci_move(move) == token && board.is_legal_pseudo_move(move)) {
+        if (uci::format_uci_move(move) == token && position.is_legal_pseudo_move(move)) {
             return move;
         }
     }

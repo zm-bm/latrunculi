@@ -10,6 +10,7 @@
 #include "board/board.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
+#include "support/board_snapshot.hpp"
 #include "support/search_test_access.hpp"
 #include "support/thread_test_access.hpp"
 #include "gtest/gtest.h"
@@ -29,6 +30,20 @@ protected:
     Board&      board() { return engine.board; }
     ThreadPool& threadpool() { return engine.thread_pool; }
     bool        debug_enabled() const { return engine.options.debug.value; }
+
+    static void expect_same_board_and_history(Board actual, Board expected) {
+        while (true) {
+            board_test::expect_same_board_snapshot(actual, board_test::snapshot_board(expected));
+            EXPECT_EQ(actual.is_draw(), expected.is_draw());
+
+            if (!expected.can_unmake())
+                break;
+
+            ASSERT_TRUE(actual.can_unmake());
+            actual.unmake();
+            expected.unmake();
+        }
+    }
 
     int count_output_lines_starting_with(std::string_view prefix) const {
         std::istringstream lines{output.str()};
@@ -360,6 +375,39 @@ TEST_F(EngineTest, PositionReportsInvalidMoveToken) {
         << output.str();
 }
 
+TEST_F(EngineTest, FailedPositionCommandsPreserveBoardAndHistory) {
+    struct FailureCase {
+        std::string_view command;
+        std::string_view output;
+    };
+
+    const std::string     seed       = std::format("position fen {} moves "
+                                                   "e6f5 h7g8 f5e6 g8h7 e6f5 h7g8 f5e6 g8h7 e6f5",
+                                         board_test::fen::repetition_cycle);
+    constexpr FailureCase failures[] = {
+        {"position startpos moves e2e4 invalid",
+         "info string error: invalid move in position command: invalid\n"},
+        {"position startpos moves e2e4 e7e5 e4e5",
+         "info string error: invalid move in position command: e4e5\n"},
+        {"position fen invalid", "info string error: invalid fen, must have 4 or 6 fields\n"},
+        {"position abc", "info string error: invalid position command\n"},
+    };
+
+    for (const auto& failure : failures) {
+        SCOPED_TRACE(failure.command);
+        ASSERT_TRUE(execute(seed));
+        ASSERT_TRUE(board().is_draw());
+        const Board before{board()};
+
+        output.str("");
+        output.clear();
+        EXPECT_TRUE(execute(std::string(failure.command)));
+
+        expect_same_board_and_history(board(), before);
+        EXPECT_EQ(output.str(), failure.output);
+    }
+}
+
 TEST_F(EngineTest, MovesCommandFiltersIllegalPseudoLegalMoves) {
     EXPECT_TRUE(execute(std::format("position fen {}", board_test::fen::pinned_rook)));
     ASSERT_EQ(board().to_fen(), board_test::fen::pinned_rook);
@@ -454,9 +502,9 @@ INSTANTIATE_TEST_SUITE_P(
         PositionCase{.cmd = std::format("position fen {} moves", board_test::fen::kings_only),
                      .fen = board_test::fen::kings_only},
         PositionCase{.cmd = std::format("position fen {} moves abc", board_test::fen::kings_only),
-                     .fen = board_test::fen::kings_only},
+                     .fen = board_test::fen::start},
         PositionCase{.cmd = std::format("position fen {} moves a1b1", board_test::fen::kings_only),
-                     .fen = board_test::fen::kings_only},
+                     .fen = board_test::fen::start},
         PositionCase{.cmd = std::format("position fen {} moves e1e2", board_test::fen::kings_only),
                      .fen = "4k3/8/8/8/8/8/4K3/8 b - - 1 1"}));
 

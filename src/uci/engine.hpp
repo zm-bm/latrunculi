@@ -46,7 +46,7 @@ private:
     bool moves();
 
     // Board position helpers
-    Move find_legal_move(const std::string& token);
+    Move find_legal_move(const Board& position, const std::string& token);
     void make_board_move(Move move);
     void unmake_board_move();
 
