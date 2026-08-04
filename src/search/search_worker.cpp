@@ -108,7 +108,7 @@ RootLine SearchWorker::terminal_root_result() const {
     return RootLine{
         .root_move = NULL_MOVE,
         .value     = board.is_check() ? -eval_value::mate : eval_value::draw,
-        .depth     = limits.depth,
+        .depth     = 0,
         .completed = true,
     };
 }

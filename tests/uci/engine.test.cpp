@@ -186,28 +186,30 @@ TEST_F(EngineTest, QuitCommand) {
     EXPECT_FALSE(execute("quit"));
 }
 
-TEST_F(EngineTest, TerminalPositionsReportNullBestMove) {
+TEST_F(EngineTest, TerminalPositionsReportDepthZeroAndNullBestMove) {
     // Seed an existing bestmove.
     EXPECT_TRUE(execute("position startpos"));
     EXPECT_TRUE(execute("go depth 1"));
     threadpool().wait();
 
     constexpr std::string_view terminal_positions[] = {
-        "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",
+        "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1",
         board_test::fen::stalemate,
     };
 
     for (const std::string_view fen : terminal_positions) {
+        SCOPED_TRACE(fen);
         output.str("");
         output.clear();
 
         EXPECT_TRUE(execute(std::format("position fen {}", fen)));
-        EXPECT_TRUE(execute("go depth 1"));
+        EXPECT_TRUE(execute("go depth 10"));
         threadpool().wait();
 
         const std::string transcript = output.str();
-        EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << fen << '\n' << transcript;
-        EXPECT_NE(transcript.find("bestmove 0000"), std::string::npos) << fen << '\n' << transcript;
+        EXPECT_EQ(count_output_lines_starting_with("info depth 0 "), 1) << transcript;
+        EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
+        EXPECT_NE(transcript.find("bestmove 0000"), std::string::npos) << transcript;
     }
 }
 
