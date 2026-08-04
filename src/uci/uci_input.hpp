@@ -41,11 +41,11 @@ struct GoLimits {
     std::optional<Milliseconds::rep> binc;
     std::optional<int>               movestogo;
 
-    bool                     ponder{false};
-    bool                     infinite{false};
-    std::optional<int>       mate;
-    std::vector<std::string> searchmoves;
-    std::vector<std::string> unknown_tokens;
+    bool                                    ponder{false};
+    bool                                    infinite{false};
+    std::optional<int>                      mate;
+    std::optional<std::vector<std::string>> searchmoves;
+    std::vector<std::string>                unknown_tokens;
 };
 struct GoCommand {
     GoLimits limits;

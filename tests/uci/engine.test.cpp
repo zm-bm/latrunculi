@@ -140,15 +140,47 @@ TEST_F(EngineTest, GoPreservesWideNodeLimit) {
     EXPECT_EQ(limits.nodes, node_limit);
 }
 
+TEST_F(EngineTest, SearchmovesRestrictAndValidateRootMoves) {
+    EXPECT_TRUE(execute("go depth 1 searchmoves a2a3 a2a3"));
+    threadpool().wait();
+    EXPECT_NE(output.str().find("bestmove a2a3"), std::string::npos) << output.str();
+
+    const std::vector expected_moves{Move(A2, A3)};
+    const auto&       limits = SearchTestAccess::limits(ThreadTestAccess::worker(threadpool()));
+    EXPECT_EQ(limits.root_moves, expected_moves);
+
+    struct InvalidCase {
+        const char* command;
+        const char* error;
+    };
+
+    constexpr InvalidCase invalid_cases[] = {
+        {"go searchmoves", "missing searchmoves"},
+        {"go searchmoves e2e4 e7e5", "invalid searchmove: e7e5"},
+    };
+
+    for (const auto& tc : invalid_cases) {
+        SCOPED_TRACE(tc.command);
+        output.str("");
+        output.clear();
+
+        EXPECT_TRUE(execute(tc.command));
+
+        EXPECT_FALSE(threadpool().is_searching());
+        EXPECT_EQ(output.str(), std::format("info string error: {}\n", tc.error));
+    }
+}
+
 TEST_F(EngineTest, GoWhileSearchInProgressIsRejected) {
     EXPECT_TRUE(execute("go"));
     ASSERT_TRUE(wait_for_busy());
 
-    EXPECT_TRUE(execute("go depth 1"));
+    EXPECT_TRUE(execute("go searchmoves invalid"));
     EXPECT_TRUE(execute("stop"));
     threadpool().wait();
 
     EXPECT_NE(output.str().find("search already in progress"), std::string::npos) << output.str();
+    EXPECT_EQ(output.str().find("invalid searchmove"), std::string::npos) << output.str();
 }
 
 TEST_F(EngineTest, SetOptionWhileSearchInProgressIsRejected) {

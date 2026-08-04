@@ -177,7 +177,7 @@ TEST(UciInputTest, RejectsInvalidGoNumericValuesWithoutConsumingLaterKeywords) {
     EXPECT_TRUE(recovery.limits.unknown_tokens.empty());
 }
 
-TEST(UciInputTest, RecordsUnsupportedAndUnknownGoTokens) {
+TEST(UciInputTest, RecordsUnsupportedGoAndTerminalSearchmoves) {
     const auto command =
         parse_as<uci::GoCommand>("go infinite ponder mate 4 unknown searchmoves e2e4 d2d4");
 
@@ -186,9 +186,20 @@ TEST(UciInputTest, RecordsUnsupportedAndUnknownGoTokens) {
     EXPECT_EQ(command.limits.mate, 4);
     ASSERT_EQ(command.limits.unknown_tokens.size(), 1U);
     EXPECT_EQ(command.limits.unknown_tokens[0], "unknown");
-    ASSERT_EQ(command.limits.searchmoves.size(), 2U);
-    EXPECT_EQ(command.limits.searchmoves[0], "e2e4");
-    EXPECT_EQ(command.limits.searchmoves[1], "d2d4");
+    ASSERT_TRUE(command.limits.searchmoves.has_value());
+    EXPECT_EQ(*command.limits.searchmoves, (std::vector<std::string>{"e2e4", "d2d4"}));
+
+    const auto absent = parse_as<uci::GoCommand>("go depth 1");
+    EXPECT_FALSE(absent.limits.searchmoves.has_value());
+
+    const auto empty = parse_as<uci::GoCommand>("go searchmoves");
+    ASSERT_TRUE(empty.limits.searchmoves.has_value());
+    EXPECT_TRUE(empty.limits.searchmoves->empty());
+
+    const auto terminal = parse_as<uci::GoCommand>("go searchmoves e2e4 depth 3");
+    ASSERT_TRUE(terminal.limits.searchmoves.has_value());
+    EXPECT_EQ(*terminal.limits.searchmoves, (std::vector<std::string>{"e2e4", "depth", "3"}));
+    EXPECT_FALSE(terminal.limits.depth.has_value());
 }
 
 TEST(UciInputTest, ParsesDebugExtensionCommands) {

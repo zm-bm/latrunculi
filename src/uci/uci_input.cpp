@@ -119,8 +119,10 @@ GoLimits parse_go_limits(Tokens tokens) {
         else if (token == "movestogo")
             read_value(i, limits.movestogo);
         else if (token == "searchmoves") {
+            // By convention, searchmoves is terminal and owns the rest of the line.
+            limits.searchmoves.emplace();
             for (++i; i < tokens.size(); ++i)
-                limits.searchmoves.push_back(tokens[i]);
+                limits.searchmoves->push_back(tokens[i]);
             break;
         } else if (token == "ponder") {
             limits.ponder = true;

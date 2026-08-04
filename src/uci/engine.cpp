@@ -1,5 +1,6 @@
 #include "uci/engine.hpp"
 
+#include <algorithm>
 #include <sstream>
 #include <stdexcept>
 #include <variant>
@@ -134,6 +135,11 @@ bool Engine::handle(const uci::PositionCommand& command) {
 }
 
 bool Engine::handle(const uci::GoCommand& command) {
+    if (thread_pool.is_searching()) {
+        writer.info_string("search already in progress");
+        return true;
+    }
+
     const auto&  go_limits = command.limits;
     SearchLimits limits;
 
@@ -153,6 +159,19 @@ bool Engine::handle(const uci::GoCommand& command) {
         limits.set_binc(*go_limits.binc);
     if (go_limits.movestogo)
         limits.set_movestogo(*go_limits.movestogo);
+    if (go_limits.searchmoves) {
+        if (go_limits.searchmoves->empty())
+            throw std::runtime_error("missing searchmoves");
+
+        for (const auto& token : *go_limits.searchmoves) {
+            const Move move = find_legal_move(board, token);
+            if (move.is_null())
+                throw std::runtime_error("invalid searchmove: " + token);
+            if (std::find(limits.root_moves.begin(), limits.root_moves.end(), move)
+                == limits.root_moves.end())
+                limits.root_moves.push_back(move);
+        }
+    }
 
     if (!thread_pool.start_search(board, limits))
         writer.info_string("search already in progress");

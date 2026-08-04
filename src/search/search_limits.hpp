@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <optional>
+#include <vector>
 
 #include "core/constants.hpp"
+#include "core/move.hpp"
 #include "core/types.hpp"
 
 struct SearchLimits {
@@ -18,6 +20,7 @@ struct SearchLimits {
     std::optional<Milliseconds> winc;
     std::optional<Milliseconds> binc;
     std::optional<int>          movestogo;
+    std::vector<Move>           root_moves;
 
     SearchLimits() = default;
 
@@ -35,6 +38,11 @@ struct SearchLimits {
     void set_winc(Milliseconds::rep wi) { winc = Milliseconds{std::max(wi, Milliseconds::rep{0})}; }
     void set_binc(Milliseconds::rep bi) { binc = Milliseconds{std::max(bi, Milliseconds::rep{0})}; }
     void set_movestogo(int mtg) { movestogo = std::max(mtg, 1); }
+
+    [[nodiscard]] bool allows_root_move(Move move) const noexcept {
+        return root_moves.empty()
+            || std::find(root_moves.begin(), root_moves.end(), move) != root_moves.end();
+    }
 
     std::optional<Milliseconds> allocated_time(Color c) const;
 };
