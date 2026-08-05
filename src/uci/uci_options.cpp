@@ -56,6 +56,10 @@ OptionId Options::set(const std::string& name, const std::string& value, bool ha
         require_value("Threads");
         threads.set(value);
         return OptionId::Threads;
+    } else if (option_name == "ponder") {
+        require_value("Ponder");
+        ponder.set(value);
+        return OptionId::Ponder;
     } else if (option_name == "debug") {
         require_value("Debug");
         debug.set(value);

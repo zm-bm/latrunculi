@@ -62,8 +62,14 @@ EvalValue SearchWorker::search() {
     build_root_lines();
     const EvalValue value = search_root();
 
-    if (is_main_worker() && limits.infinite)
-        wait_for_stop();
+    if (is_main_worker()) {
+        // Ponderhit leaves only ponder mode; an explicit infinite request still
+        // requires stop before final publication.
+        if (limits.ponder)
+            thread_pool.wait_while_pondering();
+        if (limits.infinite && !stop_requested())
+            wait_for_stop();
+    }
 
     finalize_root_result(value);
 
@@ -177,7 +183,8 @@ NodeCount SearchWorker::total_nodes() const {
 }
 
 void SearchWorker::poll_search_limits() {
-    if (limits.infinite)
+    // Ponder work still accumulates, but cannot stop the search before ponderhit.
+    if (limits.infinite || thread_pool.is_pondering())
         return;
 
     if (limits.nodes) {

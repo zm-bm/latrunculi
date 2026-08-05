@@ -30,6 +30,7 @@ protected:
     bool        execute(const std::string& command) { return engine.execute(command); }
     Board&      board() { return engine.board; }
     ThreadPool& threadpool() { return engine.thread_pool; }
+    bool        ponder_enabled() const { return engine.options.ponder.value; }
     bool        debug_enabled() const { return engine.options.debug.value; }
 
     static void expect_same_board_and_history(Board actual, Board expected) {
@@ -68,6 +69,18 @@ protected:
         }
         return threadpool().is_searching();
     }
+
+    bool wait_for_depth(int                       depth,
+                        std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
+        SearchWorker& worker   = ThreadTestAccess::worker(threadpool());
+        const auto    deadline = std::chrono::steady_clock::now() + timeout;
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (worker.root_snapshot().depth >= depth)
+                return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return worker.root_snapshot().depth >= depth;
+    }
 };
 
 TEST(EngineLoopTest, ReadsConfiguredInputStream) {
@@ -81,23 +94,25 @@ TEST(EngineLoopTest, ReadsConfiguredInputStream) {
 }
 
 TEST_F(EngineTest, ImmediateStopReportsLegalMove) {
-    EXPECT_TRUE(execute("go"));
-    EXPECT_TRUE(execute("stop"));
-    threadpool().wait();
+    for (const std::string_view command : {"go", "go ponder"}) {
+        SCOPED_TRACE(command);
+        output.str("");
+        output.clear();
 
-    const std::string transcript = output.str();
-    EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
-    EXPECT_EQ(transcript.find("bestmove 0000"), std::string::npos) << transcript;
+        EXPECT_TRUE(execute(std::string(command)));
+        EXPECT_TRUE(execute("stop"));
+        threadpool().wait();
+
+        const std::string transcript = output.str();
+        EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
+        EXPECT_EQ(transcript.find("bestmove 0000"), std::string::npos) << transcript;
+    }
 }
 
 TEST_F(EngineTest, InfiniteSearchWaitsForStop) {
     EXPECT_TRUE(execute("go infinite depth 1 nodes 0"));
 
-    SearchWorker& worker   = ThreadTestAccess::worker(threadpool());
-    const auto    deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
-    while (worker.root_snapshot().depth < 1 && std::chrono::steady_clock::now() < deadline)
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    ASSERT_EQ(worker.root_snapshot().depth, 1);
+    ASSERT_TRUE(wait_for_depth(1));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     EXPECT_TRUE(threadpool().is_searching());
@@ -331,6 +346,12 @@ TEST_F(EngineTest, SetOptionNameMatchingIsCaseInsensitive) {
 }
 
 TEST_F(EngineTest, SetOptionCheckValuesAreCaseInsensitive) {
+    EXPECT_TRUE(execute("setoption name pOnDeR value ON"));
+    EXPECT_TRUE(ponder_enabled());
+
+    EXPECT_TRUE(execute("setoption name PONDER value oFf"));
+    EXPECT_FALSE(ponder_enabled());
+
     EXPECT_TRUE(execute("setoption name dEbUg value ON"));
     EXPECT_TRUE(debug_enabled());
 
@@ -356,10 +377,24 @@ TEST_F(EngineTest, RegisterCommandIsSilentNoop) {
     EXPECT_TRUE(output.str().empty()) << output.str();
 }
 
-TEST_F(EngineTest, PonderHitIsSilentNoopWhilePonderIsUnsupported) {
+TEST_F(EngineTest, PonderSearchWaitsForHitAndPublishesExistingResult) {
     EXPECT_TRUE(execute("ponderhit"));
-
     EXPECT_TRUE(output.str().empty()) << output.str();
+
+    EXPECT_TRUE(execute("go ponder depth 1 nodes 0"));
+    ASSERT_TRUE(wait_for_depth(1));
+
+    EXPECT_TRUE(threadpool().is_searching());
+    EXPECT_EQ(count_output_lines_starting_with("bestmove "), 0);
+    EXPECT_EQ(tt.current_generation(), std::uint8_t{1});
+
+    EXPECT_TRUE(execute("ponderhit"));
+    threadpool().wait();
+
+    const std::string transcript = output.str();
+    EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
+    EXPECT_EQ(transcript.find("bestmove 0000"), std::string::npos) << transcript;
+    EXPECT_EQ(tt.current_generation(), std::uint8_t{1});
 }
 
 TEST_F(EngineTest, UnknownInputIsIgnoredOrRecoversLaterCommand) {
@@ -430,7 +465,6 @@ INSTANTIATE_TEST_SUITE_P(
         CommandCase{{"ucinewgame"}, board_test::fen::start, ""},
         CommandCase{{"debug on"}, board_test::fen::start, ""},
         CommandCase{{"debug off"}, board_test::fen::start, ""},
-        CommandCase{{"ponderhit"}, board_test::fen::start, ""},
         CommandCase{{"position startpos", "move e2e4"}, board_test::fen::after_e2e4, ""},
         CommandCase{{"position startpos", "move e2e4", "move undo"}, board_test::fen::start, ""},
         CommandCase{{"position startpos", "moves"}, board_test::fen::start, "e2e4"},

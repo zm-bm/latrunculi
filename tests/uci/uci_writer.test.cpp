@@ -71,6 +71,7 @@ TEST_F(UciWriterTest, Identify) {
     EXPECT_NE(oss.str().find("option name Hash type spin default 32 min 1 max 2048"),
               std::string::npos);
     EXPECT_NE(oss.str().find("option name Clear Hash type button"), std::string::npos);
+    EXPECT_NE(oss.str().find("option name Ponder type check default false"), std::string::npos);
     EXPECT_NE(oss.str().find("option name Debug type check default false"), std::string::npos);
 }
 

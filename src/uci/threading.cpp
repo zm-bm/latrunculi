@@ -101,6 +101,7 @@ bool ThreadPool::start_search(const Board& root_board, SearchLimits limits) {
         return false;
 
     const TimePoint start_time = SearchClock::now();
+    pondering.store(limits.ponder, std::memory_order_relaxed);
 
     // Close the gate so helpers wait for the main worker.
     close_helper_gate();
@@ -122,8 +123,15 @@ void ThreadPool::request_stop() {
         thread->request_stop();
     }
 
+    leave_pondering();
+
     // Release the gate in case helpers are waiting.
     release_helper_searches();
+}
+
+void ThreadPool::leave_pondering() noexcept {
+    pondering.store(false, std::memory_order_relaxed);
+    pondering.notify_all();
 }
 
 void ThreadPool::wait() {
@@ -227,6 +235,15 @@ void ThreadPool::stop_helper_searches() {
     for (size_t i = 1; i < threads.size(); ++i) {
         threads[i]->wait_for_idle();
     }
+}
+
+// Ponder lifecycle.
+bool ThreadPool::is_pondering() const noexcept {
+    return pondering.load(std::memory_order_relaxed);
+}
+
+void ThreadPool::wait_while_pondering() const noexcept {
+    pondering.wait(true, std::memory_order_relaxed);
 }
 
 // Diagnostics.

@@ -13,6 +13,7 @@ struct SearchLimits {
 
     int  depth = max_depth;
     bool infinite{false};
+    bool ponder{false};
 
     std::optional<Milliseconds> movetime;
     std::optional<NodeCount>    nodes;

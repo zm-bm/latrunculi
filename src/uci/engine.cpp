@@ -31,9 +31,12 @@ void Engine::unmake_board_move() {
 
 void Engine::apply_option_effect(uci::OptionId option) {
     switch (option) {
-    case uci::OptionId::Hash:      tt.resize(options.hash.value); break;
-    case uci::OptionId::Threads:   thread_pool.resize(options.threads.value); break;
-    case uci::OptionId::Debug:     break;
+    case uci::OptionId::Hash:    tt.resize(options.hash.value); break;
+    case uci::OptionId::Threads: thread_pool.resize(options.threads.value); break;
+    case uci::OptionId::Ponder:
+    case uci::OptionId::Debug:
+        // Stored options with no immediate subsystem side effect.
+        break;
     case uci::OptionId::ClearHash: tt.clear(); break;
     }
 }
@@ -151,6 +154,7 @@ bool Engine::handle(const uci::GoCommand& command) {
     SearchLimits limits;
 
     limits.infinite = go_limits.infinite;
+    limits.ponder   = go_limits.ponder;
 
     if (go_limits.depth)
         limits.set_depth(*go_limits.depth);
@@ -198,6 +202,7 @@ bool Engine::handle(const uci::QuitCommand&) {
 }
 
 bool Engine::handle(const uci::PonderHitCommand&) {
+    thread_pool.leave_pondering();
     return true;
 }
 

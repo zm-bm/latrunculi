@@ -99,11 +99,13 @@ std::string format_identification(const uci::Options& options) {
                        "{}\n"
                        "{}\n"
                        "{}\n"
+                       "{}\n"
                        "uciok",
                        engine::version,
                        format_option("Hash", options.hash),
                        format_option("Clear Hash", options.clear_hash),
                        format_option("Threads", options.threads),
+                       format_option("Ponder", options.ponder),
                        format_option("Debug", options.debug));
 }
 

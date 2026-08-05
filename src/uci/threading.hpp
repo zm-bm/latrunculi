@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <cstddef>
 #include <memory>
@@ -74,6 +75,7 @@ public:
     // Search lifecycle.
     bool start_search(const Board& root_board, SearchLimits limits);
     void request_stop();
+    void leave_pondering() noexcept;
     void wait();
     void clear_search_heuristics();
     void shutdown();
@@ -100,6 +102,10 @@ private:
     // Pool lifecycle state.
     bool shutdown_requested{false};
 
+    // Mutable mode for the current search. The accepted SearchLimits retains
+    // the initial request; ponderhit only transitions this runtime flag.
+    std::atomic<bool> pondering{false};
+
     // Helper release gate.
     std::mutex              helper_gate_mutex;
     std::condition_variable helper_gate_cv;
@@ -112,6 +118,10 @@ private:
 
     // Helper worker control.
     void stop_helper_searches();
+
+    // Ponder lifecycle.
+    bool is_pondering() const noexcept;
+    void wait_while_pondering() const noexcept;
 
     // Worker results and diagnostics.
     std::vector<RootLine>   root_snapshots() const;

@@ -219,8 +219,9 @@ TEST_F(ThreadPoolTest, RequestStopWhileIdleDoesNotPoisonNextSearch) {
     EXPECT_EQ(bestmove_count(), 1) << oss.str();
 }
 
-TEST_F(ThreadPoolTest, ShutdownImmediatelyAfterStartDoesNotDeadlock) {
-    options.depth = 5;
+TEST_F(ThreadPoolTest, ShutdownPonderSearchDoesNotDeadlock) {
+    options.depth  = 5;
+    options.ponder = true;
 
     EXPECT_TRUE(pool.start_search(board, options));
     EXPECT_NO_THROW(pool.shutdown());
