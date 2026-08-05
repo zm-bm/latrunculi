@@ -86,8 +86,9 @@ void Thread::wake_for_search() {
 }
 
 ThreadPool::ThreadPool(size_t thread_count, uci::Writer& writer) : writer(writer) {
+    threads.reserve(thread_count);
     for (size_t i = 0; i < thread_count; ++i) {
-        threads.emplace_back(new Thread(static_cast<int>(i), writer, *this));
+        threads.push_back(std::unique_ptr<Thread>{new Thread(static_cast<int>(i), writer, *this)});
     }
 }
 
@@ -173,9 +174,18 @@ bool ThreadPool::resize(size_t thread_count) {
         }
         threads.resize(thread_count);
     } else {
-        for (size_t i = threads.size(); i < thread_count; ++i) {
-            threads.emplace_back(new Thread(static_cast<int>(i), writer, *this));
-        }
+        const size_t installed_count = threads.size();
+
+        threads.reserve(thread_count);
+
+        std::vector<std::unique_ptr<Thread>> additions;
+        additions.reserve(thread_count - installed_count);
+        for (size_t i = installed_count; i < thread_count; ++i)
+            additions.push_back(
+                std::unique_ptr<Thread>{new Thread(static_cast<int>(i), writer, *this)});
+
+        for (auto& thread : additions)
+            threads.push_back(std::move(thread));
     }
 
     return true;

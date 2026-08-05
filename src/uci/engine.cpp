@@ -29,10 +29,13 @@ void Engine::unmake_board_move() {
     board.unmake();
 }
 
-void Engine::apply_option_effect(uci::OptionId option) {
+void Engine::apply_option_effect(uci::OptionId option, const uci::Options& candidate) {
     switch (option) {
-    case uci::OptionId::Hash:      tt.resize(options.hash.value); break;
-    case uci::OptionId::Threads:   thread_pool.resize(options.threads.value); break;
+    case uci::OptionId::Hash: tt.resize(candidate.hash.value); break;
+    case uci::OptionId::Threads:
+        if (!thread_pool.resize(candidate.threads.value))
+            throw std::runtime_error("failed to resize thread pool");
+        break;
     case uci::OptionId::Ponder:    break;
     case uci::OptionId::ClearHash: tt.clear(); break;
     }
@@ -108,7 +111,11 @@ bool Engine::handle(const uci::SetOptionCommand& command) {
 
     if (command.name.empty())
         throw std::runtime_error("missing option name");
-    apply_option_effect(options.set(command.name, command.value, command.has_value));
+
+    auto                candidate = options;
+    const uci::OptionId option    = candidate.set(command.name, command.value, command.has_value);
+    apply_option_effect(option, candidate);
+    options = candidate;
     return true;
 }
 

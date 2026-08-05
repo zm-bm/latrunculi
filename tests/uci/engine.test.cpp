@@ -30,6 +30,8 @@ protected:
     bool        execute(const std::string& command) { return engine.execute(command); }
     Board&      board() { return engine.board; }
     ThreadPool& threadpool() { return engine.thread_pool; }
+    int         hash_option_mb() const { return engine.options.hash.value; }
+    int         thread_option_count() const { return engine.options.threads.value; }
     bool        ponder_enabled() const { return engine.options.ponder.value; }
 
     static void expect_same_board_and_history(Board actual, Board expected) {
@@ -338,10 +340,19 @@ TEST_F(EngineTest, UciNewGameClearsTTAndSearchHeuristics) {
     }
 }
 
-TEST_F(EngineTest, SetOptionNameMatchingIsCaseInsensitive) {
+TEST_F(EngineTest, ThreadOptionCommitsOnlyAfterSuccessfulResize) {
     EXPECT_TRUE(execute("setoption name tHrEaDs value 2"));
 
+    EXPECT_EQ(thread_option_count(), 2);
     EXPECT_EQ(threadpool().thread_count(), 2U);
+
+    threadpool().shutdown();
+    EXPECT_TRUE(execute("setoption name Threads value 3"));
+
+    EXPECT_EQ(thread_option_count(), 2);
+    EXPECT_EQ(threadpool().thread_count(), 2U);
+    EXPECT_NE(output.str().find("error: failed to resize thread pool"), std::string::npos)
+        << output.str();
 }
 
 TEST_F(EngineTest, PonderOptionValuesAreCaseInsensitive) {
@@ -354,6 +365,7 @@ TEST_F(EngineTest, PonderOptionValuesAreCaseInsensitive) {
 
 TEST_F(EngineTest, HashOptionResizesAndClearHashClearsTT) {
     ASSERT_TRUE(execute("setoption name Hash value 8"));
+    ASSERT_EQ(hash_option_mb(), 8);
     ASSERT_EQ(tt.capacity_mb(), 8U);
 
     tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TTBound::Exact, 0);

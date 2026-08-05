@@ -52,7 +52,7 @@ private:
     void unmake_board_move();
 
     // Option and search helpers
-    void apply_option_effect(uci::OptionId option);
+    void apply_option_effect(uci::OptionId option, const uci::Options& candidate);
     void require_idle(std::string_view action) const;
 
     uci::Reader  reader;

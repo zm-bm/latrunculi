@@ -4,8 +4,10 @@
 
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <semaphore>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -313,6 +315,9 @@ TEST_F(ThreadPoolTest, ShutdownIsIdempotent) {
 
 TEST_F(ThreadPoolTest, ResizeGrowsAndShrinksIdlePool) {
     options.depth = 1;
+
+    EXPECT_THROW(pool.resize(std::numeric_limits<size_t>::max()), std::length_error);
+    EXPECT_EQ(pool.thread_count(), THREAD_COUNT);
 
     ASSERT_TRUE(pool.resize(THREAD_COUNT + 2));
     EXPECT_EQ(pool.thread_count(), THREAD_COUNT + 2);
