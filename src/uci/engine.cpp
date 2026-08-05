@@ -4,6 +4,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <variant>
+#include <vector>
 
 #include "board/board.hpp"
 #include "core/move.hpp"
@@ -186,19 +187,10 @@ bool Engine::handle(const uci::GoCommand& command) {
         limits.set_binc(*go_limits.binc);
     if (go_limits.movestogo)
         limits.set_movestogo(*go_limits.movestogo);
-    if (go_limits.searchmoves) {
-        if (go_limits.searchmoves->empty())
-            throw std::runtime_error("missing searchmoves");
-
-        for (const auto& token : *go_limits.searchmoves) {
-            const Move move = find_legal_move(board, token);
-            if (move.is_null())
-                throw std::runtime_error("invalid searchmove: " + token);
-            if (std::find(limits.root_moves.begin(), limits.root_moves.end(), move)
-                == limits.root_moves.end())
-                limits.root_moves.push_back(move);
-        }
-    }
+    if (go_limits.mate)
+        limits.set_mate(*go_limits.mate);
+    if (go_limits.searchmoves)
+        limits.set_root_moves(resolve_searchmoves(*go_limits.searchmoves));
 
     if (!thread_pool.start_search(board, limits))
         writer.info_string("search already in progress");
@@ -307,7 +299,7 @@ bool Engine::perft(const std::string& arguments) {
     return true;
 }
 
-Move Engine::find_legal_move(const Board& position, const std::string& token) {
+Move Engine::find_legal_move(const Board& position, const std::string& token) const {
     auto movelist = movegen::generate_pseudo_legal(position);
     for (auto& move : movelist) {
         if (uci::format_uci_move(move) == token && position.is_legal_pseudo_move(move)) {
@@ -315,4 +307,19 @@ Move Engine::find_legal_move(const Board& position, const std::string& token) {
         }
     }
     return NULL_MOVE;
+}
+
+std::vector<Move> Engine::resolve_searchmoves(const std::vector<std::string>& tokens) const {
+    if (tokens.empty())
+        throw std::runtime_error("missing searchmoves");
+
+    std::vector<Move> root_moves;
+    for (const auto& token : tokens) {
+        const Move move = find_legal_move(board, token);
+        if (move.is_null())
+            throw std::runtime_error("invalid searchmove: " + token);
+        if (std::find(root_moves.begin(), root_moves.end(), move) == root_moves.end())
+            root_moves.push_back(move);
+    }
+    return root_moves;
 }

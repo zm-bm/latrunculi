@@ -138,7 +138,12 @@ void SearchWorker::finalize_root_result(EvalValue value) {
 void SearchWorker::prepare_final_result() {
     thread_pool.stop_helper_searches();
 
-    RootLine selected = select_best_root_line(root_result, thread_pool.root_snapshots());
+    RootLine selected = root_result;
+
+    // Preserve a proven mate instead of replacing it with a deeper helper
+    // result that does not satisfy the requested mate limit.
+    if (!limits.has_mate_within_limit(selected.value))
+        selected = select_best_root_line(selected, thread_pool.root_snapshots());
 
     // A stopped depth-zero search still owes UCI a legal move.
     if (!selected.usable_root_move() && !root_lines.empty()) {

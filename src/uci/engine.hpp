@@ -3,6 +3,7 @@
 #include <iosfwd>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "board/board.hpp"
 #include "uci/threading.hpp"
@@ -47,9 +48,10 @@ private:
     bool moves();
 
     // Board position helpers
-    Move find_legal_move(const Board& position, const std::string& token);
-    void make_board_move(Move move);
-    void unmake_board_move();
+    Move              find_legal_move(const Board& position, const std::string& token) const;
+    std::vector<Move> resolve_searchmoves(const std::vector<std::string>& tokens) const;
+    void              make_board_move(Move move);
+    void              unmake_board_move();
 
     // Option and search helpers
     void apply_option_effect(uci::OptionId option, const uci::Options& candidate);

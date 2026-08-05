@@ -122,6 +122,8 @@ EvalValue SearchWorker::search_root() {
             continue;
         if (!search_root_depth(depth, root_result.value))
             break;
+        if (limits.has_mate_within_limit(root_result.value))
+            break;
     }
 
     return root_result.value;

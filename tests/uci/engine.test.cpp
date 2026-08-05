@@ -386,7 +386,8 @@ TEST_F(EngineTest, PonderSearchWaitsForHitAndPublishesExistingResult) {
     EXPECT_TRUE(execute("ponderhit"));
     EXPECT_TRUE(output.str().empty()) << output.str();
 
-    EXPECT_TRUE(execute("go ponder depth 1 nodes 0"));
+    EXPECT_TRUE(execute("position fen 7R/8/8/8/8/1K6/8/1k6 w - - 0 1"));
+    EXPECT_TRUE(execute("go ponder mate 1 depth 10 nodes 0"));
     ASSERT_TRUE(wait_for_depth(1));
 
     EXPECT_TRUE(threadpool().is_searching());
@@ -400,6 +401,17 @@ TEST_F(EngineTest, PonderSearchWaitsForHitAndPublishesExistingResult) {
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
     EXPECT_EQ(transcript.find("bestmove 0000"), std::string::npos) << transcript;
     EXPECT_EQ(tt.current_generation(), std::uint8_t{1});
+}
+
+TEST_F(EngineTest, MateLimitStopsAfterQualifyingCompletedDepth) {
+    EXPECT_TRUE(execute("position fen 8/8/8/8/8/3K4/4Q3/k7 w - - 0 1"));
+    EXPECT_TRUE(execute("go mate 2 depth 5"));
+    threadpool().wait();
+
+    const RootLine snapshot = ThreadTestAccess::worker(threadpool()).root_snapshot();
+    EXPECT_EQ(snapshot.depth, 3);
+    EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1);
+    EXPECT_NE(output.str().find("score mate 2"), std::string::npos) << output.str();
 }
 
 TEST_F(EngineTest, UnknownInputIsIgnoredAndRecoveredDebugControlsDiagnostics) {

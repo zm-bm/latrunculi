@@ -47,6 +47,8 @@ TEST(SearchLimitsTest, SettersApplyValidLimits) {
     limits.set_winc(12);
     limits.set_binc(13);
     limits.set_movestogo(5);
+    limits.set_mate(2);
+    limits.set_root_moves({Move(E2, E4)});
 
     EXPECT_EQ(limits.depth, 10);
     EXPECT_EQ(limits.movetime, Milliseconds{2000});
@@ -56,6 +58,8 @@ TEST(SearchLimitsTest, SettersApplyValidLimits) {
     EXPECT_EQ(limits.winc, Milliseconds{12});
     EXPECT_EQ(limits.binc, Milliseconds{13});
     EXPECT_EQ(limits.movestogo, 5);
+    EXPECT_EQ(limits.mate, 2);
+    EXPECT_EQ(limits.root_moves, std::vector{Move(E2, E4)});
 }
 
 TEST(SearchLimitsTest, SettersPreserveWideLimits) {
@@ -82,6 +86,7 @@ TEST(SearchLimitsTest, SettersClampOutOfRangeValues) {
     limits.set_winc(-1);
     limits.set_binc(-1);
     limits.set_movestogo(0);
+    limits.set_mate(0);
 
     EXPECT_EQ(limits.depth, SearchLimits::max_depth);
     EXPECT_EQ(limits.movetime, Milliseconds{1});
@@ -90,6 +95,7 @@ TEST(SearchLimitsTest, SettersClampOutOfRangeValues) {
     EXPECT_EQ(limits.winc, Milliseconds{0});
     EXPECT_EQ(limits.binc, Milliseconds{0});
     EXPECT_EQ(limits.movestogo, 1);
+    EXPECT_EQ(limits.mate, 1);
 }
 
 TEST(SearchLimitsTest, DefaultsLeaveOptionalLimitsUnset) {
@@ -103,6 +109,20 @@ TEST(SearchLimitsTest, DefaultsLeaveOptionalLimitsUnset) {
     EXPECT_FALSE(limits.winc.has_value());
     EXPECT_FALSE(limits.binc.has_value());
     EXPECT_FALSE(limits.movestogo.has_value());
+    EXPECT_FALSE(limits.mate.has_value());
+}
+
+TEST(SearchLimitsTest, MateLimitUsesUciMoveDistanceForEitherSide) {
+    SearchLimits limits;
+    limits.set_mate(2);
+
+    EXPECT_TRUE(limits.has_mate_within_limit(eval_value::mate - 3));
+    EXPECT_TRUE(limits.has_mate_within_limit(-eval_value::mate + 4));
+    EXPECT_FALSE(limits.has_mate_within_limit(eval_value::mate - 5));
+    EXPECT_FALSE(limits.has_mate_within_limit(200));
+
+    limits.mate.reset();
+    EXPECT_FALSE(limits.has_mate_within_limit(eval_value::mate - 1));
 }
 
 TEST(SearchLimitsTest, MovetimeOverridesClockBudget) {
