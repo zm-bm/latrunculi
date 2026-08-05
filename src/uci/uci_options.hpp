@@ -23,7 +23,7 @@ struct CheckOption {
 
 struct ButtonOption {};
 
-enum class OptionId { Hash, Threads, Ponder, Debug, ClearHash };
+enum class OptionId { Hash, Threads, Ponder, ClearHash };
 
 struct Options {
     static constexpr int default_threads = 1;
@@ -43,11 +43,6 @@ struct Options {
     };
 
     CheckOption ponder = {
-        .value         = false,
-        .default_value = false,
-    };
-
-    CheckOption debug = {
         .value         = false,
         .default_value = false,
     };

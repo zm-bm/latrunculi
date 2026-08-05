@@ -72,7 +72,7 @@ TEST_F(UciWriterTest, Identify) {
               std::string::npos);
     EXPECT_NE(oss.str().find("option name Clear Hash type button"), std::string::npos);
     EXPECT_NE(oss.str().find("option name Ponder type check default false"), std::string::npos);
-    EXPECT_NE(oss.str().find("option name Debug type check default false"), std::string::npos);
+    EXPECT_EQ(oss.str().find("option name Debug"), std::string::npos);
 }
 
 TEST_F(UciWriterTest, Ready) {

@@ -58,6 +58,7 @@ private:
     uci::Reader  reader;
     uci::Writer  writer;
     uci::Options options;
+    bool         debug_mode{false};
     Board        board;
     ThreadPool   thread_pool;
 

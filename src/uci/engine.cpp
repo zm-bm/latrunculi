@@ -31,12 +31,9 @@ void Engine::unmake_board_move() {
 
 void Engine::apply_option_effect(uci::OptionId option) {
     switch (option) {
-    case uci::OptionId::Hash:    tt.resize(options.hash.value); break;
-    case uci::OptionId::Threads: thread_pool.resize(options.threads.value); break;
-    case uci::OptionId::Ponder:
-    case uci::OptionId::Debug:
-        // Stored options with no immediate subsystem side effect.
-        break;
+    case uci::OptionId::Hash:      tt.resize(options.hash.value); break;
+    case uci::OptionId::Threads:   thread_pool.resize(options.threads.value); break;
+    case uci::OptionId::Ponder:    break;
     case uci::OptionId::ClearHash: tt.clear(); break;
     }
 }
@@ -89,7 +86,15 @@ bool Engine::handle(const uci::UciCommand&) {
 }
 
 bool Engine::handle(const uci::DebugCommand& command) {
-    apply_option_effect(options.set("Debug", command.value, true));
+    if (command.value == "on") {
+        debug_mode = true;
+        writer.info_string("debug mode enabled");
+    } else if (command.value == "off") {
+        debug_mode = false;
+        writer.info_string("debug mode disabled");
+    } else {
+        throw std::runtime_error("invalid debug value: " + command.value);
+    }
     return true;
 }
 
@@ -141,6 +146,8 @@ bool Engine::handle(const uci::PositionCommand& command) {
     }
 
     board = candidate;
+    if (debug_mode)
+        writer.info_string("debug position " + board.to_fen());
     return true;
 }
 

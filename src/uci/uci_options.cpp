@@ -60,10 +60,6 @@ OptionId Options::set(const std::string& name, const std::string& value, bool ha
         require_value("Ponder");
         ponder.set(value);
         return OptionId::Ponder;
-    } else if (option_name == "debug") {
-        require_value("Debug");
-        debug.set(value);
-        return OptionId::Debug;
     } else if (option_name == "clear hash") {
         if (has_value)
             throw std::invalid_argument("Clear Hash does not take a value");

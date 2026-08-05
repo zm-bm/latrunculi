@@ -31,7 +31,6 @@ protected:
     Board&      board() { return engine.board; }
     ThreadPool& threadpool() { return engine.thread_pool; }
     bool        ponder_enabled() const { return engine.options.ponder.value; }
-    bool        debug_enabled() const { return engine.options.debug.value; }
 
     static void expect_same_board_and_history(Board actual, Board expected) {
         while (true) {
@@ -345,18 +344,12 @@ TEST_F(EngineTest, SetOptionNameMatchingIsCaseInsensitive) {
     EXPECT_EQ(threadpool().thread_count(), 2U);
 }
 
-TEST_F(EngineTest, SetOptionCheckValuesAreCaseInsensitive) {
+TEST_F(EngineTest, PonderOptionValuesAreCaseInsensitive) {
     EXPECT_TRUE(execute("setoption name pOnDeR value ON"));
     EXPECT_TRUE(ponder_enabled());
 
     EXPECT_TRUE(execute("setoption name PONDER value oFf"));
     EXPECT_FALSE(ponder_enabled());
-
-    EXPECT_TRUE(execute("setoption name dEbUg value ON"));
-    EXPECT_TRUE(debug_enabled());
-
-    EXPECT_TRUE(execute("setoption name DEBUG value oFf"));
-    EXPECT_FALSE(debug_enabled());
 }
 
 TEST_F(EngineTest, HashOptionResizesAndClearHashClearsTT) {
@@ -397,13 +390,27 @@ TEST_F(EngineTest, PonderSearchWaitsForHitAndPublishesExistingResult) {
     EXPECT_EQ(tt.current_generation(), std::uint8_t{1});
 }
 
-TEST_F(EngineTest, UnknownInputIsIgnoredOrRecoversLaterCommand) {
+TEST_F(EngineTest, UnknownInputIsIgnoredAndRecoveredDebugControlsDiagnostics) {
     EXPECT_TRUE(execute("invalidcommand"));
     EXPECT_TRUE(output.str().empty()) << output.str();
 
-    EXPECT_FALSE(debug_enabled());
     EXPECT_TRUE(execute("joho debug on"));
-    EXPECT_TRUE(debug_enabled());
+    EXPECT_EQ(output.str(), "info string debug mode enabled\n");
+
+    output.str("");
+    output.clear();
+    EXPECT_TRUE(execute("position startpos moves e2e4"));
+    EXPECT_EQ(output.str(),
+              std::format("info string debug position {}\n", board_test::fen::after_e2e4));
+
+    output.str("");
+    output.clear();
+    EXPECT_TRUE(execute("debug off"));
+    EXPECT_EQ(output.str(), "info string debug mode disabled\n");
+
+    output.str("");
+    output.clear();
+    EXPECT_TRUE(execute("position startpos"));
     EXPECT_TRUE(output.str().empty()) << output.str();
 }
 
@@ -463,8 +470,6 @@ INSTANTIATE_TEST_SUITE_P(
         CommandCase{{"invalidcommand"}, board_test::fen::start, ""},
         CommandCase{{"isready"}, board_test::fen::start, "readyok"},
         CommandCase{{"ucinewgame"}, board_test::fen::start, ""},
-        CommandCase{{"debug on"}, board_test::fen::start, ""},
-        CommandCase{{"debug off"}, board_test::fen::start, ""},
         CommandCase{{"position startpos", "move e2e4"}, board_test::fen::after_e2e4, ""},
         CommandCase{{"position startpos", "move e2e4", "move undo"}, board_test::fen::start, ""},
         CommandCase{{"position startpos", "moves"}, board_test::fen::start, "e2e4"},
