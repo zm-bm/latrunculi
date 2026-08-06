@@ -23,25 +23,23 @@ a readable reference, diagnostic implementation, and possible fallback.
 
 ### Source ownership
 
-The evaluation subsystem currently has five files totaling roughly 1,168 lines:
+ORG-001 established consistent evaluation ownership:
 
-- `eval.hpp` contains piece values, piece-square tables, mobility tables, pawn,
-  piece, threat, king-safety, phase, and scaling parameters. The name does not
-  describe its actual role as the parameter repository.
-- `tapered_score.hpp` defines the global `TaperedScore` value type.
-- `types.hpp` defines the global, unscoped `EvalTerm` and `Phase` enums.
-- `evaluator.hpp` contains the global `Evaluator`, nearly all evaluation
-  implementation, debug score structures, and formatter specializations. At
-  roughly 744 lines it mixes the hot evaluator, trace collection, formatting,
-  and test access.
-- `evaluator.cpp` contains only trace-score updates and `EvaluatorDebug`
-  construction.
+- `parameters.hpp` owns material values, piece-square tables, mobility tables,
+  feature weights, masks, phase limits, and typed parameter lookups.
+- `tapered_score.hpp` defines `eval::TaperedScore`.
+- `types.hpp` defines the scoped `eval::Term` and `eval::Phase` enums.
+- `evaluator.hpp` contains `eval::Evaluator`, most evaluation mechanics,
+  diagnostic score structures, and formatter specializations. It still mixes
+  the hot path, trace collection, formatting, and broad test access.
+- `evaluator.cpp` contains diagnostic score updates and
+  `eval::EvaluatorDebug` construction.
 
-Only parameters and masks are currently inside `namespace eval`. Evaluation
-types, the evaluator, its debug companion, and the free `evaluate()` function
-remain global. `EvalValue` and mate/search sentinel values are also global or in
-`eval_value`, but those are shared search score types rather than HCE-owned
-types and need not move with the evaluator.
+All HCE-owned declarations and entry points now live in `namespace eval`.
+`EvalValue` and the mate/search sentinels remain engine-wide types because they
+also represent search scores. Material literals have one authority in
+`parameters.hpp`; Board, SEE, move ordering, search heuristics, and formatting
+consume them through the evaluation parameter API.
 
 ### Evaluation data flow
 
@@ -54,15 +52,16 @@ types and need not move with the evaluator.
 FEN loading builds them through those mutation functions; board copies copy
 them; make/unmake handles captures, promotions, castling, and en passant by
 reusing the same mutations. Null moves leave them unchanged. This is efficient,
-but it creates a direct `board -> eval` dependency through `TaperedScore`,
+but it creates a direct `board -> eval` dependency through
+`eval::TaperedScore`,
 material parameters, and piece-square tables.
 
-Each call to `evaluate(board)` constructs a fresh `Evaluator`. Construction
-initializes king attacks and evaluation zones. Evaluation then runs terms in a
-significant order: pawn and piece terms build attack, mobility, threat, and
-king-attacker state that later king, mobility, and threat terms consume. A
-refactor must not reorder these operations merely because the final score is
-presented as a list of independent terms.
+Each call to `eval::evaluate(board)` constructs a fresh `eval::Evaluator`.
+Construction initializes king attacks and evaluation zones. Evaluation then
+runs terms in a significant order: pawn and piece terms build attack, mobility,
+threat, and king-attacker state that later king, mobility, and threat terms
+consume. A refactor must not reorder these operations merely because the final
+score is presented as a list of independent terms.
 
 The final white-relative tapered score is scaled in the endgame according to
 the stronger side's pawn count, blended by non-pawn-material phase, converted
@@ -72,15 +71,17 @@ to side-to-move perspective, and given a tempo bonus.
 
 Evaluation affects more than leaf scores:
 
-- Search calls `evaluate(board)` at max ply, for razoring and futility static
-  evaluations, for quiescence stand pat, and when resetting the root result.
+- Search calls `eval::evaluate(board)` at max ply, for razoring and futility
+  static evaluations, for quiescence stand pat, and when resetting the root
+  result.
 - Search margins are expressed in the same score scale: aspiration 50,
   futility 250/400/550, and razoring 500/900/1800.
 - Board SEE uses middlegame material values.
 - Noisy-move ordering uses the captured piece's middlegame value.
 - Null-move eligibility uses non-pawn material and the rook value.
-- UCI's local `eval` console command constructs `EvaluatorDebug`, evaluates the
-  position, formats its term table, and writes it to the diagnostic stream.
+- UCI's local `eval` console command constructs `eval::EvaluatorDebug`,
+  evaluates the position, formats its term table, and writes it to the
+  diagnostic stream.
 
 Consequently, changing material values can alter static scores, SEE, move
 ordering, pruning eligibility, and the searched tree. Parameter tuning cannot
@@ -88,12 +89,12 @@ be validated by evaluator unit tests alone.
 
 ### Normal and diagnostic evaluation
 
-`Evaluator` stores an optional `std::function` callback and checks it after each
-term even during normal search, where no trace is requested. `EvaluatorDebug`
-installs a callback, owns a score tracker, and relies on friendship so its
-formatter can inspect evaluator internals. The UCI diagnostic output is human
-readable, but there is no stable structured trace suitable for corpus snapshots
-or a tuner.
+`eval::Evaluator` stores an optional `std::function` callback and checks it
+after each term even during normal search, where no trace is requested.
+`eval::EvaluatorDebug` installs a callback, owns a score tracker, and relies on
+friendship so its formatter can inspect evaluator internals. The UCI diagnostic
+output is human readable, but there is no stable structured trace suitable for
+corpus snapshots or a tuner.
 
 ### Tests and measurement
 
@@ -105,13 +106,13 @@ The current 25 evaluation tests provide meaningful coverage of:
   danger, phase, scaling, and tapering;
 - presence of stable headings in debug output.
 
-However, the 514-line evaluator test uses a production `EvaluatorTest` friend
-to call many private methods. Many assertions are exact weighted scores derived
-from current constants. Those are useful golden checks for a behavior-preserving
-refactor, but they will become maintenance noise if treated as permanent
-correctness requirements during tuning. Full-evaluator color/mirror symmetry,
-trace-total consistency, and independent recomputation of Board's incremental
-material/PSQT state are not directly covered.
+However, the evaluator test is more than 500 lines and uses a production
+`EvaluatorTest` friend to call many private methods. Many assertions are exact
+weighted scores derived from current constants. Those are useful golden checks
+for a behavior-preserving refactor, but they will become maintenance noise if
+treated as permanent correctness requirements during tuning. Full-evaluator
+color/mirror symmetry, trace-total consistency, and independent recomputation
+of Board's incremental material/PSQT state are not directly covered.
 
 The benchmark tooling currently provides:
 
@@ -130,55 +131,15 @@ All findings in this phase must preserve exact scores, trace text unless an
 explicit compatibility decision says otherwise, and deterministic fixed-depth
 search results.
 
-### ORG-001 — Complete evaluation namespace and file ownership
+### Completed foundation — ORG-001
 
-**Motivation and evidence**
+Evaluation namespace and parameter ownership are complete. The change renamed
+the parameter repository, moved HCE-owned types and entry points into `eval`,
+made terms and phases scoped enums, and consolidated material literals without
+changing diagnostic output or deterministic fixed-depth search results.
 
-The directory and code namespace disagree. Generic global names such as
-`Evaluator`, `TaperedScore`, `EvalTerm`, and `Phase` are owned by evaluation,
-while `eval.hpp` is actually a parameter table. Material values are split
-between `core/constants.hpp` and thin evaluation wrappers.
-
-**Intended outcome**
-
-- Put HCE-owned types and operations under `namespace eval`.
-- Give the parameter repository a descriptive name such as `parameters.hpp`.
-- Replace global unscoped evaluation enums with scoped or otherwise
-  namespace-owned terms and phases without changing indices or table layout.
-- Make external evaluation calls explicit (`eval::evaluate` or the selected
-  concrete HCE entry point).
-- Keep shared search score types (`EvalValue` and mate sentinels) outside the
-  HCE namespace.
-- Establish one authoritative material-value definition even though SEE,
-  ordering, Board, and evaluation all consume it.
-
-**Likely components**
-
-`src/eval`, material constants in `src/core/constants.hpp`, Board's incremental
-score declarations, search and UCI call sites, and evaluation/board/search
-tests.
-
-**Dependencies and ordering**
-
-First roadmap change. It should precede file splitting and tuning so later APIs
-use final ownership names.
-
-**Tests and measurement**
-
-Run the complete suite, compare a representative position snapshot before and
-after, and run identical fixed-depth search benchmarks. Formatting and UCI
-diagnostic text should remain unchanged unless separately approved.
-
-**Risks**
-
-Accidentally changing signed piece-square indexing, phase indices, material
-authority, formatter specialization names, or the search score scale.
-
-**Completion criteria**
-
-Evaluation-owned declarations are in `eval`; the parameter filename describes
-its role; no duplicate material authorities remain; every corpus position and
-fixed-depth search result is unchanged.
+ORG-001 is retained only as historical context; it no longer needs a separate
+plan.
 
 ### ORG-002 — Separate hot evaluation from tracing and formatting
 
@@ -208,8 +169,8 @@ handler, and evaluator/UCI tests.
 
 **Dependencies and ordering**
 
-After ORG-001. The structured trace becomes a prerequisite for INFRA-001 and
-later tuning diagnostics.
+ORG-001 is complete. This is the next roadmap change; its structured trace is a
+prerequisite for INFRA-001 and later tuning diagnostics.
 
 **Tests and measurement**
 
@@ -233,9 +194,9 @@ internals; values and output remain unchanged.
 
 **Motivation and evidence**
 
-Nearly all implementation is in a 744-line header, including non-template
-methods and diagnostics. Tests use a broad production friend and one 514-line
-test file to reach private feature mechanics.
+Nearly all implementation is in a header of more than 750 lines, including
+non-template methods and diagnostics. Tests use a broad production friend and
+one test file of more than 500 lines to reach private feature mechanics.
 
 **Intended outcome**
 
@@ -309,8 +270,8 @@ Board snapshot support, and Board/evaluation tests.
 
 **Dependencies and ordering**
 
-After ORG-001 establishes ownership; it may run before or after ORG-002 but must
-remain a separate focused change.
+ORG-001 has established ownership. This may run before or after ORG-002 but
+must remain a separate focused change.
 
 **Tests and measurement**
 
@@ -623,6 +584,82 @@ Each retained optimization has profiler evidence, exact evaluation equivalence,
 and a repeatable throughput/search improvement without reducing maintainability
 disproportionately.
 
+### PERF-002 — Add a worker-local pawn evaluation hash
+
+**Motivation and evidence**
+
+Pawn structure changes less frequently than complete positions and often
+recurs through transpositions. `Evaluator::evaluate_pawns()` currently
+recomputes isolated, backward, and doubled-pawn scores on every evaluation.
+It also initializes pawn attacks and double attacks that later mobility,
+threat, and king-safety terms consume, so caching only its returned score would
+be incomplete.
+
+Dedicated pawn caches are an established HCE technique in the reference
+engines: Minic uses a per-thread pawn table, Ethereal uses a per-thread
+pawn-and-king table, and CPW has a pawn table separate from its search TT.
+Latrunculi's `search::Worker` already provides the natural non-shared lifetime
+for a small cache without adding synchronization to the evaluation hot path.
+
+**Intended outcome**
+
+- Add a fixed-size, worker-local pawn evaluation table keyed only by the white
+  and black pawn placement, not by the complete position key.
+- Cache the complete pawn result needed by later evaluation: the tapered pawn
+  score for both sides and the derived pawn attack/double-attack state.
+- Define explicit replacement, collision-verification, sizing, clearing, and
+  search-to-search lifetime policies.
+- Pass the cache through the normal search evaluation path while keeping
+  standalone and diagnostic evaluation usable without hidden global state.
+- Preserve exact evaluation values, traces, fixed-depth search results, and
+  thread independence on both cache hits and misses.
+- Measure hit rate, probe cost, memory per worker, isolated evaluation
+  throughput, and whole-search performance before retaining the design.
+- Do not add a dedicated complete-position evaluation hash or repurpose the
+  search transposition table as part of this finding.
+
+**Likely components**
+
+A focused pawn-table type under `src/eval`, evaluator input/state boundaries,
+`search::Worker` ownership and evaluation call sites, optional instrumentation,
+and evaluation/search tests and benchmarks. Key generation may require a
+pawn-only key maintained by `Board` or a verified hash derived from the two
+pawn bitboards; the implementation plan must compare those choices and protect
+make/unmake correctness if Board state is extended.
+
+**Dependencies and ordering**
+
+Requires ORG-002 so cached results and structured traces share one explicit
+pawn-result representation, ORG-004 if Board gains an incremental pawn key,
+and INFRA-002 for meaningful measurements. Perform after TUNE-002 stabilizes
+the pawn feature set. PERF-001 should first establish profile evidence and may
+remove unrelated hot-path costs, but this remains a separate focused change.
+
+**Tests and measurement**
+
+Exercise hit, miss, replacement/collision, and clear/lifetime behavior; compare
+cached and uncached scores and structured traces over the corpus; verify that
+all pawn-derived attack state is identical; cover Board make/unmake if an
+incremental pawn key is selected; run multi-worker sanitizer coverage; require
+deterministic fixed-depth score, nodes, PV, and best-move equivalence. Report
+cache hit rate and memory per worker alongside isolated and whole-search
+benchmark results.
+
+**Risks**
+
+Using the full position key and receiving little reuse, accepting an
+unverified collision, restoring a score without its derived attacks, stale
+entries after parameter changes, excessive per-worker memory, or introducing
+shared-table synchronization that costs more than recomputation.
+
+**Completion criteria**
+
+Every hit is behaviorally indistinguishable from recomputing pawn evaluation;
+the table has explicit ownership and collision/lifetime policies; tests cover
+the full cached result rather than only its score; memory and hit-rate data are
+recorded; and the retained implementation produces a repeatable evaluation or
+search-performance improvement without changing chess behavior.
+
 ## Phase 5: Mathematical Tuning
 
 ### MATH-001 — Export parameter-independent features and construct datasets
@@ -791,16 +828,16 @@ Board/evaluator state boundary, and completed rough/mathematical HCE tuning.
 
 ## Recommended Execution Sequence
 
-1. **ORG-001** — complete namespace and parameter ownership.
-2. **ORG-002** — separate normal evaluation from structured tracing/formatting.
-3. **ORG-003** — right-size implementation and test boundaries.
-4. **ORG-004** — document, narrow, and independently validate Board's HCE cache.
-5. **INFRA-001** — establish the evaluation corpus and golden trace snapshots.
-6. **INFRA-002** — add isolated evaluation and downstream search benchmarks.
-7. **INFRA-003** — establish reproducible engine matches.
-8. **TUNE-001** — audit and correct feature semantics.
-9. **TUNE-002** — perform staged human-guided rough tuning.
-10. **PERF-001** — profile and optimize the retained HCE with exact equivalence.
+1. **ORG-002** — separate normal evaluation from structured tracing/formatting.
+2. **ORG-003** — right-size implementation and test boundaries.
+3. **ORG-004** — document, narrow, and independently validate Board's HCE cache.
+4. **INFRA-001** — establish the evaluation corpus and golden trace snapshots.
+5. **INFRA-002** — add isolated evaluation and downstream search benchmarks.
+6. **INFRA-003** — establish reproducible engine matches.
+7. **TUNE-001** — audit and correct feature semantics.
+8. **TUNE-002** — perform staged human-guided rough tuning.
+9. **PERF-001** — profile and optimize the retained HCE with exact equivalence.
+10. **PERF-002** — add and measure a worker-local pawn evaluation hash.
 11. **MATH-001** — export raw features and build leakage-resistant datasets.
 12. **MATH-002** — tune linear parameters with held-out validation.
 13. **MATH-003** — tune nonlinear and search-coupled parameters separately.
@@ -810,11 +847,10 @@ Board/evaluator state boundary, and completed rough/mathematical HCE tuning.
 
 | Findings | Evaluation values | Search behavior | Required evidence |
 |---|---|---|---|
-| ORG-001 through ORG-004 | Exact preservation | Exact preservation at fixed depth | Corpus checksum, full tests, fixed-depth comparison |
+| ORG-002 through ORG-004 | Exact preservation | Exact preservation at fixed depth | Corpus checksum, full tests, fixed-depth comparison |
 | INFRA-001 through INFRA-003 | No intentional change | No intentional change | Tool/schema tests and reproducibility |
 | TUNE-001 correctness fixes | Intentional only for confirmed defects | May change | Direct regression, corpus diff, search/match checks |
 | TUNE-002 | Intentionally changes | Intentionally may change | Trace rationale, corpus diff, fixed-depth suite, matches |
-| PERF-001 | Exact preservation | Exact preservation at fixed depth | Score checksum, profiler, throughput and search benchmark |
+| PERF-001 and PERF-002 | Exact preservation | Exact preservation at fixed depth | Score/trace checksum, profiler/cache metrics, throughput and search benchmark |
 | MATH-001 | No normal-path change | No normal-path change | Feature reconstruction and dataset validation |
 | MATH-002 and MATH-003 | Intentionally changes | Intentionally may change | Held-out metrics, coefficient sanity, statistical matches |
-
