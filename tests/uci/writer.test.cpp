@@ -11,6 +11,7 @@
 #include "search/root_line.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
+#include "uci/options.hpp"
 
 namespace {
 
@@ -89,10 +90,6 @@ TEST_F(UciWriterTest, Bestmove) {
 TEST_F(UciWriterTest, BestmoveFormatsNullMoveAsUciNullMove) {
     writer.report_best_move(NULL_MOVE);
     EXPECT_EQ(oss.str(), "bestmove 0000\n");
-}
-
-TEST_F(UciWriterTest, FormatBestmoveFormatsNullMoveAsUciNullMove) {
-    EXPECT_EQ(uci::format_bestmove(NULL_MOVE), "bestmove 0000");
 }
 
 TEST_F(UciWriterTest, SearchProgressWritesScoreFormats) {

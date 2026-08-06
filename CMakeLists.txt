@@ -33,8 +33,9 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/search/search_worker.cpp
     src/search/tt.cpp
     src/uci/engine.cpp
-    src/uci/input.cpp
     src/uci/options.cpp
+    src/uci/parser.cpp
+    src/uci/reader.cpp
     src/uci/writer.cpp
 )
 
@@ -95,8 +96,9 @@ if(BUILD_TESTING)
         tests/uci/engine_options.test.cpp
         tests/uci/engine_position.test.cpp
         tests/uci/engine_search.test.cpp
-        tests/uci/input.test.cpp
         tests/uci/options.test.cpp
+        tests/uci/parser.test.cpp
+        tests/uci/reader.test.cpp
         tests/uci/writer.test.cpp
     )
 

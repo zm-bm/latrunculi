@@ -1,12 +1,13 @@
 #include "uci/writer.hpp"
 
+#include <cstdlib>
+#include <format>
+
 #include "board/board.hpp"
 #include "board/notation.hpp"
 #include "core/constants.hpp"
 #include "search/root_line.hpp"
-
-#include <cstdlib>
-#include <format>
+#include "uci/options.hpp"
 
 namespace uci {
 
@@ -68,8 +69,6 @@ std::string format_search_info(const RootLine& line,
     return info;
 }
 
-} // namespace
-
 std::string format_uci_move(Move move) {
     return move.is_null() ? "0000" : move.str();
 }
@@ -106,10 +105,6 @@ std::string format_identification(const Options& options) {
                        format_option("Ponder", options.ponder));
 }
 
-std::string format_ready() {
-    return "readyok";
-}
-
 std::string format_bestmove(Move move) {
     return std::format("bestmove {}", format_uci_move(move));
 }
@@ -122,6 +117,8 @@ std::string format_info_string(std::string_view str) {
     }
     return std::format("info string {}", sanitized);
 }
+
+} // namespace
 
 void Writer::write_text(std::ostream& stream, std::string_view text) const {
     std::lock_guard<std::mutex> lock(output_mutex);
@@ -152,17 +149,16 @@ Available commands:
   moves         - Show all legal moves
   d / board     - Display the current board position
   eval          - Evaluate the current position)";
-    write_line(err, format_str);
+    write_line(diagnostics, format_str);
 }
 
 void Writer::identify(const Options& options) const {
     const std::string text = format_identification(options);
-    write_line(out, text);
+    write_line(output, text);
 }
 
 void Writer::ready() const {
-    const std::string text = format_ready();
-    write_line(out, text);
+    write_line(output, "readyok");
 }
 
 void Writer::report_progress(const RootLine& line,
@@ -170,12 +166,12 @@ void Writer::report_progress(const RootLine& line,
                              NodeCount       nodes,
                              Milliseconds    time) {
     const std::string text = format_search_info(line, root_board, nodes, time);
-    write_line(out, text);
+    write_line(output, text);
 }
 
 void Writer::report_best_move(Move move) {
     const std::string text = format_bestmove(move);
-    write_line(out, text);
+    write_line(output, text);
 }
 
 void Writer::report_diagnostic(std::string_view text) {
@@ -184,15 +180,15 @@ void Writer::report_diagnostic(std::string_view text) {
 
 void Writer::info_string(std::string_view str) const {
     const std::string text = format_info_string(str);
-    write_line(out, text);
+    write_line(output, text);
 }
 
 void Writer::diagnostic_line(std::string_view text) const {
-    write_line(err, text);
+    write_line(diagnostics, text);
 }
 
 void Writer::diagnostic_text(std::string_view text) const {
-    write_text(err, text);
+    write_text(diagnostics, text);
 }
 
 } // namespace uci

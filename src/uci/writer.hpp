@@ -2,33 +2,25 @@
 
 #include <mutex>
 #include <ostream>
-#include <string>
 #include <string_view>
 
 #include "core/move.hpp"
 #include "core/types.hpp"
 #include "search/search_reporter.hpp"
-#include "uci/options.hpp"
 
 class Board;
 struct RootLine;
 
 namespace uci {
 
-// UCI wire-format helpers.
-std::string format_uci_move(Move move);
-std::string format_option(std::string_view name, const SpinOption& opt);
-std::string format_option(std::string_view name, const CheckOption& opt);
-std::string format_option(std::string_view name, const ButtonOption& opt);
-std::string format_identification(const Options& options);
-std::string format_ready();
-std::string format_bestmove(Move move);
-std::string format_info_string(std::string_view str);
+struct Options;
 
 // UCI stdout writer and diagnostic stderr writer.
 class Writer final : public SearchReporter {
 public:
-    explicit Writer(std::ostream& out, std::ostream& err) : out(out), err(err) {}
+    explicit Writer(std::ostream& output_stream, std::ostream& diagnostic_stream)
+        : output(output_stream),
+          diagnostics(diagnostic_stream) {}
     Writer(const Writer&)            = delete;
     Writer& operator=(const Writer&) = delete;
     Writer(Writer&&)                 = delete;
@@ -52,8 +44,8 @@ private:
     void write_text(std::ostream& stream, std::string_view text) const;
     void write_line(std::ostream& stream, std::string_view text) const;
 
-    std::ostream& out;
-    std::ostream& err;
+    std::ostream& output;
+    std::ostream& diagnostics;
 
     mutable std::mutex output_mutex;
 };

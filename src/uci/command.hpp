@@ -1,9 +1,7 @@
 #pragma once
 
-#include <istream>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -83,18 +81,5 @@ using Command = std::variant<EmptyCommand,
                              ExitCommand,
                              ConsoleCommand,
                              UnknownCommand>;
-
-Command parse_command(std::string_view line);
-
-// UCI stdin reader; parsing stays in parse_command().
-class Reader {
-public:
-    explicit Reader(std::istream& in) : in(in) {}
-
-    std::optional<Command> read_command();
-
-private:
-    std::istream& in;
-};
 
 } // namespace uci

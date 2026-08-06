@@ -7,8 +7,9 @@
 
 #include "board/board.hpp"
 #include "search/search_thread_pool.hpp"
-#include "uci/input.hpp"
+#include "uci/command.hpp"
 #include "uci/options.hpp"
+#include "uci/reader.hpp"
 #include "uci/writer.hpp"
 
 class EngineTest;
@@ -18,7 +19,7 @@ namespace uci {
 class Engine {
 public:
     Engine() = delete;
-    Engine(std::ostream& out, std::ostream& err, std::istream& source);
+    Engine(std::ostream& output, std::ostream& diagnostics, std::istream& input);
     void loop();
 
 private:

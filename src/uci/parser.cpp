@@ -1,4 +1,4 @@
-#include "uci/input.hpp"
+#include "uci/parser.hpp"
 
 #include <charconv>
 #include <concepts>
@@ -241,13 +241,6 @@ Command parse_command(std::string_view line) {
     }
 
     return UnknownCommand{.token = tokens.front()};
-}
-
-std::optional<Command> Reader::read_command() {
-    std::string line;
-    if (!std::getline(in, line))
-        return std::nullopt;
-    return parse_command(line);
 }
 
 } // namespace uci

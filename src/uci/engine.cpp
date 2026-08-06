@@ -15,43 +15,14 @@
 #include "movegen/perft.hpp"
 #include "search/search_limits.hpp"
 #include "search/tt.hpp"
+#include "uci/parser.hpp"
 
 namespace uci {
 
-Engine::Engine(std::ostream& out, std::ostream& err, std::istream& source)
-    : reader(source),
-      writer(out, err),
+Engine::Engine(std::ostream& output, std::ostream& diagnostics, std::istream& input)
+    : reader(input),
+      writer(output, diagnostics),
       thread_pool(options.threads.value, writer) {}
-
-void Engine::make_board_move(Move move) {
-    board.make(move);
-}
-
-void Engine::unmake_board_move() {
-    if (!board.can_unmake())
-        throw std::runtime_error("no move to undo");
-
-    board.unmake();
-}
-
-void Engine::apply_option_effect(OptionId option, const Options& candidate) {
-    switch (option) {
-    case OptionId::Hash: tt.resize(candidate.hash.value); break;
-    case OptionId::Threads:
-        if (!thread_pool.resize(candidate.threads.value))
-            throw std::runtime_error("failed to resize thread pool");
-        break;
-    case OptionId::Ponder:    break;
-    case OptionId::ClearHash: tt.clear(); break;
-    }
-}
-
-void Engine::require_idle(std::string_view action) const {
-    // Active searches retain their original board and configuration until completion.
-    // Lifecycle-safe protocol commands are handled without this guard.
-    if (thread_pool.is_searching())
-        throw std::runtime_error("cannot " + std::string(action) + " while search is in progress");
-}
 
 void Engine::loop() {
     while (auto command = reader.read_command()) {
@@ -86,6 +57,10 @@ bool Engine::execute(const Command& command) noexcept {
 
 bool Engine::dispatch(const Command& command) {
     return std::visit([this](const auto& parsed) { return handle(parsed); }, command);
+}
+
+bool Engine::handle(const EmptyCommand&) {
+    return true;
 }
 
 bool Engine::handle(const UciCommand&) {
@@ -206,11 +181,6 @@ bool Engine::handle(const StopCommand&) {
     return true;
 }
 
-bool Engine::handle(const QuitCommand&) {
-    thread_pool.shutdown();
-    return false;
-}
-
 bool Engine::handle(const PonderHitCommand&) {
     thread_pool.leave_pondering();
     return true;
@@ -220,16 +190,13 @@ bool Engine::handle(const RegisterCommand&) {
     return true;
 }
 
+bool Engine::handle(const QuitCommand&) {
+    thread_pool.shutdown();
+    return false;
+}
+
 bool Engine::handle(const ExitCommand&) {
     return handle(QuitCommand{});
-}
-
-bool Engine::handle(const UnknownCommand&) {
-    return true;
-}
-
-bool Engine::handle(const EmptyCommand&) {
-    return true;
 }
 
 bool Engine::handle(const ConsoleCommand& command) {
@@ -247,6 +214,10 @@ bool Engine::handle(const ConsoleCommand& command) {
     return true;
 }
 
+bool Engine::handle(const UnknownCommand&) {
+    return true;
+}
+
 bool Engine::help() {
     writer.help();
     return true;
@@ -261,6 +232,17 @@ bool Engine::evaluate() {
     EvaluatorDebug e{board};
     e.evaluate();
     writer.diagnostic_line(std::format("{}", e));
+    return true;
+}
+
+bool Engine::perft(const std::string& arguments) {
+    std::istringstream stream(arguments);
+    int                depth;
+
+    if (stream >> depth) {
+        writer.diagnostic_text(format_perft_result(perft_root(board, depth)));
+    }
+
     return true;
 }
 
@@ -287,26 +269,15 @@ bool Engine::moves() {
     for (auto& move : movelist) {
         if (!board.is_legal_pseudo_move(move))
             continue;
-        writer.diagnostic_line(format_uci_move(move));
+        writer.diagnostic_line(move.str());
     }
-    return true;
-}
-
-bool Engine::perft(const std::string& arguments) {
-    std::istringstream stream(arguments);
-    int                depth;
-
-    if (stream >> depth) {
-        writer.diagnostic_text(format_perft_result(perft_root(board, depth)));
-    }
-
     return true;
 }
 
 Move Engine::find_legal_move(const Board& position, const std::string& token) const {
     auto movelist = movegen::generate_pseudo_legal(position);
     for (auto& move : movelist) {
-        if (format_uci_move(move) == token && position.is_legal_pseudo_move(move)) {
+        if (move.str() == token && position.is_legal_pseudo_move(move)) {
             return move;
         }
     }
@@ -326,6 +297,36 @@ std::vector<Move> Engine::resolve_searchmoves(const std::vector<std::string>& to
             root_moves.push_back(move);
     }
     return root_moves;
+}
+
+void Engine::make_board_move(Move move) {
+    board.make(move);
+}
+
+void Engine::unmake_board_move() {
+    if (!board.can_unmake())
+        throw std::runtime_error("no move to undo");
+
+    board.unmake();
+}
+
+void Engine::apply_option_effect(OptionId option, const Options& candidate) {
+    switch (option) {
+    case OptionId::Hash: tt.resize(candidate.hash.value); break;
+    case OptionId::Threads:
+        if (!thread_pool.resize(candidate.threads.value))
+            throw std::runtime_error("failed to resize thread pool");
+        break;
+    case OptionId::Ponder:    break;
+    case OptionId::ClearHash: tt.clear(); break;
+    }
+}
+
+void Engine::require_idle(std::string_view action) const {
+    // Active searches retain their original board and configuration until completion.
+    // Lifecycle-safe protocol commands are handled without this guard.
+    if (thread_pool.is_searching())
+        throw std::runtime_error("cannot " + std::string(action) + " while search is in progress");
 }
 
 } // namespace uci

@@ -1,7 +1,6 @@
-#include "uci/input.hpp"
+#include "uci/parser.hpp"
 
 #include <limits>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -19,38 +18,7 @@ T parse_as(std::string_view line) {
 
 } // namespace
 
-TEST(UciInputTest, ReaderPreservesBlankLineAsEmptyCommand) {
-    std::istringstream input{" \t \n"};
-    uci::Reader        reader{input};
-
-    auto command = reader.read_command();
-
-    ASSERT_TRUE(command.has_value());
-    EXPECT_TRUE(std::holds_alternative<uci::EmptyCommand>(*command));
-}
-
-TEST(UciInputTest, ReaderReturnsNulloptAtEof) {
-    std::istringstream input;
-    uci::Reader        reader{input};
-
-    EXPECT_FALSE(reader.read_command().has_value());
-}
-
-TEST(UciInputTest, ReaderReadsMultipleLinesInOrder) {
-    std::istringstream input{"isready\nquit\n"};
-    uci::Reader        reader{input};
-
-    auto first  = reader.read_command();
-    auto second = reader.read_command();
-
-    ASSERT_TRUE(first.has_value());
-    ASSERT_TRUE(second.has_value());
-    EXPECT_TRUE(std::holds_alternative<uci::IsReadyCommand>(*first));
-    EXPECT_TRUE(std::holds_alternative<uci::QuitCommand>(*second));
-    EXPECT_FALSE(reader.read_command().has_value());
-}
-
-TEST(UciInputTest, ParsesCoreUciCommands) {
+TEST(UciParserTest, ParsesCoreUciCommands) {
     EXPECT_TRUE(std::holds_alternative<uci::UciCommand>(uci::parse_command("uci")));
     EXPECT_TRUE(std::holds_alternative<uci::DebugCommand>(uci::parse_command("debug on")));
     EXPECT_TRUE(std::holds_alternative<uci::IsReadyCommand>(uci::parse_command("isready")));
@@ -68,7 +36,7 @@ TEST(UciInputTest, ParsesCoreUciCommands) {
     EXPECT_TRUE(std::holds_alternative<uci::EmptyCommand>(uci::parse_command(" \t ")));
 }
 
-TEST(UciInputTest, ParsesSetOptionNameAndValueWithSpaces) {
+TEST(UciParserTest, ParsesSetOptionNameAndValueWithSpaces) {
     const auto command =
         parse_as<uci::SetOptionCommand>("setoption name Clear Hash value reset now");
 
@@ -77,7 +45,7 @@ TEST(UciInputTest, ParsesSetOptionNameAndValueWithSpaces) {
     EXPECT_EQ(command.value, "reset now");
 }
 
-TEST(UciInputTest, ParsesSetOptionButtonWithoutValue) {
+TEST(UciParserTest, ParsesSetOptionButtonWithoutValue) {
     const auto command = parse_as<uci::SetOptionCommand>("setoption name Clear Hash");
 
     EXPECT_EQ(command.name, "Clear Hash");
@@ -85,7 +53,7 @@ TEST(UciInputTest, ParsesSetOptionButtonWithoutValue) {
     EXPECT_TRUE(command.value.empty());
 }
 
-TEST(UciInputTest, ParsesPositionStartposMoves) {
+TEST(UciParserTest, ParsesPositionStartposMoves) {
     const auto command = parse_as<uci::PositionCommand>("\tposition\tstartpos\tmoves\te2e4 e7e5 ");
 
     EXPECT_EQ(command.source, uci::PositionCommand::Source::Startpos);
@@ -95,7 +63,7 @@ TEST(UciInputTest, ParsesPositionStartposMoves) {
     EXPECT_EQ(command.moves[1], "e7e5");
 }
 
-TEST(UciInputTest, ParsesPositionFenMoves) {
+TEST(UciParserTest, ParsesPositionFenMoves) {
     const auto command =
         parse_as<uci::PositionCommand>("position fen 8/8/8/8/8/8/8/8 w - - 0 1 moves a1a2");
 
@@ -105,7 +73,7 @@ TEST(UciInputTest, ParsesPositionFenMoves) {
     EXPECT_EQ(command.moves[0], "a1a2");
 }
 
-TEST(UciInputTest, ParsesGoSupportedLimits) {
+TEST(UciParserTest, ParsesGoSupportedLimits) {
     const auto command = parse_as<uci::GoCommand>(
         "go depth 3 movetime 20 nodes 1000 wtime 3000 btime 4000 winc 12 binc 13 movestogo 5");
 
@@ -119,7 +87,7 @@ TEST(UciInputTest, ParsesGoSupportedLimits) {
     EXPECT_EQ(command.limits.movestogo, 5);
 }
 
-TEST(UciInputTest, ParsesGoNumericBoundaries) {
+TEST(UciParserTest, ParsesGoNumericBoundaries) {
     using Rep = Milliseconds::rep;
 
     constexpr NodeCount wide_value = NodeCount{1} << 40;
@@ -141,7 +109,7 @@ TEST(UciInputTest, ParsesGoNumericBoundaries) {
     EXPECT_EQ(signed_limits.limits.movetime, std::numeric_limits<Rep>::max());
 }
 
-TEST(UciInputTest, RejectsInvalidGoNumericValuesWithoutConsumingLaterKeywords) {
+TEST(UciParserTest, RejectsInvalidGoNumericValuesWithoutConsumingLaterKeywords) {
     constexpr std::string_view invalid_values[] = {
         "-1",
         "-0",
@@ -177,7 +145,7 @@ TEST(UciInputTest, RejectsInvalidGoNumericValuesWithoutConsumingLaterKeywords) {
     EXPECT_TRUE(recovery.limits.unknown_tokens.empty());
 }
 
-TEST(UciInputTest, RecordsUnsupportedGoAndTerminalSearchmoves) {
+TEST(UciParserTest, RecordsUnsupportedGoAndTerminalSearchmoves) {
     const auto command =
         parse_as<uci::GoCommand>("go infinite ponder mate 4 unknown searchmoves e2e4 d2d4");
 
@@ -202,21 +170,21 @@ TEST(UciInputTest, RecordsUnsupportedGoAndTerminalSearchmoves) {
     EXPECT_FALSE(terminal.limits.depth.has_value());
 }
 
-TEST(UciInputTest, ParsesDebugExtensionCommands) {
+TEST(UciParserTest, ParsesDebugExtensionCommands) {
     const auto command = parse_as<uci::ConsoleCommand>("perft 3");
 
     EXPECT_EQ(command.name, uci::ConsoleCommand::Name::Perft);
     EXPECT_EQ(command.arguments, "3");
 }
 
-TEST(UciInputTest, ParsesBoardDisplayAlias) {
+TEST(UciParserTest, ParsesBoardDisplayAlias) {
     const auto command = parse_as<uci::ConsoleCommand>("d");
 
     EXPECT_EQ(command.name, uci::ConsoleCommand::Name::Board);
     EXPECT_TRUE(command.arguments.empty());
 }
 
-TEST(UciInputTest, UnknownPrefixesRecoverWithoutRedispatchingPayload) {
+TEST(UciParserTest, UnknownPrefixesRecoverWithoutRedispatchingPayload) {
     EXPECT_TRUE(
         std::holds_alternative<uci::IsReadyCommand>(uci::parse_command("noise ignored isready")));
 
