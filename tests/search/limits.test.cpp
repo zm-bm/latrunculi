@@ -1,12 +1,8 @@
-#include <array>
 #include <limits>
-#include <string_view>
 
 #include <gtest/gtest.h>
 
 #include "search/limits.hpp"
-#include "search/principal_variation.hpp"
-#include "search/root_line.hpp"
 
 namespace search {
 
@@ -16,24 +12,6 @@ void expect_allocated_time(const Limits& limits, Color side, Milliseconds expect
     auto allocated = limits.allocated_time(side);
     ASSERT_TRUE(allocated.has_value());
     EXPECT_EQ(*allocated, expected);
-}
-
-PrincipalVariation pv_for_move(Move move) {
-    PrincipalVariation pv;
-    PrincipalVariation child;
-    pv.update(move, child);
-    return pv;
-}
-
-PrincipalVariation pv_for_line(Move first, Move second) {
-    PrincipalVariation child = pv_for_move(second);
-    PrincipalVariation pv;
-    pv.update(first, child);
-    return pv;
-}
-
-RootLine completed_root_line(Move move, EvalValue value, int depth) {
-    return RootLine{.root_move = move, .value = value, .depth = depth, .completed = true};
 }
 
 } // namespace
@@ -181,77 +159,6 @@ TEST(SearchLimitsTest, ClockBudgetSaturatesWideTimeAndIncrement) {
     limits.set_movestogo(1);
 
     expect_allocated_time(limits, WHITE, Milliseconds{max_time - 50});
-}
-
-TEST(PrincipalVariationTest, EqualityUsesActiveMoves) {
-    EXPECT_EQ(pv_for_move(Move(E2, E4)), pv_for_move(Move(E2, E4)));
-    EXPECT_EQ(pv_for_line(Move(E2, E4), Move(E7, E5)), pv_for_line(Move(E2, E4), Move(E7, E5)));
-}
-
-TEST(PrincipalVariationTest, EqualityRejectsDifferentLines) {
-    EXPECT_NE(pv_for_move(Move(E2, E4)), pv_for_move(Move(D2, D4)));
-    EXPECT_NE(pv_for_move(Move(E2, E4)), pv_for_line(Move(E2, E4), Move(E7, E5)));
-}
-
-TEST(PrincipalVariationTest, EqualityIgnoresInactiveStorage) {
-    PrincipalVariation shortened = pv_for_line(Move(E2, E4), Move(E7, E5));
-    shortened                    = pv_for_move(Move(E2, E4));
-
-    EXPECT_EQ(shortened, pv_for_move(Move(E2, E4)));
-}
-
-TEST(RootLineTest, SelectsByDepthValueAndMoveBits) {
-    struct Case {
-        std::string_view        name;
-        RootLine                fallback;
-        std::array<RootLine, 2> candidates;
-        Move                    expected_move;
-    };
-
-    const std::array cases{
-        Case{
-            .name          = "greater depth",
-            .fallback      = completed_root_line(Move(E2, E4), 50, 2),
-            .candidates    = {completed_root_line(Move(G1, F3), 0, 3),
-                              completed_root_line(Move(D2, D4), 200, 1)},
-            .expected_move = Move(G1, F3),
-        },
-        Case{
-            .name          = "greater value at equal depth",
-            .fallback      = completed_root_line(Move(E2, E4), 10, 3),
-            .candidates    = {completed_root_line(Move(G1, F3), 25, 3),
-                              completed_root_line(Move(D2, D4), 20, 3)},
-            .expected_move = Move(G1, F3),
-        },
-        Case{
-            .name          = "lower move bits at equal depth and value",
-            .fallback      = completed_root_line(Move(H2, H3), 10, 3),
-            .candidates    = {completed_root_line(Move(G2, G3), 10, 3),
-                              completed_root_line(Move(A2, A3), 10, 3)},
-            .expected_move = Move(A2, A3),
-        },
-    };
-
-    for (const auto& tc : cases) {
-        SCOPED_TRACE(tc.name);
-        const RootLine selected = select_best_root_line(tc.fallback, tc.candidates);
-        EXPECT_EQ(selected.root_move, tc.expected_move);
-    }
-}
-
-TEST(RootLineTest, PreservesFallbackWhenCandidatesAreUnusable) {
-    const std::array candidates{
-        RootLine{.root_move = Move(G1, F3), .value = 1000, .depth = 99, .completed = false},
-        RootLine{.root_move = NULL_MOVE, .value = 1000, .depth = 99, .completed = true},
-        RootLine{.root_move = Move(D2, D4), .value = 1000, .depth = 0, .completed = true},
-    };
-
-    const RootLine usable_fallback = completed_root_line(Move(E2, E4), 10, 2);
-    EXPECT_EQ(select_best_root_line(usable_fallback, candidates), usable_fallback);
-
-    const RootLine unusable_fallback{
-        .root_move = NULL_MOVE, .value = eval_value::draw, .depth = 1, .completed = true};
-    EXPECT_EQ(select_best_root_line(unusable_fallback, candidates), unusable_fallback);
 }
 
 } // namespace search

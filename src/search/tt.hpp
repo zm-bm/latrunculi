@@ -13,7 +13,6 @@
 namespace search {
 
 class TranspositionTable;
-class TTTest;
 extern TranspositionTable tt;
 
 enum class TTBound : std::uint8_t {
@@ -85,8 +84,6 @@ public:
     [[nodiscard]] std::uint8_t current_generation() const { return generation; }
 
 private:
-    friend class TTTest;
-
     std::uint64_t cluster_index(PositionKey zkey) const;
 
     std::unique_ptr<TTCluster[]> clusters = nullptr;

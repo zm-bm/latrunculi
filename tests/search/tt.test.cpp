@@ -89,8 +89,6 @@ protected:
     int         depth = 5;
     TTBound     bound = TTBound::Exact;
 
-    static size_t cluster_count(const TranspositionTable& table) { return table.cluster_count; }
-
     void SetUp() override { tt.clear(); }
 };
 
@@ -206,21 +204,21 @@ TEST_F(TTTest, ResizeZeroKeepsUsableTable) {
 TEST_F(TTTest, ResizeRoundsCapacityDownToLargestFittingPowerOfTwo) {
     struct Case {
         size_t megabytes;
-        size_t expected_clusters;
+        size_t expected_capacity_mb;
     };
 
     constexpr std::array cases{
-        Case{.megabytes = 1, .expected_clusters = 16'384},
-        Case{.megabytes = 2, .expected_clusters = 32'768},
-        Case{.megabytes = 3, .expected_clusters = 32'768},
-        Case{.megabytes = 5, .expected_clusters = 65'536},
+        Case{.megabytes = 1, .expected_capacity_mb = 1},
+        Case{.megabytes = 2, .expected_capacity_mb = 2},
+        Case{.megabytes = 3, .expected_capacity_mb = 2},
+        Case{.megabytes = 5, .expected_capacity_mb = 4},
     };
 
     TranspositionTable table;
     for (const auto& tc : cases) {
         SCOPED_TRACE(tc.megabytes);
         table.resize(tc.megabytes);
-        EXPECT_EQ(tc.expected_clusters, cluster_count(table));
+        EXPECT_EQ(tc.expected_capacity_mb, table.capacity_mb());
     }
 }
 

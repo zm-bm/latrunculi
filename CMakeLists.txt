@@ -80,17 +80,19 @@ if(BUILD_TESTING)
         tests/movegen/move_list.test.cpp
         tests/movegen/generator.test.cpp
         tests/movegen/perft.test.cpp
-        tests/search/ordering/history.test.cpp
-        tests/search/ordering/state.test.cpp
-        tests/search/ordering/picker.test.cpp
+        tests/search/algorithm.test.cpp
         tests/search/quiescence.test.cpp
         tests/search/root_search.test.cpp
-        tests/search/algorithm.test.cpp
         tests/search/instrumentation.test.cpp
+        tests/search/limits.test.cpp
+        tests/search/ordering/history.test.cpp
+        tests/search/ordering/picker.test.cpp
+        tests/search/ordering/state.test.cpp
+        tests/search/principal_variation.test.cpp
+        tests/search/root_line.test.cpp
         tests/search/thread_pool.test.cpp
-        tests/search/types.test.cpp
-        tests/search/worker.test.cpp
         tests/search/tt.test.cpp
+        tests/search/worker.test.cpp
         tests/uci/engine.test.cpp
         tests/uci/engine_options.test.cpp
         tests/uci/engine_position.test.cpp
