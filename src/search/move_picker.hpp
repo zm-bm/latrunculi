@@ -94,21 +94,21 @@ private:
     int score_noisy(Move move) const;
 
     template <ScorePolicy Policy>
-    Candidate* score_moves(const MoveList& list, Candidate* out);
+    Candidate* score_moves(const movegen::MoveList& list, Candidate* out);
 
     template <PickPolicy Policy>
     bool is_pickable(const Candidate& candidate) const;
     template <PickPolicy Policy>
     Move pick(CandidateRange& range);
 
-    const Board&                              board;
-    const MoveOrdering&                       ordering;
-    const MoveOrdering::Context               context;
-    Move                                      tt_move{NULL_MOVE};
-    const Mode                                mode;
-    const bool                                in_check;
-    Stage                                     stage{Stage::TtMove};
-    std::array<Candidate, MoveList::capacity> candidates;
+    const Board&                                       board;
+    const MoveOrdering&                                ordering;
+    const MoveOrdering::Context                        context;
+    Move                                               tt_move{NULL_MOVE};
+    const Mode                                         mode;
+    const bool                                         in_check;
+    Stage                                              stage{Stage::TtMove};
+    std::array<Candidate, movegen::MoveList::capacity> candidates;
     // Holds evasions when in check, otherwise noisy moves.
     CandidateRange                      primary_range;
     CandidateRange                      quiet_range;

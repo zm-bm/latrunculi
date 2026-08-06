@@ -10,7 +10,7 @@
 #include "board/board.hpp"
 #include "core/constants.hpp"
 #include "eval/evaluator.hpp"
-#include "movegen/movegen.hpp"
+#include "movegen/generator.hpp"
 #include "search/move_picker.hpp"
 #include "search/search_thread_pool.hpp"
 #include "search/search_worker.hpp"

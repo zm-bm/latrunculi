@@ -1,4 +1,4 @@
-#include "movegen/movegen.hpp"
+#include "movegen/generator.hpp"
 
 #include <algorithm>
 #include <array>
@@ -13,7 +13,7 @@
 
 namespace {
 
-std::vector<MoveBits> sorted_move_bits(const MoveList& movelist) {
+std::vector<MoveBits> sorted_move_bits(const movegen::MoveList& movelist) {
     std::vector<MoveBits> bits;
     bits.reserve(movelist.size());
     for (const Move& move : movelist)
@@ -41,7 +41,7 @@ std::vector<MoveBits> sorted_union(std::vector<MoveBits> lhs, const std::vector<
 
 } // namespace
 
-TEST(MoveGenTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
+TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
     Board quiet_board{board_test::fen::start};
     EXPECT_EQ(sorted_move_bits(movegen::generate_pseudo_legal(quiet_board)),
               sorted_move_bits(movegen::generate_non_evasions(quiet_board)));
@@ -52,7 +52,7 @@ TEST(MoveGenTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
               sorted_move_bits(movegen::generate_evasions(evasion_board)));
 }
 
-TEST(MoveGenTest, EnPassantCanInterposeAgainstSliderCheck) {
+TEST(MoveGeneratorTest, EnPassantCanInterposeAgainstSliderCheck) {
     struct TestCase {
         std::string_view fen;
         Move             move;
@@ -68,13 +68,13 @@ TEST(MoveGenTest, EnPassantCanInterposeAgainstSliderCheck) {
         ASSERT_TRUE(board.is_check()) << test.fen;
         ASSERT_TRUE(board.is_legal_move(test.move)) << test.fen;
 
-        const MoveList evasions = movegen::generate_evasions(board);
+        const movegen::MoveList evasions = movegen::generate_evasions(board);
         EXPECT_NE(std::find(evasions.begin(), evasions.end(), test.move), evasions.end())
             << test.fen;
     }
 }
 
-TEST(MoveGenTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
+TEST(MoveGeneratorTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
     constexpr std::array fens = {
         board_test::fen::start,
         board_test::fen::perft_position_2,
@@ -110,11 +110,11 @@ TEST(MoveGenTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
     }
 }
 
-TEST(MoveGenTest, DoubleCheckEvasionsContainOnlyKingMoves) {
+TEST(MoveGeneratorTest, DoubleCheckEvasionsContainOnlyKingMoves) {
     Board board{"R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
     ASSERT_TRUE(board.is_double_check());
 
-    const MoveList evasions = movegen::generate_evasions(board);
+    const movegen::MoveList evasions = movegen::generate_evasions(board);
     ASSERT_FALSE(evasions.empty());
     for (const Move move : evasions)
         EXPECT_EQ(move.from(), E8) << move;

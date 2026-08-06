@@ -5,7 +5,7 @@
 
 #include "board/board.hpp"
 #include "eval/eval.hpp"
-#include "movegen/movegen.hpp"
+#include "movegen/generator.hpp"
 
 namespace {
 
@@ -149,7 +149,7 @@ int Picker::score_move(Move move) const {
 }
 
 template <Picker::ScorePolicy Policy>
-Picker::Candidate* Picker::score_moves(const MoveList& list, Candidate* out) {
+Picker::Candidate* Picker::score_moves(const movegen::MoveList& list, Candidate* out) {
     Candidate*       cur   = out;
     Candidate* const limit = candidates.data() + candidates.size();
 
@@ -232,8 +232,8 @@ Move Picker::next() {
             break;
 
         case Stage::LoadEvasions: {
-            primary_range.next           = candidates.data();
-            const MoveList evasion_moves = movegen::generate_evasions(board);
+            primary_range.next                    = candidates.data();
+            const movegen::MoveList evasion_moves = movegen::generate_evasions(board);
             primary_range.end =
                 score_moves<ScorePolicy::Evasion>(evasion_moves, primary_range.next);
             quiet_range.next = primary_range.end;
@@ -251,8 +251,8 @@ Move Picker::next() {
         }
 
         case Stage::LoadNoisy: {
-            primary_range.next         = candidates.data();
-            const MoveList noisy_moves = movegen::generate_noisy(board);
+            primary_range.next                  = candidates.data();
+            const movegen::MoveList noisy_moves = movegen::generate_noisy(board);
             primary_range.end = score_moves<ScorePolicy::Noisy>(noisy_moves, primary_range.next);
             quiet_range.next  = primary_range.end;
             quiet_range.end   = primary_range.end;
@@ -286,8 +286,8 @@ Move Picker::next() {
                 break;
             }
             assert(primary_range.end != nullptr);
-            quiet_range.next           = primary_range.end;
-            const MoveList quiet_moves = movegen::generate_quiet(board);
+            quiet_range.next                    = primary_range.end;
+            const movegen::MoveList quiet_moves = movegen::generate_quiet(board);
             quiet_range.end = score_moves<ScorePolicy::Quiet>(quiet_moves, quiet_range.next);
             stage           = Stage::PickQuiet;
             [[fallthrough]];

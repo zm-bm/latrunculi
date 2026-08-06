@@ -6,7 +6,7 @@
 #include <array>
 #include <string_view>
 
-#include "movegen/movegen.hpp"
+#include "movegen/generator.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/board_snapshot.hpp"
 

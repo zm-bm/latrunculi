@@ -78,7 +78,7 @@ if(BUILD_TESTING)
         tests/eval/tapered_score.test.cpp
         tests/main.cpp
         tests/movegen/move_list.test.cpp
-        tests/movegen/movegen.test.cpp
+        tests/movegen/generator.test.cpp
         tests/movegen/perft.test.cpp
         tests/search/history.test.cpp
         tests/search/move_ordering.test.cpp

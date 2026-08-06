@@ -5,9 +5,9 @@
 #include <gtest/gtest.h>
 
 TEST(MoveListTest, AppendsMovesAndExposesActiveRange) {
-    MoveList movelist;
-    Move     first(E2, E4);
-    Move     second(G1, F3);
+    movegen::MoveList movelist;
+    Move              first(E2, E4);
+    Move              second(G1, F3);
 
     EXPECT_TRUE(movelist.empty());
     EXPECT_EQ(movelist.begin(), movelist.end());
@@ -23,11 +23,11 @@ TEST(MoveListTest, AppendsMovesAndExposesActiveRange) {
 }
 
 TEST(MoveListTest, CopyConstructionPreservesActiveRange) {
-    MoveList source;
+    movegen::MoveList source;
     source.add(A2, A3);
     source.add(B2, B3);
 
-    MoveList copy(source);
+    movegen::MoveList copy(source);
 
     ASSERT_EQ(copy.size(), 2U);
     EXPECT_EQ(copy[0], Move(A2, A3));
@@ -35,11 +35,11 @@ TEST(MoveListTest, CopyConstructionPreservesActiveRange) {
 }
 
 TEST(MoveListTest, CopyAssignmentPreservesActiveRange) {
-    MoveList source;
+    movegen::MoveList source;
     source.add(A2, A3);
     source.add(B2, B3);
 
-    MoveList target;
+    movegen::MoveList target;
     target.add(H2, H3);
 
     target = source;
@@ -50,11 +50,11 @@ TEST(MoveListTest, CopyAssignmentPreservesActiveRange) {
 }
 
 TEST(MoveListTest, MoveConstructionPreservesActiveRange) {
-    MoveList source;
+    movegen::MoveList source;
     source.add(A2, A3);
     source.add(B2, B3);
 
-    MoveList moved(std::move(source));
+    movegen::MoveList moved(std::move(source));
 
     ASSERT_EQ(moved.size(), 2U);
     EXPECT_EQ(moved[0], Move(A2, A3));
@@ -62,11 +62,11 @@ TEST(MoveListTest, MoveConstructionPreservesActiveRange) {
 }
 
 TEST(MoveListTest, MoveAssignmentPreservesActiveRange) {
-    MoveList source;
+    movegen::MoveList source;
     source.add(A2, A3);
     source.add(B2, B3);
 
-    MoveList target;
+    movegen::MoveList target;
     target.add(H2, H3);
 
     target = std::move(source);

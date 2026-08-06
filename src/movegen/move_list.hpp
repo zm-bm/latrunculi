@@ -6,6 +6,8 @@
 
 #include "core/move.hpp"
 
+namespace movegen {
+
 // Fixed-capacity list of generated moves.
 class MoveList {
 public:
@@ -80,3 +82,5 @@ inline void MoveList::copy_active_range_from(const MoveList& other) {
         moves[i] = other.moves[i];
     last = moves.data() + active_count;
 }
+
+} // namespace movegen

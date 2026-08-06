@@ -12,7 +12,7 @@
 #include "board/notation.hpp"
 #include "core/move.hpp"
 #include "eval/evaluator.hpp"
-#include "movegen/movegen.hpp"
+#include "movegen/generator.hpp"
 #include "movegen/perft.hpp"
 #include "search/search_limits.hpp"
 #include "search/tt.hpp"
@@ -242,7 +242,7 @@ bool Engine::perft(const std::string& arguments) {
     int                depth;
 
     if (stream >> depth) {
-        writer.diagnostic_text(format_perft_result(perft_root(board, depth)));
+        writer.diagnostic_text(movegen::format_perft_result(movegen::perft_root(board, depth)));
     }
 
     return true;

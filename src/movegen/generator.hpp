@@ -13,8 +13,6 @@
 
 namespace movegen {
 
-namespace impl {
-
 enum class MoveGenType { NonEvasions, Noisy, Evasions, Quiet };
 
 // Color- and mode-specialized generator kept header-defined for hot-path inlining.
@@ -234,27 +232,25 @@ inline MoveList generate(const Board& board) {
     return moves;
 }
 
-} // namespace impl
-
 // Generators emit pseudo-legal candidates; callers use Board for final king-safety filtering.
 inline MoveList generate_non_evasions(const Board& board) {
     assert(!board.is_check());
-    return impl::generate<impl::MoveGenType::NonEvasions>(board);
+    return generate<MoveGenType::NonEvasions>(board);
 }
 
 inline MoveList generate_noisy(const Board& board) {
     assert(!board.is_check());
-    return impl::generate<impl::MoveGenType::Noisy>(board);
+    return generate<MoveGenType::Noisy>(board);
 }
 
 inline MoveList generate_quiet(const Board& board) {
     assert(!board.is_check());
-    return impl::generate<impl::MoveGenType::Quiet>(board);
+    return generate<MoveGenType::Quiet>(board);
 }
 
 inline MoveList generate_evasions(const Board& board) {
     assert(board.is_check());
-    return impl::generate<impl::MoveGenType::Evasions>(board);
+    return generate<MoveGenType::Evasions>(board);
 }
 
 inline MoveList generate_pseudo_legal(const Board& board) {

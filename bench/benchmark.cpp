@@ -11,7 +11,7 @@
 
 #include "board/board.hpp"
 #include "core/attacks.hpp"
-#include "movegen/movegen.hpp"
+#include "movegen/generator.hpp"
 
 namespace {
 

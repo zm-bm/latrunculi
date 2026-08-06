@@ -59,7 +59,7 @@ TEST(PerftTest, ChessProgrammingPositionsMatchExpectedDepths) {
         Board board(position.fen);
 
         for (int depth = 1; depth <= static_cast<int>(position.expected.size()); ++depth) {
-            const NodeCount result = perft(board, depth);
+            const NodeCount result = movegen::perft(board, depth);
             EXPECT_EQ(result, position.expected[depth - 1])
                 << position.fen << " at depth " << depth;
         }
@@ -69,20 +69,20 @@ TEST(PerftTest, ChessProgrammingPositionsMatchExpectedDepths) {
 TEST(PerftTest, DepthZeroReturnsOne) {
     Board board(board_test::fen::start);
 
-    EXPECT_EQ(perft(board, 0), 1U);
-    EXPECT_EQ(format_perft_result(perft_root(board, 0)), "NODES: 1\n");
+    EXPECT_EQ(movegen::perft(board, 0), 1U);
+    EXPECT_EQ(movegen::format_perft_result(movegen::perft_root(board, 0)), "NODES: 1\n");
 }
 
 TEST(PerftTest, RootReturnsMoveBreakdown) {
     Board board(board_test::fen::start);
 
-    const PerftResult result = perft_root(board, 1);
+    const movegen::PerftResult result = movegen::perft_root(board, 1);
 
     EXPECT_EQ(result.nodes, 20U);
     ASSERT_EQ(result.root_moves.size(), 20U);
     EXPECT_EQ(result.root_moves.front().nodes, 1U);
 
-    const std::string output = format_perft_result(result);
+    const std::string output = movegen::format_perft_result(result);
     EXPECT_NE(output.find(": 1\n"), std::string::npos);
     EXPECT_NE(output.find("NODES: 20\n"), std::string::npos);
 }
@@ -90,23 +90,23 @@ TEST(PerftTest, RootReturnsMoveBreakdown) {
 TEST(PerftTest, RejectsInvalidDepths) {
     Board board(board_test::fen::start);
 
-    EXPECT_THROW(perft(board, -1), std::invalid_argument);
-    EXPECT_THROW(perft_root(board, -1), std::invalid_argument);
-    EXPECT_THROW(perft(board, engine::max_search_ply + 1), std::invalid_argument);
-    EXPECT_THROW(perft_root(board, engine::max_search_ply + 1), std::invalid_argument);
+    EXPECT_THROW(movegen::perft(board, -1), std::invalid_argument);
+    EXPECT_THROW(movegen::perft_root(board, -1), std::invalid_argument);
+    EXPECT_THROW(movegen::perft(board, engine::max_search_ply + 1), std::invalid_argument);
+    EXPECT_THROW(movegen::perft_root(board, engine::max_search_ply + 1), std::invalid_argument);
 }
 
 TEST(PerftTest, RestoresBoardState) {
     Board      board(board_test::fen::perft_position_2);
     const auto original = board_test::snapshot_board(board);
 
-    EXPECT_GT(perft(board, 2), 0U);
+    EXPECT_GT(movegen::perft(board, 2), 0U);
     board_test::expect_same_board_snapshot(board, original);
 
     Board      root_board(board_test::fen::perft_position_2);
     const auto original_root = board_test::snapshot_board(root_board);
 
-    const PerftResult result = perft_root(root_board, 2);
+    const movegen::PerftResult result = movegen::perft_root(root_board, 2);
     EXPECT_GT(result.nodes, 0U);
     board_test::expect_same_board_snapshot(root_board, original_root);
 }

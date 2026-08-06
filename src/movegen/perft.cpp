@@ -1,11 +1,13 @@
 #include "movegen/perft.hpp"
 
-#include "board/board.hpp"
-#include "core/constants.hpp"
-#include "movegen/movegen.hpp"
-
 #include <sstream>
 #include <stdexcept>
+
+#include "board/board.hpp"
+#include "core/constants.hpp"
+#include "movegen/generator.hpp"
+
+namespace movegen {
 
 namespace {
 
@@ -78,3 +80,5 @@ std::string format_perft_result(const PerftResult& result) {
     output << "NODES: " << result.nodes << '\n';
     return output.str();
 }
+
+} // namespace movegen

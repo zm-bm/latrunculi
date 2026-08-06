@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
-#include "movegen/movegen.hpp"
+#include "movegen/generator.hpp"
 #include "search/move_ordering.hpp"
 #include "search/search_limits.hpp"
 #include "support/board_fixtures.hpp"
@@ -27,7 +27,7 @@ constexpr std::string_view CHECK_BY_PREVIOUS_MOVE_FEN = "k7/8/2K5/8/8/8/8/R7 w -
 constexpr std::string_view WEAK_CAPTURE_FEN           = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
 constexpr std::string_view PROMOTION_AND_CAPTURE_FEN  = "4k3/P7/8/1p6/3N4/8/8/4K3 w - - 0 1";
 
-std::vector<MoveBits> sorted_move_bits(const MoveList& movelist) {
+std::vector<MoveBits> sorted_move_bits(const movegen::MoveList& movelist) {
     std::vector<MoveBits> bits;
     for (const Move move : movelist)
         bits.push_back(move.bits);
@@ -45,7 +45,7 @@ std::vector<MoveBits> sorted_move_bits(const std::vector<Move>& moves) {
 
 std::vector<Move> collect_moves(move_picker::Picker& picker) {
     std::vector<Move> moves;
-    moves.reserve(MoveList::capacity);
+    moves.reserve(movegen::MoveList::capacity);
     for (Move move = picker.next(); !move.is_null(); move = picker.next())
         moves.push_back(move);
     return moves;
@@ -302,8 +302,8 @@ TEST_F(PickerTest, QSearchReturnsOnlyNonLosingNoisyMoves) {
         Board position{fen};
         ASSERT_FALSE(position.is_check());
 
-        const auto moves = picked_qsearch(position, ordering);
-        MoveList   expected;
+        const auto        moves = picked_qsearch(position, ordering);
+        movegen::MoveList expected;
         for (const Move move : movegen::generate_noisy(position)) {
             if (expected_good_noisy(position, move))
                 expected.add(move);
