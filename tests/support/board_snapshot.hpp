@@ -32,8 +32,7 @@ struct BoardSnapshot {
     Bitboard                                                     checkers;
     std::array<Bitboard, N_COLORS>                               blockers{};
     std::array<Square, N_COLORS>                                 kings{};
-    eval::TaperedScore                                           material;
-    eval::TaperedScore                                           psq_bonus;
+    eval::BaseScore                                              evaluation_base;
     std::array<std::array<Bitboard, N_PIECETYPES>, N_COLORS>     piece_bb{};
     std::array<std::array<std::uint8_t, N_PIECETYPES>, N_COLORS> counts{};
 };
@@ -48,8 +47,7 @@ inline BoardSnapshot snapshot_board(const Board& board) {
     snapshot.can_unmake             = board.can_unmake();
     snapshot.occupancy              = board.occupancy();
     snapshot.checkers               = board.checkers();
-    snapshot.material               = board.material_score();
-    snapshot.psq_bonus              = board.psq_bonus_score();
+    snapshot.evaluation_base        = board.evaluation_base();
 
     for (int c = BLACK; c < N_COLORS; ++c) {
         const auto color                      = Color(c);
@@ -66,6 +64,10 @@ inline BoardSnapshot snapshot_board(const Board& board) {
     return snapshot;
 }
 
+inline void expect_evaluation_base_consistent(const Board& board) {
+    EXPECT_EQ(board.evaluation_base(), board.recompute_evaluation_base());
+}
+
 inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& expected) {
     EXPECT_EQ(board.to_fen(), expected.fen);
     EXPECT_EQ(board.legal_enpassant_target(), expected.legal_enpassant_target);
@@ -74,8 +76,8 @@ inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& 
     EXPECT_EQ(board.can_unmake(), expected.can_unmake);
     EXPECT_EQ(board.occupancy(), expected.occupancy);
     EXPECT_EQ(board.checkers(), expected.checkers);
-    EXPECT_EQ(board.material_score(), expected.material);
-    EXPECT_EQ(board.psq_bonus_score(), expected.psq_bonus);
+    EXPECT_EQ(board.evaluation_base(), expected.evaluation_base);
+    expect_evaluation_base_consistent(board);
 
     for (int c = BLACK; c < N_COLORS; ++c) {
         const auto color = Color(c);

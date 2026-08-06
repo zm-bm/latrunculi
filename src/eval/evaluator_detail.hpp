@@ -65,8 +65,8 @@ inline TaperedScore Evaluator::evaluate_term(Trace* trace) {
     TaperedScore score;
 
     switch (term) {
-    case Term::Material: score = board.material_score(); break;
-    case Term::Squares:  score = board.psq_bonus_score(); break;
+    case Term::Material: score = board.evaluation_base().material(); break;
+    case Term::Squares:  score = board.evaluation_base().piece_square(); break;
     case Term::Pawns:    score = evaluate_pawns<C>(); break;
     case Term::Knights:  score = evaluate_pieces<C, KNIGHT>(); break;
     case Term::Bishops:  score = evaluate_pieces<C, BISHOP>(); break;

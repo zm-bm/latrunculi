@@ -16,8 +16,7 @@
 #include "core/move_geometry.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
-#include "eval/parameters.hpp"
-#include "eval/tapered_score.hpp"
+#include "eval/base_score.hpp"
 
 /**
  * Mutable chess position with owned, reversible history from the loaded
@@ -36,8 +35,9 @@ public:
     Board(Board&&)            = delete;
     Board& operator=(Board&&) = delete;
 
-    void        clear_position() noexcept;
-    PositionKey recompute_key() const noexcept;
+    void            clear_position() noexcept;
+    PositionKey     recompute_key() const noexcept;
+    eval::BaseScore recompute_evaluation_base() const noexcept;
 
     // Position and state queries
 
@@ -78,9 +78,8 @@ public:
     bool     is_check() const noexcept { return checkers(); }
     bool     is_double_check() const noexcept { return bb::is_many(checkers()); }
 
-    eval::TaperedScore material_score() const noexcept { return material; }
-    eval::TaperedScore psq_bonus_score() const noexcept { return psq_bonus; }
-    EvalValue          non_pawn_material(Color color) const noexcept;
+    const eval::BaseScore& evaluation_base() const noexcept { return base_evaluation; }
+    EvalValue              non_pawn_material(Color color) const noexcept;
 
     // Attacks, castling, and move classification
 
@@ -152,9 +151,8 @@ private:
     // Game ply used for FEN fullmove numbering; null moves do not change it.
     int absolute_ply = 0;
 
-    // Incremental tapered scores, positive for White and negative for Black.
-    eval::TaperedScore material  = {0, 0};
-    eval::TaperedScore psq_bonus = {0, 0};
+    // HCE-specific incremental material and piece-square terms.
+    eval::BaseScore base_evaluation;
 
     // Reversible history from the loaded root; active_state points to ply_states.back().
     std::vector<PlyState> ply_states;
@@ -264,8 +262,7 @@ inline void Board::add_piece(Square square, Color color, PieceType piece_type) n
     bb::add(piece_bb[color][piece_type], square);
     bb::add(piece_bb[color][all_pieces_slot], square);
     squares[square] = make_piece(color, piece_type);
-    material += eval::piece(piece_type, color);
-    psq_bonus += eval::piece_sq(piece_type, color, square);
+    base_evaluation.add_piece(piece_type, color, square);
     if constexpr (apply_hash)
         ply_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
@@ -278,8 +275,7 @@ inline void Board::remove_piece(Square square, Color color, PieceType piece_type
     bb::remove(piece_bb[color][piece_type], square);
     bb::remove(piece_bb[color][all_pieces_slot], square);
     squares[square] = NO_PIECE;
-    material -= eval::piece(piece_type, color);
-    psq_bonus -= eval::piece_sq(piece_type, color, square);
+    base_evaluation.remove_piece(piece_type, color, square);
     if constexpr (apply_hash)
         ply_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
@@ -293,7 +289,7 @@ inline void Board::move_piece(Square from, Square to, Color color, PieceType pie
     bb::move(piece_bb[color][all_pieces_slot], from, to);
     squares[from] = NO_PIECE;
     squares[to]   = make_piece(color, piece_type);
-    psq_bonus += eval::piece_sq(piece_type, color, to) - eval::piece_sq(piece_type, color, from);
+    base_evaluation.move_piece(piece_type, color, from, to);
     if constexpr (apply_hash)
         ply_state().zkey ^=
             zob::hash_piece(color, piece_type, from) ^ zob::hash_piece(color, piece_type, to);

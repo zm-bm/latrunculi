@@ -49,10 +49,9 @@ Board& Board::operator=(const Board& source) {
     copy_array(source.piece_counts, piece_counts);
     copy_array(source.squares, squares);
     copy_array(source.king_square, king_square);
-    turn         = source.turn;
-    absolute_ply = source.absolute_ply;
-    material     = source.material;
-    psq_bonus    = source.psq_bonus;
+    turn            = source.turn;
+    absolute_ply    = source.absolute_ply;
+    base_evaluation = source.base_evaluation;
 
     active_state = &ply_states.back();
     return *this;
@@ -69,8 +68,7 @@ void Board::clear_position() noexcept {
     for (int square_index = 0; square_index < N_SQUARES; ++square_index)
         squares[square_index] = NO_PIECE;
 
-    material           = {0, 0};
-    psq_bonus          = {0, 0};
+    base_evaluation    = {};
     king_square[WHITE] = INVALID;
     king_square[BLACK] = INVALID;
     turn               = WHITE;
@@ -106,4 +104,17 @@ PositionKey Board::recompute_key() const noexcept {
         zkey ^= zob::hash_ep(enpassant_target);
 
     return zkey;
+}
+
+// Recompute the Board-owned HCE base terms independently of the incremental cache.
+eval::BaseScore Board::recompute_evaluation_base() const noexcept {
+    eval::BaseScore result;
+
+    for (Square square = A1; square != INVALID; ++square) {
+        const Piece piece = piece_on(square);
+        if (piece != NO_PIECE)
+            result.add_piece(type_of(piece), color_of(piece), square);
+    }
+
+    return result;
 }

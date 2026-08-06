@@ -64,16 +64,17 @@ TEST(BoardRepresentationTest, LoadsRepresentativePositionState) {
     EXPECT_EQ(board.count(BLACK, PAWN), 8);
     EXPECT_EQ(board.castling_rights(), W_CASTLE);
     EXPECT_EQ(board.checkers(), bb::set(B3));
-    EXPECT_EQ(board.material_score(), eval::piece(PAWN, BLACK));
-    EXPECT_LT(board.psq_bonus_score().mg, 0);
+    EXPECT_EQ(board.evaluation_base().material(), eval::piece(PAWN, BLACK));
+    EXPECT_LT(board.evaluation_base().piece_square().mg, 0);
     EXPECT_EQ(board.key(), board.recompute_key());
 }
 
 TEST(BoardRepresentationTest, MaterialAndPsqtMatchExpectedValues) {
     Board board("3rk3/8/8/8/8/8/8/3QK3 w - - 0 1");
 
-    EXPECT_EQ(board.material_score(), eval::piece(QUEEN, WHITE) + eval::piece(ROOK, BLACK));
-    EXPECT_EQ(board.psq_bonus_score(),
+    EXPECT_EQ(board.evaluation_base().material(),
+              eval::piece(QUEEN, WHITE) + eval::piece(ROOK, BLACK));
+    EXPECT_EQ(board.evaluation_base().piece_square(),
               eval::piece_sq(QUEEN, WHITE, D1) + eval::piece_sq(ROOK, BLACK, D8));
 }
 
