@@ -8,6 +8,8 @@
 #include "core/piece.hpp"
 #include "core/square.hpp"
 
+namespace search::ordering {
+
 namespace history {
 
 // Compact signed entry type for the bounded history tables.
@@ -108,7 +110,9 @@ inline void QuietHistory::clear() {
 
 /*
  * Capture history scores a moving piece to a destination against the captured
- * piece type. It is table-only scaffolding until capture ordering is revisited.
+ * piece type. It is intentionally retained and tested as scaffolding for
+ * planned integration into noisy-move ordering; its current lack of a
+ * production consumer is not a reason to remove it.
  */
 struct CaptureHistory {
     static constexpr int max_score = history::max_score;
@@ -220,7 +224,7 @@ private:
     static int
     index(Color prev_c, PieceType prev_piece, Square prev_to, PieceType piece, Square to);
 
-    // Heap-backed to keep MoveOrdering/worker storage small.
+    // Heap-backed to keep State/worker storage small.
     std::unique_ptr<Table> table;
 };
 
@@ -272,3 +276,5 @@ inline const history::Score& ContinuationHistory::entry(
 inline void ContinuationHistory::clear() {
     std::fill(table->begin(), table->end(), history::Score{0});
 }
+
+} // namespace search::ordering

@@ -7,22 +7,24 @@
 #include "core/constants.hpp"
 #include "eval/evaluator.hpp"
 #include "movegen/generator.hpp"
-#include "search/search_thread_pool.hpp"
-#include "search/search_worker.hpp"
+#include "search/thread_pool.hpp"
 #include "search/tt.hpp"
+#include "search/worker.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
 #include "support/search_thread_test_access.hpp"
+
+namespace search {
 
 namespace {
 
 class QuiescenceTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    SearchThreadPool        pool{1, reporter};
-    SearchWorker&           worker{SearchThreadTestAccess::worker(pool)};
-    SearchLimits            limits;
+    ThreadPool              pool{1, reporter};
+    Worker&                 worker{SearchThreadTestAccess::worker(pool)};
+    Limits                  limits;
 
     void SetUp() override {
         limits.depth = 4;
@@ -73,9 +75,7 @@ protected:
     }
 
 #if LATRUNCULI_SEARCH_STATS
-    const SearchCounters& counters() {
-        return SearchTestAccess::instrumentation(worker).raw_counters();
-    }
+    const Counters& counters() { return SearchTestAccess::instrumentation(worker).raw_counters(); }
 #endif
 };
 
@@ -297,3 +297,5 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
     EXPECT_EQ(counters().q_tt_cutoffs[1], 0U);
 #endif
 }
+
+} // namespace search

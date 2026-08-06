@@ -1,8 +1,10 @@
-#include "search/search_limits.hpp"
+#include "search/limits.hpp"
 
 #include <limits>
 
-std::optional<Milliseconds> SearchLimits::allocated_time(Color c) const {
+namespace search {
+
+std::optional<Milliseconds> Limits::allocated_time(Color c) const {
     if (movetime) {
         return movetime;
     } else if (wtime && btime) {
@@ -22,3 +24,5 @@ std::optional<Milliseconds> SearchLimits::allocated_time(Color c) const {
     }
     return std::nullopt;
 }
+
+} // namespace search

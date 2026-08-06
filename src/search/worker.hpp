@@ -7,34 +7,37 @@
 
 #include "board/board.hpp"
 #include "core/types.hpp"
-#include "search/move_ordering.hpp"
+#include "search/instrumentation.hpp"
+#include "search/limits.hpp"
+#include "search/ordering/state.hpp"
+#include "search/reporter.hpp"
 #include "search/root_line.hpp"
-#include "search/search_instrumentation.hpp"
-#include "search/search_limits.hpp"
-#include "search/search_reporter.hpp"
 
-class SearchThreadPool;
-class SearchThread;
 class SearchTestAccess;
+
+namespace search {
+
+class ThreadPool;
+class Thread;
 
 enum class NodeType { Pv, NonPv };
 
 // Per-thread search state and search execution.
-class SearchWorker {
+class Worker {
 public:
-    SearchWorker() = delete;
-    SearchWorker(int id, SearchReporter& reporter, SearchThreadPool& pool);
-    SearchWorker(const SearchWorker&)            = delete;
-    SearchWorker& operator=(const SearchWorker&) = delete;
-    SearchWorker(SearchWorker&&)                 = delete;
-    SearchWorker& operator=(SearchWorker&&)      = delete;
+    Worker() = delete;
+    Worker(int id, Reporter& reporter, ThreadPool& pool);
+    Worker(const Worker&)            = delete;
+    Worker& operator=(const Worker&) = delete;
+    Worker(Worker&&)                 = delete;
+    Worker& operator=(Worker&&)      = delete;
 
-    // SearchThread-facing lifecycle.
-    void      configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
+    // Thread-facing lifecycle.
+    void      configure_search(const Board& root_board, Limits limits, TimePoint start_time);
     EvalValue search();
     void      request_stop() noexcept;
 
-    // SearchThreadPool-facing progress and results.
+    // ThreadPool-facing progress and results.
     NodeCount node_count() const noexcept;
     RootLine  root_snapshot() const;
 
@@ -44,21 +47,21 @@ private:
     int                   search_ply{0};
     RootLine              root_result;
     std::vector<RootLine> root_lines;
-    MoveOrdering          ordering;
+    ordering::State       ordering;
 
     // Current search request.
-    SearchLimits                limits;
+    Limits                      limits;
     TimePoint                   start_time{};
     std::optional<Milliseconds> allocated_time;
 
     // Progress and diagnostics.
-    std::atomic<NodeCount>  nodes{0};
-    SearchInstrumentation<> stats;
+    std::atomic<NodeCount> nodes{0};
+    Instrumentation<>      stats;
 
     // Non-owning shared services. Both must outlive this worker.
-    SearchReporter&   reporter;
-    SearchThreadPool& thread_pool;
-    const int         worker_id;
+    Reporter&   reporter;
+    ThreadPool& thread_pool;
+    const int   worker_id;
 
     // Stop state.
     std::atomic<bool> stop_requested_flag{false};
@@ -89,7 +92,7 @@ private:
     void clear_root_snapshot();
     void publish_root_snapshot();
 
-    // Search algorithm. (search.cpp)
+    // Search algorithm. (algorithm.cpp)
     template <NodeType Node = NodeType::NonPv>
     EvalValue alphabeta(EvalValue           alpha,
                         EvalValue           beta,
@@ -112,40 +115,42 @@ private:
     bool should_search_root_depth(int depth) const noexcept;
     bool should_poll_search_limits() const noexcept;
 
-    friend class SearchTestAccess;
-    friend class SearchThread;
-    friend class SearchThreadPool;
+    friend class ::SearchTestAccess;
+    friend class Thread;
+    friend class ThreadPool;
 };
 
-inline NodeCount SearchWorker::node_count() const noexcept {
+inline NodeCount Worker::node_count() const noexcept {
     return nodes.load(std::memory_order_relaxed);
 }
 
-inline void SearchWorker::reset_nodes() noexcept {
+inline void Worker::reset_nodes() noexcept {
     nodes.store(0, std::memory_order_relaxed);
 }
 
-inline void SearchWorker::increment_nodes() noexcept {
+inline void Worker::increment_nodes() noexcept {
     nodes.fetch_add(1, std::memory_order_relaxed);
 }
 
-inline bool SearchWorker::stop_requested() const noexcept {
+inline bool Worker::stop_requested() const noexcept {
     return stop_requested_flag.load(std::memory_order_relaxed);
 }
 
-inline void SearchWorker::request_stop() noexcept {
+inline void Worker::request_stop() noexcept {
     stop_requested_flag.store(true, std::memory_order_relaxed);
     stop_requested_flag.notify_all();
 }
 
-inline void SearchWorker::wait_for_stop() const noexcept {
+inline void Worker::wait_for_stop() const noexcept {
     stop_requested_flag.wait(false, std::memory_order_relaxed);
 }
 
-inline bool SearchWorker::is_main_worker() const noexcept {
+inline bool Worker::is_main_worker() const noexcept {
     return worker_id == 0;
 }
 
-inline bool SearchWorker::should_poll_search_limits() const noexcept {
+inline bool Worker::should_poll_search_limits() const noexcept {
     return is_main_worker() && ((node_count() & 0xFFF) == 0);
 }
+
+} // namespace search

@@ -7,6 +7,8 @@
 #include "core/constants.hpp"
 #include "core/move.hpp"
 
+namespace search {
+
 // Principal variation line built during search.
 struct PrincipalVariation {
     PrincipalVariation() noexcept = default;
@@ -63,3 +65,5 @@ private:
     std::array<Move, engine::max_search_ply + 1> moves;
     int                                          length{0};
 };
+
+} // namespace search

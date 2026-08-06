@@ -5,20 +5,20 @@
 
 #include "board/board.hpp"
 #include "eval/evaluator.hpp"
-#include "search/move_picker.hpp"
-#include "search/search_thread_pool.hpp"
-#include "search/search_worker.hpp"
+#include "search/ordering/picker.hpp"
+#include "search/thread_pool.hpp"
 #include "search/tt.hpp"
+#include "search/worker.hpp"
 
-SearchWorker::SearchWorker(int id, SearchReporter& reporter, SearchThreadPool& pool)
+namespace search {
+
+Worker::Worker(int id, Reporter& reporter, ThreadPool& pool)
     : reporter(reporter),
       thread_pool(pool),
       worker_id(id) {}
 
 // Configuration.
-void SearchWorker::configure_search(const Board& root_board,
-                                    SearchLimits limits,
-                                    TimePoint    search_start_time) {
+void Worker::configure_search(const Board& root_board, Limits limits, TimePoint search_start_time) {
     board      = root_board;
     search_ply = 0;
 
@@ -32,23 +32,23 @@ void SearchWorker::configure_search(const Board& root_board,
 }
 
 // Root snapshot publication.
-void SearchWorker::clear_root_snapshot() {
+void Worker::clear_root_snapshot() {
     std::lock_guard<std::mutex> lock(root_snapshot_mutex);
     root_result_snapshot = {};
 }
 
-void SearchWorker::publish_root_snapshot() {
+void Worker::publish_root_snapshot() {
     std::lock_guard<std::mutex> lock(root_snapshot_mutex);
     root_result_snapshot = root_result;
 }
 
-RootLine SearchWorker::root_snapshot() const {
+RootLine Worker::root_snapshot() const {
     std::lock_guard<std::mutex> lock(root_snapshot_mutex);
     return root_result_snapshot;
 }
 
 // Search lifecycle.
-EvalValue SearchWorker::search() {
+EvalValue Worker::search() {
     reset_search_state();
 
     if (is_main_worker()) {
@@ -78,7 +78,7 @@ EvalValue SearchWorker::search() {
     return root_result.value;
 }
 
-void SearchWorker::reset_search_state() {
+void Worker::reset_search_state() {
     reset_nodes();
     search_ply  = 0;
     root_result = RootLine{NULL_MOVE, evaluate(board), 0, false};
@@ -88,20 +88,20 @@ void SearchWorker::reset_search_state() {
 
     ordering.prepare_for_search();
 
-    if constexpr (SearchStatsEnabled)
+    if constexpr (stats_enabled)
         stats.reset();
 }
 
-void SearchWorker::clear_search_heuristics() {
+void Worker::clear_search_heuristics() {
     ordering.clear();
 }
 
-void SearchWorker::build_root_lines() {
+void Worker::build_root_lines() {
     root_lines.clear();
 
     // Root candidates start in the current picker order.
-    const auto context = MoveOrdering::make_context(board);
-    auto       picker  = move_picker::main_search(board, ordering, context, 0);
+    const auto context = ordering::State::make_context(board);
+    auto       picker  = ordering::main_search(board, ordering, context, 0);
 
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (board.is_legal_pseudo_move(move) && limits.allows_root_move(move))
@@ -110,7 +110,7 @@ void SearchWorker::build_root_lines() {
 }
 
 // Root result reporting.
-RootLine SearchWorker::terminal_root_result() const {
+RootLine Worker::terminal_root_result() const {
     assert(root_lines.empty());
 
     return RootLine{
@@ -121,7 +121,7 @@ RootLine SearchWorker::terminal_root_result() const {
     };
 }
 
-void SearchWorker::finalize_root_result(EvalValue value) {
+void Worker::finalize_root_result(EvalValue value) {
     if (!root_result.completed && !stop_requested()) {
         root_result.value     = value;
         root_result.depth     = limits.depth;
@@ -134,7 +134,7 @@ void SearchWorker::finalize_root_result(EvalValue value) {
     publish_root_snapshot();
 }
 
-void SearchWorker::prepare_final_result() {
+void Worker::prepare_final_result() {
     thread_pool.stop_helper_searches();
 
     RootLine selected = root_result;
@@ -156,20 +156,20 @@ void SearchWorker::prepare_final_result() {
     pending_best_move = selected.root_move;
 }
 
-void SearchWorker::publish_final_result() {
+void Worker::publish_final_result() {
     if (!pending_best_move)
         return;
 
     reporter.report_best_move(*pending_best_move);
     pending_best_move.reset();
 
-    if constexpr (SearchStatsEnabled) {
+    if constexpr (stats_enabled) {
         auto stats = thread_pool.aggregate_instrumentation();
         reporter.report_diagnostic(stats.str());
     }
 }
 
-void SearchWorker::report_root_progress(const RootLine& line) {
+void Worker::report_root_progress(const RootLine& line) {
     if (last_reported_root_line && line == *last_reported_root_line)
         return;
 
@@ -178,15 +178,15 @@ void SearchWorker::report_root_progress(const RootLine& line) {
 }
 
 // Accounting and limits.
-Milliseconds SearchWorker::runtime() const {
+Milliseconds Worker::runtime() const {
     return std::chrono::duration_cast<Milliseconds>(SearchClock::now() - start_time);
 }
 
-NodeCount SearchWorker::total_nodes() const {
+NodeCount Worker::total_nodes() const {
     return thread_pool.nodes_searched();
 }
 
-void SearchWorker::poll_search_limits() {
+void Worker::poll_search_limits() {
     // Ponder work still accumulates, but cannot stop the search before ponderhit.
     if (limits.infinite || thread_pool.is_pondering())
         return;
@@ -202,3 +202,5 @@ void SearchWorker::poll_search_limits() {
             thread_pool.request_stop();
     }
 }
+
+} // namespace search

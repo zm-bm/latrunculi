@@ -10,9 +10,11 @@
 #define LATRUNCULI_SEARCH_STATS 0
 #endif
 
-constexpr bool SearchStatsEnabled = LATRUNCULI_SEARCH_STATS;
+namespace search {
 
-struct SearchCounters {
+constexpr bool stats_enabled = LATRUNCULI_SEARCH_STATS;
+
+struct Counters {
     using CounterArray = std::array<std::uint64_t, engine::max_search_ply>;
 
     CounterArray nodes{0};
@@ -48,11 +50,11 @@ struct SearchCounters {
     std::uint64_t aspiration_fail_highs{0};
 };
 
-template <bool Enable = SearchStatsEnabled>
-class SearchInstrumentation;
+template <bool Enable = stats_enabled>
+class Instrumentation;
 
 template <>
-class SearchInstrumentation<false> {
+class Instrumentation<false> {
 public:
     void        reset() {}
     void        node(int) {}
@@ -80,14 +82,14 @@ public:
     void        quiet_malus_update(int) {}
     std::string str() const { return {}; }
 
-    SearchInstrumentation& operator+=(const SearchInstrumentation&) { return *this; }
+    Instrumentation& operator+=(const Instrumentation&) { return *this; }
 };
 
 template <>
-class SearchInstrumentation<true> {
+class Instrumentation<true> {
 public:
-    SearchInstrumentation() = default;
-    explicit SearchInstrumentation(const SearchCounters& values) : counters(values) {}
+    Instrumentation() = default;
+    explicit Instrumentation(const Counters& values) : counters(values) {}
 
     void reset();
 
@@ -212,15 +214,17 @@ public:
             counters.quiet_malus_updates[depth]++;
     }
 
-    SearchInstrumentation& operator+=(const SearchInstrumentation& other);
+    Instrumentation& operator+=(const Instrumentation& other);
 
-    const SearchCounters& raw_counters() const { return counters; }
-    std::string           str() const;
+    const Counters& raw_counters() const { return counters; }
+    std::string     str() const;
 
 private:
     static bool valid_index(const int index) {
         return index >= 0 && index < engine::max_search_ply;
     }
 
-    SearchCounters counters;
+    Counters counters;
 };
+
+} // namespace search

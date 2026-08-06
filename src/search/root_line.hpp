@@ -6,6 +6,8 @@
 #include "core/move.hpp"
 #include "search/principal_variation.hpp"
 
+namespace search {
+
 // Root-search result passed between workers and final reporting.
 struct RootLine {
     Move      root_move{NULL_MOVE};
@@ -41,3 +43,5 @@ bool is_better_root_line(const RootLine& candidate, const RootLine& current) noe
 
 // Pick the best usable completed line, falling back to the caller's line.
 RootLine select_best_root_line(RootLine fallback, std::span<const RootLine> lines);
+
+} // namespace search

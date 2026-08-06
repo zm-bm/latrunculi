@@ -14,7 +14,7 @@
 #include "eval/evaluator.hpp"
 #include "movegen/generator.hpp"
 #include "movegen/perft.hpp"
-#include "search/search_limits.hpp"
+#include "search/limits.hpp"
 #include "search/tt.hpp"
 #include "uci/parser.hpp"
 
@@ -106,7 +106,7 @@ bool Engine::handle(const NewGameCommand&) {
 
     // Do not carry search heuristics or TT entries across unrelated games.
     thread_pool.clear_search_heuristics();
-    tt.clear();
+    search::tt.clear();
     return true;
 }
 
@@ -146,8 +146,8 @@ bool Engine::handle(const GoCommand& command) {
         return true;
     }
 
-    const auto&  go_parameters = command.parameters;
-    SearchLimits limits;
+    const auto&    go_parameters = command.parameters;
+    search::Limits limits;
 
     limits.infinite = go_parameters.infinite;
     limits.ponder   = go_parameters.ponder;
@@ -314,13 +314,13 @@ void Engine::unmake_board_move() {
 
 void Engine::apply_option_effect(OptionId option, const Options& candidate) {
     switch (option) {
-    case OptionId::Hash: tt.resize(candidate.hash.value); break;
+    case OptionId::Hash: search::tt.resize(candidate.hash.value); break;
     case OptionId::Threads:
         if (!thread_pool.resize(candidate.threads.value))
             throw std::runtime_error("failed to resize thread pool");
         break;
     case OptionId::Ponder:    break;
-    case OptionId::ClearHash: tt.clear(); break;
+    case OptionId::ClearHash: search::tt.clear(); break;
     }
 }
 

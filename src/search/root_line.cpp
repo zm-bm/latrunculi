@@ -1,5 +1,7 @@
 #include "search/root_line.hpp"
 
+namespace search {
+
 // Root-line ordering: completed depth, score, stable move bits.
 bool is_better_root_line(const RootLine& candidate, const RootLine& current) noexcept {
     if (!candidate.usable_root_move())
@@ -25,3 +27,5 @@ RootLine select_best_root_line(RootLine fallback, std::span<const RootLine> line
     }
     return selected;
 }
+
+} // namespace search

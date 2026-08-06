@@ -6,17 +6,16 @@
 
 #include "core/move.hpp"
 #include "core/types.hpp"
-#include "search/search_reporter.hpp"
+#include "search/reporter.hpp"
 
 class Board;
-struct RootLine;
 
 namespace uci {
 
 struct Options;
 
 // UCI stdout writer and diagnostic stderr writer.
-class Writer final : public SearchReporter {
+class Writer final : public search::Reporter {
 public:
     explicit Writer(std::ostream& output_stream, std::ostream& diagnostic_stream)
         : output(output_stream),
@@ -33,10 +32,10 @@ public:
     void diagnostic_line(std::string_view text) const;
     void diagnostic_text(std::string_view text) const;
 
-    void report_progress(const RootLine& line,
-                         const Board&    root_board,
-                         NodeCount       nodes,
-                         Milliseconds    time) override;
+    void report_progress(const search::RootLine& line,
+                         const Board&            root_board,
+                         NodeCount               nodes,
+                         Milliseconds            time) override;
     void report_best_move(Move move) override;
     void report_diagnostic(std::string_view text) override;
 

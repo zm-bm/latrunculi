@@ -4,12 +4,13 @@
 #include <string_view>
 #include <vector>
 
+#include "search/reporter.hpp"
 #include "search/root_line.hpp"
-#include "search/search_reporter.hpp"
 
-class RecordingSearchReporter final : public SearchReporter {
+class RecordingSearchReporter final : public search::Reporter {
 public:
-    void report_progress(const RootLine& line, const Board&, NodeCount, Milliseconds) override {
+    void
+    report_progress(const search::RootLine& line, const Board&, NodeCount, Milliseconds) override {
         progress.push_back(line);
     }
 
@@ -23,7 +24,7 @@ public:
         diagnostics.clear();
     }
 
-    std::vector<RootLine>    progress;
-    std::vector<Move>        best_moves;
-    std::vector<std::string> diagnostics;
+    std::vector<search::RootLine> progress;
+    std::vector<Move>             best_moves;
+    std::vector<std::string>      diagnostics;
 };

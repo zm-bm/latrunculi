@@ -1,6 +1,8 @@
-#include "search/move_ordering.hpp"
+#include "search/ordering/state.hpp"
 
 #include <gtest/gtest.h>
+
+namespace search::ordering {
 
 TEST(KillerMovesTest, RotatesTwoDistinctKillersPerPly) {
     KillerMoves killers;
@@ -54,10 +56,10 @@ TEST(CounterMovesTest, IndexesAndReplacesByPreviousMove) {
 }
 
 TEST(MoveOrderingTest, SearchPreparationResetsRefutationsAndAgesOnlyQuietHistory) {
-    MoveOrdering ordering;
-    const Move   first_killer{E2, E4};
-    const Move   second_killer{D2, D4};
-    const Move   counter{G8, F6};
+    State      ordering;
+    const Move first_killer{E2, E4};
+    const Move second_killer{D2, D4};
+    const Move counter{G8, F6};
 
     ordering.killers.update(first_killer, 0);
     ordering.killers.update(second_killer, 0);
@@ -73,3 +75,5 @@ TEST(MoveOrderingTest, SearchPreparationResetsRefutationsAndAgesOnlyQuietHistory
     EXPECT_EQ(ordering.quiets.get(WHITE, E2, E4), 8);
     EXPECT_EQ(ordering.continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
 }
+
+} // namespace search::ordering

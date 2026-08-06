@@ -44,8 +44,8 @@ protected:
 
     bool wait_for_depth(int                       depth,
                         std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
-        SearchWorker& worker   = SearchThreadTestAccess::worker(thread_pool());
-        const auto    deadline = std::chrono::steady_clock::now() + timeout;
+        search::Worker& worker   = SearchThreadTestAccess::worker(thread_pool());
+        const auto      deadline = std::chrono::steady_clock::now() + timeout;
         while (std::chrono::steady_clock::now() < deadline) {
             if (worker.root_snapshot().depth >= depth)
                 return true;
@@ -235,10 +235,10 @@ TEST_F(EngineSearchTest, TerminalPositionsReportDepthZeroAndNullBestMove) {
 TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
     ASSERT_TRUE(execute("setoption name Threads value 2"));
 
-    tt.advance_generation();
-    tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TTBound::Exact, 0);
-    ASSERT_TRUE(tt.probe(board().key()).has_value());
-    ASSERT_EQ(tt.current_generation(), std::uint8_t{1});
+    search::tt.advance_generation();
+    search::tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, search::TTBound::Exact, 0);
+    ASSERT_TRUE(search::tt.probe(board().key()).has_value());
+    ASSERT_EQ(search::tt.current_generation(), std::uint8_t{1});
 
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
         auto& ordering =
@@ -249,8 +249,8 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
 
     EXPECT_TRUE(execute("ucinewgame"));
 
-    EXPECT_FALSE(tt.probe(board().key()).has_value());
-    EXPECT_EQ(tt.current_generation(), std::uint8_t{0});
+    EXPECT_FALSE(search::tt.probe(board().key()).has_value());
+    EXPECT_EQ(search::tt.current_generation(), std::uint8_t{0});
 
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
         auto& ordering =
@@ -270,7 +270,7 @@ TEST_F(EngineSearchTest, PonderSearchWaitsForHitAndPublishesExistingResult) {
 
     EXPECT_TRUE(thread_pool().is_searching());
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 0);
-    EXPECT_EQ(tt.current_generation(), std::uint8_t{1});
+    EXPECT_EQ(search::tt.current_generation(), std::uint8_t{1});
 
     EXPECT_TRUE(execute("ponderhit"));
     thread_pool().wait();
@@ -278,7 +278,7 @@ TEST_F(EngineSearchTest, PonderSearchWaitsForHitAndPublishesExistingResult) {
     const std::string transcript = output.str();
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
     EXPECT_EQ(transcript.find("bestmove 0000"), std::string::npos) << transcript;
-    EXPECT_EQ(tt.current_generation(), std::uint8_t{1});
+    EXPECT_EQ(search::tt.current_generation(), std::uint8_t{1});
 }
 
 TEST_F(EngineSearchTest, MateLimitStopsAfterQualifyingCompletedDepth) {
@@ -286,7 +286,7 @@ TEST_F(EngineSearchTest, MateLimitStopsAfterQualifyingCompletedDepth) {
     EXPECT_TRUE(execute("go mate 2 depth 5"));
     thread_pool().wait();
 
-    const RootLine snapshot = SearchThreadTestAccess::worker(thread_pool()).root_snapshot();
+    const search::RootLine snapshot = SearchThreadTestAccess::worker(thread_pool()).root_snapshot();
     EXPECT_EQ(snapshot.depth, 3);
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1);
     EXPECT_NE(output.str().find("score mate 2"), std::string::npos) << output.str();

@@ -4,13 +4,15 @@
 
 #include <gtest/gtest.h>
 
+#include "search/limits.hpp"
 #include "search/principal_variation.hpp"
 #include "search/root_line.hpp"
-#include "search/search_limits.hpp"
+
+namespace search {
 
 namespace {
 
-void expect_allocated_time(const SearchLimits& limits, Color side, Milliseconds expected) {
+void expect_allocated_time(const Limits& limits, Color side, Milliseconds expected) {
     auto allocated = limits.allocated_time(side);
     ASSERT_TRUE(allocated.has_value());
     EXPECT_EQ(*allocated, expected);
@@ -37,7 +39,7 @@ RootLine completed_root_line(Move move, EvalValue value, int depth) {
 } // namespace
 
 TEST(SearchLimitsTest, SettersApplyValidLimits) {
-    SearchLimits limits;
+    Limits limits;
 
     limits.set_depth(10);
     limits.set_movetime(2000);
@@ -67,7 +69,7 @@ TEST(SearchLimitsTest, SettersPreserveWideLimits) {
 
     constexpr NodeCount max_nodes = std::numeric_limits<NodeCount>::max();
     constexpr Rep       max_time  = std::numeric_limits<Rep>::max();
-    SearchLimits        limits;
+    Limits              limits;
 
     limits.set_movetime(max_time);
     limits.set_nodes(max_nodes);
@@ -77,7 +79,7 @@ TEST(SearchLimitsTest, SettersPreserveWideLimits) {
 }
 
 TEST(SearchLimitsTest, SettersClampOutOfRangeValues) {
-    SearchLimits limits;
+    Limits limits;
 
     limits.set_depth(999);
     limits.set_movetime(-50);
@@ -88,7 +90,7 @@ TEST(SearchLimitsTest, SettersClampOutOfRangeValues) {
     limits.set_movestogo(0);
     limits.set_mate(0);
 
-    EXPECT_EQ(limits.depth, SearchLimits::max_depth);
+    EXPECT_EQ(limits.depth, Limits::max_depth);
     EXPECT_EQ(limits.movetime, Milliseconds{1});
     EXPECT_EQ(limits.wtime, Milliseconds{0});
     EXPECT_EQ(limits.btime, Milliseconds{0});
@@ -99,9 +101,9 @@ TEST(SearchLimitsTest, SettersClampOutOfRangeValues) {
 }
 
 TEST(SearchLimitsTest, DefaultsLeaveOptionalLimitsUnset) {
-    SearchLimits limits;
+    Limits limits;
 
-    EXPECT_EQ(limits.depth, SearchLimits::max_depth);
+    EXPECT_EQ(limits.depth, Limits::max_depth);
     EXPECT_FALSE(limits.movetime.has_value());
     EXPECT_FALSE(limits.nodes.has_value());
     EXPECT_FALSE(limits.wtime.has_value());
@@ -113,7 +115,7 @@ TEST(SearchLimitsTest, DefaultsLeaveOptionalLimitsUnset) {
 }
 
 TEST(SearchLimitsTest, MateLimitUsesUciMoveDistanceForEitherSide) {
-    SearchLimits limits;
+    Limits limits;
     limits.set_mate(2);
 
     EXPECT_TRUE(limits.has_mate_within_limit(eval_value::mate - 3));
@@ -126,7 +128,7 @@ TEST(SearchLimitsTest, MateLimitUsesUciMoveDistanceForEitherSide) {
 }
 
 TEST(SearchLimitsTest, MovetimeOverridesClockBudget) {
-    SearchLimits limits;
+    Limits limits;
     limits.set_movetime(1234);
     limits.set_wtime(90000);
     limits.set_btime(90000);
@@ -137,7 +139,7 @@ TEST(SearchLimitsTest, MovetimeOverridesClockBudget) {
 }
 
 TEST(SearchLimitsTest, ClockBudgetDefaultsMissingIncrementToZero) {
-    SearchLimits limits;
+    Limits limits;
     limits.set_wtime(90000);
     limits.set_btime(60000);
     limits.set_movestogo(30);
@@ -147,7 +149,7 @@ TEST(SearchLimitsTest, ClockBudgetDefaultsMissingIncrementToZero) {
 }
 
 TEST(SearchLimitsTest, ClockBudgetUsesSideIncrement) {
-    SearchLimits limits;
+    Limits limits;
     limits.set_wtime(90000);
     limits.set_btime(60);
     limits.set_winc(500);
@@ -159,7 +161,7 @@ TEST(SearchLimitsTest, ClockBudgetUsesSideIncrement) {
 }
 
 TEST(SearchLimitsTest, ClockBudgetUsesMinimumWhenBudgetIsLow) {
-    SearchLimits limits;
+    Limits limits;
     limits.set_wtime(60);
     limits.set_btime(60);
     limits.set_movestogo(30);
@@ -172,7 +174,7 @@ TEST(SearchLimitsTest, ClockBudgetSaturatesWideTimeAndIncrement) {
     using Rep = Milliseconds::rep;
 
     constexpr Rep max_time = std::numeric_limits<Rep>::max();
-    SearchLimits  limits;
+    Limits        limits;
     limits.set_wtime(max_time);
     limits.set_btime(0);
     limits.set_winc(max_time);
@@ -251,3 +253,5 @@ TEST(RootLineTest, PreservesFallbackWhenCandidatesAreUnusable) {
         .root_move = NULL_MOVE, .value = eval_value::draw, .depth = 1, .completed = true};
     EXPECT_EQ(select_best_root_line(unusable_fallback, candidates), unusable_fallback);
 }
+
+} // namespace search

@@ -5,6 +5,8 @@
 #include <limits>
 #include <utility>
 
+namespace search {
+
 namespace {
 constexpr int tt_score_bits      = 16;
 constexpr int tt_move_bits       = 16;
@@ -80,18 +82,18 @@ void clear_entry(TTEntry& entry) {
 }
 } // namespace
 
-TTTable tt{};
+TranspositionTable tt{};
 
-TTTable::TTTable() {
+TranspositionTable::TranspositionTable() {
     resize(engine::default_hash_mb);
 }
 
-std::size_t TTTable::capacity_mb() const noexcept {
+std::size_t TranspositionTable::capacity_mb() const noexcept {
     constexpr std::size_t bytes_per_mb = std::size_t{1} << 20;
     return cluster_count * sizeof(TTCluster) / bytes_per_mb;
 }
 
-std::optional<TTRecord> TTTable::probe(PositionKey zkey) const {
+std::optional<TTRecord> TranspositionTable::probe(PositionKey zkey) const {
     const TTCluster& cluster = clusters[cluster_index(zkey)];
 
     for (const TTEntry& entry : cluster.entries) {
@@ -103,7 +105,7 @@ std::optional<TTRecord> TTTable::probe(PositionKey zkey) const {
     return std::nullopt;
 }
 
-void TTTable::store(
+void TranspositionTable::store(
     PositionKey zkey, Move move, EvalValue score, int depth, TTBound bound, int ply) {
     assert(depth >= 0 && depth <= engine::max_search_ply);
     assert(score >= std::numeric_limits<std::int16_t>::min()
@@ -163,7 +165,7 @@ void TTTable::store(
     target->signature.store(signature, std::memory_order_release);
 }
 
-void TTTable::clear() {
+void TranspositionTable::clear() {
     for (std::size_t i = 0; i < cluster_count; ++i) {
         for (auto& entry : clusters[i].entries)
             clear_entry(entry);
@@ -171,7 +173,7 @@ void TTTable::clear() {
     generation = 0;
 }
 
-void TTTable::resize(size_t mb) {
+void TranspositionTable::resize(size_t mb) {
     if (mb == 0)
         mb = 1;
 
@@ -185,3 +187,5 @@ void TTTable::resize(size_t mb) {
     shift         = new_shift;
     generation    = 0;
 }
+
+} // namespace search

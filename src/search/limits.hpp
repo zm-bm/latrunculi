@@ -11,7 +11,9 @@
 #include "core/move.hpp"
 #include "core/types.hpp"
 
-struct SearchLimits {
+namespace search {
+
+struct Limits {
     static constexpr int max_depth = engine::max_search_depth;
 
     int  depth = max_depth;
@@ -28,7 +30,7 @@ struct SearchLimits {
     std::optional<int>          mate;
     std::vector<Move>           root_moves;
 
-    SearchLimits() = default;
+    Limits() = default;
 
     void set_depth(int d) { depth = std::clamp(d, 1, max_depth); }
     void set_movetime(Milliseconds::rep mt) {
@@ -66,3 +68,5 @@ struct SearchLimits {
 
     std::optional<Milliseconds> allocated_time(Color c) const;
 };
+
+} // namespace search

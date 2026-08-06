@@ -10,9 +10,11 @@
 #include "core/constants.hpp"
 #include "core/move.hpp"
 
-class TTTable;
+namespace search {
+
+class TranspositionTable;
 class TTTest;
-extern TTTable tt;
+extern TranspositionTable tt;
 
 enum class TTBound : std::uint8_t {
     None,
@@ -67,9 +69,9 @@ struct alignas(64) TTCluster {
     TTEntry entries[size] = {};
 };
 
-class TTTable {
+class TranspositionTable {
 public:
-    explicit TTTable();
+    explicit TranspositionTable();
 
     // Shared probes return detached, validated snapshots. Stores publish the payload before its
     // full-key XOR signature, so races produce a miss or a complete old or new record.
@@ -94,7 +96,7 @@ private:
     std::uint8_t generation    = 0;
 };
 
-inline std::uint64_t TTTable::cluster_index(PositionKey zkey) const {
+inline std::uint64_t TranspositionTable::cluster_index(PositionKey zkey) const {
     return (zkey * 0x9e3779b97f4a7c15ull) >> shift;
 }
 
@@ -133,3 +135,5 @@ inline bool TTRecord::can_cutoff(EvalValue adjusted_score,
 
     return false;
 }
+
+} // namespace search

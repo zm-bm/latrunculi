@@ -5,11 +5,11 @@
 
 #include "core/move.hpp"
 #include "movegen/move_list.hpp"
-#include "search/move_ordering.hpp"
+#include "search/ordering/state.hpp"
 
 class Board;
 
-namespace move_picker {
+namespace search::ordering {
 
 class Picker {
 public:
@@ -64,23 +64,23 @@ private:
         Candidate* end{nullptr};
     };
 
-    friend Picker main_search(const Board&                 board,
-                              const MoveOrdering&          ordering,
-                              const MoveOrdering::Context& context,
-                              int                          ply,
-                              Move                         tt_move);
+    friend Picker main_search(const Board&          board,
+                              const State&          ordering,
+                              const State::Context& context,
+                              int                   ply,
+                              Move                  tt_move);
 
-    friend Picker qsearch(const Board& board, const MoveOrdering& ordering, Move tt_move);
+    friend Picker qsearch(const Board& board, const State& ordering, Move tt_move);
 
     static constexpr int QuietHintCapacity = 3;
     using QuietHintCandidates              = std::array<Move, QuietHintCapacity>;
 
-    Picker(Mode                         mode,
-           const Board&                 board,
-           const MoveOrdering&          ordering,
-           const MoveOrdering::Context& context,
-           Move                         tt,
-           QuietHintCandidates          quiet_hint_candidates = {});
+    Picker(Mode                  mode,
+           const Board&          board,
+           const State&          ordering,
+           const State::Context& context,
+           Move                  tt,
+           QuietHintCandidates   quiet_hint_candidates = {});
 
     void add_quiet_hint(Move move);
     bool is_tt_move(Move move) const;
@@ -102,8 +102,8 @@ private:
     Move pick(CandidateRange& range);
 
     const Board&                                       board;
-    const MoveOrdering&                                ordering;
-    const MoveOrdering::Context                        context;
+    const State&                                       ordering;
+    const State::Context                               context;
     Move                                               tt_move{NULL_MOVE};
     const Mode                                         mode;
     const bool                                         in_check;
@@ -118,12 +118,12 @@ private:
     bool                                skip_quiets{false};
 };
 
-Picker main_search(const Board&                 board,
-                   const MoveOrdering&          ordering,
-                   const MoveOrdering::Context& context,
-                   int                          ply,
-                   Move                         tt_move = NULL_MOVE);
+Picker main_search(const Board&          board,
+                   const State&          ordering,
+                   const State::Context& context,
+                   int                   ply,
+                   Move                  tt_move = NULL_MOVE);
 
-Picker qsearch(const Board& board, const MoveOrdering& ordering, Move tt_move = NULL_MOVE);
+Picker qsearch(const Board& board, const State& ordering, Move tt_move = NULL_MOVE);
 
-} // namespace move_picker
+} // namespace search::ordering

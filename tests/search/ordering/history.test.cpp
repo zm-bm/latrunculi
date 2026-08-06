@@ -1,8 +1,10 @@
-#include "search/history.hpp"
+#include "search/ordering/history.hpp"
 
 #include <gtest/gtest.h>
 
-#include "search/search_limits.hpp"
+#include "search/limits.hpp"
+
+namespace search::ordering {
 
 TEST(QuietHistoryTest, UpdatesAndIsolatesMoveKeys) {
     QuietHistory hist;
@@ -29,8 +31,8 @@ TEST(QuietHistoryTest, ScalesMalusesAndBoundsRepeatedUpdates) {
     EXPECT_EQ(hist.get(WHITE, D2, D4), -8);
 
     for (int i = 0; i < 8; ++i) {
-        hist.reward(WHITE, A2, A3, SearchLimits::max_depth);
-        hist.penalize(BLACK, A7, A6, SearchLimits::max_depth);
+        hist.reward(WHITE, A2, A3, Limits::max_depth);
+        hist.penalize(BLACK, A7, A6, Limits::max_depth);
     }
 
     EXPECT_EQ(hist.get(WHITE, A2, A3), QuietHistory::max_score);
@@ -92,3 +94,5 @@ TEST(ContinuationHistoryTest, TracksContinuationKeysAndLifecycle) {
     EXPECT_EQ(hist.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
     EXPECT_EQ(hist.get(BLACK, BISHOP, D4, PAWN, E3), 0);
 }
+
+} // namespace search::ordering

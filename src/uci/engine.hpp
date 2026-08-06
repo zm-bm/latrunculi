@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "board/board.hpp"
-#include "search/search_thread_pool.hpp"
+#include "search/thread_pool.hpp"
 #include "uci/command.hpp"
 #include "uci/options.hpp"
 #include "uci/writer.hpp"
@@ -61,12 +61,12 @@ private:
     void apply_option_effect(OptionId option, const Options& candidate);
     void require_idle(std::string_view action) const;
 
-    std::istream&    input;
-    Writer           writer;
-    Options          options;
-    bool             debug_mode{false};
-    Board            board;
-    SearchThreadPool thread_pool;
+    std::istream&      input;
+    Writer             writer;
+    Options            options;
+    bool               debug_mode{false};
+    Board              board;
+    search::ThreadPool thread_pool;
 
     friend class ::EngineTest;
 };

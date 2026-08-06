@@ -39,14 +39,14 @@ TEST_F(EngineOptionsTest, PonderOptionValuesAreCaseInsensitive) {
 TEST_F(EngineOptionsTest, HashOptionResizesAndClearHashClearsTT) {
     ASSERT_TRUE(execute("setoption name Hash value 8"));
     ASSERT_EQ(hash_option_mb(), 8);
-    ASSERT_EQ(tt.capacity_mb(), 8U);
+    ASSERT_EQ(search::tt.capacity_mb(), 8U);
 
-    tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, TTBound::Exact, 0);
-    ASSERT_TRUE(tt.probe(board().key()).has_value());
+    search::tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, search::TTBound::Exact, 0);
+    ASSERT_TRUE(search::tt.probe(board().key()).has_value());
 
     EXPECT_TRUE(execute("setoption name Clear Hash"));
 
-    EXPECT_FALSE(tt.probe(board().key()).has_value());
+    EXPECT_FALSE(search::tt.probe(board().key()).has_value());
 }
 
 struct SetOptionCase {

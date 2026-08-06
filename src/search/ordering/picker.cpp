@@ -1,4 +1,4 @@
-#include "search/move_picker.hpp"
+#include "search/ordering/picker.hpp"
 
 #include <cassert>
 #include <utility>
@@ -6,6 +6,8 @@
 #include "board/board.hpp"
 #include "eval/eval.hpp"
 #include "movegen/generator.hpp"
+
+namespace search::ordering {
 
 namespace {
 
@@ -22,13 +24,11 @@ static_assert(QuietHistory::max_score + ContinuationHistory::max_score < GoodCap
 
 } // namespace
 
-namespace move_picker {
-
-Picker main_search(const Board&                 board,
-                   const MoveOrdering&          ordering,
-                   const MoveOrdering::Context& context,
-                   int                          ply,
-                   Move                         tt_move) {
+Picker main_search(const Board&          board,
+                   const State&          ordering,
+                   const State::Context& context,
+                   int                   ply,
+                   Move                  tt_move) {
     const Picker::QuietHintCandidates quiet_hint_candidates{
         ordering.killers.primary(ply),
         ordering.killers.secondary(ply),
@@ -39,17 +39,17 @@ Picker main_search(const Board&                 board,
         Picker::Mode::MainSearch, board, ordering, context, tt_move, quiet_hint_candidates);
 }
 
-Picker qsearch(const Board& board, const MoveOrdering& ordering, Move tt_move) {
-    const MoveOrdering::Context context{.side = board.side_to_move()};
+Picker qsearch(const Board& board, const State& ordering, Move tt_move) {
+    const State::Context context{.side = board.side_to_move()};
     return Picker(Picker::Mode::QSearch, board, ordering, context, tt_move);
 }
 
-Picker::Picker(Mode                         mode,
-               const Board&                 board,
-               const MoveOrdering&          ordering,
-               const MoveOrdering::Context& context,
-               Move                         tt,
-               QuietHintCandidates          quiet_hint_candidates)
+Picker::Picker(Mode                  mode,
+               const Board&          board,
+               const State&          ordering,
+               const State::Context& context,
+               Move                  tt,
+               QuietHintCandidates   quiet_hint_candidates)
     : board(board),
       ordering(ordering),
       context(context),
@@ -316,4 +316,4 @@ Move Picker::next() {
     return NULL_MOVE;
 }
 
-} // namespace move_picker
+} // namespace search::ordering

@@ -11,6 +11,8 @@
 
 #include "gtest/gtest.h"
 
+namespace search {
+
 namespace {
 constexpr std::uint64_t tt_cluster_multiplier = 0x9e3779b97f4a7c15ull;
 constexpr std::uint32_t one_mb_cluster_shift  = 50;
@@ -87,7 +89,7 @@ protected:
     int         depth = 5;
     TTBound     bound = TTBound::Exact;
 
-    static size_t cluster_count(const TTTable& table) { return table.cluster_count; }
+    static size_t cluster_count(const TranspositionTable& table) { return table.cluster_count; }
 
     void SetUp() override { tt.clear(); }
 };
@@ -214,7 +216,7 @@ TEST_F(TTTest, ResizeRoundsCapacityDownToLargestFittingPowerOfTwo) {
         Case{.megabytes = 5, .expected_clusters = 65'536},
     };
 
-    TTTable table;
+    TranspositionTable table;
     for (const auto& tc : cases) {
         SCOPED_TRACE(tc.megabytes);
         table.resize(tc.megabytes);
@@ -441,3 +443,5 @@ TEST_F(TTTest, ConcurrentStoreAndProbeYieldOnlyCompleteSnapshots) {
     ASSERT_TRUE(final_probe.has_value());
     EXPECT_TRUE(matches_expected_snapshot(*final_probe, expected_snapshots));
 }
+
+} // namespace search

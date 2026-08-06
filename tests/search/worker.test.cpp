@@ -1,37 +1,39 @@
-#include "search/search_worker.hpp"
+#include "search/worker.hpp"
 
 #include <array>
 
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
-#include "search/search_limits.hpp"
-#include "search/search_thread_pool.hpp"
+#include "search/limits.hpp"
+#include "search/thread_pool.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
 #include "support/search_thread_test_access.hpp"
+
+namespace search {
 
 namespace {
 
 class SearchWorkerTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    SearchThreadPool        pool{1, reporter};
+    ThreadPool              pool{1, reporter};
 
-    SearchThread& test_thread() { return SearchThreadTestAccess::thread(pool); }
+    Thread& test_thread() { return SearchThreadTestAccess::thread(pool); }
 
-    SearchWorker& worker() { return SearchThreadTestAccess::worker(test_thread()); }
+    Worker& worker() { return SearchThreadTestAccess::worker(test_thread()); }
 
     void load_worker_board(Board& board) {
-        worker().configure_search(board, SearchLimits{}, SearchClock::now());
+        worker().configure_search(board, Limits{}, SearchClock::now());
         SearchTestAccess::reset(worker());
     }
 
     int& search_ply() { return SearchTestAccess::search_ply(worker()); }
     bool worker_is_draw() { return SearchTestAccess::board(worker()).is_draw(search_ply()); }
 
-    MoveOrdering& worker_ordering() { return SearchTestAccess::ordering(worker()); }
+    ordering::State& worker_ordering() { return SearchTestAccess::ordering(worker()); }
 
     void make_worker_move(Move move) {
         SearchTestAccess::board(worker()).make(move);
@@ -89,9 +91,9 @@ TEST_F(SearchWorkerTest, HelperDepthsFollowStaggeringSchedule) {
         {true, false, false, true, true, false, false, true},
     }};
 
-    SearchThreadPool helper_pool{expected.size(), reporter};
+    ThreadPool helper_pool{expected.size(), reporter};
     for (size_t worker_id = 0; worker_id < expected.size(); ++worker_id) {
-        const SearchWorker& search_worker = SearchThreadTestAccess::worker(helper_pool, worker_id);
+        const Worker& search_worker = SearchThreadTestAccess::worker(helper_pool, worker_id);
         for (int depth = 1; depth <= static_cast<int>(expected[worker_id].size()); ++depth) {
             EXPECT_EQ(SearchTestAccess::should_search_root_depth(search_worker, depth),
                       expected[worker_id][depth - 1])
@@ -160,3 +162,5 @@ TEST_F(SearchWorkerTest, StoppedSearchReportsFallbackWithoutCompletingRootSnapsh
     ASSERT_EQ(reporter.best_moves.size(), 1U);
     EXPECT_EQ(reporter.best_moves.front(), root_lines.front().root_move);
 }
+
+} // namespace search

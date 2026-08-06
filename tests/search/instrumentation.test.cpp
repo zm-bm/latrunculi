@@ -1,14 +1,16 @@
-#include "search/search_instrumentation.hpp"
+#include "search/instrumentation.hpp"
 
 #include <type_traits>
 
 #include <gtest/gtest.h>
 
-TEST(SearchInstrumentation, DisabledInstrumentationIsEmptyAndNoop) {
-    static_assert(std::is_empty_v<SearchInstrumentation<false>>);
+namespace search {
 
-    SearchInstrumentation<false> stats;
-    SearchInstrumentation<false> other;
+TEST(Instrumentation, DisabledInstrumentationIsEmptyAndNoop) {
+    static_assert(std::is_empty_v<Instrumentation<false>>);
+
+    Instrumentation<false> stats;
+    Instrumentation<false> other;
 
     stats.node(1);
     stats.qnode(1);
@@ -41,8 +43,8 @@ TEST(SearchInstrumentation, DisabledInstrumentationIsEmptyAndNoop) {
 
 #if LATRUNCULI_SEARCH_STATS
 
-TEST(SearchInstrumentation, RecordsRetainedEventFamiliesAndResets) {
-    SearchInstrumentation<true> stats;
+TEST(Instrumentation, RecordsRetainedEventFamiliesAndResets) {
+    Instrumentation<true> stats;
 
     constexpr int index = 1;
     stats.node(index);
@@ -113,8 +115,8 @@ TEST(SearchInstrumentation, RecordsRetainedEventFamiliesAndResets) {
     EXPECT_EQ(reset.aspiration_fail_highs, 0);
 }
 
-TEST(SearchInstrumentation, IgnoresOutOfRangeIndices) {
-    SearchInstrumentation<true> stats;
+TEST(Instrumentation, IgnoresOutOfRangeIndices) {
+    Instrumentation<true> stats;
 
     stats.node(-1);
     stats.node(engine::max_search_ply);
@@ -132,9 +134,9 @@ TEST(SearchInstrumentation, IgnoresOutOfRangeIndices) {
     EXPECT_EQ(counters.quiet_malus_updates.back(), 0);
 }
 
-TEST(SearchInstrumentation, AggregatesCounters) {
-    SearchCounters first;
-    SearchCounters second;
+TEST(Instrumentation, AggregatesCounters) {
+    Counters first;
+    Counters second;
 
     first.nodes[1]                      = 10;
     first.qnodes[1]                     = 4;
@@ -192,8 +194,8 @@ TEST(SearchInstrumentation, AggregatesCounters) {
     second.aspiration_fail_lows          = 4;
     second.aspiration_fail_highs         = 5;
 
-    SearchInstrumentation<true> total{first};
-    total += SearchInstrumentation<true>{second};
+    Instrumentation<true> total{first};
+    total += Instrumentation<true>{second};
 
     const auto& counters = total.raw_counters();
     EXPECT_EQ(counters.nodes[1], 15);
@@ -225,8 +227,8 @@ TEST(SearchInstrumentation, AggregatesCounters) {
     EXPECT_EQ(counters.aspiration_fail_highs, 7);
 }
 
-TEST(SearchInstrumentation, FormatsStableDiagnostics) {
-    SearchCounters counters;
+TEST(Instrumentation, FormatsStableDiagnostics) {
+    Counters counters;
     counters.aspiration_fail_lows          = 1;
     counters.aspiration_fail_highs         = 2;
     counters.nodes[1]                      = 100;
@@ -269,7 +271,7 @@ TEST(SearchInstrumentation, FormatsStableDiagnostics) {
     counters.quiet_malus_failed_quiets[4]  = 8;
     counters.quiet_malus_updates[4]        = 5;
 
-    const SearchInstrumentation<true> stats{counters};
+    const Instrumentation<true> stats{counters};
 
     EXPECT_EQ(stats.str(), R"(
 Aspiration: fail-low=1 fail-high=2 re-searches=3
@@ -286,3 +288,5 @@ QuietHistory: quiet-cutoffs=6 malus-eligible=7 failed-quiets=8 malus-updates=5
 }
 
 #endif
+
+} // namespace search

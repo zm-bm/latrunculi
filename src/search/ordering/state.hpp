@@ -5,7 +5,9 @@
 #include "core/move.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
-#include "search/history.hpp"
+#include "search/ordering/history.hpp"
+
+namespace search::ordering {
 
 /*
  * Killer moves are quiet refutations indexed by ply. The picker tries the two
@@ -83,10 +85,10 @@ inline void CounterMoves::clear() {
 }
 
 /*
- * MoveOrdering owns per-worker ordering state. Scored histories persist across
+ * State owns per-worker ordering state. Scored histories persist across
  * searches within a game; search-local refutations do not.
  */
-struct MoveOrdering {
+struct State {
     /*
      * Context caches node-local keys derived from the board, avoiding repeated
      * previous-move extraction in hot move-ordering paths.
@@ -123,40 +125,40 @@ private:
     static PieceType moving_piece(const Board& board, Move move);
 };
 
-inline void MoveOrdering::prepare_for_search() {
+inline void State::prepare_for_search() {
     killers.clear();
     counters.clear();
     quiets.age();
 }
 
-inline void MoveOrdering::clear() {
+inline void State::clear() {
     killers.clear();
     counters.clear();
     quiets.clear();
     continuations.clear();
 }
 
-inline bool MoveOrdering::is_killer(Move move, int ply) const {
+inline bool State::is_killer(Move move, int ply) const {
     return killers.is_killer(move, ply);
 }
 
-inline Move MoveOrdering::counter_hint(const Context& context) const {
+inline Move State::counter_hint(const Context& context) const {
     return context.has_previous_move
              ? counters.get(context.previous_side, context.previous_piece, context.previous_to)
              : NULL_MOVE;
 }
 
-inline void MoveOrdering::update_quiet_refutations(const Context& context, Move move, int ply) {
+inline void State::update_quiet_refutations(const Context& context, Move move, int ply) {
     killers.update(move, ply);
 
     if (context.has_previous_move)
         counters.update(context.previous_side, context.previous_piece, context.previous_to, move);
 }
 
-inline int MoveOrdering::quiet_score(const Context& context,
-                                     const Board&   board,
-                                     Move           move,
-                                     bool           include_continuation) const {
+inline int State::quiet_score(const Context& context,
+                              const Board&   board,
+                              Move           move,
+                              bool           include_continuation) const {
     const Square from  = move.from();
     const Square to    = move.to();
     int          score = quiets.get(context.side, from, to);
@@ -172,8 +174,7 @@ inline int MoveOrdering::quiet_score(const Context& context,
     return score;
 }
 
-inline void
-MoveOrdering::reward_quiet(const Context& context, const Board& board, Move move, int depth) {
+inline void State::reward_quiet(const Context& context, const Board& board, Move move, int depth) {
     const Square from = move.from();
     const Square to   = move.to();
     quiets.reward(context.side, from, to, depth);
@@ -187,7 +188,7 @@ MoveOrdering::reward_quiet(const Context& context, const Board& board, Move move
             context.previous_side, context.previous_piece, context.previous_to, piece, to, depth);
 }
 
-inline void MoveOrdering::penalize_quiet(
+inline void State::penalize_quiet(
     const Context& context, const Board& board, Move move, int depth, int divisor) {
     const Square from = move.from();
     const Square to   = move.to();
@@ -207,7 +208,7 @@ inline void MoveOrdering::penalize_quiet(
                                divisor);
 }
 
-inline MoveOrdering::Context MoveOrdering::make_context(const Board& board) {
+inline State::Context State::make_context(const Board& board) {
     Context context{.side = board.side_to_move()};
 
     const Move prev_move = board.previous_move();
@@ -226,6 +227,8 @@ inline MoveOrdering::Context MoveOrdering::make_context(const Board& board) {
     return context;
 }
 
-inline PieceType MoveOrdering::moving_piece(const Board& board, Move move) {
+inline PieceType State::moving_piece(const Board& board, Move move) {
     return type_of(board.piece_on(move.from()));
 }
+
+} // namespace search::ordering

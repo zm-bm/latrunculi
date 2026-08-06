@@ -5,9 +5,11 @@
 
 #include "core/constants.hpp"
 #include "eval/evaluator.hpp"
-#include "search/move_picker.hpp"
-#include "search/search_worker.hpp"
+#include "search/ordering/picker.hpp"
 #include "search/tt.hpp"
+#include "search/worker.hpp"
+
+namespace search {
 
 namespace {
 
@@ -109,7 +111,7 @@ private:
 } // namespace
 
 // Main root search driver.
-EvalValue SearchWorker::search_root() {
+EvalValue Worker::search_root() {
     // Terminal root: return immediately when no legal root move exists.
     if (root_lines.empty()) {
         root_result = terminal_root_result();
@@ -129,7 +131,7 @@ EvalValue SearchWorker::search_root() {
     return root_result.value;
 }
 
-bool SearchWorker::should_search_root_depth(int depth) const noexcept {
+bool Worker::should_search_root_depth(int depth) const noexcept {
     if (is_main_worker() || depth == 1)
         return true;
 
@@ -139,7 +141,7 @@ bool SearchWorker::should_search_root_depth(int depth) const noexcept {
 }
 
 // Root aspiration loop for a single depth.
-bool SearchWorker::search_root_depth(int depth, EvalValue previous_value) {
+bool Worker::search_root_depth(int depth, EvalValue previous_value) {
     EvalValue delta = AspirationWindow;
     EvalValue alpha = std::max(previous_value - delta, -eval_value::inf);
     EvalValue beta  = std::min(previous_value + delta, eval_value::inf);
@@ -186,7 +188,7 @@ bool SearchWorker::search_root_depth(int depth, EvalValue previous_value) {
 }
 
 // Fixed-window root pass. Caller owns attempt reset and result ordering.
-bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta) {
+bool Worker::search_root_window(int depth, EvalValue alpha, EvalValue beta) {
     assert(!root_lines.empty());
 
     int  move_count  = 0;
@@ -249,7 +251,7 @@ bool SearchWorker::search_root_window(int depth, EvalValue alpha, EvalValue beta
 
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
 template <NodeType Node>
-EvalValue SearchWorker::alphabeta(
+EvalValue Worker::alphabeta(
     EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv, bool can_null) {
     // Step 1. PV and stop checks.
     if (pv)
@@ -362,8 +364,8 @@ EvalValue SearchWorker::alphabeta(
     EvalValue best_value = -eval_value::inf;
     Move      best_move  = NULL_MOVE;
 
-    const auto context = MoveOrdering::make_context(board);
-    auto       picker  = move_picker::main_search(board, ordering, context, search_ply, tt_move);
+    const auto context = ordering::State::make_context(board);
+    auto       picker  = ordering::main_search(board, ordering, context, search_ply, tt_move);
 
     PrincipalVariation child_pv;
     FailedQuiets       failed_quiets;
@@ -500,7 +502,7 @@ EvalValue SearchWorker::alphabeta(
 
 // Quiescence search for tactical depth-zero nodes.
 template <NodeType Node>
-EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv) {
+EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv) {
     // Step 1. PV and stop checks.
     if (pv)
         pv->clear();
@@ -560,7 +562,7 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
             alpha = best_value;
     }
 
-    auto               picker = move_picker::qsearch(board, ordering, tt_move);
+    auto               picker = ordering::qsearch(board, ordering, tt_move);
     PrincipalVariation child_pv;
 
     // Step 5. Tactical move or evasion loop.
@@ -620,10 +622,10 @@ EvalValue SearchWorker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVar
 
 // Template definitions live in this translation unit; instantiate the node types we use.
 template EvalValue
-SearchWorker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
+Worker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
 template EvalValue
-SearchWorker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
-template EvalValue
-SearchWorker::quiescence<NodeType::Pv>(EvalValue, EvalValue, PrincipalVariation*);
-template EvalValue
-SearchWorker::quiescence<NodeType::NonPv>(EvalValue, EvalValue, PrincipalVariation*);
+Worker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
+template EvalValue Worker::quiescence<NodeType::Pv>(EvalValue, EvalValue, PrincipalVariation*);
+template EvalValue Worker::quiescence<NodeType::NonPv>(EvalValue, EvalValue, PrincipalVariation*);
+
+} // namespace search

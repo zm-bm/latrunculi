@@ -24,13 +24,13 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/core/move.cpp
     src/eval/evaluator.cpp
     src/movegen/perft.cpp
-    src/search/move_picker.cpp
+    src/search/ordering/picker.cpp
     src/search/root_line.cpp
-    src/search/search.cpp
-    src/search/search_instrumentation.cpp
-    src/search/search_limits.cpp
-    src/search/search_thread_pool.cpp
-    src/search/search_worker.cpp
+    src/search/algorithm.cpp
+    src/search/instrumentation.cpp
+    src/search/limits.cpp
+    src/search/thread_pool.cpp
+    src/search/worker.cpp
     src/search/tt.cpp
     src/uci/engine.cpp
     src/uci/options.cpp
@@ -80,16 +80,16 @@ if(BUILD_TESTING)
         tests/movegen/move_list.test.cpp
         tests/movegen/generator.test.cpp
         tests/movegen/perft.test.cpp
-        tests/search/history.test.cpp
-        tests/search/move_ordering.test.cpp
-        tests/search/move_picker.test.cpp
+        tests/search/ordering/history.test.cpp
+        tests/search/ordering/state.test.cpp
+        tests/search/ordering/picker.test.cpp
         tests/search/quiescence.test.cpp
         tests/search/root_search.test.cpp
-        tests/search/search.test.cpp
-        tests/search/search_instrumentation.test.cpp
-        tests/search/search_thread_pool.test.cpp
-        tests/search/search_types.test.cpp
-        tests/search/search_worker.test.cpp
+        tests/search/algorithm.test.cpp
+        tests/search/instrumentation.test.cpp
+        tests/search/thread_pool.test.cpp
+        tests/search/types.test.cpp
+        tests/search/worker.test.cpp
         tests/search/tt.test.cpp
         tests/uci/engine.test.cpp
         tests/uci/engine_options.test.cpp

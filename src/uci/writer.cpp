@@ -28,7 +28,7 @@ std::string format_nps(NodeCount nodes, Milliseconds time) {
     return std::to_string(nps);
 }
 
-std::string format_root_pv(const RootLine& line, const Board& root_board) {
+std::string format_root_pv(const search::RootLine& line, const Board& root_board) {
     if (!line.usable_root_move() || line.pv.empty() || line.pv.front() != line.root_move)
         return "";
 
@@ -51,10 +51,10 @@ std::string format_root_pv(const RootLine& line, const Board& root_board) {
     return pv;
 }
 
-std::string format_search_info(const RootLine& line,
-                               const Board&    root_board,
-                               NodeCount       nodes,
-                               Milliseconds    time) {
+std::string format_search_info(const search::RootLine& line,
+                               const Board&            root_board,
+                               NodeCount               nodes,
+                               Milliseconds            time) {
     std::string info = std::format("info depth {} score {} nodes {} time {} nps {}",
                                    line.depth,
                                    format_score(line.value),
@@ -161,10 +161,10 @@ void Writer::ready() const {
     write_line(output, "readyok");
 }
 
-void Writer::report_progress(const RootLine& line,
-                             const Board&    root_board,
-                             NodeCount       nodes,
-                             Milliseconds    time) {
+void Writer::report_progress(const search::RootLine& line,
+                             const Board&            root_board,
+                             NodeCount               nodes,
+                             Milliseconds            time) {
     const std::string text = format_search_info(line, root_board, nodes, time);
     write_line(output, text);
 }

@@ -1,4 +1,4 @@
-#include "search/search_thread_pool.hpp"
+#include "search/thread_pool.hpp"
 
 #include <gtest/gtest.h>
 
@@ -13,21 +13,23 @@
 #include <thread>
 
 #include "board/board.hpp"
-#include "search/search_limits.hpp"
+#include "search/limits.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_reporter.hpp"
 #include "support/search_thread_test_access.hpp"
 
+namespace search {
+
 namespace {
 
 constexpr int THREAD_COUNT = 4;
 
-SearchLimits default_limits() {
-    return SearchLimits{};
+Limits default_limits() {
+    return Limits{};
 }
 
-class GatedSearchReporter final : public SearchReporter {
+class GatedSearchReporter final : public Reporter {
 public:
     void wait_for_best_move() { best_move_observed.acquire(); }
     void release_best_move() { best_move_released.release(); }
@@ -56,9 +58,9 @@ private:
 class SearchThreadPoolTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    SearchThreadPool        pool{THREAD_COUNT, reporter};
+    ThreadPool              pool{THREAD_COUNT, reporter};
     Board                   board{board_test::fen::start};
-    SearchLimits            options{default_limits()};
+    Limits                  options{default_limits()};
 
     NodeCount nodes_searched() const { return pool.nodes_searched(); }
 
@@ -83,7 +85,7 @@ protected:
 } // namespace
 
 TEST_F(SearchThreadPoolTest, StartSearchRejectsEmptyPool) {
-    SearchThreadPool empty_pool{0, reporter};
+    ThreadPool empty_pool{0, reporter};
 
     EXPECT_FALSE(empty_pool.start_search(board, options));
     EXPECT_EQ(tt.current_generation(), std::uint8_t{0});
@@ -99,9 +101,9 @@ TEST_F(SearchThreadPoolTest, StartSearchCompletes) {
 
 TEST(SearchThreadPoolTransitionTest, ImmediateRestartAfterBestMovePublicationIsAccepted) {
     GatedSearchReporter reporter;
-    SearchThreadPool    pool{2, reporter};
+    ThreadPool          pool{2, reporter};
     Board               board{board_test::fen::start};
-    SearchLimits        limits;
+    Limits              limits;
     limits.depth = 1;
     tt.clear();
 
@@ -220,7 +222,7 @@ TEST_F(SearchThreadPoolTest, DestructorShutsDownActiveSearch) {
     options.depth = 5;
 
     {
-        SearchThreadPool local_pool{THREAD_COUNT, reporter};
+        ThreadPool local_pool{THREAD_COUNT, reporter};
         EXPECT_TRUE(local_pool.start_search(board, options));
     }
 
@@ -258,7 +260,7 @@ TEST_F(SearchThreadPoolTest, NodeLimitedSearchUsesFreshThreadSafeNodeCounts) {
     ASSERT_TRUE(helper_searched);
 
     for (size_t index = 0; index < pool.thread_count(); ++index) {
-        SearchThread& thread = SearchThreadTestAccess::thread(pool, index);
+        Thread& thread = SearchThreadTestAccess::thread(pool, index);
         SearchThreadTestAccess::configure_search(thread, board, options);
         EXPECT_EQ(SearchThreadTestAccess::node_count(thread), 0);
     }
@@ -332,3 +334,5 @@ TEST_F(SearchThreadPoolTest, ResizeToZeroThenBackUp) {
     pool.wait();
     EXPECT_EQ(best_move_count(), 1);
 }
+
+} // namespace search

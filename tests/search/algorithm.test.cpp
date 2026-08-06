@@ -11,24 +11,26 @@
 #include "core/constants.hpp"
 #include "eval/evaluator.hpp"
 #include "movegen/generator.hpp"
-#include "search/move_picker.hpp"
-#include "search/search_thread_pool.hpp"
-#include "search/search_worker.hpp"
+#include "search/ordering/picker.hpp"
+#include "search/thread_pool.hpp"
 #include "search/tt.hpp"
+#include "search/worker.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
 #include "support/search_thread_test_access.hpp"
+
+namespace search {
 
 namespace {
 
 class SearchTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    SearchThreadPool        pool{1, reporter};
-    SearchThread&           thread{SearchThreadTestAccess::thread(pool)};
-    SearchWorker&           worker{SearchThreadTestAccess::worker(thread)};
-    SearchLimits            limits;
+    ThreadPool              pool{1, reporter};
+    Thread&                 thread{SearchThreadTestAccess::thread(pool)};
+    Worker&                 worker{SearchThreadTestAccess::worker(thread)};
+    Limits                  limits;
 
     void SetUp() override {
         limits.depth = 4;
@@ -42,9 +44,9 @@ protected:
         SearchTestAccess::reset(worker);
     }
 
-    Board&        position() { return SearchTestAccess::board(worker); }
-    int&          ply() { return SearchTestAccess::search_ply(worker); }
-    MoveOrdering& ordering() { return SearchTestAccess::ordering(worker); }
+    Board&           position() { return SearchTestAccess::board(worker); }
+    int&             ply() { return SearchTestAccess::search_ply(worker); }
+    ordering::State& ordering() { return SearchTestAccess::ordering(worker); }
 
     EvalValue search(EvalValue alpha, EvalValue beta, int depth, bool can_null = true) {
         return SearchTestAccess::alphabeta<NodeType::NonPv>(
@@ -99,8 +101,8 @@ protected:
 
     std::vector<Move> legal_picker_moves(Move tt_move = NULL_MOVE) {
         std::vector<Move> moves;
-        const auto        context = MoveOrdering::make_context(position());
-        auto picker = move_picker::main_search(position(), ordering(), context, ply(), tt_move);
+        const auto        context = ordering::State::make_context(position());
+        auto picker = ordering::main_search(position(), ordering(), context, ply(), tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
             if (position().is_legal_pseudo_move(move))
                 moves.push_back(move);
@@ -139,9 +141,7 @@ protected:
     }
 
 #if LATRUNCULI_SEARCH_STATS
-    const SearchCounters& counters() {
-        return SearchTestAccess::instrumentation(worker).raw_counters();
-    }
+    const Counters& counters() { return SearchTestAccess::instrumentation(worker).raw_counters(); }
 #endif
 };
 
@@ -783,3 +783,5 @@ TEST_F(SearchTest, StoppedSearchReturnsAlphaSentinel) {
     SearchThreadTestAccess::request_stop(thread);
     EXPECT_EQ(search(-123, 456, 2), -123);
 }
+
+} // namespace search

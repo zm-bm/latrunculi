@@ -1,4 +1,4 @@
-#include "search/search_instrumentation.hpp"
+#include "search/instrumentation.hpp"
 
 #if LATRUNCULI_SEARCH_STATS
 
@@ -6,9 +6,11 @@
 #include <format>
 #include <iterator>
 
+namespace search {
+
 namespace {
 
-std::uint64_t sum(const SearchCounters::CounterArray& values) {
+std::uint64_t sum(const Counters::CounterArray& values) {
     std::uint64_t total = 0;
     for (const std::uint64_t value : values)
         total += value;
@@ -19,12 +21,12 @@ double percentage(const std::uint64_t count, const std::uint64_t total) {
     return total > 0 ? 100.0 * count / total : 0.0;
 }
 
-bool has_quiet_history_stats(const SearchCounters& stats, const int depth) {
+bool has_quiet_history_stats(const Counters& stats, const int depth) {
     return stats.quiet_cutoffs[depth] != 0 || stats.quiet_malus_eligible_nodes[depth] != 0
         || stats.quiet_malus_failed_quiets[depth] != 0 || stats.quiet_malus_updates[depth] != 0;
 }
 
-int max_quiet_history_depth(const SearchCounters& stats) {
+int max_quiet_history_depth(const Counters& stats) {
     for (int depth = engine::max_search_ply - 1; depth > 0; --depth) {
         if (has_quiet_history_stats(stats, depth))
             return depth;
@@ -34,12 +36,11 @@ int max_quiet_history_depth(const SearchCounters& stats) {
 
 } // namespace
 
-void SearchInstrumentation<true>::reset() {
+void Instrumentation<true>::reset() {
     counters = {};
 }
 
-SearchInstrumentation<true>&
-SearchInstrumentation<true>::operator+=(const SearchInstrumentation& other) {
+Instrumentation<true>& Instrumentation<true>::operator+=(const Instrumentation& other) {
     for (std::size_t i = 0; i < engine::max_search_ply; ++i) {
         counters.nodes[i] += other.counters.nodes[i];
         counters.qnodes[i] += other.counters.qnodes[i];
@@ -73,7 +74,7 @@ SearchInstrumentation<true>::operator+=(const SearchInstrumentation& other) {
     return *this;
 }
 
-std::string SearchInstrumentation<true>::str() const {
+std::string Instrumentation<true>::str() const {
     std::string report;
     auto        out = std::back_inserter(report);
 
@@ -214,5 +215,7 @@ std::string SearchInstrumentation<true>::str() const {
 
     return report;
 }
+
+} // namespace search
 
 #endif

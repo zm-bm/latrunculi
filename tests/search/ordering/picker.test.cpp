@@ -1,4 +1,4 @@
-#include "search/move_picker.hpp"
+#include "search/ordering/picker.hpp"
 
 #include <algorithm>
 #include <string_view>
@@ -8,15 +8,17 @@
 
 #include "board/board.hpp"
 #include "movegen/generator.hpp"
-#include "search/move_ordering.hpp"
-#include "search/search_limits.hpp"
+#include "search/limits.hpp"
+#include "search/ordering/state.hpp"
 #include "support/board_fixtures.hpp"
+
+namespace search::ordering {
 
 class PickerTest : public ::testing::Test {
 protected:
     int           ply = 5;
     Board         board{board_test::fen::perft_position_3};
-    MoveOrdering  ordering;
+    State         ordering;
     KillerMoves&  killers       = ordering.killers;
     QuietHistory& quiet_history = ordering.quiets;
 };
@@ -43,7 +45,7 @@ std::vector<MoveBits> sorted_move_bits(const std::vector<Move>& moves) {
     return bits;
 }
 
-std::vector<Move> collect_moves(move_picker::Picker& picker) {
+std::vector<Move> collect_moves(ordering::Picker& picker) {
     std::vector<Move> moves;
     moves.reserve(movegen::MoveList::capacity);
     for (Move move = picker.next(); !move.is_null(); move = picker.next())
@@ -51,16 +53,16 @@ std::vector<Move> collect_moves(move_picker::Picker& picker) {
     return moves;
 }
 
-void seed_counter_hint(const MoveOrdering::Context& context, MoveOrdering& ordering, Move counter) {
+void seed_counter_hint(const State::Context& context, State& ordering, Move counter) {
     if (!counter.is_null() && context.has_previous_move)
         ordering.counters.update(
             context.previous_side, context.previous_piece, context.previous_to, counter);
 }
 
-void boost_continuation_hint(const Board&                 board,
-                             const MoveOrdering::Context& context,
-                             MoveOrdering&                ordering,
-                             Move                         move) {
+void boost_continuation_hint(const Board&          board,
+                             const State::Context& context,
+                             State&                ordering,
+                             Move                  move) {
     if (!context.has_previous_move)
         return;
 
@@ -74,24 +76,23 @@ void boost_continuation_hint(const Board&                 board,
                                       context.previous_to,
                                       piece,
                                       move.to(),
-                                      SearchLimits::max_depth);
+                                      Limits::max_depth);
     }
 }
 
-std::vector<Move> picked_main_search(const Board&  board,
-                                     MoveOrdering& ordering,
-                                     int           ply,
-                                     Move          tt_move = NULL_MOVE,
-                                     Move          counter = NULL_MOVE) {
-    const auto context = MoveOrdering::make_context(board);
+std::vector<Move> picked_main_search(const Board& board,
+                                     State&       ordering,
+                                     int          ply,
+                                     Move         tt_move = NULL_MOVE,
+                                     Move         counter = NULL_MOVE) {
+    const auto context = State::make_context(board);
     seed_counter_hint(context, ordering, counter);
-    auto picker = move_picker::main_search(board, ordering, context, ply, tt_move);
+    auto picker = ordering::main_search(board, ordering, context, ply, tt_move);
     return collect_moves(picker);
 }
 
-std::vector<Move>
-picked_qsearch(const Board& board, MoveOrdering& ordering, Move tt_move = NULL_MOVE) {
-    auto picker = move_picker::qsearch(board, ordering, tt_move);
+std::vector<Move> picked_qsearch(const Board& board, State& ordering, Move tt_move = NULL_MOVE) {
+    auto picker = ordering::qsearch(board, ordering, tt_move);
     return collect_moves(picker);
 }
 
@@ -136,7 +137,7 @@ TEST_F(PickerTest, MainSearchOrdersTtCaptureRefutationsAndHistories) {
     quiet_history.reward(board.side_to_move(), lightly_scored.from(), lightly_scored.to(), 1);
     for (int i = 0; i < 8; ++i) {
         quiet_history.reward(
-            board.side_to_move(), saturated.from(), saturated.to(), SearchLimits::max_depth);
+            board.side_to_move(), saturated.from(), saturated.to(), Limits::max_depth);
     }
 
     const auto moves = picked_main_search(board, ordering, ply, tt_move);
@@ -162,7 +163,7 @@ TEST_F(PickerTest, MainSearchOrdersKillersCounterAndContinuationHistory) {
 
     killers.update(killer_2, ply);
     killers.update(killer_1, ply);
-    const auto context = MoveOrdering::make_context(position);
+    const auto context = State::make_context(position);
     boost_continuation_hint(position, context, ordering, boosted);
 
     const auto moves = picked_main_search(position, ordering, ply, NULL_MOVE, counter);
@@ -185,7 +186,7 @@ TEST_F(PickerTest, MainSearchContinuationHistoryRequiresMatchingPreviousMove) {
     const Move      target = baseline[1];
     const PieceType piece  = position.piece_type_on(target.from());
     for (int i = 0; i < 8; ++i) {
-        ordering.continuations.reward(BLACK, PAWN, D4, piece, target.to(), SearchLimits::max_depth);
+        ordering.continuations.reward(BLACK, PAWN, D4, piece, target.to(), Limits::max_depth);
     }
 
     EXPECT_EQ(picked_main_search(position, ordering, ply), baseline);
@@ -359,7 +360,7 @@ TEST_F(PickerTest, QSearchAndEvasionsIgnoreContinuationHistory) {
 
     const auto main_baseline = picked_main_search(position, ordering, ply);
     const auto q_baseline    = picked_qsearch(position, ordering);
-    const auto context       = MoveOrdering::make_context(position);
+    const auto context       = State::make_context(position);
     boost_continuation_hint(position, context, ordering, quiet_evasion);
 
     EXPECT_EQ(picked_main_search(position, ordering, ply), main_baseline);
@@ -376,9 +377,9 @@ TEST_F(PickerTest, SkipQuietMovesDropsRefutationsAndQuietsButKeepsWeakCaptures) 
     ASSERT_TRUE(position.is_pseudo_legal(counter));
 
     killers.update(killer, ply);
-    const auto context = MoveOrdering::make_context(position);
+    const auto context = State::make_context(position);
     seed_counter_hint(context, ordering, counter);
-    auto picker = move_picker::main_search(position, ordering, context, ply);
+    auto picker = ordering::main_search(position, ordering, context, ply);
     picker.skip_quiet_moves();
     const auto moves = collect_moves(picker);
 
@@ -392,17 +393,19 @@ TEST_F(PickerTest, SkipQuietMovesDropsRefutationsAndQuietsButKeepsWeakCaptures) 
 TEST_F(PickerTest, SkipQuietMovesIsNoOpForQSearchAndEvasions) {
     {
         SCOPED_TRACE("qsearch");
-        auto picker = move_picker::qsearch(board, ordering);
+        auto picker = ordering::qsearch(board, ordering);
         picker.skip_quiet_moves();
         EXPECT_EQ(collect_moves(picker), picked_qsearch(board, ordering));
     }
     {
         SCOPED_TRACE("in-check main search");
         Board      position{board_test::fen::one_legal_evasion};
-        const auto context = MoveOrdering::make_context(position);
-        auto       picker  = move_picker::main_search(position, ordering, context, ply);
+        const auto context = State::make_context(position);
+        auto       picker  = ordering::main_search(position, ordering, context, ply);
         picker.skip_quiet_moves();
         EXPECT_EQ(sorted_move_bits(collect_moves(picker)),
                   sorted_move_bits(movegen::generate_evasions(position)));
     }
 }
+
+} // namespace search::ordering

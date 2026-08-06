@@ -1,61 +1,65 @@
 #pragma once
 
-#include "search/search_worker.hpp"
+#include "search/worker.hpp"
 
 class SearchTestAccess {
 public:
-    static void reset(SearchWorker& worker) { worker.reset_search_state(); }
+    static void reset(search::Worker& worker) { worker.reset_search_state(); }
 
-    static Board& board(SearchWorker& worker) { return worker.board; }
+    static Board& board(search::Worker& worker) { return worker.board; }
 
-    static int& search_ply(SearchWorker& worker) { return worker.search_ply; }
+    static int& search_ply(search::Worker& worker) { return worker.search_ply; }
 
-    static MoveOrdering& ordering(SearchWorker& worker) { return worker.ordering; }
+    static search::ordering::State& ordering(search::Worker& worker) { return worker.ordering; }
 
-    static const SearchLimits& limits(const SearchWorker& worker) { return worker.limits; }
+    static const search::Limits& limits(const search::Worker& worker) { return worker.limits; }
 
-    static RootLine& root_result(SearchWorker& worker) { return worker.root_result; }
+    static search::RootLine& root_result(search::Worker& worker) { return worker.root_result; }
 
-    static std::vector<RootLine>& root_lines(SearchWorker& worker) { return worker.root_lines; }
+    static std::vector<search::RootLine>& root_lines(search::Worker& worker) {
+        return worker.root_lines;
+    }
 
-    static SearchInstrumentation<>& instrumentation(SearchWorker& worker) { return worker.stats; }
+    static search::Instrumentation<>& instrumentation(search::Worker& worker) {
+        return worker.stats;
+    }
 
-    template <NodeType Node>
-    static EvalValue alphabeta(SearchWorker&       worker,
-                               EvalValue           alpha,
-                               EvalValue           beta,
-                               int                 depth,
-                               PrincipalVariation* pv       = nullptr,
-                               bool                can_null = true) {
+    template <search::NodeType Node>
+    static EvalValue alphabeta(search::Worker&             worker,
+                               EvalValue                   alpha,
+                               EvalValue                   beta,
+                               int                         depth,
+                               search::PrincipalVariation* pv       = nullptr,
+                               bool                        can_null = true) {
         return worker.alphabeta<Node>(alpha, beta, depth, pv, can_null);
     }
 
-    template <NodeType Node>
-    static EvalValue quiescence(SearchWorker&       worker,
-                                EvalValue           alpha,
-                                EvalValue           beta,
-                                PrincipalVariation* pv = nullptr) {
+    template <search::NodeType Node>
+    static EvalValue quiescence(search::Worker&             worker,
+                                EvalValue                   alpha,
+                                EvalValue                   beta,
+                                search::PrincipalVariation* pv = nullptr) {
         return worker.quiescence<Node>(alpha, beta, pv);
     }
 
-    static void build_root_lines(SearchWorker& worker) { worker.build_root_lines(); }
+    static void build_root_lines(search::Worker& worker) { worker.build_root_lines(); }
 
-    static EvalValue search_root(SearchWorker& worker) { return worker.search_root(); }
+    static EvalValue search_root(search::Worker& worker) { return worker.search_root(); }
 
-    static bool should_search_root_depth(const SearchWorker& worker, int depth) noexcept {
+    static bool should_search_root_depth(const search::Worker& worker, int depth) noexcept {
         return worker.should_search_root_depth(depth);
     }
 
-    static bool search_root_depth(SearchWorker& worker, int depth, EvalValue previous_value) {
+    static bool search_root_depth(search::Worker& worker, int depth, EvalValue previous_value) {
         return worker.search_root_depth(depth, previous_value);
     }
 
     static bool
-    search_root_window(SearchWorker& worker, int depth, EvalValue alpha, EvalValue beta) {
+    search_root_window(search::Worker& worker, int depth, EvalValue alpha, EvalValue beta) {
         return worker.search_root_window(depth, alpha, beta);
     }
 
-    static void report_root_progress(SearchWorker& worker, const RootLine& line) {
+    static void report_root_progress(search::Worker& worker, const search::RootLine& line) {
         worker.report_root_progress(line);
     }
 };

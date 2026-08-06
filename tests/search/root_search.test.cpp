@@ -9,13 +9,15 @@
 #include "eval/evaluator.hpp"
 #include "movegen/generator.hpp"
 #include "search/root_line.hpp"
-#include "search/search_thread_pool.hpp"
-#include "search/search_worker.hpp"
+#include "search/thread_pool.hpp"
 #include "search/tt.hpp"
+#include "search/worker.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
 #include "support/search_thread_test_access.hpp"
+
+namespace search {
 
 namespace {
 
@@ -33,10 +35,10 @@ PrincipalVariation pv_for(Move first, Move second = NULL_MOVE) {
 class RootSearchTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    SearchThreadPool        pool{1, reporter};
-    SearchThread&           thread{SearchThreadTestAccess::thread(pool)};
-    SearchWorker&           worker{SearchThreadTestAccess::worker(thread)};
-    SearchLimits            limits;
+    ThreadPool              pool{1, reporter};
+    Thread&                 thread{SearchThreadTestAccess::thread(pool)};
+    Worker&                 worker{SearchThreadTestAccess::worker(thread)};
+    Limits                  limits;
 
     void SetUp() override {
         limits.depth = 4;
@@ -76,9 +78,7 @@ protected:
     }
 
 #if LATRUNCULI_SEARCH_STATS
-    const SearchCounters& counters() {
-        return SearchTestAccess::instrumentation(worker).raw_counters();
-    }
+    const Counters& counters() { return SearchTestAccess::instrumentation(worker).raw_counters(); }
 #endif
 };
 
@@ -292,3 +292,5 @@ TEST_F(RootSearchTest, StoppedSearchPreservesLastCompletedDepth) {
     ASSERT_FALSE(snapshot.pv.empty());
     EXPECT_EQ(snapshot.pv.front(), snapshot.root_move);
 }
+
+} // namespace search

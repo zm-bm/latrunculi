@@ -15,16 +15,16 @@
 
 namespace {
 
-PrincipalVariation pv_for_move(Move move) {
-    PrincipalVariation pv;
-    PrincipalVariation child;
+search::PrincipalVariation pv_for_move(Move move) {
+    search::PrincipalVariation pv;
+    search::PrincipalVariation child;
     pv.update(move, child);
     return pv;
 }
 
-PrincipalVariation pv_for_line(Move first, Move second) {
-    PrincipalVariation child = pv_for_move(second);
-    PrincipalVariation pv;
+search::PrincipalVariation pv_for_line(Move first, Move second) {
+    search::PrincipalVariation child = pv_for_move(second);
+    search::PrincipalVariation pv;
     pv.update(first, child);
     return pv;
 }
@@ -43,10 +43,10 @@ protected:
         err.clear();
     }
 
-    std::string write_search_info(const RootLine& line,
-                                  const Board&    board,
-                                  NodeCount       nodes = 0,
-                                  Milliseconds    time  = Milliseconds{0}) {
+    std::string write_search_info(const search::RootLine& line,
+                                  const Board&            board,
+                                  NodeCount               nodes = 0,
+                                  Milliseconds            time  = Milliseconds{0}) {
         writer.report_progress(line, board, nodes, time);
         std::string output = oss.str();
         oss.str("");
@@ -62,8 +62,8 @@ TEST_F(UciWriterTest, Help) {
 }
 
 TEST_F(UciWriterTest, Identify) {
-    uci::Options options;
-    TTTable      default_table;
+    uci::Options               options;
+    search::TranspositionTable default_table;
 
     writer.identify(options);
 
@@ -106,7 +106,7 @@ TEST_F(UciWriterTest, SearchProgressWritesScoreFormats) {
 
     Board board{board_test::fen::start};
     for (const ScoreCase& test_case : cases) {
-        RootLine line{
+        search::RootLine line{
             .root_move = Move{E2, E4},
             .value     = test_case.value,
             .depth     = 10,
@@ -124,8 +124,8 @@ TEST_F(UciWriterTest, SearchProgressWritesScoreFormats) {
 }
 
 TEST_F(UciWriterTest, SearchProgressSerializesLegalRootPv) {
-    Board    board{board_test::fen::start};
-    RootLine line{
+    Board            board{board_test::fen::start};
+    search::RootLine line{
         .root_move = Move{E2, E4},
         .value     = 20,
         .depth     = 2,
@@ -140,7 +140,7 @@ TEST_F(UciWriterTest, SearchProgressSerializesLegalRootPv) {
 TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
     Board board{board_test::fen::start};
 
-    RootLine null_best{
+    search::RootLine null_best{
         .root_move = NULL_MOVE,
         .value     = eval_value::draw,
         .depth     = 1,
@@ -149,7 +149,7 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
     EXPECT_EQ(write_search_info(null_best, board),
               "info depth 1 score cp 0 nodes 0 time 0 nps 0\n");
 
-    RootLine incomplete{
+    search::RootLine incomplete{
         .root_move = Move{E2, E4},
         .value     = eval_value::draw,
         .depth     = 1,
@@ -159,7 +159,7 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
     EXPECT_EQ(write_search_info(incomplete, board),
               "info depth 1 score cp 0 nodes 0 time 0 nps 0\n");
 
-    RootLine depth_zero{
+    search::RootLine depth_zero{
         .root_move = Move{E2, E4},
         .value     = eval_value::draw,
         .depth     = 0,
@@ -173,7 +173,7 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
 TEST_F(UciWriterTest, SearchProgressRejectsStaleRootPv) {
     Board board{board_test::fen::start};
 
-    RootLine first_move_mismatch{
+    search::RootLine first_move_mismatch{
         .root_move = Move{E2, E4},
         .value     = eval_value::draw,
         .depth     = 1,
@@ -183,7 +183,7 @@ TEST_F(UciWriterTest, SearchProgressRejectsStaleRootPv) {
     EXPECT_EQ(write_search_info(first_move_mismatch, board),
               "info depth 1 score cp 0 nodes 0 time 0 nps 0\n");
 
-    RootLine illegal_child{
+    search::RootLine illegal_child{
         .root_move = Move{E2, E4},
         .value     = eval_value::draw,
         .depth     = 2,
