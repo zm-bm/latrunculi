@@ -365,7 +365,8 @@ EvalValue Worker::alphabeta(
     Move      best_move  = NULL_MOVE;
 
     const auto context = ordering::State::make_context(board);
-    auto       picker  = ordering::main_search(board, ordering, context, search_ply, tt_move);
+    auto       picker =
+        ordering::Picker::for_main_search(board, ordering_state, context, search_ply, tt_move);
 
     PrincipalVariation child_pv;
     FailedQuiets       failed_quiets;
@@ -385,7 +386,7 @@ EvalValue Worker::alphabeta(
         const bool is_promotion = move.type() == MOVE_PROM;
         const bool is_capture   = board.is_capture(move);
         const bool is_quiet     = !is_capture && !is_promotion;
-        const bool is_killer    = is_quiet && ordering.is_killer(move, search_ply);
+        const bool is_killer    = is_quiet && ordering_state.is_killer(move, search_ply);
         board.make(move);
         ++search_ply;
 
@@ -447,11 +448,12 @@ EvalValue Worker::alphabeta(
             // Step 12. Beta cutoff.
             if (is_quiet) {
                 stats.quiet_cutoff(depth);
-                ordering.update_quiet_refutations(context, move, search_ply);
-                ordering.reward_quiet(context, board, move, depth);
+                ordering_state.update_quiet_refutations(context, move, search_ply);
+                ordering_state.reward_quiet(context, board, move, depth);
                 if (allow_quiet_malus && failed_quiets.size() >= QuietMalusMinFailed) {
                     failed_quiets.for_each([&](Move quiet) {
-                        ordering.penalize_quiet(context, board, quiet, depth, QuietMalusDivisor);
+                        ordering_state.penalize_quiet(
+                            context, board, quiet, depth, QuietMalusDivisor);
                         stats.quiet_malus_update(depth);
                     });
                 }
@@ -562,7 +564,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
             alpha = best_value;
     }
 
-    auto               picker = ordering::qsearch(board, ordering, tt_move);
+    auto               picker = ordering::Picker::for_quiescence(board, ordering_state, tt_move);
     PrincipalVariation child_pv;
 
     // Step 5. Tactical move or evasion loop.

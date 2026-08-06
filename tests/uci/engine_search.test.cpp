@@ -241,10 +241,10 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
     ASSERT_EQ(search::tt.current_generation(), std::uint8_t{1});
 
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
-        auto& ordering =
-            SearchTestAccess::ordering(SearchThreadTestAccess::worker(thread_pool(), index));
-        ordering.quiets.reward(WHITE, E2, E4, 4);
-        ordering.continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
+        auto& ordering_state =
+            SearchTestAccess::ordering_state(SearchThreadTestAccess::worker(thread_pool(), index));
+        ordering_state.quiets.reward(WHITE, E2, E4, 4);
+        ordering_state.continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
     }
 
     EXPECT_TRUE(execute("ucinewgame"));
@@ -253,10 +253,10 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
     EXPECT_EQ(search::tt.current_generation(), std::uint8_t{0});
 
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
-        auto& ordering =
-            SearchTestAccess::ordering(SearchThreadTestAccess::worker(thread_pool(), index));
-        EXPECT_EQ(ordering.quiets.get(WHITE, E2, E4), 0);
-        EXPECT_EQ(ordering.continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
+        auto& ordering_state =
+            SearchTestAccess::ordering_state(SearchThreadTestAccess::worker(thread_pool(), index));
+        EXPECT_EQ(ordering_state.quiets.get(WHITE, E2, E4), 0);
+        EXPECT_EQ(ordering_state.continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
     }
 }
 

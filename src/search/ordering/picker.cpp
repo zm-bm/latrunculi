@@ -24,34 +24,30 @@ static_assert(QuietHistory::max_score + ContinuationHistory::max_score < GoodCap
 
 } // namespace
 
-Picker main_search(const Board&          board,
-                   const State&          ordering,
-                   const State::Context& context,
-                   int                   ply,
-                   Move                  tt_move) {
+Picker Picker::for_main_search(
+    const Board& board, const State& state, const State::Context& context, int ply, Move tt_move) {
     const Picker::QuietHintCandidates quiet_hint_candidates{
-        ordering.killers.primary(ply),
-        ordering.killers.secondary(ply),
-        ordering.counter_hint(context),
+        state.killers.primary(ply),
+        state.killers.secondary(ply),
+        state.counter_hint(context),
     };
 
-    return Picker(
-        Picker::Mode::MainSearch, board, ordering, context, tt_move, quiet_hint_candidates);
+    return Picker(Picker::Mode::MainSearch, board, state, context, tt_move, quiet_hint_candidates);
 }
 
-Picker qsearch(const Board& board, const State& ordering, Move tt_move) {
+Picker Picker::for_quiescence(const Board& board, const State& state, Move tt_move) {
     const State::Context context{.side = board.side_to_move()};
-    return Picker(Picker::Mode::QSearch, board, ordering, context, tt_move);
+    return Picker(Picker::Mode::QSearch, board, state, context, tt_move);
 }
 
 Picker::Picker(Mode                  mode,
                const Board&          board,
-               const State&          ordering,
+               const State&          state,
                const State::Context& context,
                Move                  tt,
                QuietHintCandidates   quiet_hint_candidates)
     : board(board),
-      ordering(ordering),
+      state(state),
       context(context),
       mode(mode),
       in_check(board.is_check()),
@@ -137,7 +133,7 @@ int Picker::score_noisy(Move move) const {
 template <Picker::ScorePolicy Policy>
 int Picker::score_move(Move move) const {
     if constexpr (Policy == ScorePolicy::Quiet)
-        return ordering.quiet_score(context, board, move, true);
+        return state.quiet_score(context, board, move, true);
 
     if constexpr (Policy == ScorePolicy::Noisy)
         return score_noisy(move);
@@ -145,7 +141,7 @@ int Picker::score_move(Move move) const {
     if (move.type() == MOVE_PROM || board.is_capture(move))
         return score_noisy(move);
 
-    return ordering.quiet_score(context, board, move, false);
+    return state.quiet_score(context, board, move, false);
 }
 
 template <Picker::ScorePolicy Policy>

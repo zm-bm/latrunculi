@@ -33,7 +33,7 @@ protected:
     int& search_ply() { return SearchTestAccess::search_ply(worker()); }
     bool worker_is_draw() { return SearchTestAccess::board(worker()).is_draw(search_ply()); }
 
-    ordering::State& worker_ordering() { return SearchTestAccess::ordering(worker()); }
+    ordering::State& ordering_state() { return SearchTestAccess::ordering_state(worker()); }
 
     void make_worker_move(Move move) {
         SearchTestAccess::board(worker()).make(move);
@@ -106,16 +106,16 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeQuietAndPreserveContinuationHistory)
     Board board{board_test::fen::start};
     load_worker_board(board);
 
-    worker_ordering().quiets.reward(WHITE, E2, E4, 4);
-    worker_ordering().continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
+    ordering_state().quiets.reward(WHITE, E2, E4, 4);
+    ordering_state().continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
 
     SearchTestAccess::reset(worker());
-    EXPECT_EQ(worker_ordering().quiets.get(WHITE, E2, E4), 8);
-    EXPECT_EQ(worker_ordering().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
+    EXPECT_EQ(ordering_state().quiets.get(WHITE, E2, E4), 8);
+    EXPECT_EQ(ordering_state().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
 
     SearchTestAccess::reset(worker());
-    EXPECT_EQ(worker_ordering().quiets.get(WHITE, E2, E4), 4);
-    EXPECT_EQ(worker_ordering().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
+    EXPECT_EQ(ordering_state().quiets.get(WHITE, E2, E4), 4);
+    EXPECT_EQ(ordering_state().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
 }
 
 TEST_F(SearchWorkerTest, RootPositionHistoryFeedsSearchRepetitionAfterSourceReset) {

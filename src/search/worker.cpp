@@ -86,14 +86,14 @@ void Worker::reset_search_state() {
     last_reported_root_line.reset();
     pending_best_move.reset();
 
-    ordering.prepare_for_search();
+    ordering_state.prepare_for_search();
 
     if constexpr (stats_enabled)
         stats.reset();
 }
 
 void Worker::clear_search_heuristics() {
-    ordering.clear();
+    ordering_state.clear();
 }
 
 void Worker::build_root_lines() {
@@ -101,7 +101,7 @@ void Worker::build_root_lines() {
 
     // Root candidates start in the current picker order.
     const auto context = ordering::State::make_context(board);
-    auto       picker  = ordering::main_search(board, ordering, context, 0);
+    auto       picker  = ordering::Picker::for_main_search(board, ordering_state, context, 0);
 
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (board.is_legal_pseudo_move(move) && limits.allows_root_move(move))

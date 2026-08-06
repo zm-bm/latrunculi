@@ -10,7 +10,9 @@ public:
 
     static int& search_ply(search::Worker& worker) { return worker.search_ply; }
 
-    static search::ordering::State& ordering(search::Worker& worker) { return worker.ordering; }
+    static search::ordering::State& ordering_state(search::Worker& worker) {
+        return worker.ordering_state;
+    }
 
     static const search::Limits& limits(const search::Worker& worker) { return worker.limits; }
 

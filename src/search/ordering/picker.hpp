@@ -18,6 +18,14 @@ public:
     Picker& operator=(const Picker&) = delete;
     Picker& operator=(Picker&&)      = delete;
 
+    static Picker for_main_search(const Board&          board,
+                                  const State&          state,
+                                  const State::Context& context,
+                                  int                   ply,
+                                  Move                  tt_move = NULL_MOVE);
+
+    static Picker for_quiescence(const Board& board, const State& state, Move tt_move = NULL_MOVE);
+
     // Returns ordered pseudo-legal candidates; search remains the legal-move authority.
     Move next();
     void skip_quiet_moves();
@@ -64,20 +72,12 @@ private:
         Candidate* end{nullptr};
     };
 
-    friend Picker main_search(const Board&          board,
-                              const State&          ordering,
-                              const State::Context& context,
-                              int                   ply,
-                              Move                  tt_move);
-
-    friend Picker qsearch(const Board& board, const State& ordering, Move tt_move);
-
     static constexpr int QuietHintCapacity = 3;
     using QuietHintCandidates              = std::array<Move, QuietHintCapacity>;
 
     Picker(Mode                  mode,
            const Board&          board,
-           const State&          ordering,
+           const State&          state,
            const State::Context& context,
            Move                  tt,
            QuietHintCandidates   quiet_hint_candidates = {});
@@ -102,7 +102,7 @@ private:
     Move pick(CandidateRange& range);
 
     const Board&                                       board;
-    const State&                                       ordering;
+    const State&                                       state;
     const State::Context                               context;
     Move                                               tt_move{NULL_MOVE};
     const Mode                                         mode;
@@ -117,13 +117,5 @@ private:
     int                                 quiet_hint_next{0};
     bool                                skip_quiets{false};
 };
-
-Picker main_search(const Board&          board,
-                   const State&          ordering,
-                   const State::Context& context,
-                   int                   ply,
-                   Move                  tt_move = NULL_MOVE);
-
-Picker qsearch(const Board& board, const State& ordering, Move tt_move = NULL_MOVE);
 
 } // namespace search::ordering

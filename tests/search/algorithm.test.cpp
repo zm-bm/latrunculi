@@ -46,7 +46,7 @@ protected:
 
     Board&           position() { return SearchTestAccess::board(worker); }
     int&             ply() { return SearchTestAccess::search_ply(worker); }
-    ordering::State& ordering() { return SearchTestAccess::ordering(worker); }
+    ordering::State& ordering_state() { return SearchTestAccess::ordering_state(worker); }
 
     EvalValue search(EvalValue alpha, EvalValue beta, int depth, bool can_null = true) {
         return SearchTestAccess::alphabeta<NodeType::NonPv>(
@@ -102,7 +102,8 @@ protected:
     std::vector<Move> legal_picker_moves(Move tt_move = NULL_MOVE) {
         std::vector<Move> moves;
         const auto        context = ordering::State::make_context(position());
-        auto picker = ordering::main_search(position(), ordering(), context, ply(), tt_move);
+        auto              picker  = ordering::Picker::for_main_search(
+            position(), ordering_state(), context, ply(), tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
             if (position().is_legal_pseudo_move(move))
                 moves.push_back(move);
@@ -132,11 +133,11 @@ protected:
     }
 
     int quiet_history(Move move) {
-        return ordering().quiets.get(position().side_to_move(), move.from(), move.to());
+        return ordering_state().quiets.get(position().side_to_move(), move.from(), move.to());
     }
 
     int continuation_history(Color prev_c, PieceType prev_piece, Square prev_to, Move move) {
-        return ordering().continuations.get(
+        return ordering_state().continuations.get(
             prev_c, prev_piece, prev_to, position().piece_type_on(move.from()), move.to());
     }
 
@@ -511,7 +512,7 @@ TEST_F(SearchTest, FutilityKeepsTacticalMoves) {
         const EvalValue beta  = alpha + 1000;
         tt.store(position().key(), tc.first, 0, 0, TTBound::Exact, ply());
         if (tc.killer)
-            ordering().killers.update(tc.tactical, ply());
+            ordering_state().killers.update(tc.tactical, ply());
         store_child(tc.tactical, -(beta + 100), 1);
         EXPECT_EQ(search(alpha, beta, 2), beta + 100);
     }
@@ -529,7 +530,7 @@ TEST_F(SearchTest, QuietCutoffUpdatesPreviousMoveContext) {
         EXPECT_EQ(search(-200, 100, 2, false), 200);
         EXPECT_GT(quiet_history(cutoff), 0);
         EXPECT_GT(continuation_history(WHITE, PAWN, E4, cutoff), 0);
-        EXPECT_EQ(ordering().counters.get(WHITE, PAWN, E4), cutoff);
+        EXPECT_EQ(ordering_state().counters.get(WHITE, PAWN, E4), cutoff);
     });
 }
 
@@ -541,7 +542,7 @@ TEST_F(SearchTest, QuietCutoffWithoutRealPreviousMoveSkipsContextUpdates) {
             const Move cutoff = legal_picker_moves().front();
             store_child(cutoff, -200, 1);
             EXPECT_EQ(search(-200, 100, 2, false), 200);
-            EXPECT_EQ(ordering().counters.get(WHITE, PAWN, E4), NULL_MOVE);
+            EXPECT_EQ(ordering_state().counters.get(WHITE, PAWN, E4), NULL_MOVE);
             EXPECT_EQ(continuation_history(WHITE, PAWN, E4, cutoff), 0);
         };
         if (after_null)
@@ -574,7 +575,7 @@ TEST_F(SearchTest, NonQuietCutoffSkipsRefutationUpdates) {
             store_child(tc.cutoff, -200, 1);
             EXPECT_EQ(search(-200, 100, 2, false), 200);
         });
-        EXPECT_EQ(ordering().counters.get(WHITE, KING, D1), NULL_MOVE);
+        EXPECT_EQ(ordering_state().counters.get(WHITE, KING, D1), NULL_MOVE);
     }
 }
 
@@ -610,7 +611,7 @@ TEST_F(SearchTest, QuietMalusExcludesTtAndKillerHints) {
         const Move tt_move = moves[0];
         const Move killer  = moves[1];
         tt.store(position().key(), tt_move, 0, 4, TTBound::UpperBound, ply());
-        ordering().killers.update(killer, ply());
+        ordering_state().killers.update(killer, ply());
         store_child(tt_move, 0, 3);
         store_child(killer, 10, 3);
         store_child(moves[2], 25, 3);
@@ -760,8 +761,8 @@ TEST_F(SearchTest, LmrSkipsTacticalAndEvasionMoves) {
         } else {
             tt.store(position().key(), tc.tt_move, 0, 0, TTBound::Exact, ply());
             if (!tc.killer.is_null())
-                ordering().killers.update(tc.killer, ply());
-            ordering().quiets.reward(
+                ordering_state().killers.update(tc.killer, ply());
+            ordering_state().quiets.reward(
                 position().side_to_move(), candidate.from(), candidate.to(), 4);
             moves = legal_picker_moves(tc.tt_move);
         }

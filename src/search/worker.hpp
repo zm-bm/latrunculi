@@ -47,7 +47,7 @@ private:
     int                   search_ply{0};
     RootLine              root_result;
     std::vector<RootLine> root_lines;
-    ordering::State       ordering;
+    ordering::State       ordering_state;
 
     // Current search request.
     Limits                      limits;
