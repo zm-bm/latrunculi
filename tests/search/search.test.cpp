@@ -12,22 +12,22 @@
 #include "eval/evaluator.hpp"
 #include "movegen/movegen.hpp"
 #include "search/move_picker.hpp"
+#include "search/search_thread_pool.hpp"
 #include "search/search_worker.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
-#include "support/thread_test_access.hpp"
-#include "uci/threading.hpp"
+#include "support/search_thread_test_access.hpp"
 
 namespace {
 
 class SearchTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{1, reporter};
-    Thread&                 thread{ThreadTestAccess::thread(pool)};
-    SearchWorker&           worker{ThreadTestAccess::worker(thread)};
+    SearchThreadPool        pool{1, reporter};
+    SearchThread&           thread{SearchThreadTestAccess::thread(pool)};
+    SearchWorker&           worker{SearchThreadTestAccess::worker(thread)};
     SearchLimits            limits;
 
     void SetUp() override {
@@ -780,6 +780,6 @@ TEST_F(SearchTest, LmrSkipsTacticalAndEvasionMoves) {
 TEST_F(SearchTest, StoppedSearchReturnsAlphaSentinel) {
     Board board{board_test::fen::quiet_black_to_move};
     load(board);
-    ThreadTestAccess::request_stop(thread);
+    SearchThreadTestAccess::request_stop(thread);
     EXPECT_EQ(search(-123, 456, 2), -123);
 }

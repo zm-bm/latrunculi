@@ -1,32 +1,32 @@
-#include "uci/threading.hpp"
+#include "search/search_thread_pool.hpp"
 
 #include <algorithm>
 #include <cassert>
 
-Thread::Thread(int id, SearchReporter& reporter, ThreadPool& pool)
+SearchThread::SearchThread(int id, SearchReporter& reporter, SearchThreadPool& pool)
     : worker(id, reporter, pool),
-      native_thread(&Thread::idle_loop, this) {}
+      native_thread(&SearchThread::idle_loop, this) {}
 
-Thread::~Thread() {
+SearchThread::~SearchThread() {
     shutdown();
     if (native_thread.joinable()) {
         native_thread.join();
     }
 }
 
-// ThreadPool-facing lifecycle.
-void Thread::request_stop() {
+// SearchThreadPool-facing lifecycle.
+void SearchThread::request_stop() {
     worker.request_stop();
 }
 
-void Thread::wait_for_idle() {
+void SearchThread::wait_for_idle() {
     {
         std::unique_lock<std::mutex> lock(state_mutex);
         state_cv.wait(lock, [&] { return !searching; });
     }
 }
 
-void Thread::shutdown() {
+void SearchThread::shutdown() {
     request_stop();
     wait_for_idle();
     {
@@ -36,7 +36,7 @@ void Thread::shutdown() {
     state_cv.notify_one();
 }
 
-bool Thread::is_searching() const {
+bool SearchThread::is_searching() const {
     std::lock_guard<std::mutex> lock(state_mutex);
     return searching;
 }
@@ -45,7 +45,7 @@ bool Thread::is_searching() const {
 // Unexpected search failures are intentionally fatal. Let exceptions escape
 // the std::thread entry and invoke std::terminate rather than leave a partial
 // engine alive.
-void Thread::idle_loop() {
+void SearchThread::idle_loop() {
     while (true) {
         {
             std::unique_lock<std::mutex> lk(state_mutex);
@@ -65,7 +65,9 @@ void Thread::idle_loop() {
     }
 }
 
-void Thread::configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time) {
+void SearchThread::configure_search(const Board& root_board,
+                                    SearchLimits limits,
+                                    TimePoint    start_time) {
     std::lock_guard<std::mutex> lock(state_mutex);
 
     assert(!searching);
@@ -74,7 +76,7 @@ void Thread::configure_search(const Board& root_board, SearchLimits limits, Time
     worker.configure_search(root_board, limits, start_time);
 }
 
-void Thread::wake_for_search() {
+void SearchThread::wake_for_search() {
     {
         std::lock_guard<std::mutex> lock(state_mutex);
         assert(!searching);
@@ -85,20 +87,21 @@ void Thread::wake_for_search() {
     state_cv.notify_one();
 }
 
-ThreadPool::ThreadPool(size_t thread_count, SearchReporter& reporter) : reporter(reporter) {
+SearchThreadPool::SearchThreadPool(size_t thread_count, SearchReporter& reporter)
+    : reporter(reporter) {
     threads.reserve(thread_count);
     for (size_t i = 0; i < thread_count; ++i) {
         threads.push_back(
-            std::unique_ptr<Thread>{new Thread(static_cast<int>(i), reporter, *this)});
+            std::unique_ptr<SearchThread>{new SearchThread(static_cast<int>(i), reporter, *this)});
     }
 }
 
-ThreadPool::~ThreadPool() {
+SearchThreadPool::~SearchThreadPool() {
     shutdown();
 }
 
 // Search lifecycle.
-bool ThreadPool::start_search(const Board& root_board, SearchLimits limits) {
+bool SearchThreadPool::start_search(const Board& root_board, SearchLimits limits) {
     if (shutdown_requested || threads.empty() || is_searching())
         return false;
 
@@ -120,7 +123,7 @@ bool ThreadPool::start_search(const Board& root_board, SearchLimits limits) {
     return true;
 }
 
-void ThreadPool::request_stop() {
+void SearchThreadPool::request_stop() {
     for (auto& thread : threads) {
         thread->request_stop();
     }
@@ -131,25 +134,25 @@ void ThreadPool::request_stop() {
     release_helper_searches();
 }
 
-void ThreadPool::leave_pondering() noexcept {
+void SearchThreadPool::leave_pondering() noexcept {
     pondering.store(false, std::memory_order_relaxed);
     pondering.notify_all();
 }
 
-void ThreadPool::wait() {
+void SearchThreadPool::wait() {
     for (auto& thread : threads) {
         thread->wait_for_idle();
     }
 }
 
-void ThreadPool::clear_search_heuristics() {
+void SearchThreadPool::clear_search_heuristics() {
     assert(!is_searching());
 
     for (auto& thread : threads)
         thread->worker.clear_search_heuristics();
 }
 
-void ThreadPool::shutdown() {
+void SearchThreadPool::shutdown() {
     if (shutdown_requested)
         return;
 
@@ -162,7 +165,7 @@ void ThreadPool::shutdown() {
 }
 
 // Worker configuration.
-bool ThreadPool::resize(size_t thread_count) {
+bool SearchThreadPool::resize(size_t thread_count) {
     if (shutdown_requested || is_searching())
         return false;
 
@@ -179,11 +182,11 @@ bool ThreadPool::resize(size_t thread_count) {
 
         threads.reserve(thread_count);
 
-        std::vector<std::unique_ptr<Thread>> additions;
+        std::vector<std::unique_ptr<SearchThread>> additions;
         additions.reserve(thread_count - installed_count);
         for (size_t i = installed_count; i < thread_count; ++i)
-            additions.push_back(
-                std::unique_ptr<Thread>{new Thread(static_cast<int>(i), reporter, *this)});
+            additions.push_back(std::unique_ptr<SearchThread>{
+                new SearchThread(static_cast<int>(i), reporter, *this)});
 
         for (auto& thread : additions)
             threads.push_back(std::move(thread));
@@ -192,17 +195,17 @@ bool ThreadPool::resize(size_t thread_count) {
     return true;
 }
 
-size_t ThreadPool::thread_count() const {
+size_t SearchThreadPool::thread_count() const {
     return threads.size();
 }
 
 // Search progress and results.
-bool ThreadPool::is_searching() const {
+bool SearchThreadPool::is_searching() const {
     auto is_searching = [](const auto& thread) { return thread->is_searching(); };
     return std::any_of(threads.begin(), threads.end(), is_searching);
 }
 
-NodeCount ThreadPool::nodes_searched() const {
+NodeCount SearchThreadPool::nodes_searched() const {
     NodeCount total = 0;
     for (const auto& thread : threads) {
         total += thread->worker.node_count();
@@ -210,7 +213,7 @@ NodeCount ThreadPool::nodes_searched() const {
     return total;
 }
 
-std::vector<RootLine> ThreadPool::root_snapshots() const {
+std::vector<RootLine> SearchThreadPool::root_snapshots() const {
     std::vector<RootLine> lines;
     lines.reserve(threads.size());
     for (const auto& thread : threads) {
@@ -220,12 +223,12 @@ std::vector<RootLine> ThreadPool::root_snapshots() const {
 }
 
 // Helper release gate control.
-void ThreadPool::close_helper_gate() {
+void SearchThreadPool::close_helper_gate() {
     std::lock_guard<std::mutex> lock(helper_gate_mutex);
     helper_gate_open = false;
 }
 
-void ThreadPool::release_helper_searches() {
+void SearchThreadPool::release_helper_searches() {
     {
         std::lock_guard<std::mutex> lock(helper_gate_mutex);
         helper_gate_open = true;
@@ -233,13 +236,13 @@ void ThreadPool::release_helper_searches() {
     helper_gate_cv.notify_all();
 }
 
-void ThreadPool::wait_for_helper_release() {
+void SearchThreadPool::wait_for_helper_release() {
     std::unique_lock<std::mutex> lock(helper_gate_mutex);
     helper_gate_cv.wait(lock, [&] { return helper_gate_open; });
 }
 
 // Helper worker control.
-void ThreadPool::stop_helper_searches() {
+void SearchThreadPool::stop_helper_searches() {
     for (size_t i = 1; i < threads.size(); ++i) {
         threads[i]->request_stop();
     }
@@ -249,16 +252,16 @@ void ThreadPool::stop_helper_searches() {
 }
 
 // Ponder lifecycle.
-bool ThreadPool::is_pondering() const noexcept {
+bool SearchThreadPool::is_pondering() const noexcept {
     return pondering.load(std::memory_order_relaxed);
 }
 
-void ThreadPool::wait_while_pondering() const noexcept {
+void SearchThreadPool::wait_while_pondering() const noexcept {
     pondering.wait(true, std::memory_order_relaxed);
 }
 
 // Diagnostics.
-SearchInstrumentation<> ThreadPool::aggregate_instrumentation() const {
+SearchInstrumentation<> SearchThreadPool::aggregate_instrumentation() const {
     SearchInstrumentation<> total{};
     for (const auto& thread : threads) {
         total += thread->worker.stats;

@@ -13,13 +13,13 @@
 #include "support/board_fixtures.hpp"
 #include "support/board_snapshot.hpp"
 #include "support/search_test_access.hpp"
-#include "support/thread_test_access.hpp"
+#include "support/search_thread_test_access.hpp"
 #include "gtest/gtest.h"
 
 class EngineTest : public ::testing::Test {
 protected:
     std::ostringstream output;
-    Engine             engine{output, output, std::cin};
+    uci::Engine        engine{output, output, std::cin};
 
     void SetUp() override {
         output.str("");
@@ -27,12 +27,12 @@ protected:
         tt.clear();
     }
 
-    bool        execute(const std::string& command) { return engine.execute(command); }
-    Board&      board() { return engine.board; }
-    ThreadPool& threadpool() { return engine.thread_pool; }
-    int         hash_option_mb() const { return engine.options.hash.value; }
-    int         thread_option_count() const { return engine.options.threads.value; }
-    bool        ponder_enabled() const { return engine.options.ponder.value; }
+    bool              execute(const std::string& command) { return engine.execute(command); }
+    Board&            board() { return engine.board; }
+    SearchThreadPool& thread_pool() { return engine.thread_pool; }
+    int               hash_option_mb() const { return engine.options.hash.value; }
+    int               thread_option_count() const { return engine.options.threads.value; }
+    bool              ponder_enabled() const { return engine.options.ponder.value; }
 
     static void expect_same_board_and_history(Board actual, Board expected) {
         while (true) {
@@ -64,16 +64,16 @@ protected:
     bool wait_for_busy(std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
         auto deadline = std::chrono::steady_clock::now() + timeout;
         while (std::chrono::steady_clock::now() < deadline) {
-            if (threadpool().is_searching())
+            if (thread_pool().is_searching())
                 return true;
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-        return threadpool().is_searching();
+        return thread_pool().is_searching();
     }
 
     bool wait_for_depth(int                       depth,
                         std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
-        SearchWorker& worker   = ThreadTestAccess::worker(threadpool());
+        SearchWorker& worker   = SearchThreadTestAccess::worker(thread_pool());
         const auto    deadline = std::chrono::steady_clock::now() + timeout;
         while (std::chrono::steady_clock::now() < deadline) {
             if (worker.root_snapshot().depth >= depth)
@@ -87,7 +87,7 @@ protected:
 TEST(EngineLoopTest, ReadsConfiguredInputStream) {
     std::istringstream input{"isready\nquit\n"};
     std::ostringstream output;
-    Engine             engine{output, output, input};
+    uci::Engine        engine{output, output, input};
 
     engine.loop();
 
@@ -102,7 +102,7 @@ TEST_F(EngineTest, ImmediateStopReportsLegalMove) {
 
         EXPECT_TRUE(execute(std::string(command)));
         EXPECT_TRUE(execute("stop"));
-        threadpool().wait();
+        thread_pool().wait();
 
         const std::string transcript = output.str();
         EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
@@ -116,11 +116,11 @@ TEST_F(EngineTest, InfiniteSearchWaitsForStop) {
     ASSERT_TRUE(wait_for_depth(1));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    EXPECT_TRUE(threadpool().is_searching());
+    EXPECT_TRUE(thread_pool().is_searching());
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 0);
 
     EXPECT_TRUE(execute("stop"));
-    threadpool().wait();
+    thread_pool().wait();
 
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << output.str();
 }
@@ -128,7 +128,7 @@ TEST_F(EngineTest, InfiniteSearchWaitsForStop) {
 TEST_F(EngineTest, GoDepthReportsFreshFinalInformationBeforeBestmove) {
     ASSERT_TRUE(execute("setoption name Threads value 2"));
     EXPECT_TRUE(execute("go depth 3"));
-    threadpool().wait();
+    thread_pool().wait();
 
     const std::string transcript = output.str();
     EXPECT_GE(count_output_lines_starting_with("info depth 1 "), 1) << transcript;
@@ -161,7 +161,7 @@ TEST_F(EngineTest, GoDepthReportsFreshFinalInformationBeforeBestmove) {
     const auto nodes_end   = transcript.find(' ', nodes_value);
     ASSERT_NE(nodes_end, std::string::npos) << transcript;
     EXPECT_EQ(std::stoull(transcript.substr(nodes_value, nodes_end - nodes_value)),
-              threadpool().nodes_searched())
+              thread_pool().nodes_searched())
         << transcript;
 }
 
@@ -169,19 +169,19 @@ TEST_F(EngineTest, GoPreservesWideNodeLimit) {
     constexpr NodeCount node_limit = static_cast<NodeCount>(std::numeric_limits<int>::max()) + 1;
 
     EXPECT_TRUE(execute(std::format("go depth 1 nodes {}", node_limit)));
-    threadpool().wait();
+    thread_pool().wait();
 
-    const auto& limits = SearchTestAccess::limits(ThreadTestAccess::worker(threadpool()));
+    const auto& limits = SearchTestAccess::limits(SearchThreadTestAccess::worker(thread_pool()));
     EXPECT_EQ(limits.nodes, node_limit);
 }
 
 TEST_F(EngineTest, SearchmovesRestrictAndValidateRootMoves) {
     EXPECT_TRUE(execute("go depth 1 searchmoves a2a3 a2a3"));
-    threadpool().wait();
+    thread_pool().wait();
     EXPECT_NE(output.str().find("bestmove a2a3"), std::string::npos) << output.str();
 
     const std::vector expected_moves{Move(A2, A3)};
-    const auto&       limits = SearchTestAccess::limits(ThreadTestAccess::worker(threadpool()));
+    const auto& limits = SearchTestAccess::limits(SearchThreadTestAccess::worker(thread_pool()));
     EXPECT_EQ(limits.root_moves, expected_moves);
 
     struct InvalidCase {
@@ -201,7 +201,7 @@ TEST_F(EngineTest, SearchmovesRestrictAndValidateRootMoves) {
 
         EXPECT_TRUE(execute(tc.command));
 
-        EXPECT_FALSE(threadpool().is_searching());
+        EXPECT_FALSE(thread_pool().is_searching());
         EXPECT_EQ(output.str(), std::format("info string error: {}\n", tc.error));
     }
 }
@@ -212,7 +212,7 @@ TEST_F(EngineTest, GoWhileSearchInProgressIsRejected) {
 
     EXPECT_TRUE(execute("go searchmoves invalid"));
     EXPECT_TRUE(execute("stop"));
-    threadpool().wait();
+    thread_pool().wait();
 
     EXPECT_NE(output.str().find("search already in progress"), std::string::npos) << output.str();
     EXPECT_EQ(output.str().find("invalid searchmove"), std::string::npos) << output.str();
@@ -227,12 +227,12 @@ TEST_F(EngineTest, StateChangingCommandsWhileSearchInProgressAreRejected) {
     EXPECT_TRUE(execute("position startpos moves e2e4"));
     EXPECT_TRUE(execute("move d2d4"));
 
-    EXPECT_EQ(threadpool().thread_count(), uci::Options::default_threads);
+    EXPECT_EQ(thread_pool().thread_count(), uci::Options::default_threads);
     EXPECT_EQ(board().to_fen(), board_test::fen::start);
-    EXPECT_TRUE(threadpool().is_searching());
+    EXPECT_TRUE(thread_pool().is_searching());
 
     EXPECT_TRUE(execute("stop"));
-    threadpool().wait();
+    thread_pool().wait();
 
     const std::string transcript = output.str();
     for (const std::string_view message : {
@@ -256,7 +256,7 @@ TEST_F(EngineTest, TerminalPositionsReportDepthZeroAndNullBestMove) {
     // Seed an existing bestmove.
     EXPECT_TRUE(execute("position startpos"));
     EXPECT_TRUE(execute("go depth 1"));
-    threadpool().wait();
+    thread_pool().wait();
 
     constexpr std::string_view terminal_positions[] = {
         "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1",
@@ -270,7 +270,7 @@ TEST_F(EngineTest, TerminalPositionsReportDepthZeroAndNullBestMove) {
 
         EXPECT_TRUE(execute(std::format("position fen {}", fen)));
         EXPECT_TRUE(execute("go depth 10"));
-        threadpool().wait();
+        thread_pool().wait();
 
         const std::string transcript = output.str();
         EXPECT_EQ(count_output_lines_starting_with("info depth 0 "), 1) << transcript;
@@ -322,8 +322,9 @@ TEST_F(EngineTest, UciNewGameClearsTTAndSearchHeuristics) {
     ASSERT_TRUE(tt.probe(board().key()).has_value());
     ASSERT_EQ(tt.current_generation(), std::uint8_t{1});
 
-    for (size_t index = 0; index < threadpool().thread_count(); ++index) {
-        auto& ordering = SearchTestAccess::ordering(ThreadTestAccess::worker(threadpool(), index));
+    for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
+        auto& ordering =
+            SearchTestAccess::ordering(SearchThreadTestAccess::worker(thread_pool(), index));
         ordering.quiets.reward(WHITE, E2, E4, 4);
         ordering.continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
     }
@@ -333,8 +334,9 @@ TEST_F(EngineTest, UciNewGameClearsTTAndSearchHeuristics) {
     EXPECT_FALSE(tt.probe(board().key()).has_value());
     EXPECT_EQ(tt.current_generation(), std::uint8_t{0});
 
-    for (size_t index = 0; index < threadpool().thread_count(); ++index) {
-        auto& ordering = SearchTestAccess::ordering(ThreadTestAccess::worker(threadpool(), index));
+    for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
+        auto& ordering =
+            SearchTestAccess::ordering(SearchThreadTestAccess::worker(thread_pool(), index));
         EXPECT_EQ(ordering.quiets.get(WHITE, E2, E4), 0);
         EXPECT_EQ(ordering.continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
     }
@@ -344,13 +346,13 @@ TEST_F(EngineTest, ThreadOptionCommitsOnlyAfterSuccessfulResize) {
     EXPECT_TRUE(execute("setoption name tHrEaDs value 2"));
 
     EXPECT_EQ(thread_option_count(), 2);
-    EXPECT_EQ(threadpool().thread_count(), 2U);
+    EXPECT_EQ(thread_pool().thread_count(), 2U);
 
-    threadpool().shutdown();
+    thread_pool().shutdown();
     EXPECT_TRUE(execute("setoption name Threads value 3"));
 
     EXPECT_EQ(thread_option_count(), 2);
-    EXPECT_EQ(threadpool().thread_count(), 2U);
+    EXPECT_EQ(thread_pool().thread_count(), 2U);
     EXPECT_NE(output.str().find("error: failed to resize thread pool"), std::string::npos)
         << output.str();
 }
@@ -390,12 +392,12 @@ TEST_F(EngineTest, PonderSearchWaitsForHitAndPublishesExistingResult) {
     EXPECT_TRUE(execute("go ponder mate 1 depth 10 nodes 0"));
     ASSERT_TRUE(wait_for_depth(1));
 
-    EXPECT_TRUE(threadpool().is_searching());
+    EXPECT_TRUE(thread_pool().is_searching());
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 0);
     EXPECT_EQ(tt.current_generation(), std::uint8_t{1});
 
     EXPECT_TRUE(execute("ponderhit"));
-    threadpool().wait();
+    thread_pool().wait();
 
     const std::string transcript = output.str();
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
@@ -406,9 +408,9 @@ TEST_F(EngineTest, PonderSearchWaitsForHitAndPublishesExistingResult) {
 TEST_F(EngineTest, MateLimitStopsAfterQualifyingCompletedDepth) {
     EXPECT_TRUE(execute("position fen 8/8/8/8/8/3K4/4Q3/k7 w - - 0 1"));
     EXPECT_TRUE(execute("go mate 2 depth 5"));
-    threadpool().wait();
+    thread_pool().wait();
 
-    const RootLine snapshot = ThreadTestAccess::worker(threadpool()).root_snapshot();
+    const RootLine snapshot = SearchThreadTestAccess::worker(thread_pool()).root_snapshot();
     EXPECT_EQ(snapshot.depth, 3);
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1);
     EXPECT_NE(output.str().find("score mate 2"), std::string::npos) << output.str();
@@ -448,7 +450,7 @@ TEST_F(EngineTest, IsReadyRespondsWhileSearchIsActive) {
         EXPECT_TRUE(execute("isready"));
 
     EXPECT_TRUE(execute("stop"));
-    threadpool().wait();
+    thread_pool().wait();
 
     const std::string  transcript     = output.str();
     int                ready_lines    = 0;
@@ -576,7 +578,7 @@ TEST_P(SetOptionTest, ValidateSetOption) {
     EXPECT_TRUE(execute(param.command));
 
     // Check if the thread count is set correctly and output is as expected
-    EXPECT_EQ(threadpool().thread_count(), param.threads);
+    EXPECT_EQ(thread_pool().thread_count(), param.threads);
     EXPECT_NE(output.str().find(param.output), std::string::npos);
 }
 
@@ -657,7 +659,7 @@ TEST_P(GoTest, ValidateOutput) {
     EXPECT_TRUE(execute(param.command));
 
     // Wait for the search to complete and check output
-    threadpool().wait();
+    thread_pool().wait();
     EXPECT_NE(output.str().find(param.output), std::string::npos) << output.str();
 }
 

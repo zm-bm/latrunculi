@@ -1,4 +1,4 @@
-#include "uci/threading.hpp"
+#include "search/search_thread_pool.hpp"
 
 #include <gtest/gtest.h>
 
@@ -17,7 +17,7 @@
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_reporter.hpp"
-#include "support/thread_test_access.hpp"
+#include "support/search_thread_test_access.hpp"
 
 namespace {
 
@@ -53,10 +53,10 @@ private:
     bool                  gated_best_move{false};
 };
 
-class ThreadPoolTest : public ::testing::Test {
+class SearchThreadPoolTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{THREAD_COUNT, reporter};
+    SearchThreadPool        pool{THREAD_COUNT, reporter};
     Board                   board{board_test::fen::start};
     SearchLimits            options{default_limits()};
 
@@ -82,14 +82,14 @@ protected:
 
 } // namespace
 
-TEST_F(ThreadPoolTest, StartSearchRejectsEmptyPool) {
-    ThreadPool empty_pool{0, reporter};
+TEST_F(SearchThreadPoolTest, StartSearchRejectsEmptyPool) {
+    SearchThreadPool empty_pool{0, reporter};
 
     EXPECT_FALSE(empty_pool.start_search(board, options));
     EXPECT_EQ(tt.current_generation(), std::uint8_t{0});
 }
 
-TEST_F(ThreadPoolTest, StartSearchCompletes) {
+TEST_F(SearchThreadPoolTest, StartSearchCompletes) {
     options.depth = 5;
     EXPECT_TRUE(pool.start_search(board, options));
 
@@ -97,9 +97,9 @@ TEST_F(ThreadPoolTest, StartSearchCompletes) {
     EXPECT_EQ(best_move_count(), 1);
 }
 
-TEST(ThreadPoolTransitionTest, ImmediateRestartAfterBestMovePublicationIsAccepted) {
+TEST(SearchThreadPoolTransitionTest, ImmediateRestartAfterBestMovePublicationIsAccepted) {
     GatedSearchReporter reporter;
-    ThreadPool          pool{2, reporter};
+    SearchThreadPool    pool{2, reporter};
     Board               board{board_test::fen::start};
     SearchLimits        limits;
     limits.depth = 1;
@@ -108,7 +108,7 @@ TEST(ThreadPoolTransitionTest, ImmediateRestartAfterBestMovePublicationIsAccepte
     ASSERT_TRUE(pool.start_search(board, limits));
     reporter.wait_for_best_move();
 
-    const bool   publication_holds_state_lock = ThreadTestAccess::state_lock_is_held(pool);
+    const bool   publication_holds_state_lock = SearchThreadTestAccess::state_lock_is_held(pool);
     bool         next_search_accepted         = false;
     std::jthread next_search([&] { next_search_accepted = pool.start_search(board, limits); });
 
@@ -122,7 +122,7 @@ TEST(ThreadPoolTransitionTest, ImmediateRestartAfterBestMovePublicationIsAccepte
 }
 
 #if LATRUNCULI_SEARCH_STATS
-TEST_F(ThreadPoolTest, ReportsAggregatedSearchInstrumentation) {
+TEST_F(SearchThreadPoolTest, ReportsAggregatedSearchInstrumentation) {
     options.depth = 2;
     ASSERT_TRUE(pool.start_search(board, options));
     pool.wait();
@@ -136,7 +136,7 @@ TEST_F(ThreadPoolTest, ReportsAggregatedSearchInstrumentation) {
 }
 #endif
 
-TEST_F(ThreadPoolTest, IsSearchingTracksLifecycle) {
+TEST_F(SearchThreadPoolTest, IsSearchingTracksLifecycle) {
     options.depth = 5;
 
     EXPECT_FALSE(pool.is_searching());
@@ -149,7 +149,7 @@ TEST_F(ThreadPoolTest, IsSearchingTracksLifecycle) {
     EXPECT_FALSE(pool.is_searching());
 }
 
-TEST_F(ThreadPoolTest, MainWorkerCoordinatesHelperLifecycle) {
+TEST_F(SearchThreadPoolTest, MainWorkerCoordinatesHelperLifecycle) {
     options.depth = 5;
 
     EXPECT_TRUE(pool.start_search(board, options));
@@ -157,14 +157,14 @@ TEST_F(ThreadPoolTest, MainWorkerCoordinatesHelperLifecycle) {
 
     bool helper_searched = false;
     for (size_t index = 1; index < pool.thread_count(); ++index) {
-        helper_searched |= ThreadTestAccess::node_count(pool, index) > 0;
+        helper_searched |= SearchThreadTestAccess::node_count(pool, index) > 0;
     }
 
     EXPECT_TRUE(helper_searched);
     EXPECT_FALSE(pool.is_searching());
 }
 
-TEST_F(ThreadPoolTest, StartSearchRejectsConcurrentSearch) {
+TEST_F(SearchThreadPoolTest, StartSearchRejectsConcurrentSearch) {
     EXPECT_TRUE(pool.start_search(board, options));
     EXPECT_TRUE(pool.is_searching());
 
@@ -175,7 +175,7 @@ TEST_F(ThreadPoolTest, StartSearchRejectsConcurrentSearch) {
     EXPECT_EQ(tt.current_generation(), std::uint8_t{1});
 }
 
-TEST_F(ThreadPoolTest, RequestStopStopsSearch) {
+TEST_F(SearchThreadPoolTest, RequestStopStopsSearch) {
     EXPECT_TRUE(pool.start_search(board, options));
     ASSERT_TRUE(wait_for_nodes());
     pool.request_stop();
@@ -184,7 +184,7 @@ TEST_F(ThreadPoolTest, RequestStopStopsSearch) {
     EXPECT_EQ(best_move_count(), 1);
 }
 
-TEST_F(ThreadPoolTest, RequestStopImmediatelyAfterStartDoesNotDeadlock) {
+TEST_F(SearchThreadPoolTest, RequestStopImmediatelyAfterStartDoesNotDeadlock) {
     options.depth = 5;
 
     EXPECT_TRUE(pool.start_search(board, options));
@@ -195,7 +195,7 @@ TEST_F(ThreadPoolTest, RequestStopImmediatelyAfterStartDoesNotDeadlock) {
     EXPECT_FALSE(reporter.best_moves.front().is_null());
 }
 
-TEST_F(ThreadPoolTest, RequestStopWhileIdleDoesNotPoisonNextSearch) {
+TEST_F(SearchThreadPoolTest, RequestStopWhileIdleDoesNotPoisonNextSearch) {
     pool.request_stop();
     EXPECT_NO_THROW(pool.wait());
 
@@ -206,7 +206,7 @@ TEST_F(ThreadPoolTest, RequestStopWhileIdleDoesNotPoisonNextSearch) {
     EXPECT_EQ(best_move_count(), 1);
 }
 
-TEST_F(ThreadPoolTest, ShutdownPonderSearchDoesNotDeadlock) {
+TEST_F(SearchThreadPoolTest, ShutdownPonderSearchDoesNotDeadlock) {
     options.depth  = 5;
     options.ponder = true;
 
@@ -216,18 +216,18 @@ TEST_F(ThreadPoolTest, ShutdownPonderSearchDoesNotDeadlock) {
     EXPECT_EQ(best_move_count(), 1);
 }
 
-TEST_F(ThreadPoolTest, DestructorShutsDownActiveSearch) {
+TEST_F(SearchThreadPoolTest, DestructorShutsDownActiveSearch) {
     options.depth = 5;
 
     {
-        ThreadPool local_pool{THREAD_COUNT, reporter};
+        SearchThreadPool local_pool{THREAD_COUNT, reporter};
         EXPECT_TRUE(local_pool.start_search(board, options));
     }
 
     EXPECT_EQ(best_move_count(), 1);
 }
 
-TEST_F(ThreadPoolTest, NodesSearchedAggregatesThreadCounters) {
+TEST_F(SearchThreadPoolTest, NodesSearchedAggregatesThreadCounters) {
     options.depth = 1;
 
     EXPECT_TRUE(pool.start_search(board, options));
@@ -235,13 +235,13 @@ TEST_F(ThreadPoolTest, NodesSearchedAggregatesThreadCounters) {
 
     NodeCount worker_nodes = 0;
     for (size_t index = 0; index < pool.thread_count(); ++index)
-        worker_nodes += ThreadTestAccess::node_count(pool, index);
+        worker_nodes += SearchThreadTestAccess::node_count(pool, index);
 
     EXPECT_GT(nodes_searched(), 0);
     EXPECT_EQ(nodes_searched(), worker_nodes);
 }
 
-TEST_F(ThreadPoolTest, NodeLimitedSearchUsesFreshThreadSafeNodeCounts) {
+TEST_F(SearchThreadPoolTest, NodeLimitedSearchUsesFreshThreadSafeNodeCounts) {
     options.depth = 5;
     options.nodes = 1;
 
@@ -254,17 +254,17 @@ TEST_F(ThreadPoolTest, NodeLimitedSearchUsesFreshThreadSafeNodeCounts) {
 
     bool helper_searched = false;
     for (size_t index = 1; index < pool.thread_count(); ++index)
-        helper_searched |= ThreadTestAccess::node_count(pool, index) > 0;
+        helper_searched |= SearchThreadTestAccess::node_count(pool, index) > 0;
     ASSERT_TRUE(helper_searched);
 
     for (size_t index = 0; index < pool.thread_count(); ++index) {
-        Thread& thread = ThreadTestAccess::thread(pool, index);
-        ThreadTestAccess::configure_search(thread, board, options);
-        EXPECT_EQ(ThreadTestAccess::node_count(thread), 0);
+        SearchThread& thread = SearchThreadTestAccess::thread(pool, index);
+        SearchThreadTestAccess::configure_search(thread, board, options);
+        EXPECT_EQ(SearchThreadTestAccess::node_count(thread), 0);
     }
 }
 
-TEST_F(ThreadPoolTest, RootSearchAdvancesTTGenerationOncePerSearch) {
+TEST_F(SearchThreadPoolTest, RootSearchAdvancesTTGenerationOncePerSearch) {
     options.depth = 1;
 
     EXPECT_EQ(tt.current_generation(), std::uint8_t{0});
@@ -278,7 +278,7 @@ TEST_F(ThreadPoolTest, RootSearchAdvancesTTGenerationOncePerSearch) {
     EXPECT_EQ(tt.current_generation(), std::uint8_t{2});
 }
 
-TEST_F(ThreadPoolTest, ResizeRejectsWhileSearchInProgress) {
+TEST_F(SearchThreadPoolTest, ResizeRejectsWhileSearchInProgress) {
     EXPECT_TRUE(pool.start_search(board, options));
     EXPECT_TRUE(pool.is_searching());
 
@@ -289,7 +289,7 @@ TEST_F(ThreadPoolTest, ResizeRejectsWhileSearchInProgress) {
     pool.wait();
 }
 
-TEST_F(ThreadPoolTest, ShutdownIsIdempotent) {
+TEST_F(SearchThreadPoolTest, ShutdownIsIdempotent) {
     pool.shutdown();
     pool.shutdown();
 
@@ -298,7 +298,7 @@ TEST_F(ThreadPoolTest, ShutdownIsIdempotent) {
     EXPECT_EQ(pool.thread_count(), THREAD_COUNT);
 }
 
-TEST_F(ThreadPoolTest, ResizeGrowsAndShrinksIdlePool) {
+TEST_F(SearchThreadPoolTest, ResizeGrowsAndShrinksIdlePool) {
     options.depth = 1;
 
     EXPECT_THROW(pool.resize(std::numeric_limits<size_t>::max()), std::length_error);
@@ -319,7 +319,7 @@ TEST_F(ThreadPoolTest, ResizeGrowsAndShrinksIdlePool) {
     EXPECT_EQ(best_move_count(), 1);
 }
 
-TEST_F(ThreadPoolTest, ResizeToZeroThenBackUp) {
+TEST_F(SearchThreadPoolTest, ResizeToZeroThenBackUp) {
     options.depth = 1;
 
     ASSERT_TRUE(pool.resize(0));

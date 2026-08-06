@@ -6,22 +6,22 @@
 
 #include "board/board.hpp"
 #include "search/search_limits.hpp"
+#include "search/search_thread_pool.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
-#include "support/thread_test_access.hpp"
-#include "uci/threading.hpp"
+#include "support/search_thread_test_access.hpp"
 
 namespace {
 
 class SearchWorkerTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{1, reporter};
+    SearchThreadPool        pool{1, reporter};
 
-    Thread& test_thread() { return ThreadTestAccess::thread(pool); }
+    SearchThread& test_thread() { return SearchThreadTestAccess::thread(pool); }
 
-    SearchWorker& worker() { return ThreadTestAccess::worker(test_thread()); }
+    SearchWorker& worker() { return SearchThreadTestAccess::worker(test_thread()); }
 
     void load_worker_board(Board& board) {
         worker().configure_search(board, SearchLimits{}, SearchClock::now());
@@ -89,9 +89,9 @@ TEST_F(SearchWorkerTest, HelperDepthsFollowStaggeringSchedule) {
         {true, false, false, true, true, false, false, true},
     }};
 
-    ThreadPool helper_pool{expected.size(), reporter};
+    SearchThreadPool helper_pool{expected.size(), reporter};
     for (size_t worker_id = 0; worker_id < expected.size(); ++worker_id) {
-        const SearchWorker& search_worker = ThreadTestAccess::worker(helper_pool, worker_id);
+        const SearchWorker& search_worker = SearchThreadTestAccess::worker(helper_pool, worker_id);
         for (int depth = 1; depth <= static_cast<int>(expected[worker_id].size()); ++depth) {
             EXPECT_EQ(SearchTestAccess::should_search_root_depth(search_worker, depth),
                       expected[worker_id][depth - 1])
@@ -141,9 +141,9 @@ TEST_F(SearchWorkerTest, StoppedSearchReportsFallbackWithoutCompletingRootSnapsh
     Board board{board_test::fen::quiet_black_to_move};
     load_worker_board(board);
 
-    ThreadTestAccess::request_stop(test_thread());
-    ThreadTestAccess::wake_for_search(test_thread());
-    ThreadTestAccess::wait_for_idle(test_thread());
+    SearchThreadTestAccess::request_stop(test_thread());
+    SearchThreadTestAccess::wake_for_search(test_thread());
+    SearchThreadTestAccess::wait_for_idle(test_thread());
 
     const RootLine snapshot = worker().root_snapshot();
     EXPECT_FALSE(snapshot.completed);

@@ -1,4 +1,4 @@
-#include "uci/uci_input.hpp"
+#include "uci/input.hpp"
 
 #include <charconv>
 #include <concepts>

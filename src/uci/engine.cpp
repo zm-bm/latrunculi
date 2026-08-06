@@ -16,6 +16,8 @@
 #include "search/search_limits.hpp"
 #include "search/tt.hpp"
 
+namespace uci {
+
 Engine::Engine(std::ostream& out, std::ostream& err, std::istream& source)
     : reader(source),
       writer(out, err),
@@ -32,15 +34,15 @@ void Engine::unmake_board_move() {
     board.unmake();
 }
 
-void Engine::apply_option_effect(uci::OptionId option, const uci::Options& candidate) {
+void Engine::apply_option_effect(OptionId option, const Options& candidate) {
     switch (option) {
-    case uci::OptionId::Hash: tt.resize(candidate.hash.value); break;
-    case uci::OptionId::Threads:
+    case OptionId::Hash: tt.resize(candidate.hash.value); break;
+    case OptionId::Threads:
         if (!thread_pool.resize(candidate.threads.value))
             throw std::runtime_error("failed to resize thread pool");
         break;
-    case uci::OptionId::Ponder:    break;
-    case uci::OptionId::ClearHash: tt.clear(); break;
+    case OptionId::Ponder:    break;
+    case OptionId::ClearHash: tt.clear(); break;
     }
 }
 
@@ -60,7 +62,7 @@ void Engine::loop() {
 
 bool Engine::execute(const std::string& line) noexcept {
     try {
-        return execute(uci::parse_command(line));
+        return execute(parse_command(line));
     } catch (const std::exception& e) {
         writer.info_string("error: " + std::string(e.what()));
         return true;
@@ -70,7 +72,7 @@ bool Engine::execute(const std::string& line) noexcept {
     }
 }
 
-bool Engine::execute(const uci::Command& command) noexcept {
+bool Engine::execute(const Command& command) noexcept {
     try {
         return dispatch(command);
     } catch (const std::exception& e) {
@@ -82,16 +84,16 @@ bool Engine::execute(const uci::Command& command) noexcept {
     }
 }
 
-bool Engine::dispatch(const uci::Command& command) {
+bool Engine::dispatch(const Command& command) {
     return std::visit([this](const auto& parsed) { return handle(parsed); }, command);
 }
 
-bool Engine::handle(const uci::UciCommand&) {
+bool Engine::handle(const UciCommand&) {
     writer.identify(options);
     return true;
 }
 
-bool Engine::handle(const uci::DebugCommand& command) {
+bool Engine::handle(const DebugCommand& command) {
     if (command.value == "on") {
         debug_mode = true;
         writer.info_string("debug mode enabled");
@@ -104,25 +106,25 @@ bool Engine::handle(const uci::DebugCommand& command) {
     return true;
 }
 
-bool Engine::handle(const uci::IsReadyCommand&) {
+bool Engine::handle(const IsReadyCommand&) {
     writer.ready();
     return true;
 }
 
-bool Engine::handle(const uci::SetOptionCommand& command) {
+bool Engine::handle(const SetOptionCommand& command) {
     require_idle("set option");
 
     if (command.name.empty())
         throw std::runtime_error("missing option name");
 
-    auto                candidate = options;
-    const uci::OptionId option    = candidate.set(command.name, command.value, command.has_value);
+    auto           candidate = options;
+    const OptionId option    = candidate.set(command.name, command.value, command.has_value);
     apply_option_effect(option, candidate);
     options = candidate;
     return true;
 }
 
-bool Engine::handle(const uci::NewGameCommand&) {
+bool Engine::handle(const NewGameCommand&) {
     require_idle("start new game");
 
     // Do not carry search heuristics or TT entries across unrelated games.
@@ -131,8 +133,8 @@ bool Engine::handle(const uci::NewGameCommand&) {
     return true;
 }
 
-bool Engine::handle(const uci::PositionCommand& command) {
-    using Source = uci::PositionCommand::Source;
+bool Engine::handle(const PositionCommand& command) {
+    using Source = PositionCommand::Source;
 
     require_idle("set position");
 
@@ -161,7 +163,7 @@ bool Engine::handle(const uci::PositionCommand& command) {
     return true;
 }
 
-bool Engine::handle(const uci::GoCommand& command) {
+bool Engine::handle(const GoCommand& command) {
     if (thread_pool.is_searching()) {
         writer.info_string("search already in progress");
         return true;
@@ -199,47 +201,47 @@ bool Engine::handle(const uci::GoCommand& command) {
     return true;
 }
 
-bool Engine::handle(const uci::StopCommand&) {
+bool Engine::handle(const StopCommand&) {
     thread_pool.request_stop();
     return true;
 }
 
-bool Engine::handle(const uci::QuitCommand&) {
+bool Engine::handle(const QuitCommand&) {
     thread_pool.shutdown();
     return false;
 }
 
-bool Engine::handle(const uci::PonderHitCommand&) {
+bool Engine::handle(const PonderHitCommand&) {
     thread_pool.leave_pondering();
     return true;
 }
 
-bool Engine::handle(const uci::RegisterCommand&) {
+bool Engine::handle(const RegisterCommand&) {
     return true;
 }
 
-bool Engine::handle(const uci::ExitCommand&) {
-    return handle(uci::QuitCommand{});
+bool Engine::handle(const ExitCommand&) {
+    return handle(QuitCommand{});
 }
 
-bool Engine::handle(const uci::UnknownCommand&) {
+bool Engine::handle(const UnknownCommand&) {
     return true;
 }
 
-bool Engine::handle(const uci::EmptyCommand&) {
+bool Engine::handle(const EmptyCommand&) {
     return true;
 }
 
-bool Engine::handle(const uci::ConsoleCommand& command) {
+bool Engine::handle(const ConsoleCommand& command) {
     require_idle("run console command");
 
     switch (command.name) {
-    case uci::ConsoleCommand::Name::Help:  return help();
-    case uci::ConsoleCommand::Name::Board: return display_board();
-    case uci::ConsoleCommand::Name::Eval:  return evaluate();
-    case uci::ConsoleCommand::Name::Move:  return move(command.arguments);
-    case uci::ConsoleCommand::Name::Moves: return moves();
-    case uci::ConsoleCommand::Name::Perft: return perft(command.arguments);
+    case ConsoleCommand::Name::Help:  return help();
+    case ConsoleCommand::Name::Board: return display_board();
+    case ConsoleCommand::Name::Eval:  return evaluate();
+    case ConsoleCommand::Name::Move:  return move(command.arguments);
+    case ConsoleCommand::Name::Moves: return moves();
+    case ConsoleCommand::Name::Perft: return perft(command.arguments);
     }
 
     return true;
@@ -285,7 +287,7 @@ bool Engine::moves() {
     for (auto& move : movelist) {
         if (!board.is_legal_pseudo_move(move))
             continue;
-        writer.diagnostic_line(uci::format_uci_move(move));
+        writer.diagnostic_line(format_uci_move(move));
     }
     return true;
 }
@@ -304,7 +306,7 @@ bool Engine::perft(const std::string& arguments) {
 Move Engine::find_legal_move(const Board& position, const std::string& token) const {
     auto movelist = movegen::generate_pseudo_legal(position);
     for (auto& move : movelist) {
-        if (uci::format_uci_move(move) == token && position.is_legal_pseudo_move(move)) {
+        if (format_uci_move(move) == token && position.is_legal_pseudo_move(move)) {
             return move;
         }
     }
@@ -325,3 +327,5 @@ std::vector<Move> Engine::resolve_searchmoves(const std::vector<std::string>& to
     }
     return root_moves;
 }
+
+} // namespace uci

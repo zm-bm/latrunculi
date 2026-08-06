@@ -29,13 +29,13 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/search/search.cpp
     src/search/search_instrumentation.cpp
     src/search/search_limits.cpp
+    src/search/search_thread_pool.cpp
     src/search/search_worker.cpp
     src/search/tt.cpp
     src/uci/engine.cpp
-    src/uci/threading.cpp
-    src/uci/uci_input.cpp
-    src/uci/uci_options.cpp
-    src/uci/uci_writer.cpp
+    src/uci/input.cpp
+    src/uci/options.cpp
+    src/uci/writer.cpp
 )
 
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
@@ -87,14 +87,14 @@ if(BUILD_TESTING)
         tests/search/root_search.test.cpp
         tests/search/search.test.cpp
         tests/search/search_instrumentation.test.cpp
+        tests/search/search_thread_pool.test.cpp
         tests/search/search_types.test.cpp
         tests/search/search_worker.test.cpp
         tests/search/tt.test.cpp
         tests/uci/engine.test.cpp
-        tests/uci/threading.test.cpp
-        tests/uci/uci_input.test.cpp
-        tests/uci/uci_options.test.cpp
-        tests/uci/uci_writer.test.cpp
+        tests/uci/input.test.cpp
+        tests/uci/options.test.cpp
+        tests/uci/writer.test.cpp
     )
 
     add_executable(tests ${LATRUNCULI_TEST_SOURCES})

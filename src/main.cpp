@@ -6,7 +6,7 @@
 int main() {
     attacks::init();
 
-    Engine engine(std::cout, std::cerr, std::cin);
+    uci::Engine engine(std::cout, std::cerr, std::cin);
     engine.loop();
 
     return 0;

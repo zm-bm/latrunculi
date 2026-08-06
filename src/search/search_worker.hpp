@@ -13,8 +13,8 @@
 #include "search/search_limits.hpp"
 #include "search/search_reporter.hpp"
 
-class ThreadPool;
-class Thread;
+class SearchThreadPool;
+class SearchThread;
 class SearchTestAccess;
 
 enum class NodeType { Pv, NonPv };
@@ -23,18 +23,18 @@ enum class NodeType { Pv, NonPv };
 class SearchWorker {
 public:
     SearchWorker() = delete;
-    SearchWorker(int id, SearchReporter& reporter, ThreadPool& pool);
+    SearchWorker(int id, SearchReporter& reporter, SearchThreadPool& pool);
     SearchWorker(const SearchWorker&)            = delete;
     SearchWorker& operator=(const SearchWorker&) = delete;
     SearchWorker(SearchWorker&&)                 = delete;
     SearchWorker& operator=(SearchWorker&&)      = delete;
 
-    // Thread-facing lifecycle.
+    // SearchThread-facing lifecycle.
     void      configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
     EvalValue search();
     void      request_stop() noexcept;
 
-    // ThreadPool-facing progress and results.
+    // SearchThreadPool-facing progress and results.
     NodeCount node_count() const noexcept;
     RootLine  root_snapshot() const;
 
@@ -56,9 +56,9 @@ private:
     SearchInstrumentation<> stats;
 
     // Non-owning shared services. Both must outlive this worker.
-    SearchReporter& reporter;
-    ThreadPool&     thread_pool;
-    const int       worker_id;
+    SearchReporter&   reporter;
+    SearchThreadPool& thread_pool;
+    const int         worker_id;
 
     // Stop state.
     std::atomic<bool> stop_requested_flag{false};
@@ -113,8 +113,8 @@ private:
     bool should_poll_search_limits() const noexcept;
 
     friend class SearchTestAccess;
-    friend class Thread;
-    friend class ThreadPool;
+    friend class SearchThread;
+    friend class SearchThreadPool;
 };
 
 inline NodeCount SearchWorker::node_count() const noexcept {

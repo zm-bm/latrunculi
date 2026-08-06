@@ -6,11 +6,11 @@
 #include "board/board.hpp"
 #include "eval/evaluator.hpp"
 #include "search/move_picker.hpp"
+#include "search/search_thread_pool.hpp"
 #include "search/search_worker.hpp"
 #include "search/tt.hpp"
-#include "uci/threading.hpp"
 
-SearchWorker::SearchWorker(int id, SearchReporter& reporter, ThreadPool& pool)
+SearchWorker::SearchWorker(int id, SearchReporter& reporter, SearchThreadPool& pool)
     : reporter(reporter),
       thread_pool(pool),
       worker_id(id) {}

@@ -8,7 +8,7 @@
 #include "core/move.hpp"
 #include "core/types.hpp"
 #include "search/search_reporter.hpp"
-#include "uci/uci_options.hpp"
+#include "uci/options.hpp"
 
 class Board;
 struct RootLine;
@@ -20,7 +20,7 @@ std::string format_uci_move(Move move);
 std::string format_option(std::string_view name, const SpinOption& opt);
 std::string format_option(std::string_view name, const CheckOption& opt);
 std::string format_option(std::string_view name, const ButtonOption& opt);
-std::string format_identification(const uci::Options& options);
+std::string format_identification(const Options& options);
 std::string format_ready();
 std::string format_bestmove(Move move);
 std::string format_info_string(std::string_view str);
@@ -35,7 +35,7 @@ public:
     Writer& operator=(Writer&&)      = delete;
 
     void help() const;
-    void identify(const uci::Options& options) const;
+    void identify(const Options& options) const;
     void ready() const;
     void info_string(std::string_view str) const;
     void diagnostic_line(std::string_view text) const;

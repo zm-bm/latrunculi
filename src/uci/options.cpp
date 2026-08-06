@@ -1,4 +1,4 @@
-#include "uci/uci_options.hpp"
+#include "uci/options.hpp"
 
 #include <algorithm>
 #include <cctype>

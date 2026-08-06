@@ -1,4 +1,4 @@
-#include "uci/uci_writer.hpp"
+#include "uci/writer.hpp"
 
 #include "board/board.hpp"
 #include "board/notation.hpp"
@@ -91,7 +91,7 @@ std::string format_option(std::string_view name, const ButtonOption&) {
     return std::format("option name {} type button", name);
 }
 
-std::string format_identification(const uci::Options& options) {
+std::string format_identification(const Options& options) {
     return std::format("id name Latrunculi {}\n"
                        "id author Eric VanderHelm\n"
                        "{}\n"
@@ -155,7 +155,7 @@ Available commands:
     write_line(err, format_str);
 }
 
-void Writer::identify(const uci::Options& options) const {
+void Writer::identify(const Options& options) const {
     const std::string text = format_identification(options);
     write_line(out, text);
 }

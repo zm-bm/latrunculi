@@ -1,4 +1,4 @@
-#include "uci/uci_writer.hpp"
+#include "uci/writer.hpp"
 
 #include <barrier>
 #include <sstream>

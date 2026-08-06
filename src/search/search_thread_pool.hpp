@@ -15,23 +15,23 @@
 #include "search/search_reporter.hpp"
 #include "search/search_worker.hpp"
 
-class ThreadPool;
-class ThreadTestAccess;
+class SearchThreadPool;
+class SearchThreadTestAccess;
 
 // Native thread wrapper. Owns a SearchWorker and OS thread.
-class Thread {
+class SearchThread {
 public:
-    Thread() = delete;
-    ~Thread();
-    Thread(const Thread&)            = delete;
-    Thread& operator=(const Thread&) = delete;
-    Thread(Thread&&)                 = delete;
-    Thread& operator=(Thread&&)      = delete;
+    SearchThread() = delete;
+    ~SearchThread();
+    SearchThread(const SearchThread&)            = delete;
+    SearchThread& operator=(const SearchThread&) = delete;
+    SearchThread(SearchThread&&)                 = delete;
+    SearchThread& operator=(SearchThread&&)      = delete;
 
 private:
-    Thread(int id, SearchReporter& reporter, ThreadPool& pool);
+    SearchThread(int id, SearchReporter& reporter, SearchThreadPool& pool);
 
-    // ThreadPool-facing lifecycle.
+    // SearchThreadPool-facing lifecycle.
     void request_stop();
     void wait_for_idle();
     void shutdown();
@@ -52,22 +52,22 @@ private:
     void configure_search(const Board& root_board, SearchLimits limits, TimePoint start_time);
     void wake_for_search();
 
-    friend class ThreadPool;
-    friend class ::ThreadTestAccess;
+    friend class SearchThreadPool;
+    friend class ::SearchThreadTestAccess;
 };
 
 // External lifecycle and configuration calls must be serialized by the caller.
 // Workers may request a stop, and progress may be queried during search.
 // Structural observations require no concurrent external resize or destruction.
-class ThreadPool {
+class SearchThreadPool {
 public:
-    ThreadPool() = delete;
-    ThreadPool(size_t thread_count, SearchReporter& reporter);
-    ~ThreadPool();
-    ThreadPool(const ThreadPool&)            = delete;
-    ThreadPool& operator=(const ThreadPool&) = delete;
-    ThreadPool(ThreadPool&&)                 = delete;
-    ThreadPool& operator=(ThreadPool&&)      = delete;
+    SearchThreadPool() = delete;
+    SearchThreadPool(size_t thread_count, SearchReporter& reporter);
+    ~SearchThreadPool();
+    SearchThreadPool(const SearchThreadPool&)            = delete;
+    SearchThreadPool& operator=(const SearchThreadPool&) = delete;
+    SearchThreadPool(SearchThreadPool&&)                 = delete;
+    SearchThreadPool& operator=(SearchThreadPool&&)      = delete;
 
     // Search lifecycle.
     bool start_search(const Board& root_board, SearchLimits limits);
@@ -86,11 +86,11 @@ public:
     NodeCount nodes_searched() const;
 
     friend class SearchWorker;
-    friend class ::ThreadTestAccess;
+    friend class ::SearchThreadTestAccess;
 
 private:
-    // Worker threads. Thread 0 is the main worker; others are helpers.
-    std::vector<std::unique_ptr<Thread>> threads;
+    // Search thread 0 is the main worker; others are helpers.
+    std::vector<std::unique_ptr<SearchThread>> threads;
 
     // Non-owning, lifetime-bound result sink. The caller must keep it alive for
     // the entire lifetime of the pool and its workers.

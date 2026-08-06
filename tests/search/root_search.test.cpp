@@ -9,13 +9,13 @@
 #include "eval/evaluator.hpp"
 #include "movegen/movegen.hpp"
 #include "search/root_line.hpp"
+#include "search/search_thread_pool.hpp"
 #include "search/search_worker.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
-#include "support/thread_test_access.hpp"
-#include "uci/threading.hpp"
+#include "support/search_thread_test_access.hpp"
 
 namespace {
 
@@ -33,9 +33,9 @@ PrincipalVariation pv_for(Move first, Move second = NULL_MOVE) {
 class RootSearchTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{1, reporter};
-    Thread&                 thread{ThreadTestAccess::thread(pool)};
-    SearchWorker&           worker{ThreadTestAccess::worker(thread)};
+    SearchThreadPool        pool{1, reporter};
+    SearchThread&           thread{SearchThreadTestAccess::thread(pool)};
+    SearchWorker&           worker{SearchThreadTestAccess::worker(thread)};
     SearchLimits            limits;
 
     void SetUp() override {
@@ -243,7 +243,7 @@ TEST_F(RootSearchTest, StoppedAspirationPreservesLastAcceptedSnapshot) {
     ASSERT_TRUE(SearchTestAccess::search_root_depth(worker, 1, evaluate(position())));
     const RootLine accepted = worker.root_snapshot();
 
-    ThreadTestAccess::request_stop(thread);
+    SearchThreadTestAccess::request_stop(thread);
     EXPECT_FALSE(SearchTestAccess::search_root_depth(worker, 2, accepted.value));
     EXPECT_EQ(worker.root_snapshot(), accepted);
     EXPECT_EQ(progress_count(2), 0);
@@ -282,8 +282,8 @@ TEST_F(RootSearchTest, StoppedSearchPreservesLastCompletedDepth) {
     limits.depth = 8;
     limits.nodes = 100;
 
-    ThreadTestAccess::start_search(thread, board, limits);
-    ThreadTestAccess::wait_for_idle(thread);
+    SearchThreadTestAccess::start_search(thread, board, limits);
+    SearchThreadTestAccess::wait_for_idle(thread);
 
     const RootLine snapshot = worker.root_snapshot();
     ASSERT_TRUE(snapshot.has_completed_depth());

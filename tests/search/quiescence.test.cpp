@@ -7,21 +7,21 @@
 #include "core/constants.hpp"
 #include "eval/evaluator.hpp"
 #include "movegen/movegen.hpp"
+#include "search/search_thread_pool.hpp"
 #include "search/search_worker.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
-#include "support/thread_test_access.hpp"
-#include "uci/threading.hpp"
+#include "support/search_thread_test_access.hpp"
 
 namespace {
 
 class QuiescenceTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{1, reporter};
-    SearchWorker&           worker{ThreadTestAccess::worker(pool)};
+    SearchThreadPool        pool{1, reporter};
+    SearchWorker&           worker{SearchThreadTestAccess::worker(pool)};
     SearchLimits            limits;
 
     void SetUp() override {
