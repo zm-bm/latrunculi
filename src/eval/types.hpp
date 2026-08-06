@@ -1,17 +1,27 @@
 #pragma once
 
-enum EvalTerm {
-    TERM_MATERIAL,
-    TERM_SQUARES,
-    TERM_PAWNS,
-    TERM_KNIGHTS,
-    TERM_BISHOPS,
-    TERM_ROOKS,
-    TERM_QUEENS,
-    TERM_KING,
-    TERM_MOBILITY,
-    TERM_THREATS,
-    N_TERMS,
+#include <cstdint>
+
+namespace eval {
+
+enum class Term : std::uint8_t {
+    Material = 0,
+    Squares,
+    Pawns,
+    Knights,
+    Bishops,
+    Rooks,
+    Queens,
+    King,
+    Mobility,
+    Threats,
+    Count,
 };
 
-enum Phase { MIDGAME, ENDGAME, N_PHASES };
+enum class Phase : std::uint8_t {
+    Midgame = 0,
+    Endgame,
+    Count,
+};
+
+} // namespace eval

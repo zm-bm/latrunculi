@@ -16,7 +16,7 @@
 #include "core/move_geometry.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
-#include "eval/eval.hpp"
+#include "eval/parameters.hpp"
 #include "eval/tapered_score.hpp"
 
 /**
@@ -78,9 +78,9 @@ public:
     bool     is_check() const noexcept { return checkers(); }
     bool     is_double_check() const noexcept { return bb::is_many(checkers()); }
 
-    TaperedScore material_score() const noexcept { return material; }
-    TaperedScore psq_bonus_score() const noexcept { return psq_bonus; }
-    EvalValue    non_pawn_material(Color color) const noexcept;
+    eval::TaperedScore material_score() const noexcept { return material; }
+    eval::TaperedScore psq_bonus_score() const noexcept { return psq_bonus; }
+    EvalValue          non_pawn_material(Color color) const noexcept;
 
     // Attacks, castling, and move classification
 
@@ -153,8 +153,8 @@ private:
     int absolute_ply = 0;
 
     // Incremental tapered scores, positive for White and negative for Black.
-    TaperedScore material  = {0, 0};
-    TaperedScore psq_bonus = {0, 0};
+    eval::TaperedScore material  = {0, 0};
+    eval::TaperedScore psq_bonus = {0, 0};
 
     // Reversible history from the loaded root; active_state points to ply_states.back().
     std::vector<PlyState> ply_states;
@@ -197,10 +197,10 @@ inline void Board::pop_ply_state() noexcept {
 // Inline query definitions
 
 inline EvalValue Board::non_pawn_material(Color color) const noexcept {
-    return ((count(color, KNIGHT) * piece_value::knight_mg)
-            + (count(color, BISHOP) * piece_value::bishop_mg)
-            + (count(color, ROOK) * piece_value::rook_mg)
-            + (count(color, QUEEN) * piece_value::queen_mg));
+    return ((count(color, KNIGHT) * eval::piece(KNIGHT).mg)
+            + (count(color, BISHOP) * eval::piece(BISHOP).mg)
+            + (count(color, ROOK) * eval::piece(ROOK).mg)
+            + (count(color, QUEEN) * eval::piece(QUEEN).mg));
 }
 
 // Returns geometric attackers of target, including pinned pieces.

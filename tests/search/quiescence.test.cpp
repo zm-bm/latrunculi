@@ -85,7 +85,7 @@ TEST_F(QuiescenceTest, DepthZeroDispatchesToQuiescence) {
     Board board{"k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1"};
     load(board);
 
-    const EvalValue static_eval = evaluate(position());
+    const EvalValue static_eval = eval::evaluate(position());
     EXPECT_GT(depth_zero(-eval_value::inf, eval_value::inf), static_eval);
     EXPECT_GT(worker.node_count(), 1U);
 
@@ -112,7 +112,7 @@ TEST_F(QuiescenceTest, TerminatesDrawAndMaxPlyWithoutTtStore) {
     Board max_ply{board_test::fen::quiet_black_to_move};
     load(max_ply);
     ply() = engine::max_search_ply;
-    EXPECT_EQ(search(-eval_value::inf, eval_value::inf), evaluate(position()));
+    EXPECT_EQ(search(-eval_value::inf, eval_value::inf), eval::evaluate(position()));
     EXPECT_EQ(worker.node_count(), 1U);
     EXPECT_FALSE(record().has_value());
 }
@@ -121,7 +121,7 @@ TEST_F(QuiescenceTest, StandPatFailHighStoresLowerBound) {
     Board board{board_test::fen::quiet_black_to_move};
     load(board);
 
-    const EvalValue static_eval = evaluate(position());
+    const EvalValue static_eval = eval::evaluate(position());
     EXPECT_EQ(search(static_eval - 100, static_eval), static_eval);
 
     const auto stored = record();
@@ -160,7 +160,7 @@ TEST_F(QuiescenceTest, BuildsPrincipalVariationFromTacticalMove) {
     load(board);
 
     PrincipalVariation pv;
-    EXPECT_GT(pv_search(-eval_value::inf, eval_value::inf, pv), evaluate(position()));
+    EXPECT_GT(pv_search(-eval_value::inf, eval_value::inf, pv), eval::evaluate(position()));
     ASSERT_FALSE(pv.empty());
     EXPECT_TRUE(position().is_legal_move(pv.front()));
 }
@@ -215,7 +215,7 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
 
     Board exact_source{tactical};
     load(exact_source);
-    const EvalValue static_eval = evaluate(position());
+    const EvalValue static_eval = eval::evaluate(position());
     const EvalValue exact       = search(-eval_value::inf, eval_value::inf);
     ASSERT_GT(exact, static_eval);
 
@@ -230,7 +230,7 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
 
     Board upper_board{board_test::fen::quiet_black_to_move};
     load(upper_board);
-    const EvalValue upper_eval = evaluate(position());
+    const EvalValue upper_eval = eval::evaluate(position());
     EXPECT_LT(search(upper_eval + 1, upper_eval + 100), upper_eval + 1);
     stored = record();
     ASSERT_TRUE(stored.has_value());
@@ -273,7 +273,7 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
     Board          baseline_board{tactical};
     load(baseline_board);
 
-    const EvalValue    static_eval = evaluate(position());
+    const EvalValue    static_eval = eval::evaluate(position());
     const EvalValue    alpha       = static_eval - 100;
     const EvalValue    beta        = static_eval + 500;
     PrincipalVariation baseline_pv;

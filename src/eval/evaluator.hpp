@@ -3,22 +3,27 @@
 #include <format>
 #include <functional>
 #include <string_view>
+#include <utility>
 
 #include "board/board.hpp"
 #include "core/attacks.hpp"
 #include "core/constants.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
-#include "eval/eval.hpp"
+#include "eval/parameters.hpp"
 #include "eval/tapered_score.hpp"
 #include "eval/types.hpp"
+
+class EvaluatorTest;
+
+namespace eval {
 
 class EvaluatorDebug;
 
 // Evaluates chess positions using material, mobility, king safety + other positional factors
 class Evaluator {
 public:
-    using TermCallback = std::function<void(EvalTerm, Color, TaperedScore)>;
+    using TermCallback = std::function<void(Term, Color, TaperedScore)>;
 
     Evaluator() = delete;
     Evaluator(const Board&, TermCallback callback = nullptr);
@@ -74,7 +79,7 @@ private:
 
     // Core evaluation methods
 
-    template <EvalTerm Term, Color C = WHITE>
+    template <Term term, Color C = WHITE>
     TaperedScore evaluate_term();
 
     template <Color C>
@@ -146,7 +151,7 @@ private:
     int       phase() const;
 
     friend class EvaluatorDebug;
-    friend class EvaluatorTest;
+    friend class ::EvaluatorTest;
     friend std::formatter<EvaluatorDebug>;
 };
 
@@ -164,18 +169,18 @@ inline EvalValue Evaluator::evaluate() {
     TaperedScore score;
 
     // basic terms
-    score += evaluate_term<TERM_MATERIAL>();
-    score += evaluate_term<TERM_SQUARES>();
-    score += evaluate_term<TERM_PAWNS, WHITE>() - evaluate_term<TERM_PAWNS, BLACK>();
-    score += evaluate_term<TERM_KNIGHTS, WHITE>() - evaluate_term<TERM_KNIGHTS, BLACK>();
-    score += evaluate_term<TERM_BISHOPS, WHITE>() - evaluate_term<TERM_BISHOPS, BLACK>();
-    score += evaluate_term<TERM_ROOKS, WHITE>() - evaluate_term<TERM_ROOKS, BLACK>();
-    score += evaluate_term<TERM_QUEENS, WHITE>() - evaluate_term<TERM_QUEENS, BLACK>();
+    score += evaluate_term<Term::Material>();
+    score += evaluate_term<Term::Squares>();
+    score += evaluate_term<Term::Pawns, WHITE>() - evaluate_term<Term::Pawns, BLACK>();
+    score += evaluate_term<Term::Knights, WHITE>() - evaluate_term<Term::Knights, BLACK>();
+    score += evaluate_term<Term::Bishops, WHITE>() - evaluate_term<Term::Bishops, BLACK>();
+    score += evaluate_term<Term::Rooks, WHITE>() - evaluate_term<Term::Rooks, BLACK>();
+    score += evaluate_term<Term::Queens, WHITE>() - evaluate_term<Term::Queens, BLACK>();
 
     // terms requiring data accumulated by basic terms
-    score += evaluate_term<TERM_KING, WHITE>() - evaluate_term<TERM_KING, BLACK>();
-    score += evaluate_term<TERM_MOBILITY, WHITE>() - evaluate_term<TERM_MOBILITY, BLACK>();
-    score += evaluate_term<TERM_THREATS, WHITE>() - evaluate_term<TERM_THREATS, BLACK>();
+    score += evaluate_term<Term::King, WHITE>() - evaluate_term<Term::King, BLACK>();
+    score += evaluate_term<Term::Mobility, WHITE>() - evaluate_term<Term::Mobility, BLACK>();
+    score += evaluate_term<Term::Threats, WHITE>() - evaluate_term<Term::Threats, BLACK>();
 
     const Color side_to_move  = board.side_to_move();
     const Color stronger_side = score.eg < 0 ? BLACK : WHITE;
@@ -240,26 +245,26 @@ inline Bitboard Evaluator::king_zone(const Square king_sq) const {
 }
 
 /// dispatch a single eval term -> score
-template <EvalTerm Term, Color C>
+template <Term term, Color C>
 inline TaperedScore Evaluator::evaluate_term() {
     TaperedScore score;
 
-    switch (Term) {
-    case TERM_MATERIAL: score = board.material_score(); break;
-    case TERM_SQUARES:  score = board.psq_bonus_score(); break;
-    case TERM_PAWNS:    score = evaluate_pawns<C>(); break;
-    case TERM_KNIGHTS:  score = evaluate_pieces<C, KNIGHT>(); break;
-    case TERM_BISHOPS:  score = evaluate_pieces<C, BISHOP>(); break;
-    case TERM_ROOKS:    score = evaluate_pieces<C, ROOK>(); break;
-    case TERM_QUEENS:   score = evaluate_pieces<C, QUEEN>(); break;
-    case TERM_KING:     score = evaluate_king_safety<C>(); break;
-    case TERM_MOBILITY: score = scores.mobility[C]; break;
-    case TERM_THREATS:  score = scores.threats[C]; break;
-    default:            break;
+    switch (term) {
+    case Term::Material: score = board.material_score(); break;
+    case Term::Squares:  score = board.psq_bonus_score(); break;
+    case Term::Pawns:    score = evaluate_pawns<C>(); break;
+    case Term::Knights:  score = evaluate_pieces<C, KNIGHT>(); break;
+    case Term::Bishops:  score = evaluate_pieces<C, BISHOP>(); break;
+    case Term::Rooks:    score = evaluate_pieces<C, ROOK>(); break;
+    case Term::Queens:   score = evaluate_pieces<C, QUEEN>(); break;
+    case Term::King:     score = evaluate_king_safety<C>(); break;
+    case Term::Mobility: score = scores.mobility[C]; break;
+    case Term::Threats:  score = scores.threats[C]; break;
+    default:             break;
     }
 
     if (callback)
-        callback(Term, C, score);
+        callback(term, C, score);
 
     return score;
 }
@@ -673,8 +678,8 @@ struct TermScore {
 };
 
 struct ScoreTracker {
-    void      add_score(EvalTerm term, TaperedScore score, Color color);
-    TermScore scores[N_TERMS];
+    void      add_score(Term term, TaperedScore score, Color color);
+    TermScore scores[std::to_underlying(Term::Count)];
 };
 
 // evaluator + per-term score breakdown (for logging/debug)
@@ -689,22 +694,24 @@ private:
     Evaluator    evaluator;
 };
 
+} // namespace eval
+
 template <>
-struct std::formatter<TaperedScore> : std::formatter<std::string_view> {
-    auto format(const TaperedScore& score, std::format_context& ctx) const {
+struct std::formatter<eval::TaperedScore> : std::formatter<std::string_view> {
+    auto format(const eval::TaperedScore& score, std::format_context& ctx) const {
         return std::format_to(ctx.out(),
                               "{:5.2f} {:5.2f}",
-                              double(score.mg) / int(piece_value::pawn_mg),
-                              double(score.eg) / int(piece_value::pawn_mg));
+                              double(score.mg) / int(eval::pawn.mg),
+                              double(score.eg) / int(eval::pawn.mg));
     }
 };
 
 template <>
-struct std::formatter<TermScore> : std::formatter<std::string_view> {
+struct std::formatter<eval::TermScore> : std::formatter<std::string_view> {
     static constexpr auto both_format   = " | {} | {} | {} | ";
     static constexpr auto single_format = " |  ----  ---- |  ----  ---- | {} | ";
 
-    auto format(const TermScore& t, std::format_context& ctx) const {
+    auto format(const eval::TermScore& t, std::format_context& ctx) const {
         return t.has_both
                  ? std::format_to(ctx.out(), both_format, t.white, t.black, t.white - t.black)
                  : std::format_to(ctx.out(), single_format, t.white);
@@ -712,8 +719,8 @@ struct std::formatter<TermScore> : std::formatter<std::string_view> {
 };
 
 template <>
-struct std::formatter<EvaluatorDebug> : std::formatter<std::string_view> {
-    auto format(const EvaluatorDebug& ev, std::format_context& ctx) const {
+struct std::formatter<eval::EvaluatorDebug> : std::formatter<std::string_view> {
+    auto format(const eval::EvaluatorDebug& ev, std::format_context& ctx) const {
         auto& evaluator = ev.evaluator;
         auto& tracker   = ev.score_tracker;
         auto  score     = evaluator.scores.final_score;
@@ -725,20 +732,35 @@ struct std::formatter<EvaluatorDebug> : std::formatter<std::string_view> {
         out = std::format_to(out, "     Term    |    White    |    Black    |    Total   \n");
         out = std::format_to(out, "             |   MG    EG  |   MG    EG  |   MG    EG \n");
         out = std::format_to(out, " ------------+-------------+-------------+------------\n");
-        out = std::format_to(out, "{:>12}{}\n", "Material", tracker.scores[TERM_MATERIAL]);
-        out = std::format_to(out, "{:>12}{}\n", "Piece Sq.", tracker.scores[TERM_SQUARES]);
-        out = std::format_to(out, "{:>12}{}\n", "Pawns", tracker.scores[TERM_PAWNS]);
-        out = std::format_to(out, "{:>12}{}\n", "Knights", tracker.scores[TERM_KNIGHTS]);
-        out = std::format_to(out, "{:>12}{}\n", "Bishops", tracker.scores[TERM_BISHOPS]);
-        out = std::format_to(out, "{:>12}{}\n", "Rooks", tracker.scores[TERM_ROOKS]);
-        out = std::format_to(out, "{:>12}{}\n", "Queens", tracker.scores[TERM_QUEENS]);
-        out = std::format_to(out, "{:>12}{}\n", "Kings", tracker.scores[TERM_KING]);
-        out = std::format_to(out, "{:>12}{}\n", "Mobility", tracker.scores[TERM_MOBILITY]);
-        out = std::format_to(out, "{:>12}{}\n", "Threats", tracker.scores[TERM_THREATS]);
-        out = std::format_to(out, " ------------+-------------+-------------+------------\n");
-        out = std::format_to(out, "{:>12}{}\n\n", "Total", TermScore{score});
+        out = std::format_to(out,
+                             "{:>12}{}\n",
+                             "Material",
+                             tracker.scores[std::to_underlying(eval::Term::Material)]);
+        out = std::format_to(out,
+                             "{:>12}{}\n",
+                             "Piece Sq.",
+                             tracker.scores[std::to_underlying(eval::Term::Squares)]);
         out = std::format_to(
-            out, "Evaluation:\t{:.2f}\n", double(result) / int(piece_value::pawn_mg));
+            out, "{:>12}{}\n", "Pawns", tracker.scores[std::to_underlying(eval::Term::Pawns)]);
+        out = std::format_to(
+            out, "{:>12}{}\n", "Knights", tracker.scores[std::to_underlying(eval::Term::Knights)]);
+        out = std::format_to(
+            out, "{:>12}{}\n", "Bishops", tracker.scores[std::to_underlying(eval::Term::Bishops)]);
+        out = std::format_to(
+            out, "{:>12}{}\n", "Rooks", tracker.scores[std::to_underlying(eval::Term::Rooks)]);
+        out = std::format_to(
+            out, "{:>12}{}\n", "Queens", tracker.scores[std::to_underlying(eval::Term::Queens)]);
+        out = std::format_to(
+            out, "{:>12}{}\n", "Kings", tracker.scores[std::to_underlying(eval::Term::King)]);
+        out = std::format_to(out,
+                             "{:>12}{}\n",
+                             "Mobility",
+                             tracker.scores[std::to_underlying(eval::Term::Mobility)]);
+        out = std::format_to(
+            out, "{:>12}{}\n", "Threats", tracker.scores[std::to_underlying(eval::Term::Threats)]);
+        out = std::format_to(out, " ------------+-------------+-------------+------------\n");
+        out = std::format_to(out, "{:>12}{}\n\n", "Total", eval::TermScore{score});
+        out = std::format_to(out, "Evaluation:\t{:.2f}\n", double(result) / int(eval::pawn.mg));
         return out;
     }
 };

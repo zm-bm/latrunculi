@@ -2,6 +2,8 @@
 
 #include "core/types.hpp"
 
+namespace eval {
+
 struct TaperedScore {
     EvalValue mg = 0;
     EvalValue eg = 0;
@@ -68,3 +70,5 @@ inline TaperedScore& TaperedScore::operator*=(EvalValue scalar) {
     eg *= scalar;
     return *this;
 }
+
+} // namespace eval

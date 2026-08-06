@@ -81,7 +81,7 @@ EvalValue Worker::search() {
 void Worker::reset_search_state() {
     reset_nodes();
     search_ply  = 0;
-    root_result = RootLine{NULL_MOVE, evaluate(board), 0, false};
+    root_result = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
     root_lines.clear();
     last_reported_root_line.reset();
     pending_best_move.reset();

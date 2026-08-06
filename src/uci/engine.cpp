@@ -231,7 +231,7 @@ bool Engine::display_board() {
 }
 
 bool Engine::evaluate() {
-    EvaluatorDebug e{board};
+    eval::EvaluatorDebug e{board};
     e.evaluate();
     writer.diagnostic_line(std::format("{}", e));
     return true;

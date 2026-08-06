@@ -1,21 +1,21 @@
-#include "eval/eval.hpp"
+#include "eval/parameters.hpp"
 
 #include <gtest/gtest.h>
 
-TEST(EvalTest, PieceScores) {
-    EXPECT_EQ(eval::piece(NO_PIECETYPE), TaperedScore::Zero);
+TEST(ParametersTest, PieceScores) {
+    EXPECT_EQ(eval::piece(NO_PIECETYPE), eval::TaperedScore::Zero);
 
-    EXPECT_EQ(eval::piece(PAWN), eval::pawn);
-    EXPECT_EQ(eval::piece(KNIGHT), eval::knight);
-    EXPECT_EQ(eval::piece(BISHOP), eval::bishop);
-    EXPECT_EQ(eval::piece(ROOK), eval::rook);
-    EXPECT_EQ(eval::piece(QUEEN), eval::queen);
+    EXPECT_EQ(eval::piece(PAWN), (eval::TaperedScore{100, 166}));
+    EXPECT_EQ(eval::piece(KNIGHT), (eval::TaperedScore{630, 680}));
+    EXPECT_EQ(eval::piece(BISHOP), (eval::TaperedScore{660, 740}));
+    EXPECT_EQ(eval::piece(ROOK), (eval::TaperedScore{1000, 1100}));
+    EXPECT_EQ(eval::piece(QUEEN), (eval::TaperedScore{2000, 2150}));
 
     EXPECT_EQ(eval::piece(PAWN, WHITE), eval::pawn);
     EXPECT_EQ(eval::piece(KNIGHT, BLACK), -eval::knight);
 }
 
-TEST(EvalTest, PieceSquareScores) {
+TEST(ParametersTest, PieceSquareScores) {
     for (Square sq = A1; sq <= H8; ++sq) {
         Square bsq = Square(sq ^ 63); // flip square for black
         EXPECT_EQ(eval::piece_sq(PAWN, WHITE, sq), -eval::piece_sq(PAWN, BLACK, bsq));

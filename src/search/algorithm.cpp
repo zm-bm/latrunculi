@@ -274,7 +274,7 @@ EvalValue Worker::alphabeta(
     if (search_ply >= engine::max_search_ply) {
         increment_nodes();
         stats.node(search_ply);
-        return evaluate(board);
+        return eval::evaluate(board);
     }
 
     if (depth <= 0)
@@ -315,7 +315,7 @@ EvalValue Worker::alphabeta(
 
     if constexpr (Node == NodeType::NonPv) {
         // Step 5. Razoring.
-        const EvalValue static_eval = evaluate(board);
+        const EvalValue static_eval = eval::evaluate(board);
         if (can_null && !in_check && depth <= RazorMaxDepth && tt_move.is_null()
             && static_eval + RazorMargin[depth] <= alpha) {
             stats.razor_try(search_ply);
@@ -336,7 +336,7 @@ EvalValue Worker::alphabeta(
                                 && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(search_ply) < beta;
         if (can_null && !in_check && depth >= reduction
-            && board.non_pawn_material(side) > piece_value::rook_mg && !tt_upper_veto) {
+            && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto) {
             stats.null_move_try(search_ply);
 
             board.make_null();
@@ -522,7 +522,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
         return eval_value::draw;
 
     if (search_ply >= engine::max_search_ply)
-        return evaluate(board);
+        return eval::evaluate(board);
 
     constexpr int     qsearch_tt_depth = 0;
     const EvalValue   original_alpha   = alpha;
@@ -550,7 +550,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
     // Step 4. Stand pat.
     if (!in_check) {
-        best_value = evaluate(board);
+        best_value = eval::evaluate(board);
         if (best_value >= beta) {
             tt.store(position_key,
                      NULL_MOVE,

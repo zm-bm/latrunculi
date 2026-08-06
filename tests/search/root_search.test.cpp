@@ -240,7 +240,7 @@ TEST_F(RootSearchTest, StoppedAspirationPreservesLastAcceptedSnapshot) {
     Board board{board_test::fen::start};
     load(board, 2);
     build_lines();
-    ASSERT_TRUE(SearchTestAccess::search_root_depth(worker, 1, evaluate(position())));
+    ASSERT_TRUE(SearchTestAccess::search_root_depth(worker, 1, eval::evaluate(position())));
     const RootLine accepted = worker.root_snapshot();
 
     SearchThreadTestAccess::request_stop(thread);

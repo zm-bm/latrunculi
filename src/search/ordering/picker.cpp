@@ -4,7 +4,7 @@
 #include <utility>
 
 #include "board/board.hpp"
-#include "eval/eval.hpp"
+#include "eval/parameters.hpp"
 #include "movegen/generator.hpp"
 
 namespace search::ordering {

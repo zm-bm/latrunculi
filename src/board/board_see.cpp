@@ -2,7 +2,7 @@
 
 #include "core/attacks.hpp"
 #include "core/move_geometry.hpp"
-#include "eval/eval.hpp"
+#include "eval/parameters.hpp"
 
 #include <algorithm>
 #include <cassert>

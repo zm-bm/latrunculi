@@ -73,7 +73,7 @@ if(BUILD_TESTING)
         tests/core/piece.test.cpp
         tests/core/square.test.cpp
         tests/core/types.test.cpp
-        tests/eval/eval.test.cpp
+        tests/eval/parameters.test.cpp
         tests/eval/evaluator.test.cpp
         tests/eval/tapered_score.test.cpp
         tests/main.cpp

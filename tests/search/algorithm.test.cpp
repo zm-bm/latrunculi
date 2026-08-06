@@ -156,7 +156,7 @@ TEST_F(SearchTest, HandlesDrawAndMaxPlyExits) {
     Board max_ply{board_test::fen::quiet_black_to_move};
     load(max_ply);
     ply() = engine::max_search_ply;
-    EXPECT_EQ(search(-eval_value::inf, eval_value::inf, 1), evaluate(position()));
+    EXPECT_EQ(search(-eval_value::inf, eval_value::inf, 1), eval::evaluate(position()));
 
     Board drawn_max{"k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1"};
     load(drawn_max);
@@ -388,7 +388,7 @@ TEST_F(SearchTest, NullMoveReenablesAfterARealDescendantMove) {
 TEST_F(SearchTest, RazoringReturnsQsearchFailLowWithoutParentTtStore) {
     Board board{board_test::fen::quiet_black_to_move};
     load(board, 2);
-    const EvalValue static_eval = evaluate(position());
+    const EvalValue static_eval = eval::evaluate(position());
     EXPECT_EQ(search(static_eval + 901, static_eval + 1001, 2), static_eval);
     const auto stored = record();
     ASSERT_TRUE(stored.has_value());
@@ -427,7 +427,7 @@ TEST_F(SearchTest, RazoringRequiresAllGuards) {
             const Move move = legal_picker_moves().front();
             tt.store(position().key(), move, 0, 0, TTBound::Exact, ply());
         }
-        const EvalValue alpha = evaluate(position()) + tc.alpha_offset;
+        const EvalValue alpha = eval::evaluate(position()) + tc.alpha_offset;
         if (tc.pv) {
             PrincipalVariation pv;
             (void)pv_search(alpha, alpha + 100, tc.depth, pv);
@@ -442,7 +442,7 @@ TEST_F(SearchTest, RazoringRequiresAllGuards) {
 TEST_F(SearchTest, FutilitySkipsOnlyAfterFirstLegalQuiet) {
     Board expected_board{board_test::fen::start};
     load(expected_board, 2);
-    const EvalValue alpha    = evaluate(position()) + 401;
+    const EvalValue alpha    = eval::evaluate(position()) + 401;
     const EvalValue beta     = alpha + 100;
     const Move      first    = legal_picker_moves().front();
     const EvalValue expected = with_move(first, [&] { return -search(-beta, -alpha, 1); });
@@ -458,7 +458,7 @@ TEST_F(SearchTest, FutilitySkipsOnlyAfterFirstLegalQuiet) {
 
 TEST_F(SearchTest, FutilityRequiresAllGuards) {
     Board           eval_board{board_test::fen::start};
-    const EvalValue static_eval = evaluate(eval_board);
+    const EvalValue static_eval = eval::evaluate(eval_board);
     struct Case {
         const char* name;
         const char* fen;
@@ -508,7 +508,7 @@ TEST_F(SearchTest, FutilityKeepsTacticalMoves) {
         SCOPED_TRACE(tc.fen);
         Board board{tc.fen};
         load(board, 2);
-        const EvalValue alpha = evaluate(position()) + 401;
+        const EvalValue alpha = eval::evaluate(position()) + 401;
         const EvalValue beta  = alpha + 1000;
         tt.store(position().key(), tc.first, 0, 0, TTBound::Exact, ply());
         if (tc.killer)

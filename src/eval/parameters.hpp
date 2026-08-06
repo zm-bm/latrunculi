@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cassert>
+#include <utility>
 
-#include "core/constants.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "eval/tapered_score.hpp"
@@ -16,11 +16,11 @@ constexpr int phase_limit = 128;
 constexpr int material_mg = 10000;
 constexpr int material_eg = 2500;
 
-constexpr TaperedScore pawn   = {piece_value::pawn_mg, piece_value::pawn_eg};
-constexpr TaperedScore knight = {piece_value::knight_mg, piece_value::knight_eg};
-constexpr TaperedScore bishop = {piece_value::bishop_mg, piece_value::bishop_eg};
-constexpr TaperedScore rook   = {piece_value::rook_mg, piece_value::rook_eg};
-constexpr TaperedScore queen  = {piece_value::queen_mg, piece_value::queen_eg};
+constexpr TaperedScore pawn   = {100, 166};
+constexpr TaperedScore knight = {630, 680};
+constexpr TaperedScore bishop = {660, 740};
+constexpr TaperedScore rook   = {1000, 1100};
+constexpr TaperedScore queen  = {2000, 2150};
 
 namespace masks {
 
@@ -196,8 +196,9 @@ constexpr TaperedScore piece(PieceType pt, Color c = WHITE) {
 constexpr TaperedScore piece_sq(PieceType pt, Color c, Square sq) {
     assert(is_piece_type(pt));
     Square       relative = square::relative(sq, c);
-    TaperedScore score    = {.mg = piece_squares[piece_slot(pt)][MIDGAME][relative],
-                             .eg = piece_squares[piece_slot(pt)][ENDGAME][relative]};
+    TaperedScore score    = {
+           .mg = piece_squares[piece_slot(pt)][std::to_underlying(Phase::Midgame)][relative],
+           .eg = piece_squares[piece_slot(pt)][std::to_underlying(Phase::Endgame)][relative]};
 
     return (score * c * 2) - score;
 }

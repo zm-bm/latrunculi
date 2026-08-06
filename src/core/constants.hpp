@@ -33,21 +33,3 @@ constexpr EvalValue mate_bound    = mate - engine::max_search_ply;
 constexpr EvalValue tt_mate_bound = mate - 2 * engine::max_search_ply;
 
 } // namespace eval_value
-
-namespace piece_value {
-
-// Middlegame material values.
-constexpr EvalValue pawn_mg   = 100;
-constexpr EvalValue knight_mg = 630;
-constexpr EvalValue bishop_mg = 660;
-constexpr EvalValue rook_mg   = 1000;
-constexpr EvalValue queen_mg  = 2000;
-
-// Endgame material values.
-constexpr EvalValue pawn_eg   = 166;
-constexpr EvalValue knight_eg = 680;
-constexpr EvalValue bishop_eg = 740;
-constexpr EvalValue rook_eg   = 1100;
-constexpr EvalValue queen_eg  = 2150;
-
-} // namespace piece_value

@@ -1,5 +1,7 @@
 #include "eval/evaluator.hpp"
 
+namespace eval {
+
 void TermScore::add_score(TaperedScore score, Color color) {
     if (color == WHITE)
         white = score;
@@ -9,11 +11,13 @@ void TermScore::add_score(TaperedScore score, Color color) {
     }
 }
 
-void ScoreTracker::add_score(EvalTerm term, TaperedScore score, Color color) {
-    scores[term].add_score(score, color);
+void ScoreTracker::add_score(Term term, TaperedScore score, Color color) {
+    scores[std::to_underlying(term)].add_score(score, color);
 }
 
 EvaluatorDebug::EvaluatorDebug(const Board& b)
-    : evaluator(b, [this](EvalTerm term, Color color, TaperedScore score) {
+    : evaluator(b, [this](Term term, Color color, TaperedScore score) {
           this->score_tracker.add_score(term, score, color);
       }) {}
+
+} // namespace eval

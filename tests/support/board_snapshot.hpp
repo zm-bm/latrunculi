@@ -32,8 +32,8 @@ struct BoardSnapshot {
     Bitboard                                                     checkers;
     std::array<Bitboard, N_COLORS>                               blockers{};
     std::array<Square, N_COLORS>                                 kings{};
-    TaperedScore                                                 material;
-    TaperedScore                                                 psq_bonus;
+    eval::TaperedScore                                           material;
+    eval::TaperedScore                                           psq_bonus;
     std::array<std::array<Bitboard, N_PIECETYPES>, N_COLORS>     piece_bb{};
     std::array<std::array<std::uint8_t, N_PIECETYPES>, N_COLORS> counts{};
 };
