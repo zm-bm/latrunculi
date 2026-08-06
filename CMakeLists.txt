@@ -92,6 +92,9 @@ if(BUILD_TESTING)
         tests/search/search_worker.test.cpp
         tests/search/tt.test.cpp
         tests/uci/engine.test.cpp
+        tests/uci/engine_options.test.cpp
+        tests/uci/engine_position.test.cpp
+        tests/uci/engine_search.test.cpp
         tests/uci/input.test.cpp
         tests/uci/options.test.cpp
         tests/uci/writer.test.cpp
