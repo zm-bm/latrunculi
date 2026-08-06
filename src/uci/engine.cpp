@@ -1,12 +1,14 @@
 #include "uci/engine.hpp"
 
 #include <algorithm>
+#include <format>
 #include <sstream>
 #include <stdexcept>
 #include <variant>
 #include <vector>
 
 #include "board/board.hpp"
+#include "board/notation.hpp"
 #include "core/move.hpp"
 #include "eval/evaluator.hpp"
 #include "movegen/movegen.hpp"
@@ -249,14 +251,14 @@ bool Engine::help() {
 }
 
 bool Engine::display_board() {
-    writer.debug(board);
+    writer.diagnostic_line(std::format("{}", board));
     return true;
 }
 
 bool Engine::evaluate() {
     EvaluatorDebug e{board};
     e.evaluate();
-    writer.debug(e);
+    writer.diagnostic_line(std::format("{}", e));
     return true;
 }
 
@@ -283,7 +285,7 @@ bool Engine::moves() {
     for (auto& move : movelist) {
         if (!board.is_legal_pseudo_move(move))
             continue;
-        writer.debug(uci::format_uci_move(move));
+        writer.diagnostic_line(uci::format_uci_move(move));
     }
     return true;
 }
@@ -293,7 +295,7 @@ bool Engine::perft(const std::string& arguments) {
     int                depth;
 
     if (stream >> depth) {
-        writer.debug_text(format_perft_result(perft_root(board, depth)));
+        writer.diagnostic_text(format_perft_result(perft_root(board, depth)));
     }
 
     return true;

@@ -209,14 +209,14 @@ TEST_F(UciWriterTest, InfoStringSanitizesLineBreaks) {
     EXPECT_EQ(oss.str(), "info string one two three\n");
 }
 
-TEST_F(UciWriterTest, DebugOutput) {
-    std::string logMessage = "This is a log message";
-    writer.debug(logMessage);
-    EXPECT_EQ(err.str(), logMessage + "\n");
+TEST_F(UciWriterTest, DiagnosticLineAppendsNewline) {
+    writer.diagnostic_line("This is a diagnostic");
+
+    EXPECT_EQ(err.str(), "This is a diagnostic\n");
 }
 
-TEST_F(UciWriterTest, DebugTextWritesRawText) {
-    writer.debug_text("one\ntwo\n");
+TEST_F(UciWriterTest, DiagnosticTextWritesRawText) {
+    writer.diagnostic_text("one\ntwo\n");
 
     EXPECT_EQ(err.str(), "one\ntwo\n");
 }
@@ -237,10 +237,9 @@ TEST(UciWriterConcurrencyTest, SerializesSharedOutputAndErrorStream) {
     });
 
     std::jthread error_thread([&] {
-        std::string error = "error";
         start_line.arrive_and_wait();
         for (int i = 0; i < writes_per_thread; ++i) {
-            writer.debug(error);
+            writer.diagnostic_line("error");
             std::this_thread::yield();
         }
     });

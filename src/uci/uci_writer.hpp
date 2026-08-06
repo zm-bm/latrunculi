@@ -24,7 +24,7 @@ std::string format_ready();
 std::string format_bestmove(Move move);
 std::string format_info_string(std::string_view str);
 
-// UCI stdout writer and local debug-console stderr writer.
+// UCI stdout writer and diagnostic stderr writer.
 class Writer {
 public:
     explicit Writer(std::ostream& out, std::ostream& err) : out(out), err(err) {}
@@ -42,10 +42,8 @@ public:
                      NodeCount       nodes,
                      Milliseconds    time) const;
     void info_string(std::string_view str) const;
-    void debug_text(std::string_view str) const;
-
-    template <typename T>
-    void debug(T&& obj) const;
+    void diagnostic_line(std::string_view text) const;
+    void diagnostic_text(std::string_view text) const;
 
 private:
     void write_text(std::ostream& stream, std::string_view text) const;

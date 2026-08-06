@@ -166,7 +166,7 @@ void SearchWorker::publish_final_result() {
 
     if constexpr (SearchStatsEnabled) {
         auto stats = thread_pool.aggregate_instrumentation();
-        writer.debug(stats.str());
+        writer.diagnostic_line(stats.str());
     }
 }
 

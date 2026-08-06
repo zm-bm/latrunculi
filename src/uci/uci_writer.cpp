@@ -1,13 +1,12 @@
 #include "uci/uci_writer.hpp"
 
+#include "board/board.hpp"
 #include "board/notation.hpp"
 #include "core/constants.hpp"
-#include "eval/evaluator.hpp"
 #include "search/root_line.hpp"
 
 #include <cstdlib>
 #include <format>
-#include <utility>
 
 namespace uci {
 
@@ -184,19 +183,12 @@ void Writer::info_string(std::string_view str) const {
     write_line(out, text);
 }
 
-void Writer::debug_text(std::string_view str) const {
-    write_text(err, str);
-}
-
-template <typename T>
-void Writer::debug(T&& obj) const {
-    const std::string text = std::format("{}", std::forward<T>(obj));
+void Writer::diagnostic_line(std::string_view text) const {
     write_line(err, text);
 }
 
-template void Writer::debug(std::string& str) const;
-template void Writer::debug(std::string&& str) const;
-template void Writer::debug(Board& board) const;
-template void Writer::debug(EvaluatorDebug& evaluator) const;
+void Writer::diagnostic_text(std::string_view text) const {
+    write_text(err, text);
+}
 
 } // namespace uci
