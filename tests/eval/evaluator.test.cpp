@@ -2,12 +2,11 @@
 
 #include <gtest/gtest.h>
 
-#include <format>
-
 #include "board/board.hpp"
 #include "core/bitboard.hpp"
 #include "eval/parameters.hpp"
 #include "eval/tapered_score.hpp"
+#include "eval/trace_formatter.hpp"
 #include "support/board_fixtures.hpp"
 
 class EvaluatorTest : public ::testing::Test {
@@ -132,13 +131,6 @@ protected:
         Board           board(fen);
         eval::Evaluator e(board);
         EXPECT_EQ(e.taper_score(score), expected) << fen;
-    }
-
-    std::string debug_output(const std::string& fen) {
-        Board                board(fen);
-        eval::EvaluatorDebug debug(board);
-        debug.evaluate();
-        return std::format("{}", debug);
     }
 };
 
@@ -521,8 +513,14 @@ TEST_F(EvaluatorTest, Phase) {
     }
 }
 
-TEST_F(EvaluatorTest, DebugOutputContainsStableTermBreakdown) {
-    const std::string output = debug_output(board_test::fen::start);
+TEST_F(EvaluatorTest, TraceMatchesNormalEvaluationAndFormatsStableTermBreakdown) {
+    const Board       board(board_test::fen::start);
+    const eval::Trace trace  = eval::evaluate_trace(board);
+    const std::string output = eval::format_trace(trace);
+
+    EXPECT_EQ(trace.value(), eval::evaluate(board));
+    EXPECT_EQ(trace.term_total(), trace.unscaled_score());
+    EXPECT_EQ(trace.relative_value() + eval::tempo_bonus, trace.value());
 
     EXPECT_NE(output.find("Term"), std::string::npos);
     EXPECT_NE(output.find("Material"), std::string::npos);
