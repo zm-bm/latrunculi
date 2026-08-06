@@ -77,6 +77,7 @@ if(BUILD_TESTING)
         tests/core/types.test.cpp
         tests/eval/parameters.test.cpp
         tests/eval/evaluator.test.cpp
+        tests/eval/features.test.cpp
         tests/eval/tapered_score.test.cpp
         tests/main.cpp
         tests/movegen/move_list.test.cpp
