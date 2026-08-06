@@ -1,6 +1,5 @@
 #include <array>
 #include <optional>
-#include <sstream>
 
 #include <gtest/gtest.h>
 
@@ -11,20 +10,19 @@
 #include "search/search_worker.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
+#include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
 #include "support/thread_test_access.hpp"
 #include "uci/threading.hpp"
-#include "uci/uci_writer.hpp"
 
 namespace {
 
 class QuiescenceTest : public ::testing::Test {
 protected:
-    std::ostringstream output;
-    uci::Writer        writer{output, output};
-    ThreadPool         pool{1, writer};
-    SearchWorker&      worker{ThreadTestAccess::worker(pool)};
-    SearchLimits       limits;
+    RecordingSearchReporter reporter;
+    ThreadPool              pool{1, reporter};
+    SearchWorker&           worker{ThreadTestAccess::worker(pool)};
+    SearchLimits            limits;
 
     void SetUp() override {
         limits.depth = 4;

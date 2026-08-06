@@ -12,14 +12,11 @@
 #include "search/root_line.hpp"
 #include "search/search_instrumentation.hpp"
 #include "search/search_limits.hpp"
+#include "search/search_reporter.hpp"
 #include "search/search_worker.hpp"
 
 class ThreadPool;
 class ThreadTestAccess;
-
-namespace uci {
-class Writer;
-}
 
 // Native thread wrapper. Owns a SearchWorker and OS thread.
 class Thread {
@@ -32,7 +29,7 @@ public:
     Thread& operator=(Thread&&)      = delete;
 
 private:
-    Thread(int id, uci::Writer& writer, ThreadPool& pool);
+    Thread(int id, SearchReporter& reporter, ThreadPool& pool);
 
     // ThreadPool-facing lifecycle.
     void request_stop();
@@ -65,7 +62,7 @@ private:
 class ThreadPool {
 public:
     ThreadPool() = delete;
-    ThreadPool(size_t thread_count, uci::Writer& writer);
+    ThreadPool(size_t thread_count, SearchReporter& reporter);
     ~ThreadPool();
     ThreadPool(const ThreadPool&)            = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
@@ -95,9 +92,9 @@ private:
     // Worker threads. Thread 0 is the main worker; others are helpers.
     std::vector<std::unique_ptr<Thread>> threads;
 
-    // Non-owning, lifetime-bound output sink. The caller must keep it alive for
+    // Non-owning, lifetime-bound result sink. The caller must keep it alive for
     // the entire lifetime of the pool and its workers.
-    uci::Writer& writer;
+    SearchReporter& reporter;
 
     // Pool lifecycle state.
     bool shutdown_requested{false};

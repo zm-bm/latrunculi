@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cassert>
 
-Thread::Thread(int id, uci::Writer& writer, ThreadPool& pool)
-    : worker(id, writer, pool),
+Thread::Thread(int id, SearchReporter& reporter, ThreadPool& pool)
+    : worker(id, reporter, pool),
       native_thread(&Thread::idle_loop, this) {}
 
 Thread::~Thread() {
@@ -56,8 +56,8 @@ void Thread::idle_loop() {
         worker.search();
         {
             std::lock_guard<std::mutex> lk(state_mutex);
-            // Keep final output and the idle transition atomic for lifecycle
-            // observers. This lock is acquired before Writer's output lock.
+            // Keep final publication and the idle transition atomic for
+            // lifecycle observers.
             worker.publish_final_result();
             searching = false;
         }
@@ -85,10 +85,11 @@ void Thread::wake_for_search() {
     state_cv.notify_one();
 }
 
-ThreadPool::ThreadPool(size_t thread_count, uci::Writer& writer) : writer(writer) {
+ThreadPool::ThreadPool(size_t thread_count, SearchReporter& reporter) : reporter(reporter) {
     threads.reserve(thread_count);
     for (size_t i = 0; i < thread_count; ++i) {
-        threads.push_back(std::unique_ptr<Thread>{new Thread(static_cast<int>(i), writer, *this)});
+        threads.push_back(
+            std::unique_ptr<Thread>{new Thread(static_cast<int>(i), reporter, *this)});
     }
 }
 
@@ -182,7 +183,7 @@ bool ThreadPool::resize(size_t thread_count) {
         additions.reserve(thread_count - installed_count);
         for (size_t i = installed_count; i < thread_count; ++i)
             additions.push_back(
-                std::unique_ptr<Thread>{new Thread(static_cast<int>(i), writer, *this)});
+                std::unique_ptr<Thread>{new Thread(static_cast<int>(i), reporter, *this)});
 
         for (auto& thread : additions)
             threads.push_back(std::move(thread));

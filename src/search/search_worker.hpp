@@ -11,6 +11,7 @@
 #include "search/root_line.hpp"
 #include "search/search_instrumentation.hpp"
 #include "search/search_limits.hpp"
+#include "search/search_reporter.hpp"
 
 class ThreadPool;
 class Thread;
@@ -18,15 +19,11 @@ class SearchTestAccess;
 
 enum class NodeType { Pv, NonPv };
 
-namespace uci {
-class Writer;
-}
-
 // Per-thread search state and search execution.
 class SearchWorker {
 public:
     SearchWorker() = delete;
-    SearchWorker(int id, uci::Writer& writer, ThreadPool& pool);
+    SearchWorker(int id, SearchReporter& reporter, ThreadPool& pool);
     SearchWorker(const SearchWorker&)            = delete;
     SearchWorker& operator=(const SearchWorker&) = delete;
     SearchWorker(SearchWorker&&)                 = delete;
@@ -59,9 +56,9 @@ private:
     SearchInstrumentation<> stats;
 
     // Non-owning shared services. Both must outlive this worker.
-    uci::Writer& writer;
-    ThreadPool&  thread_pool;
-    const int    worker_id;
+    SearchReporter& reporter;
+    ThreadPool&     thread_pool;
+    const int       worker_id;
 
     // Stop state.
     std::atomic<bool> stop_requested_flag{false};
@@ -72,7 +69,7 @@ private:
 
     // Search info reporting.
     std::optional<RootLine> last_reported_root_line;
-    std::optional<Move>     pending_bestmove;
+    std::optional<Move>     pending_best_move;
 
     // Search lifecycle.
     void      reset_search_state();

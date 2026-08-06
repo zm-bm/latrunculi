@@ -1,25 +1,23 @@
 #include "search/search_worker.hpp"
 
-#include <gtest/gtest.h>
-
 #include <array>
-#include <sstream>
+
+#include <gtest/gtest.h>
 
 #include "board/board.hpp"
 #include "search/search_limits.hpp"
 #include "support/board_fixtures.hpp"
+#include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
 #include "support/thread_test_access.hpp"
 #include "uci/threading.hpp"
-#include "uci/uci_writer.hpp"
 
 namespace {
 
 class SearchWorkerTest : public ::testing::Test {
 protected:
-    std::ostringstream oss;
-    uci::Writer        writer{oss, oss};
-    ThreadPool         pool{1, writer};
+    RecordingSearchReporter reporter;
+    ThreadPool              pool{1, reporter};
 
     Thread& test_thread() { return ThreadTestAccess::thread(pool); }
 
@@ -91,7 +89,7 @@ TEST_F(SearchWorkerTest, HelperDepthsFollowStaggeringSchedule) {
         {true, false, false, true, true, false, false, true},
     }};
 
-    ThreadPool helper_pool{expected.size(), writer};
+    ThreadPool helper_pool{expected.size(), reporter};
     for (size_t worker_id = 0; worker_id < expected.size(); ++worker_id) {
         const SearchWorker& search_worker = ThreadTestAccess::worker(helper_pool, worker_id);
         for (int depth = 1; depth <= static_cast<int>(expected[worker_id].size()); ++depth) {
@@ -155,9 +153,10 @@ TEST_F(SearchWorkerTest, StoppedSearchReportsFallbackWithoutCompletingRootSnapsh
 
     const auto& root_lines = SearchTestAccess::root_lines(worker());
     ASSERT_FALSE(root_lines.empty());
-    const std::string transcript = oss.str();
-    EXPECT_NE(transcript.find("info depth 0 "), std::string::npos);
-    EXPECT_EQ(transcript.find(" pv "), std::string::npos);
-    EXPECT_NE(transcript.find("bestmove " + root_lines.front().root_move.str()), std::string::npos);
-    EXPECT_EQ(transcript.find("bestmove 0000"), std::string::npos);
+    ASSERT_FALSE(reporter.progress.empty());
+    const RootLine& final_line = reporter.progress.back();
+    EXPECT_EQ(final_line.depth, 0);
+    EXPECT_TRUE(final_line.pv.empty());
+    ASSERT_EQ(reporter.best_moves.size(), 1U);
+    EXPECT_EQ(reporter.best_moves.front(), root_lines.front().root_move);
 }

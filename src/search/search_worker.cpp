@@ -9,10 +9,9 @@
 #include "search/search_worker.hpp"
 #include "search/tt.hpp"
 #include "uci/threading.hpp"
-#include "uci/uci_writer.hpp"
 
-SearchWorker::SearchWorker(int id, uci::Writer& writer, ThreadPool& pool)
-    : writer(writer),
+SearchWorker::SearchWorker(int id, SearchReporter& reporter, ThreadPool& pool)
+    : reporter(reporter),
       thread_pool(pool),
       worker_id(id) {}
 
@@ -85,7 +84,7 @@ void SearchWorker::reset_search_state() {
     root_result = RootLine{NULL_MOVE, evaluate(board), 0, false};
     root_lines.clear();
     last_reported_root_line.reset();
-    pending_bestmove.reset();
+    pending_best_move.reset();
 
     ordering.prepare_for_search();
 
@@ -145,7 +144,7 @@ void SearchWorker::prepare_final_result() {
     if (!limits.has_mate_within_limit(selected.value))
         selected = select_best_root_line(selected, thread_pool.root_snapshots());
 
-    // A stopped depth-zero search still owes UCI a legal move.
+    // A stopped depth-zero search still needs a legal fallback move.
     if (!selected.usable_root_move() && !root_lines.empty()) {
         selected.root_move = root_lines.front().root_move;
         selected.depth     = 0;
@@ -153,20 +152,20 @@ void SearchWorker::prepare_final_result() {
         selected.pv.clear();
     }
 
-    writer.search_info(selected, board, total_nodes(), runtime());
-    pending_bestmove = selected.root_move;
+    reporter.report_progress(selected, board, total_nodes(), runtime());
+    pending_best_move = selected.root_move;
 }
 
 void SearchWorker::publish_final_result() {
-    if (!pending_bestmove)
+    if (!pending_best_move)
         return;
 
-    writer.bestmove(*pending_bestmove);
-    pending_bestmove.reset();
+    reporter.report_best_move(*pending_best_move);
+    pending_best_move.reset();
 
     if constexpr (SearchStatsEnabled) {
         auto stats = thread_pool.aggregate_instrumentation();
-        writer.diagnostic_line(stats.str());
+        reporter.report_diagnostic(stats.str());
     }
 }
 
@@ -174,7 +173,7 @@ void SearchWorker::report_root_progress(const RootLine& line) {
     if (last_reported_root_line && line == *last_reported_root_line)
         return;
 
-    writer.search_info(line, board, total_nodes(), runtime());
+    reporter.report_progress(line, board, total_nodes(), runtime());
     last_reported_root_line = line;
 }
 

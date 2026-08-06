@@ -46,7 +46,7 @@ protected:
                                   const Board&    board,
                                   NodeCount       nodes = 0,
                                   Milliseconds    time  = Milliseconds{0}) {
-        writer.search_info(line, board, nodes, time);
+        writer.report_progress(line, board, nodes, time);
         std::string output = oss.str();
         oss.str("");
         oss.clear();
@@ -82,12 +82,12 @@ TEST_F(UciWriterTest, Ready) {
 
 TEST_F(UciWriterTest, Bestmove) {
     Move move{E2, E4};
-    writer.bestmove(move);
+    writer.report_best_move(move);
     EXPECT_EQ(oss.str(), "bestmove e2e4\n");
 }
 
 TEST_F(UciWriterTest, BestmoveFormatsNullMoveAsUciNullMove) {
-    writer.bestmove(NULL_MOVE);
+    writer.report_best_move(NULL_MOVE);
     EXPECT_EQ(oss.str(), "bestmove 0000\n");
 }
 

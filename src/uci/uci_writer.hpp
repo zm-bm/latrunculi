@@ -7,6 +7,7 @@
 
 #include "core/move.hpp"
 #include "core/types.hpp"
+#include "search/search_reporter.hpp"
 #include "uci/uci_options.hpp"
 
 class Board;
@@ -25,7 +26,7 @@ std::string format_bestmove(Move move);
 std::string format_info_string(std::string_view str);
 
 // UCI stdout writer and diagnostic stderr writer.
-class Writer {
+class Writer final : public SearchReporter {
 public:
     explicit Writer(std::ostream& out, std::ostream& err) : out(out), err(err) {}
     Writer(const Writer&)            = delete;
@@ -36,14 +37,16 @@ public:
     void help() const;
     void identify(const uci::Options& options) const;
     void ready() const;
-    void bestmove(Move move) const;
-    void search_info(const RootLine& line,
-                     const Board&    root_board,
-                     NodeCount       nodes,
-                     Milliseconds    time) const;
     void info_string(std::string_view str) const;
     void diagnostic_line(std::string_view text) const;
     void diagnostic_text(std::string_view text) const;
+
+    void report_progress(const RootLine& line,
+                         const Board&    root_board,
+                         NodeCount       nodes,
+                         Milliseconds    time) override;
+    void report_best_move(Move move) override;
+    void report_diagnostic(std::string_view text) override;
 
 private:
     void write_text(std::ostream& stream, std::string_view text) const;

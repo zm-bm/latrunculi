@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <array>
 #include <optional>
-#include <sstream>
 #include <string_view>
 #include <type_traits>
 #include <vector>
@@ -16,21 +15,20 @@
 #include "search/search_worker.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
+#include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
 #include "support/thread_test_access.hpp"
 #include "uci/threading.hpp"
-#include "uci/uci_writer.hpp"
 
 namespace {
 
 class SearchTest : public ::testing::Test {
 protected:
-    std::ostringstream output;
-    uci::Writer        writer{output, output};
-    ThreadPool         pool{1, writer};
-    Thread&            thread{ThreadTestAccess::thread(pool)};
-    SearchWorker&      worker{ThreadTestAccess::worker(thread)};
-    SearchLimits       limits;
+    RecordingSearchReporter reporter;
+    ThreadPool              pool{1, reporter};
+    Thread&                 thread{ThreadTestAccess::thread(pool)};
+    SearchWorker&           worker{ThreadTestAccess::worker(thread)};
+    SearchLimits            limits;
 
     void SetUp() override {
         limits.depth = 4;

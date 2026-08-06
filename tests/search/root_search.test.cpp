@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <array>
-#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -13,10 +12,10 @@
 #include "search/search_worker.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
+#include "support/search_reporter.hpp"
 #include "support/search_test_access.hpp"
 #include "support/thread_test_access.hpp"
 #include "uci/threading.hpp"
-#include "uci/uci_writer.hpp"
 
 namespace {
 
@@ -33,12 +32,11 @@ PrincipalVariation pv_for(Move first, Move second = NULL_MOVE) {
 
 class RootSearchTest : public ::testing::Test {
 protected:
-    std::ostringstream output;
-    uci::Writer        writer{output, output};
-    ThreadPool         pool{1, writer};
-    Thread&            thread{ThreadTestAccess::thread(pool)};
-    SearchWorker&      worker{ThreadTestAccess::worker(thread)};
-    SearchLimits       limits;
+    RecordingSearchReporter reporter;
+    ThreadPool              pool{1, reporter};
+    Thread&                 thread{ThreadTestAccess::thread(pool)};
+    SearchWorker&           worker{ThreadTestAccess::worker(thread)};
+    SearchLimits            limits;
 
     void SetUp() override {
         limits.depth = 4;
@@ -72,15 +70,9 @@ protected:
         return NULL_MOVE;
     }
 
-    int count_info(std::string_view prefix) const {
-        std::istringstream stream{output.str()};
-        std::string        line;
-        int                count = 0;
-        while (std::getline(stream, line)) {
-            if (line.starts_with(prefix))
-                ++count;
-        }
-        return count;
+    int progress_count(int depth) const {
+        return static_cast<int>(std::ranges::count_if(
+            reporter.progress, [depth](const RootLine& line) { return line.depth == depth; }));
     }
 
 #if LATRUNCULI_SEARCH_STATS
@@ -137,7 +129,7 @@ TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
 
     ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 1, -eval_value::inf, eval_value::inf));
     EXPECT_GT(lines()[1].value, lines()[0].value);
-    EXPECT_EQ(count_info("info depth 1 "), 2);
+    EXPECT_EQ(progress_count(1), 2);
 
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_GT(counters().pvs_researches[1], 0U);
@@ -194,7 +186,7 @@ TEST_F(RootSearchTest, SuppressesOnlyIdenticalProgressReports) {
 
     SearchTestAccess::report_root_progress(worker, line);
     SearchTestAccess::report_root_progress(worker, line);
-    EXPECT_EQ(count_info("info depth 1 "), 1);
+    EXPECT_EQ(progress_count(1), 1);
 
     ++line.value;
     SearchTestAccess::report_root_progress(worker, line);
@@ -203,8 +195,8 @@ TEST_F(RootSearchTest, SuppressesOnlyIdenticalProgressReports) {
     line.depth = 2;
     SearchTestAccess::report_root_progress(worker, line);
 
-    EXPECT_EQ(count_info("info depth 1 "), 3);
-    EXPECT_EQ(count_info("info depth 2 "), 1);
+    EXPECT_EQ(progress_count(1), 3);
+    EXPECT_EQ(progress_count(2), 1);
 }
 
 TEST_F(RootSearchTest, WidensAspirationWindowAfterFailLowAndFailHigh) {
@@ -254,7 +246,7 @@ TEST_F(RootSearchTest, StoppedAspirationPreservesLastAcceptedSnapshot) {
     ThreadTestAccess::request_stop(thread);
     EXPECT_FALSE(SearchTestAccess::search_root_depth(worker, 2, accepted.value));
     EXPECT_EQ(worker.root_snapshot(), accepted);
-    EXPECT_EQ(count_info("info depth 2 "), 0);
+    EXPECT_EQ(progress_count(2), 0);
 }
 
 TEST_F(RootSearchTest, HandlesMateInOneCheckmateAndStalemate) {

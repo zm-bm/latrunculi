@@ -2,11 +2,11 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <limits>
 #include <semaphore>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -16,8 +16,8 @@
 #include "search/search_limits.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
+#include "support/search_reporter.hpp"
 #include "support/thread_test_access.hpp"
-#include "uci/uci_writer.hpp"
 
 namespace {
 
@@ -27,48 +27,38 @@ SearchLimits default_limits() {
     return SearchLimits{};
 }
 
-int count_lines_starting_with(std::string_view transcript, std::string_view prefix) {
-    std::istringstream lines{std::string{transcript}};
-    std::string        line;
-    int                count = 0;
-
-    while (std::getline(lines, line)) {
-        if (line.starts_with(prefix))
-            ++count;
-    }
-
-    return count;
-}
-
-class GatedBestmoveBuffer : public std::stringbuf {
+class GatedSearchReporter final : public SearchReporter {
 public:
-    void wait_for_bestmove() { bestmove_observed.acquire(); }
-    void release_bestmove() { bestmove_released.release(); }
+    void wait_for_best_move() { best_move_observed.acquire(); }
+    void release_best_move() { best_move_released.release(); }
+    int  best_move_count() const { return reported_best_moves.load(); }
 
-protected:
-    int sync() override {
-        const int result = std::stringbuf::sync();
-        if (!gated_bestmove && str().find("bestmove ") != std::string::npos) {
-            gated_bestmove = true;
-            bestmove_observed.release();
-            bestmove_released.acquire();
+    void report_progress(const RootLine&, const Board&, NodeCount, Milliseconds) override {}
+
+    void report_best_move(Move) override {
+        reported_best_moves.fetch_add(1);
+        if (!gated_best_move) {
+            gated_best_move = true;
+            best_move_observed.release();
+            best_move_released.acquire();
         }
-        return result;
     }
+
+    void report_diagnostic(std::string_view) override {}
 
 private:
-    std::binary_semaphore bestmove_observed{0};
-    std::binary_semaphore bestmove_released{0};
-    bool                  gated_bestmove{false};
+    std::binary_semaphore best_move_observed{0};
+    std::binary_semaphore best_move_released{0};
+    std::atomic<int>      reported_best_moves{0};
+    bool                  gated_best_move{false};
 };
 
 class ThreadPoolTest : public ::testing::Test {
 protected:
-    std::ostringstream oss;
-    uci::Writer        writer{oss, oss};
-    ThreadPool         pool{THREAD_COUNT, writer};
-    Board              board{board_test::fen::start};
-    SearchLimits       options{default_limits()};
+    RecordingSearchReporter reporter;
+    ThreadPool              pool{THREAD_COUNT, reporter};
+    Board                   board{board_test::fen::start};
+    SearchLimits            options{default_limits()};
 
     NodeCount nodes_searched() const { return pool.nodes_searched(); }
 
@@ -83,18 +73,17 @@ protected:
     }
 
     void SetUp() override {
-        oss.str("");
-        oss.clear();
+        reporter.clear();
         tt.clear();
     }
 
-    int bestmove_count() const { return count_lines_starting_with(oss.str(), "bestmove "); }
+    int best_move_count() const { return static_cast<int>(reporter.best_moves.size()); }
 };
 
 } // namespace
 
 TEST_F(ThreadPoolTest, StartSearchRejectsEmptyPool) {
-    ThreadPool empty_pool{0, writer};
+    ThreadPool empty_pool{0, reporter};
 
     EXPECT_FALSE(empty_pool.start_search(board, options));
     EXPECT_EQ(tt.current_generation(), std::uint8_t{0});
@@ -105,34 +94,31 @@ TEST_F(ThreadPoolTest, StartSearchCompletes) {
     EXPECT_TRUE(pool.start_search(board, options));
 
     EXPECT_NO_THROW(pool.wait());
-    EXPECT_EQ(bestmove_count(), 1) << oss.str();
+    EXPECT_EQ(best_move_count(), 1);
 }
 
-TEST(ThreadPoolTransitionTest, ImmediateRestartAfterBestmoveIsAccepted) {
-    GatedBestmoveBuffer output_buffer;
-    std::ostream        output{&output_buffer};
-    uci::Writer         writer{output, output};
-    ThreadPool          pool{2, writer};
+TEST(ThreadPoolTransitionTest, ImmediateRestartAfterBestMovePublicationIsAccepted) {
+    GatedSearchReporter reporter;
+    ThreadPool          pool{2, reporter};
     Board               board{board_test::fen::start};
     SearchLimits        limits;
     limits.depth = 1;
     tt.clear();
 
     ASSERT_TRUE(pool.start_search(board, limits));
-    output_buffer.wait_for_bestmove();
+    reporter.wait_for_best_move();
 
     const bool   publication_holds_state_lock = ThreadTestAccess::state_lock_is_held(pool);
     bool         next_search_accepted         = false;
     std::jthread next_search([&] { next_search_accepted = pool.start_search(board, limits); });
 
-    output_buffer.release_bestmove();
+    reporter.release_best_move();
     next_search.join();
     pool.wait();
 
-    const std::string transcript = output_buffer.str();
     EXPECT_TRUE(publication_holds_state_lock);
-    EXPECT_TRUE(next_search_accepted) << transcript;
-    EXPECT_EQ(count_lines_starting_with(transcript, "bestmove "), 2) << transcript;
+    EXPECT_TRUE(next_search_accepted);
+    EXPECT_EQ(reporter.best_move_count(), 2);
 }
 
 #if LATRUNCULI_SEARCH_STATS
@@ -141,13 +127,12 @@ TEST_F(ThreadPoolTest, ReportsAggregatedSearchInstrumentation) {
     ASSERT_TRUE(pool.start_search(board, options));
     pool.wait();
 
-    const std::string transcript = oss.str();
-    const auto        report     = transcript.find("Aspiration:");
-    ASSERT_NE(report, std::string::npos) << transcript;
-    EXPECT_EQ(report, transcript.rfind("Aspiration:")) << transcript;
-    EXPECT_NE(transcript.find("RazorFutility:", report), std::string::npos) << transcript;
-    EXPECT_NE(transcript.find("QuietHistory:", report), std::string::npos) << transcript;
-    EXPECT_NE(transcript.find("Ply", report), std::string::npos) << transcript;
+    ASSERT_EQ(reporter.diagnostics.size(), 1U);
+    const std::string& diagnostic = reporter.diagnostics.front();
+    EXPECT_NE(diagnostic.find("Aspiration:"), std::string::npos);
+    EXPECT_NE(diagnostic.find("RazorFutility:"), std::string::npos);
+    EXPECT_NE(diagnostic.find("QuietHistory:"), std::string::npos);
+    EXPECT_NE(diagnostic.find("Ply"), std::string::npos);
 }
 #endif
 
@@ -196,7 +181,7 @@ TEST_F(ThreadPoolTest, RequestStopStopsSearch) {
     pool.request_stop();
 
     EXPECT_NO_THROW(pool.wait());
-    EXPECT_EQ(bestmove_count(), 1) << oss.str();
+    EXPECT_EQ(best_move_count(), 1);
 }
 
 TEST_F(ThreadPoolTest, RequestStopImmediatelyAfterStartDoesNotDeadlock) {
@@ -206,8 +191,8 @@ TEST_F(ThreadPoolTest, RequestStopImmediatelyAfterStartDoesNotDeadlock) {
     pool.request_stop();
     EXPECT_NO_THROW(pool.wait());
 
-    EXPECT_EQ(bestmove_count(), 1) << oss.str();
-    EXPECT_EQ(oss.str().find("bestmove 0000"), std::string::npos) << oss.str();
+    ASSERT_EQ(best_move_count(), 1);
+    EXPECT_FALSE(reporter.best_moves.front().is_null());
 }
 
 TEST_F(ThreadPoolTest, RequestStopWhileIdleDoesNotPoisonNextSearch) {
@@ -218,7 +203,7 @@ TEST_F(ThreadPoolTest, RequestStopWhileIdleDoesNotPoisonNextSearch) {
     EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
 
-    EXPECT_EQ(bestmove_count(), 1) << oss.str();
+    EXPECT_EQ(best_move_count(), 1);
 }
 
 TEST_F(ThreadPoolTest, ShutdownPonderSearchDoesNotDeadlock) {
@@ -228,18 +213,18 @@ TEST_F(ThreadPoolTest, ShutdownPonderSearchDoesNotDeadlock) {
     EXPECT_TRUE(pool.start_search(board, options));
     EXPECT_NO_THROW(pool.shutdown());
 
-    EXPECT_EQ(bestmove_count(), 1) << oss.str();
+    EXPECT_EQ(best_move_count(), 1);
 }
 
 TEST_F(ThreadPoolTest, DestructorShutsDownActiveSearch) {
     options.depth = 5;
 
     {
-        ThreadPool local_pool{THREAD_COUNT, writer};
+        ThreadPool local_pool{THREAD_COUNT, reporter};
         EXPECT_TRUE(local_pool.start_search(board, options));
     }
 
-    EXPECT_EQ(bestmove_count(), 1) << oss.str();
+    EXPECT_EQ(best_move_count(), 1);
 }
 
 TEST_F(ThreadPoolTest, NodesSearchedAggregatesThreadCounters) {
@@ -263,7 +248,7 @@ TEST_F(ThreadPoolTest, NodeLimitedSearchUsesFreshThreadSafeNodeCounts) {
     EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
 
-    EXPECT_EQ(bestmove_count(), 1) << oss.str();
+    EXPECT_EQ(best_move_count(), 1);
     ASSERT_TRUE(options.nodes.has_value());
     EXPECT_GE(nodes_searched(), *options.nodes);
 
@@ -323,16 +308,15 @@ TEST_F(ThreadPoolTest, ResizeGrowsAndShrinksIdlePool) {
     EXPECT_EQ(pool.thread_count(), THREAD_COUNT + 2);
     EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
-    EXPECT_EQ(bestmove_count(), 1) << oss.str();
+    EXPECT_EQ(best_move_count(), 1);
 
-    oss.str("");
-    oss.clear();
+    reporter.clear();
 
     ASSERT_TRUE(pool.resize(1));
     EXPECT_EQ(pool.thread_count(), 1U);
     EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
-    EXPECT_EQ(bestmove_count(), 1) << oss.str();
+    EXPECT_EQ(best_move_count(), 1);
 }
 
 TEST_F(ThreadPoolTest, ResizeToZeroThenBackUp) {
@@ -346,5 +330,5 @@ TEST_F(ThreadPoolTest, ResizeToZeroThenBackUp) {
     EXPECT_EQ(pool.thread_count(), THREAD_COUNT);
     EXPECT_TRUE(pool.start_search(board, options));
     pool.wait();
-    EXPECT_EQ(bestmove_count(), 1) << oss.str();
+    EXPECT_EQ(best_move_count(), 1);
 }

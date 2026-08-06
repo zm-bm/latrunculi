@@ -165,17 +165,21 @@ void Writer::ready() const {
     write_line(out, text);
 }
 
-void Writer::bestmove(Move move) const {
+void Writer::report_progress(const RootLine& line,
+                             const Board&    root_board,
+                             NodeCount       nodes,
+                             Milliseconds    time) {
+    const std::string text = format_search_info(line, root_board, nodes, time);
+    write_line(out, text);
+}
+
+void Writer::report_best_move(Move move) {
     const std::string text = format_bestmove(move);
     write_line(out, text);
 }
 
-void Writer::search_info(const RootLine& line,
-                         const Board&    root_board,
-                         NodeCount       nodes,
-                         Milliseconds    time) const {
-    const std::string text = format_search_info(line, root_board, nodes, time);
-    write_line(out, text);
+void Writer::report_diagnostic(std::string_view text) {
+    diagnostic_line(text);
 }
 
 void Writer::info_string(std::string_view str) const {
