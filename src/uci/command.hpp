@@ -29,7 +29,7 @@ struct PositionCommand {
     std::string              fen;
     std::vector<std::string> moves;
 };
-struct GoLimits {
+struct GoParameters {
     std::optional<int>               depth;
     std::optional<Milliseconds::rep> movetime;
     std::optional<NodeCount>         nodes;
@@ -46,7 +46,7 @@ struct GoLimits {
     std::vector<std::string>                unknown_tokens;
 };
 struct GoCommand {
-    GoLimits limits;
+    GoParameters parameters;
 };
 struct StopCommand {};
 struct PonderHitCommand {};

@@ -9,7 +9,6 @@
 #include "search/search_thread_pool.hpp"
 #include "uci/command.hpp"
 #include "uci/options.hpp"
-#include "uci/reader.hpp"
 #include "uci/writer.hpp"
 
 class EngineTest;
@@ -62,7 +61,7 @@ private:
     void apply_option_effect(OptionId option, const Options& candidate);
     void require_idle(std::string_view action) const;
 
-    Reader           reader;
+    std::istream&    input;
     Writer           writer;
     Options          options;
     bool             debug_mode{false};

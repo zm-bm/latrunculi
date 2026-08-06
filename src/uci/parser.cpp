@@ -84,8 +84,8 @@ SetOptionCommand parse_setoption_command(Tokens tokens) {
     return command;
 }
 
-GoLimits parse_go_limits(Tokens tokens) {
-    GoLimits limits;
+GoParameters parse_go_parameters(Tokens tokens) {
+    GoParameters parameters;
 
     auto read_value = [&]<typename T>(size_t& index, std::optional<T>& target) {
         if (index + 1 >= tokens.size())
@@ -103,39 +103,39 @@ GoLimits parse_go_limits(Tokens tokens) {
         const std::string& token = tokens[i];
 
         if (token == "depth")
-            read_value(i, limits.depth);
+            read_value(i, parameters.depth);
         else if (token == "movetime")
-            read_value(i, limits.movetime);
+            read_value(i, parameters.movetime);
         else if (token == "nodes")
-            read_value(i, limits.nodes);
+            read_value(i, parameters.nodes);
         else if (token == "wtime")
-            read_value(i, limits.wtime);
+            read_value(i, parameters.wtime);
         else if (token == "btime")
-            read_value(i, limits.btime);
+            read_value(i, parameters.btime);
         else if (token == "winc")
-            read_value(i, limits.winc);
+            read_value(i, parameters.winc);
         else if (token == "binc")
-            read_value(i, limits.binc);
+            read_value(i, parameters.binc);
         else if (token == "movestogo")
-            read_value(i, limits.movestogo);
+            read_value(i, parameters.movestogo);
         else if (token == "searchmoves") {
             // By convention, searchmoves is terminal and owns the rest of the line.
-            limits.searchmoves.emplace();
+            parameters.searchmoves.emplace();
             for (++i; i < tokens.size(); ++i)
-                limits.searchmoves->push_back(tokens[i]);
+                parameters.searchmoves->push_back(tokens[i]);
             break;
         } else if (token == "ponder") {
-            limits.ponder = true;
+            parameters.ponder = true;
         } else if (token == "infinite") {
-            limits.infinite = true;
+            parameters.infinite = true;
         } else if (token == "mate") {
-            read_value(i, limits.mate);
+            read_value(i, parameters.mate);
         } else {
-            limits.unknown_tokens.push_back(token);
+            parameters.unknown_tokens.push_back(token);
         }
     }
 
-    return limits;
+    return parameters;
 }
 
 PositionCommand parse_position_command(Tokens tokens) {
@@ -198,7 +198,7 @@ std::optional<Command> try_parse_command(Tokens tokens) {
     if (command == "position")
         return parse_position_command(tokens);
     if (command == "go")
-        return GoCommand{.limits = parse_go_limits(tokens)};
+        return GoCommand{.parameters = parse_go_parameters(tokens)};
     if (command == "stop")
         return StopCommand{};
     if (command == "ponderhit")

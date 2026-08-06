@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <format>
+#include <istream>
 #include <sstream>
 #include <stdexcept>
 #include <variant>
@@ -20,13 +21,14 @@
 namespace uci {
 
 Engine::Engine(std::ostream& output, std::ostream& diagnostics, std::istream& input)
-    : reader(input),
+    : input(input),
       writer(output, diagnostics),
       thread_pool(options.threads.value, writer) {}
 
 void Engine::loop() {
-    while (auto command = reader.read_command()) {
-        if (!execute(*command))
+    std::string line;
+    while (std::getline(input, line)) {
+        if (!execute(line))
             break;
     }
 }
@@ -144,32 +146,32 @@ bool Engine::handle(const GoCommand& command) {
         return true;
     }
 
-    const auto&  go_limits = command.limits;
+    const auto&  go_parameters = command.parameters;
     SearchLimits limits;
 
-    limits.infinite = go_limits.infinite;
-    limits.ponder   = go_limits.ponder;
+    limits.infinite = go_parameters.infinite;
+    limits.ponder   = go_parameters.ponder;
 
-    if (go_limits.depth)
-        limits.set_depth(*go_limits.depth);
-    if (go_limits.movetime)
-        limits.set_movetime(*go_limits.movetime);
-    if (go_limits.nodes)
-        limits.set_nodes(*go_limits.nodes);
-    if (go_limits.wtime)
-        limits.set_wtime(*go_limits.wtime);
-    if (go_limits.btime)
-        limits.set_btime(*go_limits.btime);
-    if (go_limits.winc)
-        limits.set_winc(*go_limits.winc);
-    if (go_limits.binc)
-        limits.set_binc(*go_limits.binc);
-    if (go_limits.movestogo)
-        limits.set_movestogo(*go_limits.movestogo);
-    if (go_limits.mate)
-        limits.set_mate(*go_limits.mate);
-    if (go_limits.searchmoves)
-        limits.set_root_moves(resolve_searchmoves(*go_limits.searchmoves));
+    if (go_parameters.depth)
+        limits.set_depth(*go_parameters.depth);
+    if (go_parameters.movetime)
+        limits.set_movetime(*go_parameters.movetime);
+    if (go_parameters.nodes)
+        limits.set_nodes(*go_parameters.nodes);
+    if (go_parameters.wtime)
+        limits.set_wtime(*go_parameters.wtime);
+    if (go_parameters.btime)
+        limits.set_btime(*go_parameters.btime);
+    if (go_parameters.winc)
+        limits.set_winc(*go_parameters.winc);
+    if (go_parameters.binc)
+        limits.set_binc(*go_parameters.binc);
+    if (go_parameters.movestogo)
+        limits.set_movestogo(*go_parameters.movestogo);
+    if (go_parameters.mate)
+        limits.set_mate(*go_parameters.mate);
+    if (go_parameters.searchmoves)
+        limits.set_root_moves(resolve_searchmoves(*go_parameters.searchmoves));
 
     if (!thread_pool.start_search(board, limits))
         writer.info_string("search already in progress");
