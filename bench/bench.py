@@ -15,6 +15,7 @@ from benchlib.evaluation import (
     command_run_evaluation,
     render_evaluation_compare,
 )
+from benchlib.match import add_match_parser, command_run_match
 from benchlib.perft import PERFT_FORMAT, add_perft_parser, command_run_perft, render_perft_compare
 from benchlib.uci import (
     SEARCH_FORMAT,
@@ -33,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     add_search_parser(run_subparsers)
     add_perft_parser(run_subparsers)
     add_evaluation_run_parser(run_subparsers)
+    add_match_parser(run_subparsers)
 
     add_evaluation_parser(subparsers)
 
@@ -101,6 +103,8 @@ def main() -> int:
         return command_run_perft(args)
     if args.suite == "eval":
         return command_run_evaluation(args)
+    if args.suite == "match":
+        return command_run_match(args)
     raise ValueError(f"unknown suite: {args.suite}")
 
 

@@ -8,6 +8,7 @@ lib/
 data/
 logs/
 /scratch/bench-runs/
+/scratch/baselines/
 *.pyc
 __pycache__/
 

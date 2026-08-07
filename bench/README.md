@@ -1,15 +1,16 @@
 # Benchmarks
 
-`bench/` contains local measurement and regression tooling. It complements the
-unit tests; it is not an engine-match runner, tuning framework, or permanent
-result store.
+`bench/` contains local measurement, regression, and paired engine-match
+tooling. It complements the unit tests; it is not a tuning framework or
+permanent result store.
 
 ## Architecture
 
 The C++ `benchmark` executable performs engine operations directly. It owns the
 perft cases and deterministic evaluation-corpus execution. `bench.py` and
 `benchlib/` build binaries, drive UCI searches, manage evaluation snapshots,
-capture artifacts, render summaries, and compare compatible runs.
+run Cute Chess matches, capture artifacts, render summaries, and compare
+compatible benchmark runs.
 
 Machine-readable C++ output is written to stdout without commentary. Usage and
 diagnostics go to stderr. The Python entry point prints the generated artifact
@@ -55,6 +56,43 @@ The defaults use 50,000 warmup corpus repetitions followed by seven samples of
 100,000 repetitions. Override them with `--warmup`, `--repetitions`, and
 `--samples`; pass `--benchmark /path/to/benchmark` to use an existing binary.
 The direct `benchmark eval throughput` form writes the sample TSV to stdout.
+
+Run a paired smoke match against an archived baseline:
+
+```bash
+mkdir -p scratch/baselines
+cp build/release-dev/bin/latrunculi \
+  scratch/baselines/latrunculi-<revision>
+
+python3 bench/bench.py run match \
+  --label smoke --profile smoke \
+  --baseline scratch/baselines/latrunculi-<revision> \
+  --baseline-revision <revision>
+```
+
+Archive a clean baseline before making the candidate change. Add
+`--baseline-dirty` only when the archived binary came from a dirty tree. The
+smoke profile plays one depth-one opening pair and validates orchestration; it
+is not strength evidence. A standard strength run uses 1,000 pairs by default:
+
+```bash
+python3 bench/bench.py run match \
+  --label eval-change --profile standard \
+  --baseline scratch/baselines/latrunculi-<revision> \
+  --baseline-revision <revision> \
+  --concurrency 4
+```
+
+Standard matches use `10+0.1`, one thread, 32 MB Hash, fixed adjudication, and
+sequential color-swapped openings. `--pairs` and `--concurrency` are the only
+setting overrides. Match runs compare both engines directly and therefore do
+not use `bench.py compare`.
+
+Matches require `cutechess-cli` and the local, ignored opening file
+`data/book-ply4-unifen-Q-0.0-0.25.pgn`. Its required SHA-256 is
+`a9c223edf1592cddca3ac20c62374b1f8b1d18a2ae6270de9042155bd3764d17`.
+The file is not checked in because its redistribution provenance is not
+documented.
 
 Compare two compatible run directories:
 
@@ -124,6 +162,15 @@ Runs are written beneath the ignored `scratch/bench-runs/` directory:
 - `summary.md` is the human-readable report.
 - `raw/` preserves original benchmark or engine output.
 
+Match runs additionally preserve the complete PGN and Cute Chess stdout and
+stderr. Their summaries report candidate W/D/L, score, and pentanomial counts
+for pairs scoring 0, 0.5, 1, 1.5, or 2 points. A smoke result is never a
+strength claim. For a standard match, retain a candidate only when Cute
+Chess's reported Elo interval excludes zero in the candidate's favor; an
+interval crossing zero is inconclusive. Engine crashes, stalls, illegal moves,
+invalid claims, and time forfeits invalidate the match even when Cute Chess can
+recover and finish it.
+
 Comparisons require the current manifest/schema version and identical
 suite-defining settings. Search runs must agree on position selection, limit,
 repeats, threads, and hash size; perft runs must use the same profile; evaluation
@@ -151,6 +198,6 @@ evaluation implementations. It should not grow a registry, plugin system,
 callback framework, or generic benchmark object model. Evaluation snapshots
 and timed throughput share the same corpus loader and executable path.
 
-Engine matches, parameter optimization, Texel tuning, large datasets,
-databases, plugins, and NNUE tooling remain outside this benchmark harness. See
-the [evaluation roadmap](../docs/eval-roadmap.md) for their staged treatment.
+Parameter optimization, Texel tuning, large datasets, databases, plugins, and
+NNUE tooling remain outside this benchmark harness. See the
+[evaluation roadmap](../docs/eval-roadmap.md) for their staged treatment.
