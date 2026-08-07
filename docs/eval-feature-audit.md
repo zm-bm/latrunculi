@@ -686,11 +686,11 @@ the goal starts:
 | 3 | MAT-002b | Review phase endpoints | Intentional evaluation change | A | Complete — retained |
 | 4 | MAT-002c | Review endgame scaling | Intentional evaluation change | A | Complete — retained |
 | 5 | MAT-002d | Review tempo | Intentional evaluation change | A | Complete — no change |
-| 6 | PSQT-001 | Rough PSQT calibration | Intentional evaluation change | B | Pending |
-| 7 | PAWN-004 | Rough pawn-parameter calibration | Intentional evaluation change | B | Pending |
-| 8 | MOB-001 | Settle mobility-area and outpost semantics | Possible semantic change | B | Pending |
-| 9 | PIECE-003 | Rough piece-feature calibration | Intentional evaluation change | B | Pending |
-| 10 | MOB-002 | Rough mobility-curve calibration | Intentional evaluation change | B | Pending |
+| 6 | PSQT-001 | Rough PSQT calibration | Intentional evaluation change | B | Complete — no change |
+| 7 | PAWN-004 | Rough pawn-parameter calibration | Intentional evaluation change | B | Complete — no change |
+| 8 | MOB-001 | Settle mobility-area and outpost semantics | Possible semantic change | B | Complete — rejected |
+| 9 | PIECE-003 | Rough piece-feature calibration | Intentional evaluation change | B | Complete — no change |
+| 10 | MOB-002 | Rough mobility-curve calibration | Intentional evaluation change | B | Complete — no change |
 | 11 | THREAT-002 | Consider one bounded threat refinement | Possible semantic change | C | Pending |
 | 12 | KING-002 | Rough king-safety calibration | Intentional evaluation change | C | Pending |
 | 13 | SCALE-002 | Audit downstream search thresholds | Search-policy change | C | Pending |
@@ -930,6 +930,88 @@ pentanomial counts `[3, 13, 30, 36, 18]` and Cute Chess reporting
 checkpoint as a group, not attribution to any one parameter. The final
 aggregate standard match remains required after all tuning and performance
 work.
+
+#### PSQT-001 — Rough PSQT calibration
+
+Status: complete — no change
+
+Outcome:
+The material-coupled, color-symmetric tables contain no isolated error that can
+be corrected without fitting a 768-value correlated system by eye. The small
+search corpus is insufficient evidence for hand smoothing or broad table
+replacement. Retain the tables for held-out mathematical tuning.
+
+Commit:
+None; the reviewed tables were retained.
+
+#### PAWN-004 — Rough pawn-parameter calibration
+
+Status: complete — no change
+
+Outcome:
+The structural penalties are conservative and reference-plausible, and the
+monotonic passed-pawn curve survived checkpoint A. Their correlations with
+PSQTs make another manual adjustment less defensible than later mathematical
+tuning.
+
+Commit:
+None; the reviewed parameters were retained.
+
+#### MOB-001 — Mobility-area and outpost semantics
+
+Status: complete — rejected
+
+Outcome:
+The experiment replaced the home-rank-pawn exclusion with an established
+blocked-pawn mobility area while leaving supported-only outposts unchanged.
+Focused/full tests passed, all six depth-five best moves stayed stable, and the
+snapshot showed the intended Mobility-only changes. The isolated benchmark was
+not slower.
+
+The 100-pair Checkpoint B match against Checkpoint A scored 47 wins, 90 draws,
+and 63 losses (46.0%), with pentanomial counts `[13, 19, 43, 21, 4]` and
+`-27.9 +/- 35.8 Elo`, LOS 6.4%. Although the interval includes zero, this is
+adverse screening evidence for the checkpoint's only code change. Commit
+`280bec1` was fully reverted by `8021cd0`; the baseline and source again match
+Checkpoint A.
+
+Commit:
+Rejected commit `feat(eval): count latent mobility behind movable pawns`;
+reverted by `8021cd0`.
+
+#### PIECE-003 — Rough piece-feature calibration
+
+Status: complete — no change
+
+Outcome:
+Outpost, behind-pawn, bishop-pair/blocker/diagonal, rook-file, and queen
+discovery values are individually plausible and strongly correlated with the
+retained PSQTs and mobility curves. No single clear outlier justifies a manual
+change; retain them for mathematical tuning.
+
+Commit:
+None; the reviewed parameters were retained.
+
+#### MOB-002 — Rough mobility-curve calibration
+
+Status: complete — no change
+
+Outcome:
+Knight, bishop, rook, and queen curves are monotonic or intentionally plateau,
+cover all reachable counts, and contain no discontinuity that is plainly
+incorrect. Editing these correlated tables without position-result data would
+be arbitrary. Retain them for mathematical tuning.
+
+Commit:
+None; the reviewed curves were retained.
+
+### Checkpoint B result
+
+Checkpoint B retains no code change beyond Checkpoint A. The rejected run is
+`scratch/bench-runs/20260807-184551-checkpoint-b-c8`, using 100 opening pairs
+with the standard settings and concurrency 8 against archived Checkpoint A.
+The adverse result cleanly attributes to MOB-001 because all other group tasks
+concluded with no change.
 
 Before changing code, independently revalidate the task against the current
 source. Work on one coherent hypothesis at a time and create one focused commit
