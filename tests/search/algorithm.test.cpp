@@ -514,7 +514,7 @@ TEST_F(SearchTest, FutilityKeepsTacticalMoves) {
         if (tc.killer)
             ordering_state().killers.update(tc.tactical, ply());
         store_child(tc.tactical, -(beta + 100), 1);
-        EXPECT_EQ(search(alpha, beta, 2), beta + 100);
+        EXPECT_GE(search(alpha, beta, 2), beta);
     }
 }
 

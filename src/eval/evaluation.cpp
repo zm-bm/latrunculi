@@ -68,7 +68,7 @@ Trace Evaluator::trace() {
 // Integer numerator for scaling endgame evaluation toward zero in drawish pawn endings.
 int Evaluator::scale_factor(Color color) const {
     const int pawn_count = board.count(color, PAWN);
-    return std::min(eval::scale_limit, 36 + 5 * pawn_count);
+    return std::min(eval::scale_limit, eval::scale_base + eval::scale_per_pawn * pawn_count);
 }
 
 // Blend middlegame and endgame scores based on game phase.

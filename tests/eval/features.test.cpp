@@ -460,9 +460,9 @@ TEST_F(EvaluationFeaturesTest, RawDanger) {
 
 TEST_F(EvaluationFeaturesTest, ScaleFactor) {
     std::vector<std::pair<std::string, int>> test_cases = {
-        {board_test::fen::kings_only, 36},
+        {board_test::fen::kings_only, 48},
         {board_test::fen::start, eval::scale_limit},
-        {"4k3/8/8/8/8/8/4P3/4K3 w K - 0 1", 41}, // Single pawn
+        {"4k3/8/8/8/8/8/4P3/4K3 w K - 0 1", 52}, // Single pawn
     };
 
     for (const auto& [fen, expected] : test_cases) {

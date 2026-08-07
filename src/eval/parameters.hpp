@@ -16,9 +16,11 @@ enum class Phase : std::uint8_t {
     Count,
 };
 
-constexpr int tempo_bonus = 20;
-constexpr int scale_limit = 64;
-constexpr int phase_limit = 128;
+constexpr int tempo_bonus    = 20;
+constexpr int scale_limit    = 64;
+constexpr int scale_base     = 48;
+constexpr int scale_per_pawn = 4;
+constexpr int phase_limit    = 128;
 
 constexpr TaperedScore pawn   = {100, 166};
 constexpr TaperedScore knight = {630, 680};
