@@ -23,38 +23,32 @@ a readable reference, diagnostic implementation, and possible fallback.
 
 ### Source ownership
 
-ORG-001 established consistent evaluation ownership:
-
 - `parameters.hpp` owns material values, piece-square tables, mobility tables,
   feature weights, masks, phase limits, and typed parameter lookups.
-- `tapered_score.hpp` defines `eval::TaperedScore`.
-- `types.hpp` defines the scoped `eval::Term` and `eval::Phase` enums.
-- `evaluator.hpp` contains `eval::Evaluator`, most evaluation mechanics,
-  diagnostic score structures, and formatter specializations. It still mixes
-  the hot path, trace collection, formatting, and broad test access.
-- `evaluator.cpp` contains diagnostic score updates and
-  `eval::EvaluatorDebug` construction.
+- `tapered_score.hpp` and `types.hpp` own `eval::TaperedScore`, `eval::Term`,
+  and `eval::Phase`.
+- `base_score.hpp` owns the Board-maintained material and piece-square cache.
+- `evaluator.hpp/.cpp` define the stateful, single-use evaluation mechanics;
+  template mechanics remain in `evaluator_detail.hpp` for specialization and
+  inlining.
+- `trace.hpp/.cpp` define structured evaluation results, while
+  `trace_formatter.hpp/.cpp` own their human-readable diagnostic presentation.
 
-All HCE-owned declarations and entry points now live in `namespace eval`.
-`EvalValue` and the mate/search sentinels remain engine-wide types because they
-also represent search scores. Material literals have one authority in
-`parameters.hpp`; Board, SEE, move ordering, search heuristics, and formatting
-consume them through the evaluation parameter API.
+All HCE-owned declarations and entry points live in `namespace eval`.
+Production callers use only `eval::evaluate(board)` and
+`eval::evaluate_trace(board)`; the stateful `Evaluator` cannot be constructed,
+copied, moved, or reused outside its trusted implementation and narrow test
+seam. `EvalValue` and mate/search sentinels remain engine-wide because they also
+represent search scores.
 
 ### Evaluation data flow
 
-`Board` owns two HCE-specific incremental values:
-
-- material score;
-- piece-square bonus score.
-
-`Board::add_piece()`, `remove_piece()`, and `move_piece()` update both values.
-FEN loading builds them through those mutation functions; board copies copy
-them; make/unmake handles captures, promotions, castling, and en passant by
-reusing the same mutations. Null moves leave them unchanged. This is efficient,
-but it creates a direct `board -> eval` dependency through
-`eval::TaperedScore`,
-material parameters, and piece-square tables.
+`Board` owns an `eval::BaseScore` containing its incrementally maintained
+material and piece-square terms. Piece mutations update that state; FEN
+loading, copies, ordinary moves, captures, promotions, castling, en passant,
+null moves, and complete unmake histories are covered by independent
+recomputation checks. The direct `board -> eval` dependency is deliberate and
+explicitly HCE-specific rather than disguised as intrinsic Board state.
 
 Each call to `eval::evaluate(board)` constructs a fresh `eval::Evaluator`.
 Construction initializes king attacks and evaluation zones. Evaluation then
@@ -79,9 +73,8 @@ Evaluation affects more than leaf scores:
 - Board SEE uses middlegame material values.
 - Noisy-move ordering uses the captured piece's middlegame value.
 - Null-move eligibility uses non-pawn material and the rook value.
-- UCI's local `eval` console command constructs `eval::EvaluatorDebug`,
-  evaluates the position, formats its term table, and writes it to the
-  diagnostic stream.
+- UCI's local `eval` console command formats `eval::evaluate_trace(board)` and
+  writes the resulting table to the diagnostic stream.
 
 Consequently, changing material values can alter static scores, SEE, move
 ordering, pruning eligibility, and the searched tree. Parameter tuning cannot
@@ -89,30 +82,29 @@ be validated by evaluator unit tests alone.
 
 ### Normal and diagnostic evaluation
 
-`eval::Evaluator` stores an optional `std::function` callback and checks it
-after each term even during normal search, where no trace is requested.
-`eval::EvaluatorDebug` installs a callback, owns a score tracker, and relies on
-friendship so its formatter can inspect evaluator internals. The UCI diagnostic
-output is human readable, but there is no stable structured trace suitable for
-corpus snapshots or a tuner.
+Normal and traced evaluation share one ordered implementation selected at
+compile time. Normal search has no callback, type-erased state, or runtime trace
+branch. A trace records term contributions and each transformation from the
+unscaled white-relative tapered score through endgame scaling, blending,
+side-to-move conversion, and tempo. Formatting consumes only that structured
+value and has no access to evaluator internals.
 
 ### Tests and measurement
 
-The current 25 evaluation tests provide meaningful coverage of:
+The evaluation tests are organized by parameters, tapered-score arithmetic,
+end-to-end evaluation, and feature mechanics. They cover:
 
 - tapered-score arithmetic and piece-square color symmetry;
 - side-to-move and null-move perspective;
 - pawn structure, mobility, pins, piece features, threats, shelter, king
   danger, phase, scaling, and tapering;
-- presence of stable headings in debug output.
+- trace-to-normal consistency and stable diagnostic formatting;
+- independent recomputation of Board's incremental material/PSQT state.
 
-However, the evaluator test is more than 500 lines and uses a production
-`EvaluatorTest` friend to call many private methods. Many assertions are exact
-weighted scores derived from current constants. Those are useful golden checks
-for a behavior-preserving refactor, but they will become maintenance noise if
-treated as permanent correctness requirements during tuning. Full-evaluator
-color/mirror symmetry, trace-total consistency, and independent recomputation
-of Board's incremental material/PSQT state are not directly covered.
+Feature tests prefer structured traces and use a narrow Board-oriented test
+access seam only for private geometry or transformation mechanics. Exact
+weighted feature assertions remain useful refactor guards, but must not become
+permanent correctness requirements once intentional tuning begins.
 
 The benchmark tooling currently provides:
 
@@ -127,166 +119,27 @@ runner with statistical reporting.
 
 ## Phase 1: Bounded Organizational Refactor
 
-All findings in this phase must preserve exact scores, trace text unless an
-explicit compatibility decision says otherwise, and deterministic fixed-depth
-search results.
+### Completed — ORG-001 through ORG-004
 
-### Completed foundation — ORG-001
+The bounded organizational phase is complete:
 
-Evaluation namespace and parameter ownership are complete. The change renamed
-the parameter repository, moved HCE-owned types and entry points into `eval`,
-made terms and phases scoped enums, and consolidated material literals without
-changing diagnostic output or deterministic fixed-depth search results.
+- **ORG-001:** established `eval` namespace and parameter ownership, including
+  one authority for material values.
+- **ORG-002:** separated normal evaluation, structured tracing, and diagnostic
+  formatting without adding runtime trace overhead to search.
+- **ORG-003:** moved non-template mechanics out of the implementation header and
+  divided tests by responsibility with a narrow access seam.
+- **ORG-004:** made Board's `eval::BaseScore` cache explicit and independently
+  verifiable across representation and history transitions.
 
-ORG-001 is retained only as historical context; it no longer needs a separate
-plan.
+A final lifecycle cleanup made the stateful evaluator single-use, removed
+transient final-result fields, clarified trace-stage names, and narrowed the
+formatter header. The complete phase preserved evaluation values, UCI
+diagnostic bytes, and deterministic depth-five depth, seldepth, nodes, scores,
+principal variations, and best moves across the six-position search suite.
 
-### ORG-002 — Separate hot evaluation from tracing and formatting
-
-**Motivation and evidence**
-
-The normal search path carries `std::function` callback state and a per-term
-branch solely for the local debug command. Trace data and formatters reach
-private evaluator state through friendship, and `evaluator.hpp` combines these
-concerns.
-
-**Intended outcome**
-
-- Give normal evaluation and diagnostic tracing distinct entry points that
-  share evaluation mechanics without imposing type-erased callback overhead on
-  search.
-- Represent a trace as structured term data with final tapered, scaled,
-  side-relative, and tempo-adjusted values.
-- Move human-readable formatting outside the hot evaluator implementation.
-- Remove formatter access to evaluator internals and retain exact diagnostic
-  output for the UCI console command.
-- Do not introduce a virtual evaluator hierarchy or an NNUE-shaped abstraction.
-
-**Likely components**
-
-`evaluator.hpp/.cpp`, new trace/report files within `src/eval`, UCI's console
-handler, and evaluator/UCI tests.
-
-**Dependencies and ordering**
-
-ORG-001 is complete. This is the next roadmap change; its structured trace is a
-prerequisite for INFRA-001 and later tuning diagnostics.
-
-**Tests and measurement**
-
-Prove normal and traced evaluation return identical values across the corpus;
-prove trace terms reconstruct the displayed totals; retain the existing UCI
-diagnostic output test; record evaluation throughput to prevent an accidental
-regression.
-
-**Risks**
-
-Duplicating evaluation logic between modes, changing term evaluation order, or
-letting trace-only code affect the normal path.
-
-**Completion criteria**
-
-Search evaluation has no type-erased diagnostic callback; trace data is a
-stable structured value; formatting consumes that value rather than evaluator
-internals; values and output remain unchanged.
-
-### ORG-003 — Right-size evaluator implementation and test boundaries
-
-**Motivation and evidence**
-
-Nearly all implementation is in a header of more than 750 lines, including
-non-template methods and diagnostics. Tests use a broad production friend and
-one test file of more than 500 lines to reach private feature mechanics.
-
-**Intended outcome**
-
-- Keep only templates or measured hot inline code header-defined.
-- Move non-template mechanics and formatting into focused implementation files.
-- Organize evaluation tests by responsibility without multiplying tiny cases.
-- Replace the broad fixture friendship with structured trace assertions or a
-  narrow test-access seam where a private algorithm genuinely needs direct
-  testing.
-- Classify tests as stable invariants, feature-activation tests, or tunable
-  golden scores.
-
-**Likely components**
-
-Evaluator source files, `tests/eval`, CMake, and possibly a focused evaluator
-test-access helper.
-
-**Dependencies and ordering**
-
-After ORG-002 so tests can prefer the structured trace. This is the final
-behavior-preserving organizational finding.
-
-**Tests and measurement**
-
-Preserve the complete test inventory unless a private-method assertion is
-replaced by stronger public/trace behavior. Compare compiled size and evaluation
-throughput before moving hot templates out of line.
-
-**Risks**
-
-Over-splitting a cohesive evaluator, losing template specialization/inlining,
-or weakening feature coverage merely to remove friendship.
-
-**Completion criteria**
-
-Each file has a clear role; the main header is a navigable interface plus only
-justified template definitions; tests no longer depend broadly on all private
-state; exact evaluation behavior remains unchanged.
-
-### ORG-004 — Make the Board-owned HCE cache explicit and independently verifiable
-
-**Motivation and evidence**
-
-Board incrementally owns material and piece-square scores and exposes both to
-the evaluator. Existing move/history tests compare saved values after unmake,
-but there is no independent recomputation that could detect a consistently
-wrong cache.
-
-Removing the cache during this bounded pass would either slow every evaluation
-or require a new per-worker evaluator lifecycle synchronized with every board
-transition. That is larger than an organizational cleanup and too close to
-speculative NNUE preparation.
-
-**Intended outcome**
-
-- Retain the Board-owned material/PSQT cache for the HCE lifecycle, but name and
-  document it as evaluation-specific incremental state rather than generic
-  Board truth.
-- Narrow Board's evaluation dependency to the smallest practical parameter and
-  score interfaces.
-- Provide an independent recomputation path used by tests and diagnostics.
-- Verify FEN load, copy, ordinary move, capture, promotion, castling, en
-  passant, null move, and complete unmake histories.
-- Do not add NNUE accumulators, network ownership, observers, or virtual hooks
-  to Board.
-
-**Likely components**
-
-Board representation/mutation, the evaluation base-score/parameter boundary,
-Board snapshot support, and Board/evaluation tests.
-
-**Dependencies and ordering**
-
-ORG-001 has established ownership. This may run before or after ORG-002 but
-must remain a separate focused change.
-
-**Tests and measurement**
-
-Compare incremental state against full recomputation after every transition in
-compact table-driven move cases and across an unwindable sequence.
-
-**Risks**
-
-Turning Board into a generic backend host, adding duplicated update paths, or
-mistaking a restored-but-wrong cache for correctness.
-
-**Completion criteria**
-
-The current dependency is deliberate, narrow, documented, and independently
-validated; no new backend abstraction or score change is introduced.
+These findings are retained only as historical context. No further broad
+organizational work is planned before measurement infrastructure.
 
 ## Phase 2: Measurement and Baselines
 
@@ -319,8 +172,8 @@ evaluation invariant tests.
 
 **Dependencies and ordering**
 
-Requires ORG-002's structured trace. Complete before any strength-changing
-work.
+The organizational phase and structured trace are complete. Finish this before
+any strength-changing work.
 
 **Tests and measurement**
 
@@ -461,8 +314,8 @@ stability measurements.
 
 **Dependencies and ordering**
 
-Requires ORG and INFRA-001/002. Correctness changes should precede parameter
-tuning and receive independent match/search evaluation.
+Requires INFRA-001/002. Correctness changes should precede parameter tuning and
+receive independent match/search evaluation.
 
 **Tests and measurement**
 
@@ -539,18 +392,17 @@ baseline matches while improving targeted evaluation behavior.
 **Motivation and evidence**
 
 Potential costs visible in the current implementation include constructing a
-fresh evaluator per call, carrying `std::function` trace machinery in normal
-search, repeatedly querying attacks for threat terms, and maintaining several
-derived attack/zone arrays. Source inspection alone does not establish which
-cost dominates.
+fresh evaluator per call, repeatedly querying attacks for threat terms, and
+maintaining several derived attack/zone arrays. Source inspection alone does
+not establish which cost dominates.
 
 **Intended outcome**
 
 - Profile release builds over both isolated evaluation and representative
   search before selecting optimizations.
-- Address measured costs one focused change at a time: normal/trace separation,
-  repeated attack computation, data layout, branch behavior, construction
-  overhead, or carefully justified inlining/code-size changes.
+- Address measured costs one focused change at a time: repeated attack
+  computation, data layout, branch behavior, construction overhead, or
+  carefully justified inlining/code-size changes.
 - Require exact corpus score equivalence for every performance-only change.
 - For deterministic fixed-depth configurations, compare nodes, score, PV, and
   bestmove as an additional guard against hidden behavior changes.
@@ -629,11 +481,12 @@ make/unmake correctness if Board state is extended.
 
 **Dependencies and ordering**
 
-Requires ORG-002 so cached results and structured traces share one explicit
-pawn-result representation, ORG-004 if Board gains an incremental pawn key,
-and INFRA-002 for meaningful measurements. Perform after TUNE-002 stabilizes
-the pawn feature set. PERF-001 should first establish profile evidence and may
-remove unrelated hot-path costs, but this remains a separate focused change.
+Requires INFRA-002 for meaningful measurements. The structured trace and
+explicit Board evaluation-state boundary are already established; if the plan
+selects an incremental pawn key, it must extend the existing independent Board
+recomputation coverage. Perform after TUNE-002 stabilizes the pawn feature set.
+PERF-001 should first establish profile evidence and may remove unrelated
+hot-path costs, but this remains a separate focused change.
 
 **Tests and measurement**
 
@@ -828,26 +681,22 @@ Board/evaluator state boundary, and completed rough/mathematical HCE tuning.
 
 ## Recommended Execution Sequence
 
-1. **ORG-002** — separate normal evaluation from structured tracing/formatting.
-2. **ORG-003** — right-size implementation and test boundaries.
-3. **ORG-004** — document, narrow, and independently validate Board's HCE cache.
-4. **INFRA-001** — establish the evaluation corpus and golden trace snapshots.
-5. **INFRA-002** — add isolated evaluation and downstream search benchmarks.
-6. **INFRA-003** — establish reproducible engine matches.
-7. **TUNE-001** — audit and correct feature semantics.
-8. **TUNE-002** — perform staged human-guided rough tuning.
-9. **PERF-001** — profile and optimize the retained HCE with exact equivalence.
-10. **PERF-002** — add and measure a worker-local pawn evaluation hash.
-11. **MATH-001** — export raw features and build leakage-resistant datasets.
-12. **MATH-002** — tune linear parameters with held-out validation.
-13. **MATH-003** — tune nonlinear and search-coupled parameters separately.
-14. Create a separate NNUE roadmap only after the entry criteria are met.
+1. **INFRA-001** — establish the evaluation corpus and golden trace snapshots.
+2. **INFRA-002** — add isolated evaluation and downstream search benchmarks.
+3. **INFRA-003** — establish reproducible engine matches.
+4. **TUNE-001** — audit and correct feature semantics.
+5. **TUNE-002** — perform staged human-guided rough tuning.
+6. **PERF-001** — profile and optimize the retained HCE with exact equivalence.
+7. **PERF-002** — add and measure a worker-local pawn evaluation hash.
+8. **MATH-001** — export raw features and build leakage-resistant datasets.
+9. **MATH-002** — tune linear parameters with held-out validation.
+10. **MATH-003** — tune nonlinear and search-coupled parameters separately.
+11. Create a separate NNUE roadmap only after the entry criteria are met.
 
 ### Change contract by phase
 
 | Findings | Evaluation values | Search behavior | Required evidence |
 |---|---|---|---|
-| ORG-002 through ORG-004 | Exact preservation | Exact preservation at fixed depth | Corpus checksum, full tests, fixed-depth comparison |
 | INFRA-001 through INFRA-003 | No intentional change | No intentional change | Tool/schema tests and reproducibility |
 | TUNE-001 correctness fixes | Intentional only for confirmed defects | May change | Direct regression, corpus diff, search/match checks |
 | TUNE-002 | Intentionally changes | Intentionally may change | Trace rationale, corpus diff, fixed-depth suite, matches |
