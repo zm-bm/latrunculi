@@ -681,11 +681,11 @@ the goal starts:
 
 | Order | ID | Work item | Contract | Checkpoint | Status |
 |---:|---|---|---|---|---|
-| 1 | PAWN-003 | Add bounded passed-pawn semantics | Intentional evaluation change | A | In progress |
+| 1 | PAWN-003 | Add bounded passed-pawn semantics | Intentional evaluation change | A | Complete — retained |
 | 2 | MAT-002a | Tune material ratios around MG pawn = 100 | Intentional evaluation/search change | A | Complete — no change |
 | 3 | MAT-002b | Review phase endpoints | Intentional evaluation change | A | Complete — retained |
 | 4 | MAT-002c | Review endgame scaling | Intentional evaluation change | A | Complete — retained |
-| 5 | MAT-002d | Review tempo | Intentional evaluation change | A | Pending |
+| 5 | MAT-002d | Review tempo | Intentional evaluation change | A | Complete — no change |
 | 6 | PSQT-001 | Rough PSQT calibration | Intentional evaluation change | B | Pending |
 | 7 | PAWN-004 | Rough pawn-parameter calibration | Intentional evaluation change | B | Pending |
 | 8 | MOB-001 | Settle mobility-area and outpost semantics | Possible semantic change | B | Pending |
@@ -890,6 +890,46 @@ cannot structurally add evaluator work and the first sample was noisy.
 
 Commit:
 `feat(eval): soften generic endgame scaling` (this task's commit).
+
+#### MAT-002d — Tempo
+
+Status: complete — no change
+
+Hypothesis:
+The +20 initiative bonus might need recalibration after the checkpoint's phase
+and scaling changes.
+
+Allowed scope:
+The single tempo parameter and its perspective/null-move invariants. Do not
+change material transformations, positional terms, or search margins.
+
+Required evidence:
+Review history, current invariants, and comparable HCE values; retain a change
+only with evidence stronger than choosing another plausible small constant.
+
+Outcome:
+No change. The current +20 is deliberately applied after tapering and scaling,
+is protected by side-to-move and null-move relations, and matches Ethereal's
+established HCE tempo (Minic uses the nearby value 15). The checkpoint supplies
+no evidence that choosing a different plausible constant would improve this
+engine, so tempo remains a later mathematical-tuning parameter.
+
+Commit:
+None; the reviewed value was retained.
+
+### Checkpoint A result
+
+Checkpoint A is retained. The completed standard-profile screen used 100
+opening pairs at `10+0.1`, one engine thread, 32 MB Hash, and concurrency 8
+against the archived pre-goal `d5c50e6` binary. Run directory:
+`scratch/bench-runs/20260807-183021-checkpoint-a-c8`.
+
+The candidate scored 86 wins, 81 draws, and 33 losses (63.2%), with
+pentanomial counts `[3, 13, 30, 36, 18]` and Cute Chess reporting
+`+94.3 +/- 37.6 Elo`, LOS 100%. This is strong screening evidence for the
+checkpoint as a group, not attribution to any one parameter. The final
+aggregate standard match remains required after all tuning and performance
+work.
 
 Before changing code, independently revalidate the task against the current
 source. Work on one coherent hypothesis at a time and create one focused commit
