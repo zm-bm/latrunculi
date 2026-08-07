@@ -6,10 +6,10 @@ result store.
 
 ## Architecture
 
-The C++ `benchmark` executable measures engine operations directly. It currently
-owns the perft cases and timing loop. `bench.py` and `benchlib/` build binaries,
-drive UCI searches, capture artifacts, render summaries, and compare compatible
-runs.
+The C++ `benchmark` executable performs engine operations directly. It owns the
+perft cases and deterministic evaluation-corpus execution. `bench.py` and
+`benchlib/` build binaries, drive UCI searches, manage evaluation snapshots,
+capture artifacts, render summaries, and compare compatible runs.
 
 Machine-readable C++ output is written to stdout without commentary. Usage and
 diagnostics go to stderr. The Python entry point prints the generated artifact
@@ -53,8 +53,47 @@ python3 bench/bench.py compare \
 ```
 
 `arasan20.epd` supplies the search positions. It is not an evaluation training
-set or the diagnostic evaluation corpus planned in
+set or the checked-in diagnostic evaluation corpus described below and in
 [`docs/eval-roadmap.md`](../docs/eval-roadmap.md).
+
+## Evaluation snapshots
+
+The small corpus in `eval/corpus.tsv` records diagnostic positions for exact
+evaluation and trace regression. It is not a tactical suite, training set, or
+held-out tuning set. Its order and stable IDs define the order of the generated
+snapshot.
+
+Use the separate deterministic command family to validate the corpus, inspect
+the current integer-valued snapshot, or compare it with the checked-in
+`eval/baseline.tsv`:
+
+```bash
+python3 bench/bench.py eval emit
+python3 bench/bench.py eval verify
+```
+
+After an approved evaluation or corpus change, update the baseline explicitly:
+
+```bash
+python3 bench/bench.py eval regenerate
+```
+
+Verification never rewrites the baseline, and these commands do not create a
+run directory under `scratch/`. Pass `--benchmark /path/to/benchmark` after the
+action to use an existing binary without building it.
+
+The corpus TSV has the columns `corpus_version`, `id`, `category`, and canonical
+six-field `fen`. It includes side-to-move, file-mirrored, and rotated
+color-swapped positions as ordinary diagnostic coverage. File-mirrored scores
+may differ because the current piece-square tables are file-asymmetric;
+evaluation symmetry is enforced by focused evaluator tests rather than corpus
+metadata.
+
+The baseline uses long-form `summary` and `term` records so numeric changes
+remain reviewable. Corpus content or ordering changes increment
+`corpus_version`; snapshot columns or semantics increment the
+`evaluation_snapshot_vN` result format. Intentional parameter changes update
+only the reviewed numeric baseline.
 
 ## Run artifacts
 
@@ -87,11 +126,10 @@ Deterministic snapshots and timed measurements have different lifecycles.
 Snapshots should be checked-in integer-valued baselines with separate verify and
 explicit regeneration commands. Timed runs remain disposable scratch artifacts.
 
-INFRA-001 in the evaluation roadmap may add the second direct C++ operation. At
-that point, `benchmark.cpp` can become a small explicit dispatcher with separate
-perft and evaluation implementations. It should not grow a registry, plugin
-system, callback framework, or generic benchmark object model. INFRA-002 should
-add timing and checksums to that same evaluation path rather than introducing a
+The executable uses a small explicit dispatcher with separate perft and
+evaluation implementations. It should not grow a registry, plugin system,
+callback framework, or generic benchmark object model. INFRA-002 should add
+timing and checksums to the existing evaluation path rather than introducing a
 second orchestration system.
 
 Engine matches, parameter optimization, Texel tuning, large datasets,

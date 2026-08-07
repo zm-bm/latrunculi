@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from benchlib.common import read_manifest, validate_comparison_manifests
+from benchlib.evaluation import add_evaluation_parser, command_evaluation
 from benchlib.perft import PERFT_FORMAT, add_perft_parser, command_run_perft, render_perft_compare
 from benchlib.uci import (
     SEARCH_FORMAT,
@@ -24,6 +25,8 @@ def parse_args() -> argparse.Namespace:
     run_subparsers = run.add_subparsers(dest="suite", required=True)
     add_search_parser(run_subparsers)
     add_perft_parser(run_subparsers)
+
+    add_evaluation_parser(subparsers)
 
     compare = subparsers.add_parser("compare", help="compare two benchmark run directories")
     compare.add_argument("baseline_run_dir", type=Path)
@@ -71,6 +74,8 @@ def main() -> int:
     args = parse_args()
     if args.command == "compare":
         return command_compare(args)
+    if args.command == "eval":
+        return command_evaluation(args)
     if args.suite == "search":
         return command_run_search(args)
     if args.suite == "perft":

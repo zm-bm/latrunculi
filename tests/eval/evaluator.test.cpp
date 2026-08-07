@@ -43,6 +43,17 @@ TEST(EvaluatorTest, NullMoveOnlyChangesPerspectiveAndTempo) {
     EXPECT_EQ(white_eval + black_eval, 2 * eval::tempo_bonus);
 }
 
+TEST(EvaluatorTest, EvaluationIsColorSymmetric) {
+    const Board original("6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1");
+    const Board color_swapped("1k6/8/5p2/1p1pN3/1PnP4/5P2/8/1K6 b - - 0 1");
+
+    const eval::Trace original_trace = eval::evaluate_trace(original);
+    const eval::Trace swapped_trace  = eval::evaluate_trace(color_swapped);
+
+    EXPECT_EQ(original_trace.value(), swapped_trace.value());
+    EXPECT_EQ(original_trace.white_value(), -swapped_trace.white_value());
+}
+
 TEST(EvaluatorTest, TraceMatchesNormalEvaluationAndFormatsStableTermBreakdown) {
     const Board       board(board_test::fen::start);
     const eval::Trace trace  = eval::evaluate_trace(board);

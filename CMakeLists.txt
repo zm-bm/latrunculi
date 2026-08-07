@@ -50,7 +50,11 @@ target_link_libraries(latrunculi PRIVATE latrunculi_lib Threads::Threads)
 
 option(LATRUNCULI_BUILD_BENCHMARK "Build benchmark target" OFF)
 if(LATRUNCULI_BUILD_BENCHMARK)
-    add_executable(benchmark bench/benchmark.cpp)
+    add_executable(benchmark
+        bench/benchmark.cpp
+        bench/evaluation.cpp
+        bench/perft.cpp
+    )
     target_link_libraries(benchmark PRIVATE latrunculi_lib Threads::Threads)
     target_compile_definitions(benchmark PRIVATE LATRUNCULI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 endif()
