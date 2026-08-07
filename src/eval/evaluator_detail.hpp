@@ -213,15 +213,16 @@ inline void Evaluator::update_mobility(const Bitboard moves) {
     scores.mobility[C] += eval::mobility[P][move_count];
 }
 
-/// penalize weak pieces if attackers > defenders
+/// penalize weak pieces if outnumbered or attacked by a lower-value pawn
 template <Color C, PieceType P>
 inline void Evaluator::update_threats(const PieceContext& ctx) {
     constexpr Color Opp = ~C;
 
-    const Bitboard defenders = board.attacks_to(ctx.square, C);
-    const Bitboard attackers = board.attacks_to(ctx.square, Opp);
+    const Bitboard defenders        = board.attacks_to(ctx.square, C);
+    const Bitboard attackers        = board.attacks_to(ctx.square, Opp);
+    const bool     attacked_by_pawn = (attackers & board.pieces<PAWN>(Opp)) != 0;
 
-    if (bb::count(attackers) > bb::count(defenders)) {
+    if (attacked_by_pawn || bb::count(attackers) > bb::count(defenders)) {
         scores.threats[C] += eval::weak_piece[P];
     }
 }

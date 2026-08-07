@@ -691,9 +691,9 @@ the goal starts:
 | 8 | MOB-001 | Settle mobility-area and outpost semantics | Possible semantic change | B | Complete — rejected |
 | 9 | PIECE-003 | Rough piece-feature calibration | Intentional evaluation change | B | Complete — no change |
 | 10 | MOB-002 | Rough mobility-curve calibration | Intentional evaluation change | B | Complete — no change |
-| 11 | THREAT-002 | Consider one bounded threat refinement | Possible semantic change | C | Pending |
-| 12 | KING-002 | Rough king-safety calibration | Intentional evaluation change | C | Pending |
-| 13 | SCALE-002 | Audit downstream search thresholds | Search-policy change | C | Pending |
+| 11 | THREAT-002 | Consider one bounded threat refinement | Possible semantic change | C | Complete — retained |
+| 12 | KING-002 | Rough king-safety calibration | Intentional evaluation change | C | Complete — no change |
+| 13 | SCALE-002 | Audit downstream search thresholds | Search-policy change | C | Complete — no change |
 | 14 | PERF-001 | Profile and optimize measured hot paths | Exact evaluation preservation | Performance | Pending |
 | 15 | PERF-002 | Add and measure a worker-local pawn hash | Exact evaluation preservation | Performance | Pending |
 
@@ -1012,6 +1012,71 @@ Checkpoint B retains no code change beyond Checkpoint A. The rejected run is
 with the standard settings and concurrency 8 against archived Checkpoint A.
 The adverse result cleanly attributes to MOB-001 because all other group tasks
 concluded with no change.
+
+#### THREAT-002 — Pawn attacks on pieces
+
+Status: complete — retained
+
+Hypothesis:
+A pawn attack on a non-pawn piece is an unfavorable material threat even when
+one defender makes attacker and defender counts equal. Extending the current
+weak-piece condition with this single lower-value-attacker distinction captures
+the clearest omission without embedding SEE or a second tactical search in HCE.
+
+Allowed scope:
+The existing weak-piece predicate and one equal-count activation row. Reuse the
+current victim-type penalties and geometric attack contract; do not add new
+weights, pin filtering, safe pawn pushes, or general attacker-value ordering.
+
+Required evidence:
+Preserve existing outnumbered activation, full color symmetry, and exact trace
+ownership; review snapshot/search/throughput changes and the Checkpoint C match.
+
+Outcome:
+Retained pending Checkpoint C. A non-pawn piece now receives its existing
+victim-type weak penalty when geometrically attacked by an enemy pawn, even at
+equal attacker/defender counts. The prior outnumbered rule, weights, and pin
+policy remain unchanged. One equal-count knight position extends the existing
+Threat test.
+
+Only `middlegame-perft-2` changes in the corpus, where White's pawn-attacked
+knight adds -20/-10 and reduces the net Threat term as intended. Snapshot
+verification and the full release suite pass. All six depth-five best moves and
+five final scores are unchanged; two middlegame trees shrink while startpos
+nodes rise 1.5%. The isolated median improves 2.4%, treated as noise rather
+than a performance claim.
+
+Commit:
+`feat(eval): recognize pawn attacks as piece threats` (this task's commit).
+
+#### KING-002 — Rough king-safety calibration
+
+Status: complete — no change
+
+Outcome:
+Shelter, storm, check, attacker, weak-square, pin, and quadratic-danger weights
+form one highly correlated nonlinear model. Existing activation and monotonic
+coverage reveals no isolated erroneous constant. Manual edits would be less
+reliable than later nonlinear mathematical tuning, so the model is retained.
+
+Commit:
+None; the reviewed parameters were retained.
+
+#### SCALE-002 — Downstream search thresholds
+
+Status: complete — no change
+
+Outcome:
+Checkpoint A changed phase and endgame scaling but preserved the fixed MG pawn
+unit, material authority, SEE values, and the ordinary middlegame score scale.
+The fixed-depth suite and match do not identify a specific aspiration, razor,
+futility, or null-move threshold failure. Retuning those search heuristics from
+six positions would confound the known TT/LMR/history sensitivity, so their
+current values remain unchanged pending dedicated search instrumentation and
+mathematical tuning.
+
+Commit:
+None; the reviewed thresholds were retained.
 
 Before changing code, independently revalidate the task against the current
 source. Work on one coherent hypothesis at a time and create one focused commit

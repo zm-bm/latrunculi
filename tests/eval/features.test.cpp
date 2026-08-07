@@ -340,6 +340,7 @@ TEST_F(EvaluationFeaturesTest, ThreatScore) {
         {board_test::fen::kings_only, eval::TaperedScore::Zero, eval::TaperedScore::Zero},
         {"4k3/8/8/7b/8/8/r3N3/4K3 w - - 0 1", eval::weak_piece[KNIGHT], eval::TaperedScore::Zero},
         {"4k3/8/R3n3/8/7B/8/8/4K3 w - - 0 2", eval::TaperedScore::Zero, eval::weak_piece[KNIGHT]},
+        {"4k3/8/8/2p5/3N4/2P5/8/4K3 w - - 0 1", eval::weak_piece[KNIGHT], eval::TaperedScore::Zero},
     };
 
     for (const auto& [fen, w_expected, b_expected] : test_cases) {
