@@ -23,5 +23,6 @@ TEST(ParametersTest, PieceSquareScores) {
         EXPECT_EQ(eval::piece_sq(BISHOP, WHITE, sq), -eval::piece_sq(BISHOP, BLACK, bsq));
         EXPECT_EQ(eval::piece_sq(ROOK, WHITE, sq), -eval::piece_sq(ROOK, BLACK, bsq));
         EXPECT_EQ(eval::piece_sq(QUEEN, WHITE, sq), -eval::piece_sq(QUEEN, BLACK, bsq));
+        EXPECT_EQ(eval::piece_sq(KING, WHITE, sq), -eval::piece_sq(KING, BLACK, bsq));
     }
 }

@@ -50,8 +50,27 @@ TEST(EvaluatorTest, EvaluationIsColorSymmetric) {
     const eval::Trace original_trace = eval::evaluate_trace(original);
     const eval::Trace swapped_trace  = eval::evaluate_trace(color_swapped);
 
+    for (int index = 0; index < static_cast<int>(eval::Term::Count); ++index) {
+        SCOPED_TRACE(index);
+        const auto             term          = static_cast<eval::Term>(index);
+        const eval::TermScore& original_term = original_trace.term(term);
+        const eval::TermScore& swapped_term  = swapped_trace.term(term);
+
+        EXPECT_EQ(original_term.per_color, swapped_term.per_color);
+        EXPECT_EQ(original_term.total(), -swapped_term.total());
+        if (original_term.per_color) {
+            EXPECT_EQ(original_term.white, swapped_term.black);
+            EXPECT_EQ(original_term.black, swapped_term.white);
+        }
+    }
+
+    EXPECT_EQ(original_trace.unscaled_score(), -swapped_trace.unscaled_score());
+    EXPECT_EQ(original_trace.scaled_score(), -swapped_trace.scaled_score());
+    EXPECT_EQ(original_trace.tapered_value(), -swapped_trace.tapered_value());
+    EXPECT_EQ(original_trace.side_to_move_value(), swapped_trace.side_to_move_value());
     EXPECT_EQ(original_trace.value(), swapped_trace.value());
     EXPECT_EQ(original_trace.white_value(), -swapped_trace.white_value());
+    EXPECT_EQ(original_trace.side_to_move(), ~swapped_trace.side_to_move());
 }
 
 TEST(EvaluatorTest, TraceMatchesNormalEvaluationAndFormatsStableTermBreakdown) {

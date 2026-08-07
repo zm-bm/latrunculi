@@ -356,6 +356,17 @@ TEST_F(EvaluationFeaturesTest, KingSafety) {
     for (const auto& [fen, expected] : test_cases) {
         test_king_safety(fen, expected);
     }
+
+    const Board with_rights("4k2r/8/8/8/8/8/5PPP/4K2R w K - 0 1");
+    const Board without_rights("4k2r/8/8/8/8/8/5PPP/4K2R w - - 0 1");
+    const auto  current_shelter = EvaluatorTestAccess::shelter<WHITE>(with_rights, E1);
+    const auto  castled_shelter = EvaluatorTestAccess::shelter<WHITE>(with_rights, G1);
+
+    ASSERT_GT(castled_shelter.mg, current_shelter.mg);
+    const auto with_rights_score = eval::evaluate_trace(with_rights).term(eval::Term::King).white;
+    const auto without_rights_score =
+        eval::evaluate_trace(without_rights).term(eval::Term::King).white;
+    EXPECT_EQ(with_rights_score - without_rights_score, castled_shelter - current_shelter);
 }
 
 TEST_F(EvaluationFeaturesTest, Shelter) {
