@@ -121,8 +121,8 @@ def render_perft_compare(
     old_manifest: dict[str, object],
     new_manifest: dict[str, object],
 ) -> str:
-    _, old_rows = read_tsv(old_dir / "results.tsv")
-    _, new_rows = read_tsv(new_dir / "results.tsv")
+    _, old_rows = read_tsv(old_dir / "results.tsv", PERFT_COLUMNS)
+    _, new_rows = read_tsv(new_dir / "results.tsv", PERFT_COLUMNS)
     old = {perft_key(row): row for row in old_rows}
     new = {perft_key(row): row for row in new_rows}
     keys = sorted(set(old) | set(new))

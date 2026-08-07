@@ -472,8 +472,8 @@ def render_search_compare(
     old_manifest: dict[str, object],
     new_manifest: dict[str, object],
 ) -> str:
-    _, old_rows = read_tsv(old_dir / "results.tsv")
-    _, new_rows = read_tsv(new_dir / "results.tsv")
+    _, old_rows = read_tsv(old_dir / "results.tsv", SEARCH_COLUMNS)
+    _, new_rows = read_tsv(new_dir / "results.tsv", SEARCH_COLUMNS)
     old = aggregate_search_rows(old_rows)
     new = aggregate_search_rows(new_rows)
     keys = sorted(set(old) | set(new))

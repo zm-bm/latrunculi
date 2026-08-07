@@ -110,12 +110,42 @@ def read_manifest(run_dir: Path) -> dict[str, object]:
     return json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
 
 
-def read_tsv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+def validate_comparison_manifests(
+    baseline: dict[str, object],
+    candidate: dict[str, object],
+    suite_fields: Iterable[str] = (),
+) -> None:
+    for role, manifest in (("baseline", baseline), ("candidate", candidate)):
+        if "format_version" not in manifest:
+            raise ValueError(f"cannot compare {role} run without format_version")
+        if manifest["format_version"] != FORMAT_VERSION:
+            raise ValueError(
+                f"cannot compare {role} run with unsupported format_version "
+                f"{manifest['format_version']}; expected {FORMAT_VERSION}"
+            )
+
+    for field in ("result_format", "suite", *suite_fields):
+        if field not in baseline or field not in candidate:
+            raise ValueError(f"cannot compare runs without {field}")
+        if baseline[field] != candidate[field]:
+            raise ValueError(f"cannot compare runs with different {field}")
+
+
+def read_tsv(
+    path: Path, expected_columns: list[str] | None = None
+) -> tuple[list[str], list[dict[str, str]]]:
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         if reader.fieldnames is None:
             raise ValueError(f"missing TSV header in {path}")
-        return list(reader.fieldnames), [dict(row) for row in reader]
+        columns = list(reader.fieldnames)
+        if expected_columns is not None and columns != expected_columns:
+            expected = "\t".join(expected_columns)
+            actual = "\t".join(columns)
+            raise ValueError(
+                f"unexpected TSV header in {path}: expected {expected!r}, got {actual!r}"
+            )
+        return columns, [dict(row) for row in reader]
 
 
 def write_tsv(path: Path, rows: Iterable[dict[str, str]], columns: list[str]) -> None:

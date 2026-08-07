@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from benchlib.common import read_manifest
+from benchlib.common import read_manifest, validate_comparison_manifests
 from benchlib.perft import PERFT_FORMAT, add_perft_parser, command_run_perft, render_perft_compare
 from benchlib.uci import (
     SEARCH_FORMAT,
@@ -37,26 +37,22 @@ def command_compare(args: argparse.Namespace) -> int:
     old_manifest = read_manifest(baseline)
     new_manifest = read_manifest(candidate)
     old_format = old_manifest.get("result_format")
-    new_format = new_manifest.get("result_format")
-    if old_format != new_format:
-        raise ValueError("cannot compare runs with different result formats")
-    old_suite = old_manifest.get("suite")
-    new_suite = new_manifest.get("suite")
-    if old_suite is not None and new_suite is not None and old_suite != new_suite:
-        raise ValueError("cannot compare runs from different suites")
+
     if old_format == SEARCH_FORMAT:
-        for field in (
+        suite_fields = (
             "limit_type",
             "limit_value",
             "repeats",
             "threads",
             "hash_mb",
             "selected_positions",
-        ):
-            if field not in old_manifest or field not in new_manifest:
-                raise ValueError(f"cannot compare search runs without {field}")
-            if old_manifest.get(field) != new_manifest.get(field):
-                raise ValueError(f"cannot compare search runs with different {field}")
+        )
+    elif old_format == PERFT_FORMAT:
+        suite_fields = ("profile",)
+    else:
+        suite_fields = ()
+
+    validate_comparison_manifests(old_manifest, new_manifest, suite_fields)
 
     output = candidate / f"comparison-vs-{baseline.name}.md"
     if old_format == SEARCH_FORMAT:
