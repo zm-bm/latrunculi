@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from bench.benchlib.common import FORMAT_VERSION, read_tsv
+from bench.benchlib.evaluation import EVALUATION_THROUGHPUT_FORMAT
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +43,31 @@ class ComparisonContractTest(unittest.TestCase):
                 manifest,
                 {**manifest, "profile": "standard"},
                 "runs with different profile",
+            ),
+            "different evaluation corpora": (
+                {
+                    **manifest,
+                    "result_format": EVALUATION_THROUGHPUT_FORMAT,
+                    "suite": "eval",
+                    "corpus_sha256": "baseline",
+                    "corpus_version": "1",
+                    "corpus_size": 24,
+                    "warmup_repetitions": 1,
+                    "repetitions": 2,
+                    "samples": 2,
+                },
+                {
+                    **manifest,
+                    "result_format": EVALUATION_THROUGHPUT_FORMAT,
+                    "suite": "eval",
+                    "corpus_sha256": "candidate",
+                    "corpus_version": "1",
+                    "corpus_size": 24,
+                    "warmup_repetitions": 1,
+                    "repetitions": 2,
+                    "samples": 2,
+                },
+                "runs with different corpus_sha256",
             ),
         }
 

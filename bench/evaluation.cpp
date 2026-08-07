@@ -1,12 +1,19 @@
 #include "evaluation.hpp"
 
 #include <array>
+#include <charconv>
+#include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <string_view>
+#include <system_error>
 #include <unordered_set>
 #include <utility>
 
@@ -15,11 +22,20 @@
 namespace bench {
 namespace {
 
-namespace fs = std::filesystem;
+namespace fs     = std::filesystem;
+using BenchClock = std::chrono::steady_clock;
 
-constexpr std::string_view corpus_header  = "corpus_version\tid\tcategory\tfen";
-constexpr std::string_view corpus_version = "1";
-constexpr std::string_view result_format  = "evaluation_snapshot_v1";
+constexpr std::string_view corpus_header     = "corpus_version\tid\tcategory\tfen";
+constexpr std::string_view corpus_version    = "1";
+constexpr std::string_view result_format     = "evaluation_snapshot_v1";
+constexpr std::string_view throughput_format = "evaluation_throughput_v1";
+
+constexpr std::uint64_t default_warmup_repetitions = 50'000;
+constexpr std::uint64_t default_repetitions        = 100'000;
+constexpr std::uint64_t default_samples            = 7;
+constexpr std::uint64_t max_warmup_repetitions     = 1'000'000;
+constexpr std::uint64_t max_repetitions            = 1'000'000;
+constexpr std::uint64_t max_samples                = 25;
 
 constexpr std::array<std::pair<std::string_view, eval::Term>, 10> terms = {{
     {"material", eval::Term::Material},
@@ -71,9 +87,26 @@ constexpr std::array<std::string_view, SnapshotColumnCount> snapshot_columns = {
 
 using SnapshotRow = std::array<std::string, SnapshotColumnCount>;
 
+fs::path default_corpus_path() {
+    return fs::path(LATRUNCULI_SOURCE_DIR) / "bench" / "eval" / "corpus.tsv";
+}
+
 struct EvaluatedPosition {
     const EvaluationPosition* position;
     eval::Trace               trace;
+};
+
+struct EvaluationOptions {
+    fs::path      corpus = default_corpus_path();
+    bool          throughput{false};
+    std::uint64_t warmup_repetitions{default_warmup_repetitions};
+    std::uint64_t repetitions{default_repetitions};
+    std::uint64_t samples{default_samples};
+};
+
+struct ThroughputRow {
+    std::uint64_t checksum{0};
+    std::uint64_t total_ns{0};
 };
 
 [[noreturn]] void fail(std::size_t line, std::string_view message) {
@@ -171,19 +204,126 @@ std::string snapshot_tsv(const std::vector<EvaluatedPosition>& results) {
     return output.str();
 }
 
-fs::path default_corpus_path() {
-    return fs::path(LATRUNCULI_SOURCE_DIR) / "bench" / "eval" / "corpus.tsv";
+std::string compiler_name() {
+#if defined(__clang__)
+    return "Clang " __clang_version__;
+#elif defined(__GNUC__)
+    return "GCC " __VERSION__;
+#elif defined(_MSC_VER)
+    return "MSVC " + std::to_string(_MSC_VER);
+#else
+    return "unknown";
+#endif
+}
+
+constexpr std::string_view build_mode() {
+#ifdef NDEBUG
+    return "release";
+#else
+    return "debug";
+#endif
+}
+
+void observe_evaluation(EvalValue value) {
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ volatile("" : : "g"(value) : "memory");
+#else
+    static volatile EvalValue sink;
+    sink = value;
+#endif
+}
+
+std::uint64_t evaluate_repeated(const std::vector<EvaluationPosition>& positions,
+                                std::uint64_t                          repetitions) {
+    std::uint64_t checksum = 0;
+    for (std::uint64_t repetition = 0; repetition < repetitions; ++repetition) {
+        for (const EvaluationPosition& position : positions) {
+            const EvalValue value = eval::evaluate(position.board);
+            observe_evaluation(value);
+            checksum += static_cast<std::uint64_t>(value);
+        }
+    }
+    return checksum;
+}
+
+std::vector<ThroughputRow> measure_throughput(const std::vector<EvaluationPosition>& positions,
+                                              const EvaluationOptions&               options) {
+    const auto corpus_size = static_cast<std::uint64_t>(positions.size());
+    if (corpus_size > std::numeric_limits<std::uint64_t>::max() / options.repetitions)
+        throw std::runtime_error("evaluation count overflow");
+
+    evaluate_repeated(positions, options.warmup_repetitions);
+
+    std::uint64_t              expected_checksum = 0;
+    std::vector<ThroughputRow> rows;
+    rows.reserve(static_cast<std::size_t>(options.samples));
+
+    for (std::uint64_t sample = 1; sample <= options.samples; ++sample) {
+        const auto start    = BenchClock::now();
+        const auto checksum = evaluate_repeated(positions, options.repetitions);
+        const auto end      = BenchClock::now();
+        const auto elapsed  = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        const auto total_ns = static_cast<std::uint64_t>(elapsed.count());
+
+        if (sample == 1)
+            expected_checksum = checksum;
+        else if (checksum != expected_checksum)
+            throw std::runtime_error("evaluation sample checksum mismatch");
+        if (total_ns == 0)
+            throw std::runtime_error("evaluation sample duration was zero");
+
+        rows.push_back({.checksum = checksum, .total_ns = total_ns});
+    }
+    return rows;
+}
+
+std::string throughput_tsv(const std::vector<ThroughputRow>&      rows,
+                           const std::vector<EvaluationPosition>& positions,
+                           const EvaluationOptions&               options) {
+    std::ostringstream output;
+    const auto evaluations = static_cast<std::uint64_t>(positions.size()) * options.repetitions;
+    output << "result_format\tcorpus_version\tcompiler\tbuild_mode\tsample\tsamples\t"
+              "corpus_size\twarmup_repetitions\trepetitions\tevaluations\tchecksum\ttotal_ns\t"
+              "ns_per_evaluation\tevaluations_per_second\n";
+    for (std::size_t index = 0; index < rows.size(); ++index) {
+        const ThroughputRow& row = rows[index];
+        const double         ns_per_evaluation =
+            static_cast<double>(row.total_ns) / static_cast<double>(evaluations);
+        output << throughput_format << '\t' << corpus_version << '\t' << compiler_name() << '\t'
+               << build_mode() << '\t' << index + 1 << '\t' << options.samples << '\t'
+               << positions.size() << '\t' << options.warmup_repetitions << '\t'
+               << options.repetitions << '\t' << evaluations << '\t' << row.checksum << '\t'
+               << row.total_ns << '\t' << std::fixed << std::setprecision(3) << ns_per_evaluation
+               << '\t' << 1'000'000'000.0 / ns_per_evaluation << '\n';
+    }
+    return output.str();
 }
 
 void print_usage(const char* argv0) {
-    std::cerr << "Deterministic handcrafted-evaluation corpus snapshots.\n";
+    std::cerr << "Handcrafted-evaluation snapshots and throughput measurement.\n";
     std::cerr << "Usage: " << argv0 << " [--corpus PATH]\n";
+    std::cerr << "       " << argv0
+              << " throughput [--corpus PATH] [--warmup N] [--repetitions N] [--samples N]\n";
 }
 
-fs::path parse_args(int argc, char* argv[]) {
-    fs::path corpus = default_corpus_path();
+std::uint64_t parse_count(std::string_view text, std::string_view option) {
+    std::uint64_t value     = 0;
+    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+    if (text.empty() || error != std::errc{} || end != text.data() + text.size())
+        throw std::runtime_error("invalid value for " + std::string(option) + ": "
+                                 + std::string(text));
+    return value;
+}
 
-    for (int index = 1; index < argc; ++index) {
+EvaluationOptions parse_args(int argc, char* argv[]) {
+    EvaluationOptions options;
+    int               index = 1;
+    if (index < argc && std::string_view(argv[index]) == "throughput") {
+        options.throughput = true;
+        ++index;
+    }
+
+    for (; index < argc; ++index) {
         const std::string_view argument = argv[index];
         if (argument == "--help" || argument == "-h") {
             print_usage(argv[0]);
@@ -192,12 +332,39 @@ fs::path parse_args(int argc, char* argv[]) {
         if (argument == "--corpus") {
             if (++index >= argc)
                 throw std::runtime_error("missing value for --corpus");
-            corpus = argv[index];
+            options.corpus = argv[index];
+            continue;
+        }
+        if (options.throughput && argument == "--warmup") {
+            if (++index >= argc)
+                throw std::runtime_error("missing value for --warmup");
+            options.warmup_repetitions = parse_count(argv[index], "--warmup");
+            continue;
+        }
+        if (options.throughput && argument == "--repetitions") {
+            if (++index >= argc)
+                throw std::runtime_error("missing value for --repetitions");
+            options.repetitions = parse_count(argv[index], "--repetitions");
+            continue;
+        }
+        if (options.throughput && argument == "--samples") {
+            if (++index >= argc)
+                throw std::runtime_error("missing value for --samples");
+            options.samples = parse_count(argv[index], "--samples");
             continue;
         }
         throw std::runtime_error("unknown argument: " + std::string(argument));
     }
-    return corpus;
+
+    if (options.warmup_repetitions > max_warmup_repetitions)
+        throw std::runtime_error("--warmup must be at most "
+                                 + std::to_string(max_warmup_repetitions));
+    if (options.repetitions == 0 || options.repetitions > max_repetitions)
+        throw std::runtime_error("--repetitions must be between 1 and "
+                                 + std::to_string(max_repetitions));
+    if (options.samples == 0 || options.samples > max_samples)
+        throw std::runtime_error("--samples must be between 1 and " + std::to_string(max_samples));
+    return options;
 }
 
 } // namespace
@@ -271,7 +438,14 @@ std::vector<EvaluationPosition> load_evaluation_corpus(const fs::path& path) {
 
 int run_evaluation(int argc, char* argv[]) {
     try {
-        const auto                     positions = load_evaluation_corpus(parse_args(argc, argv));
+        const EvaluationOptions options   = parse_args(argc, argv);
+        const auto              positions = load_evaluation_corpus(options.corpus);
+        if (options.throughput) {
+            const auto rows = measure_throughput(positions, options);
+            std::cout << throughput_tsv(rows, positions, options);
+            return 0;
+        }
+
         std::vector<EvaluatedPosition> results;
         results.reserve(positions.size());
 

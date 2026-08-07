@@ -45,6 +45,17 @@ python3 bench/bench.py run search \
 `startpos,arasan20-01,arasan20-16`. Passing `--engine /path/to/latrunculi`
 uses that binary without building it.
 
+Measure isolated evaluation throughput over the checked-in corpus:
+
+```bash
+python3 bench/bench.py run eval --label baseline
+```
+
+The defaults use 50,000 warmup corpus repetitions followed by seven samples of
+100,000 repetitions. Override them with `--warmup`, `--repetitions`, and
+`--samples`; pass `--benchmark /path/to/benchmark` to use an existing binary.
+The direct `benchmark eval throughput` form writes the sample TSV to stdout.
+
 Compare two compatible run directories:
 
 ```bash
@@ -95,6 +106,14 @@ remain reviewable. Corpus content or ordering changes increment
 `evaluation_snapshot_vN` result format. Intentional parameter changes update
 only the reviewed numeric baseline.
 
+Snapshots are deterministic behavior evidence, not performance measurements.
+The timed evaluation suite measures the normal `eval::evaluate()` hot path over
+preloaded Boards and reports median nanoseconds/evaluation and
+evaluations/second with min–max ranges. It intentionally reflects a small,
+hot-cache working set. Use fixed-depth search separately to observe downstream
+nodes, scores, PVs, best moves, and NPS. Only engine matches can establish a
+playing-strength change.
+
 ## Run artifacts
 
 Runs are written beneath the ignored `scratch/bench-runs/` directory:
@@ -107,9 +126,10 @@ Runs are written beneath the ignored `scratch/bench-runs/` directory:
 
 Comparisons require the current manifest/schema version and identical
 suite-defining settings. Search runs must agree on position selection, limit,
-repeats, threads, and hash size; perft runs must use the same profile. Revisions,
-binaries, dirty states, and build presets are recorded but may differ because
-measuring those differences is the purpose of the tool.
+repeats, threads, and hash size; perft runs must use the same profile; evaluation
+runs must use the same corpus, warmup, repetitions, and sample count. Revisions,
+binaries, dirty states, compiler/build modes, and build presets are recorded but
+may differ because measuring those differences is the purpose of the tool.
 
 Timing comparisons require controlled conditions and repeated runs. Wall-clock
 results are never unit-test thresholds. Fixed-depth search also exposes
@@ -128,9 +148,8 @@ explicit regeneration commands. Timed runs remain disposable scratch artifacts.
 
 The executable uses a small explicit dispatcher with separate perft and
 evaluation implementations. It should not grow a registry, plugin system,
-callback framework, or generic benchmark object model. INFRA-002 should add
-timing and checksums to the existing evaluation path rather than introducing a
-second orchestration system.
+callback framework, or generic benchmark object model. Evaluation snapshots
+and timed throughput share the same corpus loader and executable path.
 
 Engine matches, parameter optimization, Texel tuning, large datasets,
 databases, plugins, and NNUE tooling remain outside this benchmark harness. See
