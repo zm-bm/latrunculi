@@ -99,7 +99,8 @@ cmake --build --preset release-dev
 ctest --preset release-dev
 ```
 
-`benchmark` is available in `*-dev` presets for quick smoke checks.
+`benchmark` is available in `*-dev` presets. See the
+[benchmark guide](bench/README.md) for perft, search, and comparison workflows.
 
 ## license
 
