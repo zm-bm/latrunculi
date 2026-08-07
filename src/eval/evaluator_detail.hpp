@@ -337,7 +337,7 @@ inline TaperedScore Evaluator::evaluate_queen(const PieceContext& ctx) const {
     return TaperedScore::Zero;
 }
 
-/// penalize discovered attacks on the piece
+/// penalize rays with exactly one intervening piece that can move away
 template <Color C, PieceType P>
 inline bool Evaluator::discovery_attack(const PieceContext& ctx) const {
     constexpr Color Opp = ~C;
@@ -347,7 +347,7 @@ inline bool Evaluator::discovery_attack(const PieceContext& ctx) const {
         const Square   attacker       = bb::lsb_pop(attackers);
         const Bitboard pieces_between = square::between(ctx.square, attacker) & ctx.occupied;
 
-        if (!bb::is_many(pieces_between))
+        if (pieces_between && !bb::is_many(pieces_between))
             return true;
     }
 

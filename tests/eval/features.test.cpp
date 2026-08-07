@@ -298,6 +298,8 @@ TEST_F(EvaluationFeaturesTest, QueenScore) {
     std::vector<std::tuple<std::string, eval::TaperedScore, eval::TaperedScore>> test_cases = {
         {board_test::fen::start, eval::TaperedScore::Zero, eval::TaperedScore::Zero},
         {board_test::fen::kings_only, eval::TaperedScore::Zero, eval::TaperedScore::Zero},
+        // a direct attack is not a discovered attack
+        {"3rk3/8/8/8/8/8/8/3QK3 w - - 0 1", eval::TaperedScore::Zero, eval::TaperedScore::Zero},
         // bishop discovered attack
         {"3qk3/2P5/1P6/B7/b7/1p6/8/3QK3 w - - 0 1",
          eval::queen_discover_att,
