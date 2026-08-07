@@ -24,13 +24,14 @@ a readable reference, diagnostic implementation, and possible fallback.
 ### Source ownership
 
 - `parameters.hpp` owns material values, piece-square tables, mobility tables,
-  feature weights, masks, phase limits, and typed parameter lookups.
-- `tapered_score.hpp` and `types.hpp` own `eval::TaperedScore`, `eval::Term`,
-  and `eval::Phase`.
-- `base_score.hpp` owns the Board-maintained material and piece-square cache.
-- `evaluator.hpp/.cpp` define the stateful, single-use evaluation mechanics;
-  template mechanics remain in `evaluator_detail.hpp` for specialization and
-  inlining.
+  feature weights, masks, phase limits, `eval::Phase`, and typed parameter
+  lookups.
+- `tapered_score.hpp` owns `eval::TaperedScore`; `trace.hpp` owns the evaluation
+  term taxonomy and structured trace data.
+- `base_terms.hpp` owns the Board-maintained material and piece-square cache.
+- `evaluation.hpp/.cpp` provide the public evaluation entry points, while
+  `evaluator.hpp` and `evaluator_detail.hpp` contain the private, single-use
+  mechanics.
 - `trace.hpp/.cpp` define structured evaluation results, while
   `trace_formatter.hpp/.cpp` own their human-readable diagnostic presentation.
 
@@ -43,7 +44,7 @@ represent search scores.
 
 ### Evaluation data flow
 
-`Board` owns an `eval::BaseScore` containing its incrementally maintained
+`Board` owns an `eval::BaseTerms` containing its incrementally maintained
 material and piece-square terms. Piece mutations update that state; FEN
 loading, copies, ordinary moves, captures, promotions, castling, en passant,
 null moves, and complete unmake histories are covered by independent
@@ -106,20 +107,21 @@ access seam only for private geometry or transformation mechanics. Exact
 weighted feature assertions remain useful refactor guards, but must not become
 permanent correctness requirements once intentional tuning begins.
 
-The benchmark tooling currently provides:
+The benchmark tooling now provides four distinct measurements:
 
-- a C++ perft benchmark;
-- a Python UCI search harness over a six-position default suite drawn from
-  Arasan 20, with depth or movetime limits, repeats, manifests, raw logs, and
-  baseline/candidate comparisons.
+- deterministic evaluation snapshots over a checked-in diagnostic corpus;
+- isolated `eval::evaluate()` throughput over preconstructed Boards;
+- fixed-depth or movetime UCI search runs with comparable artifacts;
+- paired baseline-versus-candidate matches through Cute Chess.
 
-There is no isolated evaluation-throughput benchmark, versioned evaluation
-corpus, parameter-independent feature export, or reproducible engine-match
-runner with statistical reporting.
+Snapshots protect exact behavior, throughput measures evaluator speed, search
+runs expose downstream tree and speed effects, and matches provide strength
+evidence. None substitutes for another. Parameter-independent feature export
+and tuning datasets remain future work.
 
 ## Phase 1: Bounded Organizational Refactor
 
-### Completed — ORG-001 through ORG-004
+### Completed — ORG-001 through ORG-005
 
 The bounded organizational phase is complete:
 
@@ -129,8 +131,11 @@ The bounded organizational phase is complete:
   formatting without adding runtime trace overhead to search.
 - **ORG-003:** moved non-template mechanics out of the implementation header and
   divided tests by responsibility with a narrow access seam.
-- **ORG-004:** made Board's `eval::BaseScore` cache explicit and independently
-  verifiable across representation and history transitions.
+- **ORG-004:** made Board's evaluation base-term cache explicit and
+  independently verifiable across representation and history transitions.
+- **ORG-005:** established `evaluation.hpp` as the public boundary, kept the
+  stateful evaluator internal, and renamed the Board cache to
+  `eval::BaseTerms`.
 
 A final lifecycle cleanup made the stateful evaluator single-use, removed
 transient final-result fields, clarified trace-stage names, and narrowed the
@@ -139,146 +144,34 @@ diagnostic bytes, and deterministic depth-five depth, seldepth, nodes, scores,
 principal variations, and best moves across the six-position search suite.
 
 These findings are retained only as historical context. No further broad
-organizational work is planned before measurement infrastructure.
+organizational work is planned before tuning.
 
 ## Phase 2: Measurement and Baselines
 
-These findings add observability and tooling. They must not intentionally
-change playing behavior.
+### Completed — INFRA-001 through INFRA-003
 
-### INFRA-001 — Establish a versioned evaluation corpus and score snapshots
+The measurement phase is complete without changing engine behavior:
 
-**Motivation and evidence**
+- **INFRA-001:** added a checked-in 24-position diagnostic corpus and
+  deterministic long-form evaluation snapshots with explicit emit, verify,
+  and regenerate commands.
+- **INFRA-002:** added a single-threaded, fixed-work `eval::evaluate()`
+  throughput benchmark with warmup, repeated samples, deterministic checksums,
+  standard run artifacts, and compatible-run comparison.
+- **INFRA-003:** added reproducible paired Cute Chess matches against archived
+  baseline binaries, with a checksum-pinned external opening suite, smoke and
+  standard profiles, raw PGNs/logs, W/D/L, pentanomial counts, and
+  candidate-relative confidence reporting.
 
-Current positions are embedded across unit tests, and there is no common corpus
-for exact equivalence, trace inspection, profiling, or tuner validation.
+The commands and artifact contracts are documented in the
+[benchmark guide](../bench/README.md). Evaluation snapshots are diagnostic
+regression data, not training data or a strength metric. Timed throughput has
+no pass/fail threshold. Smoke matches validate orchestration only; strength
+claims require adequately sized standard matches whose reported interval
+excludes zero in the candidate's favor.
 
-**Intended outcome**
-
-- Add a small, versioned, ID-addressable evaluation corpus covering openings,
-  pawn structures, imbalances, mobility/pins, king safety, promotions, quiet
-  endgames, and mirrored/color-swapped pairs.
-- Add a deterministic tool or test mode that emits final scores and structured
-  traces for that corpus.
-- Capture a pre-tuning golden snapshot for behavior-preserving refactors and
-  performance work.
-- Treat golden changes during TUNE/MATH phases as reviewed artifacts, not
-  automatic test fixes.
-
-**Likely components**
-
-Test/benchmark data, structured trace support, a small corpus runner, and
-evaluation invariant tests.
-
-**Dependencies and ordering**
-
-The organizational phase and structured trace are complete. Finish this before
-any strength-changing work.
-
-**Tests and measurement**
-
-Validate unique IDs, legal FENs, deterministic order/output, full-evaluation
-color symmetry for paired positions, and trace-to-final consistency.
-
-**Risks**
-
-Using a small diagnostic corpus as training data, overrepresenting contrived
-positions, or freezing chess-policy mistakes as permanent correctness rules.
-
-**Completion criteria**
-
-One command reproduces the same corpus scores/traces; invariants are explicit;
-goldens are clearly labeled as baselines rather than eternal expected values.
-
-### INFRA-002 — Add isolated evaluation and downstream search benchmarks
-
-**Motivation and evidence**
-
-The existing C++ benchmark measures perft, while the Python harness measures
-whole-search NPS/nodes on six positions. Neither isolates evaluator throughput
-or counts evaluation calls.
-
-**Intended outcome**
-
-- Add a repeatable evaluation benchmark over the versioned corpus with warmup,
-  multiple samples, a checksum, and machine-readable results.
-- Record evaluations/second or nanoseconds/evaluation, distribution summaries,
-  compiler/build metadata, and corpus identity.
-- Extend optional search instrumentation with evaluation-call counts if needed
-  to interpret whole-search effects.
-- Continue using the existing fixed-depth UCI suite for node, score, PV,
-  bestmove, and NPS comparisons.
-- Integrate evaluation results with the existing run-manifest/comparison style
-  instead of creating an unrelated benchmark workflow.
-
-**Likely components**
-
-`bench/benchmark.cpp` or a focused evaluation benchmark binary, `bench.py` and
-`benchlib`, the corpus, and optional search instrumentation.
-
-**Dependencies and ordering**
-
-Requires INFRA-001. Establish the baseline before rough tuning and before
-performance optimization.
-
-**Tests and measurement**
-
-Verify deterministic checksums, schema validation, comparable manifests, and
-multiple-run stability. Do not use wall-clock results as unit-test thresholds.
-
-**Risks**
-
-Compiler elimination, measuring parsing/allocation rather than evaluation,
-overfitting optimizations to a tiny corpus, or interpreting NPS alone as search
-strength.
-
-**Completion criteria**
-
-Baseline and candidate runs can compare isolated evaluation throughput and the
-existing downstream search metrics reproducibly.
-
-### INFRA-003 — Establish a reproducible strength-match workflow
-
-**Motivation and evidence**
-
-The repository has no engine-match harness. Search benchmarks expose speed and
-tree-shape changes, but they cannot establish Elo improvement.
-
-**Intended outcome**
-
-- Define a reproducible baseline-versus-candidate workflow using a standard UCI
-  match runner, a versioned opening suite, fixed time control, threads, hash,
-  concurrency, adjudication, and seeds.
-- Preserve raw PGNs and report W/D/L plus pentanomial results when paired
-  openings are used.
-- Distinguish smoke matches from statistically meaningful validation; use
-  confidence intervals or SPRT for promotion decisions.
-- Record both engine revisions and dirty state.
-
-**Likely components**
-
-Benchmark scripts/configuration, documentation, ignored match artifacts, and
-possibly an external match-runner dependency. This need not modify engine code.
-
-**Dependencies and ordering**
-
-Can start after INFRA-001 and must be operational before accepting TUNE-002 or
-MATH results as strength improvements.
-
-**Tests and measurement**
-
-Dry-run configuration validation, paired-opening reproducibility, engine crash
-reporting, and correct statistical aggregation.
-
-**Risks**
-
-Claiming strength from too few games, biased openings, changing multiple match
-settings between runs, or testing on the same positions used for manual tuning.
-
-**Completion criteria**
-
-A documented command produces reproducible paired matches and an auditable
-statistical summary for baseline versus candidate.
+This completed infrastructure is now a prerequisite rather than an open work
+item for the tuning and performance findings below.
 
 ## Phase 3: Human-Guided Correction and Rough Tuning
 
@@ -679,25 +572,21 @@ Entry criteria for an NNUE roadmap are: stable evaluation ownership, structured
 tracing, corpus and throughput benchmarks, match infrastructure, a documented
 Board/evaluator state boundary, and completed rough/mathematical HCE tuning.
 
-## Recommended Execution Sequence
+## Remaining Execution Sequence
 
-1. **INFRA-001** — establish the evaluation corpus and golden trace snapshots.
-2. **INFRA-002** — add isolated evaluation and downstream search benchmarks.
-3. **INFRA-003** — establish reproducible engine matches.
-4. **TUNE-001** — audit and correct feature semantics.
-5. **TUNE-002** — perform staged human-guided rough tuning.
-6. **PERF-001** — profile and optimize the retained HCE with exact equivalence.
-7. **PERF-002** — add and measure a worker-local pawn evaluation hash.
-8. **MATH-001** — export raw features and build leakage-resistant datasets.
-9. **MATH-002** — tune linear parameters with held-out validation.
-10. **MATH-003** — tune nonlinear and search-coupled parameters separately.
-11. Create a separate NNUE roadmap only after the entry criteria are met.
+1. **TUNE-001** — audit and correct feature semantics.
+2. **TUNE-002** — perform staged human-guided rough tuning.
+3. **PERF-001** — profile and optimize the retained HCE with exact equivalence.
+4. **PERF-002** — add and measure a worker-local pawn evaluation hash.
+5. **MATH-001** — export raw features and build leakage-resistant datasets.
+6. **MATH-002** — tune linear parameters with held-out validation.
+7. **MATH-003** — tune nonlinear and search-coupled parameters separately.
+8. Create a separate NNUE roadmap only after the entry criteria are met.
 
 ### Change contract by phase
 
 | Findings | Evaluation values | Search behavior | Required evidence |
 |---|---|---|---|
-| INFRA-001 through INFRA-003 | No intentional change | No intentional change | Tool/schema tests and reproducibility |
 | TUNE-001 correctness fixes | Intentional only for confirmed defects | May change | Direct regression, corpus diff, search/match checks |
 | TUNE-002 | Intentionally changes | Intentionally may change | Trace rationale, corpus diff, fixed-depth suite, matches |
 | PERF-001 and PERF-002 | Exact preservation | Exact preservation at fixed depth | Score/trace checksum, profiler/cache metrics, throughput and search benchmark |
