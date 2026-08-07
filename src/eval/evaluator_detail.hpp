@@ -106,12 +106,12 @@ TaperedScore Evaluator::evaluate_pawns() {
         (pawns & ~bb::shift_west(pawn_files)) & (pawns & ~bb::shift_east(pawn_files));
     TaperedScore score = eval::iso_pawn * bb::count(iso_pawns);
 
-    // backwards pawns: pawns that can't advance safely
+    // backwards pawns: non-isolated pawns that can't advance safely
     const Bitboard stops       = attacks::pawn_shift<pawn_delta::push, C>(pawns);
     const Bitboard attack_span = bb::attack_span<C>(pawns);
     const Bitboard opp_attacks = attacks::pawn_attacks<Opp>(opp_pawns);
     const Bitboard backwards_pawns =
-        attacks::pawn_shift<pawn_delta::push, Opp>(stops & opp_attacks & ~attack_span);
+        attacks::pawn_shift<pawn_delta::push, Opp>(stops & opp_attacks & ~attack_span) & ~iso_pawns;
     score += eval::backward_pawn * bb::count(backwards_pawns);
 
     // doubled pawns: unsupported pawn with friendly pawns behind

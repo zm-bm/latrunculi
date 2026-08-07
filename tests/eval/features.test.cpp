@@ -188,6 +188,8 @@ TEST_F(EvaluationFeaturesTest, EvaluatePawns) {
     auto doubled2    = "4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 8";
     auto iso_doubled = "k7/8/8/8/8/P7/P7/K7 w KQkq - 0 9";
 
+    auto iso_backward = "4k3/8/3p4/8/2P5/8/8/4K3 w - - 0 1";
+
     std::vector<std::tuple<std::string, eval::TaperedScore, eval::TaperedScore>> test_cases = {
         // sanity check
         {board_test::fen::kings_only, eval::TaperedScore::Zero, eval::TaperedScore::Zero},
@@ -200,6 +202,8 @@ TEST_F(EvaluationFeaturesTest, EvaluatePawns) {
         {backward1, eval::backward_pawn, eval::backward_pawn},
         {backward2, eval::backward_pawn, eval::TaperedScore::Zero},
         {backward3, eval::TaperedScore::Zero, eval::backward_pawn},
+        // isolated pawns are not also backwards
+        {iso_backward, eval::iso_pawn, eval::iso_pawn},
         // doubled pawns
         {doubled1, eval::doubled_pawn, eval::TaperedScore::Zero},
         {doubled2, eval::TaperedScore::Zero, eval::doubled_pawn},
