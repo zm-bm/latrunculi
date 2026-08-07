@@ -686,9 +686,9 @@ the goal starts:
 | 3 | MAT-002b | Review phase endpoints | Intentional evaluation change | A | Complete — retained |
 | 4 | MAT-002c | Review endgame scaling | Intentional evaluation change | A | Complete — retained |
 | 5 | MAT-002d | Review tempo | Intentional evaluation change | A | Complete — no change |
-| 6 | PSQT-001 | Rough PSQT calibration | Intentional evaluation change | B | Complete — no change |
-| 7 | PAWN-004 | Rough pawn-parameter calibration | Intentional evaluation change | B | Complete — no change |
-| 8 | MOB-001 | Settle mobility-area and outpost semantics | Possible semantic change | B | Complete — retained |
+| 6 | PSQT-001 | Rough PSQT calibration | Intentional evaluation change | B | Pending |
+| 7 | PAWN-004 | Rough pawn-parameter calibration | Intentional evaluation change | B | Pending |
+| 8 | MOB-001 | Settle mobility-area and outpost semantics | Possible semantic change | B | Pending |
 | 9 | PIECE-003 | Rough piece-feature calibration | Intentional evaluation change | B | Pending |
 | 10 | MOB-002 | Rough mobility-curve calibration | Intentional evaluation change | B | Pending |
 | 11 | THREAT-002 | Consider one bounded threat refinement | Possible semantic change | C | Pending |
@@ -930,97 +930,6 @@ pentanomial counts `[3, 13, 30, 36, 18]` and Cute Chess reporting
 checkpoint as a group, not attribution to any one parameter. The final
 aggregate standard match remains required after all tuning and performance
 work.
-
-#### PSQT-001 — Rough PSQT calibration
-
-Status: complete — no change
-
-Hypothesis:
-The inherited piece-square tables might contain clear local outliers suitable
-for conservative manual correction before mathematical tuning.
-
-Allowed scope:
-Small, explainable relationships within one piece/phase table. Do not broadly
-smooth, symmetrize, replace, or jointly rescale the tables.
-
-Required evidence:
-Review history, effective material-plus-square values, opening diagnostics,
-color symmetry, and reference tables; retain only a correction supported
-without fitting hundreds of correlated cells by eye.
-
-Outcome:
-No change. The tables were introduced and rescaled together with material, are
-color-symmetric, and contain no isolated value that is demonstrably erroneous
-independent of the surrounding search and evaluation. Hand-editing this
-768-value correlated system from a six-position search sample would be
-overfitting. PSQTs remain a primary target for held-out mathematical tuning.
-
-Commit:
-None; the reviewed tables were retained.
-
-#### PAWN-004 — Rough pawn-parameter calibration
-
-Status: complete — no change
-
-Hypothesis:
-The isolated, backward, doubled, and newly added passed-pawn weights might have
-an implausible relationship suitable for a bounded manual adjustment.
-
-Allowed scope:
-Only those pawn weights; taxonomy and passer detection remain fixed.
-
-Required evidence:
-Compare activation traces and reference-engine magnitudes, preserve monotonic
-passer growth, and change only a clear outlier.
-
-Outcome:
-No change. The structural penalties are small in MG, larger in EG, and fall
-within the broad range of established HCEs; the passer curve is conservative,
-monotonic, and already survived checkpoint A. More precise relationships are
-correlated with PSQTs and belong to mathematical tuning rather than another
-manual guess.
-
-Commit:
-None; the reviewed parameters were retained.
-
-#### MOB-001 — Mobility-area and outpost semantics
-
-Status: complete — retained
-
-Hypothesis:
-Mobility should exclude own pawns that are actually blocked rather than every
-own pawn on its home rank. This measures useful latent activity consistently
-after pawns leave home and follows the established Ethereal/Stockfish-style
-mobility-area model. The existing supported-only outpost definition remains a
-coherent simpler policy.
-
-Allowed scope:
-The mobility-area pawn mask, its existing test, and reviewed evaluation
-snapshots. Do not change mobility curves, attack maps, pin handling, or outpost
-bonuses/eligibility in the same experiment.
-
-Required evidence:
-Protect initial, empty, and mutually blocked pawn positions for both colors;
-retain all mobility/pin/outpost tests; review corpus, throughput, search, and
-checkpoint evidence.
-
-Outcome:
-Retained. Mobility now excludes actually blocked friendly pawns rather than all
-home-rank pawns. Initial, empty, and mutually blocked positions protect both
-colors; the existing mobility, outpost, pin-ray, and full symmetry tests pass.
-Supported-only outposts remain unchanged as the simpler local policy.
-
-The reviewed snapshot changes are confined to Mobility and downstream summary
-rows. Opening `e4` drops from +86 to +32 because both sides receive latent
-mobility behind pawns that can advance, while genuinely blocked pawn squares
-remain excluded. The median isolated run improved from 264.661 to 252.911
-ns/evaluation, although that arithmetic-neutral result is treated as favorable
-noise rather than a claimed optimization. All six depth-five best moves remain
-unchanged; startpos nodes fall 29.3% and the other node changes are bounded.
-Focused and full release tests pass.
-
-Commit:
-`feat(eval): count latent mobility behind movable pawns` (this task's commit).
 
 Before changing code, independently revalidate the task against the current
 source. Work on one coherent hypothesis at a time and create one focused commit

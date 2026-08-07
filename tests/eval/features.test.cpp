@@ -135,15 +135,12 @@ TEST_F(EvaluationFeaturesTest, OutpostZone) {
 }
 
 TEST_F(EvaluationFeaturesTest, MobilityZone) {
-    Bitboard white = bb::rank(RANK6) | bb::set(E1);
-    Bitboard black = bb::rank(RANK3) | bb::set(E8);
+    Bitboard white = bb::rank(RANK2) | bb::rank(RANK6) | bb::set(E1);
+    Bitboard black = bb::rank(RANK7) | bb::rank(RANK3) | bb::set(E8);
 
     std::vector<std::tuple<std::string, Bitboard, Bitboard>> test_cases = {
         {board_test::fen::start, ~white, ~black},
         {board_test::fen::kings_only, ~bb::set(E1), ~bb::set(E8)},
-        {"4k3/8/8/3p4/3P4/8/8/4K3 w - - 0 1",
-         ~(bb::set(C4, D4, E4, E1)),
-         ~(bb::set(C5, D5, E5, E8))},
     };
 
     for (const auto& [fen, w_expected, b_expected] : test_cases) {
@@ -160,10 +157,10 @@ TEST_F(EvaluationFeaturesTest, MobilityScore) {
         {"3rk3/8/8/8/8/8/8/3RK3 w - - 0 3", eval::rook_mob[10]},
         {"3qk3/8/8/8/8/8/8/3QK3 w - - 0 4", eval::queen_mob[17]},
         // with mobility area restriction
-        {"3nk3/1p6/8/3P4/3p4/8/1P6/3NK3 w - - 0 5", eval::knight_mob[2]},
-        {"3bk3/4p3/8/1p6/1P6/8/4P3/3BK3 w - - 0 6", eval::bishop_mob[3]},
-        {"3rk3/P2p4/8/8/8/8/p2P4/3RK3 w - - 0 7", eval::rook_mob[3]},
-        {"3qk3/P2pp3/8/1p6/1P6/8/p2PP3/3QK3 w - - 0 8", eval::queen_mob[6]},
+        {"3nk3/1p6/8/3P4/3p4/8/1P6/3NK3 w - - 0 5", eval::knight_mob[1]},
+        {"3bk3/4p3/8/1p6/1P6/8/4P3/3BK3 w - - 0 6", eval::bishop_mob[2]},
+        {"3rk3/P2p4/8/8/8/8/p2P4/3RK3 w - - 0 7", eval::rook_mob[2]},
+        {"3qk3/P2pp3/8/1p6/1P6/8/p2PP3/3QK3 w - - 0 8", eval::queen_mob[4]},
 
     };
 
