@@ -178,53 +178,19 @@ item for the tuning and performance findings below.
 These findings intentionally may change evaluations and searched trees. They
 must not be bundled with organizational refactors.
 
-### TUNE-001 — Audit feature semantics before changing weights
+### Completed — TUNE-001 feature-semantics audit
 
-**Motivation and evidence**
+The feature-semantics audit is complete. It corrected queen discovery
+detection, strengthened structured color-symmetry and castling-shelter
+coverage, and separated isolated from backward pawn penalties. It also
+recorded deliberate policies for material authority, bishop-pair activation,
+geometric threat counts, and horizontally asymmetric PSQTs.
 
-The evaluator contains interacting, order-dependent feature mechanics:
-isolated/backward/doubled pawns, mobility zones, pinned movement, weak pieces,
-outposts, bishop blockers, rook files, queen discoveries, shelter/storm,
-attacker accumulation, nonlinear king danger, phase, and endgame scaling.
-Changing weights before validating feature activation risks tuning around a
-bug.
-
-**Intended outcome**
-
-- Review each feature definition using traceable paired positions that change
-  one concept at a time.
-- Add full-evaluation mirror/color invariants and monotonic relationships where
-  chess meaning permits them.
-- Separate confirmed semantic defects into focused correctness commits with
-  direct regression positions.
-- Revisit the opening-shape concern recorded in `docs/search-stability.md`
-  without using evaluation changes to hide TT/LMR instability.
-
-**Likely components**
-
-Evaluator mechanics, feature-focused corpus positions, trace tests, and search
-stability measurements.
-
-**Dependencies and ordering**
-
-Requires INFRA-001/002. Correctness changes should precede parameter tuning and
-receive independent match/search evaluation.
-
-**Tests and measurement**
-
-Feature activation/deactivation pairs, symmetry, trace consistency, corpus
-diffs, fixed-depth search comparisons, and smoke matches.
-
-**Risks**
-
-Calling a subjective preference a correctness bug, changing several features
-at once, or accepting a better-looking trace that weakens play.
-
-**Completion criteria**
-
-Every active feature has documented semantics and representative positions;
-confirmed defects are fixed separately; remaining behavior is an intentional
-baseline for rough tuning.
+No confirmed correctness defect or essential invariant-test gap remains open.
+The retained feature definitions, supporting evidence, completed commits, and
+remaining tuning candidates are documented in
+[`eval-feature-audit.md`](eval-feature-audit.md). That document now serves as
+the active workspace for TUNE-002 and the subsequent performance pass.
 
 ### TUNE-002 — Perform a staged human-guided parameter pass
 
@@ -240,20 +206,22 @@ confounder.
 
 - Tune coherent parameter groups separately rather than changing the entire
   table at once.
-- Recommended order: score scale/material and tempo; phase/endgame scaling;
-  PSQTs; pawn/minor/rook/queen features; mobility/threats; king safety last.
 - Use structured traces and representative positions to justify broad changes.
-- Preserve an explicit baseline for each group and require fixed-depth search
-  plus match evidence before retaining it.
+- Preserve an explicit baseline for each group and require reviewed snapshot
+  changes plus fixed-depth search evidence before retaining it.
 - Recalibrate or at least audit SEE, noisy ordering, null-move material guards,
   aspiration, razoring, and futility assumptions whenever the score scale or
   material values change.
+- Produce an explainable rough baseline for later mathematical tuning, not a
+  claim of proven strength from hand-selected positions or short matches.
 
 **Likely components**
 
 Evaluation parameters and possibly search thresholds whose units depend on the
 evaluation scale. Each parameter group should normally be its own focused
-change.
+change. The ordered task ledger and experiment results live in
+[`eval-feature-audit.md`](eval-feature-audit.md), avoiding a second detailed
+execution plan here.
 
 **Dependencies and ordering**
 
@@ -264,8 +232,11 @@ set.
 **Tests and measurement**
 
 Reviewed corpus deltas, unchanged structural invariants, isolated evaluation
-benchmark, fixed-depth search suite, and paired engine matches. Exact tunable
-goldens may change only with an intentional reviewed snapshot update.
+benchmark where relevant, and the fixed-depth search suite. Exact tunable
+goldens may change only with an intentional reviewed snapshot update. The
+checkpoint and final aggregate match cadence is defined by the active
+[`eval-feature-audit.md`](eval-feature-audit.md) workspace; large repeated
+match-driven parameter optimization remains deferred to mathematical tuning.
 
 **Risks**
 
@@ -275,8 +246,9 @@ calibration, or attributing noisy short-match results to a parameter change.
 **Completion criteria**
 
 The retained rough parameter set is explainable, has no known semantic defects,
-preserves invariants, and performs at least neutrally in adequately sized
-baseline matches while improving targeted evaluation behavior.
+preserves invariants, and improves the targeted evaluation relationships
+without an unexplained search or performance regression. No playing-strength
+claim is made without adequately sized match evidence.
 
 ## Phase 4: Profile-Guided Performance Optimization
 
@@ -328,6 +300,11 @@ making mathematical feature extraction harder.
 Each retained optimization has profiler evidence, exact evaluation equivalence,
 and a repeatable throughput/search improvement without reducing maintainability
 disproportionately.
+
+Concrete profiles, selected hotspots, and retained optimizations are tracked
+in [`eval-feature-audit.md`](eval-feature-audit.md). Profiling may split this
+finding into independently measurable work items; the roadmap does not
+preselect them from source inspection alone.
 
 ### PERF-002 — Add a worker-local pawn evaluation hash
 
@@ -405,6 +382,9 @@ the table has explicit ownership and collision/lifetime policies; tests cover
 the full cached result rather than only its score; memory and hit-rate data are
 recorded; and the retained implementation produces a repeatable evaluation or
 search-performance improvement without changing chess behavior.
+
+Design decisions, measurements, and implementation status are tracked in the
+active [`eval-feature-audit.md`](eval-feature-audit.md) workspace.
 
 ## Phase 5: Mathematical Tuning
 
@@ -574,21 +554,23 @@ Board/evaluator state boundary, and completed rough/mathematical HCE tuning.
 
 ## Remaining Execution Sequence
 
-1. **TUNE-001** — audit and correct feature semantics.
-2. **TUNE-002** — perform staged human-guided rough tuning.
-3. **PERF-001** — profile and optimize the retained HCE with exact equivalence.
-4. **PERF-002** — add and measure a worker-local pawn evaluation hash.
-5. **MATH-001** — export raw features and build leakage-resistant datasets.
-6. **MATH-002** — tune linear parameters with held-out validation.
-7. **MATH-003** — tune nonlinear and search-coupled parameters separately.
-8. Create a separate NNUE roadmap only after the entry criteria are met.
+1. **TUNE-001** — completed feature-semantics audit and correctness follow-up.
+2. **TUNE-002** — active staged human-guided rough tuning.
+3. **SCALE-002** — recalibrate downstream search assumptions after retained
+   score-scale changes.
+4. **PERF-001** — profile and optimize the retained HCE with exact equivalence.
+5. **PERF-002** — add and measure a worker-local pawn evaluation hash.
+6. **MATH-001** — deferred raw-feature export and dataset construction.
+7. **MATH-002** — deferred linear tuning with held-out validation.
+8. **MATH-003** — deferred nonlinear and search-coupled tuning.
+9. Create a separate NNUE roadmap only after the entry criteria are met.
 
 ### Change contract by phase
 
 | Findings | Evaluation values | Search behavior | Required evidence |
 |---|---|---|---|
 | TUNE-001 correctness fixes | Intentional only for confirmed defects | May change | Direct regression, corpus diff, search/match checks |
-| TUNE-002 | Intentionally changes | Intentionally may change | Trace rationale, corpus diff, fixed-depth suite, matches |
+| TUNE-002 | Intentionally changes | Intentionally may change | Trace rationale, corpus diff, fixed-depth suite; matches for strength claims |
 | PERF-001 and PERF-002 | Exact preservation | Exact preservation at fixed depth | Score/trace checksum, profiler/cache metrics, throughput and search benchmark |
 | MATH-001 | No normal-path change | No normal-path change | Feature reconstruction and dataset validation |
 | MATH-002 and MATH-003 | Intentionally changes | Intentionally may change | Held-out metrics, coefficient sanity, statistical matches |
