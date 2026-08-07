@@ -36,17 +36,18 @@ inline Bitboard Evaluator::outposts_zone(const Bitboard pawns, const Bitboard op
     return (behind_pawns & supported & outpost_mask);
 }
 
-/// mobility mask: safe from enemy pawns, not occupied by the king or rank 2 pawns
+/// mobility mask: safe from enemy pawns, not occupied by the king or blocked pawns
 template <Color C>
 inline Bitboard Evaluator::mobility_zone(const Bitboard pawns,
                                          const Bitboard opp_pawns,
                                          const Square   king_sq) const {
     constexpr Color Opp = ~C;
 
-    constexpr auto home_pawn_rank = bb::relative_rank<C>(RANK2);
-    const Bitboard occupied       = bb::set(king_sq) | (pawns & home_pawn_rank);
-    const Bitboard safe           = ~attacks::pawn_attacks<Opp>(opp_pawns);
-    return (safe & ~occupied);
+    const Bitboard blocked_pawns =
+        pawns & attacks::pawn_shift<pawn_delta::push, Opp>(board.occupancy());
+    const Bitboard excluded = bb::set(king_sq) | blocked_pawns;
+    const Bitboard safe     = ~attacks::pawn_attacks<Opp>(opp_pawns);
+    return (safe & ~excluded);
 }
 
 /// king zone: 3x3 king neighborhood for king safety evaluation
