@@ -19,14 +19,15 @@ enum class Phase : std::uint8_t {
 constexpr int tempo_bonus = 20;
 constexpr int scale_limit = 64;
 constexpr int phase_limit = 128;
-constexpr int material_mg = 10000;
-constexpr int material_eg = 2500;
 
 constexpr TaperedScore pawn   = {100, 166};
 constexpr TaperedScore knight = {630, 680};
 constexpr TaperedScore bishop = {660, 740};
 constexpr TaperedScore rook   = {1000, 1100};
 constexpr TaperedScore queen  = {2000, 2150};
+
+constexpr int material_mg = 4 * knight.mg + 4 * bishop.mg + 4 * rook.mg + 2 * queen.mg;
+constexpr int material_eg = 0;
 
 namespace masks {
 

@@ -682,8 +682,8 @@ the goal starts:
 | Order | ID | Work item | Contract | Checkpoint | Status |
 |---:|---|---|---|---|---|
 | 1 | PAWN-003 | Add bounded passed-pawn semantics | Intentional evaluation change | A | In progress |
-| 2 | MAT-002a | Tune material ratios around MG pawn = 100 | Intentional evaluation/search change | A | Pending |
-| 3 | MAT-002b | Review phase endpoints | Intentional evaluation change | A | Pending |
+| 2 | MAT-002a | Tune material ratios around MG pawn = 100 | Intentional evaluation/search change | A | Complete — no change |
+| 3 | MAT-002b | Review phase endpoints | Intentional evaluation change | A | Complete — retained |
 | 4 | MAT-002c | Review endgame scaling | Intentional evaluation change | A | Pending |
 | 5 | MAT-002d | Review tempo | Intentional evaluation change | A | Pending |
 | 6 | PSQT-001 | Rough PSQT calibration | Intentional evaluation change | B | Pending |
@@ -779,6 +779,76 @@ whether the feature remains retained.
 
 Commit:
 `feat(eval): add passed-pawn evaluation` (this task's commit).
+
+#### MAT-002a — Material ratios
+
+Status: complete — no change
+
+Hypothesis:
+The unusually large non-pawn ratios might be arbitrary outliers that should be
+replaced with conventional values around the fixed 100-centipawn MG pawn.
+
+Allowed scope:
+The five authoritative MG/EG material pairs and the existing exact-value tests.
+Phase endpoints, PSQTs, positional features, and search thresholds remain
+separate tasks.
+
+Required evidence:
+Trace the values through Board caches, phase, SEE, noisy ordering, and null-move
+eligibility; compare their provenance and their relationship to the PSQTs with
+the reference engines; retain a change only with a coherent local rationale.
+
+Outcome:
+No change. History shows that the complete material and PSQT set was introduced
+together from an established tapered-evaluation model and later rescaled as a
+unit while preserving its ratios. The current table is therefore not safely
+replaceable with standalone textbook values: doing so would simultaneously
+alter effective piece-plus-square values, phase, SEE, capture ordering, and
+null-move eligibility. Stockfish, Minic, and Ethereal also demonstrate that
+their material ratios depend strongly on their surrounding evaluation and
+search architecture. The MG pawn remains exactly 100; later mathematical
+tuning can fit the coupled material/PSQT system from data.
+
+Commit:
+None; the reviewed values were retained.
+
+#### MAT-002b — Phase endpoints
+
+Status: complete — retained
+
+Hypothesis:
+Mapping zero non-pawn material to pure endgame and the exact initial non-pawn
+material to pure middlegame gives the current material-weighted phase formula
+meaningful endpoints. The existing `[2500, 10000]` clamps classify positions
+with substantial material as pure endgames and remain at pure middlegame after
+some opening exchanges.
+
+Allowed scope:
+The two phase material endpoints and the existing phase test. Do not change
+material values, interpolation arithmetic, scaling, tempo, or feature weights.
+
+Required evidence:
+Protect kings-only, initial, mixed-material, and rook-only phase behavior;
+review the deterministic snapshot and fixed-depth search changes; require full
+tests and color symmetry before retention.
+
+Outcome:
+Retained. The endpoints are now zero non-pawn material and the exact initial
+non-pawn material derived from the authoritative MG piece values. This keeps
+the existing material-weighted interpolation while removing both arbitrary
+clamps. Kings-only remains pure EG, the initial position remains pure MG, and
+a two-rook ending now retains phase 19 rather than being forced to pure EG.
+
+Focused and full release tests pass, and the deterministic baseline was
+reviewed and regenerated. The isolated median remains 266 ns/evaluation. The
+depth-five suite shows the expected broad score/tree sensitivity; startpos is
+unchanged, while `arasan20-30` changes most strongly. This is accepted as the
+deliberate consequence of allowing remaining material to determine phase
+rather than saturating at the old thresholds, subject to checkpoint A's paired
+match.
+
+Commit:
+`feat(eval): use full material range for game phase` (this task's commit).
 
 Before changing code, independently revalidate the task against the current
 source. Work on one coherent hypothesis at a time and create one focused commit

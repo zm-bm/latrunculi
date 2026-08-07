@@ -486,7 +486,7 @@ TEST_F(EvaluationFeaturesTest, Phase) {
         {board_test::fen::start, eval::phase_limit, 0},
         {board_test::fen::kings_only, 0, 0},
         {"krrnBRRK/8/8/8/8/8/8/8 w - - 0 1", 50, 10},
-        {"kr4RK/8/8/8/8/8/8/8 w - - 0 1", 0, 0},
+        {"kr4RK/8/8/8/8/8/8/8 w - - 0 1", 19, 0},
     };
 
     for (const auto& [fen, expected, tolerance] : test_cases) {

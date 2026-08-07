@@ -43,7 +43,7 @@ evaluation_snapshot_v1	1	middlegame-perft-6				queens	1	-50	-25	-50	-25	0	0					
 evaluation_snapshot_v1	1	middlegame-perft-6				king	1	165	-28	165	-28	0	0									term
 evaluation_snapshot_v1	1	middlegame-perft-6				mobility	1	130	254	130	254	0	0									term
 evaluation_snapshot_v1	1	middlegame-perft-6				threats	1	0	0	0	0	0	0									term
-evaluation_snapshot_v1	1	middlegame-arasan-01	middlegame	r1bq1r1k/p1pnbpp1/1p2p3/6p1/3PB3/5N2/PPPQ1PPP/2KR3R w - - 0 1	w									-564	-547	-564	-547	-564	-564	-544	-544	summary
+evaluation_snapshot_v1	1	middlegame-arasan-01	middlegame	r1bq1r1k/p1pnbpp1/1p2p3/6p1/3PB3/5N2/PPPQ1PPP/2KR3R w - - 0 1	w									-564	-547	-564	-547	-561	-561	-541	-541	summary
 evaluation_snapshot_v1	1	middlegame-arasan-01				material	0	-660	-740	0	0	-660	-740									term
 evaluation_snapshot_v1	1	middlegame-arasan-01				squares	0	96	107	0	0	96	107									term
 evaluation_snapshot_v1	1	middlegame-arasan-01				pawns	1	0	0	-10	-50	10	50									term
@@ -87,7 +87,7 @@ evaluation_snapshot_v1	1	pawns-doubled				queens	1	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	pawns-doubled				king	1	40	-25	-45	-10	85	-15									term
 evaluation_snapshot_v1	1	pawns-doubled				mobility	1	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	pawns-doubled				threats	1	0	0	0	0	0	0									term
-evaluation_snapshot_v1	1	imbalance-bishop-pair	imbalance	5bk1/8/8/8/8/8/8/4BBK1 w - - 0 1	w									731	846	731	475	475	475	495	495	summary
+evaluation_snapshot_v1	1	imbalance-bishop-pair	imbalance	5bk1/8/8/8/8/8/8/4BBK1 w - - 0 1	w									731	846	731	475	513	513	533	533	summary
 evaluation_snapshot_v1	1	imbalance-bishop-pair				material	0	660	740	0	0	660	740									term
 evaluation_snapshot_v1	1	imbalance-bishop-pair				squares	0	-19	-10	0	0	-19	-10									term
 evaluation_snapshot_v1	1	imbalance-bishop-pair				pawns	1	0	0	0	0	0	0									term
@@ -98,7 +98,7 @@ evaluation_snapshot_v1	1	imbalance-bishop-pair				queens	1	0	0	0	0	0	0									t
 evaluation_snapshot_v1	1	imbalance-bishop-pair				king	1	-123	-25	-123	-25	0	0									term
 evaluation_snapshot_v1	1	imbalance-bishop-pair				mobility	1	80	72	40	36	40	36									term
 evaluation_snapshot_v1	1	imbalance-bishop-pair				threats	1	0	0	0	0	0	0									term
-evaluation_snapshot_v1	1	imbalance-exchange	imbalance	4k3/8/8/8/8/8/3R4/2b1K3 w - - 0 1	w									602	581	602	326	326	326	346	346	summary
+evaluation_snapshot_v1	1	imbalance-exchange	imbalance	4k3/8/8/8/8/8/3R4/2b1K3 w - - 0 1	w									602	581	602	326	360	360	380	380	summary
 evaluation_snapshot_v1	1	imbalance-exchange				material	0	340	360	0	0	340	360									term
 evaluation_snapshot_v1	1	imbalance-exchange				squares	0	16	28	0	0	16	28									term
 evaluation_snapshot_v1	1	imbalance-exchange				pawns	1	0	0	0	0	0	0									term
@@ -109,7 +109,7 @@ evaluation_snapshot_v1	1	imbalance-exchange				queens	1	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	imbalance-exchange				king	1	-138	-11	-316	-72	178	61									term
 evaluation_snapshot_v1	1	imbalance-exchange				mobility	1	44	120	16	8	28	112									term
 evaluation_snapshot_v1	1	imbalance-exchange				threats	1	0	0	0	0	0	0									term
-evaluation_snapshot_v1	1	activity-knight-outpost	activity	6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1	w									118	-1	118	0	0	0	20	20	summary
+evaluation_snapshot_v1	1	activity-knight-outpost	activity	6k1/8/2p5/4pNp1/3nP1P1/2P5/8/6K1 w - - 0 1	w									118	-1	118	0	11	11	31	31	summary
 evaluation_snapshot_v1	1	activity-knight-outpost				material	0	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	activity-knight-outpost				squares	0	7	-47	0	0	7	-47									term
 evaluation_snapshot_v1	1	activity-knight-outpost				pawns	1	-15	-45	-15	-45	0	0									term
@@ -120,7 +120,7 @@ evaluation_snapshot_v1	1	activity-knight-outpost				queens	1	0	0	0	0	0	0								
 evaluation_snapshot_v1	1	activity-knight-outpost				king	1	-190	-92	-235	-102	45	10									term
 evaluation_snapshot_v1	1	activity-knight-outpost				mobility	1	12	12	16	16	-4	-4									term
 evaluation_snapshot_v1	1	activity-knight-outpost				threats	1	0	0	-20	-10	20	10									term
-evaluation_snapshot_v1	1	activity-pinned-rook	activity	k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1	w									-22	72	-22	40	40	40	60	60	summary
+evaluation_snapshot_v1	1	activity-pinned-rook	activity	k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1	w									-22	72	-22	40	30	30	50	50	summary
 evaluation_snapshot_v1	1	activity-pinned-rook				material	0	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	activity-pinned-rook				squares	0	-50	65	0	0	-50	65									term
 evaluation_snapshot_v1	1	activity-pinned-rook				pawns	1	0	0	0	0	0	0									term
@@ -153,7 +153,7 @@ evaluation_snapshot_v1	1	king-shelter				queens	1	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	king-shelter				king	1	-40	-10	-40	-10	0	0									term
 evaluation_snapshot_v1	1	king-shelter				mobility	1	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	king-shelter				threats	1	0	0	0	0	0	0									term
-evaluation_snapshot_v1	1	king-pressure	king-safety	r1n1kn1r/8/8/8/8/8/8/R2QKB2 w - - 0 1	w									786	582	786	327	595	595	615	615	summary
+evaluation_snapshot_v1	1	king-pressure	king-safety	r1n1kn1r/8/8/8/8/8/8/R2QKB2 w - - 0 1	w									786	582	786	327	567	567	587	587	summary
 evaluation_snapshot_v1	1	king-pressure				material	0	400	430	0	0	400	430									term
 evaluation_snapshot_v1	1	king-pressure				squares	0	142	36	0	0	142	36									term
 evaluation_snapshot_v1	1	king-pressure				pawns	1	0	0	0	0	0	0									term
@@ -175,7 +175,7 @@ evaluation_snapshot_v1	1	promotion-race				queens	1	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	promotion-race				king	1	-130	5	-130	5	0	0									term
 evaluation_snapshot_v1	1	promotion-race				mobility	1	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	promotion-race				threats	1	0	0	0	0	0	0									term
-evaluation_snapshot_v1	1	endgame-arasan-16	endgame	8/3r4/pr1Pk1p1/8/7P/6P1/3R3K/5R2 w - - 0 1	w									677	287	677	228	315	315	335	335	summary
+evaluation_snapshot_v1	1	endgame-arasan-16	endgame	8/3r4/pr1Pk1p1/8/7P/6P1/3R3K/5R2 w - - 0 1	w									677	287	677	228	361	361	381	381	summary
 evaluation_snapshot_v1	1	endgame-arasan-16				material	0	100	166	0	0	100	166									term
 evaluation_snapshot_v1	1	endgame-arasan-16				squares	0	171	-78	0	0	171	-78									term
 evaluation_snapshot_v1	1	endgame-arasan-16				pawns	1	35	65	-5	-20	40	85									term
@@ -186,7 +186,7 @@ evaluation_snapshot_v1	1	endgame-arasan-16				queens	1	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	endgame-arasan-16				king	1	-5	5	-377	-84	372	89									term
 evaluation_snapshot_v1	1	endgame-arasan-16				mobility	1	72	216	48	176	24	40									term
 evaluation_snapshot_v1	1	endgame-arasan-16				threats	1	0	0	0	0	0	0									term
-evaluation_snapshot_v1	1	endgame-arasan-21	endgame	8/5pk1/p4npp/1pPN4/1P2p3/1P4PP/5P2/5K2 w - - 0 1	w									-19	17	-19	17	17	17	37	37	summary
+evaluation_snapshot_v1	1	endgame-arasan-21	endgame	8/5pk1/p4npp/1pPN4/1P2p3/1P4PP/5P2/5K2 w - - 0 1	w									-19	17	-19	17	13	13	33	33	summary
 evaluation_snapshot_v1	1	endgame-arasan-21				material	0	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	endgame-arasan-21				squares	0	-4	39	0	0	-4	39									term
 evaluation_snapshot_v1	1	endgame-arasan-21				pawns	1	-10	-60	-10	-25	0	-35									term
@@ -219,7 +219,7 @@ evaluation_snapshot_v1	1	middlegame-perft-6-turn				queens	1	-50	-25	-50	-25	0	0
 evaluation_snapshot_v1	1	middlegame-perft-6-turn				king	1	165	-28	165	-28	0	0									term
 evaluation_snapshot_v1	1	middlegame-perft-6-turn				mobility	1	130	254	130	254	0	0									term
 evaluation_snapshot_v1	1	middlegame-perft-6-turn				threats	1	0	0	0	0	0	0									term
-evaluation_snapshot_v1	1	activity-pinned-rook-mirror	activity	3r3k/8/8/8/8/8/3R4/3K4 w - - 0 1	w									-22	72	-22	40	40	40	60	60	summary
+evaluation_snapshot_v1	1	activity-pinned-rook-mirror	activity	3r3k/8/8/8/8/8/3R4/3K4 w - - 0 1	w									-22	72	-22	40	30	30	50	50	summary
 evaluation_snapshot_v1	1	activity-pinned-rook-mirror				material	0	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	activity-pinned-rook-mirror				squares	0	-50	65	0	0	-50	65									term
 evaluation_snapshot_v1	1	activity-pinned-rook-mirror				pawns	1	0	0	0	0	0	0									term
@@ -241,7 +241,7 @@ evaluation_snapshot_v1	1	king-shelter-mirror				queens	1	0	0	0	0	0	0									ter
 evaluation_snapshot_v1	1	king-shelter-mirror				king	1	-40	-10	-40	-10	0	0									term
 evaluation_snapshot_v1	1	king-shelter-mirror				mobility	1	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	king-shelter-mirror				threats	1	0	0	0	0	0	0									term
-evaluation_snapshot_v1	1	activity-knight-outpost-color	activity	1k6/8/5p2/1p1pN3/1PnP4/5P2/8/1K6 b - - 0 1	b									-118	1	-118	0	0	0	20	-20	summary
+evaluation_snapshot_v1	1	activity-knight-outpost-color	activity	1k6/8/5p2/1p1pN3/1PnP4/5P2/8/1K6 b - - 0 1	b									-118	1	-118	0	-11	11	31	-31	summary
 evaluation_snapshot_v1	1	activity-knight-outpost-color				material	0	0	0	0	0	0	0									term
 evaluation_snapshot_v1	1	activity-knight-outpost-color				squares	0	-7	47	0	0	-7	47									term
 evaluation_snapshot_v1	1	activity-knight-outpost-color				pawns	1	-15	-45	-15	-45	0	0									term
@@ -252,7 +252,7 @@ evaluation_snapshot_v1	1	activity-knight-outpost-color				queens	1	0	0	0	0	0	0		
 evaluation_snapshot_v1	1	activity-knight-outpost-color				king	1	-235	-102	-190	-92	-45	-10									term
 evaluation_snapshot_v1	1	activity-knight-outpost-color				mobility	1	16	16	12	12	4	4									term
 evaluation_snapshot_v1	1	activity-knight-outpost-color				threats	1	-20	-10	0	0	-20	-10									term
-evaluation_snapshot_v1	1	imbalance-exchange-color	imbalance	3k1B2/4r3/8/8/8/8/8/3K4 b - - 0 1	b									-602	-581	-602	-326	-326	326	346	-346	summary
+evaluation_snapshot_v1	1	imbalance-exchange-color	imbalance	3k1B2/4r3/8/8/8/8/8/3K4 b - - 0 1	b									-602	-581	-602	-326	-360	360	380	-380	summary
 evaluation_snapshot_v1	1	imbalance-exchange-color				material	0	-340	-360	0	0	-340	-360									term
 evaluation_snapshot_v1	1	imbalance-exchange-color				squares	0	-16	-28	0	0	-16	-28									term
 evaluation_snapshot_v1	1	imbalance-exchange-color				pawns	1	0	0	0	0	0	0									term
