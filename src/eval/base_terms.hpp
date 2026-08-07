@@ -9,7 +9,7 @@ namespace eval {
 
 // Board-owned, incrementally maintained HCE terms. This is evaluation state,
 // not an intrinsic property of the chess position representation.
-class BaseScore {
+class BaseTerms {
 public:
     [[nodiscard]] constexpr TaperedScore material() const noexcept { return material_score; }
     [[nodiscard]] constexpr TaperedScore piece_square() const noexcept {
@@ -31,7 +31,7 @@ public:
             eval::piece_sq(piece_type, color, to) - eval::piece_sq(piece_type, color, from);
     }
 
-    friend constexpr bool operator==(const BaseScore&, const BaseScore&) noexcept = default;
+    friend constexpr bool operator==(const BaseTerms&, const BaseTerms&) noexcept = default;
 
 private:
     TaperedScore material_score     = TaperedScore::Zero;

@@ -4,7 +4,7 @@
 #include <mutex>
 
 #include "board/board.hpp"
-#include "eval/evaluator.hpp"
+#include "eval/evaluation.hpp"
 #include "search/ordering/picker.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"

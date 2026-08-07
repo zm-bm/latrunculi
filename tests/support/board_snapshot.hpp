@@ -32,7 +32,7 @@ struct BoardSnapshot {
     Bitboard                                                     checkers;
     std::array<Bitboard, N_COLORS>                               blockers{};
     std::array<Square, N_COLORS>                                 kings{};
-    eval::BaseScore                                              evaluation_base;
+    eval::BaseTerms                                              base_terms;
     std::array<std::array<Bitboard, N_PIECETYPES>, N_COLORS>     piece_bb{};
     std::array<std::array<std::uint8_t, N_PIECETYPES>, N_COLORS> counts{};
 };
@@ -47,7 +47,7 @@ inline BoardSnapshot snapshot_board(const Board& board) {
     snapshot.can_unmake             = board.can_unmake();
     snapshot.occupancy              = board.occupancy();
     snapshot.checkers               = board.checkers();
-    snapshot.evaluation_base        = board.evaluation_base();
+    snapshot.base_terms             = board.base_terms();
 
     for (int c = BLACK; c < N_COLORS; ++c) {
         const auto color                      = Color(c);
@@ -64,8 +64,8 @@ inline BoardSnapshot snapshot_board(const Board& board) {
     return snapshot;
 }
 
-inline void expect_evaluation_base_consistent(const Board& board) {
-    EXPECT_EQ(board.evaluation_base(), board.recompute_evaluation_base());
+inline void expect_base_terms_consistent(const Board& board) {
+    EXPECT_EQ(board.base_terms(), board.recompute_base_terms());
 }
 
 inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& expected) {
@@ -76,8 +76,8 @@ inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& 
     EXPECT_EQ(board.can_unmake(), expected.can_unmake);
     EXPECT_EQ(board.occupancy(), expected.occupancy);
     EXPECT_EQ(board.checkers(), expected.checkers);
-    EXPECT_EQ(board.evaluation_base(), expected.evaluation_base);
-    expect_evaluation_base_consistent(board);
+    EXPECT_EQ(board.base_terms(), expected.base_terms);
+    expect_base_terms_consistent(board);
 
     for (int c = BLACK; c < N_COLORS; ++c) {
         const auto color = Color(c);

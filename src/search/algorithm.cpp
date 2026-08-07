@@ -4,7 +4,7 @@
 #include <cmath>
 
 #include "core/constants.hpp"
-#include "eval/evaluator.hpp"
+#include "eval/evaluation.hpp"
 #include "search/ordering/picker.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"

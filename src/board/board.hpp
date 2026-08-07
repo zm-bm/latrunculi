@@ -16,7 +16,7 @@
 #include "core/move_geometry.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
-#include "eval/base_score.hpp"
+#include "eval/base_terms.hpp"
 
 /**
  * Mutable chess position with owned, reversible history from the loaded
@@ -37,7 +37,7 @@ public:
 
     void            clear_position() noexcept;
     PositionKey     recompute_key() const noexcept;
-    eval::BaseScore recompute_evaluation_base() const noexcept;
+    eval::BaseTerms recompute_base_terms() const noexcept;
 
     // Position and state queries
 
@@ -78,7 +78,7 @@ public:
     bool     is_check() const noexcept { return checkers(); }
     bool     is_double_check() const noexcept { return bb::is_many(checkers()); }
 
-    const eval::BaseScore& evaluation_base() const noexcept { return base_evaluation; }
+    const eval::BaseTerms& base_terms() const noexcept { return cached_base_terms; }
     EvalValue              non_pawn_material(Color color) const noexcept;
 
     // Attacks, castling, and move classification
@@ -152,7 +152,7 @@ private:
     int absolute_ply = 0;
 
     // HCE-specific incremental material and piece-square terms.
-    eval::BaseScore base_evaluation;
+    eval::BaseTerms cached_base_terms;
 
     // Reversible history from the loaded root; active_state points to ply_states.back().
     std::vector<PlyState> ply_states;
@@ -262,7 +262,7 @@ inline void Board::add_piece(Square square, Color color, PieceType piece_type) n
     bb::add(piece_bb[color][piece_type], square);
     bb::add(piece_bb[color][all_pieces_slot], square);
     squares[square] = make_piece(color, piece_type);
-    base_evaluation.add_piece(piece_type, color, square);
+    cached_base_terms.add_piece(piece_type, color, square);
     if constexpr (apply_hash)
         ply_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
@@ -275,7 +275,7 @@ inline void Board::remove_piece(Square square, Color color, PieceType piece_type
     bb::remove(piece_bb[color][piece_type], square);
     bb::remove(piece_bb[color][all_pieces_slot], square);
     squares[square] = NO_PIECE;
-    base_evaluation.remove_piece(piece_type, color, square);
+    cached_base_terms.remove_piece(piece_type, color, square);
     if constexpr (apply_hash)
         ply_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
@@ -289,7 +289,7 @@ inline void Board::move_piece(Square from, Square to, Color color, PieceType pie
     bb::move(piece_bb[color][all_pieces_slot], from, to);
     squares[from] = NO_PIECE;
     squares[to]   = make_piece(color, piece_type);
-    base_evaluation.move_piece(piece_type, color, from, to);
+    cached_base_terms.move_piece(piece_type, color, from, to);
     if constexpr (apply_hash)
         ply_state().zkey ^=
             zob::hash_piece(color, piece_type, from) ^ zob::hash_piece(color, piece_type, to);

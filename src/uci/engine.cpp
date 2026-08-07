@@ -11,7 +11,7 @@
 #include "board/board.hpp"
 #include "board/notation.hpp"
 #include "core/move.hpp"
-#include "eval/evaluator.hpp"
+#include "eval/evaluation.hpp"
 #include "eval/trace_formatter.hpp"
 #include "movegen/generator.hpp"
 #include "movegen/perft.hpp"

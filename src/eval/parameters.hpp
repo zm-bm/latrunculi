@@ -1,14 +1,20 @@
 #pragma once
 
 #include <cassert>
+#include <cstdint>
 #include <utility>
 
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "eval/tapered_score.hpp"
-#include "eval/types.hpp"
 
 namespace eval {
+
+enum class Phase : std::uint8_t {
+    Midgame = 0,
+    Endgame,
+    Count,
+};
 
 constexpr int tempo_bonus = 20;
 constexpr int scale_limit = 64;

@@ -2,17 +2,15 @@
 
 #include "core/piece.hpp"
 #include "core/square.hpp"
-#include "core/types.hpp"
+#include "eval/evaluation.hpp"
 #include "eval/tapered_score.hpp"
-#include "eval/trace.hpp"
 
 class Board;
 class EvaluatorTestAccess;
 
 namespace eval {
 
-// Evaluates chess positions using material, mobility, king safety, and other
-// positional factors.
+// Internal single-use implementation of the public evaluation entry points.
 class Evaluator {
 private:
     Evaluator() = delete;
@@ -139,9 +137,6 @@ private:
     friend Trace     evaluate_trace(const Board& board);
     friend class ::EvaluatorTestAccess;
 };
-
-[[nodiscard]] EvalValue evaluate(const Board& board);
-[[nodiscard]] Trace     evaluate_trace(const Board& board);
 
 } // namespace eval
 

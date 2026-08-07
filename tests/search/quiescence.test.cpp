@@ -5,7 +5,7 @@
 
 #include "board/board.hpp"
 #include "core/constants.hpp"
-#include "eval/evaluator.hpp"
+#include "eval/evaluation.hpp"
 #include "movegen/generator.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"

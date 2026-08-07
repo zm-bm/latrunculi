@@ -1,13 +1,27 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <utility>
 
 #include "core/types.hpp"
 #include "eval/tapered_score.hpp"
-#include "eval/types.hpp"
 
 namespace eval {
+
+enum class Term : std::uint8_t {
+    Material = 0,
+    Squares,
+    Pawns,
+    Knights,
+    Bishops,
+    Rooks,
+    Queens,
+    King,
+    Mobility,
+    Threats,
+    Count,
+};
 
 struct TermScore {
     [[nodiscard]] TaperedScore total() const noexcept;
