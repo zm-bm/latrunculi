@@ -2,9 +2,9 @@
 
 #include <string>
 
-#include "eval/trace.hpp"
-
 namespace eval {
+
+class Trace;
 
 [[nodiscard]] std::string format_trace(const Trace& trace);
 

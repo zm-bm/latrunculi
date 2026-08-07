@@ -50,7 +50,7 @@ TEST(EvaluatorTest, TraceMatchesNormalEvaluationAndFormatsStableTermBreakdown) {
 
     EXPECT_EQ(trace.value(), eval::evaluate(board));
     EXPECT_EQ(trace.term_total(), trace.unscaled_score());
-    EXPECT_EQ(trace.relative_value() + eval::tempo_bonus, trace.value());
+    EXPECT_EQ(trace.side_to_move_value() + eval::tempo_bonus, trace.value());
 
     EXPECT_NE(output.find("Term"), std::string::npos);
     EXPECT_NE(output.find("Material"), std::string::npos);

@@ -14,14 +14,17 @@ namespace eval {
 // Evaluates chess positions using material, mobility, king safety, and other
 // positional factors.
 class Evaluator {
-public:
+private:
     Evaluator() = delete;
     explicit Evaluator(const Board&);
+    Evaluator(const Evaluator&)            = delete;
+    Evaluator& operator=(const Evaluator&) = delete;
+    Evaluator(Evaluator&&)                 = delete;
+    Evaluator& operator=(Evaluator&&)      = delete;
 
     [[nodiscard]] EvalValue evaluate();
     [[nodiscard]] Trace     trace();
 
-private:
     const Board& board;
 
     struct AttackData {
@@ -43,8 +46,6 @@ private:
     struct ScoreData {
         TaperedScore mobility[N_COLORS] = {TaperedScore::Zero};
         TaperedScore threats[N_COLORS]  = {TaperedScore::Zero};
-        TaperedScore final_score        = TaperedScore::Zero;
-        EvalValue    final_value        = 0;
     } scores;
 
     struct PieceContext {
@@ -134,6 +135,8 @@ private:
     EvalValue taper_score(TaperedScore score) const;
     int       phase() const;
 
+    friend EvalValue evaluate(const Board& board);
+    friend Trace     evaluate_trace(const Board& board);
     friend class ::EvaluatorTestAccess;
 };
 

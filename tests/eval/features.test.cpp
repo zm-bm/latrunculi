@@ -12,17 +12,15 @@
 class EvaluationFeaturesTest : public ::testing::Test {
 protected:
     void test_outpost_zone(std::string fen, Bitboard w_expected, Bitboard b_expected) {
-        Board           board(fen);
-        eval::Evaluator e(board);
-        EXPECT_EQ(EvaluatorTestAccess::outposts(e, WHITE), w_expected) << fen;
-        EXPECT_EQ(EvaluatorTestAccess::outposts(e, BLACK), b_expected) << fen;
+        const Board board(fen);
+        EXPECT_EQ(EvaluatorTestAccess::outposts(board, WHITE), w_expected) << fen;
+        EXPECT_EQ(EvaluatorTestAccess::outposts(board, BLACK), b_expected) << fen;
     }
 
     void test_mobility_zone(std::string fen, Bitboard w_expected, Bitboard b_expected) {
-        Board           board(fen);
-        eval::Evaluator e(board);
-        EXPECT_EQ(EvaluatorTestAccess::mobility_zone(e, WHITE), w_expected) << fen;
-        EXPECT_EQ(EvaluatorTestAccess::mobility_zone(e, BLACK), b_expected) << fen;
+        const Board board(fen);
+        EXPECT_EQ(EvaluatorTestAccess::mobility_zone(board, WHITE), w_expected) << fen;
+        EXPECT_EQ(EvaluatorTestAccess::mobility_zone(board, BLACK), b_expected) << fen;
     }
 
     void test_mobility_score(const std::string  fen,
@@ -33,9 +31,8 @@ protected:
 
     template <Color C, PieceType P>
     Bitboard test_piece_moves(const std::string& fen, Square sq) {
-        Board           board(fen);
-        eval::Evaluator e(board);
-        return EvaluatorTestAccess::piece_moves<C, P>(e, board, sq);
+        const Board board(fen);
+        return EvaluatorTestAccess::piece_moves<C, P>(board, sq);
     }
 
     void test_threat_score(const std::string& fen,
@@ -67,52 +64,49 @@ protected:
 
     void
     test_shelter(std::string fen, eval::TaperedScore w_expected, eval::TaperedScore b_expected) {
-        Board           board(fen);
-        eval::Evaluator e(board);
-        EXPECT_EQ(EvaluatorTestAccess::shelter<WHITE>(e, board.king_sq(WHITE)), w_expected) << fen;
-        EXPECT_EQ(EvaluatorTestAccess::shelter<BLACK>(e, board.king_sq(BLACK)), b_expected) << fen;
+        const Board board(fen);
+        EXPECT_EQ(EvaluatorTestAccess::shelter<WHITE>(board, board.king_sq(WHITE)), w_expected)
+            << fen;
+        EXPECT_EQ(EvaluatorTestAccess::shelter<BLACK>(board, board.king_sq(BLACK)), b_expected)
+            << fen;
     }
 
     void test_shelter_file(std::string        fen,
                            eval::TaperedScore w_expected,
                            eval::TaperedScore b_expected,
                            File               file) {
-        Board           board(fen);
-        eval::Evaluator e(board);
-        Bitboard        w_pawns = board.pieces<PAWN>(WHITE);
-        Bitboard        b_pawns = board.pieces<PAWN>(BLACK);
-        EXPECT_EQ(EvaluatorTestAccess::shelter_file<WHITE>(e, w_pawns, b_pawns, file), w_expected)
+        const Board    board(fen);
+        const Bitboard w_pawns = board.pieces<PAWN>(WHITE);
+        const Bitboard b_pawns = board.pieces<PAWN>(BLACK);
+        EXPECT_EQ(EvaluatorTestAccess::shelter_file<WHITE>(board, w_pawns, b_pawns, file),
+                  w_expected)
             << fen;
-        EXPECT_EQ(EvaluatorTestAccess::shelter_file<BLACK>(e, b_pawns, w_pawns, file), b_expected)
+        EXPECT_EQ(EvaluatorTestAccess::shelter_file<BLACK>(board, b_pawns, w_pawns, file),
+                  b_expected)
             << fen;
     }
 
     void test_raw_danger(std::string fen, int w_expected, int b_expected) {
-        Board           board(fen);
-        eval::Evaluator e(board);
-        (void)e.evaluate();
-        EXPECT_EQ(EvaluatorTestAccess::raw_danger<WHITE>(e, board.king_sq(WHITE)), w_expected)
+        const Board board(fen);
+        EXPECT_EQ(EvaluatorTestAccess::raw_danger<WHITE>(board, board.king_sq(WHITE)), w_expected)
             << fen;
-        EXPECT_EQ(EvaluatorTestAccess::raw_danger<BLACK>(e, board.king_sq(BLACK)), b_expected)
+        EXPECT_EQ(EvaluatorTestAccess::raw_danger<BLACK>(board, board.king_sq(BLACK)), b_expected)
             << fen;
     }
 
     void test_phase(std::string fen, int expected, int tolerance) {
-        Board           board(fen);
-        eval::Evaluator e(board);
-        EXPECT_LE(std::abs(EvaluatorTestAccess::phase(e) - expected), tolerance) << fen;
+        const Board board(fen);
+        EXPECT_LE(std::abs(EvaluatorTestAccess::phase(board) - expected), tolerance) << fen;
     }
 
     void test_scale_factor(std::string fen, int expected) {
-        Board           board(fen);
-        eval::Evaluator e(board);
-        EXPECT_EQ(EvaluatorTestAccess::scale_factor(e, board.side_to_move()), expected) << fen;
+        const Board board(fen);
+        EXPECT_EQ(EvaluatorTestAccess::scale_factor(board, board.side_to_move()), expected) << fen;
     }
 
     void test_taper_score(std::string fen, eval::TaperedScore score, int expected) {
-        Board           board(fen);
-        eval::Evaluator e(board);
-        EXPECT_EQ(EvaluatorTestAccess::taper_score(e, score), expected) << fen;
+        const Board board(fen);
+        EXPECT_EQ(EvaluatorTestAccess::taper_score(board, score), expected) << fen;
     }
 
     void test_term_score(const std::string& fen,

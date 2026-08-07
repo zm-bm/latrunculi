@@ -4,6 +4,7 @@
 #include <string_view>
 
 #include "eval/parameters.hpp"
+#include "eval/trace.hpp"
 
 namespace eval {
 namespace {
@@ -15,7 +16,7 @@ std::string format_score(TaperedScore score) {
 }
 
 std::string format_term(const TermScore& term) {
-    if (term.has_both) {
+    if (term.per_color) {
         return std::format(" | {} | {} | {} | ",
                            format_score(term.white),
                            format_score(term.black),
@@ -48,7 +49,7 @@ std::string format_trace(const Trace& trace) {
 
     output += " ------------+-------------+-------------+------------\n";
     output +=
-        std::format("{:>12}{}\n\n", "Total", format_term(TermScore{.white = trace.final_score()}));
+        std::format("{:>12}{}\n\n", "Total", format_term(TermScore{.white = trace.scaled_score()}));
     output +=
         std::format("Evaluation:\t{:.2f}\n", double(trace.white_value()) / int(eval::pawn.mg));
     return output;

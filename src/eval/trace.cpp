@@ -3,7 +3,7 @@
 namespace eval {
 
 TaperedScore TermScore::total() const noexcept {
-    return has_both ? white - black : white;
+    return per_color ? white - black : white;
 }
 
 const TermScore& Trace::term(Term term) const noexcept {
@@ -18,19 +18,19 @@ TaperedScore Trace::term_total() const noexcept {
 }
 
 TaperedScore Trace::unscaled_score() const noexcept {
-    return raw_score;
+    return unscaled;
 }
 
-TaperedScore Trace::final_score() const noexcept {
-    return scaled_score;
+TaperedScore Trace::scaled_score() const noexcept {
+    return scaled;
 }
 
 EvalValue Trace::tapered_value() const noexcept {
     return tapered;
 }
 
-EvalValue Trace::relative_value() const noexcept {
-    return relative;
+EvalValue Trace::side_to_move_value() const noexcept {
+    return side_value;
 }
 
 EvalValue Trace::value() const noexcept {
@@ -50,23 +50,23 @@ void Trace::record(Term term, Color color, TaperedScore score) noexcept {
     if (color == WHITE)
         term_score.white = score;
     else {
-        term_score.black    = score;
-        term_score.has_both = true;
+        term_score.black     = score;
+        term_score.per_color = true;
     }
 }
 
 void Trace::complete(TaperedScore unscaled,
                      TaperedScore scaled,
                      EvalValue    tapered_value,
-                     EvalValue    relative_value,
+                     EvalValue    side_to_move_value,
                      EvalValue    value,
                      Color        side_to_move) noexcept {
-    raw_score    = unscaled;
-    scaled_score = scaled;
-    tapered      = tapered_value;
-    relative     = relative_value;
-    final_value  = value;
-    turn         = side_to_move;
+    this->unscaled = unscaled;
+    this->scaled   = scaled;
+    tapered        = tapered_value;
+    side_value     = side_to_move_value;
+    final_value    = value;
+    turn           = side_to_move;
 }
 
 } // namespace eval

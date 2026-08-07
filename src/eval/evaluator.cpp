@@ -43,17 +43,16 @@ EvalValue Evaluator::evaluate_impl(Trace* trace) {
     const TaperedScore unscaled_score = score;
     score.eg = (score.eg * scale_factor(stronger_side)) / eval::scale_limit;
 
-    scores.final_score             = score;
-    const EvalValue tapered_value  = taper_score(score);
-    const EvalValue relative_value = tapered_value * (side_to_move == WHITE ? 1 : -1);
-    scores.final_value             = relative_value + eval::tempo_bonus;
+    const EvalValue tapered_value      = taper_score(score);
+    const EvalValue side_to_move_value = tapered_value * (side_to_move == WHITE ? 1 : -1);
+    const EvalValue final_value        = side_to_move_value + eval::tempo_bonus;
 
     if constexpr (Tracing) {
         trace->complete(
-            unscaled_score, score, tapered_value, relative_value, scores.final_value, side_to_move);
+            unscaled_score, score, tapered_value, side_to_move_value, final_value, side_to_move);
     }
 
-    return scores.final_value;
+    return final_value;
 }
 
 EvalValue Evaluator::evaluate() {
