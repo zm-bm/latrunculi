@@ -187,6 +187,9 @@ TEST_F(EvaluationFeaturesTest, EvaluatePawns) {
     auto doubled1    = "4k3/5pp1/4p3/3p4/3PP3/4P3/5PP1/4K3 w - - 0 7";
     auto doubled2    = "4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 8";
     auto iso_doubled = "k7/8/8/8/8/P7/P7/K7 w KQkq - 0 9";
+    auto opposed     = "4k3/8/2p5/8/1P6/8/8/4K3 w - - 0 1";
+    auto passed      = "4k3/8/8/6p1/1P6/8/8/4K3 w - - 0 1";
+    auto advanced    = "4k3/P7/8/8/8/8/7p/4K3 w - - 0 1";
 
     auto iso_backward = "4k3/8/3p4/8/2P5/8/8/4K3 w - - 0 1";
 
@@ -208,7 +211,18 @@ TEST_F(EvaluationFeaturesTest, EvaluatePawns) {
         {doubled1, eval::doubled_pawn, eval::TaperedScore::Zero},
         {doubled2, eval::TaperedScore::Zero, eval::doubled_pawn},
         // isolated and doubled pawns
-        {iso_doubled, eval::iso_pawn * 2 + eval::doubled_pawn, eval::TaperedScore::Zero},
+        {iso_doubled,
+         eval::iso_pawn * 2 + eval::doubled_pawn + eval::passed_pawn[RANK2]
+             + eval::passed_pawn[RANK3],
+         eval::TaperedScore::Zero},
+        // passed pawns: opposed adjacent files, rank-four passers, advanced passers
+        {opposed, eval::iso_pawn, eval::iso_pawn},
+        {passed,
+         eval::iso_pawn + eval::passed_pawn[RANK4],
+         eval::iso_pawn + eval::passed_pawn[RANK4]},
+        {advanced,
+         eval::iso_pawn + eval::passed_pawn[RANK7],
+         eval::iso_pawn + eval::passed_pawn[RANK7]},
     };
 
     for (const auto& [fen, w_expected, b_expected] : test_cases) {

@@ -84,7 +84,7 @@ inline TaperedScore Evaluator::evaluate_term(Trace* trace) {
     return score;
 }
 
-/// eval pawn structure: isolated + backward + doubled
+/// eval pawn structure: isolated + backward + doubled + passed
 template <Color C>
 TaperedScore Evaluator::evaluate_pawns() {
     constexpr Color Opp = ~C;
@@ -118,6 +118,12 @@ TaperedScore Evaluator::evaluate_pawns() {
     Bitboard pawns_behind  = pawns & bb::span_front<C>(pawns);
     Bitboard doubled_pawns = pawns_behind & ~pawn_attacks;
     score += eval::doubled_pawn * bb::count(doubled_pawns);
+
+    // passed pawns: no opposing pawn ahead on the same or an adjacent file
+    const Bitboard passed_pawns = pawns & ~bb::full_span<Opp>(opp_pawns);
+    bb::scan<C>(passed_pawns, [&](const Square square) {
+        score += eval::passed_pawn[square::relative_rank(square, C)];
+    });
 
     return score;
 }

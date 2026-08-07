@@ -669,19 +669,19 @@ the goal starts:
 
 | Baseline field | Value |
 |---|---|
-| Revision | Pending |
-| Dirty state | Pending |
-| Archived engine | Pending |
-| Engine SHA-256 | Pending |
-| Evaluation snapshot | Pending |
-| Throughput run | Pending |
-| Fixed-depth search run | Pending |
+| Revision | `d5c50e61cb59ee5f516a24b474dbb5a9bb618bea` |
+| Dirty state | Clean |
+| Archived engine | `scratch/baselines/latrunculi-eval-goal-d5c50e6` |
+| Engine SHA-256 | `74b3c274f4392af47efc4e0bfd799d85a8ba13cf5c96d0e93db581f66ccec455` |
+| Evaluation snapshot | Verified against `evaluation_snapshot_v1` |
+| Throughput run | `scratch/bench-runs/20260807-181259-eval-goal-before` |
+| Fixed-depth search run | `scratch/bench-runs/20260807-181301-eval-goal-before` |
 
 ### Ordered task ledger
 
 | Order | ID | Work item | Contract | Checkpoint | Status |
 |---:|---|---|---|---|---|
-| 1 | PAWN-003 | Add bounded passed-pawn semantics | Intentional evaluation change | A | Pending |
+| 1 | PAWN-003 | Add bounded passed-pawn semantics | Intentional evaluation change | A | In progress |
 | 2 | MAT-002a | Tune material ratios around MG pawn = 100 | Intentional evaluation/search change | A | Pending |
 | 3 | MAT-002b | Review phase endpoints | Intentional evaluation change | A | Pending |
 | 4 | MAT-002c | Review endgame scaling | Intentional evaluation change | A | Pending |
@@ -735,6 +735,50 @@ Pending.
 Commit:
 Pending.
 ```
+
+#### PAWN-003 — Passed-pawn semantics
+
+Status: in progress
+
+Hypothesis:
+A rank-only bonus for pawns with no opposing pawn ahead on the same or an
+adjacent file supplies the missing core passed-pawn signal without prematurely
+adding candidate, support, blocker, king-distance, or rook-relation features.
+Use a conservative monotonic MG/EG curve that becomes material only on advanced
+ranks.
+
+Allowed scope:
+Pawn-mask detection, one relative-rank parameter table, focused activation and
+boundary rows in the existing pawn-feature test, reviewed snapshot changes,
+and downstream measurements. Keep the result in `Term::Pawns` and introduce no
+Board API or reusable passed-pawn state before PERF-002 determines the cache
+boundary.
+
+Required evidence:
+Both colors must recognize symmetric passers; an opposing pawn ahead on the
+same or adjacent file must suppress the bonus; advanced passers must receive a
+larger bonus; existing pawn classifications and full color symmetry must pass;
+and corpus, search, and throughput changes must be reviewed before retention.
+
+Outcome:
+Locally retained pending checkpoint A. The implementation adds the common
+rank-only passer definition used as the foundation of the reference engines'
+broader models, with a conservative monotonic curve from relative ranks 3--7.
+It changes only `promotion-race`, `endgame-arasan-16`, and
+`endgame-arasan-21` in the diagnostic corpus. The symmetric promotion race
+still cancels in the total score; the Arasan endings gain the expected White
+passed-pawn value.
+
+Focused, full release, and focused sanitizer tests pass. The isolated
+evaluation median changed from 260.321 to 266 ns/evaluation (+2.2%), a small
+cost accepted provisionally before PERF-002. The depth-five suite leaves
+startpos and `arasan20-01` identical, changes passer-relevant scores and trees,
+and changes the best move in `arasan20-08` and `arasan20-16`. These are reviewed
+semantic consequences rather than strength evidence; checkpoint A determines
+whether the feature remains retained.
+
+Commit:
+`feat(eval): add passed-pawn evaluation` (this task's commit).
 
 Before changing code, independently revalidate the task against the current
 source. Work on one coherent hypothesis at a time and create one focused commit

@@ -209,9 +209,11 @@ constexpr TaperedScore piece_sq(PieceType pt, Color c, Square sq) {
     return (score * c * 2) - score;
 }
 
-constexpr TaperedScore iso_pawn           = {-5, -15};
-constexpr TaperedScore backward_pawn      = {-10, -25};
-constexpr TaperedScore doubled_pawn       = {-10, -50};
+constexpr TaperedScore iso_pawn      = {-5, -15};
+constexpr TaperedScore backward_pawn = {-10, -25};
+constexpr TaperedScore doubled_pawn  = {-10, -50};
+constexpr TaperedScore passed_pawn[] = {
+    {0, 0}, {0, 0}, {5, 10}, {10, 20}, {20, 40}, {40, 80}, {80, 160}, {0, 0}};
 constexpr TaperedScore reachable_outpost  = {30, 20};
 constexpr TaperedScore bishop_outpost     = {30, 20};
 constexpr TaperedScore knight_outpost     = {50, 30};
