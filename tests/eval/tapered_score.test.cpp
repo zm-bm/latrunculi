@@ -14,7 +14,6 @@ TEST(TaperedScoreTest, Operations) {
     EXPECT_TRUE(a == (eval::TaperedScore{3, 4}));
     EXPECT_FALSE(a == (eval::TaperedScore{4, 5}));
     EXPECT_TRUE(a != b);
-    EXPECT_TRUE(a < (eval::TaperedScore{4, 5}));
 }
 
 TEST(TaperedScoreTest, AssignmentOperators) {

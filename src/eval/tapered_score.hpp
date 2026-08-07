@@ -16,7 +16,6 @@ struct TaperedScore {
     constexpr TaperedScore operator-() const;
     constexpr bool         operator==(const TaperedScore& other) const;
     constexpr bool         operator!=(const TaperedScore& other) const;
-    constexpr bool         operator<(const TaperedScore& other) const;
 
     TaperedScore& operator+=(const TaperedScore& other);
     TaperedScore& operator-=(const TaperedScore& other);
@@ -47,10 +46,6 @@ constexpr bool TaperedScore::operator==(const TaperedScore& other) const {
 
 constexpr bool TaperedScore::operator!=(const TaperedScore& other) const {
     return !(*this == other);
-}
-
-constexpr bool TaperedScore::operator<(const TaperedScore& other) const {
-    return mg < other.mg;
 }
 
 inline TaperedScore& TaperedScore::operator+=(const TaperedScore& other) {

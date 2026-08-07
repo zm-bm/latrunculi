@@ -176,10 +176,16 @@ TaperedScore Evaluator::evaluate_king_safety() const {
     const Square king_sq = board.king_sq(C);
     TaperedScore shelter = evaluate_shelter<C>(king_sq);
 
+    const auto consider_shelter = [&](Square square) {
+        const TaperedScore candidate = evaluate_shelter<C>(square);
+        if (candidate.mg > shelter.mg)
+            shelter = candidate;
+    };
+
     if (board.has_castling_right(CASTLE_KINGSIDE, C))
-        shelter = std::max(shelter, evaluate_shelter<C>(kingside_sq));
+        consider_shelter(kingside_sq);
     if (board.has_castling_right(CASTLE_QUEENSIDE, C))
-        shelter = std::max(shelter, evaluate_shelter<C>(queenside_sq));
+        consider_shelter(queenside_sq);
 
     const TaperedScore danger = evaluate_danger<C>(king_sq);
 

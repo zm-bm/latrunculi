@@ -22,7 +22,7 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/board/board_see.cpp
     src/board/fen_parser.cpp
     src/core/move.cpp
-    src/eval/evaluator.cpp
+    src/eval/evaluation.cpp
     src/eval/trace.cpp
     src/eval/trace_formatter.cpp
     src/movegen/perft.cpp
