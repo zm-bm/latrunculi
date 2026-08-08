@@ -1033,7 +1033,7 @@ Preserve existing outnumbered activation, full color symmetry, and exact trace
 ownership; review snapshot/search/throughput changes and the Checkpoint C match.
 
 Outcome:
-Retained pending Checkpoint C. A non-pawn piece now receives its existing
+Retained. A non-pawn piece now receives its existing
 victim-type weak penalty when geometrically attacked by an enemy pawn, even at
 equal attacker/defender counts. The prior outnumbered rule, weights, and pin
 policy remain unchanged. One equal-count knight position extends the existing
@@ -1047,7 +1047,7 @@ nodes rise 1.5%. The isolated median improves 2.4%, treated as noise rather
 than a performance claim.
 
 Commit:
-`feat(eval): recognize pawn attacks as piece threats` (this task's commit).
+`646c74d` (`feat(eval): recognize pawn attacks as piece threats`).
 
 #### KING-002 — Rough king-safety calibration
 
@@ -1077,6 +1077,21 @@ mathematical tuning.
 
 Commit:
 None; the reviewed thresholds were retained.
+
+#### Checkpoint C — Threats, king safety, and search scale
+
+Status: complete — retained
+
+Outcome:
+The retained THREAT-002 candidate scored 50/97/53 over 100 opening pairs
+against archived Checkpoint A: 49.2%, -5.2 +/- 34.6 Elo, and an inconclusive
+decision. Its pentanomial result was 6/25/41/22/6. This is not strength
+evidence, but it does not identify a clear regression, so the bounded semantic
+refinement is retained. KING-002 and SCALE-002 made no code changes.
+
+Evidence:
+`scratch/bench-runs/20260807-185916-checkpoint-c`, using the standard settings
+with concurrency 8 against `scratch/baselines/latrunculi-checkpoint-a-c8c69a2`.
 
 Before changing code, independently revalidate the task against the current
 source. Work on one coherent hypothesis at a time and create one focused commit
