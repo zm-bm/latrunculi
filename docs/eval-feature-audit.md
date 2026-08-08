@@ -2,10 +2,9 @@
 
 ## Scope, status, and method
 
-This document records the completed source-audit portion of **TUNE-001** and is
-the active workspace for **TUNE-002**, **SCALE-002**, **PERF-001**, and
-**PERF-002**. The audit was performed at `f243585`, before feature correction
-or tuning; remediation status is current through `d9a7f7a`. It covers
+This document records the completed **TUNE-001**, **TUNE-002**, **SCALE-002**,
+**PERF-001**, and **PERF-002** workstream. The audit began at `f243585`, before
+feature correction or tuning, and the goal baseline was `d5c50e6`. It covers
 `src/eval`, Board's incremental base terms, evaluation consumers in
 Board/search/UCI, evaluation and related tests, the checked-in diagnostic
 corpus and snapshot, `docs/search-stability.md`, relevant history, and selected
@@ -43,7 +42,8 @@ or snapshot values. Its confirmed defects and test gaps were subsequently
 handled in focused commits recorded below. TUNE-001 is now complete; this
 document retains its evidence while tracking the bounded rough-tuning and
 performance work defined at a higher level in
-[`eval-roadmap.md`](eval-roadmap.md).
+[`eval-roadmap.md`](eval-roadmap.md). All ledger entries are now terminal; the
+document is retained as the evidence record rather than an active workspace.
 
 ## Dependency and execution-order map
 
@@ -601,14 +601,13 @@ and tables where a shared implementation already supplies the invariant.
   search margins.
 - Diagnostic formatting and fixed 100-unit display normalization.
 
-## Goal workspace
+## Completed goal workspace
 
 ### Objective and boundary
 
-Complete a bounded human-guided rough HCE pass, then profile and optimize the
-retained evaluator. The intended outcome is a coherent, explainable baseline
-for later mathematical tuning, not a claim of demonstrated playing-strength
-improvement.
+This goal completed a bounded human-guided rough HCE pass, then profiled and
+optimized the retained evaluator. Its outcome is a coherent, explainable
+baseline for later mathematical tuning.
 
 Included work is TUNE-002 rough semantic and parameter calibration, SCALE-002
 downstream search-scale review, PERF-001 measured hot-path optimization, and
@@ -708,33 +707,7 @@ PERF-001 begins with profiling rather than a speculative implementation list.
 Only measured, independently worthwhile hotspots should become lettered work
 items such as PERF-001a or PERF-001b, each with its own focused commit.
 
-### Workspace record
-
-Each task records its status, hypothesis, allowed scope, required evidence,
-outcome, and commit. Use `pending`, `in progress`, `complete — retained`,
-`complete — no change`, or `complete — rejected` as status values. A task entry
-should use this shape:
-
-```markdown
-### ID — Title
-
-Status: pending
-
-Hypothesis:
-...
-
-Allowed scope:
-...
-
-Required evidence:
-...
-
-Outcome:
-Pending.
-
-Commit:
-Pending.
-```
+### Task results
 
 #### PAWN-003 — Passed-pawn semantics
 
@@ -1169,15 +1142,26 @@ evidence appears.
 Commit:
 None; the measured experiment was rejected and fully reverted.
 
-Before changing code, independently revalidate the task against the current
-source. Work on one coherent hypothesis at a time and create one focused commit
-for each retained task, including its workspace update. Fully revert rejected
-experiments; do not create an empty source commit merely to preserve them.
-Record rejected outcomes in a later workspace documentation update. Preserve
-unrelated changes. The goal is authorized to create these commits and continue
-autonomously without approval between tasks. Stop only when a consequential
-new policy decision, external dependency, or genuine blocker requires user
-direction.
+### Final goal result
+
+Status: complete
+
+All 15 ledger entries reached a terminal outcome. The final release and
+sanitizer suites passed, Python benchmark tests passed, and the deterministic
+evaluation snapshot verified. The final evaluation-throughput run is
+`scratch/bench-runs/20260807-192341-eval-goal-final`; its median improved from
+260.321 to 185.470 ns/evaluation (-28.8%), or from 3.84 to 5.39 million
+evaluations per second (+40.4%), while preserving the performance task's exact
+behavior contract. The final fixed-depth search run is
+`scratch/bench-runs/20260807-192341-eval-goal-final-2`.
+
+The standard aggregate match is
+`scratch/bench-runs/20260807-192353-eval-goal-final`. Against the archived
+pre-goal engine it scored 930/786/284 over 1,000 opening pairs: 66.2%,
++116.4 +/- 12.0 Elo, LOS 100%, and pentanomial counts 15/97/325/353/210. All
+terminations were normal. This supports the aggregate retained candidate at
+the tested settings; it does not isolate the contribution of any individual
+feature or substitute for mathematical tuning.
 
 ### Measurement policy
 
@@ -1236,7 +1220,8 @@ instability.
 
 ### Completion assessment
 
-The feature audit, correctness/test follow-up, policy decisions, and PAWN-002
-implementation are complete, so TUNE-001 is complete. The rough-tuning and
-performance workspace is ready to execute. Mathematical tuning and NNUE remain
-governed by [`eval-roadmap.md`](eval-roadmap.md) and are outside this goal.
+The feature audit, correctness and coverage follow-up, rough semantic and
+parameter pass, downstream scale review, and profile-guided performance pass
+are complete. The retained HCE is ready for MATH-001. Mathematical tuning and
+NNUE remain governed by [`eval-roadmap.md`](eval-roadmap.md) and were outside
+this goal.

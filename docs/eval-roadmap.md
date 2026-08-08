@@ -189,202 +189,46 @@ geometric threat counts, and horizontally asymmetric PSQTs.
 No confirmed correctness defect or essential invariant-test gap remains open.
 The retained feature definitions, supporting evidence, completed commits, and
 remaining tuning candidates are documented in
-[`eval-feature-audit.md`](eval-feature-audit.md). That document now serves as
-the active workspace for TUNE-002 and the subsequent performance pass.
+[`eval-feature-audit.md`](eval-feature-audit.md). That document now preserves
+the completed rough-tuning and performance evidence.
 
-### TUNE-002 — Perform a staged human-guided parameter pass
+### Completed — TUNE-002 rough evaluation pass
 
-**Motivation and evidence**
+The bounded rough pass retained passed-pawn scoring, a phase range based on the
+full starting non-pawn material, softer generic endgame scaling, and pawn
+attacks as a weak-piece threat signal. The middlegame pawn remained the fixed
+100-centipawn scale anchor. Reviews of material ratios, tempo, PSQTs, remaining
+pawn and piece weights, mobility curves, king safety, and downstream search
+thresholds concluded with no change. A latent-mobility experiment was rejected
+and reverted.
 
-The README explicitly labels the engine not yet tuned. Current values include
-large hand-selected material ratios, extensive PSQTs, mobility curves, and
-nonlinear king-safety parameters. Existing opening evidence suggests some
-near-equal priors may be too compressed, but search instability is also a known
-confounder.
-
-**Intended outcome**
-
-- Tune coherent parameter groups separately rather than changing the entire
-  table at once.
-- Use structured traces and representative positions to justify broad changes.
-- Preserve an explicit baseline for each group and require reviewed snapshot
-  changes plus fixed-depth search evidence before retaining it.
-- Recalibrate or at least audit SEE, noisy ordering, null-move material guards,
-  aspiration, razoring, and futility assumptions whenever the score scale or
-  material values change.
-- Produce an explainable rough baseline for later mathematical tuning, not a
-  claim of proven strength from hand-selected positions or short matches.
-
-**Likely components**
-
-Evaluation parameters and possibly search thresholds whose units depend on the
-evaluation scale. Each parameter group should normally be its own focused
-change. The ordered task ledger and experiment results live in
-[`eval-feature-audit.md`](eval-feature-audit.md), avoiding a second detailed
-execution plan here.
-
-**Dependencies and ordering**
-
-After TUNE-001 and all measurement infrastructure. Complete before final
-profile-guided optimization so performance work targets the retained feature
-set.
-
-**Tests and measurement**
-
-Reviewed corpus deltas, unchanged structural invariants, isolated evaluation
-benchmark where relevant, and the fixed-depth search suite. Exact tunable
-goldens may change only with an intentional reviewed snapshot update. The
-checkpoint and final aggregate match cadence is defined by the active
-[`eval-feature-audit.md`](eval-feature-audit.md) workspace; large repeated
-match-driven parameter optimization remains deferred to mathematical tuning.
-
-**Risks**
-
-Overfitting handpicked openings, compensating for search defects, losing score
-calibration, or attributing noisy short-match results to a parameter change.
-
-**Completion criteria**
-
-The retained rough parameter set is explainable, has no known semantic defects,
-preserves invariants, and improves the targeted evaluation relationships
-without an unexplained search or performance regression. No playing-strength
-claim is made without adequately sized match evidence.
+Three reduced checkpoint matches screened coherent groups. The final standard
+match against the archived pre-pass engine scored 930/786/284 over 1,000
+opening pairs (66.2%, +116.4 +/- 12.0 Elo, LOS 100%). This supports the
+aggregate retained engine at those settings; it does not attribute the result
+to an individual feature or replace later mathematical tuning. Detailed task
+rationale, commits, snapshots, and match artifacts remain in
+[`eval-feature-audit.md`](eval-feature-audit.md).
 
 ## Phase 4: Profile-Guided Performance Optimization
 
-### PERF-001 — Optimize the retained HCE hot path with exact score equivalence
+### Completed — PERF-001 and PERF-002
 
-**Motivation and evidence**
+Profiling found that the release x86-64 build spent 17.6% of isolated
+evaluation cycles in the software `__popcountdi2` helper. The retained change
+enables hardware POPCNT for supported GNU/Clang x86-64 builds, with a CMake
+option for older targets. Final isolated throughput improved from 260.321 to
+185.470 ns/evaluation (-28.8%), or from 3.84 to 5.39 million evaluations per
+second (+40.4%). Evaluation snapshots and deterministic fixed-depth search
+results remained exact; downstream NPS also improved.
 
-Potential costs visible in the current implementation include constructing a
-fresh evaluator per call, repeatedly querying attacks for threat terms, and
-maintaining several derived attack/zone arrays. Source inspection alone does
-not establish which cost dominates.
-
-**Intended outcome**
-
-- Profile release builds over both isolated evaluation and representative
-  search before selecting optimizations.
-- Address measured costs one focused change at a time: repeated attack
-  computation, data layout, branch behavior, construction overhead, or
-  carefully justified inlining/code-size changes.
-- Require exact corpus score equivalence for every performance-only change.
-- For deterministic fixed-depth configurations, compare nodes, score, PV, and
-  bestmove as an additional guard against hidden behavior changes.
-- Preserve readable feature structure; do not turn the HCE into opaque SIMD or
-  generated code merely to chase a microbenchmark.
-
-**Likely components**
-
-Evaluator mechanics, benchmark/instrumentation tooling, and possibly Board
-query/cache usage. Specific files depend on profiler evidence.
-
-**Dependencies and ordering**
-
-After TUNE-002 stabilizes the rough feature set and INFRA-002 provides reliable
-measurement. Individual optimizations remain separate commits.
-
-**Tests and measurement**
-
-Exact score/trace checksum equality, full tests, sanitizer coverage, isolated
-throughput distributions, and downstream fixed-depth search comparisons.
-
-**Risks**
-
-Benchmark noise, code-size/cache regressions from excessive inlining,
-duplicating derived state, undefined behavior in low-level optimizations, or
-making mathematical feature extraction harder.
-
-**Completion criteria**
-
-Each retained optimization has profiler evidence, exact evaluation equivalence,
-and a repeatable throughput/search improvement without reducing maintainability
-disproportionately.
-
-Concrete profiles, selected hotspots, and retained optimizations are tracked
-in [`eval-feature-audit.md`](eval-feature-audit.md). Profiling may split this
-finding into independently measurable work items; the roadmap does not
-preselect them from source inspection alone.
-
-### PERF-002 — Add a worker-local pawn evaluation hash
-
-**Motivation and evidence**
-
-Pawn structure changes less frequently than complete positions and often
-recurs through transpositions. `Evaluator::evaluate_pawns()` currently
-recomputes isolated, backward, and doubled-pawn scores on every evaluation.
-It also initializes pawn attacks and double attacks that later mobility,
-threat, and king-safety terms consume, so caching only its returned score would
-be incomplete.
-
-Dedicated pawn caches are an established HCE technique in the reference
-engines: Minic uses a per-thread pawn table, Ethereal uses a per-thread
-pawn-and-king table, and CPW has a pawn table separate from its search TT.
-Latrunculi's `search::Worker` already provides the natural non-shared lifetime
-for a small cache without adding synchronization to the evaluation hot path.
-
-**Intended outcome**
-
-- Add a fixed-size, worker-local pawn evaluation table keyed only by the white
-  and black pawn placement, not by the complete position key.
-- Cache the complete pawn result needed by later evaluation: the tapered pawn
-  score for both sides and the derived pawn attack/double-attack state.
-- Define explicit replacement, collision-verification, sizing, clearing, and
-  search-to-search lifetime policies.
-- Pass the cache through the normal search evaluation path while keeping
-  standalone and diagnostic evaluation usable without hidden global state.
-- Preserve exact evaluation values, traces, fixed-depth search results, and
-  thread independence on both cache hits and misses.
-- Measure hit rate, probe cost, memory per worker, isolated evaluation
-  throughput, and whole-search performance before retaining the design.
-- Do not add a dedicated complete-position evaluation hash or repurpose the
-  search transposition table as part of this finding.
-
-**Likely components**
-
-A focused pawn-table type under `src/eval`, evaluator input/state boundaries,
-`search::Worker` ownership and evaluation call sites, optional instrumentation,
-and evaluation/search tests and benchmarks. Key generation may require a
-pawn-only key maintained by `Board` or a verified hash derived from the two
-pawn bitboards; the implementation plan must compare those choices and protect
-make/unmake correctness if Board state is extended.
-
-**Dependencies and ordering**
-
-Requires INFRA-002 for meaningful measurements. The structured trace and
-explicit Board evaluation-state boundary are already established; if the plan
-selects an incremental pawn key, it must extend the existing independent Board
-recomputation coverage. Perform after TUNE-002 stabilizes the pawn feature set.
-PERF-001 should first establish profile evidence and may remove unrelated
-hot-path costs, but this remains a separate focused change.
-
-**Tests and measurement**
-
-Exercise hit, miss, replacement/collision, and clear/lifetime behavior; compare
-cached and uncached scores and structured traces over the corpus; verify that
-all pawn-derived attack state is identical; cover Board make/unmake if an
-incremental pawn key is selected; run multi-worker sanitizer coverage; require
-deterministic fixed-depth score, nodes, PV, and best-move equivalence. Report
-cache hit rate and memory per worker alongside isolated and whole-search
-benchmark results.
-
-**Risks**
-
-Using the full position key and receiving little reuse, accepting an
-unverified collision, restoring a score without its derived attacks, stale
-entries after parameter changes, excessive per-worker memory, or introducing
-shared-table synchronization that costs more than recomputation.
-
-**Completion criteria**
-
-Every hit is behaviorally indistinguishable from recomputing pawn evaluation;
-the table has explicit ownership and collision/lifetime policies; tests cover
-the full cached result rather than only its score; memory and hit-rate data are
-recorded; and the retained implementation produces a repeatable evaluation or
-search-performance improvement without changing chess behavior.
-
-Design decisions, measurements, and implementation status are tracked in the
-active [`eval-feature-audit.md`](eval-feature-audit.md) workspace.
+A 1,024-entry worker-local pawn evaluation cache was implemented and measured,
+then rejected and fully reverted. Although hit rates ranged from 76.0% to
+99.8%, its approximately 72 KiB per-worker cost and additional evaluator
+boundary did not produce a repeatable search-speed improvement. Reconsider a
+pawn cache only if pawn evaluation grows materially or profiling provides
+stronger evidence. Full experiment details remain in
+[`eval-feature-audit.md`](eval-feature-audit.md).
 
 ## Phase 5: Mathematical Tuning
 
@@ -554,23 +398,15 @@ Board/evaluator state boundary, and completed rough/mathematical HCE tuning.
 
 ## Remaining Execution Sequence
 
-1. **TUNE-001** — completed feature-semantics audit and correctness follow-up.
-2. **TUNE-002** — active staged human-guided rough tuning.
-3. **SCALE-002** — recalibrate downstream search assumptions after retained
-   score-scale changes.
-4. **PERF-001** — profile and optimize the retained HCE with exact equivalence.
-5. **PERF-002** — add and measure a worker-local pawn evaluation hash.
-6. **MATH-001** — deferred raw-feature export and dataset construction.
-7. **MATH-002** — deferred linear tuning with held-out validation.
-8. **MATH-003** — deferred nonlinear and search-coupled tuning.
-9. Create a separate NNUE roadmap only after the entry criteria are met.
+1. **MATH-001** — export parameter-independent features and construct datasets.
+2. **MATH-002** — implement reproducible linear tuning with held-out
+   validation.
+3. **MATH-003** — tune nonlinear and search-coupled parameters separately.
+4. Create a separate NNUE roadmap only after the entry criteria are met.
 
-### Change contract by phase
+### Remaining change contract
 
 | Findings | Evaluation values | Search behavior | Required evidence |
 |---|---|---|---|
-| TUNE-001 correctness fixes | Intentional only for confirmed defects | May change | Direct regression, corpus diff, search/match checks |
-| TUNE-002 | Intentionally changes | Intentionally may change | Trace rationale, corpus diff, fixed-depth suite; matches for strength claims |
-| PERF-001 and PERF-002 | Exact preservation | Exact preservation at fixed depth | Score/trace checksum, profiler/cache metrics, throughput and search benchmark |
 | MATH-001 | No normal-path change | No normal-path change | Feature reconstruction and dataset validation |
 | MATH-002 and MATH-003 | Intentionally changes | Intentionally may change | Held-out metrics, coefficient sanity, statistical matches |
