@@ -694,7 +694,7 @@ the goal starts:
 | 11 | THREAT-002 | Consider one bounded threat refinement | Possible semantic change | C | Complete — retained |
 | 12 | KING-002 | Rough king-safety calibration | Intentional evaluation change | C | Complete — no change |
 | 13 | SCALE-002 | Audit downstream search thresholds | Search-policy change | C | Complete — no change |
-| 14 | PERF-001 | Profile and optimize measured hot paths | Exact evaluation preservation | Performance | Pending |
+| 14 | PERF-001 | Profile and optimize measured hot paths | Exact evaluation preservation | Performance | Complete — retained |
 | 15 | PERF-002 | Add and measure a worker-local pawn hash | Exact evaluation preservation | Performance | Pending |
 
 Checkpoint A covers pawn semantics and material transformations; B covers
@@ -1092,6 +1092,43 @@ refinement is retained. KING-002 and SCALE-002 made no code changes.
 Evidence:
 `scratch/bench-runs/20260807-185916-checkpoint-c`, using the standard settings
 with concurrency 8 against `scratch/baselines/latrunculi-checkpoint-a-c8c69a2`.
+
+#### PERF-001 — Profile and optimize measured hot paths
+
+Status: complete — retained
+
+Hypothesis:
+The release profile should identify a discrete, exact-value bottleneck before
+any evaluator mechanics are rewritten.
+
+Allowed scope:
+One measured optimization with an explicit platform contract. Do not obscure
+feature code, change evaluation values, or bundle speculative evaluator
+micro-optimizations.
+
+Required evidence:
+Profile both the existing and optimized binaries; preserve snapshots and
+fixed-depth search exactly; require repeatable isolated and downstream speed
+improvements.
+
+Outcome:
+The initial GCC release profile attributed 17.6% of isolated evaluation cycles
+to the out-of-line `__popcountdi2` helper. The ordinary x86-64 build did not
+enable POPCNT despite bit counts being pervasive throughout evaluation and
+search. Stockfish and Ethereal likewise provide POPCNT build targets.
+
+The retained PERF-001a change enables `-mpopcnt` for GNU/Clang x86-64 builds
+through an explicit, default-on `LATRUNCULI_USE_POPCNT` option; older x86-64
+targets can disable it. A same-compiler probe reduced the seven-sample isolated
+median from roughly 260 ns/evaluation to 198 ns/evaluation. A three-repeat,
+depth-seven search comparison preserved nodes, scores, PVs, and best moves and
+improved NPS on all six positions by roughly 14%--33%. The post-change profile
+is diffuse across actual evaluation features, with no second independently
+obvious low-complexity optimization, so PERF-001 stops here rather than forcing
+speculative rewrites.
+
+Commit:
+`perf(core): enable hardware popcount on x86-64` (this task's commit).
 
 Before changing code, independently revalidate the task against the current
 source. Work on one coherent hypothesis at a time and create one focused commit

@@ -10,6 +10,7 @@ include(CTest)
 find_package(Threads REQUIRED)
 
 option(LATRUNCULI_SEARCH_STATS "Enable detailed search statistics diagnostics" OFF)
+option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
 
 set(LATRUNCULI_ENGINE_SOURCES
     src/core/attacks_magic.cpp
@@ -44,6 +45,12 @@ add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
 target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_VERSION="${PROJECT_VERSION}")
+
+if(LATRUNCULI_USE_POPCNT
+   AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$"
+   AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(latrunculi_lib PUBLIC -mpopcnt)
+endif()
 
 add_executable(latrunculi src/main.cpp)
 target_link_libraries(latrunculi PRIVATE latrunculi_lib Threads::Threads)

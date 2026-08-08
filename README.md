@@ -26,6 +26,10 @@
 
 Tested on linux with g++ 13.3 / 14.2 and clang++ 18.
 
+On x86-64, builds use the widely available POPCNT instruction by default.
+Pass `-DLATRUNCULI_USE_POPCNT=OFF` when targeting an older processor without
+POPCNT support.
+
 ### build
 
 Default builds produce the engine executable only:
