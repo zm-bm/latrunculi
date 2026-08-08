@@ -695,7 +695,7 @@ the goal starts:
 | 12 | KING-002 | Rough king-safety calibration | Intentional evaluation change | C | Complete — no change |
 | 13 | SCALE-002 | Audit downstream search thresholds | Search-policy change | C | Complete — no change |
 | 14 | PERF-001 | Profile and optimize measured hot paths | Exact evaluation preservation | Performance | Complete — retained |
-| 15 | PERF-002 | Add and measure a worker-local pawn hash | Exact evaluation preservation | Performance | Pending |
+| 15 | PERF-002 | Add and measure a worker-local pawn hash | Exact evaluation preservation | Performance | Complete — rejected |
 
 Checkpoint A covers pawn semantics and material transformations; B covers
 PSQTs, pawn weights, pieces, and mobility; C covers threats, king safety, and
@@ -1129,6 +1129,45 @@ speculative rewrites.
 
 Commit:
 `perf(core): enable hardware popcount on x86-64` (this task's commit).
+
+#### PERF-002 — Worker-local pawn evaluation hash
+
+Status: complete — rejected
+
+Hypothesis:
+A small worker-local pawn table can reuse pawn scores and raw pawn attack state
+across transpositions often enough to improve whole-search throughput without
+synchronization or evaluation changes.
+
+Allowed scope:
+A direct-mapped table keyed and collision-verified by both pawn bitboards,
+owned by each search worker. Cache both per-color pawn scores and the raw pawn
+attack/double-attack maps needed by later terms. Preserve standalone evaluation
+without global state.
+
+Required evidence:
+Exact snapshot and fixed-depth equivalence, explicit lifetime/replacement
+policy, memory size, representative hit rates, and repeatable search or
+isolated-throughput improvement sufficient to justify the added boundary.
+
+Outcome:
+Rejected and fully reverted. The experiment used 1,024 direct-mapped entries,
+full white/black pawn-bitboard verification, persistent per-worker ownership,
+and no synchronization. Each table occupied 73,744 bytes per worker. Depth-11
+hit rates across the six search positions ranged from 76.0% to 99.8%.
+
+Despite those hits, uncached isolated evaluation slowed by 5.0%, because the
+cache-aware evaluator boundary adds work when no table is supplied. Whole-search
+measurements were not repeatable: one depth-13 ordering showed gains of
+0%--10%, while the reverse ordering produced mixed results from -2.4% to +2.5%.
+Nodes, scores, PVs, and best moves remained exact. The small and noise-sensitive
+benefit does not justify roughly 72 KiB per worker, a new evaluation cache API,
+search instrumentation, and additional tests. A future pawn cache should be
+reconsidered only after pawn evaluation grows materially or stronger profiling
+evidence appears.
+
+Commit:
+None; the measured experiment was rejected and fully reverted.
 
 Before changing code, independently revalidate the task against the current
 source. Work on one coherent hypothesis at a time and create one focused commit
