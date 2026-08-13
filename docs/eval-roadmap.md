@@ -1,412 +1,338 @@
-# Handcrafted Evaluation Roadmap
+# Evaluation and Endgame Roadmap
 
 ## Purpose
 
-This document is the staged roadmap for improving Latrunculi's handcrafted
-evaluation (HCE) before considering NNUE. It separates four kinds of work that
-must not be conflated:
+This roadmap covers the remaining work on Latrunculi's handcrafted evaluation,
+endgame handling, and possible future NNUE evaluation. It deliberately
+separates four concerns:
 
-- **Behavior-preserving organization:** source ownership and interfaces change,
-  but every position keeps the same evaluation.
-- **Correctness work:** a feature's chess meaning changes because the current
-  implementation is demonstrably wrong or internally inconsistent.
-- **Strength tuning:** parameters or feature definitions intentionally change
-  scores and possibly search behavior.
-- **Performance work:** runtime or memory behavior changes while evaluation
-  values remain identical unless explicitly approved otherwise.
+- chess-rule results that search must recognize exactly;
+- parameterized handcrafted evaluation and automated tuning;
+- optional endgame knowledge and tablebase integration; and
+- a future NNUE backend.
 
-NNUE is deferred until the HCE is organized, measurable, roughly tuned,
-profiled, and mathematically tunable. The HCE should remain useful afterward as
-a readable reference, diagnostic implementation, and possible fallback.
+These concerns interact, but they do not have the same owner or validation
+contract. In particular, an exact draw rule is not an evaluation heuristic,
+and a tablebase probe is not an evaluation term.
 
-## Current Architecture
+## Completed Foundation
 
-### Source ownership
+The preparatory HCE work is complete:
 
-- `parameters.hpp` owns material values, piece-square tables, mobility tables,
-  feature weights, masks, phase limits, `eval::Phase`, and typed parameter
-  lookups.
-- `tapered_score.hpp` owns `eval::TaperedScore`; `trace.hpp` owns the evaluation
-  term taxonomy and structured trace data.
-- `base_terms.hpp` owns the Board-maintained material and piece-square cache.
-- `evaluation.hpp/.cpp` provide the public evaluation entry points, while
-  `evaluator.hpp` and `evaluator_detail.hpp` contain the private, single-use
-  mechanics.
-- `trace.hpp/.cpp` define structured evaluation results, while
-  `trace_formatter.hpp/.cpp` own their human-readable diagnostic presentation.
+- all evaluation code is owned by `namespace eval` behind the public
+  `eval::evaluate()` and `eval::evaluate_trace()` boundary;
+- material and every HCE parameter have one authoritative owner;
+- `Board` explicitly maintains and independently verifies its incremental
+  material and piece-square base terms;
+- normal and traced evaluation share mechanics without adding tracing overhead
+  to search;
+- feature, boundary, color-symmetry, make/unmake, and trace-consistency tests
+  protect the current implementation;
+- a checked-in diagnostic corpus and deterministic snapshots expose evaluation
+  changes;
+- isolated evaluation throughput and deterministic fixed-depth search can be
+  compared independently;
+- a pinned opening suite and archived-baseline convention support reproducible
+  local engine comparisons; and
+- a bounded rough pass corrected feature semantics, added passed-pawn scoring,
+  reviewed all major parameter groups, and profiled the retained evaluator.
 
-All HCE-owned declarations and entry points live in `namespace eval`.
-Production callers use only `eval::evaluate(board)` and
-`eval::evaluate_trace(board)`; the stateful `Evaluator` cannot be constructed,
-copied, moved, or reused outside its trusted implementation and narrow test
-seam. `EvalValue` and mate/search sentinels remain engine-wide because they also
-represent search scores.
+The current HCE already covers the principal general-purpose feature classes:
+material, PSQTs, tapered MG/EG scoring, common pawn defects and passed pawns,
+mobility, outposts, bishop and rook features, weak-piece threats, king shelter
+and danger, phase, endgame scaling, and tempo. More features should be added
+only in response to measured representational gaps, not from a checklist of
+traditional chess knowledge.
 
-### Evaluation data flow
+## Immediate Rules Work
 
-`Board` owns an `eval::BaseTerms` containing its incrementally maintained
-material and piece-square terms. Piece mutations update that state; FEN
-loading, copies, ordinary moves, captures, promotions, castling, en passant,
-null moves, and complete unmake histories are covered by independent
-recomputation checks. The direct `board -> eval` dependency is deliberate and
-explicitly HCE-specific rather than disguised as intrinsic Board state.
+### RULE-001 — Recognize basic dead-by-material positions
 
-Each call to `eval::evaluate(board)` constructs a fresh `eval::Evaluator`.
-Construction initializes king attacks and evaluation zones. Evaluation then
-runs terms in a significant order: pawn and piece terms build attack, mobility,
-threat, and king-attacker state that later king, mobility, and threat terms
-consume. A refactor must not reorder these operations merely because the final
-score is presented as a list of independent terms.
+**Motivation and current evidence**
 
-The final white-relative tapered score is scaled in the endgame according to
-the stronger side's pawn count, blended by non-pawn-material phase, converted
-to side-to-move perspective, and given a tempo bonus.
+`Board::is_draw()` currently recognizes the fifty-move rule and repetition.
+It does not recognize positions whose material makes checkmate impossible, so
+search can assign a positional or tempo score to an exact draw. This is a
+rules/search result, not a tunable HCE feature. Allowing such positions into a
+WDL tuning dataset could also push material and PSQT weights to compensate for
+a missing terminal rule.
 
-### Consumers outside `src/eval`
+**Intended outcome**
 
-Evaluation affects more than leaf scores:
+- Add a conservative, demonstrably correct dead-by-material predicate.
+- Integrate it into normal and quiescence draw detection.
+- Cover at least the elementary king-only and lone-minor cases.
+- Distinguish positions where mate cannot be forced from positions where no
+  legal sequence can produce mate; do not classify material such as K+NN vs K
+  as automatically drawn merely because mate cannot be forced.
+- Independently settle promoted-bishop and bishop-square-color cases rather
+  than relying on piece counts alone.
+- Keep repetition, fifty-move, stalemate, and tablebase outcomes as separate
+  concepts with their existing ownership.
 
-- Search calls `eval::evaluate(board)` at max ply, for razoring and futility
-  static evaluations, for quiescence stand pat, and when resetting the root
-  result.
-- Search margins are expressed in the same score scale: aspiration 50,
-  futility 250/400/550, and razoring 500/900/1800.
-- Board SEE uses middlegame material values.
-- Noisy-move ordering uses the captured piece's middlegame value.
-- Null-move eligibility uses non-pawn material and the rook value.
-- UCI's local `eval` console command formats `eval::evaluate_trace(board)` and
-  writes the resulting table to the diagnostic stream.
+**Likely components**
 
-Consequently, changing material values can alter static scores, SEE, move
-ordering, pruning eligibility, and the searched tree. Parameter tuning cannot
-be validated by evaluator unit tests alone.
+Board material queries and rules, search draw exits, focused Board/search
+tests, and tuning-dataset filtering. No evaluation parameter should change.
 
-### Normal and diagnostic evaluation
+**Testing and completion**
 
-Normal and traced evaluation share one ordered implementation selected at
-compile time. Normal search has no callback, type-erased state, or runtime trace
-branch. A trace records term contributions and each transformation from the
-unscaled white-relative tapered score through endgame scaling, blending,
-side-to-move conversion, and tempo. Formatting consumes only that structured
-value and has no access to evaluator internals.
+Use legal positive and negative material cases, verify both main and
+quiescence search return the draw score, and preserve repetition and
+fifty-move behavior. Completion requires a documented exact material contract
+and no false draw classification for merely difficult-to-win endings.
 
-### Tests and measurement
+## Mathematical HCE Tuning
 
-The evaluation tests are organized by parameters, tapered-score arithmetic,
-end-to-end evaluation, and feature mechanics. They cover:
+### Repository boundary
 
-- tapered-score arithmetic and piece-square color symmetry;
-- side-to-move and null-move perspective;
-- pawn structure, mobility, pins, piece features, threats, shelter, king
-  danger, phase, scaling, and tapering;
-- trace-to-normal consistency and stable diagnostic formatting;
-- independent recomputation of Board's incremental material/PSQT state.
+Keep the tuning implementation in a distinct top-level `tuning/` directory.
+It owns the optional C++ raw-feature exporter, Python dataset construction and
+optimization code, reproducible configurations, documentation, and small test
+fixtures. Normal engine builds and runtime code must not depend on tuning
+tools or their Python dependencies. Keep generated games, feature matrices,
+datasets, candidate artifacts, archived binaries, and match results in an
+ignored `tuning/workspace/` subtree so the entire tuning workflow remains
+self-contained.
 
-Feature tests prefer structured traces and use a narrow Board-oriented test
-access seam only for private geometry or transformation mechanics. Exact
-weighted feature assertions remain useful refactor guards, but must not become
-permanent correctness requirements once intentional tuning begins.
+### Strength-validation policy
 
-The benchmark tooling now provides four distinct measurements:
-
-- deterministic evaluation snapshots over a checked-in diagnostic corpus;
-- isolated `eval::evaluate()` throughput over preconstructed Boards;
-- fixed-depth or movetime UCI search runs with comparable artifacts;
-- paired baseline-versus-candidate matches through Cute Chess.
-
-Snapshots protect exact behavior, throughput measures evaluator speed, search
-runs expose downstream tree and speed effects, and matches provide strength
-evidence. None substitutes for another. Parameter-independent feature export
-and tuning datasets remain future work.
-
-## Phase 1: Bounded Organizational Refactor
-
-### Completed — ORG-001 through ORG-005
-
-The bounded organizational phase is complete:
-
-- **ORG-001:** established `eval` namespace and parameter ownership, including
-  one authority for material values.
-- **ORG-002:** separated normal evaluation, structured tracing, and diagnostic
-  formatting without adding runtime trace overhead to search.
-- **ORG-003:** moved non-template mechanics out of the implementation header and
-  divided tests by responsibility with a narrow access seam.
-- **ORG-004:** made Board's evaluation base-term cache explicit and
-  independently verifiable across representation and history transitions.
-- **ORG-005:** established `evaluation.hpp` as the public boundary, kept the
-  stateful evaluator internal, and renamed the Board cache to
-  `eval::BaseTerms`.
-
-A final lifecycle cleanup made the stateful evaluator single-use, removed
-transient final-result fields, clarified trace-stage names, and narrowed the
-formatter header. The complete phase preserved evaluation values, UCI
-diagnostic bytes, and deterministic depth-five depth, seldepth, nodes, scores,
-principal variations, and best moves across the six-position search suite.
-
-These findings are retained only as historical context. No further broad
-organizational work is planned before tuning.
-
-## Phase 2: Measurement and Baselines
-
-### Completed — INFRA-001 through INFRA-003
-
-The measurement phase is complete without changing engine behavior:
-
-- **INFRA-001:** added a checked-in 24-position diagnostic corpus and
-  deterministic long-form evaluation snapshots with explicit emit, verify,
-  and regenerate commands.
-- **INFRA-002:** added a single-threaded, fixed-work `eval::evaluate()`
-  throughput benchmark with warmup, repeated samples, deterministic checksums,
-  standard run artifacts, and compatible-run comparison.
-- **INFRA-003:** added reproducible paired Cute Chess matches against archived
-  baseline binaries, with a checksum-pinned external opening suite, smoke and
-  standard profiles, raw PGNs/logs, W/D/L, pentanomial counts, and
-  candidate-relative confidence reporting.
-
-The commands and artifact contracts are documented in the
-[benchmark guide](../bench/README.md). Evaluation snapshots are diagnostic
-regression data, not training data or a strength metric. Timed throughput has
-no pass/fail threshold. Smoke matches validate orchestration only; strength
-claims require adequately sized standard matches whose reported interval
-excludes zero in the candidate's favor.
-
-This completed infrastructure is now a prerequisite rather than an open work
-item for the tuning and performance findings below.
-
-## Phase 3: Human-Guided Correction and Rough Tuning
-
-These findings intentionally may change evaluations and searched trees. They
-must not be bundled with organizational refactors.
-
-### Completed — TUNE-001 feature-semantics audit
-
-The feature-semantics audit is complete. It corrected queen discovery
-detection, strengthened structured color-symmetry and castling-shelter
-coverage, and separated isolated from backward pawn penalties. It also
-recorded deliberate policies for material authority, bishop-pair activation,
-geometric threat counts, and horizontally asymmetric PSQTs.
-
-No confirmed correctness defect or essential invariant-test gap remains open.
-The retained feature definitions, supporting evidence, completed commits, and
-remaining tuning candidates are documented in
-[`eval-feature-audit.md`](eval-feature-audit.md). That document now preserves
-the completed rough-tuning and performance evidence.
-
-### Completed — TUNE-002 rough evaluation pass
-
-The bounded rough pass retained passed-pawn scoring, a phase range based on the
-full starting non-pawn material, softer generic endgame scaling, and pawn
-attacks as a weak-piece threat signal. The middlegame pawn remained the fixed
-100-centipawn scale anchor. Reviews of material ratios, tempo, PSQTs, remaining
-pawn and piece weights, mobility curves, king safety, and downstream search
-thresholds concluded with no change. A latent-mobility experiment was rejected
-and reverted.
-
-Three reduced checkpoint matches screened coherent groups. The final standard
-match against the archived pre-pass engine scored 930/786/284 over 1,000
-opening pairs (66.2%, +116.4 +/- 12.0 Elo, LOS 100%). This supports the
-aggregate retained engine at those settings; it does not attribute the result
-to an individual feature or replace later mathematical tuning. Detailed task
-rationale, commits, snapshots, and match artifacts remain in
-[`eval-feature-audit.md`](eval-feature-audit.md).
-
-## Phase 4: Profile-Guided Performance Optimization
-
-### Completed — PERF-001 and PERF-002
-
-Profiling found that the release x86-64 build spent 17.6% of isolated
-evaluation cycles in the software `__popcountdi2` helper. The retained change
-enables hardware POPCNT for supported GNU/Clang x86-64 builds, with a CMake
-option for older targets. Final isolated throughput improved from 260.321 to
-185.470 ns/evaluation (-28.8%), or from 3.84 to 5.39 million evaluations per
-second (+40.4%). Evaluation snapshots and deterministic fixed-depth search
-results remained exact; downstream NPS also improved.
-
-A 1,024-entry worker-local pawn evaluation cache was implemented and measured,
-then rejected and fully reverted. Although hit rates ranged from 76.0% to
-99.8%, its approximately 72 KiB per-worker cost and additional evaluator
-boundary did not produce a repeatable search-speed improvement. Reconsider a
-pawn cache only if pawn evaluation grows materially or profiling provides
-stronger evidence. Full experiment details remain in
-[`eval-feature-audit.md`](eval-feature-audit.md).
-
-## Phase 5: Mathematical Tuning
+Before retaining tuned parameters, establish one canonical local Fastchess
+workflow. Run paired, color-reversed SPRT games against an archived pre-change
+binary using the pinned opening suite, one thread per engine, 32 MB Hash, and
+fixed time-control and adjudication settings. Use normalized-Elo bounds
+`[0, 5]` with `alpha = beta = 0.05` to screen candidates, then `[0, 3]` with
+the same error rates to confirm a retained batch. Record both binary revisions
+and hashes, the complete command, concurrency, Fastchess output, final SPRT
+decision, and PGN.
 
 ### MATH-001 — Export parameter-independent features and construct datasets
 
-**Motivation and evidence**
+**Motivation and current evidence**
 
-The evaluator currently multiplies weights directly into `TaperedScore`
-results. A weighted debug trace cannot recover the raw sparse coefficients
-needed to tune PSQTs and feature weights independently. No labeled WDL dataset
-or train/validation split exists.
-
-**Intended outcome**
-
-- Define a deterministic, versioned feature schema covering tunable linear
-  middlegame/endgame coefficients and sparse PSQT entries.
-- Add an extraction mode/tool that emits raw feature coefficients, phase,
-  scaling context, side to move, and source position identity without changing
-  normal search evaluation.
-- Build a deduplicated labeled position dataset from games.
-- Split by game, not individual position, into training, validation, and held-out
-  test sets to avoid leakage.
-- Keep the small diagnostic corpus separate from training data.
-- Record filtering policy, sampling balance, result labels, schema version, and
-  reproducible seeds.
-
-**Likely components**
-
-Evaluation feature representation, offline extraction tooling, dataset scripts,
-and documentation. Large generated datasets should not be committed blindly.
-
-**Dependencies and ordering**
-
-After rough feature definitions stabilize and preferably after PERF-001 so
-extraction can remain clearly separate from the hot path.
-
-**Tests and measurement**
-
-Reconstruct current linear evaluation components from exported features,
-validate symmetry and deterministic schemas, detect duplicate/leaked games,
-and verify split/result distributions.
-
-**Risks**
-
-Data leakage, biased game sources, inconsistent side-to-move conventions,
-silent schema drift, or trying to encode nonlinear king/scale behavior as
-ordinary independent linear weights.
-
-**Completion criteria**
-
-Feature export is reproducible and can reconstruct its supported evaluation
-terms; datasets and splits are documented, deduplicated, versioned, and held-out
-validation remains untouched by fitting.
-
-### MATH-002 — Implement reproducible Texel-style linear tuning
-
-**Motivation and evidence**
-
-Material, PSQT, mobility, and many positional bonuses are suitable for
-supervised WDL-error minimization, but their features are correlated and their
-middlegame/endgame contributions are phase-coupled.
+The existing trace records weighted term contributions. It cannot recover the
+raw sparse coefficients needed to tune individual material, PSQT, mobility,
+pawn, and piece-feature parameters. The 24-position diagnostic corpus is a
+regression aid, not a training dataset.
 
 **Intended outcome**
 
-- Fit the evaluation-to-WDL logistic scaling constant explicitly.
-- Optimize selected linear middlegame/endgame parameter groups with a
-  deterministic seed and recorded configuration.
-- Use bounds, regularization, symmetry constraints, or staged groups to prevent
-  implausible coefficients and cancellation between correlated features.
-- Report training, validation, and held-out loss separately.
-- Generate a reviewable parameter artifact or patch rather than mutating source
+- Define a deterministic, versioned feature schema for the linear portion of
+  the HCE.
+- Export raw MG/EG coefficients, phase and scaling context, side to move, game
+  result, and source identity without changing normal search evaluation.
+- Prove that the supported weighted terms reconstruct the production
+  evaluator before fitting any parameters.
+- Build a large, deduplicated WDL-labeled position dataset.
+- Split by game—not by individual position—into training, validation, and
+  untouched held-out sets.
+- Filter checkmates, stalemates, recognized dead positions, malformed games,
+  and other positions for which a static-evaluation label is inappropriate.
+- Record source, sampling interval, quiet-position policy, balancing, seeds,
+  schema version, and all filtering decisions.
+- Keep the checked-in diagnostic corpus separate from tuning data.
+- Report phase and material distributions and preserve a dedicated endgame
+  validation slice so middlegames cannot hide endgame errors.
+
+**Scope boundary**
+
+Do not tune weights, change normal evaluation, add features, implement a
+generic machine-learning framework, or commit large generated datasets without
+an explicit storage policy. Keep the versioned exporter, schema, construction
+code, configurations, and compact manifests in `tuning/`; keep large generated
+data in `tuning/workspace/`.
+
+**Testing and completion**
+
+Require deterministic export, exact reconstruction for supported terms,
+schema validation, duplicate/leak detection, game-level split validation, and
+dataset distribution reports. MATH-001 must leave production evaluations,
+fixed-depth search, and matches unchanged.
+
+### MATH-002 — Tune the existing linear HCE reproducibly
+
+**Motivation**
+
+Material, PSQTs, mobility tables, passed-pawn ranks, and many positional
+bonuses are linear or can be represented as phase-coupled linear features.
+Their current values are coherent but largely hand selected.
+
+**Intended outcome**
+
+- Fit the evaluation-to-WDL logistic scale explicitly.
+- Tune selected coherent parameter groups with deterministic configuration and
+  seeds.
+- Keep the middlegame pawn fixed at 100 centipawns as the score-scale anchor.
+- Apply bounds, regularization, symmetry constraints, or staged groups to
+  control correlated features and implausible coefficients.
+- Report training, validation, held-out, and endgame-slice loss separately.
+- Produce a reviewable parameter artifact or patch rather than mutating source
   constants opaquely.
-- Validate retained candidates in fixed-depth search and engine matches; lower
-  prediction loss alone is not sufficient.
+- Validate candidates through snapshots, fixed-depth search, and the canonical
+  local Fastchess SPRT workflow; lower prediction loss alone is not sufficient
+  strength evidence.
 
-**Likely components**
+**Testing and completion**
 
-Offline tuner code, feature datasets, parameter serialization/generation, and
-evaluation parameter tables.
+The tuner must reproduce results from its recorded inputs. Retained parameters
+must improve held-out prediction loss, remain structurally plausible, preserve
+evaluation invariants, and have credible candidate-versus-baseline match
+evidence.
 
-**Dependencies and ordering**
+### MATH-003 — Tune nonlinear and search-coupled behavior separately
 
-Requires MATH-001 and INFRA-003. Tune coherent groups incrementally rather than
-all parameters in one unreviewable run.
+**Motivation**
 
-**Tests and measurement**
-
-Synthetic optimizer tests, reproducible runs, held-out WDL loss, coefficient
-sanity reports, corpus score deltas, fixed-depth search, and paired matches.
-
-**Risks**
-
-Overfitting, correlated features producing extreme weights, optimizing noisy or
-search-biased labels, and accepting statistically insignificant match results.
-
-**Completion criteria**
-
-The tuner is reproducible; selected parameters improve held-out loss; retained
-changes preserve structural invariants and have credible match evidence.
-
-### MATH-003 — Tune nonlinear evaluation and search-coupled parameters separately
-
-**Motivation and evidence**
-
-King danger is quadratic in a raw danger score; check danger, phase, endgame
-scaling, and tempo are not independent linear feature weights. Evaluation scale
-also interacts with aspiration, razoring, futility, SEE, and ordering.
+King danger is nonlinear, while phase, generic and specialized endgame
+scaling, tempo, and search margins do not behave as independent linear feature
+weights. Combining them with the first linear fit would make the result harder
+to understand and validate.
 
 **Intended outcome**
 
-- Keep nonlinear king-safety, phase, scaling, and tempo experiments out of the
-  first linear fit.
-- Use staged grid/search methods, constrained optimization, or SPSA/self-play
-  where supervised linear fitting is not valid.
-- Tune search thresholds separately from HCE parameters even when their units
-  are coupled.
-- Require paired engine matches and statistical confidence for final adoption.
+- Keep king-danger conversion, phase, scaling, and tempo out of the initial
+  linear fit.
+- Use an appropriate constrained method for each nonlinear group.
+- Tune aspiration, razoring, futility, SEE-dependent policy, and other search
+  thresholds separately from HCE weights even when they share score units.
+- Require deterministic configurations and local Fastchess SPRT evidence for
+  retained changes.
 
-**Likely components**
+**Testing and completion**
 
-Nonlinear evaluation formulas/parameters, match tooling, and later separate
-search-tuning work.
+Protect formula boundaries and monotonicity where intended. Report held-out
+prediction effects when meaningful, fixed-depth search behavior, and paired
+match evidence. Do not accept a nonlinear or search-policy change solely from
+training loss.
 
-**Dependencies and ordering**
+## Evidence-Driven Endgame Knowledge
 
-After MATH-002 establishes a stable linear baseline.
+### END-001 — Audit endgame residuals after linear tuning
 
-**Tests and measurement**
+**Motivation**
 
-Formula boundary/monotonicity tests, held-out prediction metrics where
-meaningful, search stability comparisons, and statistically evaluated matches.
+Automated tuning can choose weights for existing features but cannot invent a
+missing chess relationship. Conversely, adding traditional endgame rules
+before measuring the tuned evaluator expands the model and parameter space
+without evidence that the added complexity solves a current weakness.
 
-**Risks**
+**Intended outcome**
 
-Large noisy search spaces, compensating parameters, invalid interpolation,
-destabilized pruning, and confounding evaluation with search-policy changes.
+- Analyze the tuned evaluator's largest and most systematic errors on the
+  held-out endgame slice.
+- Compare score sign, calibration, and conversion behavior with exact
+  tablebase WDL/DTZ results where available.
+- Separate failures caused by a missing general feature from exact material
+  recognizers, draw scaling, search horizon, and tablebase-covered play.
+- Create focused candidate findings only for repeated, explainable failures.
 
-**Completion criteria**
+**Testing and completion**
 
-Every retained nonlinear or search-coupled change has an explicit method,
-reproducible configuration, structural tests, and match evidence beyond the
-linear baseline.
+Produce a compact evidence report organized by material class and failure
+type. Completion does not require a production change; it requires a justified
+decision about which, if any, endgame mechanisms deserve their own plans.
 
-## Deferred: NNUE
+### END-002 — Add only justified endgame mechanisms
 
-NNUE work begins only after the HCE pipeline above is operational. No current
-finding should introduce a speculative virtual evaluator interface or store an
-NNUE accumulator/network in `Board`.
+Possible findings from END-001 may include:
+
+- opposite-colored-bishop or other material-specific draw scaling;
+- wrong-bishop rook-pawn recognition;
+- king distance or rule-of-the-square context for passed pawns;
+- mop-up guidance in won bare-king endings;
+- KPK or another small exact bitbase; or
+- rook/pass-pawn and other conversion-oriented relationships.
+
+This list is illustrative, not a checklist. Each retained mechanism must have
+one precise chess meaning, activation and counterexample tests, held-out or
+tablebase evidence, a reviewed snapshot change, and a paired match against the
+then-current tuned baseline. Retrain affected linear parameters after adding a
+new feature.
+
+The broader set of established endgame techniques is summarized by the
+[Chessprogramming Wiki endgame overview](https://chessprogramming.org/Endgame).
+
+## Related Engine Capability
+
+### TB-001 — Add optional Syzygy tablebase support
+
+**Ownership and independence**
+
+Tablebases are exact external oracles used by root handling and search. They
+are not HCE terms and are not a prerequisite for tuning positions outside
+their coverage. This work may proceed independently after RULE-001, although
+END-001 can use an offline tablebase tool without waiting for production
+integration.
+
+**Intended outcome**
+
+- Add optional Syzygy WDL and DTZ probing with no bundled tablebase files.
+- Define UCI configuration, unavailable/invalid-path behavior, supported piece
+  counts, castling/en-passant restrictions, probe depth, and thread safety.
+- Distinguish interior-node WDL use from root DTZ move selection.
+- Respect the fifty-move counter and preserve correct mate/stalemate/draw
+  precedence.
+- Measure probe hit rate and search cost; disk access and decompression must not
+  silently reduce overall strength.
+- Keep ordinary search fully functional and reproducible when no tablebase path
+  is configured.
+
+**Testing and completion**
+
+Use a tiny externally supplied test fixture or mockable probing boundary rather
+than committing large tables. Cover win/draw/loss, root move choice, the
+fifty-move boundary, unavailable files, unsupported positions, multiple
+workers, and UCI option behavior. Run matches both with tablebases disabled and
+with identical tablebase access for both engines.
+
+Tablebase formats and the WDL/DTZ tradeoffs are surveyed in the
+[Chessprogramming Wiki tablebase overview](https://chessprogramming.org/Endgame_Tablebases).
+
+## Deferred Evaluation Backend
+
+### NNUE — Create a separate implementation roadmap
+
+NNUE remains a future evaluation backend rather than another task inside the
+HCE tuning plan. Create its detailed roadmap only after the mathematical HCE
+pipeline is operational and its lessons about data, validation, and match
+testing are understood.
 
 The later design must respect these constraints:
 
-- Network weights are immutable shared state owned above individual workers.
-- Each search worker owns mutable accumulator stacks and any refresh cache.
-- Accumulator push/pop must stay coherent with ordinary moves, captures,
-  promotions, castling, en passant, null moves, root installation, Board copies,
-  and complete unmake.
-- A scalar full-refresh implementation should establish correctness before
-  incremental updates or SIMD.
-- The HCE remains available as a reference implementation and diagnostic
-  comparator while NNUE is developed.
-- Network loading, UCI options, fallback policy, and distribution are later
-  integration decisions, not part of the HCE refactor.
+- immutable network weights are shared above individual workers;
+- each search worker owns mutable accumulator stacks and refresh state;
+- accumulator push/pop remains coherent with all make/unmake operations,
+  promotions, castling, en passant, null moves, root installation, and Board
+  copies;
+- a scalar full-refresh implementation establishes correctness before
+  incremental updates or SIMD;
+- the HCE remains available as a readable reference and diagnostic comparator;
+  and
+- network loading, UCI options, fallback behavior, distribution, and licensing
+  are explicit integration decisions.
 
-Entry criteria for an NNUE roadmap are: stable evaluation ownership, structured
-tracing, corpus and throughput benchmarks, match infrastructure, a documented
-Board/evaluator state boundary, and completed rough/mathematical HCE tuning.
+## Recommended Execution Sequence
 
-## Remaining Execution Sequence
+1. **RULE-001** — basic dead-by-material recognition.
+2. **MATH-001** — raw feature export and reproducible datasets.
+3. Establish and smoke-test the canonical local Fastchess SPRT workflow.
+4. **MATH-002** — linear HCE tuning and SPRT validation.
+5. **END-001** — tablebase-backed analysis of remaining endgame errors.
+6. **END-002** — only the endgame mechanisms justified by that analysis.
+7. **MATH-003** — nonlinear evaluation and search-coupled tuning.
+8. **TB-001** — optional production Syzygy integration; it may run in parallel
+   after RULE-001 and need not delay MATH-001 or MATH-002.
+9. Create a separate NNUE roadmap.
 
-1. **MATH-001** — export parameter-independent features and construct datasets.
-2. **MATH-002** — implement reproducible linear tuning with held-out
-   validation.
-3. **MATH-003** — tune nonlinear and search-coupled parameters separately.
-4. Create a separate NNUE roadmap only after the entry criteria are met.
+### Change Contract
 
-### Remaining change contract
-
-| Findings | Evaluation values | Search behavior | Required evidence |
+| Finding | Evaluation values | Search behavior | Required evidence |
 |---|---|---|---|
-| MATH-001 | No normal-path change | No normal-path change | Feature reconstruction and dataset validation |
-| MATH-002 and MATH-003 | Intentionally changes | Intentionally may change | Held-out metrics, coefficient sanity, statistical matches |
+| RULE-001 | Unchanged outside exact draws | Intentional draw correction | Rules cases and main/qsearch integration |
+| MATH-001 | Exact preservation | Exact preservation | Feature reconstruction and dataset validation |
+| MATH-002 | Intentionally changes | Intentionally may change | Held-out loss, coefficient sanity, snapshots, search and matches |
+| END-001 | No production change | No production change | Held-out and tablebase-backed analysis |
+| END-002 | Intentionally may change | Intentionally may change | Activation tests, exact/endgame evidence, retraining and matches |
+| MATH-003 | Intentionally changes | Intentionally may change | Formula tests, reproducible optimization and matches |
+| TB-001 | HCE unchanged | Exact tablebase outcomes in covered nodes | Probe correctness, performance and equal-access matches |
+| NNUE | New evaluation backend | Intentionally changes | Separate roadmap and staged equivalence/strength validation |
