@@ -55,15 +55,15 @@ endif()
 add_executable(latrunculi src/main.cpp)
 target_link_libraries(latrunculi PRIVATE latrunculi_lib Threads::Threads)
 
-option(LATRUNCULI_BUILD_BENCHMARK "Build benchmark target" OFF)
-if(LATRUNCULI_BUILD_BENCHMARK)
-    add_executable(benchmark
-        bench/benchmark.cpp
-        bench/evaluation.cpp
-        bench/perft.cpp
+option(LATRUNCULI_BUILD_MEASUREMENTS "Build component measurement tool" OFF)
+if(LATRUNCULI_BUILD_MEASUREMENTS)
+    add_executable(latrunculi-measure
+        measurements/main.cpp
+        measurements/eval.cpp
+        measurements/perft.cpp
+        measurements/search.cpp
     )
-    target_link_libraries(benchmark PRIVATE latrunculi_lib Threads::Threads)
-    target_compile_definitions(benchmark PRIVATE LATRUNCULI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    target_link_libraries(latrunculi-measure PRIVATE latrunculi_lib Threads::Threads)
 endif()
 
 if(BUILD_TESTING)
@@ -125,8 +125,8 @@ endif()
 
 set(LATRUNCULI_RUNTIME_DIR ${CMAKE_BINARY_DIR}/bin)
 set_target_properties(latrunculi PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${LATRUNCULI_RUNTIME_DIR})
-if(TARGET benchmark)
-    set_target_properties(benchmark PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${LATRUNCULI_RUNTIME_DIR})
+if(TARGET latrunculi-measure)
+    set_target_properties(latrunculi-measure PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${LATRUNCULI_RUNTIME_DIR})
 endif()
 if(TARGET tests)
     set_target_properties(tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${LATRUNCULI_RUNTIME_DIR})

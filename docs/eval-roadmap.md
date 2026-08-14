@@ -28,12 +28,10 @@ The preparatory HCE work is complete:
   to search;
 - feature, boundary, color-symmetry, make/unmake, and trace-consistency tests
   protect the current implementation;
-- a checked-in diagnostic corpus and deterministic snapshots expose evaluation
-  changes;
-- isolated evaluation throughput and deterministic fixed-depth search can be
-  compared independently;
-- a pinned opening suite and archived-baseline convention support reproducible
-  local engine comparisons; and
+- a fixed embedded evaluation workload supplies an order-sensitive behavior
+  checksum and isolated throughput measurement;
+- a fixed-depth component measurement compares integrated search independently
+  from evaluator throughput; and
 - a bounded rough pass corrected feature semantics, added passed-pawn scoring,
   reviewed all major parameter groups, and profiled the retained evaluator.
 
@@ -82,29 +80,59 @@ quiescence search return the draw score, and preserve repetition and
 fifty-move behavior. Completion requires a documented exact material contract
 and no false draw classification for merely difficult-to-win endings.
 
-## Mathematical HCE Tuning
+## Benchmarking and Mathematical HCE Tuning
 
 ### Repository boundary
 
-Keep the tuning implementation in a distinct top-level `tuning/` directory.
-It owns the optional C++ raw-feature exporter, Python dataset construction and
-optimization code, reproducible configurations, documentation, and small test
-fixtures. Normal engine builds and runtime code must not depend on tuning
-tools or their Python dependencies. Keep generated games, feature matrices,
-datasets, candidate artifacts, archived binaries, and match results in an
-ignored `tuning/workspace/` subtree so the entire tuning workflow remains
-self-contained.
+Keep Latrunculi's benchmark and tuning implementation in a distinct top-level
+`bench/` directory. It owns the deterministic engine-benchmark workload,
+OpenBench integration documentation and configuration, the optional C++ raw-
+feature exporter, Python dataset construction and optimization code,
+reproducible configurations, and small test fixtures. Keep generated games,
+feature matrices, datasets, candidate artifacts, and reports in an ignored
+`bench/workspace/` subtree.
+
+The separately built `latrunculi-measure` executable remains responsible only
+for local component performance measurement. Run a pinned, self-hosted
+[OpenBench](https://github.com/AndyGrant/OpenBench) checkout as a separate
+service. Keep normal engine builds and runtime code independent of benchmark
+and tuning tools and their Python dependencies.
+
+### BENCH-001 — Establish the deterministic engine benchmark and OpenBench integration
+
+**Intended outcome**
+
+- Add `latrunculi bench` with a fixed low-depth position suite, deterministic
+  aggregate node count, elapsed time, and final nodes-per-second output in the
+  form required by
+  [OpenBench](https://github.com/AndyGrant/OpenBench/wiki/Requirements-For-Public-Engines).
+- Add the minimal OpenBench-compatible build entry point while retaining CMake
+  as the project's normal build system.
+- Document and version Latrunculi's OpenBench engine configuration, opening
+  suite identity, test modes, time controls, Hash, thread count, adjudication,
+  and SPRT defaults under `bench/`.
+- Pin and operate a private OpenBench server and worker on the dedicated
+  workstation, beginning with fixed-game smoke tests and a short SPRT.
+- Keep OpenBench responsible for engine builds, worker coordination, paired
+  color-reversed games, Fastchess execution, PGNs, and test results.
+
+**Testing and completion**
+
+Repeated `latrunculi bench` runs must produce the same aggregate node count.
+OpenBench must build both revisions, normalize worker speed from the benchmark,
+and complete paired fixed-game and SPRT smoke tests. Record the OpenBench test
+IDs, engine revisions, benchmark node count, configuration revision, and final
+decision.
 
 ### Strength-validation policy
 
-Before retaining tuned parameters, establish one canonical local Fastchess
-workflow. Run paired, color-reversed SPRT games against an archived pre-change
-binary using the pinned opening suite, one thread per engine, 32 MB Hash, and
-fixed time-control and adjudication settings. Use normalized-Elo bounds
-`[0, 5]` with `alpha = beta = 0.05` to screen candidates, then `[0, 3]` with
-the same error rates to confirm a retained batch. Record both binary revisions
-and hashes, the complete command, concurrency, Fastchess output, final SPRT
-decision, and PGN.
+Use the self-hosted OpenBench instance for all retained strength claims. Run
+paired, color-reversed SPRT games against the pre-change revision using the
+pinned opening suite, one thread per engine, 32 MB Hash, and the versioned time-
+control and adjudication settings. Use normalized-Elo bounds `[0, 5]` with
+`alpha = beta = 0.05` to screen candidates, then `[0, 3]` with the same error
+rates to confirm a retained batch. Record the OpenBench test ID, both engine
+revisions, configuration revision, SPRT decision, and relevant PGN location.
 
 ### MATH-001 — Export parameter-independent features and construct datasets
 
@@ -112,8 +140,9 @@ decision, and PGN.
 
 The existing trace records weighted term contributions. It cannot recover the
 raw sparse coefficients needed to tune individual material, PSQT, mobility,
-pawn, and piece-feature parameters. The 24-position diagnostic corpus is a
-regression aid, not a training dataset.
+pawn, and piece-feature parameters. The embedded 24-position evaluation
+workload is a throughput input and compact behavior fingerprint, not a training
+dataset.
 
 **Intended outcome**
 
@@ -130,7 +159,7 @@ regression aid, not a training dataset.
   and other positions for which a static-evaluation label is inappropriate.
 - Record source, sampling interval, quiet-position policy, balancing, seeds,
   schema version, and all filtering decisions.
-- Keep the checked-in diagnostic corpus separate from tuning data.
+- Keep the embedded measurement workload separate from tuning data.
 - Report phase and material distributions and preserve a dedicated endgame
   validation slice so middlegames cannot hide endgame errors.
 
@@ -139,8 +168,8 @@ regression aid, not a training dataset.
 Do not tune weights, change normal evaluation, add features, implement a
 generic machine-learning framework, or commit large generated datasets without
 an explicit storage policy. Keep the versioned exporter, schema, construction
-code, configurations, and compact manifests in `tuning/`; keep large generated
-data in `tuning/workspace/`.
+code, configurations, and compact manifests in `bench/`; keep large generated
+data in `bench/workspace/`.
 
 **Testing and completion**
 
@@ -168,9 +197,9 @@ Their current values are coherent but largely hand selected.
 - Report training, validation, held-out, and endgame-slice loss separately.
 - Produce a reviewable parameter artifact or patch rather than mutating source
   constants opaquely.
-- Validate candidates through snapshots, fixed-depth search, and the canonical
-  local Fastchess SPRT workflow; lower prediction loss alone is not sufficient
-  strength evidence.
+- Validate candidates through focused evaluator tests, the evaluation checksum,
+  fixed-depth search, and the canonical OpenBench SPRT workflow; lower
+  prediction loss alone is not sufficient strength evidence.
 
 **Testing and completion**
 
@@ -195,8 +224,8 @@ to understand and validate.
 - Use an appropriate constrained method for each nonlinear group.
 - Tune aspiration, razoring, futility, SEE-dependent policy, and other search
   thresholds separately from HCE weights even when they share score units.
-- Require deterministic configurations and local Fastchess SPRT evidence for
-  retained changes.
+- Require deterministic configurations and OpenBench SPRT evidence for retained
+  changes.
 
 **Testing and completion**
 
@@ -245,9 +274,9 @@ Possible findings from END-001 may include:
 
 This list is illustrative, not a checklist. Each retained mechanism must have
 one precise chess meaning, activation and counterexample tests, held-out or
-tablebase evidence, a reviewed snapshot change, and a paired match against the
-then-current tuned baseline. Retrain affected linear parameters after adding a
-new feature.
+tablebase evidence, reviewed evaluation and search changes, and a paired match
+against the then-current tuned baseline. Retrain affected linear parameters
+after adding a new feature.
 
 The broader set of established endgame techniques is summarized by the
 [Chessprogramming Wiki endgame overview](https://chessprogramming.org/Endgame).
@@ -314,9 +343,9 @@ The later design must respect these constraints:
 ## Recommended Execution Sequence
 
 1. **RULE-001** — basic dead-by-material recognition.
-2. **MATH-001** — raw feature export and reproducible datasets.
-3. Establish and smoke-test the canonical local Fastchess SPRT workflow.
-4. **MATH-002** — linear HCE tuning and SPRT validation.
+2. **BENCH-001** — deterministic engine benchmark and self-hosted OpenBench.
+3. **MATH-001** — raw feature export and reproducible datasets.
+4. **MATH-002** — linear HCE tuning and OpenBench SPRT validation.
 5. **END-001** — tablebase-backed analysis of remaining endgame errors.
 6. **END-002** — only the endgame mechanisms justified by that analysis.
 7. **MATH-003** — nonlinear evaluation and search-coupled tuning.
@@ -329,8 +358,9 @@ The later design must respect these constraints:
 | Finding | Evaluation values | Search behavior | Required evidence |
 |---|---|---|---|
 | RULE-001 | Unchanged outside exact draws | Intentional draw correction | Rules cases and main/qsearch integration |
+| BENCH-001 | Exact preservation | Exact preservation | Stable node count, OpenBench build and paired-game smoke tests |
 | MATH-001 | Exact preservation | Exact preservation | Feature reconstruction and dataset validation |
-| MATH-002 | Intentionally changes | Intentionally may change | Held-out loss, coefficient sanity, snapshots, search and matches |
+| MATH-002 | Intentionally changes | Intentionally may change | Held-out loss, coefficient sanity, evaluation checksum, search and matches |
 | END-001 | No production change | No production change | Held-out and tablebase-backed analysis |
 | END-002 | Intentionally may change | Intentionally may change | Activation tests, exact/endgame evidence, retraining and matches |
 | MATH-003 | Intentionally changes | Intentionally may change | Formula tests, reproducible optimization and matches |

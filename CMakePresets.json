@@ -28,10 +28,10 @@
       "name": "debug-dev",
       "inherits": ["debug"],
       "displayName": "Debug Developer",
-      "description": "Debug build with tests and benchmark enabled",
+      "description": "Debug build with tests and component measurements enabled",
       "cacheVariables": {
         "BUILD_TESTING": "ON",
-        "LATRUNCULI_BUILD_BENCHMARK": "ON"
+        "LATRUNCULI_BUILD_MEASUREMENTS": "ON"
       }
     },
     {
@@ -47,10 +47,10 @@
       "name": "release-dev",
       "inherits": ["release"],
       "displayName": "Release Developer",
-      "description": "Release build with tests and benchmark enabled",
+      "description": "Release build with tests and component measurements enabled",
       "cacheVariables": {
         "BUILD_TESTING": "ON",
-        "LATRUNCULI_BUILD_BENCHMARK": "ON"
+        "LATRUNCULI_BUILD_MEASUREMENTS": "ON"
       }
     },
     {
@@ -67,10 +67,10 @@
       "name": "release-stats-dev",
       "inherits": ["release-stats"],
       "displayName": "Release with search stats Developer",
-      "description": "Release build with search stats, tests, and benchmark enabled",
+      "description": "Release build with search stats, tests, and component measurements enabled",
       "cacheVariables": {
         "BUILD_TESTING": "ON",
-        "LATRUNCULI_BUILD_BENCHMARK": "ON"
+        "LATRUNCULI_BUILD_MEASUREMENTS": "ON"
       }
     }
   ],

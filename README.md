@@ -41,7 +41,7 @@ cmake --preset release
 cmake --build --preset release
 ```
 
-Developer builds opt into tests and benchmark:
+Developer builds opt into tests and component measurements:
 
 ```bash
 cmake --preset release-dev
@@ -53,7 +53,7 @@ Specific development targets can be built directly:
 
 ```bash
 cmake --build --preset release-dev --target tests
-cmake --build --preset release-dev --target benchmark
+cmake --build --preset release-dev --target latrunculi-measure
 ```
 
 if you want a specific compiler:
@@ -103,8 +103,9 @@ cmake --build --preset release-dev
 ctest --preset release-dev
 ```
 
-`benchmark` is available in `*-dev` presets. See the
-[benchmark guide](bench/README.md) for perft, search, and comparison workflows.
+`latrunculi-measure` is available in `*-dev` presets. See the
+[measurement guide](measurements/README.md) for perft, evaluation, and search
+workflows.
 
 ## license
 

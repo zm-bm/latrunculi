@@ -1,7 +1,7 @@
 #pragma once
 
-namespace bench {
+namespace measurements {
 
 int run_perft(int argc, char* argv[]);
 
-} // namespace bench
+} // namespace measurements
