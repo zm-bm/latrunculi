@@ -4,6 +4,10 @@ This is the authoritative development backlog for Latrunculi. The
 [architecture overview](architecture.md) describes the current implementation;
 this document contains only remaining work.
 
+The current goal is Latrunculi 1.0: a stable, well-tested public release with
+documented playing strength. Development and automated tuning will continue
+through later versions.
+
 **Now** is the active, ordered workstream. **Next** contains substantial work
 that follows from it. **Later** is an informal backlog rather than a commitment.
 Before implementation, revalidate each identified task against the current
@@ -13,8 +17,9 @@ of maintaining a historical log.
 ## Now
 
 The immediate workstream completes exact draw handling, establishes repeatable
-strength testing, and mathematically tunes the existing handcrafted evaluation.
-These tasks should be executed in order.
+strength testing, hardens the engine, and mathematically tunes the existing
+handcrafted evaluation before publishing Latrunculi 1.0. These tasks should be
+executed in order.
 
 ### RULE-001 — Recognize dead positions by material
 
@@ -67,6 +72,24 @@ adjudication settings. Use normalized-Elo SPRT bounds `[0, 5]` with
 batch. Record the OpenBench test ID, both revisions, configuration revision,
 decision, and PGN location.
 
+### REL-001 — Harden the engine for release
+
+Add repeatable stress testing for correctness, concurrency, and long-running
+engine stability.
+
+- Run the complete suite under AddressSanitizer and UndefinedBehaviorSanitizer,
+  with ThreadSanitizer as a separate configuration.
+- Exercise randomized legal positions, move round trips, evaluation, and short
+  searches with deterministic seeds and reproducible failure inputs.
+- Run a substantial self-play soak through OpenBench and reject crashes, hangs,
+  illegal moves, protocol failures, and incomplete games.
+- Preserve the seed, FEN, PGN, command, and diagnostic output for every failure.
+- Keep performance thresholds and playing-strength conclusions outside this
+  task.
+
+Completion requires clean sanitizer runs, reproducible randomized stress
+coverage, and a completed self-play soak without engine failures.
+
 ### MATH-001 — Export raw features and construct tuning datasets
 
 The current evaluation trace records weighted contributions. Mathematical
@@ -111,6 +134,23 @@ Retained parameters must improve held-out prediction loss, preserve evaluation
 invariants, remain structurally plausible, and pass focused tests, component
 measurements, fixed-depth search review, and the OpenBench workflow. Prediction
 loss alone is not evidence of playing strength.
+
+### RELEASE-001 — Publish Latrunculi 1.0
+
+Prepare the first public release after the initial handcrafted-evaluation
+tuning pass.
+
+- Require completion of RULE-001, BENCH-001, REL-001, MATH-001, and MATH-002.
+- Verify supported GCC and Clang release builds and the complete test suite.
+- Record the deterministic benchmark, component measurements, and
+  representative OpenBench results.
+- Confirm UCI behavior, usage documentation, version output, and release
+  packaging.
+- Tag and publish a reproducible source release and engine binary.
+
+Latrunculi 1.0 focuses on a reliable, tuned handcrafted engine with documented
+playing-strength results. NNUE, tablebases, and further strength development
+belong to later releases.
 
 ## Next
 
@@ -166,5 +206,13 @@ after RULE-001.
   - Measure LMR reductions and verification searches, especially for good quiet
     moves ordered late by TT or history state.
   - Recheck static opening-evaluation shape independently from search results.
+- Revalidate search-strength opportunities after the stability investigations,
+  including time management, verified null-move pruning, and zugzwang handling.
+- Measure multi-thread search scaling and TT/cache contention before changing
+  the parallel-search design.
 - Evaluate move-ordering improvements such as complete capture-history
   integration only after the current ordering baseline is measured.
+- Add continuous integration for supported GCC and Clang builds, tests,
+  ASan/UBSan, and a separate ThreadSanitizer configuration.
+- Consider Lichess operation, tournament submission, and broader public testing
+  after the 1.0 release.
