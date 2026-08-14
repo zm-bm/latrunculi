@@ -1,157 +1,170 @@
 # Engine Roadmap
 
-This document is a subsystem-oriented roadmap for the engine. Each section
-describes the current implementation and important boundaries; mature sections
-may also record practical improvements to consider next.
+This is the authoritative development backlog for Latrunculi. The
+[architecture overview](architecture.md) describes the current implementation;
+this document contains only remaining work.
 
-## Engine / UCI
+**Now** is the active, ordered workstream. **Next** contains substantial work
+that follows from it. **Later** is an informal backlog rather than a commitment.
+Before implementation, revalidate each identified task against the current
+source and produce an implementation-ready plan. Remove completed tasks instead
+of maintaining a historical log.
 
-The engine boundary is intentionally small: `Engine` coordinates command
-handling, board/history state, UCI options, and asynchronous search lifecycle.
-`uci::Reader` reads one line at a time from its configured input stream and
-delegates parsing to `parse_command()`; `uci::Writer` owns UCI and debug-output
-formatting and flushing; `uci::Options` owns option parsing and validation while
-`Engine` applies option side effects. `ThreadPool` starts workers from the
-resolved root board and `SearchLimits`; each `SearchWorker` owns an independent
-Board copy retaining the reconstructed game history and subsequent search
-traversal.
+## Now
 
-Current UCI support covers the core loop: `uci`, `debug`, `isready`,
-`setoption`, `ucinewgame`, `position`, `go`, `stop`, and `quit`. `go` applies
-`depth`, `movetime`, `nodes`, `wtime`/`btime`, `winc`/`binc`, and `movestogo`.
-The parser also records `ponder`, `infinite`, `mate`, `searchmoves`, and unknown
-`go` tokens, but `Engine` does not yet apply them. `ponderhit`, `register`, and
-unknown commands are accepted as silent compatibility no-ops. `ucinewgame`
-clears the transposition table; `position` rebuilds the board and game history.
+The immediate workstream completes exact draw handling, establishes repeatable
+strength testing, and mathematically tunes the existing handcrafted evaluation.
+These tasks should be executed in order.
 
-Advertised options are `Hash`, `Clear Hash`, `Threads`, and `Debug`. Search
-output includes `info depth`, `score cp`/`score mate`, nodes, time, nps, and a
-PV only while the complete line remains legal from the root. Positions without
-a legal move produce `bestmove 0000`.
+### RULE-001 — Recognize dead positions by material
 
-The same command loop also accepts local debug-console extensions: `help`,
-`board`/`d`, `eval`, `move`, `moves`, and `perft`, plus `exit` as a local quit
-alias. These are local inspection tools, not protocol features.
+`Board::is_draw()` currently recognizes the fifty-move rule and repetition but
+not positions in which no legal sequence can produce checkmate.
 
-### Potential Improvements
+- Add a conservative, exact material predicate and use it in normal and
+  quiescence search.
+- Cover king-only and lone-minor cases while avoiding false draws such as
+  K+NN versus K, where mate is possible even if it cannot be forced.
+- Define promoted-bishop and bishop-square-color behavior from the dead-position
+  rule rather than simple piece counts.
+- Keep stalemate, repetition, the fifty-move rule, and tablebase results as
+  separate concepts.
 
-Future UCI work should focus on common GUI compatibility rather than broad
-protocol surface area. The likely next protocol gaps are real ponder support,
-applying parsed `go searchmoves`, `go infinite`, and `go mate` limits, MultiPV,
-lowerbound/upperbound score reporting, richer progress fields such as
-`currmove`, `currmovenumber`, `hashfull`, `tbhits`, and `cpuload`, and Chess960
-support if the board/search layer grows that capability.
+Completion requires positive and negative rules tests plus identical search
+behavior outside newly recognized exact draws. No evaluation parameter changes
+belong in this task.
 
-Likely future options include `SyzygyPath`, `SyzygyProbeDepth`,
-`Syzygy50MoveRule`, `UCI_Chess960`, `MultiPV`, and optional strength controls
-such as `UCI_LimitStrength` and `UCI_Elo`. Treat these as compatibility targets,
-not commitments to add unsupported engine features prematurely.
+### BENCH-001 — Establish the engine benchmark and OpenBench workflow
 
-## Board
+Add the deterministic engine benchmark and external workflow needed for
+repeatable strength testing.
 
-`Board` is the mutable position type used by move generation, evaluation,
-search, perft, and UCI tooling. It owns the durable board representation and a
-dynamically growable stack of per-ply states. Board copies are independent and
-reserve enough additional state capacity for a complete search.
+- Add `latrunculi bench` with a fixed low-depth position suite, deterministic
+  aggregate node count, elapsed time, and nodes-per-second output compatible
+  with OpenBench.
+- Add the minimal OpenBench build entry point while retaining CMake as the
+  normal project build system.
+- Create a focused top-level `bench/` area for OpenBench configuration and the
+  later tuning pipeline. Keep `latrunculi-measure` responsible only for local
+  component performance.
+- Pin a private OpenBench server and worker on the dedicated workstation,
+  including opening-suite identity, engine options, time controls,
+  adjudication, and test defaults.
+- Complete paired fixed-game and short SPRT smoke tests before relying on the
+  service for tuning decisions.
 
-The durable representation combines per-color piece and occupancy bitboards, a
-square mailbox, piece counts, king locations, side to move, game and
-incremental material and piece-square scores.
-The active `PlyState` holds the Zobrist key, castling rights, raw and legal
-en-passant targets, halfmove clock, cached checkers and slider blockers, and
-undo data. `make()`/`unmake()` maintain these synchronized views incrementally;
-null transitions preserve piece placement while updating side to move,
-reversible state, and tactical caches. Repetition detection scans the keys in
-the owned state stack. Board calculations reuse attack and move-geometry
-primitives from `core`.
+Repeated benchmark runs must produce the same aggregate node count. OpenBench
+must build both revisions, normalize worker speed, and complete paired tests
+whose engine revisions and configuration are recorded.
 
-`board.hpp` is the module map and retains hot query and representation-mutation
-definitions inline. Implementation files separate representation and copying,
-FEN I/O, make/unmake, Board rules, static exchange evaluation, and notation.
-FEN parsing, castling rights, per-ply state, and immutable Zobrist tables remain
-narrow support components.
+#### Strength-validation policy
 
-## Move Ordering
+Use the self-hosted OpenBench instance for retained strength claims. Compare
+against the pre-change revision with paired, color-reversed games, a pinned
+opening suite, one thread per engine, 32 MB Hash, and versioned time-control and
+adjudication settings. Use normalized-Elo SPRT bounds `[0, 5]` with
+`alpha = beta = 0.05` to screen candidates and `[0, 3]` to confirm a retained
+batch. Record the OpenBench test ID, both revisions, configuration revision,
+decision, and PGN location.
 
-Move ordering is currently a solid staged baseline. The engine uses one
-`move_picker::Picker` for main search and qsearch; mode-specific factories
-configure the staged picker, while `MoveOrdering` owns the per-worker heuristic
-state used by the picker and search updates.
+### MATH-001 — Export raw features and construct tuning datasets
 
-### Current State
+The current evaluation trace records weighted contributions. Mathematical
+tuning instead needs parameter-independent feature coefficients and reliable
+WDL labels.
 
-The main-search move order is:
+- Define a deterministic, versioned schema for the linear HCE features,
+  including MG/EG coefficients, phase and scaling context, side to move, game
+  result, and source identity.
+- Prove that exported coefficients reconstruct the supported production
+  evaluation before fitting parameters.
+- Build a large, deduplicated position dataset and split it by game into
+  training, validation, and untouched held-out sets.
+- Filter malformed games, terminal positions, recognized dead positions, and
+  other samples unsuitable for static-evaluation labels.
+- Record sampling, balancing, quiet-position policy, seeds, schema version, and
+  filtering decisions. Preserve a dedicated endgame validation slice.
+- Keep exporter code, dataset construction, reproducible configuration, and
+  compact fixtures under `bench/`; keep generated data under an ignored
+  `bench/workspace/` directory.
 
-1. TT move, after pseudo-legal validation.
-2. Good noisy moves and promotions.
-3. Two killer moves.
-4. One countermove hint.
-5. Generated quiet moves ordered by history.
-6. Bad noisy moves.
+Completion requires deterministic export, exact feature reconstruction,
+schema validation, duplicate and split-leak detection, and useful distribution
+reports. Production evaluation and search behavior must remain unchanged.
 
-When in check, the picker generates evasions instead of the normal staged main
-search order. Qsearch uses the same picker interface, but only searches TT/noisy
-moves outside check and evasions while in check; it does not use main-search
-quiet hints.
+### MATH-002 — Tune the linear handcrafted evaluation
 
-Capture ordering is conservative and exact:
+Tune the existing linear and phase-coupled feature groups reproducibly before
+adding more evaluation knowledge.
 
-- promotions are scored above ordinary captures;
-- ordinary captures are classified with `Board::see()`;
-- SEE-safe captures are ordered by victim value plus exact SEE score;
-- SEE-losing captures remain reachable after quiets in main search;
-- qsearch omits SEE-losing noisy moves outside check.
+- Fit the evaluation-to-WDL logistic scale explicitly.
+- Tune coherent groups such as material, PSQTs, mobility, pawn structure, and
+  piece bonuses with deterministic seeds and configuration.
+- Keep the middlegame pawn fixed at 100 centipawns as the score-scale anchor.
+- Apply bounds, regularization, symmetry constraints, or staged groups to
+  control correlated and implausible coefficients.
+- Report training, validation, held-out, and endgame-slice loss separately.
+- Produce a reviewable parameter patch or artifact rather than mutating source
+  constants opaquely.
 
-Quiet ordering uses a compact set of refutation and history tables:
+Retained parameters must improve held-out prediction loss, preserve evaluation
+invariants, remain structurally plausible, and pass focused tests, component
+measurements, fixed-depth search review, and the OpenBench workflow. Prediction
+loss alone is not evidence of playing strength.
 
-- `KillerMoves` stores two quiet beta-cutoff refutations per ply;
-- `CounterMoves` stores one quiet reply to the previous move context;
-- `QuietHistory` scores quiet moves by side/from/to;
-- `ContinuationHistory` adds one previous-move context for generated quiet
-  moves;
-- `MoveOrdering::Context` caches node-local color and previous-move keys so
-  lookup work is not repeated per move.
+## Next
 
-Quiet-history updates use signed gravity. On a quiet beta cutoff, search rewards
-the cutoff quiet, updates killers and countermoves, and applies a conservative
-malus to a bounded list of previously searched ordinary quiets. The malus path
-is depth-gated, excludes TT and killer quiets, requires at least two failed
-quiets, and uses half-strength penalties.
+### END-001 — Audit endgame residuals
 
-`CaptureHistory` exists as tested table scaffolding, but it is not part of the
-active search or picker path. Generated quiets currently share one
-history-ordered stage rather than a good/bad quiet split.
+After linear tuning, analyze the largest held-out endgame errors and compare
+them with exact tablebase WDL/DTZ results where available. Separate missing
+general features from exact material rules, draw scaling, search horizon, and
+tablebase-covered play. Produce an evidence report by material class and
+failure type; a production change is not required.
 
-### Potential Improvements
+### END-002 — Add justified endgame mechanisms
 
-Keep the current staged order as the baseline. It is simple, predictable, and
-already has the important refutation layers. Future work should prefer measured
-search-policy use of the existing history data before adding new picker stages.
+Plan individual mechanisms only for repeated, explainable failures found by
+END-001. Candidates may include draw scaling, wrong-bishop rook-pawn handling,
+passed-pawn race context, mop-up guidance, or a small exact bitbase. Each change
+requires activation and counterexample tests, held-out or tablebase evidence,
+retraining of affected linear parameters, and paired match validation.
 
-Recommended next directions:
+### MATH-003 — Tune nonlinear and search-coupled behavior
 
-- Use quiet and continuation history to tune late-move reductions. The current
-  LMR formula uses depth and move count plus node type, move kind, check state,
-  checking-move status, and killer status, but not history scores. History
-  scores could reduce less for strong quiets and reduce more for poor quiets.
-- Add cautious history-based quiet pruning near the leaves. This should be a
-  search-policy step, not a move-generation change, and it should preserve the
-  first-legal-move safety assumptions used by current pruning.
-- Revisit capture history only as a complete capture-ordering experiment:
-  capture-history scoring, attempted-capture malus, and lazy threshold SEE need
-  to be evaluated together. Exact SEE should remain the active baseline until
-  that combined shape produces stable fixed-depth evidence.
-- Consider adding a second previous-ply follow-up history only after the
-  one-ply continuation table remains useful across broader tests. Avoid a
-  family of history tables before there is evidence that the current context is
-  saturated.
-- Add move-kind-specific stats before another ordering split. Useful counters
-  would separate TT, good noisy, killer, counter, generated quiet, and bad noisy
-  cutoff sources instead of relying only on global cutoff index buckets.
+Tune king-danger conversion, phase, scaling, and tempo separately from the
+linear fit. Treat aspiration, razoring, futility, SEE-dependent policy, and
+other search thresholds as search tuning even when they share score units.
+Require constrained, reproducible optimization, formula-boundary tests,
+fixed-depth search review, and OpenBench evidence.
 
-Avoid for now:
+### TB-001 — Add optional Syzygy support
 
-- a standalone good/bad quiet picker split;
-- capture-history reads in qsearch;
-- copied score constants from other engines;
-- pruning or reduction changes bundled with unrelated move-ordering changes.
+Add optional WDL and DTZ probing without bundling tablebase files. Define UCI
+configuration, unavailable-path behavior, supported positions, probe depth,
+fifty-move handling, root move selection, and multi-threaded access. Preserve
+ordinary search when tablebases are disabled and validate correctness,
+performance, and equal-access matches. This task may proceed independently
+after RULE-001.
+
+## Later
+
+- Design an NNUE backend after the HCE tuning pipeline is operational. Preserve
+  the HCE as a readable reference and account for shared immutable networks,
+  per-worker accumulator state, and Board make/unmake synchronization.
+- Add UCI capabilities when supported by the corresponding engine feature:
+  MultiPV, richer bound and progress reporting, Chess960, and optional strength
+  controls.
+- Revalidate potential sources of search instability before treating them as
+  current defects:
+  - Establish fresh-process, single-thread determinism with identical position,
+    limit, Hash, and configuration inputs.
+  - Measure Hash-size sensitivity across a fixed suite, comparing nodes, scores,
+    root moves, PVs, and TT statistics.
+  - Audit aspiration convergence, root PVS and scout windows, re-searches, and
+    full-window verification of competitive root moves.
+  - Measure LMR reductions and verification searches, especially for good quiet
+    moves ordered late by TT or history state.
+  - Recheck static opening-evaluation shape independently from search results.
+- Evaluate move-ordering improvements such as complete capture-history
+  integration only after the current ordering baseline is measured.

@@ -62,6 +62,7 @@ search workflows.
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Roadmap](docs/roadmap.md)
 - [UCI protocol reference](docs/uci-protocol-specification.txt)
 
 ## License
