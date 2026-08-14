@@ -9,7 +9,6 @@
     {
       "name": "base",
       "hidden": true,
-      "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
@@ -77,33 +76,27 @@
   "buildPresets": [
     {
       "name": "debug",
-      "configurePreset": "debug",
-      "jobs": 0
+      "configurePreset": "debug"
     },
     {
       "name": "release",
-      "configurePreset": "release",
-      "jobs": 0
+      "configurePreset": "release"
     },
     {
       "name": "release-stats",
-      "configurePreset": "release-stats",
-      "jobs": 0
+      "configurePreset": "release-stats"
     },
     {
       "name": "debug-dev",
-      "configurePreset": "debug-dev",
-      "jobs": 0
+      "configurePreset": "debug-dev"
     },
     {
       "name": "release-dev",
-      "configurePreset": "release-dev",
-      "jobs": 0
+      "configurePreset": "release-dev"
     },
     {
       "name": "release-stats-dev",
-      "configurePreset": "release-stats-dev",
-      "jobs": 0
+      "configurePreset": "release-stats-dev"
     }
   ],
   "testPresets": [

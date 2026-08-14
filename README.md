@@ -1,84 +1,44 @@
-# latrunculi
+# Latrunculi
 
-*uci chess engine written in c++23*
+Latrunculi is a UCI chess engine written in C++23. It is under active
+development.
 
-*not yet tuned for strength*
+## Features
 
----
+- Bitboard move generation with magic sliding attacks
+- Multi-threaded iterative-deepening PVS with aspiration windows and quiescence search
+- Transposition table, staged move ordering, and alpha-beta pruning and reductions
+- Tapered handcrafted evaluation
+- UCI search limits, `searchmoves`, infinite search, and pondering
 
-## at a glance
+## Build
 
-* **bitboard core** with magic bitboards
-* **PVS search**
-* **iterative deepening** with aspiration windows
-* **transposition table**
-* **multi-threaded search**
-* **null-move pruning, LMR, and quiescence**
-* **hand-crafted eval**
-
-## getting started
-
-### prerequisites
-
-* g++ 13+ or clang++ 18
-* cmake ≥3.23
-* git (for submodules)
-
-Tested on linux with g++ 13.3 / 14.2 and clang++ 18.
-
-On x86-64, builds use the widely available POPCNT instruction by default.
-Pass `-DLATRUNCULI_USE_POPCNT=OFF` when targeting an older processor without
-POPCNT support.
-
-### build
-
-Default builds produce the engine executable only:
+Requires GCC 13+ or Clang 18+, CMake 3.23+, and Git.
 
 ```bash
-git clone --recursive https://github.com/zm-bm/latrunculi.git
+git clone --recurse-submodules https://github.com/zm-bm/latrunculi.git
 cd latrunculi
 cmake --preset release
 cmake --build --preset release
 ```
 
-Developer builds opt into tests and component measurements:
+On x86-64, POPCNT is enabled by default. Disable it for older processors with
+`-DLATRUNCULI_USE_POPCNT=OFF`.
+
+## Run
+
+Latrunculi communicates over standard input and output using UCI:
 
 ```bash
-cmake --preset release-dev
-cmake --build --preset release-dev
-ctest --preset release-dev
+./build/release/latrunculi
 ```
 
-Specific development targets can be built directly:
-
-```bash
-cmake --build --preset release-dev --target tests
-cmake --build --preset release-dev --target latrunculi-measure
-```
-
-if you want a specific compiler:
-
-```bash
-cmake --preset release -D CMAKE_CXX_COMPILER=g++-13
-cmake --build --preset release
-```
-
-if you forgot `--recursive`, run:
-
-```bash
-git submodule update --init --recursive
-```
-
-### run
-
-```bash
-./build/release/bin/latrunculi   # opens uci prompt
-```
-
-point any uci‑capable gui (cutechess, arena, etc.) at the binary, or try a quick terminal handshake like:
+A UCI-compatible GUI normally manages the session. For a quick terminal test:
 
 ```text
 uci
+setoption name Threads value 4
+setoption name Hash value 64
 isready
 ucinewgame
 position startpos moves e2e4 e7e5
@@ -86,16 +46,9 @@ go depth 10
 quit
 ```
 
-set options if needed before `isready` / `go`:
+## Development
 
-```text
-setoption name Threads value 4
-setoption name Hash value 64
-isready
-go depth 20
-```
-
-## tests
+Developer presets enable tests and component measurements:
 
 ```bash
 cmake --preset release-dev
@@ -103,10 +56,14 @@ cmake --build --preset release-dev
 ctest --preset release-dev
 ```
 
-`latrunculi-measure` is available in `*-dev` presets. See the
-[measurement guide](measurements/README.md) for perft, evaluation, and search
-workflows.
+See the [measurement guide](measurements/README.md) for perft, evaluation, and
+search workflows.
 
-## license
+## Documentation
 
-This project is licensed under the GNU General Public License v3.0.
+- [Architecture](docs/architecture.md)
+- [UCI protocol reference](docs/uci-protocol-specification.txt)
+
+## License
+
+Latrunculi is licensed under the GNU General Public License v3.0.

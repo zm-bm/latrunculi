@@ -14,27 +14,27 @@ option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
 
 set(LATRUNCULI_ENGINE_SOURCES
     src/core/attacks_magic.cpp
+    src/core/move.cpp
     src/core/notation.cpp
     src/board/board_fen.cpp
-    src/board/board_rules.cpp
     src/board/board_move.cpp
-    src/board/notation.cpp
     src/board/board_representation.cpp
+    src/board/board_rules.cpp
     src/board/board_see.cpp
     src/board/fen_parser.cpp
-    src/core/move.cpp
+    src/board/notation.cpp
+    src/movegen/perft.cpp
     src/eval/evaluation.cpp
     src/eval/trace.cpp
     src/eval/trace_formatter.cpp
-    src/movegen/perft.cpp
-    src/search/ordering/picker.cpp
-    src/search/root_line.cpp
     src/search/algorithm.cpp
     src/search/instrumentation.cpp
     src/search/limits.cpp
+    src/search/ordering/picker.cpp
+    src/search/root_line.cpp
     src/search/thread_pool.cpp
-    src/search/worker.cpp
     src/search/tt.cpp
+    src/search/worker.cpp
     src/uci/engine.cpp
     src/uci/options.cpp
     src/uci/parser.cpp
@@ -45,6 +45,7 @@ add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
 target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_VERSION="${PROJECT_VERSION}")
+target_link_libraries(latrunculi_lib PUBLIC Threads::Threads)
 
 if(LATRUNCULI_USE_POPCNT
    AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$"
@@ -53,7 +54,7 @@ if(LATRUNCULI_USE_POPCNT
 endif()
 
 add_executable(latrunculi src/main.cpp)
-target_link_libraries(latrunculi PRIVATE latrunculi_lib Threads::Threads)
+target_link_libraries(latrunculi PRIVATE latrunculi_lib)
 
 option(LATRUNCULI_BUILD_MEASUREMENTS "Build component measurement tool" OFF)
 if(LATRUNCULI_BUILD_MEASUREMENTS)
@@ -63,22 +64,16 @@ if(LATRUNCULI_BUILD_MEASUREMENTS)
         measurements/perft.cpp
         measurements/search.cpp
     )
-    target_link_libraries(latrunculi-measure PRIVATE latrunculi_lib Threads::Threads)
+    target_link_libraries(latrunculi-measure PRIVATE latrunculi_lib)
 endif()
 
 if(BUILD_TESTING)
     add_subdirectory(third_party/googletest)
 
     set(LATRUNCULI_TEST_SOURCES
+        tests/main.cpp
         tests/core/attacks.test.cpp
         tests/core/attacks_magic.test.cpp
-        tests/board/board_fen.test.cpp
-        tests/board/board_move.test.cpp
-        tests/board/board_representation.test.cpp
-        tests/board/board_rules.test.cpp
-        tests/board/board_see.test.cpp
-        tests/board/fen_parser.test.cpp
-        tests/board/notation.test.cpp
         tests/core/bitboard.test.cpp
         tests/core/move.test.cpp
         tests/core/move_geometry.test.cpp
@@ -86,17 +81,21 @@ if(BUILD_TESTING)
         tests/core/piece.test.cpp
         tests/core/square.test.cpp
         tests/core/types.test.cpp
-        tests/eval/parameters.test.cpp
+        tests/board/board_fen.test.cpp
+        tests/board/board_move.test.cpp
+        tests/board/board_representation.test.cpp
+        tests/board/board_rules.test.cpp
+        tests/board/board_see.test.cpp
+        tests/board/fen_parser.test.cpp
+        tests/board/notation.test.cpp
+        tests/movegen/generator.test.cpp
+        tests/movegen/move_list.test.cpp
+        tests/movegen/perft.test.cpp
         tests/eval/evaluator.test.cpp
         tests/eval/features.test.cpp
+        tests/eval/parameters.test.cpp
         tests/eval/tapered_score.test.cpp
-        tests/main.cpp
-        tests/movegen/move_list.test.cpp
-        tests/movegen/generator.test.cpp
-        tests/movegen/perft.test.cpp
         tests/search/algorithm.test.cpp
-        tests/search/quiescence.test.cpp
-        tests/search/root_search.test.cpp
         tests/search/instrumentation.test.cpp
         tests/search/limits.test.cpp
         tests/search/ordering/history.test.cpp
@@ -104,7 +103,9 @@ if(BUILD_TESTING)
         tests/search/ordering/refutations.test.cpp
         tests/search/ordering/state.test.cpp
         tests/search/principal_variation.test.cpp
+        tests/search/quiescence.test.cpp
         tests/search/root_line.test.cpp
+        tests/search/root_search.test.cpp
         tests/search/thread_pool.test.cpp
         tests/search/tt.test.cpp
         tests/search/worker.test.cpp
@@ -119,15 +120,6 @@ if(BUILD_TESTING)
 
     add_executable(tests ${LATRUNCULI_TEST_SOURCES})
     target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
-    target_link_libraries(tests PRIVATE latrunculi_lib gtest gmock Threads::Threads)
+    target_link_libraries(tests PRIVATE latrunculi_lib gtest gmock)
     add_test(NAME unit_tests COMMAND tests)
-endif()
-
-set(LATRUNCULI_RUNTIME_DIR ${CMAKE_BINARY_DIR}/bin)
-set_target_properties(latrunculi PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${LATRUNCULI_RUNTIME_DIR})
-if(TARGET latrunculi-measure)
-    set_target_properties(latrunculi-measure PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${LATRUNCULI_RUNTIME_DIR})
-endif()
-if(TARGET tests)
-    set_target_properties(tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${LATRUNCULI_RUNTIME_DIR})
 endif()
