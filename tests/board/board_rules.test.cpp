@@ -303,8 +303,35 @@ TEST(BoardRulesTest, ValidatesLegalMovesWhileInCheck) {
 // Draw detection.
 
 TEST(BoardRulesTest, AppliesFiftyMoveRule) {
-    EXPECT_TRUE(Board("k7/8/8/8/8/8/8/K7 w - - 100 50").is_draw());
-    EXPECT_FALSE(Board("k7/8/8/8/8/8/8/K7 w - - 99 50").is_draw());
+    EXPECT_TRUE(Board("k7/8/8/8/8/8/8/K6R w - - 100 50").is_draw());
+    EXPECT_FALSE(Board("k7/8/8/8/8/8/8/K6R w - - 99 50").is_draw());
+}
+
+TEST(BoardRulesTest, RecognizesDeadPositionsByMaterial) {
+    struct Case {
+        std::string_view name;
+        std::string_view fen;
+        bool             dead;
+    };
+
+    constexpr std::array cases{
+        Case{"kings only", board_test::fen::kings_only, true},
+        Case{"lone bishop", "4k3/8/8/8/8/8/8/3BK3 w - - 0 1", true},
+        Case{"lone knight", "4k3/8/8/8/8/8/8/3NK3 w - - 0 1", true},
+        Case{"promoted bishops on one square color", "4k3/8/8/6b1/8/4B3/8/2B1K3 w - - 0 1", true},
+        Case{"two knights", "4k3/8/8/8/8/8/8/2NNK3 w - - 0 1", false},
+        Case{"bishop and knight", "4k3/8/8/8/8/8/8/2BNK3 w - - 0 1", false},
+        Case{"bishops on both square colors", "4k3/8/8/8/8/8/8/2B1KB2 w - - 0 1", false},
+        Case{"pawn", "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1", false},
+        Case{"rook", "4k3/8/8/8/8/8/8/4K2R w - - 0 1", false},
+        Case{"queen", "4k3/8/8/8/8/8/8/3QK3 w - - 0 1", false},
+    };
+
+    for (const auto& test : cases) {
+        SCOPED_TRACE(test.name);
+        const Board board(test.fen);
+        EXPECT_EQ(board.is_dead_by_material(), test.dead);
+    }
 }
 
 TEST(BoardRulesTest, DetectsThreefoldRepetition) {
@@ -324,7 +351,7 @@ TEST(BoardRulesTest, DetectsThreefoldRepetition) {
 }
 
 TEST(BoardRulesTest, DistinguishesSearchCyclesFromGameHistoryRepetition) {
-    Board board(board_test::fen::corner_kings);
+    Board board(board_test::fen::corner_cycle);
 
     complete_corner_king_cycle(board);
     EXPECT_FALSE(board.is_draw());
@@ -336,7 +363,7 @@ TEST(BoardRulesTest, DistinguishesSearchCyclesFromGameHistoryRepetition) {
 }
 
 TEST(BoardRulesTest, NullMoveUnmakeRestoresRepetitionHistory) {
-    Board board(board_test::fen::corner_kings);
+    Board board(board_test::fen::corner_cycle);
 
     complete_corner_king_cycle(board);
     EXPECT_FALSE(board.is_draw());

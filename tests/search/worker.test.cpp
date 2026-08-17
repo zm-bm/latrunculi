@@ -119,7 +119,7 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeQuietAndPreserveContinuationHistory)
 }
 
 TEST_F(SearchWorkerTest, RootPositionHistoryFeedsSearchRepetitionAfterSourceReset) {
-    Board board(board_test::fen::corner_kings);
+    Board board(board_test::fen::corner_cycle);
 
     board.make(Move(A1, B1));
     board.make(Move(H8, G8));

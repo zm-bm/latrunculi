@@ -228,7 +228,7 @@ TEST(BoardMoveTest, TraversesAndUnwindsBeyondTheSearchDepthReserve) {
     };
     constexpr int traversal_plies = engine::max_search_ply + 8;
 
-    Board                                  board(board_test::fen::corner_kings);
+    Board                                  board(board_test::fen::corner_cycle);
     std::vector<board_test::BoardSnapshot> positions;
     positions.reserve(traversal_plies);
 

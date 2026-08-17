@@ -10,7 +10,8 @@
 
 namespace {
 
-constexpr int fifty_move_rule_halfmoves = 100;
+constexpr int      fifty_move_rule_halfmoves = 100;
+constexpr Bitboard checkerboard_mask         = 0x55AA55AA55AA55AAULL;
 
 bool is_king_safe_after_enpassant(const Board& board, Square from, Square target) noexcept {
     const Color  side            = board.side_to_move();
@@ -285,12 +286,28 @@ bool Board::gives_check(Move move) const noexcept {
 
 // Draw detection
 
-// Detects fifty-move and repetition draws; search ply distinguishes in-tree
-// cycles from game-history repetition.
+// Recognizes material configurations in which neither side can produce mate
+// through any legal sequence. Multiple bishops are dead only when every bishop
+// is confined to the same square color.
+bool Board::is_dead_by_material() const noexcept {
+    if (pieces<PAWN, ROOK, QUEEN>())
+        return false;
+
+    const Bitboard bishops = pieces<BISHOP>();
+    const Bitboard minors  = bishops | pieces<KNIGHT>();
+
+    if (!bb::is_many(minors))
+        return true;
+
+    return minors == bishops && (!(bishops & checkerboard_mask) || !(bishops & ~checkerboard_mask));
+}
+
+// Detects dead material, fifty-move, and repetition draws; search ply
+// distinguishes in-tree cycles from game-history repetition.
 bool Board::is_draw(int ply_from_search_root) const noexcept {
     assert(ply_from_search_root >= 0);
 
-    if (halfmove_clock() >= fifty_move_rule_halfmoves)
+    if (is_dead_by_material() || halfmove_clock() >= fifty_move_rule_halfmoves)
         return true;
 
     const PositionKey current_key   = key();

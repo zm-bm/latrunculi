@@ -149,7 +149,7 @@ protected:
 } // namespace
 
 TEST_F(SearchTest, HandlesDrawAndMaxPlyExits) {
-    Board drawn{"k7/8/2K5/8/8/8/8/8 b - - 100 1"};
+    Board drawn{board_test::fen::kings_only};
     load(drawn);
     EXPECT_EQ(search(-eval_value::inf, eval_value::inf, 2), eval_value::draw);
 
@@ -329,7 +329,7 @@ TEST_F(SearchTest, NullMovePruningRequiresAllGuards) {
 
     constexpr std::array cases{
         Case{"in check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", 4, true},
-        Case{"insufficient material", board_test::fen::quiet_black_to_move, 4, true},
+        Case{"no non-pawn material", board_test::fen::quiet_black_to_move, 4, true},
         Case{"lone rook", "4k3/8/8/8/8/8/8/4K2R w - - 0 1", 4, true},
         Case{"shallow", board_test::fen::start, 2, true},
         Case{"repeated null", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 1 1", 4, false},

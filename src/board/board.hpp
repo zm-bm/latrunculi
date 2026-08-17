@@ -108,6 +108,7 @@ public:
     bool is_legal_pseudo_move(Move move) const noexcept;
     bool is_legal_move(Move move) const noexcept;
     bool gives_check(Move move) const noexcept;
+    bool is_dead_by_material() const noexcept;
     bool is_draw(int ply_from_search_root = 0) const noexcept;
 
     // Move application and reversal (board_move.cpp)

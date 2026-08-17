@@ -95,7 +95,7 @@ TEST_F(QuiescenceTest, DepthZeroDispatchesToQuiescence) {
 }
 
 TEST_F(QuiescenceTest, TerminatesDrawAndMaxPlyWithoutTtStore) {
-    constexpr auto drawn = "k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1";
+    constexpr auto drawn = board_test::fen::kings_only;
 
     Board depth_zero_draw{drawn};
     load(depth_zero_draw);

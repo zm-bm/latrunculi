@@ -16,28 +16,9 @@ of maintaining a historical log.
 
 ## Now
 
-The immediate workstream completes exact draw handling, establishes repeatable
-strength testing, hardens the engine, and mathematically tunes the existing
-handcrafted evaluation before publishing Latrunculi 1.0. These tasks should be
-executed in order.
-
-### RULE-001 — Recognize dead positions by material
-
-`Board::is_draw()` currently recognizes the fifty-move rule and repetition but
-not positions in which no legal sequence can produce checkmate.
-
-- Add a conservative, exact material predicate and use it in normal and
-  quiescence search.
-- Cover king-only and lone-minor cases while avoiding false draws such as
-  K+NN versus K, where mate is possible even if it cannot be forced.
-- Define promoted-bishop and bishop-square-color behavior from the dead-position
-  rule rather than simple piece counts.
-- Keep stalemate, repetition, the fifty-move rule, and tablebase results as
-  separate concepts.
-
-Completion requires positive and negative rules tests plus identical search
-behavior outside newly recognized exact draws. No evaluation parameter changes
-belong in this task.
+The immediate workstream establishes repeatable strength testing, hardens the
+engine, and mathematically tunes the existing handcrafted evaluation before
+publishing Latrunculi 1.0. These tasks should be executed in order.
 
 ### BENCH-001 — Establish the engine benchmark and OpenBench workflow
 
@@ -140,7 +121,7 @@ loss alone is not evidence of playing strength.
 Prepare the first public release after the initial handcrafted-evaluation
 tuning pass.
 
-- Require completion of RULE-001, BENCH-001, REL-001, MATH-001, and MATH-002.
+- Require completion of BENCH-001, REL-001, MATH-001, and MATH-002.
 - Verify supported GCC and Clang release builds and the complete test suite.
 - Record the deterministic benchmark, component measurements, and
   representative OpenBench results.
@@ -184,8 +165,7 @@ Add optional WDL and DTZ probing without bundling tablebase files. Define UCI
 configuration, unavailable-path behavior, supported positions, probe depth,
 fifty-move handling, root move selection, and multi-threaded access. Preserve
 ordinary search when tablebases are disabled and validate correctness,
-performance, and equal-access matches. This task may proceed independently
-after RULE-001.
+performance, and equal-access matches.
 
 ## Later
 

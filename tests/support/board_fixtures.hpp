@@ -19,8 +19,8 @@ inline constexpr char perft_position_6[] =
     "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
 
 inline constexpr char kings_only[]          = "4k3/8/8/8/8/8/8/4K3 w - - 0 1";
-inline constexpr char corner_kings[]        = "7k/8/8/8/8/8/8/K7 w - - 0 1";
-inline constexpr char quiet_black_to_move[] = "k7/8/2K5/8/8/8/8/8 b - - 0 1";
+inline constexpr char corner_cycle[]        = "7k/8/8/8/8/8/P7/K7 w - - 0 1";
+inline constexpr char quiet_black_to_move[] = "k7/8/2K5/8/8/8/P7/8 b - - 0 1";
 inline constexpr char stalemate[]           = "k7/8/KQ6/8/8/8/8/8 b - - 0 1";
 inline constexpr char one_legal_evasion[]   = "k7/8/2K5/8/8/8/R7/8 b - - 0 1";
 inline constexpr char white_pawn_e2[]       = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1";

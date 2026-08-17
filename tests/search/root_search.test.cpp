@@ -85,7 +85,7 @@ protected:
 } // namespace
 
 TEST_F(RootSearchTest, SearchesDrawnRootForLegalMove) {
-    Board board{"k7/8/2K5/8/8/8/8/8 b - - 100 1"};
+    Board board{board_test::fen::kings_only};
     load(board, 1);
     ASSERT_TRUE(position().is_draw());
 
