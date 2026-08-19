@@ -16,36 +16,11 @@ of maintaining a historical log.
 
 ## Now
 
-The immediate workstream establishes repeatable strength testing, hardens the
-engine, and mathematically tunes the existing handcrafted evaluation before
-publishing Latrunculi 1.0. These tasks should be executed in order.
+The immediate workstream deploys durable strength testing, hardens the engine,
+and mathematically tunes the existing handcrafted evaluation before publishing
+Latrunculi 1.0. These tasks should be executed in order.
 
-### BENCH-001 — Establish the engine benchmark and OpenBench workflow
-
-Add the deterministic engine benchmark and external workflow needed for
-repeatable strength testing.
-
-- Add `latrunculi bench` with a fixed low-depth position suite, deterministic
-  aggregate node count, elapsed time, and nodes-per-second output compatible
-  with OpenBench.
-- Add the minimal OpenBench build entry point while retaining CMake as the
-  normal project build system.
-- Create a focused top-level `bench/` area for the OpenBench build entry point
-  and later tuning pipeline. Keep `latrunculi-measure` responsible only for
-  local component performance and keep server configuration in the OpenBench
-  fork.
-- Pin the private server and worker to a reviewed OpenBench fork revision. Use
-  `UHO_Lichess_4852_v1.epd` with SHA-256
-  `7a7f6470615a69c6cf23d565417701d38732876f480af90d67b42abade35644a` as
-  the initial opening suite.
-- Complete actual paired fixed-game and short SPRT workloads before relying on
-  the service for tuning decisions.
-
-Repeated benchmark runs must produce the same aggregate node count. OpenBench
-must build both revisions, normalize worker speed, and complete paired tests
-whose engine revisions and configuration are recorded.
-
-#### Strength-validation policy
+### Strength-validation policy
 
 Use the self-hosted OpenBench instance for retained strength claims. Compare
 against the pre-change revision with paired, color-reversed games, a pinned
@@ -55,6 +30,25 @@ after move 40 with eight evaluations within 10 cp; version later changes. Use
 normalized-Elo SPRT bounds `[0, 5]` with `alpha = beta = 0.05` to screen
 candidates and `[0, 3]` to confirm a retained batch. Record the OpenBench test
 ID, both revisions, configuration revision, decision, and PGN location.
+
+### OPS-001 — Deploy the OpenBench workstation
+
+Move the validated OpenBench workflow to the always-on private workstation.
+
+- Deploy the OpenBench fork at revision `1ede996` with a dedicated Python 3.11
+  virtual environment.
+- Migrate the local database and PGN archive, and keep credentials in an
+  untracked host environment file.
+- Run the server and worker as restartable services with private network access
+  and an explicit worker resource limit.
+- Back up the database and PGN archive, and allow books and engine builds to be
+  regenerated from their pinned sources.
+- Verify restart recovery and complete a paired two-game Latrunculi smoke test
+  using the pinned UHO opening suite.
+
+Completion requires persistent server state, automatic worker reconnection,
+successful benchmark validation, and complete match results after a service or
+machine restart.
 
 ### REL-001 — Harden the engine for release
 
@@ -124,7 +118,7 @@ loss alone is not evidence of playing strength.
 Prepare the first public release after the initial handcrafted-evaluation
 tuning pass.
 
-- Require completion of BENCH-001, REL-001, MATH-001, and MATH-002.
+- Require completion of OPS-001, REL-001, MATH-001, and MATH-002.
 - Verify supported GCC and Clang release builds and the complete test suite.
 - Record the deterministic benchmark, component measurements, and
   representative OpenBench results.
