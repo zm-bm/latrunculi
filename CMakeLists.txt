@@ -53,7 +53,11 @@ if(LATRUNCULI_USE_POPCNT
     target_compile_options(latrunculi_lib PUBLIC -mpopcnt)
 endif()
 
-add_executable(latrunculi src/main.cpp)
+add_executable(latrunculi
+    src/main.cpp
+    bench/benchmark.cpp
+)
+target_include_directories(latrunculi PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(latrunculi PRIVATE latrunculi_lib)
 
 option(LATRUNCULI_BUILD_MEASUREMENTS "Build component measurement tool" OFF)

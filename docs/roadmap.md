@@ -30,14 +30,16 @@ repeatable strength testing.
   with OpenBench.
 - Add the minimal OpenBench build entry point while retaining CMake as the
   normal project build system.
-- Create a focused top-level `bench/` area for OpenBench configuration and the
-  later tuning pipeline. Keep `latrunculi-measure` responsible only for local
-  component performance.
-- Pin a private OpenBench server and worker on the dedicated workstation,
-  including opening-suite identity, engine options, time controls,
-  adjudication, and test defaults.
-- Complete paired fixed-game and short SPRT smoke tests before relying on the
-  service for tuning decisions.
+- Create a focused top-level `bench/` area for the OpenBench build entry point
+  and later tuning pipeline. Keep `latrunculi-measure` responsible only for
+  local component performance and keep server configuration in the OpenBench
+  fork.
+- Pin the private server and worker to a reviewed OpenBench fork revision. Use
+  `UHO_Lichess_4852_v1.epd` with SHA-256
+  `7a7f6470615a69c6cf23d565417701d38732876f480af90d67b42abade35644a` as
+  the initial opening suite.
+- Complete actual paired fixed-game and short SPRT workloads before relying on
+  the service for tuning decisions.
 
 Repeated benchmark runs must produce the same aggregate node count. OpenBench
 must build both revisions, normalize worker speed, and complete paired tests
@@ -47,11 +49,12 @@ whose engine revisions and configuration are recorded.
 
 Use the self-hosted OpenBench instance for retained strength claims. Compare
 against the pre-change revision with paired, color-reversed games, a pinned
-opening suite, one thread per engine, 32 MB Hash, and versioned time-control and
-adjudication settings. Use normalized-Elo SPRT bounds `[0, 5]` with
-`alpha = beta = 0.05` to screen candidates and `[0, 3]` to confirm a retained
-batch. Record the OpenBench test ID, both revisions, configuration revision,
-decision, and PGN location.
+opening suite, one thread per engine, and 32 MB Hash. Start with a `10+0.1` time
+control, resign adjudication at 400 cp for three moves, and draw adjudication
+after move 40 with eight evaluations within 10 cp; version later changes. Use
+normalized-Elo SPRT bounds `[0, 5]` with `alpha = beta = 0.05` to screen
+candidates and `[0, 3]` to confirm a retained batch. Record the OpenBench test
+ID, both revisions, configuration revision, decision, and PGN location.
 
 ### REL-001 — Harden the engine for release
 
