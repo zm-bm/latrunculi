@@ -16,9 +16,9 @@ of maintaining a historical log.
 
 ## Now
 
-The immediate workstream deploys durable strength testing, hardens the engine,
-and mathematically tunes the existing handcrafted evaluation before publishing
-Latrunculi 1.0. These tasks should be executed in order.
+The immediate workstream hardens the engine and mathematically tunes the
+existing handcrafted evaluation before publishing Latrunculi 1.0. These tasks
+should be executed in order.
 
 ### Strength-validation policy
 
@@ -30,25 +30,6 @@ after move 40 with eight evaluations within 10 cp; version later changes. Use
 normalized-Elo SPRT bounds `[0, 5]` with `alpha = beta = 0.05` to screen
 candidates and `[0, 3]` to confirm a retained batch. Record the OpenBench test
 ID, both revisions, configuration revision, decision, and PGN location.
-
-### OPS-001 — Deploy the OpenBench workstation
-
-Move the validated OpenBench workflow to the always-on private workstation.
-
-- Deploy the OpenBench fork at revision `1ede996` with a dedicated Python 3.11
-  virtual environment.
-- Migrate the local database and PGN archive, and keep credentials in an
-  untracked host environment file.
-- Run the server and worker as restartable services with private network access
-  and an explicit worker resource limit.
-- Back up the database and PGN archive, and allow books and engine builds to be
-  regenerated from their pinned sources.
-- Verify restart recovery and complete a paired two-game Latrunculi smoke test
-  using the pinned UHO opening suite.
-
-Completion requires persistent server state, automatic worker reconnection,
-successful benchmark validation, and complete match results after a service or
-machine restart.
 
 ### REL-001 — Harden the engine for release
 
@@ -118,7 +99,7 @@ loss alone is not evidence of playing strength.
 Prepare the first public release after the initial handcrafted-evaluation
 tuning pass.
 
-- Require completion of OPS-001, REL-001, MATH-001, and MATH-002.
+- Require completion of REL-001, MATH-001, and MATH-002.
 - Verify supported GCC and Clang release builds and the complete test suite.
 - Record the deterministic benchmark, component measurements, and
   representative OpenBench results.
