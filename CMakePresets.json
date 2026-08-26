@@ -34,6 +34,24 @@
       }
     },
     {
+      "name": "debug-asan-ubsan",
+      "inherits": ["debug-dev"],
+      "displayName": "Debug with AddressSanitizer and UndefinedBehaviorSanitizer",
+      "description": "Debug developer build with address and undefined behavior sanitizers",
+      "cacheVariables": {
+        "LATRUNCULI_SANITIZER": "address-undefined"
+      }
+    },
+    {
+      "name": "debug-tsan",
+      "inherits": ["debug-dev"],
+      "displayName": "Debug with ThreadSanitizer",
+      "description": "Debug developer build with the thread sanitizer",
+      "cacheVariables": {
+        "LATRUNCULI_SANITIZER": "thread"
+      }
+    },
+    {
       "name": "release",
       "inherits": ["base"],
       "displayName": "Release",
@@ -91,6 +109,14 @@
       "configurePreset": "debug-dev"
     },
     {
+      "name": "debug-asan-ubsan",
+      "configurePreset": "debug-asan-ubsan"
+    },
+    {
+      "name": "debug-tsan",
+      "configurePreset": "debug-tsan"
+    },
+    {
       "name": "release-dev",
       "configurePreset": "release-dev"
     },
@@ -103,6 +129,27 @@
     {
       "name": "debug-dev",
       "configurePreset": "debug-dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "debug-asan-ubsan",
+      "configurePreset": "debug-asan-ubsan",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "debug-tsan",
+      "configurePreset": "debug-tsan",
+      "environment": {
+        "TSAN_OPTIONS": "halt_on_error=1"
+      },
       "output": {
         "outputOnFailure": true
       }

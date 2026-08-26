@@ -11,6 +11,21 @@ find_package(Threads REQUIRED)
 
 option(LATRUNCULI_SEARCH_STATS "Enable detailed search statistics diagnostics" OFF)
 option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
+set(LATRUNCULI_SANITIZER "none" CACHE STRING "Sanitizer configuration")
+set_property(CACHE LATRUNCULI_SANITIZER PROPERTY STRINGS none address-undefined thread)
+
+set(LATRUNCULI_VALID_SANITIZERS none address-undefined thread)
+if(NOT LATRUNCULI_SANITIZER IN_LIST LATRUNCULI_VALID_SANITIZERS)
+    message(FATAL_ERROR
+        "Unsupported LATRUNCULI_SANITIZER=${LATRUNCULI_SANITIZER}; "
+        "expected none, address-undefined, or thread")
+endif()
+
+if(NOT LATRUNCULI_SANITIZER STREQUAL "none"
+   AND NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    message(FATAL_ERROR
+        "LATRUNCULI_SANITIZER requires a GNU or Clang-compatible compiler")
+endif()
 
 set(LATRUNCULI_ENGINE_SOURCES
     src/core/attacks_magic.cpp
@@ -46,6 +61,20 @@ target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_VERSION="${PROJECT_VERSION}")
 target_link_libraries(latrunculi_lib PUBLIC Threads::Threads)
+
+if(LATRUNCULI_SANITIZER STREQUAL "address-undefined")
+    target_compile_options(latrunculi_lib PUBLIC
+        -fsanitize=address,undefined
+        -fno-omit-frame-pointer
+    )
+    target_link_options(latrunculi_lib INTERFACE -fsanitize=address,undefined)
+elseif(LATRUNCULI_SANITIZER STREQUAL "thread")
+    target_compile_options(latrunculi_lib PUBLIC
+        -fsanitize=thread
+        -fno-omit-frame-pointer
+    )
+    target_link_options(latrunculi_lib INTERFACE -fsanitize=thread)
+endif()
 
 if(LATRUNCULI_USE_POPCNT
    AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$"
@@ -126,4 +155,9 @@ if(BUILD_TESTING)
     target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
     target_link_libraries(tests PRIVATE latrunculi_lib gtest gmock)
     add_test(NAME unit_tests COMMAND tests)
+
+    add_executable(latrunculi-stress tests/stress/randomized.test.cpp)
+    target_include_directories(latrunculi-stress PRIVATE ${CMAKE_SOURCE_DIR}/tests)
+    target_link_libraries(latrunculi-stress PRIVATE latrunculi_lib gtest)
+    add_test(NAME randomized_stress COMMAND latrunculi-stress)
 endif()
