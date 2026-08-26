@@ -31,23 +31,38 @@ normalized-Elo SPRT bounds `[0, 5]` with `alpha = beta = 0.05` to screen
 candidates and `[0, 3]` to confirm a retained batch. Record the OpenBench test
 ID, both revisions, configuration revision, decision, and PGN location.
 
-### REL-001 — Harden the engine for release
+### REL-001 — Add sanitizer and randomized stress coverage
 
-Add repeatable stress testing for correctness, concurrency, and long-running
-engine stability.
+Add repeatable local stress testing for correctness and concurrency.
 
-- Run the complete suite under AddressSanitizer and UndefinedBehaviorSanitizer,
-  with ThreadSanitizer as a separate configuration.
+- Add committed compiler-neutral configurations that run the complete suite
+  under AddressSanitizer and UndefinedBehaviorSanitizer, with ThreadSanitizer
+  as a separate configuration.
 - Exercise randomized legal positions, move round trips, evaluation, and short
   searches with deterministic seeds and reproducible failure inputs.
-- Run a substantial self-play soak through OpenBench and reject crashes, hangs,
-  illegal moves, protocol failures, and incomplete games.
-- Preserve the seed, FEN, PGN, command, and diagnostic output for every failure.
+- Preserve the seed, case, FEN, move history or PGN, command, and diagnostic
+  output for every failure.
 - Keep performance thresholds and playing-strength conclusions outside this
   task.
 
 Completion requires clean sanitizer runs, reproducible randomized stress
-coverage, and a completed self-play soak without engine failures.
+coverage, and exact commands for replaying individual failures.
+
+### REL-002 — Complete the release stability soak
+
+Validate the pushed REL-001 revision under sustained self-play on OpenBench.
+
+- Compare the REL-001 revision as Dev against the pre-REL-001 revision as Base.
+- Run a fixed, non-SPRT workload of 2,000 games across 1,000 color-reversed
+  opening pairs using the pinned UHO suite, `10+0.1`, `Threads=1 Hash=32`, and
+  the standard adjudication settings.
+- Reject crashes, hangs, illegal moves, protocol failures, and incomplete
+  games; do not treat the match score as playing-strength evidence.
+- Preserve the test ID, both revisions, OpenBench revision, server PGN location,
+  and diagnostic output for every failure.
+
+Completion requires all 2,000 games to finish without an engine failure and
+enough retained evidence to audit the workload and reproduce any failure.
 
 ### MATH-001 — Export raw features and construct tuning datasets
 
@@ -99,7 +114,7 @@ loss alone is not evidence of playing strength.
 Prepare the first public release after the initial handcrafted-evaluation
 tuning pass.
 
-- Require completion of REL-001, MATH-001, and MATH-002.
+- Require completion of REL-001, REL-002, MATH-001, and MATH-002.
 - Verify supported GCC and Clang release builds and the complete test suite.
 - Record the deterministic benchmark, component measurements, and
   representative OpenBench results.
