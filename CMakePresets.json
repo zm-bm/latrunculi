@@ -18,35 +18,27 @@
       "name": "debug",
       "inherits": ["base"],
       "displayName": "Debug",
-      "description": "Debug build using the system default C++ compiler",
+      "description": "Debug build with tests enabled",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
-    },
-    {
-      "name": "debug-dev",
-      "inherits": ["debug"],
-      "displayName": "Debug Developer",
-      "description": "Debug build with tests and component measurements enabled",
-      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "BUILD_TESTING": "ON",
-        "LATRUNCULI_BUILD_MEASUREMENTS": "ON"
+        "LATRUNCULI_BUILD_MEASUREMENTS": "OFF"
       }
     },
     {
       "name": "debug-asan-ubsan",
-      "inherits": ["debug-dev"],
+      "inherits": ["debug"],
       "displayName": "Debug with AddressSanitizer and UndefinedBehaviorSanitizer",
-      "description": "Debug developer build with address and undefined behavior sanitizers",
+      "description": "Debug test build with address and undefined behavior sanitizers",
       "cacheVariables": {
         "LATRUNCULI_SANITIZER": "address-undefined"
       }
     },
     {
       "name": "debug-tsan",
-      "inherits": ["debug-dev"],
+      "inherits": ["debug"],
       "displayName": "Debug with ThreadSanitizer",
-      "description": "Debug developer build with the thread sanitizer",
+      "description": "Debug test build with the thread sanitizer",
       "cacheVariables": {
         "LATRUNCULI_SANITIZER": "thread"
       }
@@ -72,22 +64,11 @@
     },
     {
       "name": "release-stats",
-      "inherits": ["base"],
+      "inherits": ["release-dev"],
       "displayName": "Release with search stats",
-      "description": "Release build with search stats diagnostics enabled",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "LATRUNCULI_SEARCH_STATS": "ON"
-      }
-    },
-    {
-      "name": "release-stats-dev",
-      "inherits": ["release-stats"],
-      "displayName": "Release with search stats Developer",
       "description": "Release build with search stats, tests, and component measurements enabled",
       "cacheVariables": {
-        "BUILD_TESTING": "ON",
-        "LATRUNCULI_BUILD_MEASUREMENTS": "ON"
+        "LATRUNCULI_SEARCH_STATS": "ON"
       }
     }
   ],
@@ -95,18 +76,6 @@
     {
       "name": "debug",
       "configurePreset": "debug"
-    },
-    {
-      "name": "release",
-      "configurePreset": "release"
-    },
-    {
-      "name": "release-stats",
-      "configurePreset": "release-stats"
-    },
-    {
-      "name": "debug-dev",
-      "configurePreset": "debug-dev"
     },
     {
       "name": "debug-asan-ubsan",
@@ -117,18 +86,22 @@
       "configurePreset": "debug-tsan"
     },
     {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
       "name": "release-dev",
       "configurePreset": "release-dev"
     },
     {
-      "name": "release-stats-dev",
-      "configurePreset": "release-stats-dev"
+      "name": "release-stats",
+      "configurePreset": "release-stats"
     }
   ],
   "testPresets": [
     {
-      "name": "debug-dev",
-      "configurePreset": "debug-dev",
+      "name": "debug",
+      "configurePreset": "debug",
       "output": {
         "outputOnFailure": true
       }
@@ -162,8 +135,8 @@
       }
     },
     {
-      "name": "release-stats-dev",
-      "configurePreset": "release-stats-dev",
+      "name": "release-stats",
+      "configurePreset": "release-stats",
       "output": {
         "outputOnFailure": true
       }

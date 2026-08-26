@@ -141,11 +141,14 @@ inspection commands outside the UCI protocol.
 ## Build and Validation
 
 CMake compiles production sources into the `latrunculi_lib` object library.
-The `latrunculi` executable supplies the UCI entry point. Developer presets
+The `latrunculi` executable supplies the UCI entry point. Test-enabled presets
 also build:
 
-- `tests`, the GoogleTest executable; and
-- `latrunculi-measure`, the optional component-measurement executable.
+- `tests`, the deterministic GoogleTest executable; and
+- `latrunculi-stress`, the reproducible randomized stress executable.
+
+The `release-dev` and `release-stats` presets additionally build
+`latrunculi-measure`, the optional component-measurement executable.
 
 Tests mirror the production subsystem layout under `tests/`, with narrow
 support fixtures for internal observations. Component measurements live under

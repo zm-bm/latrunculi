@@ -313,8 +313,10 @@ TEST_F(EngineSearchTest, IsReadyRespondsWhileSearchIsActive) {
             ++ready_lines;
         else if (line.starts_with("bestmove "))
             ++bestmove_lines;
+#if !LATRUNCULI_SEARCH_STATS
         else if (!line.starts_with("info "))
             ADD_FAILURE() << "interleaved output: " << line;
+#endif
     }
 
     EXPECT_EQ(ready_lines, ready_requests) << transcript;

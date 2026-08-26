@@ -13,7 +13,7 @@ local performance; playing strength requires paired engine games.
 
 ## Build
 
-Developer presets enable the optional tool. Use a release build for timing:
+The `release-dev` preset enables the optional tool with release optimizations:
 
 ```bash
 cmake --preset release-dev
@@ -64,9 +64,10 @@ scaling measurements.
 
 ## Comparing Results
 
-Run identical commands against baseline and candidate builds under quiet,
-controlled conditions. Keep retained output under the ignored
-`measurements/output/` directory:
+Run identical commands against baseline and candidate builds made with the
+same compiler and options, on the same machine under quiet, controlled
+conditions. Keep retained output under the ignored `measurements/output/`
+directory:
 
 ```bash
 mkdir -p measurements/output

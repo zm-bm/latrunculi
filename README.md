@@ -48,13 +48,23 @@ quit
 
 ## Development
 
-Developer presets enable tests and component measurements:
+Configure, build, and run the complete test suite:
 
 ```bash
-cmake --preset release-dev
-cmake --build --preset release-dev
-ctest --preset release-dev
+cmake --preset debug
+cmake --build --preset debug
+ctest --preset debug
 ```
+
+CTest runs:
+
+- `unit_tests` — deterministic board, move generation, evaluation, search, and
+  UCI tests.
+- `randomized_stress` — reproducible legal playouts, move round trips,
+  evaluation checks, and short multi-threaded searches.
+
+Use `debug-asan-ubsan` or `debug-tsan` instead of `debug` to run the same
+suite with sanitizers.
 
 See the [measurement guide](measurements/README.md) for perft, evaluation, and
 search workflows.
