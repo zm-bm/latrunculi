@@ -79,7 +79,7 @@ EvalValue Evaluator::taper_score(TaperedScore score) const {
     return ((score.mg * mg_phase) + (score.eg * eg_phase)) / eval::phase_limit;
 }
 
-// Game phase: zero is endgame and phase_limit is middlegame.
+// Game phase from MG piece values: zero is endgame and phase_limit is middlegame.
 int Evaluator::phase() const {
     const int non_pawn_material = board.non_pawn_material(WHITE) + board.non_pawn_material(BLACK);
     const int material = std::clamp(non_pawn_material, eval::material_eg, eval::material_mg);

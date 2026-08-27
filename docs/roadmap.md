@@ -20,32 +20,6 @@ The immediate workstream mathematically tunes the existing handcrafted
 evaluation before publishing Latrunculi 1.0. These tasks should be executed in
 order.
 
-### EVAL-001 — Stabilize evaluation transforms before tuning
-
-Review the nonlinear transforms around the handcrafted evaluation before
-fitting its linear parameters. The goal is a deliberate long-term structure,
-not perfected or tuned constants.
-
-- Audit phase calculation, general endgame scaling, castling-shelter selection,
-  and king-danger activation and conversion across representative positions.
-- Retain phase coupling to MG piece values unless the audit finds a concrete
-  pathological material configuration. Verify useful behavior across
-  intermediate material configurations.
-- Review pawnless and drawish scaling, shelter choices with castling rights,
-  and king danger in queenless or low-attacker positions.
-- Use the reference engines as evidence for proven design shapes, not as code
-  templates. Prefer current behavior unless evidence supports a simpler or more
-  robust structure, and do not add specialized endgame knowledge.
-- Make only small or moderate structural changes needed before feature export,
-  with focused boundary and invariant tests.
-- Do not optimize phase, scaling, shelter, king-danger, tempo, or search
-  parameters; numerical tuning remains MATH-003 work.
-
-Completion requires a settled structure, focused tests, the complete test
-suite, component measurements, fixed-depth search review, and the
-[OpenBench strength-test workflow](openbench.md#strength-tests) for any retained
-behavior change.
-
 ### MATH-001 — Export raw features and construct tuning datasets
 
 The current evaluation trace records weighted contributions. Mathematical
@@ -98,7 +72,7 @@ of playing strength.
 Prepare the first public release after the initial handcrafted-evaluation
 tuning pass.
 
-- Require completion of EVAL-001, MATH-001, and MATH-002.
+- Require completion of MATH-001 and MATH-002.
 - Verify supported GCC and Clang release builds and the complete test suite.
 - Complete the [OpenBench release stability test](openbench.md#release-stability-test).
 - Record the deterministic benchmark, component measurements, and

@@ -94,9 +94,9 @@ protected:
             << fen;
     }
 
-    void test_phase(std::string fen, int expected, int tolerance) {
+    void test_phase(std::string fen, int expected) {
         const Board board(fen);
-        EXPECT_LE(std::abs(EvaluatorTestAccess::phase(board) - expected), tolerance) << fen;
+        EXPECT_EQ(EvaluatorTestAccess::phase(board), expected) << fen;
     }
 
     void test_scale_factor(std::string fen, int expected) {
@@ -459,6 +459,17 @@ TEST_F(EvaluationFeaturesTest, RawDanger) {
     }
 }
 
+TEST_F(EvaluationFeaturesTest, QueenlessLowPressureDangerConversion) {
+    const Board              board("4k3/5n2/8/8/8/8/4P3/4K1NR w - - 0 2");
+    const int                raw_danger = eval::unsafe_check_danger[ROOK];
+    const eval::TaperedScore expected{raw_danger * raw_danger / 2048, raw_danger / 8};
+
+    const auto shelter = EvaluatorTestAccess::shelter<BLACK>(board, board.king_sq(BLACK));
+    const auto king    = eval::evaluate_trace(board).term(eval::Term::King).black;
+
+    EXPECT_EQ(shelter - king, expected);
+}
+
 TEST_F(EvaluationFeaturesTest, ScaleFactor) {
     std::vector<std::pair<std::string, int>> test_cases = {
         {board_test::fen::kings_only, 48},
@@ -483,14 +494,19 @@ TEST_F(EvaluationFeaturesTest, TaperScore) {
 }
 
 TEST_F(EvaluationFeaturesTest, Phase) {
-    std::vector<std::tuple<std::string, int, int>> test_cases = {
-        {board_test::fen::start, eval::phase_limit, 0},
-        {board_test::fen::kings_only, 0, 0},
-        {"krrnBRRK/8/8/8/8/8/8/8 w - - 0 1", 50, 10},
-        {"kr4RK/8/8/8/8/8/8/8 w - - 0 1", 19, 0},
+    const int mixed_material = 4 * eval::rook.mg + eval::knight.mg + eval::bishop.mg;
+    const int rook_endgame   = 2 * eval::rook.mg;
+
+    std::vector<std::pair<std::string, int>> test_cases = {
+        {board_test::fen::start, eval::phase_limit},
+        {board_test::fen::kings_only, 0},
+        {"krrnBRRK/8/8/8/8/8/8/8 w - - 0 1",
+         mixed_material * eval::phase_limit / eval::material_mg},
+        {"kr4RK/8/8/8/8/8/8/8 w - - 0 1", rook_endgame * eval::phase_limit / eval::material_mg},
+        {"rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/QNBQKBNR w - - 0 1", eval::phase_limit},
     };
 
-    for (const auto& [fen, expected, tolerance] : test_cases) {
-        test_phase(fen, expected, tolerance);
+    for (const auto& [fen, expected] : test_cases) {
+        test_phase(fen, expected);
     }
 }
