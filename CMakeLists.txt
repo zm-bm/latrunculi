@@ -40,8 +40,7 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/board/notation.cpp
     src/movegen/perft.cpp
     src/eval/evaluation.cpp
-    src/eval/trace.cpp
-    src/eval/trace_formatter.cpp
+    src/eval/features.cpp
     src/search/algorithm.cpp
     src/search/instrumentation.cpp
     src/search/limits.cpp
@@ -124,7 +123,7 @@ if(BUILD_TESTING)
         tests/movegen/generator.test.cpp
         tests/movegen/move_list.test.cpp
         tests/movegen/perft.test.cpp
-        tests/eval/evaluator.test.cpp
+        tests/eval/evaluation.test.cpp
         tests/eval/features.test.cpp
         tests/eval/parameters.test.cpp
         tests/eval/tapered_score.test.cpp

@@ -11,8 +11,7 @@
 #include "board/board.hpp"
 #include "board/notation.hpp"
 #include "core/move.hpp"
-#include "eval/evaluation.hpp"
-#include "eval/trace_formatter.hpp"
+#include "eval/features.hpp"
 #include "movegen/generator.hpp"
 #include "movegen/perft.hpp"
 #include "search/limits.hpp"
@@ -232,7 +231,7 @@ bool Engine::display_board() {
 }
 
 bool Engine::evaluate() {
-    writer.diagnostic_line(eval::format_trace(eval::evaluate_trace(board)));
+    writer.diagnostic_line(eval::format_evaluation(eval::extract_features(board)));
     return true;
 }
 

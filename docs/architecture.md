@@ -31,7 +31,7 @@ subsystem-owned APIs use matching namespaces. Fundamental chess types and
 | `src/core` | Fundamental chess types, pieces, squares, moves, bitboards, attack tables, and move geometry |
 | `src/board` | Mutable position representation, reversible history, chess rules, FEN, notation, and static exchange evaluation |
 | `src/movegen` | Pseudo-legal move generation, move lists, and production perft |
-| `src/eval` | Handcrafted-evaluation parameters, mechanics, incremental base terms, and diagnostic traces |
+| `src/eval` | Handcrafted-evaluation parameters, mechanics, incremental base terms, feature extraction, and diagnostics |
 | `src/search` | Search algorithm, limits, root results, move ordering, transposition table, workers, and thread lifecycle |
 | `src/uci` | Protocol commands, parsing, options, engine coordination, and output formatting |
 
@@ -72,16 +72,17 @@ perft exercises the same generator and make/unmake path used by search.
 ## Evaluation
 
 The public evaluation boundary consists of `eval::evaluate()` and
-`eval::evaluate_trace()`. Both use the same internal, single-use evaluator;
-normal search does not pay for trace construction. Evaluation combines the
+`eval::extract_features()`. Both use the same internal, single-use evaluator;
+normal search does not pay for feature construction. Evaluation combines the
 Board-owned material and piece-square base terms with pawn, piece, mobility,
 threat, king-safety, phase, scaling, and tempo terms.
 
 Evaluation parameters and `eval::TaperedScore` are owned by `src/eval`.
 `Board` deliberately depends on `eval::BaseTerms` because those cached values
 are handcrafted-evaluation state rather than intrinsic chess-position data.
-Structured traces remain separate from their human-readable diagnostic
-formatter.
+Feature extraction separates tunable linear terms from the fixed evaluation
+residual while retaining the weighted term breakdown used by diagnostics. The
+`latrunculi features` mode exports versioned tuning records.
 
 ## Search
 

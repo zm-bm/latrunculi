@@ -22,9 +22,8 @@ order.
 
 ### MATH-001 — Export raw features and construct tuning datasets
 
-The current evaluation trace records weighted contributions. Mathematical
-tuning instead needs parameter-independent feature coefficients and reliable
-WDL labels.
+Mathematical tuning needs parameter-independent feature coefficients and
+reliable WDL labels.
 
 - Define a deterministic, versioned schema for the linear HCE features,
   including MG/EG coefficients, phase and scaling context, side to move, game
