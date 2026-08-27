@@ -1,7 +1,7 @@
 # OpenBench
 
-Latrunculi uses a private, self-hosted OpenBench instance for retained strength
-testing.
+Latrunculi uses a private, self-hosted OpenBench instance for strength and
+release-stability testing.
 
 ## Deployment
 
@@ -23,28 +23,41 @@ traffic is allowed.
 
 ## Testing
 
-OpenBench fetches revisions from GitHub, so commit and push both test revisions
-before submitting a workload. Use the earlier revision as Base and the candidate
-as Dev.
+OpenBench fetches revisions from GitHub, so commit and push each tested revision
+before submitting a workload. The worker builds through `bench/Makefile`, checks
+the deterministic node count, runs the games, and uploads results and PGNs.
 
-The Latrunculi defaults follow the [strength-validation
-policy](roadmap.md#strength-validation-policy):
+### Strength tests
+
+Compare the candidate as Dev against the pre-change revision as Base. Play
+paired games with the engines swapping colors. Use:
 
 - `UHO_Lichess_4852_v1.epd`
 - `10+0.1`, normalized to worker speed
 - `Threads=1 Hash=32`
 - resign at 400 cp for three moves
 - draw after move 40 with eight evaluations within 10 cp
-- normalized-Elo SPRT `[0, 5]`, or `[0, 3]` for confirmation
+- normalized-Elo SPRT `[0, 5]` for screening or `[0, 3]` for confirmation,
+  with `alpha = beta = 0.05`
 
 Use `Smoke` for plumbing, `STC` for candidate screening, and `Confirm` for a
 retained batch. The normal worker runs games concurrently; use a temporary
 one-thread worker when a smoke PGN must contain exactly one color-reversed pair.
 
-The worker downloads the pinned book and source revisions, builds through
-`bench/Makefile`, verifies the deterministic node count, runs the games, and
-uploads results and PGNs. Record the test ID, both revisions, OpenBench revision,
-decision, and server PGN location for retained claims.
+Record the test ID, both revisions, OpenBench revision, decision, and server PGN
+location for retained claims.
+
+### Release stability test
+
+Before a public release with engine changes, run the pushed candidate as both
+Dev and Base in a fixed, non-SPRT test with a 2,000-game target (1,000 pairs)
+and compact PGNs. Use the book, time control, options, and adjudication above.
+Require no crashes, hangs, time losses, illegal moves, protocol failures, or
+incomplete games. Ignore the score. Record the test ID, candidate revision,
+OpenBench revision, and PGN location.
+
+OpenBench may finish a few in-flight games beyond the target. Its fixed-test
+pass/fail flag follows the score, not stability.
 
 ## Operations
 

@@ -16,38 +16,9 @@ of maintaining a historical log.
 
 ## Now
 
-The immediate workstream hardens the engine and mathematically tunes the
-existing handcrafted evaluation before publishing Latrunculi 1.0. These tasks
-should be executed in order.
-
-### Strength-validation policy
-
-Use the self-hosted OpenBench instance for retained strength claims. Compare
-against the pre-change revision with paired, color-reversed games, a pinned
-opening suite, one thread per engine, and 32 MB Hash. Start with a `10+0.1` time
-control, resign adjudication at 400 cp for three moves, and draw adjudication
-after move 40 with eight evaluations within 10 cp; version later changes. Use
-normalized-Elo SPRT bounds `[0, 5]` with `alpha = beta = 0.05` to screen
-candidates and `[0, 3]` to confirm a retained batch. Record the OpenBench test
-ID, both revisions, configuration revision, decision, and PGN location.
-
-### REL-002 — Complete the release stability soak
-
-Validate the pushed local-hardening revision under sustained self-play on
-OpenBench.
-
-- Compare the committed sanitizer-and-stress revision as Dev against its parent
-  as Base.
-- Run a fixed, non-SPRT workload of 2,000 games across 1,000 color-reversed
-  opening pairs using the pinned UHO suite, `10+0.1`, `Threads=1 Hash=32`, and
-  the standard adjudication settings.
-- Reject crashes, hangs, illegal moves, protocol failures, and incomplete
-  games; do not treat the match score as playing-strength evidence.
-- Preserve the test ID, both revisions, OpenBench revision, server PGN location,
-  and diagnostic output for every failure.
-
-Completion requires all 2,000 games to finish without an engine failure and
-enough retained evidence to audit the workload and reproduce any failure.
+The immediate workstream mathematically tunes the existing handcrafted
+evaluation before publishing Latrunculi 1.0. These tasks should be executed in
+order.
 
 ### MATH-001 — Export raw features and construct tuning datasets
 
@@ -91,16 +62,18 @@ adding more evaluation knowledge.
 
 Retained parameters must improve held-out prediction loss, preserve evaluation
 invariants, remain structurally plausible, and pass focused tests, component
-measurements, fixed-depth search review, and the OpenBench workflow. Prediction
-loss alone is not evidence of playing strength.
+measurements, fixed-depth search review, and the [OpenBench strength-test
+workflow](openbench.md#strength-tests). Prediction loss alone is not evidence
+of playing strength.
 
 ### RELEASE-001 — Publish Latrunculi 1.0
 
 Prepare the first public release after the initial handcrafted-evaluation
 tuning pass.
 
-- Require completion of REL-002, MATH-001, and MATH-002.
+- Require completion of MATH-001 and MATH-002.
 - Verify supported GCC and Clang release builds and the complete test suite.
+- Complete the [OpenBench release stability test](openbench.md#release-stability-test).
 - Record the deterministic benchmark, component measurements, and
   representative OpenBench results.
 - Confirm UCI behavior, usage documentation, version output, and release
