@@ -20,31 +20,6 @@ The immediate workstream mathematically tunes the existing handcrafted
 evaluation before publishing Latrunculi 1.0. These tasks should be executed in
 order.
 
-### MATH-001 — Export raw features and construct tuning datasets
-
-Mathematical tuning needs parameter-independent feature coefficients and
-reliable WDL labels.
-
-- Define a deterministic, versioned schema for the linear HCE features,
-  including MG/EG coefficients, phase and scaling context, side to move, game
-  result, and source identity.
-- Prove that exported coefficients reconstruct the supported production
-  evaluation before fitting parameters.
-- Build a large, deduplicated position dataset and split it by game into
-  training, validation, and untouched held-out sets.
-- Filter malformed games, terminal positions, recognized dead positions, and
-  other samples unsuitable for static-evaluation labels.
-- Record sampling, balancing, quiet-position policy, seeds, schema version, and
-  filtering decisions. Preserve a dedicated endgame validation slice.
-- Keep engine-owned feature extraction, its schema, and reconstruction tests in
-  this repository. Keep PGN processing, dataset construction, fitting tools,
-  reproducible configuration, and generated data in the OpenBench checkout;
-  ignore generated data.
-
-Completion requires deterministic export, exact feature reconstruction,
-schema validation, duplicate and split-leak detection, and useful distribution
-reports. Production evaluation and search behavior must remain unchanged.
-
 ### MATH-002 — Tune the linear handcrafted evaluation
 
 Tune the existing linear and phase-coupled feature groups reproducibly before
