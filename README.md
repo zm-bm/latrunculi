@@ -66,8 +66,8 @@ CTest runs:
 Use `debug-asan-ubsan` or `debug-tsan` instead of `debug` to run the same
 suite with sanitizers.
 
-See the [measurement guide](measurements/README.md) for perft, evaluation, and
-search workflows.
+See the [measurement guide](tools/measurements/README.md) for perft, evaluation,
+and search workflows.
 
 ## Documentation
 

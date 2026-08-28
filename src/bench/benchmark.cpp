@@ -8,7 +8,6 @@
 #include <string_view>
 
 #include "board/board.hpp"
-#include "core/constants.hpp"
 #include "search/limits.hpp"
 #include "search/reporter.hpp"
 #include "search/thread_pool.hpp"
@@ -17,7 +16,8 @@
 namespace bench {
 namespace {
 
-constexpr int depth = 13;
+constexpr int depth   = 13;
+constexpr int hash_mb = 32;
 
 constexpr std::array positions = {
     std::string_view{Board::start_fen},
@@ -66,7 +66,7 @@ int run() {
         search::Limits     limits;
         limits.set_depth(depth);
 
-        search::tt.resize(engine::default_hash_mb);
+        search::tt.resize(hash_mb);
 
         NodeCount  aggregate_nodes = 0;
         const auto start           = std::chrono::steady_clock::now();

@@ -34,6 +34,7 @@ subsystem-owned APIs use matching namespaces. Fundamental chess types and
 | `src/eval` | Handcrafted-evaluation parameters, mechanics, incremental base terms, feature extraction, and diagnostics |
 | `src/search` | Search algorithm, limits, root results, move ordering, transposition table, workers, and thread lifecycle |
 | `src/uci` | Protocol commands, parsing, options, engine coordination, and output formatting |
+| `src/bench` | Deterministic OpenBench benchmark command and workload |
 
 ## Board and Position State
 
@@ -153,6 +154,6 @@ The `release-dev` and `release-stats` presets additionally build
 
 Tests mirror the production subsystem layout under `tests/`, with narrow
 support fixtures for internal observations. Component measurements live under
-`measurements/` and exercise production perft, evaluation, and search paths.
-Tests cover correctness; component measurements cover deterministic work and
-local performance.
+`tools/measurements/` and exercise production perft, evaluation, and search
+paths. Tests cover correctness; component measurements cover deterministic work
+and local performance.

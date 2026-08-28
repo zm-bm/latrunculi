@@ -83,18 +83,17 @@ endif()
 
 add_executable(latrunculi
     src/main.cpp
-    bench/benchmark.cpp
+    src/bench/benchmark.cpp
 )
-target_include_directories(latrunculi PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(latrunculi PRIVATE latrunculi_lib)
 
 option(LATRUNCULI_BUILD_MEASUREMENTS "Build component measurement tool" OFF)
 if(LATRUNCULI_BUILD_MEASUREMENTS)
     add_executable(latrunculi-measure
-        measurements/main.cpp
-        measurements/eval.cpp
-        measurements/perft.cpp
-        measurements/search.cpp
+        tools/measurements/main.cpp
+        tools/measurements/eval.cpp
+        tools/measurements/perft.cpp
+        tools/measurements/search.cpp
     )
     target_link_libraries(latrunculi-measure PRIVATE latrunculi_lib)
 endif()

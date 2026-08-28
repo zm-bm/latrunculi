@@ -27,6 +27,17 @@ OpenBench fetches revisions from GitHub, so commit and push each tested revision
 before submitting a workload. The worker builds through `bench/Makefile`, checks
 the deterministic node count, runs the games, and uploads results and PGNs.
 
+The `latrunculi bench` command searches six fixed positions at depth 13 with one
+thread and a 32 MiB transposition table. Its node count is the compatibility
+signature; its NPS normalizes time controls across workers. Keep
+`bench/Makefile` at this path because OpenBench uses one build path for both
+revisions in a test. Build through the same adapter with:
+
+```bash
+make -C bench EXE=latrunculi CXX=g++
+./bench/latrunculi bench
+```
+
 ### Strength tests
 
 Compare the candidate as Dev against the pre-change revision as Base. Play

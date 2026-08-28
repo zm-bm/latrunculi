@@ -66,15 +66,15 @@ scaling measurements.
 
 Run identical commands against baseline and candidate builds made with the
 same compiler and options, on the same machine under quiet, controlled
-conditions. Keep retained output under the ignored `measurements/output/`
+conditions. Keep retained output under the ignored `tools/measurements/output/`
 directory:
 
 ```bash
-mkdir -p measurements/output
+mkdir -p tools/measurements/output
 ./build/baseline/latrunculi-measure search --format tsv \
-  > measurements/output/baseline.tsv
+  > tools/measurements/output/baseline.tsv
 ./build/candidate/latrunculi-measure search --format tsv \
-  > measurements/output/candidate.tsv
+  > tools/measurements/output/candidate.tsv
 ```
 
 Exact nodes, scores, moves, PVs, and evaluation checksums reveal behavioral
