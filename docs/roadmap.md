@@ -20,33 +20,113 @@ The immediate workstream mathematically tunes the existing handcrafted
 evaluation before publishing Latrunculi 1.0. These tasks should be executed in
 order.
 
-### MATH-002 — Tune the linear handcrafted evaluation
+### MATH-002A — Build and calibrate the linear tuner
 
-Tune the existing linear and phase-coupled feature groups reproducibly before
-adding more evaluation knowledge.
+Build the offline optimizer that consumes a pinned MATH-001 dataset and emits
+reviewable parameter candidates.
 
-- Fit the evaluation-to-WDL logistic scale explicitly.
-- Tune coherent groups such as material, PSQTs, mobility, pawn structure, and
-  piece bonuses with deterministic seeds and configuration.
-- Keep the middlegame pawn fixed at 100 centipawns as the score-scale anchor.
-- Apply bounds, regularization, symmetry constraints, or staged groups to
-  control correlated and implausible coefficients.
+- Record the dataset manifest, corpus policy, schema, and starting engine
+  revision before calibration. If several PGN archives are used, either build
+  one cross-deduplicated dataset or reserve an archive as an external check.
+- Convert evaluations and results to White-relative expected game score;
+  record the sigmoid, loss, and sample-weighting conventions.
+- Fit the logistic scale on training data once and hold it fixed throughout
+  the MATH-002 series.
+- Report feature support, freeze unreachable or insufficiently supported
+  values, and remove PSQT, mobility, and material flat directions with explicit
+  anchors or zero-sum deltas.
+- Optimize only the selected groups with the fixed values, ties, bounds, and
+  regularization they require. A documented continuous surrogate may be used
+  during fitting.
+- Emit the dataset and parent-candidate identities, configuration, optimizer
+  result, metrics, and old and new weights without silently rewriting source.
+
+Completion requires deterministic fitting, exact production reconstruction
+for the baseline, and focused tests. Report only training and validation data;
+production evaluation must remain unchanged.
+
+For MATH-002B through MATH-002F, each stage starts from the last accepted
+integer candidate. Report training loss, select with validation and the fixed
+endgame-validation slice, and keep held-out data sealed. A stage may complete
+without a source change when no candidate passes its criteria.
+
+Before [OpenBench screening](openbench.md#strength-tests), round while
+preserving every tie and anchor, rescore with exact production arithmetic,
+apply the reviewable patch, and confirm the compiled engine exports the same
+weights. Run the full release suite, recompute the deterministic benchmark, and
+compare against the previous accepted revision. An accepted candidate becomes
+the next stage's baseline.
+
+### MATH-002B — Tune material values
+
+Tune material before the larger positional groups.
+
+- Keep the middlegame pawn fixed at 100 centipawns.
+- Tune the remaining middlegame and endgame piece values while recalculating
+  their coupled phase behavior.
+- Preserve the broad pawn, minor-piece, rook, and queen value ordering without
+  forcing an ordering between knight and bishop.
+
+### MATH-002C — Tune pawn features
+
+Tune the pawn PSQT, isolated, backward, doubled, and passed-pawn features as a
+coherent group.
+
+- Fit the PSQT and pawn-structure families separately before a combined pass.
+- Retain the current pawn-file asymmetry unless a symmetric alternative is
+  isolated and validated as a separate structural change.
+
+### MATH-002D — Tune minor-piece features
+
+Tune knight and bishop PSQTs, mobility, outposts, and related piece bonuses.
+
+- Fit knight and bishop families separately before a combined minor-piece
+  pass.
+- Preserve their established PSQT symmetry and keep sparse values constrained.
+
+### MATH-002E — Tune major-piece features
+
+Tune rook and queen PSQTs, mobility, file terms, and related exported bonuses.
+
+Fit rook and queen families separately before a combined major-piece pass.
+Preserve their established PSQT symmetry and keep sparse values constrained.
+
+### MATH-002F — Tune king and remaining linear features
+
+Tune the king PSQT, weak-piece threats, and exported linear features not owned
+by earlier stages.
+
+Preserve the king PSQT's established symmetry and anchored common offset.
+Keep the unexported king-safety residual fixed for MATH-003.
+
+### MATH-002G — Refine and validate the linear evaluation
+
+Start from the staged candidate and run a tightly constrained joint pass over
+the accepted linear groups.
+
+- Preserve all support rules, ties, anchors, bounds, and regularization from
+  the staged fits. Retain the staged candidate if the joint pass is rejected.
+- Finalize the objective, group order, and constraints before examining the
+  held-out split. If held-out results guide another fit, freeze a fresh
+  held-out corpus before evaluating it.
 - Report training, validation, held-out, and endgame-slice loss separately.
-- Produce a reviewable parameter patch or artifact rather than mutating source
-  constants opaquely.
+- Round under the same constraints, rescore with exact production arithmetic,
+  and verify the compiled engine matches the final artifact.
+- Run focused and full tests, sanitizers, component measurements, fixed-depth
+  search review, and OpenBench confirmation against the pre-MATH-002 revision.
 
-Retained parameters must improve held-out prediction loss, preserve evaluation
-invariants, remain structurally plausible, and pass focused tests, component
-measurements, fixed-depth search review, and the [OpenBench strength-test
-workflow](openbench.md#strength-tests). Prediction loss alone is not evidence
-of playing strength.
+The series may complete without a parameter change if no candidate passes.
+Any retained parameters must improve held-out prediction loss, preserve
+evaluation invariants, remain structurally plausible, and pass the [OpenBench
+strength-test workflow](openbench.md#strength-tests). Prediction loss alone is
+not evidence of playing strength.
 
 ### RELEASE-001 — Publish Latrunculi 1.0
 
 Prepare the first public release after the initial handcrafted-evaluation
 tuning pass.
 
-- Require completion of MATH-001 and MATH-002.
+- Require completion of MATH-001 and the MATH-002 tuning series.
 - Verify supported GCC and Clang release builds and the complete test suite.
 - Complete the [OpenBench release stability test](openbench.md#release-stability-test).
 - Record the deterministic benchmark, component measurements, and
@@ -77,13 +157,17 @@ passed-pawn race context, mop-up guidance, or a small exact bitbase. Each change
 requires activation and counterexample tests, held-out or tablebase evidence,
 retraining of affected linear parameters, and paired match validation.
 
-### MATH-003 — Tune nonlinear and search-coupled behavior
+### MATH-003 — Tune fixed evaluation transforms and search behavior
 
-Tune king-danger conversion, phase, scaling, and tempo separately from the
-linear fit. Treat aspiration, razoring, futility, SEE-dependent policy, and
-other search thresholds as search tuning even when they share score units.
+Treat the fixed king-safety residual as one scope: shelter, storm, king-file,
+open-file, raw-danger, and danger-conversion parameters. Explicitly retain or
+tune each family. Tune phase, scaling, and tempo separately from the linear
+fit. Treat aspiration, razoring, futility, SEE-dependent policy, and other
+search thresholds as search tuning even when they share score units.
+
 Require constrained, reproducible optimization, formula-boundary tests,
-fixed-depth search review, and OpenBench evidence.
+fixed-depth search review, OpenBench evidence, and a rerun of the affected
+linear fit after any retained evaluation-transform change.
 
 ### TB-001 — Add optional Syzygy support
 
