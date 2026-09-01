@@ -20,35 +20,14 @@ The immediate workstream mathematically tunes the existing handcrafted
 evaluation before publishing Latrunculi 1.0. These tasks should be executed in
 order.
 
-### MATH-002A — Build and calibrate the linear tuner
-
-Build the offline optimizer that consumes a pinned MATH-001 dataset and emits
-reviewable parameter candidates.
-
-- Record the dataset manifest, corpus policy, schema, and starting engine
-  revision before calibration. If several PGN archives are used, either build
-  one cross-deduplicated dataset or reserve an archive as an external check.
-- Convert evaluations and results to White-relative expected game score;
-  record the sigmoid, loss, and sample-weighting conventions.
-- Fit the logistic scale on training data once and hold it fixed throughout
-  the MATH-002 series.
-- Report feature support, freeze unreachable or insufficiently supported
-  values, and remove PSQT, mobility, and material flat directions with explicit
-  anchors or zero-sum deltas.
-- Optimize only the selected groups with the fixed values, ties, bounds, and
-  regularization they require. A documented continuous surrogate may be used
-  during fitting.
-- Emit the dataset and parent-candidate identities, configuration, optimizer
-  result, metrics, and old and new weights without silently rewriting source.
-
-Completion requires deterministic fitting, exact production reconstruction
-for the baseline, and focused tests. Report only training and validation data;
-production evaluation must remain unchanged.
-
-For MATH-002B through MATH-002F, each stage starts from the last accepted
-integer candidate. Report training loss, select with validation and the fixed
-endgame-validation slice, and keep held-out data sealed. A stage may complete
-without a source change when no candidate passes its criteria.
+MATH-002B starts from the calibration artifact; each later stage starts from
+the last accepted integer candidate. Keep the calibrated Texel scale fixed
+through MATH-002G. Store each stage's selectors, bounds, and regularization in
+a versioned JSON configuration. Select optimizer checkpoints by validation
+loss. Before fitting, record the required validation gain and permitted
+endgame-validation regression; judge the exact rounded candidate against that
+guard and keep held-out data sealed. A stage may complete without a source
+change when no candidate passes its criteria.
 
 Before [OpenBench screening](openbench.md#strength-tests), round while
 preserving every tie and anchor, rescore with exact production arithmetic,
@@ -104,22 +83,27 @@ Keep the unexported king-safety residual fixed for MATH-003.
 Start from the staged candidate and run a tightly constrained joint pass over
 the accepted linear groups.
 
-- Preserve all support rules, ties, anchors, bounds, and regularization from
-  the staged fits. Retain the staged candidate if the joint pass is rejected.
-- Finalize the objective, group order, and constraints before examining the
-  held-out split. If held-out results guide another fit, freeze a fresh
-  held-out corpus before evaluating it.
-- Report training, validation, held-out, and endgame-slice loss separately.
+- Preserve all support rules, ties, anchors, and accepted bounds. Record the
+  joint regularization before fitting. Retain the staged candidate if the
+  joint pass is rejected.
+- Freeze the objective, group order, constraints, and acceptance rules before
+  examining either test #4's held-out split or a later external corpus.
+- With the fixed scale and no fitting, score a later OpenBench corpus
+  cross-deduplicated against test #4 and use it as the decisive blind
+  prediction check.
+- Report training, validation, endgame-validation, test #4 held-out, and
+  external-corpus loss separately. If either blind result guides another fit,
+  reserve fresh external data.
 - Round under the same constraints, rescore with exact production arithmetic,
   and verify the compiled engine matches the final artifact.
 - Run focused and full tests, sanitizers, component measurements, fixed-depth
   search review, and OpenBench confirmation against the pre-MATH-002 revision.
 
 The series may complete without a parameter change if no candidate passes.
-Any retained parameters must improve held-out prediction loss, preserve
-evaluation invariants, remain structurally plausible, and pass the [OpenBench
-strength-test workflow](openbench.md#strength-tests). Prediction loss alone is
-not evidence of playing strength.
+Any retained parameters must improve prediction loss on the final external
+corpus, preserve evaluation invariants, remain structurally plausible, and
+pass the [OpenBench strength-test workflow](openbench.md#strength-tests).
+Prediction loss alone is not evidence of playing strength.
 
 ### RELEASE-001 — Publish Latrunculi 1.0
 

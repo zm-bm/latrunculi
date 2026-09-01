@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "dataset": {
+    "manifest_sha256": "075b1ca9b51fad53b6cd242dadc5f8dcf0e9300a55b30a8e19e6e08b016a9aef",
+    "schema_version": 1,
+    "feature_count": 482,
+    "inputs": [
+      {
+        "name": "4.pgn.tar",
+        "sha256": "bc5e8a5c0231a17cbfddce345cfb57eb88d2528a68acd76580dc059129a70522"
+      }
+    ],
+    "corpus_policy": "Use test #4 as the sole fitting corpus; reserve later archives for external checks.",
+    "starting_revision": "c3fe426ad81c5e914fb0891b44a20a912cc9d061"
+  },
+  "objective": {
+    "perspective": "white",
+    "result_mapping": "-1=0,0=0.5,1=1",
+    "sigmoid": "1/(1+10^(-k*eval/400))",
+    "loss": "mean_squared_error",
+    "weighting": "position"
+  },
+  "calibration": {
+    "bounds": [
+      0.0,
+      4.0
+    ],
+    "absolute_tolerance": 1e-12,
+    "maximum_iterations": 256
+  },
+  "support": {
+    "minimum_positions": 32
+  },
+  "constraints": {
+    "fixed": [
+      "material.pawn.mg"
+    ],
+    "anchors": [
+      "psqt.pawn.c2",
+      "psqt.knight.c3",
+      "psqt.bishop.d2",
+      "psqt.rook.h1",
+      "psqt.queen.e1",
+      "psqt.king.g1",
+      "mobility.knight.6",
+      "mobility.bishop.7",
+      "mobility.rook.11",
+      "mobility.queen.11"
+    ],
+    "mirror_files": [
+      "knight",
+      "bishop",
+      "rook",
+      "queen",
+      "king"
+    ]
+  },
+  "optimizer": {
+    "method": "L-BFGS-B",
+    "maximum_iterations": 1000,
+    "gradient_tolerance": 1e-10,
+    "function_tolerance": 1e-12,
+    "maximum_line_search_steps": 50
+  }
+}
