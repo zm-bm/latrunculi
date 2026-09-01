@@ -39,6 +39,7 @@ protected:
 
     void load(const Board& board, int depth = 4) {
         tt.clear();
+        ordering_state().clear();
         limits.depth = depth;
         worker.configure_search(board, limits, SearchClock::now());
         SearchTestAccess::reset(worker);

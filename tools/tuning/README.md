@@ -40,16 +40,31 @@ python3 tools/tuning/tune.py calibrate \
   --output data/tuning/runs/math-002a.json
 ```
 
-Fit the material stage from that baseline:
+Fit any stage from its parent artifact:
 
 ```bash
+TUNING_STAGE=math-002c-pawns
+TUNING_PARENT=math-002b-material
+
 python3 tools/tuning/tune.py fit \
   --config tools/tuning/tune.json \
-  --stage tools/tuning/stages/math-002b-material.json \
+  --stage "tools/tuning/stages/$TUNING_STAGE.json" \
   --dataset data/tuning/latrunculi-hce-v1 \
-  --parent data/tuning/runs/math-002a.json \
-  --output data/tuning/runs/math-002b-material.json
+  --parent "data/tuning/runs/$TUNING_PARENT.json" \
+  --output "data/tuning/runs/$TUNING_STAGE.json"
 ```
+
+The stage chain is:
+
+| Stage | Parent | Role |
+| --- | --- | --- |
+| `math-002b-material` | `math-002a` | candidate |
+| `math-002c-pawn-psqt` | `math-002b-material` | diagnostic |
+| `math-002c-pawn-structure` | `math-002b-material` | diagnostic |
+| `math-002c-pawns` | `math-002b-material` | candidate |
+
+Diagnostic stages test individual families. Candidate stages feed later
+accepted fits.
 
 The stage records its bounds, regularization, and acceptance guard. Fitting
 never rewrites engine source.

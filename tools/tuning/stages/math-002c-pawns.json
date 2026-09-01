@@ -1,0 +1,75 @@
+{
+  "name": "math-002c-pawns",
+  "features": [
+    "psqt.pawn.*",
+    "pawn.isolated",
+    "pawn.backward",
+    "pawn.doubled",
+    "pawn.passed.*"
+  ],
+  "phases": [
+    "mg",
+    "eg"
+  ],
+  "delta_bounds": [
+    -200,
+    200
+  ],
+  "bounds": [
+    {
+      "pattern": "psqt.pawn.*.*",
+      "minimum": -150,
+      "maximum": 150
+    },
+    {
+      "pattern": "pawn.isolated.*",
+      "minimum": -200,
+      "maximum": 0
+    },
+    {
+      "pattern": "pawn.backward.*",
+      "minimum": -200,
+      "maximum": 0
+    },
+    {
+      "pattern": "pawn.doubled.*",
+      "minimum": -200,
+      "maximum": 0
+    },
+    {
+      "pattern": "pawn.passed.r2.*",
+      "minimum": 0,
+      "maximum": 50
+    },
+    {
+      "pattern": "pawn.passed.r3.*",
+      "minimum": 0,
+      "maximum": 75
+    },
+    {
+      "pattern": "pawn.passed.r4.*",
+      "minimum": 0,
+      "maximum": 125
+    },
+    {
+      "pattern": "pawn.passed.r5.*",
+      "minimum": 0,
+      "maximum": 200
+    },
+    {
+      "pattern": "pawn.passed.r6.*",
+      "minimum": 0,
+      "maximum": 300
+    },
+    {
+      "pattern": "pawn.passed.r7.*",
+      "minimum": 0,
+      "maximum": 500
+    }
+  ],
+  "regularization": 1e-08,
+  "acceptance": {
+    "minimum_validation_improvement": 0.0001,
+    "maximum_endgame_regression": 0.0
+  }
+}
