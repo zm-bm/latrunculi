@@ -22,11 +22,11 @@ inline constexpr int scale_base     = 48;
 inline constexpr int scale_per_pawn = 4;
 inline constexpr int phase_limit    = 128;
 
-inline constexpr TaperedScore pawn   = {100, 166};
-inline constexpr TaperedScore knight = {630, 680};
-inline constexpr TaperedScore bishop = {660, 740};
-inline constexpr TaperedScore rook   = {1000, 1100};
-inline constexpr TaperedScore queen  = {2000, 2150};
+inline constexpr TaperedScore pawn   = {100, 223};
+inline constexpr TaperedScore knight = {648, 643};
+inline constexpr TaperedScore bishop = {641, 679};
+inline constexpr TaperedScore rook   = {935, 1083};
+inline constexpr TaperedScore queen  = {2033, 2180};
 
 inline constexpr int material_mg = 4 * knight.mg + 4 * bishop.mg + 4 * rook.mg + 2 * queen.mg;
 inline constexpr int material_eg = 0;

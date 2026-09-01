@@ -447,6 +447,25 @@ def exact_metrics(data, weights, scale):
     }
 
 
+def candidate_acceptance(policy, metrics):
+    validation_improvement = (
+        metrics["parent"]["validation"]["mean_squared_error"]
+        - metrics["candidate"]["validation"]["mean_squared_error"]
+    )
+    endgame_regression = (
+        metrics["candidate"]["validation_endgame"]["mean_squared_error"]
+        - metrics["parent"]["validation_endgame"]["mean_squared_error"]
+    )
+    return {
+        "passed": (
+            validation_improvement >= policy["minimum_validation_improvement"]
+            and endgame_regression <= policy["maximum_endgame_regression"]
+        ),
+        "validation_improvement": validation_improvement,
+        "endgame_regression": endgame_regression,
+    }
+
+
 def round_away_from_zero(value):
     return math.floor(value + 0.5) if value >= 0 else math.ceil(value - 0.5)
 
@@ -507,8 +526,25 @@ def effective_support(coefficients, feature_ids):
 
 def build_parameter_map(schema, parent, coefficients, config, stage):
     validate_constraints(schema, config)
-    if set(stage) != {"name", "features", "phases", "delta_bounds", "bounds", "regularization"}:
+    if set(stage) != {
+        "name",
+        "features",
+        "phases",
+        "delta_bounds",
+        "bounds",
+        "regularization",
+        "acceptance",
+    }:
         raise ValueError("invalid stage configuration")
+    acceptance = stage["acceptance"]
+    if set(acceptance) != {
+        "minimum_validation_improvement",
+        "maximum_endgame_regression",
+    } or any(
+        not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0
+        for value in acceptance.values()
+    ):
+        raise ValueError("invalid acceptance policy")
     if not stage["features"] or not stage["phases"]:
         raise ValueError("stage selects no parameters")
     if len(stage["features"]) != len(set(stage["features"])):
@@ -852,6 +888,12 @@ def fit_artifact(data, config, stage, parent_path, parent_artifact, result, supp
     parent = result["parameters"].parent.astype(np.int64)
     candidate = result["rounded"]
     optimizer = result["result"]
+    metrics = {
+        "parent": exact_metrics(data, parent, parent_artifact["objective"]["scale"]),
+        "candidate": exact_metrics(
+            data, candidate, parent_artifact["objective"]["scale"]
+        ),
+    }
     artifact = {
         "artifact_version": 1,
         "kind": "candidate",
@@ -895,12 +937,8 @@ def fit_artifact(data, config, stage, parent_path, parent_artifact, result, supp
                 for name, delta in zip(result["parameters"].names, result["deltas"])
             },
         },
-        "metrics": {
-            "parent": exact_metrics(data, parent, parent_artifact["objective"]["scale"]),
-            "candidate": exact_metrics(
-                data, candidate, parent_artifact["objective"]["scale"]
-            ),
-        },
+        "metrics": metrics,
+        "acceptance": candidate_acceptance(stage["acceptance"], metrics),
         "weights": weight_records(data.schema, parent, candidate),
     }
     return artifact
@@ -957,6 +995,7 @@ def fit_command(args):
         f"{artifact['metrics']['parent']['validation_endgame']['mean_squared_error']:.10f} -> "
         f"{artifact['metrics']['candidate']['validation_endgame']['mean_squared_error']:.10f}"
     )
+    print(f"accepted {str(artifact['acceptance']['passed']).lower()}")
     print(f"candidate {artifact['candidate_id']}")
 
 

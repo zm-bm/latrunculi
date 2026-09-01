@@ -5,11 +5,11 @@
 TEST(ParametersTest, PieceScores) {
     EXPECT_EQ(eval::piece(NO_PIECETYPE), eval::TaperedScore::Zero);
 
-    EXPECT_EQ(eval::piece(PAWN), (eval::TaperedScore{100, 166}));
-    EXPECT_EQ(eval::piece(KNIGHT), (eval::TaperedScore{630, 680}));
-    EXPECT_EQ(eval::piece(BISHOP), (eval::TaperedScore{660, 740}));
-    EXPECT_EQ(eval::piece(ROOK), (eval::TaperedScore{1000, 1100}));
-    EXPECT_EQ(eval::piece(QUEEN), (eval::TaperedScore{2000, 2150}));
+    EXPECT_EQ(eval::piece(PAWN), (eval::TaperedScore{100, 223}));
+    EXPECT_EQ(eval::piece(KNIGHT), (eval::TaperedScore{648, 643}));
+    EXPECT_EQ(eval::piece(BISHOP), (eval::TaperedScore{641, 679}));
+    EXPECT_EQ(eval::piece(ROOK), (eval::TaperedScore{935, 1083}));
+    EXPECT_EQ(eval::piece(QUEEN), (eval::TaperedScore{2033, 2180}));
 
     EXPECT_EQ(eval::piece(PAWN, WHITE), eval::pawn);
     EXPECT_EQ(eval::piece(KNIGHT, BLACK), -eval::knight);

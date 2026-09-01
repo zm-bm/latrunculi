@@ -20,14 +20,14 @@ The immediate workstream mathematically tunes the existing handcrafted
 evaluation before publishing Latrunculi 1.0. These tasks should be executed in
 order.
 
-MATH-002B starts from the calibration artifact; each later stage starts from
-the last accepted integer candidate. Keep the calibrated Texel scale fixed
-through MATH-002G. Store each stage's selectors, bounds, and regularization in
-a versioned JSON configuration. Select optimizer checkpoints by validation
-loss. Before fitting, record the required validation gain and permitted
-endgame-validation regression; judge the exact rounded candidate against that
-guard and keep held-out data sealed. A stage may complete without a source
-change when no candidate passes its criteria.
+For MATH-002C through MATH-002G, each stage starts from the last accepted
+integer candidate. Keep the calibrated Texel scale fixed through MATH-002G.
+Store each stage's selectors, bounds, and regularization in a versioned JSON
+configuration. Select optimizer checkpoints by validation loss. Before
+fitting, record the required validation gain and permitted endgame-validation
+regression; judge the exact rounded candidate against that guard and keep
+held-out data sealed. A stage may complete without a source change when no
+candidate passes its criteria.
 
 Before [OpenBench screening](openbench.md#strength-tests), round while
 preserving every tie and anchor, rescore with exact production arithmetic,
@@ -35,16 +35,6 @@ apply the reviewable patch, and confirm the compiled engine exports the same
 weights. Run the full release suite, recompute the deterministic benchmark, and
 compare against the previous accepted revision. An accepted candidate becomes
 the next stage's baseline.
-
-### MATH-002B — Tune material values
-
-Tune material before the larger positional groups.
-
-- Keep the middlegame pawn fixed at 100 centipawns.
-- Tune the remaining middlegame and endgame piece values while recalculating
-  their coupled phase behavior.
-- Preserve the broad pawn, minor-piece, rook, and queen value ordering without
-  forcing an ordering between knight and bishop.
 
 ### MATH-002C — Tune pawn features
 

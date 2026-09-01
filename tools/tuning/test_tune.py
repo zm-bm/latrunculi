@@ -107,6 +107,13 @@ def config(anchor_names=(), mirrored=()):
     }
 
 
+def acceptance_policy():
+    return {
+        "minimum_validation_improvement": 0.0,
+        "maximum_endgame_regression": 0.0,
+    }
+
+
 class ObjectiveTest(unittest.TestCase):
     def test_white_perspective_flips_the_complete_production_evaluation(self):
         records = [record([], turn="w"), record([], turn="b")]
@@ -244,6 +251,32 @@ class SupportTest(unittest.TestCase):
         self.assertEqual(report[5]["status"], "insufficient")
 
 
+class AcceptanceTest(unittest.TestCase):
+    def test_validation_gain_and_endgame_guard(self):
+        policy = {
+            "minimum_validation_improvement": 0.001,
+            "maximum_endgame_regression": 0.0002,
+        }
+        metrics = {
+            "parent": {
+                "validation": {"mean_squared_error": 0.1},
+                "validation_endgame": {"mean_squared_error": 0.08},
+            },
+            "candidate": {
+                "validation": {"mean_squared_error": 0.098},
+                "validation_endgame": {"mean_squared_error": 0.0801},
+            },
+        }
+
+        self.assertTrue(tune.candidate_acceptance(policy, metrics)["passed"])
+
+        metrics["candidate"]["validation"]["mean_squared_error"] = 0.0995
+        self.assertFalse(tune.candidate_acceptance(policy, metrics)["passed"])
+        metrics["candidate"]["validation"]["mean_squared_error"] = 0.098
+        metrics["candidate"]["validation_endgame"]["mean_squared_error"] = 0.0803
+        self.assertFalse(tune.candidate_acceptance(policy, metrics)["passed"])
+
+
 class ParameterMapTest(unittest.TestCase):
     def test_ties_anchors_support_bounds_and_rounding(self):
         current = base_schema(
@@ -278,6 +311,7 @@ class ParameterMapTest(unittest.TestCase):
                 }
             ],
             "regularization": 0.0,
+            "acceptance": acceptance_policy(),
         }
 
         parameters = tune.build_parameter_map(
@@ -309,6 +343,7 @@ class ParameterMapTest(unittest.TestCase):
             "delta_bounds": [-10, 10],
             "bounds": [],
             "regularization": 0.0,
+            "acceptance": acceptance_policy(),
         }
 
         with self.assertRaisesRegex(ValueError, "splits mirror tie"):
@@ -346,6 +381,7 @@ class ParameterMapTest(unittest.TestCase):
             "delta_bounds": [-10, 10],
             "bounds": [],
             "regularization": 0.0,
+            "acceptance": acceptance_policy(),
         }
 
         with self.assertRaisesRegex(ValueError, "all selected parameters are frozen"):
@@ -370,6 +406,7 @@ class ParameterMapTest(unittest.TestCase):
                 {"pattern": "pawn.isolated.mg", "minimum": 0, "maximum": 10}
             ],
             "regularization": 0.0,
+            "acceptance": acceptance_policy(),
         }
 
         with self.assertRaisesRegex(ValueError, "exclude parent"):
@@ -390,6 +427,7 @@ class ParameterMapTest(unittest.TestCase):
             "delta_bounds": [-10, 10],
             "bounds": [],
             "regularization": 0.0,
+            "acceptance": acceptance_policy(),
         }
 
         with self.assertRaisesRegex(ValueError, "no anchor"):
@@ -440,6 +478,7 @@ class OptimizerTest(unittest.TestCase):
             "delta_bounds": [-100, 100],
             "bounds": [],
             "regularization": 0.0,
+            "acceptance": acceptance_policy(),
         }
         first = tune.fit_parameters(
             data, tune.baseline_weights(current), settings, stage, 0.7

@@ -40,6 +40,20 @@ python3 tools/tuning/tune.py calibrate \
   --output data/tuning/runs/math-002a.json
 ```
 
+Fit the material stage from that baseline:
+
+```bash
+python3 tools/tuning/tune.py fit \
+  --config tools/tuning/tune.json \
+  --stage tools/tuning/stages/math-002b-material.json \
+  --dataset data/tuning/latrunculi-hce-v1 \
+  --parent data/tuning/runs/math-002a.json \
+  --output data/tuning/runs/math-002b-material.json
+```
+
+The stage records its bounds, regularization, and acceptance guard. Fitting
+never rewrites engine source.
+
 Test #4 is the sole fitting corpus; later archives are external checks. The
 tuner fits its scale on training data once, then carries it through the
 candidate chain. It uses White-relative evaluation and per-position mean
