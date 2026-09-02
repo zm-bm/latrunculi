@@ -572,7 +572,11 @@ class ParentTest(unittest.TestCase):
             "configuration": settings,
             "objective": {**settings["objective"], "scale": 0.7},
         }
-        tune.validate_parent_artifact(parent, data, settings)
+        weights = tune.baseline_weights(current).astype(np.int64)
+        parent["weights"] = tune.weight_records(current, weights, weights)
+        np.testing.assert_array_equal(
+            tune.validate_parent_artifact(parent, data, settings), weights
+        )
 
         changed = copy.deepcopy(parent)
         changed["configuration"]["support"]["minimum_positions"] = 1
@@ -583,6 +587,22 @@ class ParentTest(unittest.TestCase):
         changed["objective"]["sigmoid"] = "different"
         with self.assertRaisesRegex(ValueError, "different objective"):
             tune.validate_parent_artifact(changed, data, settings)
+
+        transferred = copy.deepcopy(settings)
+        transferred["dataset"]["corpus_policy"] = "new corpus"
+        np.testing.assert_array_equal(
+            tune.validate_parent_artifact(parent, data, transferred), weights
+        )
+
+        changed = copy.deepcopy(parent)
+        changed["weights"][0]["candidate"]["mg"] += 1
+        with self.assertRaisesRegex(ValueError, "differs from dataset baseline"):
+            tune.validate_parent_artifact(changed, data, transferred)
+
+        changed = copy.deepcopy(parent)
+        del changed["dataset"]
+        with self.assertRaisesRegex(ValueError, "invalid dataset provenance"):
+            tune.validate_parent_artifact(changed, data, transferred)
 
 
 if __name__ == "__main__":

@@ -820,9 +820,13 @@ def validate_parent_artifact(artifact, data, config):
         "candidate",
     }:
         raise ValueError("unsupported parent candidate")
-    if artifact.get("dataset") != dataset_record(data, config):
-        raise ValueError("parent candidate uses a different dataset")
-    if artifact.get("configuration") != config:
+    parent_config = artifact.get("configuration")
+    if (
+        not isinstance(parent_config, dict)
+        or set(parent_config) != set(config)
+        or {key: value for key, value in parent_config.items() if key != "dataset"}
+        != {key: value for key, value in config.items() if key != "dataset"}
+    ):
         raise ValueError("parent candidate uses a different configuration")
 
     objective = artifact.get("objective", {})
@@ -835,6 +839,19 @@ def validate_parent_artifact(artifact, data, config):
         or scale <= 0
     ):
         raise ValueError("parent candidate uses a different objective")
+
+    parent = artifact_weights(artifact, data.schema)
+    parent_dataset = artifact.get("dataset")
+    current_dataset = dataset_record(data, config)
+    if not isinstance(parent_dataset, dict) or set(parent_dataset) != set(
+        current_dataset
+    ):
+        raise ValueError("parent candidate has invalid dataset provenance")
+    if parent_dataset != current_dataset and not np.array_equal(
+        parent, baseline_weights(data.schema)
+    ):
+        raise ValueError("parent candidate differs from dataset baseline")
+    return parent
 
 
 def artifact_weights(artifact, schema):
@@ -969,8 +986,7 @@ def fit_command(args):
     stage = load_json(args.stage)
     data = load_dataset(args.dataset, config)
     parent_artifact = read_artifact(args.parent)
-    validate_parent_artifact(parent_artifact, data, config)
-    parent = artifact_weights(parent_artifact, data.schema)
+    parent = validate_parent_artifact(parent_artifact, data, config)
     support = feature_support(
         data.splits["train"], data.schema, config["support"]["minimum_positions"]
     )

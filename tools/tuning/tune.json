@@ -1,17 +1,17 @@
 {
   "version": 1,
   "dataset": {
-    "manifest_sha256": "075b1ca9b51fad53b6cd242dadc5f8dcf0e9300a55b30a8e19e6e08b016a9aef",
+    "manifest_sha256": "8bf8dd04202bbe19d89a25a9b3ac0ada817a343a73120a7dd0cc3c45b8146d1e",
     "schema_version": 1,
     "feature_count": 482,
     "inputs": [
       {
-        "name": "4.pgn.tar",
-        "sha256": "bc5e8a5c0231a17cbfddce345cfb57eb88d2528a68acd76580dc059129a70522"
+        "name": "8.pgn.tar",
+        "sha256": "5ade24a7626860927e30161a7aea9d30d56893309af0d4f24429a7133f5ce2f5"
       }
     ],
-    "corpus_policy": "Use test #4 as the sole fitting corpus; reserve later archives for external checks.",
-    "starting_revision": "c3fe426ad81c5e914fb0891b44a20a912cc9d061"
+    "corpus_policy": "Use test #8 for MATH-002C through MATH-002G; reserve held-out data and later archives for final checks.",
+    "starting_revision": "23cec6ac9cd22e43d0d3da71e1b617817bba4a70"
   },
   "objective": {
     "perspective": "white",
