@@ -59,23 +59,23 @@ inline constexpr int piece_squares[piece_slots][std::to_underlying(Phase::Count)
         // Pawn midgame bonuses
         {
              0,   0,   0,   0,   0,   0,   0,   0,
-            -1,   8,   8,  18,  20,  -4,   8, -10,
-           -11, -20,  25,  14,  21,   9,   3, -13,
-             1, -12,   1,  33,  28,  16,   0,  -7,
-            19,   3,  -4,  12,  16,  -3, -10,   4,
-             8,  -9,  -5,  21,  -7,  -1,  -9,  -3,
-            -5,   7,  -2, -10,   4, -12,   9,  -6,
+             2,   2,   8,  14,  14,  15,   6,  -4,
+            -7, -12,   9,  22,  22,  18,   4, -18,
+            -3, -19,   5,  30,  30,  14,   3,  -6,
+            10,   0, -10,   1,   9,  -2, -10,   4,
+             4, -10,  -6,  18,  -6,  -4, -12,  -6,
+            -6,   6,  -2, -10,   4, -13,   8,  -6,
              0,   0,   0,   0,   0,   0,   0,   0,
         },
         // Pawn endgame bonuses
         {
              0,   0,   0,   0,   0,   0,   0,   0,
-           -10,   8,   8,   5,  14, -47, -17, -19,
-           -27, -20,  16,  -3, -34, -21, -12, -20,
-            22,  34, -38, -10, -10, -23, -13,  14,
-            33,  32,  -6,   1, -15, -11,  23,  36,
-            40,  18,  21,  24,  22,  17,  14,  24,
-             2,  -6,  10,  19,  18,  15,   6,   9,
+            -8,  -5,   8,   0,  11,   6,  -4, -15,
+            -8,  -8,  -8,   3,   3,   2,  -5,  -3,
+             5,  -2,  -6,  -3, -10, -10,  -8,  -7,
+             8,   4,   3,  -4,  -4,  -4,  11,   7,
+            23,  16,  17,  23,  24,   6,   5,  10,
+             0,  -9,  10,  17,  20,  15,   3,   6,
              0,   0,   0,   0,   0,   0,   0,   0,
         }
     }, {
@@ -212,11 +212,11 @@ constexpr TaperedScore piece_sq(PieceType pt, Color c, Square sq) {
     return (score * c * 2) - score;
 }
 
-inline constexpr TaperedScore isolated_pawn = {-2, -2};
-inline constexpr TaperedScore backward_pawn = {-11, -9};
-inline constexpr TaperedScore doubled_pawn  = {-6, -71};
+inline constexpr TaperedScore isolated_pawn = {-5, -15};
+inline constexpr TaperedScore backward_pawn = {-14, -12};
+inline constexpr TaperedScore doubled_pawn  = {-4, -76};
 inline constexpr TaperedScore passed_pawn[] = {
-    {0, 0}, {1, 0}, {0, 0}, {13, 35}, {36, 82}, {56, 137}, {83, 171}, {0, 0}};
+    {0, 0}, {1, 0}, {0, 0}, {13, 37}, {38, 84}, {59, 147}, {84, 176}, {0, 0}};
 inline constexpr TaperedScore reachable_outpost       = {30, 20};
 inline constexpr TaperedScore bishop_outpost          = {30, 20};
 inline constexpr TaperedScore knight_outpost          = {50, 30};
