@@ -2,17 +2,21 @@
 
 #include <gtest/gtest.h>
 
-TEST(ParametersTest, PieceScores) {
-    EXPECT_EQ(eval::piece(NO_PIECETYPE), eval::TaperedScore::Zero);
+TEST(ParametersTest, MapsPieceTypesAndColors) {
+    constexpr eval::TaperedScore values[] = {
+        eval::TaperedScore::Zero,
+        eval::pawn,
+        eval::knight,
+        eval::bishop,
+        eval::rook,
+        eval::queen,
+        eval::TaperedScore::Zero,
+    };
 
-    EXPECT_EQ(eval::piece(PAWN), (eval::TaperedScore{100, 223}));
-    EXPECT_EQ(eval::piece(KNIGHT), (eval::TaperedScore{648, 643}));
-    EXPECT_EQ(eval::piece(BISHOP), (eval::TaperedScore{641, 679}));
-    EXPECT_EQ(eval::piece(ROOK), (eval::TaperedScore{935, 1083}));
-    EXPECT_EQ(eval::piece(QUEEN), (eval::TaperedScore{2033, 2180}));
-
-    EXPECT_EQ(eval::piece(PAWN, WHITE), eval::pawn);
-    EXPECT_EQ(eval::piece(KNIGHT, BLACK), -eval::knight);
+    for (PieceType type = NO_PIECETYPE; type <= KING; type = PieceType(type + 1)) {
+        EXPECT_EQ(eval::piece(type, WHITE), values[type]);
+        EXPECT_EQ(eval::piece(type, BLACK), -values[type]);
+    }
 }
 
 TEST(ParametersTest, PieceSquareScores) {
