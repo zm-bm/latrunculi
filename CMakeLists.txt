@@ -83,7 +83,7 @@ endif()
 
 add_executable(latrunculi
     src/main.cpp
-    src/bench/benchmark.cpp
+    src/cli/cli.cpp
 )
 target_link_libraries(latrunculi PRIVATE latrunculi_lib)
 
@@ -119,6 +119,7 @@ if(BUILD_TESTING)
         tests/board/board_see.test.cpp
         tests/board/fen_parser.test.cpp
         tests/board/notation.test.cpp
+        tests/cli/cli.test.cpp
         tests/movegen/generator.test.cpp
         tests/movegen/move_list.test.cpp
         tests/movegen/perft.test.cpp
@@ -149,7 +150,10 @@ if(BUILD_TESTING)
         tests/uci/writer.test.cpp
     )
 
-    add_executable(tests ${LATRUNCULI_TEST_SOURCES})
+    add_executable(tests
+        src/cli/cli.cpp
+        ${LATRUNCULI_TEST_SOURCES}
+    )
     target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
     target_link_libraries(tests PRIVATE latrunculi_lib gtest gmock)
     add_test(NAME unit_tests COMMAND tests)

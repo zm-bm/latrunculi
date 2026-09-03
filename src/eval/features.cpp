@@ -84,6 +84,15 @@ std::optional<int> parse_result(std::string_view result) {
     return std::nullopt;
 }
 
+Board parse_board(std::string_view fen, int line_number) {
+    try {
+        return Board(fen);
+    } catch (const std::invalid_argument& error) {
+        throw std::runtime_error(
+            std::format("invalid FEN at line {}: {}", line_number, error.what()));
+    }
+}
+
 void write_schema(std::ostream& output) {
     output << R"({"type":"schema","version":)" << feature_schema_version
            << R"(,"perspective":{"coefficients":"white","fixed":"white","eval":"side_to_move"})"
@@ -336,7 +345,7 @@ std::string format_evaluation(const FeatureRecord& record) {
     return output;
 }
 
-int export_features(std::istream& input, std::ostream& output, std::ostream& diagnostics) {
+void export_features(std::istream& input, std::ostream& output, const PositionPreparer& prepare) {
     write_schema(output);
 
     std::string line;
@@ -349,32 +358,23 @@ int export_features(std::istream& input, std::ostream& output, std::ostream& dia
         const std::size_t first_tab = line.find('\t');
         const std::size_t second_tab =
             first_tab == std::string::npos ? std::string::npos : line.find('\t', first_tab + 1);
-        if (first_tab == std::string::npos || second_tab == std::string::npos || first_tab == 0) {
-            diagnostics << "features: invalid input at line " << line_number << '\n';
-            return 1;
-        }
+        if (first_tab == std::string::npos || second_tab == std::string::npos || first_tab == 0)
+            throw std::runtime_error(std::format("invalid input at line {}", line_number));
 
         const std::string_view source{line.data(), first_tab};
         const std::string_view result_text{line.data() + first_tab + 1, second_tab - first_tab - 1};
         const std::string_view fen{line.data() + second_tab + 1, line.size() - second_tab - 1};
         const auto             result = parse_result(result_text);
-        if (!result || fen.empty()) {
-            diagnostics << "features: invalid input at line " << line_number << '\n';
-            return 1;
-        }
+        if (!result || fen.empty())
+            throw std::runtime_error(std::format("invalid input at line {}", line_number));
 
-        try {
-            const Board         board(fen);
-            const FeatureRecord record = extract_features(board);
-            write_record(output, source, *result, board, record);
-        } catch (const std::invalid_argument& error) {
-            diagnostics << "features: invalid FEN at line " << line_number << ": " << error.what()
-                        << '\n';
-            return 1;
-        }
+        Board board = parse_board(fen, line_number);
+        if (prepare && !prepare(board))
+            continue;
+
+        const FeatureRecord record = extract_features(board);
+        write_record(output, source, *result, board, record);
     }
-
-    return 0;
 }
 
 } // namespace eval

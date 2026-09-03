@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <iosfwd>
 #include <string>
 #include <utility>
@@ -173,8 +174,12 @@ private:
 [[nodiscard]] FeatureRecord extract_features(const Board& board);
 [[nodiscard]] std::string   format_evaluation(const FeatureRecord& record);
 
-// Reads source<TAB>result<TAB>fen records and writes the versioned JSONL schema
-// followed by one sparse feature record per input line.
-int export_features(std::istream& input, std::ostream& output, std::ostream& diagnostics);
+using PositionPreparer = std::function<bool(Board&)>;
+
+// Exports source<TAB>result<TAB>fen records as versioned JSONL. The optional
+// preparer may modify a board or return false to skip it.
+void export_features(std::istream&           input,
+                     std::ostream&           output,
+                     const PositionPreparer& prepare = {});
 
 } // namespace eval

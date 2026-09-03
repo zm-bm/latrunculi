@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -149,9 +150,7 @@ TEST(FeaturesTest, BatchExportIsDeterministic) {
     const auto run = [&] {
         std::istringstream in(input);
         std::ostringstream out;
-        std::ostringstream diagnostics;
-        EXPECT_EQ(eval::export_features(in, out, diagnostics), 0);
-        EXPECT_TRUE(diagnostics.str().empty());
+        eval::export_features(in, out);
         return out.str();
     };
 
@@ -172,16 +171,35 @@ TEST(FeaturesTest, BatchExportIsDeterministic) {
     EXPECT_EQ(records.find(R"("features":[)"), std::string::npos);
 }
 
+TEST(FeaturesTest, BatchExportPreparesOrSkipsPositions) {
+    std::istringstream input("game-1:12\t1-0\t4k3/8/8/8/8/8/4P3/4K3 w - - 0 1\n"
+                             "game-2:18\t0-1\t4k3/8/8/8/8/8/3P4/4K3 w - - 0 1\n");
+    std::ostringstream output;
+    int                calls = 0;
+
+    eval::export_features(input, output, [&](Board& board) {
+        ++calls;
+        if (calls == 2)
+            return false;
+        const Board prepared{"4k3/8/8/8/8/4P3/8/4K3 b - - 0 1"};
+        board = prepared;
+        return true;
+    });
+    EXPECT_EQ(calls, 2);
+    const std::string text = output.str();
+    EXPECT_NE(text.find(R"("fen":"4k3/8/8/8/8/4P3/8/4K3 b - - 0 1")"), std::string::npos);
+    EXPECT_EQ(text.find(R"("source":"game-2:18")"), std::string::npos);
+    EXPECT_EQ(std::count(text.begin(), text.end(), '\n'), 2);
+}
+
 TEST(FeaturesTest, BatchExportEscapesJsonStrings) {
     std::string source = "quote:\" slash:\\ backspace:\b formfeed:\f carriage:\r unit:";
     source.push_back('\x1f');
 
     std::istringstream input(source + "\t1-0\t4k3/8/8/8/8/8/4P3/4K3 w - - 0 1\n");
     std::ostringstream output;
-    std::ostringstream diagnostics;
 
-    EXPECT_EQ(eval::export_features(input, output, diagnostics), 0);
-    EXPECT_TRUE(diagnostics.str().empty());
+    eval::export_features(input, output);
     EXPECT_NE(
         output.str().find(
             R"("source":"quote:\" slash:\\ backspace:\b formfeed:\f carriage:\r unit:\u001f")"),
@@ -191,18 +209,23 @@ TEST(FeaturesTest, BatchExportEscapesJsonStrings) {
 TEST(FeaturesTest, BatchExportRejectsInvalidInput) {
     std::istringstream input("missing-fields\n");
     std::ostringstream output;
-    std::ostringstream diagnostics;
 
-    EXPECT_EQ(eval::export_features(input, output, diagnostics), 1);
-    EXPECT_NE(diagnostics.str().find("line 1"), std::string::npos);
+    try {
+        eval::export_features(input, output);
+        FAIL() << "expected malformed input to fail";
+    } catch (const std::runtime_error& error) {
+        EXPECT_STREQ(error.what(), "invalid input at line 1");
+    }
 }
 
 TEST(FeaturesTest, BatchExportRejectsInvalidFen) {
     std::istringstream input("game-1\t1-0\tnot-a-fen\n");
     std::ostringstream output;
-    std::ostringstream diagnostics;
 
-    EXPECT_EQ(eval::export_features(input, output, diagnostics), 1);
-    EXPECT_EQ(diagnostics.str(),
-              "features: invalid FEN at line 1: invalid fen, must have 4 or 6 fields\n");
+    try {
+        eval::export_features(input, output);
+        FAIL() << "expected invalid FEN to fail";
+    } catch (const std::runtime_error& error) {
+        EXPECT_STREQ(error.what(), "invalid FEN at line 1: invalid fen, must have 4 or 6 fields");
+    }
 }

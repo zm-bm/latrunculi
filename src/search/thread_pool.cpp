@@ -151,6 +151,13 @@ void ThreadPool::clear_search_heuristics() {
         thread->worker.clear_search_heuristics();
 }
 
+bool ThreadPool::settle(Board& position) {
+    if (shutdown_requested || threads.empty() || is_searching())
+        return false;
+
+    return threads.front()->worker.settle(position);
+}
+
 void ThreadPool::shutdown() {
     if (shutdown_requested)
         return;

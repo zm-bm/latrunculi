@@ -5,6 +5,7 @@
 
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
+#include "movegen/generator.hpp"
 #include "search/ordering/picker.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -503,7 +504,7 @@ EvalValue Worker::alphabeta(
 }
 
 // Quiescence search for tactical depth-zero nodes.
-template <NodeType Node>
+template <NodeType Node, bool UseTt>
 EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv) {
     // Step 1. PV and stop checks.
     if (pv)
@@ -530,17 +531,19 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
     Move              tt_move          = NULL_MOVE;
 
     // Step 3. TT probe.
-    stats.q_tt_probe(search_ply);
-    if (auto record = tt.probe(position_key)) {
-        stats.q_tt_hit(search_ply);
+    if constexpr (UseTt) {
+        stats.q_tt_probe(search_ply);
+        if (auto record = tt.probe(position_key)) {
+            stats.q_tt_hit(search_ply);
 
-        const EvalValue tt_score = record->score_at_ply(search_ply);
-        if (tt_cutoff_allowed<Node>(*record, tt_score, qsearch_tt_depth, alpha, beta)) {
-            stats.q_tt_cutoff(search_ply);
-            return tt_score;
+            const EvalValue tt_score = record->score_at_ply(search_ply);
+            if (tt_cutoff_allowed<Node>(*record, tt_score, qsearch_tt_depth, alpha, beta)) {
+                stats.q_tt_cutoff(search_ply);
+                return tt_score;
+            }
+
+            tt_move = record->move;
         }
-
-        tt_move = record->move;
     }
 
     const bool in_check   = board.is_check();
@@ -552,12 +555,14 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
     if (!in_check) {
         best_value = eval::evaluate(board);
         if (best_value >= beta) {
-            tt.store(position_key,
-                     NULL_MOVE,
-                     best_value,
-                     qsearch_tt_depth,
-                     TTBound::LowerBound,
-                     search_ply);
+            if constexpr (UseTt) {
+                tt.store(position_key,
+                         NULL_MOVE,
+                         best_value,
+                         qsearch_tt_depth,
+                         TTBound::LowerBound,
+                         search_ply);
+            }
             return best_value;
         }
         if (best_value > alpha)
@@ -576,7 +581,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
         board.make(move);
         ++search_ply;
-        const EvalValue value = -quiescence<Node>(-beta, -alpha, pv ? &child_pv : nullptr);
+        const EvalValue value = -quiescence<Node, UseTt>(-beta, -alpha, pv ? &child_pv : nullptr);
         board.unmake();
         --search_ply;
 
@@ -588,7 +593,10 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
             if (pv)
                 pv->update(move, child_pv);
             stats.beta_cutoff(search_ply, move_count);
-            tt.store(position_key, move, value, qsearch_tt_depth, TTBound::LowerBound, search_ply);
+            if constexpr (UseTt) {
+                tt.store(
+                    position_key, move, value, qsearch_tt_depth, TTBound::LowerBound, search_ply);
+            }
             return value;
         }
 
@@ -607,19 +615,48 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
     // Step 8. Checkmate.
     if (in_check && move_count == 0) {
         best_value = -eval_value::mate + search_ply;
-        tt.store(position_key, NULL_MOVE, best_value, qsearch_tt_depth, TTBound::Exact, search_ply);
+        if constexpr (UseTt) {
+            tt.store(
+                position_key, NULL_MOVE, best_value, qsearch_tt_depth, TTBound::Exact, search_ply);
+        }
         return best_value;
     }
 
     // Step 9. TT store.
-    tt.store(position_key,
-             best_move,
-             best_value,
-             qsearch_tt_depth,
-             tt_bound_for_window(best_value, original_alpha, beta),
-             search_ply);
+    if constexpr (UseTt) {
+        tt.store(position_key,
+                 best_move,
+                 best_value,
+                 qsearch_tt_depth,
+                 tt_bound_for_window(best_value, original_alpha, beta),
+                 search_ply);
+    }
 
     return best_value;
+}
+
+bool Worker::settle(Board& position) {
+    configure_search(position, Limits{}, SearchClock::now());
+    ordering_state.clear();
+
+    PrincipalVariation pv;
+    const EvalValue value = quiescence<NodeType::Pv, false>(-eval_value::inf, eval_value::inf, &pv);
+    if (std::abs(value) >= eval_value::mate_bound)
+        return false;
+
+    for (int index = 0; index < pv.size(); ++index)
+        board.make(pv.move_at(index));
+
+    if (board.is_draw())
+        return false;
+
+    for (Move move : movegen::generate_pseudo_legal(board)) {
+        if (board.is_legal_pseudo_move(move)) {
+            position = board;
+            return true;
+        }
+    }
+    return false;
 }
 
 // Template definitions live in this translation unit; instantiate the node types we use.
@@ -627,7 +664,9 @@ template EvalValue
 Worker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
 template EvalValue
 Worker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
-template EvalValue Worker::quiescence<NodeType::Pv>(EvalValue, EvalValue, PrincipalVariation*);
-template EvalValue Worker::quiescence<NodeType::NonPv>(EvalValue, EvalValue, PrincipalVariation*);
+template EvalValue
+Worker::quiescence<NodeType::Pv, true>(EvalValue, EvalValue, PrincipalVariation*);
+template EvalValue
+Worker::quiescence<NodeType::NonPv, true>(EvalValue, EvalValue, PrincipalVariation*);
 
 } // namespace search

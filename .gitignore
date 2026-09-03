@@ -5,9 +5,9 @@ cmake-build-*/
 out/
 bin/
 lib/
-data/
 logs/
 /tools/measurements/output/
+/tools/tuning/output/
 /bench/latrunculi
 *.pyc
 __pycache__/
@@ -67,6 +67,7 @@ DartConfiguration.tcl
 *.pdf
 
 # Ignore other unwanted files
+/data/*.pgn
 *.DS_Store
 *.directory
 Thumbs.db

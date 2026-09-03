@@ -80,6 +80,10 @@ public:
     void clear_search_heuristics();
     void shutdown();
 
+    // Replace a position with its deterministic, nonterminal qsearch PV leaf.
+    // Failure leaves the position unchanged.
+    bool settle(Board& position);
+
     // Worker configuration.
     bool   resize(size_t thread_count);
     size_t thread_count() const;

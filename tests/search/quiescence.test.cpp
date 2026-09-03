@@ -165,6 +165,49 @@ TEST_F(QuiescenceTest, BuildsPrincipalVariationFromTacticalMove) {
     EXPECT_TRUE(position().is_legal_move(pv.front()));
 }
 
+TEST_F(QuiescenceTest, SettlesTacticalPositionWithoutSearchState) {
+    constexpr auto tactical = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
+    Board          first{tactical};
+    Board          intervening{board_test::fen::one_legal_evasion};
+    Board          second{tactical};
+
+    tt.store(first.key(), NULL_MOVE, -eval_value::mate, 0, TTBound::Exact, 0);
+    ASSERT_TRUE(pool.settle(first));
+    tt.clear();
+    ASSERT_TRUE(pool.settle(intervening));
+    ASSERT_TRUE(pool.settle(second));
+
+    EXPECT_EQ(first.to_fen(), second.to_fen());
+    EXPECT_EQ(first.to_fen(), "k7/8/8/8/8/8/4Q3/K7 b - - 0 1");
+}
+
+TEST_F(QuiescenceTest, SettlingHandlesCheckEvasion) {
+    Board checked{board_test::fen::one_legal_evasion};
+    ASSERT_TRUE(checked.is_check());
+
+    ASSERT_TRUE(pool.settle(checked));
+
+    EXPECT_FALSE(checked.is_check());
+    EXPECT_EQ(checked.to_fen(), "1k6/8/2K5/8/8/8/R7/8 w - - 1 2");
+}
+
+TEST_F(QuiescenceTest, SettlingKeepsQuietPositionAndRejectsTerminalPositions) {
+    Board             quiet{board_test::fen::start};
+    const std::string original = quiet.to_fen();
+    ASSERT_TRUE(pool.settle(quiet));
+    EXPECT_EQ(quiet.to_fen(), original);
+
+    Board             mate{"7k/6Q1/6K1/8/8/8/8/8 b - - 0 1"};
+    const std::string checkmate = mate.to_fen();
+    EXPECT_FALSE(pool.settle(mate));
+    EXPECT_EQ(mate.to_fen(), checkmate);
+
+    Board             stalemate{"7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"};
+    const std::string drawn = stalemate.to_fen();
+    EXPECT_FALSE(pool.settle(stalemate));
+    EXPECT_EQ(stalemate.to_fen(), drawn);
+}
+
 TEST_F(QuiescenceTest, UsesEligibleTtCutoffs) {
     struct Case {
         const char* name;

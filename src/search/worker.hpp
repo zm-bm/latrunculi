@@ -75,6 +75,7 @@ private:
     std::optional<Move>     pending_best_move;
 
     // Search lifecycle.
+    bool      settle(Board& position);
     void      reset_search_state();
     void      clear_search_heuristics();
     void      wait_for_stop() const noexcept;
@@ -99,7 +100,7 @@ private:
                         int                 depth,
                         PrincipalVariation* pv       = nullptr,
                         bool                can_null = true);
-    template <NodeType Node = NodeType::NonPv>
+    template <NodeType Node = NodeType::NonPv, bool UseTt = true>
     EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
 
     // Accounting and limits.

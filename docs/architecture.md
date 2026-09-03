@@ -30,11 +30,11 @@ subsystem-owned APIs use matching namespaces. Fundamental chess types and
 | --- | --- |
 | `src/core` | Fundamental chess types, pieces, squares, moves, bitboards, attack tables, and move geometry |
 | `src/board` | Mutable position representation, reversible history, chess rules, FEN, notation, and static exchange evaluation |
+| `src/cli` | Executable command dispatch, batch feature export, and OpenBench benchmark |
 | `src/movegen` | Pseudo-legal move generation, move lists, and production perft |
 | `src/eval` | Handcrafted-evaluation parameters, mechanics, incremental base terms, feature extraction, and diagnostics |
 | `src/search` | Search algorithm, limits, root results, move ordering, transposition table, workers, and thread lifecycle |
 | `src/uci` | Protocol commands, parsing, options, engine coordination, and output formatting |
-| `src/bench` | Deterministic OpenBench benchmark command and workload |
 
 ## Board and Position State
 
@@ -82,8 +82,10 @@ Evaluation parameters and `eval::TaperedScore` are owned by `src/eval`.
 `Board` deliberately depends on `eval::BaseTerms` because those cached values
 are handcrafted-evaluation state rather than intrinsic chess-position data.
 Feature extraction separates tunable linear terms from the fixed evaluation
-residual while retaining the weighted term breakdown used by diagnostics. The
-`latrunculi features` mode exports versioned tuning records.
+residual while retaining the weighted term breakdown used by diagnostics.
+`latrunculi features` exports versioned tuning records from its input positions.
+The `--settle` mode first stabilizes each position through search; evaluation
+accepts this as an optional preparation step and does not depend on search.
 
 ## Search
 
@@ -114,11 +116,13 @@ publication.
 Search reports through the non-owning `search::Reporter` interface. This keeps
 the search subsystem independent of UCI formatting and streams.
 
-## UCI Boundary
+## Executable Boundary
 
-The executable initializes attack tables and enters `uci::Engine::loop()`.
-Each input line is parsed into the `uci::Command` variant, then dispatched by
-the engine on the command thread.
+`main.cpp` initializes attack tables and delegates to `cli::run()`. The CLI runs
+UCI by default and owns the standalone `bench` and `features` commands.
+
+Within the UCI loop, each input line is parsed into the `uci::Command` variant
+and dispatched by the engine on the command thread.
 
 `uci::Engine` owns:
 
@@ -142,9 +146,9 @@ inspection commands outside the UCI protocol.
 
 ## Build and Validation
 
-CMake compiles production sources into the `latrunculi_lib` object library.
-The `latrunculi` executable supplies the UCI entry point. Test-enabled presets
-also build:
+CMake compiles reusable engine subsystems into the `latrunculi_lib` object
+library. The `latrunculi` executable adds the CLI and main entry point.
+Test-enabled presets also build:
 
 - `tests`, the deterministic GoogleTest executable; and
 - `latrunculi-stress`, the reproducible randomized stress executable.
