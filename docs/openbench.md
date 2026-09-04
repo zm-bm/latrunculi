@@ -9,6 +9,7 @@ release-stability testing.
 - Checkout: `~/code/tools/OpenBench`
 - Runtime: dedicated Python 3.11 virtual environment and one Gunicorn process
 - State: SQLite database and server PGNs inside the OpenBench checkout
+- Remote access: Tailscale Serve over HTTPS
 - Services: `openbench-server`, `openbench-worker`, and
   `openbench-backup.timer` as lingering user systemd units
 - Worker limit: 12 threads, 8 GiB memory, and 512 tasks
@@ -20,6 +21,11 @@ server listens on loopback and the private IPv4 address configured there. It is
 plain HTTP for a trusted LAN only: do not forward port 8000 to the Internet.
 Other machines on the same LAN may use `http://<private-ip>:8000` when peer
 traffic is allowed.
+
+Authenticated tailnet members may use the server's MagicDNS URL:
+`https://server.<tailnet>.ts.net`. Tailscale terminates HTTPS and forwards to
+OpenBench; do not append port 8000. Keep this private with Tailscale Serve, not
+Funnel. `tailscale status` reports the exact hostname.
 
 ## Testing
 
@@ -77,9 +83,18 @@ systemctl --user status openbench-server openbench-worker openbench-backup.timer
 journalctl --user -u openbench-server -u openbench-worker -f
 systemctl --user restart openbench-server openbench-worker
 systemctl --user start openbench-backup.service
+tailscale serve status
+```
+
+From a tailnet client, verify the peer and application separately:
+
+```bash
+tailscale ping server
+curl --fail https://server.<tailnet>.ts.net/
 ```
 
 Use systemd to stop or restart OpenBench so PGN and database writes shut down
 cleanly. If the workstation's private address changes, update
 `OPENBENCH_BIND` and `OPENBENCH_ALLOWED_HOSTS` in the host environment, then
-restart both services.
+restart both services. Keep the actual LAN address and MagicDNS hostname in
+that environment file rather than this repository.
