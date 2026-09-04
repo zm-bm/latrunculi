@@ -1,21 +1,15 @@
 # Latrunculi tuning
 
 These offline tools run joint Texel tuning for the handcrafted evaluation. See
-the [workflow](workflow.md) for the method and acceptance rules.
+the [workflow](workflow.md) for the method and decision rules.
 
-With Python 3.12 or newer, install the pinned dependencies:
+Install the pinned dependencies with Python 3.12 or newer:
 
 ```bash
 python3 -m pip install -r tools/tuning/requirements.txt
 ```
 
-Copy the example and fill in the experiment and corpus details:
-
-```bash
-cp tools/tuning/experiment.example.json tools/tuning/experiment.json
-```
-
-Run or resume the experiment:
+Copy `experiment.example.json`, fill in the corpus details, and run or resume:
 
 ```bash
 WORK=tools/tuning/output/experiment-name
@@ -28,17 +22,18 @@ python3 tools/tuning/tune.py run \
 
 python3 tools/tuning/tune.py status "$WORK"
 python3 tools/tuning/tune.py status --json "$WORK"
+python3 tools/tuning/tune.py validate "$WORK"
 ```
 
-Review `$WORK/candidate.json`. If it qualifies, apply its changes, rebuild, and
-verify the resulting engine before starting OpenBench:
+Review `candidate.json`. If cross-validation supports it, apply the weights,
+rebuild, and verify the compiled engine before its OpenBench strength test:
 
 ```bash
 python3 tools/tuning/tune.py verify "$WORK" \
   --engine build/candidate/latrunculi
 ```
 
-Record the completed decision with `upper`, `lower`, or `inconclusive`:
+Record the result as `upper`, `lower`, or `inconclusive` with a test ID:
 
 ```bash
 python3 tools/tuning/tune.py close "$WORK" \
@@ -47,16 +42,9 @@ python3 tools/tuning/tune.py close "$WORK" \
   --openbench-test TEST_ID
 ```
 
-Use `--result offline` without a test ID when no candidate qualifies or review
-rejects it. Closed results are added to the tracked `results.jsonl` ledger.
+Use `--result offline` without a test ID when no candidate passes offline
+review. `close` appends the decision to tracked `results.jsonl`.
 
-Validate the complete dataset or reveal held-out performance after closure:
-
-```bash
-python3 tools/tuning/tune.py validate "$WORK"
-python3 tools/tuning/tune.py reveal "$WORK"
-```
-
-Inputs may be `.pgn`, `.pgn.bz2`, or OpenBench `.pgn.tar` files. Generated
-state belongs under the ignored `tools/tuning/output/` directory. The tools do
-not edit engine source, start OpenBench workloads, or access OpenBench internals.
+Inputs may be `.pgn`, `.pgn.bz2`, or OpenBench `.pgn.tar`. Generated state
+belongs under ignored `tools/tuning/output/`. The tools do not edit engine
+source, submit workloads, or depend on OpenBench internals.

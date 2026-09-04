@@ -3,164 +3,121 @@
 This is the repeatable process for tuning Latrunculi's linear handcrafted
 evaluation. The [README](README.md) lists the commands.
 
-An experiment starts from one engine revision and may nominate one candidate.
-Offline loss decides whether that candidate deserves a match. OpenBench decides
-whether it becomes engine source.
+Each experiment starts from one engine revision and produces at most one
+candidate. Grouped cross-validation selects the candidate. A fresh OpenBench
+match decides whether it becomes engine source.
 
-## Experiment record
+## Experiment
 
 Copy `experiment.example.json`, choose a unique name, and record the baseline
-revision, benchmark, and corpus details. The runner combines this small input
-with its fixed version-1 tuning policy and stores the complete resolved policy
-in the experiment output.
+revision, benchmark, and corpus. The runner combines this input with its fixed
+version-3 policy and writes the complete policy to the output directory.
 
-Commit this definition before fitting. Once a run starts, its configuration,
-engine, scripts, and PGN hashes are fixed. A change creates a new experiment.
-Generated state is kept in `tools/tuning/output/<experiment>/`. Closing an
-experiment adds its identity, candidate, decision, and OpenBench test ID to the
-tracked `results.jsonl` ledger. After any planned held-out check, the ignored
-output may be deleted.
+Review the definition before running it. Once started, the configuration,
+engine, tools, dependencies, and PGNs are fixed by hash. A change requires a
+new experiment and output directory.
 
 OpenBench owns the source PGNs. The tools receive their paths explicitly and
-do not read its database, settings, or storage directories on their own.
+do not read OpenBench state or storage on their own.
 
-## Dataset
+## Corpus and dataset
 
-Create a fixed, non-SPRT OpenBench workload for 42,000 games: 21,000 openings,
-each played twice with colors reversed. Use the pinned baseline on both sides,
-compact PGNs, `UHO_Lichess_4852_v1.epd`, `4+0.04`, `Threads=1 Hash=32`, and the
-[standard adjudication](../../docs/openbench.md#strength-tests). This shorter
-time control keeps corpus generation practical; strength tests still use
-`10+0.1`. The extra 2,000 games leave room for filtering. The runner requires
-40,000 valid games and 20,000 retained opening groups.
+Generate 42,000 baseline self-play games from 21,000 openings, each played with
+colors reversed. Use compact PGNs, `UHO_Lichess_4852_v1.epd`, `4+0.04`,
+`Threads=1 Hash=32`, and the
+[standard adjudication](../../docs/openbench.md#strength-tests). Strength tests
+use `10+0.1`.
 
 Set **Workload Size** to `21,000 / (2 * worker concurrency)`: `875` on the
-current 12-thread worker. This keeps the 42,000 games in one assignment.
-Smaller assignments in the current OpenBench version reuse half their opening
-range and do not produce enough distinct groups.
+current 12-thread worker. This keeps all openings in one assignment. Smaller
+assignments in the current OpenBench version reuse part of the opening range.
 
-Independent openings matter more than extra positions from the same games. If
-many features lack support, collect more games before sampling more positions
-from each game.
+The runner requires 40,000 valid games and 20,000 retained opening groups. It:
 
-The builder performs these steps in order:
-
-1. From each game, choose no more than six positions from ply 8 onward. The choices
-   are fixed quantiles spread across the remaining game.
-2. The builder invokes `latrunculi features --settle`. A stateless one-worker
-   quiescence search follows captures and check evasions to a stable position;
-   terminal positions are discarded. Plain `latrunculi features` does not
-   settle its input.
-3. Remove duplicates by the settled four-field FEN. Keep the lexicographically
-   first source when results agree; discard every copy when results conflict.
-4. Assign complete opening groups to fixed 80/5/5/10 training, selection,
-   validation, and held-out splits.
-
-A settled position keeps its source game's result. Do not mix positions settled
-by a different method in the same experiment.
+1. Samples at most six fixed quantiles from each game after ply 8.
+2. Runs `latrunculi features --settle`. Stateless quiescence search follows
+   captures and check evasions; terminal positions are discarded.
+3. Deduplicates settled four-field FENs. It keeps the first source when results
+   agree and drops every occurrence when they conflict.
+4. Writes every retained record to `development.jsonl`.
 
 An explicit starting FEN identifies an opening across archives. A game without
-one forms its own group. Such games remain usable, but the corpus should include
-explicit FEN headers so color-reversed games share a group.
+one receives its own group. Each group has total weight one, divided among its
+retained positions.
 
-Each opening group receives total weight one, divided equally among its
-positions. This prevents a long game or repeated opening from dominating the
-fit. Feature support is also counted by distinct groups. A coefficient seen in
-fewer than 128 training groups is frozen.
+The manifest records input hashes, filtering, results, phases, and duplicates.
+Every position must reconstruct the engine evaluation exactly.
 
-The manifest records inputs, hashes, filtering counts, WDL counts, phase
-counts, duplicates, conflicts, and split integrity. The calibration artifact
-records feature support. Every record must reconstruct the engine's exported
-evaluation exactly.
+## Cross-validation and fit
 
-## Joint linear fit
+The runner assigns every opening group to one of five deterministic folds.
+Groups never cross folds. A variable is fitted only when its tied feature set
+appears in at least 128 groups in every fold's training complement.
 
-First calibrate the Texel scale from group-weighted training loss. The scale
-maps an evaluation to an expected game result and remains fixed for the whole
-experiment. The run stops if the optimum reaches the calibration search bound.
-The fitting objective is group-weighted mean squared error.
+For each excluded fold, the runner:
 
-Fit every exported middlegame and endgame coefficient together. Keep these
-constraints:
+1. Calibrates the Texel scale on the other four folds.
+2. Fits all eligible middlegame and endgame coefficients together with
+   L-BFGS-B.
+3. Tries penalties `1e-9`, `3e-9`, `1e-8`, `3e-8`, `1e-7`, `3e-7`, `1e-6`,
+   `3e-6`, and `1e-5`.
+4. Rounds every optimizer checkpoint under the final constraints and retains
+   its lowest exact training loss plus penalty. The unchanged baseline remains
+   eligible.
+5. Scores each retained candidate only on its excluded fold.
+
+The fixed constraints are:
 
 - `material.pawn.mg` is fixed.
-- The declared PSQT and mobility reference values are fixed.
-- Knight, bishop, rook, queen, and king PSQTs retain their file mirrors.
-- Every change is limited to 100 centipawns in either direction.
-- Material values also remain inside their declared piece-specific ranges.
+- Each declared PSQT and mobility reference is fixed.
+- Non-pawn PSQTs retain their file mirrors.
+- A coefficient moves by at most 100 centipawns.
+- Material values remain within their piece-specific ranges.
 
-The nonlinear king-danger result, phase formula, endgame scaling, tempo, and
-search parameters are not part of this fit.
+The penalty counts every underlying coefficient, including both sides of a
+tie. Nonlinear king danger, phase and scaling formulas, tempo, and search
+parameters are outside the fit.
 
-Run independent L-BFGS-B fits with penalties `1e-9`, `1e-8`, and `1e-7`.
-Penalties apply to every changed coefficient, including both coefficients in a
-tie. Training data drives optimization. Each checkpoint is rounded under the
-final constraints and scored with exact engine arithmetic. Selection loss
-chooses the checkpoint and penalty. The unchanged baseline is always a valid
-result. Validation is not examined until that choice is final.
+A penalty is eligible only when its pooled out-of-fold comparison has a
+positive 90% lower confidence bound and no supported phase bucket has a
+negative upper bound. Reports use 2,000 fixed-seed, opening-group bootstrap
+samples and baseline phase buckets `0-31`, `32-63`, `64-95`, and `96-128`.
 
-## Offline decision
+The runner selects the strongest eligible penalty within one standard error of
+the best mean fold improvement. It then recalibrates and refits that penalty on
+the complete dataset. If none pass, it retains the baseline.
 
-Compare the selected integer candidate with its parent on the independent
-validation split, using 2,000 fixed-seed opening-group bootstrap samples and a
-90% confidence interval. A candidate is qualified only when:
-
-- the lower bound of its overall prediction improvement is above zero; and
-- no phase bucket with at least 128 groups has an upper improvement bound below
-  zero.
-
-The phase buckets are `0-31`, `32-63`, `64-95`, and `96-128`, assigned using
-the parent evaluation. Also review sparse features, changes using at least 80%
-of their allowed range, and weights on a bound.
-
-This result is qualification for a match, not evidence of playing strength.
-The validation gate is used once. A failure closes the experiment; do not tune
-another candidate against the same validation split. If either validation or a
-match result changes the next fit, start again with fresh games.
+`candidate.json` records the exact integer weights, support, large changes, and
+bound hits. The last two invite review; they are not automatic rejection rules.
 
 ## Strength decision
 
-Apply the qualified weights, build the engine, and use `tune.py verify` to
-compare every exported value with the candidate artifact. Review, commit, and
-push the patch before starting OpenBench.
+For a supported candidate, apply the weights to `src/eval/parameters.hpp`,
+build the engine, and run `verify`. Verification compares every compiled
+coefficient and evaluation invariant with the candidate artifact.
 
-Run one normalized-Elo `[0, 5]` SPRT against the pinned baseline with the
-[standard settings](../../docs/openbench.md#strength-tests). Let the test reach
-an SPRT boundary or its maximum game count. Do not decide from an intermediate
-win/loss record.
+Review, commit, and push the verified patch before starting OpenBench. Run one
+normalized-Elo `[0, 3]` SPRT against the pinned baseline with the
+[standard settings](../../docs/openbench.md#strength-tests). Let it reach a
+boundary or its game limit.
 
 - The upper boundary accepts the candidate.
-- The lower boundary or an inconclusive maximum retains the baseline.
-- Either result closes the experiment.
+- The lower boundary or an inconclusive limit retains the baseline.
+- `offline` records a rejection before match play.
 
-Record the boundary and OpenBench test ID with `tune.py close`. Use its
-`offline` result when no match was run. The command derives acceptance or
-rejection from that result.
+Use `close` to append the decision and OpenBench test ID to tracked
+`results.jsonl`. Generated output under `tools/tuning/output/<experiment>/` may
+then be deleted.
 
-## Held-out data
+Fresh match games are the independent acceptance test. An untouched external
+corpus may be used for an occasional release audit, but it is not part of the
+routine tuning command.
 
-Routine fitting and validation never load held-out records. After an experiment
-is closed, `tune.py reveal` scores the retained engine on them. Use this for a
-release or another major evaluation change, not for ordinary candidate
-selection. The command requires the tuner and dependency versions recorded by
-the experiment.
-
-Once viewed, held-out data is no longer blind. If its result affects another
-fit, the next release check needs fresh held-out data.
-
-## Parallel work
-
-Other development may continue while an experiment runs, but the fit remains
-tied to its original revision.
-
-- Evaluation, parameter, or feature-schema changes invalidate it.
-- Search changes require a new match against the current baseline before the
-  candidate can be accepted.
-- Unrelated changes require the normal tests and compiled-weight verification.
-
-Nonlinear evaluation or search tuning may reuse this lifecycle, but not this
-linear fitting method.
+Other development may continue while fitting, but evaluation, parameter, or
+feature-schema changes invalidate the experiment. Intervening search changes
+require a fresh comparison against the current baseline. Unrelated changes
+need normal verification.
 
 Background: [Automated Tuning](https://www.chessprogramming.org/Automated_Tuning),
 [Texel's Tuning Method](https://www.chessprogramming.org/Texel%27s_Tuning_Method),
-and [Ethereal's Evaluation & Tuning in Chess Engines](https://github.com/AndyGrant/Ethereal/blob/master/Tuning.pdf).
+and [Ethereal's tuning paper](https://github.com/AndyGrant/Ethereal/blob/master/Tuning.pdf).

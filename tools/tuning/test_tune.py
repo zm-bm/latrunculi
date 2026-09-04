@@ -87,9 +87,11 @@ def make_split(records, feature_count):
             rows.append(row)
             columns.append(feature_id)
             values.append(coefficient)
-    groups = np.asarray(
+    names = np.asarray(
         [tune.dataset.group_from_source(item["source"]) for item in records], dtype=object
     )
+    group_names, groups = np.unique(names, return_inverse=True)
+    groups = groups.astype(np.int32)
     return tune.Split(
         coefficients=sparse.csr_matrix(
             (values, (rows, columns)),
@@ -109,6 +111,7 @@ def make_split(records, feature_count):
         targets=np.asarray([(item["result"] + 1) / 2 for item in records]),
         exported=np.asarray([item["eval"] for item in records], dtype=np.int32),
         groups=groups,
+        group_names=group_names,
         weights=tune.group_weights(groups),
     )
 
@@ -124,7 +127,7 @@ def experiment(*, anchors=(), fixed=("material.pawn.mg",), mirrored=(), support=
         "fit": {
             "delta_bounds": [-100, 100],
             "bounds": [],
-            "regularization": [1e-9, 1e-8, 1e-7],
+            "regularization": [1e-9],
         },
         "optimizer": {
             "method": "L-BFGS-B",
@@ -133,6 +136,7 @@ def experiment(*, anchors=(), fixed=("material.pawn.mg",), mirrored=(), support=
             "function_tolerance": 1e-15,
             "maximum_line_search_steps": 50,
         },
+        "validation": {"folds": 5},
     }
 
 
@@ -156,12 +160,15 @@ class ConfigurationTest(unittest.TestCase):
         config = tune.load_experiment(
             pathlib.Path(__file__).with_name("experiment.example.json")
         )
+        self.assertEqual(config["version"], 3)
         self.assertEqual(config["dataset"]["maximum_positions_per_game"], 6)
+        self.assertNotIn("splits", config["dataset"])
         self.assertEqual(
-            config["dataset"]["splits"],
-            {"train": 80, "selection": 5, "validation": 5, "heldout": 10},
+            config["fit"]["regularization"],
+            [1e-9, 3e-9, 1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6, 1e-5],
         )
-        self.assertEqual(config["fit"]["regularization"], [1e-9, 1e-8, 1e-7])
+        self.assertEqual(config["validation"]["folds"], 5)
+        self.assertEqual(config["strength"]["normalized_elo_bounds"], [0, 3])
         self.assertNotIn("features", config["fit"])
         self.assertNotIn("phases", config["fit"])
 
@@ -175,6 +182,12 @@ class ConfigurationTest(unittest.TestCase):
         config = experiment_input()
         config["baseline"]["benchmark"] = True
         with self.assertRaisesRegex(ValueError, "benchmark"):
+            tune.resolve_experiment(config)
+
+    def test_version_two_experiments_are_not_accepted(self):
+        config = experiment_input()
+        config["version"] = 2
+        with self.assertRaisesRegex(ValueError, "unsupported experiment version"):
             tune.resolve_experiment(config)
 
 
@@ -331,20 +344,29 @@ class ModelTest(unittest.TestCase):
                 numeric[feature_id, phase] = (upper_loss - lower_loss) / (2 * step)
         np.testing.assert_allclose(analytic, numeric, rtol=2e-5, atol=1e-10)
 
-    def test_fit_metrics_do_not_examine_validation(self):
+    def test_development_folds_keep_groups_together(self):
         current = base_schema()
-        split = make_split([record([])], len(current["features"]))
-        data = tune.TuningData(
-            "manifest",
-            current,
-            {"train": split, "selection": split, "validation": None},
+        split = make_split(
+            [
+                record([], source=f"g{group}:p{position}:1")
+                for group in range(50)
+                for position in range(2)
+            ],
+            len(current["features"]),
+        )
+        policy = {"folds": 5, "fold_seed": 7}
+        assignments = tune.fold_assignments(split, policy)
+        np.testing.assert_array_equal(
+            assignments, tune.fold_assignments(split, policy)
         )
 
-        metrics = tune.exact_metrics(
-            data, tune.baseline_weights(current).astype(int), 0.7
-        )
-
-        self.assertEqual(set(metrics), set(tune.FIT_SPLITS))
+        testing_positions = 0
+        for fold in range(policy["folds"]):
+            training = tune.subset_split(split, assignments != fold)
+            testing = tune.subset_split(split, assignments == fold)
+            testing_positions += len(testing.targets)
+            self.assertFalse(set(training.groups) & set(testing.groups))
+        self.assertEqual(testing_positions, len(split.targets))
 
 
 class SupportTest(unittest.TestCase):
@@ -409,6 +431,35 @@ class ParameterMapTest(unittest.TestCase):
         np.testing.assert_array_equal(parameters.multiplicity, [2, 2])
         self.assertEqual(parameters.frozen["psqt.knight.a1.mg"], "anchor")
 
+    def test_support_must_reach_the_minimum_in_every_training_fold(self):
+        current = base_schema([("pawn.isolated", -5, -15)])
+        split = make_split(
+            [
+                *[
+                    record([[1, 1], [5, 1]], source=f"a{index}:x:1")
+                    for index in range(3)
+                ],
+                record([[1, 1], [5, 1]], source="b0:x:1"),
+                record([[1, 1]], source="b1:x:1"),
+            ],
+            len(current["features"]),
+        )
+        settings = experiment(support=2)
+        settings["validation"]["folds"] = 2
+        assignments = np.asarray([0, 0, 0, 1, 1], dtype=np.int8)
+
+        parameters = tune.build_parameter_map(
+            current,
+            tune.baseline_weights(current),
+            split,
+            settings,
+            assignments,
+        )
+
+        self.assertEqual(parameters.support["pawn.isolated.mg"], 1)
+        self.assertEqual(parameters.frozen["pawn.isolated.mg"], "support")
+        self.assertEqual(parameters.frozen["pawn.isolated.eg"], "support")
+
     def test_bounds_and_rounding_preserve_ties(self):
         current = base_schema(
             [
@@ -447,36 +498,24 @@ class OptimizerTest(unittest.TestCase):
             for index, coefficient in enumerate(range(-4, 5))
         ]
         train = make_split(records, len(current["features"]))
-        selection = make_split(copy.deepcopy(records), len(current["features"]))
         target = tune.baseline_weights(current)
         target[5, 1] = 30
-        for split in (train, selection):
-            split.targets = tune.expected_score(
-                tune.continuous_evaluation(split, current, target), 0.7
-            )
-        data = tune.TuningData(
-            "manifest",
-            current,
-            {"train": train, "selection": selection, "validation": None},
+        train.targets = tune.expected_score(
+            tune.continuous_evaluation(train, current, target), 0.7
         )
         settings = experiment(fixed=("material.pawn.mg", "pawn.isolated.mg"))
         parameters = tune.build_parameter_map(
             current, tune.baseline_weights(current), train, settings
         )
 
-        first = tune.fit_parameters(data, parameters, settings, 0.7, 0.0)
-        second = tune.fit_parameters(data, parameters, settings, 0.7, 0.0)
+        first = tune.fit_parameters(train, current, parameters, settings, 0.7, 0.0)
+        second = tune.fit_parameters(train, current, parameters, settings, 0.7, 0.0)
         np.testing.assert_array_equal(first["deltas"], second["deltas"])
         self.assertAlmostEqual(first["rounded"][5, 1], 30, delta=1)
 
     def test_checkpoint_selection_uses_exact_rounded_loss(self):
         current = base_schema([("pawn.isolated", 0, 0)])
         split = make_split([record([[5, 1]])], len(current["features"]))
-        data = tune.TuningData(
-            "manifest",
-            current,
-            {"train": split, "selection": split, "validation": None},
-        )
         parent = tune.baseline_weights(current)
         parameters = tune.ParameterMap(
             parent=parent,
@@ -509,11 +548,56 @@ class OptimizerTest(unittest.TestCase):
             mock.patch.object(tune, "split_metric", side_effect=exact_metric),
             mock.patch.object(tune, "continuous_evaluation", return_value=np.asarray([0.0])),
         ):
-            result = tune.fit_parameters(data, parameters, experiment(), 0.7, 0.0)
+            result = tune.fit_parameters(
+                split, current, parameters, experiment(), 0.7, 0.0
+            )
 
         self.assertEqual(result["rounded"][5, 1], 2)
         self.assertEqual(result["selected_iteration"], 1)
         self.assertEqual(result["optimizer"].x[0], 0.49)
+
+    def test_checkpoint_selection_penalizes_the_rounded_candidate(self):
+        current = base_schema([("pawn.isolated", 0, 0)])
+        split = make_split([record([[5, 1]])], len(current["features"]))
+        parameters = tune.ParameterMap(
+            parent=tune.baseline_weights(current),
+            members=[[(5, 1)]],
+            names=["pawn.isolated.eg"],
+            bounds=[(-100, 100)],
+            support={"pawn.isolated.eg": 1},
+            frozen={},
+            multiplicity=np.asarray([1.0]),
+        )
+
+        def minimize(*_, callback, **__):
+            callback(np.asarray([1.51]))
+            callback(np.asarray([0.51]))
+            return types.SimpleNamespace(
+                x=np.asarray([1.51]),
+                nit=2,
+                nfev=2,
+                njev=2,
+                fun=0.0,
+                success=True,
+                message="ok",
+            )
+
+        def exact_metric(_, __, weights, ___):
+            return {
+                "mean_squared_error": {0: 0.3, 1: 0.12, 2: 0.1}[weights[5, 1]]
+            }
+
+        with (
+            mock.patch.object(tune.optimize, "minimize", side_effect=minimize),
+            mock.patch.object(tune, "split_metric", side_effect=exact_metric),
+            mock.patch.object(tune, "continuous_evaluation", return_value=np.asarray([0.0])),
+        ):
+            result = tune.fit_parameters(
+                split, current, parameters, experiment(), 0.7, 0.02
+            )
+
+        self.assertEqual(result["rounded"][5, 1], 1)
+        self.assertAlmostEqual(result["exact_objective"], 0.14)
 
 
 class ValidationTest(unittest.TestCase):
@@ -524,7 +608,7 @@ class ValidationTest(unittest.TestCase):
         self.assertEqual(first["groups"], 3)
         self.assertAlmostEqual(first["mean"], 0.2)
 
-    def test_validation_reports_all_phase_buckets_and_qualifies_clear_gain(self):
+    def test_comparison_reports_all_phase_buckets_and_qualifies_clear_gain(self):
         current = base_schema([("pawn.isolated", 0, 0)])
         records = []
         for index in range(160):
@@ -543,19 +627,15 @@ class ValidationTest(unittest.TestCase):
         parent = tune.baseline_weights(current).astype(int)
         candidate = parent.copy()
         candidate[5] = [100, 100]
-        report = tune.validation_report(
-            split,
-            current,
-            parent,
-            candidate,
-            0.7,
+        report = tune.comparison_report(
+            [(split, current, parent, candidate, 0.7)],
             {
                 "bootstrap_samples": 500,
                 "confidence": 0.9,
-                "seed": 9,
                 "phase_buckets": [0, 32, 64, 96, 129],
                 "minimum_phase_groups": 128,
             },
+            9,
         )
         self.assertTrue(report["qualified"])
         self.assertLess(
@@ -567,45 +647,71 @@ class ValidationTest(unittest.TestCase):
             ["0-31", "32-63", "64-95", "96-128"],
         )
 
-    def test_selects_the_best_exact_candidate_and_reports_review_flags(self):
-        current = base_schema([("pawn.isolated", 0, 0)])
-        records = [
-            record(
-                [[5, 1 if index % 2 == 0 else -1]],
-                source=f"g{index}:x:1",
-                result=1 if index % 2 == 0 else -1,
-                phase_counts=(0, 0, 0, 0),
-                pawns=(0, 0),
-            )
-            for index in range(160)
-        ]
-        validation = make_split(records, len(current["features"]))
-        parent = tune.baseline_weights(current).astype(int)
-        candidate_weights = parent.copy()
-        candidate_weights[5, 1] = 100
-        data = tune.TuningData(
-            "manifest",
-            current,
+    def test_selects_the_strongest_eligible_penalty_within_one_standard_error(self):
+        reports = [
             {
-                "train": validation,
-                "selection": validation,
-                "validation": validation,
+                "regularization": 1e-9,
+                "mean_improvement": 0.00068,
+                "standard_error": 0.00005,
+                "eligible": True,
             },
+            {
+                "regularization": 3e-9,
+                "mean_improvement": 0.00065,
+                "standard_error": 0.00004,
+                "eligible": True,
+            },
+            {
+                "regularization": 1e-8,
+                "mean_improvement": 0.00059,
+                "standard_error": 0.00003,
+                "eligible": True,
+            },
+            {
+                "regularization": 3e-8,
+                "mean_improvement": 0.00067,
+                "standard_error": 0.00003,
+                "eligible": False,
+            },
+        ]
+
+        best, threshold, selected = tune.select_regularization(reports)
+
+        self.assertEqual(best["regularization"], 1e-9)
+        self.assertAlmostEqual(threshold, 0.00063)
+        self.assertEqual(selected["regularization"], 3e-9)
+
+    def test_regularization_selection_falls_back_to_the_baseline(self):
+        best, threshold, selected = tune.select_regularization(
+            [
+                {
+                    "regularization": 1e-9,
+                    "mean_improvement": -0.001,
+                    "standard_error": 0.0001,
+                    "eligible": False,
+                }
+            ]
         )
-        settings = experiment(support=128)
-        settings["validation"] = {
-            "bootstrap_samples": 500,
-            "confidence": 0.9,
-            "seed": 9,
-            "phase_buckets": [0, 32, 64, 96, 129],
-            "minimum_phase_groups": 128,
+
+        self.assertIsNone(best)
+        self.assertIsNone(threshold)
+        self.assertIsNone(selected)
+
+    def test_candidate_reports_support_and_bound_hits(self):
+        current = base_schema([("pawn.isolated", 0, 0)])
+        development = make_split(
+            [record([[5, 1]], source="g:x:1")], len(current["features"])
+        )
+        parent = tune.baseline_weights(current).astype(int)
+        weights = parent.copy()
+        weights[5, 1] = 100
+        data = tune.TuningData("manifest", current, development)
+        cross_validation = {
+            "artifact_id": "cross-validation",
+            "supported": True,
+            "selected_regularization": 3e-9,
         }
         fit = {
-            "exact_metrics": {
-                "selection": tune.split_metric(
-                    validation, current, candidate_weights, 0.7
-                )
-            },
             "constraints": {
                 "variables": ["pawn.isolated.eg"],
                 "variable_support": {
@@ -614,101 +720,24 @@ class ValidationTest(unittest.TestCase):
                 },
                 "bounds": [[-100, 100]],
             },
-            "weights": tune.weight_records(current, parent, candidate_weights),
+            "weights": tune.weight_records(current, parent, weights),
         }
 
-        candidate = tune.select_candidate(
+        candidate = tune.candidate_artifact(
             data,
-            settings,
+            experiment(support=128),
+            cross_validation,
             {"objective": {"scale": 0.7}},
-            [(pathlib.Path("fit.json"), fit)],
+            fit,
         )
 
-        self.assertEqual(candidate["selected_fit"], "fit.json")
-        self.assertTrue(candidate["qualified"])
-        self.assertLess(
-            candidate["selection"]["candidate"], candidate["selection"]["baseline"]
-        )
+        self.assertTrue(candidate["cross_validation_supported"])
+        self.assertEqual(candidate["selected_regularization"], 3e-9)
         self.assertEqual(candidate["review"]["bound_hits"], ["pawn.isolated.eg"])
         self.assertEqual(
             candidate["review"]["sparse_support"],
             [{"name": "pawn.backward.eg", "groups": 12}],
         )
-
-    def test_candidate_selection_does_not_reuse_the_validation_gate(self):
-        current = base_schema([("pawn.isolated", 0, 0)])
-        selection_records = []
-        validation_records = []
-        for index in range(160):
-            coefficient = 1 if index % 2 == 0 else -1
-            selection_records.append(
-                record(
-                    [[5, coefficient]],
-                    source=f"selection-{index}:game:1",
-                    result=coefficient,
-                    phase_counts=(0, 0, 0, 0),
-                    pawns=(0, 0),
-                )
-            )
-            validation_records.append(
-                record(
-                    [[5, coefficient]],
-                    source=f"validation-{index}:game:1",
-                    result=-coefficient,
-                    phase_counts=(0, 0, 0, 0),
-                    pawns=(0, 0),
-                )
-            )
-
-        selection = make_split(selection_records, len(current["features"]))
-        validation = make_split(validation_records, len(current["features"]))
-        parent = tune.baseline_weights(current).astype(int)
-        positive = parent.copy()
-        negative = parent.copy()
-        positive[5, 1] = 100
-        negative[5, 1] = -100
-        data = tune.TuningData(
-            "manifest",
-            current,
-            {"train": selection, "selection": selection, "validation": validation},
-        )
-        settings = experiment(support=128)
-        settings["validation"] = {
-            "bootstrap_samples": 500,
-            "confidence": 0.9,
-            "seed": 9,
-            "phase_buckets": [0, 32, 64, 96, 129],
-            "minimum_phase_groups": 128,
-        }
-
-        def fitted(weights):
-            return {
-                "exact_metrics": {
-                    "selection": tune.split_metric(
-                        selection, current, weights, 0.7
-                    )
-                },
-                "constraints": {
-                    "variables": ["pawn.isolated.eg"],
-                    "variable_support": {"pawn.isolated.eg": 160},
-                    "bounds": [[-100, 100]],
-                },
-                "weights": tune.weight_records(current, parent, weights),
-            }
-
-        candidate = tune.select_candidate(
-            data,
-            settings,
-            {"objective": {"scale": 0.7}},
-            [
-                (pathlib.Path("positive.json"), fitted(positive)),
-                (pathlib.Path("negative.json"), fitted(negative)),
-            ],
-        )
-
-        self.assertEqual(candidate["selected_fit"], "positive.json")
-        self.assertFalse(candidate["qualified"])
-        self.assertLess(candidate["validation"]["overall"]["upper"], 0)
 
 
 class ArtifactTest(unittest.TestCase):
@@ -755,9 +784,9 @@ class DatasetLoadTest(unittest.TestCase):
         item = record([[0, 2], [5, -1]], turn="b")
         item["eval"] = tune.dataset.reconstruct(current, item)[0]
         with tempfile.TemporaryDirectory() as directory:
-            path = pathlib.Path(directory) / "train.jsonl"
+            path = pathlib.Path(directory) / "development.jsonl"
             path.write_text(json.dumps(current) + "\n" + json.dumps(item) + "\n")
-            split = tune.load_split(path, "train", current)
+            split = tune.load_split(path, "development", current)
 
         self.assertFalse(hasattr(split, "records"))
         self.assertEqual(split.coefficients.nnz, 2)
@@ -771,41 +800,34 @@ class DatasetLoadTest(unittest.TestCase):
         item = record([[0, 1]])
         item["eval"] = tune.dataset.reconstruct(current, item)[0] + 1
         with tempfile.TemporaryDirectory() as directory:
-            path = pathlib.Path(directory) / "train.jsonl"
+            path = pathlib.Path(directory) / "development.jsonl"
             path.write_text(json.dumps(current) + "\n" + json.dumps(item) + "\n")
             with self.assertRaisesRegex(ValueError, "baseline reconstruction"):
-                tune.load_split(path, "train", current)
+                tune.load_split(path, "development", current)
 
-    def test_routine_loading_never_opens_heldout(self):
+    def test_dataset_loads_the_single_development_file(self):
         current = base_schema()
         experiment_config = {
             "dataset": {"schema_version": 1, "feature_count": len(current["features"])},
         }
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            outputs = {}
-            for name in tune.RUN_SPLITS:
-                path = root / f"{name}.jsonl"
-                item = record([], source=f"{name}:game:1")
-                item["eval"] = tune.dataset.reconstruct(current, item)[0]
-                path.write_text(
-                    json.dumps(current) + "\n" + json.dumps(item) + "\n"
-                )
-                outputs[path.name] = tune.sha256_file(path)
-            (root / "heldout.jsonl").write_text("poisoned heldout\n")
-            outputs["heldout.jsonl"] = "not-read"
+            path = root / tune.dataset.DATA_FILE
+            item = record([], source="development:game:1")
+            item["eval"] = tune.dataset.reconstruct(current, item)[0]
+            path.write_text(json.dumps(current) + "\n" + json.dumps(item) + "\n")
             manifest = {
                 "format_version": tune.dataset.FORMAT_VERSION,
                 "experiment_sha256": tune.dataset.sha256_json(experiment_config),
-                "outputs": outputs,
+                "outputs": {path.name: tune.sha256_file(path)},
                 "engine": {"sha256": "engine"},
             }
             (root / "manifest.json").write_text(json.dumps(manifest))
             data = tune.load_dataset(root, experiment_config)
-            self.assertEqual(set(data.splits), set(tune.RUN_SPLITS))
+            self.assertEqual(len(data.development.targets), 1)
 
 
-def prepare_output(root, current, qualified):
+def prepare_output(root, current, cross_validation_supported=True):
     config = complete_experiment("lifecycle-test")
     config["dataset"]["feature_count"] = len(current["features"])
     tune.atomic_write_json(root / "experiment.json", config)
@@ -825,16 +847,28 @@ def prepare_output(root, current, qualified):
         root / "candidate.json",
         {
             "kind": "candidate",
-            "qualified": qualified,
-            "selected_fit": None,
+            "cross_validation_supported": cross_validation_supported,
+            "selected_regularization": 1e-9 if cross_validation_supported else None,
             "weights": tune.weight_records(current, weights, weights),
         },
     )
     tune.record_step(root / "state.json", "candidate", root / "candidate.json")
-    return config, tune.read_artifact(root / "candidate.json")
+    candidate = tune.read_artifact(root / "candidate.json")
+    return config, candidate
 
 
 class LifecycleTest(unittest.TestCase):
+    def test_version_two_state_is_not_accepted(self):
+        current = base_schema()
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            prepare_output(root, current)
+            state = tune.load_json(root / "state.json")
+            state["format_version"] = 2
+            tune.atomic_write_json(root / "state.json", state)
+            with self.assertRaisesRegex(ValueError, "unsupported experiment state"):
+                tune.read_state(root)
+
     def test_compiled_candidate_verification_compares_the_complete_schema(self):
         current = base_schema()
         weights = tune.baseline_weights(current).astype(int)
@@ -864,11 +898,13 @@ class LifecycleTest(unittest.TestCase):
             _, candidate = prepare_output(root, current, True)
             dataset_dir = root / "dataset"
             dataset_dir.mkdir()
-            train = dataset_dir / "train.jsonl"
-            train.write_text(json.dumps(current) + "\n")
+            development = dataset_dir / tune.dataset.DATA_FILE
+            development.write_text(json.dumps(current) + "\n")
             tune.atomic_write_json(
                 dataset_dir / "manifest.json",
-                {"outputs": {"train.jsonl": tune.sha256_file(train)}},
+                {
+                    "outputs": {tune.dataset.DATA_FILE: tune.sha256_file(development)}
+                },
             )
             engine = root / "engine"
             engine.write_text("engine")
@@ -896,7 +932,7 @@ class LifecycleTest(unittest.TestCase):
                 dataset_dir / "manifest.json",
                 {"experiment_sha256": tune.dataset.sha256_json(config)},
             )
-            report = {"duplicates": 0, "split_leaks": 0}
+            report = {"duplicates": 0}
             stream = io.StringIO()
             with (
                 mock.patch.object(tune.dataset, "validate_output", return_value=(report, current)),
@@ -1011,53 +1047,15 @@ class LifecycleTest(unittest.TestCase):
                 tune.load_json(root / "decision.json")["decision"], "rejected"
             )
 
-    def test_heldout_requires_closure_and_is_read_once(self):
+    def test_verify_rejects_an_unsupported_candidate(self):
         current = base_schema()
-        item = record(
-            [],
-            source="group:game:1",
-            result=0,
-            phase_counts=(0, 0, 0, 0),
-            pawns=(0, 0),
-        )
-        item["fen"] = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"
-        item["eval"] = tune.dataset.reconstruct(current, item)[0]
-
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             prepare_output(root, current, False)
-            dataset_dir = root / "dataset"
-            dataset_dir.mkdir()
-            heldout = dataset_dir / "heldout.jsonl"
-            heldout.write_text(json.dumps(current) + "\n" + json.dumps(item) + "\n")
-            (dataset_dir / "manifest.json").write_text(
-                json.dumps({"outputs": {"heldout.jsonl": tune.sha256_file(heldout)}})
-            )
-            tune.write_artifact(
-                root / "calibration.json",
-                {"kind": "calibration", "objective": {"scale": 0.7}},
-            )
-            args = types.SimpleNamespace(output=root)
-            with self.assertRaisesRegex(ValueError, "close the experiment"):
-                tune.reveal_command(args)
-
-            tune.atomic_write_json(root / "decision.json", {"decision": "rejected"})
-            tune.record_step(root / "state.json", "decision", root / "decision.json")
-
-            state = tune.load_json(root / "state.json")
-            tool = state["tool"]
-            state["tool"] = {}
-            tune.atomic_write_json(root / "state.json", state)
-            with self.assertRaisesRegex(ValueError, "tooling changed"):
-                tune.reveal_command(args)
-            state["tool"] = tool
-            tune.atomic_write_json(root / "state.json", state)
-
-            with contextlib.redirect_stdout(io.StringIO()):
-                tune.reveal_command(args)
-            self.assertTrue((root / "heldout-report.json").is_file())
-            with self.assertRaisesRegex(ValueError, "already been revealed"):
-                tune.reveal_command(args)
+            with self.assertRaisesRegex(ValueError, "cross-validation"):
+                tune.verify_command(
+                    types.SimpleNamespace(output=root, engine=root / "engine")
+                )
 
 
 class RunnerTest(unittest.TestCase):
@@ -1065,12 +1063,12 @@ class RunnerTest(unittest.TestCase):
         config = complete_experiment()
         source_config = experiment_input()
         current = base_schema()
-        empty = make_split([], len(current["features"]))
-        data = tune.TuningData(
-            "manifest",
-            current,
-            {"train": empty, "selection": empty, "validation": empty},
+        split = make_split(
+            [record([], source=f"g{index}:x:1") for index in range(5)],
+            len(current["features"]),
         )
+        data = tune.TuningData("manifest", current, split)
+        assignments = np.arange(5, dtype=np.int8)
 
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
@@ -1107,14 +1105,22 @@ class RunnerTest(unittest.TestCase):
             }
             fit = {
                 "kind": "fit",
-                "exact_metrics": {"selection": {"mean_squared_error": 0.1}},
+                "constraints": {
+                    "variables": [],
+                    "variable_support": {},
+                    "bounds": [],
+                },
                 "weights": [],
+            }
+            cross_validation = {
+                "kind": "cross_validation",
+                "supported": True,
+                "selected_regularization": 1e-9,
             }
             candidate = {
                 "kind": "candidate",
-                "qualified": False,
-                "selected_fit": None,
-                "validation": {},
+                "cross_validation_supported": True,
+                "selected_regularization": 1e-9,
                 "review": {},
                 "weights": [],
             }
@@ -1127,6 +1133,9 @@ class RunnerTest(unittest.TestCase):
                 mock.patch.object(tune, "load_dataset", return_value=data),
                 mock.patch.object(tune, "validate_constraints"),
                 mock.patch.object(
+                    tune, "fold_assignments", return_value=assignments
+                ),
+                mock.patch.object(
                     tune, "build_parameter_map", return_value=object()
                 ) as build_parameters,
                 mock.patch.object(tune, "feature_support", return_value=[]),
@@ -1138,22 +1147,30 @@ class RunnerTest(unittest.TestCase):
                 mock.patch.object(tune, "calibration_artifact", return_value=calibration),
                 mock.patch.object(tune, "fit_parameters", return_value={}) as fit_parameters,
                 mock.patch.object(tune, "fit_artifact", return_value=fit),
-                mock.patch.object(tune, "select_candidate", return_value=candidate) as select,
+                mock.patch.object(
+                    tune,
+                    "cross_validation_artifact",
+                    return_value=cross_validation,
+                ) as cross_validate,
+                mock.patch.object(
+                    tune, "candidate_artifact", return_value=candidate
+                ) as select,
                 contextlib.redirect_stdout(io.StringIO()),
             ):
                 tune.run_command(args)
                 tune.run_command(args)
 
             self.assertEqual(build.call_count, 1)
-            self.assertEqual(build_parameters.call_count, 1)
-            self.assertEqual(calibrate.call_count, 1)
-            self.assertEqual(fit_parameters.call_count, 3)
+            self.assertEqual(build_parameters.call_count, 2)
+            self.assertEqual(calibrate.call_count, 6)
+            self.assertEqual(fit_parameters.call_count, 46)
+            self.assertEqual(cross_validate.call_count, 1)
             self.assertEqual(select.call_count, 1)
             self.assertNotIn("dataset", json.loads(experiment_path.read_text()))
             self.assertIn("dataset", tune.load_json(output / "experiment.json"))
             status = tune.status_record(output)
-            self.assertFalse(status["qualified"])
-            self.assertIn("close", status["next_action"])
+            self.assertTrue(status["cross_validation_supported"])
+            self.assertIn("run verify", status["next_action"])
             stream = io.StringIO()
             with contextlib.redirect_stdout(stream):
                 tune.status_command(types.SimpleNamespace(output=output, json=True))

@@ -10,12 +10,6 @@ import chess.pgn
 import dataset
 
 
-SPLIT_CONFIG = {
-    "seed": 20260902,
-    "splits": {"train": 80, "selection": 5, "validation": 5, "heldout": 10},
-}
-
-
 def position(source, result, fen):
     return {
         "type": "position",
@@ -31,17 +25,6 @@ class IdentityTest(unittest.TestCase):
         first = chess.Board("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1")
         second = chess.Board("4k3/8/8/8/8/8/4P3/4K3 w - - 37 81")
         self.assertEqual(dataset.canonical_fen(first), dataset.canonical_fen(second))
-
-    def test_split_is_deterministic(self):
-        self.assertEqual(
-            dataset.split_for("game-pair-1", SPLIT_CONFIG),
-            dataset.split_for("game-pair-1", SPLIT_CONFIG),
-        )
-        observed = {
-            dataset.split_for(f"game-pair-{index}", SPLIT_CONFIG)
-            for index in range(1000)
-        }
-        self.assertEqual(observed, set(dataset.SPLITS))
 
     def test_explicit_fen_groups_across_archives_and_fallback_is_per_game(self):
         paired = chess.pgn.Game()
@@ -145,16 +128,12 @@ class DeduplicationTest(unittest.TestCase):
                 "\n".join(dataset.canonical_json(value) for value in [schema, *records]) + "\n"
             )
 
-            counts, returned_schema = dataset.split_settled(
-                settled, root, SPLIT_CONFIG
-            )
+            counts, returned_schema = dataset.write_development(settled, root)
 
-            retained = []
-            for split in dataset.SPLITS:
-                retained.extend(
-                    json.loads(line)["source"]
-                    for line in (root / f"{split}.jsonl").read_text().splitlines()[1:]
-                )
+            retained = [
+                json.loads(line)["source"]
+                for line in (root / dataset.DATA_FILE).read_text().splitlines()[1:]
+            ]
             self.assertEqual(returned_schema, schema)
             self.assertEqual(set(retained), {"a-group:game:2", "e-group:game:5"})
             self.assertEqual(counts["positions.duplicate"], 2)
@@ -166,16 +145,13 @@ class ValidationTest(unittest.TestCase):
     def test_output_hashes_are_checked_before_structural_validation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            outputs = {}
-            for split in dataset.SPLITS:
-                path = root / f"{split}.jsonl"
-                path.write_text("schema\n")
-                outputs[path.name] = dataset.sha256_file(path)
+            path = root / dataset.DATA_FILE
+            path.write_text("schema\n")
             experiment = {"version": 1}
             manifest = {
                 "format_version": dataset.FORMAT_VERSION,
                 "experiment_sha256": dataset.sha256_json(experiment),
-                "outputs": outputs,
+                "outputs": {path.name: dataset.sha256_file(path)},
                 "validation": {"valid": True},
             }
             (root / "manifest.json").write_text(json.dumps(manifest))
@@ -187,7 +163,14 @@ class ValidationTest(unittest.TestCase):
                 dataset.validate_output(root)
                 validate.assert_called_once_with(root)
 
-                (root / "heldout.jsonl").write_text("changed\n")
+                manifest["outputs"]["extra.jsonl"] = dataset.sha256_file(path)
+                (root / "manifest.json").write_text(json.dumps(manifest))
+                with self.assertRaisesRegex(ValueError, "invalid dataset outputs"):
+                    dataset.validate_output(root)
+
+                manifest["outputs"].pop("extra.jsonl")
+                (root / "manifest.json").write_text(json.dumps(manifest))
+                path.write_text("changed\n")
                 with self.assertRaisesRegex(ValueError, "output hash mismatch"):
                     dataset.validate_output(root)
 
@@ -210,11 +193,10 @@ class BuildTest(unittest.TestCase):
         def export(_, __, path):
             path.write_text(dataset.canonical_json(schema) + "\n")
 
-        def split(_, output, __):
-            for name in dataset.SPLITS:
-                (output / f"{name}.jsonl").write_text(
-                    dataset.canonical_json(schema) + "\n"
-                )
+        def write(_, output):
+            (output / dataset.DATA_FILE).write_text(
+                dataset.canonical_json(schema) + "\n"
+            )
             return {"positions.exported": 0}, schema
 
         with tempfile.TemporaryDirectory() as directory:
@@ -226,7 +208,7 @@ class BuildTest(unittest.TestCase):
             with (
                 mock.patch.object(dataset, "collect_positions", side_effect=collect),
                 mock.patch.object(dataset, "export_settled_features", side_effect=export),
-                mock.patch.object(dataset, "split_settled", side_effect=split),
+                mock.patch.object(dataset, "write_development", side_effect=write),
             ):
                 first = dataset.build_dataset(engine, [pgn], root / "first", experiment)
                 second = dataset.build_dataset(engine, [pgn], root / "second", experiment)

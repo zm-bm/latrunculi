@@ -31,21 +31,18 @@ PHASE_MATERIAL_FEATURES = (
     "material.queen",
 )
 PHASE_START_COUNTS = np.asarray((4, 4, 4, 2), dtype=np.int64)
-FIT_SPLITS = ("train", "selection")
-RUN_SPLITS = (*FIT_SPLITS, "validation")
-STATE_FORMAT_VERSION = 1
+DEVELOPMENT_SPLIT = "development"
+STATE_FORMAT_VERSION = 3
 RESULTS_PATH = pathlib.Path(__file__).with_name("results.jsonl")
 
 PROTOCOL = {
     "dataset": {
         "schema_version": 1,
         "feature_count": 482,
-        "seed": 20260902,
         "minimum_game_ply": 8,
         "maximum_positions_per_game": 6,
         "minimum_games": 40000,
         "minimum_groups": 20000,
-        "splits": {"train": 80, "selection": 5, "validation": 5, "heldout": 10},
     },
     "objective": {
         "perspective": "white",
@@ -85,7 +82,17 @@ PROTOCOL = {
             {"pattern": "material.rook.*", "minimum": 901, "maximum": 1500},
             {"pattern": "material.queen.*", "minimum": 1501, "maximum": 3000},
         ],
-        "regularization": [1e-9, 1e-8, 1e-7],
+        "regularization": [
+            1e-9,
+            3e-9,
+            1e-8,
+            3e-8,
+            1e-7,
+            3e-7,
+            1e-6,
+            3e-6,
+            1e-5,
+        ],
     },
     "optimizer": {
         "method": "L-BFGS-B",
@@ -95,13 +102,15 @@ PROTOCOL = {
         "maximum_line_search_steps": 50,
     },
     "validation": {
+        "folds": 5,
+        "fold_seed": 20260904,
         "bootstrap_samples": 2000,
         "confidence": 0.9,
-        "seed": 20260903,
+        "bootstrap_seed": 20260905,
         "phase_buckets": [0, 32, 64, 96, 129],
         "minimum_phase_groups": 128,
     },
-    "strength": {"normalized_elo_bounds": [0, 5]},
+    "strength": {"normalized_elo_bounds": [0, 3]},
 }
 
 
@@ -115,6 +124,7 @@ class Split:
     targets: np.ndarray
     exported: np.ndarray
     groups: np.ndarray
+    group_names: np.ndarray
     weights: np.ndarray
 
 
@@ -122,7 +132,7 @@ class Split:
 class TuningData:
     manifest_sha256: str
     schema: dict
-    splits: dict
+    development: Split
 
 
 @dataclass
@@ -151,12 +161,15 @@ class ParameterMap:
             dtype=np.float64,
         )
 
-    def rounded(self, deltas):
+    def rounded_deltas(self, deltas):
         rounded_deltas = []
         for value, (lower, upper) in zip(deltas, self.bounds):
             rounded = round_away_from_zero(value)
             rounded_deltas.append(min(max(rounded, math.ceil(lower)), math.floor(upper)))
-        return self.expand(rounded_deltas).astype(np.int64)
+        return np.asarray(rounded_deltas, dtype=np.int64)
+
+    def rounded(self, deltas):
+        return self.expand(self.rounded_deltas(deltas)).astype(np.int64)
 
 
 def sha256_file(path):
@@ -175,7 +188,7 @@ def resolve_experiment(config):
         "corpus",
     }:
         raise ValueError("invalid experiment configuration")
-    if type(config["version"]) is not int or config["version"] != 1:
+    if type(config["version"]) is not int or config["version"] != 3:
         raise ValueError("unsupported experiment version")
     if not isinstance(config["name"], str) or not re.fullmatch(
         r"[a-z0-9][a-z0-9-]*", config["name"]
@@ -295,6 +308,22 @@ def group_weights(groups):
     return np.asarray([1.0 / counts[group] for group in groups])
 
 
+def subset_split(split, mask):
+    groups = split.groups[mask]
+    return Split(
+        coefficients=split.coefficients[mask],
+        fixed=split.fixed[mask],
+        phase_counts=split.phase_counts[mask],
+        pawn_counts=split.pawn_counts[mask],
+        turns=split.turns[mask],
+        targets=split.targets[mask],
+        exported=split.exported[mask],
+        groups=groups,
+        group_names=split.group_names,
+        weights=group_weights(groups),
+    )
+
+
 def load_split(path, name, schema):
     indices = array("i")
     values = array("i")
@@ -330,7 +359,9 @@ def load_split(path, name, schema):
             exported.append(record["eval"])
             groups.append(dataset.group_from_source(record["source"]))
 
-    _, group_array = np.unique(np.asarray(groups, dtype=object), return_inverse=True)
+    group_names, group_array = np.unique(
+        np.asarray(groups, dtype=object), return_inverse=True
+    )
     group_array = group_array.astype(np.int32)
     coefficients = sparse.csr_matrix(
         (
@@ -351,6 +382,7 @@ def load_split(path, name, schema):
         targets=np.asarray(targets, dtype=np.float64),
         exported=np.asarray(exported, dtype=np.int32),
         groups=group_array,
+        group_names=group_names,
         weights=group_weights(group_array),
     )
     parent = baseline_weights(schema).astype(np.int64)
@@ -370,21 +402,15 @@ def load_dataset(path, experiment, engine=None):
 
     expected = experiment["dataset"]
     schema = None
-    splits = {}
-    for name in RUN_SPLITS:
-        split_path = path / f"{name}.jsonl"
-        if sha256_file(split_path) != manifest["outputs"][split_path.name]:
-            raise ValueError(f"{name} dataset hash mismatch")
-        with split_path.open(encoding="utf-8") as stream:
-            current_schema = json.loads(next(stream))
-        if schema is None:
-            schema = current_schema
-            validate_schema(schema, expected["schema_version"], expected["feature_count"])
-        elif current_schema != schema:
-            raise ValueError("dataset schemas differ")
-        splits[name] = load_split(split_path, name, schema)
-        if not len(splits[name].targets):
-            raise ValueError(f"{name} dataset is empty")
+    split_path = path / dataset.DATA_FILE
+    if sha256_file(split_path) != manifest["outputs"][split_path.name]:
+        raise ValueError("development dataset hash mismatch")
+    with split_path.open(encoding="utf-8") as stream:
+        schema = json.loads(next(stream))
+    validate_schema(schema, expected["schema_version"], expected["feature_count"])
+    development = load_split(split_path, DEVELOPMENT_SPLIT, schema)
+    if not len(development.targets):
+        raise ValueError("development dataset is empty")
 
     if engine is not None:
         if sha256_file(engine) != manifest["engine"]["sha256"]:
@@ -395,7 +421,7 @@ def load_dataset(path, experiment, engine=None):
     return TuningData(
         manifest_sha256=manifest_hash,
         schema=schema,
-        splits=splits,
+        development=development,
     )
 
 
@@ -618,13 +644,6 @@ def split_metric(split, schema, weights, scale):
     }
 
 
-def exact_metrics(data, weights, scale):
-    return {
-        name: split_metric(data.splits[name], data.schema, weights, scale)
-        for name in FIT_SPLITS
-    }
-
-
 def round_away_from_zero(value):
     return math.floor(value + 0.5) if value >= 0 else math.ceil(value - 0.5)
 
@@ -678,8 +697,10 @@ def validate_constraints(schema, experiment):
             raise ValueError(f"feature family has no anchor: {prefix}")
 
 
-def build_parameter_map(schema, parent, split, experiment):
+def build_parameter_map(schema, parent, split, experiment, assignments=None):
     validate_constraints(schema, experiment)
+    if not isinstance(split, Split) or not len(split.targets):
+        raise ValueError("parameter support requires training data")
     fit = experiment["fit"]
     features = {feature["name"]: feature for feature in schema["features"]}
     fixed = set(experiment["constraints"]["fixed"])
@@ -695,20 +716,43 @@ def build_parameter_map(schema, parent, split, experiment):
             groups.setdefault((tied_name, phase), []).append((feature_id, phase))
 
     matrix = split.coefficients.tocsc()
+    group_folds = None
+    if assignments is not None:
+        assignments = np.asarray(assignments)
+        if assignments.shape != split.groups.shape:
+            raise ValueError("invalid fold assignments")
+        group_folds = np.full(len(split.group_names), -1, dtype=np.int8)
+        for group, fold in zip(split.groups, assignments):
+            if group_folds[group] not in (-1, fold):
+                raise ValueError("opening group crosses folds")
+            group_folds[group] = fold
+        fold_count = experiment["validation"]["folds"]
+        if np.any((assignments < 0) | (assignments >= fold_count)):
+            raise ValueError("invalid fold assignments")
+
     support_cache = {}
 
     def group_support(feature_ids):
         key = tuple(sorted(feature_ids))
         if key not in support_cache:
             rows = [
-                matrix.indices[matrix.indptr[feature_id] : matrix.indptr[feature_id + 1]]
+                matrix.indices[
+                    matrix.indptr[feature_id] : matrix.indptr[feature_id + 1]
+                ]
                 for feature_id in key
             ]
-            support_cache[key] = (
-                int(np.unique(split.groups[np.concatenate(rows)]).size)
+            groups = (
+                np.unique(split.groups[np.concatenate(rows)])
                 if any(row.size for row in rows)
-                else 0
+                else np.asarray([], dtype=np.int32)
             )
+            support = len(groups)
+            if group_folds is not None and support:
+                excluded_counts = np.bincount(
+                    group_folds[groups], minlength=fold_count
+                )
+                support -= int(excluded_counts.max())
+            support_cache[key] = support
         return support_cache[key]
 
     lower_default, upper_default = fit["delta_bounds"]
@@ -782,25 +826,23 @@ def build_parameter_map(schema, parent, split, experiment):
     )
 
 
-def fit_parameters(data, parameters, experiment, scale, regularization):
+def fit_parameters(split, schema, parameters, experiment, scale, regularization):
     parent = parameters.parent
-    train = data.splits["train"]
-    selection = data.splits["selection"]
     initial = np.zeros(len(parameters.members), dtype=np.float64)
     parent_integer = parent.astype(np.int64)
     best = {
         "deltas": initial.copy(),
         "rounded": parent_integer,
         "iteration": 0,
-        "selection": split_metric(
-            selection, data.schema, parent_integer, scale
-        )["mean_squared_error"],
+        "objective": split_metric(split, schema, parent_integer, scale)[
+            "mean_squared_error"
+        ],
     }
     iteration = 0
 
     def objective(deltas):
         weights = parameters.expand(deltas)
-        loss, gradient = continuous_loss_gradient(train, data.schema, weights, scale)
+        loss, gradient = continuous_loss_gradient(split, schema, weights, scale)
         penalty = regularization * float(parameters.multiplicity @ (deltas * deltas))
         penalty_gradient = 2 * regularization * parameters.multiplicity * deltas
         return loss + penalty, parameters.gradient(gradient) + penalty_gradient
@@ -808,10 +850,15 @@ def fit_parameters(data, parameters, experiment, scale, regularization):
     def checkpoint(deltas):
         nonlocal iteration
         iteration += 1
-        rounded = parameters.rounded(deltas)
-        loss = split_metric(selection, data.schema, rounded, scale)["mean_squared_error"]
-        if loss < best["selection"]:
-            best["selection"] = loss
+        rounded_deltas = parameters.rounded_deltas(deltas)
+        rounded = parameters.expand(rounded_deltas).astype(np.int64)
+        exact_objective = split_metric(split, schema, rounded, scale)[
+            "mean_squared_error"
+        ] + regularization * float(
+            parameters.multiplicity @ (rounded_deltas * rounded_deltas)
+        )
+        if exact_objective < best["objective"]:
+            best["objective"] = exact_objective
             best["deltas"] = deltas.copy()
             best["rounded"] = rounded
             best["iteration"] = iteration
@@ -838,15 +885,12 @@ def fit_parameters(data, parameters, experiment, scale, regularization):
 
     deltas = best["deltas"]
     continuous_weights = parameters.expand(deltas)
-    continuous_metrics = {
-        name: mean_squared_error(
-            continuous_evaluation(data.splits[name], data.schema, continuous_weights),
-            data.splits[name].targets,
-            scale,
-            data.splits[name].weights,
-        )
-        for name in FIT_SPLITS
-    }
+    continuous_loss = mean_squared_error(
+        continuous_evaluation(split, schema, continuous_weights),
+        split.targets,
+        scale,
+        split.weights,
+    )
     penalty = regularization * float(parameters.multiplicity @ (deltas * deltas))
     return {
         "parameters": parameters,
@@ -854,9 +898,10 @@ def fit_parameters(data, parameters, experiment, scale, regularization):
         "deltas": deltas,
         "optimizer": result,
         "selected_iteration": best["iteration"],
-        "continuous_metrics": continuous_metrics,
+        "continuous_loss": continuous_loss,
         "penalty": penalty,
-        "objective": continuous_metrics["train"] + penalty,
+        "objective": continuous_loss + penalty,
+        "exact_objective": best["objective"],
     }
 
 
@@ -868,6 +913,15 @@ def group_improvements(split, parent_eval, candidate_eval, scale, mask=None):
     improvements = parent_error * parent_error - candidate_error * candidate_error
     _, groups = np.unique(split.groups[mask], return_inverse=True)
     totals = np.bincount(groups, weights=improvements)
+    return totals / np.bincount(groups)
+
+
+def group_errors(split, evaluation, scale, mask=None):
+    if mask is None:
+        mask = np.ones(len(split.targets), dtype=bool)
+    errors = expected_score(evaluation[mask], scale) - split.targets[mask]
+    _, groups = np.unique(split.groups[mask], return_inverse=True)
+    totals = np.bincount(groups, weights=errors * errors)
     return totals / np.bincount(groups)
 
 
@@ -890,29 +944,50 @@ def bootstrap_interval(values, samples, confidence, seed):
     }
 
 
-def validation_report(split, schema, parent, candidate, scale, policy):
-    parent_eval, phases = exact_evaluations_and_phases(split, schema, parent)
-    candidate_eval = exact_evaluations(split, schema, candidate)
+def comparison_report(comparisons, policy, seed):
+    evaluated = []
+    for split, schema, parent, candidate, scale in comparisons:
+        parent_eval, phases = exact_evaluations_and_phases(split, schema, parent)
+        candidate_eval = exact_evaluations(split, schema, candidate)
+        evaluated.append((split, parent_eval, candidate_eval, phases, scale))
+
+    improvements = np.concatenate(
+        [
+            group_improvements(split, parent_eval, candidate_eval, scale)
+            for split, parent_eval, candidate_eval, _, scale in evaluated
+        ]
+    )
     overall = bootstrap_interval(
-        group_improvements(split, parent_eval, candidate_eval, scale),
+        improvements,
         policy["bootstrap_samples"],
         policy["confidence"],
-        policy["seed"],
+        seed,
     )
     overall["passed"] = overall["lower"] is not None and overall["lower"] > 0
 
     phase_reports = []
     boundaries = policy["phase_buckets"]
     for index, (start, stop) in enumerate(zip(boundaries, boundaries[1:])):
-        mask = (phases >= start) & (phases < stop)
+        masks = [
+            (phases >= start) & (phases < stop)
+            for _, _, _, phases, _ in evaluated
+        ]
+        chunks = [
+            group_improvements(split, parent_eval, candidate_eval, scale, mask)
+            for (split, parent_eval, candidate_eval, _, scale), mask in zip(
+                evaluated, masks
+            )
+            if mask.any()
+        ]
+        values = np.concatenate(chunks) if chunks else np.asarray([])
         interval = bootstrap_interval(
-            group_improvements(split, parent_eval, candidate_eval, scale, mask),
+            values,
             policy["bootstrap_samples"],
             policy["confidence"],
-            policy["seed"] + index + 1,
+            seed + index + 1,
         )
         interval["bucket"] = f"{start}-{stop - 1 if stop <= 128 else 128}"
-        interval["positions"] = int(mask.sum())
+        interval["positions"] = sum(int(mask.sum()) for mask in masks)
         interval["passed"] = (
             interval["groups"] < policy["minimum_phase_groups"]
             or interval["upper"] >= 0
@@ -923,11 +998,21 @@ def validation_report(split, schema, parent, candidate, scale, policy):
         "confidence": policy["confidence"],
         "bootstrap_samples": policy["bootstrap_samples"],
         "mean_squared_error": {
-            "baseline": mean_squared_error(
-                parent_eval, split.targets, scale, split.weights
+            "baseline": float(
+                np.concatenate(
+                    [
+                        group_errors(split, parent_eval, scale)
+                        for split, parent_eval, _, _, scale in evaluated
+                    ]
+                ).mean()
             ),
-            "candidate": mean_squared_error(
-                candidate_eval, split.targets, scale, split.weights
+            "candidate": float(
+                np.concatenate(
+                    [
+                        group_errors(split, candidate_eval, scale)
+                        for split, _, candidate_eval, _, scale in evaluated
+                    ]
+                ).mean()
             ),
         },
         "overall": overall,
@@ -968,30 +1053,34 @@ def weight_records(schema, parent, candidate, changed_only=False):
     return records
 
 
-def calibration_artifact(data, experiment, result, support):
+def calibration_artifact(data, split, experiment, result, support, fold=None):
     weights = baseline_weights(data.schema).astype(np.int64)
     scale = float(result.x)
-    return {
+    artifact = {
         "kind": "calibration",
         "experiment_sha256": dataset.sha256_json(experiment),
         "dataset_manifest_sha256": data.manifest_sha256,
         "objective": {**experiment["objective"], "scale": scale},
-        "support": support,
         "optimizer": {
             "method": "bounded_scalar",
             "iterations": int(result.nit),
             "function_evaluations": int(result.nfev),
             "fitted_scale": scale,
         },
-        "metrics": exact_metrics(data, weights, scale),
+        "metrics": split_metric(split, data.schema, weights, scale),
     }
+    if support is not None:
+        artifact["support"] = support
+    if fold is not None:
+        artifact["fold"] = fold
+    return artifact
 
 
-def fit_artifact(data, experiment, result, regularization, scale):
+def fit_artifact(data, split, experiment, result, regularization, scale, fold=None):
     parent = result["parameters"].parent.astype(np.int64)
     rounded = result["rounded"]
     optimizer = result["optimizer"]
-    return {
+    artifact = {
         "kind": "fit",
         "experiment_sha256": dataset.sha256_json(experiment),
         "dataset_manifest_sha256": data.manifest_sha256,
@@ -1012,7 +1101,7 @@ def fit_artifact(data, experiment, result, regularization, scale):
             "final_objective": float(optimizer.fun),
         },
         "continuous": {
-            "metrics": result["continuous_metrics"],
+            "loss": result["continuous_loss"],
             "regularization_penalty": result["penalty"],
             "objective": result["objective"],
             "deltas": {
@@ -1020,9 +1109,15 @@ def fit_artifact(data, experiment, result, regularization, scale):
                 for name, delta in zip(result["parameters"].names, result["deltas"])
             },
         },
-        "exact_metrics": exact_metrics(data, rounded, scale),
+        "exact": {
+            "metrics": split_metric(split, data.schema, rounded, scale),
+            "objective": result["exact_objective"],
+        },
         "weights": weight_records(data.schema, parent, rounded),
     }
+    if fold is not None:
+        artifact["fold"] = fold
+    return artifact
 
 
 def weights_from_artifact(artifact, schema):
@@ -1052,45 +1147,149 @@ def candidate_verification(candidate, schema, engine):
     }
 
 
-def select_candidate(data, experiment, calibration, fits):
-    scale = calibration["objective"]["scale"]
-    parent = baseline_weights(data.schema).astype(np.int64)
-    baseline_loss = split_metric(data.splits["selection"], data.schema, parent, scale)[
-        "mean_squared_error"
-    ]
-    choices = [(baseline_loss, None, parent)]
-    for path, fit in fits:
-        weights = weights_from_artifact(fit, data.schema)
-        choices.append(
-            (
-                fit["exact_metrics"]["selection"]["mean_squared_error"],
-                path,
-                weights,
+def fold_assignments(split, policy):
+    count = policy["folds"]
+    group_assignments = np.asarray(
+        [
+            int.from_bytes(
+                hashlib.sha256(f"{policy['fold_seed']}:{name}".encode()).digest()[:8],
+                "big",
             )
-        )
-    loss, selected_path, candidate = min(
-        choices, key=lambda choice: (choice[0], choice[1] is not None, str(choice[1]))
+            % count
+            for name in split.group_names
+        ],
+        dtype=np.int8,
     )
-    validation = validation_report(
-        data.splits["validation"],
-        data.schema,
-        parent,
-        candidate,
-        scale,
-        experiment["validation"],
-    )
-    if selected_path is None:
-        validation["qualified"] = False
+    assignments = group_assignments[split.groups]
+    if set(assignments) != set(range(policy["folds"])):
+        raise ValueError("cross-validation has an empty fold")
+    return assignments
 
-    changes = weight_records(data.schema, parent, candidate, changed_only=True)
-    support = fits[0][1]["constraints"]["variable_support"]
+
+def select_regularization(reports):
+    eligible = [report for report in reports if report["eligible"]]
+    if not eligible:
+        return None, None, None
+    best = max(eligible, key=lambda report: report["mean_improvement"])
+    threshold = best["mean_improvement"] - best["standard_error"]
+    selected = max(
+        (
+            report
+            for report in eligible
+            if report["mean_improvement"] >= threshold
+        ),
+        key=lambda report: report["regularization"],
+    )
+    return best, threshold, selected
+
+
+def cross_validation_artifact(
+    data, experiment, assignments, calibrations, fits, parameters
+):
+    parent = baseline_weights(data.schema).astype(np.int64)
+    testing_splits = [
+        subset_split(data.development, assignments == fold)
+        for fold in range(experiment["validation"]["folds"])
+    ]
+    reports = []
+    for regularization in experiment["fit"]["regularization"]:
+        comparisons = []
+        fold_reports = []
+        for fold, (testing, calibration, fit) in enumerate(
+            zip(testing_splits, calibrations, fits[regularization])
+        ):
+            scale = calibration["objective"]["scale"]
+            candidate = weights_from_artifact(fit, data.schema)
+            parent_eval = exact_evaluations(testing, data.schema, parent)
+            candidate_eval = exact_evaluations(testing, data.schema, candidate)
+            improvement = float(
+                group_improvements(
+                    testing, parent_eval, candidate_eval, scale
+                ).mean()
+            )
+            fold_reports.append(
+                {
+                    "fold": fold,
+                    "groups": int(np.unique(testing.groups).size),
+                    "positions": len(testing.targets),
+                    "baseline_loss": split_metric(
+                        testing, data.schema, parent, scale
+                    )["mean_squared_error"],
+                    "candidate_loss": split_metric(
+                        testing, data.schema, candidate, scale
+                    )["mean_squared_error"],
+                    "improvement": improvement,
+                }
+            )
+            comparisons.append(
+                (testing, data.schema, parent, candidate, scale)
+            )
+
+        improvements = np.asarray(
+            [report["improvement"] for report in fold_reports], dtype=np.float64
+        )
+        validation = comparison_report(
+            comparisons,
+            experiment["validation"],
+            experiment["validation"]["bootstrap_seed"],
+        )
+        reports.append(
+            {
+                "regularization": regularization,
+                "folds": fold_reports,
+                "mean_improvement": float(improvements.mean()),
+                "standard_error": float(
+                    improvements.std(ddof=1) / math.sqrt(len(improvements))
+                ),
+                "validation": validation,
+                "eligible": validation["qualified"],
+            }
+        )
+
+    best, threshold, selected = select_regularization(reports)
+
+    return {
+        "kind": "cross_validation",
+        "experiment_sha256": dataset.sha256_json(experiment),
+        "dataset_manifest_sha256": data.manifest_sha256,
+        "fold_count": len(calibrations),
+        "folds": [
+            {
+                "fold": fold,
+                "training_groups": len(data.development.group_names)
+                - int(np.unique(testing.groups).size),
+                "training_positions": len(data.development.targets)
+                - len(testing.targets),
+                "testing_groups": int(np.unique(testing.groups).size),
+                "testing_positions": len(testing.targets),
+                "scale": calibration["objective"]["scale"],
+            }
+            for fold, (testing, calibration) in enumerate(
+                zip(testing_splits, calibrations)
+            )
+        ],
+        "constraints": {
+            "variables": parameters.names,
+            "variable_support": parameters.support,
+            "frozen": parameters.frozen,
+        },
+        "regularization": reports,
+        "best_regularization": best["regularization"] if best else None,
+        "one_standard_error_threshold": threshold,
+        "selected_regularization": selected["regularization"] if selected else None,
+        "supported": selected is not None,
+    }
+
+
+def candidate_review(schema, parent, candidate, fit, minimum_support):
+    changes = weight_records(schema, parent, candidate, changed_only=True)
+    support = fit["constraints"]["variable_support"] if fit else {}
     bound_hits = []
     large_changes = []
-    if selected_path is not None:
-        selected_fit = next(fit for path, fit in fits if path == selected_path)
-        ids = {feature["name"]: feature["id"] for feature in data.schema["features"]}
+    if fit is not None:
+        ids = {feature["name"]: feature["id"] for feature in schema["features"]}
         for name, bounds in zip(
-            selected_fit["constraints"]["variables"], selected_fit["constraints"]["bounds"]
+            fit["constraints"]["variables"], fit["constraints"]["bounds"]
         ):
             feature_name, phase = name.rsplit(".", 1)
             phase_index = PHASES.index(phase)
@@ -1103,23 +1302,49 @@ def select_candidate(data, experiment, calibration, fits):
                 large_changes.append(name)
 
     return {
+        "changed_weights": len(changes),
+        "sparse_support": [
+            {"name": name, "groups": groups}
+            for name, groups in support.items()
+            if groups < minimum_support
+        ],
+        "bound_hits": bound_hits,
+        "large_changes": large_changes,
+    }, changes
+
+
+def candidate_artifact(data, experiment, cross_validation, calibration=None, fit=None):
+    parent = baseline_weights(data.schema).astype(np.int64)
+    candidate = weights_from_artifact(fit, data.schema) if fit else parent
+    review, changes = candidate_review(
+        data.schema,
+        parent,
+        candidate,
+        fit,
+        experiment["support"]["minimum_groups"],
+    )
+    scale = calibration["objective"]["scale"] if calibration else None
+    return {
         "kind": "candidate",
         "experiment_sha256": dataset.sha256_json(experiment),
         "dataset_manifest_sha256": data.manifest_sha256,
-        "selected_fit": selected_path.name if selected_path else None,
-        "selection": {"baseline": baseline_loss, "candidate": loss},
-        "validation": validation,
-        "qualified": validation["qualified"],
-        "review": {
-            "changed_weights": len(changes),
-            "sparse_support": [
-                {"name": name, "groups": groups}
-                for name, groups in support.items()
-                if groups < experiment["support"]["minimum_groups"]
-            ],
-            "bound_hits": bound_hits,
-            "large_changes": large_changes,
-        },
+        "cross_validation_id": cross_validation["artifact_id"],
+        "cross_validation_supported": cross_validation["supported"],
+        "selected_regularization": cross_validation["selected_regularization"],
+        "scale": scale,
+        "development": (
+            {
+                "baseline": split_metric(
+                    data.development, data.schema, parent, scale
+                ),
+                "candidate": split_metric(
+                    data.development, data.schema, candidate, scale
+                ),
+            }
+            if fit
+            else None
+        ),
+        "review": review,
         "changes": changes,
         "weights": weight_records(data.schema, parent, candidate),
     }
@@ -1231,70 +1456,145 @@ def run_command(args):
         raise ValueError("dataset engine provenance differs from the experiment")
 
     data = load_dataset(dataset_path, experiment, engine)
-
-    calibration_path = output / "calibration.json"
-    if "calibration" not in state["steps"]:
-        if calibration_path.exists():
-            read_artifact(calibration_path)
-        else:
-            support = feature_support(
-                data.splits["train"], data.schema, experiment["support"]["minimum_groups"]
-            )
-            result = calibrate_scale(data.splits["train"], experiment["calibration"])
-            write_artifact(
-                calibration_path,
-                calibration_artifact(data, experiment, result, support),
-            )
-        record_step(state_path, "calibration", calibration_path)
-        state = load_json(state_path)
-    calibration = read_artifact(calibration_path)
-
-    fits = []
+    assignments = fold_assignments(data.development, experiment["validation"])
     parent = baseline_weights(data.schema)
-    fit_steps = [
-        f"fit:{regularization:.0e}" for regularization in experiment["fit"]["regularization"]
-    ]
-    parameters = (
-        build_parameter_map(data.schema, parent, data.splits["train"], experiment)
-        if any(step not in state["steps"] for step in fit_steps)
-        else None
+    parameters = build_parameter_map(
+        data.schema, parent, data.development, experiment, assignments
     )
-    for regularization in experiment["fit"]["regularization"]:
-        name = fit_filename(regularization)
-        path = output / "fits" / name
-        step_name = f"fit:{regularization:.0e}"
-        if step_name not in state["steps"]:
-            if path.exists():
-                read_artifact(path)
+
+    calibrations = []
+    fits = {regularization: [] for regularization in experiment["fit"]["regularization"]}
+    for fold in range(experiment["validation"]["folds"]):
+        training = subset_split(data.development, assignments != fold)
+        calibration_path = output / "cross-validation" / f"fold-{fold}" / "calibration.json"
+        calibration_step = f"calibration:fold-{fold}"
+        if calibration_step not in state["steps"]:
+            if calibration_path.exists():
+                read_artifact(calibration_path)
+            else:
+                result = calibrate_scale(training, experiment["calibration"])
+                write_artifact(
+                    calibration_path,
+                    calibration_artifact(
+                        data, training, experiment, result, None, fold
+                    ),
+                )
+            record_step(state_path, calibration_step, calibration_path)
+            state = load_json(state_path)
+        calibration = read_artifact(calibration_path)
+        calibrations.append(calibration)
+
+        for regularization in experiment["fit"]["regularization"]:
+            name = fit_filename(regularization)
+            path = output / "cross-validation" / f"fold-{fold}" / name
+            step_name = f"fit:fold-{fold}:{regularization:.0e}"
+            if step_name not in state["steps"]:
+                if path.exists():
+                    read_artifact(path)
+                else:
+                    result = fit_parameters(
+                        training,
+                        data.schema,
+                        parameters,
+                        experiment,
+                        calibration["objective"]["scale"],
+                        regularization,
+                    )
+                    write_artifact(
+                        path,
+                        fit_artifact(
+                            data,
+                            training,
+                            experiment,
+                            result,
+                            regularization,
+                            calibration["objective"]["scale"],
+                            fold,
+                        ),
+                    )
+                record_step(state_path, step_name, path)
+                state = load_json(state_path)
+            fits[regularization].append(read_artifact(path))
+    del training
+
+    cross_validation_path = output / "cross-validation.json"
+    if "cross-validation" not in state["steps"]:
+        if cross_validation_path.exists():
+            read_artifact(cross_validation_path)
+        else:
+            write_artifact(
+                cross_validation_path,
+                cross_validation_artifact(
+                    data, experiment, assignments, calibrations, fits, parameters
+                ),
+            )
+        record_step(state_path, "cross-validation", cross_validation_path)
+        state = load_json(state_path)
+    cross_validation = read_artifact(cross_validation_path)
+
+    calibration = None
+    final_fit = None
+    if cross_validation["supported"]:
+        calibration_path = output / "calibration.json"
+        if "calibration" not in state["steps"]:
+            if calibration_path.exists():
+                read_artifact(calibration_path)
+            else:
+                support = feature_support(
+                    data.development,
+                    data.schema,
+                    experiment["support"]["minimum_groups"],
+                )
+                result = calibrate_scale(data.development, experiment["calibration"])
+                write_artifact(
+                    calibration_path,
+                    calibration_artifact(
+                        data, data.development, experiment, result, support
+                    ),
+                )
+            record_step(state_path, "calibration", calibration_path)
+            state = load_json(state_path)
+        calibration = read_artifact(calibration_path)
+
+        fit_path = output / "fit.json"
+        if "fit" not in state["steps"]:
+            if fit_path.exists():
+                read_artifact(fit_path)
             else:
                 result = fit_parameters(
-                    data,
+                    data.development,
+                    data.schema,
                     parameters,
                     experiment,
                     calibration["objective"]["scale"],
-                    regularization,
+                    cross_validation["selected_regularization"],
                 )
                 write_artifact(
-                    path,
+                    fit_path,
                     fit_artifact(
                         data,
+                        data.development,
                         experiment,
                         result,
-                        regularization,
+                        cross_validation["selected_regularization"],
                         calibration["objective"]["scale"],
                     ),
                 )
-            record_step(state_path, step_name, path)
+            record_step(state_path, "fit", fit_path)
             state = load_json(state_path)
-        fits.append((path, read_artifact(path)))
+        final_fit = read_artifact(fit_path)
 
     candidate_path = output / "candidate.json"
     if "candidate" not in state["steps"]:
         if candidate_path.exists():
             read_artifact(candidate_path)
         else:
-            candidate = select_candidate(data, experiment, calibration, fits)
-            write_artifact(candidate_path, candidate)
+            write_artifact(
+                candidate_path,
+                candidate_artifact(
+                    data, experiment, cross_validation, calibration, final_fit
+                ),
+            )
         record_step(state_path, "candidate", candidate_path)
         state = load_json(state_path)
     read_artifact(candidate_path)
@@ -1320,14 +1620,14 @@ def verify_command(args):
     if "candidate" not in state["steps"]:
         raise ValueError("the experiment has no candidate")
     candidate = read_artifact(output / "candidate.json")
-    if not candidate["qualified"]:
-        raise ValueError("an unqualified candidate cannot be verified")
+    if not candidate["cross_validation_supported"]:
+        raise ValueError("cross-validation did not support a candidate")
 
     manifest = load_json(output / "dataset" / "manifest.json")
-    train_path = output / "dataset" / "train.jsonl"
-    if sha256_file(train_path) != manifest["outputs"]["train.jsonl"]:
-        raise ValueError("training dataset hash mismatch")
-    schema = dataset.read_schema(train_path)
+    development_path = output / "dataset" / dataset.DATA_FILE
+    if sha256_file(development_path) != manifest["outputs"][dataset.DATA_FILE]:
+        raise ValueError("development dataset hash mismatch")
+    schema = dataset.read_schema(development_path)
     validate_schema(
         schema,
         experiment["dataset"]["schema_version"],
@@ -1359,16 +1659,11 @@ def status_record(output):
     candidate = read_artifact(output / "candidate.json") if "candidate" in steps else None
     verified = "verification" in steps
     decision = load_json(output / "decision.json") if "decision" in steps else None
-    heldout = "heldout" in steps
     if decision:
-        next_action = (
-            "held-out data may be revealed for a release check"
-            if not heldout
-            else "experiment closed"
-        )
+        next_action = "experiment closed"
     elif not candidate:
         next_action = "resume the experiment"
-    elif not candidate["qualified"]:
+    elif not candidate["cross_validation_supported"]:
         next_action = "close the experiment with --result offline"
     elif not verified:
         next_action = "apply candidate weights, build the engine, and run verify"
@@ -1378,10 +1673,11 @@ def status_record(output):
         "experiment": state["experiment"],
         "completed_steps": sorted(state["steps"]),
         "candidate_id": candidate["artifact_id"] if candidate else None,
-        "qualified": candidate["qualified"] if candidate else None,
+        "cross_validation_supported": (
+            candidate["cross_validation_supported"] if candidate else None
+        ),
         "verified": verified,
         "decision": decision,
-        "heldout_opened": heldout,
         "next_action": next_action,
     }
 
@@ -1395,7 +1691,10 @@ def print_status(output, as_json):
     print(f"steps {len(status['completed_steps'])}")
     if status["candidate_id"]:
         print(f"candidate {status['candidate_id']}")
-        print(f"qualified {str(status['qualified']).lower()}")
+        print(
+            "cross-validation "
+            f"{str(status['cross_validation_supported']).lower()}"
+        )
         print(f"verified {str(status['verified']).lower()}")
     if status["decision"]:
         print(f"decision {status['decision']['decision']}")
@@ -1429,8 +1728,8 @@ def close_command(args):
     candidate = read_artifact(output / "candidate.json")
     strength_result = args.result != "offline"
     if strength_result:
-        if not candidate["qualified"]:
-            raise ValueError("an unqualified candidate cannot have a strength result")
+        if not candidate["cross_validation_supported"]:
+            raise ValueError("an unsupported candidate cannot have a strength result")
         if "verification" not in state["steps"]:
             raise ValueError("candidate engine has not been verified")
         verification = load_json(output / "verification.json")
@@ -1448,8 +1747,9 @@ def close_command(args):
         "experiment_sha256": state["experiment_sha256"],
         "baseline": experiment["baseline"],
         "candidate_id": candidate["artifact_id"],
-        "qualified": candidate["qualified"],
-        "selected_fit": candidate["selected_fit"],
+        "qualified": candidate["cross_validation_supported"],
+        "selected_fit": "fit.json" if candidate["cross_validation_supported"] else None,
+        "selected_regularization": candidate["selected_regularization"],
         "result": args.result,
         "decision": "accepted" if args.result == "upper" else "rejected",
         "reason": args.reason,
@@ -1463,57 +1763,6 @@ def close_command(args):
         atomic_write_json(decision_path, decision)
     record_step(output / "state.json", "decision", decision_path)
     print_status(output, False)
-
-
-def reveal_command(args):
-    output = args.output.resolve()
-    state, experiment = read_state(output)
-    if "decision" not in state["steps"]:
-        raise ValueError("close the experiment before revealing held-out data")
-    if state.get("tool") != tool_record() or state.get("dependencies") != dependency_versions():
-        raise ValueError("experiment tooling changed; restore its recorded environment")
-    report_path = output / "heldout-report.json"
-    if "heldout" in state["steps"]:
-        raise ValueError("held-out data has already been revealed")
-
-    manifest = load_json(output / "dataset" / "manifest.json")
-    heldout_path = output / "dataset" / "heldout.jsonl"
-    if sha256_file(heldout_path) != manifest["outputs"]["heldout.jsonl"]:
-        raise ValueError("held-out dataset hash mismatch")
-    schema = dataset.read_schema(heldout_path)
-    validate_schema(
-        schema,
-        experiment["dataset"]["schema_version"],
-        experiment["dataset"]["feature_count"],
-    )
-    heldout = load_split(heldout_path, "heldout", schema)
-    calibration = read_artifact(output / "calibration.json")
-    candidate = read_artifact(output / "candidate.json")
-    decision = load_json(output / "decision.json")
-    parent = baseline_weights(schema).astype(np.int64)
-    retained = (
-        weights_from_artifact(candidate, schema)
-        if decision["decision"] == "accepted"
-        else parent
-    )
-    scale = calibration["objective"]["scale"]
-    report = {
-        "experiment": experiment["name"],
-        "decision": decision["decision"],
-        "retained": split_metric(heldout, schema, retained, scale),
-    }
-    if decision["decision"] == "accepted":
-        report["parent"] = split_metric(heldout, schema, parent, scale)
-        report["comparison"] = validation_report(
-            heldout, schema, parent, retained, scale, experiment["validation"]
-        )
-    if report_path.exists():
-        if load_json(report_path) != report:
-            raise ValueError("held-out report changed")
-    else:
-        atomic_write_json(report_path, report)
-    record_step(output / "state.json", "heldout", report_path)
-    print(json.dumps(report, indent=2, sort_keys=True))
 
 
 def parse_args():
@@ -1551,10 +1800,6 @@ def parse_args():
     close.add_argument("--reason", required=True)
     close.add_argument("--openbench-test")
     close.set_defaults(function=close_command)
-
-    reveal = subparsers.add_parser("reveal", help="score sealed held-out data")
-    reveal.add_argument("output", type=pathlib.Path)
-    reveal.set_defaults(function=reveal_command)
 
     return parser.parse_args()
 

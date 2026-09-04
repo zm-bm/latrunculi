@@ -14,9 +14,9 @@ import chess.pgn
 
 
 RESULTS = {"1-0": 1, "1/2-1/2": 0, "0-1": -1}
-SPLITS = ("train", "selection", "validation", "heldout")
+DATA_FILE = "development.jsonl"
 PHASE_BUCKETS = ((0, 31), (32, 63), (64, 95), (96, 128))
-FORMAT_VERSION = 1
+FORMAT_VERSION = 3
 
 
 def canonical_json(value):
@@ -41,18 +41,6 @@ def canonical_fen(board):
 
 def group_from_source(source):
     return source.split(":", 1)[0]
-
-
-def split_for(group, config):
-    value = int.from_bytes(
-        hashlib.sha256(f"{config['seed']}:{group}".encode()).digest()[:8], "big"
-    ) % 100
-    boundary = 0
-    for split in SPLITS:
-        boundary += config["splits"][split]
-        if value < boundary:
-            return split
-    raise AssertionError("unreachable split")
 
 
 def game_group_key(input_hash, member_name, game_index, game):
@@ -230,9 +218,7 @@ def read_schema(path):
     return schema
 
 
-def split_settled(settled_path, output_dir, config):
-    if set(config["splits"]) != set(SPLITS) or sum(config["splits"].values()) != 100:
-        raise ValueError("split percentages must define every split and total 100")
+def write_development(settled_path, output_dir):
     schema = read_schema(settled_path)
     selected = {}
     results_by_fen = collections.defaultdict(set)
@@ -259,14 +245,9 @@ def split_settled(settled_path, output_dir, config):
     counts["positions.conflicting"] = len(conflicts)
     counts["positions.conflicting_occurrences"] = sum(occurrences[fen] for fen in conflicts)
 
-    streams = {
-        split: (output_dir / f"{split}.jsonl").open("w", encoding="utf-8")
-        for split in SPLITS
-    }
-    try:
+    with (output_dir / DATA_FILE).open("w", encoding="utf-8") as output:
         schema_line = canonical_json(schema) + "\n"
-        for output in streams.values():
-            output.write(schema_line)
+        output.write(schema_line)
 
         with settled_path.open(encoding="utf-8") as stream:
             next(stream)
@@ -275,83 +256,66 @@ def split_settled(settled_path, output_dir, config):
                 fen = " ".join(record["fen"].split()[:4])
                 if fen in conflicts or record["source"] != selected[fen]:
                     continue
-                split = split_for(group_from_source(record["source"]), config)
-                streams[split].write(canonical_json(record) + "\n")
-                counts[f"positions.{split}"] += 1
-    finally:
-        for output in streams.values():
-            output.close()
+                output.write(canonical_json(record) + "\n")
+                counts["positions.retained"] += 1
 
     return dict(sorted(counts.items())), schema
 
 
 def validate_dataset(output_dir):
-    schema = None
+    path = output_dir / DATA_FILE
     positions = set()
     sources = set()
-    group_splits = {}
-    groups_by_split = collections.defaultdict(set)
-    counts = collections.Counter()
+    groups = set()
+    position_count = 0
     results = collections.Counter()
     phase_buckets = collections.Counter()
-    for split in SPLITS:
-        path = output_dir / f"{split}.jsonl"
-        with path.open(encoding="utf-8") as stream:
-            line = stream.readline()
-            if not line:
-                raise ValueError(f"{path}: missing schema")
-            current_schema = json.loads(line)
-            if current_schema.get("type") != "schema":
-                raise ValueError(f"{path}: missing schema")
-            if schema is None:
-                schema = current_schema
-                ids = [feature["id"] for feature in schema["features"]]
-                names = [feature["name"] for feature in schema["features"]]
-                if ids != list(range(len(ids))) or len(names) != len(set(names)):
-                    raise ValueError("invalid feature IDs or duplicate names")
-            elif current_schema != schema:
-                raise ValueError("schema differs across splits")
+    with path.open(encoding="utf-8") as stream:
+        line = stream.readline()
+        if not line:
+            raise ValueError(f"{path}: missing schema")
+        schema = json.loads(line)
+        if schema.get("type") != "schema":
+            raise ValueError(f"{path}: missing schema")
+        ids = [feature["id"] for feature in schema["features"]]
+        names = [feature["name"] for feature in schema["features"]]
+        if ids != list(range(len(ids))) or len(names) != len(set(names)):
+            raise ValueError("invalid feature IDs or duplicate names")
 
-            for line_number, line in enumerate(stream, 2):
-                record = json.loads(line)
-                if record.get("type") != "position" or record["version"] != schema["version"]:
-                    raise ValueError(f"{path}:{line_number}: invalid position record")
-                if record["source"] in sources:
-                    raise ValueError(f"duplicate source: {record['source']}")
-                sources.add(record["source"])
+        for line_number, line in enumerate(stream, 2):
+            record = json.loads(line)
+            if record.get("type") != "position" or record["version"] != schema["version"]:
+                raise ValueError(f"{path}:{line_number}: invalid position record")
+            if record["source"] in sources:
+                raise ValueError(f"duplicate source: {record['source']}")
+            sources.add(record["source"])
 
-                fen = " ".join(record["fen"].split()[:4])
-                if fen in positions:
-                    raise ValueError(f"duplicate position: {fen}")
-                positions.add(fen)
+            fen = " ".join(record["fen"].split()[:4])
+            if fen in positions:
+                raise ValueError(f"duplicate position: {fen}")
+            positions.add(fen)
+            groups.add(group_from_source(record["source"]))
 
-                group = group_from_source(record["source"])
-                previous_split = group_splits.setdefault(group, split)
-                if previous_split != split:
-                    raise ValueError(f"opening group leaked across splits: {group}")
-                groups_by_split[split].add(group)
+            rebuilt, phase = reconstruct(schema, record)
+            if rebuilt != record["eval"]:
+                raise ValueError(
+                    f"{path}:{line_number}: evaluation {record['eval']} != {rebuilt}"
+                )
 
-                rebuilt, phase = reconstruct(schema, record)
-                if rebuilt != record["eval"]:
-                    raise ValueError(
-                        f"{path}:{line_number}: evaluation {record['eval']} != {rebuilt}"
-                    )
-
-                counts[split] += 1
-                results[f"{split}.{record['result']}"] += 1
-                bucket = min(3, phase // 32)
-                start, end = PHASE_BUCKETS[bucket]
-                phase_buckets[f"{split}.{start}-{end}"] += 1
+            position_count += 1
+            results[str(record["result"])] += 1
+            bucket = min(3, phase // 32)
+            start, end = PHASE_BUCKETS[bucket]
+            phase_buckets[f"{start}-{end}"] += 1
 
     return {
         "schema_version": schema["version"],
         "feature_count": len(schema["features"]),
-        "positions": dict(sorted(counts.items())),
+        "positions": position_count,
         "results": dict(sorted(results.items())),
         "phase_buckets": dict(sorted(phase_buckets.items())),
-        "groups": {split: len(groups_by_split[split]) for split in SPLITS},
+        "groups": len(groups),
         "duplicates": 0,
-        "split_leaks": 0,
     }, schema
 
 
@@ -362,7 +326,7 @@ def validate_output(output_dir):
     experiment_hash = manifest.get("experiment_sha256")
     if not isinstance(experiment_hash, str) or len(experiment_hash) != 64:
         raise ValueError("invalid dataset experiment hash")
-    expected_outputs = {f"{split}.jsonl" for split in SPLITS}
+    expected_outputs = {DATA_FILE}
     if set(manifest.get("outputs", {})) != expected_outputs:
         raise ValueError("invalid dataset outputs")
     for name, expected_hash in manifest["outputs"].items():
@@ -393,12 +357,10 @@ def build_dataset(engine, paths, output_dir, experiment):
             inputs, experiment["dataset"], work / "positions.tsv"
         )
         export_settled_features(engine, work / "positions.tsv", work / "settled.jsonl")
-        splitting, schema = split_settled(
-            work / "settled.jsonl", output_dir, experiment["dataset"]
-        )
+        deduplication, schema = write_development(work / "settled.jsonl", output_dir)
     collection["positions.settling_rejected"] = (
         collection.get("positions.sampled", 0)
-        - splitting["positions.exported"]
+        - deduplication["positions.exported"]
     )
 
     report, validated_schema = validate_dataset(output_dir)
@@ -409,7 +371,7 @@ def build_dataset(engine, paths, output_dir, experiment):
         raise ValueError("engine schema version differs from the experiment")
     if len(schema["features"]) != expected["feature_count"]:
         raise ValueError("engine feature count differs from the experiment")
-    if sum(report["groups"].values()) < expected["minimum_groups"]:
+    if report["groups"] < expected["minimum_groups"]:
         raise ValueError("too few opening groups remain after settling and deduplication")
     if sha256_file(engine) != engine_hash:
         raise ValueError("engine changed while building the dataset")
@@ -425,13 +387,11 @@ def build_dataset(engine, paths, output_dir, experiment):
             {"name": path.name, "sha256": input_hash} for path, input_hash in inputs
         ],
         "collection": collection,
-        "splitting": splitting,
+        "deduplication": deduplication,
         "source_results": source_results,
         "validation": report,
     }
-    manifest["outputs"] = {
-        f"{split}.jsonl": sha256_file(output_dir / f"{split}.jsonl") for split in SPLITS
-    }
+    manifest["outputs"] = {DATA_FILE: sha256_file(output_dir / DATA_FILE)}
     (output_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     )

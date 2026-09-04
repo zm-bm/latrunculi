@@ -1,12 +1,12 @@
 {
-    "version": 1,
-    "name": "joint-hce-002",
+    "version": 3,
+    "name": "joint-hce-004",
     "baseline": {
         "revision": "9a8fc2fc99057f1d60c5ea0191c39d72fdb0375b",
         "benchmark": 6771822
     },
     "corpus": {
-        "description": "OpenBench test #19: 42,000 Latrunculi 1.0 self-play games from 21,000 paired openings.",
+        "description": "OpenBench test #19: 42,000 Latrunculi 1.0 self-play games from 21,000 paired openings, tuned with full-corpus grouped cross-validation.",
         "openbench_tests": [
             19
         ],
