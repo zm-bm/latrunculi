@@ -4,9 +4,8 @@ This is the authoritative development backlog for Latrunculi. The
 [architecture overview](architecture.md) describes the current implementation;
 this document contains only remaining work.
 
-The current goal is Latrunculi 1.0: a stable, well-tested public release with
-documented playing strength. Development and tuning will continue through later
-versions.
+The current goal is Latrunculi 1.1: improve search quality from the stable,
+tuned 1.0 baseline.
 
 **Now** is the active, ordered workstream. **Next** contains substantial work
 that follows from it. **Later** is an informal backlog rather than a commitment.
@@ -15,24 +14,6 @@ source and produce an implementation-ready plan. Remove completed tasks instead
 of maintaining a historical log.
 
 ## Now
-
-### RELEASE-001D — Publish Latrunculi 1.0
-
-Publish the candidate documented in the
-[1.0.0 release evidence](releases/1.0.0.md).
-
-- Confirm that the release revision is the exact revision already verified.
-- Write concise release notes with the benchmark, measurements, relevant
-  OpenBench results, stability result, and external-strength context.
-- Produce the documented source and binary artifacts with checksums.
-- Tag the revision as `v1.0.0`, publish the release, and verify the downloaded
-  artifacts and reported engine version.
-
-Latrunculi 1.0 focuses on a reliable, tuned handcrafted engine with documented
-playing-strength results. NNUE, tablebases, and further strength development
-belong to later releases.
-
-## Next
 
 ### SEARCH-001 — Audit search efficiency and selectivity
 
@@ -63,6 +44,8 @@ time, not reported depth.
 - Turn each justified change into a separate task with correctness tests,
   component measurements, and paired OpenBench validation. Do not increase
   reductions merely to raise reported depth.
+
+## Next
 
 ### END-001 — Audit endgame residuals
 

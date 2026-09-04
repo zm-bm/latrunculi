@@ -81,6 +81,7 @@ handcrafted-evaluation optimization.
 
 - [Architecture](docs/architecture.md)
 - [OpenBench operations](docs/openbench.md)
+- [1.0.0 release evidence](docs/releases/1.0.0.md)
 - [Roadmap](docs/roadmap.md)
 - [UCI protocol reference](docs/uci-protocol-specification.txt)
 
