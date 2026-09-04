@@ -1,16 +1,21 @@
 {
-  "version": 1,
-  "name": "joint-hce-001",
-  "baseline": {
-    "revision": "f289138816f023fe41b877f536d4c8bb29958a79",
-    "benchmark": 6339105
-  },
-  "corpus": {
-    "description": "OpenBench test #11: 42,000 baseline self-play games from 21,000 paired openings.",
-    "openbench_tests": [11],
-    "book": "UHO_Lichess_4852_v1.epd",
-    "time_control": "4+0.04",
-    "engine_options": {"Threads": 1, "Hash": 32},
-    "adjudication": "resign 400 cp/3; draw move 40, 8 evaluations within 10 cp"
-  }
+    "version": 1,
+    "name": "joint-hce-002",
+    "baseline": {
+        "revision": "9a8fc2fc99057f1d60c5ea0191c39d72fdb0375b",
+        "benchmark": 6771822
+    },
+    "corpus": {
+        "description": "OpenBench test #19: 42,000 Latrunculi 1.0 self-play games from 21,000 paired openings.",
+        "openbench_tests": [
+            19
+        ],
+        "book": "UHO_Lichess_4852_v1.epd",
+        "time_control": "4+0.04",
+        "engine_options": {
+            "Threads": 1,
+            "Hash": 32
+        },
+        "adjudication": "resign 400 cp/3; draw move 40, 8 evaluations within 10 cp"
+    }
 }
