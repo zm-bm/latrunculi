@@ -5,10 +5,6 @@
 
 #include "core/types.hpp"
 
-#ifndef LATRUNCULI_VERSION
-#define LATRUNCULI_VERSION "0.0.1"
-#endif
-
 namespace engine {
 
 // Build-provided engine version string.

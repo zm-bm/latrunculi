@@ -1,7 +1,6 @@
 # Latrunculi
 
-Latrunculi is a UCI chess engine written in C++23. It is under active
-development.
+Latrunculi is a free and open-source UCI chess engine written in C++23.
 
 ## Features
 
@@ -24,6 +23,14 @@ cmake --build --preset release
 
 On x86-64, POPCNT is enabled by default. Disable it for older processors with
 `-DLATRUNCULI_USE_POPCNT=OFF`.
+
+## Releases
+
+Each release provides `latrunculi-<version>-source.tar.gz`, a
+`latrunculi-<version>-linux-x86_64` binary, and `SHA256SUMS`. The binary is
+built with GCC using the `release` preset and targets x86-64 Linux with POPCNT.
+Release notes record the exact revision, compiler, platform, benchmark, and
+validation results. Other platforms should build from source.
 
 ## Run
 
@@ -79,4 +86,4 @@ handcrafted-evaluation optimization.
 
 ## License
 
-Latrunculi is licensed under the GNU General Public License v3.0.
+Latrunculi is licensed under the [GNU General Public License v3.0](LICENSE.txt).

@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
+#include "core/constants.hpp"
 #include "search/root_line.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
@@ -67,6 +68,8 @@ TEST_F(UciWriterTest, Identify) {
 
     writer.identify(options);
 
+    const std::string identity = "id name Latrunculi " + std::string{engine::version} + '\n';
+    EXPECT_TRUE(oss.str().starts_with(identity));
     EXPECT_EQ(default_table.capacity_mb(), static_cast<std::size_t>(options.hash.default_value));
     EXPECT_NE(oss.str().find("uciok"), std::string::npos);
     EXPECT_NE(oss.str().find("option name Hash type spin default 32 min 1 max 2048"),
