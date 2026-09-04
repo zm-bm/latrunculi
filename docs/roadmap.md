@@ -16,55 +16,10 @@ of maintaining a historical log.
 
 ## Now
 
-### RELEASE-001A — Prepare the Latrunculi 1.0 release candidate
-
-Freeze the accepted tuned engine as the first public-release candidate.
-
-- Set the project version to `1.0.0` and require the UCI identity to report it.
-- Review the public build, usage, feature, license, and platform documentation.
-- Define the minimal reproducible source and binary release artifacts.
-- Commit and push the exact candidate revision without tagging it. Any later
-  playing-code change requires strength screening and a new release candidate.
-
-### RELEASE-001B — Verify the release candidate
-
-Validate the exact revision prepared by RELEASE-001A and record reproducible
-release evidence.
-
-- Verify supported GCC and Clang release builds, the complete test suite, and
-  the ASan/UBSan and TSan configurations.
-- Verify the UCI handshake, version, documented options, and normal shutdown.
-- Record the compiler and hardware, deterministic benchmark, and component
-  measurements.
-- Complete the 2,000-game
-  [OpenBench release stability test](openbench.md#release-stability-test) with
-  no crashes, hangs, time losses, illegal moves, protocol failures, or
-  incomplete games. Record the revision, OpenBench revision, test ID, and PGN
-  location.
-- Repeat affected checks if the candidate source changes.
-
-### RELEASE-001C — Establish external strength context
-
-Run a reproducible gauntlet that places the release candidate in a recognizable
-playing-strength range. The gauntlet is required, but its score is not a
-release gate.
-
-- Select at least three pinned engine versions from one published rating list.
-  Use short paired pilots to find opponents that reasonably bracket
-  Latrunculi, and record their source or binary provenance.
-- Before the final matches, fix the opponents, game budget, settings, and
-  analysis method. Use paired openings on the same hardware with one thread,
-  32 MiB hash, no tablebases, and the standard OpenBench book, time control,
-  and adjudication.
-- Run fixed-game matches and record each opponent's version and reference
-  rating, the complete settings, game count, WDL, score, and uncertainty.
-- Report an approximate performance rating anchored to the named rating list.
-  State that ratings from different hardware and testing conditions are not
-  directly interchangeable, and require no minimum result for release.
-
 ### RELEASE-001D — Publish Latrunculi 1.0
 
-Publish only after RELEASE-001A through RELEASE-001C are complete.
+Publish the candidate documented in the
+[1.0.0 release evidence](releases/1.0.0.md).
 
 - Confirm that the release revision is the exact revision already verified.
 - Write concise release notes with the benchmark, measurements, relevant
@@ -78,6 +33,36 @@ playing-strength results. NNUE, tablebases, and further strength development
 belong to later releases.
 
 ## Next
+
+### SEARCH-001 — Audit search efficiency and selectivity
+
+Determine why Latrunculi reports substantially less search depth before
+changing pruning. Across three release pilots, its median reported depth was 12
+against 16–18. The closest 206-game match finished 58–90–58; the largest
+mismatch was too one-sided to diagnose. In lost games, opponent evaluations
+first crossed two pawns around median move 26, and about one-third showed a
+two-pawn jump between consecutive opponent evaluations. The failures therefore
+include both abrupt tactical swings and gradual deterioration. Depth and
+evaluation scales differ between engines, so treat these results as evidence
+for investigation, not proof of one defect. Optimize move quality per unit
+time, not reported depth.
+
+- Build a reproducible, fresh-process, single-thread suite from competitive
+  pilot games and existing search positions. Include both abrupt score swings
+  and gradual declines; use heavily mismatched games only as secondary cases.
+  Record fixed-time and fixed-node scores, moves, PVs, depths, and nodes. Check
+  determinism and Hash sensitivity, and distinguish search errors from
+  static-evaluation errors.
+- Measure qsearch share, effective branching, cutoff order, TT effectiveness,
+  aspiration and PVS re-searches, and the behavior of null move, razoring,
+  futility pruning, and LMR with the existing instrumentation.
+- Investigate only mechanisms supported by the measurements. Initial candidates
+  are SEE or delta pruning in qsearch, capture-history integration,
+  history-aware LMR, verified null move and zugzwang handling, and time
+  management.
+- Turn each justified change into a separate task with correctness tests,
+  component measurements, and paired OpenBench validation. Do not increase
+  reductions merely to raise reported depth.
 
 ### END-001 — Audit endgame residuals
 
@@ -111,23 +96,8 @@ performance, and equal-access matches.
 - Add UCI capabilities when supported by the corresponding engine feature:
   MultiPV, richer bound and progress reporting, Chess960, and optional strength
   controls.
-- Revalidate potential sources of search instability before treating them as
-  current defects:
-  - Establish fresh-process, single-thread determinism with identical position,
-    limit, Hash, and configuration inputs.
-  - Measure Hash-size sensitivity across a fixed suite, comparing nodes, scores,
-    root moves, PVs, and TT statistics.
-  - Audit aspiration convergence, root PVS and scout windows, re-searches, and
-    full-window verification of competitive root moves.
-  - Measure LMR reductions and verification searches, especially for good quiet
-    moves ordered late by TT or history state.
-  - Recheck static opening-evaluation shape independently from search results.
-- Revalidate search-strength opportunities after the stability investigations,
-  including time management, verified null-move pruning, and zugzwang handling.
 - Measure multi-thread search scaling and TT/cache contention before changing
   the parallel-search design.
-- Evaluate move-ordering improvements such as complete capture-history
-  integration only after the current ordering baseline is measured.
 - Add continuous integration for supported GCC and Clang builds, tests,
   ASan/UBSan, and a separate ThreadSanitizer configuration.
 - Consider Lichess operation, tournament submission, and broader public testing

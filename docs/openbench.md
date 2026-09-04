@@ -27,6 +27,10 @@ Authenticated tailnet members may use the server's MagicDNS URL:
 OpenBench; do not append port 8000. Keep this private with Tailscale Serve, not
 Funnel. `tailscale status` reports the exact hostname.
 
+On another machine, set `OPENBENCH_SERVER` to that MagicDNS URL. Loopback is
+valid only on the server host, even when its environment file was copied for
+the OpenBench credentials.
+
 ## Testing
 
 OpenBench fetches revisions from GitHub, so commit and push each tested revision
