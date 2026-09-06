@@ -6,7 +6,7 @@
 |---|---|---|
 | `perft` | Move generation and make/unmake | exact nodes, time, nodes/second |
 | `eval` | Handcrafted evaluation | checksum, nanoseconds/evaluation, evaluations/second |
-| `search` | Integrated search | score, nodes, time, nodes/second, best move, PV |
+| `search` | Integrated search | static/search scores, depth, nodes, time, best move, PV |
 
 Tests cover correctness. Component measurements cover deterministic work and
 local performance; playing strength requires paired engine games.
@@ -49,18 +49,40 @@ fingerprint; the throughput fields measure speed.
 
 ## Search
 
-Search runs a fixed six-position suite at a fixed depth. The TT and search
-heuristics are cleared before every position so each row starts cold.
+Search runs an embedded eleven-position suite containing six stable controls
+and five positions from the 1.0 release pilots. The TT and search heuristics are
+cleared before every position so each row starts cold.
 
 ```bash
 ./build/release-dev/latrunculi-measure search
 ./build/release-dev/latrunculi-measure search \
-  --depth 6 --threads 1 --repetitions 3 --format tsv
+  --case pilot14-g171-abrupt --nodes 524288 --hash 32 \
+  --threads 1 --repetitions 1 --format tsv
 ```
 
 Defaults are depth 5, one thread, one repetition, and 32 MB Hash. Prefer one
 thread for deterministic algorithm comparisons; use larger counts for coarse
-scaling measurements.
+scaling measurements. Choose at most one of `--depth`, `--nodes`, or
+`--movetime`; `--case` selects a single embedded position. Run one case and one
+repetition per process when fresh-process isolation matters.
+
+Case IDs are `startpos`, `arasan20-01`, `arasan20-08`, `arasan20-16`,
+`arasan20-21`, `arasan20-30`, `pilot14-g171-abrupt`,
+`pilot18-g154-abrupt`, `pilot14-g061-gradual`, `pilot18-g093-gradual`, and
+`pilot15-g078-secondary`.
+
+TSV output uses `search_measurement_v2` and reports the requested limit, static
+and searched scores, completed depth, actual nodes, timing, best move, and PV.
+Scores are centipawns from the root side-to-move perspective. Search-statistics
+builds write the existing instrumentation report to stderr, labeled with the
+case and run configuration, so stdout remains machine-readable:
+
+```bash
+./build/release-stats/latrunculi-measure search \
+  --case arasan20-01 --nodes 524288 --format tsv \
+  > tools/measurements/output/arasan20-01.tsv \
+  2> tools/measurements/output/arasan20-01.stats
+```
 
 ## Comparing Results
 
@@ -82,6 +104,6 @@ changes. Timing and throughput require repeated runs and should never become
 unit-test thresholds.
 
 The machine-readable formats are `perft_measurement_v1`,
-`evaluation_throughput_v1`, and `search_measurement_v1`. Increment the relevant
+`evaluation_throughput_v1`, and `search_measurement_v2`. Increment the relevant
 format or workload version whenever its columns, semantics, or embedded
 workload change.

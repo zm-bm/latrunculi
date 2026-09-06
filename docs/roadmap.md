@@ -15,36 +15,6 @@ of maintaining a historical log.
 
 ## Now
 
-### SEARCH-001 — Audit search efficiency and selectivity
-
-Determine why Latrunculi reports substantially less search depth before
-changing pruning. Across three release pilots, its median reported depth was 12
-against 16–18. The closest 206-game match finished 58–90–58; the largest
-mismatch was too one-sided to diagnose. In lost games, opponent evaluations
-first crossed two pawns around median move 26, and about one-third showed a
-two-pawn jump between consecutive opponent evaluations. The failures therefore
-include both abrupt tactical swings and gradual deterioration. Depth and
-evaluation scales differ between engines, so treat these results as evidence
-for investigation, not proof of one defect. Optimize move quality per unit
-time, not reported depth.
-
-- Build a reproducible, fresh-process, single-thread suite from competitive
-  pilot games and existing search positions. Include both abrupt score swings
-  and gradual declines; use heavily mismatched games only as secondary cases.
-  Record fixed-time and fixed-node scores, moves, PVs, depths, and nodes. Check
-  determinism and Hash sensitivity, and distinguish search errors from
-  static-evaluation errors.
-- Measure qsearch share, effective branching, cutoff order, TT effectiveness,
-  aspiration and PVS re-searches, and the behavior of null move, razoring,
-  futility pruning, and LMR with the existing instrumentation.
-- Investigate only mechanisms supported by the measurements. Initial candidates
-  are SEE or delta pruning in qsearch, capture-history integration,
-  history-aware LMR, verified null move and zugzwang handling, and time
-  management.
-- Turn each justified change into a separate task with correctness tests,
-  component measurements, and paired OpenBench validation. Do not increase
-  reductions merely to raise reported depth.
-
 ## Next
 
 ### END-001 — Audit endgame residuals
