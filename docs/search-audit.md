@@ -305,8 +305,8 @@ and explicit approval of paired OpenBench validation.
 | `SA-01` | `done` | Consolidate the foundation and workspace hygiene. |
 | `SA-02` | `done` | Establish objective quality and convergence baselines. |
 | `SA-03` | `rejected` | Audit capture ordering and run at most one gated experiment. |
-| `SA-04` | `active` | Audit qsearch selectivity and run at most one gated experiment. |
-| `SA-05` | `pending` | Audit history-aware LMR and run at most one gated experiment. |
+| `SA-04` | `done` | Audit qsearch selectivity and run at most one gated experiment. |
+| `SA-05` | `active` | Audit history-aware LMR and run at most one gated experiment. |
 | `SA-06` | `pending` | Rebaseline and choose the next mechanism from evidence. |
 
 #### SA-01 — Foundation and hygiene
@@ -713,6 +713,48 @@ exactly one NonPV rule: prune when
 `stand_pat + captured_value + selected_margin <= alpha_before_move`. Retain it
 only under the common objective-quality, stability, and selectivity gates;
 mark a failing tested candidate `rejected` and remove it.
+
+SA-04 observed the complete fourteen-case matrix at the `1a9e026` coordinating
+boundary. All eleven original cases exceeded the opportunity threshold at
+every margin, but every margin failed the suite-wide safety veto:
+
+| Margin | Original cases with >=100 skips | Original NonPV skips | Complete NonPV fail-lows | Complete NonPV cutoffs | Complete PV entries |
+|---:|---:|---:|---:|---:|---:|
+| 200 | 11 | 643,965 | 640,940 | 3,200 | 9 |
+| 300 | 11 | 581,471 | 580,869 | 732 | 1 |
+| 400 | 11 | 524,006 | 523,906 | 206 | 0 |
+
+There were no NonPV alpha raises. That is not evidence of safety: these
+NonPV qsearch calls predominantly use a null window, so a move that improves
+the bound appears as a beta cutoff. Even the most conservative predeclared
+margin would therefore have discarded 206 moves that actually cut off. The
+PV veto clears only at 400 centipawns, while the NonPV cutoff veto does not
+clear at any margin.
+
+All fourteen current dev/stats signatures match each other and the sealed
+SA-03 rows, the retained diagnostic prefix is byte-identical, and all three
+objective guards pass. Focused tests, both complete release CTest suites, and
+the full ASan/UBSan suite pass. The preset sanitizer invocation is retained as
+an infrastructure-only failure because it forces LeakSanitizer on under the
+ptrace environment; the equivalent test tree passes with leak detection
+disabled and both sanitizers set to halt on errors. Both builds reproduce the
+6,068,328-node benchmark.
+
+- Hypothesis: a conservative material-margin rule can omit a repeated class of
+  qsearch captures that never improve the bound or enter the PV.
+- Baseline: immutable search behavior `470a3d7`; coordinating boundary
+  `1a9e026` with the retained SA-03 diagnostics.
+- Candidate: none. A stats-only shadow measured 200, 300, and 400 centipawn
+  margins without changing search decisions.
+- Measurements: one paired fresh-process dev/stats run for each of fourteen
+  cases at 524,288 nodes, 32 MiB Hash, and one thread, plus sealed-signature,
+  diagnostic-prefix, objective, test, sanitizer, and benchmark checks.
+- Result: opportunity is broad, but all three margins hypothetically discard
+  real NonPV beta cutoffs; no margin passes the predeclared safety gate.
+- Artifact path: `tools/measurements/output/sa-04-470a3d7/`.
+- Disposition: `done`; no behavior candidate is permitted. The task-specific
+  shadow counters and focused tests are removed before SA-05 collection; the
+  referenced raw evidence remains.
 
 #### SA-05 — History-aware LMR audit and one possible experiment
 
