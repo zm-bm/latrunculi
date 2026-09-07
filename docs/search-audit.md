@@ -308,7 +308,7 @@ and explicit approval of paired OpenBench validation.
 | `SA-04` | `done` | Audit qsearch selectivity and run at most one gated experiment. |
 | `SA-05` | `done` | Audit history-aware LMR and run at most one gated experiment. |
 | `SA-06` | `done` | Rebaseline and choose the next mechanism from evidence. |
-| `SA-07` | `active` | Audit game-clock iteration starts and test at most one soft-stop rule. |
+| `SA-07` | `done` | Audit game-clock iteration starts and test at most one soft-stop rule. |
 
 #### SA-01 — Foundation and hygiene
 
@@ -996,12 +996,111 @@ signatures and the 6,068,328-node benchmark must remain exact.
 A passing candidate remains active for paired OpenBench validation. A failing
 candidate is removed and SA-07 becomes `rejected`.
 
-### Experiment record template
+##### SA-07 result — 2026-09-07
 
-- Hypothesis:
-- Baseline:
-- Candidate:
-- Measurements:
-- Result:
-- Artifact path:
-- Disposition:
+The passive trace covered fourteen cases, three genuine game-clock profiles,
+and five fresh repetitions: 210 timed searches and 4,175 root-iteration rows.
+Of those rows, 3,995 completed and 180 were interrupted. All 210 timed results
+matched their fresh-depth score, move, and PV signatures, and all 45 timed
+objective results satisfied their pinned predicates. Resolving the observed
+depths required 126 fresh-depth extension runs.
+
+Across the eleven original cases, the directly traced unfinished-iteration
+share had suite medians of 24.526% at 50 ms, 24.246% at 250 ms, and 26.322% at
+950 ms. Six, seven, and seven cases respectively had a median share of at least
+20%. All three profiles therefore reproduce the earlier opportunity signal.
+That signal means the interrupted iteration often consumes substantial work;
+it does not mean that the engine can safely decline to start it.
+
+| Multiplier | Early violations | Original cases meeting the final-success opportunity gate | Qualifies |
+|---:|---:|---:|---|
+| 1 | 21 | 0 | No |
+| 2 | 65 | 3 | No |
+| 4 | 129 | 5 | No |
+
+An early violation means the predictor fired at a depth lower than the one the
+baseline subsequently completed. Multiplier 1 was neither safe nor useful
+often enough. Multipliers 2 and 4 found repeated apparent savings, but became
+progressively less safe. The global gate allowed no early violation, so none
+of the three predictors qualifies.
+
+- Hypothesis: the duration of the last completed root iteration can identify
+  when the next iteration is unlikely to finish, without sacrificing a depth
+  the baseline would complete.
+- Baseline: immutable search behavior `470a3d7`, cleaned operational boundary
+  `99e2d8b`, and task-entry coordinator `4cd29b3`.
+- Candidate: none. Temporary commit `638145e` added only the behavior-neutral
+  root-iteration trace; multipliers 1, 2, and 4 were evaluated offline.
+- Measurements: 210 clock searches, 4,175 traced iteration rows, 126
+  fresh-depth extensions, 210 accepted-signature comparisons, 45 timed
+  objective checks, and the focused, complete release, ptrace-safe sanitizer,
+  and deterministic-benchmark checks.
+- Result: unfinished iterations repeatedly consume about one quarter of the
+  allocated work, but none of the three predictors satisfies both the
+  opportunity and zero-early-stop requirements.
+- Artifact path: `tools/measurements/output/sa-07-470a3d7/` (gitignored and
+  sealed).
+- Disposition: `done`; no soft-stop behavior candidate is permitted, so no
+  OpenBench test is warranted. Cleanup commit `d1f3745` removes the temporary
+  trace and its focused test while the trace patch and raw evidence remain
+  reproducible.
+
+## Search audit outcome and next steps
+
+The audit improved the evidence and regression framework, but retained no
+search-behavior change.
+
+| Stage | Main evidence | Decision |
+|---|---|---|
+| SEARCH-001 | All 33 fixed-node triplicate groups were exact; 32 and 256 MiB Hash agreed in every case; three of four primary pilot moves were not reproduced at 524,288 nodes. | No common search defect or mechanism was isolated. |
+| SA-02 | Added three independently verified objective guards and 201 fresh-depth trajectory rows. Their first/stable solutions were depth 1/1 at 46 nodes, depth 3/3 at 767 nodes, and depth 1/1 at 29 nodes. | Retain the measurement foundation and convergence baseline. |
+| SA-03 | Late captures succeeded 29,374 times in 504,598 attempts, a 5.82% rate. CaptureHistory improved successful-capture ordinal in four cases and reduced fixed-depth nodes to a 0.9716 geometric-mean ratio, but wall time worsened to 1.0646; start position took 1.4129 times as long. | Reject and remove the exact CaptureHistory candidate. |
+| SA-04 | The 200, 300, and 400 cp shadows would have discarded 3,200, 732, and 206 real NonPV beta cutoffs. | Do not test the predeclared qsearch pruning rule. |
+| SA-05 | All 107 sampled high-history reduced fail-lows remained fail-lows when replayed at unreduced depth; false fail-lows occurred in zero cases. | Do not test the predeclared history-aware LMR protection. |
+| SA-07 | Direct traces confirmed roughly 24-26% median unfinished work, but multipliers 1, 2, and 4 produced 21, 65, and 129 premature-stop events. | Do not test the predeclared soft-stop rule. |
+
+The CaptureHistory result is the clearest example of why reported depth or a
+node count cannot stand in for performance. Across the fixed-depth screen it
+searched about 2.8% fewer nodes geometrically, but it processed those nodes
+slightly more slowly and took about 6.5% longer end to end. Its start-position
+regression was much larger. The implementation therefore is not worth keeping
+in the active tree; its frozen patch is sufficient if materially new evidence
+ever justifies revisiting the idea.
+
+The audit found no run-to-run search nondeterminism. Fixed-node repetitions and
+cross-build signatures were exact. The separate convergence measurement did
+find ordinary depth-to-depth movement: four of fourteen cases ended below
+their horizon in useful depth, with five aggregate late root changes, one score
+sign flip, and one A-B-A. None occurred in an objective case. Likewise,
+unfinished game-clock iterations are an efficiency issue, not nondeterminism:
+all final accepted results still matched the corresponding fresh-depth
+signatures exactly.
+
+At the closing boundary, search and evaluation behavior remain that of
+`470a3d7`, and the retained deterministic benchmark remains 6,068,328 nodes in
+both release builds. `search_measurement_v3`, the objective cases, and all eight
+evidence directories remain available for regression work. Temporary behavior,
+shadow counters, verifiers, root traces, and candidate-only tests or build
+output are not retained. No unrelated ignored files were touched, and the four
+old provenance-uncertain baseline executables remain because their exact
+reconstruction was never proven. No paired OpenBench test was started because
+no candidate passed its offline eligibility gate.
+
+These conclusions are deliberately narrow. The suite contains only fourteen
+positions, its three objective guards are simple mates or immediate material,
+clock timing is single-threaded on one machine, and pilot and Arasan moves are
+context labels rather than correctness oracles. The qsearch and clock results
+reject only the exact predeclared rules, while the LMR verifier samples 107
+specific occurrences rather than proving every reduction safe. Offline
+measurement also cannot establish Elo.
+
+The workstream therefore closes with no active task and no SA-08. Do not retain
+or retry the exact rejected CaptureHistory, qsearch-margin, history-aware LMR,
+or last-iteration predictor implementations without materially new evidence.
+The next defensible search effort is measurement-first: expand the
+source-pinned objective set beyond the current simple guards and collect
+repeated positions from new self-play or release failures. Only a repeated
+signal in at least two independent cases, or one deterministic correctness
+failure, should open another bounded diagnostic task. Any later behavior
+candidate should reuse this audit as its regression gate and proceed to paired
+OpenBench only after every offline gate passes.
