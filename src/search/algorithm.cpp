@@ -109,6 +109,68 @@ private:
     int  count_{0};
 };
 
+#if LATRUNCULI_SEARCH_STATS
+
+using CaptureOrderOrdinals = std::array<int, capture_order_stage_count * capture_order_move_count>;
+
+CaptureOrderMove capture_order_move(const Board& board, Move move) {
+    if (move.type() == MOVE_PROM)
+        return CaptureOrderMove::Promotion;
+    if (move.type() == MOVE_EP)
+        return CaptureOrderMove::EnPassant;
+    if (board.is_capture(move))
+        return CaptureOrderMove::OrdinaryCapture;
+    return CaptureOrderMove::Quiet;
+}
+
+template <NodeType Node>
+void record_capture_order(Instrumentation<true>& stats,
+                          const Board&           board,
+                          Move                   move,
+                          Move                   tt_move,
+                          bool                   in_check,
+                          CaptureOrderContext    context,
+                          CaptureOrderOrdinals&  ordinals,
+                          EvalValue              value,
+                          EvalValue              alpha_before_move,
+                          EvalValue              beta) {
+    const CaptureOrderMove move_kind = capture_order_move(board, move);
+    const bool             is_capture =
+        move_kind == CaptureOrderMove::OrdinaryCapture || move_kind == CaptureOrderMove::EnPassant;
+
+    CaptureOrderStage stage;
+    if (context == CaptureOrderContext::Qsearch && move == tt_move && is_capture
+        && board.see(move) < 0) {
+        stage = CaptureOrderStage::QsearchTtSeeBad;
+    } else if (move == tt_move) {
+        stage = CaptureOrderStage::Tt;
+    } else if (in_check) {
+        stage = CaptureOrderStage::Evasion;
+    } else if (move_kind == CaptureOrderMove::Promotion) {
+        stage = CaptureOrderStage::Promotion;
+    } else if (is_capture) {
+        stage =
+            board.see(move) >= 0 ? CaptureOrderStage::ExactSeeGood : CaptureOrderStage::ExactSeeBad;
+    } else {
+        return;
+    }
+
+    const std::size_t ordinal_index = static_cast<std::size_t>(stage) * capture_order_move_count
+                                    + static_cast<std::size_t>(move_kind);
+    const int ordinal = ++ordinals[ordinal_index];
+    stats.capture_order(
+        {.context = context,
+         .node    = Node == NodeType::Pv ? CaptureOrderNode::Pv : CaptureOrderNode::NonPv,
+         .stage   = stage,
+         .move    = move_kind,
+         .ordinal = ordinal},
+        value,
+        alpha_before_move,
+        beta);
+}
+
+#endif
+
 } // namespace
 
 // Main root search driver.
@@ -372,6 +434,10 @@ EvalValue Worker::alphabeta(
     PrincipalVariation child_pv;
     FailedQuiets       failed_quiets;
 
+#if LATRUNCULI_SEARCH_STATS
+    CaptureOrderOrdinals capture_order_ordinals{};
+#endif
+
     const bool allow_quiet_malus = depth >= QuietMalusMinDepth && !in_check;
     if (allow_quiet_malus)
         stats.quiet_malus_eligible_node(depth);
@@ -388,6 +454,9 @@ EvalValue Worker::alphabeta(
         const bool is_capture   = board.is_capture(move);
         const bool is_quiet     = !is_capture && !is_promotion;
         const bool is_killer    = is_quiet && ordering_state.is_killer(move, search_ply);
+#if LATRUNCULI_SEARCH_STATS
+        const EvalValue alpha_before_move = alpha;
+#endif
         board.make(move);
         ++search_ply;
 
@@ -444,6 +513,19 @@ EvalValue Worker::alphabeta(
 
         if (stop_requested())
             return alpha;
+
+#if LATRUNCULI_SEARCH_STATS
+        record_capture_order<Node>(stats,
+                                   board,
+                                   move,
+                                   tt_move,
+                                   in_check,
+                                   CaptureOrderContext::Main,
+                                   capture_order_ordinals,
+                                   value,
+                                   alpha_before_move,
+                                   beta);
+#endif
 
         if (value >= beta) {
             // Step 12. Beta cutoff.
@@ -572,6 +654,10 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
     auto               picker = ordering::Picker::for_quiescence(board, ordering_state, tt_move);
     PrincipalVariation child_pv;
 
+#if LATRUNCULI_SEARCH_STATS
+    CaptureOrderOrdinals capture_order_ordinals{};
+#endif
+
     // Step 5. Tactical move or evasion loop.
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (!board.is_legal_pseudo_move(move))
@@ -579,6 +665,9 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
         ++move_count;
 
+#if LATRUNCULI_SEARCH_STATS
+        const EvalValue alpha_before_move = alpha;
+#endif
         board.make(move);
         ++search_ply;
         const EvalValue value = -quiescence<Node, UseTt>(-beta, -alpha, pv ? &child_pv : nullptr);
@@ -587,6 +676,19 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
         if (stop_requested())
             return alpha;
+
+#if LATRUNCULI_SEARCH_STATS
+        record_capture_order<Node>(stats,
+                                   board,
+                                   move,
+                                   tt_move,
+                                   in_check,
+                                   CaptureOrderContext::Qsearch,
+                                   capture_order_ordinals,
+                                   value,
+                                   alpha_before_move,
+                                   beta);
+#endif
 
         if (value >= beta) {
             // Step 6. Beta cutoff.

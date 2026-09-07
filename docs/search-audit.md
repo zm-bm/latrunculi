@@ -560,6 +560,56 @@ fixed-node budget; require it in at least two cases in addition to the common
 gates. If the opportunity gate fails, finish SA-03 `done` with no candidate. If
 a tested candidate fails, remove it and mark SA-03 `rejected`.
 
+SA-03 passive result at the `6507724` coordinating revision:
+
+| Case | Late attempts | Successes | Rate | Mean success ordinal |
+|---|---:|---:|---:|---:|
+| `startpos` | 19,697 | 1,649 | 8.37% | 2.089 |
+| `arasan20-01` | 58,116 | 2,369 | 4.08% | 2.168 |
+| `arasan20-08` | 96,422 | 5,733 | 5.95% | 2.263 |
+| `arasan20-16` | 5,301 | 396 | 7.47% | 2.131 |
+| `arasan20-21` | 6,239 | 673 | 10.79% | 2.027 |
+| `arasan20-30` | 22,755 | 1,610 | 7.08% | 2.086 |
+| `pilot14-g171-abrupt` | 33,731 | 1,957 | 5.80% | 2.115 |
+| `pilot18-g154-abrupt` | 85,857 | 5,006 | 5.83% | 2.234 |
+| `pilot14-g061-gradual` | 70,481 | 1,993 | 2.83% | 2.193 |
+| `pilot18-g093-gradual` | 49,572 | 5,323 | 10.74% | 2.087 |
+| `pilot15-g078-secondary` | 56,427 | 2,665 | 4.72% | 2.195 |
+| **Original-suite aggregate** | **504,598** | **29,374** | **5.82%** | **2.171** |
+
+All eleven original cases pass both opportunity thresholds, rather than only
+the required two. Of the aggregate successes, 58 are alpha raises and 29,316
+are beta cutoffs. Exact-SEE-good captures account for 28,888 successes from
+401,467 late attempts (7.20%); exact-SEE-bad captures account for 486 from
+103,131 (0.47%). This demonstrates repeated within-stage ordering opportunity,
+not that CaptureHistory will necessarily exploit it or improve strength.
+
+The paired 14-case matrix preserved exact non-timing dev/stats signatures and
+all three objective predicates. For the eleven SEARCH-001 cases, the current
+v3 signatures match the immutable v2 rows and the pre-existing diagnostic text
+is byte-identical; 297 negative-SEE qsearch TT attempts were separately
+accounted. Focused tests, both complete release CTest suites, and direct
+ASan/UBSan unit and randomized-stress runs passed. LeakSanitizer itself is not
+usable under the ptrace execution environment, so the direct sanitizer runs
+disabled leak detection. The pre-behavior release-dev benchmark remains
+6,068,328 nodes.
+
+- Hypothesis: searched late ordinary captures succeed often enough across
+  independent cases to justify one bounded within-stage ordering experiment.
+- Baseline: immutable search behavior `470a3d7`, with coordinating and
+  measurement revision `6507724`.
+- Candidate: none yet; this pass adds stats-only diagnostics and does not use
+  CaptureHistory or alter release search decisions.
+- Measurements: one paired fresh-process dev/stats run for each of fourteen
+  cases at 524,288 nodes, 32 MiB Hash, one thread, plus the frozen opportunity,
+  signature, legacy-counter, objective, test, sanitizer, and benchmark checks.
+- Result: all eleven original cases pass the predeclared opportunity gate; the
+  passive diagnostic is behavior-neutral on every compared signature.
+- Artifact path: `tools/measurements/output/sa-03-470a3d7/`.
+- Disposition: `active`; retain the passive diagnostic and stop for explicit
+  approval before pinning or editing the single permitted CaptureHistory
+  behavior candidate. SA-04 remains pending.
+
 #### SA-04 — Qsearch shadow audit and one possible pruning experiment
 
 Qsearch already excludes ordinary exact-SEE-negative captures; this task does

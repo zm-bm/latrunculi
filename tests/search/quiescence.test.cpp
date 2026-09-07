@@ -91,6 +91,13 @@ TEST_F(QuiescenceTest, DepthZeroDispatchesToQuiescence) {
 
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_GT(counters().qnodes[0], 0U);
+    const auto& capture =
+        counters().capture_order[capture_order_index(CaptureOrderContext::Qsearch,
+                                                     CaptureOrderNode::NonPv,
+                                                     CaptureOrderStage::ExactSeeGood,
+                                                     CaptureOrderMove::OrdinaryCapture,
+                                                     CaptureOrderBucket::One)];
+    EXPECT_GT(capture.fail_lows + capture.alpha_raises + capture.beta_cutoffs, 0U);
 #endif
 }
 
@@ -252,6 +259,32 @@ TEST_F(QuiescenceTest, IgnoresQuietNoncheckingTtMove) {
 
     EXPECT_EQ(search(-eval_value::inf, eval_value::inf), baseline);
 }
+
+#if LATRUNCULI_SEARCH_STATS
+
+TEST_F(QuiescenceTest, RecordsNegativeSeeQsearchTtCaptureSeparately) {
+    Board board{"2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1"};
+    load(board);
+
+    const Move capture = find_move("d1d7");
+    ASSERT_FALSE(capture.is_null());
+    ASSERT_TRUE(position().is_capture(capture));
+    ASSERT_LT(position().see(capture), 0);
+
+    tt.store(position().key(), capture, 0, 0, TTBound::UpperBound, ply());
+    PrincipalVariation pv;
+    pv_search(-eval_value::inf, eval_value::inf, pv);
+
+    const auto& cell =
+        counters().capture_order[capture_order_index(CaptureOrderContext::Qsearch,
+                                                     CaptureOrderNode::Pv,
+                                                     CaptureOrderStage::QsearchTtSeeBad,
+                                                     CaptureOrderMove::OrdinaryCapture,
+                                                     CaptureOrderBucket::One)];
+    EXPECT_EQ(cell.fail_lows + cell.alpha_raises + cell.beta_cutoffs, 1U);
+}
+
+#endif
 
 TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
     constexpr auto tactical = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";

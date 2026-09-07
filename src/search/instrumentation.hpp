@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -13,6 +14,73 @@
 namespace search {
 
 constexpr bool stats_enabled = LATRUNCULI_SEARCH_STATS;
+
+enum class CaptureOrderContext : std::uint8_t { Main, Qsearch, Count };
+enum class CaptureOrderNode : std::uint8_t { Pv, NonPv, Count };
+enum class CaptureOrderStage : std::uint8_t {
+    Tt,
+    QsearchTtSeeBad,
+    Evasion,
+    Promotion,
+    ExactSeeGood,
+    ExactSeeBad,
+    Count,
+};
+enum class CaptureOrderMove : std::uint8_t { OrdinaryCapture, EnPassant, Promotion, Quiet, Count };
+enum class CaptureOrderBucket : std::uint8_t { One, Two, ThreeFour, FiveEight, NinePlus, Count };
+
+inline constexpr std::size_t capture_order_context_count =
+    static_cast<std::size_t>(CaptureOrderContext::Count);
+inline constexpr std::size_t capture_order_node_count =
+    static_cast<std::size_t>(CaptureOrderNode::Count);
+inline constexpr std::size_t capture_order_stage_count =
+    static_cast<std::size_t>(CaptureOrderStage::Count);
+inline constexpr std::size_t capture_order_move_count =
+    static_cast<std::size_t>(CaptureOrderMove::Count);
+inline constexpr std::size_t capture_order_bucket_count =
+    static_cast<std::size_t>(CaptureOrderBucket::Count);
+inline constexpr std::size_t capture_order_cell_count =
+    capture_order_context_count * capture_order_node_count * capture_order_stage_count
+    * capture_order_move_count * capture_order_bucket_count;
+
+struct CaptureOrderObservation {
+    CaptureOrderContext context{CaptureOrderContext::Main};
+    CaptureOrderNode    node{CaptureOrderNode::NonPv};
+    CaptureOrderStage   stage{CaptureOrderStage::Tt};
+    CaptureOrderMove    move{CaptureOrderMove::Quiet};
+    int                 ordinal{0};
+};
+
+struct CaptureOrderCell {
+    std::uint64_t fail_lows{0};
+    std::uint64_t alpha_raises{0};
+    std::uint64_t beta_cutoffs{0};
+    std::uint64_t success_ordinal_sum{0};
+};
+
+constexpr CaptureOrderBucket capture_order_bucket(const int ordinal) {
+    if (ordinal <= 1)
+        return CaptureOrderBucket::One;
+    if (ordinal == 2)
+        return CaptureOrderBucket::Two;
+    if (ordinal <= 4)
+        return CaptureOrderBucket::ThreeFour;
+    if (ordinal <= 8)
+        return CaptureOrderBucket::FiveEight;
+    return CaptureOrderBucket::NinePlus;
+}
+
+constexpr std::size_t capture_order_index(CaptureOrderContext context,
+                                          CaptureOrderNode    node,
+                                          CaptureOrderStage   stage,
+                                          CaptureOrderMove    move,
+                                          CaptureOrderBucket  bucket) {
+    std::size_t index = static_cast<std::size_t>(context);
+    index             = index * capture_order_node_count + static_cast<std::size_t>(node);
+    index             = index * capture_order_stage_count + static_cast<std::size_t>(stage);
+    index             = index * capture_order_move_count + static_cast<std::size_t>(move);
+    return index * capture_order_bucket_count + static_cast<std::size_t>(bucket);
+}
 
 struct Counters {
     using CounterArray = std::array<std::uint64_t, engine::max_search_ply>;
@@ -45,6 +113,8 @@ struct Counters {
     CounterArray quiet_malus_eligible_nodes{0};
     CounterArray quiet_malus_failed_quiets{0};
     CounterArray quiet_malus_updates{0};
+
+    std::array<CaptureOrderCell, capture_order_cell_count> capture_order{};
 
     std::uint64_t aspiration_fail_lows{0};
     std::uint64_t aspiration_fail_highs{0};
@@ -80,6 +150,7 @@ public:
     void        quiet_malus_eligible_node(int) {}
     void        quiet_malus_failed_quiet(int) {}
     void        quiet_malus_update(int) {}
+    void        capture_order(const CaptureOrderObservation&, EvalValue, EvalValue, EvalValue) {}
     std::string str() const { return {}; }
 
     Instrumentation& operator+=(const Instrumentation&) { return *this; }
@@ -212,6 +283,30 @@ public:
     void quiet_malus_update(const int depth) {
         if (valid_index(depth))
             counters.quiet_malus_updates[depth]++;
+    }
+
+    void capture_order(const CaptureOrderObservation& observation,
+                       const EvalValue                value,
+                       const EvalValue                alpha_before_move,
+                       const EvalValue                beta) {
+        if (observation.ordinal <= 0)
+            return;
+
+        CaptureOrderCell& cell =
+            counters.capture_order[capture_order_index(observation.context,
+                                                       observation.node,
+                                                       observation.stage,
+                                                       observation.move,
+                                                       capture_order_bucket(observation.ordinal))];
+        if (value >= beta) {
+            cell.beta_cutoffs++;
+            cell.success_ordinal_sum += static_cast<std::uint64_t>(observation.ordinal);
+        } else if (value > alpha_before_move) {
+            cell.alpha_raises++;
+            cell.success_ordinal_sum += static_cast<std::uint64_t>(observation.ordinal);
+        } else {
+            cell.fail_lows++;
+        }
     }
 
     Instrumentation& operator+=(const Instrumentation& other);

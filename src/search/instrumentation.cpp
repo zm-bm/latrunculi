@@ -5,6 +5,7 @@
 #include <cmath>
 #include <format>
 #include <iterator>
+#include <string_view>
 
 namespace search {
 
@@ -32,6 +33,60 @@ int max_quiet_history_depth(const Counters& stats) {
             return depth;
     }
     return 0;
+}
+
+std::string_view name(const CaptureOrderContext context) {
+    switch (context) {
+    case CaptureOrderContext::Main:    return "main";
+    case CaptureOrderContext::Qsearch: return "qsearch";
+    case CaptureOrderContext::Count:   break;
+    }
+    return "unknown";
+}
+
+std::string_view name(const CaptureOrderNode node) {
+    switch (node) {
+    case CaptureOrderNode::Pv:    return "pv";
+    case CaptureOrderNode::NonPv: return "nonpv";
+    case CaptureOrderNode::Count: break;
+    }
+    return "unknown";
+}
+
+std::string_view name(const CaptureOrderStage stage) {
+    switch (stage) {
+    case CaptureOrderStage::Tt:              return "tt";
+    case CaptureOrderStage::QsearchTtSeeBad: return "q-tt-see-bad";
+    case CaptureOrderStage::Evasion:         return "evasion";
+    case CaptureOrderStage::Promotion:       return "promotion";
+    case CaptureOrderStage::ExactSeeGood:    return "exact-see-good";
+    case CaptureOrderStage::ExactSeeBad:     return "exact-see-bad";
+    case CaptureOrderStage::Count:           break;
+    }
+    return "unknown";
+}
+
+std::string_view name(const CaptureOrderMove move) {
+    switch (move) {
+    case CaptureOrderMove::OrdinaryCapture: return "ordinary-capture";
+    case CaptureOrderMove::EnPassant:       return "en-passant";
+    case CaptureOrderMove::Promotion:       return "promotion";
+    case CaptureOrderMove::Quiet:           return "quiet";
+    case CaptureOrderMove::Count:           break;
+    }
+    return "unknown";
+}
+
+std::string_view name(const CaptureOrderBucket bucket) {
+    switch (bucket) {
+    case CaptureOrderBucket::One:       return "1";
+    case CaptureOrderBucket::Two:       return "2";
+    case CaptureOrderBucket::ThreeFour: return "3-4";
+    case CaptureOrderBucket::FiveEight: return "5-8";
+    case CaptureOrderBucket::NinePlus:  return "9+";
+    case CaptureOrderBucket::Count:     break;
+    }
+    return "unknown";
 }
 
 } // namespace
@@ -67,6 +122,14 @@ Instrumentation<true>& Instrumentation<true>::operator+=(const Instrumentation& 
         counters.quiet_malus_eligible_nodes[i] += other.counters.quiet_malus_eligible_nodes[i];
         counters.quiet_malus_failed_quiets[i] += other.counters.quiet_malus_failed_quiets[i];
         counters.quiet_malus_updates[i] += other.counters.quiet_malus_updates[i];
+    }
+
+    for (std::size_t i = 0; i < capture_order_cell_count; ++i) {
+        counters.capture_order[i].fail_lows += other.counters.capture_order[i].fail_lows;
+        counters.capture_order[i].alpha_raises += other.counters.capture_order[i].alpha_raises;
+        counters.capture_order[i].beta_cutoffs += other.counters.capture_order[i].beta_cutoffs;
+        counters.capture_order[i].success_ordinal_sum +=
+            other.counters.capture_order[i].success_ordinal_sum;
     }
 
     counters.aspiration_fail_lows += other.counters.aspiration_fail_lows;
@@ -212,6 +275,69 @@ std::string Instrumentation<true>::str() const {
         out = std::format_to(out, "{:5.1f}/{:5.1f}% | ", q_tt_hit_pct, q_tt_cut_pct);
         out = std::format_to(out, "{:5.1f} / {:5.1f}\n", ebf, cumulative);
     }
+
+    out = std::format_to(out, "CaptureOrdering: schema=1\n");
+
+    std::size_t      emitted_cells = 0;
+    CaptureOrderCell totals;
+    for (std::size_t context_index = 0; context_index < capture_order_context_count;
+         ++context_index) {
+        const auto context = static_cast<CaptureOrderContext>(context_index);
+        for (std::size_t node_index = 0; node_index < capture_order_node_count; ++node_index) {
+            const auto node = static_cast<CaptureOrderNode>(node_index);
+            for (std::size_t stage_index = 0; stage_index < capture_order_stage_count;
+                 ++stage_index) {
+                const auto stage = static_cast<CaptureOrderStage>(stage_index);
+                for (std::size_t move_index = 0; move_index < capture_order_move_count;
+                     ++move_index) {
+                    const auto move = static_cast<CaptureOrderMove>(move_index);
+                    for (std::size_t bucket_index = 0; bucket_index < capture_order_bucket_count;
+                         ++bucket_index) {
+                        const auto bucket = static_cast<CaptureOrderBucket>(bucket_index);
+                        const CaptureOrderCell& cell = counters.capture_order[capture_order_index(
+                            context, node, stage, move, bucket)];
+                        const std::uint64_t     attempts =
+                            cell.fail_lows + cell.alpha_raises + cell.beta_cutoffs;
+                        if (attempts == 0)
+                            continue;
+
+                        ++emitted_cells;
+                        totals.fail_lows += cell.fail_lows;
+                        totals.alpha_raises += cell.alpha_raises;
+                        totals.beta_cutoffs += cell.beta_cutoffs;
+                        totals.success_ordinal_sum += cell.success_ordinal_sum;
+                        out = std::format_to(
+                            out,
+                            "CaptureOrderingCell: context={} node={} stage={} move={} ordinal={} "
+                            "attempts={} fail-low={} alpha-raise={} beta-cutoff={} "
+                            "success-ordinal-sum={}\n",
+                            name(context),
+                            name(node),
+                            name(stage),
+                            name(move),
+                            name(bucket),
+                            attempts,
+                            cell.fail_lows,
+                            cell.alpha_raises,
+                            cell.beta_cutoffs,
+                            cell.success_ordinal_sum);
+                    }
+                }
+            }
+        }
+    }
+
+    const std::uint64_t total_attempts =
+        totals.fail_lows + totals.alpha_raises + totals.beta_cutoffs;
+    out = std::format_to(out,
+                         "CaptureOrderingTotal: schema=1 cells={} attempts={} fail-low={} "
+                         "alpha-raise={} beta-cutoff={} success-ordinal-sum={}\n",
+                         emitted_cells,
+                         total_attempts,
+                         totals.fail_lows,
+                         totals.alpha_raises,
+                         totals.beta_cutoffs,
+                         totals.success_ordinal_sum);
 
     return report;
 }

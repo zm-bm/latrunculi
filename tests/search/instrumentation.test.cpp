@@ -35,6 +35,7 @@ TEST(Instrumentation, DisabledInstrumentationIsEmptyAndNoop) {
     stats.quiet_malus_eligible_node(1);
     stats.quiet_malus_failed_quiet(1);
     stats.quiet_malus_update(1);
+    stats.capture_order({.ordinal = 1}, 0, 0, 1);
     stats.reset();
     stats += other;
 
@@ -134,6 +135,53 @@ TEST(Instrumentation, IgnoresOutOfRangeIndices) {
     EXPECT_EQ(counters.quiet_malus_updates.back(), 0);
 }
 
+TEST(Instrumentation, RecordsCaptureOrderingOutcomesBucketsAndExactOrdinals) {
+    Instrumentation<true> stats;
+
+    const auto observation = [](const int ordinal) {
+        return CaptureOrderObservation{
+            .context = CaptureOrderContext::Main,
+            .node    = CaptureOrderNode::NonPv,
+            .stage   = CaptureOrderStage::ExactSeeGood,
+            .move    = CaptureOrderMove::OrdinaryCapture,
+            .ordinal = ordinal,
+        };
+    };
+
+    stats.capture_order(observation(0), 100, 0, 100);
+    stats.capture_order(observation(1), 0, 0, 100);
+    stats.capture_order(observation(2), 1, 0, 100);
+    stats.capture_order(observation(3), 100, 0, 100);
+    stats.capture_order(observation(4), -1, 0, 100);
+    stats.capture_order(observation(5), 1, 0, 100);
+    stats.capture_order(observation(8), 100, 0, 100);
+    stats.capture_order(observation(9), 0, 0, 100);
+
+    const auto cell = [&](const CaptureOrderBucket bucket) -> const CaptureOrderCell& {
+        return stats.raw_counters()
+            .capture_order[capture_order_index(CaptureOrderContext::Main,
+                                               CaptureOrderNode::NonPv,
+                                               CaptureOrderStage::ExactSeeGood,
+                                               CaptureOrderMove::OrdinaryCapture,
+                                               bucket)];
+    };
+
+    EXPECT_EQ(cell(CaptureOrderBucket::One).fail_lows, 1U);
+    EXPECT_EQ(cell(CaptureOrderBucket::Two).alpha_raises, 1U);
+    EXPECT_EQ(cell(CaptureOrderBucket::Two).success_ordinal_sum, 2U);
+    EXPECT_EQ(cell(CaptureOrderBucket::ThreeFour).fail_lows, 1U);
+    EXPECT_EQ(cell(CaptureOrderBucket::ThreeFour).beta_cutoffs, 1U);
+    EXPECT_EQ(cell(CaptureOrderBucket::ThreeFour).success_ordinal_sum, 3U);
+    EXPECT_EQ(cell(CaptureOrderBucket::FiveEight).alpha_raises, 1U);
+    EXPECT_EQ(cell(CaptureOrderBucket::FiveEight).beta_cutoffs, 1U);
+    EXPECT_EQ(cell(CaptureOrderBucket::FiveEight).success_ordinal_sum, 13U);
+    EXPECT_EQ(cell(CaptureOrderBucket::NinePlus).fail_lows, 1U);
+
+    stats.reset();
+    EXPECT_EQ(cell(CaptureOrderBucket::One).fail_lows, 0U);
+    EXPECT_EQ(cell(CaptureOrderBucket::FiveEight).success_ordinal_sum, 0U);
+}
+
 TEST(Instrumentation, AggregatesCounters) {
     Counters first;
     Counters second;
@@ -194,6 +242,16 @@ TEST(Instrumentation, AggregatesCounters) {
     second.aspiration_fail_lows          = 4;
     second.aspiration_fail_highs         = 5;
 
+    constexpr std::size_t capture_index = capture_order_index(CaptureOrderContext::Main,
+                                                              CaptureOrderNode::Pv,
+                                                              CaptureOrderStage::ExactSeeBad,
+                                                              CaptureOrderMove::OrdinaryCapture,
+                                                              CaptureOrderBucket::Two);
+    first.capture_order[capture_index]  = {
+         .fail_lows = 2, .alpha_raises = 3, .beta_cutoffs = 4, .success_ordinal_sum = 14};
+    second.capture_order[capture_index] = {
+        .fail_lows = 5, .alpha_raises = 6, .beta_cutoffs = 7, .success_ordinal_sum = 26};
+
     Instrumentation<true> total{first};
     total += Instrumentation<true>{second};
 
@@ -225,6 +283,10 @@ TEST(Instrumentation, AggregatesCounters) {
     EXPECT_EQ(counters.quiet_malus_updates[1], 16);
     EXPECT_EQ(counters.aspiration_fail_lows, 5);
     EXPECT_EQ(counters.aspiration_fail_highs, 7);
+    EXPECT_EQ(counters.capture_order[capture_index].fail_lows, 7U);
+    EXPECT_EQ(counters.capture_order[capture_index].alpha_raises, 9U);
+    EXPECT_EQ(counters.capture_order[capture_index].beta_cutoffs, 11U);
+    EXPECT_EQ(counters.capture_order[capture_index].success_ordinal_sum, 40U);
 }
 
 TEST(Instrumentation, FormatsStableDiagnostics) {
@@ -271,6 +333,19 @@ TEST(Instrumentation, FormatsStableDiagnostics) {
     counters.quiet_malus_failed_quiets[4]  = 8;
     counters.quiet_malus_updates[4]        = 5;
 
+    counters.capture_order[capture_order_index(CaptureOrderContext::Main,
+                                               CaptureOrderNode::Pv,
+                                               CaptureOrderStage::Tt,
+                                               CaptureOrderMove::Quiet,
+                                               CaptureOrderBucket::One)] = {
+        .fail_lows = 2, .alpha_raises = 1, .beta_cutoffs = 1, .success_ordinal_sum = 2};
+    counters.capture_order[capture_order_index(CaptureOrderContext::Qsearch,
+                                               CaptureOrderNode::NonPv,
+                                               CaptureOrderStage::ExactSeeGood,
+                                               CaptureOrderMove::OrdinaryCapture,
+                                               CaptureOrderBucket::ThreeFour)] = {
+        .fail_lows = 3, .alpha_raises = 2, .beta_cutoffs = 1, .success_ordinal_sum = 10};
+
     const Instrumentation<true> stats{counters};
 
     EXPECT_EQ(stats.str(), R"(
@@ -284,6 +359,10 @@ QuietHistory: quiet-cutoffs=6 malus-eligible=7 failed-quiets=8 malus-updates=5
   Ply |     Nodes (QNode%) |  Cutoffs (Early%/Late%) |      CutIdx Avg/1/2/3-4/5+% | PVS Re | MainTT Hit/Cut% |  QTT Hit/Cut% |   EBF / Cumul
     1 |       100 ( 50.0%) |       80 ( 50.0/ 50.0%) |  2.1 /  50.0/ 25.0/ 12.5/ 12.5% |      7 |  50.0/ 66.7% |  25.0/ 50.0% |   0.0 / 100.0
     2 |       200 ( 50.0%) |      150 ( 50.0/ 50.0%) |  2.2 /  50.0/ 23.3/ 13.3/ 13.3% |      0 |   0.0/  0.0% |   0.0/  0.0% |   2.0 /  14.1
+CaptureOrdering: schema=1
+CaptureOrderingCell: context=main node=pv stage=tt move=quiet ordinal=1 attempts=4 fail-low=2 alpha-raise=1 beta-cutoff=1 success-ordinal-sum=2
+CaptureOrderingCell: context=qsearch node=nonpv stage=exact-see-good move=ordinary-capture ordinal=3-4 attempts=6 fail-low=3 alpha-raise=2 beta-cutoff=1 success-ordinal-sum=10
+CaptureOrderingTotal: schema=1 cells=2 attempts=10 fail-low=5 alpha-raise=3 beta-cutoff=2 success-ordinal-sum=12
 )");
 }
 
