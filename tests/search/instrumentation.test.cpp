@@ -247,6 +247,96 @@ TEST(Instrumentation, RecordsLmrHistoryBucketsAndOutcomes) {
     EXPECT_EQ(stats.raw_counters().lmr_history[index].attempts, 0U);
 }
 
+TEST(Instrumentation, FormatsCappedLmrVerifierControlSamples) {
+    LmrVerifier verifier;
+    verifier.reset(std::nullopt);
+    EXPECT_TRUE(verifier.str().empty());
+
+    verifier.reset(0);
+    const LmrVerifierObservation observation{
+        .node          = LmrNode::Pv,
+        .parent_key    = 0x1234,
+        .move          = Move(A1, A2),
+        .ply           = 2,
+        .depth         = 6,
+        .reduction     = 2,
+        .history_score = 1024,
+        .alpha         = 10,
+        .beta          = 11,
+        .reduced_value = 10,
+        .nodes         = 500,
+    };
+
+    for (std::uint64_t occurrence = 1; occurrence <= LmrVerifier::max_occurrence; ++occurrence)
+        EXPECT_FALSE(verifier.observe_fail_low(observation));
+    EXPECT_FALSE(verifier.observe_fail_low(observation));
+
+    const std::string report = verifier.str();
+    EXPECT_NE(report.find("LmrVerifier: schema=1 mode=control target=0\n"), std::string::npos);
+    EXPECT_NE(report.find("LmrVerifierSample: occurrence=64 "), std::string::npos);
+    EXPECT_NE(report.find("LmrVerifierSample: occurrence=2048 "), std::string::npos);
+    EXPECT_EQ(report.find("LmrVerifierResult:"), std::string::npos);
+    EXPECT_NE(
+        report.find("LmrVerifierTotal: schema=1 samples=32 target=0 reached=0 contaminated=0\n"),
+        std::string::npos);
+
+    verifier.reset(std::nullopt);
+    EXPECT_TRUE(verifier.str().empty());
+}
+
+TEST(Instrumentation, ActivatesAndClassifiesOneLmrVerifierTarget) {
+    LmrVerifier verifier;
+    verifier.reset(128);
+
+    LmrVerifierObservation observation{
+        .node          = LmrNode::Pv,
+        .parent_key    = 0x1234,
+        .move          = Move(A1, A2),
+        .ply           = 2,
+        .depth         = 6,
+        .reduction     = 2,
+        .history_score = 1024,
+        .alpha         = 10,
+        .beta          = 11,
+        .reduced_value = 10,
+        .nodes         = 500,
+    };
+
+    LmrVerifierObservation ineligible = observation;
+    ineligible.history_score          = 1023;
+    EXPECT_FALSE(verifier.observe_fail_low(ineligible));
+    ineligible               = observation;
+    ineligible.reduced_value = 11;
+    EXPECT_FALSE(verifier.observe_fail_low(ineligible));
+
+    for (std::uint64_t occurrence = 1; occurrence < 128; ++occurrence)
+        EXPECT_FALSE(verifier.observe_fail_low(observation));
+    EXPECT_TRUE(verifier.observe_fail_low(observation));
+    EXPECT_FALSE(verifier.observe_fail_low(observation));
+
+    verifier.complete(11, 750);
+    EXPECT_EQ(verifier.str(), R"(LmrVerifier: schema=1 mode=active target=128
+LmrVerifierSample: occurrence=64 parent-key=0000000000001234 move=a1a2 node=pv ply=2 depth=6 reduction=2 history=1024 alpha=10 beta=11 reduced-value=10 nodes=500
+LmrVerifierSample: occurrence=128 parent-key=0000000000001234 move=a1a2 node=pv ply=2 depth=6 reduction=2 history=1024 alpha=10 beta=11 reduced-value=10 nodes=500
+LmrVerifierResult: occurrence=128 full-value=11 nodes-before=500 nodes-after=750 outcome=false-fail-low
+LmrVerifierTotal: schema=1 samples=2 target=128 reached=1 contaminated=1
+)");
+
+    verifier.reset(64);
+    for (std::uint64_t occurrence = 1; occurrence < 64; ++occurrence)
+        EXPECT_FALSE(verifier.observe_fail_low(observation));
+    EXPECT_TRUE(verifier.observe_fail_low(observation));
+    verifier.complete(10, 600);
+    EXPECT_NE(verifier.str().find("outcome=confirmed\n"), std::string::npos);
+
+    verifier.reset(128);
+    for (std::uint64_t occurrence = 1; occurrence <= 64; ++occurrence)
+        EXPECT_FALSE(verifier.observe_fail_low(observation));
+    EXPECT_NE(verifier.str().find(
+                  "LmrVerifierTotal: schema=1 samples=1 target=128 reached=0 contaminated=0\n"),
+              std::string::npos);
+}
+
 TEST(Instrumentation, AggregatesCounters) {
     Counters first;
     Counters second;

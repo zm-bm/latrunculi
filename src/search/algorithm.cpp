@@ -496,6 +496,27 @@ EvalValue Worker::alphabeta(
                 stats.lmr_history_reduced_interrupted(lmr_observation);
             else
                 stats.lmr_history_reduced_result(lmr_observation, value, alpha_before_move);
+
+            if (!stop_requested() && value <= alpha_before_move
+                && lmr_verifier.observe_fail_low({
+                    .node          = lmr_observation.node,
+                    .parent_key    = position_key,
+                    .move          = move,
+                    .ply           = search_ply - 1,
+                    .depth         = depth,
+                    .reduction     = reduction,
+                    .history_score = lmr_history_score,
+                    .alpha         = alpha_before_move,
+                    .beta          = beta,
+                    .reduced_value = value,
+                    .nodes         = node_count(),
+                })) {
+                const EvalValue full_value = -alphabeta<NodeType::NonPv>(
+                    -alpha_before_move - 1, -alpha_before_move, depth - 1, nullptr, true);
+                if (!stop_requested())
+                    lmr_verifier.complete(full_value, node_count());
+                request_stop();
+            }
 #endif
             if (!stop_requested() && value > alpha) {
                 stats.lmr_research(search_ply - 1);

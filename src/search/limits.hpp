@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdlib>
 #include <optional>
 #include <utility>
@@ -29,6 +30,9 @@ struct Limits {
     std::optional<int>          movestogo;
     std::optional<int>          mate;
     std::vector<Move>           root_moves;
+#if LATRUNCULI_SEARCH_STATS
+    std::optional<std::uint64_t> lmr_verify_occurrence;
+#endif
 
     Limits() = default;
 

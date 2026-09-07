@@ -88,8 +88,12 @@ void Worker::reset_search_state() {
 
     ordering_state.prepare_for_search();
 
-    if constexpr (stats_enabled)
+    if constexpr (stats_enabled) {
         stats.reset();
+#if LATRUNCULI_SEARCH_STATS
+        lmr_verifier.reset(limits.lmr_verify_occurrence);
+#endif
+    }
 }
 
 void Worker::clear_search_heuristics() {
@@ -164,8 +168,12 @@ void Worker::publish_final_result() {
     pending_best_move.reset();
 
     if constexpr (stats_enabled) {
-        auto stats = thread_pool.aggregate_instrumentation();
-        reporter.report_diagnostic(stats.str());
+        auto        stats      = thread_pool.aggregate_instrumentation();
+        std::string diagnostic = stats.str();
+#if LATRUNCULI_SEARCH_STATS
+        diagnostic += lmr_verifier.str();
+#endif
+        reporter.report_diagnostic(diagnostic);
     }
 }
 

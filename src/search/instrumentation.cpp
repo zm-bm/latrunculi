@@ -2,6 +2,7 @@
 
 #if LATRUNCULI_SEARCH_STATS
 
+#include <cassert>
 #include <cmath>
 #include <format>
 #include <iterator>
@@ -131,6 +132,105 @@ std::string_view name(const LmrHistoryBucket history) {
 }
 
 } // namespace
+
+void LmrVerifier::reset(const std::optional<std::uint64_t> configured_target) {
+    assert(!configured_target || *configured_target == 0
+           || (*configured_target >= occurrence_stride && *configured_target <= max_occurrence
+               && *configured_target % occurrence_stride == 0));
+
+    target       = configured_target;
+    occurrences  = 0;
+    samples      = {};
+    sample_count = 0;
+    suppressed   = false;
+    reached      = false;
+    contaminated = false;
+    full_value   = 0;
+    nodes_after  = 0;
+}
+
+bool LmrVerifier::observe_fail_low(const LmrVerifierObservation& observation) {
+    if (!target || suppressed || reached || observation.node == LmrNode::Count
+        || observation.history_score < 1024 || observation.reduced_value > observation.alpha)
+        return false;
+
+    ++occurrences;
+    if (occurrences > max_occurrence || occurrences % occurrence_stride != 0)
+        return false;
+
+    assert(sample_count < samples.size());
+    Sample& sample                               = samples[sample_count++];
+    static_cast<LmrVerifierObservation&>(sample) = observation;
+    sample.occurrence                            = occurrences;
+
+    const bool activate = *target != 0 && occurrences == *target;
+    if (activate) {
+        suppressed   = true;
+        contaminated = true;
+    }
+    return activate;
+}
+
+void LmrVerifier::complete(const EvalValue verified_value, const NodeCount verified_nodes_after) {
+    assert(target && *target != 0 && suppressed && sample_count > 0
+           && samples[sample_count - 1].occurrence == *target);
+    assert(verified_nodes_after > samples[sample_count - 1].nodes);
+    full_value  = verified_value;
+    nodes_after = verified_nodes_after;
+    reached     = true;
+}
+
+std::string LmrVerifier::str() const {
+    if (!target)
+        return {};
+
+    std::string report;
+    auto        out    = std::back_inserter(report);
+    const bool  active = *target != 0;
+    out                = std::format_to(
+        out, "LmrVerifier: schema=1 mode={} target={}\n", active ? "active" : "control", *target);
+
+    for (std::size_t index = 0; index < sample_count; ++index) {
+        const Sample& sample = samples[index];
+        out                  = std::format_to(
+            out,
+            "LmrVerifierSample: occurrence={} parent-key={:016x} move={} node={} ply={} "
+                             "depth={} reduction={} history={} alpha={} beta={} reduced-value={} nodes={}\n",
+            sample.occurrence,
+            sample.parent_key,
+            sample.move.str(),
+            name(sample.node),
+            sample.ply,
+            sample.depth,
+            sample.reduction,
+            sample.history_score,
+            sample.alpha,
+            sample.beta,
+            sample.reduced_value,
+            sample.nodes);
+    }
+
+    if (reached) {
+        const Sample& sample = samples[sample_count - 1];
+        out                  = std::format_to(out,
+                             "LmrVerifierResult: occurrence={} full-value={} nodes-before={} "
+                                              "nodes-after={} outcome={}\n",
+                             sample.occurrence,
+                             full_value,
+                             sample.nodes,
+                             nodes_after,
+                             full_value <= sample.alpha ? "confirmed" : "false-fail-low");
+    }
+
+    out = std::format_to(
+        out,
+        "LmrVerifierTotal: schema=1 samples={} target={} reached={} contaminated={}\n",
+        sample_count,
+        *target,
+        reached ? 1 : 0,
+        contaminated ? 1 : 0);
+    return report;
+}
 
 void Instrumentation<true>::reset() {
     counters = {};

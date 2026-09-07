@@ -30,26 +30,29 @@ namespace {
 
 using MeasurementClock = std::chrono::steady_clock;
 
-constexpr std::string_view result_format       = "search_measurement_v3";
-constexpr int              default_depth       = 5;
-constexpr std::size_t      default_threads     = 1;
-constexpr std::size_t      default_hash_mb     = engine::default_hash_mb;
-constexpr std::uint64_t    default_repetitions = 1;
-constexpr std::size_t      max_threads         = 64;
-constexpr std::size_t      max_hash_mb         = 2048;
-constexpr std::uint64_t    max_repetitions     = 100;
+constexpr std::string_view result_format               = "search_measurement_v3";
+constexpr int              default_depth               = 5;
+constexpr std::size_t      default_threads             = 1;
+constexpr std::size_t      default_hash_mb             = engine::default_hash_mb;
+constexpr std::uint64_t    default_repetitions         = 1;
+constexpr std::size_t      max_threads                 = 64;
+constexpr std::size_t      max_hash_mb                 = 2048;
+constexpr std::uint64_t    max_repetitions             = 100;
+constexpr std::uint64_t    lmr_verifier_stride         = 64;
+constexpr std::uint64_t    max_lmr_verifier_occurrence = 2048;
 
 enum class OutputFormat { Text, Tsv };
 enum class LimitType { Depth, Nodes, Movetime };
 
 struct Options {
-    LimitType                  limit_type{LimitType::Depth};
-    std::uint64_t              limit_value{default_depth};
-    std::optional<std::string> case_id;
-    std::size_t                threads{default_threads};
-    std::size_t                hash_mb{default_hash_mb};
-    std::uint64_t              repetitions{default_repetitions};
-    OutputFormat               format{OutputFormat::Text};
+    LimitType                    limit_type{LimitType::Depth};
+    std::uint64_t                limit_value{default_depth};
+    std::optional<std::string>   case_id;
+    std::size_t                  threads{default_threads};
+    std::size_t                  hash_mb{default_hash_mb};
+    std::uint64_t                repetitions{default_repetitions};
+    OutputFormat                 format{OutputFormat::Text};
+    std::optional<std::uint64_t> lmr_verify_occurrence;
 };
 
 struct Position {
@@ -176,6 +179,9 @@ Row measure(const Position&     position,
         limits.set_movetime(static_cast<Milliseconds::rep>(options.limit_value));
         break;
     }
+#if LATRUNCULI_SEARCH_STATS
+    limits.lmr_verify_occurrence = options.lmr_verify_occurrence;
+#endif
 
     const EvalValue static_score = eval::evaluate(board);
     const auto      start        = MeasurementClock::now();
@@ -274,12 +280,14 @@ void print_usage(const char* argv0) {
     std::cerr << "Integrated search measurement.\n";
     std::cerr << "Usage: " << argv0
               << " [--case ID] [--depth N | --nodes N | --movetime MS] [--hash MB]"
-                 " [--threads N] [--repetitions N] [--format text|tsv]\n";
+                 " [--threads N] [--repetitions N] [--format text|tsv]"
+                 " [--lmr-verify-occurrence N]\n";
 }
 
 Options parse_args(int argc, char* argv[]) {
     Options options;
-    bool    limit_set = false;
+    bool    limit_set  = false;
+    int     case_count = 0;
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument = argv[index];
         if (argument == "--help" || argument == "-h") {
@@ -314,9 +322,26 @@ Options parse_args(int argc, char* argv[]) {
         if (argument == "--case") {
             if (++index >= argc)
                 throw std::runtime_error("missing value for --case");
+            ++case_count;
             options.case_id = argv[index];
             if (options.case_id->empty())
                 throw std::runtime_error("--case must not be empty");
+            continue;
+        }
+        if (argument == "--lmr-verify-occurrence") {
+            if (++index >= argc)
+                throw std::runtime_error("missing value for --lmr-verify-occurrence");
+            if (options.lmr_verify_occurrence)
+                throw std::runtime_error("--lmr-verify-occurrence may be specified only once");
+
+            const std::uint64_t occurrence = parse_count(argv[index], argument);
+            if (occurrence != 0
+                && (occurrence < lmr_verifier_stride || occurrence > max_lmr_verifier_occurrence
+                    || occurrence % lmr_verifier_stride != 0)) {
+                throw std::runtime_error(
+                    "--lmr-verify-occurrence must be 0 or a multiple of 64 between 64 and 2048");
+            }
+            options.lmr_verify_occurrence = occurrence;
             continue;
         }
         if (argument == "--hash") {
@@ -355,6 +380,19 @@ Options parse_args(int argc, char* argv[]) {
             continue;
         }
         throw std::runtime_error("unknown argument: " + std::string(argument));
+    }
+
+    if (options.lmr_verify_occurrence) {
+        if constexpr (!search::stats_enabled)
+            throw std::runtime_error("--lmr-verify-occurrence requires a release-stats build");
+        if (case_count != 1)
+            throw std::runtime_error("--lmr-verify-occurrence requires exactly one --case");
+        if (!limit_set || options.limit_type != LimitType::Depth)
+            throw std::runtime_error("--lmr-verify-occurrence requires an explicit --depth limit");
+        if (options.threads != 1)
+            throw std::runtime_error("--lmr-verify-occurrence requires --threads 1");
+        if (options.repetitions != 1)
+            throw std::runtime_error("--lmr-verify-occurrence requires --repetitions 1");
     }
     return options;
 }

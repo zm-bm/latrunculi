@@ -724,6 +724,26 @@ TEST_F(SearchTest, LmrResearchesAtFullDepthAfterAlphaImprovement) {
 #endif
 }
 
+#if LATRUNCULI_SEARCH_STATS
+TEST_F(SearchTest, LmrVerifierRunsOneFullDepthPairAndStops) {
+    Board board{board_test::fen::start};
+    limits.set_depth(8);
+    limits.lmr_verify_occurrence = 64;
+
+    ASSERT_TRUE(pool.start_search(board, limits));
+    pool.wait();
+
+    ASSERT_EQ(reporter.diagnostics.size(), 1U);
+    const std::string& diagnostic = reporter.diagnostics.front();
+    EXPECT_NE(diagnostic.find("LmrVerifier: schema=1 mode=active target=64\n"), std::string::npos);
+    EXPECT_NE(diagnostic.find("LmrVerifierSample: occurrence=64 "), std::string::npos);
+    EXPECT_NE(diagnostic.find("LmrVerifierResult: occurrence=64 "), std::string::npos);
+    EXPECT_NE(diagnostic.find(
+                  "LmrVerifierTotal: schema=1 samples=1 target=64 reached=1 contaminated=1\n"),
+              std::string::npos);
+}
+#endif
+
 TEST_F(SearchTest, LmrRequiresDepthAndLateMove) {
     struct Case {
         const char* fen;

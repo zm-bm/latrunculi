@@ -57,6 +57,9 @@ private:
     // Progress and diagnostics.
     std::atomic<NodeCount> nodes{0};
     Instrumentation<>      stats;
+#if LATRUNCULI_SEARCH_STATS
+    LmrVerifier lmr_verifier;
+#endif
 
     // Non-owning shared services. Both must outlive this worker.
     Reporter&   reporter;

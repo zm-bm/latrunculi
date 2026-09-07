@@ -3,9 +3,11 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include "core/constants.hpp"
+#include "core/move.hpp"
 
 #ifndef LATRUNCULI_SEARCH_STATS
 #define LATRUNCULI_SEARCH_STATS 0
@@ -100,6 +102,54 @@ struct LmrHistoryCell {
     std::uint64_t research_alpha_raises{0};
     std::uint64_t research_cutoffs{0};
 };
+
+#if LATRUNCULI_SEARCH_STATS
+
+struct LmrVerifierObservation {
+    LmrNode     node{LmrNode::NonPv};
+    PositionKey parent_key{0};
+    Move        move{NULL_MOVE};
+    int         ply{0};
+    int         depth{0};
+    int         reduction{0};
+    int         history_score{0};
+    EvalValue   alpha{0};
+    EvalValue   beta{0};
+    EvalValue   reduced_value{0};
+    NodeCount   nodes{0};
+};
+
+class LmrVerifier {
+public:
+    static constexpr std::uint64_t occurrence_stride = 64;
+    static constexpr std::uint64_t max_occurrence    = 2048;
+    static constexpr std::size_t   max_samples       = max_occurrence / occurrence_stride;
+
+    void reset(std::optional<std::uint64_t> target);
+
+    // Returns true only when this observation is the configured active target.
+    bool observe_fail_low(const LmrVerifierObservation& observation);
+    void complete(EvalValue full_value, NodeCount nodes_after);
+
+    [[nodiscard]] std::string str() const;
+
+private:
+    struct Sample : LmrVerifierObservation {
+        std::uint64_t occurrence{0};
+    };
+
+    std::optional<std::uint64_t>    target;
+    std::uint64_t                   occurrences{0};
+    std::array<Sample, max_samples> samples{};
+    std::size_t                     sample_count{0};
+    bool                            suppressed{false};
+    bool                            reached{false};
+    bool                            contaminated{false};
+    EvalValue                       full_value{0};
+    NodeCount                       nodes_after{0};
+};
+
+#endif
 
 constexpr CaptureOrderBucket capture_order_bucket(const int ordinal) {
     if (ordinal <= 1)
