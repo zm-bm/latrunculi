@@ -30,7 +30,7 @@ namespace {
 
 using MeasurementClock = std::chrono::steady_clock;
 
-constexpr std::string_view result_format       = "search_measurement_v2";
+constexpr std::string_view result_format       = "search_measurement_v3";
 constexpr int              default_depth       = 5;
 constexpr std::size_t      default_threads     = 1;
 constexpr std::size_t      default_hash_mb     = engine::default_hash_mb;
@@ -74,6 +74,9 @@ constexpr std::array positions = {
              "1Rbqkb1r/3n1ppp/4p3/1Bp5/3PPB2/2N2N2/1P3PPP/4K2R b Kk - 2 14"},
     Position{"pilot15-g078-secondary",
              "1r4k1/p2q2p1/b1pp1r2/4p1Q1/4Pp2/1PN3P1/P4P1P/R2R2K1 w - - 0 23"},
+    Position{"objective-mate-1", "7R/8/8/8/8/1K6/8/1k6 w - - 0 1"},
+    Position{"objective-mate-2", "8/8/8/8/8/3K4/4Q3/k7 w - - 0 1"},
+    Position{"objective-rook-capture", "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1"},
 };
 
 struct Result {

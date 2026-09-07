@@ -303,8 +303,8 @@ and explicit approval of paired OpenBench validation.
 | Task | State | Scope |
 |---|---|---|
 | `SA-01` | `done` | Consolidate the foundation and workspace hygiene. |
-| `SA-02` | `active` | Establish objective quality and convergence baselines. |
-| `SA-03` | `pending` | Audit capture ordering and run at most one gated experiment. |
+| `SA-02` | `done` | Establish objective quality and convergence baselines. |
+| `SA-03` | `active` | Audit capture ordering and run at most one gated experiment. |
 | `SA-04` | `pending` | Audit qsearch selectivity and run at most one gated experiment. |
 | `SA-05` | `pending` | Audit history-aware LMR and run at most one gated experiment. |
 | `SA-06` | `pending` | Rebaseline and choose the next mechanism from evidence. |
@@ -404,6 +404,118 @@ to 32 MiB, sends `ucinewgame`, `isready`, the pinned position, and the exact
 `go` clock fields, waits for `bestmove`, and only then sends `quit`. Preserve
 each stdout and stderr transcript and derive the completed-depth and node fields
 from the final accepted `info depth` line immediately preceding `bestmove`.
+
+##### SA-02 experiment record
+
+- Hypothesis: objective guards and fresh-depth trajectories can make later
+  selectivity experiments falsifiable, while longer node budgets and real UCI
+  clocks can distinguish late convergence from unfinished-iteration work.
+- Baseline: search and evaluation at `470a3d7`, coordinated from `f1aed84` with
+  the `ded3fca` measurement foundation. The preserved SEARCH-001 4,194,304-node
+  rows are the semantic cross-check.
+- Candidate: no search candidate. The measurement-only change adds the three
+  objective cases and changes the workload label to `search_measurement_v3`;
+  options and TSV columns are unchanged.
+- Measurements: an external exhaustive predicate check, three 33,554,432-node
+  extensions, 201 fresh-process depth rows, 55 preserved explicit-movetime
+  pairings, 165 fresh raw-UCI clock pairings, and the adapted CLI/build/test
+  checks.
+- Result: all objective final windows pass; every fixed-limit and timed
+  accepted signature cross-check passes; the convergence baseline retains four
+  cases below their horizon in useful depth; and all three game-clock profiles
+  meet the predeclared SA-06 eligibility threshold. No search mechanism is
+  changed or causally identified.
+- Artifact path: `tools/measurements/output/sa-02-470a3d7/` (gitignored), with
+  frozen declarations and provenance in `meta/`, untouched invocation output in
+  `raw/`, and reproducible aggregation in `derived/`.
+- Disposition: `done`; diagnostic collection and review are complete, and the
+  retained v3 measurement and documentation foundation was explicitly approved
+  as the workstream boundary. SA-03 is active but has not been executed.
+
+The external verifier used Stockfish only for legal-move enumeration and check
+status through `d` and `go perft 1`, not for alpha-beta search. It made 1,338
+queries and reproduced byte-identical output. The verified mate-in-two roots
+are both accepted rather than inventing a single expected move.
+
+| Objective case | Independent predicate | First / stable depth | Nodes to first / stable | Depth-8 result | Useful depth |
+|---|---|---:|---:|---|---:|
+| `objective-mate-1` | Unique `h8h1#` | 1 / 1 | 46 / 46 | `h8h1 / +M1` | 8 |
+| `objective-mate-2` | `d3c2` or `d3c3` forces mate in 3 plies | 3 / 3 | 767 / 767 | `d3c3 / +M2` | 8 |
+| `objective-rook-capture` | Unique maximum `d1e2`, winning a rook | 1 / 1 | 29 / 29 | `d1e2 / +1915` | 8 |
+
+All eleven immutable v2 4,194,304-node accepted signatures match the v3
+fresh-depth row at the reported completed depth. Each 33,554,432-node accepted
+signature likewise matches its independently run final depth. SEARCH-001's
+fixed-node triplicates remain the reproducibility evidence; SA-02 intentionally
+collects each new fixed-work cell once.
+
+`D / U` below is the case-specific trajectory horizon and resulting useful
+depth. Nodes are cumulative at `D` followed by the nodes in iteration `D`.
+`R / S / A` counts late root changes, centipawn sign flips, and A-B-A
+oscillations.
+
+| Case | D / U | Nodes at D / iteration D | Final move / score | Late R / S / A | Late PV survival |
+|---|---:|---:|---|---:|---:|
+| `startpos` | 14 / 11 | 3,367,732 / 1,193,115 | `e2e4 / +74` | 1 / 0 / 0 | 15.4% |
+| `arasan20-01` | 15 / 15 | 2,946,219 / 886,943 | `e4a8 / -79` | 0 / 0 / 0 | 42.3% |
+| `arasan20-08` | 14 / 14 | 3,236,811 / 1,660,343 | `h6h5 / -387` | 0 / 0 / 0 | 34.9% |
+| `arasan20-16` | 16 / 14 | 3,698,850 / 1,524,475 | `f1e1 / +168` | 2 / 0 / 1 | 0.0% |
+| `arasan20-21` | 21 / 21 | 30,607,242 / 14,912,303 | `d5c3 / +234` | 0 / 0 / 0 | 38.8% |
+| `arasan20-30` | 19 / 19 | 3,395,887 / 761,379 | `g5e6 / +694` | 0 / 0 / 0 | 60.6% |
+| `pilot14-g171-abrupt` | 18 / 17 | 33,287,910 / 23,569,099 | `h4h5 / -74` | 1 / 0 / 0 | 34.4% |
+| `pilot18-g154-abrupt` | 13 / 13 | 2,955,468 / 543,734 | `e7d7 / -169` | 0 / 0 / 0 | 83.3% |
+| `pilot14-g061-gradual` | 14 / 14 | 2,985,482 / 1,310,751 | `g8h7 / +20` | 0 / 0 / 0 | 55.8% |
+| `pilot18-g093-gradual` | 20 / 20 | 21,863,741 / 8,818,596 | `f7f6 / -159` | 0 / 0 / 0 | 84.2% |
+| `pilot15-g078-secondary` | 13 / 11 | 3,397,528 / 597,231 | `g3g4 / -122` | 1 / 1 / 0 | 7.7% |
+
+The four `U < D` entries identify the deepest earlier stable three-depth
+window; their final three depths do not satisfy the stability gate.
+
+Across all fourteen cases, the late baseline is five root changes, one sign
+flip, one A-B-A, a 46-centipawn nearest-rank p90 jump, 61.5% median PV survival,
+and five zero-prefix transitions. The A-B-A is the transient
+`f1e1 -> d2e2 -> f1e1` at Arasan 16. Zero-prefix and root-change counts are not
+independent here because every validated PV begins with its reported root move.
+The three objective cases have no late root change, sign flip, A-B-A, or
+zero-prefix transition.
+
+The longer fixed-node runs add four completed plies apiece. Only the abrupt
+pilot changes root move at the endpoint; it therefore remains a useful
+convergence stress case, not a correctness oracle.
+
+| Case | 4,194,304 nodes | 33,554,432 nodes | PV LCP | Unfinished share at 33M |
+|---|---|---|---:|---:|
+| `pilot14-g171-abrupt` | `d14 f5f4 / -31` | `d18 h4h5 / -74` | 0 / 14 | 0.8% |
+| `pilot18-g093-gradual` | `d16 f7f6 / -116` | `d20 f7f6 / -159` | 13 / 16 | 34.8% |
+| `arasan20-21` | `d17 d5c3 / +266` | `d21 d5c3 / +234` | 5 / 17 | 8.8% |
+
+The contextual Arasan labels are never stable through a horizon. Only Arasan
+16 at depth 15 and Arasan 30 at depths 2 and 7 match their labels; the other
+three controls never match. These observations carry no correctness weight.
+
+All 220 timed rows pair exactly with their fresh-depth score, move, and PV, and
+none required a horizon extension. Fractions below summarize the median of five
+runs per case; the range is across those eleven case medians. This reproduces
+the preliminary explicit-movetime observation exactly on that basis. The wider
+all-run range for explicit movetime is 3.7-45.4% and remains in the derived
+table. In 67 of the 165 game-clock transcripts, an interim `info` line printed
+a greater depth than the final retained result; the analysis uses only the
+final accepted line immediately before `bestmove`.
+
+| Control | Observed duration | Case-median unfinished range | Suite median | Cases >= 20% | SA-06 clock gate |
+|---|---:|---:|---:|---:|---|
+| Explicit `movetime 250` | 250.1-252.1 ms | 5.2-43.2% | 28.7% | 7 | Not applicable; hard request |
+| 50 ms game clock | 50-52 ms | 0.5-90.6% | 24.5% | 6 | Pass |
+| 250 ms game clock | 250-252 ms | 3.7-42.3% | 24.2% | 6 | Pass |
+| 950 ms game clock | 950-953 ms | 0.5-79.7% | 25.7% | 7 | Pass |
+
+The three passing profiles make clock management eligible for evidence review
+in SA-06. They show repeated work after the last completed iteration, but do not
+show that stopping earlier would improve strength or justify changing soft or
+hard limits. The suite remains deliberately small, single-threaded, and tied to
+one machine; objective guards cover only two mates and one immediate material
+win. Those limits, and the contextual status of pilots and Arasan labels,
+remain part of every later candidate decision.
 
 #### SA-03 — Capture-ordering audit and one possible experiment
 

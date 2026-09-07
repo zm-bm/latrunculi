@@ -49,9 +49,9 @@ fingerprint; the throughput fields measure speed.
 
 ## Search
 
-Search runs an embedded eleven-position suite containing six stable controls
-and five positions from the 1.0 release pilots. The TT and search heuristics are
-cleared before every position so each row starts cold.
+Search runs an embedded fourteen-position suite containing six controls,
+five positions from the 1.0 release pilots, and three objective guards. The TT
+and search heuristics are cleared before every position so each row starts cold.
 
 ```bash
 ./build/release-dev/latrunculi-measure search
@@ -68,10 +68,11 @@ repetition per process when fresh-process isolation matters.
 
 Case IDs are `startpos`, `arasan20-01`, `arasan20-08`, `arasan20-16`,
 `arasan20-21`, `arasan20-30`, `pilot14-g171-abrupt`,
-`pilot18-g154-abrupt`, `pilot14-g061-gradual`, `pilot18-g093-gradual`, and
-`pilot15-g078-secondary`.
+`pilot18-g154-abrupt`, `pilot14-g061-gradual`, `pilot18-g093-gradual`,
+`pilot15-g078-secondary`, `objective-mate-1`, `objective-mate-2`, and
+`objective-rook-capture`.
 
-TSV output uses `search_measurement_v2` and reports the requested limit, static
+TSV output uses `search_measurement_v3` and reports the requested limit, static
 and searched scores, completed depth, actual nodes, timing, best move, and PV.
 Scores are centipawns from the root side-to-move perspective. Search-statistics
 builds write the existing instrumentation report to stderr, labeled with the
@@ -104,6 +105,6 @@ changes. Timing and throughput require repeated runs and should never become
 unit-test thresholds.
 
 The machine-readable formats are `perft_measurement_v1`,
-`evaluation_throughput_v1`, and `search_measurement_v2`. Increment the relevant
+`evaluation_throughput_v1`, and `search_measurement_v3`. Increment the relevant
 format or workload version whenever its columns, semantics, or embedded
 workload change.
