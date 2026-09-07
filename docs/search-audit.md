@@ -304,8 +304,8 @@ and explicit approval of paired OpenBench validation.
 |---|---|---|
 | `SA-01` | `done` | Consolidate the foundation and workspace hygiene. |
 | `SA-02` | `done` | Establish objective quality and convergence baselines. |
-| `SA-03` | `active` | Audit capture ordering and run at most one gated experiment. |
-| `SA-04` | `pending` | Audit qsearch selectivity and run at most one gated experiment. |
+| `SA-03` | `rejected` | Audit capture ordering and run at most one gated experiment. |
+| `SA-04` | `active` | Audit qsearch selectivity and run at most one gated experiment. |
 | `SA-05` | `pending` | Audit history-aware LMR and run at most one gated experiment. |
 | `SA-06` | `pending` | Rebaseline and choose the next mechanism from evidence. |
 
@@ -606,9 +606,79 @@ disabled leak detection. The pre-behavior release-dev benchmark remains
 - Result: all eleven original cases pass the predeclared opportunity gate; the
   passive diagnostic is behavior-neutral on every compared signature.
 - Artifact path: `tools/measurements/output/sa-03-470a3d7/`.
-- Disposition: `active`; retain the passive diagnostic and stop for explicit
-  approval before pinning or editing the single permitted CaptureHistory
-  behavior candidate. SA-04 remains pending.
+- Disposition at the passive boundary: `active`; retain the passive diagnostic
+  and stop for explicit approval before pinning or editing the single permitted
+  CaptureHistory behavior candidate. SA-04 was pending.
+
+##### SA-03 CaptureHistory candidate
+
+The approved candidate was pinned before behavior code at passive boundary
+`b415f5a`. Each worker's `ordering::State` owns and ages one CaptureHistory and
+clears it with the worker's other search heuristics. Main search and qsearch
+consume `history / 2` only for non-TT ordinary captures at nodes that are not
+in check, after exact SEE has selected the existing good or bad capture band.
+Promotions, en passant, TT priority, and evasions remain unaffected. Only main
+alpha-beta updates history: reward an eligible capture cutoff with the existing
+depth-squared bounded-gravity update and penalize, at half that update, up to
+32 earlier eligible true fail-lows. A true fail-low is
+`value <= alpha_before_move`; an alpha raise is not penalized. Qsearch is a
+read-only consumer. The classification uses the move's final returned result
+after any existing LMR re-search; independently verifying reduced fail-lows is
+reserved for SA-05.
+
+The offset is bounded to `[-512, 512]`. Thus a bad capture remains below the
+`2^22` good-capture boundary, while the least-valued good capture remains at
+least `2^22 + 7 * 100 - 512 = 2^22 + 188`. The promotion score remains `2^28`,
+far above any legal ordinary-capture payload plus the offset. Focused tests
+exercised both saturated signs at these boundaries.
+
+In addition to the common gates, alternate five baseline/candidate
+fresh-process fixed-depth pairs for `startpos` at depth 14, `arasan20-21` at
+depth 21, and `pilot14-g171-abrupt` at depth 18. The geometric mean of their
+per-case median candidate/baseline NPS ratios must be at least 0.98. If the
+candidate qualifies through fixed-depth node reduction, its corresponding
+geometric-mean wall-time ratio must also be below 1.00. This is a local
+throughput guard, not playing-strength evidence.
+
+The candidate's successful-capture ordinal gate pools every alpha raise and
+beta cutoff for ordinary captures in exact-SEE-good and exact-SEE-bad cells,
+across both search contexts, both node types, and all ordinal buckets including
+ordinal 1. Compare exact ordinal sums and success counts by cross
+multiplication. The late-only means above remain the passive opportunity
+measurement and are not an alternate candidate-retention metric.
+
+- Hypothesis: bounded capture-history feedback improves successful-capture
+  ordinal and reduces work to stable depth without weakening convergence or
+  objective solutions.
+- Baseline: immutable search anchor `470a3d7`; passive diagnostic and
+  operational boundary `b415f5a`.
+- Candidate: one per-worker CaptureHistory, read in main/qsearch within the
+  existing ordinary-capture SEE bands and trained only by main-search capture
+  cutoffs and preceding true fail-lows, with the fixed scales above.
+- Measurements: staged focused tests, paired 524,288-node diagnostic screen,
+  terminal-depth selectivity screen, and throughput check. Survivor-only full
+  trajectories, three-repeat fixed-node matrix, complete release and sanitizer
+  suites, and SEARCH-001 rerun were not run after the throughput rejection.
+- Result: focused release tests passed. The paired screen preserved all three
+  objective guards and exact dev/stats signatures; successful-capture ordinal
+  improved in four original cases. Fixed-depth route 1 also passed, with a
+  0.9716 geometric-mean candidate/baseline node ratio and seven cases at or
+  below 0.98. Results were heterogeneous: start position used 1.3973 times the
+  nodes at depth 14 and `pilot14-g061-gradual` used 1.7593 times the nodes at
+  depth 14. The NPS guard passed at 0.9916, but the required wall-time guard
+  failed at 1.0646; start position had a 1.4129 median time ratio. The
+  deterministic candidate benchmark was repeatable at 7,782,835 nodes. That
+  benchmark check ran after the paired screen rather than in its predeclared
+  order, with no intervening candidate or binary change. A premature CTest
+  invocation of the complete suite is retained as a non-gating preflight
+  failure: the candidate-only stress target had not yet been built, and the
+  suite was not rerun after the later rejection.
+- Artifact path:
+  `tools/measurements/output/sa-03-capture-history-b415f5a/`.
+- Disposition: `rejected`; the mixed node reductions did not translate into
+  the required end-to-end time improvement. The frozen candidate patch and
+  evidence remain, while behavior code, candidate-only tests, and candidate
+  build output were removed before activating SA-04.
 
 #### SA-04 — Qsearch shadow audit and one possible pruning experiment
 
