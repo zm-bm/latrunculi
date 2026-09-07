@@ -307,7 +307,8 @@ and explicit approval of paired OpenBench validation.
 | `SA-03` | `rejected` | Audit capture ordering and run at most one gated experiment. |
 | `SA-04` | `done` | Audit qsearch selectivity and run at most one gated experiment. |
 | `SA-05` | `done` | Audit history-aware LMR and run at most one gated experiment. |
-| `SA-06` | `active` | Rebaseline and choose the next mechanism from evidence. |
+| `SA-06` | `done` | Rebaseline and choose the next mechanism from evidence. |
+| `SA-07` | `active` | Audit game-clock iteration starts and test at most one soft-stop rule. |
 
 #### SA-01 — Foundation and hygiene
 
@@ -894,6 +895,106 @@ remaining move ordering, and the clock observation. Add exactly one new SA task
 only if a repeated signal in two independent cases or a deterministic
 correctness failure identifies it. Otherwise close the workstream without an
 unconditional wishlist. `docs/roadmap.md` remains unchanged throughout.
+
+##### SA-06 result — 2026-09-07
+
+The retained operational tree was rebuilt after SA-05 disposition. Its
+`src/search`, `src/eval`, and search tests match the retained SA-02 foundation;
+search and evaluation also match the immutable `470a3d7` behavior anchor. The
+complete dev/stats and ptrace-safe ASan/UBSan suites pass, and both release
+builds reproduce 6,068,328 benchmark nodes. The completed SA-03 and SA-05
+task-specific counters and focused tests are absent; their commits, candidate
+patch, and sealed evidence retain the diagnostic history.
+
+The mechanism review supports only the game-clock signal:
+
+- CaptureHistory exhausted the single permitted ordering experiment and failed
+  its wall-time gate at a 1.0646 geometric-mean candidate/baseline ratio.
+- The qsearch margins would have skipped 3,200, 732, or 206 real beta cutoffs,
+  and all 107 sampled high-history LMR fail-lows were confirmed. Neither
+  mechanism permits another behavior candidate.
+- Existing null-move and main-search futility counts lack eligibility and
+  counterfactual-failure denominators that isolate a repeated mechanism. They
+  do not support a successor task.
+- All three genuine game-clock profiles pass the predeclared gate. Their suite
+  medians are 24.5%, 24.2%, and 25.7% unfinished work, with 6, 6, and 7 cases
+  at or above 20%. Two pilots repeat above 20% under every profile:
+
+| Original case | 50 ms | 250 ms | 950 ms |
+|---|---:|---:|---:|
+| `pilot18-g154-abrupt` | 43.5% | 34.2% | 56.5% |
+| `pilot15-g078-secondary` | 24.5% | 26.3% | 79.7% |
+
+- Hypothesis: accumulated audit evidence can isolate one next mechanism without
+  turning inconclusive counters into an unconditional search wishlist.
+- Baseline: immutable behavior anchor `470a3d7`; cleaned operational boundary
+  `99e2d8b`.
+- Candidate: none. SA-06 is a read-only synthesis and cleanup boundary.
+- Measurements: sealed SEARCH-001 and SA-02 through SA-05 summaries, including
+  the SA-03 candidate and SA-05 verifier artifacts.
+- Result: only the repeated game-clock unfinished-iteration signal satisfies
+  the two-case evidence gate.
+- Artifact path: no new SA-06 artifact directory. Inputs remain in the sealed
+  `search-001-470a3d7/`, `sa-02-470a3d7/`, `sa-03-470a3d7/`,
+  `sa-03-capture-history-b415f5a/`, `sa-04-470a3d7/`,
+  `sa-05-470a3d7/`, and `sa-05-verifier-25bb133/` siblings beneath
+  `tools/measurements/output/`.
+- Disposition: `done`; add exactly one successor, SA-07, and make it active.
+  Do not execute it as part of SA-06. No behavior candidate qualified in SA-04
+  or SA-05, so no OpenBench test is warranted.
+
+#### SA-07 — Audit game-clock iteration starts and test at most one soft-stop rule
+
+SA-02 found repeated unfinished-iteration work under every genuine game-clock
+profile. This supports auditing whether the engine should decline to start an
+iteration unlikely to finish, but does not support changing the allocated-time
+formula or hard deadline.
+
+First add temporary, behavior-neutral instrumentation for main-worker root
+iterations. Record allocated time and, for each depth, start and completion
+elapsed time and node count, plus whether the iteration was interrupted. The
+existing UCI progress stream is insufficient because it can report partial
+root improvements and suppress a duplicate completion report. Remove this
+instrumentation before candidate measurement.
+
+Collect the complete fourteen-case suite with five fresh repetitions of the
+existing 50 ms, 250 ms, and 950 ms game-clock profiles. For a completed depth
+`d`, let `T_d` be its completion time. Evaluate these offline predictors for
+`m` in `{1, 2, 4}`:
+
+```text
+T_d + m * (T_d - T_(d-1)) >= allocated_time
+```
+
+A multiplier qualifies only if all of these hold:
+
+- it never predicts stopping before the baseline's final completed depth;
+- it predicts stopping at that final depth with at least 20% of the allocation
+  remaining in at least three of five repetitions;
+- that result occurs in at least two original cases, each under at least two
+  clock profiles; and
+- all objective predicates and fixed-depth signatures remain intact.
+
+Select the smallest qualifying multiplier. If none qualifies, finish SA-07
+`done` without behavior code.
+
+The sole permitted candidate skips starting the next root iteration when the
+selected predictor fires. Apply it only to genuine `wtime`/`btime` searches.
+Do not change allocation, the hard deadline, or explicit `movetime`, node,
+depth, mate, infinite, or ponder behavior.
+
+Alternate five baseline/candidate pairs over the complete suite and all three
+clock profiles. The candidate must lose no completed depth in any pair,
+preserve the accepted signature at every common depth, preserve every timed
+objective solution, and reduce median elapsed time by at least 20% in the
+qualifying case/profile groups. This clock-efficiency gate replaces only the
+common fixed-depth selectivity gate; every other common correctness,
+reproducibility, convergence, SEARCH-001, SA-02, sanitizer, and benchmark gate
+still applies. Because the candidate is inactive for fixed limits, those
+signatures and the 6,068,328-node benchmark must remain exact.
+
+A passing candidate remains active for paired OpenBench validation. A failing
+candidate is removed and SA-07 becomes `rejected`.
 
 ### Experiment record template
 
