@@ -99,6 +99,27 @@ TEST_F(SearchThreadPoolTest, StartSearchCompletes) {
     EXPECT_EQ(best_move_count(), 1);
 }
 
+TEST_F(SearchThreadPoolTest, ReportsGameClockRootIterationsAfterSearch) {
+    ThreadPool single_thread_pool{1, reporter};
+    Limits     limits;
+    limits.set_depth(2);
+    limits.set_wtime(90000);
+    limits.set_btime(90000);
+    limits.set_movestogo(30);
+
+    ASSERT_TRUE(single_thread_pool.start_search(board, limits));
+    single_thread_pool.wait();
+
+    ASSERT_EQ(reporter.best_moves.size(), 1U);
+    ASSERT_EQ(reporter.diagnostics.size(), 1U);
+    const std::string& diagnostic = reporter.diagnostics.front();
+    EXPECT_TRUE(diagnostic.starts_with("RootIterations: schema=1 allocated-ms=2950\n"));
+    EXPECT_NE(diagnostic.find("RootIteration: depth=1 "), std::string::npos);
+    EXPECT_NE(diagnostic.find("RootIteration: depth=2 "), std::string::npos);
+    EXPECT_NE(diagnostic.find("RootIterationsTotal: schema=1 rows=2 completed=2 interrupted=0\n"),
+              std::string::npos);
+}
+
 TEST(SearchThreadPoolTransitionTest, ImmediateRestartAfterBestMovePublicationIsAccepted) {
     GatedSearchReporter reporter;
     ThreadPool          pool{2, reporter};
