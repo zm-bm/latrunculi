@@ -306,8 +306,8 @@ and explicit approval of paired OpenBench validation.
 | `SA-02` | `done` | Establish objective quality and convergence baselines. |
 | `SA-03` | `rejected` | Audit capture ordering and run at most one gated experiment. |
 | `SA-04` | `done` | Audit qsearch selectivity and run at most one gated experiment. |
-| `SA-05` | `active` | Audit history-aware LMR and run at most one gated experiment. |
-| `SA-06` | `pending` | Rebaseline and choose the next mechanism from evidence. |
+| `SA-05` | `done` | Audit history-aware LMR and run at most one gated experiment. |
+| `SA-06` | `active` | Rebaseline and choose the next mechanism from evidence. |
 
 #### SA-01 — Foundation and hygiene
 
@@ -839,6 +839,47 @@ release tests, ASan/UBSan, and both 6,068,328-node benchmark anchors pass.
 - Artifact path: `tools/measurements/output/sa-05-470a3d7/`.
 - Disposition: `active`; seal this passive boundary, then verify the selected
   fail-lows before considering behavior code.
+
+##### Temporary verifier result — 2026-09-07
+
+The verifier ran from passive boundary `25bb133` using temporary, stats-only
+commit `7aa0f46`. Each of the 107 frozen occurrences was replayed in a fresh
+process at its case's fixed-depth horizon, which ranged from depth 10 through
+16. Every active sample prefix matched its control exactly, every target was
+reached once, and every unreduced null-window replay remained at or below the
+captured alpha:
+
+| Eligible original cases | Selected occurrences | Confirmed fail-lows | False fail-lows | Cases with a false fail-low |
+|---:|---:|---:|---:|---:|
+| 10 | 107 | 107 | 0 | 0 |
+
+The collection also preserved 20 dev/stats controls and eight invalid-interface
+probes. All ten control signature pairs match. A separate 14-process
+verification boundary passed the focused and complete dev/stats suites, the
+ptrace-safe ASan/UBSan suite, both 6,068,328-node benchmarks, and clean-diff
+checks. The sealed artifact contains 540 raw matrix files and 56 raw
+verification files; its manifests validate the raw and derived partitions,
+frozen harness, verifier patch, and all six earlier protected evidence trees.
+
+- Hypothesis: some high-history quiet moves classified as reduced fail-lows
+  would exceed the original alpha if searched at unreduced depth.
+- Baseline: immutable search behavior `470a3d7`; retained passive boundary
+  `25bb133`.
+- Candidate: no behavior candidate. Temporary commit `7aa0f46` adds only the
+  isolated, deliberately contaminating verifier and is not part of the
+  operational branch.
+- Measurements: 107 paired reduced/unreduced searches across ten original
+  cases, plus 20 controls, eight interface rejections, and 14 preserved
+  verification invocations.
+- Result: all 107 reduced fail-lows were independently confirmed; no original
+  case produced a false fail-low.
+- Artifact path:
+  `tools/measurements/output/sa-05-verifier-25bb133/`.
+- Disposition: `done`; the required two-case signal is absent, so the sole
+  history-aware LMR behavior candidate is not permitted. The sealed verifier
+  commit and evidence are retained as provenance, while temporary verifier
+  code and task-specific passive counters/tests are absent from the
+  operational worktree. SA-06 is active.
 
 #### SA-06 — Rebaseline and select evidence-supported work
 

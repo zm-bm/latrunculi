@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -14,151 +13,6 @@
 namespace search {
 
 constexpr bool stats_enabled = LATRUNCULI_SEARCH_STATS;
-
-enum class CaptureOrderContext : std::uint8_t { Main, Qsearch, Count };
-enum class CaptureOrderNode : std::uint8_t { Pv, NonPv, Count };
-enum class CaptureOrderStage : std::uint8_t {
-    Tt,
-    QsearchTtSeeBad,
-    Evasion,
-    Promotion,
-    ExactSeeGood,
-    ExactSeeBad,
-    Count,
-};
-enum class CaptureOrderMove : std::uint8_t { OrdinaryCapture, EnPassant, Promotion, Quiet, Count };
-enum class CaptureOrderBucket : std::uint8_t { One, Two, ThreeFour, FiveEight, NinePlus, Count };
-
-inline constexpr std::size_t capture_order_context_count =
-    static_cast<std::size_t>(CaptureOrderContext::Count);
-inline constexpr std::size_t capture_order_node_count =
-    static_cast<std::size_t>(CaptureOrderNode::Count);
-inline constexpr std::size_t capture_order_stage_count =
-    static_cast<std::size_t>(CaptureOrderStage::Count);
-inline constexpr std::size_t capture_order_move_count =
-    static_cast<std::size_t>(CaptureOrderMove::Count);
-inline constexpr std::size_t capture_order_bucket_count =
-    static_cast<std::size_t>(CaptureOrderBucket::Count);
-inline constexpr std::size_t capture_order_cell_count =
-    capture_order_context_count * capture_order_node_count * capture_order_stage_count
-    * capture_order_move_count * capture_order_bucket_count;
-
-struct CaptureOrderObservation {
-    CaptureOrderContext context{CaptureOrderContext::Main};
-    CaptureOrderNode    node{CaptureOrderNode::NonPv};
-    CaptureOrderStage   stage{CaptureOrderStage::Tt};
-    CaptureOrderMove    move{CaptureOrderMove::Quiet};
-    int                 ordinal{0};
-};
-
-struct CaptureOrderCell {
-    std::uint64_t fail_lows{0};
-    std::uint64_t alpha_raises{0};
-    std::uint64_t beta_cutoffs{0};
-    std::uint64_t success_ordinal_sum{0};
-};
-
-enum class LmrNode : std::uint8_t { Pv, NonPv, Count };
-enum class LmrMoveClass : std::uint8_t { Quiet, Noisy, Count };
-enum class LmrReductionBucket : std::uint8_t { One, Two, ThreePlus, Count };
-enum class LmrHistoryBucket : std::uint8_t {
-    LeNegative1024,
-    Negative,
-    Zero,
-    Positive,
-    Ge1024,
-    NotApplicable,
-    Count,
-};
-
-inline constexpr std::size_t lmr_node_count       = static_cast<std::size_t>(LmrNode::Count);
-inline constexpr std::size_t lmr_move_class_count = static_cast<std::size_t>(LmrMoveClass::Count);
-inline constexpr std::size_t lmr_depth_count      = engine::max_search_depth + 1;
-inline constexpr std::size_t lmr_reduction_bucket_count =
-    static_cast<std::size_t>(LmrReductionBucket::Count);
-inline constexpr std::size_t lmr_history_bucket_count =
-    static_cast<std::size_t>(LmrHistoryBucket::Count);
-inline constexpr std::size_t lmr_history_cell_count = lmr_node_count * lmr_move_class_count
-                                                    * lmr_depth_count * lmr_reduction_bucket_count
-                                                    * lmr_history_bucket_count;
-
-struct LmrObservation {
-    LmrNode      node{LmrNode::NonPv};
-    LmrMoveClass move_class{LmrMoveClass::Quiet};
-    int          depth{0};
-    int          reduction{0};
-    int          history_score{0};
-};
-
-struct LmrHistoryCell {
-    std::uint64_t attempts{0};
-    std::uint64_t reduced_interrupted{0};
-    std::uint64_t reduced_fail_lows{0};
-    std::uint64_t reduced_alpha_raises{0};
-    std::uint64_t research_interrupted{0};
-    std::uint64_t research_refuted{0};
-    std::uint64_t research_alpha_raises{0};
-    std::uint64_t research_cutoffs{0};
-};
-
-constexpr CaptureOrderBucket capture_order_bucket(const int ordinal) {
-    if (ordinal <= 1)
-        return CaptureOrderBucket::One;
-    if (ordinal == 2)
-        return CaptureOrderBucket::Two;
-    if (ordinal <= 4)
-        return CaptureOrderBucket::ThreeFour;
-    if (ordinal <= 8)
-        return CaptureOrderBucket::FiveEight;
-    return CaptureOrderBucket::NinePlus;
-}
-
-constexpr std::size_t capture_order_index(CaptureOrderContext context,
-                                          CaptureOrderNode    node,
-                                          CaptureOrderStage   stage,
-                                          CaptureOrderMove    move,
-                                          CaptureOrderBucket  bucket) {
-    std::size_t index = static_cast<std::size_t>(context);
-    index             = index * capture_order_node_count + static_cast<std::size_t>(node);
-    index             = index * capture_order_stage_count + static_cast<std::size_t>(stage);
-    index             = index * capture_order_move_count + static_cast<std::size_t>(move);
-    return index * capture_order_bucket_count + static_cast<std::size_t>(bucket);
-}
-
-constexpr LmrReductionBucket lmr_reduction_bucket(const int reduction) {
-    if (reduction <= 1)
-        return LmrReductionBucket::One;
-    if (reduction == 2)
-        return LmrReductionBucket::Two;
-    return LmrReductionBucket::ThreePlus;
-}
-
-constexpr LmrHistoryBucket lmr_history_bucket(const LmrMoveClass move_class,
-                                              const int          history_score) {
-    if (move_class == LmrMoveClass::Noisy)
-        return LmrHistoryBucket::NotApplicable;
-    if (history_score <= -1024)
-        return LmrHistoryBucket::LeNegative1024;
-    if (history_score < 0)
-        return LmrHistoryBucket::Negative;
-    if (history_score == 0)
-        return LmrHistoryBucket::Zero;
-    if (history_score < 1024)
-        return LmrHistoryBucket::Positive;
-    return LmrHistoryBucket::Ge1024;
-}
-
-constexpr std::size_t lmr_history_index(const LmrNode            node,
-                                        const LmrMoveClass       move_class,
-                                        const int                depth,
-                                        const LmrReductionBucket reduction,
-                                        const LmrHistoryBucket   history) {
-    std::size_t index = static_cast<std::size_t>(node);
-    index             = index * lmr_move_class_count + static_cast<std::size_t>(move_class);
-    index             = index * lmr_depth_count + static_cast<std::size_t>(depth);
-    index             = index * lmr_reduction_bucket_count + static_cast<std::size_t>(reduction);
-    return index * lmr_history_bucket_count + static_cast<std::size_t>(history);
-}
 
 struct Counters {
     using CounterArray = std::array<std::uint64_t, engine::max_search_ply>;
@@ -192,9 +46,6 @@ struct Counters {
     CounterArray quiet_malus_failed_quiets{0};
     CounterArray quiet_malus_updates{0};
 
-    std::array<CaptureOrderCell, capture_order_cell_count> capture_order{};
-    std::array<LmrHistoryCell, lmr_history_cell_count>     lmr_history{};
-
     std::uint64_t aspiration_fail_lows{0};
     std::uint64_t aspiration_fail_highs{0};
 };
@@ -205,36 +56,30 @@ class Instrumentation;
 template <>
 class Instrumentation<false> {
 public:
-    void reset() {}
-    void node(int) {}
-    void qnode(int) {}
-    void beta_cutoff(int, int) {}
-    void pvs_research(int) {}
-    void aspiration_fail_low() {}
-    void aspiration_fail_high() {}
-    void main_tt_probe(int) {}
-    void main_tt_hit(int) {}
-    void main_tt_cutoff(int) {}
-    void q_tt_probe(int) {}
-    void q_tt_hit(int) {}
-    void q_tt_cutoff(int) {}
-    void null_move_try(int) {}
-    void null_move_cutoff(int) {}
-    void razor_try(int) {}
-    void razor_cutoff(int) {}
-    void futility_skip(int) {}
-    void lmr_try(int) {}
-    void lmr_research(int) {}
-    void quiet_cutoff(int) {}
-    void quiet_malus_eligible_node(int) {}
-    void quiet_malus_failed_quiet(int) {}
-    void quiet_malus_update(int) {}
-    void capture_order(const CaptureOrderObservation&, EvalValue, EvalValue, EvalValue) {}
-    void lmr_history_attempt(const LmrObservation&) {}
-    void lmr_history_reduced_interrupted(const LmrObservation&) {}
-    void lmr_history_reduced_result(const LmrObservation&, EvalValue, EvalValue) {}
-    void lmr_history_research_interrupted(const LmrObservation&) {}
-    void lmr_history_research_result(const LmrObservation&, EvalValue, EvalValue, EvalValue) {}
+    void        reset() {}
+    void        node(int) {}
+    void        qnode(int) {}
+    void        beta_cutoff(int, int) {}
+    void        pvs_research(int) {}
+    void        aspiration_fail_low() {}
+    void        aspiration_fail_high() {}
+    void        main_tt_probe(int) {}
+    void        main_tt_hit(int) {}
+    void        main_tt_cutoff(int) {}
+    void        q_tt_probe(int) {}
+    void        q_tt_hit(int) {}
+    void        q_tt_cutoff(int) {}
+    void        null_move_try(int) {}
+    void        null_move_cutoff(int) {}
+    void        razor_try(int) {}
+    void        razor_cutoff(int) {}
+    void        futility_skip(int) {}
+    void        lmr_try(int) {}
+    void        lmr_research(int) {}
+    void        quiet_cutoff(int) {}
+    void        quiet_malus_eligible_node(int) {}
+    void        quiet_malus_failed_quiet(int) {}
+    void        quiet_malus_update(int) {}
     std::string str() const { return {}; }
 
     Instrumentation& operator+=(const Instrumentation&) { return *this; }
@@ -369,70 +214,6 @@ public:
             counters.quiet_malus_updates[depth]++;
     }
 
-    void capture_order(const CaptureOrderObservation& observation,
-                       const EvalValue                value,
-                       const EvalValue                alpha_before_move,
-                       const EvalValue                beta) {
-        if (observation.ordinal <= 0)
-            return;
-
-        CaptureOrderCell& cell =
-            counters.capture_order[capture_order_index(observation.context,
-                                                       observation.node,
-                                                       observation.stage,
-                                                       observation.move,
-                                                       capture_order_bucket(observation.ordinal))];
-        if (value >= beta) {
-            cell.beta_cutoffs++;
-            cell.success_ordinal_sum += static_cast<std::uint64_t>(observation.ordinal);
-        } else if (value > alpha_before_move) {
-            cell.alpha_raises++;
-            cell.success_ordinal_sum += static_cast<std::uint64_t>(observation.ordinal);
-        } else {
-            cell.fail_lows++;
-        }
-    }
-
-    void lmr_history_attempt(const LmrObservation& observation) {
-        if (LmrHistoryCell* cell = lmr_cell(observation))
-            cell->attempts++;
-    }
-
-    void lmr_history_reduced_interrupted(const LmrObservation& observation) {
-        if (LmrHistoryCell* cell = lmr_cell(observation))
-            cell->reduced_interrupted++;
-    }
-
-    void lmr_history_reduced_result(const LmrObservation& observation,
-                                    const EvalValue       value,
-                                    const EvalValue       alpha_before_move) {
-        if (LmrHistoryCell* cell = lmr_cell(observation)) {
-            if (value > alpha_before_move)
-                cell->reduced_alpha_raises++;
-            else
-                cell->reduced_fail_lows++;
-        }
-    }
-
-    void lmr_history_research_interrupted(const LmrObservation& observation) {
-        if (LmrHistoryCell* cell = lmr_cell(observation))
-            cell->research_interrupted++;
-    }
-
-    void lmr_history_research_result(const LmrObservation& observation,
-                                     const EvalValue       value,
-                                     const EvalValue       alpha_before_move,
-                                     const EvalValue       beta) {
-        if (LmrHistoryCell* cell = lmr_cell(observation)) {
-            if (value >= beta)
-                cell->research_cutoffs++;
-            else if (value > alpha_before_move)
-                cell->research_alpha_raises++;
-            else
-                cell->research_refuted++;
-        }
-    }
-
     Instrumentation& operator+=(const Instrumentation& other);
 
     const Counters& raw_counters() const { return counters; }
@@ -441,19 +222,6 @@ public:
 private:
     static bool valid_index(const int index) {
         return index >= 0 && index < engine::max_search_ply;
-    }
-
-    LmrHistoryCell* lmr_cell(const LmrObservation& observation) {
-        if (observation.depth < 3 || observation.depth > engine::max_search_depth
-            || observation.reduction <= 0)
-            return nullptr;
-
-        return &counters.lmr_history[lmr_history_index(
-            observation.node,
-            observation.move_class,
-            observation.depth,
-            lmr_reduction_bucket(observation.reduction),
-            lmr_history_bucket(observation.move_class, observation.history_score))];
     }
 
     Counters counters;
