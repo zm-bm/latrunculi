@@ -1,8 +1,6 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
-#include <format>
-#include <iterator>
 #include <mutex>
 
 #include "board/board.hpp"
@@ -82,9 +80,8 @@ EvalValue Worker::search() {
 
 void Worker::reset_search_state() {
     reset_nodes();
-    search_ply                = 0;
-    root_result               = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
-    root_iteration_trace_size = 0;
+    search_ply  = 0;
+    root_result = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
     root_lines.clear();
     last_reported_root_line.reset();
     pending_best_move.reset();
@@ -166,13 +163,10 @@ void Worker::publish_final_result() {
     reporter.report_best_move(*pending_best_move);
     pending_best_move.reset();
 
-    std::string diagnostic = root_iteration_diagnostic();
     if constexpr (stats_enabled) {
         auto stats = thread_pool.aggregate_instrumentation();
-        diagnostic += stats.str();
+        reporter.report_diagnostic(stats.str());
     }
-    if (!diagnostic.empty())
-        reporter.report_diagnostic(diagnostic);
 }
 
 void Worker::report_root_progress(const RootLine& line) {
@@ -181,69 +175,6 @@ void Worker::report_root_progress(const RootLine& line) {
 
     reporter.report_progress(line, board, total_nodes(), runtime());
     last_reported_root_line = line;
-}
-
-bool Worker::traces_root_iterations() const noexcept {
-    return is_main_worker() && limits.wtime.has_value() && limits.btime.has_value()
-        && !limits.movetime.has_value();
-}
-
-void Worker::start_root_iteration_trace(const int depth) {
-    assert(traces_root_iterations());
-    assert(root_iteration_trace_size < root_iteration_trace.size());
-
-    RootIterationTraceRow& row = root_iteration_trace[root_iteration_trace_size++];
-    row                        = {
-                               .depth       = depth,
-                               .start_time  = runtime(),
-                               .start_nodes = total_nodes(),
-    };
-}
-
-void Worker::finish_root_iteration_trace(const bool completed) {
-    assert(traces_root_iterations());
-    assert(root_iteration_trace_size > 0);
-
-    RootIterationTraceRow& row = root_iteration_trace[root_iteration_trace_size - 1];
-    row.end_time               = runtime();
-    row.end_nodes              = total_nodes();
-    row.completed              = completed;
-}
-
-std::string Worker::root_iteration_diagnostic() const {
-    if (root_iteration_trace_size == 0)
-        return {};
-
-    assert(allocated_time.has_value());
-
-    std::string result;
-    auto        output = std::back_inserter(result);
-    output             = std::format_to(
-        output, "RootIterations: schema=1 allocated-ms={}\n", allocated_time->count());
-
-    std::size_t completed_count   = 0;
-    std::size_t interrupted_count = 0;
-    for (std::size_t index = 0; index < root_iteration_trace_size; ++index) {
-        const RootIterationTraceRow& row = root_iteration_trace[index];
-        completed_count += row.completed ? 1 : 0;
-        interrupted_count += row.completed ? 0 : 1;
-        output = std::format_to(output,
-                                "RootIteration: depth={} start-ms={} start-nodes={} end-ms={} "
-                                "end-nodes={} status={}\n",
-                                row.depth,
-                                row.start_time.count(),
-                                row.start_nodes,
-                                row.end_time.count(),
-                                row.end_nodes,
-                                row.completed ? "completed" : "interrupted");
-    }
-
-    std::format_to(output,
-                   "RootIterationsTotal: schema=1 rows={} completed={} interrupted={}\n",
-                   root_iteration_trace_size,
-                   completed_count,
-                   interrupted_count);
-    return result;
 }
 
 // Accounting and limits.

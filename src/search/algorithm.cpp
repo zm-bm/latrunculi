@@ -123,15 +123,7 @@ EvalValue Worker::search_root() {
     for (int depth = 1; depth <= limits.depth && !stop_requested(); ++depth) {
         if (!should_search_root_depth(depth))
             continue;
-
-        const bool trace_root_iteration = traces_root_iterations();
-        if (trace_root_iteration)
-            start_root_iteration_trace(depth);
-        const bool completed = search_root_depth(depth, root_result.value);
-        if (trace_root_iteration)
-            finish_root_iteration_trace(completed);
-
-        if (!completed)
+        if (!search_root_depth(depth, root_result.value))
             break;
         if (limits.has_mate_within_limit(root_result.value))
             break;

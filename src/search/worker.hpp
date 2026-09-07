@@ -1,10 +1,8 @@
 #pragma once
 
-#include <array>
 #include <atomic>
 #include <mutex>
 #include <optional>
-#include <string>
 #include <vector>
 
 #include "board/board.hpp"
@@ -60,18 +58,6 @@ private:
     std::atomic<NodeCount> nodes{0};
     Instrumentation<>      stats;
 
-    struct RootIterationTraceRow {
-        int          depth{0};
-        Milliseconds start_time{0};
-        NodeCount    start_nodes{0};
-        Milliseconds end_time{0};
-        NodeCount    end_nodes{0};
-        bool         completed{false};
-    };
-
-    std::array<RootIterationTraceRow, Limits::max_depth> root_iteration_trace{};
-    std::size_t                                          root_iteration_trace_size{0};
-
     // Non-owning shared services. Both must outlive this worker.
     Reporter&   reporter;
     ThreadPool& thread_pool;
@@ -89,23 +75,19 @@ private:
     std::optional<Move>     pending_best_move;
 
     // Search lifecycle.
-    bool        settle(Board& position);
-    void        reset_search_state();
-    void        clear_search_heuristics();
-    void        wait_for_stop() const noexcept;
-    void        build_root_lines();
-    EvalValue   search_root();
-    RootLine    terminal_root_result() const;
-    bool        search_root_depth(int depth, EvalValue previous_value);
-    bool        search_root_window(int depth, EvalValue alpha, EvalValue beta);
-    void        finalize_root_result(EvalValue value);
-    void        prepare_final_result();
-    void        publish_final_result();
-    void        report_root_progress(const RootLine& line);
-    bool        traces_root_iterations() const noexcept;
-    void        start_root_iteration_trace(int depth);
-    void        finish_root_iteration_trace(bool completed);
-    std::string root_iteration_diagnostic() const;
+    bool      settle(Board& position);
+    void      reset_search_state();
+    void      clear_search_heuristics();
+    void      wait_for_stop() const noexcept;
+    void      build_root_lines();
+    EvalValue search_root();
+    RootLine  terminal_root_result() const;
+    bool      search_root_depth(int depth, EvalValue previous_value);
+    bool      search_root_window(int depth, EvalValue alpha, EvalValue beta);
+    void      finalize_root_result(EvalValue value);
+    void      prepare_final_result();
+    void      publish_final_result();
+    void      report_root_progress(const RootLine& line);
 
     // Root snapshot publication.
     void clear_root_snapshot();
