@@ -1,5 +1,7 @@
 # Search Audit
 
+## Immutable SEARCH-001 baseline
+
 SEARCH-001 audited the current search before any pruning change. The audit did
 not isolate a search mechanism that satisfies the roadmap evidence gate, so it
 does not propose a search-behavior follow-up. Three of the four primary pilot
@@ -7,7 +9,7 @@ moves were no longer selected at the representative fixed-node budget. The one
 remaining primary case changed score, but not move, at the larger budget and
 did not share a distinguishing counter profile with the controls.
 
-## Baseline and provenance
+### Baseline and provenance
 
 - Baseline: `470a3d75c31a13e5f791dc0ee2476c6974be346d`
   (`v1.0.0-7-g470a3d7`), with a clean worktree before measurement.
@@ -35,7 +37,7 @@ match the release record; this is recorded as a provenance limitation rather
 than repaired here. Each selected FEN occurs exactly once in its pinned member
 and game.
 
-## Suite and protocol
+### Suite and protocol
 
 The suite keeps `startpos` and Arasan 20 positions 01, 08, 16, 21, and 30 as
 controls. Four primary cases cover abrupt and gradual losses from the
@@ -64,7 +66,7 @@ and PV. Time and NPS are excluded. Static scores are normalized to the original
 Latrunculi side at the root, after its historical move, and after the opponent
 reply.
 
-## Results
+### Results
 
 All 33 fixed-node triplicate groups were exact. Every fixed-node run stopped at
 the requested node count. The `release-dev` and `release-stats` signatures also
@@ -122,7 +124,7 @@ path. Cutoff ordering, aspiration, PVS, null move, razoring, futility, and LMR
 likewise provide no repeated pilot-only signal. The conditional larger reports
 do not change that conclusion.
 
-## Conclusion and limitations
+### Conclusion and limitations
 
 No candidate from SEARCH-001 meets the required gate of a repeatable signal in
 two primary cases, or one primary case plus a relevant control, with counters
@@ -137,3 +139,409 @@ alpha-beta and qsearch nodes, PVS and LMR re-searches overlap, and futility has
 no eligibility denominator. Static comparisons include the alternating tempo
 term. These limits, plus the engine and score-scale differences in the pilot
 PGNs, prevent stronger causal claims without new evidence.
+
+## Continuing search work
+
+This section coordinates incremental search work without reopening or changing
+the SEARCH-001 record above. The objective is to improve useful depth and
+convergence stability through better selectivity without sacrificing move
+quality or correctness. Reported depth alone is not an optimization target.
+Search work is not tracked in `docs/roadmap.md`.
+
+### Definitions
+
+- **Reproducibility:** identical fresh-process, one-thread fixed-node runs agree
+  exactly in completed depth, score, actual nodes, best move, PV, and applicable
+  counters. Timing and NPS are excluded.
+- **Convergence stability:** later accepted depths settle rather than repeatedly
+  changing root move, centipawn score sign, or PV.
+- **Useful depth:** completed depth is credited only while the objective-quality
+  requirements hold and the final three accepted depths satisfy the applicable
+  stability gate.
+- **Selectivity:** fewer nodes reach the same accepted depth or objective
+  solution, or greater useful depth is reached at the same node budget.
+- **Objective quality:** a source-pinned mate or material criterion verified
+  independently of pilot scores. Pilot positions and Arasan best-move labels
+  remain contextual evidence, not correctness oracles.
+
+“Solution” below means an objective case satisfying its pinned predicate. For
+pilots and Arasan controls, the analogous observation is **reference-move
+agreement**, not a solution.
+
+### Operating rules and workspace hygiene
+
+- The immutable comparison anchor is
+  `470a3d75c31a13e5f791dc0ee2476c6974be346d` (`470a3d7`). The coordinating-tool
+  foundation is `ded3fca89155577061cb234324f0e7e626f94c5e` (`ded3fca`), which
+  matches `origin/main` at the start of SA-01 and has no `src/search` or
+  `src/eval` differences from the anchor.
+- Task states are `active`, `pending`, `done`, `rejected`, and `skipped`, with
+  the normal transition `pending -> active -> done|rejected|skipped`. Exactly
+  one task is `active` while the workstream is open. An offline-qualified
+  experiment awaiting approval remains active and blocks the next task. The
+  same rule applies when a diagnostic gate supports a behavior candidate: stop
+  for explicit approval before editing behavior. `done` includes a completed
+  diagnostic that supports no candidate; `rejected` means a tested behavior
+  candidate failed its gate; `skipped` means the task was not run because its
+  prerequisite or eligibility gate was absent.
+- Preserve `docs/search-audit.md`; preserve `docs/roadmap.md` with SEARCH-001
+  absent and no successor; and preserve `tools/measurements/search.cpp`, its
+  README, and `tools/measurements/output/search-001-470a3d7/`. The completed
+  evidence directory is immutable; do not mix later output into it.
+- Preserve `build/release-dev` and `build/release-stats` while work continues.
+  At the SA-01 boundary, both reproduce the required 6,068,328-node benchmark.
+- The ignored executables under `tools/measurements/output/baselines/` are
+  unreferenced, but exact reconstruction was not proved for any of them. Keep
+  `latrunculi-checkpoint-a-c8c69a2`, `latrunculi-eval-goal-d5c50e6`,
+  `latrunculi-infra003-smoke`, and `latrunculi-pawn-002-before`. Remove no other
+  ignored or user-owned artifact.
+- Put future evidence in the sibling directory
+  `tools/measurements/output/sa-XX-<operational-baseline>/`, with provenance in
+  `meta/`, untouched process output in `raw/`, and ignored aggregation material
+  in `derived/`. The suffix names the search-behavior baseline (`470a3d7`
+  initially); `meta/` also pins the full executable/tool revision (`ded3fca`
+  initially), candidate revision or patch, source and binary hashes, compiler
+  and build details, commands, and initial status.
+- Run one case per fresh process with one search thread, cold TT and heuristics,
+  and one internal repetition. Reuse `latrunculi-measure` and the existing
+  search instrumentation; extend them only for a named missing measurement or
+  denominator.
+- Diagnostic code must not change release decisions. A deliberate verifier
+  that searches an otherwise omitted line contaminates that run; use only its
+  paired verification result and remove it before candidate measurement.
+- Change one behavior mechanism at a time. After a rejected experiment or a
+  diagnostic with no candidate, retain referenced raw evidence and any
+  candidate patch, then remove behavior code, temporary toggles or diagnostics,
+  redundant candidate tests, and exact candidate-only build output before the
+  next task. Remove task-specific passive counters after disposition unless a
+  reviewed boundary explicitly retains them for the next task.
+- Before activating the next task, remove task-specific tracked code or stop for
+  approval to commit the retained measurement and documentation foundation.
+  Do not carry an unpinned mixture of task changes across that boundary.
+- Do not change search behavior during diagnostic tasks. Do not commit, push,
+  or start OpenBench without explicit approval. An offline-qualified candidate
+  remains active and stops for approval to commit, push, and run paired
+  OpenBench validation; only an approved retained candidate becomes the next
+  operational baseline.
+
+### Measurement and acceptance contract
+
+For a trajectory ending at a case-specific, predeclared depth `D`, run every
+depth `1..D` in its own fresh process. The row at depth `d` is cumulative;
+iteration nodes are `nodes[d] - nodes[d-1]`. A baseline and candidate use the
+same `D` for each case. If a candidate completes an extra fixed-node depth,
+extend both fixed-depth ladders before crediting it.
+
+First solution depth is the first depth satisfying an objective predicate.
+Stable solution depth is the first satisfying depth whose entire suffix through
+`D` also satisfies it. An objective case must satisfy its expected result at
+each of the final three depths; its scores and PVs need not be identical.
+
+For each case, useful depth is the greatest measured `d >= 3` for which depths
+`d-2..d` have one root move, one score class (negative, zero, or positive
+centipawns, or the same mate direction), and a nonzero PV LCP across both
+adjacent transitions. An objective case must also satisfy its predicate at all
+three depths, and no case receives useful-depth credit if the candidate fails a
+suite-wide objective-quality gate.
+
+“Late” covers depths `D-2`, `D-1`, and `D`. Record adjacent centipawn score
+jumps, root changes, score-sign flips, and PV longest-common-prefix (LCP) in
+plies and as `LCP / min(PV lengths)`. The denominator is therefore the
+shorter of the two PVs. Exclude mate-score transitions from centipawn jump and
+sign-flip statistics and report them separately. Collapse consecutive equal
+root moves before counting A-B-A oscillations. For the full trajectory,
+run-length encode root moves at depths `1..D` and count every consecutive
+`A, B, A` triple where `A != B`. Late A-B-A is one exactly when
+`root[D-2] == root[D] != root[D-1]`, otherwise zero; the common stability gate
+uses the late count. Use nearest-rank p90.
+
+Unless a task states otherwise, the SA-03 through SA-05 passive diagnostic
+matrix is `release-stats`, 524,288 nodes, 32 MiB Hash, one thread, one case per
+fresh process, and one internal and external repetition over the original
+eleven cases plus the three objective guards. “Complete suite” means those
+fourteen cases. Pair each stats row with the same `release-dev` command and
+require its non-timing search signature to match. Counters aggregate all
+iterative-deepening attempts and aspiration retries. Eligibility gates use the
+original eleven cases; suite-wide safety and veto checks use all fourteen. Do
+not pool counts across external repetitions, reruns, or debug collections.
+
+Every behavior candidate must pass all of these gates:
+
+1. Pass focused tests, the complete `release-dev` and `release-stats` CTest
+   suites, and ASan/UBSan.
+2. For the original eleven cases and the three objective guards at 524,288
+   nodes and 32 MiB Hash, agree exactly across three fresh-process, one-thread
+   repetitions under the reproducibility definition. A run terminating before
+   the node cap uses its repeatable actual node count.
+3. Lose no objective solution, reach no objective stable solution later, find
+   no worse mate, and increase no objective case's nodes to stable solution by
+   more than 5%. A worse mate means a missed or incorrect mate result or a
+   longer mate distance.
+4. Across the complete comparison suite, do not increase aggregate late root
+   changes, sign flips, or A-B-A counts; add no full-trajectory or late A-B-A
+   to an objective case; do not increase late score-jump p90; do not reduce
+   median PV survival; and do not increase zero-prefix transitions.
+5. Pass one selectivity test:
+   - At each case's common predeclared comparison depth `D`, the geometric mean
+     over the per-case candidate/baseline cumulative-node ratios is at most
+     0.99, with at least two independent cases at or below 0.98; or
+   - useful fixed-node depth improves by at least one ply in two independent
+     cases while that geometric-mean node ratio is at most 1.00.
+6. Rerun the original SEARCH-001 matrix's eleven cases against its preserved
+   raw baseline, including dev/stats non-timing signature agreement, and rerun
+   the SA-02 trajectories and objective guards. Compare normalized semantic
+   fields and ignore only the `search_measurement_v2`/`v3` format-label change.
+7. Before the first behavior edit, reproduce the anchor's 6,068,328-node
+   benchmark. Run a candidate benchmark twice, require repeatability, and
+   record its new fingerprint rather than requiring the anchor value.
+
+A candidate that passes every offline gate remains active and stops for review
+and explicit approval of paired OpenBench validation.
+
+### Task queue
+
+| Task | State | Scope |
+|---|---|---|
+| `SA-01` | `done` | Consolidate the foundation and workspace hygiene. |
+| `SA-02` | `active` | Establish objective quality and convergence baselines. |
+| `SA-03` | `pending` | Audit capture ordering and run at most one gated experiment. |
+| `SA-04` | `pending` | Audit qsearch selectivity and run at most one gated experiment. |
+| `SA-05` | `pending` | Audit history-aware LMR and run at most one gated experiment. |
+| `SA-06` | `pending` | Rebaseline and choose the next mechanism from evidence. |
+
+#### SA-01 — Foundation and hygiene
+
+Preserve the audit above as immutable evidence, establish this coordination
+contract, and make no search-behavior change. At the clean pre-edit boundary,
+HEAD and `origin/main` were `ded3fca`, its search and evaluation sources matched
+`470a3d7`, both retained builds reproduced 6,068,328 benchmark nodes, and the
+protected SEARCH-001 tree contained 693 regular files. No stale executable met
+the deletion gate, so none was removed.
+
+- Hypothesis: a pinned contract and clean boundary make later experiments
+  comparable and individually reversible.
+- Baseline: `470a3d7` evidence anchor and `ded3fca` coordinating-tool foundation.
+- Candidate: this one-file documentation change only.
+- Measurements: status and source equality, protected-artifact inventory,
+  stale-binary provenance, and both retained benchmark fingerprints.
+- Result: the protected scope is intact; no cleanup candidate is both proved
+  unreferenced and exactly reconstructible.
+- Artifact path: `tools/measurements/output/search-001-470a3d7/` remains the
+  immutable evidence reference; SA-01 creates no new raw measurement directory.
+- Disposition: `done`; the one-file documentation boundary was reviewed and
+  explicitly approved, and SA-02 is active but not yet executed.
+
+SA-01 closes with only `docs/search-audit.md` modified. No SA-02 source change,
+artifact directory, or measurement belongs to this commit.
+
+#### SA-02 — Objective quality and convergence baseline
+
+Add three cases to the existing selector without changing its other options or
+TSV columns, and label the workload `search_measurement_v3`. Do not add `--fen`
+or a progress tracer.
+
+| Case | Objective predicate | Pinned source blob |
+|---|---|---|
+| `objective-mate-1` | any legal mate in one; expected `h8h1` | `tests/search/root_search.test.cpp` at `8cb9b0ca17b3181eed32faa754d1da05ed67df03` |
+| `objective-mate-2` | legal mate in two by depth 3; root move unrestricted | `tests/uci/engine_search.test.cpp` at `313c13ad42dd7f3f2d8b7183c84c831651e63a38` |
+| `objective-rook-capture` | maximal immediate material gain; expected `d1e2` capturing the loose rook | `tests/search/quiescence.test.cpp` at `84716f75b2d5ea49d87f15e1972b4829aa616d6d` |
+
+Before measurement, verify the predicates independently of engine search:
+enumerate every legal root to prove `h8h1` is the unique mate in one (otherwise
+accept any verified mate in one), exhaustively prove a legal mate within three
+plies for `objective-mate-2`, and enumerate immediate material outcomes to
+prove `d1e2` is the unique maximum (otherwise accept any verified equal-or-better
+root outcome). Pin the verifier command or source and its output with the SA-02
+evidence.
+
+Pin the Arasan EPD blob
+`93cbe97d9ee40790eafc984e59cbce3c02a5d7ea` and record contextual labels
+`01:g2g4`, `08:e5e6`, `16:d2e2`, `21:d5f6`, and `30:e5h8`.
+
+All SA-02 fixed-depth, fixed-node, and objective collection uses `release-dev`,
+32 MiB Hash, one thread, one case per fresh process, and one internal and
+external repetition; each trajectory row and 33,554,432-node extension is
+therefore collected once, while the clock profiles retain their stated five
+external repetitions. Run the 33,554,432-node extension once for
+`pilot14-g171-abrupt`, `pilot18-g093-gradual`, and `arasan20-21`. Reconstruct
+fresh-process depths through each original case's 4,194,304-node completed
+depth, except those three cases, which continue through their 33,554,432-node
+completed depth. Run each
+objective case through depth 8. Predeclare case predicates, horizons, and the
+quality, stability, and selectivity summaries before collection, and preserve
+all output under `tools/measurements/output/sa-02-470a3d7/`.
+
+The immutable SEARCH-001 `meta/verify-cli.sh` assumes eleven
+`search_measurement_v2` rows. Copy and adapt its validation logic under the
+SA-02 artifact tree; do not edit the baseline verifier.
+
+Reproduce the preliminary observation that 250 ms searches spent 5.2–43.2% of
+their nodes, median 28.7%, after the last completed iteration. Across the
+original eleven cases, run five fresh repetitions of each clock profile:
+
+| Clock control | Expected allocation |
+|---|---:|
+| `wtime=btime=3000`, `movestogo=30` | 50 ms |
+| `wtime=btime=10000`, `winc=binc=50`, `movestogo=40` | 250 ms |
+| `wtime=btime=30000`, `movestogo=30` | 950 ms |
+
+Pair every timed result with the fixed-depth cumulative nodes at its last
+completed depth `d` and calculate
+`(timed_nodes - fixed_depth_nodes[d]) / timed_nodes`; reject a pairing if the
+difference is negative or the accepted depth-`d` signature disagrees. Explicit
+`movetime` remains a hard-duration request. Clock management becomes eligible
+for SA-06 only if at least two profiles have both a suite median of at least
+20% and at least six cases individually at or above 20%.
+
+If a clock run completes beyond its case's current trajectory horizon, extend
+that case's fresh-process fixed-depth trajectory through the observed depth
+before pairing it; never extrapolate cumulative nodes.
+
+Collect these clock profiles through raw UCI rather than expanding the
+`latrunculi-measure search` schema. An ignored driver under `derived/` starts a
+fresh `release-dev` process per case and repetition, sets Threads to 1 and Hash
+to 32 MiB, sends `ucinewgame`, `isready`, the pinned position, and the exact
+`go` clock fields, waits for `bestmove`, and only then sends `quit`. Preserve
+each stdout and stderr transcript and derive the completed-depth and node fields
+from the final accepted `info depth` line immediately preceding `bestmove`.
+
+#### SA-03 — Capture-ordering audit and one possible experiment
+
+CaptureHistory exists as tested scaffolding but has no production consumer.
+First extend stats with global counters keyed by search context, inferred
+stage, move kind, noisy ordinal bucket, and outcome. Classify outcomes as
+fail-low, alpha raise, or beta cutoff relative to the pre-move alpha. Search
+context is main or qsearch, with PV or NonPV as a separate dimension. Infer the
+relevant stage stats-only as TT, evasion, promotion, exact-SEE-good, or
+exact-SEE-bad, and account for negative-SEE qsearch TT captures separately. Do
+not add Picker state or release-build SEE work.
+
+A noisy ordinal is the one-based count of searched legal moves in the same
+`(context, node type, inferred stage, move kind)` at the current node and resets
+for every node and stage. TT moves, evasions, promotions, en passant, illegal
+moves, and moves in the other exact-SEE band do not consume an ordinary
+capture's ordinal. Use buckets `{1, 2, 3-4, 5-8, 9+}` and report cells
+separately; a per-case eligibility rate may sum their successes and attempts,
+but ordinals remain stage-local. The late-success rate is ordinal-2-or-later
+alpha raises and cutoffs divided by all searched ordinal-2-or-later attempts in
+that population.
+
+The eligibility gate requires two distinct original cases each to show at least
+32 ordinal-2-or-later ordinary-capture successes and a late-success rate of at
+least 2%. A success is an alpha raise or beta cutoff. If the gate passes, keep
+SA-03 `active`, record the finding, and stop for explicit approval before a
+behavior edit. Only then may one candidate add CaptureHistory ownership and
+lifecycle, reward capture cutoffs, and penalize earlier failed captures. Use it
+only to order ordinary captures within the existing SEE-good and SEE-bad score
+bands; leave the promotion band untouched, and never reclassify or prune a
+move. Before behavior code, the experiment record must pin ownership and
+lifecycle, main/qsearch consumer and update populations, reward and malus
+scales, aging and clearing, and score scaling. Determine promotion and exact-SEE
+stage membership before applying history: stage identity and inter-stage
+precedence are primary, and history is only a secondary within-stage key or a
+bounded offset proved unable to cross a boundary. Focused tests at minimum and
+maximum history must prove no move crosses the promotion, SEE-good, or SEE-bad
+bands; adding the raw history value without that proof is forbidden. Alongside
+the buckets, retain the exact ordinal sum for successful captures. “Improved
+successful-capture ordinal” means a strictly lower per-case mean at the same
+fixed-node budget; require it in at least two cases in addition to the common
+gates. If the opportunity gate fails, finish SA-03 `done` with no candidate. If
+a tested candidate fails, remove it and mark SA-03 `rejected`.
+
+#### SA-04 — Qsearch shadow audit and one possible pruning experiment
+
+Qsearch already excludes ordinary exact-SEE-negative captures; this task does
+not propose adding that existing rule. At qsearch nodes that are not in check,
+add stats-only shadow data for searched legal ordinary captures with exact SEE
+at least zero. Capture the node's original `stand_pat`, beta, and, for each
+move, `alpha_before_move` after stand pat and any earlier searched moves; use
+`eval::piece(captured_piece_type).mg` as `captured_value`. At margins 200, 300,
+and 400 centipawns, record total eligible moves, hypothetical skips satisfying
+`stand_pat + captured_value + margin <= alpha_before_move`, and outcomes within
+that skipped population. Exempt TT moves, promotions, en passant, moves that
+give check, and mate windows.
+
+Classify the searched result mutually exclusively as fail-low when
+`value <= alpha_before_move`, alpha raise when
+`alpha_before_move < value < beta`, or cutoff when `value >= beta`. Record PV
+entry independently when the current qsearch calls `pv->update` with that move;
+it may coincide with a raise or cutoff. Separate PV observations from the
+candidate-eligible NonPV population; the first behavior trial exempts every PV
+node.
+
+Choose the largest predeclared margin that produces at least 100 hypothetical
+skips in the NonPV eligibility population in each of two distinct original
+cases, with zero hypothetically skipped alpha raises or cutoffs there across the
+complete suite. The separately reported PV shadow population is a conservative
+veto: any would-be skipped PV entry also disqualifies the margin even though PV
+nodes remain exempt from behavior. If no margin qualifies, finish SA-04 `done`
+without behavior code. If one qualifies, keep SA-04 `active`, record the
+finding, and stop for explicit approval before behavior code. Only then test
+exactly one NonPV rule: prune when
+`stand_pat + captured_value + selected_margin <= alpha_before_move`. Retain it
+only under the common objective-quality, stability, and selectivity gates;
+mark a failing tested candidate `rejected` and remove it.
+
+#### SA-05 — History-aware LMR audit and one possible experiment
+
+The current LMR formula considers depth, move count, node type, check state,
+promotion, quiet status, and killer status, but not history.
+Split LMR attempts by node type, move class, depth, reduction bucket
+`{1, 2, 3+}`, and the combined quiet-ordering score returned by
+`State::quiet_score()`. Quiet and continuation history each saturate at 1024,
+so the reachable combined range is `[-2048, 2048]`; use buckets
+`{<=-1024, -1023..-1, 0, 1..1023, >=1024}`. For each attempt, capture
+`alpha_before_move`, `beta`, and the quiet score before `board.make()`. Classify
+the reduced result as fail-low (`value <= alpha_before_move`) or alpha raise.
+For the existing full-depth re-search after a reduced alpha raise, classify the
+final result as refuted (`value <= alpha_before_move`), confirmed alpha raise
+(`alpha_before_move < value < beta`), or cutoff (`value >= beta`). Unresearched
+high-history reduced fail-lows form the verifier population.
+
+Run a temporary stats-only verifier only if passive counters show at least 64
+high-history reduced fail-lows in each of two distinct original cases. The
+passive run selects every 64th deterministic occurrence, capped at 32 per case.
+Replay each selected occurrence in its own fresh process with a fixed-depth
+horizon of `min(completed_depth + 1, max_depth)` and no node or time cap that
+can interrupt the pair. Follow the baseline path without earlier verification,
+activate exactly one verifier at the selected occurrence, suppress verifier
+recursion and subtree sampling, and search the same move at unreduced depth
+with the original null window and captured `alpha_before_move`. A result at or
+below that alpha confirms the fail-low; a result above it is a false reduced
+fail-low. The null-window verifier does not subdivide false fail-lows into alpha
+raises and beta cutoffs. Treat the replay as contaminated, retain only its
+paired outcome, and discard the remainder of its counters. Remove the verifier
+before candidate measurement.
+
+Permit a candidate only if false reduced fail-lows occur in at least two
+distinct original cases. If that gate passes, keep SA-05 `active`, record the
+finding, and stop for explicit approval before behavior code. The sole
+permitted candidate shape is to reduce strong quiet moves with combined
+history at least 1024 by one ply less, floored at zero; never increase
+reductions elsewhere. If the evidence gate fails, finish SA-05 `done` with no
+candidate. Apply the common gates to a tested candidate; if it fails, remove it
+completely and mark SA-05 `rejected`.
+
+#### SA-06 — Rebaseline and select evidence-supported work
+
+After every rejected candidate, preserve referenced raw evidence and the
+candidate patch, remove its behavior and temporary material as specified
+above, and rebuild the retained operational baseline. After an approved
+retained candidate, record its commit and repeatable benchmark fingerprint
+while keeping `470a3d7` as the immutable comparison anchor.
+
+Compare accumulated evidence for null-move eligibility, futility denominators,
+remaining move ordering, and the clock observation. Add exactly one new SA task
+only if a repeated signal in two independent cases or a deterministic
+correctness failure identifies it. Otherwise close the workstream without an
+unconditional wishlist. `docs/roadmap.md` remains unchanged throughout.
+
+### Experiment record template
+
+- Hypothesis:
+- Baseline:
+- Candidate:
+- Measurements:
+- Result:
+- Artifact path:
+- Disposition:
