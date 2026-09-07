@@ -712,6 +712,15 @@ TEST_F(SearchTest, LmrResearchesAtFullDepthAfterAlphaImprovement) {
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_GT(counters().lmr_tries[0], 0U);
     EXPECT_GT(counters().lmr_researches[0], 0U);
+    std::uint64_t lmr_history_attempts   = 0;
+    std::uint64_t lmr_history_researches = 0;
+    for (const auto& cell : counters().lmr_history) {
+        lmr_history_attempts += cell.attempts;
+        lmr_history_researches +=
+            cell.research_refuted + cell.research_alpha_raises + cell.research_cutoffs;
+    }
+    EXPECT_GT(lmr_history_attempts, 0U);
+    EXPECT_GT(lmr_history_researches, 0U);
 #endif
 }
 

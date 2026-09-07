@@ -796,6 +796,50 @@ reductions elsewhere. If the evidence gate fails, finish SA-05 `done` with no
 candidate. Apply the common gates to a tested candidate; if it fails, remove it
 completely and mark SA-05 `rejected`.
 
+##### Passive audit boundary — 2026-09-07
+
+The behavior-neutral 524,288-node matrix found repeated high-history reduced
+fail-lows in ten of the eleven original cases. The counts below are the
+completed quiet, `history >= 1024` reduced fail-lows; verifier selections use
+every 64th occurrence and are capped at 32 per case.
+
+| Case | Fail-lows | Selected occurrences | Passive gate |
+|---|---:|---:|---|
+| `startpos` | 1,423 | 22 | pass |
+| `arasan20-01` | 713 | 11 | pass |
+| `arasan20-08` | 26 | 0 | fail |
+| `arasan20-16` | 187 | 2 | pass |
+| `arasan20-21` | 3,256 | 32 | pass |
+| `arasan20-30` | 501 | 7 | pass |
+| `pilot14-g171-abrupt` | 562 | 8 | pass |
+| `pilot18-g154-abrupt` | 212 | 3 | pass |
+| `pilot14-g061-gradual` | 610 | 9 | pass |
+| `pilot18-g093-gradual` | 512 | 8 | pass |
+| `pilot15-g078-secondary` | 380 | 5 | pass |
+
+The two mate guards produced no high-history fail-lows and the material guard
+produced two; objective cases do not satisfy the two-case gate. All fourteen
+dev/stats signatures match each other and the sealed SA-04 signatures, the
+legacy stats prefix is byte-identical to SA-03, and all objective guards pass.
+The matrix recorded 12 interrupted reduced searches and two interrupted
+re-searches in their explicit interruption buckets. Focused and complete
+release tests, ASan/UBSan, and both 6,068,328-node benchmark anchors pass.
+
+- Hypothesis: strong quiet moves may be reduced often enough for history-aware
+  LMR protection to matter.
+- Baseline: immutable search behavior `470a3d7`; coordinating boundary
+  `03fee82` with retained SA-03 diagnostics.
+- Candidate: none at this passive boundary; only stats and focused tests are
+  added.
+- Measurements: one paired fresh-process dev/stats run for each of fourteen
+  cases at 524,288 nodes, 32 MiB Hash, and one thread.
+- Result: the repeated-opportunity gate passes in ten original cases; this
+  permits the temporary verifier but is not evidence that any reduction is
+  incorrect or that the candidate will improve search.
+- Artifact path: `tools/measurements/output/sa-05-470a3d7/`.
+- Disposition: `active`; seal this passive boundary, then verify the selected
+  fail-lows before considering behavior code.
+
 #### SA-06 — Rebaseline and select evidence-supported work
 
 After every rejected candidate, preserve referenced raw evidence and the

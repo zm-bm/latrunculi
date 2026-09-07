@@ -89,6 +89,47 @@ std::string_view name(const CaptureOrderBucket bucket) {
     return "unknown";
 }
 
+std::string_view name(const LmrNode node) {
+    switch (node) {
+    case LmrNode::Pv:    return "pv";
+    case LmrNode::NonPv: return "nonpv";
+    case LmrNode::Count: break;
+    }
+    return "unknown";
+}
+
+std::string_view name(const LmrMoveClass move_class) {
+    switch (move_class) {
+    case LmrMoveClass::Quiet: return "quiet";
+    case LmrMoveClass::Noisy: return "noisy";
+    case LmrMoveClass::Count: break;
+    }
+    return "unknown";
+}
+
+std::string_view name(const LmrReductionBucket reduction) {
+    switch (reduction) {
+    case LmrReductionBucket::One:       return "1";
+    case LmrReductionBucket::Two:       return "2";
+    case LmrReductionBucket::ThreePlus: return "3+";
+    case LmrReductionBucket::Count:     break;
+    }
+    return "unknown";
+}
+
+std::string_view name(const LmrHistoryBucket history) {
+    switch (history) {
+    case LmrHistoryBucket::LeNegative1024: return "le-neg-1024";
+    case LmrHistoryBucket::Negative:       return "negative";
+    case LmrHistoryBucket::Zero:           return "zero";
+    case LmrHistoryBucket::Positive:       return "positive";
+    case LmrHistoryBucket::Ge1024:         return "ge-1024";
+    case LmrHistoryBucket::NotApplicable:  return "na";
+    case LmrHistoryBucket::Count:          break;
+    }
+    return "unknown";
+}
+
 } // namespace
 
 void Instrumentation<true>::reset() {
@@ -130,6 +171,22 @@ Instrumentation<true>& Instrumentation<true>::operator+=(const Instrumentation& 
         counters.capture_order[i].beta_cutoffs += other.counters.capture_order[i].beta_cutoffs;
         counters.capture_order[i].success_ordinal_sum +=
             other.counters.capture_order[i].success_ordinal_sum;
+    }
+
+    for (std::size_t i = 0; i < lmr_history_cell_count; ++i) {
+        counters.lmr_history[i].attempts += other.counters.lmr_history[i].attempts;
+        counters.lmr_history[i].reduced_interrupted +=
+            other.counters.lmr_history[i].reduced_interrupted;
+        counters.lmr_history[i].reduced_fail_lows +=
+            other.counters.lmr_history[i].reduced_fail_lows;
+        counters.lmr_history[i].reduced_alpha_raises +=
+            other.counters.lmr_history[i].reduced_alpha_raises;
+        counters.lmr_history[i].research_interrupted +=
+            other.counters.lmr_history[i].research_interrupted;
+        counters.lmr_history[i].research_refuted += other.counters.lmr_history[i].research_refuted;
+        counters.lmr_history[i].research_alpha_raises +=
+            other.counters.lmr_history[i].research_alpha_raises;
+        counters.lmr_history[i].research_cutoffs += other.counters.lmr_history[i].research_cutoffs;
     }
 
     counters.aspiration_fail_lows += other.counters.aspiration_fail_lows;
@@ -338,6 +395,77 @@ std::string Instrumentation<true>::str() const {
                          totals.alpha_raises,
                          totals.beta_cutoffs,
                          totals.success_ordinal_sum);
+
+    out                      = std::format_to(out, "LmrHistory: schema=1\n");
+    std::size_t    lmr_cells = 0;
+    LmrHistoryCell lmr_totals;
+    for (std::size_t node_index = 0; node_index < lmr_node_count; ++node_index) {
+        const auto node = static_cast<LmrNode>(node_index);
+        for (std::size_t move_index = 0; move_index < lmr_move_class_count; ++move_index) {
+            const auto move_class = static_cast<LmrMoveClass>(move_index);
+            for (int depth = 3; depth <= engine::max_search_depth; ++depth) {
+                for (std::size_t reduction_index = 0; reduction_index < lmr_reduction_bucket_count;
+                     ++reduction_index) {
+                    const auto reduction = static_cast<LmrReductionBucket>(reduction_index);
+                    for (std::size_t history_index = 0; history_index < lmr_history_bucket_count;
+                         ++history_index) {
+                        const auto history = static_cast<LmrHistoryBucket>(history_index);
+                        if ((move_class == LmrMoveClass::Quiet)
+                            == (history == LmrHistoryBucket::NotApplicable))
+                            continue;
+
+                        const LmrHistoryCell& cell = counters.lmr_history[lmr_history_index(
+                            node, move_class, depth, reduction, history)];
+                        if (cell.attempts == 0)
+                            continue;
+
+                        ++lmr_cells;
+                        lmr_totals.attempts += cell.attempts;
+                        lmr_totals.reduced_interrupted += cell.reduced_interrupted;
+                        lmr_totals.reduced_fail_lows += cell.reduced_fail_lows;
+                        lmr_totals.reduced_alpha_raises += cell.reduced_alpha_raises;
+                        lmr_totals.research_interrupted += cell.research_interrupted;
+                        lmr_totals.research_refuted += cell.research_refuted;
+                        lmr_totals.research_alpha_raises += cell.research_alpha_raises;
+                        lmr_totals.research_cutoffs += cell.research_cutoffs;
+                        out = std::format_to(
+                            out,
+                            "LmrHistoryCell: node={} move={} depth={} reduction={} history={} "
+                            "attempts={} reduced-interrupted={} reduced-fail-low={} "
+                            "reduced-alpha-raise={} research-interrupted={} "
+                            "research-refuted={} research-alpha-raise={} research-cutoff={}\n",
+                            name(node),
+                            name(move_class),
+                            depth,
+                            name(reduction),
+                            name(history),
+                            cell.attempts,
+                            cell.reduced_interrupted,
+                            cell.reduced_fail_lows,
+                            cell.reduced_alpha_raises,
+                            cell.research_interrupted,
+                            cell.research_refuted,
+                            cell.research_alpha_raises,
+                            cell.research_cutoffs);
+                    }
+                }
+            }
+        }
+    }
+
+    out = std::format_to(out,
+                         "LmrHistoryTotal: schema=1 cells={} attempts={} reduced-interrupted={} "
+                         "reduced-fail-low={} reduced-alpha-raise={} research-interrupted={} "
+                         "research-refuted={} research-alpha-raise={} research-cutoff={}\n",
+                         lmr_cells,
+                         lmr_totals.attempts,
+                         lmr_totals.reduced_interrupted,
+                         lmr_totals.reduced_fail_lows,
+                         lmr_totals.reduced_alpha_raises,
+                         lmr_totals.research_interrupted,
+                         lmr_totals.research_refuted,
+                         lmr_totals.research_alpha_raises,
+                         lmr_totals.research_cutoffs);
 
     return report;
 }

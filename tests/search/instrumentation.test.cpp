@@ -36,6 +36,11 @@ TEST(Instrumentation, DisabledInstrumentationIsEmptyAndNoop) {
     stats.quiet_malus_failed_quiet(1);
     stats.quiet_malus_update(1);
     stats.capture_order({.ordinal = 1}, 0, 0, 1);
+    stats.lmr_history_attempt({});
+    stats.lmr_history_reduced_interrupted({});
+    stats.lmr_history_reduced_result({}, 0, 0);
+    stats.lmr_history_research_interrupted({});
+    stats.lmr_history_research_result({}, 0, 0, 1);
     stats.reset();
     stats += other;
 
@@ -182,6 +187,66 @@ TEST(Instrumentation, RecordsCaptureOrderingOutcomesBucketsAndExactOrdinals) {
     EXPECT_EQ(cell(CaptureOrderBucket::FiveEight).success_ordinal_sum, 0U);
 }
 
+TEST(Instrumentation, RecordsLmrHistoryBucketsAndOutcomes) {
+    Instrumentation<true> stats;
+    const LmrObservation  observation{
+         .node          = LmrNode::Pv,
+         .move_class    = LmrMoveClass::Quiet,
+         .depth         = 6,
+         .reduction     = 2,
+         .history_score = 1024,
+    };
+
+    stats.lmr_history_attempt(observation);
+    stats.lmr_history_reduced_interrupted(observation);
+
+    stats.lmr_history_attempt(observation);
+    stats.lmr_history_reduced_result(observation, 0, 0);
+
+    stats.lmr_history_attempt(observation);
+    stats.lmr_history_reduced_result(observation, 1, 0);
+    stats.lmr_history_research_interrupted(observation);
+
+    stats.lmr_history_attempt(observation);
+    stats.lmr_history_reduced_result(observation, 1, 0);
+    stats.lmr_history_research_result(observation, 0, 0, 100);
+
+    stats.lmr_history_attempt(observation);
+    stats.lmr_history_reduced_result(observation, 1, 0);
+    stats.lmr_history_research_result(observation, 50, 0, 100);
+
+    stats.lmr_history_attempt(observation);
+    stats.lmr_history_reduced_result(observation, 1, 0);
+    stats.lmr_history_research_result(observation, 100, 0, 100);
+
+    const std::size_t index = lmr_history_index(
+        LmrNode::Pv, LmrMoveClass::Quiet, 6, LmrReductionBucket::Two, LmrHistoryBucket::Ge1024);
+    const auto& cell = stats.raw_counters().lmr_history[index];
+    EXPECT_EQ(cell.attempts, 6U);
+    EXPECT_EQ(cell.reduced_interrupted, 1U);
+    EXPECT_EQ(cell.reduced_fail_lows, 1U);
+    EXPECT_EQ(cell.reduced_alpha_raises, 4U);
+    EXPECT_EQ(cell.research_interrupted, 1U);
+    EXPECT_EQ(cell.research_refuted, 1U);
+    EXPECT_EQ(cell.research_alpha_raises, 1U);
+    EXPECT_EQ(cell.research_cutoffs, 1U);
+
+    EXPECT_EQ(lmr_history_bucket(LmrMoveClass::Quiet, -1024), LmrHistoryBucket::LeNegative1024);
+    EXPECT_EQ(lmr_history_bucket(LmrMoveClass::Quiet, -1023), LmrHistoryBucket::Negative);
+    EXPECT_EQ(lmr_history_bucket(LmrMoveClass::Quiet, -1), LmrHistoryBucket::Negative);
+    EXPECT_EQ(lmr_history_bucket(LmrMoveClass::Quiet, 0), LmrHistoryBucket::Zero);
+    EXPECT_EQ(lmr_history_bucket(LmrMoveClass::Quiet, 1), LmrHistoryBucket::Positive);
+    EXPECT_EQ(lmr_history_bucket(LmrMoveClass::Quiet, 1023), LmrHistoryBucket::Positive);
+    EXPECT_EQ(lmr_history_bucket(LmrMoveClass::Quiet, 1024), LmrHistoryBucket::Ge1024);
+    EXPECT_EQ(lmr_history_bucket(LmrMoveClass::Noisy, 1024), LmrHistoryBucket::NotApplicable);
+    EXPECT_EQ(lmr_reduction_bucket(1), LmrReductionBucket::One);
+    EXPECT_EQ(lmr_reduction_bucket(2), LmrReductionBucket::Two);
+    EXPECT_EQ(lmr_reduction_bucket(3), LmrReductionBucket::ThreePlus);
+
+    stats.reset();
+    EXPECT_EQ(stats.raw_counters().lmr_history[index].attempts, 0U);
+}
+
 TEST(Instrumentation, AggregatesCounters) {
     Counters first;
     Counters second;
@@ -252,6 +317,19 @@ TEST(Instrumentation, AggregatesCounters) {
     second.capture_order[capture_index] = {
         .fail_lows = 5, .alpha_raises = 6, .beta_cutoffs = 7, .success_ordinal_sum = 26};
 
+    constexpr std::size_t lmr_index = lmr_history_index(LmrNode::NonPv,
+                                                        LmrMoveClass::Noisy,
+                                                        5,
+                                                        LmrReductionBucket::One,
+                                                        LmrHistoryBucket::NotApplicable);
+    first.lmr_history[lmr_index]    = {
+           .attempts = 4, .reduced_fail_lows = 3, .reduced_alpha_raises = 1, .research_cutoffs = 1};
+    second.lmr_history[lmr_index] = {.attempts             = 6,
+                                     .reduced_interrupted  = 1,
+                                     .reduced_fail_lows    = 4,
+                                     .reduced_alpha_raises = 1,
+                                     .research_refuted     = 1};
+
     Instrumentation<true> total{first};
     total += Instrumentation<true>{second};
 
@@ -287,6 +365,12 @@ TEST(Instrumentation, AggregatesCounters) {
     EXPECT_EQ(counters.capture_order[capture_index].alpha_raises, 9U);
     EXPECT_EQ(counters.capture_order[capture_index].beta_cutoffs, 11U);
     EXPECT_EQ(counters.capture_order[capture_index].success_ordinal_sum, 40U);
+    EXPECT_EQ(counters.lmr_history[lmr_index].attempts, 10U);
+    EXPECT_EQ(counters.lmr_history[lmr_index].reduced_interrupted, 1U);
+    EXPECT_EQ(counters.lmr_history[lmr_index].reduced_fail_lows, 7U);
+    EXPECT_EQ(counters.lmr_history[lmr_index].reduced_alpha_raises, 2U);
+    EXPECT_EQ(counters.lmr_history[lmr_index].research_refuted, 1U);
+    EXPECT_EQ(counters.lmr_history[lmr_index].research_cutoffs, 1U);
 }
 
 TEST(Instrumentation, FormatsStableDiagnostics) {
@@ -346,6 +430,16 @@ TEST(Instrumentation, FormatsStableDiagnostics) {
                                                CaptureOrderBucket::ThreeFour)] = {
         .fail_lows = 3, .alpha_raises = 2, .beta_cutoffs = 1, .success_ordinal_sum = 10};
 
+    counters.lmr_history[lmr_history_index(
+        LmrNode::Pv, LmrMoveClass::Quiet, 4, LmrReductionBucket::One, LmrHistoryBucket::Positive)] =
+        {
+            .attempts             = 4,
+            .reduced_fail_lows    = 2,
+            .reduced_alpha_raises = 2,
+            .research_refuted     = 1,
+            .research_cutoffs     = 1,
+        };
+
     const Instrumentation<true> stats{counters};
 
     EXPECT_EQ(stats.str(), R"(
@@ -363,6 +457,9 @@ CaptureOrdering: schema=1
 CaptureOrderingCell: context=main node=pv stage=tt move=quiet ordinal=1 attempts=4 fail-low=2 alpha-raise=1 beta-cutoff=1 success-ordinal-sum=2
 CaptureOrderingCell: context=qsearch node=nonpv stage=exact-see-good move=ordinary-capture ordinal=3-4 attempts=6 fail-low=3 alpha-raise=2 beta-cutoff=1 success-ordinal-sum=10
 CaptureOrderingTotal: schema=1 cells=2 attempts=10 fail-low=5 alpha-raise=3 beta-cutoff=2 success-ordinal-sum=12
+LmrHistory: schema=1
+LmrHistoryCell: node=pv move=quiet depth=4 reduction=1 history=positive attempts=4 reduced-interrupted=0 reduced-fail-low=2 reduced-alpha-raise=2 research-interrupted=0 research-refuted=1 research-alpha-raise=0 research-cutoff=1
+LmrHistoryTotal: schema=1 cells=1 attempts=4 reduced-interrupted=0 reduced-fail-low=2 reduced-alpha-raise=2 research-interrupted=0 research-refuted=1 research-alpha-raise=0 research-cutoff=1
 )");
 }
 

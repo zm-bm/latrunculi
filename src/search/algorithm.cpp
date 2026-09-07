@@ -456,6 +456,8 @@ EvalValue Worker::alphabeta(
         const bool is_killer    = is_quiet && ordering_state.is_killer(move, search_ply);
 #if LATRUNCULI_SEARCH_STATS
         const EvalValue alpha_before_move = alpha;
+        const int       lmr_history_score =
+            is_quiet ? ordering_state.quiet_score(context, board, move, true) : 0;
 #endif
         board.make(move);
         ++search_ply;
@@ -476,9 +478,25 @@ EvalValue Worker::alphabeta(
         const int reduction = lmr_reduction<Node>(
             depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer);
         if (reduction > 0) {
+#if LATRUNCULI_SEARCH_STATS
+            const LmrObservation lmr_observation{
+                .node          = Node == NodeType::Pv ? LmrNode::Pv : LmrNode::NonPv,
+                .move_class    = is_quiet ? LmrMoveClass::Quiet : LmrMoveClass::Noisy,
+                .depth         = depth,
+                .reduction     = reduction,
+                .history_score = lmr_history_score,
+            };
+            stats.lmr_history_attempt(lmr_observation);
+#endif
             stats.lmr_try(search_ply - 1);
             value = -alphabeta<NodeType::NonPv>(
                 -alpha - 1, -alpha, depth - 1 - reduction, nullptr, true);
+#if LATRUNCULI_SEARCH_STATS
+            if (stop_requested())
+                stats.lmr_history_reduced_interrupted(lmr_observation);
+            else
+                stats.lmr_history_reduced_result(lmr_observation, value, alpha_before_move);
+#endif
             if (!stop_requested() && value > alpha) {
                 stats.lmr_research(search_ply - 1);
                 if constexpr (Node == NodeType::Pv) {
@@ -489,6 +507,13 @@ EvalValue Worker::alphabeta(
                 } else {
                     value = -alphabeta<NodeType::NonPv>(-beta, -alpha, depth - 1, nullptr, true);
                 }
+#if LATRUNCULI_SEARCH_STATS
+                if (stop_requested())
+                    stats.lmr_history_research_interrupted(lmr_observation);
+                else
+                    stats.lmr_history_research_result(
+                        lmr_observation, value, alpha_before_move, beta);
+#endif
             }
         } else {
             // Step 11. Principal variation search.
