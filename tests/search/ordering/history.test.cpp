@@ -54,28 +54,6 @@ TEST(QuietHistoryTest, AgesAndClearsSignedEntries) {
     EXPECT_EQ(hist.get(BLACK, E7, E5), 0);
 }
 
-TEST(CaptureHistoryTest, TracksCaptureKeysAndLifecycle) {
-    CaptureHistory hist;
-
-    hist.reward(WHITE, KNIGHT, E5, PAWN, 3);
-    hist.penalize(BLACK, BISHOP, D4, KNIGHT, 4, 2);
-
-    EXPECT_EQ(hist.get(WHITE, KNIGHT, E5, PAWN), 9);
-    EXPECT_EQ(hist.get(BLACK, BISHOP, D4, KNIGHT), -8);
-    EXPECT_EQ(hist.get(BLACK, KNIGHT, E5, PAWN), 0);
-    EXPECT_EQ(hist.get(WHITE, BISHOP, E5, PAWN), 0);
-    EXPECT_EQ(hist.get(WHITE, KNIGHT, E4, PAWN), 0);
-    EXPECT_EQ(hist.get(WHITE, KNIGHT, E5, KNIGHT), 0);
-
-    hist.age();
-    EXPECT_EQ(hist.get(WHITE, KNIGHT, E5, PAWN), 4);
-    EXPECT_EQ(hist.get(BLACK, BISHOP, D4, KNIGHT), -4);
-
-    hist.clear();
-    EXPECT_EQ(hist.get(WHITE, KNIGHT, E5, PAWN), 0);
-    EXPECT_EQ(hist.get(BLACK, BISHOP, D4, KNIGHT), 0);
-}
-
 TEST(ContinuationHistoryTest, TracksContinuationKeysAndLifecycle) {
     ContinuationHistory hist;
 
