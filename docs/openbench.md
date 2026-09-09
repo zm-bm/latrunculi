@@ -58,15 +58,25 @@ paired games with the engines swapping colors. Use:
 - `Threads=1 Hash=32`
 - resign at 400 cp for three moves
 - draw after move 40 with eight evaluations within 10 cp
-- normalized-Elo SPRT `[0, 5]` for screening or `[0, 3]` for confirmation,
-  with `alpha = beta = 0.05`
+- a predeclared normalized-Elo SPRT profile with `alpha = beta = 0.05`:
+  `[0, 5]` when screening for a larger gain, or `[0, 3]` for an incremental
+  candidate or confirmation
 
-Use `Smoke` for plumbing, `STC` for candidate screening, and `Confirm` for a
-retained batch. The normal worker runs games concurrently; use a temporary
-one-thread worker when a smoke PGN must contain exactly one color-reversed pair.
+Choose one profile before games begin according to the task's expected effect
+and acceptance policy. An upper-bound result is conclusive for that predeclared
+test; a second confirmation is not automatic. Require confirmation when the
+task predeclares it, when the candidate was selected from several tested
+variants, or when risk or a result that conflicts with other evidence warrants
+it.
+Do not use confirmation to retry or override a lower-bound result.
 
-Record the test ID, both revisions, OpenBench revision, decision, and server PGN
-location for retained claims.
+Use `Smoke` for plumbing, `STC` for a candidate test, and `Confirm` for a
+separately justified confirmation. The normal worker runs games concurrently;
+use a temporary one-thread worker when a smoke PGN must contain exactly one
+color-reversed pair.
+
+Record the test ID, profile, both revisions, OpenBench revision, decision, and
+server PGN location for retained claims.
 
 ### Release stability test
 

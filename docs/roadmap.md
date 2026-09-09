@@ -1,19 +1,20 @@
 # Engine Roadmap
 
-This is the authoritative development backlog for Latrunculi. The
-[architecture overview](architecture.md) describes the current implementation;
-this document contains only remaining work.
+This is the authoritative backlog for work not currently managed as an
+`SW-XX` search experiment. The [architecture overview](architecture.md)
+describes the current implementation, and active search experiments are
+coordinated separately in [Search Development](search.md).
 
-The current goal is Latrunculi 1.1: improve search quality from the stable,
-tuned 1.0 baseline.
-
-**Now** is the active, ordered workstream. **Next** contains substantial work
-that follows from it. **Later** is an informal backlog rather than a commitment.
-Before implementation, revalidate each identified task against the current
-source and produce an implementation-ready plan. Remove completed tasks instead
-of maintaining a historical log.
+**Now** contains at most one active roadmap item, **Next** contains ordered
+candidates, and **Later** is an informal backlog rather than a commitment.
+Revalidate a task against the current source before implementation. Remove
+completed tasks; history, rather than this file, records their completion.
+When activating a diagnostic item, bound its questions, evidence set, stopping
+conditions, and completion artifact; a null result may complete the item.
 
 ## Now
+
+There is no active roadmap item.
 
 ## Next
 
@@ -25,13 +26,14 @@ from exact material rules, draw scaling, search horizon, and tablebase-covered
 play. Produce an evidence report by material class and failure type; a
 production change is not required.
 
-### END-002 — Add justified endgame mechanisms
+### END-002 — Scope justified endgame mechanisms
 
-Plan individual mechanisms only for repeated, explainable failures found by
-END-001. Candidates may include draw scaling, wrong-bishop rook-pawn handling,
-passed-pawn race context, mop-up guidance, or a small exact bitbase. Each change
-requires activation and counterexample tests, held-out or tablebase evidence,
-retraining of affected linear parameters, and paired match validation.
+If END-001 supports production work, replace this placeholder with separate
+stable-ID items for the repeated, explainable mechanisms it identifies; do not
+implement several mechanisms under this item. Each resulting change requires
+activation and counterexample tests, held-out or tablebase evidence, retraining
+of affected linear parameters, and paired match validation. Remove this item if
+the audit supports no action.
 
 ### TB-001 — Add optional Syzygy support
 
@@ -43,7 +45,7 @@ performance, and equal-access matches.
 
 ## Later
 
-- Design an NNUE backend after the HCE baseline is stable. Preserve the HCE as
+- Treat an NNUE backend as a separate architecture project. Preserve the HCE as
   a readable reference and account for shared immutable networks, per-worker
   accumulator state, and Board make/unmake synchronization.
 - Add UCI capabilities when supported by the corresponding engine feature:
@@ -54,4 +56,4 @@ performance, and equal-access matches.
 - Add continuous integration for supported GCC and Clang builds, tests,
   ASan/UBSan, and a separate ThreadSanitizer configuration.
 - Consider Lichess operation, tournament submission, and broader public testing
-  after the 1.0 release.
+  when engine and operational readiness justify public deployment.
