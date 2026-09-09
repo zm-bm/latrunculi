@@ -19,7 +19,10 @@ do not duplicate it in `docs/roadmap.md`.
    behavior-, build-, test-, or measurement-affecting difference.
 4. Confirm one hypothesis, one reversible candidate, relevant panels, checks,
    task-specific stops or justified `N/A`, and one artifact root.
-5. Preserve unrelated work and sealed evidence. Change `docs/roadmap.md` only
+5. Before Screen, finish implementation and review, then record and freeze the
+   candidate plus result-affecting build inputs. Any later change to either
+   requires an updated predeclaration and a fresh Screen.
+6. Preserve unrelated work and sealed evidence. Change `docs/roadmap.md` only
    when the user requests a cross-workstream transfer or cleanup.
 
 ## Respect Authorization Boundaries
@@ -66,15 +69,25 @@ current task has a disposition.
 
 Only a Screen survivor proceeds:
 
-1. Run focused tests and the complete configured release and sanitizer suites.
-   Use `release-stats` only when instrumentation or counters are needed.
+1. Run focused tests and the complete configured release suite. Select complete
+   sanitizer suites by changed risk: ASan/UBSan for storage, indexing, bounds,
+   depth arithmetic, ownership, lifetime, representation, parsing, or core
+   board/search/TT state; TSan for concurrency, shared state, or worker
+   lifecycle. A scalar tuning change using existing storage and indexing may
+   record sanitizers as `N/A` with a reason; when uncertain, run the relevant
+   suite. If its runtime cannot operate in the runner, repeat the unchanged
+   command in a compatible environment rather than weakening it. Use
+   `release-stats` only when instrumentation or counters are needed.
 2. Run the second fresh-process copy of each deterministic decision panel and
    require candidate-internal exact agreement in the fields defined by
    `docs/search.md`. Evaluate wall-clock-limited panels as repeated
    distributions instead.
 3. Recheck applicable objective, legal, and protocol guards; repeat the
    benchmark; and run repeated timing for clock or stopping changes and when
-   hot-path work changed.
+   hot-path work changed. Record and execute paired variants in their
+   predeclared literal serial order. A missing, reordered, overlapping,
+   interrupted, wrong-input, or unparseable run invalidates the whole batch; a
+   slow valid run does not.
 4. Complete only the mechanism-specific checks predeclared by the task.
    Correct, reproducible marginal candidates remain eligible for paired games.
 

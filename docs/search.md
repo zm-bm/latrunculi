@@ -96,7 +96,11 @@ Before implementation, pin the operational baseline and predeclare the
 candidate, relevant panels, checks, artifact root, and one material stop for
 the mechanism—or `N/A` with a reason. Search results may change;
 candidate-internal reproducibility and objective correctness are invariants.
-Do not add post-hoc cases or diagnostics to rescue or condemn a decided result.
+Finish implementation and review, then freeze the candidate and result-affecting
+build inputs before Screen; record their patch or revision and binary hashes. A
+later candidate or build-input change requires an updated predeclaration and a
+fresh Screen. Do not add post-hoc cases or diagnostics to rescue or condemn a
+decided result.
 
 ### Phase 1 — Screen
 
@@ -123,8 +127,15 @@ Qualification. A correct marginal or mixed result remains eligible to advance.
 
 Only a Screen survivor proceeds:
 
-1. Run focused tests plus complete `release-dev` and `debug-asan-ubsan` CTest
-   suites. Use `release-stats` only when instrumentation or counters are needed.
+1. Run focused tests and the complete `release-dev` CTest suite. Run the complete
+   `debug-asan-ubsan` suite when a candidate changes storage, indexing, bounds or
+   depth arithmetic, ownership, lifetimes, representations, parsing, or
+   board/search/TT state. Run `debug-tsan` for concurrency, shared state, or
+   worker lifecycle. A scalar constant, threshold, weight, or condition-only
+   change using existing storage and indexing may declare sanitizers `N/A` with
+   a reason; when uncertain, run the relevant suite. Do not weaken checks to
+   accommodate the runner—rerun the unchanged command in a compatible
+   environment.
 2. Run a second fresh-process copy of every deterministic decision panel. The
    two candidate passes must agree exactly in completed depth, score, actual
    nodes, best move, and PV; exclude timing and NPS. Evaluate wall-clock-limited
@@ -134,6 +145,10 @@ Only a Screen survivor proceeds:
    record a legitimate new value instead of forcing the baseline value.
 5. Use repeated timing for clock or stopping changes and for candidates that
    add or remove hot-path work, then complete any other predeclared checks.
+   Record and execute paired variants in a predeclared literal serial order.
+   A missing, reordered, overlapping, interrupted, wrong-input, or unparseable
+   run invalidates the whole batch; rerun it before analysis. A slow valid run
+   is not malformed.
 
 A behavior-preserving optimization may finish offline when the task requires
 exact baseline signatures and its throughput gate passes. A behavior-changing
@@ -187,22 +202,39 @@ Completing one task never authorizes starting the next.
   again produced 6,068,328 nodes. Methodology cleanup does not reopen this
   large, repeatable regression; retry 32 cp only with materially new evidence.
 
-### SW-02 — Precompute LMR reductions [pending]
+### SW-02 — Precompute LMR reductions [rejected]
 
-- **Hypothesis / candidate:** Replace hot-loop logarithms with a precomputed
-  reduction table without intentionally changing behavior.
-- **Baseline / panels / stops:** Current operational baseline; exact search
-  signatures and a predeclared repeatable throughput improvement.
-- **Result / artifacts:** Not run.
-- **Disposition / next boundary:** Pending. It may finish offline without
-  OpenBench; any signature change reclassifies it as a behavior candidate.
+- **Hypothesis / candidate:** Replace the hot-loop logarithms with one immutable
+  reduction table keyed by node type, move class, killer status, depth, and move
+  count. Preserve every exemption and the current formula's integer result.
+- **Baseline / panels / stops:** `cef892a1266d5d7a924a4e7fad6cad5d276b886e`
+  (`cef892a`; search behavior `6767e74`); focused search/objective tests, the
+  200-position depth-10 corpus, deterministic benchmark, and paired benchmark
+  timing. Reject in Screen on any correctness, corpus-signature, or benchmark-node
+  change, or a same-core candidate benchmark at least 5% slower than its immediately
+  preceding baseline run. Qualification requires two exact candidate corpus passes
+  and seven alternating same-core benchmark pairs after warm-up, with at least 1%
+  median paired NPS improvement and at least five candidate wins.
+- **Result / artifacts:** Focused and complete release suites passed; the table
+  candidate also passed ASan/UBSan before two final assertion-only edits. The
+  final release suite passed, and the throughput rejection made another
+  sanitizer run unnecessary. Two fresh candidate corpus passes matched each
+  other and the cached baseline exactly across all 200 cases (73,576,036 nodes),
+  and every benchmark retained the 6,068,328-node fingerprint. Across seven
+  alternating same-core pairs, the candidate was faster once; median NPS fell
+  1.767% and mean NPS fell 1.252%. Evidence:
+  `tools/measurements/output/sw-02-cef892a/`.
+- **Disposition / next boundary:** Rejected for failing the predeclared throughput
+  gate and removed. Rebuilt release binaries match the preserved baseline byte for
+  byte, and the restored benchmark produced 6,068,328 nodes. Keep SW-03 pending.
 
 ### SW-03 — Tune quiet LMR selectivity [pending]
 
 - **Hypothesis / candidate:** Change only the quiet LMR divisor from 2.5 to
   2.4; leave noisy moves, the fourth-move threshold, and history unchanged.
 - **Baseline / panels / stops:** Current operational baseline; corpus,
-  objectives, benchmark, and predeclared mechanism-specific stops.
+  objectives, benchmark, and predeclared mechanism-specific stops. Sanitizers
+  are `N/A` if the diff remains parameter-only; reassess if its scope expands.
 - **Result / artifacts:** Not run.
 - **Disposition / next boundary:** Pending. Do not retry high-history
   protection or revert the fourth-move stabilization in this task.
