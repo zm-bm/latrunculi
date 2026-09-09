@@ -12,13 +12,14 @@ Reported depth alone is not an optimization target.
 
 - Immutable comparison anchor: `470a3d75c31a13e5f791dc0ee2476c6974be346d`
   (`470a3d7`).
-- Accepted search and evaluation behavior still matches that anchor.
+- Operational baseline: `6767e7447bfa285bef1daeea30d62f8a69367c42`
+  (`6767e74`); accepted search and evaluation behavior still matches the anchor.
 - Deterministic baseline benchmark: 6,068,328 nodes.
 - Regression foundation: `search_measurement_v3`, eleven original positions,
   three independently verified objective guards, and the sealed artifacts
   beneath `tools/measurements/output/`.
-- Current status: no behavior candidate was retained and no search experiment
-  is active.
+- Current status: `SW-01` is active. Its documentation boundary is established;
+  implementation and testing have not started.
 
 The [measurement guide](../tools/measurements/README.md) lists the fourteen case
 IDs and command interface. The objective predicates are unique `h8h1#`, either
@@ -85,21 +86,49 @@ Aggregate counters also combine iterative-deepening attempts and aspiration
 retries, and some counters overlap. Require mechanism-specific eligibility and
 counterfactual denominators before treating a raw count as candidate evidence.
 
-## Opening a search task
+## Production experiment loop
 
-New tasks use sequential `SW-XX` IDs. Keep exactly one task active and do not
-maintain a speculative mechanism wishlist. Open a task only for either:
+New tasks use sequential `SW-XX` IDs, with exactly one active at a time. A task
+may test a small established search mechanism or tune one existing parameter
+when it has a concrete hypothesis and a reversible candidate; it no longer
+requires the diagnostic audit to isolate that mechanism first. Change one
+mechanism per candidate, dispose of it before opening the next task, and use
+paired games rather than the audit suite to decide playing strength.
 
-- the same mechanism implicated repeatably in at least two independent cases;
-  or
-- one deterministic, objectively verifiable correctness failure such as an
-  illegal move, missed mate, or material error.
+Before implementation, record the hypothesis, operational baseline, sole
+candidate shape, offline checks, artifact path, and intended OpenBench test.
+Add diagnostics only for a named decision that existing output cannot support.
+Do not turn a parameter experiment into an instrumentation project.
 
-Before collection, record the hypothesis, baseline, cases, missing measurement
-or denominator, eligibility gate, sole permitted candidate shape, rejection
-gate, and artifact path. Diagnostics must be behavior-neutral. Extend
-`latrunculi-measure` or search instrumentation only for a named missing
-measurement.
+Search results may legitimately change. Baseline/candidate agreement in score,
+move, PV, nodes, completed depth, or convergence metrics is not required. What
+must remain exact is fresh-process reproducibility within the candidate under
+fixed-node, one-thread conditions.
+
+## Offline safety gates
+
+Every behavior candidate must:
+
+1. Pin the operational baseline and change one mechanism only.
+2. Pass focused tests, complete `release-dev` and `release-stats` suites, and
+   ASan/UBSan.
+3. Produce three identical fresh-process, one-thread fixed-node signatures for
+   the candidate; the signature need not match the baseline.
+4. Preserve legal search and protocol behavior and lose no pinned mate or
+   material objective. A worse mate result is a hard failure.
+5. Produce the same candidate benchmark fingerprint twice. Record a legitimate
+   new fingerprint rather than forcing 6,068,328 nodes.
+6. Avoid a material throughput regression unless the candidate has a clear
+   compensating search-quality benefit. Any added hot-path work requires an
+   explicit wall-time or NPS comparison.
+
+Run the retained fourteen-case suite once as an advisory baseline/candidate
+report. Record fixed-depth nodes, fixed-node completed and useful depth, root
+move, score, PV, and the established late-convergence metrics. Modest
+regressions and changed search results do not reject a candidate by themselves.
+Stop offline only for a correctness failure, candidate nondeterminism, a
+material throughput loss, or broad and severe convergence collapse. The suite
+is a smoke-test dashboard, not a strength oracle.
 
 For a trajectory ending at depth `D`, run every depth `1..D` in its own fresh
 process; rows are cumulative, and baseline and candidate use the same `D`.
@@ -109,33 +138,19 @@ first match whose complete suffix through `D` also matches. “Late” is
 centipawn jump and sign-flip statistics, collapse consecutive equal roots
 before counting A-B-A, and use nearest-rank p90.
 
-## Candidate gates
+## Strength decision
 
-Every behavior candidate must satisfy all of these:
+When the offline safety gates pass and the advisory report has no severe red
+flag, stop for approval to commit and push the candidate. Screen it against the
+pre-change revision with the standard paired OpenBench STC workload and
+normalized-Elo SPRT `[0, 5]`. A candidate that reaches the upper bound proceeds
+to `[0, 3]` confirmation; only an approved confirmed candidate becomes the next
+operational baseline. A lower-bound candidate is rejected and removed. Record
+inconclusive results without calling the candidate accepted.
 
-1. Change one mechanism only and reproduce the 6,068,328-node baseline before
-   the edit.
-2. Pass three exact fresh-process repetitions over the retained fourteen-case
-   suite at 524,288 nodes, 32 MiB Hash, and one thread.
-3. Lose no objective solution, delay no stable solution, worsen no mate, and
-   increase no objective nodes-to-stable-solution by more than 5%.
-4. Do not increase aggregate late root changes, sign flips, A-B-A counts,
-   late-jump p90, or zero-prefix transitions; do not reduce median PV survival;
-   and add no full-trajectory or late A-B-A to an objective case.
-5. Improve fixed-depth geometric-mean nodes by at least 1%, with at least two
-   independent cases improving by 2%; alternatively, gain one useful ply in two
-   cases without increasing geometric-mean nodes.
-6. Add an explicit throughput or wall-time guard whenever the mechanism adds
-   per-node work.
-7. Pass focused tests, complete `release-dev` and `release-stats` suites,
-   ASan/UBSan, the preserved SEARCH-001 matrix and SA-02 trajectory regression,
-   and two repeatable candidate benchmarks. Record a legitimate candidate
-   fingerprint instead of forcing the baseline value.
-
-An offline-qualified candidate stops for review and explicit approval before
-commit, push, or paired OpenBench validation. Only an approved retained
-candidate becomes the operational baseline; `470a3d7` remains the immutable
-comparison anchor.
+Record the test ID, both revisions, benchmark fingerprints, OpenBench revision,
+decision, and PGN artifact. The immutable `470a3d7` comparison anchor remains
+unchanged as operational baselines advance.
 
 ## Evidence and disposition
 
@@ -180,14 +195,39 @@ Artifact path:
 Disposition:
 ```
 
-## Next entry
+## Active and queued experiments
 
-There is no active experiment. The next evidence intake should:
+### SW-01 — Narrow the aspiration window [active]
 
-1. add a small source-pinned objective set beyond the current simple mate and
-   immediate-material guards; and
-2. retain recurring positions from new self-play or release failures with the
-   FEN, side to move, historical sequence, and selection reason.
+- Hypothesis: narrowing the initial root aspiration window from 50 to 32 cp
+  saves enough work on successful searches to outweigh additional retries.
+- Baseline: `6767e7447bfa285bef1daeea30d62f8a69367c42`, benchmark 6,068,328
+  nodes.
+- Candidate: change only `AspirationWindow` from 50 to 32. Add no diagnostics or
+  per-node work.
+- Measurements: not started. Run the offline safety gates and one advisory audit
+  report, then request approval for the standard `[0, 5]` OpenBench screen.
+- Result: pending.
+- Artifact path: `tools/measurements/output/sw-01-6767e74/`.
+- Disposition: active; documentation only, with no implementation or tests yet.
 
-Activate the first `SW-XX` task only when that evidence satisfies the entry
-gate and identifies one mechanism to diagnose.
+### SW-02 — Precompute LMR reductions [pending]
+
+Replace hot-loop logarithms with a precomputed reduction table without
+intentionally changing search behavior. Require exact baseline/candidate search
+signatures and a repeatable throughput improvement; keep this separate from LMR
+parameter tuning.
+
+### SW-03 — Tune quiet LMR selectivity [pending]
+
+Test one conservative quiet-only step, initially divisor 2.5 to 2.4. Leave
+noisy moves, the fourth-move threshold, and history handling unchanged. Do not
+retry the previously rejected high-history protection or revert the earlier
+fourth-move stabilization as part of this task.
+
+After these experiments, select at most one small next mechanism—such as
+reverse futility pruning, shallow late-move pruning, or dynamic null-move
+reduction—from current code and game evidence. Do not open it as a task until
+the preceding candidates have dispositions. Continue retaining recurring
+self-play or release failures as contextual positions, but do not require a new
+diagnostic audit before a reversible production experiment.
