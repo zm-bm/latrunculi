@@ -1,104 +1,103 @@
 ---
 name: advance-latrunculi-search
-description: Advance stable-ID Latrunculi search experiments coordinated in docs/search.md. Use when asked to select, plan, implement, measure, review, dispose of, commit, push, submit or monitor OpenBench, or complete an SW-XX search task.
+description: Advance stable-ID Latrunculi search experiments coordinated in docs/search.md. Use when asked to select, plan, implement, screen, qualify, review, dispose of, commit, push, submit or monitor OpenBench, or complete an SW-XX search task.
 ---
 
 # Advance Latrunculi Search
 
-Use `docs/search.md` as the authoritative search-work coordination document.
-Work on one active `SW-XX` experiment at a time and follow the live document's
-current experiment definition, gates, evidence policy, and disposition rules.
-Do not duplicate task definitions or numerical gates in this skill.
+Use `docs/search.md` as the authority for the operational baseline, evidence
+panels, workflow, and `SW-XX` tasks. Work on at most one active experiment and
+do not duplicate it in `docs/roadmap.md`.
 
 ## Establish Scope
 
-1. Read the complete active task and every shared section of `docs/search.md`
-   that governs its execution.
-2. Inspect the working tree, operational baseline, relevant source and tests,
-   build configuration, existing measurements, and useful history before
-   changing anything.
-   Read `docs/architecture.md` when ownership or dependency direction matters,
-   and consult locally available reference engines when they provide useful
-   evidence. Revalidate any borrowed idea against this engine.
-3. Before collecting evidence, record HEAD and working-tree state. Account for
-   every change affecting search, evaluation, measurements, tests, or build
-   configuration; do not measure an unrecognized behavior-affecting diff.
-4. Revalidate the stated hypothesis and candidate against the current code.
-   Resolve material ambiguity from project evidence or ask the user when it
-   would change the experiment.
-5. Preserve unrelated work and sealed evidence. Do not duplicate an experiment
-   in `docs/roadmap.md`; modify that document only when the user explicitly
-   requests a cross-workstream transfer or coordinating-document cleanup.
+1. Read the complete active task and every shared section governing it.
+2. Inspect the worktree, operational baseline, relevant source, tests, build
+   configuration, measurements, and history. Revalidate borrowed ideas in this
+   engine.
+3. Record HEAD and worktree state before measuring. Account for every
+   behavior-, build-, test-, or measurement-affecting difference.
+4. Confirm one hypothesis, one reversible candidate, relevant panels, checks,
+   task-specific stops or justified `N/A`, and one artifact root.
+5. Preserve unrelated work and sealed evidence. Change `docs/roadmap.md` only
+   when the user requests a cross-workstream transfer or cleanup.
 
-## Respect the Requested Stage
+## Respect Authorization Boundaries
 
-- For planning, return an implementation-ready plan without editing files.
-- For an offline-only request, implement only the active candidate, run the
-  required offline checks and measurements, and update its record. Do not
-  commit, push, or start OpenBench.
-- For review, explanation, or prioritization, inspect and report without
-  changing the repository.
-- Commit or push only when explicitly authorized. When an OpenBench candidate
-  is published, use an `sw-XX-<slug>` task branch and verify the exact candidate
-  diff and revision before each operation.
-- Submit, modify, stop, or delete an OpenBench test only when explicitly
-  authorized. Read `docs/openbench.md` and verify the pushed immutable
-  revisions and test settings before submission. After submission is
-  authorized, read-only status checks and result or PGN retrieval require no
-  further approval.
-- An active user request or active `/goal` may conditionally authorize multiple
-  named stages. Otherwise, authorization for one state-changing stage does not
-  imply authorization for a later one.
-- If no action is named, default to planning.
+- Planning, review, explanation, and prioritization are read-only. An offline
+  request authorizes implementation of the active candidate, its Screen and
+  Qualification checks, raw evidence, task updates, and rejection cleanup.
+- Commit, push, and OpenBench mutations require explicit authorization in the
+  current request or active `/goal`; authorization for one stage does not imply
+  another. If several stages are named, execute them in order without asking
+  again at each boundary.
+- Publish an OpenBench candidate from an unmerged `sw-XX-<slug>` branch after
+  verifying its exact diff and revision. Never amend, reset, force-push, or
+  otherwise rewrite a published or tested revision.
+- Before an authorized submission, read `docs/openbench.md` and verify the
+  immutable revisions and settings. Read-only monitoring and result retrieval
+  need no further approval after submission.
+- If no action is named, plan only. Keep an offline-qualified task active while
+  it awaits its next authorized stage.
 
-## Run One Reversible Experiment
+## Phase 1: Screen
 
-1. Pin the operational baseline and confirm the active record defines one
-   hypothesis, one candidate shape, one artifact directory, and task-specific
-   offline stop conditions.
-2. Change one search mechanism only. Add diagnostics only for a decision the
-   existing measurement interface cannot support.
-3. Run only the predeclared checks, in cheapest decisive order. Stop after a
-   rejection condition fires, and do not add post-hoc cases, counters, or
-   diagnostics to rescue, condemn, or fully explain a decided candidate. Carry
-   an unexpected signal into later work only after disposing of the active task.
-4. Use correctness tests for behavior, `latrunculi-measure` for offline search
-   evidence, and paired OpenBench games for playing-strength claims, as
-   required by `docs/search.md`.
-5. Preserve raw output beneath the task-specific ignored artifact directory
-   and distill only decision-relevant evidence into `docs/search.md`.
-6. Treat any later candidate behavior, build-configuration, or
-   measurement-method change as invalidating the affected evidence. Rerun
-   those gates and refresh provenance before commit, push, or OpenBench.
-7. Keep the task active while it awaits approval. Do not begin a pending task
-   until the current task has a recorded disposition.
+1. Pin the operational baseline and implement only the predeclared mechanism.
+   Add diagnostics only when current output cannot answer a named decision.
+2. Run focused correctness checks, one cheapest relevant measurement pass, and
+   one benchmark for a search or binary candidate.
+3. Use the full tactical corpus for pruning, reductions, move ordering,
+   aspiration, and comparable deterministic search behavior or efficiency
+   changes. Use task-specific timed, scaling, or protocol panels for clock,
+   stopping, threading, Hash, and protocol work instead.
+4. Run timing or convergence sentinels only when the mechanism makes them
+   relevant. Keep objective, broad-performance, and focused-sentinel evidence
+   separate; do not rerun sealed audit matrices unless explicitly required.
+5. Apply only the task's predeclared material stop. There is no universal node
+   threshold. Stop immediately on rejection; do not run Qualification or add
+   post-hoc cases and diagnostics to rescue or condemn the candidate.
 
-## Dispose and Finish
+Preserve the decisive raw output and compact manifest, remove a rejected
+candidate and temporary support, and verify baseline restoration before doing
+anything else. Unexpected evidence may inform a later task only after the
+current task has a disposition.
 
-1. If an unpublished candidate fails, preserve the referenced evidence and
-   patch, remove its behavior code, temporary diagnostics or toggles,
-   redundant tests, and candidate-only build output using exact
-   candidate-owned paths, then verify that the retained baseline is restored.
-   Never use broad `git clean` or delete sealed evidence.
-2. Treat every published or externally tested revision as immutable. Never
-   amend, reset, force-push, or otherwise rewrite it. For a rejected unmerged
-   candidate, record the result before abandoning or deleting its task branch,
-   and obtain authorization for branch deletion. Remove a candidate that was
-   already integrated with a new authorized commit.
-3. If the candidate passes its authorized stage, stop at the next approval
-   boundary and report exactly what remains unauthorized.
-4. Distinguish a rejected candidate from incomplete evidence caused by a build,
-   tool, or infrastructure failure; leave the latter active.
-5. Update the task's compact record and state without deleting useful negative
-   results or rewriting the immutable audit findings.
-6. Recording a disposition does not authorize activating or implementing the
-   next task unless the active request or `/goal` includes it.
-7. Inspect the final diff, status, artifact scope, and formatting. Confirm that
-   no unrelated work or roadmap change entered the result.
-8. Keep each authorized commit focused. Do not squash or amend a revision that
-   has been published or tested; a later result or disposition may require a
-   follow-up documentation commit. Update the operational baseline only after
-   the retained candidate and its required validation have been approved.
+## Phase 2: Qualification
 
-Report the outcome, key evidence, verification performed, disposition,
-workspace state, and the next approval boundary.
+Only a Screen survivor proceeds:
+
+1. Run focused tests and the complete configured release and sanitizer suites.
+   Use `release-stats` only when instrumentation or counters are needed.
+2. Run the second fresh-process copy of each deterministic decision panel and
+   require candidate-internal exact agreement in the fields defined by
+   `docs/search.md`. Evaluate wall-clock-limited panels as repeated
+   distributions instead.
+3. Recheck applicable objective, legal, and protocol guards; repeat the
+   benchmark; and run repeated timing for clock or stopping changes and when
+   hot-path work changed.
+4. Complete only the mechanism-specific checks predeclared by the task.
+   Correct, reproducible marginal candidates remain eligible for paired games.
+
+Record a survivor as offline-qualified and leave it active at the next
+authorization boundary. A behavior-preserving optimization may finish offline
+when its task's exact-signature and throughput requirements pass; a behavior
+change requires paired games for strength evidence.
+
+## Publish, Dispose, and Finish
+
+1. For authorized publication or testing, verify the exact candidate revision,
+   follow `docs/openbench.md`, and record the test identity and result in the
+   compact task record. Update the operational baseline only after approved
+   integration.
+2. For an unpublished rejection, keep referenced evidence and save a patch only
+   when no immutable commit represents the candidate. Remove candidate behavior,
+   temporary diagnostics, redundant tests, and exact candidate-only build output;
+   never use broad `git clean` or delete sealed evidence.
+3. Distinguish rejection from incomplete evidence caused by infrastructure
+   failure; leave the latter active.
+4. Inspect final diff, status, artifact scope, and formatting. Preserve
+   unrelated work, keep authorized commits focused, and do not start a pending
+   task merely because the current one received a disposition.
+
+Report the outcome, decisive evidence, verification, disposition, workspace
+state, and next approval boundary.

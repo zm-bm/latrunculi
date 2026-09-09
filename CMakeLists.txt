@@ -95,6 +95,9 @@ if(LATRUNCULI_BUILD_MEASUREMENTS)
         tools/measurements/perft.cpp
         tools/measurements/search.cpp
     )
+    target_compile_definitions(latrunculi-measure PRIVATE
+        LATRUNCULI_SEARCH_SUITE="${CMAKE_CURRENT_SOURCE_DIR}/tools/measurements/search.epd"
+    )
     target_link_libraries(latrunculi-measure PRIVATE latrunculi_lib)
 endif()
 
@@ -157,6 +160,15 @@ if(BUILD_TESTING)
     target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
     target_link_libraries(tests PRIVATE latrunculi_lib gtest gmock)
     add_test(NAME unit_tests COMMAND tests)
+
+    if(LATRUNCULI_BUILD_MEASUREMENTS)
+        add_test(NAME measurement_search_smoke
+            COMMAND latrunculi-measure search --case arasan20-01 --depth 1 --format tsv
+        )
+        set_tests_properties(measurement_search_smoke PROPERTIES
+            PASS_REGULAR_EXPRESSION "search_measurement_v3.*arasan20-01"
+        )
+    endif()
 
     add_executable(latrunculi-stress tests/stress/randomized.test.cpp)
     target_include_directories(latrunculi-stress PRIVATE ${CMAKE_SOURCE_DIR}/tests)

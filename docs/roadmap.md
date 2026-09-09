@@ -6,11 +6,8 @@ describes the current implementation, and active search experiments are
 coordinated separately in [Search Development](search.md).
 
 **Now** contains at most one active roadmap item, **Next** contains ordered
-candidates, and **Later** is an informal backlog rather than a commitment.
-Revalidate a task against the current source before implementation. Remove
-completed tasks; history, rather than this file, records their completion.
-When activating a diagnostic item, bound its questions, evidence set, stopping
-conditions, and completion artifact; a null result may complete the item.
+candidates, and **Later** is an informal backlog. Revalidate items before work
+and remove them when complete; Git history records completion.
 
 ## Now
 

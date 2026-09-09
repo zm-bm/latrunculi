@@ -1,20 +1,22 @@
 #include "search.hpp"
 
 #include <algorithm>
-#include <array>
 #include <charconv>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 #include "board/board.hpp"
@@ -45,6 +47,7 @@ enum class LimitType { Depth, Nodes, Movetime };
 struct Options {
     LimitType                  limit_type{LimitType::Depth};
     std::uint64_t              limit_value{default_depth};
+    std::string                suite{LATRUNCULI_SEARCH_SUITE};
     std::optional<std::string> case_id;
     std::size_t                threads{default_threads};
     std::size_t                hash_mb{default_hash_mb};
@@ -53,31 +56,93 @@ struct Options {
 };
 
 struct Position {
-    std::string_view id;
-    std::string_view fen;
+    std::string id;
+    std::string fen;
 };
 
-constexpr std::array positions = {
-    Position{"startpos", Board::start_fen},
-    Position{"arasan20-01", "r1bq1r1k/p1pnbpp1/1p2p3/6p1/3PB3/5N2/PPPQ1PPP/2KR3R w - - 0 1"},
-    Position{"arasan20-08", "r1r3k1/p3bppp/2bp3Q/q2pP1P1/1p1BP3/8/PPP1B2P/2KR2R1 w - - 0 1"},
-    Position{"arasan20-16", "8/3r4/pr1Pk1p1/8/7P/6P1/3R3K/5R2 w - - 0 1"},
-    Position{"arasan20-21", "8/5pk1/p4npp/1pPN4/1P2p3/1P4PP/5P2/5K2 w - - 0 1"},
-    Position{"arasan20-30", "b2rk3/r4p2/p3p3/P3Q1Np/2Pp3P/8/6P1/6K1 w - - 0 1"},
-    Position{"pilot14-g171-abrupt",
-             "2q3k1/3nrpp1/p1p2n1p/P1Pp1Q2/1R1P3P/1N1B2P1/1P4K1/8 w - - 7 32"},
-    Position{"pilot18-g154-abrupt",
-             "1r3r2/1bp1q1k1/1pnp1pp1/p2Bp3/P2PP3/2P1P1R1/1P1N1R1P/5QK1 b - - 0 23"},
-    Position{"pilot14-g061-gradual",
-             "2r2rk1/p4p2/bp1p2pp/n1nPp3/1RP1P2q/4BPN1/P3B1PP/4RQK1 b - - 5 25"},
-    Position{"pilot18-g093-gradual",
-             "1Rbqkb1r/3n1ppp/4p3/1Bp5/3PPB2/2N2N2/1P3PPP/4K2R b Kk - 2 14"},
-    Position{"pilot15-g078-secondary",
-             "1r4k1/p2q2p1/b1pp1r2/4p1Q1/4Pp2/1PN3P1/P4P1P/R2R2K1 w - - 0 23"},
-    Position{"objective-mate-1", "7R/8/8/8/8/1K6/8/1k6 w - - 0 1"},
-    Position{"objective-mate-2", "8/8/8/8/8/3K4/4Q3/k7 w - - 0 1"},
-    Position{"objective-rook-capture", "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1"},
-};
+std::string_view trim(std::string_view text) {
+    constexpr std::string_view whitespace = " \t\r\n";
+    const std::size_t          first      = text.find_first_not_of(whitespace);
+    if (first == std::string_view::npos)
+        return {};
+    const std::size_t last = text.find_last_not_of(whitespace);
+    return text.substr(first, last - first + 1);
+}
+
+std::string extract_id(std::string_view operations) {
+    std::optional<std::string> id;
+    while (!operations.empty()) {
+        const std::size_t      separator = operations.find(';');
+        const std::string_view operation = trim(operations.substr(0, separator));
+        if (operation.starts_with("id")
+            && (operation.size() == 2 || operation[2] == ' ' || operation[2] == '\t')) {
+            const std::string_view value = trim(operation.substr(2));
+            if (value.empty() || value.front() != '"')
+                throw std::runtime_error("id must be a quoted string");
+            const std::size_t closing_quote = value.find('"', 1);
+            if (closing_quote == std::string_view::npos || closing_quote != value.size() - 1)
+                throw std::runtime_error("id must contain one quoted string");
+            const std::string_view parsed = value.substr(1, closing_quote - 1);
+            if (parsed.find_first_of("\t\r\n") != std::string_view::npos)
+                throw std::runtime_error("id must not contain control characters");
+            if (id)
+                throw std::runtime_error("multiple id operations");
+            id = parsed;
+        }
+        if (separator == std::string_view::npos)
+            break;
+        operations.remove_prefix(separator + 1);
+    }
+    if (!id)
+        throw std::runtime_error("missing id operation");
+    return *id;
+}
+
+std::vector<Position> load_positions(const std::string& path) {
+    std::ifstream input(path);
+    if (!input)
+        throw std::runtime_error("cannot open search suite: " + path);
+
+    std::vector<Position> positions;
+    std::string           line;
+    for (std::size_t line_number = 1; std::getline(input, line); ++line_number) {
+        const std::string_view record = trim(line);
+        if (record.empty() || record.starts_with('#'))
+            continue;
+
+        try {
+            std::istringstream fields{std::string(record)};
+            std::string        placement;
+            std::string        side;
+            std::string        castling;
+            std::string        en_passant;
+            if (!(fields >> placement >> side >> castling >> en_passant))
+                throw std::runtime_error("expected four FEN fields");
+
+            std::string operations;
+            std::getline(fields, operations);
+            Position position{
+                .id  = extract_id(operations),
+                .fen = placement + ' ' + side + ' ' + castling + ' ' + en_passant + " 0 1",
+            };
+            if (position.id.empty())
+                throw std::runtime_error("id must not be empty");
+            if (std::ranges::find(positions, position.id, &Position::id) != positions.end())
+                throw std::runtime_error("duplicate id: " + position.id);
+
+            (void)Board(position.fen);
+            positions.push_back(std::move(position));
+        } catch (const std::exception& error) {
+            throw std::runtime_error("invalid search suite record " + path + ':'
+                                     + std::to_string(line_number) + ": " + error.what());
+        }
+    }
+    if (!input.eof())
+        throw std::runtime_error("failed while reading search suite: " + path);
+    if (positions.empty())
+        throw std::runtime_error("search suite contains no positions: " + path);
+    return positions;
+}
 
 struct Result {
     search::RootLine line;
@@ -273,7 +338,8 @@ OutputFormat parse_format(std::string_view value) {
 void print_usage(const char* argv0) {
     std::cerr << "Integrated search measurement.\n";
     std::cerr << "Usage: " << argv0
-              << " [--case ID] [--depth N | --nodes N | --movetime MS] [--hash MB]"
+              << " [--suite EPD] [--case ID] [--depth N | --nodes N | --movetime MS]"
+                 " [--hash MB]"
                  " [--threads N] [--repetitions N] [--format text|tsv]\n";
 }
 
@@ -309,6 +375,14 @@ Options parse_args(int argc, char* argv[]) {
                                                         : LimitType::Movetime;
             options.limit_value = value;
             limit_set           = true;
+            continue;
+        }
+        if (argument == "--suite") {
+            if (++index >= argc)
+                throw std::runtime_error("missing value for --suite");
+            options.suite = argv[index];
+            if (options.suite.empty())
+                throw std::runtime_error("--suite must not be empty");
             continue;
         }
         if (argument == "--case") {
@@ -363,7 +437,8 @@ Options parse_args(int argc, char* argv[]) {
 
 int run_search(int argc, char* argv[]) {
     try {
-        const Options options = parse_args(argc, argv);
+        const Options options   = parse_args(argc, argv);
+        const auto    positions = load_positions(options.suite);
 
         const Position* selected = nullptr;
         if (options.case_id) {

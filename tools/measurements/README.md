@@ -49,28 +49,36 @@ fingerprint; the throughput fields measure speed.
 
 ## Search
 
-Search runs an embedded fourteen-position suite containing six controls,
-five positions from the 1.0 release pilots, and three objective guards. The TT
-and search heuristics are cleared before every position so each row starts cold.
+Search loads the complete 200-position Arasan 20 tactical corpus from
+`search.epd`. The TT and search heuristics are cleared before every position so
+each row starts cold. One suite pass is one process; `--repetitions` repeats
+inside that process and does not provide fresh-process reproducibility.
 
 ```bash
 ./build/release-dev/latrunculi-measure search
 ./build/release-dev/latrunculi-measure search \
-  --case pilot14-g171-abrupt --nodes 524288 --hash 32 \
+  --case arasan20-01 --depth 10 --hash 32 \
   --threads 1 --repetitions 1 --format tsv
 ```
 
-Defaults are depth 5, one thread, one repetition, and 32 MB Hash. Prefer one
+Defaults are depth 5, one thread, one repetition, and 32 MiB Hash. Prefer one
 thread for deterministic algorithm comparisons; use larger counts for coarse
 scaling measurements. Choose at most one of `--depth`, `--nodes`, or
-`--movetime`; `--case` selects a single embedded position. Run one case and one
-repetition per process when fresh-process isolation matters.
+`--movetime`; `--suite` selects another EPD file and `--case` selects one ID
+from the loaded file. Use separate process invocations when fresh-process
+isolation matters.
 
-Case IDs are `startpos`, `arasan20-01`, `arasan20-08`, `arasan20-16`,
-`arasan20-21`, `arasan20-30`, `pilot14-g171-abrupt`,
-`pilot18-g154-abrupt`, `pilot14-g061-gradual`, `pilot18-g093-gradual`,
-`pilot15-g078-secondary`, `objective-mate-1`, `objective-mate-2`, and
-`objective-rook-capture`.
+The corpus preserves every position and source annotation from historical Git
+blob `93cbe97d9ee40790eafc984e59cbce3c02a5d7ea`; only its IDs are normalized to
+`arasan20-NN`. Its `bm` and `am` operations are metadata, not correctness or
+playing-strength criteria. The optional `search-sentinels.epd` contains the
+four focused convergence cases retained from the completed audit:
+
+```bash
+./build/release-dev/latrunculi-measure search \
+  --suite tools/measurements/search-sentinels.epd \
+  --case pilot14-g171-abrupt --depth 18 --format tsv
+```
 
 TSV output uses `search_measurement_v3` and reports the requested limit, static
 and searched scores, completed depth, actual nodes, timing, best move, and PV.
@@ -80,31 +88,20 @@ case and run configuration, so stdout remains machine-readable:
 
 ```bash
 ./build/release-stats/latrunculi-measure search \
-  --case arasan20-01 --nodes 524288 --format tsv \
+  --case arasan20-01 --depth 10 --format tsv \
   > tools/measurements/output/arasan20-01.tsv \
   2> tools/measurements/output/arasan20-01.stats
 ```
 
 ## Comparing Results
 
-Run identical commands against baseline and candidate builds made with the
-same compiler and options, on the same machine under quiet, controlled
-conditions. Keep retained output under the ignored `tools/measurements/output/`
-directory:
-
-```bash
-mkdir -p tools/measurements/output
-./build/baseline/latrunculi-measure search --format tsv \
-  > tools/measurements/output/baseline.tsv
-./build/candidate/latrunculi-measure search --format tsv \
-  > tools/measurements/output/candidate.tsv
-```
-
-Exact nodes, scores, moves, PVs, and evaluation checksums reveal behavioral
-changes. Timing and throughput require repeated runs and should never become
-unit-test thresholds.
+Compare equivalent builds with identical explicit options on the same machine.
+Deterministic fields reveal behavior changes; timing requires repeated runs and
+must not become a unit-test threshold. Keep raw output under the ignored
+`tools/measurements/output/` directory. [Search Development](../../docs/search.md)
+owns experiment panels, gates, and aggregation.
 
 The machine-readable formats are `perft_measurement_v1`,
-`evaluation_throughput_v1`, and `search_measurement_v3`. Increment the relevant
-format or workload version whenever its columns, semantics, or embedded
-workload change.
+`evaluation_throughput_v1`, and `search_measurement_v3`. These labels version
+output schemas, not external workloads. Record the suite revision and SHA-256
+with retained artifacts.

@@ -277,6 +277,15 @@ TEST_F(RootSearchTest, HandlesMateInOneCheckmateAndStalemate) {
     }
 }
 
+TEST_F(RootSearchTest, TakesLooseRookAtDepthOne) {
+    Board board{"k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1"};
+    load(board, 1);
+
+    const EvalValue static_score = eval::evaluate(board);
+    EXPECT_GT(worker.search(), static_score);
+    EXPECT_EQ(worker.root_snapshot().root_move.str(), "d1e2");
+}
+
 TEST_F(RootSearchTest, StoppedSearchPreservesLastCompletedDepth) {
     Board board{board_test::fen::start};
     limits.depth = 8;
