@@ -226,18 +226,41 @@ Completing one task never authorizes starting the next.
   `tools/measurements/output/sw-02-cef892a/`.
 - **Disposition / next boundary:** Rejected for failing the predeclared throughput
   gate and removed. Rebuilt release binaries match the preserved baseline byte for
-  byte, and the restored benchmark produced 6,068,328 nodes. Keep SW-03 pending.
+  byte, and the restored benchmark produced 6,068,328 nodes. SW-03 was activated
+  separately from the clean `72d2c88` boundary.
 
-### SW-03 — Tune quiet LMR selectivity [pending]
+### SW-03 — Tune quiet LMR selectivity [active]
 
 - **Hypothesis / candidate:** Change only the quiet LMR divisor from 2.5 to
-  2.4; leave noisy moves, the fourth-move threshold, and history unchanged.
-- **Baseline / panels / stops:** Current operational baseline; corpus,
-  objectives, benchmark, and predeclared mechanism-specific stops. Sanitizers
-  are `N/A` if the diff remains parameter-only; reassess if its scope expands.
-- **Result / artifacts:** Not run.
-- **Disposition / next boundary:** Pending. Do not retry high-history
-  protection or revert the fourth-move stabilization in this task.
+  2.4; leave noisy moves, the fourth-move threshold, history, PV/killer
+  multipliers, exemptions, clamping, and re-search behavior unchanged. Because
+  the multipliers follow the divisor, eligible quiet PV and killer moves can
+  still receive the candidate's one-ply increase.
+- **Baseline / panels / stops:** `72d2c889545dd761738b38dfa2a94cb8ac1fc525`
+  (`72d2c88`; search behavior `6767e74`); focused LMR and objective tests, the
+  200-position depth-10 corpus, the four sentinel trajectories through their
+  recorded horizons, and the deterministic benchmark. Reject in Screen if the
+  corpus geometric-mean node ratio is at least 1.05, or at least two sentinels
+  lose at least two plies of useful depth. Correctness and candidate-internal
+  reproducibility remain invariants. `release-stats`, sanitizers, and repeated
+  timing are `N/A` while the candidate remains a scalar-only change using
+  existing storage and indexing.
+- **Result / artifacts:** Both phases passed. Two candidate corpus passes were
+  exact internally: geometric-mean node ratio 0.9736, median 0.9779, with 135
+  positions improving and 65 regressing. Useful depths were 11, 14, 18, and 9
+  versus baseline 11, 14, 17, and 11, so only one sentinel met the two-ply-loss
+  condition. Seven focused tests passed twice, the complete `release-dev` suite
+  passed 3/3, and the candidate benchmark repeated at 6,609,227 nodes. Evidence:
+  `tools/measurements/output/sw-03-72d2c88/`.
+- **Disposition / next boundary:** Offline-qualified and still active. The
+  corpus was more selective and the predeclared convergence stop did not fire;
+  these are screening results, not strength evidence. Do not retry high-history
+  protection or revert the fourth-move stabilization. Publication and paired
+  validation are authorized from `sw-03-quiet-lmr`: test the immutable candidate
+  against parent `72d2c88` with STC SPRT `[0,3]`, `10+0.1`,
+  `UHO_Lichess_4852_v1.epd`, `Threads=1`, `Hash=32`, and standard adjudication.
+  Keep the task active until the terminal result; integration remains a separate
+  approval boundary.
 
 After these tasks, select at most one small mechanism from current code and
 game evidence. Do not open it until the preceding candidate has a disposition;

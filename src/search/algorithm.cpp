@@ -72,7 +72,7 @@ int lmr_reduction(int  depth,
 
     // Use the LMR formula as a starting point.
     const double base = is_quiet ? 1.25 : 0.75;
-    const double div  = is_quiet ? 2.5 : 3.3;
+    const double div  = is_quiet ? 2.4 : 3.3;
     double       r    = base + std::log(depth) * std::log(move_count) / div;
 
     // Reduce less for PV and killer moves.
