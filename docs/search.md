@@ -149,6 +149,7 @@ audit document from commit `8c0d46d` only for forensic replay.
 | SW-03 [done; capped inconclusive] | Quiet LMR divisor 2.5 -> 2.4 | Offline corpus node ratio 0.9736 and repeatable 6,609,227-node candidate benchmark. STC `[0,3]` OpenBench #21 (`de77ab7` vs `72d2c88`) stopped at 8,018 games: LLR +0.9037 inside the +/-2.9444 bounds, +4.42 +/-5.57 Elo, no crashes or time losses. | Not integrated; main remains 2.5. Preserve branch `sw-03-quiet-lmr`, test #21, `Media/PGNs/21.pgn.tar`, and `tools/measurements/output/sw-03-72d2c88/`. |
 | SW-05 [done] | Guarded reverse futility pruning at NonPV depths 1-3 | Offline corpus node ratio 0.7855 with exact repeats and a repeatable 4,697,330-node benchmark. STC `[0,3]` OpenBench #22 (`8e64048` vs `02a9537`) passed at 2,966 games: LLR +2.9698, +31.01 +/-9.19 Elo, no crashes or time losses. | Integrated as the operational baseline. Preserve branch `sw-05-reverse-futility`, test #22, `Media/PGNs/22.pgn.tar`, and `tools/measurements/output/sw-05-02a9537/`. |
 | SW-06 [done; capped positive/inconclusive] | Confirm reduced PV fail-highs with a full-depth scout | Offline corpus node ratio 0.9949, exact repeats, no sentinel regression, and a repeatable 4,345,849-node benchmark. OpenBench #23 (`2d52595` vs `1b2b8fc`) was stopped at 8,676 scored games: LLR +1.1808 inside the bounds, +5.29 +/-5.54 Elo, no crashes or time losses. | Not integrated because the test did not cross its predeclared upper bound. Preserve branch `sw-06-pv-lmr-confirmation`, test #23, and `tools/measurements/output/sw-06-1b2b8fc/`. |
+| SW-07 [rejected] | Prune qualifying quiets individually so later checking quiets remain searchable | The focused regression was fixed and all tests passed, but corpus nodes rose 5.39% geometrically and the `pilot14-g171-abrupt` trajectory lost useful depth from 17 to 14; aggregate late root changes and zero-prefix transitions each increased by one. | Rejected by the predeclared convergence stop before OpenBench. Retain the picker-wide skip and preserve `tools/measurements/output/sw-07-b8a5335/`. |
 
 ## Reference review
 
@@ -257,9 +258,33 @@ Disposition / next boundary: capped-positive and inconclusive, not an SPRT pass.
 candidate `2d5259574ed78f71f8b2c51be1b71196094aa93d`; preserve its published branch and evidence.
 The operational search baseline remains `8e64048`; revalidate SW-07 against it before activation.
 
-### SW-07 — Preserve later checking quiets under futility [pending]
+### SW-07 — Preserve later checking quiets under futility [rejected]
 
-The current futility path skips the entire remaining quiet stage after one nonchecking quiet.
-Test per-move skipping so later checking quiets remain searchable, with a focused regression that
-places such a check behind an earlier quiet. Treat this primarily as a move-quality correction:
-predeclare a looser node-cost stop and let paired games decide a correct, reproducible survivor.
+Hypothesis / candidate: picker-wide futility skipping can discard a later checking quiet after an
+earlier nonchecking quiet is pruned. Keep the existing shallow NonPV eligibility and per-move
+predicate, but stop only that move. Remove the now-unused picker-wide skip API and its direct tests,
+and add one focused search regression with a checking quiet ordered behind an earlier quiet.
+
+Baseline / panels / stops: task HEAD `b8a5335`, operational search baseline `8e64048`, benchmark
+4,697,330 nodes, artifacts `tools/measurements/output/sw-07-b8a5335/`. Screen with the focused
+futility, move-ordering, and mate/material guards, one fresh-process depth-10 pass over all 200
+corpus positions, and one benchmark. Reject on correctness or invalid output, or when corpus
+geometric-mean nodes are at least 10% worse with at least 120 positions regressing. Qualification
+adds the complete `release-dev` suite, a second exact corpus pass, repeated guards and benchmark,
+and the four sentinel trajectories through their recorded horizons; reject objective loss, useful-
+depth loss, or aggregate late-convergence regression. Sanitizers, `release-stats`, and separate
+timing are `N/A`: the candidate removes control state and invokes only existing searches; node
+totals capture the added work. A survivor is eligible for STC `[0,3]` paired games with the
+workflow's 8,000-game cap.
+
+Result / artifacts: the baseline regression returned 892 below its required beta of 2,329; the
+candidate fixed it, and both focused runs plus the complete `release-dev` suite passed. Both
+corpus passes were exact and used 1.0539 times the baseline geometric-mean nodes (median 1.0231;
+65 improved, 135 regressed), with 36 root-move and 90 score changes. The benchmark repeated at
+5,167,957 nodes. On the sentinels, `pilot14-g171-abrupt` useful depth fell from 17 to 14; aggregate
+late root changes rose 2 to 3 and zero-prefix transitions 2 to 3. Evidence and the exact candidate
+patch are in `tools/measurements/output/sw-07-b8a5335/`.
+
+Disposition / next boundary: rejected by the predeclared Qualification convergence stop; no
+OpenBench test was started. Candidate code and its temporary regression were removed, focused
+tests passed on the restored `8e64048` behavior, and the benchmark returned to 4,697,330 nodes.
