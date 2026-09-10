@@ -166,8 +166,8 @@ reasonable later candidates, but are not queued while the smaller questions belo
 
 ## Candidate queue
 
-No experiment is active. Activate and fully predeclare only one task at a time against the
-then-current baseline; the order below is the current priority, not authorization to execute it.
+Activate and fully predeclare only one task at a time against the then-current baseline; the order
+below is the current priority, not authorization to execute it.
 
 ### SW-04 — Gate null-move searches by static evaluation [rejected]
 
@@ -193,12 +193,32 @@ seven focused null-move and objective guards passed. Evidence and the exact reje
 Disposition / next boundary: rejected; retain the existing NMP eligibility and restore the
 `6767e74` search baseline before activating SW-05.
 
-### SW-05 — Add conservative reverse futility pruning [pending]
+### SW-05 — Add conservative reverse futility pruning [active]
 
-At shallow NonPV, non-check, non-mate-window nodes, test one high-side static-evaluation cutoff
-before NMP. Reuse native evaluation units and existing safety guards; predeclare one depth bound,
-margin schedule, and fail-hard/fail-soft return before implementation rather than importing them
-from a reference engine.
+Hypothesis / candidate: clearly high static evaluations can avoid shallow searches safely. Before
+NMP at NonPV depths 1-3, return `static_eval` fail-soft when
+`static_eval - FutilityMargin[depth] >= beta`, using the existing 250/400/550 cp margins. Require
+`can_null`, no check, a non-mate beta window, more non-pawn material than one rook, and no existing
+depth-sufficient TT upper-bound veto. Change no other pruning rule.
+
+Baseline / panels / stops: task HEAD `02a9537`, operational search baseline `6767e74`, benchmark
+6,068,328 nodes, artifacts `tools/measurements/output/sw-05-02a9537/`. Screen with focused RFP and
+mate/material root guards, one fresh-process depth-10 pass over all 200 corpus positions, and one
+benchmark. Reject on a correctness or invalid-output failure, or when corpus geometric-mean nodes
+are at least 3% worse with at least 120 positions regressing. Qualification adds the complete
+`release-dev` suite, a second exact corpus pass, repeated guards, and a repeatable benchmark.
+Sanitizers, `release-stats`, timing, and sentinels are `N/A`: this condition-only pruning rule uses
+existing scalar values and does not change storage, arithmetic domains, concurrency, hot-path
+evaluation, or root control.
+
+Result / artifacts: Screen and Qualification passed. Both 200-position passes were exact and used
+0.7855 times the baseline geometric-mean nodes (median 0.7972; 171 improved, 2 equal, 27
+regressed), while changing 33 root moves and 103 scores. The candidate benchmark repeated at
+4,697,330 nodes; all focused guards and the complete `release-dev` suite passed. Evidence is in
+`tools/measurements/output/sw-05-02a9537/`.
+
+Disposition / next boundary: offline-qualified. Publish `sw-05-reverse-futility` and run the
+authorized STC `[0,3]` paired OpenBench test; retain or reject only on a terminal SPRT result.
 
 ### SW-06 — Confirm reduced PV fail-highs with a full-depth scout [pending]
 

@@ -329,13 +329,19 @@ EvalValue Worker::alphabeta(
             }
         }
 
-        // Step 6. Null-move pruning.
-        // Skip NMP when a depth-sufficient TT upper bound suggests it will fail low.
-        const int reduction =
-            depth > NullMoveDeepThreshold ? NullMoveDeepReduction : NullMoveReductionBase;
+        // Step 6. Reverse futility and null-move pruning.
+        // Skip static high-side cutoffs and NMP when a depth-sufficient TT upper bound suggests
+        // they will fail low.
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
                                 && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(search_ply) < beta;
+        if (can_null && !in_check && depth <= FutilityMaxDepth && beta > -eval_value::mate_bound
+            && beta < eval_value::mate_bound && board.non_pawn_material(side) > eval::piece(ROOK).mg
+            && !tt_upper_veto && static_eval - FutilityMargin[depth] >= beta)
+            return static_eval;
+
+        const int reduction =
+            depth > NullMoveDeepThreshold ? NullMoveDeepReduction : NullMoveReductionBase;
         if (can_null && !in_check && depth >= reduction
             && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto) {
             stats.null_move_try(search_ply);

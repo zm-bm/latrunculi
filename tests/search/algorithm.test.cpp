@@ -440,6 +440,16 @@ TEST_F(SearchTest, RazoringRequiresAllGuards) {
     }
 }
 
+TEST_F(SearchTest, ReverseFutilityPruningReturnsStaticEval) {
+    Board board{board_test::fen::start};
+    load(board, 1);
+    const EvalValue static_eval = eval::evaluate(position());
+    const EvalValue beta        = static_eval - 250;
+
+    EXPECT_EQ(search(beta - 1, beta, 1), static_eval);
+    EXPECT_FALSE(record().has_value());
+}
+
 TEST_F(SearchTest, FutilitySkipsOnlyAfterFirstLegalQuiet) {
     Board expected_board{board_test::fen::start};
     load(expected_board, 2);
