@@ -59,10 +59,10 @@ paired games with the engines swapping colors. Use:
 - `Threads=1 Hash=32`
 - resign at 400 cp for three moves
 - draw after move 40 with eight evaluations within 10 cp
-- `max_games = 8000` unless the active task predeclares another positive even cap
 - a predeclared normalized-Elo SPRT profile with `alpha = beta = 0.05`:
   `[0, 5]` when screening for a larger gain, or `[0, 3]` for an incremental
-  candidate or confirmation
+  candidate or confirmation; a task may instead predeclare `[-3, 0]` when its
+  acceptance policy explicitly tolerates a small strength tradeoff
 
 Choose one profile before games begin according to the task's expected effect
 and acceptance policy. An upper-bound result is conclusive for that predeclared
@@ -72,12 +72,17 @@ variants, or when risk or a result that conflicts with other evidence warrants
 it.
 Do not use confirmation to retry or override a lower-bound result.
 
-The game cap bounds resource use; it is not a third statistical decision.
-OpenBench may finish a few in-flight games beyond it. If neither SPRT bound has
-been crossed at the cap, retain the candidate as capped and inconclusive until
-the user explicitly continues, replaces, accepts, or rejects the test.
-Apply this default to new submissions; do not retrofit a cap onto an active test
-unless the user explicitly requests that mutation.
+An SPRT ends when it crosses a statistical boundary. For search experiments,
+predeclare 8,000 games as a manual review ceiling unless the task names another
+positive even value. This OpenBench revision cannot encode that ceiling in SPRT
+test creation, so do not enter it as `max_games` or switch to fixed-game mode.
+Return control after submission; when the user resumes at the boundary or review
+ceiling, stop, continue, or dispose of the test as explicitly directed. A test
+stopped inside its bounds remains inconclusive.
+
+Use fixed-game mode only when collecting a fixed sample is the actual objective.
+In that mode, set `max_games` during creation and expect a small overrun from
+already assigned games.
 
 Use `Smoke` for plumbing, `STC` for a candidate test, and `Confirm` for a
 separately justified confirmation. The normal worker runs games concurrently;
@@ -88,10 +93,10 @@ Record the test ID, profile, both revisions, OpenBench revision, decision, and
 server PGN location for retained claims.
 
 After submitting a test, fetch status once to confirm its identity, revisions,
-settings, cap, and running state. Record the test URL and return control; do not
-hold an agent turn open with recurring polling or sleeps. Managed OpenBench
-workers continue independently. Inspect status and collect terminal artifacts
-when the user resumes the task.
+settings, mode, bounds or fixed-game count, and running state. Record the test
+URL and return control; do not hold an agent turn open with recurring polling or
+sleeps. Managed OpenBench workers continue independently. Inspect status and
+collect terminal artifacts when the user resumes the task.
 
 ### Release stability test
 

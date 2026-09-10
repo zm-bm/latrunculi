@@ -124,10 +124,11 @@ Offline qualification does not authorize publication. Commit, push, and OpenBenc
 explicit authorization in the current request or active `/goal`; authorization for one stage
 does not imply another. Publish from an unmerged `sw-XX-<slug>` branch without rewriting the
 tested revision, and follow the [OpenBench guide](openbench.md). Every paired strength test uses
-a finite game cap: 8,000 games by default, or another positive even value predeclared by the task.
-After submission, confirm and record the test once, then return control instead of polling while
-games run. Resume status handling in a later request. An upper-bound result may be integrated, a
-lower-bound result rejects, and a stopped or capped result inside the bounds is inconclusive until
+SPRT by default; fixed games are for tasks that actually require a fixed sample, not for capping
+an SPRT. Predeclare an 8,000-game manual review ceiling for search SPRTs unless the task names
+another positive even value. The current test-creation form does not enforce that ceiling: after
+submission, confirm and record the test once, then return control until the user resumes at a
+statistical boundary or the review ceiling. A test stopped inside its bounds is inconclusive until
 explicitly disposed. Only an approved integrated revision updates the baseline table.
 
 Put new evidence in `tools/measurements/output/sw-XX-<baseline>/`: untouched output in `raw/`,
@@ -348,9 +349,10 @@ proves too expensive, test a separate checks-first picker stage before weakening
 protected checks: search quiet checks before ordinary quiets, then retain the bulk nonchecking-
 quiet skip.
 
-Disposition / next boundary: active in fixed 8,000-game OpenBench test #24: Dev `c6eb554` versus
-Base `8e64048`, using the predeclared STC controls. The workload was approved and active without
-errors at submission. This OpenBench revision cannot combine an SPRT with a creation-time game
-cap, so the test has no early statistical boundary. At completion, use its Elo estimate,
-uncertainty, failures, and the correctness-policy tradeoff for an explicit retain, rework, or
+Disposition / next boundary: active pending replacement OpenBench validation. Fixed-game test #24
+was a workflow mistake and was stopped without errors after 222 games; exclude it from the strength
+decision. Replace it with an STC `[-3,0]` SPRT: Dev `c6eb554` versus Base `8e64048`, with an
+8,000-game manual review ceiling. The negative lower hypothesis reflects the explicitly accepted
+small strength tradeoff for this correctness policy. An upper-bound result supports retention; a
+lower-bound or nonterminal review-ceiling result still requires an explicit retain, rework, or
 reject decision.
