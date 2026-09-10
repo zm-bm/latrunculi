@@ -28,7 +28,7 @@ public:
 
     // Returns ordered pseudo-legal candidates; search remains the legal-move authority.
     Move next();
-    void skip_quiet_moves();
+    void skip_nonchecking_quiets();
 
 private:
     enum class Mode : std::uint8_t {
@@ -115,7 +115,7 @@ private:
     std::array<Move, QuietHintCapacity> quiet_hints{};
     int                                 quiet_hint_count{0};
     int                                 quiet_hint_next{0};
-    bool                                skip_quiets{false};
+    bool                                quiet_checks_only{false};
 };
 
 } // namespace search::ordering

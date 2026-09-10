@@ -529,6 +529,46 @@ TEST_F(SearchTest, FutilityKeepsTacticalMoves) {
     }
 }
 
+TEST_F(SearchTest, FutilityKeepsLaterCheckingQuietHintsAndGeneratedMoves) {
+    for (const bool checking_is_hint : {true, false}) {
+        SCOPED_TRACE(checking_is_hint ? "quiet hint" : "generated quiet");
+        Board board{"4k3/8/8/8/8/8/R7/4K3 w - - 0 1"};
+        load(board, 2);
+
+        const Move first{A2, A3};
+        const Move skipped{E1, D1};
+        const Move checking{A2, E2};
+        ASSERT_TRUE(position().is_legal_move(first));
+        ASSERT_TRUE(position().is_legal_move(skipped));
+        ASSERT_TRUE(position().is_legal_move(checking));
+        EXPECT_FALSE(position().gives_check(skipped));
+        EXPECT_TRUE(position().gives_check(checking));
+
+        if (checking_is_hint)
+            ordering_state().killers.update(checking, ply());
+        ordering_state().killers.update(skipped, ply());
+
+        const auto moves       = legal_picker_moves(first);
+        const auto skipped_it  = std::find(moves.begin(), moves.end(), skipped);
+        const auto checking_it = std::find(moves.begin(), moves.end(), checking);
+        ASSERT_FALSE(moves.empty());
+        ASSERT_EQ(moves.front(), first);
+        ASSERT_NE(skipped_it, moves.end());
+        ASSERT_NE(checking_it, moves.end());
+        ASSERT_LT(skipped_it, checking_it);
+
+        const EvalValue alpha = eval::evaluate(position()) + 401;
+        const EvalValue beta  = alpha + 1000;
+        tt.store(position().key(), first, 0, 0, TTBound::Exact, ply());
+        store_child(checking, -(beta + 100), 1);
+        EXPECT_GE(search(alpha, beta, 2), beta);
+
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_EQ(counters().futility_skips[0], 1U);
+#endif
+    }
+}
+
 TEST_F(SearchTest, QuietCutoffUpdatesPreviousMoveContext) {
     Board board{board_test::fen::start};
     load(board, 2);

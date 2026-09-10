@@ -289,3 +289,65 @@ patch are in `tools/measurements/output/sw-07-b8a5335/`.
 Disposition / next boundary: rejected by the predeclared Qualification convergence stop; no
 OpenBench test was started. Candidate code and its temporary regression were removed, focused
 tests passed on the restored `8e64048` behavior, and the benchmark returned to 4,697,330 nodes.
+
+### SW-08 — Enforce the futility quiet-check exemption in the picker [active]
+
+Hypothesis / candidate: SW-07 preserved later quiet checks, but it also returned every remaining
+quiet to the search loop, where nonchecking moves affected move counts and incurred make/unmake
+work before being pruned. Keep the existing futility eligibility, margins, first-move exception,
+and tactical exemptions. After the first qualifying nonchecking quiet is pruned, put the picker
+into a quiet-check-only mode: use the existing `Board::gives_check()` predicate to return remaining
+checking quiet hints and ordinary quiet checks, filter other quiets before they reach the search
+loop, then continue to bad captures. Rename the picker API and state to express that narrower
+contract. Add no move generator, pruning rule, margin, or instrumentation.
+
+Baseline / panels / stops: task HEAD `6c01040`, operational search baseline `8e64048`, benchmark
+4,697,330 nodes, cached corpus `tools/measurements/output/search-baseline-8e64048/`, and task
+artifacts `tools/measurements/output/sw-08-6c01040/`. HEAD has no `src/search` or `src/eval`
+difference from the operational baseline. Screen with permanent regressions for both a checking
+quiet hint and an ordinary generated quiet check behind a pruned nonchecking quiet, direct picker
+coverage showing that other quiets stay filtered and bad captures remain, the existing futility
+and mate/material guards, one 200-position depth-10 corpus pass, and one benchmark. Reject only on
+an invariant, legality, objective, invalid-output, or deterministic failure. An efficiency
+rejection stop is `N/A`: this task enforces the explicit quiet-check exemption. Record corpus,
+benchmark, and root-result costs; if geometric-mean corpus nodes reach 1.10 times baseline or the
+benchmark reaches 1.25 times baseline, pause for review rather than automatically rejecting the
+invariant.
+
+Qualification adds the complete `release-dev` and ASan/UBSan suites, a second exact corpus pass,
+repeated guards and benchmark, and all four sentinel trajectories as diagnostic evidence rather
+than a useful-depth veto. TSan and `release-stats` are `N/A`: the change is single-threaded picker
+control and needs no counters. Because it adds hot-path check classification, measure eight
+nonoverlapping same-core benchmark pairs in literal order `B/C, C/B, B/C, C/B, B/C, C/B, B/C,
+C/B`; timing and NPS do not affect deterministic agreement. A behavior-changing survivor is
+offline-qualified for an 8,000-game STC `[0,3]` paired test when explicitly authorized. For this
+correctness-policy task, a lower-bound result pauses for an explicit retain/rework decision rather
+than automatically restoring the known exemption violation.
+
+Result / artifacts: Screen and Qualification passed. Both permanent quiet-check regressions and
+all 21 focused checks passed twice; the complete `release-dev` and ASan/UBSan suites passed. The
+two 200-position passes agreed exactly and used 1.0534 times baseline geometric-mean nodes
+(median 1.0232; 65 improved and 135 regressed), with 36 root-move and 90 score changes. The
+candidate benchmark repeated at 5,168,111 nodes, 1.1002 times baseline. Across eight same-core
+pairs it won five NPS comparisons, with median/mean changes of +0.682%/+0.216%; median elapsed
+time rose 9.298% because more nodes were searched.
+
+The sentinels remain diagnostic: `pilot14-g171-abrupt` useful depth is 14 instead of 17 and
+aggregate late A-B-A rises from one to two, while late root changes and zero-prefix transitions
+both match baseline and score-class changes remain zero. Compared with SW-07, the picker filter
+uses 83,301 fewer aggregate corpus nodes, changes no root move and only two scores, and avoids
+returning filtered quiets to the search loop. Evidence and the exact uncommitted patch are in
+`tools/measurements/output/sw-08-6c01040/`.
+
+Interpretation: the regressions establish the intended quiet-check exemption, not a general
+playing-strength or move-accuracy gain. Neutral NPS and the close SW-07 fingerprint show that most
+of the 5.34% corpus and 10.02% benchmark node costs come from searching the additional checks, not
+picker overhead. The cost is material but below the review bounds and warrants paired games. If it
+proves too expensive, test a separate checks-first picker stage before weakening or reducing the
+protected checks: search quiet checks before ordinary quiets, then retain the bulk nonchecking-
+quiet skip.
+
+Disposition / next boundary: offline-qualified and still active. Publish an immutable
+`sw-08-futility-quiet-checks` candidate and submit the authorized 8,000-game STC `[0,3]` OpenBench
+test. A lower-bound result does not automatically restore the known exemption violation; pause for
+an explicit retain, rework, or reject decision. A capped result inside the bounds is inconclusive.

@@ -364,34 +364,37 @@ TEST_F(PickerTest, QSearchAndEvasionsIgnoreContinuationHistory) {
     EXPECT_EQ(picked_qsearch(position, state), q_baseline);
 }
 
-TEST_F(PickerTest, SkipQuietMovesDropsRefutationsAndQuietsButKeepsWeakCaptures) {
-    Board position{"2b3k1/3p4/8/8/8/8/8/3Q2K1 b - - 0 1"};
-    position.make(Move(G8, F8));
-    const Move killer{D1, D2};
-    const Move counter{D1, E2};
+TEST_F(PickerTest, SkipNoncheckingQuietsKeepsQuietChecksAndWeakCaptures) {
+    Board      position{WEAK_CAPTURE_FEN};
+    const Move nonchecking{D1, D2};
+    const Move checking{D1, G4};
     const Move weak_capture{D1, D7};
-    ASSERT_TRUE(position.is_pseudo_legal(killer));
-    ASSERT_TRUE(position.is_pseudo_legal(counter));
+    ASSERT_TRUE(position.is_pseudo_legal(nonchecking));
+    ASSERT_TRUE(position.is_pseudo_legal(checking));
+    ASSERT_FALSE(position.gives_check(nonchecking));
+    ASSERT_TRUE(position.gives_check(checking));
 
-    killers.update(killer, ply);
+    killers.update(checking, ply);
+    killers.update(nonchecking, ply);
     const auto context = State::make_context(position);
-    seed_counter_hint(context, state, counter);
-    auto picker = Picker::for_main_search(position, state, context, ply);
-    picker.skip_quiet_moves();
+    auto       picker  = Picker::for_main_search(position, state, context, ply);
+    picker.skip_nonchecking_quiets();
     const auto moves = collect_moves(picker);
 
-    EXPECT_EQ(std::find(moves.begin(), moves.end(), killer), moves.end());
-    EXPECT_EQ(std::find(moves.begin(), moves.end(), counter), moves.end());
+    EXPECT_EQ(std::find(moves.begin(), moves.end(), nonchecking), moves.end());
+    EXPECT_NE(std::find(moves.begin(), moves.end(), checking), moves.end());
     EXPECT_NE(std::find(moves.begin(), moves.end(), weak_capture), moves.end());
-    for (const Move move : moves)
-        EXPECT_TRUE(move.type() == MOVE_PROM || position.is_capture(move)) << move.str();
+    for (const Move move : moves) {
+        if (move.type() != MOVE_PROM && !position.is_capture(move))
+            EXPECT_TRUE(position.gives_check(move)) << move.str();
+    }
 }
 
-TEST_F(PickerTest, SkipQuietMovesIsNoOpForQSearchAndEvasions) {
+TEST_F(PickerTest, SkipNoncheckingQuietsIsNoOpForQSearchAndEvasions) {
     {
         SCOPED_TRACE("qsearch");
         auto picker = Picker::for_quiescence(board, state);
-        picker.skip_quiet_moves();
+        picker.skip_nonchecking_quiets();
         EXPECT_EQ(collect_moves(picker), picked_qsearch(board, state));
     }
     {
@@ -399,7 +402,7 @@ TEST_F(PickerTest, SkipQuietMovesIsNoOpForQSearchAndEvasions) {
         Board      position{board_test::fen::one_legal_evasion};
         const auto context = State::make_context(position);
         auto       picker  = Picker::for_main_search(position, state, context, ply);
-        picker.skip_quiet_moves();
+        picker.skip_nonchecking_quiets();
         EXPECT_EQ(sorted_move_bits(collect_moves(picker)),
                   sorted_move_bits(movegen::generate_evasions(position)));
     }

@@ -110,12 +110,14 @@ Move Picker::validate_quiet_hint(Move move) const {
 }
 
 Move Picker::next_quiet_hint() {
-    if (quiet_hint_next == quiet_hint_count)
-        return NULL_MOVE;
+    while (quiet_hint_next < quiet_hint_count) {
+        Move move = quiet_hints[quiet_hint_next];
+        ++quiet_hint_next;
+        if (!quiet_checks_only || board.gives_check(move))
+            return move;
+    }
 
-    Move move = quiet_hints[quiet_hint_next];
-    ++quiet_hint_next;
-    return move;
+    return NULL_MOVE;
 }
 
 int Picker::score_noisy(Move move) const {
@@ -172,7 +174,7 @@ bool Picker::is_pickable(const Candidate& candidate) const {
     } else if constexpr (Policy == PickPolicy::GoodNoisy) {
         return move.type() == MOVE_PROM || score >= GoodCaptureScoreBase;
     } else if constexpr (Policy == PickPolicy::Quiet) {
-        return !is_quiet_hint(move);
+        return !is_quiet_hint(move) && (!quiet_checks_only || board.gives_check(move));
     } else {
         return move.type() != MOVE_PROM && score < GoodCaptureScoreBase;
     }
@@ -203,19 +205,11 @@ Move Picker::pick(CandidateRange& range) {
     return move;
 }
 
-void Picker::skip_quiet_moves() {
+void Picker::skip_nonchecking_quiets() {
     if (mode != Mode::MainSearch || in_check)
         return;
 
-    skip_quiets = true;
-
-    switch (stage) {
-    case Stage::PickQuietHint:
-    case Stage::LoadQuiet:
-    case Stage::PickQuiet:     stage = Stage::PickBadNoisy; break;
-
-    default: break;
-    }
+    quiet_checks_only = true;
 }
 
 Move Picker::next() {
@@ -264,7 +258,7 @@ Move Picker::next() {
             if (mode == Mode::QSearch)
                 stage = Stage::Done;
             else
-                stage = skip_quiets ? Stage::PickBadNoisy : Stage::PickQuietHint;
+                stage = Stage::PickQuietHint;
             break;
         }
 
@@ -277,10 +271,6 @@ Move Picker::next() {
         }
 
         case Stage::LoadQuiet: {
-            if (skip_quiets) {
-                stage = Stage::PickBadNoisy;
-                break;
-            }
             assert(primary_range.end != nullptr);
             quiet_range.next                    = primary_range.end;
             const movegen::MoveList quiet_moves = movegen::generate_quiet(board);

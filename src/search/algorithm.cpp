@@ -402,7 +402,7 @@ EvalValue Worker::alphabeta(
             // Step 9. Futility pruning.
             board.unmake();
             --search_ply;
-            picker.skip_quiet_moves();
+            picker.skip_nonchecking_quiets();
             stats.futility_skip(search_ply);
             continue;
         }
