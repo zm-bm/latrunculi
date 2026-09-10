@@ -12,9 +12,9 @@ Update these fields together only after an approved candidate is integrated:
 
 | Operational field | Current value |
 |---|---|
-| Search-behavior baseline | `6767e7447bfa285bef1daeea30d62f8a69367c42` (`6767e74`) |
-| Deterministic benchmark | 6,068,328 nodes |
-| Cached corpus baseline | `tools/measurements/output/search-baseline-6767e74/` |
+| Search-behavior baseline | `8e64048ec59d05574e79d79c300dab45a2c598ed` (`8e64048`) |
+| Deterministic benchmark | 4,697,330 nodes |
+| Cached corpus baseline | `tools/measurements/output/search-baseline-8e64048/` |
 
 The cached rows use `search_measurement_v3` and `tools/measurements/search.epd`. Recollect them
 only when search behavior, the workload, or measurement semantics change. The
@@ -144,6 +144,7 @@ audit document from commit `8c0d46d` only for forensic replay.
 | SW-01 [rejected] | Aspiration window 50 -> 32 cp | Corrected performance node ratio 1.1227, median 1.1512; 9 of 11 cases regressed. | Retain 50 cp. `tools/measurements/output/sw-01-6767e74/` |
 | SW-02 [rejected] | Exact lookup table for the existing LMR formula | Search signatures and 6,068,328-node benchmark were unchanged, but 7 same-core pairs yielded one win and median NPS -1.767%. | Keep the formula. `tools/measurements/output/sw-02-cef892a/` |
 | SW-03 [done; capped inconclusive] | Quiet LMR divisor 2.5 -> 2.4 | Offline corpus node ratio 0.9736 and repeatable 6,609,227-node candidate benchmark. STC `[0,3]` OpenBench #21 (`de77ab7` vs `72d2c88`) stopped at 8,018 games: LLR +0.9037 inside the +/-2.9444 bounds, +4.42 +/-5.57 Elo, no crashes or time losses. | Not integrated; main remains 2.5. Preserve branch `sw-03-quiet-lmr`, test #21, `Media/PGNs/21.pgn.tar`, and `tools/measurements/output/sw-03-72d2c88/`. |
+| SW-05 [done] | Guarded reverse futility pruning at NonPV depths 1-3 | Offline corpus node ratio 0.7855 with exact repeats and a repeatable 4,697,330-node benchmark. STC `[0,3]` OpenBench #22 (`8e64048` vs `02a9537`) passed at 2,966 games: LLR +2.9698, +31.01 +/-9.19 Elo, no crashes or time losses. | Integrated as the operational baseline. Preserve branch `sw-05-reverse-futility`, test #22, `Media/PGNs/22.pgn.tar`, and `tools/measurements/output/sw-05-02a9537/`. |
 
 ## Reference review
 
@@ -193,7 +194,7 @@ seven focused null-move and objective guards passed. Evidence and the exact reje
 Disposition / next boundary: rejected; retain the existing NMP eligibility and restore the
 `6767e74` search baseline before activating SW-05.
 
-### SW-05 — Add conservative reverse futility pruning [active]
+### SW-05 — Add conservative reverse futility pruning [done]
 
 Hypothesis / candidate: clearly high static evaluations can avoid shallow searches safely. Before
 NMP at NonPV depths 1-3, return `static_eval` fail-soft when
@@ -214,11 +215,12 @@ evaluation, or root control.
 Result / artifacts: Screen and Qualification passed. Both 200-position passes were exact and used
 0.7855 times the baseline geometric-mean nodes (median 0.7972; 171 improved, 2 equal, 27
 regressed), while changing 33 root moves and 103 scores. The candidate benchmark repeated at
-4,697,330 nodes; all focused guards and the complete `release-dev` suite passed. Evidence is in
-`tools/measurements/output/sw-05-02a9537/`.
+4,697,330 nodes; all focused guards and the complete `release-dev` suite passed. OpenBench #22
+passed the STC `[0,3]` upper bound after 2,966 games at LLR +2.9698 and +31.01 +/-9.19 Elo,
+with no crashes or time losses. Evidence is in `tools/measurements/output/sw-05-02a9537/`.
 
-Disposition / next boundary: offline-qualified. Publish `sw-05-reverse-futility` and run the
-authorized STC `[0,3]` paired OpenBench test; retain or reject only on a terminal SPRT result.
+Disposition / next boundary: accepted and integrated as operational baseline `8e64048`; revalidate
+SW-06 against this baseline before activation.
 
 ### SW-06 — Confirm reduced PV fail-highs with a full-depth scout [pending]
 
