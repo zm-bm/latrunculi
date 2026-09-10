@@ -348,9 +348,9 @@ proves too expensive, test a separate checks-first picker stage before weakening
 protected checks: search quiet checks before ordinary quiets, then retain the bulk nonchecking-
 quiet skip.
 
-Disposition / next boundary: offline-qualified, published as `c6eb554` on
-`sw-08-futility-quiet-checks`, and still active. Submit the authorized paired STC validation as a
-fixed 8,000-game test because this OpenBench revision cannot combine an SPRT with a creation-time
-game cap. It therefore has no early statistical boundary: at completion, use its Elo estimate,
+Disposition / next boundary: active in fixed 8,000-game OpenBench test #24: Dev `c6eb554` versus
+Base `8e64048`, using the predeclared STC controls. The workload was approved and active without
+errors at submission. This OpenBench revision cannot combine an SPRT with a creation-time game
+cap, so the test has no early statistical boundary. At completion, use its Elo estimate,
 uncertainty, failures, and the correctness-policy tradeoff for an explicit retain, rework, or
 reject decision.
