@@ -148,6 +148,7 @@ audit document from commit `8c0d46d` only for forensic replay.
 | SW-02 [rejected] | Exact lookup table for the existing LMR formula | Search signatures and 6,068,328-node benchmark were unchanged, but 7 same-core pairs yielded one win and median NPS -1.767%. | Keep the formula. `tools/measurements/output/sw-02-cef892a/` |
 | SW-03 [done; capped inconclusive] | Quiet LMR divisor 2.5 -> 2.4 | Offline corpus node ratio 0.9736 and repeatable 6,609,227-node candidate benchmark. STC `[0,3]` OpenBench #21 (`de77ab7` vs `72d2c88`) stopped at 8,018 games: LLR +0.9037 inside the +/-2.9444 bounds, +4.42 +/-5.57 Elo, no crashes or time losses. | Not integrated; main remains 2.5. Preserve branch `sw-03-quiet-lmr`, test #21, `Media/PGNs/21.pgn.tar`, and `tools/measurements/output/sw-03-72d2c88/`. |
 | SW-05 [done] | Guarded reverse futility pruning at NonPV depths 1-3 | Offline corpus node ratio 0.7855 with exact repeats and a repeatable 4,697,330-node benchmark. STC `[0,3]` OpenBench #22 (`8e64048` vs `02a9537`) passed at 2,966 games: LLR +2.9698, +31.01 +/-9.19 Elo, no crashes or time losses. | Integrated as the operational baseline. Preserve branch `sw-05-reverse-futility`, test #22, `Media/PGNs/22.pgn.tar`, and `tools/measurements/output/sw-05-02a9537/`. |
+| SW-06 [done; capped positive/inconclusive] | Confirm reduced PV fail-highs with a full-depth scout | Offline corpus node ratio 0.9949, exact repeats, no sentinel regression, and a repeatable 4,345,849-node benchmark. OpenBench #23 (`2d52595` vs `1b2b8fc`) was stopped at 8,676 scored games: LLR +1.1808 inside the bounds, +5.29 +/-5.54 Elo, no crashes or time losses. | Not integrated because the test did not cross its predeclared upper bound. Preserve branch `sw-06-pv-lmr-confirmation`, test #23, and `tools/measurements/output/sw-06-1b2b8fc/`. |
 
 ## Reference review
 
@@ -225,7 +226,7 @@ with no crashes or time losses. Evidence is in `tools/measurements/output/sw-05-
 Disposition / next boundary: accepted and integrated as operational baseline `8e64048`; revalidate
 SW-06 against this baseline before activation.
 
-### SW-06 — Confirm reduced PV fail-highs with a full-depth scout [active]
+### SW-06 — Confirm reduced PV fail-highs with a full-depth scout [done; capped positive/inconclusive]
 
 Hypothesis / candidate: some reduced PV scouts exceed alpha only because of the reduction. Keep
 the LMR formula and NonPV path unchanged. After a reduced PV scout exceeds alpha, run the ordinary
@@ -248,13 +249,13 @@ times the baseline geometric-mean nodes (median 1.0000; 95 improved, 7 equal, 98
 30 root-move and 89 score changes. The benchmark repeated at 4,345,849 nodes; focused guards and
 the complete `release-dev` suite passed. The four sentinels lost no useful depth: aggregate late
 root changes improved 2 to 0 and zero-prefix transitions 2 to 0, while score-class changes stayed
-0 and A-B-A stayed 1. Evidence is in `tools/measurements/output/sw-06-1b2b8fc/`.
+0 and A-B-A stayed 1. OpenBench #23 was stopped after 8,676 scored games at LLR +1.1808 inside the
+`+/-2.9444` bounds and +5.29 +/-5.54 Elo; both hardware groups were positive, with no crashes or
+time losses. Evidence is in `tools/measurements/output/sw-06-1b2b8fc/`.
 
-Disposition / next boundary: candidate `2d5259574ed78f71f8b2c51be1b71196094aa93d` is published on
-`sw-06-pv-lmr-confirmation`. STC `[0,3]` OpenBench #23 tests it against `1b2b8fc` through the
-configured Tailscale endpoint. The test predates the finite-cap rule and retains its submitted
-`max_games = 0`; at the last handoff it was nonterminal with no crashes or time losses. Keep
-SW-06 active and inspect it only when the user resumes the task.
+Disposition / next boundary: capped-positive and inconclusive, not an SPRT pass. Do not integrate
+candidate `2d5259574ed78f71f8b2c51be1b71196094aa93d`; preserve its published branch and evidence.
+The operational search baseline remains `8e64048`; revalidate SW-07 against it before activation.
 
 ### SW-07 — Preserve later checking quiets under futility [pending]
 
