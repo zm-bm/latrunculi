@@ -349,10 +349,10 @@ proves too expensive, test a separate checks-first picker stage before weakening
 protected checks: search quiet checks before ordinary quiets, then retain the bulk nonchecking-
 quiet skip.
 
-Disposition / next boundary: active pending replacement OpenBench validation. Fixed-game test #24
-was a workflow mistake and was stopped without errors after 222 games; exclude it from the strength
-decision. Replace it with an STC `[-3,0]` SPRT: Dev `c6eb554` versus Base `8e64048`, with an
-8,000-game manual review ceiling. The negative lower hypothesis reflects the explicitly accepted
-small strength tradeoff for this correctness policy. An upper-bound result supports retention; a
-lower-bound or nonterminal review-ceiling result still requires an explicit retain, rework, or
-reject decision.
+Disposition / next boundary: active in STC `[-3,0]` OpenBench test #25: Dev `c6eb554` versus Base
+`8e64048`, with an 8,000-game manual review ceiling. The workload was approved and active without
+errors at submission. Fixed-game test #24 was a workflow mistake and was stopped without errors
+after 222 games; exclude it from the strength decision. The negative lower hypothesis reflects the
+explicitly accepted small strength tradeoff for this correctness policy. An upper-bound result
+supports retention; a lower-bound or nonterminal review-ceiling result still requires an explicit
+retain, rework, or reject decision.
