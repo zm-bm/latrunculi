@@ -163,9 +163,10 @@ explicitly authorizes them; authorization for one stage does not imply another.
 Publish from an unmerged `sw-XX-<slug>` branch and never rewrite a published or
 tested revision. Follow the [OpenBench guide](openbench.md), record the test ID,
 profile, revisions and benchmark fingerprints, OpenBench revision, decision,
-and PGN artifact. An upper-bound result qualifies for approved integration, a
-lower-bound result rejects, and an inconclusive result remains active. Only an
-approved integrated revision updates the operational baseline table.
+and PGN artifact. An upper-bound result qualifies for approved integration and
+a lower-bound result rejects. A stopped or capped result is inconclusive; keep
+it active unless an explicit disposition closes it without integration. Only
+an approved integrated revision updates the operational baseline table.
 
 ## Evidence and cleanup
 
@@ -226,18 +227,39 @@ Completing one task never authorizes starting the next.
   `tools/measurements/output/sw-02-cef892a/`.
 - **Disposition / next boundary:** Rejected for failing the predeclared throughput
   gate and removed. Rebuilt release binaries match the preserved baseline byte for
-  byte, and the restored benchmark produced 6,068,328 nodes. Keep SW-03 pending.
+  byte, and the restored benchmark produced 6,068,328 nodes. SW-03 was activated
+  separately from the clean `72d2c88` boundary.
 
-### SW-03 — Tune quiet LMR selectivity [pending]
+### SW-03 — Tune quiet LMR selectivity [done]
 
 - **Hypothesis / candidate:** Change only the quiet LMR divisor from 2.5 to
-  2.4; leave noisy moves, the fourth-move threshold, and history unchanged.
-- **Baseline / panels / stops:** Current operational baseline; corpus,
-  objectives, benchmark, and predeclared mechanism-specific stops. Sanitizers
-  are `N/A` if the diff remains parameter-only; reassess if its scope expands.
-- **Result / artifacts:** Not run.
-- **Disposition / next boundary:** Pending. Do not retry high-history
-  protection or revert the fourth-move stabilization in this task.
+  2.4; leave noisy moves, the fourth-move threshold, history, PV/killer
+  multipliers, exemptions, clamping, and re-search behavior unchanged.
+- **Baseline / panels / stops:** `72d2c889545dd761738b38dfa2a94cb8ac1fc525`
+  (`72d2c88`; search behavior `6767e74`); focused LMR and objective tests, the
+  200-position depth-10 corpus, four sentinel trajectories, and the benchmark.
+  Reject in Screen at a corpus geometric-mean node ratio of at least 1.05 or if
+  two sentinels lost at least two plies of useful depth. Sanitizers,
+  `release-stats`, and repeated timing were `N/A` for the scalar-only change.
+- **Result / artifacts:** Both offline phases passed. Two corpus passes were
+  exact: geometric-mean node ratio 0.9736, median 0.9779, with 135 positions
+  improving and 65 regressing. Sentinel useful depths were 11, 14, 18, and 9
+  versus 11, 14, 17, and 11. Seven focused tests passed twice, the complete
+  `release-dev` suite passed 3/3, and the benchmark repeated at 6,609,227 nodes.
+  OpenBench test #21 compared immutable `de77ab7` against `72d2c88` with the
+  STC `[0,3]` profile. After 4,024 games at LLR +0.1336, a prospective
+  8,000-game resource cap was set; the test was manually stopped at 8,018
+  scored games with LLR +0.9037 inside the ±2.9444 bounds and a reported
+  +4.42 ± 5.57 Elo: 2,601 wins, 2,499 losses, and 2,918 draws. There were
+  zero crashes or time losses. OpenBench checkout `0bf07b2`; client
+  `2b8949d`; server PGN
+  `Media/PGNs/21.pgn.tar`. Evidence:
+  `tools/measurements/output/sw-03-72d2c88/`.
+- **Disposition / next boundary:** Completed as capped inconclusive, not an SPRT
+  rejection. The candidate is not strength-qualified or integrated; main
+  retains divisor 2.5. Preserve tested branch `sw-03-quiet-lmr`, commit
+  `de77ab7`, and test #21 as evidence. Resume this exact candidate only with a
+  fresh predeclared budget and reason; select any next experiment separately.
 
 After these tasks, select at most one small mechanism from current code and
 game evidence. Do not open it until the preceding candidate has a disposition;
