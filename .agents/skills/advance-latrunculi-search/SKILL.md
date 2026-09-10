@@ -37,9 +37,10 @@ do not duplicate it in `docs/roadmap.md`.
 - Publish an OpenBench candidate from an unmerged `sw-XX-<slug>` branch after
   verifying its exact diff and revision. Never amend, reset, force-push, or
   otherwise rewrite a published or tested revision.
-- Before an authorized submission, read `docs/openbench.md` and verify the
-  immutable revisions and settings. Read-only monitoring and result retrieval
-  need no further approval after submission.
+- Before an authorized submission, read `docs/openbench.md`; use its configured
+  Tailscale Serve endpoint and verify the immutable revisions, settings, and
+  finite game cap. Read-only status checks and result retrieval need no further
+  approval after submission.
 - If no action is named, plan only. Keep an offline-qualified task active while
   it awaits its next authorized stage.
 
@@ -98,17 +99,23 @@ change requires paired games for strength evidence.
 
 ## Publish, Dispose, and Finish
 
-1. For authorized publication or testing, verify the exact candidate revision,
-   follow `docs/openbench.md`, and record the test identity and result in the
-   compact task record. Update the operational baseline only after approved
-   integration.
-2. For an unpublished rejection, keep referenced evidence and save a patch only
+1. For authorized publication or testing, verify the exact candidate revision
+   and follow `docs/openbench.md`. Every strength test must have a predeclared
+   finite `max_games`; use the guide's default unless the task names another
+   positive even cap.
+2. After submission, perform one status read to confirm the test identity,
+   revisions, settings, cap, and running state. Record them, leave the task
+   active, report the handoff, and return control. Do not poll, sleep, or keep
+   the turn open while games run. Inspect status again only in a later user
+   request or goal continuation; a cap reached inside the SPRT bounds remains
+   inconclusive.
+3. For an unpublished rejection, keep referenced evidence and save a patch only
    when no immutable commit represents the candidate. Remove candidate behavior,
    temporary diagnostics, redundant tests, and exact candidate-only build output;
    never use broad `git clean` or delete sealed evidence.
-3. Distinguish rejection from incomplete evidence caused by infrastructure
+4. Distinguish rejection from incomplete evidence caused by infrastructure
    failure; leave the latter active.
-4. Inspect final diff, status, artifact scope, and formatting. Preserve
+5. Inspect final diff, status, artifact scope, and formatting. Preserve
    unrelated work, keep authorized commits focused, and do not start a pending
    task merely because the current one received a disposition.
 

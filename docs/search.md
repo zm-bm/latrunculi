@@ -123,8 +123,11 @@ offline performance is marginal or mixed.
 Offline qualification does not authorize publication. Commit, push, and OpenBench require
 explicit authorization in the current request or active `/goal`; authorization for one stage
 does not imply another. Publish from an unmerged `sw-XX-<slug>` branch without rewriting the
-tested revision, and follow the [OpenBench guide](openbench.md). An upper-bound result may be
-integrated, a lower-bound result rejects, and a stopped or capped result is inconclusive until
+tested revision, and follow the [OpenBench guide](openbench.md). Every paired strength test uses
+a finite game cap: 8,000 games by default, or another positive even value predeclared by the task.
+After submission, confirm and record the test once, then return control instead of polling while
+games run. Resume status handling in a later request. An upper-bound result may be integrated, a
+lower-bound result rejects, and a stopped or capped result inside the bounds is inconclusive until
 explicitly disposed. Only an approved integrated revision updates the baseline table.
 
 Put new evidence in `tools/measurements/output/sw-XX-<baseline>/`: untouched output in `raw/`,
@@ -222,12 +225,36 @@ with no crashes or time losses. Evidence is in `tools/measurements/output/sw-05-
 Disposition / next boundary: accepted and integrated as operational baseline `8e64048`; revalidate
 SW-06 against this baseline before activation.
 
-### SW-06 — Confirm reduced PV fail-highs with a full-depth scout [pending]
+### SW-06 — Confirm reduced PV fail-highs with a full-depth scout [active]
 
-Keep the LMR formula unchanged. When a reduced PV scout exceeds alpha, first confirm it with the
-ordinary full-depth null-window search; run the existing full-window PV re-search only if that
-confirmation still exceeds alpha. Measure whether avoided full-window searches outweigh the
-extra confirmation scouts.
+Hypothesis / candidate: some reduced PV scouts exceed alpha only because of the reduction. Keep
+the LMR formula and NonPV path unchanged. After a reduced PV scout exceeds alpha, run the ordinary
+full-depth NonPV null-window search first; run the existing full-window PV re-search only if that
+confirmation still exceeds alpha.
+
+Baseline / panels / stops: task HEAD `1b2b8fc`, operational search baseline `8e64048`, benchmark
+4,697,330 nodes, artifacts `tools/measurements/output/sw-06-1b2b8fc/`. Screen with focused PV,
+LMR, and mate/material guards, one fresh-process depth-10 pass over all 200 corpus positions, and
+one benchmark. Reject on a correctness or invalid-output failure, or when corpus geometric-mean
+nodes are at least 3% worse with at least 120 positions regressing. Qualification adds the
+complete `release-dev` suite, a second exact corpus pass, repeated guards and benchmark, and the
+four sentinel trajectories through their recorded horizons. Reject a useful-depth loss or worse
+late convergence. Sanitizers, `release-stats`, and separate timing are `N/A`: the change only
+sequences existing scalar-controlled searches, node totals capture its added and avoided search
+work, and it changes no storage, arithmetic domain, concurrency, or evaluation work.
+
+Result / artifacts: Screen and Qualification passed. Both corpus passes were exact and used 0.9949
+times the baseline geometric-mean nodes (median 1.0000; 95 improved, 7 equal, 98 regressed), with
+30 root-move and 89 score changes. The benchmark repeated at 4,345,849 nodes; focused guards and
+the complete `release-dev` suite passed. The four sentinels lost no useful depth: aggregate late
+root changes improved 2 to 0 and zero-prefix transitions 2 to 0, while score-class changes stayed
+0 and A-B-A stayed 1. Evidence is in `tools/measurements/output/sw-06-1b2b8fc/`.
+
+Disposition / next boundary: candidate `2d5259574ed78f71f8b2c51be1b71196094aa93d` is published on
+`sw-06-pv-lmr-confirmation`. STC `[0,3]` OpenBench #23 tests it against `1b2b8fc` through the
+configured Tailscale endpoint. The test predates the finite-cap rule and retains its submitted
+`max_games = 0`; at the last handoff it was nonterminal with no crashes or time losses. Keep
+SW-06 active and inspect it only when the user resumes the task.
 
 ### SW-07 — Preserve later checking quiets under futility [pending]
 
