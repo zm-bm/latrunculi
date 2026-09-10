@@ -419,10 +419,14 @@ EvalValue Worker::alphabeta(
             if (!stop_requested() && value > alpha) {
                 stats.lmr_research(search_ply - 1);
                 if constexpr (Node == NodeType::Pv) {
-                    stats.pvs_research(search_ply);
-                    child_pv.clear();
-                    value = -alphabeta<NodeType::Pv>(
-                        -beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
+                    value =
+                        -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, depth - 1, nullptr, true);
+                    if (!stop_requested() && value > alpha) {
+                        stats.pvs_research(search_ply);
+                        child_pv.clear();
+                        value = -alphabeta<NodeType::Pv>(
+                            -beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
+                    }
                 } else {
                     value = -alphabeta<NodeType::NonPv>(-beta, -alpha, depth - 1, nullptr, true);
                 }
