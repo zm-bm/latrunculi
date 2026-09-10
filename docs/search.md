@@ -169,11 +169,29 @@ reasonable later candidates, but are not queued while the smaller questions belo
 No experiment is active. Activate and fully predeclare only one task at a time against the
 then-current baseline; the order below is the current priority, not authorization to execute it.
 
-### SW-04 — Gate null-move searches by static evaluation [pending]
+### SW-04 — Gate null-move searches by static evaluation [rejected]
 
-Add only `static_eval >= beta` to the existing NonPV null-move eligibility test. Preserve the
-current check, material, TT-upper, recursive-null, depth, and reduction rules. This tests whether
-obviously implausible null probes are wasted work without tuning NMP itself.
+Hypothesis / candidate: null probes with `static_eval < beta` are usually wasted work. Add only
+`static_eval >= beta` to the existing NonPV null-move eligibility test; preserve every other NMP
+guard, depth, and reduction rule.
+
+Baseline / panels / stops: task HEAD `08e5c2f`, operational search baseline `6767e74`, benchmark
+6,068,328 nodes, artifacts `tools/measurements/output/sw-04-08e5c2f/`. Screen with the focused
+mate/material root guards, one fresh-process depth-10 pass over all 200 corpus positions, and one
+benchmark. Reject on a correctness or invalid-output failure, or when corpus geometric-mean nodes
+are at least 5% worse with at least 120 positions regressing. Qualification adds the complete
+`release-dev` suite, a second exact corpus pass, repeated objective guards, and a repeatable
+benchmark. Sanitizers, `release-stats`, timing, and sentinels are `N/A`: this adds one scalar
+condition without changing storage, arithmetic, concurrency, hot-path evaluation, or root control.
+
+Result / artifacts: Screen stopped in the focused suite before corpus collection. The candidate
+twice prevented `SearchTest.NullMoveReenablesAfterARealDescendantMove` from observing its expected
+descendant null search; the second run used a deliberately low window and still failed. The other
+seven focused null-move and objective guards passed. Evidence and the exact rejected patch are in
+`tools/measurements/output/sw-04-08e5c2f/`.
+
+Disposition / next boundary: rejected; retain the existing NMP eligibility and restore the
+`6767e74` search baseline before activating SW-05.
 
 ### SW-05 — Add conservative reverse futility pruning [pending]
 
