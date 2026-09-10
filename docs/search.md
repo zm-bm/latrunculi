@@ -336,8 +336,9 @@ The sentinels remain diagnostic: `pilot14-g171-abrupt` useful depth is 14 instea
 aggregate late A-B-A rises from one to two, while late root changes and zero-prefix transitions
 both match baseline and score-class changes remain zero. Compared with SW-07, the picker filter
 uses 83,301 fewer aggregate corpus nodes, changes no root move and only two scores, and avoids
-returning filtered quiets to the search loop. Evidence and the exact uncommitted patch are in
-`tools/measurements/output/sw-08-6c01040/`.
+returning filtered quiets to the search loop. Evidence and the exact offline patch are in
+`tools/measurements/output/sw-08-6c01040/`; published candidate `c6eb554` represents the engine
+change immutably.
 
 Interpretation: the regressions establish the intended quiet-check exemption, not a general
 playing-strength or move-accuracy gain. Neutral NPS and the close SW-07 fingerprint show that most
@@ -347,7 +348,9 @@ proves too expensive, test a separate checks-first picker stage before weakening
 protected checks: search quiet checks before ordinary quiets, then retain the bulk nonchecking-
 quiet skip.
 
-Disposition / next boundary: offline-qualified and still active. Publish an immutable
-`sw-08-futility-quiet-checks` candidate and submit the authorized 8,000-game STC `[0,3]` OpenBench
-test. A lower-bound result does not automatically restore the known exemption violation; pause for
-an explicit retain, rework, or reject decision. A capped result inside the bounds is inconclusive.
+Disposition / next boundary: offline-qualified, published as `c6eb554` on
+`sw-08-futility-quiet-checks`, and still active. Submit the authorized paired STC validation as a
+fixed 8,000-game test because this OpenBench revision cannot combine an SPRT with a creation-time
+game cap. It therefore has no early statistical boundary: at completion, use its Elo estimate,
+uncertainty, failures, and the correctness-policy tradeoff for an explicit retain, rework, or
+reject decision.
