@@ -12,9 +12,9 @@ Update these fields together only after an approved candidate is integrated:
 
 | Operational field | Current value |
 |---|---|
-| Search-behavior baseline | `8e64048ec59d05574e79d79c300dab45a2c598ed` (`8e64048`) |
-| Deterministic benchmark | 4,697,330 nodes |
-| Cached corpus baseline | `tools/measurements/output/search-baseline-8e64048/` |
+| Search-behavior baseline | `c6eb5547ac5e883d07be4ff560a8b13820a4d415` (`c6eb554`) |
+| Deterministic benchmark | 5,168,111 nodes |
+| Cached corpus baseline | `tools/measurements/output/search-baseline-c6eb554/` |
 
 The cached rows use `search_measurement_v3` and `tools/measurements/search.epd`. Recollect them
 only when search behavior, the workload, or measurement semantics change. The
@@ -46,7 +46,8 @@ predicates hold.
 | Qsearch | Ordinary exact-SEE-negative captures are already excluded. The tested 200, 300, and 400 cp delta margins would have skipped 3,200, 732, and 206 real NonPV cutoffs. NonPV value usually appears as a beta cutoff, so zero alpha raises is not a safety result. Do not retry those rules. |
 | LMR | All 107 sampled high-history reduced fail-lows remained fail-lows at full depth. Do not retry the tested one-ply history protection. This does not rule out different LMR formulas or re-search sequencing. |
 | Clock | Unfinished iterations consumed median node shares of 24-26%, but all 210 timed searches matched fresh-depth results. The tested next-iteration predictors fired prematurely 21, 65, and 129 times. Explicit `movetime` remains a hard-duration request. |
-| Open mechanisms | Null move and futility remain eligible for small production experiments; the audit lacked eligibility and counterfactual-failure denominators and therefore neither proved nor disproved a change. |
+| Futility | Guarded reverse futility pruning passed OpenBench and was retained in `8e64048`. Main-search futility now preserves its quiet-check exemption by filtering only nonchecking quiets after activation; SW-08 was neutral at 10,426 games and retained by explicit correctness policy. |
+| Open mechanisms | Null move remains eligible for a materially different small experiment; the audit lacked eligibility and counterfactual-failure denominators, while SW-04 rejected only the tested `static_eval >= beta` gate. |
 
 The sentinel baselines are `startpos` (horizon/useful depth 14/11; late root/PV change),
 `arasan20-16` (16/14; late root changes and A-B-A), `pilot14-g171-abrupt` (18/17; 4M-to-33M
@@ -123,12 +124,11 @@ offline performance is marginal or mixed.
 Offline qualification does not authorize publication. Commit, push, and OpenBench require
 explicit authorization in the current request or active `/goal`; authorization for one stage
 does not imply another. Publish from an unmerged `sw-XX-<slug>` branch without rewriting the
-tested revision, and follow the [OpenBench guide](openbench.md). Every paired strength test uses
-a finite game cap: 8,000 games by default, or another positive even value predeclared by the task.
-After submission, confirm and record the test once, then return control instead of polling while
-games run. Resume status handling in a later request. An upper-bound result may be integrated, a
-lower-bound result rejects, and a stopped or capped result inside the bounds is inconclusive until
-explicitly disposed. Only an approved integrated revision updates the baseline table.
+tested revision, and follow the [OpenBench guide](openbench.md). Predeclare the profile and
+OpenBench-enforced game budget; a larger-than-default budget needs explicit approval, and a
+missing cap blocks submission. Confirm the test once and return control. Reaching the cap inside
+both bounds is inconclusive; further testing needs separate justification and authorization.
+Only an approved integrated revision updates the baseline table.
 
 Put new evidence in `tools/measurements/output/sw-XX-<baseline>/`: untouched output in `raw/`,
 one compact manifest in `meta/`, and optional analysis in `derived/`. Save a patch only when no
@@ -146,11 +146,12 @@ audit document from commit `8c0d46d` only for forensic replay.
 |---|---|---|---|
 | SW-01 [rejected] | Aspiration window 50 -> 32 cp | Corrected performance node ratio 1.1227, median 1.1512; 9 of 11 cases regressed. | Retain 50 cp. `tools/measurements/output/sw-01-6767e74/` |
 | SW-02 [rejected] | Exact lookup table for the existing LMR formula | Search signatures and 6,068,328-node benchmark were unchanged, but 7 same-core pairs yielded one win and median NPS -1.767%. | Keep the formula. `tools/measurements/output/sw-02-cef892a/` |
-| SW-03 [done; capped inconclusive] | Quiet LMR divisor 2.5 -> 2.4 | Offline corpus node ratio 0.9736 and repeatable 6,609,227-node candidate benchmark. STC `[0,3]` OpenBench #21 (`de77ab7` vs `72d2c88`) stopped at 8,018 games: LLR +0.9037 inside the +/-2.9444 bounds, +4.42 +/-5.57 Elo, no crashes or time losses. | Not integrated; main remains 2.5. Preserve branch `sw-03-quiet-lmr`, test #21, `Media/PGNs/21.pgn.tar`, and `tools/measurements/output/sw-03-72d2c88/`. |
+| SW-03 [done; manually stopped/inconclusive] | Quiet LMR divisor 2.5 -> 2.4 | Offline corpus node ratio 0.9736 and repeatable 6,609,227-node candidate benchmark. STC `[0,3]` OpenBench #21 (`de77ab7` vs `72d2c88`) stopped at 8,018 games: LLR +0.9037 inside the +/-2.9444 bounds, +4.42 +/-5.57 Elo, no crashes or time losses. | Not integrated; main remains 2.5. Preserve branch `sw-03-quiet-lmr`, test #21, `Media/PGNs/21.pgn.tar`, and `tools/measurements/output/sw-03-72d2c88/`. |
 | SW-04 [rejected] | Require `static_eval >= beta` before null-move search | The focused descendant-null regression failed twice, including with a deliberately low window, before corpus measurement. | Retain existing null-move eligibility. `tools/measurements/output/sw-04-08e5c2f/` |
-| SW-05 [done] | Guarded reverse futility pruning at NonPV depths 1-3 | Offline corpus node ratio 0.7855 with exact repeats and a repeatable 4,697,330-node benchmark. STC `[0,3]` OpenBench #22 (`8e64048` vs `02a9537`) passed at 2,966 games: LLR +2.9698, +31.01 +/-9.19 Elo, no crashes or time losses. | Integrated as the operational baseline. Preserve branch `sw-05-reverse-futility`, test #22, `Media/PGNs/22.pgn.tar`, and `tools/measurements/output/sw-05-02a9537/`. |
-| SW-06 [done; capped positive/inconclusive] | Confirm reduced PV fail-highs with a full-depth scout | Offline corpus node ratio 0.9949, exact repeats, no sentinel regression, and a repeatable 4,345,849-node benchmark. OpenBench #23 (`2d52595` vs `1b2b8fc`) was stopped at 8,676 scored games: LLR +1.1808 inside the bounds, +5.29 +/-5.54 Elo, no crashes or time losses. | Not integrated because the test did not cross its predeclared upper bound. Preserve branch `sw-06-pv-lmr-confirmation`, test #23, and `tools/measurements/output/sw-06-1b2b8fc/`. |
+| SW-05 [done] | Guarded reverse futility pruning at NonPV depths 1-3 | Offline corpus node ratio 0.7855 with exact repeats and a repeatable 4,697,330-node benchmark. STC `[0,3]` OpenBench #22 (`8e64048` vs `02a9537`) passed at 2,966 games: LLR +2.9698, +31.01 +/-9.19 Elo, no crashes or time losses. | Integrated and retained beneath the current SW-08 baseline. Preserve branch `sw-05-reverse-futility`, test #22, `Media/PGNs/22.pgn.tar`, and `tools/measurements/output/sw-05-02a9537/`. |
+| SW-06 [done; manually stopped/inconclusive] | Confirm reduced PV fail-highs with a full-depth scout | Offline corpus node ratio 0.9949, exact repeats, no sentinel regression, and a repeatable 4,345,849-node benchmark. OpenBench #23 (`2d52595` vs `1b2b8fc`) was stopped at 8,676 scored games: LLR +1.1808 inside the bounds, +5.29 +/-5.54 Elo, no crashes or time losses. | Not integrated because the test did not cross its predeclared upper bound. Preserve branch `sw-06-pv-lmr-confirmation`, test #23, and `tools/measurements/output/sw-06-1b2b8fc/`. |
 | SW-07 [rejected] | Prune qualifying quiets individually so later checking quiets remain searchable | The focused regression was fixed and all tests passed, but corpus nodes rose 5.39% geometrically and the `pilot14-g171-abrupt` trajectory lost useful depth from 17 to 14; aggregate late root changes and zero-prefix transitions each increased by one. | Rejected by the predeclared convergence stop before OpenBench. Retain the picker-wide skip and preserve `tools/measurements/output/sw-07-b8a5335/`. |
+| SW-08 [done; policy-retained] | Filter nonchecking quiets after futility while preserving later quiet checks | All offline gates passed; corpus nodes rose 5.34%, benchmark nodes rose 10.02%, and NPS was neutral. `[-3,0]` OpenBench #25 (`c6eb554` vs `8e64048`) stopped at 10,426 games: LLR +0.1433, -0.70 +/-4.93 Elo, no crashes or time losses. | Not a formal SPRT pass; retained at the manual review boundary to fix the quiet-check exemption. Preserve branch `sw-08-futility-quiet-checks`, test #25, `Media/PGNs/25.pgn.tar`, and `tools/measurements/output/sw-08-6c01040/`. |
 
 ## Reference review
 
@@ -160,10 +161,8 @@ The next queue was derived from Latrunculi's own gaps after reviewing local snap
 constants to transplant. Each candidate must fit Latrunculi's evaluation scale, TT policy, move
 picker, node types, and evidence loop.
 
-The strongest common gap is that Latrunculi already computes a NonPV static evaluation but does
-not use it to screen null-move attempts or to make a shallow high-side cutoff. Ethereal and Minic
-also confirm reduced PV fail-highs at full depth before paying for a full-window re-search. A
-Latrunculi-specific review found that bulk futility skipping can discard later checking quiets.
+That review motivated SW-04 through SW-08. Their measured results and dispositions below
+supersede its initial prioritization.
 
 Defer ProbCut, singular extensions, correction history, TT static-eval storage, and broad
 late-move packages: they need more search state or coupled machinery than the next experiments
@@ -228,7 +227,7 @@ with no crashes or time losses. Evidence is in `tools/measurements/output/sw-05-
 Disposition / next boundary: accepted and integrated as operational baseline `8e64048`; revalidate
 SW-06 against this baseline before activation.
 
-### SW-06 — Confirm reduced PV fail-highs with a full-depth scout [done; capped positive/inconclusive]
+### SW-06 — Confirm reduced PV fail-highs with a full-depth scout [done; manually stopped/inconclusive]
 
 Hypothesis / candidate: some reduced PV scouts exceed alpha only because of the reduction. Keep
 the LMR formula and NonPV path unchanged. After a reduced PV scout exceeds alpha, run the ordinary
@@ -255,7 +254,7 @@ root changes improved 2 to 0 and zero-prefix transitions 2 to 0, while score-cla
 `+/-2.9444` bounds and +5.29 +/-5.54 Elo; both hardware groups were positive, with no crashes or
 time losses. Evidence is in `tools/measurements/output/sw-06-1b2b8fc/`.
 
-Disposition / next boundary: capped-positive and inconclusive, not an SPRT pass. Do not integrate
+Disposition / next boundary: manually stopped, positive, and inconclusive; not an SPRT pass. Do not integrate
 candidate `2d5259574ed78f71f8b2c51be1b71196094aa93d`; preserve its published branch and evidence.
 The operational search baseline remains `8e64048`; revalidate SW-07 against it before activation.
 
@@ -275,8 +274,8 @@ adds the complete `release-dev` suite, a second exact corpus pass, repeated guar
 and the four sentinel trajectories through their recorded horizons; reject objective loss, useful-
 depth loss, or aggregate late-convergence regression. Sanitizers, `release-stats`, and separate
 timing are `N/A`: the candidate removes control state and invokes only existing searches; node
-totals capture the added work. A survivor is eligible for STC `[0,3]` paired games with the
-workflow's 8,000-game cap.
+totals capture the added work. A survivor was eligible for STC `[0,3]` paired games with the
+then-current 8,000-game manual review point.
 
 Result / artifacts: the baseline regression returned 892 below its required beta of 2,329; the
 candidate fixed it, and both focused runs plus the complete `release-dev` suite passed. Both
@@ -290,7 +289,7 @@ Disposition / next boundary: rejected by the predeclared Qualification convergen
 OpenBench test was started. Candidate code and its temporary regression were removed, focused
 tests passed on the restored `8e64048` behavior, and the benchmark returned to 4,697,330 nodes.
 
-### SW-08 — Enforce the futility quiet-check exemption in the picker [active]
+### SW-08 — Enforce the futility quiet-check exemption in the picker [done]
 
 Hypothesis / candidate: SW-07 preserved later quiet checks, but it also returned every remaining
 quiet to the search loop, where nonchecking moves affected move counts and incurred make/unmake
@@ -320,7 +319,8 @@ than a useful-depth veto. TSan and `release-stats` are `N/A`: the change is sing
 control and needs no counters. Because it adds hot-path check classification, measure eight
 nonoverlapping same-core benchmark pairs in literal order `B/C, C/B, B/C, C/B, B/C, C/B, B/C,
 C/B`; timing and NPS do not affect deterministic agreement. A behavior-changing survivor is
-offline-qualified for an 8,000-game STC `[0,3]` paired test when explicitly authorized. For this
+offline-qualified for an STC `[0,3]` paired test with an 8,000-game manual review point when
+explicitly authorized. For this
 correctness-policy task, a lower-bound result pauses for an explicit retain/rework decision rather
 than automatically restoring the known exemption violation.
 
@@ -336,8 +336,9 @@ The sentinels remain diagnostic: `pilot14-g171-abrupt` useful depth is 14 instea
 aggregate late A-B-A rises from one to two, while late root changes and zero-prefix transitions
 both match baseline and score-class changes remain zero. Compared with SW-07, the picker filter
 uses 83,301 fewer aggregate corpus nodes, changes no root move and only two scores, and avoids
-returning filtered quiets to the search loop. Evidence and the exact uncommitted patch are in
-`tools/measurements/output/sw-08-6c01040/`.
+returning filtered quiets to the search loop. Evidence and the exact offline patch are in
+`tools/measurements/output/sw-08-6c01040/`; published candidate `c6eb554` represents the engine
+change immutably.
 
 Interpretation: the regressions establish the intended quiet-check exemption, not a general
 playing-strength or move-accuracy gain. Neutral NPS and the close SW-07 fingerprint show that most
@@ -347,7 +348,12 @@ proves too expensive, test a separate checks-first picker stage before weakening
 protected checks: search quiet checks before ordinary quiets, then retain the bulk nonchecking-
 quiet skip.
 
-Disposition / next boundary: offline-qualified and still active. Publish an immutable
-`sw-08-futility-quiet-checks` candidate and submit the authorized 8,000-game STC `[0,3]` OpenBench
-test. A lower-bound result does not automatically restore the known exemption violation; pause for
-an explicit retain, rework, or reject decision. A capped result inside the bounds is inconclusive.
+Disposition / next boundary: done and retained as operational search baseline `c6eb554`. STC
+`[-3,0]` OpenBench #25 was explicitly stopped beyond its 8,000-game manual review ceiling at
+10,426 games: LLR `+0.1433` remained inside the bounds, the estimate was `-0.70 +/- 4.93` Elo,
+and there were no crashes or time losses. This was manually stopped and statistically
+inconclusive, not an SPRT pass;
+the user accepted it by correctness policy because it fixes the documented quiet-check exemption
+without evidence of a material strength loss. Fixed-game #24 remains excluded as a stopped
+workflow mistake. Preserve the published branch, server PGN `Media/PGNs/25.pgn.tar`, task
+artifacts, and cached baseline `tools/measurements/output/search-baseline-c6eb554/`.
