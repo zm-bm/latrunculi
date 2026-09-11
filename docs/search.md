@@ -5,8 +5,9 @@ durable findings, workflow, and queue; search work is not duplicated in `docs/ro
 
 ## Goal and baseline
 
-Improve useful depth and convergence through better selectivity without sacrificing correctness,
-move quality, or wall-clock performance. Reported depth alone is not an optimization target.
+Improve useful depth and convergence by searching fewer nodes per useful ply and more nodes per
+second, without sacrificing correctness or move quality. Reported depth alone is not an
+optimization target.
 
 Update these fields together only after an approved candidate is integrated:
 
@@ -35,6 +36,11 @@ trajectories, useful depth is the greatest depth `d >= 3` for which `d-2..d` sha
 and score class, both adjacent PV transitions have a nonempty common prefix, and objective
 predicates hold.
 
+Cross-engine depth and NPS are context only because engines count reduced, extended, and
+quiescence work differently. Within Latrunculi, fixed-depth nodes measure selectivity; repeated
+timing with exact search signatures measures throughput; objective guards and paired games decide
+whether a changed tree is useful.
+
 ## Durable findings
 
 | Area | Finding and consequence |
@@ -47,12 +53,14 @@ predicates hold.
 | LMR | All 107 sampled high-history reduced fail-lows remained fail-lows at full depth. Do not retry the tested one-ply history protection. This does not rule out different LMR formulas or re-search sequencing. |
 | Clock | Unfinished iterations consumed median node shares of 24-26%, but all 210 timed searches matched fresh-depth results. The tested next-iteration predictors fired prematurely 21, 65, and 129 times. Explicit `movetime` remains a hard-duration request. |
 | Futility | Guarded reverse futility pruning passed OpenBench and was retained in `8e64048`. Main-search futility now preserves its quiet-check exemption by filtering only nonchecking quiets after activation; SW-08 was neutral at 10,426 games and retained by explicit correctness policy. |
+| Historical depth gap | In the pinned release gauntlet PGNs under `tools/measurements/output/search-001-470a3d7/sources/`, Latrunculi's median reported depth was 12 versus 16 for 4ku, 16 for Willow, and 18 for Weiss. The repeated 4-6-ply gap motivates both selectivity and throughput work, but the old revision and engine-specific depth accounting make it neither a current benchmark nor an acceptance gate. |
 | Open mechanisms | Null move remains eligible for a materially different small experiment; the audit lacked eligibility and counterfactual-failure denominators, while SW-04 rejected only the tested `static_eval >= beta` gate. |
 
-The sentinel baselines are `startpos` (horizon/useful depth 14/11; late root/PV change),
-`arasan20-16` (16/14; late root changes and A-B-A), `pilot14-g171-abrupt` (18/17; 4M-to-33M
-root/PV change), and `pilot15-g078-secondary` (13/11; late sign flip). Their resolved horizons
-are in `sa-02-470a3d7/derived/resolved-horizons.tsv` beneath the measurements output.
+The operational `c6eb554` sentinel horizons/useful depths are `startpos` 14/11,
+`arasan20-16` 16/16, `pilot14-g171-abrupt` 18/14, and `pilot15-g078-secondary` 13/13.
+Use the candidate rows in `sw-08-6c01040/derived/sentinel-summary.tsv`; the earlier
+`sa-02-470a3d7/derived/resolved-horizons.tsv` rows remain immutable audit evidence, not the
+current comparison baseline.
 
 Closed shapes require materially new evidence before retrying. The exact CaptureHistory patch is
 `tools/measurements/output/sa-03-capture-history-b415f5a/meta/candidate.patch`. The rejected
@@ -140,7 +148,99 @@ The immutable audit anchor is `470a3d75c31a13e5f791dc0ee2476c6974be346d`. Sealed
 `sa-05-verifier-25bb133/`, and `sa-07-470a3d7/`; do not modify them. Retrieve the deleted
 audit document from commit `8c0d46d` only for forensic replay.
 
+## Queue
+
+Priorities reflect Latrunculi's evidence plus local Stockfish `86f1df7134fa`, Ethereal
+`0e47e9b67f34`, Minic `4317c14559aa`, CPW-Engine `2e3cf29ab0a7`, and
+[Chess Programming Wiki](https://chessprogramming.org/) reviews. Borrow mechanisms, not code or
+tuning constants. The queue favors small selective-search changes first, then behavior-preserving
+throughput work, then bounded adaptive pruning. Do not interpret a higher nominal depth as a pass.
+
+### SW-09 — Extend reverse futility pruning to depth 4 [active]
+
+Hypothesis / candidate: the retained shallow RFP can safely remove more clearly high fail-high
+nodes. Give RFP its own depth-4 limit and margins `{0, 250, 400, 550, 700}`; leave ordinary
+futility at depths 1-3 and preserve every existing RFP guard and return value.
+
+Baseline / panels / stops: task HEAD `cbb6a683fbcc33b40298c1399fb427d35083edb5`, operational
+search baseline `c6eb554`, benchmark 5,168,111 nodes, cached corpus
+`search-baseline-c6eb554/`, and artifacts `sw-09-c6eb554/` beneath the measurements output.
+Screen with focused RFP and objective guards, one 200-position depth-10 corpus pass, all four
+current sentinel trajectories, and one benchmark. Reject on a correctness, determinism, or
+output failure; useful-depth loss in at least two sentinels; or corpus geometric-mean nodes at
+least 1.05 times baseline with at least 120 regressions. Root/score changes and marginal
+efficiency alone do not reject a correct candidate. Qualification adds the complete
+`release-dev` and ASan/UBSan suites, a second exact corpus pass, and repeated guards, sentinels,
+and benchmark. `release-stats`, separate timing, and TSan are `N/A`: no counters, new hot-path
+work, or concurrency are involved.
+
+Result / artifacts: not run.
+
+Disposition / next boundary: active; implement and run Screen only when requested.
+
+### SW-10 — Order quiet checks first at futility nodes [pending]
+
+When node-wide futility is active, stage checking quiet hints and generated quiet checks before
+ordinary quiets, then retain the SW-08 bulk nonchecking-quiet filter. Change no eligibility,
+margin, or searched checking move; cache check classification and test the first-legal interaction.
+
+### SW-11 — Prune severe depth-1 SEE-losing captures [pending]
+
+At depth-1 NonPV nodes, after one legal move, skip only non-TT, nonpromotion, nonchecking captures
+with `board.see(move) < -eval::pawn.mg`. Exempt check, mate windows, and in-check nodes; leave
+qsearch and the picker SEE bands unchanged. Include repeated timing because this may add hot-path
+SEE work.
+
+### SW-12 — Add conservative depth-1 late-move pruning [pending]
+
+When ordinary futility is inactive, suppress remaining ordinary nonchecking quiets only after
+eight legal moves have been searched. Preserve TT moves, killers, countermoves, captures,
+promotions, checks, mate safety, and the first legal move; add no history or improving modifier.
+
+### SW-13 — Prefetch child transposition-table clusters [pending]
+
+Add behavior-preserving child-key prefetching without changing TT layout or policy. Require exact
+baseline search signatures and a repeatable same-core throughput gain; dispose of it offline if
+either condition fails, and do not use OpenBench unless behavior unexpectedly changes.
+
+### SW-14 — Enable release link-time optimization [pending]
+
+Enable supported CMake interprocedural optimization for production release builds, including the
+OpenBench adapter, without adding architecture flags or changing debug and sanitizer builds.
+Require exact baseline search signatures, successful GCC and Clang builds, and a repeatable
+same-core throughput gain; reject it offline on a build, portability, signature, or timing failure.
+
+### SW-15 — Remove atomic work from per-node accounting [pending]
+
+Replace the per-node atomic increment with worker-owned counting, race-free periodic publication,
+and exact publication at completion. Preserve the main worker's polling cadence, exact final
+counts, concurrent UCI progress, and a bounded node-limit overshoot. Require exact fixed-depth
+signatures, repeated 1/2/4-thread timing, focused limit/lifecycle checks, and TSan.
+
+### SW-16 — Reduce clearly bad-history quiets further [pending]
+
+Add one extra reduction ply only to already-LMR-eligible NonPV quiets that are nonchecking,
+nonpromotion, nonkiller, and below one predeclared negative combined-history threshold. Preserve
+the base LMR formula, existing reduction bounds, and all other moves; test one threshold, not a
+sweep. This is distinct from the rejected blanket divisor and high-history protection shapes.
+
+### SW-17 — Make null-move reduction adaptive [pending]
+
+Keep the current eligibility, material guard, TT veto, and SW-04 behavior. Replace only the fixed
+3/4-ply reduction with one bounded formula based on depth and clamped static-evaluation surplus
+over beta; add no new eligibility gate or verification search. Require objective and convergence
+guards plus paired strength validation for any offline survivor.
+
+Do not queue broader machinery merely to raise displayed depth. After these tasks, use one bounded
+sampling profile to decide whether full evaluation, repetition detection, make/unmake, or TT work
+justifies one concrete optimization; transfer a broader architectural result to `docs/roadmap.md`.
+Introduce an `improving` flag only with a specific LMP, LMR, or RFP candidate. Defer IIR, ProbCut,
+singular extensions, evaluation caching, and incremental state until simpler evidence identifies
+the need and validates their added complexity.
+
 ## Completed experiments
+
+Full SW-04–SW-08 records remain in commit `cbb6a68`; the paths below retain their evidence.
 
 | Task | Candidate | Decisive result | Disposition and evidence |
 |---|---|---|---|
@@ -151,209 +251,4 @@ audit document from commit `8c0d46d` only for forensic replay.
 | SW-05 [done] | Guarded reverse futility pruning at NonPV depths 1-3 | Offline corpus node ratio 0.7855 with exact repeats and a repeatable 4,697,330-node benchmark. STC `[0,3]` OpenBench #22 (`8e64048` vs `02a9537`) passed at 2,966 games: LLR +2.9698, +31.01 +/-9.19 Elo, no crashes or time losses. | Integrated and retained beneath the current SW-08 baseline. Preserve branch `sw-05-reverse-futility`, test #22, `Media/PGNs/22.pgn.tar`, and `tools/measurements/output/sw-05-02a9537/`. |
 | SW-06 [done; manually stopped/inconclusive] | Confirm reduced PV fail-highs with a full-depth scout | Offline corpus node ratio 0.9949, exact repeats, no sentinel regression, and a repeatable 4,345,849-node benchmark. OpenBench #23 (`2d52595` vs `1b2b8fc`) was stopped at 8,676 scored games: LLR +1.1808 inside the bounds, +5.29 +/-5.54 Elo, no crashes or time losses. | Not integrated because the test did not cross its predeclared upper bound. Preserve branch `sw-06-pv-lmr-confirmation`, test #23, and `tools/measurements/output/sw-06-1b2b8fc/`. |
 | SW-07 [rejected] | Prune qualifying quiets individually so later checking quiets remain searchable | The focused regression was fixed and all tests passed, but corpus nodes rose 5.39% geometrically and the `pilot14-g171-abrupt` trajectory lost useful depth from 17 to 14; aggregate late root changes and zero-prefix transitions each increased by one. | Rejected by the predeclared convergence stop before OpenBench. Retain the picker-wide skip and preserve `tools/measurements/output/sw-07-b8a5335/`. |
-| SW-08 [done; policy-retained] | Filter nonchecking quiets after futility while preserving later quiet checks | All offline gates passed; corpus nodes rose 5.34%, benchmark nodes rose 10.02%, and NPS was neutral. `[-3,0]` OpenBench #25 (`c6eb554` vs `8e64048`) stopped at 10,426 games: LLR +0.1433, -0.70 +/-4.93 Elo, no crashes or time losses. | Not a formal SPRT pass; retained at the manual review boundary to fix the quiet-check exemption. Preserve branch `sw-08-futility-quiet-checks`, test #25, `Media/PGNs/25.pgn.tar`, and `tools/measurements/output/sw-08-6c01040/`. |
-
-## Reference review
-
-The next queue was derived from Latrunculi's own gaps after reviewing local snapshots of Stockfish
-`86f1df7134fa`, Ethereal `0e47e9b67f34`, Minic `4317c14559aa`, and CPW-Engine
-`2e3cf29ab0a7`. These engines provide independent examples of mechanisms, not code or tuning
-constants to transplant. Each candidate must fit Latrunculi's evaluation scale, TT policy, move
-picker, node types, and evidence loop.
-
-That review motivated SW-04 through SW-08. Their measured results and dispositions below
-supersede its initial prioritization.
-
-Defer ProbCut, singular extensions, correction history, TT static-eval storage, and broad
-late-move packages: they need more search state or coupled machinery than the next experiments
-justify. Also defer IIR until Latrunculi represents cut/all-node roles. Severe main-search
-SEE-negative pruning, history-gated killer/counter hints, delayed aspiration, and TT prefetch are
-reasonable later candidates, but are not queued while the smaller questions below remain open.
-
-## Candidate queue
-
-Activate and fully predeclare only one task at a time against the then-current baseline; the order
-below is the current priority, not authorization to execute it.
-
-### SW-04 — Gate null-move searches by static evaluation [rejected]
-
-Hypothesis / candidate: null probes with `static_eval < beta` are usually wasted work. Add only
-`static_eval >= beta` to the existing NonPV null-move eligibility test; preserve every other NMP
-guard, depth, and reduction rule.
-
-Baseline / panels / stops: task HEAD `08e5c2f`, operational search baseline `6767e74`, benchmark
-6,068,328 nodes, artifacts `tools/measurements/output/sw-04-08e5c2f/`. Screen with the focused
-mate/material root guards, one fresh-process depth-10 pass over all 200 corpus positions, and one
-benchmark. Reject on a correctness or invalid-output failure, or when corpus geometric-mean nodes
-are at least 5% worse with at least 120 positions regressing. Qualification adds the complete
-`release-dev` suite, a second exact corpus pass, repeated objective guards, and a repeatable
-benchmark. Sanitizers, `release-stats`, timing, and sentinels are `N/A`: this adds one scalar
-condition without changing storage, arithmetic, concurrency, hot-path evaluation, or root control.
-
-Result / artifacts: Screen stopped in the focused suite before corpus collection. The candidate
-twice prevented `SearchTest.NullMoveReenablesAfterARealDescendantMove` from observing its expected
-descendant null search; the second run used a deliberately low window and still failed. The other
-seven focused null-move and objective guards passed. Evidence and the exact rejected patch are in
-`tools/measurements/output/sw-04-08e5c2f/`.
-
-Disposition / next boundary: rejected; retain the existing NMP eligibility and restore the
-`6767e74` search baseline before activating SW-05.
-
-### SW-05 — Add conservative reverse futility pruning [done]
-
-Hypothesis / candidate: clearly high static evaluations can avoid shallow searches safely. Before
-NMP at NonPV depths 1-3, return `static_eval` fail-soft when
-`static_eval - FutilityMargin[depth] >= beta`, using the existing 250/400/550 cp margins. Require
-`can_null`, no check, a non-mate beta window, more non-pawn material than one rook, and no existing
-depth-sufficient TT upper-bound veto. Change no other pruning rule.
-
-Baseline / panels / stops: task HEAD `02a9537`, operational search baseline `6767e74`, benchmark
-6,068,328 nodes, artifacts `tools/measurements/output/sw-05-02a9537/`. Screen with focused RFP and
-mate/material root guards, one fresh-process depth-10 pass over all 200 corpus positions, and one
-benchmark. Reject on a correctness or invalid-output failure, or when corpus geometric-mean nodes
-are at least 3% worse with at least 120 positions regressing. Qualification adds the complete
-`release-dev` suite, a second exact corpus pass, repeated guards, and a repeatable benchmark.
-Sanitizers, `release-stats`, timing, and sentinels are `N/A`: this condition-only pruning rule uses
-existing scalar values and does not change storage, arithmetic domains, concurrency, hot-path
-evaluation, or root control.
-
-Result / artifacts: Screen and Qualification passed. Both 200-position passes were exact and used
-0.7855 times the baseline geometric-mean nodes (median 0.7972; 171 improved, 2 equal, 27
-regressed), while changing 33 root moves and 103 scores. The candidate benchmark repeated at
-4,697,330 nodes; all focused guards and the complete `release-dev` suite passed. OpenBench #22
-passed the STC `[0,3]` upper bound after 2,966 games at LLR +2.9698 and +31.01 +/-9.19 Elo,
-with no crashes or time losses. Evidence is in `tools/measurements/output/sw-05-02a9537/`.
-
-Disposition / next boundary: accepted and integrated as operational baseline `8e64048`; revalidate
-SW-06 against this baseline before activation.
-
-### SW-06 — Confirm reduced PV fail-highs with a full-depth scout [done; manually stopped/inconclusive]
-
-Hypothesis / candidate: some reduced PV scouts exceed alpha only because of the reduction. Keep
-the LMR formula and NonPV path unchanged. After a reduced PV scout exceeds alpha, run the ordinary
-full-depth NonPV null-window search first; run the existing full-window PV re-search only if that
-confirmation still exceeds alpha.
-
-Baseline / panels / stops: task HEAD `1b2b8fc`, operational search baseline `8e64048`, benchmark
-4,697,330 nodes, artifacts `tools/measurements/output/sw-06-1b2b8fc/`. Screen with focused PV,
-LMR, and mate/material guards, one fresh-process depth-10 pass over all 200 corpus positions, and
-one benchmark. Reject on a correctness or invalid-output failure, or when corpus geometric-mean
-nodes are at least 3% worse with at least 120 positions regressing. Qualification adds the
-complete `release-dev` suite, a second exact corpus pass, repeated guards and benchmark, and the
-four sentinel trajectories through their recorded horizons. Reject a useful-depth loss or worse
-late convergence. Sanitizers, `release-stats`, and separate timing are `N/A`: the change only
-sequences existing scalar-controlled searches, node totals capture its added and avoided search
-work, and it changes no storage, arithmetic domain, concurrency, or evaluation work.
-
-Result / artifacts: Screen and Qualification passed. Both corpus passes were exact and used 0.9949
-times the baseline geometric-mean nodes (median 1.0000; 95 improved, 7 equal, 98 regressed), with
-30 root-move and 89 score changes. The benchmark repeated at 4,345,849 nodes; focused guards and
-the complete `release-dev` suite passed. The four sentinels lost no useful depth: aggregate late
-root changes improved 2 to 0 and zero-prefix transitions 2 to 0, while score-class changes stayed
-0 and A-B-A stayed 1. OpenBench #23 was stopped after 8,676 scored games at LLR +1.1808 inside the
-`+/-2.9444` bounds and +5.29 +/-5.54 Elo; both hardware groups were positive, with no crashes or
-time losses. Evidence is in `tools/measurements/output/sw-06-1b2b8fc/`.
-
-Disposition / next boundary: manually stopped, positive, and inconclusive; not an SPRT pass. Do not integrate
-candidate `2d5259574ed78f71f8b2c51be1b71196094aa93d`; preserve its published branch and evidence.
-The operational search baseline remains `8e64048`; revalidate SW-07 against it before activation.
-
-### SW-07 — Preserve later checking quiets under futility [rejected]
-
-Hypothesis / candidate: picker-wide futility skipping can discard a later checking quiet after an
-earlier nonchecking quiet is pruned. Keep the existing shallow NonPV eligibility and per-move
-predicate, but stop only that move. Remove the now-unused picker-wide skip API and its direct tests,
-and add one focused search regression with a checking quiet ordered behind an earlier quiet.
-
-Baseline / panels / stops: task HEAD `b8a5335`, operational search baseline `8e64048`, benchmark
-4,697,330 nodes, artifacts `tools/measurements/output/sw-07-b8a5335/`. Screen with the focused
-futility, move-ordering, and mate/material guards, one fresh-process depth-10 pass over all 200
-corpus positions, and one benchmark. Reject on correctness or invalid output, or when corpus
-geometric-mean nodes are at least 10% worse with at least 120 positions regressing. Qualification
-adds the complete `release-dev` suite, a second exact corpus pass, repeated guards and benchmark,
-and the four sentinel trajectories through their recorded horizons; reject objective loss, useful-
-depth loss, or aggregate late-convergence regression. Sanitizers, `release-stats`, and separate
-timing are `N/A`: the candidate removes control state and invokes only existing searches; node
-totals capture the added work. A survivor was eligible for STC `[0,3]` paired games with the
-then-current 8,000-game manual review point.
-
-Result / artifacts: the baseline regression returned 892 below its required beta of 2,329; the
-candidate fixed it, and both focused runs plus the complete `release-dev` suite passed. Both
-corpus passes were exact and used 1.0539 times the baseline geometric-mean nodes (median 1.0231;
-65 improved, 135 regressed), with 36 root-move and 90 score changes. The benchmark repeated at
-5,167,957 nodes. On the sentinels, `pilot14-g171-abrupt` useful depth fell from 17 to 14; aggregate
-late root changes rose 2 to 3 and zero-prefix transitions 2 to 3. Evidence and the exact candidate
-patch are in `tools/measurements/output/sw-07-b8a5335/`.
-
-Disposition / next boundary: rejected by the predeclared Qualification convergence stop; no
-OpenBench test was started. Candidate code and its temporary regression were removed, focused
-tests passed on the restored `8e64048` behavior, and the benchmark returned to 4,697,330 nodes.
-
-### SW-08 — Enforce the futility quiet-check exemption in the picker [done]
-
-Hypothesis / candidate: SW-07 preserved later quiet checks, but it also returned every remaining
-quiet to the search loop, where nonchecking moves affected move counts and incurred make/unmake
-work before being pruned. Keep the existing futility eligibility, margins, first-move exception,
-and tactical exemptions. After the first qualifying nonchecking quiet is pruned, put the picker
-into a quiet-check-only mode: use the existing `Board::gives_check()` predicate to return remaining
-checking quiet hints and ordinary quiet checks, filter other quiets before they reach the search
-loop, then continue to bad captures. Rename the picker API and state to express that narrower
-contract. Add no move generator, pruning rule, margin, or instrumentation.
-
-Baseline / panels / stops: task HEAD `6c01040`, operational search baseline `8e64048`, benchmark
-4,697,330 nodes, cached corpus `tools/measurements/output/search-baseline-8e64048/`, and task
-artifacts `tools/measurements/output/sw-08-6c01040/`. HEAD has no `src/search` or `src/eval`
-difference from the operational baseline. Screen with permanent regressions for both a checking
-quiet hint and an ordinary generated quiet check behind a pruned nonchecking quiet, direct picker
-coverage showing that other quiets stay filtered and bad captures remain, the existing futility
-and mate/material guards, one 200-position depth-10 corpus pass, and one benchmark. Reject only on
-an invariant, legality, objective, invalid-output, or deterministic failure. An efficiency
-rejection stop is `N/A`: this task enforces the explicit quiet-check exemption. Record corpus,
-benchmark, and root-result costs; if geometric-mean corpus nodes reach 1.10 times baseline or the
-benchmark reaches 1.25 times baseline, pause for review rather than automatically rejecting the
-invariant.
-
-Qualification adds the complete `release-dev` and ASan/UBSan suites, a second exact corpus pass,
-repeated guards and benchmark, and all four sentinel trajectories as diagnostic evidence rather
-than a useful-depth veto. TSan and `release-stats` are `N/A`: the change is single-threaded picker
-control and needs no counters. Because it adds hot-path check classification, measure eight
-nonoverlapping same-core benchmark pairs in literal order `B/C, C/B, B/C, C/B, B/C, C/B, B/C,
-C/B`; timing and NPS do not affect deterministic agreement. A behavior-changing survivor is
-offline-qualified for an STC `[0,3]` paired test with an 8,000-game manual review point when
-explicitly authorized. For this
-correctness-policy task, a lower-bound result pauses for an explicit retain/rework decision rather
-than automatically restoring the known exemption violation.
-
-Result / artifacts: Screen and Qualification passed. Both permanent quiet-check regressions and
-all 21 focused checks passed twice; the complete `release-dev` and ASan/UBSan suites passed. The
-two 200-position passes agreed exactly and used 1.0534 times baseline geometric-mean nodes
-(median 1.0232; 65 improved and 135 regressed), with 36 root-move and 90 score changes. The
-candidate benchmark repeated at 5,168,111 nodes, 1.1002 times baseline. Across eight same-core
-pairs it won five NPS comparisons, with median/mean changes of +0.682%/+0.216%; median elapsed
-time rose 9.298% because more nodes were searched.
-
-The sentinels remain diagnostic: `pilot14-g171-abrupt` useful depth is 14 instead of 17 and
-aggregate late A-B-A rises from one to two, while late root changes and zero-prefix transitions
-both match baseline and score-class changes remain zero. Compared with SW-07, the picker filter
-uses 83,301 fewer aggregate corpus nodes, changes no root move and only two scores, and avoids
-returning filtered quiets to the search loop. Evidence and the exact offline patch are in
-`tools/measurements/output/sw-08-6c01040/`; published candidate `c6eb554` represents the engine
-change immutably.
-
-Interpretation: the regressions establish the intended quiet-check exemption, not a general
-playing-strength or move-accuracy gain. Neutral NPS and the close SW-07 fingerprint show that most
-of the 5.34% corpus and 10.02% benchmark node costs come from searching the additional checks, not
-picker overhead. The cost is material but below the review bounds and warrants paired games. If it
-proves too expensive, test a separate checks-first picker stage before weakening or reducing the
-protected checks: search quiet checks before ordinary quiets, then retain the bulk nonchecking-
-quiet skip.
-
-Disposition / next boundary: done and retained as operational search baseline `c6eb554`. STC
-`[-3,0]` OpenBench #25 was explicitly stopped beyond its 8,000-game manual review ceiling at
-10,426 games: LLR `+0.1433` remained inside the bounds, the estimate was `-0.70 +/- 4.93` Elo,
-and there were no crashes or time losses. This was manually stopped and statistically
-inconclusive, not an SPRT pass;
-the user accepted it by correctness policy because it fixes the documented quiet-check exemption
-without evidence of a material strength loss. Fixed-game #24 remains excluded as a stopped
-workflow mistake. Preserve the published branch, server PGN `Media/PGNs/25.pgn.tar`, task
-artifacts, and cached baseline `tools/measurements/output/search-baseline-c6eb554/`.
+| SW-08 [done; policy-retained] | Filter nonchecking quiets after futility while preserving later quiet checks | Corpus nodes rose 5.34%, benchmark nodes 10.02%, and `pilot14-g171-abrupt` useful depth fell 17 to 14; NPS was neutral. `[-3,0]` OpenBench #25 stopped at 10,426 games inside its bounds: LLR +0.1433, -0.70 +/-4.93 Elo, no crashes or time losses. | Retained to fix the quiet-check exemption despite an inconclusive SPRT; follow-up is SW-10. Preserve branch `sw-08-futility-quiet-checks`, test #25, `Media/PGNs/25.pgn.tar`, and `tools/measurements/output/sw-08-6c01040/`. |
