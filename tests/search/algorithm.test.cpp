@@ -3,6 +3,7 @@
 #include <optional>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -441,13 +442,16 @@ TEST_F(SearchTest, RazoringRequiresAllGuards) {
 }
 
 TEST_F(SearchTest, ReverseFutilityPruningReturnsStaticEval) {
-    Board board{board_test::fen::start};
-    load(board, 1);
-    const EvalValue static_eval = eval::evaluate(position());
-    const EvalValue beta        = static_eval - 250;
+    for (const auto [depth, margin] : {std::pair{1, 250}, std::pair{4, 700}}) {
+        SCOPED_TRACE(depth);
+        Board board{board_test::fen::start};
+        load(board, depth);
+        const EvalValue static_eval = eval::evaluate(position());
+        const EvalValue beta        = static_eval - margin;
 
-    EXPECT_EQ(search(beta - 1, beta, 1), static_eval);
-    EXPECT_FALSE(record().has_value());
+        EXPECT_EQ(search(beta - 1, beta, depth), static_eval);
+        EXPECT_FALSE(record().has_value());
+    }
 }
 
 TEST_F(SearchTest, FutilitySkipsOnlyAfterFirstLegalQuiet) {

@@ -30,10 +30,12 @@ constexpr int NullMoveDeepReduction = 4;
 constexpr int NullMoveDeepThreshold = 6;
 
 // Razoring and futility defaults.
-constexpr int RazorMaxDepth    = 3;
-constexpr int FutilityMaxDepth = 3;
-constexpr int RazorMargin[]    = {0, 500, 900, 1800};
-constexpr int FutilityMargin[] = {0, 250, 400, 550};
+constexpr int RazorMaxDepth           = 3;
+constexpr int ReverseFutilityMaxDepth = 4;
+constexpr int FutilityMaxDepth        = 3;
+constexpr int RazorMargin[]           = {0, 500, 900, 1800};
+constexpr int ReverseFutilityMargin[] = {0, 250, 400, 550, 700};
+constexpr int FutilityMargin[]        = {0, 250, 400, 550};
 
 // Late-move reduction defaults.
 constexpr int LmrMinDepth     = 3;
@@ -335,9 +337,10 @@ EvalValue Worker::alphabeta(
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
                                 && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(search_ply) < beta;
-        if (can_null && !in_check && depth <= FutilityMaxDepth && beta > -eval_value::mate_bound
-            && beta < eval_value::mate_bound && board.non_pawn_material(side) > eval::piece(ROOK).mg
-            && !tt_upper_veto && static_eval - FutilityMargin[depth] >= beta)
+        if (can_null && !in_check && depth <= ReverseFutilityMaxDepth
+            && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
+            && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto
+            && static_eval - ReverseFutilityMargin[depth] >= beta)
             return static_eval;
 
         const int reduction =
