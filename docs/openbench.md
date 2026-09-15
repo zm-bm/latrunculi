@@ -49,6 +49,27 @@ make -C bench EXE=latrunculi CXX=g++
 ./bench/latrunculi bench
 ```
 
+### Finite workload budgets
+
+Every workload needs a positive OpenBench-enforced termination budget; a
+reminder is not a cap, and paired-match budgets must be even.
+
+| Workload | Budget rule |
+|---|---|
+| Plumbing smoke (fixed) | `max_games = 2`, one color-reversed pair |
+| Strength, confirmation, or non-inferiority (SPRT) | `max_games = 12000`; less is allowed |
+| Release stability (fixed) | `max_games = 2000` |
+| Other fixed sample or gauntlet | Predeclared positive even `max_games` |
+| SPSA | Predeclare `2 * pairs_per * iterations` games |
+| Datagen | Predeclare positive `max_games` and any storage limit |
+
+These are resource ceilings, not statistical targets: an SPRT may finish at an
+LLR boundary, while reaching `max_games` inside both bounds is inconclusive.
+Raising a limit, exceeding the strength default, or replacing a capped workload
+needs separate justification and authorization. Already-assigned worker batches
+can cause a bounded overrun. If OpenBench cannot accept, report, and enforce
+positive SPRT `max_games`, do not submit an SPRT or substitute fixed-game mode.
+
 ### Strength tests
 
 Compare the candidate as Dev against the pre-change revision as Base. Play
@@ -59,10 +80,10 @@ paired games with the engines swapping colors. Use:
 - `Threads=1 Hash=32`
 - resign at 400 cp for three moves
 - draw after move 40 with eight evaluations within 10 cp
-- `max_games = 8000` unless the active task predeclares another positive even cap
 - a predeclared normalized-Elo SPRT profile with `alpha = beta = 0.05`:
   `[0, 5]` when screening for a larger gain, or `[0, 3]` for an incremental
-  candidate or confirmation
+  candidate or confirmation; a task may instead predeclare `[-3, 0]` when its
+  acceptance policy explicitly tolerates a small strength tradeoff
 
 Choose one profile before games begin according to the task's expected effect
 and acceptance policy. An upper-bound result is conclusive for that predeclared
@@ -72,26 +93,22 @@ variants, or when risk or a result that conflicts with other evidence warrants
 it.
 Do not use confirmation to retry or override a lower-bound result.
 
-The game cap bounds resource use; it is not a third statistical decision.
-OpenBench may finish a few in-flight games beyond it. If neither SPRT bound has
-been crossed at the cap, retain the candidate as capped and inconclusive until
-the user explicitly continues, replaces, accepts, or rejects the test.
-Apply this default to new submissions; do not retrofit a cap onto an active test
-unless the user explicitly requests that mutation.
+Use fixed-game mode only when collecting a fixed sample is the objective.
 
 Use `Smoke` for plumbing, `STC` for a candidate test, and `Confirm` for a
 separately justified confirmation. The normal worker runs games concurrently;
 use a temporary one-thread worker when a smoke PGN must contain exactly one
 color-reversed pair.
 
-Record the test ID, profile, both revisions, OpenBench revision, decision, and
-server PGN location for retained claims.
+Record the test ID, profile, game budget, both revisions, OpenBench revision,
+decision, and server PGN location for retained claims.
 
 After submitting a test, fetch status once to confirm its identity, revisions,
-settings, cap, and running state. Record the test URL and return control; do not
-hold an agent turn open with recurring polling or sleeps. Managed OpenBench
-workers continue independently. Inspect status and collect terminal artifacts
-when the user resumes the task.
+settings, mode, enforced budget, applicable SPRT bounds, and running state.
+Record the test URL and return control; do not hold an agent turn open
+with recurring polling or sleeps. The server ends the workload at its bound or
+limit while managed workers continue independently. Inspect status and collect
+terminal artifacts when the user resumes the task.
 
 ### Release stability test
 

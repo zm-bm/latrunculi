@@ -9,11 +9,22 @@ coordinated separately in [Search Development](search.md).
 candidates, and **Later** is an informal backlog. Revalidate items before work
 and remove them when complete; Git history records completion.
 
+External validation follows [OpenBench](openbench.md), including its finite
+workload budgets; a missing cap blocks submission.
+
 ## Now
 
 There is no active roadmap item.
 
 ## Next
+
+### OB-001 — Enforce finite SPRT limits
+
+Require positive even per-test SPRT `max_games` at creation, defaulting to the
+guide's budget. Expose it through the UI and API, and finish at the LLR boundary
+or budget with a budget-only result reported as inconclusive. Test creation,
+completion, and bounded in-flight overrun; then deploy and prove a two-game
+capped smoke. Submit no SPRT until this is complete.
 
 ### END-001 — Audit endgame residuals
 

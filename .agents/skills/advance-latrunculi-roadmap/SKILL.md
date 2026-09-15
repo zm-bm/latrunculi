@@ -32,8 +32,9 @@ do not duplicate work between the coordinating documents.
 - Commit or push only when explicitly authorized.
 - Submit, modify, stop, or delete external validation only when explicitly
   authorized. Before OpenBench submission, read `docs/openbench.md` and
-  verify the pushed immutable revisions and settings. Read-only monitoring and
-  retrieval need no further approval after submission.
+  verify the pushed immutable revisions, settings, and OpenBench-enforced
+  termination budget; a missing or unenforced cap blocks submission.
+  Read-only monitoring and retrieval need no further approval after submission.
 - Never rewrite a revision used for external validation; record later results
   or cleanup in a new authorized commit.
 - A request or active `/goal` may authorize several named stages. Otherwise
