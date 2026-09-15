@@ -3,34 +3,25 @@
 Latrunculi uses a private, self-hosted OpenBench instance for strength and
 release-stability testing.
 
-## Deployment
+## Access
 
-- Fork: `zm-bm/OpenBench`
-- Checkout: `~/code/tools/OpenBench`
-- Runtime: dedicated Python 3.11 virtual environment and one Gunicorn process
-- State: SQLite database and server PGNs inside the OpenBench checkout
-- Remote access: Tailscale Serve over HTTPS
-- Services: `openbench-server`, `openbench-worker`, and
-  `openbench-backup.timer` as lingering user systemd units
-- Worker limit: 12 threads, 8 GiB memory, and 512 tasks
-- Backups: `~/.local/share/openbench/backups/`
+The canonical private endpoint is
+`https://workstation-01.<tailnet>.ts.net`. Access requires the tailnet; do not
+append `:8000` or expose the service publicly. Client automation may set
+`OPENBENCH_SERVER` to that URL and use private credentials, which must not be
+committed.
 
-Host configuration and generated credentials live in
-`~/.config/openbench/openbench.env` with mode `0600`; never commit them. The
-server listens on loopback and the private IPv4 address configured there. It is
-plain HTTP for a trusted LAN only: do not forward port 8000 to the Internet.
-Direct `http://<private-ip>:8000` access is a diagnostic fallback, not the
-normal client endpoint.
+Verify the peer and returned application separately:
 
-Use Tailscale Serve as the canonical client path, including from the LAN:
-`https://server.<tailnet>.ts.net`. Tailscale terminates HTTPS and forwards to
-OpenBench; do not append port 8000. Keep this private with Tailscale Serve, not
-Funnel. `tailscale status` reports the exact hostname.
+```bash
+tailscale ping workstation-01
+curl --fail https://workstation-01.<tailnet>.ts.net/
+```
 
-Set `OPENBENCH_SERVER` to that MagicDNS URL in the private host configuration
-and use it for submissions and status requests. Do not guess a LAN address when
-it is unset. Loopback is valid only on the server host, even when its environment
-file was copied for the OpenBench credentials.
+A reachable peer or an HTTP response alone is insufficient: confirm that the
+response is the OpenBench application. Deployment, services, persistent state,
+backups, worker capacity, and NixOS integration belong to the OpenBench fork
+and its `Deploy/README.md`, not this repository.
 
 ## Testing
 
@@ -49,6 +40,26 @@ make -C bench EXE=latrunculi CXX=g++
 ./bench/latrunculi bench
 ```
 
+### Test termination
+
+Let an SPRT run until its LLR reaches either predeclared boundary. It has no
+prescribed `max_games`. A manual stop before a boundary is inconclusive; an
+infrastructure interruption supplies no decision.
+
+Every non-SPRT workload needs a positive, predeclared game count. Paired-match
+budgets must be even.
+
+| Workload | Termination |
+|---|---|
+| Plumbing smoke (fixed) | `max_games = 2`, one color-reversed pair |
+| Release stability (fixed) | `max_games = 2000` |
+| Other fixed sample or gauntlet | Predeclared positive even `max_games` |
+| SPSA | Predeclare `2 * pairs_per * iterations` games |
+| Datagen | Predeclare positive `max_games` and any storage limit |
+
+OpenBench may finish a few in-flight games beyond a fixed target. Do not use
+fixed-game mode merely to impose an arbitrary ceiling on a strength SPRT.
+
 ### Strength tests
 
 Compare the candidate as Dev against the pre-change revision as Base. Play
@@ -59,39 +70,29 @@ paired games with the engines swapping colors. Use:
 - `Threads=1 Hash=32`
 - resign at 400 cp for three moves
 - draw after move 40 with eight evaluations within 10 cp
-- `max_games = 8000` unless the active task predeclares another positive even cap
 - a predeclared normalized-Elo SPRT profile with `alpha = beta = 0.05`:
   `[0, 5]` when screening for a larger gain, or `[0, 3]` for an incremental
-  candidate or confirmation
+  candidate or confirmation; a task may instead predeclare `[-3, 0]` when its
+  acceptance policy explicitly tolerates a small strength tradeoff
 
-Choose one profile before games begin according to the task's expected effect
-and acceptance policy. An upper-bound result is conclusive for that predeclared
-test; a second confirmation is not automatic. Require confirmation when the
-task predeclares it, when the candidate was selected from several tested
-variants, or when risk or a result that conflicts with other evidence warrants
-it.
-Do not use confirmation to retry or override a lower-bound result.
-
-The game cap bounds resource use; it is not a third statistical decision.
-OpenBench may finish a few in-flight games beyond it. If neither SPRT bound has
-been crossed at the cap, retain the candidate as capped and inconclusive until
-the user explicitly continues, replaces, accepts, or rejects the test.
-Apply this default to new submissions; do not retrofit a cap onto an active test
-unless the user explicitly requests that mutation.
+Choose one profile before games begin. The upper boundary accepts the candidate
+under that profile; the lower boundary rejects it. A second confirmation is not
+automatic. Require one only when predeclared, when selecting among tested
+variants, or when risk or conflicting evidence warrants it. Never use
+confirmation to retry or override a lower-bound result.
 
 Use `Smoke` for plumbing, `STC` for a candidate test, and `Confirm` for a
-separately justified confirmation. The normal worker runs games concurrently;
-use a temporary one-thread worker when a smoke PGN must contain exactly one
-color-reversed pair.
+separately justified confirmation.
 
 Record the test ID, profile, both revisions, OpenBench revision, decision, and
 server PGN location for retained claims.
 
 After submitting a test, fetch status once to confirm its identity, revisions,
-settings, cap, and running state. Record the test URL and return control; do not
-hold an agent turn open with recurring polling or sleeps. Managed OpenBench
-workers continue independently. Inspect status and collect terminal artifacts
-when the user resumes the task.
+settings, mode, applicable SPRT bounds or fixed-game count, and running state.
+Record the test URL and return control; do not hold an agent turn open
+with recurring polling or sleeps. OpenBench ends an SPRT at an LLR boundary and
+a fixed test at its game count while managed workers continue independently.
+Inspect status and collect terminal artifacts when the user resumes the task.
 
 ### Release stability test
 
@@ -102,28 +103,5 @@ Require no crashes, hangs, time losses, illegal moves, protocol failures, or
 incomplete games. Ignore the score. Record the test ID, candidate revision,
 OpenBench revision, and PGN location.
 
-OpenBench may finish a few in-flight games beyond the target. Its fixed-test
-pass/fail flag follows the score, not stability.
-
-## Operations
-
-```bash
-systemctl --user status openbench-server openbench-worker openbench-backup.timer
-journalctl --user -u openbench-server -u openbench-worker -f
-systemctl --user restart openbench-server openbench-worker
-systemctl --user start openbench-backup.service
-tailscale serve status
-```
-
-From a tailnet client, verify the peer and application separately:
-
-```bash
-tailscale ping server
-curl --fail https://server.<tailnet>.ts.net/
-```
-
-Use systemd to stop or restart OpenBench so PGN and database writes shut down
-cleanly. If the workstation's private address changes, update
-`OPENBENCH_BIND` and `OPENBENCH_ALLOWED_HOSTS` in the host environment, then
-restart both services. Keep the actual LAN address and MagicDNS hostname in
-that environment file rather than this repository.
+Ignore OpenBench's fixed-test pass/fail flag here; it reflects score, not
+stability.

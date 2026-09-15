@@ -1,6 +1,6 @@
 ---
 name: advance-latrunculi-search
-description: Advance stable-ID Latrunculi search experiments coordinated in docs/search.md. Use when asked to select, plan, implement, screen, qualify, review, dispose of, commit, push, submit or monitor OpenBench, or complete an SW-XX search task.
+description: Advance stable-ID Latrunculi search experiments coordinated in docs/search.md. Use when asked to select, plan, implement, screen, qualify, park, review, dispose of, commit, push, run local paired games, submit or monitor OpenBench, or complete an SW-XX search task.
 ---
 
 # Advance Latrunculi Search
@@ -15,13 +15,16 @@ do not duplicate it in `docs/roadmap.md`.
 2. Inspect the worktree, operational baseline, relevant source, tests, build
    configuration, measurements, and history. Revalidate borrowed ideas in this
    engine.
-3. Record HEAD and worktree state before measuring. Account for every
+3. Record task HEAD and worktree state in the artifact manifest. Pin the
+   operational search baseline in the active task record, and account for every
    behavior-, build-, test-, or measurement-affecting difference.
 4. Confirm one hypothesis, one reversible candidate, relevant panels, checks,
    task-specific stops or justified `N/A`, and one artifact root.
-5. Before Screen, finish implementation and review, then record and freeze the
-   candidate plus result-affecting build inputs. Any later change to either
-   requires an updated predeclaration and a fresh Screen.
+5. Treat the active task record as the predeclaration. Before Screen, finish
+   implementation and review, then freeze the candidate, measured binaries, and
+   result-affecting inputs. Restart Screen only when one of those changes.
+   Documentation, formatting, comments, and test-only edits need targeted
+   verification plus confirmation that the measured binary hash is unchanged.
 6. Preserve unrelated work and sealed evidence. Change `docs/roadmap.md` only
    when the user requests a cross-workstream transfer or cleanup.
 
@@ -30,19 +33,20 @@ do not duplicate it in `docs/roadmap.md`.
 - Planning, review, explanation, and prioritization are read-only. An offline
   request authorizes implementation of the active candidate, its Screen and
   Qualification checks, raw evidence, task updates, and rejection cleanup.
-- Commit, push, and OpenBench mutations require explicit authorization in the
-  current request or active `/goal`; authorization for one stage does not imply
-  another. If several stages are named, execute them in order without asking
-  again at each boundary.
+- Commit, push, local paired games, and OpenBench mutations require explicit
+  authorization in the current request or active `/goal`; authorization for
+  one stage does not imply another. If several stages are named, execute them
+  in order without asking again at each boundary.
 - Publish an OpenBench candidate from an unmerged `sw-XX-<slug>` branch after
   verifying its exact diff and revision. Never amend, reset, force-push, or
   otherwise rewrite a published or tested revision.
-- Before an authorized submission, read `docs/openbench.md`; use its configured
-  Tailscale Serve endpoint and verify the immutable revisions, settings, and
-  finite game cap. Read-only status checks and result retrieval need no further
-  approval after submission.
-- If no action is named, plan only. Keep an offline-qualified task active while
-  it awaits its next authorized stage.
+- Before an authorized submission, read `docs/openbench.md`; use the private
+  endpoint documented there and verify the immutable revisions, settings, test
+  mode, and termination policy. Read-only status checks and result retrieval
+  need no further approval after submission.
+- If no action is named, plan only. A qualified candidate may be parked while a
+  later task starts from the operational baseline; it is never an implicit
+  baseline for later experiments.
 
 ## Phase 1: Screen
 
@@ -70,52 +74,72 @@ current task has a disposition.
 
 Only a Screen survivor proceeds:
 
-1. Run focused tests and the complete configured release suite. Select complete
-   sanitizer suites by changed risk: ASan/UBSan for storage, indexing, bounds,
-   depth arithmetic, ownership, lifetime, representation, parsing, or core
-   board/search/TT state; TSan for concurrency, shared state, or worker
-   lifecycle. A scalar tuning change using existing storage and indexing may
-   record sanitizers as `N/A` with a reason; when uncertain, run the relevant
-   suite. If its runtime cannot operate in the runner, repeat the unchanged
-   command in a compatible environment rather than weakening it. Use
-   `release-stats` only when instrumentation or counters are needed.
-2. Run the second fresh-process copy of each deterministic decision panel and
-   require candidate-internal exact agreement in the fields defined by
-   `docs/search.md`. Evaluate wall-clock-limited panels as repeated
+1. Run the complete configured release suite. It subsumes focused tests unless
+   the candidate changed after Screen, those tests are excluded, or another
+   configuration must be checked. Use `release-stats` only when instrumentation
+   or counters are needed.
+2. Use ASan/UBSan only for concrete risk from storage, indexing expressions,
+   bounds logic, ownership, lifetime, representation, parsing,
+   recursion/depth arithmetic, or core board/search/TT state. Scalar constants,
+   conditions, formulas, and compile-time table contents or limits are `N/A`
+   when indexing is unchanged and a focused boundary test covers the new
+   limit. Use TSan only for concurrency, shared state, or worker lifecycle.
+   Record the concrete risk or `N/A` reason; sanitizers are not a general
+   confidence check.
+3. For deterministic search-tree candidates, run a second fresh-process
+   200-position corpus pass and require exact agreement in the fields defined
+   by `docs/search.md`. Evaluate wall-clock-limited panels as repeated
    distributions instead.
-3. Recheck applicable objective, legal, and protocol guards; repeat the
-   benchmark; and run repeated timing for clock or stopping changes and when
-   hot-path work changed. Record and execute paired variants in their
-   predeclared literal serial order. A missing, reordered, overlapping,
-   interrupted, wrong-input, or unparseable run invalidates the whole batch; a
-   slow valid run does not.
-4. Complete only the mechanism-specific checks predeclared by the task.
+4. Run sentinel trajectories once for ordinary pruning, reduction, and ordering
+   changes. Repeat complete trajectories only for iterative-deepening,
+   aspiration, root, stopping, or clock changes; otherwise repeat only a
+   potentially decisive regression.
+5. Recheck applicable objective, legal, and protocol guards; run the benchmark
+   a second time and require its fingerprint to repeat. Run repeated timing for
+   clock or stopping changes and when hot-path work changed. Record and execute
+   paired variants in their predeclared serial order. A missing,
+   reordered, overlapping, interrupted, wrong-input, or unparseable run
+   invalidates the whole batch; a slow valid run does not.
+6. Complete only the mechanism-specific checks predeclared by the task.
    Correct, reproducible marginal candidates remain eligible for paired games.
 
-Record a survivor as offline-qualified and leave it active at the next
-authorization boundary. A behavior-preserving optimization may finish offline
-when its task's exact-signature and throughput requirements pass; a behavior
-change requires paired games for strength evidence.
+Record a behavior-changing survivor as `qualified`. Park it as an immutable
+commit or, when commits are not authorized, a final patch plus binary hashes;
+then restore the operational baseline before another task starts. Never stack
+an unvalidated candidate. If the operational baseline changes before paired
+testing or integration, requalify the parked candidate against it. A
+behavior-preserving optimization may finish offline when its exact-signature
+and throughput requirements pass.
 
-## Publish, Dispose, and Finish
+## Validate, Publish, Dispose, and Finish
 
-1. For authorized publication or testing, verify the exact candidate revision
-   and follow `docs/openbench.md`. Every strength test must have a predeclared
-   finite `max_games`; use the guide's default unless the task names another
-   positive even cap.
-2. After submission, perform one status read to confirm the test identity,
-   revisions, settings, cap, and running state. Record them, leave the task
-   active, report the handoff, and return control. Do not poll, sleep, or keep
-   the turn open while games run. Inspect status again only in a later user
-   request or goal continuation; a cap reached inside the SPRT bounds remains
-   inconclusive.
-3. For an unpublished rejection, keep referenced evidence and save a patch only
+1. For explicitly authorized paired strength testing, use OpenBench when
+   available or a direct pinned `fastchess-ob` match. Verify the exact candidate
+   and baseline first. Follow `docs/openbench.md` for OpenBench. For local games,
+   preserve immutable source or a patch and binary hashes, fixed seed,
+   runner/book hashes, identical paired settings and adjudication, raw log,
+   PGN, pentanomial counts, and the result.
+2. Predeclare the hypothesis and termination policy. Use SPRT for candidate
+   strength by default and let it run to either LLR boundary. Use fixed games
+   only when a fixed sample is itself the objective, with a positive even
+   `max_games`.
+3. Run one match at a time. Confirm its identity, revisions or binary hashes,
+   settings, mode, bounds or fixed-game count, and running state once; record
+   them and return control without polling. Inspect status again
+   only in a later user request or goal continuation. Interpret upper bound as
+   acceptance and lower bound as rejection. A manual stop before either bound
+   is inconclusive; an infrastructure failure supplies no decision. Further
+   testing needs separate justification and authorization.
+4. For an unpublished rejection, keep referenced evidence and save a patch only
    when no immutable commit represents the candidate. Remove candidate behavior,
    temporary diagnostics, redundant tests, and exact candidate-only build output;
    never use broad `git clean` or delete sealed evidence.
-4. Distinguish rejection from incomplete evidence caused by infrastructure
+5. Distinguish rejection from incomplete evidence caused by infrastructure
    failure; leave the latter active.
-5. Inspect final diff, status, artifact scope, and formatting. Preserve
+6. Future task artifacts need untouched raw output, one compact manifest,
+   optional analysis, and a patch only when no immutable commit represents the
+   candidate. Do not create separate predeclaration files.
+7. Inspect final diff, status, artifact scope, and formatting. Preserve
    unrelated work, keep authorized commits focused, and do not start a pending
    task merely because the current one received a disposition.
 

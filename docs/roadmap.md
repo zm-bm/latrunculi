@@ -9,6 +9,9 @@ coordinated separately in [Search Development](search.md).
 candidates, and **Later** is an informal backlog. Revalidate items before work
 and remove them when complete; Git history records completion.
 
+For external validation, follow [OpenBench](openbench.md): SPRTs end at an LLR
+boundary, while fixed tests use a positive game count.
+
 ## Now
 
 There is no active roadmap item.
