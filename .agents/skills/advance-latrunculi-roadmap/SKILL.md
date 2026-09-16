@@ -5,9 +5,10 @@ description: Advance stable-ID work items in Latrunculi's docs/roadmap.md. Use w
 
 # Advance the Latrunculi Roadmap
 
-Use `docs/roadmap.md` as the authoritative non-search backlog and work on one
-coherent item. Use `$advance-latrunculi-search` for `SW-XX` experiments;
-do not duplicate work between the coordinating documents.
+Use `docs/roadmap.md` as the authoritative high-level project backlog and work
+on one coherent item. Use `$advance-latrunculi-strength` for bounded
+playing-strength experiments; do not duplicate work between the coordinating
+documents.
 
 ## Establish Scope
 
@@ -19,8 +20,8 @@ do not duplicate work between the coordinating documents.
    implementation and authoritative specifications; reference behavior cannot
    override protocol, chess-rule, or project requirements.
 4. Resolve material ambiguity from project evidence or ask the user. Preserve
-   unrelated work and modify `docs/search.md` only for an explicitly requested
-   cross-workstream transfer or cleanup.
+   unrelated work and modify `docs/strength.md` or a domain knowledge document
+   only for an explicitly requested cross-workstream transfer or cleanup.
 
 ## Follow the Requested Action
 
@@ -31,9 +32,8 @@ do not duplicate work between the coordinating documents.
 - Reviews, explanations, and prioritization are read-only.
 - Commit or push only when explicitly authorized.
 - Submit, modify, stop, or delete external validation only when explicitly
-  authorized. Before OpenBench submission, read `docs/openbench.md` and
-  verify the pushed immutable revisions, settings, and termination policy—LLR
-  boundaries for an SPRT or a positive game count for a fixed test.
+  authorized. Before OpenBench submission, follow `docs/openbench.md` and
+  verify the pushed immutable revisions, settings, and termination policy.
   Read-only monitoring and retrieval need no further approval after submission.
 - Never rewrite a revision used for external validation; record later results
   or cleanup in a new authorized commit.

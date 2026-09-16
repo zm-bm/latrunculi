@@ -44,8 +44,12 @@ workload. All Boards are constructed before timing.
 ```
 
 Defaults are 50,000 warmup repetitions followed by seven samples of 100,000
-repetitions. Output is TSV. The checksum is an order-sensitive behavior
-fingerprint; the throughput fields measure speed.
+repetitions. Output is TSV. This is a steady-state microbenchmark of the raw
+evaluator, not a model of a complete search. The checksum is an order-sensitive
+behavior fingerprint: exact optimizations must preserve it, while intentional
+evaluation changes may not. Throughput measures component speed; it does not
+establish correctness, evaluation quality, realistic cache behavior, integrated
+engine speed, or playing strength.
 
 ## Search
 
@@ -57,6 +61,9 @@ inside that process and does not provide fresh-process reproducibility.
 ```bash
 ./build/release-dev/latrunculi-measure search
 ./build/release-dev/latrunculi-measure search \
+  --suite tools/measurements/search.epd --depth 10 --hash 32 \
+  --threads 1 --repetitions 1 --format tsv
+./build/release-dev/latrunculi-measure search \
   --case arasan20-01 --depth 10 --hash 32 \
   --threads 1 --repetitions 1 --format tsv
 ```
@@ -66,13 +73,17 @@ thread for deterministic algorithm comparisons; use larger counts for coarse
 scaling measurements. Choose at most one of `--depth`, `--nodes`, or
 `--movetime`; `--suite` selects another EPD file and `--case` selects one ID
 from the loaded file. Use separate process invocations when fresh-process
-isolation matters.
+isolation matters. Strength experiments use the explicit complete-corpus
+options above rather than the tool's depth-5 default. A second command
+invocation provides fresh-process reproducibility; `--repetitions 2` does not,
+and it does not increase the number of distinct positions.
 
 The corpus preserves every position and source annotation from historical Git
 blob `93cbe97d9ee40790eafc984e59cbce3c02a5d7ea`; only its IDs are normalized to
 `arasan20-NN`. Its `bm` and `am` operations are metadata, not correctness or
 playing-strength criteria. The optional `search-sentinels.epd` contains the
-four focused convergence cases retained from the completed audit:
+four focused trajectory cases retained from the completed audit;
+[Search Knowledge](../../docs/search.md) defines their interpretation:
 
 ```bash
 ./build/release-dev/latrunculi-measure search \
@@ -96,10 +107,46 @@ case and run configuration, so stdout remains machine-readable:
 ## Comparing Results
 
 Compare equivalent builds with identical explicit options on the same machine.
-Deterministic fields reveal behavior changes; timing requires repeated runs and
-must not become a unit-test threshold. Keep raw output under the ignored
-`tools/measurements/output/` directory. [Search Development](../../docs/search.md)
-owns experiment panels, gates, and aggregation.
+Timing requires repeated runs and must not become a unit-test threshold. Keep
+raw output under the ignored `tools/measurements/output/` directory.
+[Search Knowledge](../../docs/search.md) owns the default search panel, metric interpretation,
+and paired timing policy.
+[Strength Development](../../docs/strength.md) owns lifecycle and each active
+task's frozen thresholds and deviations.
+
+For corpus timing, aggregate measured search time with `sum(total_ns)`. This
+excludes setup before `start_search()`, process startup, and output. See
+[Search Knowledge](../../docs/search.md) for collection and decision rules.
+
+Use `compare_search.py` for deterministic aggregation. It validates the current
+200 case IDs, the canonical request profile, comparable case sets, and required
+signatures, but it does not decide whether a task passes:
+
+```bash
+python3 tools/measurements/compare_search.py nodes \
+  baseline.tsv candidate.tsv --repeat candidate-repeat.tsv --details
+python3 tools/measurements/compare_search.py timing \
+  --pair BC pair-1-baseline.tsv pair-1-candidate.tsv \
+  --pair CB pair-2-baseline.tsv pair-2-candidate.tsv \
+  --pair BC pair-3-baseline.tsv pair-3-candidate.tsv \
+  --pair CB pair-4-baseline.tsv pair-4-candidate.tsv \
+  --pair BC pair-5-baseline.tsv pair-5-candidate.tsv \
+  --pair CB pair-6-baseline.tsv pair-6-candidate.tsv
+```
+
+Add `--exact-tree` only when baseline and candidate search signatures must
+match. Without it, the helper requires each candidate timing pass to match the
+other candidate passes while allowing baseline-to-candidate score, best-move,
+PV, and node differences. The timing command checks the declared panel shape
+and guards against reusing a path accidentally; the artifact manifest remains
+the record of suite and input provenance, binary identity, affinity, and actual
+execution order.
+
+Run the helper's focused tests with:
+
+```bash
+python3 -m unittest tools.measurements.test_compare_search
+```
 
 The machine-readable formats are `perft_measurement_v1`,
 `evaluation_throughput_v1`, and `search_measurement_v3`. These labels version

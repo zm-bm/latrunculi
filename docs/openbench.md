@@ -40,6 +40,11 @@ make -C bench EXE=latrunculi CXX=g++
 ./bench/latrunculi bench
 ```
 
+Benchmark nodes are always a signature gate: reproduce the candidate fingerprint
+for tree-changing work and preserve the baseline fingerprint for exact-tree work.
+Neither their delta nor benchmark NPS is an offline performance or strength
+metric; use the paired corpus timing policy in [Search Knowledge](search.md).
+
 ### Test termination
 
 Let an SPRT run until its LLR reaches either predeclared boundary. It has no

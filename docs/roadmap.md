@@ -1,39 +1,25 @@
 # Engine Roadmap
 
-This is the authoritative backlog for work not currently managed as an
-`SW-XX` search experiment. The [architecture overview](architecture.md)
-describes the current implementation, and active search experiments are
-coordinated separately in [Search Development](search.md).
+This is the concise, longer-horizon direction and project backlog for the
+engine. Detailed Elo-oriented experiments are coordinated in
+[Strength Development](strength.md), while [Search Knowledge](search.md)
+retains durable search evidence. The [architecture overview](architecture.md)
+describes the current implementation.
 
-**Now** contains at most one active roadmap item, **Next** contains ordered
-candidates, and **Later** is an informal backlog. Revalidate items before work
-and remove them when complete; Git history records completion.
-
-For external validation, follow [OpenBench](openbench.md): SPRTs end at an LLR
-boundary, while fixed tests use a positive game count.
-
-## Now
-
-There is no active roadmap item.
+Keep directions and larger capabilities here. Put bounded, measurable
+investigations and candidates in `strength.md` as `EI-XXX` experiments rather
+than duplicating them. Add a **Now** section only while a roadmap project is
+active; **Next** is ordered and **Later** is informal. Revalidate items before
+work and remove them when complete; Git history records completion.
 
 ## Next
 
-### END-001 — Audit endgame residuals
+### END-001 — Improve endgame play from exact evidence
 
-Analyze the largest held-out endgame errors and compare them with exact
-tablebase WDL/DTZ results where available. Separate missing general features
-from exact material rules, draw scaling, search horizon, and tablebase-covered
-play. Produce an evidence report by material class and failure type; a
-production change is not required.
-
-### END-002 — Scope justified endgame mechanisms
-
-If END-001 supports production work, replace this placeholder with separate
-stable-ID items for the repeated, explainable mechanisms it identifies; do not
-implement several mechanisms under this item. Each resulting change requires
-activation and counterexample tests, held-out or tablebase evidence, retraining
-of affected linear parameters, and paired match validation. Remove this item if
-the audit supports no action.
+Use held-out endgame errors and exact tablebase WDL/DTZ results to guide
+improvements to general features, material rules, draw scaling, and horizon
+handling. When ready, define one bounded `EI-XXX` investigation in
+`strength.md` rather than coordinating it here.
 
 ### TB-001 — Add optional Syzygy support
 
@@ -51,7 +37,7 @@ performance, and equal-access matches.
 - Add UCI capabilities when supported by the corresponding engine feature:
   MultiPV, richer bound and progress reporting, Chess960, and optional strength
   controls.
-- Measure multi-thread search scaling and TT/cache contention before changing
+- Improve multi-thread search scaling and TT/cache behavior before changing
   the parallel-search design.
 - Add continuous integration for supported GCC and Clang builds, tests,
   ASan/UBSan, and a separate ThreadSanitizer configuration.

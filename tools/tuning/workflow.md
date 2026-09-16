@@ -4,14 +4,17 @@ This is the repeatable process for tuning Latrunculi's linear handcrafted
 evaluation. The [README](README.md) lists the commands.
 
 Each experiment starts from one engine revision and produces at most one
-candidate. Grouped cross-validation selects the candidate. A fresh OpenBench
-match decides whether it becomes engine source.
+candidate. Grouped cross-validation selects the candidate; a fresh OpenBench
+match supplies its strength result. Integration still requires explicit approval.
 
 ## Experiment
 
 Copy `experiment.example.json`, choose a unique name, and record the baseline
 revision, benchmark, and corpus. The runner combines this input with its fixed
 version-3 policy and writes the complete policy to the output directory.
+
+For work coordinated in [Strength Development](../../docs/strength.md), begin the experiment name
+with its lowercase task ID, such as `ei-004-hce`. Preserve historical `joint-hce-*` names.
 
 Review the definition before running it. Once started, the configuration,
 engine, tools, dependencies, and PGNs are fixed by hash. A change requires a
@@ -28,9 +31,9 @@ colors reversed. Use compact PGNs, `UHO_Lichess_4852_v1.epd`, `4+0.04`,
 [standard adjudication](../../docs/openbench.md#strength-tests). Strength tests
 use `10+0.1`.
 
-Set **Workload Size** to `21,000 / (2 * worker concurrency)`: `875` on the
-current 12-thread worker. This keeps all openings in one assignment. Smaller
-assignments in the current OpenBench version reuse part of the opening range.
+Set **Workload Size** to `21,000 / (2 * worker concurrency)` so all openings
+stay in one assignment. Smaller assignments in the current OpenBench version
+reuse part of the opening range.
 
 The runner requires 40,000 valid games and 20,000 retained opening groups. It:
 
@@ -96,13 +99,13 @@ For a supported candidate, apply the weights to `src/eval/parameters.hpp`,
 build the engine, and run `verify`. Verification compares every compiled
 coefficient and evaluation invariant with the candidate artifact.
 
-Review, commit, and push the verified patch before starting OpenBench. Run one
-normalized-Elo `[0, 3]` SPRT against the pinned baseline with the
-[standard settings](../../docs/openbench.md#strength-tests). Let it reach a
-boundary or its game limit.
+When authorized, commit and push the verified patch. Start OpenBench only when that external
+mutation is also authorized. Use one normalized-Elo `[0, 3]` SPRT against the pinned baseline with
+the [standard settings](../../docs/openbench.md#strength-tests). Let it reach either LLR boundary.
 
 - The upper boundary accepts the candidate.
-- The lower boundary or an inconclusive limit retains the baseline.
+- The lower boundary rejects the candidate and retains the baseline.
+- A manual stop is inconclusive and cannot accept the candidate.
 - `offline` records a rejection before match play.
 
 Use `close` to append the decision and OpenBench test ID to tracked
