@@ -304,7 +304,7 @@ Keep the current eligibility, material guard, TT veto, and SW-04 behavior. Repla
 over beta; add no new eligibility gate or verification search. Require objective and convergence
 guards plus paired strength validation for any offline survivor.
 
-### SW-18 — History-gated depth-1 late-move pruning [active]
+### SW-18 — History-gated depth-1 late-move pruning [qualified]
 
 Hypothesis / candidate: SW-12 found substantial depth-1 selectivity opportunity, but its
 unconditional after-eight rule made full-window NonPV and PV searches disagree. At depth-1 NonPV
@@ -326,15 +326,81 @@ Root and score changes remain contextual. `release-stats`, separate timing, ASan
 are `N/A`: the candidate reuses existing bounded history access and adds scalar conditions without
 new counters, storage, indexing logic, ownership, recursion arithmetic, or concurrency.
 
-Result / artifacts: pending.
+Result / artifacts: Screen and Qualification passed. The two exact corpus passes used
+`0.984329762` times the baseline geometric-mean nodes and `0.993671224` times the median, with 144
+improved, 6 equal, and 50 regressed cases; 27 root moves and 65 scores changed. All 200 candidate
+signatures repeated exactly. The candidate benchmark was 5,163,004 nodes twice. The complete
+`release-dev` suite and both focused five-test runs passed, including the PV/NonPV consistency and
+objective guards. Sentinel useful depths were 11, 16, 15, and 13 versus baseline 11, 16, 14, and
+13, so none regressed; aggregate late A-B-A counts increased from 2 to 3. Evidence and the exact
+candidate patch are in `tools/measurements/output/sw-18-c6eb554/`.
 
-Disposition / next boundary: active; implement only the pinned history-gated rule, then run Screen
-before Qualification. A PV/NonPV disagreement is an investigation trigger, not automatically an
-objective correctness failure: preserve an exact reproducer, diagnose the search contract, and do
-not qualify the candidate while the complete suite remains unresolved. A stable Qualification
-survivor with at least 3.0% geometric-mean node improvement (ratio at most `0.97`) becomes the next
-OpenBench priority; a correct survivor between 1.0% and 3.0% may be parked for comparison with
-later work. Commit, push, and paired validation still require explicit authorization.
+Disposition / next boundary: qualified and parked as an uncommitted patch plus candidate binary
+hashes; operational-baseline behavior was restored. The repeatable 1.57% geometric node reduction
+clears the qualification floor but not the 3.0% OpenBench-priority threshold, so do not prioritize
+paired validation over a more selective follow-up. Requalify if the operational baseline changes.
+Commit, push, and paired validation still require explicit authorization.
+
+### SW-19 — Apply negative-history late-move pruning after six moves [rejected]
+
+Hypothesis / candidate: SW-18's history condition avoided SW-12's consistency failure but left
+selectivity on the table. Change only its depth-1 NonPV threshold from after eight searched legal
+moves to after six; preserve every SW-18 history, material, mate, tactical, refutation, and node
+guard.
+
+Baseline / panels / stops: operational baseline `c6eb554`, benchmark 5,168,111 nodes, cached
+corpus `search-baseline-c6eb554/`, and artifacts `sw-19-c6eb554/`. Screen with the SW-18 focused
+guards, one 200-position depth-10 corpus pass, and one benchmark. Reject on an objective,
+PV/NonPV-consistency, determinism, or output failure, or unless geometric-mean nodes improve by at
+least 2.0% (ratio at most `0.98`). Qualification requires the complete `release-dev` suite,
+repeated objective guards, a second exact corpus pass, all four sentinel trajectories once, and a
+repeated benchmark; reject an objective loss, useful-depth loss in at least two sentinels, or an
+unresolved consistency or repeatability failure. `release-stats`, separate timing, ASan/UBSan, and
+TSan remain `N/A` for the same reasons as SW-18.
+
+Result / artifacts: focused guards passed, but the corpus geometric-mean ratio was `0.984411738`,
+fractionally worse than SW-18's `0.984329762`; the median and the improved/equal/regressed counts
+were identical. SW-19 changed the same 27 root moves and 65 scores as SW-18. Evidence and the
+exact patch are in `tools/measurements/output/sw-19-c6eb554/`.
+
+Disposition / next boundary: rejected at Screen because it missed the 2.0% material stop and did
+not improve on SW-18. The benchmark and Qualification were not run. Moving the threshold earlier
+did not expose additional useful pruning, so do not spend the second trial on an after-four rule.
+
+### SW-20 — Apply negative-history late-move pruning at depth 2 [qualified]
+
+Hypothesis / candidate: negative combined history may identify safe late quiets one ply earlier in
+the tree, where each skip saves more work. At depth-2 NonPV nodes where ordinary futility is
+inactive, after twelve legal moves have been searched, suppress only ordinary nonchecking quiets
+with negative combined quiet and continuation history. Preserve SW-18's non-mating-line,
+non-pawn-material, TT, killer, countermove, tactical, evasion, mate-window, and node guards. Do not
+also enable the depth-1 rule.
+
+Baseline / panels / stops: operational baseline `c6eb554`, benchmark 5,168,111 nodes, cached
+corpus `search-baseline-c6eb554/`, and artifacts `sw-20-c6eb554/`. Screen with focused LMP,
+PV/NonPV-consistency, and objective guards, one 200-position depth-10 corpus pass, and one
+benchmark. Reject on any guard, determinism, or output failure, or unless geometric-mean nodes
+improve by at least 3.0% (ratio at most `0.97`). Qualification requires the complete
+`release-dev` suite, repeated guards, a second exact corpus pass, all four sentinel trajectories
+once, and a repeated benchmark; reject an objective loss, useful-depth loss in at least two
+sentinels, or an unresolved consistency or repeatability failure. `release-stats`, separate
+timing, ASan/UBSan, and TSan remain `N/A` for the same reasons as SW-18.
+
+Result / artifacts: Screen and Qualification passed. The two exact corpus passes used
+`0.951253153` times the baseline geometric-mean nodes and `0.991914438` times the median, with 153
+improved, 6 equal, and 41 regressed cases; 24 root moves and 69 scores changed. All 200 candidate
+signatures repeated exactly. The candidate benchmark was 5,101,317 nodes twice. The complete
+`release-dev` suite and both focused five-test runs passed, including the PV/NonPV consistency and
+objective guards. Sentinel useful depths were 11, 16, 15, and 13 versus baseline 11, 16, 14, and
+13, with no regression; aggregate late root changes, score-class changes, A-B-A counts, and zero
+PV-prefix transitions all matched baseline. Evidence and the exact patch are in
+`tools/measurements/output/sw-20-c6eb554/`.
+
+Disposition / next boundary: qualified; the user authorized publication of this exact candidate
+from `sw-20-depth2-history-lmp` and paired OpenBench validation against `c6eb554`. Use the STC
+SPRT `[0,3]` profile with `alpha = beta = 0.05` and the standard settings in `docs/openbench.md`.
+Record the immutable candidate commit and test ID after submission. Do not integrate the candidate
+unless the test reaches its upper LLR boundary.
 
 Do not queue broader machinery merely to raise displayed depth. After these tasks, use one bounded
 sampling profile to decide whether full evaluation, repetition detection, make/unmake, or TT work

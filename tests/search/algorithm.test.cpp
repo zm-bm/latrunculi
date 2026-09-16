@@ -569,6 +569,60 @@ TEST_F(SearchTest, FutilityKeepsLaterCheckingQuietHintsAndGeneratedMoves) {
     }
 }
 
+TEST_F(SearchTest, LateMovePruningRequiresNegativeCombinedHistory) {
+    const auto run_case = [&](bool negative_history, bool pv_node) {
+        Board board{board_test::fen::start};
+        load(board, 2);
+        const Move previous = find_move("e2e4");
+        EvalValue  result   = -eval_value::inf;
+
+        with_move(previous, [&] {
+            auto moves = legal_picker_moves();
+            ASSERT_GT(moves.size(), 12U);
+            const Move late_quiet = moves.back();
+            ASSERT_EQ(late_quiet.type(), BASIC_MOVE);
+            ASSERT_FALSE(position().is_capture(late_quiet));
+            ASSERT_FALSE(position().gives_check(late_quiet));
+
+            if (negative_history) {
+                ordering_state().quiets.reward(
+                    position().side_to_move(), late_quiet.from(), late_quiet.to(), 2);
+                ordering_state().continuations.penalize(WHITE,
+                                                        PAWN,
+                                                        E4,
+                                                        position().piece_type_on(late_quiet.from()),
+                                                        late_quiet.to(),
+                                                        3);
+            }
+
+            moves              = legal_picker_moves();
+            const auto late_it = std::find(moves.begin(), moves.end(), late_quiet);
+            ASSERT_NE(late_it, moves.end());
+            ASSERT_GT(late_it - moves.begin(), 12);
+            EXPECT_EQ(ordering_state().quiet_score(
+                          ordering::State::make_context(position()), position(), late_quiet, true)
+                          < 0,
+                      negative_history);
+
+            for (Move move : moves)
+                store_child(move, move == late_quiet ? -200 : 0, 1);
+
+            if (pv_node) {
+                PrincipalVariation pv;
+                result = pv_search(-200, 100, 2, pv);
+            } else {
+                result = search(-200, 100, 2, false);
+            }
+        });
+
+        return result;
+    };
+
+    EXPECT_EQ(run_case(false, false), 200);
+    EXPECT_EQ(run_case(true, false), 0);
+    EXPECT_EQ(run_case(true, true), 200);
+}
+
 TEST_F(SearchTest, QuietCutoffUpdatesPreviousMoveContext) {
     Board board{board_test::fen::start};
     load(board, 2);
