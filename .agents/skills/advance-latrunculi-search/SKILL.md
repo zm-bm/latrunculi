@@ -77,7 +77,10 @@ Only a Screen survivor proceeds:
 1. Run the complete configured release suite. It subsumes focused tests unless
    the candidate changed after Screen, those tests are excluded, or another
    configuration must be checked. Use `release-stats` only when instrumentation
-   or counters are needed.
+   or counters are needed. Classify a failure before disposing of the candidate:
+   an internal search-contract mismatch requires an exact reproducer and
+   diagnosis, blocks qualification while unresolved, and is not by itself an
+   objective chess failure.
 2. Use ASan/UBSan only for concrete risk from storage, indexing expressions,
    bounds logic, ownership, lifetime, representation, parsing,
    recursion/depth arithmetic, or core board/search/TT state. Scalar constants,
