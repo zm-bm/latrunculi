@@ -142,6 +142,12 @@ and guards against reusing a path accidentally; the artifact manifest remains
 the record of suite and input provenance, binary identity, affinity, and actual
 execution order.
 
+Record compiler provenance from the configured build, not from the shell's
+default compiler. Capture `CMAKE_CXX_COMPILER`, `CMAKE_CXX_COMPILER_ID`, and
+`CMAKE_CXX_COMPILER_VERSION` from the build's generated
+`CMakeCXXCompiler.cmake`; retain the configured compiler path, ID, and version
+in the artifact manifest.
+
 Run the helper's focused tests with:
 
 ```bash

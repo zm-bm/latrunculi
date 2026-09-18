@@ -1,6 +1,6 @@
 ---
 name: advance-latrunculi-strength
-description: Run stable-ID Latrunculi strength experiments from docs/strength.md through offline testing, publication, and paired games.
+description: Advance stable-ID Latrunculi strength work in docs/strength.md through offline experiments, candidate selection, publication, paired testing, integration, and baseline refresh. Use when asked to plan, execute, review, revalidate, commit, publish, test, integrate, or record a strength task.
 ---
 
 # Advance Latrunculi Strength
@@ -18,7 +18,10 @@ authorization policy. Read only the relevant domain guide: `docs/search.md` for 
 2. Move the task from the pending queue to **Active experiment** and complete its record before
    implementation, including its evidence class, task HEAD, artifact directory, Screen,
    Qualification, and separate reject and qualify rules. Record the initial worktree state in the
-   artifact manifest.
+   artifact manifest. For an exact-tree performance task, complete its `Mechanism` field: name the
+   cost removed, reduced, or moved off the critical path; check whether equivalent or offsetting
+   work erases the benefit; and explain why the opportunity can plausibly clear the timing
+   threshold.
 3. For a fully specified candidate, omit `Variants`. Otherwise predeclare one kind of single-factor
    variant and its limit. A normal upper bound is one initial attempt, one implementation repair,
    and one variant. Keep the hypothesis, evidence class, variant range, checks, and pass/fail rules
@@ -44,7 +47,9 @@ Count only a frozen hard gate as a failure. Interpret reproducibility and diagno
 applicable domain guide.
 
 Log any repair or variant, update `Change` when behavior changes, refresh the candidate diff and
-hashes, and restart Screen. Do not change the rules after seeing a valid result.
+hashes, and restart Screen. Do not change the rules after seeing a valid result. If later
+methodology review invalidates a measurement-system gate, follow the amendment rule in
+`docs/strength.md`.
 
 ### Screen
 
@@ -62,7 +67,8 @@ to Qualification.
 Run the relevant complete release suite, the domain guide's Qualification panel, and the task's
 remaining risk-specific checks. Follow the domain guide's order, avoid duplicate coverage, and
 leave Qualification unresolved if required conditions are unavailable. Build `release-stats` only
-when counters are needed.
+when counters are needed. Profiling, performance counters, and disassembly are optional
+diagnostics, not default gates.
 
 Run ASan/UBSan only when the change creates a concrete risk involving storage, indexing, bounds,
 ownership, lifetime, parsing, recursion, or core engine state. Run TSan only for shared state or
@@ -79,8 +85,8 @@ restarts Screen and all of Qualification.
   temporary support, and restore the baseline. Remove only candidate-specific build output; never
   use broad `git clean` or delete archived evidence.
 - **Stopped/incomplete:** preserve the evidence, keep the candidate out of the qualified table,
-  remove candidate behavior, and restore the baseline. If the decision rule changes after results
-  arrive, preserve the frozen declaration and raw evidence and use a new task ID to resume.
+  remove candidate behavior, and restore the baseline. Handle methodology corrections only under
+  the amendment rule in `docs/strength.md`.
 - **Qualified:** move the task to the qualified table and record the comparable evidence required
   for candidate selection in `docs/strength.md`. Save an immutable commit when authorized;
   otherwise save a final patch and binary hashes. Restore the baseline before other work and never
@@ -102,11 +108,13 @@ limit in `docs/strength.md`.
 Offline work does not authorize commits, pushes, games, OpenBench changes, or integration. Before
 Qualification, do not commit or create a candidate branch.
 
-When committing is authorized, create a lowercase `<task-id>-<slug>` branch from the baseline
-against which the candidate qualified and commit only that candidate. Publishing, testing, and
-integration must also be explicitly authorized. One request or active `/goal` may authorize several
-stages; complete that scope without asking again. Verify the published revision. Once pushed or
-submitted for testing, do not amend, rebase, or force-push it.
+For an authorized qualified-candidate publication commit, create a lowercase `<task-id>-<slug>`
+branch from the baseline against which the candidate qualified and commit only that candidate.
+For explicitly authorized documentation, bookkeeping, or integration commits, use the authorized
+branch and commit plan. Publishing, testing, and integration must also be explicitly authorized.
+One request or active `/goal` may authorize several stages; complete that scope without asking
+again. Verify the published revision. Once pushed or submitted for testing, do not amend, rebase,
+or force-push it.
 
 Apply the selection and stale-candidate rules in `docs/strength.md`. Initial Qualification uses the
 full checks above; selected stale candidates rerun only evidence affected by the newer baseline.

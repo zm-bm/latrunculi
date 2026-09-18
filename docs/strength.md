@@ -9,10 +9,9 @@ Update these values only after an approved candidate is integrated:
 
 | Field | Current value |
 |---|---|
-| Operational engine baseline | `c6eb5547ac5e883d07be4ff560a8b13820a4d415` (`c6eb554`) |
-| OpenBench compatibility fingerprint | 5,168,111 nodes |
-| Cached search corpus baseline | `tools/measurements/output/search-baseline-c6eb554/` |
-| Search timing calibration | Not established under the six-pair protocol |
+| Operational engine baseline | `8a44474e75371809f5d93e9925d5035780db427c` (`8a44474`) |
+| OpenBench compatibility fingerprint | 5,101,317 nodes |
+| Cached search corpus baseline | `tools/measurements/output/search-baseline-8a44474/` |
 
 Refresh the cached search corpus when search behavior, its workload, or measurement meaning
 changes. Use its deterministic signatures and nodes for comparisons, but use contemporaneous paired
@@ -25,8 +24,7 @@ selected next, parked, or lower priority.
 
 | ID | Candidate | Offline result | Status and next step | Artifacts |
 |---|---|---|---|---|
-| SW-18 | Negative-history depth-1 LMP after eight moves | Node ratio 0.9843; exact candidate repeats; objective checks passed; trajectory diagnostics recorded | Qualified against `c6eb554`; lower priority than SW-20 | `sw-18-c6eb554/` |
-| SW-20 | Negative-history depth-2 LMP after twelve moves | Node ratio 0.9513; exact candidate repeats; objective checks passed; trajectory diagnostics recorded | Commit `f2c77b5` on `sw-20-depth2-history-lmp` versus `c6eb554`; OpenBench #27, STC SPRT `[0,3]`, is running | `sw-20-c6eb554/` |
+| SW-18 | Negative-history depth-1 LMP after eight moves | Node ratio 0.9843; exact candidate repeats; objective checks passed; trajectory diagnostics recorded | Qualified against `c6eb554`; parked and stale after SW-20 integration; requalify only if selected | `sw-18-c6eb554/` |
 
 ## Workflow
 
@@ -46,6 +44,7 @@ Evidence class: <tree-changing | exact-tree | domain-specific>
 Task HEAD: <full revision before implementation>
 Variants (optional): <allowed single-factor family and attempt or time limit>
 Change: <candidate and expected benefit; exact before Screen>
+Mechanism (exact-tree performance only): <cost removed, reduced, or moved off the critical path; offsetting-work check; why the opportunity can clear delta>
 Baseline: <revision and relevant differences>
 Artifacts: <directory fixed before implementation>
 Screen: <domain default plus focused checks>; reject if <specific result occurs>
@@ -67,9 +66,10 @@ decisive checks before expensive or environment-sensitive work.
 
 Preserve one immutable predeclaration, raw evidence, a candidate patch and hashes when needed, and
 one concise final manifest. Avoid duplicate result summaries and retained runner scripts unless
-they add evidence. If later methodology review invalidates a gate, preserve the frozen declaration
-and raw output, amend the current disposition to stopped/incomplete, and require a new task ID to
-resume under different rules.
+they add evidence. If later methodology review invalidates a measurement-system gate without
+changing the candidate, hypothesis, or candidate acceptance rule, preserve the frozen declaration
+and raw output, record an explicit amendment, and resume the same ID only with user approval. Rerun
+only affected evidence; other rule changes require a new task ID.
 
 Apply strengthened workflow defaults prospectively. Existing qualified or externally testing
 candidates retain the contract under which they qualified unless requalification is explicitly
@@ -175,7 +175,9 @@ relative to `tools/measurements/output/`.
 | SW-10 | Order quiet checks first at futility nodes | Screen passed at `R_node_g` 0.9978 and `R_node_total` 0.9973; timing and sanitizers not run | Stopped under the retired single-sentinel gate; Qualification incomplete and exact shape not closed | `sw-10-c6eb554-v2/` |
 | SW-12 | Unconditional depth-1 LMP after eight moves | Ratio 0.8271; NonPV/PV score 76/114 | Rejected; exact shape closed | `sw-12-c6eb554/` |
 | SW-19 | Move SW-18 threshold after six moves | Ratio 0.9844; no improvement over SW-18 | Rejected; do not try after four | `sw-19-c6eb554/` |
+| SW-20 | Negative-history depth-2 LMP after twelve moves | Ratio 0.9513; test #27 passed at 23,214 games, LLR +2.9601, +4.89 +/- 3.30 Elo | Done and integrated as `8a44474`; tested commit `f2c77b5` | `sw-20-c6eb554/` |
 | SW-21 | Reuse SW-20 history/check work | Exact tree; corpus timing 0.94% faster; benchmark tied | Rejected; no robust throughput gain | `sw-21-f2c77b5/` |
+| EI-001 | Revalidate SW-21 under direct paired timing | Exact tree; six-pair medians 1.0034 overall, 1.0129 BC, 0.9980 CB; 3/6 wins | Rejected; all three aggregations missed the 0.9925 timing gate | `ei-001-8a44474/` |
 | SW-22 | Reuse SW-20 picker metadata | Exact tree; timing order-dependent; benchmark tied | Rejected; no robust throughput gain | `sw-22-f2c77b5/` |
 | SW-23 | `-64` history tier for depth-2 moves 11–12 | No corpus or benchmark change | Rejected; rule did not fire materially | `sw-23-f2c77b5/` |
 | SW-24 | Move SW-20 threshold after ten moves | Ratio 1.0043; two cases drove the largest node increases | Rejected; exact SW-20 restored | `sw-24-f2c77b5/` |

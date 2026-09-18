@@ -53,7 +53,7 @@ Screen corpus.
 
 Within Qualification, run cheap decisive work before environment-sensitive timing: the complete
 release suite and deterministic, objective, fingerprint, and risk checks; applicable trajectory
-diagnostics; required sanitizers; any needed A/A calibration; then paired candidate timing.
+diagnostics; required sanitizers; then paired candidate timing.
 
 ### Sentinel trajectories
 
@@ -108,33 +108,30 @@ Here `B` is the baseline and `C` is the candidate. Predeclare the order.
 excludes board construction, static evaluation, heuristic and TT clearing, process startup, and
 output. Report every pair's aggregate search-time ratio, the median and range, candidate win count,
 and results separated by execution order. Validate that all baseline signatures agree and all
-candidate signatures agree. An execution-order conflict is unresolved evidence, not a result to
-average into an apparent win.
+candidate signatures agree. Execution-order medians are diagnostics and separate threshold checks;
+do not average their spread away or turn it into another gate.
 
-Use the current environment default `epsilon` recorded in `strength.md` as the largest timing
-regression worth treating as neutral. Reference its calibration before Screen. If none is current,
-predeclare the proposed default and record that calibration must be established if Screen passes. A
-task may instead predeclare a justified deviation from the current default. For an exact-tree task,
-also predeclare `delta > epsilon`, the smallest timing improvement worth accepting.
+For a tree-changing task, predeclare `epsilon` as the largest timing regression worth treating as
+neutral. For an exact-tree task, predeclare `delta > 0` as the smallest timing improvement worth
+accepting. The thresholds are independent.
 
-Before candidate paired timing, establish any needed A/A calibration with the same six-pair
-protocol and byte-identical binaries. Its overall median and both execution-order medians must lie
-within `1 +/- epsilon / 2`. The calibration remains current only while the machine, compiler, build
-preset, search profile, and relevant operating conditions are unchanged. Record it as current in
-`strength.md`; refresh it when any of those conditions change.
+A/A timing is an optional diagnostic for a new or changed measurement environment or for
+investigating anomalous paired results. It is not a default panel or hard gate, does not replace the
+candidate panel, and must not be subtracted from candidate ratios as a correction.
 
 A single pass, cached-versus-live timing, an incomplete panel, or an unisolated run is diagnostic
 only. If stable conditions cannot be established, defer the timing decision or use an idle machine;
 do not alter an external workload without authorization.
 
-First check for a material order effect: one execution-order median at most `1 - epsilon` while the
-other is at least `1 + epsilon` leaves the panel unresolved. Direction differences inside the
-neutral band do not. Otherwise, a tree-changing candidate passes timing when the overall median
-paired `R_time` and both execution-order medians are at most `1 + epsilon`; improvement is not
-required. An exact-tree candidate passes when all three medians are at most `1 - delta`.
-Individual ratios and win counts are diagnostics, not independent votes. Rerun only after an
-identified setup failure. Keep raw precision in artifacts, but report rounded effects rather than
-precision unsupported by the calibration.
+A tree-changing candidate passes timing when the overall median paired `R_time` and both
+execution-order medians are at most `1 + epsilon`; improvement is not required. An exact-tree
+candidate passes when all three medians are at most `1 - delta`. Otherwise the candidate fails the
+timing gate. Leave the panel unresolved only when it is invalid or incomplete because of an
+identified setup or data-collection failure or an unavailable required condition. Candidate-caused
+signature nondeterminism remains a failure under the reproducibility rule. Individual ratios, order
+spread, and win counts are diagnostics, not independent votes. Rerun only after an identified setup
+failure. Keep raw precision in artifacts, but report rounded effects rather than precision
+unsupported by the replicate spread.
 
 ## Durable findings
 
@@ -149,8 +146,8 @@ precision unsupported by the calibration.
 | Clock | Unfinished iterations consumed median node shares of 24–26%, but all 210 timed searches matched fresh-depth results. Predictor `T_d + m * (T_d - T_(d-1)) >= allocated_time` fired prematurely for `m` in `{1,2,4}`. Explicit `movetime` remains a hard request. |
 | Futility | Guarded reverse futility pruning passed OpenBench and was retained. Main-search futility preserves quiet checks by filtering only nonchecking quiets; SW-08 was strength-neutral and retained by explicit correctness policy. SW-10's checks-first ordering passed Screen, then stopped under a retired single-sentinel gate. It established neither regression nor qualification, so the exact shape remains open. |
 | Depth-1 LMP family | SW-12's unconditional after-eight rule cut nodes to 0.8271 but caused a 76/114 NonPV/PV disagreement. Negative-history gating in SW-18 passed offline at 0.9843 with objective checks passing and trajectory diagnostics recorded; moving it after six in SW-19 added no benefit. Do not retry unconditional after-eight or the after-six/after-four threshold path. |
-| Depth-2 LMP family | SW-20's after-twelve negative-history rule passed offline at 0.9513. Its external disposition is tracked in `strength.md`. A `-64` tier for moves 11–12 in SW-23 never fired; after-ten and after-eleven rules in SW-24/SW-25 increased nodes to ratios 1.0043/1.0035, driven by `arasan20-48` and `arasan20-89`. Do not tune this boundary again without a materially different safety signal. |
-| SW-20 throughput | SW-21 produced a nominal 0.94% corpus timing gain but tied the benchmark; SW-22 was order-dependent and also tied the benchmark. Rearranging SW-20 history, hint, and check-classification work has no demonstrated robust throughput gain. |
+| Depth-2 LMP family | SW-20's after-twelve negative-history rule passed offline at 0.9513, passed OpenBench #27 at 23,214 games and +4.89 +/- 3.30 Elo, and was integrated as `8a44474`. A `-64` tier for moves 11–12 in SW-23 never fired; after-ten and after-eleven rules in SW-24/SW-25 increased nodes to ratios 1.0043/1.0035, driven by `arasan20-48` and `arasan20-89`. Do not tune this boundary again without a materially different safety signal. |
+| SW-20 throughput | SW-21 produced a nominal 0.94% corpus timing gain under the retired protocol. EI-001's exact-tree six-pair remeasurement missed its timing threshold in every aggregation and was slightly slower overall; SW-22 was also order-dependent. Source review found that the primary counter-hint lookup remained and quiet-score reuse affected only a narrow path. Post-result sampling was diagnostic only: slightly fewer instructions were offset by lower IPC and more branch misses. Do not revisit this implementation family without removing common-path work that can plausibly clear the timing threshold. |
 | Historical depth gap | In the pinned release gauntlet, Latrunculi's median reported depth was 12 versus 16 for 4ku and Willow and 18 for Weiss. This motivates selectivity and throughput work but is neither a current benchmark nor an acceptance gate. |
 | Open mechanisms | Null move remains eligible for a materially different experiment; SW-04 rejected only the `static_eval >= beta` eligibility gate, and the audit lacked eligibility and counterfactual-failure denominators. |
 
@@ -162,11 +159,10 @@ The immutable audit anchor is `470a3d75c31a13e5f791dc0ee2476c6974be346d`. Do not
 `sa-05-verifier-25bb133/`, or `sa-07-470a3d7/`. Commit `8c0d46d` retains the deleted audit report
 for forensic replay.
 
-Reference baseline `c6eb554` has sentinel horizon/stable-window-depth pairs `startpos` 14/11,
-`arasan20-16` 16/16, `pilot14-g171-abrupt` 18/14, and `pilot15-g078-secondary` 13/13. Use
-`sw-08-6c01040/derived/sentinel-summary.tsv`; older `sa-02-470a3d7` rows are audit evidence, not a
-current comparison baseline. At the next operational-baseline refresh, store retained sentinel
-trajectories beside the cached corpus instead of referring through a historical candidate artifact.
+Operational baseline `8a44474` has sentinel horizon/stable-window-depth pairs `startpos` 14/11,
+`arasan20-16` 16/16, `pilot14-g171-abrupt` 18/15, and `pilot15-g078-secondary` 13/13. Use
+`search-baseline-8a44474/derived/sentinel-summary.tsv`; older `sa-02-470a3d7` and
+`sw-08-6c01040` rows are historical evidence, not the current comparison baseline.
 
 The exact rejected CaptureHistory patch is
 `tools/measurements/output/sa-03-capture-history-b415f5a/meta/candidate.patch`. Aggregate counters
