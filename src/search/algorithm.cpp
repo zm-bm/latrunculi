@@ -39,6 +39,10 @@ constexpr int FutilityMargin[] = {0, 250, 400, 550};
 constexpr int LmrMinDepth     = 3;
 constexpr int LmrMinMoveCount = 4;
 
+// Late-move pruning defaults.
+constexpr int LateMovePruningDepth     = 2;
+constexpr int LateMovePruningMoveCount = 12;
+
 // Quiet-history malus defaults.
 constexpr int QuietMalusMinDepth  = 4;
 constexpr int QuietMalusMinFailed = 2;
@@ -371,7 +375,8 @@ EvalValue Worker::alphabeta(
     EvalValue best_value = -eval_value::inf;
     Move      best_move  = NULL_MOVE;
 
-    const auto context = ordering::State::make_context(board);
+    const auto context      = ordering::State::make_context(board);
+    const Move counter_move = ordering_state.counter_hint(context);
     auto       picker =
         ordering::Picker::for_main_search(board, ordering_state, context, search_ply, tt_move);
 
@@ -390,10 +395,24 @@ EvalValue Worker::alphabeta(
         ++move_count;
         const bool first_legal = move_count == 1;
 
-        const bool is_promotion = move.type() == MOVE_PROM;
-        const bool is_capture   = board.is_capture(move);
-        const bool is_quiet     = !is_capture && !is_promotion;
-        const bool is_killer    = is_quiet && ordering_state.is_killer(move, search_ply);
+        const bool is_promotion      = move.type() == MOVE_PROM;
+        const bool is_capture        = board.is_capture(move);
+        const bool is_quiet          = !is_capture && !is_promotion;
+        const bool is_ordinary_quiet = is_quiet && move.type() == BASIC_MOVE;
+        const bool is_killer         = is_quiet && ordering_state.is_killer(move, search_ply);
+        const bool is_counter        = is_quiet && move == counter_move;
+
+        bool history_lmp_candidate = false;
+        if constexpr (Node == NodeType::NonPv) {
+            history_lmp_candidate = depth == LateMovePruningDepth
+                                 && move_count > LateMovePruningMoveCount && !futility && !in_check
+                                 && best_value > -eval_value::mate_bound
+                                 && alpha > -eval_value::mate_bound && beta < eval_value::mate_bound
+                                 && board.non_pawn_material(side) > 0 && is_ordinary_quiet
+                                 && move != tt_move && !is_killer && !is_counter
+                                 && ordering_state.quiet_score(context, board, move, true) < 0;
+        }
+
         board.make(move);
         ++search_ply;
 
@@ -407,7 +426,14 @@ EvalValue Worker::alphabeta(
             continue;
         }
 
-        // Step 10. Late-move reductions.
+        // Step 10. History-gated late-move pruning.
+        if (history_lmp_candidate && !gives_check) {
+            board.unmake();
+            --search_ply;
+            continue;
+        }
+
+        // Step 11. Late-move reductions.
         // If the reduced search beats alpha, research the move at full depth.
         EvalValue value;
         const int reduction = lmr_reduction<Node>(
@@ -428,7 +454,7 @@ EvalValue Worker::alphabeta(
                 }
             }
         } else {
-            // Step 11. Principal variation search.
+            // Step 12. Principal variation search.
             if constexpr (Node == NodeType::NonPv) {
                 value = -alphabeta<NodeType::NonPv>(-beta, -alpha, depth - 1, nullptr, true);
             } else if (move_count == 1) {
@@ -452,7 +478,7 @@ EvalValue Worker::alphabeta(
             return alpha;
 
         if (value >= beta) {
-            // Step 12. Beta cutoff.
+            // Step 13. Beta cutoff.
             if (is_quiet) {
                 stats.quiet_cutoff(depth);
                 ordering_state.update_quiet_refutations(context, move, search_ply);
@@ -478,7 +504,7 @@ EvalValue Worker::alphabeta(
             if (failed_quiets.add(move))
                 stats.quiet_malus_failed_quiet(depth);
         }
-        // Step 13. Best-move update.
+        // Step 14. Best-move update.
         if (value > best_value) {
             best_value = value;
             best_move  = move;
@@ -491,14 +517,14 @@ EvalValue Worker::alphabeta(
         }
     }
 
-    // Step 14. Mate and stalemate.
+    // Step 15. Mate and stalemate.
     if (move_count == 0) {
         best_value = in_check ? -eval_value::mate + search_ply : eval_value::draw;
         tt.store(position_key, NULL_MOVE, best_value, depth, TTBound::Exact, search_ply);
         return best_value;
     }
 
-    // Step 15. TT store.
+    // Step 16. TT store.
     tt.store(position_key,
              best_move,
              best_value,
