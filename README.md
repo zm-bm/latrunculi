@@ -81,7 +81,7 @@ handcrafted-evaluation optimization.
 
 - [Architecture](docs/architecture.md)
 - [OpenBench testing](docs/openbench.md)
-- [Strength development](docs/strength.md)
+- [Playing strength development](docs/playing-strength.md)
 - [Search knowledge](docs/search.md)
 - [1.0.0 release evidence](docs/releases/1.0.0.md)
 - [Roadmap](docs/roadmap.md)

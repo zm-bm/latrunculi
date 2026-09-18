@@ -111,12 +111,17 @@ Timing requires repeated runs and must not become a unit-test threshold. Keep
 raw output under the ignored `tools/measurements/output/` directory.
 [Search Knowledge](../../docs/search.md) owns the default search panel, metric interpretation,
 and paired timing policy.
-[Strength Development](../../docs/strength.md) owns lifecycle and each active
+[Playing Strength Development](../../docs/playing-strength.md) owns lifecycle and each active
 task's frozen thresholds and deviations.
 
 For corpus timing, aggregate measured search time with `sum(total_ns)`. This
 excludes setup before `start_search()`, process startup, and output. See
 [Search Knowledge](../../docs/search.md) for collection and decision rules.
+
+The fixed `BC, CB, BC, CB, BC, CB` panel forms three adjacent balanced
+`B-C-C-B` blocks. The helper reports each block's geometric mean ratio and
+`median_balanced_search_time_ratio`, the decision metric. It retains the
+overall and order-separated summaries as diagnostics.
 
 Use `compare_search.py` for deterministic aggregation. It validates the current
 200 case IDs, the canonical request profile, comparable case sets, and required
@@ -136,11 +141,13 @@ python3 tools/measurements/compare_search.py timing \
 
 Add `--exact-tree` only when baseline and candidate search signatures must
 match. Without it, the helper requires each candidate timing pass to match the
-other candidate passes while allowing baseline-to-candidate score, best-move,
-PV, and node differences. The timing command checks the declared panel shape
-and guards against reusing a path accidentally; the artifact manifest remains
-the record of suite and input provenance, binary identity, affinity, and actual
-execution order.
+other candidate passes while allowing baseline-to-candidate static-score,
+searched-score, best-move, PV, and node differences. The flag validates sampled
+signature equality; it does not prove semantic equivalence, classify a
+candidate, or authorize skipping games. The timing command checks the declared
+panel shape and guards against reusing a path accidentally; the artifact
+manifest remains the record of suite and input provenance, binary identity,
+affinity, and actual execution order.
 
 Record compiler provenance from the configured build, not from the shell's
 default compiler. Capture `CMAKE_CXX_COMPILER`, `CMAKE_CXX_COMPILER_ID`, and

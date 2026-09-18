@@ -6,8 +6,9 @@ description: Advance stable-ID work items in Latrunculi's docs/roadmap.md. Use w
 # Advance the Latrunculi Roadmap
 
 Use `docs/roadmap.md` as the authoritative high-level project backlog and work
-on one coherent item. Use `$advance-latrunculi-strength` for bounded
-playing-strength experiments; do not duplicate work between the coordinating
+on one coherent item. Route rough playing-strength ideas to `$explore-latrunculi-candidates`,
+concrete candidates to `$qualify-latrunculi-candidate`, and qualified or externally tested
+candidates to `$promote-latrunculi-candidate`; do not duplicate work between the coordinating
 documents.
 
 ## Establish Scope
@@ -20,7 +21,7 @@ documents.
    implementation and authoritative specifications; reference behavior cannot
    override protocol, chess-rule, or project requirements.
 4. Resolve material ambiguity from project evidence or ask the user. Preserve
-   unrelated work and modify `docs/strength.md` or a domain knowledge document
+   unrelated work and modify `docs/playing-strength.md` or a domain knowledge document
    only for an explicitly requested cross-workstream transfer or cleanup.
 
 ## Follow the Requested Action

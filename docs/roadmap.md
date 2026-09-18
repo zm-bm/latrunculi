@@ -2,12 +2,12 @@
 
 This is the concise, longer-horizon direction and project backlog for the
 engine. Detailed Elo-oriented experiments are coordinated in
-[Strength Development](strength.md), while [Search Knowledge](search.md)
+[Playing Strength Development](playing-strength.md), while [Search Knowledge](search.md)
 retains durable search evidence. The [architecture overview](architecture.md)
 describes the current implementation.
 
 Keep directions and larger capabilities here. Put bounded, measurable
-investigations and candidates in `strength.md` as `EI-XXX` experiments rather
+investigations and candidates in `playing-strength.md` as `EI-XXX` experiments rather
 than duplicating them. Add a **Now** section only while a roadmap project is
 active; **Next** is ordered and **Later** is informal. Revalidate items before
 work and remove them when complete; Git history records completion.
@@ -19,7 +19,7 @@ work and remove them when complete; Git history records completion.
 Use held-out endgame errors and exact tablebase WDL/DTZ results to guide
 improvements to general features, material rules, draw scaling, and horizon
 handling. When ready, define one bounded `EI-XXX` investigation in
-`strength.md` rather than coordinating it here.
+`playing-strength.md` rather than coordinating it here.
 
 ### TB-001 — Add optional Syzygy support
 

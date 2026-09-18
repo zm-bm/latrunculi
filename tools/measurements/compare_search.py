@@ -21,10 +21,18 @@ PROFILE = {
     "threads": "1",
     "hash_mb": "32",
 }
-SIGNATURE_FIELDS = ("completed_depth", "score", "nodes", "best_move", "pv")
+SIGNATURE_FIELDS = (
+    "completed_depth",
+    "static_score",
+    "score",
+    "nodes",
+    "best_move",
+    "pv",
+)
 REQUIRED_FIELDS = {
     "result_format",
     "case",
+    "static_score",
     "score",
     "nodes",
     "total_ns",
@@ -88,11 +96,12 @@ def load_run(path: Path, expected_cases: set[str]) -> Run:
         if mismatched:
             fail(f"{path}:{line}: invalid strength profile: {','.join(mismatched)}")
         try:
+            int(row["static_score"])
             int(row["score"])
             nodes = int(row["nodes"])
             total_ns = int(row["total_ns"])
         except (TypeError, ValueError):
-            fail(f"{path}:{line}: malformed score, nodes, or total_ns")
+            fail(f"{path}:{line}: malformed static_score, score, nodes, or total_ns")
         if nodes <= 0 or total_ns <= 0:
             fail(f"{path}:{line}: nodes and total_ns must be positive")
         if not row["best_move"] or not row["pv"]:
@@ -230,6 +239,17 @@ def print_timing_summary(args: argparse.Namespace) -> None:
     for order in ("BC", "CB"):
         ordered = [ratio for pair_order, ratio in pairs if pair_order == order]
         print(f"{order.lower()}_median_search_time_ratio={statistics.median(ordered):.9f}")
+
+    balanced_blocks = [
+        math.sqrt(pairs[index][1] * pairs[index + 1][1])
+        for index in range(0, len(pairs), 2)
+    ]
+    for index, ratio in enumerate(balanced_blocks, start=1):
+        print(f"balanced_block_{index}_search_time_ratio={ratio:.9f}")
+    print(
+        "median_balanced_search_time_ratio="
+        f"{statistics.median(balanced_blocks):.9f}"
+    )
 
 
 def parse_args() -> argparse.Namespace:

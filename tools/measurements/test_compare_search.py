@@ -2,6 +2,8 @@ import argparse
 import contextlib
 import csv
 import io
+import math
+import statistics
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +18,7 @@ FIELDS = (
     "result_format",
     "case",
     *compare_search.PROFILE,
+    "static_score",
     "score",
     "nodes",
     "total_ns",
@@ -34,6 +37,7 @@ def write_run(path: Path, change=None) -> None:
                 "result_format": compare_search.FORMAT,
                 "case": case,
                 **compare_search.PROFILE,
+                "static_score": "5",
                 "score": "10",
                 "nodes": str(1000 + index),
                 "total_ns": str(1_000_000 + index),
@@ -96,6 +100,22 @@ class ProfileValidationTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(SystemExit, "malformed"):
                 compare_search.load_run(malformed, set(CASES))
+
+            malformed_static = Path(directory) / "malformed-static.tsv"
+            write_run(
+                malformed_static,
+                lambda index, row: row.update(static_score="bad") if index == 1 else None,
+            )
+            with self.assertRaisesRegex(SystemExit, "malformed static_score"):
+                compare_search.load_run(malformed_static, set(CASES))
+
+            missing_static = Path(directory) / "missing-static.tsv"
+            write_run(missing_static)
+            lines = missing_static.read_text(encoding="utf-8").splitlines()
+            lines[0] = lines[0].replace("static_score\t", "")
+            missing_static.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(SystemExit, "missing fields: static_score"):
+                compare_search.load_run(missing_static, set(CASES))
 
 
 class ComparisonTest(unittest.TestCase):
@@ -162,22 +182,73 @@ class ComparisonTest(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "invalid exact-tree comparison"):
                 compare_search.print_node_summary(exact_args)
 
+    def test_exact_tree_comparison_rejects_static_score_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            baseline = Path(directory) / "baseline.tsv"
+            candidate = Path(directory) / "candidate.tsv"
+            write_run(baseline)
+            write_run(
+                candidate,
+                lambda index, row: row.update(static_score="6") if index == 1 else None,
+            )
+            args = argparse.Namespace(
+                baseline=baseline,
+                candidate=candidate,
+                repeat=None,
+                exact_tree=True,
+                details=False,
+            )
+            with self.assertRaisesRegex(SystemExit, "invalid exact-tree comparison"):
+                compare_search.print_node_summary(args)
+
     def test_timing_panel_reports_balanced_medians(self):
         with tempfile.TemporaryDirectory() as directory:
-            args = argparse.Namespace(pair=timing_panel(directory), exact_tree=True)
+            multipliers = {1: 1.21, 2: 0.81, 3: 1.44, 4: 0.64, 5: 1.0, 6: 1.0}
+
+            def change(pair, _index, row):
+                row.update(
+                    total_ns=str(round(int(row["total_ns"]) * multipliers[pair]))
+                )
+
+            args = argparse.Namespace(
+                pair=timing_panel(directory, change),
+                exact_tree=True,
+            )
             output = io.StringIO()
             with contextlib.redirect_stdout(output):
                 compare_search.print_timing_summary(args)
             result = output.getvalue()
+            values = dict(line.split("=", 1) for line in result.splitlines())
             self.assertIn("pairs=6", result)
-            self.assertIn("candidate_wins=6", result)
+            self.assertIn("candidate_wins=2", result)
             self.assertIn("bc_median_search_time_ratio=", result)
             self.assertIn("cb_median_search_time_ratio=", result)
+            balanced = []
+            for block in range(1, 4):
+                first_pair = 2 * block - 1
+                second_pair = 2 * block
+                expected = math.sqrt(
+                    float(values[f"pair_{first_pair}_search_time_ratio"])
+                    * float(values[f"pair_{second_pair}_search_time_ratio"])
+                )
+                actual = float(
+                    values[f"balanced_block_{block}_search_time_ratio"]
+                )
+                self.assertAlmostEqual(actual, expected, places=8)
+                balanced.append(actual)
+            self.assertAlmostEqual(
+                float(values["median_balanced_search_time_ratio"]),
+                statistics.median(balanced),
+                places=8,
+            )
 
     def test_tree_changing_timing_allows_baseline_candidate_signature_differences(self):
         with tempfile.TemporaryDirectory() as directory:
             def change(_pair, index, row):
-                row.update(total_ns=str(int(row["total_ns"]) * 9 // 10))
+                row.update(
+                    static_score="20",
+                    total_ns=str(int(row["total_ns"]) * 9 // 10),
+                )
                 if index == 1:
                     row.update(score="20", best_move="d2d4", pv="d2d4 d7d5")
 
@@ -195,7 +266,7 @@ class ComparisonTest(unittest.TestCase):
             def change(pair, index, row):
                 row.update(total_ns=str(int(row["total_ns"]) * 9 // 10))
                 if pair == 6 and index == 1:
-                    row.update(nodes="9999")
+                    row.update(static_score="9999")
 
             args = argparse.Namespace(
                 pair=timing_panel(directory, change),

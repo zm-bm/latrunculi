@@ -13,8 +13,9 @@ Copy `experiment.example.json`, choose a unique name, and record the baseline
 revision, benchmark, and corpus. The runner combines this input with its fixed
 version-3 policy and writes the complete policy to the output directory.
 
-For work coordinated in [Strength Development](../../docs/strength.md), begin the experiment name
-with its lowercase task ID, such as `ei-004-hce`. Preserve historical `joint-hce-*` names.
+For work coordinated in [Playing Strength Development](../../docs/playing-strength.md), begin the
+experiment name with its lowercase task ID, such as `ei-004-hce`. Preserve historical
+`joint-hce-*` names.
 
 Review the definition before running it. Once started, the configuration,
 engine, tools, dependencies, and PGNs are fixed by hash. A change requires a

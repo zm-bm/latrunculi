@@ -1,9 +1,13 @@
 # Search Knowledge
 
 This document retains durable evidence and constraints for Latrunculi's search algorithm.
-[Strength Development](strength.md) owns operational baselines, active work, pending experiments,
-and short-to-medium-term results. Once an experiment family is no longer operationally relevant,
-distill its lasting mechanism findings here before removing its coordination record.
+[Playing Strength Development](playing-strength.md) owns operational baselines, active work,
+pending experiments, and short-to-medium-term results. Once an experiment family is no longer
+operationally relevant, distill its lasting mechanism findings here before removing its
+coordination record.
+
+This guide owns search-specific default panels, reproducibility rules, and metric meaning.
+`playing-strength.md` owns lifecycle state, task-specific thresholds, and predeclared deviations.
 
 ## Evidence model
 
@@ -20,9 +24,14 @@ context only. The corpus is tactical offline evidence, not Elo; paired games dec
 changed tree is useful.
 
 Fresh-process, one-thread repeats of the same build and inputs must agree exactly in completed
-depth, score, actual nodes, best move, and PV; exclude timing and NPS. For a tree-changing
-candidate, differences from the baseline in score, best move, or PV are expected and have no
-default positive or negative meaning. Only exact-tree candidates must match baseline signatures.
+depth, static score, searched score, actual nodes, best move, and PV; exclude timing and NPS. For
+a tree-changing candidate, differences from the baseline in static or searched score, best move,
+or PV are expected and have no default positive or negative meaning.
+
+Classify a candidate as **exact-tree** only when a code- or build-level equivalence argument shows
+that it preserves search decisions by construction. Exact corpus and benchmark signatures
+corroborate that argument but cannot establish it alone. Otherwise classify the candidate as
+tree-changing and require paired games before integration.
 
 **Latest confirmed stable-window depth** is the greatest depth `d >= 3` for which `d-2..d` keep
 the same root move and score class, both adjacent PV transitions share a nonempty prefix, and
@@ -36,20 +45,43 @@ it incorrect chess without objective evidence.
 
 ### Default search panel
 
-Classify each search experiment before implementation:
+These are formal Qualify-stage panels. Classify each concrete search candidate before
+Qualification implementation or Screen:
 
 - A **tree-changing** candidate intentionally changes search signatures. Screen runs focused
   mechanism and objective checks, one fresh-process pass over the complete corpus at depth 10,
   one thread, one repetition, and 32 MiB Hash, plus one benchmark fingerprint. Qualification runs
   the complete release suite, a reproduced candidate benchmark fingerprint, only risk-specific
   checks justified by the mechanism, and the paired corpus timing panel.
-- An **exact-tree** candidate must match the baseline corpus and benchmark signatures in Screen.
-  Qualification runs the complete release suite, the paired corpus timing panel, and any justified
-  risk-specific checks. Timing is its primary performance gate.
+- An **exact-tree** candidate must supply the equivalence argument above and match the baseline
+  corpus and benchmark signatures in Screen. Qualification runs the complete release suite, the
+  paired corpus timing panel, and any justified risk-specific checks. Timing is its primary
+  performance gate.
 
 The first candidate pass in the timing panel supplies the fresh corpus repeat; apply the
 reproducibility rule above. Do not substitute the benchmark or a corpus subset for the complete
 Screen corpus.
+
+Explore may use focused probes, a corpus subset, or the complete corpus, but those results remain
+exploratory and cannot satisfy Screen or Qualification.
+
+The default corpus is a cold, one-thread, fixed-depth panel: the measurement runner clears search
+heuristics and the transposition table before every position. Add a targeted panel only when a
+candidate changes or relies on behavior outside that model:
+
+- **Retained search state:** clearing, persistence, aging or generation, replacement, reuse, or
+  behavior that depends on prior searches.
+- **Clock and limits:** budget calculation, elapsed-time checks, stopping or polling, limit
+  precedence or overshoot, or publication of a stopped or incomplete iteration.
+- **Threading:** shared state, worker ownership or lifecycle, synchronization, aggregation or
+  publication, resizing, stop/restart behavior, or worker-result selection.
+
+Merely reading history or the TT, consulting a clock, or executing in threaded code does not
+trigger a panel. For each triggered panel, freeze the risk, initial conditions and transition
+sequence, covered configurations, observable invariants and tolerances, repetition and
+reproducibility rule, sanitizer applicability, and reject and qualify rules. Use the smallest
+existing tests or task-specific probes that establish those claims; there are no category-wide
+default commands or case lists.
 
 Within Qualification, run cheap decisive work before environment-sensitive timing: the complete
 release suite and deterministic, objective, fingerprint, and risk checks; applicable trajectory
@@ -73,8 +105,8 @@ than agreement with the baseline move, score, or PV.
 Keep three reported axes separate. For each position `i`, let
 `r_i = candidate_nodes_i / baseline_nodes_i`:
 
-- `R_node_g = exp(mean(log(r_i)))`, the primary equal-position selectivity ratio and default
-  Screen efficacy metric;
+- `R_node_g = exp(mean(log(r_i)))`, the primary equal-position selectivity ratio; use it as the
+  default Screen efficacy metric when reduced fixed-depth tree size is the claimed mechanism;
 - `R_node_total = sum(candidate_nodes) / sum(baseline_nodes)`, the workload-weighted tree-size
   ratio; always report it as context, and use it as an additional Screen gate only when the task
   predeclares one;
@@ -87,11 +119,17 @@ per node and NPS can help an investigation, but a changed tree alters the mix of
 nodes; neither is the operational timing result. Never combine node and time evidence into one
 score.
 
-A tree-changing candidate must pass its predeclared Screen selectivity gate and show no repeatable
+Every tree-changing candidate must predeclare a mechanism-aligned Screen efficacy metric and
+threshold. Use `R_node_g` by default for a pruning, reduction, move-ordering, or comparable
+hypothesis that claims a smaller fixed-depth tree. If a candidate intentionally spends more nodes
+to improve search quality, do not require node reduction: predeclare an observable mechanism
+result, retain the Qualification timing budget, and use paired games to decide strength.
+
+A tree-changing candidate must pass its predeclared Screen efficacy gate and show no repeatable
 material search-time regression in Qualification. Timing inside the predeclared guard band is
 neutral; it need not demonstrate another gain. An exact-tree candidate must show a search-time
 improvement beyond its predeclared material threshold. A timing gain may not rescue a failed
-selectivity hypothesis; testing that benefit requires a new task with a different predeclared
+efficacy hypothesis; testing that benefit requires a new task with a different predeclared
 hypothesis.
 
 ### Paired timing
@@ -106,10 +144,17 @@ Here `B` is the baseline and `C` is the candidate. Predeclare the order.
 
 `total_ns` begins immediately before `start_search()` and ends after the search threads finish; it
 excludes board construction, static evaluation, heuristic and TT clearing, process startup, and
-output. Report every pair's aggregate search-time ratio, the median and range, candidate win count,
-and results separated by execution order. Validate that all baseline signatures agree and all
-candidate signatures agree. Execution-order medians are diagnostics and separate threshold checks;
-do not average their spread away or turn it into another gate.
+output. Let `r_1..r_6` be the six aggregate candidate-to-baseline time ratios. Treat adjacent
+opposite-order pairs as three `B-C-C-B` blocks and compute
+`b_j = sqrt(r_(2j-1) * r_(2j))` for `j` in `1..3`. The timing decision metric is
+`R_time_balanced = median(b_1, b_2, b_3)`.
+
+Report every pair ratio, all three balanced block ratios, `R_time_balanced`, the unbalanced
+six-pair median and range, candidate win count, and BC and CB medians. Validate that all baseline
+signatures agree and all candidate signatures agree. Everything except `R_time_balanced` is
+diagnostic: individual ratios, execution-order medians, their difference or spread, and win counts
+are not independent gates. Balancing reduces stable order bias; it does not make an invalid or
+unstable environment valid.
 
 For a tree-changing task, predeclare `epsilon` as the largest timing regression worth treating as
 neutral. For an exact-tree task, predeclare `delta > 0` as the smallest timing improvement worth
@@ -123,51 +168,36 @@ A single pass, cached-versus-live timing, an incomplete panel, or an unisolated 
 only. If stable conditions cannot be established, defer the timing decision or use an idle machine;
 do not alter an external workload without authorization.
 
-A tree-changing candidate passes timing when the overall median paired `R_time` and both
-execution-order medians are at most `1 + epsilon`; improvement is not required. An exact-tree
-candidate passes when all three medians are at most `1 - delta`. Otherwise the candidate fails the
-timing gate. Leave the panel unresolved only when it is invalid or incomplete because of an
-identified setup or data-collection failure or an unavailable required condition. Candidate-caused
-signature nondeterminism remains a failure under the reproducibility rule. Individual ratios, order
-spread, and win counts are diagnostics, not independent votes. Rerun only after an identified setup
-failure. Keep raw precision in artifacts, but report rounded effects rather than precision
-unsupported by the replicate spread.
+A tree-changing candidate passes timing when `R_time_balanced <= 1 + epsilon`; improvement is not
+required. An exact-tree candidate passes when `R_time_balanced <= 1 - delta`. Otherwise the
+candidate fails the timing gate. Leave the panel unresolved only when it is invalid or incomplete
+because of an identified setup or data-collection failure or an unavailable required condition.
+Candidate-caused signature nondeterminism remains a failure under the reproducibility rule. Rerun
+only after an identified setup failure. Keep raw precision in artifacts, but report rounded effects
+rather than precision unsupported by the replicate spread.
+
+### Integration identity
+
+Before refreshing the operational baseline, require the integrated build's complete corpus
+signatures and applicable benchmark fingerprint to match the retained qualified or externally
+tested candidate. Patch identity and tests remain necessary but do not substitute for this search
+identity check.
 
 ## Durable findings
 
 | Area | Finding and consequence |
 |---|---|
-| Determinism and Hash | All 33 fixed-node triplicate groups were exact, dev/stats signatures agreed, and 32 versus 256 MiB Hash changed no result. Depth-to-depth movement is convergence behavior, not run-to-run instability. |
-| Objective guards | Mate in one was stable at depth 1 and 46 nodes, mate in two at depth 3 and 767 nodes, and the loose-rook capture at depth 1 and 29 nodes. Keep these as tests, not performance rows. |
-| Convergence | Three of four pilot moves were not reproduced at 524,288 nodes and had no shared counter profile. The audit found five late root changes, one sign flip, one A-B-A, 46 cp late-jump p90, 61.5% median PV survival, and five zero-prefix transitions. Pilots describe trajectories; they are not move-quality oracles. |
-| Capture ordering | Late captures succeeded in 29,374 of 504,598 attempts: 7.20% in exact-SEE-good and 0.47% in exact-SEE-bad. CaptureHistory reduced nodes to 0.9716 but increased time to 1.0646, including 1.4129 at start position. Preserve current SEE bands unless a distinct proposal earns a new test. |
-| Qsearch | Ordinary exact-SEE-negative captures are already excluded. Delta margins 200/300/400 would have skipped 3,200/732/206 real NonPV cutoffs. Do not retry `stand_pat + captured_value + margin <= alpha_before_move` at those margins. |
-| LMR | All 107 sampled high-history reduced fail-lows remained fail-lows at full depth. Do not retry the tested one-ply protection for combined history at least 1024; different formulas or re-search sequencing remain eligible. |
-| Clock | Unfinished iterations consumed median node shares of 24–26%, but all 210 timed searches matched fresh-depth results. Predictor `T_d + m * (T_d - T_(d-1)) >= allocated_time` fired prematurely for `m` in `{1,2,4}`. Explicit `movetime` remains a hard request. |
-| Futility | Guarded reverse futility pruning passed OpenBench and was retained. Main-search futility preserves quiet checks by filtering only nonchecking quiets; SW-08 was strength-neutral and retained by explicit correctness policy. SW-10's checks-first ordering passed Screen, then stopped under a retired single-sentinel gate. It established neither regression nor qualification, so the exact shape remains open. |
-| Depth-1 LMP family | SW-12's unconditional after-eight rule cut nodes to 0.8271 but caused a 76/114 NonPV/PV disagreement. Negative-history gating in SW-18 passed offline at 0.9843 with objective checks passing and trajectory diagnostics recorded; moving it after six in SW-19 added no benefit. Do not retry unconditional after-eight or the after-six/after-four threshold path. |
-| Depth-2 LMP family | SW-20's after-twelve negative-history rule passed offline at 0.9513, passed OpenBench #27 at 23,214 games and +4.89 +/- 3.30 Elo, and was integrated as `8a44474`. A `-64` tier for moves 11–12 in SW-23 never fired; after-ten and after-eleven rules in SW-24/SW-25 increased nodes to ratios 1.0043/1.0035, driven by `arasan20-48` and `arasan20-89`. Do not tune this boundary again without a materially different safety signal. |
-| SW-20 throughput | SW-21 produced a nominal 0.94% corpus timing gain under the retired protocol. EI-001's exact-tree six-pair remeasurement missed its timing threshold in every aggregation and was slightly slower overall; SW-22 was also order-dependent. Source review found that the primary counter-hint lookup remained and quiet-score reuse affected only a narrow path. Post-result sampling was diagnostic only: slightly fewer instructions were offset by lower IPC and more branch misses. Do not revisit this implementation family without removing common-path work that can plausibly clear the timing threshold. |
-| Historical depth gap | In the pinned release gauntlet, Latrunculi's median reported depth was 12 versus 16 for 4ku and Willow and 18 for Weiss. This motivates selectivity and throughput work but is neither a current benchmark nor an acceptance gate. |
-| Open mechanisms | Null move remains eligible for a materially different experiment; SW-04 rejected only the `static_eval >= beta` eligibility gate, and the audit lacked eligibility and counterfactual-failure denominators. |
+| Evidence interpretation | Repeated fixed-node searches were deterministic across the sampled builds and Hash sizes. Objective mate, material, legality, and crash checks decide correctness; depth-to-depth trajectories and overlapping aggregate counters are diagnostic. Require mechanism-specific denominators when counters decide a change. |
+| Capture ordering | CaptureHistory reduced nodes but increased total search time. Preserve the current SEE bands unless a distinct proposal demonstrates a net benefit. |
+| Qsearch | Ordinary exact-SEE-negative captures are already excluded. Do not retry `stand_pat + captured_value + margin <= alpha_before_move` with the tested 200/300/400 margins; they skipped real NonPV cutoffs. |
+| LMR | The tested one-ply protection for combined history at least 1024 did not change the sampled fail-lows. Do not retry that shape; different formulas or re-search sequencing require new evidence. |
+| Clock and limits | The tested next-iteration time predictor stopped too early for every sampled multiplier. Preserve explicit `movetime` as a hard request. |
+| Futility | Guarded reverse futility pruning is retained. Main-search futility must preserve checking quiets by filtering only nonchecking quiets. |
+| LMP families | Unconditional depth-1 pruning after eight moves caused PV/NonPV disagreement, and the tested after-six/after-four threshold path added no benefit. The current depth-2 after-twelve negative-history rule passed OpenBench #27; the tested extra tier and after-ten/after-eleven boundaries added no benefit. Do not retune these shapes without a materially different safety signal. |
+| SW-20 throughput | Reusing SW-20 history or picker work produced no repeatable gain under the current timing method. The primary counter-hint lookup remained, and narrow score reuse traded fewer instructions for lower IPC and more branch misses. Revisit only with a proposal that removes common-path work. |
 
-## Reference evidence
-
-The immutable audit anchor is `470a3d75c31a13e5f791dc0ee2476c6974be346d`. Do not modify
-`search-001-470a3d7/`, `sa-02-470a3d7/`, `sa-03-470a3d7/`,
-`sa-03-capture-history-b415f5a/`, `sa-04-470a3d7/`, `sa-05-470a3d7/`,
-`sa-05-verifier-25bb133/`, or `sa-07-470a3d7/`. Commit `8c0d46d` retains the deleted audit report
-for forensic replay.
-
-Operational baseline `8a44474` has sentinel horizon/stable-window-depth pairs `startpos` 14/11,
-`arasan20-16` 16/16, `pilot14-g171-abrupt` 18/15, and `pilot15-g078-secondary` 13/13. Use
-`search-baseline-8a44474/derived/sentinel-summary.tsv`; older `sa-02-470a3d7` and
-`sw-08-6c01040` rows are historical evidence, not the current comparison baseline.
-
-The exact rejected CaptureHistory patch is
-`tools/measurements/output/sa-03-capture-history-b415f5a/meta/candidate.patch`. Aggregate counters
-may overlap iterations or aspiration attempts; require mechanism-specific denominators when they
-decide a change.
+The detailed search audit for revision `470a3d7` remains available in Git history at commit
+`8c0d46d`; the table above is its retained synthesis.
 
 ## Search guardrails
 
@@ -175,8 +205,5 @@ Ideas may draw from pinned reference engines and the Chess Programming Wiki, but
 revalidated in Latrunculi; borrow mechanisms, not code or tuning constants.
 
 Do not introduce broader machinery merely to raise displayed depth. Use bounded profiling before
-optimizing evaluation, repetition detection, make/unmake, or TT work. Introduce an `improving`
-flag only with a concrete LMP, LMR, or RFP candidate. The completed search audit did not justify
-IIR, ProbCut, singular extensions, evaluation caching, or incremental state as immediate search
-follow-ups. Treat cache or incremental-state proposals as separate exact-behavior experiments and
-profile the opportunity before accepting their complexity.
+hot-path or architectural optimization, and require a concrete consuming candidate before adding
+new search state.
