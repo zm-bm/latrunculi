@@ -74,6 +74,7 @@ public:
 
     // Shared probes return detached, validated snapshots. Stores publish the payload before its
     // full-key XOR signature, so races produce a miss or a complete old or new record.
+    void prefetch(PositionKey zkey) const noexcept;
     [[nodiscard]] std::optional<TTRecord> probe(PositionKey zkey) const;
     void store(PositionKey zkey, Move move, EvalValue score, int depth, TTBound bound, int ply);
     void resize(size_t megabytes);
@@ -95,6 +96,10 @@ private:
 
 inline std::uint64_t TranspositionTable::cluster_index(PositionKey zkey) const {
     return (zkey * 0x9e3779b97f4a7c15ull) >> shift;
+}
+
+inline void TranspositionTable::prefetch(PositionKey zkey) const noexcept {
+    __builtin_prefetch(&clusters[cluster_index(zkey)]);
 }
 
 // lower score = better replacement candidate: prefer shallow entries, then older entries

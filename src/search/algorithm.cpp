@@ -209,6 +209,7 @@ bool Worker::search_root_window(int depth, EvalValue alpha, EvalValue beta) {
 
         board.make(root_move);
         ++search_ply;
+        tt.prefetch(board.key());
 
         // Root PVS searches full-window until a root PV is established.
         // Scout later root moves and re-search only strict alpha improvements.
@@ -352,6 +353,7 @@ EvalValue Worker::alphabeta(
 
             board.make_null();
             ++search_ply;
+            tt.prefetch(board.key());
             const EvalValue value =
                 -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, nullptr, false);
             board.unmake_null();
@@ -415,6 +417,7 @@ EvalValue Worker::alphabeta(
 
         board.make(move);
         ++search_ply;
+        tt.prefetch(board.key());
 
         const bool gives_check = board.is_check();
         if (futility && !first_legal && is_quiet && !gives_check) {
@@ -613,6 +616,8 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
         board.make(move);
         ++search_ply;
+        if constexpr (UseTt)
+            tt.prefetch(board.key());
         const EvalValue value = -quiescence<Node, UseTt>(-beta, -alpha, pv ? &child_pv : nullptr);
         board.unmake();
         --search_ply;
