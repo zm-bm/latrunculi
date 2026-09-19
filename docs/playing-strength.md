@@ -10,9 +10,9 @@ Update these values only after an approved candidate is integrated:
 
 | Field | Current value |
 |---|---|
-| Operational engine baseline | `8a44474e75371809f5d93e9925d5035780db427c` (`8a44474`, SW-20, OpenBench #27) |
+| Operational engine baseline | `009d096bab5a80c087accedecbc36e8b689ece6d` (`009d096`, SW-13 exact-tree integration; games skipped) |
 | OpenBench compatibility fingerprint | 5,101,317 nodes |
-| Cached search corpus baseline | `tools/measurements/output/search-baseline-8a44474/` |
+| Cached search corpus baseline | `tools/measurements/output/search-baseline-009d096/` |
 
 Refresh the cached search corpus when search behavior, its workload, or measurement meaning
 changes. Use its deterministic signatures and nodes for comparisons, but use contemporaneous paired
@@ -29,7 +29,7 @@ These candidates passed offline testing and remain live for selection or another
 
 | ID | Candidate | Offline result | Status and next step | Artifacts |
 |---|---|---|---|---|
-| SW-18 | Negative-history depth-1 LMP after eight moves | Node ratio 0.9843; exact candidate repeats; objective checks passed; trajectory diagnostics recorded | Qualified against `c6eb554`; parked and stale after SW-20 integration; requalify only if selected | `sw-18-c6eb554/` |
+| SW-18 | Negative-history depth-1 LMP after eight moves | Node ratio 0.9843; exact candidate repeats; objective checks passed; trajectory diagnostics recorded | Qualified against `c6eb554`; parked and stale after later integrations; requalify only if selected | `sw-18-c6eb554/` |
 
 ## Workflow
 
@@ -176,12 +176,6 @@ itself authorize requalification. Integration always requires explicit approval.
 
 ## Pending queue
 
-### SW-13 — Prefetch child transposition-table clusters
-
-Prefetch child-key TT clusters without changing TT layout, policy, or search signatures. Require a
-repeatable same-core throughput gain and reject it offline if signatures or timing fail. Use
-OpenBench only if behavior unexpectedly changes.
-
 ### SW-14 — Enable release link-time optimization
 
 Enable supported CMake interprocedural optimization for production and OpenBench builds without
@@ -212,6 +206,7 @@ validation if it passes.
 
 | ID | Candidate | Evidence | Result | Artifacts |
 |---|---|---|---|---|
+| SW-13 | Child TT-cluster prefetch | Exact 200-position corpus and 5,101,317-node fingerprint; 73 focused tests and 3/3 CTest passed; balanced timing ratio 0.9823 with 6/6 wins | Integrated as `009d096`; exact-tree games skipped | `sw-13-8a44474/`; baseline `search-baseline-009d096/` |
 | SW-11 | Prune severe depth-1 SEE-losing captures | Screen `R_node_g` 0.9883 passed; `R_node_total` 1.0028; complete tests and reproducibility passed; balanced timing ratio 1.0414 with 0/6 wins | Rejected; missed the 1.0100 timing gate | `sw-11-8a44474/` |
 
 Keep only records needed for near-term coordination; distill lasting conclusions into the relevant
