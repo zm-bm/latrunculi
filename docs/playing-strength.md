@@ -176,12 +176,6 @@ itself authorize requalification. Integration always requires explicit approval.
 
 ## Pending queue
 
-### SW-11 — Prune severe depth-1 SEE-losing captures
-
-After one legal move at depth-1 NonPV nodes, skip only non-TT, nonpromotion, nonchecking captures
-with `board.see(move) < -eval::pawn.mg`. Exempt in-check and mate-window nodes; leave qsearch and
-picker SEE bands unchanged. Repeat timing because the rule may add hot-path SEE work.
-
 ### SW-13 — Prefetch child transposition-table clusters
 
 Prefetch child-key TT clusters without changing TT layout, policy, or search signatures. Require a
@@ -216,7 +210,11 @@ validation if it passes.
 
 ## Experiment ledger
 
-No recent terminal records are retained. Keep only records needed for near-term coordination;
-distill lasting conclusions into the relevant domain guide before pruning them. Git history retains
-removed records. On-disk artifacts are retained for the operational baseline, active work, and
-qualified candidates; deleting terminal artifacts requires a separate authorized cleanup.
+| ID | Candidate | Evidence | Result | Artifacts |
+|---|---|---|---|---|
+| SW-11 | Prune severe depth-1 SEE-losing captures | Screen `R_node_g` 0.9883 passed; `R_node_total` 1.0028; complete tests and reproducibility passed; balanced timing ratio 1.0414 with 0/6 wins | Rejected; missed the 1.0100 timing gate | `sw-11-8a44474/` |
+
+Keep only records needed for near-term coordination; distill lasting conclusions into the relevant
+domain guide before pruning them. Git history retains removed records. On-disk artifacts are
+retained for the operational baseline, active work, and qualified candidates; deleting terminal
+artifacts requires a separate authorized cleanup.

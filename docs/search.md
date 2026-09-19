@@ -188,7 +188,7 @@ identity check.
 | Area | Finding and consequence |
 |---|---|
 | Evidence interpretation | Repeated fixed-node searches were deterministic across the sampled builds and Hash sizes. Objective mate, material, legality, and crash checks decide correctness; depth-to-depth trajectories and overlapping aggregate counters are diagnostic. Require mechanism-specific denominators when counters decide a change. |
-| Capture ordering | CaptureHistory reduced nodes but increased total search time. Preserve the current SEE bands unless a distinct proposal demonstrates a net benefit. |
+| Capture ordering | CaptureHistory reduced nodes but increased total search time. SW-11's depth-1 late losing-capture rule reduced `R_node_g` to 0.9883 but raised total nodes to 1.0028 and slowed balanced corpus time to 1.0414 with zero wins in six pairs. Preserve the current SEE bands and do not retry that exact rule. |
 | Qsearch | Ordinary exact-SEE-negative captures are already excluded. Do not retry `stand_pat + captured_value + margin <= alpha_before_move` with the tested 200/300/400 margins; they skipped real NonPV cutoffs. |
 | LMR | The tested one-ply protection for combined history at least 1024 did not change the sampled fail-lows. Do not retry that shape; different formulas or re-search sequencing require new evidence. |
 | Clock and limits | The tested next-iteration time predictor stopped too early for every sampled multiplier. Preserve explicit `movetime` as a hard request. |
