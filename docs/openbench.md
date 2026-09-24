@@ -41,9 +41,10 @@ make -C bench EXE=latrunculi CXX=g++
 ```
 
 Benchmark nodes are always a signature gate: reproduce the candidate fingerprint
-for tree-changing work and preserve the baseline fingerprint for exact-tree work.
-Neither their delta nor benchmark NPS is an offline performance or strength
-metric; use the paired corpus timing policy in [Search Knowledge](search.md).
+for tree-changing work and preserve the baseline fingerprint for tree-preserving work.
+Neither their difference nor benchmark NPS is an offline performance or strength
+metric; use the paired corpus timing policy in
+[Playing Strength Development](playing-strength.md#paired-timing).
 
 ### Test termination
 
@@ -76,7 +77,7 @@ paired games with the engines swapping colors. Use:
 - resign at 400 cp for three moves
 - draw after move 40 with eight evaluations within 10 cp
 - a predeclared normalized-Elo SPRT profile with `alpha = beta = 0.05`:
-  `[0, 5]` when screening for a larger gain, or `[0, 3]` for an incremental
+  `[0, 5]` when testing for a larger gain, or `[0, 3]` for an incremental
   candidate or confirmation; a task may instead predeclare `[-3, 0]` when its
   acceptance policy explicitly tolerates a small strength tradeoff
 

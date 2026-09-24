@@ -1,16 +1,11 @@
 # Engine Roadmap
 
-This is the concise, longer-horizon direction and project backlog for the
-engine. Detailed Elo-oriented experiments are coordinated in
-[Playing Strength Development](playing-strength.md), while [Search Knowledge](search.md)
-retains durable search evidence. The [architecture overview](architecture.md)
-describes the current implementation.
+This document records the engine's longer-horizon direction and backlog. **Next** is ordered and
+**Later** is informal. Detailed Elo experiments and durable search evidence belong in
+[Playing Strength Development](playing-strength.md), while the
+[architecture overview](architecture.md) describes the current implementation.
 
-Keep directions and larger capabilities here. Put bounded, measurable
-investigations and candidates in `playing-strength.md` as `EI-XXX` experiments rather
-than duplicating them. Add a **Now** section only while a roadmap project is
-active; **Next** is ordered and **Later** is informal. Revalidate items before
-work and remove them when complete; Git history records completion.
+Revalidate an item before starting it and remove it when complete; Git history records completion.
 
 ## Next
 

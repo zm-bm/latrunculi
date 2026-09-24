@@ -83,7 +83,8 @@ blob `93cbe97d9ee40790eafc984e59cbce3c02a5d7ea`; only its IDs are normalized to
 `arasan20-NN`. Its `bm` and `am` operations are metadata, not correctness or
 playing-strength criteria. The optional `search-sentinels.epd` contains the
 four focused trajectory cases retained from the completed audit;
-[Search Knowledge](../../docs/search.md) defines their interpretation:
+[Playing Strength Development](../../docs/playing-strength.md#sentinel-trajectories) defines their
+interpretation:
 
 ```bash
 ./build/release-dev/latrunculi-measure search \
@@ -108,15 +109,17 @@ case and run configuration, so stdout remains machine-readable:
 
 Compare equivalent builds with identical explicit options on the same machine.
 Timing requires repeated runs and must not become a unit-test threshold. Keep
-raw output under the ignored `tools/measurements/output/` directory.
-[Search Knowledge](../../docs/search.md) owns the default search panel, metric interpretation,
-and paired timing policy.
-[Playing Strength Development](../../docs/playing-strength.md) owns lifecycle and each active
-task's frozen thresholds and deviations.
+retained output under the ignored `tools/measurements/output/` directory. Generated
+TSVs and the comparison summary are sufficient evidence; do not create a handwritten
+manifest or copy commands and hashes merely to duplicate them.
+[Playing Strength Development](../../docs/playing-strength.md) contains the current work, default
+offline test, metric interpretation, and paired timing policy. A candidate records only justified
+exceptions to those defaults.
 
 For corpus timing, aggregate measured search time with `sum(total_ns)`. This
 excludes setup before `start_search()`, process startup, and output. See
-[Search Knowledge](../../docs/search.md) for collection and decision rules.
+[Playing Strength Development](../../docs/playing-strength.md#paired-timing) for collection and
+decision rules.
 
 The fixed `BC, CB, BC, CB, BC, CB` panel forms three adjacent balanced
 `B-C-C-B` blocks. The helper reports each block's geometric mean ratio and
@@ -139,21 +142,17 @@ python3 tools/measurements/compare_search.py timing \
   --pair CB pair-6-baseline.tsv pair-6-candidate.tsv
 ```
 
-Add `--exact-tree` only when baseline and candidate search signatures must
-match. Without it, the helper requires each candidate timing pass to match the
-other candidate passes while allowing baseline-to-candidate static-score,
-searched-score, best-move, PV, and node differences. The flag validates sampled
-signature equality; it does not prove semantic equivalence, classify a
-candidate, or authorize skipping games. The timing command checks the declared
-panel shape and guards against reusing a path accidentally; the artifact
-manifest remains the record of suite and input provenance, binary identity,
-affinity, and actual execution order.
+Add `--exact-tree` only for a tree-preserving comparison in which baseline and candidate search
+signatures must match. Without it, the helper requires each candidate timing pass to match the
+other candidate passes while allowing baseline-to-candidate static-score, searched-score, best-move,
+PV, and node differences. The flag validates sampled signature equality; it does not prove that a
+change is tree-preserving or authorize skipping games. The timing command checks the declared
+panel shape and guards against reusing a path accidentally. Use distinct baseline and candidate
+paths, and retain the raw inputs with the comparison summary only when the result must survive.
 
-Record compiler provenance from the configured build, not from the shell's
-default compiler. Capture `CMAKE_CXX_COMPILER`, `CMAKE_CXX_COMPILER_ID`, and
-`CMAKE_CXX_COMPILER_VERSION` from the build's generated
-`CMakeCXXCompiler.cmake`; retain the configured compiler path, ID, and version
-in the artifact manifest.
+The configured CMake build, not the shell's default compiler, is the compiler source of truth.
+Record its path, ID, and version only when they differ from the current baseline or explain a
+retained anomaly.
 
 Run the helper's focused tests with:
 
@@ -163,5 +162,4 @@ python3 -m unittest tools.measurements.test_compare_search
 
 The machine-readable formats are `perft_measurement_v1`,
 `evaluation_throughput_v1`, and `search_measurement_v3`. These labels version
-output schemas, not external workloads. Record the suite revision and SHA-256
-with retained artifacts.
+output schemas, not external workloads.
