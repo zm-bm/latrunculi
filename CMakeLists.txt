@@ -56,6 +56,7 @@ set(LATRUNCULI_ENGINE_SOURCES
 )
 
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
+set_property(TARGET latrunculi_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_VERSION="${PROJECT_VERSION}")
@@ -86,6 +87,7 @@ add_executable(latrunculi
     src/cli/cli.cpp
 )
 target_link_libraries(latrunculi PRIVATE latrunculi_lib)
+set_property(TARGET latrunculi PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 
 option(LATRUNCULI_BUILD_MEASUREMENTS "Build component measurement tool" OFF)
 if(LATRUNCULI_BUILD_MEASUREMENTS)
@@ -99,6 +101,7 @@ if(LATRUNCULI_BUILD_MEASUREMENTS)
         LATRUNCULI_SEARCH_SUITE="${CMAKE_CURRENT_SOURCE_DIR}/tools/measurements/search.epd"
     )
     target_link_libraries(latrunculi-measure PRIVATE latrunculi_lib)
+    set_property(TARGET latrunculi-measure PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 endif()
 
 if(BUILD_TESTING)
@@ -159,6 +162,7 @@ if(BUILD_TESTING)
     )
     target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
     target_link_libraries(tests PRIVATE latrunculi_lib gtest gmock)
+    set_property(TARGET tests PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
     add_test(NAME unit_tests COMMAND tests)
 
     if(LATRUNCULI_BUILD_MEASUREMENTS)
@@ -173,5 +177,6 @@ if(BUILD_TESTING)
     add_executable(latrunculi-stress tests/stress/randomized.test.cpp)
     target_include_directories(latrunculi-stress PRIVATE ${CMAKE_SOURCE_DIR}/tests)
     target_link_libraries(latrunculi-stress PRIVATE latrunculi_lib gtest)
+    set_property(TARGET latrunculi-stress PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
     add_test(NAME randomized_stress COMMAND latrunculi-stress)
 endif()
