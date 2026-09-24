@@ -10,9 +10,9 @@ Update these values only after an approved candidate is integrated:
 
 | Field | Current value |
 |---|---|
-| Operational engine baseline | `009d096bab5a80c087accedecbc36e8b689ece6d` (`009d096`, SW-13 exact-tree integration; games skipped) |
+| Operational engine baseline | `c8bfedd6e25221703c1a928b472e8e95da8f886b` (`c8bfedd`, SW-14 exact-tree integration; games skipped) |
 | OpenBench compatibility fingerprint | 5,101,317 nodes |
-| Cached search corpus baseline | `tools/measurements/output/search-baseline-009d096/` |
+| Cached search corpus baseline | `tools/measurements/output/search-baseline-c8bfedd/` |
 
 Refresh the cached search corpus when search behavior, its workload, or measurement meaning
 changes. Use its deterministic signatures and nodes for comparisons, but use contemporaneous paired
@@ -176,12 +176,6 @@ itself authorize requalification. Integration always requires explicit approval.
 
 ## Pending queue
 
-### SW-14 — Enable release link-time optimization
-
-Enable supported CMake interprocedural optimization for production and OpenBench builds without
-architecture flags or sanitizer/debug changes. Require exact signatures, GCC and Clang builds,
-and repeatable same-core throughput; reject on portability, signature, or timing failure.
-
 ### SW-15 — Remove atomic work from per-node accounting
 
 Use worker-owned counting with race-free periodic and exact final publication. Preserve polling,
@@ -206,6 +200,7 @@ validation if it passes.
 
 | ID | Candidate | Evidence | Result | Artifacts |
 |---|---|---|---|---|
+| SW-14 | Target-scoped release IPO/LTO | Exact Clang/GCC 5,101,317-node fingerprints and 200-position corpus; 3/3 CTest; integrated binaries match qualification; balanced timing ratio 0.9358 with 6/6 wins | Integrated as `c8bfedd`; exact-tree games skipped | `sw-14-009d096-qualification/`; baseline `search-baseline-c8bfedd/` |
 | SW-13 | Child TT-cluster prefetch | Exact 200-position corpus and 5,101,317-node fingerprint; 73 focused tests and 3/3 CTest passed; balanced timing ratio 0.9823 with 6/6 wins | Integrated as `009d096`; exact-tree games skipped | `sw-13-8a44474/`; baseline `search-baseline-009d096/` |
 | SW-11 | Prune severe depth-1 SEE-losing captures | Screen `R_node_g` 0.9883 passed; `R_node_total` 1.0028; complete tests and reproducibility passed; balanced timing ratio 1.0414 with 0/6 wins | Rejected; missed the 1.0100 timing gate | `sw-11-8a44474/` |
 
