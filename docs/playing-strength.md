@@ -43,12 +43,6 @@ workload, or measurement meaning.
 
 ## Queue
 
-### SW-15 — Remove atomic work from per-node accounting
-
-Use worker-owned counting with race-free periodic and exact final publication. Preserve polling,
-UCI progress, final counts, and bounded node-limit overshoot. Require fixed-depth signatures,
-focused worker start/stop and limit checks, repeated 1/2/4-thread timing, and TSan.
-
 ### SW-16 — Reduce clearly bad-history quiets further
 
 Add one reduction ply only to already-LMR-eligible NonPV quiets that are nonchecking,
@@ -67,6 +61,7 @@ passes offline testing.
 
 | ID | Change | Evidence | Result |
 |---|---|---|---|
+| SW-15 | Replace locked per-node RMW with single-writer relaxed atomic load/store | Exact 5,101,317-node benchmark and 200-position corpus; complete tests, TSan, and 1/2/4-thread risk checks passed; balanced timing ratio 1.0217 with 1/6 wins | Rejected; missed the 0.9925 minimum-speedup threshold |
 | SW-14 | Target-scoped release IPO/LTO | Exact Clang/GCC 5,101,317-node fingerprints and 200-position corpus; 3/3 CTest; integrated binaries match offline evidence; balanced timing ratio 0.9358 with 6/6 wins | Integrated as `c8bfedd`; tree-preserving, so games were skipped |
 | SW-13 | Child TT-cluster prefetch | Exact 200-position corpus and 5,101,317-node fingerprint; 73 focused tests and 3/3 CTest passed; balanced timing ratio 0.9823 with 6/6 wins | Integrated as `009d096`; tree-preserving, so games were skipped |
 | SW-11 | Prune severe depth-1 SEE-losing captures | `R_node_g` 0.9883; `R_node_total` 1.0028; complete tests and reproducibility passed; balanced timing ratio 1.0414 with 0/6 wins | Rejected; exceeded the 1.0100 maximum allowed slowdown |
@@ -228,6 +223,7 @@ identity check.
 | LMP families | Unconditional depth-1 pruning after eight moves caused PV/NonPV disagreement, and the tested after-six/after-four threshold path added no benefit. The current depth-2 after-twelve negative-history rule passed OpenBench #27; the tested extra tier and after-ten/after-eleven boundaries added no benefit. Do not retune these shapes without a materially different safety signal. |
 | TT prefetch | SW-13's parent-issued child-cluster prefetch preserved exact corpus and benchmark signatures and reduced balanced corpus time to 0.9823 with 6/6 paired wins. Retain it; games were skipped because the change was tree-preserving. |
 | Release IPO | SW-14's CMake target-scoped Release IPO preserved exact Clang/GCC benchmark and corpus signatures and reduced balanced Clang corpus time to 0.9358 with 6/6 paired wins. Keep IPO on Latrunculi's object library and executables while leaving third-party static libraries and non-Release configurations unchanged. |
+| Node accounting | Single-writer relaxed load/store was 2.17% slower, while worker-local counting with periodic publication was neutral in exploration despite removing locked hot-path increments. Retain the current atomic counter. Revisit only if profiling on a future baseline identifies node accounting as a material bottleneck or a compiler or architecture change gives a concrete reason to retest. |
 | SW-20 throughput | Reusing SW-20 history or picker work produced no repeatable gain under the current timing method. The primary counter-hint lookup remained, and narrow score reuse traded fewer instructions for lower IPC and more branch misses. Revisit only with a proposal that removes common-path work. |
 
 The detailed search audit for revision `470a3d7` remains available in Git history at commit
