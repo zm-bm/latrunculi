@@ -288,6 +288,34 @@ TEST_F(SearchTest, StoresWindowClassifiedTtBounds) {
     EXPECT_EQ(stored->move, NULL_MOVE);
 }
 
+TEST(NullMoveReductionTest, AdaptsToDepthAndStaticSurplusWithinBounds) {
+    struct Case {
+        const char* name;
+        int         depth;
+        EvalValue   static_eval;
+        EvalValue   beta;
+        int         expected;
+    };
+
+    constexpr std::array cases{
+        Case{"minimum depth", 3, 0, 0, 3},
+        Case{"negative surplus", 6, 99, 100, 3},
+        Case{"first depth bonus", 7, 100, 100, 4},
+        Case{"below surplus step", 7, 299, 100, 4},
+        Case{"first surplus step", 7, 300, 100, 5},
+        Case{"second surplus step", 7, 500, 100, 6},
+        Case{"remaining depth bound", 4, 1000, 0, 4},
+        Case{"second depth bonus", 14, 99, 100, 5},
+        Case{"overall reduction cap", 28, 1000, 0, 6},
+    };
+
+    for (const auto& tc : cases) {
+        SCOPED_TRACE(tc.name);
+        EXPECT_EQ(SearchTestAccess::null_move_reduction(tc.depth, tc.static_eval, tc.beta),
+                  tc.expected);
+    }
+}
+
 TEST_F(SearchTest, NullMovePruningReturnsFailSoftCutoff) {
     Board board{board_test::fen::start};
     load(board, 4);
