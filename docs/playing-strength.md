@@ -39,32 +39,19 @@ workload, or measurement meaning.
 
 | ID | Change | Kind | Evidence | Next |
 |---|---|---|---|---|
-| SW-18 | Negative-history depth-1 LMP after eight moves | Tree-changing | Stale: tested on `c6eb554`; node ratio 0.9843; exact candidate repeats and objective checks passed; trajectory diagnostics recorded; `sw-18-c6eb554/` | `test offline` against the current baseline if selected |
+| SW-17 | Use one bounded depth/static-surplus null-move reduction formula | Tree-changing | `R_node_g` 0.9397, `R_node_total` 0.9642, and `R_time_balanced` 0.9790 with 6/6 timing wins; focused checks, reproducibility, sentinels, benchmark, and 3/3 CTest passed; OpenBench #29: Base `c8bfedd`, Dev `54a8989`; `sw-17-c8bfedd/` | `check OpenBench #29` |
 
 ## Queue
 
-### SW-16 — Reduce clearly bad-history quiets further
-
-Add one reduction ply only to already-LMR-eligible NonPV quiets that are nonchecking,
-nonpromotion, nonkiller, and below one predeclared negative-history threshold. Preserve the base
-formula and bounds; test one threshold, not a sweep. This differs from rejected blanket-divisor
-and high-history-protection shapes.
-
-### SW-17 — Make null-move reduction adaptive
-
-Keep current eligibility, material guard, TT veto, and SW-04 behavior. Replace only the fixed
-3/4-ply reduction with one bounded depth/static-surplus formula; add no eligibility gate or
-verification search. Require focused correctness and convergence diagnostics, plus games if it
-passes offline testing.
+None.
 
 ## Recent results
 
 | ID | Change | Evidence | Result |
 |---|---|---|---|
+| SW-16 | Add one LMR ply to NonPV quiets with combined history at most -1 | Exploration found 169,273 effective opportunities; one complete corpus pass produced `R_node_g` 0.9937 and `R_node_total` 0.9868; benchmark fingerprint 6,014,947 nodes | Null result; missed the 0.9900 smaller-tree gate, so formal offline testing and games were not run |
 | SW-15 | Replace locked per-node RMW with single-writer relaxed atomic load/store | Exact 5,101,317-node benchmark and 200-position corpus; complete tests, TSan, and 1/2/4-thread risk checks passed; balanced timing ratio 1.0217 with 1/6 wins | Rejected; missed the 0.9925 minimum-speedup threshold |
 | SW-14 | Target-scoped release IPO/LTO | Exact Clang/GCC 5,101,317-node fingerprints and 200-position corpus; 3/3 CTest; integrated binaries match offline evidence; balanced timing ratio 0.9358 with 6/6 wins | Integrated as `c8bfedd`; tree-preserving, so games were skipped |
-| SW-13 | Child TT-cluster prefetch | Exact 200-position corpus and 5,101,317-node fingerprint; 73 focused tests and 3/3 CTest passed; balanced timing ratio 0.9823 with 6/6 wins | Integrated as `009d096`; tree-preserving, so games were skipped |
-| SW-11 | Prune severe depth-1 SEE-losing captures | `R_node_g` 0.9883; `R_node_total` 1.0028; complete tests and reproducibility passed; balanced timing ratio 1.0414 with 0/6 wins | Rejected; exceeded the 1.0100 maximum allowed slowdown |
 
 Git history retains older results.
 
@@ -217,17 +204,14 @@ identity check.
 |---|---|
 | Capture ordering | CaptureHistory reduced nodes but increased total search time. SW-11's depth-1 late losing-capture rule reduced `R_node_g` to 0.9883 but raised total nodes to 1.0028 and slowed balanced corpus time to 1.0414 with zero wins in six pairs. Preserve the current SEE bands and do not retry that exact rule. |
 | Qsearch | Ordinary exact-SEE-negative captures are already excluded. Do not retry `stand_pat + captured_value + margin <= alpha_before_move` with the tested 200/300/400 margins; they skipped real NonPV cutoffs. |
-| LMR | The tested one-ply protection for combined history at least 1024 did not change the sampled fail-lows. Do not retry that shape; different formulas or re-search sequencing require new evidence. |
+| LMR | The tested one-ply protection for combined history at least 1024 did not change the sampled fail-lows. SW-16's extra reduction at combined history at most -1 reached `R_node_g = 0.9937`, short of the smaller-tree gate. Do not retry either exact shape; different formulas or re-search sequencing require new evidence. |
 | Clock and limits | The tested next-iteration time predictor stopped too early for every sampled multiplier. Preserve explicit `movetime` as a hard request. |
 | Futility | Guarded reverse futility pruning is retained. Main-search futility must preserve checking quiets by filtering only nonchecking quiets. |
-| LMP families | Unconditional depth-1 pruning after eight moves caused PV/NonPV disagreement, and the tested after-six/after-four threshold path added no benefit. The current depth-2 after-twelve negative-history rule passed OpenBench #27; the tested extra tier and after-ten/after-eleven boundaries added no benefit. Do not retune these shapes without a materially different safety signal. |
+| LMP families | The current depth-2 after-twelve negative-history rule passed OpenBench #27. Unconditional depth-1 pruning caused PV/NonPV disagreement; tested fixed-threshold, history-gated depth-1, and improving-aware variants were not compelling. Revisit LMP only with a materially different safety signal or profiling evidence. |
 | TT prefetch | SW-13's parent-issued child-cluster prefetch preserved exact corpus and benchmark signatures and reduced balanced corpus time to 0.9823 with 6/6 paired wins. Retain it; games were skipped because the change was tree-preserving. |
 | Release IPO | SW-14's CMake target-scoped Release IPO preserved exact Clang/GCC benchmark and corpus signatures and reduced balanced Clang corpus time to 0.9358 with 6/6 paired wins. Keep IPO on Latrunculi's object library and executables while leaving third-party static libraries and non-Release configurations unchanged. |
 | Node accounting | Single-writer relaxed load/store was 2.17% slower, while worker-local counting with periodic publication was neutral in exploration despite removing locked hot-path increments. Retain the current atomic counter. Revisit only if profiling on a future baseline identifies node accounting as a material bottleneck or a compiler or architecture change gives a concrete reason to retest. |
 | SW-20 throughput | Reusing SW-20 history or picker work produced no repeatable gain under the current timing method. The primary counter-hint lookup remained, and narrow score reuse traded fewer instructions for lower IPC and more branch misses. Revisit only with a proposal that removes common-path work. |
-
-The detailed search audit for revision `470a3d7` remains available in Git history at commit
-`8c0d46d`; the table above is its retained synthesis.
 
 ## Search guardrails
 
