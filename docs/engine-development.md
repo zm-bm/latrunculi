@@ -1,4 +1,4 @@
-# Playing Strength Development
+# Engine Development
 
 This document tracks work intended to improve how Latrunculi plays, followed by the shared rules
 for testing search changes and the durable findings. [OpenBench](openbench.md) defines game testing,
@@ -18,7 +18,7 @@ The `Next` field names the only action needed to advance a candidate:
 | `check OpenBench #ID` | [`check-latrunculi-openbench`](../.agents/skills/check-latrunculi-openbench/SKILL.md) |
 | `integrate` | [`integrate-latrunculi-candidate`](../.agents/skills/integrate-latrunculi-candidate/SKILL.md) |
 
-Keep an existing `SW-XX` or `EI-XXX` ID throughout its life. Assign a new `EI-XXX` only when new
+Keep an existing `SW-XX` or `ENG-XXX` ID throughout its life. Assign a new `ENG-XXX` only when new
 work becomes a retained candidate or unresolved queue item; casual and null exploration stays
 unnumbered. Keep one local CPU-sensitive task and one OpenBench test active at a time. Tree-changing
 work requires games; tree-preserving work may skip them only when the evidence below passes. Unless
@@ -43,7 +43,182 @@ workload, or measurement meaning.
 
 ## Queue
 
-None.
+These are audit-backed leads, not prequalified candidates. They are ordered by current priority.
+**Direct experiment** means the audit supports a small behavior or implementation comparison now;
+**measure first** means no behavior candidate should be retained until the stated discriminator is
+observed. Explore one item at a time and recheck dependent items against the then-current baseline.
+
+The numerical evidence in ENG-001 through ENG-018 comes from the 2026-09-25 audit of
+`c8bfedd` (SW-14): the 200-position corpus at depth 10 and the eight positions now tracked in
+[`search-profile.epd`](../tools/measurements/search-profile.epd) at depth 12, using one thread and
+32 MiB Hash. Counts describe that fixed tree and cycle shares are sampled approximations; remeasure
+affected evidence on the then-current baseline before retaining a candidate. Reference comparisons
+were source-only at Ethereal `0e47e9b`, Stockfish `86f1df7`, and Minic `4317c14`; they motivate
+mechanisms, not constants or expected outcomes.
+
+**Direct experiments**
+
+### ENG-001 — Precompute exact check-danger scaling
+
+Replace `calculate_check_danger`'s runtime division with an exhaustive constexpr piece/count lookup
+that returns identical integers. The divided line is about 9% of evaluator cycles, while evaluation
+is about 39--40% of search cycles. First compare the standalone evaluator and unchanged fixed-depth
+corpus. Expect identical checksums and search signatures with lower evaluation and search time. Stop
+on any value/signature change or if the tree-preserving timing gain is not repeatable.
+
+### ENG-002 — Recenter aspiration retries on the returned score
+
+On a miss, move only the failed bound to `value +/- delta`, initially retaining the current 50-point
+window and doubling schedule. The audit measured 735 misses and 6.58M retry nodes, 11.6% of the
+corpus tree; Stockfish and Minic place retry bounds from the fail-soft score, while Ethereal uses a
+different gradual-widening geometry. First compare exact retry and total nodes on the full corpus.
+Expect fewer repeated misses and retry nodes. Stop if total work does not improve or objective and
+convergence checks regress. This is distinct from SW-01's rejected 50-to-32 initial-window change.
+
+### ENG-003 — Reuse static evaluation on same-key TT hits
+
+Store and reuse the deterministic static evaluation in the existing TT payload without enlarging
+the 16-byte entry or 64-byte cluster. Evaluation is about 39--40% of search cycles, with 8.07M
+exact-key repeats; Ethereal, Stockfish, and Minic all retain a static eval in their TT entries. First
+prototype compact bound/generation packing and count avoided calls on the corpus. Expect identical
+evaluation values and fewer evaluation cycles. Stop on changed corpus signatures, an entry-size or
+race regression, or no repeatable integrated timing gain.
+
+**Profile-guided speed work — measure first**
+
+### ENG-004 — Cache stable pawn-and-king evaluation terms
+
+Measure reuse of a complete pawn/king/castling key, then prototype a small per-worker cache for only
+the deterministic pawn-structure and shelter terms if reuse is material. Shelter is about 18% of
+standalone evaluation and evaluation is 39--40% of search cycles; Ethereal and Minic demonstrate
+pawn/king caches, not a suitable Latrunculi layout. Expect fewer shelter and pawn computations with
+identical scores and trees. Stop on low hit rate, changed values, excessive cache overhead, or no
+repeatable integrated timing gain.
+
+### ENG-005 — Short-circuit transposition-table misses
+
+Explore a key/tag layout that rejects a nonmatching TT entry before fully loading and decoding its
+payload while preserving the 16-byte entry, 64-byte cluster, and current race contract. TT work is
+15--16% of search cycles; 48% of main probes and 85.8% of qsearch probes miss, while the current
+four-entry scan snapshots and decodes each candidate. First count miss-path loads and prototype one
+layout compatible with ENG-003. Expect fewer TT instructions and cycles without changing search
+signatures. Stop on added collision or race risk, larger entries, or no paired timing gain.
+
+### ENG-006 — Add a thresholded SEE fast path
+
+Add passive counts for SEE consumers and result bands, then prototype a `see_ge(0)`-style path for
+sign-only good/bad classification while computing an exact value only where in-band ordering needs
+it. SEE is 5--6% of search cycles and about 8% of branch misses, and every ordinary noisy candidate
+currently receives an exact exchange score. Preserve the existing SEE bands and do not reintroduce
+CaptureHistory. Expect less work on rejected or bad-band captures. Stop if duplicate work on good
+captures cancels the saving, ordering changes unintentionally, or timing does not improve.
+
+### ENG-007 — Remove common-path late-picker scanning
+
+Count comparisons, rescans, alpha raises, and exact-node contributions in the ordinary-quiet and
+bad-noisy stages, then compare one same-order bucket or partial-selection structure. Move picking is
+18--20% of cycles and about 36% of branch misses; these stages return 71% of main candidates but
+produce only 3.2% of beta cutoffs. This is common-path removal, not the rejected SW-20 score/history
+reuse. Expect fewer picker branches and misses with identical move order and tree. Stop if no
+dominant removable scan appears or a prototype changes signatures or lacks repeatable speedup.
+
+### ENG-008 — Incrementalize tactical-cache maintenance
+
+Attribute `refresh_tactical_cache` work to its maintained fields and prototype one exact incremental
+update for the dominant field before considering a wider rewrite. Board transition maintenance is
+about 80% of perft cycles but only 8--9% of integrated-search cycles, so perft alone cannot qualify
+the change. Expect identical perft and search signatures with lower transition and integrated time.
+Stop if the useful share is fragmented, correctness complexity is disproportionate, or integrated
+timing does not improve.
+
+**Search-behavior work — measure first**
+
+### ENG-009 — Test one broader razoring eligibility cell
+
+Use a stats-only adjacent depth or margin cell, chosen from the observed score distribution, and
+verify its qsearch result before changing release behavior. Razoring activates at only 3.9% of
+10.75M structurally eligible nodes and confirms 87.5% of its 421,499 tries. Expect a material number
+of additional confirmed cutoffs at small qsearch cost. Stop if the adjacent cell is sparse, its
+confirmation rate degrades materially, objective checks fail, or total tree work does not improve.
+
+### ENG-010 — Test one broader main-search futility cell
+
+Shadow one adjacent depth or margin cell while retaining all current mate, check, first-move, and
+checking-quiet protections; use a bounded verifier to learn whether proposed skipped quiets later
+raise alpha or cut off. Futility activates at 13.2% of 6.79M eligible nodes and reaches a real
+nonchecking-quiet trigger 626,672 times. Expect more safe late-quiet skips and a smaller tree. Stop
+if the new cell removes meaningful alpha raises or cutoffs, violates an objective check, or misses
+the fixed-depth tree-size gate.
+
+### ENG-011 — Make aspiration widening more gradual
+
+After ENG-002 is resolved, record miss distances and compare one gradual one-bound growth schedule
+without changing the initial 50-point window or retry depth. Aspiration retries are an exclusive
+6.58M nodes, or 11.6% of the corpus tree; all three references use more gradual growth than the
+current doubling schedule. Expect fewer unnecessarily wide retry trees without more repeated
+misses. Stop if retry count or total nodes rises, convergence worsens, or the effect is not distinct
+from ENG-002.
+
+### ENG-012 — Reduce fail-high aspiration retry depth
+
+After ENG-002, isolate the reference-engine pattern of reducing only the next fail-high retry depth,
+leaving window geometry unchanged. The corpus recorded 433 fail-highs and their retry work is part
+of the same exact 11.6% aspiration footprint. Expect cheaper fail-high recovery without degrading
+completed-iteration stability. Stop on lost objective solutions, unstable root convergence,
+increased total work, or no repeatable timing benefit.
+
+### ENG-013 — Stratify LMR re-searches before testing adaptive verification depth
+
+Split reduced fail-highs by PV/NonPV, reduction, depth, fail-high margin, and full-depth outcome; test
+an intermediate or result-conditioned verification depth only if one stratum dominates cost. Just
+25,959 of 7.58M reductions fail high, but their inclusive full-depth footprint is 16.44M nodes and
+only 58.7% remain above alpha. Do not retry SW-06's exact full-depth null-window scout or the rejected
+history thresholds. Expect less full-depth verification work. Stop if no stable discriminator
+appears or a prototype loses objective results or merely moves work into another re-search.
+
+### ENG-014 — Isolate expensive PVS misses
+
+Stratify root and internal PVS re-searches by depth, move rank, miss margin, and exclusive work before
+choosing any window or sequencing change. Miss rates are only 1.06% and 1.98%, but their inclusive
+footprints are 5.23M and 7.50M nodes, so a few high-level misses may dominate. Expect a bounded
+high-cost stratum suitable for one isolated policy experiment. Stop if the footprint is diffuse,
+overlaps other re-search mechanisms beyond attribution, or no safe discriminator emerges.
+
+### ENG-015 — Find a materially different qsearch capture-safety signal
+
+Expose exact-SEE-negative picker rejects and classify searched captures by SEE band, check,
+promotion, bound improvement, PV use, and cutoff. Qsearch is 69.2% of nodes, but 57.7% of stand-pat
+evaluations and 92.4% of TT hits already cut off; the previous captured-value margins skipped real
+cutoffs. Retain a pruning candidate only if the new combined signal identifies a substantial,
+near-zero-utility stratum and is materially different from the rejected 200/300/400 rule. Expect a
+measurable reduction opportunity defined by move outcomes rather than qsearch node share. Stop if
+every plausible stratum contains meaningful cutoffs/PV moves or is too small to matter.
+
+### ENG-016 — Specialize qsearch TT work by usefulness stratum
+
+Split qsearch probes and stores by check state, node type, ply, hit payload, and resulting cutoff or
+move use; consider skipping work only in a measured near-zero-benefit stratum. Qsearch performs
+39.16M probes with a 14.2% hit rate, yet 92.4% of hits cut off, so neither global removal nor the raw
+miss rate is a hypothesis. Expect less TT work without compensating node growth. Stop if every
+stratum has material cutoff or ordering value, or a prototype changes results or fails timing.
+
+### ENG-017 — Generate or reject evasions more cheaply
+
+Classify illegal evasion rejects by move type and validation cost, then compare one exact legal-
+evasion filter or generation rule that preserves order. Main and qsearch evasion stages reject
+31.4% and 34.0% of returned candidates, while move generation and legality contribute measurable
+branch misses. Expect fewer legality checks and picker branches with identical legal moves and
+search signatures. Stop if the rejects are cheap, the legal generator becomes more complex than
+the saved work, or integrated timing is neutral.
+
+### ENG-018 — Measure static-evaluation trend as one search signal
+
+Add a stats-only improving/worsening classification from same-side prior-ply static evaluations and
+split razoring, futility, and LMR outcomes by it; select at most one consumer if the split is strong.
+Reference engines use this kind of signal, but that is not evidence for a Latrunculi constant, and
+the previously unhelpful improving-aware LMP variants remain closed. Expect a clearer safety signal
+for one conservative gate or reduction decision. Stop if outcome rates do not separate materially
+or the required state/evaluation work costs more than the prospective tree change.
 
 ## Recent results
 
@@ -69,9 +244,11 @@ only a justified override, a different mechanism check, or an extra risk test be
 | Sentinels | Four cases in `tools/measurements/search-sentinels.epd`; use for descriptive trajectory diagnostics, not as move-quality oracles. |
 | Benchmark fingerprint | Six fixed positions at depth 13; use its deterministic aggregate for OpenBench compatibility, not as a representative search-selection panel. |
 
-Fixed-depth nodes measure selectivity and paired fixed-depth search time measures efficiency.
-Neither is playing strength. Cross-engine depth and NPS are context only; paired games decide
-whether a changed tree is useful.
+Profiles locate CPU work, fixed-depth nodes measure selectivity, paired fixed-depth search time
+measures integrated efficiency, and paired games decide playing strength. Keep those axes separate.
+Perft or qsearch shares, cutoff yield, and observational correlations do not provide a
+counterfactual, so they are hypothesis generators rather than change or acceptance gates.
+Cross-engine depth and NPS are context only.
 
 Fresh-process, one-thread repeats of the same build and inputs must agree in completed depth,
 static score, searched score, actual nodes, best move, and PV; exclude timing and NPS. Differences

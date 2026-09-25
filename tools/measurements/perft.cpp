@@ -1,5 +1,6 @@
 #include "perft.hpp"
 
+#include <charconv>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -9,6 +10,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 #include "board/board.hpp"
@@ -19,7 +21,9 @@ namespace {
 
 using MeasurementClock = std::chrono::steady_clock;
 
-constexpr std::string_view result_format = "perft_measurement_v1";
+constexpr std::string_view result_format       = "perft_measurement_v2";
+constexpr std::uint64_t    default_repetitions = 1;
+constexpr std::uint64_t    max_repetitions     = 100;
 constexpr std::string_view pos2_fen =
     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 constexpr std::string_view pos3_fen = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1";
@@ -35,8 +39,9 @@ enum class OutputFormat { Text, Tsv };
 enum class Profile { Smoke, Standard };
 
 struct Options {
-    OutputFormat format{OutputFormat::Text};
-    Profile      profile{Profile::Smoke};
+    OutputFormat  format{OutputFormat::Text};
+    Profile       profile{Profile::Smoke};
+    std::uint64_t repetitions{default_repetitions};
 };
 
 struct Case {
@@ -50,6 +55,8 @@ struct Case {
 
 struct Row {
     std::string   case_id;
+    std::uint64_t repetition{0};
+    std::uint64_t repetitions{0};
     std::string   profile;
     int           depth{0};
     NodeCount     nodes{0};
@@ -79,7 +86,10 @@ std::vector<Case> make_cases(Profile profile) {
     return cases;
 }
 
-Row measure(const Case& perft_case, Profile profile) {
+Row measure(const Case&   perft_case,
+            Profile       profile,
+            std::uint64_t repetition,
+            std::uint64_t repetitions) {
     Board      board(perft_case.fen);
     const auto initial_key = board.key();
     const int  depth =
@@ -106,6 +116,8 @@ Row measure(const Case& perft_case, Profile profile) {
     const double seconds = static_cast<double>(total_ns) / 1'000'000'000.0;
     return {
         .case_id          = std::string(perft_case.id),
+        .repetition       = repetition,
+        .repetitions      = repetitions,
         .profile          = to_string(profile),
         .depth            = depth,
         .nodes            = nodes,
@@ -116,19 +128,21 @@ Row measure(const Case& perft_case, Profile profile) {
 }
 
 void emit_tsv(const std::vector<Row>& rows) {
-    std::cout << "result_format\tcase\tprofile\tdepth\tnodes\texpected_nodes\ttotal_ns\t"
-                 "nodes_per_second\n";
+    std::cout << "result_format\tcase\trepetition\trepetitions\tprofile\tdepth\tnodes\t"
+                 "expected_nodes\ttotal_ns\tnodes_per_second\n";
     for (const Row& row : rows) {
-        std::cout << result_format << '\t' << row.case_id << '\t' << row.profile << '\t'
-                  << row.depth << '\t' << row.nodes << '\t' << row.expected_nodes << '\t'
-                  << row.total_ns << '\t' << std::fixed << std::setprecision(3)
-                  << row.nodes_per_second << '\n';
+        std::cout << result_format << '\t' << row.case_id << '\t' << row.repetition << '\t'
+                  << row.repetitions << '\t' << row.profile << '\t' << row.depth << '\t'
+                  << row.nodes << '\t' << row.expected_nodes << '\t' << row.total_ns << '\t'
+                  << std::fixed << std::setprecision(3) << row.nodes_per_second << '\n';
     }
 }
 
 void emit_text(const std::vector<Row>& rows) {
     for (const Row& row : rows) {
         const double total_ms = static_cast<double>(row.total_ns) / 1'000'000.0;
+        if (row.repetitions > 1)
+            std::cout << "repetition " << row.repetition << '/' << row.repetitions << ": ";
         std::cout << row.case_id << " depth " << row.depth << ": " << row.nodes << " nodes in "
                   << std::fixed << std::setprecision(3) << total_ms << " ms ("
                   << std::setprecision(0) << row.nodes_per_second << " nps)\n";
@@ -153,7 +167,17 @@ OutputFormat parse_format(std::string_view value) {
 
 void print_usage(const char* argv0) {
     std::cerr << "Perft measurement for recursive move generation validation.\n";
-    std::cerr << "Usage: " << argv0 << " [--profile smoke|standard] [--format text|tsv]\n";
+    std::cerr << "Usage: " << argv0
+              << " [--profile smoke|standard] [--repetitions N] [--format text|tsv]\n";
+}
+
+std::uint64_t parse_count(std::string_view text, std::string_view option) {
+    std::uint64_t value     = 0;
+    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+    if (text.empty() || error != std::errc{} || end != text.data() + text.size())
+        throw std::runtime_error("invalid value for " + std::string(option) + ": "
+                                 + std::string(text));
+    return value;
 }
 
 Options parse_args(int argc, char* argv[]) {
@@ -181,6 +205,16 @@ Options parse_args(int argc, char* argv[]) {
             continue;
         }
 
+        if (argument == "--repetitions") {
+            if (++index >= argc)
+                throw std::runtime_error("missing value for --repetitions");
+            options.repetitions = parse_count(argv[index], "--repetitions");
+            if (options.repetitions == 0 || options.repetitions > max_repetitions)
+                throw std::runtime_error("--repetitions must be between 1 and "
+                                         + std::to_string(max_repetitions));
+            continue;
+        }
+
         throw std::runtime_error("unknown argument: " + std::string(argument));
     }
 
@@ -192,9 +226,14 @@ Options parse_args(int argc, char* argv[]) {
 int run_perft(int argc, char* argv[]) {
     try {
         const Options    options = parse_args(argc, argv);
+        const auto       cases   = make_cases(options.profile);
         std::vector<Row> rows;
-        for (const Case& perft_case : make_cases(options.profile))
-            rows.push_back(measure(perft_case, options.profile));
+        rows.reserve(cases.size() * static_cast<std::size_t>(options.repetitions));
+        for (std::uint64_t repetition = 1; repetition <= options.repetitions; ++repetition) {
+            for (const Case& perft_case : cases)
+                rows.push_back(
+                    measure(perft_case, options.profile, repetition, options.repetitions));
+        }
 
         if (options.format == OutputFormat::Tsv)
             emit_tsv(rows);

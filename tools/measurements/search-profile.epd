@@ -1,0 +1,14 @@
+# Representative integrated-search CPU-cost workload; not a strength or correctness suite.
+# Quiet middlegames
+r1bq1rk1/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQ1RK1 w - - id "quiet-qgd-01";
+r2q1rk1/pp1nbppp/2p1pn2/3p4/2PP4/2N1PN2/PPQ1BPPP/R1B2RK1 w - - id "quiet-slav-02";
+# Tactical middlegames
+r1b2rk1/1p1nbppp/pq1p4/3B4/P2NP3/2N1p3/1PP3PP/R2Q1R1K w - - id "tactical-arasan20-02";
+3r1rk1/q4pp1/n1bNp2p/p7/pn2P1N1/6P1/1P1Q1PBP/2RR2K1 w - - id "tactical-arasan20-17";
+# Endgames
+8/3r4/pr1Pk1p1/8/7P/6P1/3R3K/5R2 w - - id "endgame-rooks-arasan20-16";
+8/5pk1/p4npp/1pPN4/1P2p3/1P4PP/5P2/5K2 w - - id "endgame-knight-arasan20-21";
+# Root in check
+4k3/8/8/8/8/8/4R3/4K3 b - - id "in-check-rook-01";
+# Low material
+8/5pkp/6p1/8/8/6P1/5PKP/8 w - - id "low-material-pawns-01";

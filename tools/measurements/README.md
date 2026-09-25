@@ -31,6 +31,9 @@ case validates its exact node count and verifies that the Board is restored.
 ```
 
 The `smoke` profile is quick; `standard` runs the complete embedded suite.
+`--repetitions` accepts 1 through 100 and repeats that complete suite inside one
+process. Every repetition is reported separately. Use separate command
+invocations when fresh-process reproducibility matters.
 
 ## Evaluation
 
@@ -78,12 +81,17 @@ options above rather than the tool's depth-5 default. A second command
 invocation provides fresh-process reproducibility; `--repetitions 2` does not,
 and it does not increase the number of distinct positions.
 
+The optional `search-profile.epd` is a representative integrated-search CPU
+workload: two quiet middlegames, two tactical middlegames, two endgames, one
+root-in-check position, and one low-material position. It is not a strength,
+correctness, or tactical-solution panel.
+
 The corpus preserves every position and source annotation from historical Git
 blob `93cbe97d9ee40790eafc984e59cbce3c02a5d7ea`; only its IDs are normalized to
 `arasan20-NN`. Its `bm` and `am` operations are metadata, not correctness or
 playing-strength criteria. The optional `search-sentinels.epd` contains the
 four focused trajectory cases retained from the completed audit;
-[Playing Strength Development](../../docs/playing-strength.md#sentinel-trajectories) defines their
+[Engine Development](../../docs/engine-development.md#sentinel-trajectories) defines their
 interpretation:
 
 ```bash
@@ -105,6 +113,23 @@ case and run configuration, so stdout remains machine-readable:
   2> tools/measurements/output/arasan20-01.stats
 ```
 
+## Profiling Workloads
+
+These commands provide stable work for an external profiler without embedding
+profiler or host policy in `latrunculi-measure`:
+
+```bash
+./build/release-dev/latrunculi-measure perft \
+  --profile standard --repetitions 20 --format tsv
+./build/release-dev/latrunculi-measure eval
+./build/release-dev/latrunculi-measure search \
+  --suite tools/measurements/search-profile.epd --depth 12 --hash 32 \
+  --threads 1 --repetitions 1 --format tsv
+```
+
+Internal repetitions lengthen one process; they do not replace repeated fresh
+processes when checking workload reproducibility or environmental variation.
+
 ## Comparing Results
 
 Compare equivalent builds with identical explicit options on the same machine.
@@ -112,13 +137,13 @@ Timing requires repeated runs and must not become a unit-test threshold. Keep
 retained output under the ignored `tools/measurements/output/` directory. Generated
 TSVs and the comparison summary are sufficient evidence; do not create a handwritten
 manifest or copy commands and hashes merely to duplicate them.
-[Playing Strength Development](../../docs/playing-strength.md) contains the current work, default
+[Engine Development](../../docs/engine-development.md) contains the current work, default
 offline test, metric interpretation, and paired timing policy. A candidate records only justified
 exceptions to those defaults.
 
 For corpus timing, aggregate measured search time with `sum(total_ns)`. This
 excludes setup before `start_search()`, process startup, and output. See
-[Playing Strength Development](../../docs/playing-strength.md#paired-timing) for collection and
+[Engine Development](../../docs/engine-development.md#paired-timing) for collection and
 decision rules.
 
 The fixed `BC, CB, BC, CB, BC, CB` panel forms three adjacent balanced
@@ -160,6 +185,6 @@ Run the helper's focused tests with:
 python3 -m unittest tools.measurements.test_compare_search
 ```
 
-The machine-readable formats are `perft_measurement_v1`,
+The machine-readable formats are `perft_measurement_v2`,
 `evaluation_throughput_v1`, and `search_measurement_v3`. These labels version
 output schemas, not external workloads.

@@ -5,8 +5,8 @@ description: Publish and submit one named, offline-tested Latrunculi candidate t
 
 # Submit a Latrunculi OpenBench Test
 
-Use `docs/playing-strength.md` for current candidate state and `docs/openbench.md` as the protocol.
-This skill performs one externally mutating action and then stops.
+Use `docs/engine-development.md` for current candidate state and `docs/openbench.md` as the
+protocol. This skill performs one externally mutating action and then stops.
 
 ## Verify
 

@@ -5,7 +5,7 @@ description: Explore one bounded idea for improving Latrunculi's playing strengt
 
 # Explore a Latrunculi Change
 
-Use `docs/playing-strength.md` for current work and search-testing rules. Read
+Use `docs/engine-development.md` for current work and search-testing rules. Read
 `tools/tuning/workflow.md` only for linear HCE fitting. Work on one local CPU-sensitive task at a
 time.
 
@@ -21,7 +21,7 @@ time.
 
 ## Finish
 
-- **Candidate:** keep the queue ID or assign the next unused `EI-XXX`, create one artifact directory,
+- **Candidate:** keep the queue ID or assign the next unused `ENG-XXX`, create one artifact directory,
   save `candidate.patch` without a separate hash, keep only useful generated output and a short
   result, and add a **Candidates** row with its change, claimed effect, tree classification, key
   evidence, and `Next: test offline`. Record only a justified default-gate override, nonstandard

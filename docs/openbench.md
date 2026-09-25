@@ -44,7 +44,7 @@ Benchmark nodes are always a signature gate: reproduce the candidate fingerprint
 for tree-changing work and preserve the baseline fingerprint for tree-preserving work.
 Neither their difference nor benchmark NPS is an offline performance or strength
 metric; use the paired corpus timing policy in
-[Playing Strength Development](playing-strength.md#paired-timing).
+[Engine Development](engine-development.md#paired-timing).
 
 ### Test termination
 

@@ -5,9 +5,9 @@ description: Read one Latrunculi OpenBench test status or terminal result withou
 
 # Check a Latrunculi OpenBench Test
 
-Read `docs/openbench.md` and use `docs/playing-strength.md` for current candidate state. A request to
-check a test authorizes one read only; never poll, sleep, monitor repeatedly, stop, modify, replace,
-submit, or integrate.
+Read `docs/openbench.md` and use `docs/engine-development.md` for current candidate state. A request
+to check a test authorizes one read only; never poll, sleep, monitor repeatedly, stop, modify,
+replace, submit, or integrate.
 
 ## Check Once
 
@@ -15,7 +15,7 @@ Fetch the named test once. Verify its identity, revisions, settings, and termina
 interpreting its state.
 
 - **Running:** report the current games, score or Elo interval, and LLR when applicable. Do not put
-  an intermediate snapshot in `docs/playing-strength.md`.
+  an intermediate snapshot in `docs/engine-development.md`.
 - **Accepted:** for a candidate on the board, record the test ID, short revisions, terminal games,
   LLR, Elo interval, decision, and PGN location; keep it in **Candidates** with `Next: integrate`.
 - **Rejected:** preserve the same terminal evidence and move the candidate to

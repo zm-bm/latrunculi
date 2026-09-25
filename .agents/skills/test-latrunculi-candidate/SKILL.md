@@ -5,7 +5,7 @@ description: Test one retained Latrunculi playing-strength candidate against the
 
 # Test a Latrunculi Candidate Offline
 
-Use `docs/playing-strength.md` for current work and search-testing rules. Read the applicable
+Use `docs/engine-development.md` for current work and search-testing rules. Read the applicable
 measurement or evaluation-tuning guide. Work on one local CPU-sensitive task at a time.
 
 ## Prepare

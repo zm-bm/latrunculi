@@ -5,7 +5,7 @@ description: Integrate one approved Latrunculi playing-strength candidate and re
 
 # Integrate a Latrunculi Candidate
 
-Use `docs/playing-strength.md` for current candidate state and search identity rules. Read the
+Use `docs/engine-development.md` for current candidate state and search identity rules. Read the
 candidate evidence and any other applicable domain rules. Integration always requires an explicit
 user request.
 

@@ -1,8 +1,8 @@
 # Engine Roadmap
 
 This document records the engine's longer-horizon direction and backlog. **Next** is ordered and
-**Later** is informal. Detailed Elo experiments and durable search evidence belong in
-[Playing Strength Development](playing-strength.md), while the
+**Later** is informal. Detailed engine experiments and durable search evidence belong in
+[Engine Development](engine-development.md), while the
 [architecture overview](architecture.md) describes the current implementation.
 
 Revalidate an item before starting it and remove it when complete; Git history records completion.
@@ -13,8 +13,8 @@ Revalidate an item before starting it and remove it when complete; Git history r
 
 Use held-out endgame errors and exact tablebase WDL/DTZ results to guide
 improvements to general features, material rules, draw scaling, and horizon
-handling. When ready, define one bounded `EI-XXX` investigation in
-`playing-strength.md` rather than coordinating it here.
+handling. When ready, define one bounded `ENG-XXX` investigation in
+`engine-development.md` rather than coordinating it here.
 
 ### TB-001 — Add optional Syzygy support
 
