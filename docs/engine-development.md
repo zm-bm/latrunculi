@@ -28,9 +28,9 @@ a request authorizes several named actions, each skill stops at its own boundary
 
 | Field | Current value |
 |---|---|
-| Engine | `3ddf138` (ENG-001 integration) |
-| OpenBench fingerprint | 5,101,317 nodes |
-| Cached search corpus | `tools/measurements/output/search-baseline-3ddf138/` |
+| Engine | `f376cef` (SW-17 integration) |
+| OpenBench fingerprint | 3,798,460 nodes |
+| Cached search corpus | `tools/measurements/output/search-baseline-f376cef/` |
 
 Refresh the cached corpus only after an approved integration changes the engine baseline, search
 workload, or measurement meaning.
@@ -39,7 +39,6 @@ workload, or measurement meaning.
 
 | ID | Change | Kind | Evidence | Next |
 |---|---|---|---|---|
-| SW-17 | Use one bounded depth/static-surplus null-move reduction formula | Tree-changing | `R_node_g` 0.9397, `R_node_total` 0.9642, and `R_time_balanced` 0.9790 with 6/6 timing wins; focused checks, reproducibility, sentinels, benchmark, and 3/3 CTest passed; OpenBench #29: Base `c8bfedd`, Dev `54a8989`; `sw-17-c8bfedd/` | `check OpenBench #29` |
 
 ## Queue
 
@@ -216,6 +215,7 @@ or the required state/evaluation work costs more than the prospective tree chang
 
 | ID | Change | Evidence | Result |
 |---|---|---|---|
+| SW-17 | Use one bounded depth/static-surplus null-move reduction formula | Offline `R_node_g` 0.9397, `R_node_total` 0.9642, and `R_time_balanced` 0.9790; OpenBench #29 Base `c8bfedd`, Dev `54a8989`: accepted `[0, 3]` after 9,060 games at LLR +2.9659 and +10.55 +/- 5.14 Elo (95%); PGN `/api/pgns/29/`; integrated corpus exactly matched all 200 retained signatures | Integrated as `f376cef` |
 | ENG-001 | Replace runtime check-danger division with exact function-local constexpr piece/count tables | Complete 128-state domain; exact evaluator checksum, two 5,101,317-node benchmarks, repeated 200-position corpus and 61 sentinel signatures; Release and ASan/UBSan passed; stable `R_time_balanced` 0.9871 with 6/6 wins | Integrated as `3ddf138`; tree-preserving, so games were skipped |
 | SW-16 | Add one LMR ply to NonPV quiets with combined history at most -1 | Exploration found 169,273 effective opportunities; one complete corpus pass produced `R_node_g` 0.9937 and `R_node_total` 0.9868; benchmark fingerprint 6,014,947 nodes | Null result; missed the 0.9900 smaller-tree gate, so formal offline testing and games were not run |
 | SW-15 | Replace locked per-node RMW with single-writer relaxed atomic load/store | Exact 5,101,317-node benchmark and 200-position corpus; complete tests, TSan, and 1/2/4-thread risk checks passed; balanced timing ratio 1.0217 with 1/6 wins | Rejected; missed the 0.9925 minimum-speedup threshold |
