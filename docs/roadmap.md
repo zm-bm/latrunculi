@@ -9,13 +9,6 @@ Revalidate an item before starting it and remove it when complete; Git history r
 
 ## Next
 
-### END-001 — Improve endgame play from exact evidence
-
-Use held-out endgame errors and exact tablebase WDL/DTZ results to guide
-improvements to general features, material rules, draw scaling, and horizon
-handling. When ready, define one bounded `ENG-XXX` investigation in
-`engine-development.md` rather than coordinating it here.
-
 ### TB-001 — Add optional Syzygy support
 
 Add optional WDL and DTZ probing without bundling tablebase files. Define UCI
