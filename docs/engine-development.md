@@ -28,9 +28,9 @@ a request authorizes several named actions, each skill stops at its own boundary
 
 | Field | Current value |
 |---|---|
-| Engine | `0ff898c` (behavior-equivalent algorithm-detail cleanup after SW-17) |
+| Engine | `7620762` (ENG-003 exact-key TT static-evaluation reuse) |
 | OpenBench fingerprint | 3,798,460 nodes |
-| Cached search corpus | `tools/measurements/output/search-baseline-0ff898c/` |
+| Cached search corpus | `tools/measurements/output/search-baseline-7620762/` |
 
 Refresh the cached corpus only after an approved integration changes the engine baseline, search
 workload, or measurement meaning.
@@ -145,21 +145,6 @@ groups, creates no control error of at least 100 cp, and completes equal-depth s
 bounded null/forward-pruning experiment naming the repaired stratum. If the panels are too small,
 close unresolved; if no family qualifies, record a null result. Never retain a disabled-pruning
 build or blend families.
-
-### ENG-003 — Reuse static evaluation on same-key TT hits
-
-**Start:** direct tree-preserving speed experiment. Evaluation consumes about 39--40% of search
-cycles and the audited tree contained 8.07M exact-key repeats; all three reference engines retain a
-static evaluation in their TT entries.
-
-**Try:** store and reuse the deterministic static evaluation in the existing TT payload without
-enlarging its 16-byte entry or 64-byte cluster. Prototype one compact bound/generation packing,
-count avoided evaluator calls, and verify full-range encode/decode, replacement and aging behavior,
-the existing race contract, exact reused values, and exact corpus and benchmark signatures.
-
-**Decide:** retain only if entry and cluster sizes, semantics, values, and signatures remain exact
-and paired integrated timing passes the tree-preserving gate. Reject on a packing or race
-regression, changed search behavior, negligible avoided evaluation, or absent repeatable speedup.
 
 ### ENG-022 — Score passed-pawn races with king distance and tempo
 
@@ -610,6 +595,7 @@ Retain only with exhaustive agreement and elimination of the prerequisite errors
 
 | ID | Change | Evidence | Result |
 |---|---|---|---|
+| ENG-003 | Reuse deterministic static evaluation on exact same-key TT hits with lossless compact metadata packing | Avoided 5,701,544/44,526,905 evaluator calls (12.80%) with zero cached/fresh mismatches; exact static values, 54,533,083-node corpus, 61 sentinels, and 3,798,460-node fingerprint; Release and sanitizer/race checks passed; reviewed as `ec75aae`; `R_time_balanced = 0.9630` with 6/6 wins; integrated corpus exactly matched the retained candidate | Integrated as `7620762`; tree-preserving, so games were skipped |
 | SW-17 | Use one bounded depth/static-surplus null-move reduction formula | Offline `R_node_g` 0.9397, `R_node_total` 0.9642, and `R_time_balanced` 0.9790; OpenBench #29 Base `c8bfedd`, Dev `54a8989`: accepted `[0, 3]` after 9,060 games at LLR +2.9659 and +10.55 +/- 5.14 Elo (95%); PGN `/api/pgns/29/`; integrated corpus exactly matched all 200 retained signatures | Integrated as `f376cef` |
 | ENG-001 | Replace runtime check-danger division with exact function-local constexpr piece/count tables | Complete 128-state domain; exact evaluator checksum, two 5,101,317-node benchmarks, repeated 200-position corpus and 61 sentinel signatures; Release and ASan/UBSan passed; stable `R_time_balanced` 0.9871 with 6/6 wins | Integrated as `3ddf138`; tree-preserving, so games were skipped |
 | SW-16 | Add one LMR ply to NonPV quiets with combined history at most -1 | Exploration found 169,273 effective opportunities; one complete corpus pass produced `R_node_g` 0.9937 and `R_node_total` 0.9868; benchmark fingerprint 6,014,947 nodes | Null result; missed the 0.9900 smaller-tree gate, so formal offline testing and games were not run |
