@@ -25,9 +25,12 @@ constexpr std::array<int, 20> HelperDepthSkipPhase{
 };
 
 // Null-move pruning defaults.
-constexpr int NullMoveReductionBase = 3;
-constexpr int NullMoveDeepReduction = 4;
-constexpr int NullMoveDeepThreshold = 6;
+constexpr int       NullMoveMinDepth        = 3;
+constexpr int       NullMoveReductionBase   = 3;
+constexpr int       NullMoveReductionMax    = 6;
+constexpr int       NullMoveDepthDivisor    = 7;
+constexpr EvalValue NullMoveSurplusPerPly   = 2 * eval::pawn.mg;
+constexpr int       NullMoveSurplusBonusMax = 2;
 
 // Razoring and futility defaults.
 constexpr int RazorMaxDepth    = 3;
@@ -114,6 +117,19 @@ private:
 };
 
 } // namespace
+
+int Worker::null_move_reduction(const int       depth,
+                                const EvalValue static_eval,
+                                const EvalValue beta) noexcept {
+    assert(depth >= NullMoveMinDepth);
+
+    const EvalValue positive_surplus = std::max(static_eval - beta, EvalValue{0});
+    const int       surplus_bonus =
+        std::min(int(positive_surplus / NullMoveSurplusPerPly), NullMoveSurplusBonusMax);
+    const int reduction = NullMoveReductionBase + depth / NullMoveDepthDivisor + surplus_bonus;
+
+    return std::min({depth, NullMoveReductionMax, reduction});
+}
 
 // Main root search driver.
 EvalValue Worker::search_root() {
@@ -345,11 +361,11 @@ EvalValue Worker::alphabeta(
             && !tt_upper_veto && static_eval - FutilityMargin[depth] >= beta)
             return static_eval;
 
-        const int reduction =
-            depth > NullMoveDeepThreshold ? NullMoveDeepReduction : NullMoveReductionBase;
-        if (can_null && !in_check && depth >= reduction
+        if (can_null && !in_check && depth >= NullMoveMinDepth
             && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto) {
             stats.null_move_try(search_ply);
+
+            const int reduction = null_move_reduction(depth, static_eval, beta);
 
             board.make_null();
             ++search_ply;
