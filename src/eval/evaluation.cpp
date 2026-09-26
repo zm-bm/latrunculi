@@ -1,6 +1,8 @@
 #include "eval/evaluation.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cassert>
 
 #include "board/board.hpp"
 #include "core/attacks.hpp"
@@ -715,10 +717,26 @@ int Evaluator::calculate_raw_danger(Square king_sq) const {
 template <PieceType P>
 inline int Evaluator::calculate_check_danger(const Bitboard safe_checks,
                                              const Bitboard all_checks) const {
-    const int  count  = bb::count(safe_checks ? safe_checks : all_checks);
-    const auto danger = safe_checks ? eval::safe_check_danger : eval::unsafe_check_danger;
+    static_assert(P == KNIGHT || P == BISHOP || P == ROOK || P == QUEEN);
 
-    return (danger[P] * count * 2) / (count + 1);
+    static constexpr auto danger_by_count = [] {
+        // Check destinations are subsets of the empty-board attack mask around the king.
+        constexpr int MaxCount = P == KNIGHT ? 8 : P == BISHOP ? 13 : P == ROOK ? 14 : 27;
+
+        std::array<std::array<int, MaxCount + 1>, 2> table{};
+        for (int count = 0; count <= MaxCount; ++count) {
+            table[0][count] = (eval::unsafe_check_danger[P] * count * 2) / (count + 1);
+            table[1][count] = (eval::safe_check_danger[P] * count * 2) / (count + 1);
+        }
+
+        return table;
+    }();
+
+    const bool safe  = safe_checks != 0;
+    const int  count = bb::count(safe ? safe_checks : all_checks);
+
+    assert(count < static_cast<int>(danger_by_count[safe].size()));
+    return danger_by_count[safe][count];
 }
 
 // Integer numerator for scaling endgame evaluation toward zero in drawish pawn endings.
