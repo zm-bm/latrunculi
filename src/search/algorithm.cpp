@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <optional>
 
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
@@ -216,13 +217,15 @@ EvalValue Worker::alphabeta(
         tt_move = record.move;
     }
 
-    const bool  in_check = board.is_check();
-    const Color side     = board.side_to_move();
-    bool        futility = false;
+    const bool  in_check    = board.is_check();
+    const Color side        = board.side_to_move();
+    bool        futility    = false;
+    EvalValue   static_eval = TTRecord::no_static_eval;
 
     if constexpr (Node == NodeType::NonPv) {
         // Step 5. Razoring.
-        const EvalValue static_eval = eval::evaluate(board);
+        static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
+                                                                : eval::evaluate(board);
         if (can_null && !in_check && depth <= algorithm_detail::RazorMaxDepth && tt_move.is_null()
             && static_eval + algorithm_detail::RazorMargin[depth] <= alpha) {
             stats.razor_try(search_ply);
@@ -403,7 +406,8 @@ EvalValue Worker::alphabeta(
                 pv->update(move, child_pv);
 
             stats.beta_cutoff(search_ply, move_count);
-            tt.store(position_key, move, value, depth, TTBound::LowerBound, search_ply);
+            tt.store(
+                position_key, move, value, depth, TTBound::LowerBound, search_ply, static_eval);
             return value;
         }
 
@@ -427,7 +431,8 @@ EvalValue Worker::alphabeta(
     // Step 15. Mate and stalemate.
     if (move_count == 0) {
         best_value = in_check ? -eval_value::mate + search_ply : eval_value::draw;
-        tt.store(position_key, NULL_MOVE, best_value, depth, TTBound::Exact, search_ply);
+        tt.store(
+            position_key, NULL_MOVE, best_value, depth, TTBound::Exact, search_ply, static_eval);
         return best_value;
     }
 
@@ -437,7 +442,8 @@ EvalValue Worker::alphabeta(
              best_value,
              depth,
              tt_bound_for_window(best_value, original_alpha, beta),
-             search_ply);
+             search_ply,
+             static_eval);
 
     return best_value;
 }
@@ -464,36 +470,41 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
     if (search_ply >= engine::max_search_ply)
         return eval::evaluate(board);
 
-    constexpr int     qsearch_tt_depth = 0;
-    const EvalValue   original_alpha   = alpha;
-    const PositionKey position_key     = board.key();
-    Move              tt_move          = NULL_MOVE;
+    constexpr int           qsearch_tt_depth = 0;
+    const EvalValue         original_alpha   = alpha;
+    const PositionKey       position_key     = board.key();
+    Move                    tt_move          = NULL_MOVE;
+    std::optional<TTRecord> tt_record;
 
     // Step 3. TT probe.
     if constexpr (UseTt) {
         stats.q_tt_probe(search_ply);
-        if (auto record = tt.probe(position_key)) {
+        tt_record = tt.probe(position_key);
+        if (tt_record) {
             stats.q_tt_hit(search_ply);
 
-            const EvalValue tt_score = record->score_at_ply(search_ply);
+            const EvalValue tt_score = tt_record->score_at_ply(search_ply);
             if (algorithm_detail::tt_cutoff_allowed<Node>(
-                    *record, tt_score, qsearch_tt_depth, alpha, beta)) {
+                    *tt_record, tt_score, qsearch_tt_depth, alpha, beta)) {
                 stats.q_tt_cutoff(search_ply);
                 return tt_score;
             }
 
-            tt_move = record->move;
+            tt_move = tt_record->move;
         }
     }
 
-    const bool in_check   = board.is_check();
-    int        move_count = 0;
-    EvalValue  best_value = -eval_value::inf;
-    Move       best_move  = NULL_MOVE;
+    const bool in_check    = board.is_check();
+    int        move_count  = 0;
+    EvalValue  best_value  = -eval_value::inf;
+    Move       best_move   = NULL_MOVE;
+    EvalValue  static_eval = TTRecord::no_static_eval;
 
     // Step 4. Stand pat.
     if (!in_check) {
-        best_value = eval::evaluate(board);
+        static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
+                                                                : eval::evaluate(board);
+        best_value  = static_eval;
         if (best_value >= beta) {
             if constexpr (UseTt) {
                 tt.store(position_key,
@@ -501,7 +512,8 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
                          best_value,
                          qsearch_tt_depth,
                          TTBound::LowerBound,
-                         search_ply);
+                         search_ply,
+                         static_eval);
             }
             return best_value;
         }
@@ -536,8 +548,13 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
                 pv->update(move, child_pv);
             stats.beta_cutoff(search_ply, move_count);
             if constexpr (UseTt) {
-                tt.store(
-                    position_key, move, value, qsearch_tt_depth, TTBound::LowerBound, search_ply);
+                tt.store(position_key,
+                         move,
+                         value,
+                         qsearch_tt_depth,
+                         TTBound::LowerBound,
+                         search_ply,
+                         static_eval);
             }
             return value;
         }
@@ -558,8 +575,13 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
     if (in_check && move_count == 0) {
         best_value = -eval_value::mate + search_ply;
         if constexpr (UseTt) {
-            tt.store(
-                position_key, NULL_MOVE, best_value, qsearch_tt_depth, TTBound::Exact, search_ply);
+            tt.store(position_key,
+                     NULL_MOVE,
+                     best_value,
+                     qsearch_tt_depth,
+                     TTBound::Exact,
+                     search_ply,
+                     static_eval);
         }
         return best_value;
     }
@@ -571,7 +593,8 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
                  best_value,
                  qsearch_tt_depth,
                  tt_bound_for_window(best_value, original_alpha, beta),
-                 search_ply);
+                 search_ply,
+                 static_eval);
     }
 
     return best_value;

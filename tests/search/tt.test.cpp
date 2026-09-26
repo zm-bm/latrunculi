@@ -22,6 +22,7 @@ struct TTExpectedSnapshot {
     EvalValue score;
     int       depth;
     TTBound   bound;
+    EvalValue static_eval;
 };
 
 [[nodiscard]] bool
@@ -29,7 +30,8 @@ matches_expected_snapshot(const TTRecord&                          record,
                           const std::array<TTExpectedSnapshot, 4>& expected_snapshots) {
     for (const auto& expected : expected_snapshots) {
         if (record.move == expected.move && record.score == expected.score
-            && record.depth == expected.depth && record.bound == expected.bound) {
+            && record.depth == expected.depth && record.bound == expected.bound
+            && record.static_eval == expected.static_eval) {
             return true;
         }
     }
@@ -71,13 +73,15 @@ void expect_record(PositionKey zkey,
                    Move        expected_move,
                    int         expected_score,
                    int         expected_depth,
-                   TTBound     expected_bound) {
+                   TTBound     expected_bound,
+                   EvalValue   expected_static_eval = TTRecord::no_static_eval) {
     auto entry = tt.probe(zkey);
     ASSERT_TRUE(entry.has_value());
     EXPECT_EQ(expected_move, entry->move);
     EXPECT_EQ(expected_score, entry->score);
     EXPECT_EQ(expected_depth, entry->depth);
     EXPECT_EQ(expected_bound, entry->bound);
+    EXPECT_EQ(expected_static_eval, entry->static_eval);
 }
 } // namespace
 
@@ -98,6 +102,12 @@ TEST_F(TTTest, StoreAndProbe) {
     expect_record(key, move, score, depth, bound);
 }
 
+TEST_F(TTTest, EntryAndClusterStorageShapeRemainsFixed) {
+    EXPECT_EQ(16U, sizeof(TTEntry));
+    EXPECT_EQ(64U, sizeof(TTCluster));
+    EXPECT_EQ(64U, alignof(TTCluster));
+}
+
 TEST_F(TTTest, StoredFieldBoundariesRoundTrip) {
     for (int i = 0; i < std::numeric_limits<std::uint8_t>::max(); ++i)
         tt.advance_generation();
@@ -105,11 +115,12 @@ TEST_F(TTTest, StoredFieldBoundariesRoundTrip) {
     Move packed_move;
     packed_move.bits = std::numeric_limits<MoveBits>::max();
 
-    constexpr std::int16_t packed_score = -12345;
-    constexpr int          packed_depth = engine::max_search_ply;
-    constexpr TTBound      packed_bound = TTBound::UpperBound;
+    constexpr std::int16_t packed_score       = -12345;
+    constexpr int          packed_depth       = engine::max_search_depth;
+    constexpr TTBound      packed_bound       = TTBound::UpperBound;
+    constexpr EvalValue    packed_static_eval = std::numeric_limits<std::int16_t>::min();
 
-    tt.store(key, packed_move, packed_score, packed_depth, packed_bound, 0);
+    tt.store(key, packed_move, packed_score, packed_depth, packed_bound, 0, packed_static_eval);
 
     auto entry = tt.probe(key);
     ASSERT_TRUE(entry.has_value());
@@ -118,6 +129,49 @@ TEST_F(TTTest, StoredFieldBoundariesRoundTrip) {
     EXPECT_EQ(packed_depth, entry->depth);
     EXPECT_EQ(std::numeric_limits<std::uint8_t>::max(), entry->generation);
     EXPECT_EQ(packed_bound, entry->bound);
+    EXPECT_TRUE(entry->has_static_eval());
+    EXPECT_EQ(packed_static_eval, entry->static_eval);
+}
+
+TEST_F(TTTest, CompleteMetadataDomainRoundTrips) {
+    constexpr std::array bounds{TTBound::Exact, TTBound::LowerBound, TTBound::UpperBound};
+
+    for (int generation = 0; generation <= std::numeric_limits<std::uint8_t>::max(); ++generation) {
+        for (int stored_depth = 0; stored_depth <= engine::max_search_depth; ++stored_depth) {
+            for (TTBound stored_bound : bounds) {
+                tt.store(key, move, score, stored_depth, stored_bound, 0, -1234);
+                auto entry = tt.probe(key);
+                ASSERT_TRUE(entry.has_value());
+                EXPECT_EQ(stored_depth, entry->depth);
+                EXPECT_EQ(generation, entry->generation);
+                EXPECT_EQ(stored_bound, entry->bound);
+                EXPECT_EQ(-1234, entry->static_eval);
+            }
+        }
+        if (generation != std::numeric_limits<std::uint8_t>::max())
+            tt.advance_generation();
+    }
+}
+
+TEST_F(TTTest, CompleteCacheableStaticEvaluationDomainRoundTrips) {
+    for (int value = std::numeric_limits<std::int16_t>::min(); value < TTRecord::no_static_eval;
+         ++value) {
+        tt.store(key, move, score, depth, TTBound::Exact, 0, value);
+        auto entry = tt.probe(key);
+        ASSERT_TRUE(entry.has_value());
+        ASSERT_TRUE(entry->has_static_eval());
+        EXPECT_EQ(value, entry->static_eval);
+    }
+
+    for (EvalValue value : {EvalValue{TTRecord::no_static_eval},
+                            EvalValue{std::numeric_limits<std::int16_t>::max()} + 1,
+                            EvalValue{std::numeric_limits<std::int16_t>::min()} - 1}) {
+        tt.clear();
+        tt.store(key, move, score, depth, TTBound::Exact, 0, value);
+        auto entry = tt.probe(key);
+        ASSERT_TRUE(entry.has_value());
+        EXPECT_FALSE(entry->has_static_eval());
+    }
 }
 
 TEST_F(TTTest, ClearRemovesEntries) {
@@ -255,11 +309,11 @@ TEST_F(TTTest, ReplacementScoreUsesDepthMinusWrappedAgeDistance) {
 }
 
 TEST_F(TTTest, SameKeyNullMoveStorePreservesPreviousMoveAndUpdatesAcceptedFields) {
-    tt.store(key, move, 100, 6, TTBound::Exact, 0);
+    tt.store(key, move, 100, 6, TTBound::Exact, 0, -321);
 
     tt.store(key, NULL_MOVE, 250, 7, TTBound::LowerBound, 0);
 
-    expect_record(key, move, 250, 7, TTBound::LowerBound);
+    expect_record(key, move, 250, 7, TTBound::LowerBound, -321);
 }
 
 TEST_F(TTTest, SameKeyReplacementUsesDepthAndBoundQuality) {
@@ -385,10 +439,10 @@ TEST_F(TTTest, InvalidBoundsProbeAsMiss) {
 TEST_F(TTTest, ConcurrentStoreAndProbeYieldOnlyCompleteSnapshots) {
     constexpr PositionKey                   shared_key = 0x0F0E0D0C0B0A0908ULL;
     const std::array<TTExpectedSnapshot, 4> expected_snapshots{{
-        {Move(Square::A2, Square::A4), 111, 4, TTBound::Exact},
-        {Move(Square::B2, Square::B4), -77, 6, TTBound::LowerBound},
-        {Move(Square::C2, Square::C4), 205, 9, TTBound::UpperBound},
-        {Move(Square::D2, Square::D4), 18, 12, TTBound::Exact},
+        {Move(Square::A2, Square::A4), 111, 4, TTBound::Exact, -1200},
+        {Move(Square::B2, Square::B4), -77, 6, TTBound::LowerBound, 2300},
+        {Move(Square::C2, Square::C4), 205, 9, TTBound::UpperBound, -3400},
+        {Move(Square::D2, Square::D4), 18, 12, TTBound::Exact, 4500},
     }};
 
     constexpr int writer_iterations = 20000;
@@ -402,7 +456,13 @@ TEST_F(TTTest, ConcurrentStoreAndProbeYieldOnlyCompleteSnapshots) {
     auto writer = [&](const TTExpectedSnapshot& snapshot) {
         start_line.arrive_and_wait();
         for (int i = 0; i < writer_iterations; ++i)
-            tt.store(shared_key, snapshot.move, snapshot.score, snapshot.depth, snapshot.bound, 0);
+            tt.store(shared_key,
+                     snapshot.move,
+                     snapshot.score,
+                     snapshot.depth,
+                     snapshot.bound,
+                     0,
+                     snapshot.static_eval);
     };
 
     auto reader = [&]() {
