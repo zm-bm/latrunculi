@@ -28,9 +28,9 @@ a request authorizes several named actions, each skill stops at its own boundary
 
 | Field | Current value |
 |---|---|
-| Engine | `f376cef` (SW-17 integration) |
+| Engine | `0ff898c` (behavior-equivalent algorithm-detail cleanup after SW-17) |
 | OpenBench fingerprint | 3,798,460 nodes |
-| Cached search corpus | `tools/measurements/output/search-baseline-f376cef/` |
+| Cached search corpus | `tools/measurements/output/search-baseline-0ff898c/` |
 
 Refresh the cached corpus only after an approved integration changes the engine baseline, search
 workload, or measurement meaning.
@@ -39,6 +39,7 @@ workload, or measurement meaning.
 
 | ID | Change | Kind | Evidence | Next |
 |---|---|---|---|---|
+| ENG-002 | Recenter aspiration retries, widen by 1.5x, and reduce only the next non-mate fail-high retry by one ply | Tree-changing | Exact corpus `R_node_g = 0.9372`, `R_node_total = 0.9607`; `R_time_balanced = 0.9637` with 6/6 wins; OpenBench #30 Base `0ff898c`, Dev `53913f5` | check OpenBench #30 |
 
 ## Queue
 
@@ -56,15 +57,6 @@ were source-only at Ethereal `0e47e9b`, Stockfish `86f1df7`, and Minic `4317c14`
 mechanisms, not constants or expected outcomes.
 
 **Direct experiments**
-
-### ENG-002 — Recenter aspiration retries on the returned score
-
-On a miss, move only the failed bound to `value +/- delta`, initially retaining the current 50-point
-window and doubling schedule. The audit measured 735 misses and 6.58M retry nodes, 11.6% of the
-corpus tree; Stockfish and Minic place retry bounds from the fail-soft score, while Ethereal uses a
-different gradual-widening geometry. First compare exact retry and total nodes on the full corpus.
-Expect fewer repeated misses and retry nodes. Stop if total work does not improve or objective and
-convergence checks regress. This is distinct from SW-01's rejected 50-to-32 initial-window change.
 
 ### ENG-003 — Reuse static evaluation on same-key TT hits
 
@@ -140,23 +132,6 @@ raise alpha or cut off. Futility activates at 13.2% of 6.79M eligible nodes and 
 nonchecking-quiet trigger 626,672 times. Expect more safe late-quiet skips and a smaller tree. Stop
 if the new cell removes meaningful alpha raises or cutoffs, violates an objective check, or misses
 the fixed-depth tree-size gate.
-
-### ENG-011 — Make aspiration widening more gradual
-
-After ENG-002 is resolved, record miss distances and compare one gradual one-bound growth schedule
-without changing the initial 50-point window or retry depth. Aspiration retries are an exclusive
-6.58M nodes, or 11.6% of the corpus tree; all three references use more gradual growth than the
-current doubling schedule. Expect fewer unnecessarily wide retry trees without more repeated
-misses. Stop if retry count or total nodes rises, convergence worsens, or the effect is not distinct
-from ENG-002.
-
-### ENG-012 — Reduce fail-high aspiration retry depth
-
-After ENG-002, isolate the reference-engine pattern of reducing only the next fail-high retry depth,
-leaving window geometry unchanged. The corpus recorded 433 fail-highs and their retry work is part
-of the same exact 11.6% aspiration footprint. Expect cheaper fail-high recovery without degrading
-completed-iteration stability. Stop on lost objective solutions, unstable root convergence,
-increased total work, or no repeatable timing benefit.
 
 ### ENG-013 — Stratify LMR re-searches before testing adaptive verification depth
 
