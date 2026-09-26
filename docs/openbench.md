@@ -5,23 +5,30 @@ release-stability testing.
 
 ## Access
 
-The canonical private endpoint is
-`https://workstation-01.<tailnet>.ts.net`. Access requires the tailnet; do not
-append `:8000` or expose the service publicly. Client automation may set
-`OPENBENCH_SERVER` to that URL and use private credentials, which must not be
-committed.
+The canonical client endpoint is `https://workstation-01.<tailnet>.ts.net/`.
+On the primary development machine, its exact URL and credentials are in
+`~/.config/openbench/openbench.env` as `OPENBENCH_SERVER`,
+`OPENBENCH_USERNAME`, and `OPENBENCH_PASSWORD`. Source that file immediately
+before access; do not trust inherited values.
+
+```bash
+set -a
+source ~/.config/openbench/openbench.env
+set +a
+```
+
+Use the credentials only with the configured HTTPS `workstation-01` URL, and
+never print or commit them.
 
 Verify the peer and returned application separately:
 
 ```bash
 tailscale ping workstation-01
-curl --fail https://workstation-01.<tailnet>.ts.net/
+curl --fail "$OPENBENCH_SERVER/"
 ```
 
-A reachable peer or an HTTP response alone is insufficient: confirm that the
-response is the OpenBench application. Deployment, services, persistent state,
-backups, worker capacity, and NixOS integration belong to the OpenBench fork
-and its `Deploy/README.md`, not this repository.
+Confirm that the response is OpenBench, not merely that the peer is reachable.
+Deployment details belong to the OpenBench fork and its `Deploy/README.md`.
 
 ## Testing
 

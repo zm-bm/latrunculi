@@ -5,9 +5,10 @@ description: Read one Latrunculi OpenBench test status or terminal result withou
 
 # Check a Latrunculi OpenBench Test
 
-Read `docs/openbench.md` and use `docs/engine-development.md` for current candidate state. A request
-to check a test authorizes one read only; never poll, sleep, monitor repeatedly, stop, modify,
-replace, submit, or integrate.
+Read `docs/openbench.md` and use `docs/engine-development.md` for current candidate state. Source
+the documented private client config immediately before the fetch; use its HTTPS `workstation-01`
+URL. A request to check a test authorizes one read only; never poll, sleep, monitor repeatedly,
+stop, modify, replace, submit, or integrate.
 
 ## Check Once
 
