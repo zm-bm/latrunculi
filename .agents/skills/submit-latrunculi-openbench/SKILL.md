@@ -11,21 +11,23 @@ protocol. This skill performs one externally mutating action and then stops.
 ## Verify
 
 1. Require a named tree-changing candidate whose offline evidence passed against the current
-   baseline. Return stale or incomplete work with `Next: test offline`.
-2. Inspect the worktree, retained patch, baseline, offline result, required risk tests, and existing
-   Git history. Confirm that no other OpenBench test is active and no matching test already exists.
+   baseline and whose local candidate branch and commit were recorded for review. Return stale,
+   incomplete, or unmaterialized work to `test-latrunculi-candidate`.
+2. Inspect the worktree, retained patch, recorded candidate revision, baseline, offline result,
+   required risk tests, and existing Git history. Require the candidate commit's parent and tree
+   difference to match the tested baseline and patch exactly. Confirm that no other OpenBench test
+   is active and no matching test already exists.
 3. Fix the Base and Dev revisions, settings, and termination rule before publication.
 
 ## Publish and Submit
 
-An explicit request to submit the candidate authorizes the necessary candidate branch, candidate
-commit, push, OpenBench submission, and one immediate read-back. It does not authorize later
-checks or integration.
+An explicit request to submit the candidate authorizes pushing the recorded candidate branch,
+OpenBench submission, and one immediate read-back. It does not authorize rewriting the candidate,
+later checks, or integration.
 
-Create the lowercase candidate branch from the tested baseline, apply only the retained patch,
-verify the resulting diff and benchmark identity, commit it, and push it. The published commit is
-the candidate identity. If it already exists, verify and reuse it. Never amend, rebase, force-push,
-or otherwise rewrite a published or tested revision.
+Verify and push the already-reviewed local candidate commit without recreating it from the patch.
+The published commit must be the same immutable candidate identity recorded by offline testing.
+Never amend, rebase, force-push, or otherwise rewrite a reviewed, published, or tested revision.
 
 Submit one test using `docs/openbench.md`. Fetch once to verify the canonical test ID, revisions,
 settings, and running state. Return to the original branch, record the test reference in

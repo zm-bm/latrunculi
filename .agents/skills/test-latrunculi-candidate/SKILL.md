@@ -1,6 +1,6 @@
 ---
 name: test-latrunculi-candidate
-description: Test one retained Latrunculi playing-strength candidate against the current operational baseline using cheap checks followed by the complete offline evidence. Use for formal offline testing, retesting a stale candidate, or resuming an interrupted offline test.
+description: Test one retained Latrunculi playing-strength candidate against the current operational baseline using cheap checks followed by the complete offline evidence, then materialize a passing candidate as one local unpushed revision for review. Use for formal offline testing, retesting a stale candidate, or resuming an interrupted offline test.
 ---
 
 # Test a Latrunculi Candidate Offline
@@ -31,9 +31,10 @@ or collection failure.
 
 ## Finish
 
-- **Tree-preserving pass:** restore the baseline and move it to **Candidates** with `Next: integrate`.
-- **Tree-changing pass:** restore the baseline and move it to **Candidates** with
-  `Next: submit OpenBench`.
+- **Tree-preserving pass:** materialize the candidate review identity described below, restore the
+  baseline, and move it to **Candidates** with `Next: integrate`.
+- **Tree-changing pass:** materialize the candidate review identity described below, restore the
+  baseline, and move it to **Candidates** with `Next: submit OpenBench`.
 - **Rejected:** restore the baseline, move one concise result to **Recent results**, and remove the
   candidate's task-owned patch and raw output unless they are unusually informative. Never remove
   pre-existing historical artifacts.
@@ -41,4 +42,13 @@ or collection failure.
   `Next: test offline` and the exact resume condition.
 
 For a pass, retain `candidate.patch`, the generated measurement inputs and summary, and one short
-result. Never commit, create a candidate branch, push, run games, access OpenBench, or integrate.
+result. Only after every required check passes, use an isolated worktree to create one lowercase
+candidate branch from the tested baseline, apply exactly `candidate.patch`, and create one local
+candidate commit containing no board, evidence, or unrelated changes. If the branch already
+exists, require its baseline and candidate tree to match exactly; never overwrite or rewrite it.
+Verify that the candidate commit's tree difference from its parent is exactly the tested patch.
+Record the branch, full commit SHA, and parent baseline in the result; record the branch, short SHA,
+and parent baseline in the candidate row. Return to the original checkout and report
+`git diff <baseline>...<branch>` and `git show <commit>` as the review commands. The local commit is
+the immutable candidate identity for later submission or integration. Never push, run games,
+access OpenBench, or integrate.
