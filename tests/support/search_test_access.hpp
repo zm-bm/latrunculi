@@ -44,10 +44,6 @@ public:
         return worker.quiescence<Node>(alpha, beta, pv);
     }
 
-    static int null_move_reduction(int depth, EvalValue static_eval, EvalValue beta) noexcept {
-        return search::Worker::null_move_reduction(depth, static_eval, beta);
-    }
-
     static void build_root_lines(search::Worker& worker) { worker.build_root_lines(); }
 
     static EvalValue search_root(search::Worker& worker) { return worker.search_root(); }

@@ -101,8 +101,7 @@ private:
                         PrincipalVariation* pv       = nullptr,
                         bool                can_null = true);
     template <NodeType Node = NodeType::NonPv, bool UseTt = true>
-    EvalValue  quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
-    static int null_move_reduction(int depth, EvalValue static_eval, EvalValue beta) noexcept;
+    EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
 
     // Accounting and limits.
     Milliseconds runtime() const;

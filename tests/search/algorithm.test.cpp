@@ -11,6 +11,7 @@
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/generator.hpp"
+#include "search/algorithm_detail.hpp"
 #include "search/ordering/picker.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
@@ -311,7 +312,7 @@ TEST(NullMoveReductionTest, AdaptsToDepthAndStaticSurplusWithinBounds) {
 
     for (const auto& tc : cases) {
         SCOPED_TRACE(tc.name);
-        EXPECT_EQ(SearchTestAccess::null_move_reduction(tc.depth, tc.static_eval, tc.beta),
+        EXPECT_EQ(algorithm_detail::null_move_reduction(tc.depth, tc.static_eval, tc.beta),
                   tc.expected);
     }
 }

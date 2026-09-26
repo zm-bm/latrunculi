@@ -1,135 +1,16 @@
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cmath>
 
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/generator.hpp"
+#include "search/algorithm_detail.hpp"
 #include "search/ordering/picker.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
 
 namespace search {
-
-namespace {
-
-// Aspiration-window defaults.
-constexpr EvalValue AspirationWindow = 50;
-
-constexpr std::array<int, 20> HelperDepthSkipSize{
-    1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
-};
-constexpr std::array<int, 20> HelperDepthSkipPhase{
-    0, 1, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7,
-};
-
-// Null-move pruning defaults.
-constexpr int       NullMoveMinDepth        = 3;
-constexpr int       NullMoveReductionBase   = 3;
-constexpr int       NullMoveReductionMax    = 6;
-constexpr int       NullMoveDepthDivisor    = 7;
-constexpr EvalValue NullMoveSurplusPerPly   = 2 * eval::pawn.mg;
-constexpr int       NullMoveSurplusBonusMax = 2;
-
-// Razoring and futility defaults.
-constexpr int RazorMaxDepth    = 3;
-constexpr int FutilityMaxDepth = 3;
-constexpr int RazorMargin[]    = {0, 500, 900, 1800};
-constexpr int FutilityMargin[] = {0, 250, 400, 550};
-
-// Late-move reduction defaults.
-constexpr int LmrMinDepth     = 3;
-constexpr int LmrMinMoveCount = 4;
-
-// Late-move pruning defaults.
-constexpr int LateMovePruningDepth     = 2;
-constexpr int LateMovePruningMoveCount = 12;
-
-// Quiet-history malus defaults.
-constexpr int QuietMalusMinDepth  = 4;
-constexpr int QuietMalusMinFailed = 2;
-constexpr int QuietMalusDivisor   = 2;
-
-// Apply the PV/non-PV TT cutoff policy.
-template <NodeType Node>
-bool tt_cutoff_allowed(
-    const TTRecord& record, EvalValue adjusted_score, int depth, EvalValue alpha, EvalValue beta) {
-    if constexpr (Node == NodeType::Pv)
-        return int(record.depth) >= depth && record.bound == TTBound::Exact;
-
-    return record.can_cutoff(adjusted_score, depth, alpha, beta);
-}
-
-// Late-move reduction formula.
-template <NodeType Node>
-int lmr_reduction(int  depth,
-                  int  move_count,
-                  bool is_quiet,
-                  bool is_promotion,
-                  bool in_check,
-                  bool gives_check,
-                  bool is_killer) {
-    if (depth < LmrMinDepth || move_count < LmrMinMoveCount)
-        return 0;
-
-    // Do not reduce moves that create immediate tactical obligations.
-    if (is_promotion || in_check || gives_check)
-        return 0;
-
-    // Use the LMR formula as a starting point.
-    const double base = is_quiet ? 1.25 : 0.75;
-    const double div  = is_quiet ? 2.5 : 3.3;
-    double       r    = base + std::log(depth) * std::log(move_count) / div;
-
-    // Reduce less for PV and killer moves.
-    if constexpr (Node == NodeType::Pv)
-        r *= 0.7;
-    if (is_killer)
-        r *= 0.8;
-
-    // Do not extend or drop straight into qsearch.
-    return std::clamp(static_cast<int>(r), 1, depth - 2);
-}
-
-struct FailedQuiets {
-    static constexpr int Capacity = 32;
-
-    bool add(Move move) {
-        if (count_ >= Capacity)
-            return false;
-
-        moves_[count_++] = move;
-        return true;
-    }
-
-    int size() const { return count_; }
-
-    template <typename Fn>
-    void for_each(Fn fn) const {
-        for (int i = 0; i < count_; ++i)
-            fn(moves_[i]);
-    }
-
-private:
-    Move moves_[Capacity];
-    int  count_{0};
-};
-
-} // namespace
-
-int Worker::null_move_reduction(const int       depth,
-                                const EvalValue static_eval,
-                                const EvalValue beta) noexcept {
-    assert(depth >= NullMoveMinDepth);
-
-    const EvalValue positive_surplus = std::max(static_eval - beta, EvalValue{0});
-    const int       surplus_bonus =
-        std::min(int(positive_surplus / NullMoveSurplusPerPly), NullMoveSurplusBonusMax);
-    const int reduction = NullMoveReductionBase + depth / NullMoveDepthDivisor + surplus_bonus;
-
-    return std::min({depth, NullMoveReductionMax, reduction});
-}
 
 // Main root search driver.
 EvalValue Worker::search_root() {
@@ -157,13 +38,17 @@ bool Worker::should_search_root_depth(int depth) const noexcept {
         return true;
 
     // Stagger helper depths to diversify shared-TT work.
-    const size_t index = static_cast<size_t>(worker_id - 1) % HelperDepthSkipSize.size();
-    return ((depth + HelperDepthSkipPhase[index]) / HelperDepthSkipSize[index]) % 2 == 0;
+    const size_t index =
+        static_cast<size_t>(worker_id - 1) % algorithm_detail::HelperDepthSkipSize.size();
+    return ((depth + algorithm_detail::HelperDepthSkipPhase[index])
+            / algorithm_detail::HelperDepthSkipSize[index])
+             % 2
+        == 0;
 }
 
 // Root aspiration loop for a single depth.
 bool Worker::search_root_depth(int depth, EvalValue previous_value) {
-    EvalValue delta = AspirationWindow;
+    EvalValue delta = algorithm_detail::AspirationWindow;
     EvalValue alpha = std::max(previous_value - delta, -eval_value::inf);
     EvalValue beta  = std::min(previous_value + delta, eval_value::inf);
 
@@ -323,7 +208,7 @@ EvalValue Worker::alphabeta(
 
         const TTRecord& record   = *tt_record;
         const EvalValue tt_score = record.score_at_ply(search_ply);
-        if (tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
+        if (algorithm_detail::tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
             stats.main_tt_cutoff(search_ply);
             return tt_score;
         }
@@ -338,8 +223,8 @@ EvalValue Worker::alphabeta(
     if constexpr (Node == NodeType::NonPv) {
         // Step 5. Razoring.
         const EvalValue static_eval = eval::evaluate(board);
-        if (can_null && !in_check && depth <= RazorMaxDepth && tt_move.is_null()
-            && static_eval + RazorMargin[depth] <= alpha) {
+        if (can_null && !in_check && depth <= algorithm_detail::RazorMaxDepth && tt_move.is_null()
+            && static_eval + algorithm_detail::RazorMargin[depth] <= alpha) {
             stats.razor_try(search_ply);
             const EvalValue value = quiescence<NodeType::NonPv>(alpha - 1, alpha);
             if (stop_requested())
@@ -356,16 +241,17 @@ EvalValue Worker::alphabeta(
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
                                 && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(search_ply) < beta;
-        if (can_null && !in_check && depth <= FutilityMaxDepth && beta > -eval_value::mate_bound
-            && beta < eval_value::mate_bound && board.non_pawn_material(side) > eval::piece(ROOK).mg
-            && !tt_upper_veto && static_eval - FutilityMargin[depth] >= beta)
+        if (can_null && !in_check && depth <= algorithm_detail::FutilityMaxDepth
+            && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
+            && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto
+            && static_eval - algorithm_detail::FutilityMargin[depth] >= beta)
             return static_eval;
 
-        if (can_null && !in_check && depth >= NullMoveMinDepth
+        if (can_null && !in_check && depth >= algorithm_detail::NullMoveMinDepth
             && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto) {
             stats.null_move_try(search_ply);
 
-            const int reduction = null_move_reduction(depth, static_eval, beta);
+            const int reduction = algorithm_detail::null_move_reduction(depth, static_eval, beta);
 
             board.make_null();
             ++search_ply;
@@ -384,8 +270,9 @@ EvalValue Worker::alphabeta(
         }
 
         // Prepare shallow futility pruning. The move loop performs the actual skip.
-        futility = depth <= FutilityMaxDepth && !in_check && alpha > -eval_value::mate_bound
-                && alpha < eval_value::mate_bound && static_eval + FutilityMargin[depth] <= alpha;
+        futility = depth <= algorithm_detail::FutilityMaxDepth && !in_check
+                && alpha > -eval_value::mate_bound && alpha < eval_value::mate_bound
+                && static_eval + algorithm_detail::FutilityMargin[depth] <= alpha;
     }
 
     // Step 7. Move ordering and quiet-malus tracking.
@@ -398,10 +285,10 @@ EvalValue Worker::alphabeta(
     auto       picker =
         ordering::Picker::for_main_search(board, ordering_state, context, search_ply, tt_move);
 
-    PrincipalVariation child_pv;
-    FailedQuiets       failed_quiets;
+    PrincipalVariation             child_pv;
+    algorithm_detail::FailedQuiets failed_quiets;
 
-    const bool allow_quiet_malus = depth >= QuietMalusMinDepth && !in_check;
+    const bool allow_quiet_malus = depth >= algorithm_detail::QuietMalusMinDepth && !in_check;
     if (allow_quiet_malus)
         stats.quiet_malus_eligible_node(depth);
 
@@ -422,9 +309,9 @@ EvalValue Worker::alphabeta(
 
         bool history_lmp_candidate = false;
         if constexpr (Node == NodeType::NonPv) {
-            history_lmp_candidate = depth == LateMovePruningDepth
-                                 && move_count > LateMovePruningMoveCount && !futility && !in_check
-                                 && best_value > -eval_value::mate_bound
+            history_lmp_candidate = depth == algorithm_detail::LateMovePruningDepth
+                                 && move_count > algorithm_detail::LateMovePruningMoveCount
+                                 && !futility && !in_check && best_value > -eval_value::mate_bound
                                  && alpha > -eval_value::mate_bound && beta < eval_value::mate_bound
                                  && board.non_pawn_material(side) > 0 && is_ordinary_quiet
                                  && move != tt_move && !is_killer && !is_counter
@@ -455,7 +342,7 @@ EvalValue Worker::alphabeta(
         // Step 11. Late-move reductions.
         // If the reduced search beats alpha, research the move at full depth.
         EvalValue value;
-        const int reduction = lmr_reduction<Node>(
+        const int reduction = algorithm_detail::lmr_reduction<Node>(
             depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer);
         if (reduction > 0) {
             stats.lmr_try(search_ply - 1);
@@ -502,10 +389,11 @@ EvalValue Worker::alphabeta(
                 stats.quiet_cutoff(depth);
                 ordering_state.update_quiet_refutations(context, move, search_ply);
                 ordering_state.reward_quiet(context, board, move, depth);
-                if (allow_quiet_malus && failed_quiets.size() >= QuietMalusMinFailed) {
+                if (allow_quiet_malus
+                    && failed_quiets.size() >= algorithm_detail::QuietMalusMinFailed) {
                     failed_quiets.for_each([&](Move quiet) {
                         ordering_state.penalize_quiet(
-                            context, board, quiet, depth, QuietMalusDivisor);
+                            context, board, quiet, depth, algorithm_detail::QuietMalusDivisor);
                         stats.quiet_malus_update(depth);
                     });
                 }
@@ -588,7 +476,8 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
             stats.q_tt_hit(search_ply);
 
             const EvalValue tt_score = record->score_at_ply(search_ply);
-            if (tt_cutoff_allowed<Node>(*record, tt_score, qsearch_tt_depth, alpha, beta)) {
+            if (algorithm_detail::tt_cutoff_allowed<Node>(
+                    *record, tt_score, qsearch_tt_depth, alpha, beta)) {
                 stats.q_tt_cutoff(search_ply);
                 return tt_score;
             }
