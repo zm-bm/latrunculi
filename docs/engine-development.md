@@ -28,9 +28,9 @@ a request authorizes several named actions, each skill stops at its own boundary
 
 | Field | Current value |
 |---|---|
-| Engine | `c8bfedd` (SW-14 integration) |
+| Engine | `3ddf138` (ENG-001 integration) |
 | OpenBench fingerprint | 5,101,317 nodes |
-| Cached search corpus | `tools/measurements/output/search-baseline-c8bfedd/` |
+| Cached search corpus | `tools/measurements/output/search-baseline-3ddf138/` |
 
 Refresh the cached corpus only after an approved integration changes the engine baseline, search
 workload, or measurement meaning.
@@ -57,14 +57,6 @@ were source-only at Ethereal `0e47e9b`, Stockfish `86f1df7`, and Minic `4317c14`
 mechanisms, not constants or expected outcomes.
 
 **Direct experiments**
-
-### ENG-001 — Precompute exact check-danger scaling
-
-Replace `calculate_check_danger`'s runtime division with an exhaustive constexpr piece/count lookup
-that returns identical integers. The divided line is about 9% of evaluator cycles, while evaluation
-is about 39--40% of search cycles. First compare the standalone evaluator and unchanged fixed-depth
-corpus. Expect identical checksums and search signatures with lower evaluation and search time. Stop
-on any value/signature change or if the tree-preserving timing gain is not repeatable.
 
 ### ENG-002 — Recenter aspiration retries on the returned score
 
@@ -224,6 +216,7 @@ or the required state/evaluation work costs more than the prospective tree chang
 
 | ID | Change | Evidence | Result |
 |---|---|---|---|
+| ENG-001 | Replace runtime check-danger division with exact function-local constexpr piece/count tables | Complete 128-state domain; exact evaluator checksum, two 5,101,317-node benchmarks, repeated 200-position corpus and 61 sentinel signatures; Release and ASan/UBSan passed; stable `R_time_balanced` 0.9871 with 6/6 wins | Integrated as `3ddf138`; tree-preserving, so games were skipped |
 | SW-16 | Add one LMR ply to NonPV quiets with combined history at most -1 | Exploration found 169,273 effective opportunities; one complete corpus pass produced `R_node_g` 0.9937 and `R_node_total` 0.9868; benchmark fingerprint 6,014,947 nodes | Null result; missed the 0.9900 smaller-tree gate, so formal offline testing and games were not run |
 | SW-15 | Replace locked per-node RMW with single-writer relaxed atomic load/store | Exact 5,101,317-node benchmark and 200-position corpus; complete tests, TSan, and 1/2/4-thread risk checks passed; balanced timing ratio 1.0217 with 1/6 wins | Rejected; missed the 0.9925 minimum-speedup threshold |
 | SW-14 | Target-scoped release IPO/LTO | Exact Clang/GCC 5,101,317-node fingerprints and 200-position corpus; 3/3 CTest; integrated binaries match offline evidence; balanced timing ratio 0.9358 with 6/6 wins | Integrated as `c8bfedd`; tree-preserving, so games were skipped |
