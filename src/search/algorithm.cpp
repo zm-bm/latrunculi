@@ -48,9 +48,10 @@ bool Worker::should_search_root_depth(int depth) const noexcept {
 
 // Root aspiration loop for a single depth.
 bool Worker::search_root_depth(int depth, EvalValue previous_value) {
-    EvalValue delta = algorithm_detail::AspirationWindow;
-    EvalValue alpha = std::max(previous_value - delta, -eval_value::inf);
-    EvalValue beta  = std::min(previous_value + delta, eval_value::inf);
+    EvalValue delta       = algorithm_detail::AspirationWindow;
+    EvalValue alpha       = std::max(previous_value - delta, -eval_value::inf);
+    EvalValue beta        = std::min(previous_value + delta, eval_value::inf);
+    int       retry_depth = depth;
 
     while (!stop_requested()) {
         // Keep root order but clear stale attempt state.
@@ -58,8 +59,8 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
             line.reset_attempt();
         }
 
-        // Search this depth inside the current aspiration window.
-        if (!search_root_window(depth, alpha, beta))
+        // Search this attempt while retaining the nominal iteration depth.
+        if (!search_root_window(retry_depth, depth, alpha, beta))
             return false;
 
         // Promote the best completed root line.
@@ -70,13 +71,17 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
         assert(value > -eval_value::inf && value < eval_value::inf);
 
         if (value <= alpha) {
-            // Fail low: widen the lower bound and re-search.
+            // Fail low: recenter the lower bound and retry at full depth.
             stats.aspiration_fail_low();
-            alpha = std::max(alpha - delta, -eval_value::inf);
+            alpha       = std::max(value - delta, -eval_value::inf);
+            retry_depth = algorithm_detail::aspiration_retry_depth(
+                depth, value, algorithm_detail::AspirationMiss::FailLow);
         } else if (value >= beta) {
-            // Fail high: widen the upper bound and re-search.
+            // Fail high: recenter the upper bound and guard mate-like retries.
             stats.aspiration_fail_high();
-            beta = std::min(beta + delta, eval_value::inf);
+            beta        = std::min(value + delta, eval_value::inf);
+            retry_depth = algorithm_detail::aspiration_retry_depth(
+                depth, value, algorithm_detail::AspirationMiss::FailHigh);
         } else {
             // Window hit: accept and publish the completed depth.
             root_result = best_line;
@@ -87,15 +92,20 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
         }
 
         // Increase retry width after each aspiration miss.
-        delta = delta >= eval_value::inf / 2 ? eval_value::inf : delta * 2;
+        delta = algorithm_detail::widen_aspiration_delta(delta);
     }
 
     return false;
 }
 
 // Fixed-window root pass. Caller owns attempt reset and result ordering.
-bool Worker::search_root_window(int depth, EvalValue alpha, EvalValue beta) {
+bool Worker::search_root_window(int       search_depth,
+                                int       nominal_depth,
+                                EvalValue alpha,
+                                EvalValue beta) {
     assert(!root_lines.empty());
+    assert(search_depth >= 1);
+    assert(nominal_depth >= search_depth);
 
     int  move_count  = 0;
     bool has_pv_move = false;
@@ -117,13 +127,13 @@ bool Worker::search_root_window(int depth, EvalValue alpha, EvalValue beta) {
         PrincipalVariation child_pv;
         EvalValue          value;
         if (move_count == 1 || !has_pv_move) {
-            value = -alphabeta<NodeType::Pv>(-beta, -alpha, depth - 1, &child_pv);
+            value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, &child_pv);
         } else {
-            value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, depth - 1);
+            value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, search_depth - 1);
             if (!stop_requested() && value > alpha) {
                 stats.pvs_research(search_ply);
                 child_pv.clear();
-                value = -alphabeta<NodeType::Pv>(-beta, -alpha, depth - 1, &child_pv);
+                value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, &child_pv);
             }
         }
 
@@ -134,7 +144,7 @@ bool Worker::search_root_window(int depth, EvalValue alpha, EvalValue beta) {
         if (stop_requested())
             return false;
 
-        line.complete(depth, value, child_pv);
+        line.complete(nominal_depth, value, child_pv);
 
         // Let aspiration handle the fail-high window miss.
         if (value >= beta)

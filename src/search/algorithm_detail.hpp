@@ -14,6 +14,27 @@ namespace search::algorithm_detail {
 // Aspiration-window defaults.
 inline constexpr EvalValue AspirationWindow = 50;
 
+enum class AspirationMiss { FailLow, FailHigh };
+
+inline int aspiration_retry_depth(const int            nominal_depth,
+                                  const EvalValue      value,
+                                  const AspirationMiss miss) noexcept {
+    assert(nominal_depth >= 1);
+
+    if (miss == AspirationMiss::FailLow || value <= -eval_value::mate_bound
+        || value >= eval_value::mate_bound)
+        return nominal_depth;
+
+    return std::max(1, nominal_depth - 1);
+}
+
+inline EvalValue widen_aspiration_delta(const EvalValue delta) noexcept {
+    assert(delta > 0 && delta <= eval_value::inf);
+
+    const EvalValue growth = delta / 2;
+    return delta >= eval_value::inf - growth ? eval_value::inf : delta + growth;
+}
+
 inline constexpr std::array<int, 20> HelperDepthSkipSize{
     1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
 };

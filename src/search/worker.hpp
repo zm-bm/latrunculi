@@ -83,11 +83,11 @@ private:
     EvalValue search_root();
     RootLine  terminal_root_result() const;
     bool      search_root_depth(int depth, EvalValue previous_value);
-    bool      search_root_window(int depth, EvalValue alpha, EvalValue beta);
-    void      finalize_root_result(EvalValue value);
-    void      prepare_final_result();
-    void      publish_final_result();
-    void      report_root_progress(const RootLine& line);
+    bool search_root_window(int search_depth, int nominal_depth, EvalValue alpha, EvalValue beta);
+    void finalize_root_result(EvalValue value);
+    void prepare_final_result();
+    void publish_final_result();
+    void report_root_progress(const RootLine& line);
 
     // Root snapshot publication.
     void clear_root_snapshot();

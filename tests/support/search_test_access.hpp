@@ -56,9 +56,12 @@ public:
         return worker.search_root_depth(depth, previous_value);
     }
 
-    static bool
-    search_root_window(search::Worker& worker, int depth, EvalValue alpha, EvalValue beta) {
-        return worker.search_root_window(depth, alpha, beta);
+    static bool search_root_window(search::Worker& worker,
+                                   int             search_depth,
+                                   int             nominal_depth,
+                                   EvalValue       alpha,
+                                   EvalValue       beta) {
+        return worker.search_root_window(search_depth, nominal_depth, alpha, beta);
     }
 
     static void report_root_progress(search::Worker& worker, const search::RootLine& line) {
