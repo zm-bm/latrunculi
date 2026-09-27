@@ -8,6 +8,7 @@
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/generator.hpp"
+#include "search/algorithm_detail.hpp"
 #include "search/root_line.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
@@ -127,7 +128,8 @@ TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
     const RootLine winning_line = *winning_it;
     lines()                     = {first_line, winning_line};
 
-    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 1, -eval_value::inf, eval_value::inf));
+    ASSERT_TRUE(
+        SearchTestAccess::search_root_window(worker, 1, 1, -eval_value::inf, eval_value::inf));
     EXPECT_GT(lines()[1].value, lines()[0].value);
     EXPECT_EQ(progress_count(1), 2);
 
@@ -234,6 +236,42 @@ TEST_F(RootSearchTest, WidensAspirationWindowAfterFailLowAndFailHigh) {
         }
 #endif
     }
+}
+
+TEST(AspirationPolicyTest, SelectsOnlyTheImmediatelyFollowingRetryDepth) {
+    using algorithm_detail::aspiration_retry_depth;
+    using algorithm_detail::AspirationMiss;
+
+    EXPECT_EQ(aspiration_retry_depth(6, 200, AspirationMiss::FailHigh), 5);
+    EXPECT_EQ(aspiration_retry_depth(1, 200, AspirationMiss::FailHigh), 1);
+    EXPECT_EQ(aspiration_retry_depth(6, 200, AspirationMiss::FailLow), 6);
+
+    EXPECT_EQ(aspiration_retry_depth(6, eval_value::mate_bound, AspirationMiss::FailHigh), 6);
+    EXPECT_EQ(aspiration_retry_depth(6, -eval_value::mate_bound, AspirationMiss::FailHigh), 6);
+}
+
+TEST(AspirationPolicyTest, WidensGraduallyAndSaturatesAtInfinity) {
+    using algorithm_detail::widen_aspiration_delta;
+
+    EXPECT_EQ(widen_aspiration_delta(50), 75);
+    EXPECT_EQ(widen_aspiration_delta(75), 112);
+    EXPECT_EQ(widen_aspiration_delta(eval_value::inf - 1), eval_value::inf);
+    EXPECT_EQ(widen_aspiration_delta(eval_value::inf), eval_value::inf);
+}
+
+TEST_F(RootSearchTest, ReducedAspirationRetryPublishesNominalDepth) {
+    Board board{board_test::fen::start};
+    load(board, 3);
+    build_lines();
+
+    ASSERT_TRUE(SearchTestAccess::search_root_depth(worker, 3, -1000));
+    EXPECT_TRUE(result().completed);
+    EXPECT_EQ(result().depth, 3);
+    EXPECT_EQ(worker.root_snapshot().depth, 3);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_GT(counters().aspiration_fail_highs, 0U);
+#endif
 }
 
 TEST_F(RootSearchTest, StoppedAspirationPreservesLastAcceptedSnapshot) {
