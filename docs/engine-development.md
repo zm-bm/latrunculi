@@ -101,25 +101,63 @@ too sparse, close unresolved with the observed counts instead of weakening the g
 
 **Higher potential**
 
-### ENG-019 — Reward clear and safe passed-pawn paths
+### ENG-031 — Attribute endgame pawn-structure evaluation gaps
 
-**Start:** tree-changing feature experiment; runnable first. Latrunculi values a true passer by
-relative rank alone. Six persistent game errors and two 200+ cp errors in a 12-position
-promotion-race sample implicate path context, while qsearch already sees immediate promotions.
+**Start:** causal diagnostic, not a candidate; runnable now that ENG-019, ENG-022, and ENG-023 are
+terminal. Those nulls reject their tested one-dimensional models, not the broader pawn-evaluation
+hypothesis. ENG-019's exact clear-and-safe-path implementation reconstructed correctly and its
+1/4-rank bonus reduced development errors of at least 100 cp from nine to four, but validation
+worsened from four to five with one repair and two new errors. ENG-022's promotion-catch and
+king-proximity predicates explained zero and one development errors, respectively; ENG-023's
+protected and connected predicates likewise explained zero and one. Their geometry and score
+reconstruction checks passed, so do not retry those predicates, amplitudes, or panel memberships as
+standalone hypotheses.
 
-**Try:** keep the current passer definition. A path is clear when every square through promotion is
-empty; a next push is safe when its forward square is on board and absent from the complete enemy
-attack map after hypothetically making the push. Award an endgame-only bonus only when both hold,
-testing 1/8, 1/4, and 1/2 of the baseline endgame passer bonus for that relative rank. Exclude king,
-support, candidate-passer, rook-placement, and extension logic, and require reconstructed evaluation
-to reproduce the term exactly. Apply the shared protocol to relative ranks three through six with
-clear-and-safe, clear-but-attacked, and blocked cells. Unit-test both colors, all enemy attack
-classes, occupied path and next squares, discovered slider attacks after the hypothetical push,
-and promotion-edge geometry; compare static deltas and 50k/500k move loss.
+Current direct pawn evaluation consists of isolated, backward, doubled, and rank-indexed true
+passers. Inventory those terms together with pawn PSQT, outposts, pawn-limited mobility, threats,
+minor shielding, bishop blockers, rook files, shelter/storm, phase tapering, and pawn-count endgame
+scaling so existing interactions are not mistaken for missing features. Before measuring outcomes,
+freeze a feature matrix comparing Latrunculi with pinned Ethereal `0e47e9b`, Minic `4317c14`,
+Stockfish `86f1df7`, and the [Chess Programming Wiki pawn-structure taxonomy][cpw-pawns]. Group
+mechanisms as weak-pawn structure and mobility; connectivity and passer creation; true-passer
+advancement and race context; and pawn-dependent piece, king, and endgame-scaling interactions.
+Record definitions and dependencies, not reference constants. Treat Stockfish as a behavioral NNUE
+reference rather than a transferable classical evaluator. Exclude tablebase rules, specialized
+theoretical-endgame adjudication, search extensions or pruning, a wholesale HCE retune, and bundles
+of multiple new terms.
 
-**Decide:** retain the smallest amplitude passing the focused rule. Reject all variants if benefit
-is development-only, a blocked or attacked passer receives the bonus, or reconstructed evaluation
-diverges.
+**Try:** use the shared focused-panel protocol with a fresh ENG-031 task hash; do not reuse
+ENG-019, ENG-022, or ENG-023 memberships or inspect their prior validation rows. Select 192
+group-unique roots from phase 0--31 and 64 phase 32--63 controls, balancing material class, pawn
+count, color, side to move, and the four mechanism families as availability permits. A mechanism
+family used as a discriminator requires at least 20 source groups; if either phase bucket or a
+required family is too sparse, record the counts and stop unresolved.
+
+For every root and for the baseline and fixed Stockfish-reference successors, record the complete
+current Latrunculi feature trace plus stats-only predicates for every matrix mechanism. Change no
+score or search behavior. Run the baseline and reference measurements required by the shared
+protocol. On development only, examine each 500k error of at least 50 cp and record whether a
+mechanism favors the reference successor, favors the baseline successor, or does not distinguish
+them; whether the first four plies of the fixed reference PV exercise it; and whether existing
+Latrunculi terms already encode it. Select at most one mechanism family when it covers at least 20
+groups, favors the reference choice in at least five group-unique errors and by at least three more
+groups than it favors the baseline choice, repeats in at least two material classes, and can be
+tested by one bounded predicate or term. Rank qualifying families by net aligned groups, then total
+reference loss, then smaller implementation scope; break an exact tie by the task hash. Do not
+combine families, prototype, or inspect validation.
+
+**Decide:** if one family qualifies, keep ENG-031 open and replace this diagnostic entry with one
+precise implementation experiment for that mechanism; stop this run before prototyping. Define a
+later **material improvement** as reducing reference move loss by at least 50 cp or entering
+MultiPV 3 and a **material regression** as increasing loss by at least 50 cp. Its focused gate must
+accept incremental progress: require at least two development and one distinguishing validation
+improvement, more improvements than regressions, lower total move loss, no increase in 100+ cp
+errors, no new error of that size, and no worse median loss. It need not repair every inherited
+case or move every improvement below 100 cp. Close ENG-031 as a null result when complete coverage
+exists but no family meets the development discriminator. Leave it unresolved when coverage is
+insufficient or the leading family cannot be isolated as one mechanism, recording the exact missing
+groups, material classes, or predicate needed to resume. If later validation contains no position
+capable of distinguishing the selected mechanism, stop unresolved rather than weaken its gate.
 
 ### ENG-020 — Re-search quiet failures with one selectivity family disabled
 
@@ -144,26 +182,6 @@ groups, creates no control error of at least 100 cp, and completes equal-depth s
 bounded null/forward-pruning experiment naming the repaired stratum. If the panels are too small,
 close unresolved; if no family qualifies, record a null result. Never retain a disabled-pruning
 build or blend families.
-
-### ENG-022 — Score passed-pawn races with king distance and tempo
-
-**Start:** tree-changing feature experiment, blocked until ENG-019 is terminal. Rebuild its panel
-and continue only with at least five distinct residual errors of at least 100 cp where the baseline
-move's resulting race score is at least two buckets worse than the reference move's.
-
-**Try:** apply the term only to a true passer on relative ranks three through six with an empty path
-to promotion. Let `pushes` be its remaining single-square pushes, `enemy` and `friendly` the kings'
-Chebyshev distances to the promotion square, and `tempo` one when the defender moves next and zero
-otherwise. Define `race = clamp(enemy - pushes - tempo + clamp(enemy - friendly, -1, 1), -3, 3)`
-and test coefficients 8, 16, and 24 cp. A blocked path scores zero. Exclude path-attack, support,
-rook-placement, and extension logic. Apply the shared protocol across populated race buckets, side
-to move, color, and relative rank, excluding immediate promotions and forcing captures. Unit-test
-mirroring, distance, tempo reversal, clamping, blocked paths, and sign; inspect whether repairs are
-the predicted pawn or king moves.
-
-**Decide:** retain the smallest coefficient passing the focused rule and repairing at least two
-prerequisite errors. Reject if direction changes by side or color, only immediate tactics improve,
-or every coefficient creates a new large error. Do not stack ENG-019 unless it is already baseline.
 
 ### ENG-004 — Cache stable pawn-and-king evaluation terms
 
@@ -293,26 +311,6 @@ while recording tries, confirmations, qsearch cost, objective results, and total
 **Decide:** close null if adjacent cells are sparse or confirmation quality degrades materially.
 Retain only if the selected cell adds confirmed cutoffs at small qsearch cost, passes objective and
 timing checks, and meets its predeclared smaller-tree gate; otherwise reject.
-
-### ENG-023 — Reward protected and connected passed pawns
-
-**Start:** tree-changing feature experiment, blocked until ENG-019 and ENG-022 are terminal.
-Continue only with at least five distinct residual errors of at least 100 cp where the reference
-move preserves or creates a higher support state than the baseline move.
-
-**Try:** a true passer is protected when its square is attacked by a friendly pawn and connected
-when another friendly true passer is on an adjacent file within one relative rank. Score neither as
-zero, protected-only and connected-only as one unit, and both as two. Test an endgame-only unit of
-1/8 or 1/4 of the baseline passer bonus at that rank; exclude path, king-distance, candidate,
-rook-placement, and extension logic. Apply the shared protocol with separate state cells and at
-least 20 source groups in every cell used. Unit-test both colors, file edges, rank separation,
-non-passed supporters, doubled pawns, and a pawn qualifying both passers; verify exact term counts
-and reconstructed evaluation.
-
-**Decide:** retain the smaller unit only if the focused rule passes and at least one support cell
-independently improves on validation. Reject if unsupported cells receive a value, benefit is
-confined to immediate promotions or one group, or the combined cell improves while both individual
-states regress.
 
 ### ENG-008 — Incrementalize tactical-cache maintenance
 
@@ -461,27 +459,6 @@ execute the enabling exchange.
 errors repair, and new validation errors do not concentrate in losing pawn exchanges. Reject on
 sparse support, near-miss leakage, or development-only improvement.
 
-### ENG-031 — Extend a safe passed-pawn push to the seventh rank
-
-**Start:** tree-changing search experiment, blocked until ENG-019 and ENG-022 are terminal. On
-their residual panel, compare the 500k completed depth with one additional completed depth.
-Continue only if at least three distinct 100+ cp cases repair below 50 cp or enter MultiPV 3 and the
-repaired PV contains the trigger move within four plies.
-
-**Try:** extend exactly one ply after a non-capturing, non-promoting true-passer move landing on
-relative rank seven. Require an empty promotion square and, after the move, a destination absent
-from the complete enemy attack map. Permit one such extension per path and change no passer
-evaluation, other extension, reduction, pruning, or ordering rule. Run baseline/candidate at
-50k/500k on all qualifying cases and an equally sized hash-selected control set that did not repair
-with another depth. Record triggers, extensions, repairs, and nodes. Test both colors, captures,
-promotions, occupied promotion squares, every enemy attack class after make/unmake, and the path
-limit. On the full corpus require no objective regression and geometric-mean node ratio at most
-1.05.
-
-**Decide:** retain only if at least three prerequisite cases repair, no control becomes a new 100+
-cp error, the node cap and focused rule pass, and the trigger explains the depth repair. Reject if
-the same positions retain a static-evaluation sign error.
-
 ### ENG-028 — Scale blockaded lone-minor pawn endings
 
 **Start:** tree-changing evaluation experiment, blocked until ENG-021 is complete. Filter exact
@@ -603,6 +580,8 @@ Retain only with exhaustive agreement and elimination of the prerequisite errors
 | SW-14 | Target-scoped release IPO/LTO | Exact Clang/GCC 5,101,317-node fingerprints and 200-position corpus; 3/3 CTest; integrated binaries match offline evidence; balanced timing ratio 0.9358 with 6/6 wins | Integrated as `c8bfedd`; tree-preserving, so games were skipped |
 
 Git history retains older results.
+
+[cpw-pawns]: https://www.chessprogramming.org/Pawn_Structure
 
 ## How candidates are tested
 
