@@ -28,9 +28,9 @@ a request authorizes several named actions, each skill stops at its own boundary
 
 | Field | Current value |
 |---|---|
-| Engine | `7620762` (ENG-003 exact-key TT static-evaluation reuse) |
-| OpenBench fingerprint | 3,798,460 nodes |
-| Cached search corpus | `tools/measurements/output/search-baseline-7620762/` |
+| Engine | `cd744df` (ENG-002 aspiration retry policy) |
+| OpenBench fingerprint | 3,293,795 nodes |
+| Cached search corpus | `tools/measurements/output/search-baseline-cd744df/` |
 
 Refresh the cached corpus only after an approved integration changes the engine baseline, search
 workload, or measurement meaning.
@@ -39,7 +39,6 @@ workload, or measurement meaning.
 
 | ID | Change | Kind | Evidence | Next |
 |---|---|---|---|---|
-| ENG-002 | Recenter aspiration retries, widen by 1.5x, and reduce only the next non-mate fail-high retry by one ply | Tree-changing | Exact corpus `R_node_g = 0.9372`, `R_node_total = 0.9607`; `R_time_balanced = 0.9637` with 6/6 wins; OpenBench #30 Base `0ff898c`, Dev `53913f5` | check OpenBench #30 |
 
 ## Queue
 
@@ -595,6 +594,7 @@ Retain only with exhaustive agreement and elimination of the prerequisite errors
 
 | ID | Change | Evidence | Result |
 |---|---|---|---|
+| ENG-002 | Recenter aspiration retries, widen by 1.5x, and reduce only the next non-mate fail-high retry by one ply | Offline `R_node_g` 0.9372, `R_node_total` 0.9607, and `R_time_balanced` 0.9637 with 6/6 wins; OpenBench #30 Base `0ff898c`, Dev `53913f5`: accepted `[0, 3]` after 22,576 games (`7421-7097-8058`) at LLR +2.9549 and +4.99 +/- 3.34 Elo (95%); PGN `/api/pgns/30/`; integrated corpus and 3,293,795-node fingerprint exactly matched the retained candidate | Integrated as `cd744df` |
 | ENG-003 | Reuse deterministic static evaluation on exact same-key TT hits with lossless compact metadata packing | Avoided 5,701,544/44,526,905 evaluator calls (12.80%) with zero cached/fresh mismatches; exact static values, 54,533,083-node corpus, 61 sentinels, and 3,798,460-node fingerprint; Release and sanitizer/race checks passed; reviewed as `ec75aae`; `R_time_balanced = 0.9630` with 6/6 wins; integrated corpus exactly matched the retained candidate | Integrated as `7620762`; tree-preserving, so games were skipped |
 | SW-17 | Use one bounded depth/static-surplus null-move reduction formula | Offline `R_node_g` 0.9397, `R_node_total` 0.9642, and `R_time_balanced` 0.9790; OpenBench #29 Base `c8bfedd`, Dev `54a8989`: accepted `[0, 3]` after 9,060 games at LLR +2.9659 and +10.55 +/- 5.14 Elo (95%); PGN `/api/pgns/29/`; integrated corpus exactly matched all 200 retained signatures | Integrated as `f376cef` |
 | ENG-001 | Replace runtime check-danger division with exact function-local constexpr piece/count tables | Complete 128-state domain; exact evaluator checksum, two 5,101,317-node benchmarks, repeated 200-position corpus and 61 sentinel signatures; Release and ASan/UBSan passed; stable `R_time_balanced` 0.9871 with 6/6 wins | Integrated as `3ddf138`; tree-preserving, so games were skipped |
