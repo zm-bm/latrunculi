@@ -308,7 +308,7 @@ inline TaperedScore Evaluator::evaluate_term() {
     return score;
 }
 
-/// eval pawn structure: isolated + backward + doubled + passed
+/// eval pawn structure: isolated + backward + doubled + connected + passed
 template <bool Collecting, Color C>
 TaperedScore Evaluator::evaluate_pawns() {
     constexpr Color Opp = ~C;
@@ -346,6 +346,14 @@ TaperedScore Evaluator::evaluate_pawns() {
     Bitboard doubled_pawns = pawns_behind & ~pawn_attacks;
     score += linear_feature<Collecting, C>(
         feature::doubled_pawn, eval::doubled_pawn, bb::count(doubled_pawns));
+
+    // connected links: count each adjacent pawn pair once, whether phalanx or diagonal support
+    const Bitboard east_pawns = bb::shift_east(pawns);
+    const int connected_links = bb::count(pawns & east_pawns)
+                              + bb::count(pawns & bb::shift_north(east_pawns))
+                              + bb::count(pawns & bb::shift_south(east_pawns));
+    score += linear_feature<Collecting, C>(
+        feature::connected_pawn_link, eval::connected_pawn_link, connected_links);
 
     // passed pawns: no opposing pawn ahead on the same or an adjacent file
     const Bitboard passed_pawns = pawns & ~bb::full_span<Opp>(opp_pawns);

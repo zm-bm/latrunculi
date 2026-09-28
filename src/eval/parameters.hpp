@@ -220,6 +220,7 @@ constexpr TaperedScore piece_sq(PieceType pt, Color c, Square sq) {
 inline constexpr TaperedScore isolated_pawn = {-22, -20};
 inline constexpr TaperedScore backward_pawn = {-20, -18};
 inline constexpr TaperedScore doubled_pawn  = {-2, -35};
+inline constexpr TaperedScore connected_pawn_link = {13, 3};
 inline constexpr TaperedScore passed_pawn[] = {
     {0, 0}, {5, 0}, {2, 12}, {-7, 59}, {31, 120}, {98, 203}, {196, 281}, {0, 0}};
 inline constexpr TaperedScore reachable_outpost       = {26, 20};
