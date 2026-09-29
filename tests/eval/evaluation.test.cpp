@@ -118,20 +118,34 @@ TEST(EvaluationTermsTest, Pawns) {
     std::vector<std::tuple<std::string, eval::TaperedScore, eval::TaperedScore>> test_cases = {
         // sanity check
         {board_test::fen::kings_only, eval::TaperedScore::Zero, eval::TaperedScore::Zero},
-        {board_test::fen::start, eval::TaperedScore::Zero, eval::TaperedScore::Zero},
+        {board_test::fen::start, eval::connected_pawn_link * 7, eval::connected_pawn_link * 7},
         // isolated pawns
         {both_isolated, eval::isolated_pawn, eval::isolated_pawn},
-        {white_isolated, eval::isolated_pawn, eval::TaperedScore::Zero},
-        {black_isolated, eval::TaperedScore::Zero, eval::isolated_pawn},
+        {white_isolated,
+         eval::isolated_pawn + eval::connected_pawn_link * 5,
+         eval::connected_pawn_link * 5},
+        {black_isolated,
+         eval::connected_pawn_link * 7,
+         eval::isolated_pawn + eval::connected_pawn_link * 5},
         // backwards pawns
-        {both_backward, eval::backward_pawn, eval::backward_pawn},
-        {white_backward, eval::backward_pawn, eval::TaperedScore::Zero},
-        {black_backward, eval::TaperedScore::Zero, eval::backward_pawn},
+        {both_backward,
+         eval::backward_pawn + eval::connected_pawn_link,
+         eval::backward_pawn + eval::connected_pawn_link},
+        {white_backward,
+         eval::backward_pawn + eval::connected_pawn_link,
+         eval::connected_pawn_link},
+        {black_backward,
+         eval::connected_pawn_link,
+         eval::backward_pawn + eval::connected_pawn_link},
         // isolated pawns are not also backwards
         {isolated_not_backward, eval::isolated_pawn, eval::isolated_pawn},
         // doubled pawns
-        {white_doubled, eval::doubled_pawn, eval::TaperedScore::Zero},
-        {black_doubled, eval::TaperedScore::Zero, eval::doubled_pawn},
+        {white_doubled,
+         eval::doubled_pawn + eval::connected_pawn_link * 4,
+         eval::connected_pawn_link * 3},
+        {black_doubled,
+         eval::connected_pawn_link * 3,
+         eval::doubled_pawn + eval::connected_pawn_link * 4},
         // isolated and doubled pawns
         {white_isolated_doubled,
          eval::isolated_pawn * 2 + eval::doubled_pawn + eval::passed_pawn[RANK2]

@@ -36,12 +36,12 @@ std::uint64_t schema_name_hash(const auto& schema) {
 TEST(FeaturesTest, SchemaIsStableAndUnique) {
     const auto& schema = eval::feature_schema();
 
-    EXPECT_EQ(eval::feature_schema_version, 1);
-    EXPECT_EQ(schema.size(), 482u);
+    EXPECT_EQ(eval::feature_schema_version, 2);
+    EXPECT_EQ(schema.size(), 483u);
     EXPECT_EQ(schema.front().name, "material.pawn");
-    EXPECT_EQ(schema.back().name, "threat.weak_queen");
+    EXPECT_EQ(schema.back().name, "pawn.connected_link");
     // Feature names and IDs must not change without a schema-version bump.
-    EXPECT_EQ(schema_name_hash(schema), 6951263749403373319ull);
+    EXPECT_EQ(schema_name_hash(schema), 3939322459266140287ull);
 
     std::unordered_set<std::string> names;
     for (const auto& feature : schema) {
@@ -80,6 +80,26 @@ TEST(FeaturesTest, CoefficientsUseWhiteRelativePerspective) {
     EXPECT_EQ(record.pawn_counts[WHITE], 1);
     EXPECT_EQ(record.pawn_counts[BLACK], 0);
     EXPECT_EQ(record.turn, WHITE);
+}
+
+TEST(FeaturesTest, ConnectedPawnLinksAreRepresentationInvariantAndCountedOnce) {
+    const Board white_phalanx("4k3/8/8/8/8/8/1PP5/4K3 w - - 0 1");
+    const Board white_chain("4k3/8/8/8/8/2P5/1P6/4K3 w - - 0 1");
+    const Board white_two_links("4k3/8/8/8/8/2P5/1P1P4/4K3 w - - 0 1");
+    const Board black_chain("4k3/1p6/2p5/8/8/8/8/4K3 b - - 0 1");
+
+    EXPECT_EQ(eval::extract_features(white_phalanx)
+                  .coefficients[eval::feature::connected_pawn_link],
+              1);
+    EXPECT_EQ(eval::extract_features(white_chain)
+                  .coefficients[eval::feature::connected_pawn_link],
+              1);
+    EXPECT_EQ(eval::extract_features(white_two_links)
+                  .coefficients[eval::feature::connected_pawn_link],
+              2);
+    EXPECT_EQ(eval::extract_features(black_chain)
+                  .coefficients[eval::feature::connected_pawn_link],
+              -1);
 }
 
 TEST(FeaturesTest, EvaluationIsColorSymmetric) {
@@ -157,7 +177,7 @@ TEST(FeaturesTest, BatchExportIsDeterministic) {
     const std::string first = run();
     EXPECT_EQ(first, run());
     EXPECT_EQ(std::count(first.begin(), first.end(), '\n'), 4);
-    EXPECT_NE(first.find(R"("type":"schema","version":1)"), std::string::npos);
+    EXPECT_NE(first.find(R"("type":"schema","version":2)"), std::string::npos);
     EXPECT_NE(
         first.find(
             R"("perspective":{"coefficients":"white","fixed":"white","eval":"side_to_move"})"),
