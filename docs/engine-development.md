@@ -28,9 +28,9 @@ a request authorizes several named actions, each skill stops at its own boundary
 
 | Field | Current value |
 |---|---|
-| Engine | `cd744df` (ENG-002 aspiration retry policy) |
-| OpenBench fingerprint | 3,293,795 nodes |
-| Cached search corpus | `tools/measurements/output/search-baseline-cd744df/` |
+| Engine | `ccb718b` (ENG-031 connected-pawn link evaluation) |
+| OpenBench fingerprint | 3,507,960 nodes |
+| Cached search corpus | `tools/measurements/output/search-baseline-ccb718b/` |
 
 Refresh the cached corpus only after an approved integration changes the engine baseline, search
 workload, or measurement meaning.
@@ -100,64 +100,6 @@ move loss. It only qualifies a candidate for the standard gates. If required cel
 too sparse, close unresolved with the observed counts instead of weakening the gate.
 
 **Higher potential**
-
-### ENG-031 — Attribute endgame pawn-structure evaluation gaps
-
-**Start:** causal diagnostic, not a candidate; runnable now that ENG-019, ENG-022, and ENG-023 are
-terminal. Those nulls reject their tested one-dimensional models, not the broader pawn-evaluation
-hypothesis. ENG-019's exact clear-and-safe-path implementation reconstructed correctly and its
-1/4-rank bonus reduced development errors of at least 100 cp from nine to four, but validation
-worsened from four to five with one repair and two new errors. ENG-022's promotion-catch and
-king-proximity predicates explained zero and one development errors, respectively; ENG-023's
-protected and connected predicates likewise explained zero and one. Their geometry and score
-reconstruction checks passed, so do not retry those predicates, amplitudes, or panel memberships as
-standalone hypotheses.
-
-Current direct pawn evaluation consists of isolated, backward, doubled, and rank-indexed true
-passers. Inventory those terms together with pawn PSQT, outposts, pawn-limited mobility, threats,
-minor shielding, bishop blockers, rook files, shelter/storm, phase tapering, and pawn-count endgame
-scaling so existing interactions are not mistaken for missing features. Before measuring outcomes,
-freeze a feature matrix comparing Latrunculi with pinned Ethereal `0e47e9b`, Minic `4317c14`,
-Stockfish `86f1df7`, and the [Chess Programming Wiki pawn-structure taxonomy][cpw-pawns]. Group
-mechanisms as weak-pawn structure and mobility; connectivity and passer creation; true-passer
-advancement and race context; and pawn-dependent piece, king, and endgame-scaling interactions.
-Record definitions and dependencies, not reference constants. Treat Stockfish as a behavioral NNUE
-reference rather than a transferable classical evaluator. Exclude tablebase rules, specialized
-theoretical-endgame adjudication, search extensions or pruning, a wholesale HCE retune, and bundles
-of multiple new terms.
-
-**Try:** use the shared focused-panel protocol with a fresh ENG-031 task hash; do not reuse
-ENG-019, ENG-022, or ENG-023 memberships or inspect their prior validation rows. Select 192
-group-unique roots from phase 0--31 and 64 phase 32--63 controls, balancing material class, pawn
-count, color, side to move, and the four mechanism families as availability permits. A mechanism
-family used as a discriminator requires at least 20 source groups; if either phase bucket or a
-required family is too sparse, record the counts and stop unresolved.
-
-For every root and for the baseline and fixed Stockfish-reference successors, record the complete
-current Latrunculi feature trace plus stats-only predicates for every matrix mechanism. Change no
-score or search behavior. Run the baseline and reference measurements required by the shared
-protocol. On development only, examine each 500k error of at least 50 cp and record whether a
-mechanism favors the reference successor, favors the baseline successor, or does not distinguish
-them; whether the first four plies of the fixed reference PV exercise it; and whether existing
-Latrunculi terms already encode it. Select at most one mechanism family when it covers at least 20
-groups, favors the reference choice in at least five group-unique errors and by at least three more
-groups than it favors the baseline choice, repeats in at least two material classes, and can be
-tested by one bounded predicate or term. Rank qualifying families by net aligned groups, then total
-reference loss, then smaller implementation scope; break an exact tie by the task hash. Do not
-combine families, prototype, or inspect validation.
-
-**Decide:** if one family qualifies, keep ENG-031 open and replace this diagnostic entry with one
-precise implementation experiment for that mechanism; stop this run before prototyping. Define a
-later **material improvement** as reducing reference move loss by at least 50 cp or entering
-MultiPV 3 and a **material regression** as increasing loss by at least 50 cp. Its focused gate must
-accept incremental progress: require at least two development and one distinguishing validation
-improvement, more improvements than regressions, lower total move loss, no increase in 100+ cp
-errors, no new error of that size, and no worse median loss. It need not repair every inherited
-case or move every improvement below 100 cp. Close ENG-031 as a null result when complete coverage
-exists but no family meets the development discriminator. Leave it unresolved when coverage is
-insufficient or the leading family cannot be isolated as one mechanism, recording the exact missing
-groups, material classes, or predicate needed to resume. If later validation contains no position
-capable of distinguishing the selected mechanism, stop unresolved rather than weaken its gate.
 
 ### ENG-020 — Re-search quiet failures with one selectivity family disabled
 
@@ -297,20 +239,6 @@ sequencing change for that stratum without changing other search policy.
 **Decide:** close null if cost is diffuse, cannot be separated from another mechanism, or lacks a
 safe discriminator. Retain a prototype only when its targeted misses and exclusive work fall,
 objective results pass, and the predeclared complete-corpus tree/timing gates pass.
-
-### ENG-009 — Test one broader razoring eligibility cell
-
-**Start:** measurement-first tree-changing search experiment. Razoring activates at only 3.9% of
-10.75M structurally eligible nodes but confirms 87.5% of its 421,499 tries.
-
-**Try:** shadow adjacent depth and margin cells selected from the observed score distribution and
-verify each proposed razor with the existing qsearch before changing behavior. Choose at most one
-cell with material opportunity and retained confirmation quality, then prototype only that cell
-while recording tries, confirmations, qsearch cost, objective results, and total tree work.
-
-**Decide:** close null if adjacent cells are sparse or confirmation quality degrades materially.
-Retain only if the selected cell adds confirmed cutoffs at small qsearch cost, passes objective and
-timing checks, and meets its predeclared smaller-tree gate; otherwise reject.
 
 ### ENG-008 — Incrementalize tactical-cache maintenance
 
@@ -571,6 +499,7 @@ Retain only with exhaustive agreement and elimination of the prerequisite errors
 
 | ID | Change | Evidence | Result |
 |---|---|---|---|
+| ENG-031 | Add adjacent-file friendly-pawn links at `{MG 13, EG 3}` | Deliberate gate override: exact correctness and reproducibility checks passed; the 200-position tree was 54,039,403 nodes, the fingerprint was 3,507,960 nodes, and `R_time_balanced = 1.0081` passed the tree-changing timing gate. OpenBench #31 Base `cd744df`, Dev `a6f009c`: accepted `[0, 3]` after 19,142 games (`6419-6100-6623`) at LLR +2.9575 and +5.79 +/- 3.69 Elo (95%); PGN `/api/pgns/31/`; focused validation remained sealed; integrated corpus and fingerprint exactly matched the retained candidate | Integrated as `ccb718b` |
 | ENG-002 | Recenter aspiration retries, widen by 1.5x, and reduce only the next non-mate fail-high retry by one ply | Offline `R_node_g` 0.9372, `R_node_total` 0.9607, and `R_time_balanced` 0.9637 with 6/6 wins; OpenBench #30 Base `0ff898c`, Dev `53913f5`: accepted `[0, 3]` after 22,576 games (`7421-7097-8058`) at LLR +2.9549 and +4.99 +/- 3.34 Elo (95%); PGN `/api/pgns/30/`; integrated corpus and 3,293,795-node fingerprint exactly matched the retained candidate | Integrated as `cd744df` |
 | ENG-003 | Reuse deterministic static evaluation on exact same-key TT hits with lossless compact metadata packing | Avoided 5,701,544/44,526,905 evaluator calls (12.80%) with zero cached/fresh mismatches; exact static values, 54,533,083-node corpus, 61 sentinels, and 3,798,460-node fingerprint; Release and sanitizer/race checks passed; reviewed as `ec75aae`; `R_time_balanced = 0.9630` with 6/6 wins; integrated corpus exactly matched the retained candidate | Integrated as `7620762`; tree-preserving, so games were skipped |
 | SW-17 | Use one bounded depth/static-surplus null-move reduction formula | Offline `R_node_g` 0.9397, `R_node_total` 0.9642, and `R_time_balanced` 0.9790; OpenBench #29 Base `c8bfedd`, Dev `54a8989`: accepted `[0, 3]` after 9,060 games at LLR +2.9659 and +10.55 +/- 5.14 Elo (95%); PGN `/api/pgns/29/`; integrated corpus exactly matched all 200 retained signatures | Integrated as `f376cef` |
@@ -580,8 +509,6 @@ Retain only with exhaustive agreement and elimination of the prerequisite errors
 | SW-14 | Target-scoped release IPO/LTO | Exact Clang/GCC 5,101,317-node fingerprints and 200-position corpus; 3/3 CTest; integrated binaries match offline evidence; balanced timing ratio 0.9358 with 6/6 wins | Integrated as `c8bfedd`; tree-preserving, so games were skipped |
 
 Git history retains older results.
-
-[cpw-pawns]: https://www.chessprogramming.org/Pawn_Structure
 
 ## How candidates are tested
 
@@ -733,6 +660,7 @@ identity check.
 | Area | Finding and consequence |
 |---|---|
 | Engine-gap scope | At `0ff898c`, passed-pawn path/race context was the only specific actionable endgame weakness: six persistent game cases and two of 12 promotion-race cases at least 200 cp worse. The balanced panel found 0/12 rook and 0/12 opposite-bishop cases at least 50 cp worse, no queen case at least 100 cp worse, and no phase-specific evaluation collapse; exact minor/pawn classification remains ENG-021. Keep broad rook, opposite-bishop, or queen scaling, generic king-activity terms, and global evaluation rescaling closed unless exact or group-disjoint held-out evidence changes those results. |
+| Razoring | On `cd744df`, the complete depth-10 baseline produced 350,605 cutoffs from 401,943 tries (87.23%). The only material adjacent cell, depth-1 static-evaluation deficit 400--499, shadow-confirmed 25,421/45,712 qsearches (55.61%) at 182,027 qnodes. ENG-009 then tested the exact depth-1 margin change from 500 to 400: 55 focused search/qsearch/objective checks passed, tries rose to 441,947 with 369,195 cutoffs, and total corpus nodes fell from 52,388,829 to 51,647,066 (`R_node_total = 0.985841`), but `R_node_g = 0.991350` missed the predeclared 0.9900 gate. One diagnostic B/C timing ratio was 0.8983 but was not a formal timing panel and could not rescue the failed claimed effect. Keep the 500 margin and do not retry this relaxation or the sparse adjacent cells without materially changed baseline evidence. |
 | Capture ordering | CaptureHistory reduced nodes but increased total search time. SW-11's depth-1 late losing-capture rule reduced `R_node_g` to 0.9883 but raised total nodes to 1.0028 and slowed balanced corpus time to 1.0414 with zero wins in six pairs. Preserve the current SEE bands and do not retry that exact rule. |
 | Qsearch | Ordinary exact-SEE-negative captures are already excluded. Do not retry `stand_pat + captured_value + margin <= alpha_before_move` with the tested 200/300/400 margins; they skipped real NonPV cutoffs. The `0ff898c` failure panel found immediate promotions and captures already visible, so qsearch node share or endgame misses do not justify generic expansion without a bounded new discriminator. |
 | LMR | The tested one-ply protection for combined history at least 1024 did not change the sampled fail-lows. SW-16's extra reduction at combined history at most -1 reached `R_node_g = 0.9937`, short of the smaller-tree gate. Do not retry either exact shape; different formulas or re-search sequencing require new evidence. |
