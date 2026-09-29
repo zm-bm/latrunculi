@@ -254,7 +254,7 @@ EvalValue Worker::alphabeta(
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
                                 && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(search_ply) < beta;
-        if (can_null && !in_check && depth <= algorithm_detail::FutilityMaxDepth
+        if (can_null && !in_check && depth <= algorithm_detail::ReverseFutilityMaxDepth
             && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
             && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto
             && static_eval - algorithm_detail::FutilityMargin[depth] >= beta)

@@ -51,10 +51,11 @@ inline constexpr EvalValue NullMoveSurplusPerPly   = 2 * eval::pawn.mg;
 inline constexpr int       NullMoveSurplusBonusMax = 2;
 
 // Razoring and futility defaults.
-inline constexpr int RazorMaxDepth    = 3;
-inline constexpr int FutilityMaxDepth = 3;
-inline constexpr int RazorMargin[]    = {0, 500, 900, 1800};
-inline constexpr int FutilityMargin[] = {0, 250, 400, 550};
+inline constexpr int RazorMaxDepth           = 3;
+inline constexpr int ReverseFutilityMaxDepth = 3;
+inline constexpr int FutilityMaxDepth        = 4;
+inline constexpr int RazorMargin[]           = {0, 500, 900, 1800};
+inline constexpr int FutilityMargin[]        = {0, 250, 400, 550, 1350};
 
 // Late-move reduction defaults.
 inline constexpr int LmrMinDepth     = 3;

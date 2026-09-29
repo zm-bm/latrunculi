@@ -496,6 +496,23 @@ TEST_F(SearchTest, FutilitySkipsOnlyAfterFirstLegalQuiet) {
 #endif
 }
 
+TEST_F(SearchTest, FutilityUsesTheDepthFourMargin) {
+    Board expected_board{board_test::fen::start};
+    load(expected_board, 4);
+    const EvalValue alpha    = eval::evaluate(position()) + 1351;
+    const EvalValue beta     = alpha + 100;
+    const Move      first    = legal_picker_moves().front();
+    const EvalValue expected = with_move(first, [&] { return -search(-beta, -alpha, 3); });
+
+    Board board{board_test::fen::start};
+    load(board, 4);
+    EXPECT_EQ(search(alpha, beta, 4), expected);
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(counters().futility_skips[0], 1U);
+#endif
+}
+
 TEST_F(SearchTest, FutilityRequiresAllGuards) {
     Board           eval_board{board_test::fen::start};
     const EvalValue static_eval = eval::evaluate(eval_board);
@@ -509,7 +526,8 @@ TEST_F(SearchTest, FutilityRequiresAllGuards) {
     const std::array cases{
         Case{"PV", board_test::fen::start, 2, static_eval + 401, true},
         Case{"check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", 2, 1000, false},
-        Case{"deep", board_test::fen::start, 4, static_eval + 401, false},
+        Case{"depth four inside margin", board_test::fen::start, 4, static_eval + 1349, false},
+        Case{"deep", board_test::fen::start, 5, static_eval + 2000, false},
         Case{"mate alpha", board_test::fen::start, 2, eval_value::mate_bound, false},
         Case{"inside margin", board_test::fen::start, 2, static_eval + 399, false},
     };
