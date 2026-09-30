@@ -39,6 +39,7 @@ workload, or measurement meaning.
 
 | ID | Change | Kind | Evidence | Next |
 |---|---|---|---|---|
+| ENG-010 | Extend only main-search futility to depth 4 at a 1350 cp margin for a smaller fixed-depth tree; keep reverse futility at depth 3 and preserve all tactical guards | Tree-changing | The first zero-cutoff threshold retained 23,584 shadow triggers. Offline gates passed at `R_node_g = 0.985618`, `R_node_total = 0.990811`, and `R_time_balanced = 0.990284` with 6/6 timing wins; two 3,412,800-node fingerprints, Release, ASan+UBSan, and exact corpus/sentinel repeats passed. OpenBench #32 is running with Base `ccb718b`, Dev `4ab957b`, and `[0, 3]` SPRT; `eng-010-ccb718b/` | `check OpenBench #32` |
 
 ## Queue
 
@@ -193,22 +194,6 @@ trees are exact and timing passes; reject if bookkeeping shifts equivalent cost 
 order, or lacks repeatable speedup.
 
 **Promising but lower-confidence or smaller**
-
-### ENG-010 — Test one broader main-search futility cell
-
-**Start:** measurement-first tree-changing search experiment. Futility activates at 13.2% of
-6.79M eligible nodes and reaches a real nonchecking-quiet trigger 626,672 times, indicating room for
-one adjacent cell but not establishing its safety.
-
-**Try:** shadow adjacent depth and margin cells while retaining all mate, check, first-move, and
-checking-quiet protections. For each proposed skip, use a bounded verifier to record whether the
-quiet later raises alpha or cuts off. Select at most one cell from the measured distribution, then
-prototype only that cell and record trigger, unsafe-skip, node, and objective-result changes on the
-complete corpus.
-
-**Decide:** close null if no populated cell has a stable safety discriminator. Retain only if the
-chosen cell removes no meaningful alpha raise or cutoff, passes objective checks and timing, and
-meets the standard fixed-depth smaller-tree gate; otherwise reject.
 
 ### ENG-013 — Stratify LMR re-searches before testing adaptive verification depth
 
@@ -665,7 +650,7 @@ identity check.
 | Qsearch | Ordinary exact-SEE-negative captures are already excluded. Do not retry `stand_pat + captured_value + margin <= alpha_before_move` with the tested 200/300/400 margins; they skipped real NonPV cutoffs. The `0ff898c` failure panel found immediate promotions and captures already visible, so qsearch node share or endgame misses do not justify generic expansion without a bounded new discriminator. |
 | LMR | The tested one-ply protection for combined history at least 1024 did not change the sampled fail-lows. SW-16's extra reduction at combined history at most -1 reached `R_node_g = 0.9937`, short of the smaller-tree gate. Do not retry either exact shape; different formulas or re-search sequencing require new evidence. |
 | Clock and limits | The tested next-iteration time predictor stopped too early for every sampled multiplier. Preserve explicit `movetime` as a hard request. OpenBench #20 supplied 597,784 score/depth annotations but no clock comments, so the audit supports no time-pressure or adaptive-budget task. Revisit only with per-ply remaining and elapsed time plus revision, worker scale, and time-control metadata; predeclare stable/unstable root bins before analysis. |
-| Futility | Guarded reverse futility pruning is retained. Main-search futility must preserve checking quiets by filtering only nonchecking quiets. |
+| Futility | Guarded reverse futility pruning is retained. Main-search futility must preserve checking quiets by filtering only nonchecking quiets. On `ccb718b`, ENG-010 rejected depth 4 at 700 cp after nine verified beta cutoffs despite `R_node_g = 0.975369`. Its reopened 50 cp trace found 1350 cp was the first threshold with zero verified cutoffs and at least 15,000 triggers. That sole prototype passed offline at `R_node_g = 0.985618` and `R_time_balanced = 0.990284` with 6/6 timing wins; review identity `4ab957b` is under test as OpenBench #32. Keep the 700 cp cell closed. |
 | LMP families | The current depth-2 after-twelve negative-history rule passed OpenBench #27. Unconditional depth-1 pruning caused PV/NonPV disagreement; tested fixed-threshold, history-gated depth-1, and improving-aware variants were not compelling. Revisit LMP only with a materially different safety signal or profiling evidence. |
 | TT prefetch | SW-13's parent-issued child-cluster prefetch preserved exact corpus and benchmark signatures and reduced balanced corpus time to 0.9823 with 6/6 paired wins. Retain it; games were skipped because the change was tree-preserving. |
 | Release IPO | SW-14's CMake target-scoped Release IPO preserved exact Clang/GCC benchmark and corpus signatures and reduced balanced Clang corpus time to 0.9358 with 6/6 paired wins. Keep IPO on Latrunculi's object library and executables while leaving third-party static libraries and non-Release configurations unchanged. |
