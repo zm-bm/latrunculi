@@ -5,7 +5,7 @@ evaluation. The [README](README.md) lists the commands.
 
 Each experiment starts from one engine revision and produces at most one
 candidate. Grouped cross-validation selects the candidate; a fresh OpenBench
-match supplies its strength result. Integration still requires explicit approval.
+match supplies its strength result.
 
 ## Experiment
 
@@ -100,16 +100,16 @@ For a supported candidate, apply the weights to `src/eval/parameters.hpp`,
 build the engine, and run `verify`. Verification compares every compiled
 coefficient and evaluation invariant with the candidate artifact.
 
-When authorized, commit and push the verified patch. Start OpenBench only when that external
-mutation is also authorized. Use one normalized-Elo `[0, 3]` SPRT against the pinned baseline with
-the [standard settings](../../docs/openbench.md#strength-tests). Let it reach either LLR boundary.
+Record the verified candidate under the
+[candidate revision requirements](../../docs/engine-development.md#candidate-revisions).
+Use one normalized-Elo `[0, 3]` SPRT against the pinned baseline with the
+[standard settings](../../docs/openbench.md#strength-tests). Follow the shared
+[termination rules](../../docs/openbench.md#test-termination),
+[game acceptance policy](../../docs/engine-development.md#game-acceptance), and
+[integration checks](../../docs/engine-development.md#integration-checks).
 
-- The upper boundary accepts the candidate.
-- The lower boundary rejects the candidate and retains the baseline.
-- A manual stop is inconclusive and cannot accept the candidate.
-- `offline` records a rejection before match play.
-
-Use `close` to append the decision and OpenBench test ID to tracked
+Use `close` to record `upper`, `lower`, or `inconclusive` with the OpenBench test ID;
+use `offline` for rejection before match play. This appends the decision to tracked
 `results.jsonl`. Generated output under `tools/tuning/output/<experiment>/` may
 then be deleted.
 

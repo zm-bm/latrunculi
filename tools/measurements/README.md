@@ -146,10 +146,8 @@ excludes setup before `start_search()`, process startup, and output. See
 [Engine Development](../../docs/engine-development.md#paired-timing) for collection and
 decision rules.
 
-The fixed `BC, CB, BC, CB, BC, CB` panel forms three adjacent balanced
-`B-C-C-B` blocks. The helper reports each block's geometric mean ratio and
-`median_balanced_search_time_ratio`, the decision metric. It retains the
-overall and order-separated summaries as diagnostics.
+The helper reports the decision metric as `median_balanced_search_time_ratio`;
+block, overall, and order-separated summaries are diagnostics.
 
 Use `compare_search.py` for deterministic aggregation. It validates the current
 200 case IDs, the canonical request profile, comparable case sets, and required

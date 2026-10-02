@@ -5,53 +5,22 @@ release-stability testing.
 
 ## Access
 
-The canonical client endpoint is `https://workstation-01.<tailnet>.ts.net/`.
-On the primary development machine, its exact URL and credentials are in
-`~/.config/openbench/openbench.env` as `OPENBENCH_SERVER`,
-`OPENBENCH_USERNAME`, and `OPENBENCH_PASSWORD`. Source that file immediately
-before access; do not trust inherited values.
-
-```bash
-set -a
-source ~/.config/openbench/openbench.env
-set +a
-```
-
-Use the credentials only with the configured HTTPS `workstation-01` URL, and
-never print or commit them.
-
-Verify the peer and returned application separately:
-
-```bash
-tailscale ping workstation-01
-curl --fail "$OPENBENCH_SERVER/"
-```
-
-Confirm that the response is OpenBench, not merely that the peer is reachable.
-Deployment details belong to the OpenBench fork and its `Deploy/README.md`.
+`~/.config/openbench/openbench.env` contains `OPENBENCH_SERVER`,
+`OPENBENCH_USERNAME`, and `OPENBENCH_PASSWORD`. Use the configured HTTPS endpoint.
 
 ## Testing
 
-OpenBench fetches revisions from GitHub, so commit and push each tested revision
-before submitting a workload. The worker builds through `bench/Makefile`, checks
-the deterministic node count, runs the games, and uploads results and PGNs.
-
-The `latrunculi bench` command searches six fixed positions at depth 13 with one
-thread and a 32 MiB transposition table. Its node count is the compatibility
-signature; its NPS normalizes time controls across workers. Keep
-`bench/Makefile` at this path because OpenBench uses one build path for both
-revisions in a test. Build through the same adapter with:
+Keep the shared build adapter at `bench/Makefile` for both revisions. Build and
+check the benchmark fingerprint with:
 
 ```bash
 make -C bench EXE=latrunculi CXX=g++
 ./bench/latrunculi bench
 ```
 
-Benchmark nodes are always a signature gate: reproduce the candidate fingerprint
-for tree-changing work and preserve the baseline fingerprint for tree-preserving work.
-Neither their difference nor benchmark NPS is an offline performance or strength
-metric; use the paired corpus timing policy in
-[Engine Development](engine-development.md#paired-timing).
+The node count is a compatibility fingerprint; NPS normalizes time controls. Fingerprint
+requirements and performance gates are defined in
+[Engine Development](engine-development.md#how-candidates-are-tested).
 
 ### Test termination
 
@@ -67,8 +36,6 @@ budgets must be even.
 | Plumbing smoke (fixed) | `max_games = 2`, one color-reversed pair |
 | Release stability (fixed) | `max_games = 2000` |
 | Other fixed sample or gauntlet | Predeclared positive even `max_games` |
-| SPSA | Predeclare `2 * pairs_per * iterations` games |
-| Datagen | Predeclare positive `max_games` and any storage limit |
 
 OpenBench may finish a few in-flight games beyond a fixed target. Do not use
 fixed-game mode merely to impose an arbitrary ceiling on a strength SPRT.
@@ -83,29 +50,15 @@ paired games with the engines swapping colors. Use:
 - `Threads=1 Hash=32`
 - resign at 400 cp for three moves
 - draw after move 40 with eight evaluations within 10 cp
-- a predeclared normalized-Elo SPRT profile with `alpha = beta = 0.05`:
-  `[0, 5]` when testing for a larger gain, or `[0, 3]` for an incremental
-  candidate or confirmation; a task may instead predeclare `[-3, 0]` when its
-  acceptance policy explicitly tolerates a small strength tradeoff
+- normalized-Elo SPRT with `alpha = beta = 0.05` and a predeclared profile:
+  `[0, 5]`, `[0, 3]`, or `[-3, 0]`
 
-Choose one profile before games begin. The upper boundary accepts the candidate
-under that profile; the lower boundary rejects it. A second confirmation is not
-automatic. Require one only when predeclared, when selecting among tested
-variants, or when risk or conflicting evidence warrants it. Never use
-confirmation to retry or override a lower-bound result.
+The upper boundary accepts the candidate under its profile; the lower boundary
+rejects it. Profile selection and confirmation policy belong to
+[Engine Development](engine-development.md#game-acceptance).
 
 Use `Smoke` for plumbing, `STC` for a candidate test, and `Confirm` for a
 separately justified confirmation.
-
-Record the test ID, profile, both revisions, OpenBench revision, decision, and
-server PGN location for retained claims.
-
-After submitting a test, fetch status once to confirm its identity, revisions,
-settings, mode, applicable SPRT bounds or fixed-game count, and running state.
-Record the test URL and return control; do not hold an agent turn open
-with recurring polling or sleeps. OpenBench ends an SPRT at an LLR boundary and
-a fixed test at its game count while managed workers continue independently.
-Inspect status and collect terminal artifacts when the user resumes the task.
 
 ### Release stability test
 
@@ -113,8 +66,11 @@ Before a public release with engine changes, run the pushed candidate as both
 Dev and Base in a fixed, non-SPRT test with `max_games = 2000` (1,000 pairs)
 and compact PGNs. Use the book, time control, options, and adjudication above.
 Require no crashes, hangs, time losses, illegal moves, protocol failures, or
-incomplete games. Ignore the score. Record the test ID, candidate revision,
-OpenBench revision, and PGN location.
+incomplete games. Ignore the score and fixed-test pass/fail flag; they measure
+score, not stability.
 
-Ignore OpenBench's fixed-test pass/fail flag here; it reflects score, not
-stability.
+### Retained evidence
+
+Record the test ID/URL, engine revisions, OpenBench revision, termination rule,
+games, decision, and server PGN location. For strength SPRTs, also retain the
+profile, terminal LLR, and Elo interval.
