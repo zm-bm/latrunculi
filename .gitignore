@@ -9,6 +9,10 @@ logs/
 /tools/measurements/output/
 /tools/tuning/output/
 /bench/latrunculi
+/bot/config.yml
+/bot/token
+/bot/logs/
+/bot/games/
 *.pyc
 __pycache__/
 

@@ -80,6 +80,7 @@ handcrafted-evaluation optimization.
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Run as a Lichess bot](bot/README.md)
 - [OpenBench testing](docs/openbench.md)
 - [Engine development](docs/engine-development.md)
 - [1.0.0 release evidence](docs/releases/1.0.0.md)
