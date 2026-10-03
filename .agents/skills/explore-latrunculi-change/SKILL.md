@@ -22,4 +22,6 @@ Summarize compared variants together and scope negative conclusions to the teste
 - **Null:** Keep a compact **Recent results** entry with its tested scope and stopping reason.
 - **Unresolved:** Keep the entry in **Issues and leads** with the exact next test or resume condition.
 
+Before removing temporary worktrees, preserve any diagnostic code and inputs needed for the recorded next test.
+
 Remove task-owned temporary worktrees and preserve unrelated work. Report the outcome and workspace state. Create only the retained local candidate commit; leave board and evidence bookkeeping uncommitted. Do not run the formal offline pass, push, run games, access OpenBench, or integrate.
