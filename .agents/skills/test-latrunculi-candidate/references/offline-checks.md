@@ -35,7 +35,7 @@ Use these as decision targets, not automatic rejection rules:
 
 - Smaller fixed-depth tree claim: `R_node_g <= 0.9900`.
 - Speed claim: `R_time_balanced <= 0.9925`.
-- Strength claim: `R_time_balanced <= 1.0100` is a slowdown warning.
+- Strength claim: `R_time_balanced > 1.0100` is a slowdown warning.
 
 A missed target needs an explanation of the measured tradeoff and whether the evidence justifies continuing. Do not claim a speed gain without repeatable timing evidence. If a small result is sensitive to noise, repeat under steadier conditions, such as a warm-up per binary and a fixed physical core, before deciding. A single run, old baseline timing compared with a fresh candidate run, an incomplete run, or unisolated timing is diagnostic evidence only.
 
