@@ -17,7 +17,7 @@ import tune
 def schema(features):
     return {
         "type": "schema",
-        "version": 1,
+        "version": 2,
         "perspective": {
             "coefficients": "white",
             "fixed": "white",
@@ -65,7 +65,7 @@ def record(
 ):
     return {
         "type": "position",
-        "version": 1,
+        "version": 2,
         "source": source,
         "result": result,
         "fen": "",
@@ -138,57 +138,6 @@ def experiment(*, anchors=(), fixed=("material.pawn.mg",), mirrored=(), support=
         },
         "validation": {"folds": 5},
     }
-
-
-def complete_experiment(name="run-test"):
-    path = pathlib.Path(__file__).with_name("experiment.example.json")
-    config = tune.load_experiment(path)
-    config["name"] = name
-    config["baseline"] = {"revision": "1" * 40, "benchmark": 42}
-    return config
-
-
-def experiment_input(name="run-test"):
-    config = json.loads(pathlib.Path(__file__).with_name("experiment.example.json").read_text())
-    config["name"] = name
-    config["baseline"] = {"revision": "1" * 40, "benchmark": 42}
-    return config
-
-
-class ConfigurationTest(unittest.TestCase):
-    def test_example_resolves_the_fixed_joint_protocol(self):
-        config = tune.load_experiment(
-            pathlib.Path(__file__).with_name("experiment.example.json")
-        )
-        self.assertEqual(config["version"], 3)
-        self.assertEqual(config["dataset"]["maximum_positions_per_game"], 6)
-        self.assertNotIn("splits", config["dataset"])
-        self.assertEqual(
-            config["fit"]["regularization"],
-            [1e-9, 3e-9, 1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 3e-6, 1e-5],
-        )
-        self.assertEqual(config["validation"]["folds"], 5)
-        self.assertEqual(config["strength"]["normalized_elo_bounds"], [0, 3])
-        self.assertNotIn("features", config["fit"])
-        self.assertNotIn("phases", config["fit"])
-
-    def test_experiment_input_rejects_protocol_overrides(self):
-        config = experiment_input()
-        config["fit"] = {"regularization": [0]}
-        with self.assertRaisesRegex(ValueError, "invalid experiment configuration"):
-            tune.resolve_experiment(config)
-
-    def test_experiment_input_rejects_boolean_numbers(self):
-        config = experiment_input()
-        config["baseline"]["benchmark"] = True
-        with self.assertRaisesRegex(ValueError, "benchmark"):
-            tune.resolve_experiment(config)
-
-    def test_version_two_experiments_are_not_accepted(self):
-        config = experiment_input()
-        config["version"] = 2
-        with self.assertRaisesRegex(ValueError, "unsupported experiment version"):
-            tune.resolve_experiment(config)
 
 
 class ObjectiveTest(unittest.TestCase):
@@ -705,7 +654,7 @@ class ValidationTest(unittest.TestCase):
         parent = tune.baseline_weights(current).astype(int)
         weights = parent.copy()
         weights[5, 1] = 100
-        data = tune.TuningData("manifest", current, development)
+        data = tune.TuningData("manifest", current, development, "data")
         cross_validation = {
             "artifact_id": "cross-validation",
             "supported": True,
@@ -746,36 +695,147 @@ class ArtifactTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             first = pathlib.Path(directory) / "first.json"
             second = pathlib.Path(directory) / "second.json"
-            tune.write_artifact(first, dict(artifact))
-            tune.write_artifact(second, dict(artifact))
+            tune.write_artifact(first, artifact)
+            tune.write_artifact(second, artifact)
             self.assertEqual(first.read_bytes(), second.read_bytes())
             self.assertEqual(
                 tune.read_artifact(first)["artifact_id"],
                 tune.artifact_id(json.loads(first.read_text())),
             )
+            self.assertNotIn("artifact_id", artifact)
 
-    def test_completed_steps_are_immutable_and_idempotent(self):
+    def test_checkpoint_reuses_completed_output_without_a_registry(self):
+        context = {
+            "run_id": "run", "kind": "fit", "fold": 0,
+            "regularization": 1e-9, "calibration_id": "scale",
+        }
+        compute = mock.Mock(return_value={"weights": [1, 2]})
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            artifact = root / "artifact.json"
-            artifact.write_text("first")
-            state = root / "state.json"
-            tune.atomic_write_json(state, {"steps": {}})
-            tune.record_step(state, "test", artifact)
-            tune.record_step(state, "test", artifact)
-            artifact.write_text("changed")
-            with self.assertRaisesRegex(ValueError, "completed step"):
-                tune.validate_steps(root, tune.load_json(state))
+            path = root / "fit.json"
+            first = tune.checkpoint(path, context, compute)
+            path.with_name("fit.json.partial").write_text("interrupted write")
+            second = tune.checkpoint(path, context, compute)
+            self.assertEqual(first, second)
+            self.assertFalse((root / "state.json").exists())
+        compute.assert_called_once_with()
 
-    def test_result_ledger_rejects_a_reused_experiment_name(self):
+    def test_checkpoint_rejects_a_valid_artifact_from_another_context(self):
+        context = {
+            "run_id": "run", "kind": "fit", "fold": 0,
+            "regularization": 1e-9, "calibration_id": "scale",
+        }
+        for field, value in (
+            ("run_id", "other-run"), ("kind", "calibration"), ("fold", 1),
+            ("regularization", 3e-9), ("calibration_id", "other-scale"),
+        ):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                path = pathlib.Path(directory) / "fit.json"
+                tune.write_artifact(path, {**context, field: value})
+                compute = mock.Mock()
+                with self.assertRaisesRegex(ValueError, "context mismatch"):
+                    tune.checkpoint(path, context, compute)
+                compute.assert_not_called()
+
+    def test_checkpoint_retries_an_incomplete_atomic_write(self):
+        context = {"run_id": "run", "kind": "calibration", "fold": None}
         with tempfile.TemporaryDirectory() as directory:
-            ledger = pathlib.Path(directory) / "results.jsonl"
-            first = {"experiment": "same-name", "experiment_sha256": "a" * 64}
-            second = {"experiment": "same-name", "experiment_sha256": "b" * 64}
-            with mock.patch.object(tune, "RESULTS_PATH", ledger):
-                tune.record_result(first)
-                with self.assertRaisesRegex(ValueError, "conflicts"):
-                    tune.record_result(second)
+            path = pathlib.Path(directory) / "calibration.json"
+            path.with_name("calibration.json.partial").write_text("partial")
+            result = tune.checkpoint(path, context, lambda: {"scale": 0.7})
+            self.assertEqual(result["scale"], 0.7)
+            self.assertFalse(path.with_name("calibration.json.partial").exists())
+
+    def test_corrupt_and_legacy_artifacts_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "fit.json"
+            artifact = tune.write_artifact(path, {"kind": "fit", "value": 1})
+            artifact["value"] = 2
+            tune.atomic_write_json(path, artifact)
+            with self.assertRaisesRegex(ValueError, "hash mismatch"):
+                tune.read_artifact(path)
+            artifact["format_version"] = 3
+            artifact["artifact_id"] = tune.artifact_id(artifact)
+            tune.atomic_write_json(path, artifact)
+            with self.assertRaisesRegex(ValueError, "original tool revision"):
+                tune.read_artifact(path)
+
+    def test_artifact_requires_a_json_object(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "fit.json"
+            for value in (None, [], 7):
+                with self.subTest(value=value):
+                    tune.atomic_write_json(path, value)
+                    with self.assertRaisesRegex(ValueError, "invalid tuning artifact"):
+                        tune.read_artifact(path)
+
+    def test_checkpoint_context_does_not_coerce_boolean_fold_numbers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "fit.json"
+            tune.write_artifact(path, {"kind": "fit", "fold": False})
+            with self.assertRaisesRegex(ValueError, "context mismatch"):
+                tune.read_artifact(path, {"kind": "fit", "fold": 0})
+
+
+def fitting_schema():
+    current = base_schema([
+        ("pawn.isolated", 0, 0), ("pawn.backward", 0, 0),
+        ("pawn.connected_link", 0, 0),
+    ])
+    names = {feature["name"] for feature in current["features"]}
+    constraints = tune.FIT_POLICY["constraints"]
+    for anchor in constraints["anchors"]:
+        for name in (anchor, tune.mirrored_psqt_name(anchor, set(constraints["mirror_files"]))):
+            if name not in names:
+                current["features"].append({
+                    "id": len(current["features"]), "name": name, "mg": 0, "eg": 0,
+                })
+                names.add(name)
+    return current
+
+
+def write_prepared_dataset(output, current, engine, paths, policy=None):
+    policy = copy.deepcopy(tune.dataset.PREPARATION_POLICY if policy is None else policy)
+    policy.update(minimum_games=1, minimum_groups=1)
+    output.mkdir(parents=True)
+    records = []
+    for index in range(32):
+        board = tune.dataset.chess.Board.empty()
+        board.set_piece_at(index, tune.dataset.chess.Piece.from_symbol("K"))
+        board.set_piece_at(63, tune.dataset.chess.Piece.from_symbol("k"))
+        item = record(
+            [[0, 1], [1, 1], [2, -1], [3, 1], [4, -1], [5, 1]]
+            + ([[6, 1]] if index < 3 else []),
+            source=f"g{index}:game:8", result=1, phase_counts=(0, 0, 0, 0), pawns=(0, 0),
+        )
+        item["fen"] = board.fen()
+        item["eval"] = tune.dataset.reconstruct(current, item)[0]
+        records.append(item)
+    data = output / tune.dataset.DATA_FILE
+    data.write_text("\n".join(json.dumps(item) for item in (current, *records)) + "\n")
+    report, _ = tune.dataset.validate_dataset(output, policy)
+    manifest = {
+        "format_version": tune.dataset.FORMAT_VERSION,
+        "identity": tune.dataset.preparation_identity(engine, paths, policy),
+        "collection": {"games.read": 32, "games.valid": 32, "groups.read": 32, "positions.sampled": 32},
+        "deduplication": {"positions.exported": 32, "positions.retained": 32},
+        "source_results": {"games.1-0": 32, "sampled.1-0": 32},
+        "validation": report,
+        "outputs": {data.name: tune.sha256_file(data)},
+    }
+    tune.atomic_write_json(output / "manifest.json", manifest)
+    return manifest
+
+
+def prepared_fixture(root):
+    engine = root / "exporter"
+    pgn = root / "games.pgn"
+    engine.write_text("exporter binary")
+    pgn.write_text("original games")
+    output = root / "dataset"
+    current = fitting_schema()
+    write_prepared_dataset(output, current, engine, [pgn])
+    return output, current, engine, pgn
 
 
 class DatasetLoadTest(unittest.TestCase):
@@ -787,7 +847,6 @@ class DatasetLoadTest(unittest.TestCase):
             path = pathlib.Path(directory) / "development.jsonl"
             path.write_text(json.dumps(current) + "\n" + json.dumps(item) + "\n")
             split = tune.load_split(path, "development", current)
-
         self.assertFalse(hasattr(split, "records"))
         self.assertEqual(split.coefficients.nnz, 2)
         self.assertEqual(split.coefficients.dtype, np.int32)
@@ -805,389 +864,413 @@ class DatasetLoadTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "baseline reconstruction"):
                 tune.load_split(path, "development", current)
 
-    def test_dataset_loads_the_single_development_file(self):
-        current = base_schema()
-        experiment_config = {
-            "dataset": {"schema_version": 1, "feature_count": len(current["features"])},
-        }
+    def test_prepared_dataset_remains_usable_without_originals_and_after_relocation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            path = root / tune.dataset.DATA_FILE
-            item = record([], source="development:game:1")
-            item["eval"] = tune.dataset.reconstruct(current, item)[0]
-            path.write_text(json.dumps(current) + "\n" + json.dumps(item) + "\n")
-            manifest = {
-                "format_version": tune.dataset.FORMAT_VERSION,
-                "experiment_sha256": tune.dataset.sha256_json(experiment_config),
-                "outputs": {path.name: tune.sha256_file(path)},
-                "engine": {"sha256": "engine"},
-            }
-            (root / "manifest.json").write_text(json.dumps(manifest))
-            data = tune.load_dataset(root, experiment_config)
-            self.assertEqual(len(data.development.targets), 1)
+            prepared, current, engine, pgn = prepared_fixture(root)
+            before = tune.load_dataset(prepared)
+            engine.unlink()
+            pgn.unlink()
+            relocated = root / "relocated"
+            prepared.rename(relocated)
+            after = tune.load_dataset(relocated)
+            self.assertEqual(after.schema, current)
+            self.assertEqual(after.manifest_sha256, before.manifest_sha256)
+            self.assertEqual(after.data_sha256, before.data_sha256)
+            self.assertEqual(len(after.development.targets), 32)
 
-
-def prepare_output(root, current, cross_validation_supported=True):
-    config = complete_experiment("lifecycle-test")
-    config["dataset"]["feature_count"] = len(current["features"])
-    tune.atomic_write_json(root / "experiment.json", config)
-    tune.atomic_write_json(
-        root / "state.json",
-        {
-            "format_version": tune.STATE_FORMAT_VERSION,
-            "experiment": config["name"],
-            "experiment_sha256": tune.dataset.sha256_json(config),
-            "tool": tune.tool_record(),
-            "dependencies": tune.dependency_versions(),
-            "steps": {},
-        },
-    )
-    weights = tune.baseline_weights(current).astype(int)
-    tune.write_artifact(
-        root / "candidate.json",
-        {
-            "kind": "candidate",
-            "cross_validation_supported": cross_validation_supported,
-            "selected_regularization": 1e-9 if cross_validation_supported else None,
-            "weights": tune.weight_records(current, weights, weights),
-        },
-    )
-    tune.record_step(root / "state.json", "candidate", root / "candidate.json")
-    candidate = tune.read_artifact(root / "candidate.json")
-    return config, candidate
-
-
-class LifecycleTest(unittest.TestCase):
-    def test_version_two_state_is_not_accepted(self):
-        current = base_schema()
+    def test_prepared_dataset_rejects_changed_content(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            prepare_output(root, current)
-            state = tune.load_json(root / "state.json")
-            state["format_version"] = 2
-            tune.atomic_write_json(root / "state.json", state)
-            with self.assertRaisesRegex(ValueError, "unsupported experiment state"):
-                tune.read_state(root)
+            prepared, _, _, _ = prepared_fixture(root)
+            with (prepared / tune.dataset.DATA_FILE).open("a") as stream:
+                stream.write("changed\n")
+            with self.assertRaisesRegex(ValueError, "hash mismatch"):
+                tune.load_dataset(prepared)
 
-    def test_compiled_candidate_verification_compares_the_complete_schema(self):
-        current = base_schema()
-        weights = tune.baseline_weights(current).astype(int)
-        candidate = {
-            "artifact_id": "candidate",
-            "weights": tune.weight_records(current, weights, weights),
-        }
-        with tempfile.TemporaryDirectory() as directory:
-            engine = pathlib.Path(directory) / "engine"
-            engine.write_text("engine")
-            with mock.patch.object(tune, "read_engine_schema", return_value=current):
-                verification = tune.candidate_verification(candidate, current, engine)
-            self.assertEqual(verification["candidate_id"], "candidate")
-
-            changed = copy.deepcopy(current)
-            changed["tempo"] += 1
-            with (
-                mock.patch.object(tune, "read_engine_schema", return_value=changed),
-                self.assertRaisesRegex(ValueError, "does not match"),
-            ):
-                tune.candidate_verification(candidate, current, engine)
-
-    def test_verify_records_the_compiled_candidate(self):
-        current = base_schema()
+    def test_legacy_preparation_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            _, candidate = prepare_output(root, current, True)
-            dataset_dir = root / "dataset"
-            dataset_dir.mkdir()
-            development = dataset_dir / tune.dataset.DATA_FILE
-            development.write_text(json.dumps(current) + "\n")
-            tune.atomic_write_json(
-                dataset_dir / "manifest.json",
-                {
-                    "outputs": {tune.dataset.DATA_FILE: tune.sha256_file(development)}
-                },
-            )
-            engine = root / "engine"
-            engine.write_text("engine")
-            with (
-                mock.patch.object(tune, "read_engine_schema", return_value=current),
-                contextlib.redirect_stdout(io.StringIO()),
-            ):
-                tune.verify_command(types.SimpleNamespace(output=root, engine=engine))
+            prepared, _, _, _ = prepared_fixture(root)
+            manifest = tune.load_json(prepared / "manifest.json")
+            manifest["format_version"] = 3
+            tune.atomic_write_json(prepared / "manifest.json", manifest)
+            with self.assertRaisesRegex(ValueError, "unsupported"):
+                tune.load_dataset(prepared)
 
-            state = tune.load_json(root / "state.json")
-            self.assertIn("verification", state["steps"])
-            self.assertEqual(
-                tune.load_json(root / "verification.json")["candidate_id"],
-                candidate["artifact_id"],
-            )
 
-    def test_validate_checks_the_experiment_dataset(self):
-        current = base_schema()
+class PrepareTest(unittest.TestCase):
+    def test_preparation_does_not_depend_on_fitting_constraints(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            config, _ = prepare_output(root, current, False)
-            dataset_dir = root / "dataset"
-            dataset_dir.mkdir()
-            tune.atomic_write_json(
-                dataset_dir / "manifest.json",
-                {"experiment_sha256": tune.dataset.sha256_json(config)},
-            )
-            report = {"duplicates": 0}
-            stream = io.StringIO()
-            with (
-                mock.patch.object(tune.dataset, "validate_output", return_value=(report, current)),
-                contextlib.redirect_stdout(stream),
-            ):
-                tune.validate_command(types.SimpleNamespace(output=root))
-            self.assertEqual(json.loads(stream.getvalue()), report)
-
-    def test_strength_result_requires_compiled_verification(self):
-        current = base_schema()
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            prepare_output(root, current, True)
-            args = types.SimpleNamespace(
-                output=root,
-                result="upper",
-                reason="upper boundary",
-                openbench_test="42",
-            )
-            with (
-                mock.patch.object(tune, "RESULTS_PATH", root / "results.jsonl"),
-                self.assertRaisesRegex(ValueError, "not been verified"),
-            ):
-                tune.close_command(args)
-
-    def test_close_derives_decision_and_records_one_durable_result(self):
-        current = base_schema()
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            _, candidate = prepare_output(root, current, True)
-            tune.atomic_write_json(
-                root / "verification.json",
-                {"candidate_id": candidate["artifact_id"]},
-            )
-            tune.record_step(root / "state.json", "verification", root / "verification.json")
-            args = types.SimpleNamespace(
-                output=root,
-                result="upper",
-                reason="upper boundary",
-                openbench_test="42",
-            )
-            ledger = root / "results.jsonl"
-            with (
-                mock.patch.object(tune, "RESULTS_PATH", ledger),
-                contextlib.redirect_stdout(io.StringIO()),
-            ):
-                tune.close_command(args)
-                tune.close_command(args)
-
-            records = [json.loads(line) for line in ledger.read_text().splitlines()]
-            self.assertEqual(len(records), 1)
-            self.assertEqual(records[0]["decision"], "accepted")
-            self.assertEqual(records[0]["result"], "upper")
-
-    def test_lower_and_inconclusive_results_reject_the_candidate(self):
-        current = base_schema()
-        for result in ("lower", "inconclusive"):
-            with self.subTest(result=result), tempfile.TemporaryDirectory() as directory:
-                root = pathlib.Path(directory)
-                _, candidate = prepare_output(root, current, True)
-                tune.atomic_write_json(
-                    root / "verification.json",
-                    {"candidate_id": candidate["artifact_id"]},
-                )
-                tune.record_step(
-                    root / "state.json", "verification", root / "verification.json"
-                )
-                args = types.SimpleNamespace(
-                    output=root,
-                    result=result,
-                    reason="strength test did not pass",
-                    openbench_test="42",
-                )
-                with (
-                    mock.patch.object(tune, "RESULTS_PATH", root / "results.jsonl"),
-                    contextlib.redirect_stdout(io.StringIO()),
-                ):
-                    tune.close_command(args)
-                self.assertEqual(
-                    tune.load_json(root / "decision.json")["decision"], "rejected"
-                )
-
-    def test_offline_rejection_has_no_openbench_test(self):
-        current = base_schema()
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            prepare_output(root, current, False)
-            invalid = types.SimpleNamespace(
-                output=root,
-                result="offline",
-                reason="failed validation",
-                openbench_test="42",
-            )
-            with (
-                mock.patch.object(tune, "RESULTS_PATH", root / "results.jsonl"),
-                self.assertRaisesRegex(ValueError, "no OpenBench"),
-            ):
-                tune.close_command(invalid)
-
-            valid = types.SimpleNamespace(
-                output=root,
-                result="offline",
-                reason="failed validation",
-                openbench_test=None,
-            )
-            with (
-                mock.patch.object(tune, "RESULTS_PATH", root / "results.jsonl"),
-                contextlib.redirect_stdout(io.StringIO()),
-            ):
-                tune.close_command(valid)
-            self.assertEqual(
-                tune.load_json(root / "decision.json")["decision"], "rejected"
-            )
-
-    def test_verify_rejects_an_unsupported_candidate(self):
-        current = base_schema()
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            prepare_output(root, current, False)
-            with self.assertRaisesRegex(ValueError, "cross-validation"):
-                tune.verify_command(
-                    types.SimpleNamespace(output=root, engine=root / "engine")
-                )
-
-
-class RunnerTest(unittest.TestCase):
-    def test_run_resumes_completed_atomic_steps(self):
-        config = complete_experiment()
-        source_config = experiment_input()
-        current = base_schema()
-        split = make_split(
-            [record([], source=f"g{index}:x:1") for index in range(5)],
-            len(current["features"]),
-        )
-        data = tune.TuningData("manifest", current, split)
-        assignments = np.arange(5, dtype=np.int8)
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            experiment_path = root / "experiment.json"
             engine = root / "engine"
             pgn = root / "games.pgn"
-            output = root / config["name"]
-            experiment_path.write_text(json.dumps(source_config))
-            engine.write_text("engine")
+            engine.write_text("exporter")
             pgn.write_text("games")
-            args = types.SimpleNamespace(
-                experiment=experiment_path,
-                engine=engine,
-                output=output,
-                pgn=[pgn],
-            )
-
-            def build_dataset(_, __, path, ___):
-                path.mkdir()
-                (path / "manifest.json").write_text(
-                    json.dumps(
-                        {
-                            "inputs": [
-                                {"name": pgn.name, "sha256": tune.sha256_file(pgn)}
-                            ],
-                            "engine": {"sha256": tune.sha256_file(engine)},
-                        }
-                    )
-                )
-
-            calibration = {
-                "kind": "calibration",
-                "objective": {"scale": 0.7},
-            }
-            fit = {
-                "kind": "fit",
-                "constraints": {
-                    "variables": [],
-                    "variable_support": {},
-                    "bounds": [],
-                },
-                "weights": [],
-            }
-            cross_validation = {
-                "kind": "cross_validation",
-                "supported": True,
-                "selected_regularization": 1e-9,
-            }
-            candidate = {
-                "kind": "candidate",
-                "cross_validation_supported": True,
-                "selected_regularization": 1e-9,
-                "review": {},
-                "weights": [],
-            }
-
+            output = root / "prepared"
+            current = base_schema([("pawn.isolated", 0, 0), ("pawn.backward", 0, 0)])
+            args = types.SimpleNamespace(engine=engine, output=output, pgn=[pgn])
             with (
-                mock.patch.object(tune, "read_benchmark", return_value=42),
+                mock.patch.dict(tune.dataset.PREPARATION_POLICY, minimum_games=1, minimum_groups=1),
                 mock.patch.object(tune, "read_engine_schema", return_value=current),
-                mock.patch.object(tune, "validate_schema"),
-                mock.patch.object(tune.dataset, "atomic_build", side_effect=build_dataset) as build,
-                mock.patch.object(tune, "load_dataset", return_value=data),
-                mock.patch.object(tune, "validate_constraints"),
-                mock.patch.object(
-                    tune, "fold_assignments", return_value=assignments
-                ),
-                mock.patch.object(
-                    tune, "build_parameter_map", return_value=object()
-                ) as build_parameters,
-                mock.patch.object(tune, "feature_support", return_value=[]),
-                mock.patch.object(
-                    tune,
-                    "calibrate_scale",
-                    return_value=types.SimpleNamespace(x=0.7, nit=1, nfev=2),
-                ) as calibrate,
-                mock.patch.object(tune, "calibration_artifact", return_value=calibration),
-                mock.patch.object(tune, "fit_parameters", return_value={}) as fit_parameters,
-                mock.patch.object(tune, "fit_artifact", return_value=fit),
-                mock.patch.object(
-                    tune,
-                    "cross_validation_artifact",
-                    return_value=cross_validation,
-                ) as cross_validate,
-                mock.patch.object(
-                    tune, "candidate_artifact", return_value=candidate
-                ) as select,
+                mock.patch.object(tune.dataset, "atomic_build", side_effect=lambda binary, paths, target:
+                                  write_prepared_dataset(target, current, binary, paths)),
                 contextlib.redirect_stdout(io.StringIO()),
             ):
-                tune.run_command(args)
-                tune.run_command(args)
+                tune.prepare_command(args)
+                tune.prepare_command(args)
+            with self.assertRaisesRegex(ValueError, "invalid anchor"):
+                tune.validate_constraints(current, tune.FIT_POLICY)
 
-            self.assertEqual(build.call_count, 1)
-            self.assertEqual(build_parameters.call_count, 2)
-            self.assertEqual(calibrate.call_count, 6)
-            self.assertEqual(fit_parameters.call_count, 46)
-            self.assertEqual(cross_validate.call_count, 1)
-            self.assertEqual(select.call_count, 1)
-            self.assertNotIn("dataset", json.loads(experiment_path.read_text()))
-            self.assertIn("dataset", tune.load_json(output / "experiment.json"))
-            status = tune.status_record(output)
-            self.assertTrue(status["cross_validation_supported"])
-            self.assertIn("run verify", status["next_action"])
-            stream = io.StringIO()
-            with contextlib.redirect_stdout(stream):
-                tune.status_command(types.SimpleNamespace(output=output, json=True))
-            self.assertEqual(json.loads(stream.getvalue())["experiment"], config["name"])
-
-    def test_state_rejects_changed_input_hash(self):
-        config = complete_experiment()
+    def test_prepare_reuses_matching_dataset_and_rejects_changed_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             engine = root / "engine"
             pgn = root / "games.pgn"
-            engine.write_text("engine")
-            pgn.write_text("first")
-            state = tune.initial_state(config, engine, [pgn])
-            pgn.write_text("second")
-            with self.assertRaisesRegex(ValueError, "inputs changed"):
-                tune.validate_state(state, config, engine, [pgn])
+            engine.write_text("exporter")
+            pgn.write_text("games")
+            output = root / "prepared"
+            current = fitting_schema()
+            args = types.SimpleNamespace(engine=engine, output=output, pgn=[pgn])
+            with (
+                mock.patch.dict(tune.dataset.PREPARATION_POLICY, minimum_games=1, minimum_groups=1),
+                mock.patch.object(tune, "read_engine_schema", return_value=current),
+                mock.patch.object(
+                    tune.dataset, "atomic_build",
+                    side_effect=lambda binary, paths, target: write_prepared_dataset(target, current, binary, paths),
+                ) as build,
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                tune.prepare_command(args)
+                tune.prepare_command(args)
+                build.assert_called_once()
+                pgn.write_text("different games")
+                with self.assertRaisesRegex(ValueError, "changed"):
+                    tune.prepare_command(args)
+            self.assertFalse((output / "state.json").exists())
+            self.assertFalse((output / "experiment.json").exists())
+
+    def test_prepare_rejects_an_unsupported_exporter_schema_before_building(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            engine = root / "engine"
+            pgn = root / "games.pgn"
+            engine.write_text("exporter")
+            pgn.write_text("games")
+            current = fitting_schema()
+            current["version"] = 99
+            with (
+                mock.patch.object(tune, "read_engine_schema", return_value=current),
+                mock.patch.object(tune.dataset, "atomic_build") as build,
+                self.assertRaisesRegex(ValueError, "schema"),
+            ):
+                tune.prepare_command(types.SimpleNamespace(engine=engine, output=root / "prepared", pgn=[pgn]))
+            build.assert_not_called()
+
+
+@contextlib.contextmanager
+def mocked_optimizer(*, improve=True, interrupt_at=None):
+    policy = copy.deepcopy(tune.FIT_POLICY)
+    policy["support"]["minimum_groups"] = 3
+    policy["validation"]["bootstrap_samples"] = 20
+    calls = 0
+
+    def fit(split, current, parameters, fit_policy, scale, regularization):
+        nonlocal calls
+        calls += 1
+        if calls == interrupt_at:
+            raise RuntimeError("interrupted fit")
+        deltas = np.asarray([
+            10.0 if improve and name.startswith("pawn.isolated.") else 0.0
+            for name in parameters.names
+        ])
+        continuous_loss = tune.mean_squared_error(
+            tune.continuous_evaluation(split, current, parameters.expand(deltas)),
+            split.targets, scale, split.weights,
+        )
+        penalty = regularization * float(parameters.multiplicity @ (deltas * deltas))
+        rounded = parameters.rounded(deltas)
+        exact_objective = tune.split_metric(split, current, rounded, scale)["mean_squared_error"] + penalty
+        return {
+            "parameters": parameters, "rounded": rounded, "deltas": deltas,
+            "optimizer": types.SimpleNamespace(nit=1, nfev=1, njev=1, fun=continuous_loss + penalty),
+            "selected_iteration": 1, "continuous_loss": continuous_loss,
+            "penalty": penalty, "objective": continuous_loss + penalty,
+            "exact_objective": exact_objective,
+        }
+
+    with (
+        mock.patch.object(tune, "FIT_POLICY", policy),
+        mock.patch.object(
+            tune, "calibrate_scale", return_value=types.SimpleNamespace(x=0.7, nit=1, nfev=2),
+        ) as calibrate,
+        mock.patch.object(tune, "fit_parameters", side_effect=fit) as optimizer,
+        contextlib.redirect_stdout(io.StringIO()),
+    ):
+        yield optimizer, calibrate
+
+
+class FitTest(unittest.TestCase):
+    def test_fit_reuses_all_checkpoints_and_preserves_fold_constraints_for_refit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            prepared, _, _, _ = prepared_fixture(root)
+            output = root / "fit"
+            args = types.SimpleNamespace(dataset=prepared, output=output)
+            with mocked_optimizer() as (optimizer, calibrate):
+                tune.fit_command(args)
+                candidate_bytes = (output / "candidate.json").read_bytes()
+                tune.fit_command(args)
+            self.assertEqual(optimizer.call_count, 46)
+            self.assertEqual(calibrate.call_count, 6)
+            parameters = optimizer.call_args_list[0].args[2]
+            self.assertTrue(all(call.args[2] is parameters for call in optimizer.call_args_list))
+            self.assertIn("pawn.backward.mg", parameters.frozen)
+            self.assertIn("pawn.backward.eg", parameters.frozen)
+            self.assertEqual(candidate_bytes, (output / "candidate.json").read_bytes())
+            self.assertTrue(tune.read_artifact(output / "candidate.json")["cross_validation_supported"])
+            self.assertFalse((output / "state.json").exists())
+            self.assertFalse((output / "experiment.json").exists())
+
+    def test_interrupted_fit_resumes_after_last_complete_checkpoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            prepared, _, _, _ = prepared_fixture(root)
+            output = root / "fit"
+            args = types.SimpleNamespace(dataset=prepared, output=output)
+            with mocked_optimizer(interrupt_at=2) as (first, _):
+                with self.assertRaisesRegex(RuntimeError, "interrupted"):
+                    tune.fit_command(args)
+            completed = output / "cross-validation" / "fold-0" / "lambda-1e-09.json"
+            completed_bytes = completed.read_bytes()
+            incomplete = output / "cross-validation" / "fold-0" / "lambda-3e-09.json.partial"
+            incomplete.write_text("interrupted write")
+            with mocked_optimizer() as (resumed, calibrate):
+                tune.fit_command(args)
+            self.assertEqual(first.call_count, 2)
+            self.assertEqual(resumed.call_count, 45)
+            self.assertEqual(calibrate.call_count, 5)
+            self.assertEqual(completed.read_bytes(), completed_bytes)
+            self.assertFalse(incomplete.exists())
+            fresh = root / "fresh-fit"
+            with mocked_optimizer():
+                tune.fit_command(types.SimpleNamespace(dataset=prepared, output=fresh))
+            self.assertEqual((output / "candidate.json").read_bytes(), (fresh / "candidate.json").read_bytes())
+
+    def test_fit_resume_accepts_relocated_dataset_without_originals(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            prepared, _, engine, pgn = prepared_fixture(root)
+            output = root / "fit"
+            with mocked_optimizer(interrupt_at=2):
+                with self.assertRaises(RuntimeError):
+                    tune.fit_command(types.SimpleNamespace(dataset=prepared, output=output))
+            engine.unlink()
+            pgn.unlink()
+            relocated = root / "relocated"
+            prepared.rename(relocated)
+            with mocked_optimizer() as (optimizer, _):
+                tune.fit_command(types.SimpleNamespace(dataset=relocated, output=output))
+            self.assertEqual(optimizer.call_count, 45)
+
+    def test_unsupported_fit_retains_baseline_without_full_data_refit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            prepared, current, _, _ = prepared_fixture(root)
+            output = root / "fit"
+            with mocked_optimizer(improve=False) as (optimizer, calibrate):
+                tune.fit_command(types.SimpleNamespace(dataset=prepared, output=output))
+            candidate = tune.read_artifact(output / "candidate.json")
+            self.assertFalse(candidate["cross_validation_supported"])
+            self.assertIsNone(candidate["selected_regularization"])
+            self.assertEqual(candidate["changes"], [])
+            np.testing.assert_array_equal(tune.weights_from_artifact(candidate, current), tune.baseline_weights(current))
+            self.assertEqual(optimizer.call_count, 45)
+            self.assertEqual(calibrate.call_count, 5)
+            self.assertFalse((output / "fit.json").exists())
+            self.assertFalse((output / "calibration.json").exists())
+
+    def test_resume_rejects_changed_policy_tools_dependencies_or_prepared_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            prepared, _, _, _ = prepared_fixture(root)
+            output = root / "fit"
+            args = types.SimpleNamespace(dataset=prepared, output=output)
+            with mocked_optimizer():
+                tune.fit_command(args)
+                for target, change in (
+                    ("FIT_POLICY", {**tune.FIT_POLICY, "optimizer": {**tune.FIT_POLICY["optimizer"], "maximum_iterations": 99}}),
+                    ("tool_record", {"tune_sha256": "different"}),
+                    ("dependency_versions", {"python": "different"}),
+                ):
+                    with self.subTest(target=target):
+                        replacement = mock.Mock(return_value=change) if callable(getattr(tune, target)) else change
+                        with mock.patch.object(tune, target, replacement), self.assertRaisesRegex(ValueError, "context mismatch"):
+                            tune.fit_command(args)
+                manifest = tune.load_json(prepared / "manifest.json")
+                manifest["identity"]["inputs"][0]["name"] = "renamed-games.pgn"
+                tune.atomic_write_json(prepared / "manifest.json", manifest)
+                with self.assertRaisesRegex(ValueError, "context mismatch"):
+                    tune.fit_command(args)
+
+    def test_resume_rejects_corrupt_or_wrong_fold_checkpoint(self):
+        for corruption in ("hash", "fold"):
+            with self.subTest(corruption=corruption), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                prepared, _, _, _ = prepared_fixture(root)
+                output = root / "fit"
+                args = types.SimpleNamespace(dataset=prepared, output=output)
+                with mocked_optimizer(interrupt_at=2):
+                    with self.assertRaises(RuntimeError):
+                        tune.fit_command(args)
+                path = output / "cross-validation" / "fold-0" / "lambda-1e-09.json"
+                artifact = tune.read_artifact(path)
+                artifact["fold"] = 1
+                if corruption == "fold":
+                    artifact["artifact_id"] = tune.artifact_id(artifact)
+                tune.atomic_write_json(path, artifact)
+                with mocked_optimizer(), self.assertRaisesRegex(ValueError, "hash mismatch|context mismatch"):
+                    tune.fit_command(args)
+
+    def test_fit_detects_prepared_data_changed_during_computation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            prepared, _, _, _ = prepared_fixture(root)
+            with mocked_optimizer() as (optimizer, _):
+                compute = optimizer.side_effect
+
+                def change_data(*args):
+                    result = compute(*args)
+                    if optimizer.call_count == 46:
+                        with (prepared / tune.dataset.DATA_FILE).open("a") as stream:
+                            stream.write("\n")
+                    return result
+
+                optimizer.side_effect = change_data
+                with self.assertRaisesRegex(ValueError, "changed during fitting"):
+                    tune.fit_command(types.SimpleNamespace(dataset=prepared, output=root / "fit"))
+
+    def test_fit_rejects_legacy_registry_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            prepared, _, _, _ = prepared_fixture(root)
+            output = root / "old-fit"
+            output.mkdir()
+            (output / "state.json").write_text('{"format_version": 3}')
+            with self.assertRaisesRegex(ValueError, "original tool revision"):
+                tune.fit_command(types.SimpleNamespace(dataset=prepared, output=output))
+
+
+def verification_fixture(root, *, supported=True):
+    output = root / "fit"
+    current = fitting_schema()
+    run = tune.write_artifact(output / "run.json", {
+        "kind": "run", "dataset": {"manifest_sha256": "manifest", "data_sha256": "data"},
+        "schema": current, "policy": tune.FIT_POLICY, "tool": {}, "dependencies": {},
+    })
+    parent = tune.baseline_weights(current).astype(np.int64)
+    weights = parent.copy()
+    weights[5] += 10
+    candidate = tune.write_artifact(output / "candidate.json", {
+        "kind": "candidate", "run_id": run["artifact_id"],
+        "cross_validation_supported": supported,
+        "weights": tune.weight_records(current, parent, weights),
+    })
+    return output, tune.schema_with_weights(current, weights), candidate
+
+
+class VerificationTest(unittest.TestCase):
+    def test_verify_is_repeatable_for_equivalent_binaries_without_dataset_or_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            output, current, candidate = verification_fixture(root)
+            first = root / "first-engine"
+            second = root / "rebuilt-engine"
+            first.write_text("first build")
+            second.write_text("equivalent rebuild")
+            before = {path.name: path.read_bytes() for path in output.iterdir()}
+            reports = []
+            for engine in (first, second):
+                stream = io.StringIO()
+                with (
+                    mock.patch.object(tune, "read_engine_schema", return_value=current),
+                    contextlib.redirect_stdout(stream),
+                ):
+                    tune.verify_command(types.SimpleNamespace(output=output, engine=engine))
+                reports.append(json.loads(stream.getvalue()))
+            self.assertEqual(reports[0]["candidate_id"], candidate["artifact_id"])
+            self.assertEqual(reports[0]["schema_sha256"], reports[1]["schema_sha256"])
+            self.assertNotEqual(reports[0]["engine_sha256"], reports[1]["engine_sha256"])
+            self.assertEqual(before, {path.name: path.read_bytes() for path in output.iterdir()})
+
+    def test_verify_rejects_weight_or_evaluation_invariant_mismatch(self):
+        for field in ("weight", "tempo"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                output, current, _ = verification_fixture(root)
+                engine = root / "engine"
+                engine.write_text("build")
+                if field == "weight":
+                    current["features"][5]["eg"] += 1
+                else:
+                    current["tempo"] += 1
+                with (
+                    mock.patch.object(tune, "read_engine_schema", return_value=current),
+                    self.assertRaisesRegex(ValueError, "does not match"),
+                ):
+                    tune.verify_command(types.SimpleNamespace(output=output, engine=engine))
+
+    def test_verify_rejects_unsupported_proposal_and_wrong_run_identity(self):
+        for failure in ("unsupported", "run"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                output, _, candidate = verification_fixture(root, supported=failure != "unsupported")
+                if failure == "run":
+                    candidate["run_id"] = "another-run"
+                    candidate["artifact_id"] = tune.artifact_id(candidate)
+                    tune.atomic_write_json(output / "candidate.json", candidate)
+                with self.assertRaisesRegex(ValueError, "cross-validation|context mismatch"):
+                    tune.verify_command(types.SimpleNamespace(output=output, engine=root / "engine"))
+
+    def test_verify_rejects_noninteger_proposal_weights(self):
+        for value in (10.5, True):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                output, current, candidate = verification_fixture(root)
+                candidate["weights"][5]["candidate"]["mg"] = value
+                candidate["artifact_id"] = tune.artifact_id(candidate)
+                tune.atomic_write_json(output / "candidate.json", candidate)
+                engine = root / "engine"
+                engine.write_text("build")
+                with (
+                    mock.patch.object(tune, "read_engine_schema", return_value=current),
+                    self.assertRaisesRegex(ValueError, "integers"),
+                ):
+                    tune.verify_command(types.SimpleNamespace(output=output, engine=engine))
+
+    def test_verify_detects_binary_changed_during_schema_export(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            output, current, _ = verification_fixture(root)
+            engine = root / "engine"
+            engine.write_text("original build")
+
+            def export(binary):
+                binary.write_text("replacement build")
+                return current
+
+            with (
+                mock.patch.object(tune, "read_engine_schema", side_effect=export),
+                self.assertRaisesRegex(ValueError, "changed during verification"),
+            ):
+                tune.verify_command(types.SimpleNamespace(output=output, engine=engine))
+
+    def test_verify_rejects_legacy_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "state.json").write_text('{"format_version": 3}')
+            with self.assertRaisesRegex(ValueError, "original tool revision"):
+                tune.verify_command(types.SimpleNamespace(output=root, engine=root / "engine"))
 
 
 if __name__ == "__main__":

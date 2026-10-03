@@ -9,7 +9,7 @@ option(BUILD_TESTING "Build tests" OFF)
 include(CTest)
 find_package(Threads REQUIRED)
 
-option(LATRUNCULI_SEARCH_STATS "Enable detailed search statistics diagnostics" OFF)
+option(LATRUNCULI_SEARCH_STATS "Enable search diagnostics" OFF)
 option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
 set(LATRUNCULI_SANITIZER "none" CACHE STRING "Sanitizer configuration")
 set_property(CACHE LATRUNCULI_SANITIZER PROPERTY STRINGS none address-undefined thread)
@@ -89,19 +89,14 @@ add_executable(latrunculi
 target_link_libraries(latrunculi PRIVATE latrunculi_lib)
 set_property(TARGET latrunculi PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 
-option(LATRUNCULI_BUILD_MEASUREMENTS "Build component measurement tool" OFF)
-if(LATRUNCULI_BUILD_MEASUREMENTS)
-    add_executable(latrunculi-measure
-        tools/measurements/main.cpp
-        tools/measurements/eval.cpp
-        tools/measurements/perft.cpp
-        tools/measurements/search.cpp
+option(LATRUNCULI_BUILD_SEARCH_BENCH "Build native search benchmark" OFF)
+if(LATRUNCULI_BUILD_SEARCH_BENCH)
+    add_executable(latrunculi-search-bench tools/analysis/search_bench.cpp)
+    target_compile_definitions(latrunculi-search-bench PRIVATE
+        LATRUNCULI_SEARCH_SUITE="${CMAKE_CURRENT_SOURCE_DIR}/tools/analysis/search.epd"
     )
-    target_compile_definitions(latrunculi-measure PRIVATE
-        LATRUNCULI_SEARCH_SUITE="${CMAKE_CURRENT_SOURCE_DIR}/tools/measurements/search.epd"
-    )
-    target_link_libraries(latrunculi-measure PRIVATE latrunculi_lib)
-    set_property(TARGET latrunculi-measure PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    target_link_libraries(latrunculi-search-bench PRIVATE latrunculi_lib)
+    set_property(TARGET latrunculi-search-bench PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
 endif()
 
 if(BUILD_TESTING)

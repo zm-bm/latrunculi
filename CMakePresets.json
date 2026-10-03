@@ -22,7 +22,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "BUILD_TESTING": "ON",
-        "LATRUNCULI_BUILD_MEASUREMENTS": "OFF"
+        "LATRUNCULI_BUILD_SEARCH_BENCH": "OFF"
       }
     },
     {
@@ -56,17 +56,17 @@
       "name": "release-dev",
       "inherits": ["release"],
       "displayName": "Release Developer",
-      "description": "Release build with tests and component measurements enabled",
+      "description": "Release build with tests and native search benchmark enabled",
       "cacheVariables": {
         "BUILD_TESTING": "ON",
-        "LATRUNCULI_BUILD_MEASUREMENTS": "ON"
+        "LATRUNCULI_BUILD_SEARCH_BENCH": "ON"
       }
     },
     {
       "name": "release-stats",
       "inherits": ["release-dev"],
       "displayName": "Release with search stats",
-      "description": "Release build with search stats, tests, and component measurements enabled",
+      "description": "Release build with search stats, tests, and native search benchmark enabled",
       "cacheVariables": {
         "LATRUNCULI_SEARCH_STATS": "ON"
       }

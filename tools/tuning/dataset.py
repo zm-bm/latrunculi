@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import pathlib
+import platform
 import shutil
 import subprocess
 import tarfile
@@ -16,7 +17,71 @@ import chess.pgn
 RESULTS = {"1-0": 1, "1/2-1/2": 0, "0-1": -1}
 DATA_FILE = "development.jsonl"
 PHASE_BUCKETS = ((0, 31), (32, 63), (64, 95), (96, 128))
-FORMAT_VERSION = 3
+FORMAT_VERSION = 4
+PREPARATION_POLICY = {
+    "schema_version": 2,
+    "minimum_game_ply": 8,
+    "maximum_positions_per_game": 6,
+    "minimum_games": 40000,
+    "minimum_groups": 20000,
+}
+MATERIAL_NAMES = ("material.pawn", "material.knight", "material.bishop", "material.rook", "material.queen")
+
+
+def validate_policy(policy):
+    if not isinstance(policy, dict) or set(policy) != set(PREPARATION_POLICY):
+        raise ValueError("invalid preparation policy")
+    if any(type(value) is not int for value in policy.values()):
+        raise ValueError("preparation policy values must be integers")
+    if policy["schema_version"] != 2 or policy["maximum_positions_per_game"] <= 0:
+        raise ValueError("unsupported preparation policy")
+    if any(policy[name] < 0 for name in ("minimum_game_ply", "minimum_games", "minimum_groups")):
+        raise ValueError("preparation limits must be nonnegative")
+
+
+def validate_schema(schema):
+    if (not isinstance(schema, dict) or schema.get("type") != "schema"
+            or type(schema.get("version")) is not int or schema["version"] != 2):
+        raise ValueError("unsupported dataset schema")
+    features = schema.get("features")
+    if not isinstance(features, list) or any(not isinstance(feature, dict) for feature in features):
+        raise ValueError("invalid feature definitions")
+    ids = [feature.get("id") for feature in features]
+    names = [feature.get("name") for feature in features]
+    if any(type(feature_id) is not int for feature_id in ids) or ids != list(range(len(ids))):
+        raise ValueError("invalid feature IDs")
+    if (any(not isinstance(name, str) or not name.strip() for name in names)
+            or len(names) != len(set(names))):
+        raise ValueError("invalid feature names")
+    if any(type(feature.get(side)) is not int for feature in features for side in ("mg", "eg")):
+        raise ValueError("feature weights must be integers")
+    weights = {feature["name"]: feature for feature in features}
+    if any(name not in weights for name in MATERIAL_NAMES):
+        raise ValueError("missing material feature")
+    if any(weights[name][side] <= 0 for name in MATERIAL_NAMES for side in ("mg", "eg")):
+        raise ValueError("material weights must be positive")
+    conventions = {
+        "perspective": {"coefficients": "white", "fixed": "white", "eval": "side_to_move"},
+        "result": "1=white_win,0=draw,-1=black_win",
+        "phase_counts": ["knight", "bishop", "rook", "queen"],
+        "pawn_counts": ["white", "black"],
+    }
+    if any(schema.get(name) != value for name, value in conventions.items()):
+        raise ValueError("unsupported evaluation perspective or count conventions")
+    constants = ("phase_limit", "phase_material_min", "phase_material_max",
+                 "scale_limit", "scale_base", "scale_per_pawn", "tempo")
+    if any(type(schema.get(name)) is not int for name in constants):
+        raise ValueError("evaluation invariants must be integers")
+    phase_max = sum(count * weights[name]["mg"]
+                    for count, name in zip((4, 4, 4, 2), MATERIAL_NAMES[1:]))
+    if (schema["phase_limit"] != 128
+            or not 0 <= schema["phase_material_min"] < schema["phase_material_max"]
+            or schema["phase_material_max"] != phase_max):
+        raise ValueError("invalid evaluation phase invariants")
+    if (schema["scale_limit"] <= 0 or not 0 <= schema["scale_base"] <= schema["scale_limit"]
+            or schema["scale_per_pawn"] < 0):
+        raise ValueError("invalid evaluation scaling invariants")
+    return schema
 
 
 def canonical_json(value):
@@ -33,6 +98,60 @@ def sha256_file(path):
 
 def sha256_json(value):
     return hashlib.sha256(canonical_json(value).encode()).hexdigest()
+
+
+def _preparation(engine, paths, policy):
+    validate_policy(policy)
+    engine = pathlib.Path(engine)
+    paths = [pathlib.Path(path) for path in paths]
+    if not engine.is_file() or not paths or any(not path.is_file() for path in paths):
+        raise ValueError("engine and PGN inputs must exist")
+    inputs = [(path, sha256_file(path)) for path in paths]
+    if len({digest for _, digest in inputs}) != len(inputs):
+        raise ValueError("duplicate PGN input")
+    inputs.sort(key=lambda item: (item[1], item[0].name))
+    return {
+        "policy": dict(policy),
+        "engine": {"name": engine.name, "sha256": sha256_file(engine)},
+        "inputs": [{"name": path.name, "sha256": digest} for path, digest in inputs],
+        "tool": {"name": pathlib.Path(__file__).name, "sha256": sha256_file(pathlib.Path(__file__))},
+        "python_version": platform.python_version(),
+        "python_chess_version": chess.__version__,
+    }, inputs
+
+
+def preparation_identity(engine, paths, policy=PREPARATION_POLICY):
+    return _preparation(engine, paths, policy)[0]
+
+
+def _valid_hash(value):
+    return (isinstance(value, str) and len(value) == 64
+            and all(character in "0123456789abcdef" for character in value))
+
+
+def _validate_identity(identity):
+    expected = {"policy", "engine", "inputs", "tool", "python_version", "python_chess_version"}
+    if not isinstance(identity, dict) or set(identity) != expected:
+        raise ValueError("invalid dataset preparation identity")
+    validate_policy(identity["policy"])
+    inputs = identity["inputs"]
+    if not isinstance(inputs, list) or not inputs:
+        raise ValueError("invalid dataset inputs")
+    for entry in [identity["engine"], identity["tool"], *inputs]:
+        if not isinstance(entry, dict) or set(entry) != {"name", "sha256"}:
+            raise ValueError("invalid dataset provenance")
+        name = entry["name"]
+        if (not isinstance(name, str) or not name or pathlib.Path(name).name != name
+                or name in (".", "..") or not _valid_hash(entry["sha256"])):
+            raise ValueError("invalid dataset provenance")
+    if identity["tool"]["name"] != "dataset.py":
+        raise ValueError("invalid dataset preparation tool")
+    if (inputs != sorted(inputs, key=lambda entry: (entry["sha256"], entry["name"]))
+            or len({entry["sha256"] for entry in inputs}) != len(inputs)):
+        raise ValueError("invalid or duplicate dataset inputs")
+    if any(not isinstance(identity[name], str) or not identity[name]
+           for name in ("python_version", "python_chess_version")):
+        raise ValueError("invalid dataset preparation versions")
 
 
 def canonical_fen(board):
@@ -213,9 +332,7 @@ def read_schema(path):
     if not line:
         raise ValueError(f"{path}: missing schema")
     schema = json.loads(line)
-    if schema.get("type") != "schema":
-        raise ValueError(f"{path}: missing schema")
-    return schema
+    return validate_schema(schema)
 
 
 def write_development(settled_path, output_dir):
@@ -229,7 +346,7 @@ def write_development(settled_path, output_dir):
         next(stream)
         for line_number, line in enumerate(stream, 2):
             record = json.loads(line)
-            if record.get("type") != "position":
+            if not isinstance(record, dict) or record.get("type") != "position":
                 raise ValueError(f"{settled_path}:{line_number}: invalid record")
             exported += 1
             fen = " ".join(record["fen"].split()[:4])
@@ -262,11 +379,55 @@ def write_development(settled_path, output_dir):
     return dict(sorted(counts.items())), schema
 
 
-def validate_dataset(output_dir):
+def _validate_record(schema, record, policy):
+    if (not isinstance(record, dict) or record.get("type") != "position"
+            or type(record.get("version")) is not int or record["version"] != schema["version"]):
+        raise ValueError("invalid position record")
+    source = record.get("source")
+    parts = source.split(":") if isinstance(source, str) else []
+    if len(parts) != 3 or not all(parts) or not parts[2].isdecimal() or int(parts[2]) <= 0:
+        raise ValueError("invalid position source")
+    if policy is not None and int(parts[2]) < policy["minimum_game_ply"]:
+        raise ValueError("position precedes the preparation minimum ply")
+    if type(record.get("result")) is not int or record["result"] not in (-1, 0, 1):
+        raise ValueError("invalid game result")
+    fen = record.get("fen")
+    if not isinstance(fen, str) or len(fen.split()) != 6:
+        raise ValueError("position needs a six-field FEN")
+    board = chess.Board(fen)
+    if not board.is_valid() or record.get("turn") != ("w" if board.turn else "b"):
+        raise ValueError("invalid position or side to move")
+    for name, size in (("fixed", 2), ("phase_counts", 4), ("pawn_counts", 2)):
+        values = record.get(name)
+        if (not isinstance(values, list) or len(values) != size
+                or any(type(value) is not int for value in values)):
+            raise ValueError(f"invalid {name}")
+    phase_counts = [sum(len(board.pieces(piece, color)) for color in chess.COLORS)
+                    for piece in (chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN)]
+    pawn_counts = [len(board.pieces(chess.PAWN, color)) for color in (chess.WHITE, chess.BLACK)]
+    if record["phase_counts"] != phase_counts or record["pawn_counts"] != pawn_counts:
+        raise ValueError("position material counts differ from its FEN")
+    coefficients = record.get("coefficients")
+    if (not isinstance(coefficients, list) or any(
+            not isinstance(pair, list) or len(pair) != 2
+            or any(type(value) is not int for value in pair)
+            or not 0 <= pair[0] < len(schema["features"]) or pair[1] == 0
+            for pair in coefficients)):
+        raise ValueError("invalid feature coefficients")
+    ids = [pair[0] for pair in coefficients]
+    if ids != sorted(set(ids)):
+        raise ValueError("duplicate or unordered coefficient IDs")
+    if type(record.get("eval")) is not int:
+        raise ValueError("invalid exported evaluation")
+    return parts
+
+
+def validate_dataset(output_dir, policy=None):
     path = output_dir / DATA_FILE
     positions = set()
     sources = set()
     groups = set()
+    game_positions = collections.Counter()
     position_count = 0
     results = collections.Counter()
     phase_buckets = collections.Counter()
@@ -275,17 +436,14 @@ def validate_dataset(output_dir):
         if not line:
             raise ValueError(f"{path}: missing schema")
         schema = json.loads(line)
-        if schema.get("type") != "schema":
-            raise ValueError(f"{path}: missing schema")
-        ids = [feature["id"] for feature in schema["features"]]
-        names = [feature["name"] for feature in schema["features"]]
-        if ids != list(range(len(ids))) or len(names) != len(set(names)):
-            raise ValueError("invalid feature IDs or duplicate names")
+        validate_schema(schema)
 
         for line_number, line in enumerate(stream, 2):
             record = json.loads(line)
-            if record.get("type") != "position" or record["version"] != schema["version"]:
-                raise ValueError(f"{path}:{line_number}: invalid position record")
+            try:
+                parts = _validate_record(schema, record, policy)
+            except ValueError as error:
+                raise ValueError(f"{path}:{line_number}: {error}") from error
             if record["source"] in sources:
                 raise ValueError(f"duplicate source: {record['source']}")
             sources.add(record["source"])
@@ -295,6 +453,9 @@ def validate_dataset(output_dir):
                 raise ValueError(f"duplicate position: {fen}")
             positions.add(fen)
             groups.add(group_from_source(record["source"]))
+            game_positions[tuple(parts[:2])] += 1
+            if policy is not None and game_positions[tuple(parts[:2])] > policy["maximum_positions_per_game"]:
+                raise ValueError("too many retained positions from one game")
 
             rebuilt, phase = reconstruct(schema, record)
             if rebuilt != record["eval"]:
@@ -319,42 +480,77 @@ def validate_dataset(output_dir):
     }, schema
 
 
+def _validate_statistics(manifest, report):
+    for name in ("collection", "deduplication", "source_results"):
+        counts = manifest.get(name)
+        if (not isinstance(counts, dict) or any(not isinstance(key, str) for key in counts)
+                or any(type(value) is not int or value < 0 for value in counts.values())):
+            raise ValueError(f"invalid dataset {name}")
+    collection = manifest["collection"]
+    deduplication = manifest["deduplication"]
+    source_results = manifest["source_results"]
+    policy = manifest["identity"]["policy"]
+    games = collection.get("games.valid", 0)
+    groups = collection.get("groups.read", 0)
+    sampled = collection.get("positions.sampled", 0)
+    exported = deduplication.get("positions.exported", 0)
+    retained = deduplication.get("positions.retained", 0)
+    conflicts = deduplication.get("positions.conflicting", 0)
+    conflicting_occurrences = deduplication.get("positions.conflicting_occurrences", 0)
+    if (games < policy["minimum_games"] or groups < policy["minimum_groups"]
+            or report["groups"] < policy["minimum_groups"]):
+        raise ValueError("dataset does not meet preparation minimums")
+    if (games > collection.get("games.read", 0) or not report["groups"] <= groups <= games
+            or collection.get("groups.singleton", 0) > groups
+            or sampled > games * policy["maximum_positions_per_game"]):
+        raise ValueError("inconsistent dataset collection counts")
+    if (sampled != exported + collection.get("positions.settling_rejected", 0)
+            or retained != report["positions"]
+            or exported != retained + conflicts + deduplication.get("positions.duplicate", 0)
+            or not 2 * conflicts <= conflicting_occurrences <= exported - retained
+            or (conflicts == 0 and conflicting_occurrences != 0)):
+        raise ValueError("inconsistent dataset deduplication counts")
+    allowed_results = {f"{prefix}.{result}" for prefix in ("games", "sampled") for result in RESULTS}
+    if (not set(source_results) <= allowed_results
+            or sum(source_results.get(f"games.{result}", 0) for result in RESULTS) != games
+            or sum(source_results.get(f"sampled.{result}", 0) for result in RESULTS) != sampled):
+        raise ValueError("inconsistent dataset source results")
+
+
 def validate_output(output_dir):
     manifest = json.loads((output_dir / "manifest.json").read_text())
-    if manifest.get("format_version") != FORMAT_VERSION:
-        raise ValueError("unsupported dataset manifest")
-    experiment_hash = manifest.get("experiment_sha256")
-    if not isinstance(experiment_hash, str) or len(experiment_hash) != 64:
-        raise ValueError("invalid dataset experiment hash")
+    if (not isinstance(manifest, dict) or type(manifest.get("format_version")) is not int
+            or manifest["format_version"] != FORMAT_VERSION):
+        raise ValueError("unsupported dataset manifest; use the original tool revision for legacy outputs or prepare a new dataset")
+    expected_manifest = {"format_version", "identity", "collection", "deduplication",
+                         "source_results", "validation", "outputs"}
+    if set(manifest) != expected_manifest:
+        raise ValueError("invalid dataset manifest fields")
+    _validate_identity(manifest["identity"])
     expected_outputs = {DATA_FILE}
-    if set(manifest.get("outputs", {})) != expected_outputs:
+    if not isinstance(manifest["outputs"], dict) or set(manifest["outputs"]) != expected_outputs:
         raise ValueError("invalid dataset outputs")
     for name, expected_hash in manifest["outputs"].items():
-        if sha256_file(output_dir / name) != expected_hash:
+        if not _valid_hash(expected_hash) or sha256_file(output_dir / name) != expected_hash:
             raise ValueError(f"dataset output hash mismatch: {name}")
 
-    report, schema = validate_dataset(output_dir)
+    report, schema = validate_dataset(output_dir, manifest["identity"]["policy"])
     if report != manifest.get("validation"):
         raise ValueError("dataset validation report changed")
+    _validate_statistics(manifest, report)
     return report, schema
 
 
-def build_dataset(engine, paths, output_dir, experiment):
+def build_dataset(engine, paths, output_dir, policy=PREPARATION_POLICY):
     if output_dir.exists():
         raise ValueError(f"output already exists: {output_dir}")
-    if not engine.is_file() or not paths or any(not path.is_file() for path in paths):
-        raise ValueError("engine and PGN inputs must exist")
-
-    engine_hash = sha256_file(engine)
-    hashes = {path: sha256_file(path) for path in paths}
-    if len(set(hashes.values())) != len(paths):
-        raise ValueError("duplicate PGN input")
-    inputs = sorted(hashes.items(), key=lambda item: (item[1], item[0].name))
+    paths = list(paths)
+    identity, inputs = _preparation(engine, paths, policy)
     output_dir.mkdir(parents=True)
     with tempfile.TemporaryDirectory(prefix="work-", dir=output_dir) as directory:
         work = pathlib.Path(directory)
         collection, source_results = collect_positions(
-            inputs, experiment["dataset"], work / "positions.tsv"
+            inputs, policy, work / "positions.tsv"
         )
         export_settled_features(engine, work / "positions.tsv", work / "settled.jsonl")
         deduplication, schema = write_development(work / "settled.jsonl", output_dir)
@@ -363,34 +559,23 @@ def build_dataset(engine, paths, output_dir, experiment):
         - deduplication["positions.exported"]
     )
 
-    report, validated_schema = validate_dataset(output_dir)
+    report, validated_schema = validate_dataset(output_dir, policy)
     if validated_schema != schema:
         raise ValueError("exported schema changed while building the dataset")
-    expected = experiment["dataset"]
-    if schema["version"] != expected["schema_version"]:
-        raise ValueError("engine schema version differs from the experiment")
-    if len(schema["features"]) != expected["feature_count"]:
-        raise ValueError("engine feature count differs from the experiment")
-    if report["groups"] < expected["minimum_groups"]:
+    if report["groups"] < policy["minimum_groups"]:
         raise ValueError("too few opening groups remain after settling and deduplication")
-    if sha256_file(engine) != engine_hash:
-        raise ValueError("engine changed while building the dataset")
-    if any(sha256_file(path) != input_hash for path, input_hash in inputs):
-        raise ValueError("PGN input changed while building the dataset")
+    if preparation_identity(engine, paths, policy) != identity:
+        raise ValueError("preparation inputs changed while building the dataset")
 
     manifest = {
         "format_version": FORMAT_VERSION,
-        "python_chess_version": chess.__version__,
-        "experiment_sha256": sha256_json(experiment),
-        "engine": {"name": engine.name, "sha256": engine_hash},
-        "inputs": [
-            {"name": path.name, "sha256": input_hash} for path, input_hash in inputs
-        ],
+        "identity": identity,
         "collection": collection,
         "deduplication": deduplication,
         "source_results": source_results,
         "validation": report,
     }
+    _validate_statistics(manifest, report)
     manifest["outputs"] = {DATA_FILE: sha256_file(output_dir / DATA_FILE)}
     (output_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"
@@ -398,16 +583,16 @@ def build_dataset(engine, paths, output_dir, experiment):
     return manifest
 
 
-def atomic_build(engine, paths, output_dir, experiment):
+def atomic_build(engine, paths, output_dir, policy=PREPARATION_POLICY):
     if output_dir.exists():
         raise ValueError(f"output already exists: {output_dir}")
     partial = output_dir.with_name(output_dir.name + ".partial")
     if partial.exists():
         shutil.rmtree(partial)
     try:
-        manifest = build_dataset(engine, paths, partial, experiment)
+        manifest = build_dataset(engine, paths, partial, policy)
         partial.rename(output_dir)
-    except Exception:
+    except BaseException:
         if partial.exists():
             shutil.rmtree(partial)
         raise

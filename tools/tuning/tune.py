@@ -9,7 +9,6 @@ import json
 import math
 import pathlib
 import platform
-import re
 import subprocess
 import sys
 from array import array
@@ -32,18 +31,9 @@ PHASE_MATERIAL_FEATURES = (
 )
 PHASE_START_COUNTS = np.asarray((4, 4, 4, 2), dtype=np.int64)
 DEVELOPMENT_SPLIT = "development"
-STATE_FORMAT_VERSION = 3
-RESULTS_PATH = pathlib.Path(__file__).with_name("results.jsonl")
+FORMAT_VERSION = 4
 
-PROTOCOL = {
-    "dataset": {
-        "schema_version": 1,
-        "feature_count": 482,
-        "minimum_game_ply": 8,
-        "maximum_positions_per_game": 6,
-        "minimum_games": 40000,
-        "minimum_groups": 20000,
-    },
+FIT_POLICY = {
     "objective": {
         "perspective": "white",
         "result_mapping": "-1=0,0=0.5,1=1",
@@ -110,7 +100,6 @@ PROTOCOL = {
         "phase_buckets": [0, 32, 64, 96, 129],
         "minimum_phase_groups": 128,
     },
-    "strength": {"normalized_elo_bounds": [0, 3]},
 }
 
 
@@ -133,6 +122,7 @@ class TuningData:
     manifest_sha256: str
     schema: dict
     development: Split
+    data_sha256: str
 
 
 @dataclass
@@ -180,59 +170,6 @@ def canonical_json(value):
     return dataset.canonical_json(value)
 
 
-def resolve_experiment(config):
-    if not isinstance(config, dict) or set(config) != {
-        "version",
-        "name",
-        "baseline",
-        "corpus",
-    }:
-        raise ValueError("invalid experiment configuration")
-    if type(config["version"]) is not int or config["version"] != 3:
-        raise ValueError("unsupported experiment version")
-    if not isinstance(config["name"], str) or not re.fullmatch(
-        r"[a-z0-9][a-z0-9-]*", config["name"]
-    ):
-        raise ValueError("experiment name must use lowercase letters, digits, and hyphens")
-
-    baseline = config["baseline"]
-    if not isinstance(baseline, dict) or set(baseline) != {"revision", "benchmark"}:
-        raise ValueError("invalid baseline configuration")
-    if not isinstance(baseline["revision"], str) or not re.fullmatch(
-        r"[0-9a-f]{40}", baseline["revision"]
-    ):
-        raise ValueError("baseline revision must be a full commit hash")
-    if type(baseline["benchmark"]) is not int or baseline["benchmark"] < 1:
-        raise ValueError("baseline benchmark must be positive")
-
-    corpus = config["corpus"]
-    corpus_keys = {
-        "description",
-        "openbench_tests",
-        "book",
-        "time_control",
-        "engine_options",
-        "adjudication",
-    }
-    if not isinstance(corpus, dict) or set(corpus) != corpus_keys:
-        raise ValueError("invalid corpus description")
-    text_keys = corpus_keys - {"openbench_tests", "engine_options"}
-    if any(not isinstance(corpus[key], str) or not corpus[key] for key in text_keys):
-        raise ValueError("corpus text fields must be nonempty strings")
-    if not isinstance(corpus["openbench_tests"], list) or not isinstance(
-        corpus["engine_options"], dict
-    ):
-        raise ValueError("invalid corpus tests or engine options")
-
-    resolved = copy.deepcopy(PROTOCOL)
-    resolved.update(copy.deepcopy(config))
-    return resolved
-
-
-def load_experiment(path):
-    return resolve_experiment(json.loads(path.read_text()))
-
-
 def artifact_id(artifact):
     payload = {key: value for key, value in artifact.items() if key != "artifact_id"}
     return hashlib.sha256(canonical_json(payload).encode()).hexdigest()
@@ -256,15 +193,30 @@ def atomic_write_json(path, value):
 def write_artifact(path, artifact):
     if path.exists():
         raise ValueError(f"output already exists: {path}")
+    artifact = {**artifact, "format_version": FORMAT_VERSION}
     artifact["artifact_id"] = artifact_id(artifact)
     atomic_write_json(path, artifact)
+    return artifact
 
 
-def read_artifact(path):
+def read_artifact(path, expected=None):
     artifact = load_json(path)
+    if not isinstance(artifact, dict):
+        raise ValueError(f"invalid tuning artifact: {path}")
+    if type(artifact.get("format_version")) is not int or artifact["format_version"] != FORMAT_VERSION:
+        raise ValueError("unsupported tuning format; use the original tool revision for old runs")
     if artifact.get("artifact_id") != artifact_id(artifact):
         raise ValueError(f"artifact hash mismatch: {path}")
+    for key, value in (expected or {}).items():
+        if key not in artifact or canonical_json(artifact[key]) != canonical_json(value):
+            raise ValueError(f"artifact context mismatch ({key}): {path}")
     return artifact
+
+
+def checkpoint(path, context, compute):
+    if not path.exists():
+        write_artifact(path, {**compute(), **context})
+    return read_artifact(path, context)
 
 
 def read_engine_schema(engine):
@@ -279,26 +231,7 @@ def read_engine_schema(engine):
     return json.loads(lines[0])
 
 
-def read_benchmark(engine):
-    result = subprocess.run([str(engine), "bench"], capture_output=True, text=True, check=False)
-    if result.returncode:
-        raise ValueError(result.stderr.strip() or "engine benchmark failed")
-    match = re.fullmatch(r"(\d+) nodes \d+ ms \d+ nps\n?", result.stdout)
-    if not match:
-        raise ValueError("engine benchmark output is malformed")
-    return int(match.group(1))
-
-
-def validate_schema(schema, expected_version, expected_count):
-    if schema.get("type") != "schema" or schema.get("version") != expected_version:
-        raise ValueError("dataset schema version mismatch")
-    features = schema.get("features", [])
-    ids = [feature.get("id") for feature in features]
-    names = [feature.get("name") for feature in features]
-    if len(features) != expected_count or ids != list(range(expected_count)):
-        raise ValueError("invalid feature IDs")
-    if len(names) != len(set(names)) or any(not name for name in names):
-        raise ValueError("invalid feature names")
+validate_schema = dataset.validate_schema
 
 
 def group_weights(groups):
@@ -391,38 +324,18 @@ def load_split(path, name, schema):
     return split
 
 
-def load_dataset(path, experiment, engine=None):
+def load_dataset(path):
     manifest_path = path / "manifest.json"
-    manifest_hash = sha256_file(manifest_path)
-    manifest = load_json(manifest_path)
-    if manifest.get("format_version") != dataset.FORMAT_VERSION:
-        raise ValueError("unsupported dataset manifest")
-    if manifest.get("experiment_sha256") != dataset.sha256_json(experiment):
-        raise ValueError("dataset uses a different experiment configuration")
-
-    expected = experiment["dataset"]
-    schema = None
     split_path = path / dataset.DATA_FILE
-    if sha256_file(split_path) != manifest["outputs"][split_path.name]:
-        raise ValueError("development dataset hash mismatch")
-    with split_path.open(encoding="utf-8") as stream:
-        schema = json.loads(next(stream))
-    validate_schema(schema, expected["schema_version"], expected["feature_count"])
+    manifest_hash = sha256_file(manifest_path)
+    data_hash = sha256_file(split_path)
+    _, schema = dataset.validate_output(path)
     development = load_split(split_path, DEVELOPMENT_SPLIT, schema)
     if not len(development.targets):
         raise ValueError("development dataset is empty")
-
-    if engine is not None:
-        if sha256_file(engine) != manifest["engine"]["sha256"]:
-            raise ValueError("engine hash differs from dataset exporter")
-        if read_engine_schema(engine) != schema:
-            raise ValueError("engine feature schema differs from dataset")
-
-    return TuningData(
-        manifest_sha256=manifest_hash,
-        schema=schema,
-        development=development,
-    )
+    if (sha256_file(manifest_path), sha256_file(split_path)) != (manifest_hash, data_hash):
+        raise ValueError("prepared dataset changed while loading")
+    return TuningData(manifest_hash, schema, development, data_hash)
 
 
 def baseline_weights(schema):
@@ -665,14 +578,14 @@ def mirrored_psqt_key(name, mirrored_pieces):
     return min(name, mirrored_psqt_name(name, mirrored_pieces))
 
 
-def validate_constraints(schema, experiment):
+def validate_constraints(schema, policy):
     feature_names = {feature["name"] for feature in schema["features"]}
     coordinates = {
         coordinate_name(feature_name, phase)
         for feature_name in feature_names
         for phase in range(len(PHASES))
     }
-    constraints = experiment["constraints"]
+    constraints = policy["constraints"]
     anchors = constraints["anchors"]
     fixed = constraints["fixed"]
     mirrored = constraints["mirror_files"]
@@ -697,16 +610,16 @@ def validate_constraints(schema, experiment):
             raise ValueError(f"feature family has no anchor: {prefix}")
 
 
-def build_parameter_map(schema, parent, split, experiment, assignments=None):
-    validate_constraints(schema, experiment)
+def build_parameter_map(schema, parent, split, policy, assignments=None):
+    validate_constraints(schema, policy)
     if not isinstance(split, Split) or not len(split.targets):
         raise ValueError("parameter support requires training data")
-    fit = experiment["fit"]
+    fit = policy["fit"]
     features = {feature["name"]: feature for feature in schema["features"]}
-    fixed = set(experiment["constraints"]["fixed"])
-    anchors = set(experiment["constraints"]["anchors"])
-    mirrored = set(experiment["constraints"]["mirror_files"])
-    minimum_support = experiment["support"]["minimum_groups"]
+    fixed = set(policy["constraints"]["fixed"])
+    anchors = set(policy["constraints"]["anchors"])
+    mirrored = set(policy["constraints"]["mirror_files"])
+    minimum_support = policy["support"]["minimum_groups"]
 
     groups = {}
     for name in sorted(features):
@@ -726,7 +639,7 @@ def build_parameter_map(schema, parent, split, experiment, assignments=None):
             if group_folds[group] not in (-1, fold):
                 raise ValueError("opening group crosses folds")
             group_folds[group] = fold
-        fold_count = experiment["validation"]["folds"]
+        fold_count = policy["validation"]["folds"]
         if np.any((assignments < 0) | (assignments >= fold_count)):
             raise ValueError("invalid fold assignments")
 
@@ -826,7 +739,7 @@ def build_parameter_map(schema, parent, split, experiment, assignments=None):
     )
 
 
-def fit_parameters(split, schema, parameters, experiment, scale, regularization):
+def fit_parameters(split, schema, parameters, policy, scale, regularization):
     parent = parameters.parent
     initial = np.zeros(len(parameters.members), dtype=np.float64)
     parent_integer = parent.astype(np.int64)
@@ -863,7 +776,7 @@ def fit_parameters(split, schema, parameters, experiment, scale, regularization)
             best["rounded"] = rounded
             best["iteration"] = iteration
 
-    options = experiment["optimizer"]
+    options = policy["optimizer"]
     result = optimize.minimize(
         objective,
         initial,
@@ -1053,14 +966,13 @@ def weight_records(schema, parent, candidate, changed_only=False):
     return records
 
 
-def calibration_artifact(data, split, experiment, result, support, fold=None):
+def calibration_artifact(data, split, policy, result, support, fold=None):
     weights = baseline_weights(data.schema).astype(np.int64)
     scale = float(result.x)
     artifact = {
         "kind": "calibration",
-        "experiment_sha256": dataset.sha256_json(experiment),
         "dataset_manifest_sha256": data.manifest_sha256,
-        "objective": {**experiment["objective"], "scale": scale},
+        "objective": {**policy["objective"], "scale": scale},
         "optimizer": {
             "method": "bounded_scalar",
             "iterations": int(result.nit),
@@ -1076,13 +988,12 @@ def calibration_artifact(data, split, experiment, result, support, fold=None):
     return artifact
 
 
-def fit_artifact(data, split, experiment, result, regularization, scale, fold=None):
+def fit_artifact(data, split, policy, result, regularization, scale, fold=None):
     parent = result["parameters"].parent.astype(np.int64)
     rounded = result["rounded"]
     optimizer = result["optimizer"]
     artifact = {
         "kind": "fit",
-        "experiment_sha256": dataset.sha256_json(experiment),
         "dataset_manifest_sha256": data.manifest_sha256,
         "regularization": regularization,
         "constraints": {
@@ -1093,7 +1004,7 @@ def fit_artifact(data, split, experiment, result, regularization, scale, fold=No
             "multiplicity": result["parameters"].multiplicity.astype(int).tolist(),
         },
         "optimizer": {
-            "method": experiment["optimizer"]["method"],
+            "method": policy["optimizer"]["method"],
             "iterations": int(optimizer.nit),
             "function_evaluations": int(optimizer.nfev),
             "gradient_evaluations": int(optimizer.njev),
@@ -1128,6 +1039,8 @@ def weights_from_artifact(artifact, schema):
     for feature, record in zip(schema["features"], records):
         if record["id"] != feature["id"] or record["name"] != feature["name"]:
             raise ValueError("candidate feature schema mismatch")
+        if any(type(record["candidate"][phase]) is not int for phase in PHASES):
+            raise ValueError("candidate weights must be integers")
         weights[feature["id"]] = [record["candidate"]["mg"], record["candidate"]["eg"]]
     return weights
 
@@ -1184,15 +1097,15 @@ def select_regularization(reports):
 
 
 def cross_validation_artifact(
-    data, experiment, assignments, calibrations, fits, parameters
+    data, policy, assignments, calibrations, fits, parameters
 ):
     parent = baseline_weights(data.schema).astype(np.int64)
     testing_splits = [
         subset_split(data.development, assignments == fold)
-        for fold in range(experiment["validation"]["folds"])
+        for fold in range(policy["validation"]["folds"])
     ]
     reports = []
-    for regularization in experiment["fit"]["regularization"]:
+    for regularization in policy["fit"]["regularization"]:
         comparisons = []
         fold_reports = []
         for fold, (testing, calibration, fit) in enumerate(
@@ -1230,8 +1143,8 @@ def cross_validation_artifact(
         )
         validation = comparison_report(
             comparisons,
-            experiment["validation"],
-            experiment["validation"]["bootstrap_seed"],
+            policy["validation"],
+            policy["validation"]["bootstrap_seed"],
         )
         reports.append(
             {
@@ -1250,7 +1163,6 @@ def cross_validation_artifact(
 
     return {
         "kind": "cross_validation",
-        "experiment_sha256": dataset.sha256_json(experiment),
         "dataset_manifest_sha256": data.manifest_sha256,
         "fold_count": len(calibrations),
         "folds": [
@@ -1313,7 +1225,7 @@ def candidate_review(schema, parent, candidate, fit, minimum_support):
     }, changes
 
 
-def candidate_artifact(data, experiment, cross_validation, calibration=None, fit=None):
+def candidate_artifact(data, policy, cross_validation, calibration=None, fit=None):
     parent = baseline_weights(data.schema).astype(np.int64)
     candidate = weights_from_artifact(fit, data.schema) if fit else parent
     review, changes = candidate_review(
@@ -1321,12 +1233,11 @@ def candidate_artifact(data, experiment, cross_validation, calibration=None, fit
         parent,
         candidate,
         fit,
-        experiment["support"]["minimum_groups"],
+        policy["support"]["minimum_groups"],
     )
     scale = calibration["objective"]["scale"] if calibration else None
     return {
         "kind": "candidate",
-        "experiment_sha256": dataset.sha256_json(experiment),
         "dataset_manifest_sha256": data.manifest_sha256,
         "cross_validation_id": cross_validation["artifact_id"],
         "cross_validation_supported": cross_validation["supported"],
@@ -1350,456 +1261,186 @@ def candidate_artifact(data, experiment, cross_validation, calibration=None, fit
     }
 
 
-def initial_state(experiment, engine, paths):
-    inputs = [{"name": path.name, "sha256": sha256_file(path)} for path in paths]
-    inputs.sort(key=lambda item: (item["sha256"], item["name"]))
+def prepare_command(args):
+    engine = args.engine.resolve()
+    paths = [path.resolve() for path in args.pgn]
+    output = args.output.resolve()
+    identity = dataset.preparation_identity(engine, paths)
+    schema = read_engine_schema(engine)
+    validate_schema(schema)
+    if not output.exists():
+        dataset.atomic_build(engine, paths, output)
+    report, actual_schema = dataset.validate_output(output)
+    manifest = load_json(output / "manifest.json")
+    if manifest["identity"] != identity:
+        raise ValueError("preparation inputs, policy, or tools changed; use a new output directory")
+    if actual_schema != schema or dataset.preparation_identity(engine, paths) != identity:
+        raise ValueError("preparation inputs or exporter changed")
+    print(json.dumps(report, indent=2, sort_keys=True))
+
+
+def fit_descriptor(data):
     return {
-        "format_version": STATE_FORMAT_VERSION,
-        "experiment": experiment["name"],
-        "experiment_sha256": dataset.sha256_json(experiment),
+        "format_version": FORMAT_VERSION,
+        "kind": "run",
+        "dataset": {
+            "manifest_sha256": data.manifest_sha256,
+            "data_sha256": data.data_sha256,
+        },
+        "schema": data.schema,
+        "policy": FIT_POLICY,
         "tool": tool_record(),
         "dependencies": dependency_versions(),
-        "baseline": {
-            **experiment["baseline"],
-            "engine_sha256": sha256_file(engine),
-        },
-        "inputs": inputs,
-        "steps": {},
     }
-
-
-def validate_state(state, experiment, engine, paths):
-    if state.get("format_version") != STATE_FORMAT_VERSION:
-        raise ValueError("unsupported experiment state")
-    expected = initial_state(experiment, engine, paths)
-    for key in (
-        "experiment",
-        "experiment_sha256",
-        "tool",
-        "dependencies",
-        "baseline",
-        "inputs",
-    ):
-        if state.get(key) != expected[key]:
-            raise ValueError(f"experiment {key} changed; start a new output directory")
-
-
-def record_step(state_path, name, artifact_path):
-    state = load_json(state_path)
-    relative = artifact_path.relative_to(state_path.parent).as_posix()
-    step = {"path": relative, "sha256": sha256_file(artifact_path)}
-    existing = state["steps"].get(name)
-    if existing is not None and existing != step:
-        raise ValueError(f"completed step changed: {name}")
-    state["steps"][name] = step
-    atomic_write_json(state_path, state)
-
-
-def validate_steps(output, state):
-    for name, step in state["steps"].items():
-        path = output / step["path"]
-        if not path.is_file() or sha256_file(path) != step["sha256"]:
-            raise ValueError(f"completed step is missing or changed: {name}")
 
 
 def fit_filename(regularization):
     return f"lambda-{regularization:.0e}.json"
 
 
-def run_command(args):
-    experiment_path = args.experiment.resolve()
-    experiment = load_experiment(experiment_path)
-    engine = args.engine.resolve()
+def fit_command(args):
+    dataset_path = args.dataset.resolve()
     output = args.output.resolve()
-    paths = [path.resolve() for path in args.pgn]
-    if output.name != experiment["name"]:
-        raise ValueError("output directory name must match the experiment name")
-    if set(experiment["baseline"]["revision"]) == {"0"}:
-        raise ValueError("replace the example baseline revision before running")
-    if not engine.is_file() or not paths or any(not path.is_file() for path in paths):
-        raise ValueError("engine and PGN inputs must exist")
-    if read_benchmark(engine) != experiment["baseline"]["benchmark"]:
-        raise ValueError("engine benchmark differs from the experiment baseline")
-    engine_schema = read_engine_schema(engine)
-    validate_schema(
-        engine_schema,
-        experiment["dataset"]["schema_version"],
-        experiment["dataset"]["feature_count"],
-    )
-    validate_constraints(engine_schema, experiment)
-
-    state_path = output / "state.json"
-    if not output.exists():
-        output.mkdir(parents=True)
-        atomic_write_json(output / "experiment.json", experiment)
-        atomic_write_json(state_path, initial_state(experiment, engine, paths))
-    elif not state_path.is_file():
-        raise ValueError("output directory is not a resumable experiment")
-
-    state = load_json(state_path)
-    validate_state(state, experiment, engine, paths)
-    validate_steps(output, state)
-    if dataset.sha256_json(load_json(output / "experiment.json")) != state["experiment_sha256"]:
-        raise ValueError("stored experiment configuration changed")
-
-    dataset_path = output / "dataset"
-    if "dataset" not in state["steps"]:
-        if not dataset_path.exists():
-            dataset.atomic_build(engine, paths, dataset_path, experiment)
-        record_step(state_path, "dataset", dataset_path / "manifest.json")
-        state = load_json(state_path)
-
-    dataset_manifest = load_json(dataset_path / "manifest.json")
-    if dataset_manifest.get("inputs") != state["inputs"]:
-        raise ValueError("dataset PGN provenance differs from the experiment")
-    if dataset_manifest.get("engine", {}).get("sha256") != state["baseline"]["engine_sha256"]:
-        raise ValueError("dataset engine provenance differs from the experiment")
-
-    data = load_dataset(dataset_path, experiment, engine)
-    assignments = fold_assignments(data.development, experiment["validation"])
+    data = load_dataset(dataset_path)
+    policy = copy.deepcopy(FIT_POLICY)
+    validate_constraints(data.schema, policy)
+    descriptor = fit_descriptor(data)
+    run_path = output / "run.json"
+    if not run_path.exists() and output.exists():
+        if any(path.name != "run.json.partial" for path in output.iterdir()):
+            raise ValueError("output is not a version-4 fit; use the original tool revision for old runs")
+    run = checkpoint(run_path, descriptor, lambda: descriptor)
+    common = {"format_version": FORMAT_VERSION, "run_id": run["artifact_id"]}
+    assignments = fold_assignments(data.development, policy["validation"])
     parent = baseline_weights(data.schema)
     parameters = build_parameter_map(
-        data.schema, parent, data.development, experiment, assignments
+        data.schema, parent, data.development, policy, assignments
     )
 
-    calibrations = []
-    fits = {regularization: [] for regularization in experiment["fit"]["regularization"]}
-    for fold in range(experiment["validation"]["folds"]):
-        training = subset_split(data.development, assignments != fold)
-        calibration_path = output / "cross-validation" / f"fold-{fold}" / "calibration.json"
-        calibration_step = f"calibration:fold-{fold}"
-        if calibration_step not in state["steps"]:
-            if calibration_path.exists():
-                read_artifact(calibration_path)
-            else:
-                result = calibrate_scale(training, experiment["calibration"])
-                write_artifact(
-                    calibration_path,
-                    calibration_artifact(
-                        data, training, experiment, result, None, fold
-                    ),
-                )
-            record_step(state_path, calibration_step, calibration_path)
-            state = load_json(state_path)
-        calibration = read_artifact(calibration_path)
-        calibrations.append(calibration)
+    def calibration_for(split, path, fold):
+        def compute():
+            support = (
+                feature_support(split, data.schema, policy["support"]["minimum_groups"])
+                if fold is None else None
+            )
+            result = calibrate_scale(split, policy["calibration"])
+            return calibration_artifact(data, split, policy, result, support, fold)
 
-        for regularization in experiment["fit"]["regularization"]:
-            name = fit_filename(regularization)
-            path = output / "cross-validation" / f"fold-{fold}" / name
-            step_name = f"fit:fold-{fold}:{regularization:.0e}"
-            if step_name not in state["steps"]:
-                if path.exists():
-                    read_artifact(path)
-                else:
-                    result = fit_parameters(
-                        training,
-                        data.schema,
-                        parameters,
-                        experiment,
-                        calibration["objective"]["scale"],
-                        regularization,
-                    )
-                    write_artifact(
-                        path,
-                        fit_artifact(
-                            data,
-                            training,
-                            experiment,
-                            result,
-                            regularization,
-                            calibration["objective"]["scale"],
-                            fold,
-                        ),
-                    )
-                record_step(state_path, step_name, path)
-                state = load_json(state_path)
-            fits[regularization].append(read_artifact(path))
+        return checkpoint(
+            path, {**common, "kind": "calibration", "fold": fold}, compute
+        )
+
+    def fit_for(split, path, fold, regularization, calibration):
+        scale = calibration["objective"]["scale"]
+
+        def compute():
+            result = fit_parameters(
+                split, data.schema, parameters, policy, scale, regularization
+            )
+            return fit_artifact(data, split, policy, result, regularization, scale, fold)
+
+        return checkpoint(
+            path,
+            {
+                **common, "kind": "fit", "fold": fold,
+                "regularization": regularization,
+                "calibration_id": calibration["artifact_id"],
+            },
+            compute,
+        )
+
+    calibrations = []
+    fits = {regularization: [] for regularization in policy["fit"]["regularization"]}
+    for fold in range(policy["validation"]["folds"]):
+        training = subset_split(data.development, assignments != fold)
+        directory = output / "cross-validation" / f"fold-{fold}"
+        calibration = calibration_for(training, directory / "calibration.json", fold)
+        calibrations.append(calibration)
+        for regularization in policy["fit"]["regularization"]:
+            fits[regularization].append(
+                fit_for(training, directory / fit_filename(regularization),
+                        fold, regularization, calibration)
+            )
     del training
 
-    cross_validation_path = output / "cross-validation.json"
-    if "cross-validation" not in state["steps"]:
-        if cross_validation_path.exists():
-            read_artifact(cross_validation_path)
-        else:
-            write_artifact(
-                cross_validation_path,
-                cross_validation_artifact(
-                    data, experiment, assignments, calibrations, fits, parameters
-                ),
-            )
-        record_step(state_path, "cross-validation", cross_validation_path)
-        state = load_json(state_path)
-    cross_validation = read_artifact(cross_validation_path)
-
+    cross_validation = checkpoint(
+        output / "cross-validation.json",
+        {
+            **common, "kind": "cross_validation",
+            "calibration_ids": [item["artifact_id"] for item in calibrations],
+            "fit_ids": {
+                fit_filename(regularization): [item["artifact_id"] for item in records]
+                for regularization, records in fits.items()
+            },
+        },
+        lambda: cross_validation_artifact(
+            data, policy, assignments, calibrations, fits, parameters
+        ),
+    )
     calibration = None
     final_fit = None
     if cross_validation["supported"]:
-        calibration_path = output / "calibration.json"
-        if "calibration" not in state["steps"]:
-            if calibration_path.exists():
-                read_artifact(calibration_path)
-            else:
-                support = feature_support(
-                    data.development,
-                    data.schema,
-                    experiment["support"]["minimum_groups"],
-                )
-                result = calibrate_scale(data.development, experiment["calibration"])
-                write_artifact(
-                    calibration_path,
-                    calibration_artifact(
-                        data, data.development, experiment, result, support
-                    ),
-                )
-            record_step(state_path, "calibration", calibration_path)
-            state = load_json(state_path)
-        calibration = read_artifact(calibration_path)
-
-        fit_path = output / "fit.json"
-        if "fit" not in state["steps"]:
-            if fit_path.exists():
-                read_artifact(fit_path)
-            else:
-                result = fit_parameters(
-                    data.development,
-                    data.schema,
-                    parameters,
-                    experiment,
-                    calibration["objective"]["scale"],
-                    cross_validation["selected_regularization"],
-                )
-                write_artifact(
-                    fit_path,
-                    fit_artifact(
-                        data,
-                        data.development,
-                        experiment,
-                        result,
-                        cross_validation["selected_regularization"],
-                        calibration["objective"]["scale"],
-                    ),
-                )
-            record_step(state_path, "fit", fit_path)
-            state = load_json(state_path)
-        final_fit = read_artifact(fit_path)
-
-    candidate_path = output / "candidate.json"
-    if "candidate" not in state["steps"]:
-        if candidate_path.exists():
-            read_artifact(candidate_path)
-        else:
-            write_artifact(
-                candidate_path,
-                candidate_artifact(
-                    data, experiment, cross_validation, calibration, final_fit
-                ),
-            )
-        record_step(state_path, "candidate", candidate_path)
-        state = load_json(state_path)
-    read_artifact(candidate_path)
-
-    validate_state(load_json(state_path), experiment, engine, paths)
-    print_status(output, False)
-
-
-def read_state(output):
-    state = load_json(output / "state.json")
-    if state.get("format_version") != STATE_FORMAT_VERSION:
-        raise ValueError("unsupported experiment state")
-    validate_steps(output, state)
-    experiment = load_json(output / "experiment.json")
-    if dataset.sha256_json(experiment) != state["experiment_sha256"]:
-        raise ValueError("stored experiment configuration changed")
-    return state, experiment
+        calibration = calibration_for(data.development, output / "calibration.json", None)
+        final_fit = fit_for(
+            data.development, output / "fit.json", None,
+            cross_validation["selected_regularization"], calibration,
+        )
+    candidate = checkpoint(
+        output / "candidate.json",
+        {
+            **common, "kind": "candidate",
+            "cross_validation_id": cross_validation["artifact_id"],
+            "fit_id": final_fit["artifact_id"] if final_fit else None,
+            "calibration_id": calibration["artifact_id"] if calibration else None,
+        },
+        lambda: candidate_artifact(data, policy, cross_validation, calibration, final_fit),
+    )
+    if (sha256_file(dataset_path / "manifest.json"),
+        sha256_file(dataset_path / dataset.DATA_FILE)) != (data.manifest_sha256, data.data_sha256):
+        raise ValueError("prepared dataset changed during fitting")
+    read_artifact(run_path, fit_descriptor(data))
+    print(json.dumps({
+        "run_id": run["artifact_id"],
+        "candidate_id": candidate["artifact_id"],
+        "cross_validation_supported": candidate["cross_validation_supported"],
+        "changes": len(candidate["changes"]),
+    }, indent=2, sort_keys=True))
 
 
 def verify_command(args):
     output = args.output.resolve()
-    state, experiment = read_state(output)
-    if "candidate" not in state["steps"]:
-        raise ValueError("the experiment has no candidate")
-    candidate = read_artifact(output / "candidate.json")
+    if not (output / "run.json").is_file():
+        raise ValueError("no version-4 fit; use the original tool revision for old runs")
+    run = read_artifact(output / "run.json", {"kind": "run"})
+    validate_schema(run["schema"])
+    candidate = read_artifact(output / "candidate.json", {
+        "kind": "candidate", "run_id": run["artifact_id"],
+    })
     if not candidate["cross_validation_supported"]:
         raise ValueError("cross-validation did not support a candidate")
-
-    manifest = load_json(output / "dataset" / "manifest.json")
-    development_path = output / "dataset" / dataset.DATA_FILE
-    if sha256_file(development_path) != manifest["outputs"][dataset.DATA_FILE]:
-        raise ValueError("development dataset hash mismatch")
-    schema = dataset.read_schema(development_path)
-    validate_schema(
-        schema,
-        experiment["dataset"]["schema_version"],
-        experiment["dataset"]["feature_count"],
-    )
-    verification = candidate_verification(candidate, schema, args.engine.resolve())
-    path = output / "verification.json"
-    if path.exists() and load_json(path) != verification:
-        raise ValueError("candidate verification changed")
-    if not path.exists():
-        atomic_write_json(path, verification)
-    record_step(output / "state.json", "verification", path)
-    print_status(output, False)
-
-
-def validate_command(args):
-    output = args.output.resolve()
-    state, _ = read_state(output)
-    report, _ = dataset.validate_output(output / "dataset")
-    manifest = load_json(output / "dataset" / "manifest.json")
-    if manifest["experiment_sha256"] != state["experiment_sha256"]:
-        raise ValueError("dataset uses a different experiment configuration")
-    print(json.dumps(report, indent=2, sort_keys=True))
-
-
-def status_record(output):
-    state, _ = read_state(output)
-    steps = state["steps"]
-    candidate = read_artifact(output / "candidate.json") if "candidate" in steps else None
-    verified = "verification" in steps
-    decision = load_json(output / "decision.json") if "decision" in steps else None
-    if decision:
-        next_action = "experiment closed"
-    elif not candidate:
-        next_action = "resume the experiment"
-    elif not candidate["cross_validation_supported"]:
-        next_action = "close the experiment with --result offline"
-    elif not verified:
-        next_action = "apply candidate weights, build the engine, and run verify"
-    else:
-        next_action = "commit, push, run OpenBench, then close the experiment"
-    return {
-        "experiment": state["experiment"],
-        "completed_steps": sorted(state["steps"]),
-        "candidate_id": candidate["artifact_id"] if candidate else None,
-        "cross_validation_supported": (
-            candidate["cross_validation_supported"] if candidate else None
-        ),
-        "verified": verified,
-        "decision": decision,
-        "next_action": next_action,
-    }
-
-
-def print_status(output, as_json):
-    status = status_record(output)
-    if as_json:
-        print(json.dumps(status, indent=2, sort_keys=True))
-        return
-    print(f"experiment {status['experiment']}")
-    print(f"steps {len(status['completed_steps'])}")
-    if status["candidate_id"]:
-        print(f"candidate {status['candidate_id']}")
-        print(
-            "cross-validation "
-            f"{str(status['cross_validation_supported']).lower()}"
-        )
-        print(f"verified {str(status['verified']).lower()}")
-    if status["decision"]:
-        print(f"decision {status['decision']['decision']}")
-    print(f"next {status['next_action']}")
-
-
-def status_command(args):
-    print_status(args.output.resolve(), args.json)
-
-
-def record_result(result):
-    records = []
-    if RESULTS_PATH.exists():
-        records = [json.loads(line) for line in RESULTS_PATH.read_text().splitlines()]
-    for current in records:
-        if (
-            current["experiment"] == result["experiment"]
-            or current["experiment_sha256"] == result["experiment_sha256"]
-        ):
-            if current != result:
-                raise ValueError("experiment result conflicts with the tracked ledger")
-            return
-    records.append(result)
-    atomic_write(RESULTS_PATH, "".join(canonical_json(record) + "\n" for record in records))
-
-
-def close_command(args):
-    output = args.output.resolve()
-    state, experiment = read_state(output)
-    decision_path = output / "decision.json"
-    candidate = read_artifact(output / "candidate.json")
-    strength_result = args.result != "offline"
-    if strength_result:
-        if not candidate["cross_validation_supported"]:
-            raise ValueError("an unsupported candidate cannot have a strength result")
-        if "verification" not in state["steps"]:
-            raise ValueError("candidate engine has not been verified")
-        verification = load_json(output / "verification.json")
-        if verification.get("candidate_id") != candidate["artifact_id"]:
-            raise ValueError("candidate verification does not match")
-        if not args.openbench_test:
-            raise ValueError("a strength result requires an OpenBench test ID")
-    elif args.openbench_test:
-        raise ValueError("an offline rejection has no OpenBench test ID")
-    if not args.reason.strip():
-        raise ValueError("decision reason must not be empty")
-
-    decision = {
-        "experiment": experiment["name"],
-        "experiment_sha256": state["experiment_sha256"],
-        "baseline": experiment["baseline"],
-        "candidate_id": candidate["artifact_id"],
-        "qualified": candidate["cross_validation_supported"],
-        "selected_fit": "fit.json" if candidate["cross_validation_supported"] else None,
-        "selected_regularization": candidate["selected_regularization"],
-        "result": args.result,
-        "decision": "accepted" if args.result == "upper" else "rejected",
-        "reason": args.reason,
-        "openbench_test": args.openbench_test,
-        "normalized_elo_bounds": experiment["strength"]["normalized_elo_bounds"],
-    }
-    if decision_path.exists() and load_json(decision_path) != decision:
-        raise ValueError("experiment decision changed")
-    record_result(decision)
-    if not decision_path.exists():
-        atomic_write_json(decision_path, decision)
-    record_step(output / "state.json", "decision", decision_path)
-    print_status(output, False)
+    verification = candidate_verification(candidate, run["schema"], args.engine.resolve())
+    print(json.dumps({"format_version": FORMAT_VERSION, **verification}, indent=2, sort_keys=True))
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Run Latrunculi HCE tuning experiments")
+    parser = argparse.ArgumentParser(description="Prepare data, fit weights, and verify Latrunculi evaluation")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run = subparsers.add_parser("run", help="run or resume an experiment")
-    run.add_argument("--experiment", type=pathlib.Path, required=True)
-    run.add_argument("--engine", type=pathlib.Path, required=True)
-    run.add_argument("--output", type=pathlib.Path, required=True)
-    run.add_argument("pgn", type=pathlib.Path, nargs="+")
-    run.set_defaults(function=run_command)
+    prepare = subparsers.add_parser("prepare", help="prepare or validate a settled dataset")
+    prepare.add_argument("--engine", type=pathlib.Path, required=True)
+    prepare.add_argument("--output", type=pathlib.Path, required=True)
+    prepare.add_argument("pgn", type=pathlib.Path, nargs="+")
+    prepare.set_defaults(function=prepare_command)
 
-    status = subparsers.add_parser("status", help="show experiment state")
-    status.add_argument("--json", action="store_true")
-    status.add_argument("output", type=pathlib.Path)
-    status.set_defaults(function=status_command)
+    fit = subparsers.add_parser("fit", help="fit or resume weights from a prepared dataset")
+    fit.add_argument("--dataset", type=pathlib.Path, required=True)
+    fit.add_argument("--output", type=pathlib.Path, required=True)
+    fit.set_defaults(function=fit_command)
 
-    verify = subparsers.add_parser("verify", help="verify the compiled candidate")
+    verify = subparsers.add_parser("verify", help="check compiled weights and evaluation invariants")
     verify.add_argument("output", type=pathlib.Path)
     verify.add_argument("--engine", type=pathlib.Path, required=True)
     verify.set_defaults(function=verify_command)
-
-    validate = subparsers.add_parser("validate", help="validate an experiment dataset")
-    validate.add_argument("output", type=pathlib.Path)
-    validate.set_defaults(function=validate_command)
-
-    close = subparsers.add_parser("close", help="record the strength decision")
-    close.add_argument("output", type=pathlib.Path)
-    close.add_argument(
-        "--result",
-        choices=("offline", "upper", "lower", "inconclusive"),
-        required=True,
-    )
-    close.add_argument("--reason", required=True)
-    close.add_argument("--openbench-test")
-    close.set_defaults(function=close_command)
 
     return parser.parse_args()
 

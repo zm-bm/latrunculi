@@ -154,10 +154,8 @@ Test-enabled presets also build:
 - `latrunculi-stress`, the reproducible randomized stress executable.
 
 The `release-dev` and `release-stats` presets additionally build
-`latrunculi-measure`, the optional component-measurement executable.
+`latrunculi-search-bench`, the native search benchmark.
 
 Tests mirror the production subsystem layout under `tests/`, with narrow
-support fixtures for internal observations. Component measurements live under
-`tools/measurements/` and exercise production perft, evaluation, and search
-paths. Tests cover correctness; component measurements cover deterministic work
-and local performance.
+support fixtures for internal observations. `tools/analysis/` contains
+the native search benchmark, UCI probe, and run comparison helper.

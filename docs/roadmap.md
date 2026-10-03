@@ -1,8 +1,8 @@
 # Engine Roadmap
 
 This document records the engine's longer-horizon direction and backlog. **Next** is ordered and
-**Later** is informal. Detailed engine experiments and durable search evidence belong in
-[Engine Development](engine-development.md), while the
+**Later** is informal. Current experiments and results belong on the
+[Engine Development board](engine-development.md), while the
 [architecture overview](architecture.md) describes the current implementation.
 
 Revalidate an item before starting it and remove it when complete; Git history records completion.

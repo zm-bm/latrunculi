@@ -1,50 +1,47 @@
 # Latrunculi tuning
 
-These offline tools run joint Texel tuning for the handcrafted evaluation. See
-the [workflow](workflow.md) for the method and decision rules.
+The tuning tool fits the linear handcrafted evaluation from recorded games.
+It prepares a grouped dataset, fits candidate weights, and verifies that an
+engine contains those weights. [Engine testing](../../docs/engine-testing.md)
+explains how a candidate is checked for playing strength.
 
-Install the pinned dependencies with Python 3.12 or newer:
+Install the pinned dependencies with Python 3.12 or newer, then run:
 
 ```bash
 python3 -m pip install -r tools/tuning/requirements.txt
+
+DATA=tools/tuning/output/prepared
+FIT=tools/tuning/output/fit
+
+python3 tools/tuning/tune.py prepare \
+  --engine build/release/latrunculi --output "$DATA" /path/to/games.pgn.tar
+python3 tools/tuning/tune.py fit --dataset "$DATA" --output "$FIT"
+python3 tools/tuning/tune.py verify "$FIT" --engine build/candidate/latrunculi
 ```
 
-Copy `experiment.example.json`, fill in the corpus details, and run or resume:
+Inputs may be `.pgn`, `.pgn.bz2`, or OpenBench `.pgn.tar`. Keep generated files
+under ignored `tools/tuning/output/`.
 
-```bash
-WORK=tools/tuning/output/experiment-name
+## Prepared data
 
-python3 tools/tuning/tune.py run \
-  --experiment tools/tuning/experiment.json \
-  --engine build/release/latrunculi \
-  --output "$WORK" \
-  /path/to/games.pgn.tar
+`prepare` writes `manifest.json` and `development.jsonl`. It groups games by
+starting position so related examples stay together during validation. The
+[OpenBench tuning workload](../../docs/openbench.md#tuning-corpus) describes
+how to collect fresh games. Once prepared, `fit` needs the dataset without
+the original PGNs or exporter.
 
-python3 tools/tuning/tune.py status "$WORK"
-python3 tools/tuning/tune.py status --json "$WORK"
-python3 tools/tuning/tune.py validate "$WORK"
-```
+## Fitting and verification
 
-Review `candidate.json`. If cross-validation supports it, apply the weights,
-rebuild, and verify the compiled engine before its OpenBench strength test:
+`fit` compares candidate weights on held-out opening groups, then writes
+`cross-validation.json` and `candidate.json` with the selection evidence and
+exact integer weights. Its numerical policy is in
+[`FIT_POLICY`](tune.py). A promising fit still needs engine testing
+and games.
 
-```bash
-python3 tools/tuning/tune.py verify "$WORK" \
-  --engine build/candidate/latrunculi
-```
+`verify` checks the compiled coefficients and evaluation invariants against
+the proposed weights and prints JSON. It can run again after rebuilding
+without the dataset. `run.json` records the inputs and policy used for a fit;
+matching completed checkpoints can be reused after an interruption.
 
-Record the result as `upper`, `lower`, or `inconclusive` with a test ID:
-
-```bash
-python3 tools/tuning/tune.py close "$WORK" \
-  --result upper \
-  --reason "SPRT reached the upper boundary" \
-  --openbench-test TEST_ID
-```
-
-Use `--result offline` without a test ID when no candidate passes offline
-review. `close` appends the decision to tracked `results.jsonl`.
-
-Inputs may be `.pgn`, `.pgn.bz2`, or OpenBench `.pgn.tar`. Generated state
-belongs under ignored `tools/tuning/output/`. The tools do not edit engine
-source, submit workloads, or depend on OpenBench internals.
+Background: [Texel's Tuning Method](https://www.chessprogramming.org/Texel%27s_Tuning_Method)
+and [Ethereal's tuning paper](https://github.com/AndyGrant/Ethereal/blob/master/Tuning.pdf).

@@ -6,7 +6,7 @@ out/
 bin/
 lib/
 logs/
-/tools/measurements/output/
+/tools/analysis/output/
 /tools/tuning/output/
 /bench/latrunculi
 /bot/config.yml

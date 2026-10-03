@@ -1,5 +1,3 @@
-#include "search.hpp"
-
 #include <algorithm>
 #include <charconv>
 #include <chrono>
@@ -7,7 +5,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -20,6 +17,7 @@
 #include <vector>
 
 #include "board/board.hpp"
+#include "core/attacks.hpp"
 #include "eval/evaluation.hpp"
 #include "search/limits.hpp"
 #include "search/reporter.hpp"
@@ -27,21 +25,18 @@
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 
-namespace measurements {
+namespace analysis {
 namespace {
 
 using MeasurementClock = std::chrono::steady_clock;
 
-constexpr std::string_view result_format       = "search_measurement_v3";
-constexpr int              default_depth       = 5;
-constexpr std::size_t      default_threads     = 1;
-constexpr std::size_t      default_hash_mb     = engine::default_hash_mb;
-constexpr std::uint64_t    default_repetitions = 1;
-constexpr std::size_t      max_threads         = 64;
-constexpr std::size_t      max_hash_mb         = 2048;
-constexpr std::uint64_t    max_repetitions     = 100;
+constexpr std::string_view result_format   = "search_measurement_v5";
+constexpr int              default_depth   = 5;
+constexpr std::size_t      default_threads = 1;
+constexpr std::size_t      default_hash_mb = engine::default_hash_mb;
+constexpr std::size_t      max_threads     = 64;
+constexpr std::size_t      max_hash_mb     = 2048;
 
-enum class OutputFormat { Text, Tsv };
 enum class LimitType { Depth, Nodes, Movetime };
 
 struct Options {
@@ -51,8 +46,6 @@ struct Options {
     std::optional<std::string> case_id;
     std::size_t                threads{default_threads};
     std::size_t                hash_mb{default_hash_mb};
-    std::uint64_t              repetitions{default_repetitions};
-    OutputFormat               format{OutputFormat::Text};
 };
 
 struct Position {
@@ -187,8 +180,7 @@ private:
 
 struct Row {
     std::string   case_id;
-    std::uint64_t repetition{0};
-    std::uint64_t repetitions{0};
+    std::string   fen;
     LimitType     limit_type{LimitType::Depth};
     std::uint64_t limit_value{0};
     int           completed_depth{0};
@@ -198,7 +190,6 @@ struct Row {
     EvalValue     score{0};
     NodeCount     nodes{0};
     std::uint64_t total_ns{0};
-    double        nodes_per_second{0.0};
     Move          best_move{NULL_MOVE};
     std::string   pv;
     std::string   diagnostic;
@@ -224,7 +215,6 @@ std::string format_pv(const search::PrincipalVariation& pv) {
 }
 
 Row measure(const Position&     position,
-            std::uint64_t       repetition,
             const Options&      options,
             Reporter&           reporter,
             search::ThreadPool& thread_pool) {
@@ -254,54 +244,35 @@ Row measure(const Position&     position,
     if (total_ns == 0)
         throw std::runtime_error("search duration was zero for " + std::string(position.id));
 
-    const Result& result  = reporter.result();
-    const double  seconds = static_cast<double>(total_ns) / 1'000'000'000.0;
+    const Result& result = reporter.result();
     return {
-        .case_id          = std::string(position.id),
-        .repetition       = repetition,
-        .repetitions      = options.repetitions,
-        .limit_type       = options.limit_type,
-        .limit_value      = options.limit_value,
-        .completed_depth  = result.line.depth,
-        .threads          = options.threads,
-        .hash_mb          = search::tt.capacity_mb(),
-        .static_score     = static_score,
-        .score            = result.line.value,
-        .nodes            = result.nodes,
-        .total_ns         = total_ns,
-        .nodes_per_second = static_cast<double>(result.nodes) / seconds,
-        .best_move        = result.best_move,
-        .pv               = format_pv(result.line.pv),
-        .diagnostic       = reporter.diagnostic(),
+        .case_id         = std::string(position.id),
+        .fen             = position.fen,
+        .limit_type      = options.limit_type,
+        .limit_value     = options.limit_value,
+        .completed_depth = result.line.depth,
+        .threads         = options.threads,
+        .hash_mb         = search::tt.capacity_mb(),
+        .static_score    = static_score,
+        .score           = result.line.value,
+        .nodes           = result.nodes,
+        .total_ns        = total_ns,
+        .best_move       = result.best_move,
+        .pv              = format_pv(result.line.pv),
+        .diagnostic      = reporter.diagnostic(),
     };
 }
 
 void emit_tsv(const std::vector<Row>& rows) {
-    std::cout << "result_format\tcase\trepetition\trepetitions\tlimit_type\tlimit_value\t"
+    std::cout << "result_format\tcase\tfen\tlimit_type\tlimit_value\t"
                  "completed_depth\tthreads\thash_mb\tstatic_score\tscore\tnodes\ttotal_ns\t"
-                 "nodes_per_second\tbest_move\tpv\n";
+                 "best_move\tpv\n";
     for (const Row& row : rows) {
-        std::cout << result_format << '\t' << row.case_id << '\t' << row.repetition << '\t'
-                  << row.repetitions << '\t' << limit_type_name(row.limit_type) << '\t'
-                  << row.limit_value << '\t' << row.completed_depth << '\t' << row.threads << '\t'
-                  << row.hash_mb << '\t' << row.static_score << '\t' << row.score << '\t'
-                  << row.nodes << '\t' << row.total_ns << '\t' << std::fixed << std::setprecision(3)
-                  << row.nodes_per_second << '\t' << row.best_move.str() << '\t' << row.pv << '\n';
-    }
-}
-
-void emit_text(const std::vector<Row>& rows) {
-    for (const Row& row : rows) {
-        const double total_ms = static_cast<double>(row.total_ns) / 1'000'000.0;
-        std::cout << row.case_id << ' ' << limit_type_name(row.limit_type) << ' ' << row.limit_value
-                  << ", completed depth " << row.completed_depth << ": " << row.nodes
-                  << " nodes in " << std::fixed << std::setprecision(3) << total_ms << " ms ("
-                  << std::setprecision(0) << row.nodes_per_second << " nps), static score "
-                  << row.static_score << ", score " << row.score << ", best move "
-                  << row.best_move.str();
-        if (!row.pv.empty())
-            std::cout << ", pv " << row.pv;
-        std::cout << '\n';
+        std::cout << result_format << '\t' << row.case_id << '\t' << row.fen << '\t'
+                  << limit_type_name(row.limit_type) << '\t' << row.limit_value << '\t'
+                  << row.completed_depth << '\t' << row.threads << '\t' << row.hash_mb << '\t'
+                  << row.static_score << '\t' << row.score << '\t' << row.nodes << '\t'
+                  << row.total_ns << '\t' << row.best_move.str() << '\t' << row.pv << '\n';
     }
 }
 
@@ -309,7 +280,7 @@ void emit_diagnostics(const std::vector<Row>& rows) {
     for (const Row& row : rows) {
         if (row.diagnostic.empty())
             continue;
-        std::cerr << "search_diagnostic_v1 case=" << row.case_id << " repetition=" << row.repetition
+        std::cerr << "search_diagnostic_v1 case=" << row.case_id
                   << " limit_type=" << limit_type_name(row.limit_type)
                   << " limit_value=" << row.limit_value << " threads=" << row.threads
                   << " hash_mb=" << row.hash_mb << row.diagnostic;
@@ -327,20 +298,12 @@ std::uint64_t parse_count(std::string_view text, std::string_view option) {
     return value;
 }
 
-OutputFormat parse_format(std::string_view value) {
-    if (value == "text")
-        return OutputFormat::Text;
-    if (value == "tsv")
-        return OutputFormat::Tsv;
-    throw std::runtime_error("unknown format: " + std::string(value));
-}
-
 void print_usage(const char* argv0) {
-    std::cerr << "Integrated search measurement.\n";
+    std::cerr << "Integrated search benchmark; output is TSV.\n";
     std::cerr << "Usage: " << argv0
               << " [--suite EPD] [--case ID] [--depth N | --nodes N | --movetime MS]"
                  " [--hash MB]"
-                 " [--threads N] [--repetitions N] [--format text|tsv]\n";
+                 " [--threads N]\n";
 }
 
 Options parse_args(int argc, char* argv[]) {
@@ -413,21 +376,6 @@ Options parse_args(int argc, char* argv[]) {
             options.threads = static_cast<std::size_t>(threads);
             continue;
         }
-        if (argument == "--repetitions") {
-            if (++index >= argc)
-                throw std::runtime_error("missing value for --repetitions");
-            options.repetitions = parse_count(argv[index], "--repetitions");
-            if (options.repetitions == 0 || options.repetitions > max_repetitions)
-                throw std::runtime_error("--repetitions must be between 1 and "
-                                         + std::to_string(max_repetitions));
-            continue;
-        }
-        if (argument == "--format") {
-            if (++index >= argc)
-                throw std::runtime_error("missing value for --format");
-            options.format = parse_format(argv[index]);
-            continue;
-        }
         throw std::runtime_error("unknown argument: " + std::string(argument));
     }
     return options;
@@ -453,23 +401,17 @@ int run_search(int argc, char* argv[]) {
         Reporter           reporter;
         search::ThreadPool thread_pool(options.threads, reporter);
         std::vector<Row>   rows;
-        const std::size_t  position_count = selected == nullptr ? positions.size() : 1;
-        rows.reserve(position_count * static_cast<std::size_t>(options.repetitions));
+        rows.reserve(selected == nullptr ? positions.size() : 1);
         search::tt.resize(options.hash_mb);
 
-        for (std::uint64_t repetition = 1; repetition <= options.repetitions; ++repetition) {
-            if (selected != nullptr) {
-                rows.push_back(measure(*selected, repetition, options, reporter, thread_pool));
-            } else {
-                for (const Position& position : positions)
-                    rows.push_back(measure(position, repetition, options, reporter, thread_pool));
-            }
+        if (selected != nullptr) {
+            rows.push_back(measure(*selected, options, reporter, thread_pool));
+        } else {
+            for (const Position& position : positions)
+                rows.push_back(measure(position, options, reporter, thread_pool));
         }
 
-        if (options.format == OutputFormat::Tsv)
-            emit_tsv(rows);
-        else
-            emit_text(rows);
+        emit_tsv(rows);
         emit_diagnostics(rows);
     } catch (const std::exception& error) {
         std::cerr << "Error: " << error.what() << '\n';
@@ -479,4 +421,9 @@ int run_search(int argc, char* argv[]) {
     return 0;
 }
 
-} // namespace measurements
+} // namespace analysis
+
+int main(int argc, char* argv[]) {
+    attacks::init();
+    return analysis::run_search(argc, argv);
+}

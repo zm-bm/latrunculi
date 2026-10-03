@@ -73,8 +73,8 @@ CTest runs:
 Use `debug-asan-ubsan` or `debug-tsan` instead of `debug` to run the same
 suite with sanitizers.
 
-See the [measurement guide](tools/measurements/README.md) for perft, evaluation,
-and search workflows, and the [tuning workflow](tools/tuning/workflow.md) for
+See the [analysis guide](tools/analysis/README.md) for search benchmarks
+and UCI probing, and the [tuning guide](tools/tuning/README.md) for
 handcrafted-evaluation optimization.
 
 ## Documentation
@@ -82,7 +82,8 @@ handcrafted-evaluation optimization.
 - [Architecture](docs/architecture.md)
 - [Run as a Lichess bot](bot/README.md)
 - [OpenBench testing](docs/openbench.md)
-- [Engine development](docs/engine-development.md)
+- [Current engine work](docs/engine-development.md)
+- [Engine testing rules](docs/engine-testing.md)
 - [1.0.0 release evidence](docs/releases/1.0.0.md)
 - [Roadmap](docs/roadmap.md)
 - [UCI protocol reference](docs/uci-protocol-specification.txt)
