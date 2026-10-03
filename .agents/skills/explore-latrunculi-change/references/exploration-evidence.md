@@ -2,7 +2,7 @@
 
 Start with evidence from the current operational baseline. A lead may remain a question. Once it proposes a change, record whether the expected benefit is faster search, stronger play, or both, and how to check the proposed mechanism. If it is expected to make search materially slower, explain why that tradeoff may be worth testing before measuring it. A strength change has no universal node-reduction or fixed-depth slowdown cutoff.
 
-Recheck historical ideas before implementing them. To investigate a game error, try more search budget, temporarily disable one selectivity rule, or isolate an evaluation change. Compare variants of one hypothesis without stacking unresolved changes. Profile before hot-path or architectural work to locate CPU cost, and add search state only for a concrete use.
+Recheck historical ideas before implementing them. To investigate a game error, try more search budget, temporarily disable one selectivity rule, or isolate an evaluation change. Compare variants of one hypothesis without stacking unresolved changes. [Profile](../../../../tools/analysis/README.md#cpu-profiling) before hot-path or architectural work to locate CPU cost, and add search state only for a concrete use.
 
 Fixed-depth node counts show selectivity, paired timing measures speed, and games measure strength. Correlations and cross-engine depth or nodes-per-second (NPS) comparisons may suggest leads, but cannot establish a candidate's benefit. Other engines can supply references or ideas; validate mechanisms in Latrunculi without copying their code or assuming their constants transfer.
 

@@ -59,6 +59,43 @@ Add more pairs with `--pair`. The tool compares summed search time and reports
 `median_balanced_search_time_ratio` (`R_time_balanced`): the median of geometric
 means of adjacent `BC,CB` candidate/baseline time ratios.
 
+## CPU profiling
+
+Use Linux `perf` to locate expensive functions and call paths before attempting
+a speed optimization. Build a separate Release benchmark with debug symbols,
+retaining optimization and LTO with search statistics disabled:
+
+```bash
+cmake --preset release-dev -B build/profile \
+  -DCMAKE_CXX_FLAGS_RELEASE='-O3 -DNDEBUG -g' \
+  -DLATRUNCULI_SEARCH_STATS=OFF
+cmake --build build/profile --target latrunculi-search-bench --parallel 4
+```
+
+Record userspace samples and DWARF call stacks over the standard depth-10
+corpus. This requires `perf` with DWARF unwinding support. Inspect the saved
+profile in a text report or optionally open it in Hotspot:
+
+```bash
+PROFILE_DIR=tools/analysis/output/profile-baseline
+mkdir -p "$PROFILE_DIR"
+perf record -e cycles:u -F 199 --call-graph dwarf \
+  -o "$PROFILE_DIR/perf.data" -- \
+  ./build/profile/latrunculi-search-bench --depth 10 \
+  > "$PROFILE_DIR/search.tsv"
+perf report --stdio -i "$PROFILE_DIR/perf.data" > "$PROFILE_DIR/report.txt"
+hotspot "$PROFILE_DIR/perf.data"  # Optional GUI
+```
+
+Inspect both a function's own cost and the cost of functions it calls. The
+profile includes benchmark setup and TT clearing; distinguish those from search
+work. Use `--case ID` or a deeper search for focused follow-up. Keep the matching
+binary with debug symbols available while inspecting the profile.
+
+Profiling identifies optimization opportunities. Verify any resulting speed
+claim with [paired timing](#paired-timing) using ordinary Release builds without
+the profiler.
+
 ## Probe one position
 
 Install [requirements.txt](requirements.txt). Supply a six-field starting
