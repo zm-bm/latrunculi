@@ -16,8 +16,15 @@ CPU-sensitive task and one OpenBench test at a time.
 
 | Field | Current value |
 |---|---|
-| Engine | `ccb718b` (ENG-031 connected-pawn link evaluation) |
+| Engine | `7cb8603` (workflow/tooling refresh; last strength change ENG-031 at `ccb718b`) |
 | OpenBench fingerprint | 3,507,960 nodes |
+| Search corpus | `tools/analysis/output/search-baseline-7cb8603/`; 200 positions, depth 10, one thread, 32 MiB Hash; 54,039,403 nodes |
+| Build | `release-dev`, GCC 15.2.0, x86-64, `gazelle`; refreshed 2026-10-03 |
+
+Source revision: `7cb860335db36b2a3686d9088b79284d65fe89bf`.
+The two fresh-process corpus runs have identical search signatures; both
+Release test suites passed. This refresh uses the current repository tooling.
+Historical experiments retain the revisions that produced their evidence.
 
 ## Issues and leads
 
@@ -61,7 +68,9 @@ None.
   (`15993-15746-17441`), LLR +1.06 inside ±2.94, Elo +1.74 ±2.27 (95%).
   Server test `/test/32/`, PGN `/api/pgns/32/`; OpenBench revision
   `5184c6fde256bf20a085ee089f99c7026b88c43e`.
-- **Next:** decide whether to resume #32 unchanged or retire the candidate.
+- **Next:** decide whether to refresh the candidate onto the current baseline
+  for offline testing or retire it. Resuming #32 unchanged would remain a
+  comparison against `ccb718b`, with its original published revisions.
 
 ## Ready for integration
 
