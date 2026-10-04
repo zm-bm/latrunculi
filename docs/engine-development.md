@@ -15,14 +15,15 @@ CPU-sensitive task and one OpenBench test at a time.
 
 | Field | Current value |
 |---|---|
-| Engine | `7cb8603` (workflow/tooling refresh; last strength change ENG-031 at `ccb718b`) |
+| Engine | `d3116b1` (ENG-034: early child TT prefetch) |
 | OpenBench fingerprint | 3,507,960 nodes |
-| Search corpus | `tools/analysis/output/search-baseline-7cb8603/`; 200 positions, depth 10, one thread, 32 MiB Hash; 54,039,403 nodes |
-| Build | `release-dev`, GCC 15.2.0, x86-64, `gazelle`; refreshed 2026-10-03 |
+| Search corpus | `tools/analysis/output/search-baseline-d3116b1/`; 200 positions, depth 10, one thread, 32 MiB Hash; 54,039,403 nodes |
+| Build | `release-dev`, GCC 15.2.0, x86-64, `gazelle`; refreshed 2026-10-04 |
 
-Source revision: `7cb860335db36b2a3686d9088b79284d65fe89bf`.
-The two fresh-process corpus runs have identical search signatures; both
-Release test suites passed. This refresh uses the current repository tooling.
+Source revision: `d3116b1b5d46026055509b1da12dbdb3c066ff2f`.
+The two fresh-process corpus runs exactly match the approved candidate's search
+signatures; the benchmark fingerprint also matches. Complete Release and
+ASan/UBSan suites passed.
 Historical experiments retain the revisions that produced their evidence.
 
 ## Issues and leads
@@ -58,9 +59,9 @@ diagnostic plan; other pruning-family interventions remain untested.
   engine code and exact signatures against baseline `7cb8603`; artifacts:
   `tools/analysis/output/profile-baseline-verified/`. Capacity pressure is unproven.
 - **Next:** compare only these three layouts at 32 MiB on the standard depth-10
-  corpus, based on `7cb8603`. Keep payload fields, replacement scoring, aging,
-  prefetch placement, and search policy fixed. Measure scan lengths, replacements,
-  and useful hits separately for main search and quiescence; screen nodes and
+  corpus, using the current baseline and a refreshed profile. Keep payload fields,
+  replacement scoring, aging, prefetch placement, and search policy fixed. Measure
+  scan lengths, replacements, and useful hits separately for main search and quiescence; screen nodes and
   paired time without instrumentation. Assess each complete layout, since density
   also changes signature width and storage arrangement.
 - **Risk:** the dense layout weakens collision verification. Specify its key/payload
@@ -76,23 +77,7 @@ References: CPW's [buckets](https://chessprogramming.org/Transposition_Table#Buc
 
 ## Candidates for local testing
 
-### ENG-034 — Prefetch child TT clusters before tactical-cache refresh
-
-- **Revision:** local branch `eng-034-early-tt-prefetch`, candidate `addcbb0`, base
-  `7cb8603`; speed, tree-preserving. A search-only key-ready callback issues the
-  existing prefetch before tactical-cache refresh; double pawn pushes wait for
-  legal en-passant hashing. Board updates and TT/search policy are unchanged.
-- **Exploration:** four alternating corpus pairs gave `R_time_balanced = 0.984553`
-  with 3/4 wins. Balanced blocks were 0.965759 and 1.003347, so this is promising
-  preliminary evidence with timing variability, not a formal speed pass. All eight
-  depth-10 runs exactly matched the baseline's 200 signatures and 54,039,403 nodes;
-  the 3,507,960-node fingerprint, Release suites, and targeted callback-key checks
-  passed. Generated code confirms the earlier prefetch placement.
-- **Evidence:** `tools/analysis/output/eng-034-prefetch/` retains the full revisions,
-  equivalence argument, compared runs, tests, and prior prefetch finding.
-- **Next:** run `test-latrunculi-candidate` on `addcbb0` against `7cb8603`, including
-  the complete timing evidence and applicable sanitizer/risk checks. Exploration
-  stopped after this one promising prototype; no formal offline pass has run.
+None.
 
 ## Ready for OpenBench
 
@@ -108,6 +93,12 @@ None.
 
 ## Recent results
 
+- **ENG-034:** early child TT prefetch integrated as `d3116b1` from approved
+  candidate `466ecd4`. Tree-preserving: corpus and fingerprint signatures match;
+  Release and ASan/UBSan suites passed. Six paired runs gave about 2.1% faster
+  search (`R_time_balanced = 0.9794`), with the final balanced block effectively
+  flat. Cleanup preserved machine code and runtime data; evidence remains in
+  `tools/analysis/output/eng-034-offline/` and `tools/analysis/output/eng-034-cleanup/`.
 - **ENG-010 — Retired by owner:** depth-4 main-search futility at 1350 cp,
   candidate `4ab957b` on `ccb718b`, was not worth continuing the long test.
   OpenBench #32 (`/test/32/`, PGN `/api/pgns/32/`) stopped inconclusive after
