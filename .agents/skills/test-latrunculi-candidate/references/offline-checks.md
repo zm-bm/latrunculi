@@ -2,6 +2,8 @@
 
 Use this policy for one recorded candidate commit against the current operational baseline. A change is **tree-preserving** only when its code or build cannot change search decisions and its corpus and fingerprint signatures exactly match the baseline. Treat every other change as **tree-changing**.
 
+Collect timing outside tracing or profiling wrappers. Run sanitizers in an environment that supports their checks; LeakSanitizer cannot run under `ptrace`, including tracing sandboxes. If infrastructure prevents a check from completing, resolve the limitation and rerun with the checks still enabled.
+
 ## First checks
 
 The standard corpus is all 200 Arasan positions in `tools/analysis/search.epd`. Search them cold at depth 10 with one thread, 32 MiB Hash, and one process pass. The OpenBench compatibility fingerprint uses six positions at depth 13.
