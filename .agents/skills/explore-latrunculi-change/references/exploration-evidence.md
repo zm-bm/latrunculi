@@ -6,6 +6,8 @@ Recheck historical ideas before implementing them. To investigate a game error, 
 
 Fixed-depth node counts show selectivity, paired timing measures speed, and games measure strength. Correlations and cross-engine depth or nodes-per-second (NPS) comparisons may suggest leads, but cannot establish a candidate's benefit. Other engines can supply references or ideas; validate mechanisms in Latrunculi without copying their code or assuming their constants transfer.
 
+For speed comparisons, build baseline and variant with the same compiler and settings, then collect fresh, alternating paired runs on an otherwise idle machine; saved baseline timings are diagnostic only.
+
 Choose and tune a variant using development evidence. Keep its implementation and settings unchanged for independent confirmation; do not retune after seeing the confirmation results. A source group contains related positions, such as positions from one game or opening. Keep each group entirely in development or confirmation, and preserve every full starting FEN and known move history. Once inspected, confirmation groups count as development evidence in later work.
 
 When using reference engines, pin revisions and settings. Report paired aggregate effects, uncertainty across source groups, and serious errors repaired or introduced. Consider regressions in context: one disagreement or a worse median does not decide the result. Leave sparse or unstable evidence unresolved. Reference agreement proves neither correctness nor strength; independently verified exact win/draw/loss (WDL) remains a hard check. Tuning uses grouped cross-validation, but fitted evaluation still needs games for acceptance.
