@@ -1,8 +1,7 @@
 # Engine Development
 
 The current work board for improving Latrunculi. [Engine testing](engine-testing.md)
-explains what evidence lets an item advance; [earlier ideas](engine-ideas.md)
-retains historical proposals and findings.
+explains what evidence lets an item advance.
 
 Keep one live entry per experiment and move it between stages. A lead names its
 observation, baseline evidence, and next test. A candidate adds its claim, branch,
@@ -43,11 +42,57 @@ Historical experiments retain the revisions that produced their evidence.
 
 Pilot report and raw archive: `tools/analysis/output/diagnostic-pilot-ccb718b/`.
 Its inspected confirmation groups cannot serve as a fresh holdout for a later
-candidate; use new group-disjoint confirmation.
+candidate; use new group-disjoint confirmation. This lead replaces ENG-020's old
+diagnostic plan; other pruning-family interventions remain untested.
+
+### ENG-033 — Compare TT cluster layouts at a fixed memory budget
+
+- **Question:** do shorter scans or greater retention improve search efficiency?
+  Compare the current four 16-byte entries per 64-byte cluster with two variants:
+  two existing entries per aligned 32-byte cluster (same capacity, shorter scans),
+  and five entries per aligned 64-byte cluster (25% more capacity). The dense
+  layout uses separate arrays of five atomic 64-bit payloads and five atomic
+  32-bit verification signatures, plus four padding bytes.
+- **Evidence:** TT probes account for 17.29% of sampled cycles, concentrated around
+  the payload load. The 200-position depth-10 profile at `cc5a972` has unchanged
+  engine code and exact signatures against baseline `7cb8603`; artifacts:
+  `tools/analysis/output/profile-baseline-verified/`. Capacity pressure is unproven.
+- **Next:** compare only these three layouts at 32 MiB on the standard depth-10
+  corpus, based on `7cb8603`. Keep payload fields, replacement scoring, aging,
+  prefetch placement, and search policy fixed. Measure scan lengths, replacements,
+  and useful hits separately for main search and quiescence; screen nodes and
+  paired time without instrumentation. Assess each complete layout, since density
+  also changes signature width and storage arrangement.
+- **Risk:** the dense layout weakens collision verification. Specify its key/payload
+  binding and publication ordering; check full keys diagnostically and test
+  collisions and concurrent snapshots. Stop a variant whose tradeoff is unjustified.
+- **Outcome:** retain one promising candidate, preserve a second credible contender
+  for follow-up, or record a null/unresolved result. Both layouts are tree-changing;
+  local screening selects what merits offline testing and games, not a strength winner.
+
+References: CPW's [buckets](https://chessprogramming.org/Transposition_Table#Bucket_Systems),
+[collisions](https://chessprogramming.org/Transposition_Table#Collisions), and
+[shared-table verification](https://chessprogramming.org/Shared_Hash_Table#Xor).
 
 ## Candidates for local testing
 
-None.
+### ENG-034 — Prefetch child TT clusters before tactical-cache refresh
+
+- **Revision:** local branch `eng-034-early-tt-prefetch`, candidate `addcbb0`, base
+  `7cb8603`; speed, tree-preserving. A search-only key-ready callback issues the
+  existing prefetch before tactical-cache refresh; double pawn pushes wait for
+  legal en-passant hashing. Board updates and TT/search policy are unchanged.
+- **Exploration:** four alternating corpus pairs gave `R_time_balanced = 0.984553`
+  with 3/4 wins. Balanced blocks were 0.965759 and 1.003347, so this is promising
+  preliminary evidence with timing variability, not a formal speed pass. All eight
+  depth-10 runs exactly matched the baseline's 200 signatures and 54,039,403 nodes;
+  the 3,507,960-node fingerprint, Release suites, and targeted callback-key checks
+  passed. Generated code confirms the earlier prefetch placement.
+- **Evidence:** `tools/analysis/output/eng-034-prefetch/` retains the full revisions,
+  equivalence argument, compared runs, tests, and prior prefetch finding.
+- **Next:** run `test-latrunculi-candidate` on `addcbb0` against `7cb8603`, including
+  the complete timing evidence and applicable sanitizer/risk checks. Exploration
+  stopped after this one promising prototype; no formal offline pass has run.
 
 ## Ready for OpenBench
 
@@ -55,22 +100,7 @@ None.
 
 ## OpenBench tests
 
-### ENG-010 — Extend guarded main-search futility to depth 4 at 1350 cp
-
-- **Revision:** published branch `eng-010-depth4-futility-1350`, candidate `4ab957b`, base
-  `ccb718b`; speed, tree-changing. Reverse futility remains at depth 3; tactical guards are preserved.
-  Full candidate: `4ab957b83a04c55bedb0a43e149e704e32ce5efb`;
-  full base: `ccb718b90deafad0247cccffabf07bf88310b415`.
-- **Offline evidence:** 23,584 shadow triggers; `R_node_g = 0.985618`,
-  `R_node_total = 0.990811`, `R_time_balanced = 0.990284` with 6/6 wins.
-  Two 3,412,800-node fingerprints, Release, ASan+UBSan, and exact corpus/sentinel repeats passed.
-- **OpenBench #32:** stopped, inconclusive `[0, 3]` SPRT after 49,180 games
-  (`15993-15746-17441`), LLR +1.06 inside ±2.94, Elo +1.74 ±2.27 (95%).
-  Server test `/test/32/`, PGN `/api/pgns/32/`; OpenBench revision
-  `5184c6fde256bf20a085ee089f99c7026b88c43e`.
-- **Next:** decide whether to refresh the candidate onto the current baseline
-  for offline testing or retire it. Resuming #32 unchanged would remain a
-  comparison against `ccb718b`, with its original published revisions.
+None.
 
 ## Ready for integration
 
@@ -78,24 +108,23 @@ None.
 
 ## Recent results
 
-- **Diagnostic pilot on `ccb718b`:** 100 opening pairs; 24 development errors
-  and eight controls, 14 confirmation errors and six controls. Removing all
-  internal LMR repaired 0/8 and 0/2 persistent quiet targets at matched 500k
-  nodes. Confirmation mean loss changed −11.6 cp [−31.6, +3.0], with five
-  new large errors at 5M. **Scoped null:** the no-LMR variant did not repair
-  those targets. Lower completed depth and sparse quiet confirmation limit the
-  conclusion; no candidate was retained.
-- **ENG-031:** connected-pawn links `{MG 13, EG 3}` integrated as `ccb718b`.
-  Offline reproducibility passed with a deliberate gate override. OpenBench #31
-  accepted `[0, 3]` after 19,142 games: LLR +2.9575, Elo +5.79 ±3.69 (95%).
-  Focused validation remained sealed.
-- **ENG-019:** safe passed-pawn path bonus reduced large errors from nine to
-  four in development, but validation changed four to five, with one repair
-  and two new errors. **Null:** the development benefit did not carry over.
-- **ENG-022:** tested passer-race predicates explained zero and one development
-  errors. **Null for those discriminators.**
-- **ENG-023:** protected/connected true-passer predicates explained zero and
-  one development errors. **Null for those discriminators.**
-
-Older outcomes and detailed evidence are retained in [Earlier ideas](engine-ideas.md).
-ENG-019/022/023 summaries were recovered from `a90da10`; their raw artifacts are absent here.
+- **ENG-010 — Retired by owner:** depth-4 main-search futility at 1350 cp,
+  candidate `4ab957b` on `ccb718b`, was not worth continuing the long test.
+  OpenBench #32 (`/test/32/`, PGN `/api/pgns/32/`) stopped inconclusive after
+  49,180 games; it did not reach an SPRT rejection. No integration.
+  An earlier 700 cp variant on `ccb718b` skipped nine verified beta cutoffs,
+  despite reducing nodes; that specific pruning rule was rejected.
+- **ENG-031:** connected-pawn links `{MG 13, EG 3}` integrated as `ccb718b` after OpenBench #31 accepted.
+- **Capture ordering and picker reuse (earlier prototypes):** CaptureHistory
+  reduced nodes but increased elapsed time; late losing-capture pruning slowed
+  search by 4.1%. Score/history reuse also failed to give repeatable speed gains,
+  with one variant trading fewer instructions for lower IPC and more branch misses.
+  These outcomes apply to those implementations, not the whole optimization area.
+- **Qsearch capture pruning (earlier prototype):**
+  `stand_pat + captured_value + margin <= alpha_before_move` at margins
+  200/300/400 skipped real NonPV cutoffs. Any replacement needs evidence that its
+  discriminator avoids those lost opportunities.
+- **Node accounting (earlier prototypes):** replacing locked per-node increments
+  with relaxed single-writer loads/stores was 2.17% slower; worker-local counts
+  with periodic publication were neutral. Removing synchronization instructions
+  alone did not deliver a speed gain.
