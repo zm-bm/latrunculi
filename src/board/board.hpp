@@ -25,6 +25,10 @@
  */
 class Board {
 public:
+    // Optional search hint, called once with the final child key. Tactical
+    // caches may still be stale; the callback must not inspect the board.
+    using KeyReadyCallback = void (*)(PositionKey) noexcept;
+
     static constexpr char start_fen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
     // Representation lifecycle and key diagnostics (board_representation.cpp)
@@ -113,9 +117,9 @@ public:
 
     // Move application and reversal (board_move.cpp)
 
-    void make(Move move);
+    void make(Move move, KeyReadyCallback on_key_ready = nullptr);
     void unmake();
-    void make_null();
+    void make_null(KeyReadyCallback on_key_ready = nullptr);
     void unmake_null();
 
     // Static exchange evaluation (board_see.cpp)

@@ -7,10 +7,19 @@
 #include <vector>
 
 #include "core/constants.hpp"
+#include "movegen/generator.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/board_snapshot.hpp"
 
 namespace {
+
+PositionKey observed_child_key = 0;
+int         key_ready_calls    = 0;
+
+void observe_child_key(PositionKey key) noexcept {
+    observed_child_key = key;
+    ++key_ready_calls;
+}
 
 void expect_move_round_trip(std::string_view before, Move move, std::string_view after) {
     Board      board(before);
@@ -243,4 +252,75 @@ TEST(BoardMoveTest, TraversesAndUnwindsBeyondTheSearchDepthReserve) {
         board_test::expect_same_board_snapshot(board, *position);
     }
     EXPECT_FALSE(board.can_unmake());
+}
+
+TEST(BoardMoveTest, KeyReadyCallbackMatchesCompletedPositionAcrossMoveTypes) {
+    constexpr std::string_view fens[] = {
+        board_test::fen::start,
+        board_test::fen::perft_position_2,
+        board_test::fen::castling,
+        board_test::fen::promotion_options,
+        board_test::fen::capture_promotion,
+        board_test::fen::legal_en_passant_a3,
+        board_test::fen::pinned_en_passant_e3,
+        // After d7-d5, e5xd6 is legal en passant.
+        "4k3/3p4/8/4P3/8/8/8/4K3 b - - 0 1",
+        // After c7-c5, b5xc6 would expose the king to the rook on h5.
+        "8/2p1p3/3p4/KP5r/1R3p1k/8/6P1/8 b - - 0 1",
+    };
+
+    for (const auto fen : fens) {
+        Board      board(fen);
+        const auto before = board_test::snapshot_board(board);
+
+        for (const Move move : movegen::generate_pseudo_legal(board)) {
+            if (!board.is_legal_pseudo_move(move))
+                continue;
+
+            SCOPED_TRACE(testing::Message() << fen << " move=" << move);
+
+            Board reference(board);
+            reference.make(move);
+
+            key_ready_calls = 0;
+            board.make(move, observe_child_key);
+
+            EXPECT_EQ(key_ready_calls, 1);
+            EXPECT_EQ(observed_child_key, board.key());
+            EXPECT_EQ(observed_child_key, board.recompute_key());
+            board_test::expect_same_board_snapshot(board, board_test::snapshot_board(reference));
+
+            board.unmake();
+            board_test::expect_same_board_snapshot(board, before);
+        }
+    }
+}
+
+TEST(BoardMoveTest, NullKeyReadyCallbackMatchesCompletedPosition) {
+    constexpr std::string_view fens[] = {
+        board_test::fen::start,
+        board_test::fen::perft_position_2,
+        board_test::fen::legal_en_passant_a3,
+        board_test::fen::unhashable_en_passant_e3,
+    };
+
+    for (const auto fen : fens) {
+        SCOPED_TRACE(fen);
+
+        Board      board(fen);
+        Board      reference(board);
+        const auto before = board_test::snapshot_board(board);
+        reference.make_null();
+
+        key_ready_calls = 0;
+        board.make_null(observe_child_key);
+
+        EXPECT_EQ(key_ready_calls, 1);
+        EXPECT_EQ(observed_child_key, board.key());
+        EXPECT_EQ(observed_child_key, board.recompute_key());
+        board_test::expect_same_board_snapshot(board, board_test::snapshot_board(reference));
+
+        board.unmake_null();
+        board_test::expect_same_board_snapshot(board, before);
+    }
 }

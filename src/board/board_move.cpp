@@ -38,7 +38,7 @@ clear_rook_castling_right(PlyState& state, Color color, Square rook_square) noex
 } // namespace
 
 // Precondition: move is legal and non-null.
-void Board::make(Move move) {
+void Board::make(Move move, KeyReadyCallback on_key_ready) {
     const Square    from       = move.from();
     const Square    to         = move.to();
     const MoveType  move_type  = move.type();
@@ -99,11 +99,18 @@ void Board::make(Move move) {
     turn = opponent;
     state.zkey ^= zob::hash_turn();
 
+    // Double pushes need the legal en-passant target before their key is final.
+    // Other moves can overlap a search hint with tactical-cache maintenance.
+    if (on_key_ready && state.enpassant_target == INVALID)
+        on_key_ready(state.zkey);
+
     refresh_tactical_cache();
     if (state.enpassant_target != INVALID) {
         refresh_legal_enpassant_target();
         if (state.legal_enpassant_target != INVALID)
             state.zkey ^= zob::hash_ep(state.legal_enpassant_target);
+        if (on_key_ready)
+            on_key_ready(state.zkey);
     }
 }
 
@@ -144,7 +151,7 @@ void Board::unmake() {
         king_square[mover] = from;
 }
 
-void Board::make_null() {
+void Board::make_null(KeyReadyCallback on_key_ready) {
     const Square previous_legal_enpassant_target = legal_enpassant_target();
 
     auto& state = push_ply_state(NULL_MOVE);
@@ -154,6 +161,8 @@ void Board::make_null() {
     if (previous_legal_enpassant_target != INVALID)
         state.zkey ^= zob::hash_ep(previous_legal_enpassant_target);
 
+    if (on_key_ready)
+        on_key_ready(state.zkey);
     refresh_tactical_cache();
 }
 

@@ -11,6 +11,10 @@
 
 namespace search::algorithm_detail {
 
+inline void prefetch_child_tt(PositionKey key) noexcept {
+    tt.prefetch(key);
+}
+
 // Aspiration-window defaults.
 inline constexpr EvalValue AspirationWindow = 50;
 
