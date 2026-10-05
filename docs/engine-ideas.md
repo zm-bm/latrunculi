@@ -16,13 +16,6 @@ Evaluation occupied roughly 40% of search cycles; shelter was 18% of standalone
 evaluation. Measure reuse of deterministic pawn/shelter terms under a complete
 pawn/king/castling key before trying a small per-worker cache with exact scores.
 
-## ENG-005 — Short-circuit transposition-table misses
-
-TT probes occupied 15–16% of cycles, with many misses. Investigate whether an
-independent rejection tag can avoid payload work while preserving entry size and
-snapshot validation. Inspect generated code first: source-level decoding may
-already be deferred by the compiler. This differs from changing cluster capacity.
-
 ## ENG-006 — Add a thresholded SEE fast path
 
 SEE occupied 5–6% of search cycles. Count consumers that need only a threshold

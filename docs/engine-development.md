@@ -28,6 +28,10 @@ Historical experiments retain the revisions that produced their evidence.
 
 ## Issues and leads
 
+Suggested TT order: ENG-035, ENG-036, then ENG-033; ENG-037/038 are lower-priority
+follow-ups. The TT audit at `d3116b1`, including reference-engine revisions and
+reproductions, is in `tools/analysis/output/tt-design-audit-d3116b1/report.md`.
+
 ### ENG-032 — Explain persistent quiet-move disagreements
 
 - **Question:** does the baseline under-search alternative quiet root moves, or
@@ -46,34 +50,98 @@ Its inspected confirmation groups cannot serve as a fresh holdout for a later
 candidate; use new group-disjoint confirmation. This lead replaces ENG-020's old
 diagnostic plan; other pruning-family interventions remain untested.
 
-### ENG-033 — Compare TT cluster layouts at a fixed memory budget
+### ENG-033 — Compare TT layouts and miss-rejection cost at a fixed memory budget
 
-- **Question:** do shorter scans or greater retention improve search efficiency?
-  Compare the current four 16-byte entries per 64-byte cluster with two variants:
-  two existing entries per aligned 32-byte cluster (same capacity, shorter scans),
-  and five entries per aligned 64-byte cluster (25% more capacity). The dense
-  layout uses separate arrays of five atomic 64-bit payloads and five atomic
-  32-bit verification signatures, plus four padding bytes.
+- **Question:** do shorter scans, cheaper miss rejection, or greater retention
+  improve search efficiency? Starting proposals against the current four 16-byte
+  entries per 64-byte cluster are two existing entries per aligned 32-byte cluster
+  (same capacity, shorter scans), and five entries per aligned 64-byte cluster
+  (25% more capacity; separate atomic 64-bit payload and 32-bit signature arrays).
+  Consider independent rejection tags alongside these proposals; choose at most
+  two concrete alternatives after reviewing their storage and verification costs.
 - **Evidence:** TT probes account for 17.29% of sampled cycles, concentrated around
   the payload load. The 200-position depth-10 profile at `cc5a972` has unchanged
   engine code and exact signatures against baseline `7cb8603`; artifacts:
   `tools/analysis/output/profile-baseline-verified/`. Capacity pressure is unproven.
-- **Next:** compare only these three layouts at 32 MiB on the standard depth-10
-  corpus, using the current baseline and a refreshed profile. Keep payload fields,
-  replacement scoring, aging, prefetch placement, and search policy fixed. Measure
-  scan lengths, replacements, and useful hits separately for main search and quiescence; screen nodes and
-  paired time without instrumentation. Assess each complete layout, since density
-  also changes signature width and storage arrangement.
-- **Risk:** the dense layout weakens collision verification. Specify its key/payload
-  binding and publication ordering; check full keys diagnostically and test
-  collisions and concurrent snapshots. Stop a variant whose tradeoff is unjustified.
+  The `d3116b1` audit confirms payload-dependent XOR checks with two signature
+  loads; Release code already defers most decoding until a match. This absorbs
+  ENG-005's independent-tag lead.
+- **Next:** compare the selected alternatives with the current baseline at an equal
+  actual 32 MiB table budget on the standard depth-10 corpus, with a refreshed
+  profile. Keep payload fields, replacement scoring and store-time slot selection,
+  aging, prefetch placement, and search policy fixed. Measure entries examined,
+  payload loads, replacements, and useful hits separately for main search and
+  quiescence; screen nodes and fresh paired baseline/candidate time without
+  instrumentation. Assess each complete design, including capacity and verification.
+- **Risk:** shorter signatures weaken collision verification. Specify key/payload
+  binding and publication ordering; an early rejection tag must not bypass final
+  snapshot validation. Check full keys diagnostically and test collisions and
+  concurrent different-key writers. Stop a variant whose tradeoff is unjustified.
 - **Outcome:** retain one promising candidate, preserve a second credible contender
-  for follow-up, or record a null/unresolved result. Both layouts are tree-changing;
-  local screening selects what merits offline testing and games, not a strength winner.
+  for follow-up, or record a null/unresolved result. Capacity/cluster changes are
+  tree-changing; establish whether a rejection-only variant preserves signatures.
+  Local screening selects what merits offline testing and games, not a strength winner.
 
 References: CPW's [buckets](https://chessprogramming.org/Transposition_Table#Bucket_Systems),
 [collisions](https://chessprogramming.org/Transposition_Table#Collisions), and
 [shared-table verification](https://chessprogramming.org/Shared_Hash_Table#Xor).
+
+### ENG-035 — Make TT reuse account for the halfmove clock
+
+- **Defect:** keys omit the halfmove clock, allowing a TT cutoff to reuse a score
+  from before a fifty-move draw became imminent. Checking the current position
+  for a draw before probing does not prevent this.
+- **Evidence:** at `d3116b1`, Threads=1, Hash=32 MiB, depth=6,
+  `7k/8/8/8/8/8/6Q1/6K1 w - - 98 1` scores 0 cp with an empty TT, but +1950 cp
+  after searching the same board with clock 0. Clearing only the TT restores 0 cp
+  in all three repetitions. Legal-move enumeration confirms the expected draw;
+  the audit retains `rule50-probe.py`, raw results, and the enumeration. Practical
+  frequency and strength impact are unmeasured.
+- **Next:** preserve this as a regression and investigate a targeted clock-aware
+  key or cutoff policy. Cover main search, qsearch, low/high-clock reuse in both
+  directions, and mates near the limit. Keep layout and other search policy fixed;
+  avoid a general draw-handling rewrite.
+
+### ENG-036 — Test huge-page backing for the TT
+
+- **Question:** can huge-page allocation reduce TT address-translation cost while
+  preserving the search tree?
+- **Evidence:** the `d3116b1` audit found 4 KiB pages and no huge-page backing for
+  fresh 32/64 MiB tables on `gazelle` with THP in `madvise` mode. The allocator
+  makes no explicit huge-page request; several reference engines do. A speedup
+  and TLB pressure have not been established.
+- **Next:** try suitable allocation alignment and huge-page advice with a normal
+  allocation fallback. Verify actual backing before fresh paired timings against
+  the current baseline at the same table capacity; check exact search signatures.
+  Hold layout, replacement, and search policy fixed. Exercise resize, clear, and
+  fallback behavior; do not require system-wide huge-page settings.
+
+### ENG-037 — Investigate TT aging and same-key retention
+
+- **Question:** does retaining old deep entries over newer shallow results reduce
+  useful TT reuse across searches?
+- **Evidence:** at `d3116b1`, age refreshes only on successful stores, and shallow
+  non-exact same-key writes can be rejected regardless of entry age. References
+  vary: some refresh on hits or permit aged same-key replacement. No weakness in
+  the current policy has been measured.
+- **Next:** measure entry age, rejected updates, and useful hits over repeatable
+  search sequences that retain the TT. Use the findings to select one change to
+  age refresh or same-key replacement, holding layout and other policy fixed.
+  Compare fresh baseline/candidate sequences and the standard corpus; cold-table
+  runs alone cannot establish the aging benefit. Treat policy changes as tree-changing.
+
+### ENG-038 — Investigate evaluation-only TT records
+
+- **Question:** can caching static evaluation without a searched bound save enough
+  evaluation work to repay extra TT traffic and displacement?
+- **Evidence:** at `d3116b1`, `TTBound::None` is invalid, so the table cannot retain
+  evaluation-only records. Stockfish and Ethereal support them; their benefit to
+  Latrunculi is unmeasured.
+- **Next:** measure repeated evaluations and select one insertion site for a
+  bounded prototype. Evaluation-only hits must never authorize score cutoffs.
+  Keep entry size, cluster layout, and evaluation values fixed; account for saved
+  evaluations, displaced useful bounds, nodes, and fresh paired elapsed time.
+  Changed table occupancy can change the search tree and requires strength testing.
 
 ## Candidates for local testing
 
