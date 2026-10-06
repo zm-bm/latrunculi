@@ -143,6 +143,55 @@ References: CPW's [buckets](https://chessprogramming.org/Transposition_Table#Buc
   evaluations, displaced useful bounds, nodes, and fresh paired elapsed time.
   Changed table occupancy can change the search tree and requires strength testing.
 
+### ENG-041 — Make time allocation clock-safe and responsive to the search
+
+- **Question:** can one time manager improve play by respecting the remaining
+  clock, saving time on forced or stable decisions, and allowing bounded extra
+  time when the best move changes or its score deteriorates?
+- **Evidence:** the source audit at `d3116b1` found one deadline:
+  `max(10 ms, time / movestogo + increment - 50 ms)`, defaulting to 30 moves.
+  It is not capped to the remaining clock, and iterative deepening has no soft
+  stop or forced-move shortcut. Local bot logs from 2026-10-04 illustrate both
+  problems, although the deployed revisions were not recorded: in game
+  `xrZQkpwD`, Black received 1,030 ms and a 3,000 ms increment, searched for
+  2,984 ms, and forfeited on time; the engine had consumed most of the bridge's
+  reserved overhead. In `G45M2pUU`, the sole legal move 25...Kf8 used 18,347 ms.
+  Raw evidence: `bot/logs/lichess-bot.log`, lines 263914 and 283225, plus the
+  corresponding PGNs in `bot/games/` (local, ignored artifacts).
+  The forced-move position is
+  `1rb1r1k1/5ppQ/p3p1n1/q2pP1P1/2pP2B1/b1N1B2R/P1R3PP/6K1 b - - 4 25`;
+  Black's supplied clock was 401,929 ms with a 5,000 ms increment.
+- **Next:** build one bounded engine-only candidate combining CPW's soft/hard
+  limits with clock safety. Use the existing base allocation as the starting
+  point. Check the soft target after completed iterations; enforce a separate
+  hard maximum during search, capped to the supplied remaining clock with an
+  explicit engine overhead reserve. Future increment and minimum search time
+  must not override that cap. Define immediate fallback behavior when no safe
+  search time remains, and check polling overshoot near exhaustion. Reduce the
+  target for a sole legal move or a stable best move; increase it within the
+  hard limit for best-move changes or falling scores. Keep this first policy
+  small; defer root-node distribution, iteration-cost prediction, and broad
+  constant tuning.
+- **Validation:** reproduce the allocation defect and forced-move case, then
+  compare baseline and candidate on representative clock-driven searches.
+  Cover zero/low clocks, increment larger than remaining time, `movestogo`,
+  aspiration retries, and one/multiple threads. Record target and maximum,
+  actual elapsed time, stop reason, completed depth, and selected move. Preserve
+  legal fallback and last-completed-result handling, explicit `movetime`,
+  depth/node limits, and existing infinite/ponder protocol behavior. Treat this
+  as tree-changing: fixed-depth/node checks are regressions, not strength
+  evidence; eventual clock-based games must cover increment and zero-increment
+  controls and track time forfeits as well as results.
+- **Scope:** one combined time-management lead and candidate, with engine search
+  and evaluation otherwise fixed. No bot/configuration changes or pondering
+  integration. Audit only so far; no implementation or strength gain measured.
+
+References: CPW's [time management](https://chessprogramming.org/Time_Management),
+especially soft/hard bounds and search feedback; local Stash `13e0a81`
+(`src/sources/timeman.c`) and Ethereal `0e47e9b` (`src/timeman.c`) illustrate
+bounded targets, stability, and score feedback. Their constants are not assumed
+to transfer to Latrunculi.
+
 ## Candidates for local testing
 
 None.
