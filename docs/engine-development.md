@@ -14,14 +14,14 @@ are allowed.
 
 | Field | Current value |
 |---|---|
-| Engine | `836ffe2` (ENG-041: clock-safe adaptive time management) |
+| Engine | `2eee9a5` (ENG-039: checkmate at the fifty-move boundary) |
 | OpenBench fingerprint | 3,507,960 nodes |
-| Search corpus | `tools/analysis/output/search-baseline-836ffe2/`; 200 positions, depth 10, one thread, 32 MiB Hash; 54,039,403 nodes |
+| Search corpus | `tools/analysis/output/search-baseline-2eee9a5/`; 200 positions, depth 10, one thread, 32 MiB Hash; 54,039,403 nodes |
 | Build | `release-dev`, GCC 15.2.0, x86-64, `gazelle`; refreshed 2026-10-07 |
 
-Source revision: `836ffe25e1f4903af5592d7a8de28abe0370f34f`.
-Corpus and fingerprint match the accepted candidate; Release, ASan/UBSan and
-clock/lifecycle checks passed. [Integration evidence](../tools/analysis/output/eng-041-integration/report.md).
+Source revision: `2eee9a5b864c09d9d4c6d392eabe22739ce46a60`.
+Corpus and fingerprint match the approved candidate; Release, ASan/UBSan and
+boundary checks passed. [Integration evidence](../tools/analysis/output/eng-039-integration/report.md).
 
 ## Issues and leads
 
@@ -83,26 +83,6 @@ ENG-036 is an independent allocation lead; ENG-037/038 are lower-priority follow
   evaluations, displaced useful bounds, nodes, and fresh paired elapsed time.
   Changed table occupancy can change the search tree and requires strength testing.
 
-### ENG-039 — Checkmate at the fifty-move boundary
-
-- **Defect:** recursive main search and qsearch check for a draw before detecting
-  checkmate. With an empty TT, `7k/8/5KQ1/8/8/8/8/8 w - - 99 1` scores 0 cp
-  at depth 6, although Qg7 checkmates at clock 100. At clock 98 it scores mate in one.
-- **Evidence:** three repetitions on baseline `d3116b1` and ENG-035 candidate
-  `4da58e7`; a separate legal-move enumeration verifies Qg7 leaves the king in
-  check with no legal reply. This is separate from TT reuse. Reproductions and
-  enumeration: `tools/analysis/output/eng-035-tt-clock/`.
-- **Next:** reproduce on `836ffe2`, then fix fifty-move/checkmate precedence in
-  recursive main search and qsearch. Keep TT policy, repetition/material draws
-  and qsearch move generation unchanged; avoid legal-move generation at ordinary nodes.
-- **Checks:** root/main search finds the clock-99 mate-in-one; direct main/qsearch
-  recognizes the clock-100 checkmated child in PV and NonPV paths, with correct
-  mate distance. Qsearch need not discover the parent's quiet Qg7. Checked
-  clock-100 positions with legal evasions must remain draws; retain clock-98/99
-  mate, stalemate and ordinary draw controls.
-- **Tradeoff:** tree-changing correctness fix, independent of ENG-040. Measure
-  runtime cost without requiring a speedup.
-
 ## Candidates for local testing
 
 ### ENG-040 — Compact tagged TT with clock-aware keys
@@ -113,10 +93,10 @@ ENG-036 is an independent allocation lead; ENG-037/038 are lower-priority follow
   Tree-changing mitigation of the demonstrated reuse defect; strength pending.
 - **Revision:** `candidate/eng-040-compact-tt-cleanup`, `6b27a3f` on `d3116b1`.
   Reviewed cleanup preserves the original engine/benchmark/stress binaries.
-- **Baseline status:** needs local combination checks against `836ffe2` after
-  ENG-041 integration. Preserve the published branch and #36 comparison; its
-  games remain strength evidence for the tested revision. A baseline refresh
-  alone does not schedule a replacement SPRT.
+- **Baseline status:** needs local combination checks against `2eee9a5` after
+  ENG-041 and ENG-039 integration. Preserve the published branch and #36
+  comparison; its games remain strength evidence for the tested revision.
+  A baseline refresh alone does not schedule a replacement SPRT.
 - **Offline pass (2026-10-06):** 397 Release cases plus stress, full ASan/UBSan
   with leak detection, focused TSan, all eleven material families and mate
   controls passed. Corpus signatures and fingerprint **3,423,173** repeat;
@@ -127,7 +107,7 @@ ENG-036 is an independent allocation lead; ENG-037/038 are lower-priority follow
   estimate; a speedup is not required for the correctness mitigation.
 - **Risks:** 16-bit tags allow false hits; individually atomic fields can mix
   writes without the old signature validation. Clock sharing remains heuristic;
-  cross-clock move/evaluation hints are lost. ENG-039 remains separate.
+  cross-clock move/evaluation hints are lost. The baseline now includes ENG-039.
 - **OpenBench:** [#36](https://workstation-01.tail2abd87.ts.net/test/36/),
   `6b27a3f` versus `d3116b1`, normalized-Elo SPRT **[-3,0]**, alpha=beta=0.05,
   **10+0.1**, T1 H32, standard UHO book/adjudication, no game cap.
@@ -157,6 +137,11 @@ under local testing because the operational baseline changed.
 None.
 
 ## Recent results
+
+- **ENG-039 — Integrated 2026-10-07:** fifty-move/checkmate precedence,
+  `2eee9a5` from approved `2570878`. User explicitly waived OpenBench for this
+  narrow correctness fix. Integration checks passed; no strength gain claimed.
+  [Evidence and full revisions](../tools/analysis/output/eng-039-integration/report.md).
 
 - **ENG-041 — Integrated 2026-10-07:** clock-safe adaptive time management,
   `836ffe2` from approved `1bd5a1c`. OpenBench #37 accepted `[0,3]` at `10+0.1`:
