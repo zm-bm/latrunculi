@@ -117,6 +117,33 @@ TEST_F(QuiescenceTest, TerminatesDrawAndMaxPlyWithoutTtStore) {
     EXPECT_FALSE(record().has_value());
 }
 
+TEST_F(QuiescenceTest, AdjudicatesFiftyMoveBoundaryBeforeTtAndMaxPly) {
+    struct Case {
+        const char* fen;
+        int         search_ply;
+        EvalValue   value;
+    };
+    constexpr std::array cases{
+        Case{"7k/6Q1/5K2/8/8/8/8/8 b - - 100 1", 3, -eval_value::mate + 3},
+        Case{"7k/6Q1/5K2/8/8/8/8/8 b - - 100 1",
+             engine::max_search_ply,
+             -eval_value::mate + engine::max_search_ply},
+        Case{"7k/7Q/5K2/8/8/8/8/8 b - - 100 1", 3, eval_value::draw},
+    };
+
+    for (const auto& tc : cases) {
+        SCOPED_TRACE(tc.fen);
+        SCOPED_TRACE(tc.search_ply);
+        Board board{tc.fen};
+        load(board);
+        ply() = tc.search_ply;
+        tt.store(position().key(), NULL_MOVE, 1234, 8, TTBound::Exact, ply());
+        EXPECT_EQ(search(-1, 0), tc.value);
+        PrincipalVariation pv;
+        EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, pv), tc.value);
+    }
+}
+
 TEST_F(QuiescenceTest, StandPatFailHighStoresLowerBound) {
     Board board{board_test::fen::quiet_black_to_move};
     load(board);

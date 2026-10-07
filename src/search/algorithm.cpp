@@ -13,6 +13,22 @@
 
 namespace search {
 
+namespace {
+
+// Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
+EvalValue draw_or_mate_score(const Board& board, int search_ply) {
+    if (board.halfmove_clock() >= 100 && board.is_check()) {
+        for (Move move : movegen::generate_evasions(board)) {
+            if (board.is_legal_pseudo_move(move))
+                return eval_value::draw;
+        }
+        return -eval_value::mate + search_ply;
+    }
+    return eval_value::draw;
+}
+
+} // namespace
+
 // Main root search driver.
 EvalValue Worker::search_root() {
     // Terminal root: return immediately when no legal root move exists.
@@ -191,7 +207,7 @@ EvalValue Worker::alphabeta(
     if (drawn) {
         increment_nodes();
         stats.node(search_ply);
-        return eval_value::draw;
+        return draw_or_mate_score(board, search_ply);
     }
 
     if (search_ply >= engine::max_search_ply) {
@@ -478,7 +494,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
     // Step 2. Draw and max-ply exits.
     if (board.is_draw(search_ply))
-        return eval_value::draw;
+        return draw_or_mate_score(board, search_ply);
 
     if (search_ply >= engine::max_search_ply)
         return eval::evaluate(board);

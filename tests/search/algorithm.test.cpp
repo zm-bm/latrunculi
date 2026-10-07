@@ -166,6 +166,33 @@ TEST_F(SearchTest, HandlesDrawAndMaxPlyExits) {
     EXPECT_EQ(search(-eval_value::inf, eval_value::inf, 1), eval_value::draw);
 }
 
+TEST_F(SearchTest, AdjudicatesFiftyMoveBoundaryBeforeTtAndMaxPly) {
+    struct Case {
+        const char* fen;
+        int         search_ply;
+        EvalValue   value;
+    };
+    constexpr std::array cases{
+        Case{"7k/6Q1/5K2/8/8/8/8/8 b - - 100 1", 3, -eval_value::mate + 3},
+        Case{"7k/6Q1/5K2/8/8/8/8/8 b - - 100 1",
+             engine::max_search_ply,
+             -eval_value::mate + engine::max_search_ply},
+        Case{"7k/7Q/5K2/8/8/8/8/8 b - - 100 1", 3, eval_value::draw},
+    };
+
+    for (const auto& tc : cases) {
+        SCOPED_TRACE(tc.fen);
+        SCOPED_TRACE(tc.search_ply);
+        Board board{tc.fen};
+        load(board);
+        ply() = tc.search_ply;
+        tt.store(position().key(), NULL_MOVE, 1234, 8, TTBound::Exact, ply());
+        EXPECT_EQ(search(-1, 0, 2), tc.value);
+        PrincipalVariation pv;
+        EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, 2, pv), tc.value);
+    }
+}
+
 TEST_F(SearchTest, ReturnsFailSoftValues) {
     constexpr auto one_evasion = board_test::fen::one_legal_evasion;
     constexpr int  depth       = 1;

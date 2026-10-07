@@ -297,6 +297,8 @@ TEST_F(RootSearchTest, HandlesMateInOneCheckmateAndStalemate) {
 
     constexpr std::array cases{
         Case{"7R/8/8/8/8/1K6/8/1k6 w - - 0 1", eval_value::mate - 1, "h8h1", 1},
+        Case{"7k/8/5KQ1/8/8/8/8/8 w - - 98 1", eval_value::mate - 1, "g6g7", 1},
+        Case{"7k/8/5KQ1/8/8/8/8/8 w - - 99 1", eval_value::mate - 1, "g6g7", 1},
         Case{"7k/6Q1/6K1/8/8/8/8/8 b - - 0 1", -eval_value::mate, "none", 0},
         Case{board_test::fen::stalemate, eval_value::draw, "none", 0},
     };
