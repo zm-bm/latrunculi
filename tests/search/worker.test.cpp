@@ -163,4 +163,43 @@ TEST_F(SearchWorkerTest, StoppedSearchReportsFallbackWithoutCompletingRootSnapsh
     EXPECT_EQ(reporter.best_moves.front(), root_lines.front().root_move);
 }
 
+TEST_F(SearchWorkerTest, ExhaustedClockPublishesLegalIncompleteFallback) {
+    Board  board{board_test::fen::start};
+    Limits limits;
+    limits.set_wtime(50);
+    limits.set_btime(50);
+    limits.set_winc(3000);
+    worker().configure_search(board, limits, SearchClock::now());
+    SearchThreadTestAccess::wake_for_search(test_thread());
+    SearchThreadTestAccess::wait_for_idle(test_thread());
+
+    EXPECT_EQ(worker().node_count(), 0U);
+    EXPECT_FALSE(worker().root_snapshot().completed);
+    ASSERT_EQ(reporter.best_moves.size(), 1U);
+    EXPECT_TRUE(board.is_legal_move(reporter.best_moves.front()));
+    ASSERT_FALSE(reporter.progress.empty());
+    EXPECT_EQ(reporter.progress.back().depth, 0);
+    EXPECT_FALSE(reporter.progress.back().completed);
+}
+
+TEST_F(SearchWorkerTest, SoleRootMoveSavesClockButPreservesExplicitDepth) {
+    Board  board{"1rb1r1k1/5ppQ/p3p1n1/q2pP1P1/2pP2B1/b1N1B2R/P1R3PP/6K1 b - - 4 25"};
+    Limits limits;
+    limits.set_wtime(401929);
+    limits.set_btime(401929);
+    limits.set_binc(5000);
+    worker().configure_search(board, limits, SearchClock::now());
+    (void)worker().search();
+    EXPECT_EQ(SearchTestAccess::root_lines(worker()).size(), 1U);
+    EXPECT_EQ(worker().root_snapshot().depth, 1);
+    EXPECT_TRUE(worker().root_snapshot().completed);
+    EXPECT_EQ(worker().root_snapshot().root_move, Move(G8, F8));
+
+    limits.set_depth(4);
+    worker().configure_search(board, limits, SearchClock::now());
+    (void)worker().search();
+    EXPECT_EQ(worker().root_snapshot().depth, 4);
+    EXPECT_TRUE(worker().root_snapshot().completed);
+}
+
 } // namespace search

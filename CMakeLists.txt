@@ -53,10 +53,10 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/eval/features.cpp
     src/search/algorithm.cpp
     src/search/instrumentation.cpp
-    src/search/limits.cpp
     src/search/ordering/picker.cpp
     src/search/root_line.cpp
     src/search/thread_pool.cpp
+    src/search/time_manager.cpp
     src/search/tt.cpp
     src/search/worker.cpp
     src/uci/engine.cpp
@@ -150,6 +150,7 @@ if(BUILD_TESTING)
         tests/search/root_line.test.cpp
         tests/search/root_search.test.cpp
         tests/search/thread_pool.test.cpp
+        tests/search/time_manager.test.cpp
         tests/search/tt.test.cpp
         tests/search/worker.test.cpp
         tests/uci/engine.test.cpp

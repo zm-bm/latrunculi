@@ -6,16 +6,6 @@
 
 namespace search {
 
-namespace {
-
-void expect_allocated_time(const Limits& limits, Color side, Milliseconds expected) {
-    auto allocated = limits.allocated_time(side);
-    ASSERT_TRUE(allocated.has_value());
-    EXPECT_EQ(*allocated, expected);
-}
-
-} // namespace
-
 TEST(SearchLimitsTest, SettersApplyValidLimits) {
     Limits limits;
 
@@ -103,62 +93,6 @@ TEST(SearchLimitsTest, MateLimitUsesUciMoveDistanceForEitherSide) {
 
     limits.mate.reset();
     EXPECT_FALSE(limits.has_mate_within_limit(eval_value::mate - 1));
-}
-
-TEST(SearchLimitsTest, MovetimeOverridesClockBudget) {
-    Limits limits;
-    limits.set_movetime(1234);
-    limits.set_wtime(90000);
-    limits.set_btime(90000);
-    limits.set_winc(500);
-    limits.set_binc(500);
-
-    expect_allocated_time(limits, WHITE, Milliseconds{1234});
-}
-
-TEST(SearchLimitsTest, ClockBudgetDefaultsMissingIncrementToZero) {
-    Limits limits;
-    limits.set_wtime(90000);
-    limits.set_btime(60000);
-    limits.set_movestogo(30);
-
-    expect_allocated_time(limits, WHITE, Milliseconds{2950});
-    expect_allocated_time(limits, BLACK, Milliseconds{1950});
-}
-
-TEST(SearchLimitsTest, ClockBudgetUsesSideIncrement) {
-    Limits limits;
-    limits.set_wtime(90000);
-    limits.set_btime(60);
-    limits.set_winc(500);
-    limits.set_binc(100);
-    limits.set_movestogo(30);
-
-    expect_allocated_time(limits, WHITE, Milliseconds{3450});
-    expect_allocated_time(limits, BLACK, Milliseconds{52});
-}
-
-TEST(SearchLimitsTest, ClockBudgetUsesMinimumWhenBudgetIsLow) {
-    Limits limits;
-    limits.set_wtime(60);
-    limits.set_btime(60);
-    limits.set_movestogo(30);
-
-    expect_allocated_time(limits, WHITE, Milliseconds{10});
-    expect_allocated_time(limits, BLACK, Milliseconds{10});
-}
-
-TEST(SearchLimitsTest, ClockBudgetSaturatesWideTimeAndIncrement) {
-    using Rep = Milliseconds::rep;
-
-    constexpr Rep max_time = std::numeric_limits<Rep>::max();
-    Limits        limits;
-    limits.set_wtime(max_time);
-    limits.set_btime(0);
-    limits.set_winc(max_time);
-    limits.set_movestogo(1);
-
-    expect_allocated_time(limits, WHITE, Milliseconds{max_time - 50});
 }
 
 } // namespace search

@@ -12,6 +12,7 @@
 #include "search/ordering/state.hpp"
 #include "search/reporter.hpp"
 #include "search/root_line.hpp"
+#include "search/time_manager.hpp"
 
 class SearchTestAccess;
 
@@ -50,9 +51,9 @@ private:
     ordering::State       ordering_state;
 
     // Current search request.
-    Limits                      limits;
-    TimePoint                   start_time{};
-    std::optional<Milliseconds> allocated_time;
+    Limits      limits;
+    TimePoint   start_time{};
+    TimeManager time_manager;
 
     // Progress and diagnostics.
     std::atomic<NodeCount> nodes{0};
@@ -107,6 +108,7 @@ private:
     Milliseconds runtime() const;
     NodeCount    total_nodes() const;
     void         poll_search_limits();
+    void         finish_timed_iteration();
     void         reset_nodes() noexcept;
     void         increment_nodes() noexcept;
 

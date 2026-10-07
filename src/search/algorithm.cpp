@@ -21,12 +21,18 @@ EvalValue Worker::search_root() {
         return root_result.value;
     }
 
+    // An exhausted budget must retain a legal fallback without completing a depth.
+    if (is_main_worker())
+        poll_search_limits();
+
     // Iterative deepening searches one completed depth at a time.
     for (int depth = 1; depth <= limits.depth && !stop_requested(); ++depth) {
         if (!should_search_root_depth(depth))
             continue;
         if (!search_root_depth(depth, root_result.value))
             break;
+        if (is_main_worker())
+            finish_timed_iteration();
         if (limits.has_mate_within_limit(root_result.value))
             break;
     }

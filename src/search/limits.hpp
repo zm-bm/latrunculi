@@ -65,8 +65,6 @@ struct Limits {
         const int distance_in_moves = (distance_in_plies + 1) / 2;
         return distance_in_moves <= *mate;
     }
-
-    std::optional<Milliseconds> allocated_time(Color c) const;
 };
 
 } // namespace search

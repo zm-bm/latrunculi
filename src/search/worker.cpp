@@ -22,9 +22,9 @@ void Worker::configure_search(const Board& root_board, Limits limits, TimePoint 
     board      = root_board;
     search_ply = 0;
 
-    this->limits   = limits;
-    start_time     = search_start_time;
-    allocated_time = this->limits.allocated_time(board.side_to_move());
+    this->limits = limits;
+    start_time   = search_start_time;
+    time_manager = TimeManager{this->limits, board.side_to_move()};
 
     reset_nodes();
     clear_root_snapshot();
@@ -197,10 +197,22 @@ void Worker::poll_search_limits() {
             thread_pool.request_stop();
     }
 
-    if (allocated_time) {
-        if (runtime() >= *allocated_time)
+    if (const auto maximum = time_manager.hard_limit()) {
+        if (runtime() >= *maximum)
             thread_pool.request_stop();
     }
+}
+
+void Worker::finish_timed_iteration() {
+    assert(is_main_worker() && root_result.usable_root_move());
+
+    if (!time_manager.soft_limit() || thread_pool.is_pondering())
+        return;
+
+    time_manager.update_after_iteration(
+        root_result.depth, root_result.root_move, root_result.value);
+    if (root_lines.size() == 1 || runtime() >= *time_manager.soft_limit())
+        thread_pool.request_stop();
 }
 
 } // namespace search

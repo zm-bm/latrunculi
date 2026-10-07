@@ -281,6 +281,17 @@ TEST_F(EngineSearchTest, PonderSearchWaitsForHitAndPublishesExistingResult) {
     EXPECT_EQ(search::tt.current_generation(), std::uint8_t{1});
 }
 
+TEST_F(EngineSearchTest, PonderingIgnoresExhaustedClockUntilHit) {
+    EXPECT_TRUE(execute("go ponder wtime 0 btime 0 winc 3000 binc 3000"));
+    ASSERT_TRUE(wait_for_depth(4));
+    EXPECT_TRUE(thread_pool().is_searching());
+
+    EXPECT_TRUE(execute("ponderhit"));
+    thread_pool().wait();
+    EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << output.str();
+    EXPECT_EQ(output.str().find("bestmove 0000"), std::string::npos) << output.str();
+}
+
 TEST_F(EngineSearchTest, MateLimitStopsAfterQualifyingCompletedDepth) {
     EXPECT_TRUE(execute("position fen 8/8/8/8/8/3K4/4Q3/k7 w - - 0 1"));
     EXPECT_TRUE(execute("go mate 2 depth 5"));
