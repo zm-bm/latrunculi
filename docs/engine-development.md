@@ -6,9 +6,10 @@ explains what evidence lets an item advance.
 Keep one live entry per experiment: question or claim, baseline evidence, next
 action, and candidate branch/revisions when applicable. Preserve IDs; number
 retained candidates and unresolved leads, but leave casual nulls unnumbered.
-Keep detailed measurements and completed history in evidence reports and Git
-history. Run one local CPU-sensitive task at a time; concurrent OpenBench tests
-are allowed.
+Keep evidence for the current baseline, active candidates and useful audits.
+Retire obsolete branches and outputs after work is integrated or abandoned;
+Git history records integrated changes. Run one local CPU-sensitive task at a
+time; concurrent OpenBench tests are allowed.
 
 ## Baseline
 
@@ -142,9 +143,3 @@ None.
   `2eee9a5` from approved `2570878`. User explicitly waived OpenBench for this
   narrow correctness fix. Integration checks passed; no strength gain claimed.
   [Evidence and full revisions](../tools/analysis/output/eng-039-integration/report.md).
-
-- **ENG-041 — Integrated 2026-10-07:** clock-safe adaptive time management,
-  `836ffe2` from approved `1bd5a1c`. OpenBench #37 accepted `[0,3]` at `10+0.1`:
-  1,172 games, **+86.21 +/-15.34 Elo (95%)**, zero crashes/time forfeits.
-  Integration checks passed; zero-increment game strength remains unmeasured.
-  [Evidence and full revisions](../tools/analysis/output/eng-041-integration/report.md).
