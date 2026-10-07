@@ -1,0 +1,3 @@
+# Generate with: cmake --preset release-dev
+CompileFlags:
+  CompilationDatabase: build/release-dev

@@ -27,6 +27,16 @@ if(NOT LATRUNCULI_SANITIZER STREQUAL "none"
         "LATRUNCULI_SANITIZER requires a GNU or Clang-compatible compiler")
 endif()
 
+# Enable Release IPO by default for our targets. Honor CMake's standard
+# overrides, e.g. -DCMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE=OFF.
+# Keep the default local so GoogleTest does not inherit it.
+set(LATRUNCULI_RELEASE_IPO ON)
+if(DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE)
+    set(LATRUNCULI_RELEASE_IPO "${CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE}")
+elseif(DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+    set(LATRUNCULI_RELEASE_IPO "${CMAKE_INTERPROCEDURAL_OPTIMIZATION}")
+endif()
+
 set(LATRUNCULI_ENGINE_SOURCES
     src/core/attacks_magic.cpp
     src/core/move.cpp
@@ -56,7 +66,7 @@ set(LATRUNCULI_ENGINE_SOURCES
 )
 
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
-set_property(TARGET latrunculi_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+set_property(TARGET latrunculi_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
 target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_VERSION="${PROJECT_VERSION}")
@@ -87,7 +97,7 @@ add_executable(latrunculi
     src/cli/cli.cpp
 )
 target_link_libraries(latrunculi PRIVATE latrunculi_lib)
-set_property(TARGET latrunculi PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+set_property(TARGET latrunculi PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
 
 option(LATRUNCULI_BUILD_SEARCH_BENCH "Build native search benchmark" OFF)
 if(LATRUNCULI_BUILD_SEARCH_BENCH)
@@ -96,7 +106,7 @@ if(LATRUNCULI_BUILD_SEARCH_BENCH)
         LATRUNCULI_SEARCH_SUITE="${CMAKE_CURRENT_SOURCE_DIR}/tools/analysis/search.epd"
     )
     target_link_libraries(latrunculi-search-bench PRIVATE latrunculi_lib)
-    set_property(TARGET latrunculi-search-bench PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    set_property(TARGET latrunculi-search-bench PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
 endif()
 
 if(BUILD_TESTING)
@@ -157,12 +167,12 @@ if(BUILD_TESTING)
     )
     target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
     target_link_libraries(tests PRIVATE latrunculi_lib gtest gmock)
-    set_property(TARGET tests PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    set_property(TARGET tests PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
     add_test(NAME unit_tests COMMAND tests)
 
     add_executable(latrunculi-stress tests/stress/randomized.test.cpp)
     target_include_directories(latrunculi-stress PRIVATE ${CMAKE_SOURCE_DIR}/tests)
     target_link_libraries(latrunculi-stress PRIVATE latrunculi_lib gtest)
-    set_property(TARGET latrunculi-stress PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    set_property(TARGET latrunculi-stress PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
     add_test(NAME randomized_stress COMMAND latrunculi-stress)
 endif()

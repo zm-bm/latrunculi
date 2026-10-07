@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 4,
   "cmakeMinimumRequired": {
     "major": 3,
     "minor": 23,
@@ -102,6 +102,9 @@
     {
       "name": "debug",
       "configurePreset": "debug",
+      "execution": {
+        "noTestsAction": "error"
+      },
       "output": {
         "outputOnFailure": true
       }
@@ -113,6 +116,9 @@
         "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
         "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
       },
+      "execution": {
+        "noTestsAction": "error"
+      },
       "output": {
         "outputOnFailure": true
       }
@@ -123,6 +129,9 @@
       "environment": {
         "TSAN_OPTIONS": "halt_on_error=1"
       },
+      "execution": {
+        "noTestsAction": "error"
+      },
       "output": {
         "outputOnFailure": true
       }
@@ -130,6 +139,9 @@
     {
       "name": "release-dev",
       "configurePreset": "release-dev",
+      "execution": {
+        "noTestsAction": "error"
+      },
       "output": {
         "outputOnFailure": true
       }
@@ -137,6 +149,9 @@
     {
       "name": "release-stats",
       "configurePreset": "release-stats",
+      "execution": {
+        "noTestsAction": "error"
+      },
       "output": {
         "outputOnFailure": true
       }

@@ -1,161 +1,107 @@
 # Architecture
 
-## System Overview
+Latrunculi is a C++23 UCI chess engine with bitboard move generation,
+handcrafted evaluation, and multithreaded principal variation search (PVS).
 
-```text
-UCI input
-   |
-   v
-uci::Engine ---- owns ----> Board
-   |
-   v
-search::ThreadPool ----> search::Thread ----> search::Worker
-   |                                              |
-   |                                              +-- Board copy
-   |                                              +-- movegen
-   |                                              +-- eval
-   |                                              +-- ordering state
-   +-- shared search::tt
+## Source layout
 
-search results ----> search::Reporter ----> uci::Writer ----> UCI output
-```
-
-Source directories define logical subsystem boundaries, and most
-subsystem-owned APIs use matching namespaces. Fundamental chess types and
-`Board` remain global types shared across those boundaries.
-
-## Subsystems
-
-| Directory | Responsibility |
+| Directory | What you'll find |
 | --- | --- |
-| `src/core` | Fundamental chess types, pieces, squares, moves, bitboards, attack tables, and move geometry |
-| `src/board` | Mutable position representation, reversible history, chess rules, FEN, notation, and static exchange evaluation |
-| `src/cli` | Executable command dispatch, batch feature export, and OpenBench benchmark |
-| `src/movegen` | Pseudo-legal move generation, move lists, and production perft |
-| `src/eval` | Handcrafted-evaluation parameters, mechanics, incremental base terms, feature extraction, and diagnostics |
-| `src/search` | Search algorithm, limits, root results, move ordering, transposition table, workers, and thread lifecycle |
-| `src/uci` | Protocol commands, parsing, options, engine coordination, and output formatting |
+| [core](../src/core/) | Chess types, bitboards, and attack tables |
+| [board](../src/board/) | Position state, make/unmake, rules, FEN, and notation |
+| [movegen](../src/movegen/) | Pseudo-legal move generation and perft |
+| [eval](../src/eval/) | Static evaluation, weights, and tuning features |
+| [search](../src/search/) | Search, move ordering, the transposition table, limits, and threads |
+| [uci](../src/uci/) | GUI commands, engine options, and search output |
+| [cli](../src/cli/) | Command-line entry point, benchmark, and feature export |
 
-## Board and Position State
+## Positions and moves
 
-`Board` is the mutable position used by move generation, evaluation, search,
-perft, and UCI commands. It maintains redundant representations for efficient
-queries:
+[Board](../src/board/board.hpp) stores the position and the history needed
+to undo moves.
 
-- per-color piece and occupancy bitboards;
-- a square mailbox and piece counts;
-- cached king squares and side to move; and
-- incrementally maintained `eval::BaseTerms` for material and piece-square
-  evaluation.
+- Pieces are stored in bitboards and an array indexed by square.
+- Sliding-piece attacks use
+  [magic bitboard](https://chessprogramming.org/Magic_Bitboards) tables in
+  [attacks_magic.cpp](../src/core/attacks_magic.cpp).
+- Make/unmake uses a stack of saved states, updating the Zobrist key and
+  cached evaluation terms as pieces move.
+- `Board` also handles castling, en passant, and draw detection.
 
-Reversible state lives in an owned stack of `PlyState` values. Each state holds
-the Zobrist key, castling rights, en-passant information, halfmove clock,
-previous move, tactical caches, and undo data. `Board::make()` and
-`Board::unmake()` update the durable representation, active ply state, Zobrist
-key, and evaluation base terms together. Null moves use the same reversible
-history without changing piece placement.
-
-`Board` is also the final authority for move legality. It owns attack queries,
-castling validation, draw detection, check detection, and static exchange
-evaluation. FEN loading rebuilds the complete representation and incremental
-caches from the supplied position.
-
-Each search worker owns an independent `Board` copy. Search make/unmake
-operations therefore mutate only worker-local position history.
-
-## Move Generation
-
-The `movegen` subsystem emits pseudo-legal candidates in a stable order.
-Generation is specialized by side to move and by normal, noisy, quiet, or
-evasion mode. Callers use `Board` for final king-safety filtering. Production
-perft exercises the same generator and make/unmake path used by search.
+[Generator](../src/movegen/generator.hpp) produces pseudo-legal moves,
+and `Board` checks their legality. Search and perft use the same move
+generation and make/unmake code.
 
 ## Evaluation
 
-The public evaluation boundary consists of `eval::evaluate()` and
-`eval::extract_features()`. Both use the same internal, single-use evaluator;
-normal search does not pay for feature construction. Evaluation combines the
-Board-owned material and piece-square base terms with pawn, piece, mobility,
-threat, king-safety, phase, scaling, and tempo terms.
+The handcrafted [Evaluator](../src/eval/evaluation.cpp) uses tunable weights:
 
-Evaluation parameters and `eval::TaperedScore` are owned by `src/eval`.
-`Board` deliberately depends on `eval::BaseTerms` because those cached values
-are handcrafted-evaluation state rather than intrinsic chess-position data.
-Feature extraction separates tunable linear terms from the fixed evaluation
-residual while retaining the weighted term breakdown used by diagnostics.
-`latrunculi features` exports versioned tuning records from its input positions.
-The `--settle` mode first stabilizes each position through search; evaluation
-accepts this as an optional preparation step and does not depend on search.
+- `Board` keeps material and piece-square scores up to date during make/unmake.
+- The evaluator adds scores for pawn structure, piece activity, mobility,
+  threats, and king safety.
+- [Tapered evaluation](https://chessprogramming.org/Tapered_Eval) blends
+  middlegame and endgame scores based on the remaining non-pawn material.
+- It also applies endgame scaling and a tempo bonus.
+
+The same evaluator exports features for the
+[tuning tools](../tools/tuning/README.md), which fit linear weights from
+recorded games.
 
 ## Search
 
-`search::ThreadPool` owns one or more native `search::Thread` instances. Each
-thread owns a `search::Worker`; thread zero is the main worker and the remaining
-workers are helpers. `search::Limits` carries the resolved search request into
-each worker.
+[Worker](../src/search/worker.hpp) handles search setup, limits, and results.
+Its search algorithm lives in [algorithm.cpp](../src/search/algorithm.cpp)
+and uses:
 
-Workers search root moves through iterative deepening, aspiration windows, PVS,
-and quiescence. Alpha-beta pruning and reduction techniques use static
-evaluation, move ordering, and transposition-table bounds to limit work.
+- **Iterative deepening:** Each iteration starts with an
+  [aspiration window](https://chessprogramming.org/Aspiration_Windows) around
+  the previous score. If the result falls outside that window, the search
+  widens it and tries again.
+- **[Principal variation search](https://chessprogramming.org/Principal_Variation_Search):**
+  At PV nodes, the first legal move gets a full alpha-beta window;
+  later moves get a zero-window search and are searched again with the full
+  window if they improve alpha.
+- **Late move reductions:** Search later moves at a lower depth, then repeat
+  at full depth if they improve alpha.
+- **Null-move pruning:** Pass the turn in a reduced-depth search and cut off
+  if the score still reaches beta.
+- **Futility pruning:** Skip non-checking quiet moves at shallow depths when
+  static evaluation plus a margin cannot improve alpha.
+- **Move ordering:** The staged [Picker](../src/search/ordering/picker.hpp)
+  tries the transposition-table move and promising captures, then uses killers,
+  countermoves, and history scores for quiet moves. Capture ordering uses static
+  exchange evaluation (SEE).
+- **Quiescence:** At the depth limit, search continues through SEE-filtered
+  captures and promotions, or all legal evasions when in check.
 
-Every worker owns its board, root lines, node counter, and
-`search::ordering::State`. Ordering state contains killer and countermove
-refutations plus quiet and continuation histories used by the staged move
-picker.
+## Parallel search
 
-The clustered `search::TranspositionTable` is shared globally as `search::tt`.
-Its entries use atomic publication so probes return detached, validated record
-snapshots while workers search concurrently.
+[ThreadPool](../src/search/thread_pool.hpp) runs a main worker and optional
+helpers as threads in the same process. The UCI [Engine](../src/uci/engine.hpp)
+keeps reading commands while they search, so it can respond to `stop`.
 
-The main worker controls final result selection and publication. Helpers expose
-synchronized root snapshots, and the main worker combines those snapshots
-before reporting the final line and move. Infinite and ponder searches reuse
-the same lifecycle and wait on atomic state until `stop` or `ponderhit` permits
-publication.
+```mermaid
+flowchart TD
+    pool["Thread pool"] --> main["Main worker"]
+    pool --> helpers["Helper workers"]
+    main <--> tt["Shared transposition table"]
+    helpers <--> tt
+```
 
-Search reports through the non-owning `search::Reporter` interface. This keeps
-the search subsystem independent of UCI formatting and streams.
+The workers use [Lazy SMP](https://chessprogramming.org/Lazy_SMP): each
+searches the same root position with its own `Board`, root lines, and
+move-ordering state, while sharing the transposition table. Helpers stagger
+their search depths to reduce duplicated work. The main worker stops the
+helpers and chooses which result to report.
 
-## Executable Boundary
+Results go through the [Reporter](../src/search/reporter.hpp) interface.
+[Writer](../src/uci/writer.hpp) implements it for UCI output; benchmarks and
+tests use their own reporters.
 
-`main.cpp` initializes attack tables and delegates to `cli::run()`. The CLI runs
-UCI by default and owns the standalone `bench` and `features` commands.
+## Tests and tools
 
-Within the UCI loop, each input line is parsed into the `uci::Command` variant
-and dispatched by the engine on the command thread.
-
-`uci::Engine` owns:
-
-- the current root `Board` and game history;
-- parsed UCI `Options`;
-- the `uci::Writer`; and
-- the `search::ThreadPool`.
-
-The engine validates state changes and search requests before waking workers.
-Option updates apply subsystem effects such as TT or thread-pool resizing
-before committing the candidate configuration. Command-side state mutations
-remain serialized around asynchronous search.
-
-`uci::Writer` implements `search::Reporter`. It translates structured search
-results into synchronized `info` and `bestmove` output while also owning the
-engine's diagnostic stream. Search code therefore has no dependency on UCI
-commands or output syntax.
-
-The same command loop provides local board, evaluation, move, and perft
-inspection commands outside the UCI protocol.
-
-## Build and Validation
-
-CMake compiles reusable engine subsystems into the `latrunculi_lib` object
-library. The `latrunculi` executable adds the CLI and main entry point.
-Test-enabled presets also build:
-
-- `tests`, the deterministic GoogleTest executable; and
-- `latrunculi-stress`, the reproducible randomized stress executable.
-
-The `release-dev` and `release-stats` presets additionally build
-`latrunculi-search-bench`, the native search benchmark.
-
-Tests mirror the production subsystem layout under `tests/`, with narrow
-support fixtures for internal observations. `tools/analysis/` contains
-the native search benchmark, UCI probe, and run comparison helper.
+The [test suite](../tests/) includes unit tests organized by module and
+randomized stress tests. The [analysis tools](../tools/analysis/README.md)
+provide search benchmarks and UCI inspection; the
+[tuning tools](../tools/tuning/README.md) handle evaluation data and weight
+fitting. Build and test commands are in the [README](../README.md#development).
