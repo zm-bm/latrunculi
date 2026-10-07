@@ -3,104 +3,44 @@
 The current work board for improving Latrunculi. [Engine testing](engine-testing.md)
 explains what evidence lets an item advance.
 
-Keep one live entry per experiment and move it between stages. A lead names its
-observation, baseline evidence, and next test. A candidate adds its claim, branch,
-base and candidate revisions, evidence, and next action. Preserve IDs; number
+Keep one live entry per experiment: question or claim, baseline evidence, next
+action, and candidate branch/revisions when applicable. Preserve IDs; number
 retained candidates and unresolved leads, but leave casual nulls unnumbered.
-For each bounded attempt, record its baseline, tested scope, outcome, and why
-it stopped; keep live evidence and useful terminal findings. Run one local
-CPU-sensitive task and one OpenBench test at a time.
+Keep detailed measurements and completed history in evidence reports and Git
+history. Run one local CPU-sensitive task at a time; concurrent OpenBench tests
+are allowed.
 
 ## Baseline
 
 | Field | Current value |
 |---|---|
-| Engine | `d3116b1` (ENG-034: early child TT prefetch) |
+| Engine | `836ffe2` (ENG-041: clock-safe adaptive time management) |
 | OpenBench fingerprint | 3,507,960 nodes |
-| Search corpus | `tools/analysis/output/search-baseline-d3116b1/`; 200 positions, depth 10, one thread, 32 MiB Hash; 54,039,403 nodes |
-| Build | `release-dev`, GCC 15.2.0, x86-64, `gazelle`; refreshed 2026-10-04 |
+| Search corpus | `tools/analysis/output/search-baseline-836ffe2/`; 200 positions, depth 10, one thread, 32 MiB Hash; 54,039,403 nodes |
+| Build | `release-dev`, GCC 15.2.0, x86-64, `gazelle`; refreshed 2026-10-07 |
 
-Source revision: `d3116b1b5d46026055509b1da12dbdb3c066ff2f`.
-The two fresh-process corpus runs exactly match the approved candidate's search
-signatures; the benchmark fingerprint also matches. Complete Release and
-ASan/UBSan suites passed.
-Historical experiments retain the revisions that produced their evidence.
+Source revision: `836ffe25e1f4903af5592d7a8de28abe0370f34f`.
+Corpus and fingerprint match the accepted candidate; Release, ASan/UBSan and
+clock/lifecycle checks passed. [Integration evidence](../tools/analysis/output/eng-041-integration/report.md).
 
 ## Issues and leads
 
-Suggested TT order: ENG-035, ENG-036, then ENG-033; ENG-037/038 are lower-priority
-follow-ups. The TT audit at `d3116b1`, including reference-engine revisions and
-reproductions, is in `tools/analysis/output/tt-design-audit-d3116b1/report.md`.
+The TT clock-reuse defect remains in the baseline; ENG-040 is the active candidate.
+ENG-036 is an independent allocation lead; ENG-037/038 are lower-priority follow-ups.
+[TT audit at d3116b1](../tools/analysis/output/tt-design-audit-d3116b1/report.md).
 
 ### ENG-032 — Explain persistent quiet-move disagreements
 
 - **Question:** does the baseline under-search alternative quiet root moves, or
   does the score disagreement persist after focused work?
-- **Evidence:** on `ccb718b`, development anchor `deb4939117f9cebe` chooses h3 at 50k, 500k,
-  and 5M nodes. One complete reference MultiPV report ranks d4 above h3 by 125 cp. Disabling
-  all internal LMR repaired none of the eight development or two confirmation quiet targets
-  at 500k nodes; this leaves targeted selectivity and evaluation unresolved.
+- **Evidence:** on `ccb718b`, anchor `deb4939117f9cebe` chooses h3 at 50k, 500k,
+  and 5M nodes; a reference MultiPV report favors d4 by 125 cp. Disabling internal
+  LMR repaired none of eight development or two confirmation targets at 500k nodes.
 - **Next:** separately restrict the root to `d2d4` and `h2h3` at equal node budgets,
-  preserving the anchor's starting FEN and history. Compare scores and continuations to distinguish
-  a ranking changed by focused work from an unresolved score difference, then check whether the
-  cause recurs in other development groups.
-
-Pilot report and raw archive: `tools/analysis/output/diagnostic-pilot-ccb718b/`.
-Its inspected confirmation groups cannot serve as a fresh holdout for a later
-candidate; use new group-disjoint confirmation. This lead replaces ENG-020's old
-diagnostic plan; other pruning-family interventions remain untested.
-
-### ENG-033 — Compare TT layouts and miss-rejection cost at a fixed memory budget
-
-- **Question:** do shorter scans, cheaper miss rejection, or greater retention
-  improve search efficiency? Starting proposals against the current four 16-byte
-  entries per 64-byte cluster are two existing entries per aligned 32-byte cluster
-  (same capacity, shorter scans), and five entries per aligned 64-byte cluster
-  (25% more capacity; separate atomic 64-bit payload and 32-bit signature arrays).
-  Consider independent rejection tags alongside these proposals; choose at most
-  two concrete alternatives after reviewing their storage and verification costs.
-- **Evidence:** TT probes account for 17.29% of sampled cycles, concentrated around
-  the payload load. The 200-position depth-10 profile at `cc5a972` has unchanged
-  engine code and exact signatures against baseline `7cb8603`; artifacts:
-  `tools/analysis/output/profile-baseline-verified/`. Capacity pressure is unproven.
-  The `d3116b1` audit confirms payload-dependent XOR checks with two signature
-  loads; Release code already defers most decoding until a match. This absorbs
-  ENG-005's independent-tag lead.
-- **Next:** compare the selected alternatives with the current baseline at an equal
-  actual 32 MiB table budget on the standard depth-10 corpus, with a refreshed
-  profile. Keep payload fields, replacement scoring and store-time slot selection,
-  aging, prefetch placement, and search policy fixed. Measure entries examined,
-  payload loads, replacements, and useful hits separately for main search and
-  quiescence; screen nodes and fresh paired baseline/candidate time without
-  instrumentation. Assess each complete design, including capacity and verification.
-- **Risk:** shorter signatures weaken collision verification. Specify key/payload
-  binding and publication ordering; an early rejection tag must not bypass final
-  snapshot validation. Check full keys diagnostically and test collisions and
-  concurrent different-key writers. Stop a variant whose tradeoff is unjustified.
-- **Outcome:** retain one promising candidate, preserve a second credible contender
-  for follow-up, or record a null/unresolved result. Capacity/cluster changes are
-  tree-changing; establish whether a rejection-only variant preserves signatures.
-  Local screening selects what merits offline testing and games, not a strength winner.
-
-References: CPW's [buckets](https://chessprogramming.org/Transposition_Table#Bucket_Systems),
-[collisions](https://chessprogramming.org/Transposition_Table#Collisions), and
-[shared-table verification](https://chessprogramming.org/Shared_Hash_Table#Xor).
-
-### ENG-035 — Make TT reuse account for the halfmove clock
-
-- **Defect:** keys omit the halfmove clock, allowing a TT cutoff to reuse a score
-  from before a fifty-move draw became imminent. Checking the current position
-  for a draw before probing does not prevent this.
-- **Evidence:** at `d3116b1`, Threads=1, Hash=32 MiB, depth=6,
-  `7k/8/8/8/8/8/6Q1/6K1 w - - 98 1` scores 0 cp with an empty TT, but +1950 cp
-  after searching the same board with clock 0. Clearing only the TT restores 0 cp
-  in all three repetitions. Legal-move enumeration confirms the expected draw;
-  the audit retains `rule50-probe.py`, raw results, and the enumeration. Practical
-  frequency and strength impact are unmeasured.
-- **Next:** preserve this as a regression and investigate a targeted clock-aware
-  key or cutoff policy. Cover main search, qsearch, low/high-clock reuse in both
-  directions, and mates near the limit. Keep layout and other search policy fixed;
-  avoid a general draw-handling rewrite.
+  preserving starting FEN/history. Compare scores and continuations, then check
+  other development groups. Use new game/opening-disjoint confirmation; the pilot's
+  inspected confirmation groups are no longer fresh holdouts.
+- **Evidence files:** `tools/analysis/output/diagnostic-pilot-ccb718b/`.
 
 ### ENG-036 — Test huge-page backing for the TT
 
@@ -143,58 +83,64 @@ References: CPW's [buckets](https://chessprogramming.org/Transposition_Table#Buc
   evaluations, displaced useful bounds, nodes, and fresh paired elapsed time.
   Changed table occupancy can change the search tree and requires strength testing.
 
-### ENG-041 — Make time allocation clock-safe and responsive to the search
+### ENG-039 — Checkmate at the fifty-move boundary
 
-- **Question:** can one time manager improve play by respecting the remaining
-  clock, saving time on forced or stable decisions, and allowing bounded extra
-  time when the best move changes or its score deteriorates?
-- **Evidence:** the source audit at `d3116b1` found one deadline:
-  `max(10 ms, time / movestogo + increment - 50 ms)`, defaulting to 30 moves.
-  It is not capped to the remaining clock, and iterative deepening has no soft
-  stop or forced-move shortcut. Local bot logs from 2026-10-04 illustrate both
-  problems, although the deployed revisions were not recorded: in game
-  `xrZQkpwD`, Black received 1,030 ms and a 3,000 ms increment, searched for
-  2,984 ms, and forfeited on time; the engine had consumed most of the bridge's
-  reserved overhead. In `G45M2pUU`, the sole legal move 25...Kf8 used 18,347 ms.
-  Raw evidence: `bot/logs/lichess-bot.log`, lines 263914 and 283225, plus the
-  corresponding PGNs in `bot/games/` (local, ignored artifacts).
-  The forced-move position is
-  `1rb1r1k1/5ppQ/p3p1n1/q2pP1P1/2pP2B1/b1N1B2R/P1R3PP/6K1 b - - 4 25`;
-  Black's supplied clock was 401,929 ms with a 5,000 ms increment.
-- **Next:** build one bounded engine-only candidate combining CPW's soft/hard
-  limits with clock safety. Use the existing base allocation as the starting
-  point. Check the soft target after completed iterations; enforce a separate
-  hard maximum during search, capped to the supplied remaining clock with an
-  explicit engine overhead reserve. Future increment and minimum search time
-  must not override that cap. Define immediate fallback behavior when no safe
-  search time remains, and check polling overshoot near exhaustion. Reduce the
-  target for a sole legal move or a stable best move; increase it within the
-  hard limit for best-move changes or falling scores. Keep this first policy
-  small; defer root-node distribution, iteration-cost prediction, and broad
-  constant tuning.
-- **Validation:** reproduce the allocation defect and forced-move case, then
-  compare baseline and candidate on representative clock-driven searches.
-  Cover zero/low clocks, increment larger than remaining time, `movestogo`,
-  aspiration retries, and one/multiple threads. Record target and maximum,
-  actual elapsed time, stop reason, completed depth, and selected move. Preserve
-  legal fallback and last-completed-result handling, explicit `movetime`,
-  depth/node limits, and existing infinite/ponder protocol behavior. Treat this
-  as tree-changing: fixed-depth/node checks are regressions, not strength
-  evidence; eventual clock-based games must cover increment and zero-increment
-  controls and track time forfeits as well as results.
-- **Scope:** one combined time-management lead and candidate, with engine search
-  and evaluation otherwise fixed. No bot/configuration changes or pondering
-  integration. Audit only so far; no implementation or strength gain measured.
-
-References: CPW's [time management](https://chessprogramming.org/Time_Management),
-especially soft/hard bounds and search feedback; local Stash `13e0a81`
-(`src/sources/timeman.c`) and Ethereal `0e47e9b` (`src/timeman.c`) illustrate
-bounded targets, stability, and score feedback. Their constants are not assumed
-to transfer to Latrunculi.
+- **Defect:** recursive main search and qsearch check for a draw before detecting
+  checkmate. With an empty TT, `7k/8/5KQ1/8/8/8/8/8 w - - 99 1` scores 0 cp
+  at depth 6, although Qg7 checkmates at clock 100. At clock 98 it scores mate in one.
+- **Evidence:** three repetitions on baseline `d3116b1` and ENG-035 candidate
+  `4da58e7`; a separate legal-move enumeration verifies Qg7 leaves the king in
+  check with no legal reply. This is separate from TT reuse. Reproductions and
+  enumeration: `tools/analysis/output/eng-035-tt-clock/`.
+- **Next:** reproduce on `836ffe2`, then fix fifty-move/checkmate precedence in
+  recursive main search and qsearch. Keep TT policy, repetition/material draws
+  and qsearch move generation unchanged; avoid legal-move generation at ordinary nodes.
+- **Checks:** root/main search finds the clock-99 mate-in-one; direct main/qsearch
+  recognizes the clock-100 checkmated child in PV and NonPV paths, with correct
+  mate distance. Qsearch need not discover the parent's quiet Qg7. Checked
+  clock-100 positions with legal evasions must remain draws; retain clock-98/99
+  mate, stalemate and ordinary draw controls.
+- **Tradeoff:** tree-changing correctness fix, independent of ENG-040. Measure
+  runtime cost without requiring a speedup.
 
 ## Candidates for local testing
 
-None.
+### ENG-040 — Compact tagged TT with clock-aware keys
+
+- **Claim:** three 10-byte entries per aligned 32-byte cluster give 50% more
+  entries at equal Hash capacity. TT keys share clocks 0–15, use eight-ply groups
+  at 16–79, and become exact at 80+. Repetition keys stay unchanged.
+  Tree-changing mitigation of the demonstrated reuse defect; strength pending.
+- **Revision:** `candidate/eng-040-compact-tt-cleanup`, `6b27a3f` on `d3116b1`.
+  Reviewed cleanup preserves the original engine/benchmark/stress binaries.
+- **Baseline status:** needs local combination checks against `836ffe2` after
+  ENG-041 integration. Preserve the published branch and #36 comparison; its
+  games remain strength evidence for the tested revision. A baseline refresh
+  alone does not schedule a replacement SPRT.
+- **Offline pass (2026-10-06):** 397 Release cases plus stress, full ASan/UBSan
+  with leak detection, focused TSan, all eleven material families and mate
+  controls passed. Corpus signatures and fingerprint **3,423,173** repeat;
+  1,200 four-thread searches complete with legal moves/PVs.
+- **Tradeoff:** depth-10 corpus **54,571,535 nodes** (+0.98%), 26 changed best
+  moves. Six alternating timing pairs give median balanced ratio **0.98808**
+  (about 1.2% less search time), with appreciable variation. This is a local
+  estimate; a speedup is not required for the correctness mitigation.
+- **Risks:** 16-bit tags allow false hits; individually atomic fields can mix
+  writes without the old signature validation. Clock sharing remains heuristic;
+  cross-clock move/evaluation hints are lost. ENG-039 remains separate.
+- **OpenBench:** [#36](https://workstation-01.tail2abd87.ts.net/test/36/),
+  `6b27a3f` versus `d3116b1`, normalized-Elo SPRT **[-3,0]**, alpha=beta=0.05,
+  **10+0.1**, T1 H32, standard UHO book/adjudication, no game cap.
+  PGNs `/api/pgns/36/`; submitted 2026-10-06.
+- **Acceptance and next:** await the declared boundary. Upper accepts under the
+  permitted strength-tradeoff profile; lower rejects; an early stop is inconclusive.
+  Confirmed correctness/operational defects block acceptance. No automatic
+  longer-TC confirmation; additional games need specific justification and an
+  explicit request. Complete local combination checks before requesting integration.
+- **Evidence:** [exploration](../tools/analysis/output/eng-040-compact-tt/report.md),
+  [review](../tools/analysis/output/eng-040-review/report.md),
+  [offline tests](../tools/analysis/output/eng-040-offline/report.md),
+  [OpenBench settings and provenance](../tools/analysis/output/eng-040-openbench/report.md).
 
 ## Ready for OpenBench
 
@@ -202,7 +148,9 @@ None.
 
 ## OpenBench tests
 
-None.
+[ENG-040 / #36](https://workstation-01.tail2abd87.ts.net/test/36/) is active.
+Its [candidate entry](#eng-040--compact-tagged-tt-with-clock-aware-keys) remains
+under local testing because the operational baseline changed.
 
 ## Ready for integration
 
@@ -210,29 +158,8 @@ None.
 
 ## Recent results
 
-- **ENG-034:** early child TT prefetch integrated as `d3116b1` from approved
-  candidate `466ecd4`. Tree-preserving: corpus and fingerprint signatures match;
-  Release and ASan/UBSan suites passed. Six paired runs gave about 2.1% faster
-  search (`R_time_balanced = 0.9794`), with the final balanced block effectively
-  flat. Cleanup preserved machine code and runtime data; evidence remains in
-  `tools/analysis/output/eng-034-offline/` and `tools/analysis/output/eng-034-cleanup/`.
-- **ENG-010 — Retired by owner:** depth-4 main-search futility at 1350 cp,
-  candidate `4ab957b` on `ccb718b`, was not worth continuing the long test.
-  OpenBench #32 (`/test/32/`, PGN `/api/pgns/32/`) stopped inconclusive after
-  49,180 games; it did not reach an SPRT rejection. No integration.
-  An earlier 700 cp variant on `ccb718b` skipped nine verified beta cutoffs,
-  despite reducing nodes; that specific pruning rule was rejected.
-- **ENG-031:** connected-pawn links `{MG 13, EG 3}` integrated as `ccb718b` after OpenBench #31 accepted.
-- **Capture ordering and picker reuse (earlier prototypes):** CaptureHistory
-  reduced nodes but increased elapsed time; late losing-capture pruning slowed
-  search by 4.1%. Score/history reuse also failed to give repeatable speed gains,
-  with one variant trading fewer instructions for lower IPC and more branch misses.
-  These outcomes apply to those implementations, not the whole optimization area.
-- **Qsearch capture pruning (earlier prototype):**
-  `stand_pat + captured_value + margin <= alpha_before_move` at margins
-  200/300/400 skipped real NonPV cutoffs. Any replacement needs evidence that its
-  discriminator avoids those lost opportunities.
-- **Node accounting (earlier prototypes):** replacing locked per-node increments
-  with relaxed single-writer loads/stores was 2.17% slower; worker-local counts
-  with periodic publication were neutral. Removing synchronization instructions
-  alone did not deliver a speed gain.
+- **ENG-041 — Integrated 2026-10-07:** clock-safe adaptive time management,
+  `836ffe2` from approved `1bd5a1c`. OpenBench #37 accepted `[0,3]` at `10+0.1`:
+  1,172 games, **+86.21 +/-15.34 Elo (95%)**, zero crashes/time forfeits.
+  Integration checks passed; zero-increment game strength remains unmeasured.
+  [Evidence and full revisions](../tools/analysis/output/eng-041-integration/report.md).
