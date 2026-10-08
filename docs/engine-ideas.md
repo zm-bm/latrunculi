@@ -65,12 +65,6 @@ About a third of returned evasion candidates were rejected as illegal. Identify
 an expensive rejection class, then consider earlier filtering that preserves the
 legal move set and order. Measure integrated search, including shifted work.
 
-## ENG-018 — Measure static-evaluation trend as one search signal
-
-Investigate whether same-side prior-ply evaluation trends distinguish outcomes
-for a particular pruning or reduction rule. Establish predictive value sufficient
-to repay the added state/evaluation cost before changing that rule.
-
 ## ENG-021 — Census endgames with exact WDL and DTZ
 
 Use independently verified tablebase results to locate repeated low-material

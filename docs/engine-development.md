@@ -29,7 +29,7 @@ focused TSan and TT/mate-boundary checks passed.
 ## Issues and leads
 
 ENG-040's compact clock-aware TT is now the baseline.
-ENG-036 is an independent allocation lead; ENG-037/038 are lower-priority follow-ups.
+ENG-036 has unresolved speed evidence; ENG-037/038 are lower-priority follow-ups.
 [TT audit at d3116b1](../tools/analysis/output/tt-design-audit-d3116b1/report.md).
 
 ### ENG-032 — Explain persistent quiet-move disagreements
@@ -47,17 +47,20 @@ ENG-036 is an independent allocation lead; ENG-037/038 are lower-priority follow
 
 ### ENG-036 — Test huge-page backing for the TT
 
-- **Question:** can huge-page allocation reduce TT address-translation cost while
-  preserving the search tree?
-- **Evidence:** the `d3116b1` audit found 4 KiB pages and no huge-page backing for
-  fresh 32/64 MiB tables on `gazelle` with THP in `madvise` mode. The allocator
-  makes no explicit huge-page request; several reference engines do. A speedup
-  and TLB pressure have not been established.
-- **Next:** try suitable allocation alignment and huge-page advice with a normal
-  allocation fallback. Verify actual backing before fresh paired timings against
-  the current baseline at the same table capacity; check exact search signatures.
-  Hold layout, replacement, and search policy fixed. Exercise resize, clear, and
-  fallback behavior; do not require system-wide huge-page settings.
+- **Decision:** performance unresolved; no candidate retained. Against `6237d6e`,
+  the sole aligned-allocation/MADV_HUGEPAGE prototype fully backed sampled 32 MiB
+  tables with huge pages and reduced completed load page walks by 37.5% in a
+  diagnostic run. The 64 MiB sample received partial backing.
+- **Evidence:** full D10/T1/H32 corpus signatures match the baseline; focused
+  resize/clear and forced allocation/advice fallback probes pass. Two exploratory
+  BC/CB blocks split wins, with balanced time ratios 0.9964 and 0.9997; background
+  SMT activity prevents a repeatable small-speed claim. No later pipeline stage
+  began. [Report, exact patch and inputs](../tools/analysis/output/eng-036-exploration/report.md).
+- **Next:** set aside for now. If resumed, use an otherwise idle host/core with
+  an unoccupied SMT sibling and the same benchmark harness on both sides.
+  Verify backing in the timed processes and collect fresh balanced pairs at equal
+  capacity. Retain only with repeatable speed evidence;
+  keep layout/replacement/search fixed and require no global huge-page changes.
 
 ### ENG-037 — Investigate TT aging and same-key retention
 
@@ -101,7 +104,24 @@ None.
 
 ## OpenBench tests
 
-None.
+### ENG-018 — Reduce declining late quiet moves more
+
+- **Claim:** one extra LMR ply for declining non-PV, non-killer quiets saves work;
+  same-side trends reuse existing evaluations and exclude missing/null paths.
+- **Identity:** `eng-018-static-trend-lmr`, candidate/reviewed/tested head
+  `9a984c3`, base `6237d6e`. Tree-changing. [PR #69](https://github.com/zm-bm/latrunculi/pull/69)
+  is ready for human review.
+- **Evidence:** [exploration](../tools/analysis/output/eng-018-exploration/report.md),
+  [review](../tools/analysis/output/eng-018-review/report.md),
+  [offline pass](../tools/analysis/output/eng-018-offline/report.md).
+  Correctness, repeatability, Release, ASan/UBSan and focused TSan pass.
+  Six timing pairs: about 3.5% faster, 4.3% fewer corpus nodes; fingerprint 3,184,133.
+- **OpenBench:** [#38](https://workstation-01.tail2abd87.ts.net/test/38/) active;
+  standard `[0, 3]` normalized-Elo SPRT, alpha=beta=0.05, `10+0.1`, T1/H32,
+  no game cap. [Verified submission](../tools/analysis/output/eng-018-openbench/report.md).
+- **Acceptance/next:** local correctness and speed requirements are satisfied;
+  strength requires the SPRT upper boundary. Check #38 only when requested.
+  No integration.
 
 ## Ready for integration
 
