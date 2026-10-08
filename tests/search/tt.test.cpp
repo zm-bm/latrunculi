@@ -252,6 +252,33 @@ TEST_F(TTTest, ResizeRoundsCapacityDownToLargestFittingPowerOfTwo) {
     }
 }
 
+TEST_F(TTTest, ResizeAcrossAllocationSizesResetsEntriesAndGeneration) {
+    constexpr std::array<PositionKey, 3> keys{
+        0x0000000000001234ULL, 0x8000000000005678ULL, 0xffffffffffff9abcULL};
+
+    TranspositionTable table;
+    for (std::size_t megabytes : {1U, 2U, 3U, 32U, 0U, 2U}) {
+        SCOPED_TRACE(megabytes);
+        table.resize(megabytes);
+        EXPECT_EQ(0, table.current_generation());
+        table.advance_generation();
+
+        for (PositionKey probe_key : keys) {
+            EXPECT_FALSE(table.probe(probe_key).record.has_value());
+            table.store(probe_key, move, score, depth, bound, 0, -17);
+
+            const auto record = table.probe(probe_key).record;
+            ASSERT_TRUE(record.has_value());
+            EXPECT_EQ(move, record->move);
+            EXPECT_EQ(score, record->score);
+            EXPECT_EQ(depth, record->depth);
+            EXPECT_EQ(bound, record->bound);
+            EXPECT_EQ(-17, record->static_eval);
+            EXPECT_EQ(1, record->generation);
+        }
+    }
+}
+
 TEST_F(TTTest, ProbeRejectsDifferentTagInSameCluster) {
     tt.resize(1);
 
