@@ -382,11 +382,8 @@ EvalValue Worker::alphabeta(
         // Step 11. Late-move reductions.
         // If the reduced search beats alpha, research the move at full depth.
         EvalValue value;
-        int       reduction = algorithm_detail::lmr_reduction<Node>(
-            depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer);
-        // Preserve tactical exemptions and a main-search ply when reducing declining quiets.
-        if (declining && is_quiet && !is_killer && reduction > 0 && reduction < depth - 2)
-            ++reduction;
+        const int reduction = algorithm_detail::lmr_reduction<Node>(
+            depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer, declining);
         if (reduction > 0) {
             stats.lmr_try(search_ply - 1);
             value = -alphabeta<NodeType::NonPv>(

@@ -103,7 +103,8 @@ int lmr_reduction(int  depth,
                   bool is_promotion,
                   bool in_check,
                   bool gives_check,
-                  bool is_killer) {
+                  bool is_killer,
+                  bool declining) {
     if (depth < LmrMinDepth || move_count < LmrMinMoveCount)
         return 0;
 
@@ -123,7 +124,13 @@ int lmr_reduction(int  depth,
         r *= 0.8;
 
     // Do not extend or drop straight into qsearch.
-    return std::clamp(static_cast<int>(r), 1, depth - 2);
+    int reduction = std::clamp(static_cast<int>(r), 1, depth - 2);
+    // Preserve a main-search ply; tactical moves and killers keep their existing rule.
+    if constexpr (Node == NodeType::NonPv) {
+        if (declining && is_quiet && !is_killer && reduction < depth - 2)
+            ++reduction;
+    }
+    return reduction;
 }
 
 struct FailedQuiets {

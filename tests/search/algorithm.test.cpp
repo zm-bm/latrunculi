@@ -858,6 +858,79 @@ TEST_F(SearchTest, PvNodesIgnoreNonExactMainTtBounds) {
     EXPECT_EQ(pv_search(alpha, beta, 2, pv), baseline);
 }
 
+TEST(LmrReductionTest, DecliningTrendPreservesExemptionsAndMainSearchDepth) {
+    for (const int depth : {2, 3, 4, 5, 8}) {
+        for (const int move_count : {1, 3, 4, 12, 32}) {
+            SCOPED_TRACE(depth);
+            SCOPED_TRACE(move_count);
+            const auto reduction = [&](bool quiet,
+                                       bool promotion,
+                                       bool check,
+                                       bool gives_check,
+                                       bool killer,
+                                       bool declining) {
+                return algorithm_detail::lmr_reduction<NodeType::NonPv>(
+                    depth, move_count, quiet, promotion, check, gives_check, killer, declining);
+            };
+            const int ordinary  = reduction(true, false, false, false, false, false);
+            const int declining = reduction(true, false, false, false, false, true);
+            EXPECT_EQ(declining, ordinary == 0 ? 0 : std::min(ordinary + 1, depth - 2));
+            EXPECT_EQ(reduction(false, false, false, false, false, true),
+                      reduction(false, false, false, false, false, false));
+            EXPECT_EQ(reduction(true, false, false, false, true, true),
+                      reduction(true, false, false, false, true, false));
+            EXPECT_EQ(reduction(false, true, false, false, false, true), 0);
+            EXPECT_EQ(reduction(true, false, true, false, false, false), 0);
+            EXPECT_EQ(reduction(true, false, true, false, false, true), 0);
+            EXPECT_EQ(reduction(true, false, false, true, false, true), 0);
+            EXPECT_EQ(algorithm_detail::lmr_reduction<NodeType::Pv>(
+                          depth, move_count, true, false, false, false, false, true),
+                      algorithm_detail::lmr_reduction<NodeType::Pv>(
+                          depth, move_count, true, false, false, false, false, false));
+        }
+    }
+}
+
+TEST_F(SearchTest, StaticEvalPathInvalidatesSkippedEvaluations) {
+    Board board{board_test::fen::start};
+    load(board, 2);
+    auto& evaluations = SearchTestAccess::static_evals(worker);
+    auto& real_moves  = SearchTestAccess::real_moves(worker);
+    with_move(Move(E2, E4), [&] {
+        const EvalValue expected = eval::evaluate(position());
+        (void)search(-eval_value::inf, eval_value::inf, 1, false);
+        EXPECT_EQ(evaluations[ply()], expected);
+        EXPECT_TRUE(real_moves[ply()]);
+
+        // A PV re-search at the same ply must not retain the previous non-PV value.
+        tt.clear();
+        PrincipalVariation pv;
+        (void)pv_search(-eval_value::inf, eval_value::inf, 1, pv);
+        EXPECT_FALSE(evaluations[ply()].has_value());
+
+        evaluations[ply()] = expected;
+        tt.store(position().tt_key(), NULL_MOVE, 100, 2, TTBound::Exact, ply());
+        EXPECT_EQ(search(-1, 0, 2), 100);
+        EXPECT_FALSE(evaluations[ply()].has_value());
+
+        evaluations[ply()] = expected;
+        tt.clear();
+        (void)search(-eval_value::inf, eval_value::inf, 0, false);
+        EXPECT_FALSE(evaluations[ply()].has_value());
+    });
+
+    with_null_move([&] {
+        (void)search(-eval_value::inf, eval_value::inf, 1, false);
+        EXPECT_FALSE(real_moves[ply()]);
+    });
+
+    Board checked{"4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
+    load(checked, 1);
+    evaluations[0] = 100;
+    (void)search(-eval_value::inf, eval_value::inf, 1, false);
+    EXPECT_FALSE(evaluations[0].has_value());
+}
+
 TEST_F(SearchTest, LmrResearchesAtFullDepthAfterAlphaImprovement) {
     Board baseline_board{board_test::fen::start};
     load(baseline_board, 4);
@@ -874,6 +947,28 @@ TEST_F(SearchTest, LmrResearchesAtFullDepthAfterAlphaImprovement) {
     EXPECT_GT(counters().lmr_tries[0], 0U);
     EXPECT_GT(counters().lmr_researches[0], 0U);
 #endif
+}
+
+TEST_F(SearchTest, DecliningLmrStillVerifiesAnApparentReducedCutoff) {
+    Board board{board_test::fen::start};
+    board.make(Move(E2, E4));
+    board.make(Move(E7, E5));
+    const auto prepare = [&] {
+        load(board, 5);
+        ply()                                     = 2;
+        SearchTestAccess::static_evals(worker)[0] = eval::evaluate(position()) + 100;
+        SearchTestAccess::real_moves(worker)[1]   = true;
+    };
+    prepare();
+    const EvalValue expected = search(-2000, 2000, 5, false);
+    prepare();
+    const auto moves = legal_picker_moves();
+    ASSERT_GE(moves.size(), 4U);
+    ASSERT_FALSE(position().is_capture(moves[3]));
+    ASSERT_FALSE(position().gives_check(moves[3]));
+    // Depth one can satisfy the extra-reduced search, but not its depth-four verification.
+    store_child(moves[3], -2500, 1);
+    EXPECT_EQ(search(-2000, 2000, 5, false), expected);
 }
 
 TEST_F(SearchTest, LmrRequiresDepthAndLateMove) {
