@@ -1,6 +1,7 @@
 """Protocol regressions using transcripts and a tiny fake UCI child."""
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -9,8 +10,9 @@ import time
 import unittest
 
 import chess
+import chess.engine
 
-from tools.analysis.uci_probe import Reports, UCI, position
+from tools.analysis.uci_probe import IterationReports, UCI, position
 
 
 START = chess.STARTING_FEN
@@ -27,9 +29,11 @@ FAKE_ENGINE = r'''
 import json
 import os
 import sys
+import time
 
 fixture = json.load(open(sys.argv[1]))
 log = open(sys.argv[2], "w", buffering=1)
+open(sys.argv[2] + ".pid", "w").write(str(os.getpid()))
 searches = 0
 
 def emit(line):
@@ -50,6 +54,7 @@ for raw in sys.stdin:
         emit("option name Hash type spin default 16 min 1 max 1024")
         emit("option name Ponder type check default false")
         emit("option name Path With Spaces type string default <empty>")
+        emit("option name UCI_AnalyseMode type check default false")
         if fixture.get("multipv", True):
             emit("option name MultiPV type spin default 1 min 1 max 256")
         emit("uciok")
@@ -61,6 +66,10 @@ for raw in sys.stdin:
             sys.exit(0)
         if fixture.get("mode") == "timeout":
             continue
+        if fixture.get("mode") == "flood":
+            while True:
+                emit("info nodes 100")
+                time.sleep(0.001)
         transcripts = fixture["searches"]
         for response in transcripts[min(searches, len(transcripts) - 1)]:
             emit(response)
@@ -72,7 +81,7 @@ for raw in sys.stdin:
 
 class ReportTests(unittest.TestCase):
     def reports(self, lines, multipv=3, roots=None, bestmove="e2e4", board=None):
-        reports = Reports(board or chess.Board(), multipv, roots)
+        reports = IterationReports(board or chess.Board(), multipv, roots)
         for line in lines:
             reports.add(line)
         return reports.finish(bestmove)
@@ -227,14 +236,6 @@ class ReportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "illegal UCI move"):
             position(START, ["0000"])
 
-    def test_buffered_lines_cannot_evade_search_deadline(self):
-        engine = UCI.__new__(UCI)
-        engine._buffer = b"info nodes 10\n" * 100
-        engine.timeout_s = 0.01
-        with self.assertRaises(TimeoutError):
-            engine._line(time.monotonic() - 1)
-
-
 class ChildTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -253,21 +254,30 @@ class ChildTests(unittest.TestCase):
     def commands(self):
         return self.log.read_text().splitlines()
 
+    def assert_child_reaped(self):
+        pid = int(Path(str(self.log) + ".pid").read_text())
+        for _ in range(100):
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.01)
+        self.fail("fixture child is still alive")
+
     def test_history_reset_options_and_split_pipe_reads(self):
         board = position(START, ["e2e4", "e7e5"])
         transcript = [report(5, 1, "g1f3", nodes=321), "bestmove g1f3 ponder b8c6"]
         with UCI(self.command(searches=[transcript], chunks=True),
-                 {"Hash": "64", "Ponder": False, "Path With Spaces": "/tmp/a b"}) as engine:
+                 {"Hash": "64", "Ponder": "False", "Path With Spaces": "/tmp/a b"}) as engine:
             first = engine.analyse(board, 500, root_moves=["g1f3"])
             second = engine.analyse(board, 1000, root_moves=["g1f3"])
-            child = engine._process
-        self.assertIsNotNone(child.returncode)
+        self.assert_child_reaped()
         self.assertEqual(first["position"], {
             "start_fen": START, "moves": ["e2e4", "e7e5"],
             "fen": board.fen(en_passant="fen"),
         })
         self.assertEqual(first["engine"]["options"], {
-            "Threads": 1, "Hash": 64, "Ponder": "false",
+            "Threads": 1, "Hash": 64, "Ponder": False, "UCI_AnalyseMode": False,
             "Path With Spaces": "/tmp/a b", "MultiPV": 1,
         })
         self.assertEqual(first["engine"]["id"]["name"], "Fixture engine")
@@ -275,10 +285,10 @@ class ChildTests(unittest.TestCase):
         self.assertEqual(second["request"]["nodes"], 1000)
         commands = self.commands()
         self.assertEqual(commands.count("ucinewgame"), 2)
-        self.assertEqual(commands.count("isready"), 3)
-        self.assertEqual(commands.count(f"position fen {START} moves e2e4 e7e5"), 2)
+        self.assertEqual(sum(line.startswith("position ") and
+                             line.endswith("moves e2e4 e7e5") for line in commands), 2)
         self.assertIn("go nodes 500 searchmoves g1f3", commands)
-        self.assertEqual(commands[-2:], ["stop", "quit"])
+        self.assertNotIn("setoption name UCI_AnalyseMode value true", commands)
 
     def test_invalid_request_does_not_start_search(self):
         with UCI(self.command()) as engine:
@@ -304,34 +314,47 @@ class ChildTests(unittest.TestCase):
         self.assertFalse(self.log.exists())
 
     def test_timeout_and_eof_reap_only_the_child(self):
-        for mode, error in (("timeout", TimeoutError), ("eof", RuntimeError)):
+        for mode, error in (("timeout", TimeoutError), ("flood", TimeoutError),
+                            ("eof", RuntimeError)):
             with self.subTest(mode=mode):
                 engine = UCI(self.command(mode=mode), timeout_s=0.3)
                 with self.assertRaises(error) as raised:
                     engine.analyse(chess.Board(), 100)
-                self.assertIsNotNone(engine._process.returncode)
+                self.assert_child_reaped()
                 engine.close()
                 if mode == "eof":
                     self.assertIn("fixture child exited", str(raised.exception))
 
-    def test_handshake_timeout_and_option_errors_quit_child(self):
+    def test_handshake_timeout_and_option_errors_reap_child(self):
         for fixture, options, error in (
             ({"mode": "handshake_timeout"}, None, TimeoutError),
             ({}, {"Unknown": 1}, ValueError),
-            ({}, {"Hash": 0}, ValueError),
+            ({}, {"Hash": 0}, chess.engine.EngineError),
             ({}, {"Ponder": "yes"}, ValueError),
+            ({}, {"Ponder": True}, ValueError),
             ({}, {"Path With Spaces": "bad\ncommand"}, ValueError),
         ):
             with self.subTest(fixture=fixture, options=options):
                 with self.assertRaises(error):
                     UCI(self.command(**fixture), options, timeout_s=0.3)
-                self.assertEqual(self.commands()[-1], "quit")
+                self.assert_child_reaped()
 
     def test_bad_child_pv_closes_process(self):
-        engine = UCI(self.command(searches=[[report(5, 1, "e2e5"), "bestmove e2e5"]]))
+        engine = UCI(self.command(searches=[[report(5, 1, "e2e5"), "bestmove e2e4"]]))
         with self.assertRaises(ValueError):
             engine.analyse(chess.Board(), 100)
-        self.assertIsNotNone(engine._process.returncode)
+        self.assert_child_reaped()
+
+    def test_library_preserves_raw_bounds_and_restored_iteration(self):
+        transcript = [report(5, 1, "e2e4", nodes=100),
+                      report(6, 1, "e2e4", nodes=200, extra="upperbound"),
+                      report(5, 1, "e2e4", nodes=250), "bestmove e2e4"]
+        with UCI(self.command(searches=[transcript]), {"UCI_AnalyseMode": True}) as engine:
+            result = engine.analyse(chess.Board(), 500)
+        self.assertEqual(result["complete_depth"], 5)
+        self.assertEqual(result["actual_nodes"], 250)
+        self.assertTrue(result["partial_lines"][0]["upperbound"])
+        self.assertTrue(result["engine"]["options"]["UCI_AnalyseMode"])
 
     def test_terminal_search_returns_structured_result(self):
         with UCI(self.command(searches=[["info nodes 0 time 0", "bestmove (none)"]])) as engine:

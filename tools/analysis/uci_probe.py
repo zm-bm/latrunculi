@@ -1,16 +1,14 @@
 """Probe one cold UCI search while preserving its starting FEN and move history."""
 
 import argparse
+import asyncio
 import json
 import math
-import os
-import select
-import subprocess
 import sys
 import tempfile
-import time
 
 import chess
+import chess.engine
 
 
 def _push_legal(board, move):
@@ -31,7 +29,7 @@ def position(fen, moves=()):
     return board
 
 
-def info(line):
+def parse_info(line):
     tokens = line.split()
     result = {"multipv": 1, "pv": [], "lowerbound": False, "upperbound": False}
     index = 1
@@ -59,7 +57,7 @@ def info(line):
     return result
 
 
-class Reports:
+class IterationReports:
     """Complete report groups; never splice slots from repeated depth reports."""
 
     def __init__(self, board, multipv, root_moves):
@@ -76,7 +74,7 @@ class Reports:
         self.time_ms = None
 
     def add(self, line):
-        row = info(line)
+        row = parse_info(line)
         if "nodes" in row:
             self.nodes = row["nodes"] if self.nodes is None else max(self.nodes, row["nodes"])
         if "time_ms" in row:
@@ -150,6 +148,28 @@ class Reports:
         }
 
 
+class TranscriptProtocol(chess.engine.UciProtocol):
+    """Observe raw reports before the library aggregates or parses their scores."""
+
+    def __init__(self):
+        super().__init__()
+        self.lines = []
+
+    def line_received(self, line):
+        if line.startswith(("info ", "bestmove ")):
+            self.lines.append(line)
+
+    async def initialize(self):
+        try:
+            await super().initialize()
+        except BaseException:
+            # SimpleEngine cannot expose its process when initialization fails.
+            # Reap it before its startup event loop closes.
+            self.transport.close()
+            await asyncio.shield(self.returncode)
+            raise
+
+
 class UCI:
     def __init__(self, command, options=None, timeout_s=90):
         if isinstance(command, (str, bytes)) or not command or not all(
@@ -161,83 +181,51 @@ class UCI:
             raise ValueError("set MultiPV through the analyse multipv argument")
         self.command = list(command)
         self.timeout_s = timeout_s
-        self.options = {}
-        self.configured_options = {}
-        self.identity = {}
-        self._buffer = b""
-        self._process = None
+        self._engine = None
         self._stderr = tempfile.TemporaryFile()
         try:
-            self._process = subprocess.Popen(
-                self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=self._stderr, bufsize=0,
-            )
-            os.set_blocking(self._process.stdout.fileno(), False)
-            self._send("uci")
-            deadline = time.monotonic() + self.timeout_s
-            while (line := self._line(deadline)) != "uciok":
-                if line.startswith("option name "):
-                    name, _, definition = line[12:].partition(" type ")
-                    self.options[name] = definition
-                elif line.startswith("id "):
-                    _, key, value = line.split(" ", 2)
-                    self.identity[key] = value
-            for name, value in {"Threads": 1, "Hash": 32, **(options or {})}.items():
-                self._set_option(name, value)
-            self._ready()
+            self._engine = chess.engine.SimpleEngine.popen(
+                TranscriptProtocol, self.command, timeout=timeout_s, stderr=self._stderr)
+            self.options = self._engine.options
+            self.identity = self._engine.id
+            self.configured_options = self._configure_options(options or {})
         except BaseException:
-            self.close()
+            self.close(force=True)
             raise
 
-    def _send(self, command):
-        self._process.stdin.write((command + "\n").encode())
-        self._process.stdin.flush()
-
-    def _set_option(self, name, value):
-        if name not in self.options:
-            raise ValueError(f"engine does not support option {name!r}")
-        value = str(value).lower() if isinstance(value, bool) else str(value)
-        if any(char in name + value for char in "\r\n\0"):
-            raise ValueError("option names and values must fit one UCI command")
-        definition = self.options[name].split()
-        if definition[0] == "spin":
-            number = int(value)
-            lower = int(definition[definition.index("min") + 1])
-            upper = int(definition[definition.index("max") + 1])
-            if not lower <= number <= upper:
-                raise ValueError(f"option {name!r} must be between {lower} and {upper}")
-            value = number
-        elif definition[0] == "check":
-            if value not in ("true", "false"):
-                raise ValueError(f"option {name!r} must be true or false")
-        self._send(f"setoption name {name} value {value}")
-        self.configured_options[name] = value
-
-    def _line(self, deadline):
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError(f"UCI engine exceeded {self.timeout_s:g}s response limit")
-            if b"\n" in self._buffer:
-                line, self._buffer = self._buffer.split(b"\n", 1)
-                return line.decode("utf-8", errors="replace").strip()
-            if not select.select([self._process.stdout], [], [], remaining)[0]:
-                continue
-            chunk = os.read(self._process.stdout.fileno(), 65536)
-            if not chunk:
-                self._stderr.seek(0, os.SEEK_END)
-                self._stderr.seek(max(0, self._stderr.tell() - 4096))
-                detail = self._stderr.read().decode(errors="replace")
-                raise RuntimeError(f"UCI engine closed stdout: {detail}")
-            self._buffer += chunk
-
-    def _ready(self):
-        self._send("isready")
-        deadline = time.monotonic() + self.timeout_s
-        while self._line(deadline) != "readyok":
-            pass
+    def _configure_options(self, overrides):
+        """Apply supported overrides and return the effective engine options."""
+        settings = {"Threads": 1, "Hash": 32}
+        # python-chess otherwise enables analysis mode itself.
+        if "UCI_AnalyseMode" in self.options:
+            settings["UCI_AnalyseMode"] = self.options["UCI_AnalyseMode"].default
+        settings.update(overrides)
+        configured = {}
+        managed = {"ponder": False, "uci_chess960": False, "uci_variant": "chess"}
+        for name, value in settings.items():
+            if name not in self.options:
+                raise ValueError(f"engine does not support option {name!r}")
+            if any(char in name + str(value) for char in "\r\n\0"):
+                raise ValueError("option names and values must fit one UCI command")
+            option = self.options[name]
+            if option.type == "check":
+                value = str(value).lower()
+                if value not in ("true", "false"):
+                    raise ValueError(f"option {name!r} must be true or false")
+            parsed = option.parse(value)
+            if name.lower() in managed and parsed != managed[name.lower()]:
+                raise ValueError(f"option {name!r} conflicts with standard non-pondering analysis")
+            configured[option.name] = parsed
+        self._engine.configure({name: value for name, value in configured.items()
+                                if name.lower() not in managed})
+        for name, value in managed.items():
+            if name in self.options:
+                configured[self.options[name].name] = value
+        return configured
 
     def analyse(self, board, nodes, multipv=1, root_moves=None):
+        if self._engine is None:
+            raise RuntimeError("UCI engine is closed")
         if type(nodes) is not int or nodes <= 0 or type(multipv) is not int or multipv <= 0:
             raise ValueError("nodes and multipv must be positive integers")
         if board.chess960:
@@ -256,58 +244,68 @@ class UCI:
                 raise ValueError("root_moves must contain legal UCI moves")
             if len(root_moves) != len(set(root_moves)):
                 raise ValueError("root_moves must be distinct")
-        reports = Reports(board, multipv, root_moves)
+        protocol = self._engine.protocol
+        protocol.lines = []
         try:
-            self._send("ucinewgame")
             if "MultiPV" in self.options:
-                self._set_option("MultiPV", multipv)
-            self._ready()
-            command = "position fen " + start_fen
-            if moves:
-                command += " moves " + " ".join(moves)
-            self._send(command)
-            go = f"go nodes {nodes}"
-            if root_moves is not None:
-                go += " searchmoves " + " ".join(root_moves)
-            started = time.monotonic()
-            self._send(go)
-            deadline = started + self.timeout_s
-            while True:
-                line = self._line(deadline)
-                if line.startswith("bestmove "):
-                    result = reports.finish(line.split()[1])
-                    result.update(
-                        format="uci_probe_v1",
-                        engine={"argv": self.command, "id": dict(self.identity),
-                                "options": dict(self.configured_options)},
-                        position={"start_fen": start_fen, "moves": moves,
-                                  "fen": board.fen(en_passant="fen")},
-                        request={"nodes": nodes, "multipv": multipv, "root_moves": root_moves},
-                    )
-                    return result
+                self.options["MultiPV"].parse(multipv)
+                self.configured_options["MultiPV"] = multipv
+            # A fresh game token resets engine state for every probe. Bound the
+            # caller's wait: SimpleEngine's node-only searches have no deadline.
+            future = asyncio.run_coroutine_threadsafe(protocol.analyse(
+                board, chess.engine.Limit(nodes=nodes), multipv=multipv, game=object(),
+                info=chess.engine.INFO_NONE,
+                root_moves=None if root_moves is None else map(chess.Move.from_uci, root_moves),
+            ), protocol.loop)
+            future.result(timeout=self.timeout_s)
+            reports = IterationReports(board, multipv, root_moves)
+            bestmove = ""
+            for line in protocol.lines:
                 if line.startswith("info "):
                     reports.add(line)
+                else:
+                    bestmove = line.split()[1]
+            result = reports.finish(bestmove)
+            result.update(
+                format="uci_probe_v1",
+                engine={"argv": self.command, "id": dict(self.identity),
+                        "options": dict(self.configured_options)},
+                position={"start_fen": start_fen, "moves": moves,
+                          "fen": board.fen(en_passant="fen")},
+                request={"nodes": nodes, "multipv": multipv, "root_moves": root_moves},
+            )
+            return result
+        except chess.engine.EngineTerminatedError as error:
+            self._stderr.seek(0, 2)
+            self._stderr.seek(max(0, self._stderr.tell() - 4096))
+            detail = self._stderr.read().decode(errors="replace")
+            self.close(force=True)
+            raise RuntimeError(f"UCI engine exited: {error}; {detail}") from error
+        except TimeoutError as error:
+            self.close(force=True)
+            raise TimeoutError(f"UCI engine exceeded {self.timeout_s:g}s response limit") from error
         except BaseException:
-            self.close()
+            self.close(force=True)
             raise
 
-    def close(self):
-        if self._process is not None:
-            if self._process.poll() is None:
+    def close(self, *, force=False):
+        engine, self._engine = self._engine, None
+        try:
+            if engine is not None:
                 try:
-                    self._send("stop")
-                    self._send("quit")
-                    self._process.wait(timeout=2)
-                except (BrokenPipeError, OSError, subprocess.TimeoutExpired):
-                    self._process.terminate()
-                    try:
-                        self._process.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        self._process.kill()
-                        self._process.wait(timeout=2)
-            self._process.stdin.close()
-            self._process.stdout.close()
-        self._stderr.close()
+                    if not force and not engine.returncode.done():
+                        future = asyncio.run_coroutine_threadsafe(engine.protocol.quit(),
+                                                                 engine.protocol.loop)
+                        future.result(timeout=2)
+                except (TimeoutError, chess.engine.EngineError):
+                    pass
+                finally:
+                    # Do not cancel a pending analysis: termination completes its
+                    # result, avoiding cancelled-future errors in python-chess.
+                    engine.close()
+                    engine.returncode.result(timeout=2)
+        finally:
+            self._stderr.close()
 
     def __enter__(self):
         return self
@@ -345,7 +343,7 @@ def main(argv=None):
             result = engine.analyse(board, args.nodes, args.multipv, args.root_moves)
         print(json.dumps(result, sort_keys=True))
         return 0
-    except (ValueError, OSError, RuntimeError, TimeoutError) as error:
+    except (ValueError, OSError, RuntimeError, TimeoutError, chess.engine.EngineError) as error:
         print(f"uci_probe: {error}", file=sys.stderr)
         return 1
 

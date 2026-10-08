@@ -29,11 +29,13 @@ Main-search futility must preserve checking quiet moves. Time-control changes mu
 
 The cold corpus can miss faults in state reused across searches, clock or limit handling, shared state, and worker lifecycle. Add focused checks when a change affects those areas. Merely reading history, the transposition table (TT), or a clock does not call for extra checks. Record the risk, initial sequence, pass condition, repetitions, and sanitizer need; use the smallest adequate existing test.
 
-Use the [shared runners](../../../../tools/analysis/README.md#collect-validation-runs) for corpus, fingerprint, legality, and timing. CMake/CTest presets own Release and sanitizer setup; use their exit status rather than hardcoded test counts.
+Use the [shared runner](../../../../tools/analysis/README.md#corpus-and-fingerprints): `bench.py run` for corpus passes and `bench.py fingerprint` for the OpenBench identity check. Request repeats or retained signature references as needed; completeness, settings and PV legality checks are built in. CMake/CTest presets own Release and sanitizer setup; use their exit status rather than hardcoded test counts.
 
 ## Paired timing
 
 Under the shared [timing conditions](../../../references/measurement-rules.md#timing-comparisons), collect six baseline/candidate pairs in three `BC,CB` blocks. `R_time_balanced` is the median of the geometric means of adjacent `BC,CB` candidate/baseline time ratios. The [analysis guide](../../../../tools/analysis/README.md#paired-timing) gives the command.
+
+After the required checks, use `bench.py compare BASELINE CANDIDATE --output DIR` with its standard depth-10, six-pair defaults. Add `--exact-tree` for tree-preserving changes and select an available CPU with `--cpu` for affinity. Each binary's warmup supplies its signature reference; every measured pass must repeat that binary's results. Inspect the saved load and variation before making a speed claim. Profiling is separate from timing and is needed here only to substantiate a particular claim.
 
 Use these as decision targets, not automatic rejection rules:
 

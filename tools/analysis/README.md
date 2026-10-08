@@ -1,15 +1,20 @@
 # Analysis
 
-Use the search benchmark to compare saved runs, or `uci_probe.py` to inspect
-one position through UCI.
+Use one native search workload with `bench.py` to collect and compare measurements.
+Use `perf` to investigate CPU cost, and `uci_probe.py` for individual positions
+with move history or restricted root moves. Games on
+[OpenBench](../../docs/openbench.md#strength-tests) measure playing strength.
 
-Profiling locates CPU cost; fixed-depth node counts describe the search tree.
-Fewer nodes alone do not establish faster search or stronger play. Fresh paired
-timing measures speed, while [OpenBench games](../../docs/openbench.md#strength-tests)
-measure playing strength. A promising position or agreement with a reference
-engine alone cannot establish a gain.
+| File | Responsibility |
+|---|---|
+| `bench.py` | Command interface and collection of benchmark runs and fingerprints |
+| `bench_results.py` | Reading, checking and summarizing benchmark results |
+| `search_bench.cpp` | Native search workload and search-only timing |
+| `search.epd` | Default position suite |
+| `uci_probe.py` | Position investigations with history, restricted roots and UCI reports |
+| `test_*.py` | Regressions for the corresponding Python modules |
 
-Install the Python dependencies once in a virtual environment:
+Install the Python dependency in a virtual environment:
 
 ```bash
 python3 -m venv .cache/analysis-venv
@@ -17,203 +22,187 @@ python3 -m venv .cache/analysis-venv
 source .cache/analysis-venv/bin/activate
 ```
 
-Use that interpreter for the commands below. Collection and legality checking
-use the pinned chess dependency; the existing node/timing comparisons use only
-the standard library.
-
-Apply the shared [measurement rules](../../.agents/references/measurement-rules.md)
-when collecting local evidence.
-
-## Benchmark and compare
-
-Build the benchmark, then save a run from the appropriate revision:
+Build each recorded revision with the same compiler and settings:
 
 ```bash
 cmake --preset release-dev
-cmake --build --preset release-dev --target latrunculi-search-bench
-./build/release-dev/latrunculi-search-bench --depth 10 > run.tsv
+cmake --build --preset release-dev --target latrunculi-search-bench latrunculi
 ```
 
-The default [search.epd](search.epd) contains 200 Arasan positions. Each
-starts with cleared transposition table and search heuristics, without game
-history. Choose `--suite EPD` or `--case ID`, and set `--depth N`,
-`--nodes N`, or `--movetime MS`. Defaults are depth 5, one thread, and 32 MiB Hash;
-`--threads` and `--hash` override the latter two.
-The suite retains positions and annotations from Git blob
-`93cbe97d9ee40790eafc984e59cbce3c02a5d7ea`, with normalized IDs;
-its `bm` and `am` labels provide context.
+Apply the shared [measurement rules](../../.agents/references/measurement-rules.md).
+Only one local CPU-sensitive task should run at a time. The tools take already-built
+binaries; they do not build, modify Git or decide candidate acceptance.
 
-Compare matching baseline and candidate files, including a repeat of the
-candidate:
+## Quick comparison
+
+For exploratory viability, compare the full suite at a shallower depth with two
+alternating pairs:
 
 ```bash
-python3 tools/analysis/compare_search.py nodes baseline.tsv candidate.tsv \
-  --repeat candidate-repeat.tsv
+python3 tools/analysis/bench.py compare /path/to/baseline-bench /path/to/candidate-bench \
+  --depth 8 --pairs 2 --output tools/analysis/output/quick-comparison
 ```
 
-The `search_measurement_v5` TSV records each position and request, completed
-depth, root-perspective scores, nodes, best move, principal variation (PV), and
-search nanoseconds from `start_search()` through `wait()`. Setup and output
-time are excluded. The comparison tool requires matching cases, positions, and
-settings. It checks repeat signatures; `--exact-tree` also requires
-baseline/candidate signatures to match.
+Add `--exact-tree` when the candidate must preserve the search tree. Otherwise,
+baseline and candidate signatures may differ, but each binary must repeat its own
+completed depth, static/searched scores, nodes, best move and PV. Both modes check
+complete position sets, settings and PV legality independently with python-chess.
+A quick comparison can expose clear regressions; small or noisy effects can remain
+unresolved. Fewer nodes alone establish neither faster search nor stronger play.
 
-The output's `geometric_mean_node_ratio` (`R_node_g`) averages per-position
-candidate/baseline node ratios geometrically; `total_node_ratio`
-(`R_node_total`) divides total candidate nodes by total baseline nodes.
-The tool accepts only current `search_measurement_v5` output. A
-`release-stats` build reports counters on stderr; use a normal Release build
-for timing.
+## Paired timing
 
-### Paired timing
-
-Give each baseline/candidate pair to the timing comparison tool with its run
-order. Alternating the order on the same machine helps limit machine-speed
-drift:
+After required correctness and risk checks, use the same command with its standard
+defaults: all 200 positions, depth 10, one thread, 32 MiB Hash and six pairs.
 
 ```bash
-python3 tools/analysis/compare_search.py timing \
+python3 tools/analysis/bench.py compare /path/to/baseline-bench /path/to/candidate-bench \
+  --cpu 2 --output tools/analysis/output/candidate-timing
+```
+
+Choose an available CPU, preferably with little activity on its SMT sibling;
+CPU 2 is only an example. `--cpu` is optional and uses Linux `taskset` to pin the
+benchmark. Avoid substantial competing CPU work, such as builds or other
+benchmarks; ordinary background desktop activity does not by itself prevent
+collection. The runner refuses tracing/ptrace; collect timings without profiling
+or instrumentation.
+
+Each binary runs one warmup, which becomes its signature reference. Measured runs
+use fresh processes in alternating `BC,CB` order; warmups do not enter the timing
+statistics. No separately collected reference files are needed. `--pairs` accepts
+an even count of at least two; shorter runs do not replace formal timing.
+
+The single `summary.txt` includes search settings, node totals and ratios,
+root-move/score changes, individual time ratios, variation and balanced timing:
+
+- `geometric_mean_node_ratio` (`R_node_g`) geometrically averages per-position node ratios.
+- `total_node_ratio` divides candidate total nodes by baseline total nodes.
+- `median_balanced_search_time_ratio` (`R_time_balanced`) is the median of geometric
+  means of adjacent `BC,CB` candidate/baseline search-time ratios.
+
+Lower ratios mean fewer nodes or less search time. Formal sample counts and
+acceptance targets belong to the [offline policy](../../.agents/skills/test-latrunculi-candidate/references/offline-checks.md),
+not the runner. Successful collection is not an acceptance decision.
+
+`timing-load.jsonl` records a five-second initial idle sample and available per-CPU
+busy fractions for each process, with affinity and SMT siblings when selected.
+`--idle-seconds` changes that initial sample. Assess recorded load and variation
+across alternating blocks relative to the claimed effect; small or noisy
+differences can remain unresolved. The runner imposes no universal load threshold
+or retries.
+
+## Corpus and fingerprints
+
+Collect a single corpus pass, or request repeats and an optional exact reference:
+
+```bash
+python3 tools/analysis/bench.py run ./build/release-dev/latrunculi-search-bench \
+  --repeats 2 --output tools/analysis/output/candidate-corpus
+```
+
+`run` defaults to one pass. `--reference FILE.tsv` checks each pass against retained
+signatures. Both `run` and `compare` accept `--suite EPD`, `--depth`, `--threads`,
+`--hash` and `--cpu`. Use a single `run` without a reference for nondeterministic
+multithreaded legality checks; this does not replace single-thread repeatability.
+
+Collect the engine's OpenBench compatibility fingerprint:
+
+```bash
+python3 tools/analysis/bench.py fingerprint ./build/release-dev/latrunculi \
+  --output tools/analysis/output/candidate-fingerprint
+```
+
+This invokes the engine's existing six-position, depth-13 `bench` twice, checking
+that its node count repeats. `--repeats 1` selects a single check;
+`--reference FILE.txt` compares with a retained fingerprint. This is an identity
+check, not another speed benchmark.
+
+All collection commands require a new output directory and accept `--timeout`
+seconds per child process (default 600). Raw TSV/stdout and separate stderr remain
+available on failure. A failed comparison writes no final summary. Resume a
+missing check into a new directory; do not overwrite earlier measurements.
+
+CMake/CTest presets own the Release and applicable sanitizer suites. Use their exit
+status rather than a hardcoded test count. See the shared
+[sanitizer requirements](../../.agents/references/measurement-rules.md#sanitizers).
+
+## Summarize saved runs
+
+Recompute comparisons from existing `search_measurement_v5` files without running
+engines:
+
+```bash
+python3 tools/analysis/bench.py summarize \
   --pair BC pair-1-baseline.tsv pair-1-candidate.tsv \
   --pair CB pair-2-baseline.tsv pair-2-candidate.tsv
 ```
 
-Add more pairs with `--pair`. The tool compares summed search time and reports
-`median_balanced_search_time_ratio` (`R_time_balanced`): the median of geometric
-means of adjacent `BC,CB` candidate/baseline time ratios. Lower ratios mean
-faster candidate search; a ratio of 1 means equal measured search time.
+Use one pair for node statistics and an explicitly diagnostic time ratio. Multiple
+pairs must alternate `BC,CB` in complete blocks and use distinct files. The same
+settings, legality, repeatability and optional `--exact-tree` checks apply.
+Saved comparisons retain their original conditions; re-summarizing cannot turn
+uncontrolled or historical timings into fresh paired evidence.
 
-## Collect validation runs
+## Native workload
 
-`run_search_checks.py` collects evidence from already-built, recorded revisions.
-It does not build, modify Git, or decide candidate acceptance. Give each command
-a new output directory; an existing directory is refused, including one from
-an interrupted attempt. Failed runs retain stdout and stderr for diagnosis.
-Resume by running the missing phase into a new directory with applicable saved
-references, rather than overwriting evidence.
+The default [search.epd](search.epd) contains 200 Arasan positions, retaining the
+positions and annotations from Git blob `93cbe97d9ee40790eafc984e59cbce3c02a5d7ea`
+with normalized IDs. Each search starts with cleared TT and search heuristics,
+without game history. The `bm` and `am` annotations are context, not acceptance tests.
 
-Collect two fresh corpus passes, checking the complete suite, settings, legal
-PVs, and repeat signatures:
+The native benchmark remains available directly:
 
 ```bash
-python3 tools/analysis/run_search_checks.py corpus \
-  --bench ./build/release-dev/latrunculi-search-bench \
-  --output tools/analysis/output/candidate-corpus
+./build/release-dev/latrunculi-search-bench --depth 10 > search.tsv
 ```
 
-Defaults are the standard 200-position suite, depth 10, one thread, 32 MiB
-Hash, and two repetitions. Override `--suite`, `--depth`, `--threads`, `--hash`,
-or `--repeats` for a diagnostic run. `--reference FILE.tsv` additionally requires
-exact signatures against that retained run. For nondeterministic multithreaded
-legality checks, collect individual passes with `--repeats 1` and no reference;
-this does not replace single-thread repeatability checks.
+It accepts `--suite EPD`, `--case ID`, and one of `--depth N`, `--nodes N` or
+`--movetime MS`, plus `--threads` and `--hash`. Its direct default is depth 5,
+one thread and 32 MiB Hash; the Python runner explicitly selects depth 10.
 
-Collect repeated fingerprints or check an integration against retained evidence:
-
-```bash
-python3 tools/analysis/run_search_checks.py fingerprint \
-  --engine ./build/release-dev/latrunculi \
-  --output tools/analysis/output/candidate-fingerprint
-```
-
-The engine runs `bench` twice by default. `--reference FILE.txt` checks its node
-count against saved bench output; `--repeats 1` collects a single integration
-check. Expected counts belong to the evidence, not the runner's source.
-
-After required correctness checks pass, collect fresh paired timing using both
-revisions' benchmark binaries and their own validated corpus references:
-
-```bash
-python3 tools/analysis/run_search_checks.py timing \
-  --baseline-bench /path/to/baseline/build/release-dev/latrunculi-search-bench \
-  --candidate-bench /path/to/candidate/build/release-dev/latrunculi-search-bench \
-  --baseline-reference /path/to/baseline/corpus-1.tsv \
-  --candidate-reference /path/to/candidate/corpus-1.tsv \
-  --output tools/analysis/output/candidate-timing
-```
-
-Timing warms each binary once, then runs six alternating BC/CB pairs. It checks
-every run against its revision's reference before producing `timing.txt` with
-the existing comparison statistics. `--exact-tree` also requires both revisions
-to match. An even `--pairs` value of at least two supports shorter diagnostic
-runs; the [formal offline policy](../../.agents/skills/test-latrunculi-candidate/references/offline-checks.md#paired-timing)
-requires six pairs.
-
-Timing refuses tracing/ptrace. Optional `--cpu ID` uses `taskset` and discovers
-the CPU's SMT siblings. `timing-load.jsonl` records a five-second idle sample
-and available per-CPU busy fractions for every run; `--idle-seconds` changes the
-sample duration. Inspect load and competing work before claiming a speed result.
-Collection success alone does not establish an idle environment or a gain.
-No machine-specific affinity or universal load threshold is assumed.
-
-All three commands accept `--timeout SECONDS` per child process (default 600).
-Their raw stdout and separate stderr files remain available on failure or
-timeout. Search settings and references must agree. Dependency setup and shared
-helpers are versioned here; experiment-specific mechanism fixtures stay with
-their retained evidence or focused engine tests.
-
-Check legality of existing corpus outputs independently:
-
-```bash
-python3 tools/analysis/compare_search.py legality baseline.tsv candidate.tsv
-```
-
-Use the existing CMake/CTest presets for Release and sanitizer suites, with
-exit status determining success rather than a hardcoded test count:
-
-```bash
-cmake --preset debug-asan-ubsan
-cmake --build --preset debug-asan-ubsan --parallel 4
-ctest --preset debug-asan-ubsan
-```
-
-The sanitizer presets enable their required checks, including leak detection.
-Use an environment meeting the shared
-[sanitizer requirements](../../.agents/references/measurement-rules.md#sanitizers).
-The `release-dev` and `debug-tsan` presets support their respective checks.
-Select additional risks according to the candidate's change.
+The TSV records positions, requests, completed depth, root-perspective scores,
+nodes, best move, PV and search nanoseconds from `start_search()` through `wait()`.
+Allocation, clearing, setup and output are outside that timer. A `release-stats`
+build emits search diagnostics to stderr; use ordinary Release builds for timing.
 
 ## CPU profiling
 
-Use Linux `perf` to locate expensive functions and call paths before attempting
-a speed optimization. Build a separate Release benchmark with debug symbols,
-retaining optimization and LTO with search statistics disabled:
+Build a separate optimized benchmark with debug symbols and statistics disabled:
 
 ```bash
 cmake --preset release-dev -B build/profile \
-  -DCMAKE_CXX_FLAGS_RELEASE='-O3 -DNDEBUG -g' \
-  -DLATRUNCULI_SEARCH_STATS=OFF
+  -DCMAKE_CXX_FLAGS_RELEASE='-O3 -DNDEBUG -g' -DLATRUNCULI_SEARCH_STATS=OFF
 cmake --build build/profile --target latrunculi-search-bench --parallel 4
 ```
 
-Record userspace samples and DWARF call stacks over the standard depth-10
-corpus. This requires `perf` with DWARF unwinding support. Inspect the saved
-profile in a text report or optionally open it in Hotspot:
+Use Linux `perf` directly on the same workload. DWARF stacks require a `perf` build
+with unwinding support:
 
 ```bash
 PROFILE_DIR=tools/analysis/output/profile-baseline
-mkdir -p "$PROFILE_DIR"
+mkdir -p tools/analysis/output
+mkdir "$PROFILE_DIR"
 perf record -e cycles:u -F 199 --call-graph dwarf \
   -o "$PROFILE_DIR/perf.data" -- \
-  ./build/profile/latrunculi-search-bench --depth 10 \
-  > "$PROFILE_DIR/search.tsv"
+  ./build/profile/latrunculi-search-bench --depth 10 > "$PROFILE_DIR/search.tsv"
 perf report --stdio -i "$PROFILE_DIR/perf.data" > "$PROFILE_DIR/report.txt"
-hotspot "$PROFILE_DIR/perf.data"  # Optional GUI
+perf stat -e cycles:u,instructions:u -o "$PROFILE_DIR/counters.txt" -- \
+  ./build/profile/latrunculi-search-bench --depth 10 > "$PROFILE_DIR/counter-search.tsv"
 ```
 
-Inspect both a function's own cost and the cost of functions it calls. The
-profile includes benchmark setup and TT clearing; distinguish those from search
-work. Use `--case ID` or a deeper search for focused follow-up. Keep the matching
-binary with debug symbols available while inspecting the profile.
+Inspect function and call-path costs. These profiles and counter totals include
+setup and clearing; they are not search-only measurements. Use `--case ID` or a
+deeper search for focused investigation, and retain the matching debug binary
+while inspecting profiles. Hotspot can optionally open `perf.data`.
 
-Profiling identifies optimization opportunities. Verify any resulting speed
-claim with [paired timing](#paired-timing) using ordinary Release builds without
-the profiler.
+Profiling helps locate cost or substantiate a mechanism. Confirm a speed claim
+with separate paired timing using ordinary Release builds without the profiler.
+Experiment-specific instrumentation stays with its retained evidence.
 
 ## Probe one position
 
-Install [requirements.txt](requirements.txt). Supply a six-field starting
-Forsyth–Edwards Notation (FEN) and subsequent moves so clocks and known
-repetition history survive:
+Use a full six-field starting FEN and subsequent moves to preserve clocks and
+known repetition history:
 
 ```bash
 python3 tools/analysis/uci_probe.py \
@@ -221,14 +210,23 @@ python3 tools/analysis/uci_probe.py \
   --moves g1f3 g8f6 --nodes 500000 -- ./build/release-dev/latrunculi
 ```
 
-Options include `--multipv`, `--root-moves`, repeatable `--option NAME=VALUE`,
-and `--timeout`; the engine command follows `--`. Defaults are MultiPV 1,
-Threads 1, Hash 32 MiB, and 90 seconds. The `uci_probe_v1` JSON distinguishes
-complete unbounded reports from partial or bounded ones, mate from centipawn
-scores, and terminal roots from unavailable scores. Scripts can reuse
+Options include `--multipv`, `--root-moves`, repeatable `--option NAME=VALUE` and
+`--timeout`. Defaults are MultiPV 1, Threads 1, Hash 32 MiB and 90 seconds. Other
+engine defaults, including analysis mode, are preserved unless explicitly set.
+The probe supports standard, non-pondering analysis; conflicting managed options
+are rejected. Each probe sends a fresh-game reset.
+
+The `uci_probe_v1` JSON distinguishes complete iterations from partial/bounded
+reports, mate from centipawn scores, and terminal positions from missing scores.
+Raw report semantics and independent legality checks are retained while
+python-chess handles UCI transport. Scripts can reuse
 `UCI(command, options=None, timeout_s=90)`.
 
+Run the tool regressions in an environment supporting asyncio subprocesses. Use
+untraced execution for UCI probes and tests when the environment is known to stall
+python-chess's background event loop:
+
 ```bash
-python3 -m unittest tools.analysis.test_compare_search tools.analysis.test_uci_probe \
-  tools.analysis.test_run_search_checks
+python3 -m unittest tools.analysis.test_bench_results tools.analysis.test_bench \
+  tools.analysis.test_uci_probe
 ```

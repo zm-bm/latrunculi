@@ -17,7 +17,7 @@ Inspect the current baseline and complete candidate diff. If either revision cha
 
 Run missing cheap checks first, then complete required correctness, repeatability, Release, applicable risk/sanitizer checks, and paired timing in [offline checks](references/offline-checks.md). Reuse still-applicable results explicitly. For fitted weights, verify the compiled candidate against the retained fit; reuse verification only when its relevant inputs remain unchanged.
 
-Use shared analysis runners for corpus, fingerprint, legality, and timing collection. Keep experiment-specific mechanism checks separate. Generated measurements and a compact summary suffice; do not add a separate command log, manifest, or binary hash.
+Use the shared `bench.py` interface for corpus passes, fingerprints and paired comparisons; completeness, legality and repeatability checks are built in. Run the standard comparison after required correctness checks. Add separate profiling only when needed to substantiate the claim, and keep experiment-specific mechanism checks separate. Generated measurements and a compact summary suffice; do not add a separate command log, manifest, or binary hash.
 
 A required implementation fix creates a new revision; record review of the affected code and the checks its impact requires as the next action, then stop this test run. Do not silently test different code under the old identity. For a change in intended behavior, record exploration as the next action and end this run.
 

@@ -8,7 +8,9 @@ Run one local CPU-sensitive task at a time.
 
 ## Timing comparisons
 
-Build both revisions with the same compiler, preset, and settings. Collect fresh baseline/candidate pairs on an otherwise idle machine, alternating run order and using a fresh process for each run. Collect timing outside tracing or profiling wrappers.
+Build both revisions with the same compiler, preset, and settings. Warm both binaries, then collect fresh baseline/candidate pairs, alternating run order and using a fresh process for each run. Use fixed CPU affinity when available. Collect timing outside tracing or profiling wrappers.
+
+Avoid substantial competing CPU work, such as builds or other benchmarks. Ordinary background desktop activity does not by itself prevent collection. Assess recorded load, including SMT sibling activity, and timing variation across alternating blocks relative to the claimed effect. Leave small or noisy differences unresolved when the evidence cannot distinguish them.
 
 A single run, historical baseline timing compared with a fresh candidate run, incomplete collection, or uncontrolled timing is diagnostic evidence only. Formal sample counts and decision targets belong to the [offline checks](../skills/test-latrunculi-candidate/references/offline-checks.md#paired-timing).
 
