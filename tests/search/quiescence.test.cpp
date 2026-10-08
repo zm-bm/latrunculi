@@ -71,7 +71,7 @@ protected:
     }
 
     std::optional<TTRecord> record() const {
-        return tt.probe(SearchTestAccess::board(worker).key());
+        return tt.probe(SearchTestAccess::board(worker).tt_key()).record;
     }
 
 #if LATRUNCULI_SEARCH_STATS
@@ -137,7 +137,7 @@ TEST_F(QuiescenceTest, AdjudicatesFiftyMoveBoundaryBeforeTtAndMaxPly) {
         Board board{tc.fen};
         load(board);
         ply() = tc.search_ply;
-        tt.store(position().key(), NULL_MOVE, 1234, 8, TTBound::Exact, ply());
+        tt.store(position().tt_key(), NULL_MOVE, 1234, 8, TTBound::Exact, ply());
         EXPECT_EQ(search(-1, 0), tc.value);
         PrincipalVariation pv;
         EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, pv), tc.value);
@@ -198,7 +198,7 @@ TEST_F(QuiescenceTest, SettlesTacticalPositionWithoutSearchState) {
     Board          intervening{board_test::fen::one_legal_evasion};
     Board          second{tactical};
 
-    tt.store(first.key(), NULL_MOVE, -eval_value::mate, 0, TTBound::Exact, 0);
+    tt.store(first.tt_key(), NULL_MOVE, -eval_value::mate, 0, TTBound::Exact, 0);
     ASSERT_TRUE(pool.settle(first));
     tt.clear();
     ASSERT_TRUE(pool.settle(intervening));
@@ -254,7 +254,7 @@ TEST_F(QuiescenceTest, UsesEligibleTtCutoffs) {
         SCOPED_TRACE(tc.name);
         Board board{board_test::fen::quiet_black_to_move};
         load(board);
-        tt.store(position().key(), NULL_MOVE, tc.score, 0, tc.bound, ply());
+        tt.store(position().tt_key(), NULL_MOVE, tc.score, 0, tc.bound, ply());
         EXPECT_EQ(search(tc.alpha, tc.beta), tc.score);
 
 #if LATRUNCULI_SEARCH_STATS
@@ -275,7 +275,7 @@ TEST_F(QuiescenceTest, IgnoresQuietNoncheckingTtMove) {
     const Move quiet{E2, E3};
     ASSERT_TRUE(position().is_pseudo_legal(quiet));
     ASSERT_FALSE(position().is_capture(quiet));
-    tt.store(position().key(), quiet, -eval_value::inf + 1000, 0, TTBound::LowerBound, ply());
+    tt.store(position().tt_key(), quiet, -eval_value::inf + 1000, 0, TTBound::LowerBound, ply());
 
     EXPECT_EQ(search(-eval_value::inf, eval_value::inf), baseline);
 }
@@ -328,12 +328,12 @@ TEST_F(QuiescenceTest, PvNodeIgnoresNonExactTtBound) {
 
     Board non_pv_board{board_test::fen::quiet_black_to_move};
     load(non_pv_board);
-    tt.store(position().key(), NULL_MOVE, bogus, 0, TTBound::LowerBound, ply());
+    tt.store(position().tt_key(), NULL_MOVE, bogus, 0, TTBound::LowerBound, ply());
     EXPECT_EQ(search(alpha, beta), bogus);
 
     Board pv_board{board_test::fen::quiet_black_to_move};
     load(pv_board);
-    tt.store(position().key(), NULL_MOVE, bogus, 0, TTBound::LowerBound, ply());
+    tt.store(position().tt_key(), NULL_MOVE, bogus, 0, TTBound::LowerBound, ply());
     PrincipalVariation pv;
     EXPECT_EQ(pv_search(alpha, beta, pv), baseline);
 }
@@ -354,7 +354,7 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
     const Move capture = find_move("d1e2");
     ASSERT_FALSE(capture.is_null());
     with_move(capture, [&] {
-        tt.store(position().key(), NULL_MOVE, -static_eval + 10, 0, TTBound::LowerBound, ply());
+        tt.store(position().tt_key(), NULL_MOVE, -static_eval + 10, 0, TTBound::LowerBound, ply());
         return 0;
     });
 

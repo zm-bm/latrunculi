@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <optional>
 
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
@@ -229,12 +228,13 @@ EvalValue Worker::alphabeta(
         return alpha;
 
     const EvalValue   original_alpha = alpha;
-    const PositionKey position_key   = board.key();
+    const PositionKey tt_key         = board.tt_key();
     Move              tt_move        = NULL_MOVE;
 
     // Step 4. TT probe.
     stats.main_tt_probe(search_ply);
-    const auto tt_record = tt.probe(position_key);
+    const auto  tt_probe  = tt.probe(tt_key);
+    const auto& tt_record = tt_probe.record;
     if (tt_record) {
         stats.main_tt_hit(search_ply);
 
@@ -435,8 +435,14 @@ EvalValue Worker::alphabeta(
                 pv->update(move, child_pv);
 
             stats.beta_cutoff(search_ply, move_count);
-            tt.store(
-                position_key, move, value, depth, TTBound::LowerBound, search_ply, static_eval);
+            tt.store(tt_probe.writer,
+                     tt_key,
+                     move,
+                     value,
+                     depth,
+                     TTBound::LowerBound,
+                     search_ply,
+                     static_eval);
             return value;
         }
 
@@ -460,13 +466,20 @@ EvalValue Worker::alphabeta(
     // Step 15. Mate and stalemate.
     if (move_count == 0) {
         best_value = in_check ? -eval_value::mate + search_ply : eval_value::draw;
-        tt.store(
-            position_key, NULL_MOVE, best_value, depth, TTBound::Exact, search_ply, static_eval);
+        tt.store(tt_probe.writer,
+                 tt_key,
+                 NULL_MOVE,
+                 best_value,
+                 depth,
+                 TTBound::Exact,
+                 search_ply,
+                 static_eval);
         return best_value;
     }
 
     // Step 16. TT store.
-    tt.store(position_key,
+    tt.store(tt_probe.writer,
+             tt_key,
              best_move,
              best_value,
              depth,
@@ -499,16 +512,17 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
     if (search_ply >= engine::max_search_ply)
         return eval::evaluate(board);
 
-    constexpr int           qsearch_tt_depth = 0;
-    const EvalValue         original_alpha   = alpha;
-    const PositionKey       position_key     = board.key();
-    Move                    tt_move          = NULL_MOVE;
-    std::optional<TTRecord> tt_record;
+    constexpr int     qsearch_tt_depth = 0;
+    const EvalValue   original_alpha   = alpha;
+    const PositionKey tt_key           = board.tt_key();
+    Move              tt_move          = NULL_MOVE;
+    TTProbe           tt_probe;
+    const auto&       tt_record = tt_probe.record;
 
     // Step 3. TT probe.
     if constexpr (UseTt) {
         stats.q_tt_probe(search_ply);
-        tt_record = tt.probe(position_key);
+        tt_probe = tt.probe(tt_key);
         if (tt_record) {
             stats.q_tt_hit(search_ply);
 
@@ -536,7 +550,8 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
         best_value  = static_eval;
         if (best_value >= beta) {
             if constexpr (UseTt) {
-                tt.store(position_key,
+                tt.store(tt_probe.writer,
+                         tt_key,
                          NULL_MOVE,
                          best_value,
                          qsearch_tt_depth,
@@ -575,7 +590,8 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
                 pv->update(move, child_pv);
             stats.beta_cutoff(search_ply, move_count);
             if constexpr (UseTt) {
-                tt.store(position_key,
+                tt.store(tt_probe.writer,
+                         tt_key,
                          move,
                          value,
                          qsearch_tt_depth,
@@ -602,7 +618,8 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
     if (in_check && move_count == 0) {
         best_value = -eval_value::mate + search_ply;
         if constexpr (UseTt) {
-            tt.store(position_key,
+            tt.store(tt_probe.writer,
+                     tt_key,
                      NULL_MOVE,
                      best_value,
                      qsearch_tt_depth,
@@ -615,7 +632,8 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
     // Step 9. TT store.
     if constexpr (UseTt) {
-        tt.store(position_key,
+        tt.store(tt_probe.writer,
+                 tt_key,
                  best_move,
                  best_value,
                  qsearch_tt_depth,

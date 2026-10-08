@@ -114,24 +114,25 @@ protected:
     }
 
     void store_child(Move move, EvalValue score, int depth, TTBound bound = TTBound::Exact) {
-        with_move(move, [&] { tt.store(position().key(), NULL_MOVE, score, depth, bound, ply()); });
+        with_move(move,
+                  [&] { tt.store(position().tt_key(), NULL_MOVE, score, depth, bound, ply()); });
     }
 
     PositionKey null_child_key() {
         Board copy{position().to_fen()};
         copy.make_null();
-        return copy.key();
+        return copy.tt_key();
     }
 
     PositionKey descendant_null_key(Move move) {
         Board copy{position().to_fen()};
         copy.make(move);
         copy.make_null();
-        return copy.key();
+        return copy.tt_key();
     }
 
     std::optional<TTRecord> record() const {
-        return tt.probe(SearchTestAccess::board(worker).key());
+        return tt.probe(SearchTestAccess::board(worker).tt_key()).record;
     }
 
     int quiet_history(Move move) {
@@ -186,7 +187,7 @@ TEST_F(SearchTest, AdjudicatesFiftyMoveBoundaryBeforeTtAndMaxPly) {
         Board board{tc.fen};
         load(board);
         ply() = tc.search_ply;
-        tt.store(position().key(), NULL_MOVE, 1234, 8, TTBound::Exact, ply());
+        tt.store(position().tt_key(), NULL_MOVE, 1234, 8, TTBound::Exact, ply());
         EXPECT_EQ(search(-1, 0, 2), tc.value);
         PrincipalVariation pv;
         EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, 2, pv), tc.value);
@@ -258,7 +259,7 @@ TEST_F(SearchTest, UsesOnlyDepthEligibleTtBounds) {
         SCOPED_TRACE(tc.name);
         Board board{board_test::fen::quiet_black_to_move};
         load(board, 2);
-        tt.store(position().key(), NULL_MOVE, tc.score, 2, tc.bound, ply());
+        tt.store(position().tt_key(), NULL_MOVE, tc.score, 2, tc.bound, ply());
         EXPECT_EQ(search(tc.alpha, tc.beta, 2), tc.score);
 
 #if LATRUNCULI_SEARCH_STATS
@@ -273,7 +274,7 @@ TEST_F(SearchTest, UsesOnlyDepthEligibleTtBounds) {
 
     Board shallow_board{board_test::fen::quiet_black_to_move};
     load(shallow_board, 2);
-    tt.store(position().key(), Move(H1, H2), baseline + 500, 1, TTBound::Exact, ply());
+    tt.store(position().tt_key(), Move(H1, H2), baseline + 500, 1, TTBound::Exact, ply());
     EXPECT_EQ(search(-eval_value::inf, eval_value::inf, 2), baseline);
 }
 
@@ -347,11 +348,11 @@ TEST(NullMoveReductionTest, AdaptsToDepthAndStaticSurplusWithinBounds) {
 TEST_F(SearchTest, NullMovePruningReturnsFailSoftCutoff) {
     Board board{board_test::fen::start};
     load(board, 4);
-    const PositionKey root_key = position().key();
+    const PositionKey root_key = position().tt_key();
     tt.store(null_child_key(), NULL_MOVE, -200, 1, TTBound::Exact, 1);
 
     EXPECT_EQ(search(-50, 50, 4), 200);
-    EXPECT_FALSE(tt.probe(root_key).has_value());
+    EXPECT_FALSE(tt.probe(root_key).record.has_value());
 
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_EQ(counters().null_move_tries[0], 1U);
@@ -412,13 +413,13 @@ TEST_F(SearchTest, NullMovePruningRequiresAllGuards) {
 TEST_F(SearchTest, NullMovePruningHonorsParentUpperBoundVeto) {
     Board baseline_board{board_test::fen::start};
     load(baseline_board, 4);
-    tt.store(position().key(), NULL_MOVE, 49, 4, TTBound::UpperBound, ply());
+    tt.store(position().tt_key(), NULL_MOVE, 49, 4, TTBound::UpperBound, ply());
     tt.store(null_child_key(), NULL_MOVE, -200, 1, TTBound::Exact, 1);
     const EvalValue baseline = search(-50, 50, 4, false);
 
     Board board{board_test::fen::start};
     load(board, 4);
-    tt.store(position().key(), NULL_MOVE, 49, 4, TTBound::UpperBound, ply());
+    tt.store(position().tt_key(), NULL_MOVE, 49, 4, TTBound::UpperBound, ply());
     tt.store(null_child_key(), NULL_MOVE, -200, 1, TTBound::Exact, 1);
     EXPECT_EQ(search(-50, 50, 4), baseline);
 
@@ -435,11 +436,11 @@ TEST_F(SearchTest, NullMoveReenablesAfterARealDescendantMove) {
     const PositionKey immediate  = null_child_key();
     const PositionKey descendant = descendant_null_key(real_move);
 
-    tt.store(position().key(), real_move, 0, 0, TTBound::LowerBound, ply());
+    tt.store(position().tt_key(), real_move, 0, 0, TTBound::LowerBound, ply());
     (void)search(-50, 50, 5, false);
 
-    EXPECT_FALSE(tt.probe(immediate).has_value());
-    EXPECT_TRUE(tt.probe(descendant).has_value());
+    EXPECT_FALSE(tt.probe(immediate).record.has_value());
+    EXPECT_TRUE(tt.probe(descendant).record.has_value());
 }
 
 TEST_F(SearchTest, RazoringReturnsQsearchFailLowWithoutParentTtStore) {
@@ -482,7 +483,7 @@ TEST_F(SearchTest, RazoringRequiresAllGuards) {
         load(board, tc.depth);
         if (tc.seed_tt) {
             const Move move = legal_picker_moves().front();
-            tt.store(position().key(), move, 0, 0, TTBound::Exact, ply());
+            tt.store(position().tt_key(), move, 0, 0, TTBound::Exact, ply());
         }
         const EvalValue alpha = eval::evaluate(position()) + tc.alpha_offset;
         if (tc.pv) {
@@ -577,7 +578,7 @@ TEST_F(SearchTest, FutilityKeepsTacticalMoves) {
         load(board, 2);
         const EvalValue alpha = eval::evaluate(position()) + 401;
         const EvalValue beta  = alpha + 1000;
-        tt.store(position().key(), tc.first, 0, 0, TTBound::Exact, ply());
+        tt.store(position().tt_key(), tc.first, 0, 0, TTBound::Exact, ply());
         if (tc.killer)
             ordering_state().killers.update(tc.tactical, ply());
         store_child(tc.tactical, -(beta + 100), 1);
@@ -615,7 +616,7 @@ TEST_F(SearchTest, FutilityKeepsLaterCheckingQuietHintsAndGeneratedMoves) {
 
         const EvalValue alpha = eval::evaluate(position()) + 401;
         const EvalValue beta  = alpha + 1000;
-        tt.store(position().key(), first, 0, 0, TTBound::Exact, ply());
+        tt.store(position().tt_key(), first, 0, 0, TTBound::Exact, ply());
         store_child(checking, -(beta + 100), 1);
         EXPECT_GE(search(alpha, beta, 2), beta);
 
@@ -686,7 +687,7 @@ TEST_F(SearchTest, QuietCutoffUpdatesPreviousMoveContext) {
 
     with_move(previous, [&] {
         const Move cutoff = legal_picker_moves().front();
-        tt.store(position().key(), cutoff, 0, 0, TTBound::UpperBound, ply());
+        tt.store(position().tt_key(), cutoff, 0, 0, TTBound::UpperBound, ply());
         store_child(cutoff, -200, 1);
         EXPECT_EQ(search(-200, 100, 2, false), 200);
         EXPECT_GT(quiet_history(cutoff), 0);
@@ -732,7 +733,7 @@ TEST_F(SearchTest, NonQuietCutoffSkipsRefutationUpdates) {
         Board board{tc.fen};
         load(board, 2);
         with_move(tc.previous, [&] {
-            tt.store(position().key(), tc.cutoff, 0, 0, TTBound::UpperBound, ply());
+            tt.store(position().tt_key(), tc.cutoff, 0, 0, TTBound::UpperBound, ply());
             store_child(tc.cutoff, -200, 1);
             EXPECT_EQ(search(-200, 100, 2, false), 200);
         });
@@ -771,7 +772,7 @@ TEST_F(SearchTest, QuietMalusExcludesTtAndKillerHints) {
         ASSERT_GE(moves.size(), 5U);
         const Move tt_move = moves[0];
         const Move killer  = moves[1];
-        tt.store(position().key(), tt_move, 0, 4, TTBound::UpperBound, ply());
+        tt.store(position().tt_key(), tt_move, 0, 4, TTBound::UpperBound, ply());
         ordering_state().killers.update(killer, ply());
         store_child(tt_move, 0, 3);
         store_child(killer, 10, 3);
@@ -847,12 +848,12 @@ TEST_F(SearchTest, PvNodesIgnoreNonExactMainTtBounds) {
 
     Board non_pv_board{board_test::fen::quiet_black_to_move};
     load(non_pv_board, 2);
-    tt.store(position().key(), NULL_MOVE, bogus, 2, TTBound::LowerBound, ply());
+    tt.store(position().tt_key(), NULL_MOVE, bogus, 2, TTBound::LowerBound, ply());
     EXPECT_EQ(search(alpha, beta, 2), bogus);
 
     Board pv_board{board_test::fen::quiet_black_to_move};
     load(pv_board, 2);
-    tt.store(position().key(), NULL_MOVE, bogus, 2, TTBound::LowerBound, ply());
+    tt.store(position().tt_key(), NULL_MOVE, bogus, 2, TTBound::LowerBound, ply());
     PrincipalVariation pv;
     EXPECT_EQ(pv_search(alpha, beta, 2, pv), baseline);
 }
@@ -920,7 +921,7 @@ TEST_F(SearchTest, LmrSkipsTacticalAndEvasionMoves) {
             ASSERT_GE(moves.size(), 3U);
             candidate = moves[2];
         } else {
-            tt.store(position().key(), tc.tt_move, 0, 0, TTBound::Exact, ply());
+            tt.store(position().tt_key(), tc.tt_move, 0, 0, TTBound::Exact, ply());
             if (!tc.killer.is_null())
                 ordering_state().killers.update(tc.killer, ply());
             ordering_state().quiets.reward(

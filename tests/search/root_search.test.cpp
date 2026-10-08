@@ -100,10 +100,10 @@ TEST_F(RootSearchTest, SearchesDrawnRootForLegalMove) {
 TEST_F(RootSearchTest, DoesNotStoreRootPositionInTt) {
     Board board{board_test::fen::start};
     load(board, 1);
-    const PositionKey root_key = position().key();
+    const PositionKey root_key = position().tt_key();
 
     (void)root_search();
-    EXPECT_FALSE(tt.probe(root_key).has_value());
+    EXPECT_FALSE(tt.probe(root_key).record.has_value());
 }
 
 TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {

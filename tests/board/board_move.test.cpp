@@ -13,12 +13,12 @@
 
 namespace {
 
-PositionKey observed_child_key = 0;
-int         key_ready_calls    = 0;
+PositionKey observed_child_tt_key = 0;
+int         tt_key_ready_calls    = 0;
 
-void observe_child_key(PositionKey key) noexcept {
-    observed_child_key = key;
-    ++key_ready_calls;
+void observe_child_tt_key(PositionKey tt_key) noexcept {
+    observed_child_tt_key = tt_key;
+    ++tt_key_ready_calls;
 }
 
 void expect_move_round_trip(std::string_view before, Move move, std::string_view after) {
@@ -254,8 +254,12 @@ TEST(BoardMoveTest, TraversesAndUnwindsBeyondTheSearchDepthReserve) {
     EXPECT_FALSE(board.can_unmake());
 }
 
-TEST(BoardMoveTest, KeyReadyCallbackMatchesCompletedPositionAcrossMoveTypes) {
+TEST(BoardMoveTest, TTKeyReadyCallbackMatchesCompletedPositionAcrossMoveTypes) {
     constexpr std::string_view fens[] = {
+        "7k/8/8/8/8/8/6Q1/6K1 w - - 98 1",
+        "7k/8/8/8/8/8/6Q1/6K1 w - - 15 1",
+        "7k/8/8/8/8/8/6Q1/6K1 w - - 79 1",
+        "7k/8/8/8/8/7p/6QP/6K1 w - - 80 1",
         board_test::fen::start,
         board_test::fen::perft_position_2,
         board_test::fen::castling,
@@ -282,12 +286,12 @@ TEST(BoardMoveTest, KeyReadyCallbackMatchesCompletedPositionAcrossMoveTypes) {
             Board reference(board);
             reference.make(move);
 
-            key_ready_calls = 0;
-            board.make(move, observe_child_key);
+            tt_key_ready_calls = 0;
+            board.make(move, observe_child_tt_key);
 
-            EXPECT_EQ(key_ready_calls, 1);
-            EXPECT_EQ(observed_child_key, board.key());
-            EXPECT_EQ(observed_child_key, board.recompute_key());
+            EXPECT_EQ(tt_key_ready_calls, 1);
+            EXPECT_EQ(observed_child_tt_key, board.tt_key());
+            EXPECT_EQ(observed_child_tt_key, Board(board.to_fen()).tt_key());
             board_test::expect_same_board_snapshot(board, board_test::snapshot_board(reference));
 
             board.unmake();
@@ -296,8 +300,12 @@ TEST(BoardMoveTest, KeyReadyCallbackMatchesCompletedPositionAcrossMoveTypes) {
     }
 }
 
-TEST(BoardMoveTest, NullKeyReadyCallbackMatchesCompletedPosition) {
+TEST(BoardMoveTest, NullTTKeyReadyCallbackMatchesCompletedPosition) {
     constexpr std::string_view fens[] = {
+        "7k/8/8/8/8/8/6Q1/6K1 w - - 98 1",
+        "7k/8/8/8/8/8/6Q1/6K1 w - - 15 1",
+        "7k/8/8/8/8/8/6Q1/6K1 w - - 79 1",
+        "7k/8/8/8/8/7p/6QP/6K1 w - - 80 1",
         board_test::fen::start,
         board_test::fen::perft_position_2,
         board_test::fen::legal_en_passant_a3,
@@ -312,12 +320,12 @@ TEST(BoardMoveTest, NullKeyReadyCallbackMatchesCompletedPosition) {
         const auto before = board_test::snapshot_board(board);
         reference.make_null();
 
-        key_ready_calls = 0;
-        board.make_null(observe_child_key);
+        tt_key_ready_calls = 0;
+        board.make_null(observe_child_tt_key);
 
-        EXPECT_EQ(key_ready_calls, 1);
-        EXPECT_EQ(observed_child_key, board.key());
-        EXPECT_EQ(observed_child_key, board.recompute_key());
+        EXPECT_EQ(tt_key_ready_calls, 1);
+        EXPECT_EQ(observed_child_tt_key, board.tt_key());
+        EXPECT_EQ(observed_child_tt_key, Board(board.to_fen()).tt_key());
         board_test::expect_same_board_snapshot(board, board_test::snapshot_board(reference));
 
         board.unmake_null();

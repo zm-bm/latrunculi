@@ -41,12 +41,13 @@ TEST_F(EngineOptionsTest, HashOptionResizesAndClearHashClearsTT) {
     ASSERT_EQ(hash_option_mb(), 8);
     ASSERT_EQ(search::tt.capacity_mb(), 8U);
 
-    search::tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, search::TTBound::Exact, 0);
-    ASSERT_TRUE(search::tt.probe(board().key()).has_value());
+    search::tt.store(
+        board().tt_key(), Move(Square::E2, Square::E4), 42, 3, search::TTBound::Exact, 0);
+    ASSERT_TRUE(search::tt.probe(board().tt_key()).record.has_value());
 
     EXPECT_TRUE(execute("setoption name Clear Hash"));
 
-    EXPECT_FALSE(search::tt.probe(board().key()).has_value());
+    EXPECT_FALSE(search::tt.probe(board().tt_key()).record.has_value());
 }
 
 struct SetOptionCase {

@@ -25,9 +25,9 @@
  */
 class Board {
 public:
-    // Optional search hint, called once with the final child key. Tactical
+    // Optional search hint, called once with the final child TT key. Tactical
     // caches may still be stale; the callback must not inspect the board.
-    using KeyReadyCallback = void (*)(PositionKey) noexcept;
+    using TTKeyReadyCallback = void (*)(PositionKey) noexcept;
 
     static constexpr char start_fen[] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -64,8 +64,10 @@ public:
     PieceType    piece_type_on(Square square) const noexcept { return type_of(squares[square]); }
     Square       king_sq(Color color) const noexcept { return king_square[color]; }
 
-    Color          side_to_move() const noexcept { return turn; }
-    PositionKey    key() const noexcept { return ply_state().zkey; }
+    Color       side_to_move() const noexcept { return turn; }
+    PositionKey key() const noexcept { return ply_state().zkey; }
+    // TT identity includes a heuristic clock group; repetition uses key().
+    PositionKey    tt_key() const noexcept { return key() ^ zob::hash_tt_clock(halfmove_clock()); }
     CastlingRights castling_rights() const noexcept { return ply_state().castling_rights; }
 
     Square enpassant_target() const noexcept { return ply_state().enpassant_target; }
@@ -118,9 +120,9 @@ public:
 
     // Move application and reversal (board_move.cpp)
 
-    void make(Move move, KeyReadyCallback on_key_ready = nullptr);
+    void make(Move move, TTKeyReadyCallback on_tt_key_ready = nullptr);
     void unmake();
-    void make_null(KeyReadyCallback on_key_ready = nullptr);
+    void make_null(TTKeyReadyCallback on_tt_key_ready = nullptr);
     void unmake_null();
 
     // Static exchange evaluation (board_see.cpp)

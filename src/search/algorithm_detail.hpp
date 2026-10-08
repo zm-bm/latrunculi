@@ -11,8 +11,8 @@
 
 namespace search::algorithm_detail {
 
-inline void prefetch_child_tt(PositionKey key) noexcept {
-    tt.prefetch(key);
+inline void prefetch_child_tt(PositionKey tt_key) noexcept {
+    tt.prefetch(tt_key);
 }
 
 // Aspiration-window defaults.

@@ -236,8 +236,9 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
     ASSERT_TRUE(execute("setoption name Threads value 2"));
 
     search::tt.advance_generation();
-    search::tt.store(board().key(), Move(Square::E2, Square::E4), 42, 3, search::TTBound::Exact, 0);
-    ASSERT_TRUE(search::tt.probe(board().key()).has_value());
+    search::tt.store(
+        board().tt_key(), Move(Square::E2, Square::E4), 42, 3, search::TTBound::Exact, 0);
+    ASSERT_TRUE(search::tt.probe(board().tt_key()).record.has_value());
     ASSERT_EQ(search::tt.current_generation(), std::uint8_t{1});
 
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
@@ -249,7 +250,7 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
 
     EXPECT_TRUE(execute("ucinewgame"));
 
-    EXPECT_FALSE(search::tt.probe(board().key()).has_value());
+    EXPECT_FALSE(search::tt.probe(board().tt_key()).record.has_value());
     EXPECT_EQ(search::tt.current_generation(), std::uint8_t{0});
 
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {

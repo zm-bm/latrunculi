@@ -2,8 +2,10 @@
 
 #include <gtest/gtest.h>
 
+#include <string>
 #include <string_view>
 #include <type_traits>
+#include <unordered_set>
 
 #include "core/constants.hpp"
 #include "support/board_fixtures.hpp"
@@ -75,6 +77,34 @@ TEST(BoardRepresentationTest, MaterialAndPsqtMatchExpectedValues) {
     EXPECT_EQ(board.base_terms().material(), eval::piece(QUEEN, WHITE) + eval::piece(ROOK, BLACK));
     EXPECT_EQ(board.base_terms().piece_square(),
               eval::piece_sq(QUEEN, WHITE, D1) + eval::piece_sq(ROOK, BLACK, D8));
+}
+
+TEST(BoardRepresentationTest, TtClockGroupsLeaveRepetitionKeysUnchanged) {
+    const Board                     low("7k/8/8/8/8/8/6Q1/6K1 w - - 0 1");
+    std::unordered_set<PositionKey> groups;
+    for (int clock = 0; clock < 256; ++clock) {
+        Board board("7k/8/8/8/8/8/6Q1/6K1 w - - " + std::to_string(clock) + " 1");
+        EXPECT_EQ(board.key(), low.key());
+        EXPECT_EQ(board.recompute_key(), low.key());
+        const bool first_in_group =
+            clock == 0 || (clock >= 16 && clock < 80 && clock % 8 == 0) || clock >= 80;
+        EXPECT_EQ(groups.insert(board.tt_key()).second, first_in_group) << clock;
+        if (clock < 16)
+            EXPECT_EQ(board.tt_key(), board.key());
+    }
+    EXPECT_EQ(groups.size(), 185U);
+}
+
+TEST(BoardRepresentationTest, TtClockGroupsDoNotChangeRepetitionDetection) {
+    Board board(board_test::fen::repetition_cycle);
+    complete_repetition_cycle(board);
+    const auto key = board.key();
+    complete_repetition_cycle(board);
+    EXPECT_EQ(board.key(), key);
+    EXPECT_FALSE(board.is_draw());
+    complete_repetition_cycle(board);
+    EXPECT_EQ(board.key(), key);
+    EXPECT_TRUE(board.is_draw());
 }
 
 TEST(BoardCopyTest, SourceAndDestinationRemainIndependent) {

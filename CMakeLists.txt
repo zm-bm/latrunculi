@@ -152,6 +152,7 @@ if(BUILD_TESTING)
         tests/search/thread_pool.test.cpp
         tests/search/time_manager.test.cpp
         tests/search/tt.test.cpp
+        tests/search/tt_clock.test.cpp
         tests/search/worker.test.cpp
         tests/uci/engine.test.cpp
         tests/uci/engine_options.test.cpp

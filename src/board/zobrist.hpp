@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "core/move_geometry.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
@@ -42,12 +44,18 @@ struct Table {
             castle_keys[CASTLE_KINGSIDE][color]  = next_key(state);
             castle_keys[CASTLE_QUEENSIDE][color] = next_key(state);
         }
+
+        // Group zero is unsalted. Generate the other salts after all position keys
+        // so adding clock groups does not change the repetition-key sequence.
+        for (int group = 1; group < 256; ++group)
+            tt_clock_group_keys[group] = next_key(state);
     }
 
     PositionKey piece_keys[N_COLORS][N_PIECETYPES][N_SQUARES]{};
     PositionKey turn_key{};
     PositionKey enpassant_keys[8]{};
     PositionKey castle_keys[N_CASTLES][N_COLORS]{};
+    PositionKey tt_clock_group_keys[256]{};
 };
 
 inline constexpr Table table{};
@@ -61,6 +69,18 @@ hash_piece(Color color, PieceType piece, Square square) noexcept {
 
 [[nodiscard]] constexpr PositionKey hash_turn() noexcept {
     return storage::table.turn_key;
+}
+
+[[nodiscard]] constexpr PositionKey hash_tt_clock(std::uint8_t halfmove_clock) noexcept {
+    // Clock grouping is a TT reuse heuristic: bounds can still depend on the
+    // halfmove clock within a group.
+    constexpr int first_bucketed_clock = 16;
+    constexpr int first_exact_clock    = 80;
+    constexpr int bucket_width         = 8;
+    const int     group                = halfmove_clock < first_bucketed_clock ? 0
+                                       : halfmove_clock < first_exact_clock ? halfmove_clock / bucket_width
+                                                                            : halfmove_clock;
+    return storage::table.tt_clock_group_keys[group];
 }
 
 [[nodiscard]] constexpr PositionKey hash_ep(Square square) noexcept {
