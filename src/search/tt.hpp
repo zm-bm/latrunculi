@@ -146,7 +146,14 @@ public:
 private:
     std::uint64_t cluster_index(PositionKey tt_key) const;
 
-    std::unique_ptr<TTCluster[]> clusters = nullptr;
+    struct ClusterDeleter {
+        bool aligned_allocation = false;
+        void operator()(TTCluster* memory) const noexcept;
+    };
+    using ClusterStorage = std::unique_ptr<TTCluster[], ClusterDeleter>;
+    static ClusterStorage allocate_clusters(std::size_t count);
+
+    ClusterStorage clusters{nullptr, ClusterDeleter{}};
 
     size_t       cluster_count       = 0;
     int          cluster_index_shift = 0;
