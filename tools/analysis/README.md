@@ -3,6 +3,27 @@
 Use the search benchmark to compare saved runs, or `uci_probe.py` to inspect
 one position through UCI.
 
+Profiling locates CPU cost; fixed-depth node counts describe the search tree.
+Fewer nodes alone do not establish faster search or stronger play. Fresh paired
+timing measures speed, while [OpenBench games](../../docs/openbench.md#strength-tests)
+measure playing strength. A promising position or agreement with a reference
+engine alone cannot establish a gain.
+
+Install the Python dependencies once in a virtual environment:
+
+```bash
+python3 -m venv .cache/analysis-venv
+.cache/analysis-venv/bin/python -m pip install -r tools/analysis/requirements.txt
+source .cache/analysis-venv/bin/activate
+```
+
+Use that interpreter for the commands below. Collection and legality checking
+use the pinned chess dependency; the existing node/timing comparisons use only
+the standard library.
+
+Apply the shared [measurement rules](../../.agents/references/measurement-rules.md)
+when collecting local evidence.
+
 ## Benchmark and compare
 
 Build the benchmark, then save a run from the appropriate revision:
@@ -47,7 +68,8 @@ for timing.
 ### Paired timing
 
 Give each baseline/candidate pair to the timing comparison tool with its run
-order:
+order. Alternating the order on the same machine helps limit machine-speed
+drift:
 
 ```bash
 python3 tools/analysis/compare_search.py timing \
@@ -57,7 +79,98 @@ python3 tools/analysis/compare_search.py timing \
 
 Add more pairs with `--pair`. The tool compares summed search time and reports
 `median_balanced_search_time_ratio` (`R_time_balanced`): the median of geometric
-means of adjacent `BC,CB` candidate/baseline time ratios.
+means of adjacent `BC,CB` candidate/baseline time ratios. Lower ratios mean
+faster candidate search; a ratio of 1 means equal measured search time.
+
+## Collect validation runs
+
+`run_search_checks.py` collects evidence from already-built, recorded revisions.
+It does not build, modify Git, or decide candidate acceptance. Give each command
+a new output directory; an existing directory is refused, including one from
+an interrupted attempt. Failed runs retain stdout and stderr for diagnosis.
+Resume by running the missing phase into a new directory with applicable saved
+references, rather than overwriting evidence.
+
+Collect two fresh corpus passes, checking the complete suite, settings, legal
+PVs, and repeat signatures:
+
+```bash
+python3 tools/analysis/run_search_checks.py corpus \
+  --bench ./build/release-dev/latrunculi-search-bench \
+  --output tools/analysis/output/candidate-corpus
+```
+
+Defaults are the standard 200-position suite, depth 10, one thread, 32 MiB
+Hash, and two repetitions. Override `--suite`, `--depth`, `--threads`, `--hash`,
+or `--repeats` for a diagnostic run. `--reference FILE.tsv` additionally requires
+exact signatures against that retained run. For nondeterministic multithreaded
+legality checks, collect individual passes with `--repeats 1` and no reference;
+this does not replace single-thread repeatability checks.
+
+Collect repeated fingerprints or check an integration against retained evidence:
+
+```bash
+python3 tools/analysis/run_search_checks.py fingerprint \
+  --engine ./build/release-dev/latrunculi \
+  --output tools/analysis/output/candidate-fingerprint
+```
+
+The engine runs `bench` twice by default. `--reference FILE.txt` checks its node
+count against saved bench output; `--repeats 1` collects a single integration
+check. Expected counts belong to the evidence, not the runner's source.
+
+After required correctness checks pass, collect fresh paired timing using both
+revisions' benchmark binaries and their own validated corpus references:
+
+```bash
+python3 tools/analysis/run_search_checks.py timing \
+  --baseline-bench /path/to/baseline/build/release-dev/latrunculi-search-bench \
+  --candidate-bench /path/to/candidate/build/release-dev/latrunculi-search-bench \
+  --baseline-reference /path/to/baseline/corpus-1.tsv \
+  --candidate-reference /path/to/candidate/corpus-1.tsv \
+  --output tools/analysis/output/candidate-timing
+```
+
+Timing warms each binary once, then runs six alternating BC/CB pairs. It checks
+every run against its revision's reference before producing `timing.txt` with
+the existing comparison statistics. `--exact-tree` also requires both revisions
+to match. An even `--pairs` value of at least two supports shorter diagnostic
+runs; the [formal offline policy](../../.agents/skills/test-latrunculi-candidate/references/offline-checks.md#paired-timing)
+requires six pairs.
+
+Timing refuses tracing/ptrace. Optional `--cpu ID` uses `taskset` and discovers
+the CPU's SMT siblings. `timing-load.jsonl` records a five-second idle sample
+and available per-CPU busy fractions for every run; `--idle-seconds` changes the
+sample duration. Inspect load and competing work before claiming a speed result.
+Collection success alone does not establish an idle environment or a gain.
+No machine-specific affinity or universal load threshold is assumed.
+
+All three commands accept `--timeout SECONDS` per child process (default 600).
+Their raw stdout and separate stderr files remain available on failure or
+timeout. Search settings and references must agree. Dependency setup and shared
+helpers are versioned here; experiment-specific mechanism fixtures stay with
+their retained evidence or focused engine tests.
+
+Check legality of existing corpus outputs independently:
+
+```bash
+python3 tools/analysis/compare_search.py legality baseline.tsv candidate.tsv
+```
+
+Use the existing CMake/CTest presets for Release and sanitizer suites, with
+exit status determining success rather than a hardcoded test count:
+
+```bash
+cmake --preset debug-asan-ubsan
+cmake --build --preset debug-asan-ubsan --parallel 4
+ctest --preset debug-asan-ubsan
+```
+
+The sanitizer presets enable their required checks, including leak detection.
+Use an environment meeting the shared
+[sanitizer requirements](../../.agents/references/measurement-rules.md#sanitizers).
+The `release-dev` and `debug-tsan` presets support their respective checks.
+Select additional risks according to the candidate's change.
 
 ## CPU profiling
 
@@ -116,5 +229,6 @@ scores, and terminal roots from unavailable scores. Scripts can reuse
 `UCI(command, options=None, timeout_s=90)`.
 
 ```bash
-python3 -m unittest tools.analysis.test_compare_search tools.analysis.test_uci_probe
+python3 -m unittest tools.analysis.test_compare_search tools.analysis.test_uci_probe \
+  tools.analysis.test_run_search_checks
 ```

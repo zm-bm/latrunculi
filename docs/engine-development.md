@@ -1,32 +1,34 @@
 # Engine Development
 
-The current work board for improving Latrunculi. [Engine testing](engine-testing.md)
-explains what evidence lets an item advance.
+The current work board for improving Latrunculi.
 
-Keep one live entry per experiment: question or claim, baseline evidence, next
-action, and candidate branch/revisions when applicable. Preserve IDs; number
-retained candidates and unresolved leads, but leave casual nulls unnumbered.
-Keep evidence for the current baseline, active candidates and useful audits.
-Retire obsolete branches and outputs after work is integrated or abandoned;
-Git history records integrated changes. Run one local CPU-sensitive task at a
-time; concurrent OpenBench tests are allowed.
+Keep one concise live entry per experiment: question or claim, current decision,
+next action, baseline and candidate branch/revisions, reviewed head, and evidence
+and PR links when applicable. Keep detailed measurements and investigation
+history in linked reports, and code-review discussion in the PR. Local-only
+candidates retain review notes with their evidence.
+Preserve IDs; number retained candidates and unresolved leads, but leave casual
+nulls unnumbered.
+Follow the shared [retention rules](../.agents/references/candidate-rules.md#retention)
+for evidence and cleanup.
 
 ## Baseline
 
 | Field | Current value |
 |---|---|
-| Engine | `2eee9a5` (ENG-039: checkmate at the fifty-move boundary) |
-| OpenBench fingerprint | 3,507,960 nodes |
-| Search corpus | `tools/analysis/output/search-baseline-2eee9a5/`; 200 positions, depth 10, one thread, 32 MiB Hash; 54,039,403 nodes |
+| Engine | `6237d6e` (ENG-040: compact clock-aware TT) |
+| OpenBench fingerprint | 3,423,173 nodes |
+| Search corpus | `tools/analysis/output/search-baseline-6237d6e/`; 200 positions, depth 10, one thread, 32 MiB Hash; 54,571,535 nodes |
 | Build | `release-dev`, GCC 15.2.0, x86-64, `gazelle`; refreshed 2026-10-07 |
 
-Source revision: `2eee9a5b864c09d9d4c6d392eabe22739ce46a60`.
-Corpus and fingerprint match the approved candidate; Release, ASan/UBSan and
-boundary checks passed. [Integration evidence](../tools/analysis/output/eng-039-integration/report.md).
+Source revision: `6237d6eee1157b8622fa88277619394dc4de8ce2`.
+Corpus and fingerprint match the approved candidate; Release, ASan/UBSan,
+focused TSan and TT/mate-boundary checks passed.
+[Integration evidence](../tools/analysis/output/eng-040-integration/report.md).
 
 ## Issues and leads
 
-The TT clock-reuse defect remains in the baseline; ENG-040 is the active candidate.
+ENG-040's compact clock-aware TT is now the baseline.
 ENG-036 is an independent allocation lead; ENG-037/038 are lower-priority follow-ups.
 [TT audit at d3116b1](../tools/analysis/output/tt-design-audit-d3116b1/report.md).
 
@@ -61,10 +63,11 @@ ENG-036 is an independent allocation lead; ENG-037/038 are lower-priority follow
 
 - **Question:** does retaining old deep entries over newer shallow results reduce
   useful TT reuse across searches?
-- **Evidence:** at `d3116b1`, age refreshes only on successful stores, and shallow
-  non-exact same-key writes can be rejected regardless of entry age. References
-  vary: some refresh on hits or permit aged same-key replacement. No weakness in
-  the current policy has been measured.
+- **Evidence:** the historical `d3116b1` TT could reject shallow same-key writes
+  regardless of age. ENG-040 now permits aged same-tag replacement and refreshes
+  available move hints before its score-overwrite guard. Entry age is still
+  refreshed by accepted record stores, not hits. No weakness in the current
+  aging policy has been measured.
 - **Next:** measure entry age, rejected updates, and useful hits over repeatable
   search sequences that retain the TT. Use the findings to select one change to
   age refresh or same-key replacement, holding layout and other policy fixed.
@@ -84,44 +87,13 @@ ENG-036 is an independent allocation lead; ENG-037/038 are lower-priority follow
   evaluations, displaced useful bounds, nodes, and fresh paired elapsed time.
   Changed table occupancy can change the search tree and requires strength testing.
 
+## Candidates for review
+
+None.
+
 ## Candidates for local testing
 
-### ENG-040 — Compact tagged TT with clock-aware keys
-
-- **Claim:** three 10-byte entries per aligned 32-byte cluster give 50% more
-  entries at equal Hash capacity. TT keys share clocks 0–15, use eight-ply groups
-  at 16–79, and become exact at 80+. Repetition keys stay unchanged.
-  Tree-changing mitigation of the demonstrated reuse defect; strength pending.
-- **Revision:** `candidate/eng-040-compact-tt-cleanup`, `6b27a3f` on `d3116b1`.
-  Reviewed cleanup preserves the original engine/benchmark/stress binaries.
-- **Baseline status:** needs local combination checks against `2eee9a5` after
-  ENG-041 and ENG-039 integration. Preserve the published branch and #36
-  comparison; its games remain strength evidence for the tested revision.
-  A baseline refresh alone does not schedule a replacement SPRT.
-- **Offline pass (2026-10-06):** 397 Release cases plus stress, full ASan/UBSan
-  with leak detection, focused TSan, all eleven material families and mate
-  controls passed. Corpus signatures and fingerprint **3,423,173** repeat;
-  1,200 four-thread searches complete with legal moves/PVs.
-- **Tradeoff:** depth-10 corpus **54,571,535 nodes** (+0.98%), 26 changed best
-  moves. Six alternating timing pairs give median balanced ratio **0.98808**
-  (about 1.2% less search time), with appreciable variation. This is a local
-  estimate; a speedup is not required for the correctness mitigation.
-- **Risks:** 16-bit tags allow false hits; individually atomic fields can mix
-  writes without the old signature validation. Clock sharing remains heuristic;
-  cross-clock move/evaluation hints are lost. The baseline now includes ENG-039.
-- **OpenBench:** [#36](https://workstation-01.tail2abd87.ts.net/test/36/),
-  `6b27a3f` versus `d3116b1`, normalized-Elo SPRT **[-3,0]**, alpha=beta=0.05,
-  **10+0.1**, T1 H32, standard UHO book/adjudication, no game cap.
-  PGNs `/api/pgns/36/`; submitted 2026-10-06.
-- **Acceptance and next:** await the declared boundary. Upper accepts under the
-  permitted strength-tradeoff profile; lower rejects; an early stop is inconclusive.
-  Confirmed correctness/operational defects block acceptance. No automatic
-  longer-TC confirmation; additional games need specific justification and an
-  explicit request. Complete local combination checks before requesting integration.
-- **Evidence:** [exploration](../tools/analysis/output/eng-040-compact-tt/report.md),
-  [review](../tools/analysis/output/eng-040-review/report.md),
-  [offline tests](../tools/analysis/output/eng-040-offline/report.md),
-  [OpenBench settings and provenance](../tools/analysis/output/eng-040-openbench/report.md).
+None.
 
 ## Ready for OpenBench
 
@@ -129,15 +101,20 @@ None.
 
 ## OpenBench tests
 
-[ENG-040 / #36](https://workstation-01.tail2abd87.ts.net/test/36/) is active.
-Its [candidate entry](#eng-040--compact-tagged-tt-with-clock-aware-keys) remains
-under local testing because the operational baseline changed.
+None.
 
 ## Ready for integration
 
 None.
 
 ## Recent results
+
+- **ENG-040 — Integrated 2026-10-07:** compact clock-aware TT, `6237d6e` from
+  approved `17b4044`. OpenBench #36 accepted published `6b27a3f`; the user retained
+  that game acceptance after complete current-baseline combination checks.
+  Integration Release, sanitizers, TT/mate regressions and corpus identity pass;
+  fingerprint **3,423,173**.
+  [Evidence and full revisions](../tools/analysis/output/eng-040-integration/report.md).
 
 - **ENG-039 — Integrated 2026-10-07:** fifty-move/checkmate precedence,
   `2eee9a5` from approved `2570878`. User explicitly waived OpenBench for this

@@ -1,17 +1,25 @@
 ---
 name: integrate-latrunculi-candidate
-description: Integrate one explicitly approved, reviewed Latrunculi candidate revision and refresh the operational baseline. Use only when the user asks to integrate the recorded commit for a tree-preserving offline pass or an OpenBench-accepted candidate.
+description: Merge an explicitly approved Latrunculi candidate PR after its required acceptance checks, then refresh the operational baseline. Use when the user requests integration of the recorded revision.
 ---
 
 # Integrate a Latrunculi Candidate
 
-Resolve paths from the Latrunculi checkout. Read the [development board](../../../docs/engine-development.md), [candidate revision rules](../explore-latrunculi-change/references/candidate-revisions.md), [offline checks](../test-latrunculi-candidate/references/offline-checks.md), and any [game evidence](../manage-latrunculi-openbench/references/workloads-and-decisions.md#evidence-and-candidate-decision). Require a **Ready for integration** entry and an explicit user request approving its recorded revision.
+Resolve paths from the Latrunculi checkout. Read the [development board](../../../docs/engine-development.md), shared [candidate identity](../../references/candidate-rules.md#candidate-identity), [evidence reuse](../../references/candidate-rules.md#evidence-reuse), [approval and scope](../../references/candidate-rules.md#approval-and-scope), and [retention](../../references/candidate-rules.md#retention) rules, [offline checks](../test-latrunculi-candidate/references/offline-checks.md), and applicable [game evidence](../manage-latrunculi-openbench/references/workloads-and-decisions.md#evidence-and-candidate-decision).
 
-## Verify and integrate
+## Prepare
 
-1. Check the approved candidate SHA, diff, parent baseline, and retained offline evidence against the current baseline. If games were required, verify accepted OpenBench evidence and any required confirmation. Stop on missing, stale, or mismatched evidence; return the candidate to **Candidates for local testing** and `test-latrunculi-candidate`.
-2. Preserve unrelated work. Squash only the approved candidate commit's change onto the approved current baseline. Never rewrite the reviewed or tested candidate.
-3. Build and run the complete required tests, benchmark fingerprint, and domain identity checks. Before refreshing the baseline, require the integrated build's complete corpus signatures and applicable fingerprint to match the retained candidate.
-4. Create the local engine integration commit. Refresh baseline evidence and move the item to **Recent results** with the engine commit SHA. Return other waiting candidates to **Candidates for local testing** as stale. Preserve historical evidence and published test identities. Create a separate bookkeeping commit naming the engine commit.
+Require a **Ready for integration** candidate, its PR, approval of its current head, and an explicit integration request. Approval may be on the hosting platform or in conversation. If publication remains, record the review skill's publication step as the next action and stop before integration; do not invoke review automatically or silently use a different integration path.
 
-Do not integrate a mismatch, push, run new games, or begin another experiment. Report the approved candidate SHA, both local commits, verification, baseline evidence, and final worktree state.
+Verify the PR head, current target revision, complete diff, and required [acceptance evidence](../../references/candidate-rules.md#acceptance). Assess baseline advancement under the shared evidence rules; prepare the proposed combined result in an isolated worktree. If adaptation changes reviewed code, retain it on the candidate branch, record affected review/tests as the next action, and stop before merging until the revision has applicable evidence and approval.
+
+## Integrate
+
+1. Build the proposed result. Run the complete Release suite, one full standard corpus and fingerprint, and relevant regressions. Require signatures and fingerprint to match the accepted candidate or its separately validated combined revision. Reuse sanitizer and timing evidence only when relevant source, build inputs, settings, and environment remain applicable; rerun checks for changed inputs or unresolved risks.
+2. Recheck the approved head and target immediately before merging. If either moved, reassess before proceeding. Squash-merge the approved PR with a short, single-line engine commit message and no body, guarding against an unexpected head change. Do not bypass repository merge protections.
+3. Read back the merge result, synchronize local `main` without discarding unrelated work, and verify merged source/build inputs match the checked result. If they differ, do not declare the baseline refreshed; validate the actual result and report the discrepancy. Do not automatically revert or force-push.
+4. Refresh operational baseline evidence and record the integration commit in **Recent results**. Assess waiting candidates against the new baseline and record outstanding review/tests without blanket invalidation.
+
+## Hand off
+
+Report the approved PR/head, integration commit, verification and reused evidence, baseline location, and final worktree state. Stop after integration. Do not start games, another experiment, or branch/report pruning automatically. If merging is unavailable, retain the checked result and report the remaining action without silently substituting a local integration commit.

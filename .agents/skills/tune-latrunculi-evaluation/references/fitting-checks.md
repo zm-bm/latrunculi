@@ -20,6 +20,6 @@ Evaluate only on excluded folds. Eligibility requires a positive overall 90% low
 
 Review `cross-validation.json` and `candidate.json` before applying weights. They record selection evidence, numerical support, integer weights, large changes, and bound hits. Large changes and bound hits invite review; they are not automatic rejection rules. Numerical support does not establish playing strength.
 
-`verify` compares all compiled coefficients and evaluation invariants with the proposed weights. Keep its JSON result with the candidate and baseline SHAs. A fitted candidate still needs the full offline pass and games.
+`verify` compares all compiled coefficients and evaluation invariants with the proposed weights. Keep its JSON result with the candidate and baseline SHAs. A fitted candidate still needs the full offline pass and strength evidence under the shared [acceptance rules](../../../references/candidate-rules.md#acceptance).
 
 `run.json` pins the fit's schema, policy, inputs, tools, and dependencies; final reports mark completion. Rerun `prepare` to validate an existing dataset or `fit` to reuse completed matching checkpoints. Interrupted units restart. Changed inputs, evaluation, schema, tools, dependencies, or policy require fresh output. A search-only baseline change may preserve numerical evidence, but needs a new current-baseline candidate and checks; retain the original fit and revision.

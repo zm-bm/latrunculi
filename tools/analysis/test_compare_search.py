@@ -34,6 +34,23 @@ def write_run(path, change=None):
 
 
 class CompareSearchTest(unittest.TestCase):
+    def test_legality_checks_moves_after_the_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "run.tsv"
+
+            def legal_moves(case, row):
+                if case == "two":
+                    row.update(best_move="e7e5", pv="e7e5 e2e4")
+
+            write_run(path, legal_moves)
+            self.assertEqual(compare_search.require_legal_pvs(compare_search.load_run(path)), 4)
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                compare_search.main(["legality", str(path)])
+            self.assertIn("legal_pv_moves=4", output.getvalue())
+            write_run(path, lambda _, row: row.update(pv="e2e4 e7e6 e4e6"))
+            with self.assertRaisesRegex(SystemExit, "illegal PV move e4e6 at ply 3"):
+                compare_search.require_legal_pvs(compare_search.load_run(path))
+
     def test_accepts_custom_corpus_and_limit(self):
         with tempfile.TemporaryDirectory() as directory:
             baseline, candidate = (Path(directory) / name for name in ("b.tsv", "c.tsv"))

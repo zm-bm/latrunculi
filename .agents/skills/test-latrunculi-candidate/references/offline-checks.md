@@ -1,14 +1,14 @@
 # Offline checks and timing
 
-Use this policy for one recorded candidate commit against the current operational baseline. A change is **tree-preserving** only when its code or build cannot change search decisions and its corpus and fingerprint signatures exactly match the baseline. Treat every other change as **tree-changing**.
+Use this policy for one recorded candidate revision against the current operational baseline. Apply the shared [evidence-reuse rules](../../../references/candidate-rules.md#evidence-reuse) before repeating completed checks. A change is **tree-preserving** only when its code or build cannot change search decisions and its corpus and fingerprint signatures exactly match the baseline. Treat every other change as **tree-changing**.
 
-Collect timing outside tracing or profiling wrappers. Run sanitizers in an environment that supports their checks; LeakSanitizer cannot run under `ptrace`, including tracing sandboxes. If infrastructure prevents a check from completing, resolve the limitation and rerun with the checks still enabled.
+Apply the shared [acceptance](../../../references/candidate-rules.md#acceptance) and [measurement](../../../references/measurement-rules.md) rules.
 
 ## First checks
 
 The standard corpus is all 200 Arasan positions in `tools/analysis/search.epd`. Search them cold at depth 10 with one thread, 32 MiB Hash, and one process pass. The OpenBench compatibility fingerprint uses six positions at depth 13.
 
-An optional local preflight may search the corpus at depth 8; all 200 positions must complete. It does not replace the depth-10 pass.
+Complete an applicable [quality review](../../review-latrunculi-candidate/SKILL.md) before starting this formal sequence. During review, use targeted mechanism checks and existing exploration evidence for cheap viability. An optional local preflight may search the corpus at depth 8; all 200 positions must complete. It does not replace the depth-10 pass.
 
 | Change | Start with |
 |---|---|
@@ -21,7 +21,7 @@ After these first checks, finish correctness and repeatability checks, run the c
 
 Repeat deterministic depth- or node-limited searches with one thread, each in a fresh process. Runs of the same build must agree on completed depth, static and searched scores, actual nodes, best move, and principal variation (PV). Time and NPS may differ. A tree-changing candidate may differ from the baseline without failing this same-build check.
 
-For mate or material correctness cases, record the source and expected solution before testing. Illegal moves, crashes, or a lost or delayed recorded solution fail correctness. If PV and non-principal-variation (NonPV) searches of the same build disagree, hold the offline pass until the discrepancy is understood; it does not by itself prove incorrect chess.
+For mate or material correctness cases, record the source and expected solution before testing. Illegal moves, crashes, or a lost or delayed recorded solution fail correctness. When comparing PV and non-principal-variation (NonPV) searches, account for their windows and bound semantics. Investigate incompatible results in comparable cases; ordinary bound differences are not incorrect chess.
 
 Main-search futility must preserve checking quiet moves. Time-control changes must honor explicit `movetime` requests.
 
@@ -29,9 +29,11 @@ Main-search futility must preserve checking quiet moves. Time-control changes mu
 
 The cold corpus can miss faults in state reused across searches, clock or limit handling, shared state, and worker lifecycle. Add focused checks when a change affects those areas. Merely reading history, the transposition table (TT), or a clock does not call for extra checks. Record the risk, initial sequence, pass condition, repetitions, and sanitizer need; use the smallest adequate existing test.
 
+Use the [shared runners](../../../../tools/analysis/README.md#collect-validation-runs) for corpus, fingerprint, legality, and timing. CMake/CTest presets own Release and sanitizer setup; use their exit status rather than hardcoded test counts.
+
 ## Paired timing
 
-Build both revisions with the same compiler and preset. On an otherwise idle machine, collect six baseline/candidate pairs, alternating run order `BC`, then `CB` in three blocks. Use a fresh process for each run. `R_time_balanced` is the median of the geometric means of adjacent `BC,CB` candidate/baseline time ratios. The [analysis guide](../../../../tools/analysis/README.md#paired-timing) gives the command.
+Under the shared [timing conditions](../../../references/measurement-rules.md#timing-comparisons), collect six baseline/candidate pairs in three `BC,CB` blocks. `R_time_balanced` is the median of the geometric means of adjacent `BC,CB` candidate/baseline time ratios. The [analysis guide](../../../../tools/analysis/README.md#paired-timing) gives the command.
 
 Use these as decision targets, not automatic rejection rules:
 
@@ -39,7 +41,7 @@ Use these as decision targets, not automatic rejection rules:
 - Speed claim: `R_time_balanced <= 0.9925`.
 - Strength claim: `R_time_balanced > 1.0100` is a slowdown warning.
 
-A missed target needs an explanation of the measured tradeoff and whether the evidence justifies continuing. Do not claim a speed gain without repeatable timing evidence. If a small result is sensitive to noise, repeat under steadier conditions, such as a warm-up per binary and a fixed physical core, before deciding. A single run, old baseline timing compared with a fresh candidate run, an incomplete run, or unisolated timing is diagnostic evidence only.
+A missed target needs an explanation of the measured tradeoff and whether the evidence justifies continuing. Do not claim a speed gain without repeatable timing evidence. If a small result is sensitive to noise, repeat under steadier conditions, such as a warm-up per binary and a fixed physical core, before deciding.
 
 ## Decision
 

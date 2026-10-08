@@ -16,15 +16,19 @@ make -C bench EXE=latrunculi CXX=g++
 ```
 
 The benchmark node count is a compatibility fingerprint; nodes per second
-(NPS) is used to normalize time controls. A candidate must pass
-[offline testing](engine-testing.md#offline-testing) before submission.
+(NPS) is used to normalize time controls. Submission requires passing
+[offline evidence](../.agents/skills/test-latrunculi-candidate/SKILL.md) applicable
+to the candidate and baseline, including any recorded evidence-reuse decision.
 
 ## Strength tests
 
 OpenBench plays the candidate as Dev against the pre-change Base, swapping
 colors across paired games. A sequential probability ratio test (SPRT)
 continues until it accepts or rejects under a profile chosen before play.
-Stopping earlier is inconclusive.
+Stopping earlier is inconclusive. Concurrent tests are allowed; check for an
+existing requested workload before submitting another. Starting or stopping a
+test requires an explicit request. Keep its link and terminal evidence on the
+associated candidate PR.
 
 ## Tuning corpus
 
@@ -42,5 +46,7 @@ failures, and incomplete games. Its score does not decide stability.
 ## Retained evidence
 
 Keep the identity, revisions, termination rule, result, and server PGN
-location for a finished workload. A result advances a candidate only when its
-revisions match the live board entry and the baseline is still current.
+location for a finished workload. A strength result measures play under the
+tested revisions and conditions. For applicability after candidate or
+baseline changes, follow the shared
+[evidence-reuse rules](../.agents/references/candidate-rules.md#evidence-reuse).

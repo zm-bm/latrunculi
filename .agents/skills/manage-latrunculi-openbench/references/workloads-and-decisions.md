@@ -10,9 +10,9 @@ Every non-SPRT workload needs a positive, predeclared game count. Paired-match b
 
 ## Strength test
 
-Compare the candidate as Dev against the pre-change revision as Base in paired games with colors reversed. Use `UHO_Lichess_4852_v1.epd`, `10+0.1` normalized to worker speed, `Threads=1 Hash=32`, resign at 400 cp for three moves, and draw after move 40 with eight evaluations within 10 cp. Use normalized-Elo SPRT with `alpha = beta = 0.05`. Predeclare `[0, 5]` for larger gains, `[0, 3]` for incremental work or confirmation, or `[-3, 0]` only if the acceptance policy explicitly allows a small strength tradeoff. The upper boundary accepts under that profile; the lower boundary rejects.
+Compare the candidate as Dev against the pre-change revision as Base in paired games with colors reversed. Use `UHO_Lichess_4852_v1.epd`, `10+0.1` normalized to worker speed, `Threads=1 Hash=32`, resign at 400 cp for three moves, and draw after move 40 with eight evaluations within 10 cp. Use normalized-Elo SPRT with `alpha = beta = 0.05`. Predeclare `[0, 5]` for larger gains, `[0, 3]` for incremental work or confirmation, or `[-3, 0]` only if the [acceptance policy](../../../references/candidate-rules.md#acceptance) explicitly allows a small strength tradeoff. The upper boundary accepts under that profile; the lower boundary rejects.
 
-Require confirmation if declared in advance, variants were selected using game results, or risk or conflicting evidence calls for it. Use `Smoke` for plumbing, `STC` for a candidate test, and `Confirm` for separately justified confirmation.
+Require confirmation if declared in advance, variants were selected using game results, or a concrete unresolved risk or conflicting evidence calls for it. State the question that confirmation will resolve; it is not an automatic longer-time-control step. Use `Smoke` for plumbing, `STC` for a candidate test, and `Confirm` for separately justified confirmation.
 
 ## Tuning corpus
 
@@ -28,4 +28,4 @@ Before a public release with engine changes, run the pushed candidate as both De
 
 For a terminal test, retain its ID/URL, engine revisions, OpenBench revision, termination rule, games, decision, and server PGN location. For a strength SPRT, also retain profile, terminal LLR, and Elo interval. Running snapshots and ad hoc comparisons do not belong on the development board.
 
-A game result applies to a live candidate only when candidate and baseline SHAs match its board entry and the baseline is still current. Otherwise, retain the original result without changing the live candidate's stage or decision. Preserve published test identity if its baseline becomes stale.
+Keep every result tied to the revisions actually tested. When the live candidate or baseline differs, use the [candidate evidence rules](../../../references/candidate-rules.md#evidence-reuse) to assess applicability and record the required local combination checks or fresh games. A recorded reuse decision may support acceptance; unresolved applicability does not advance the candidate. Never relabel an old workload as testing a new revision.

@@ -1,26 +1,30 @@
 ---
 name: test-latrunculi-candidate
-description: Test one recorded Latrunculi candidate revision against the current operational baseline using cheap checks followed by the complete offline evidence. Use for formal offline testing, retesting a stale candidate, or resuming an interrupted offline test; retain the same passing revision for review.
+description: Formally test a reviewed Latrunculi candidate, reassess evidence after changes, or resume an incomplete offline pass. Retain the measured revision and update its existing PR without starting games or integration.
 ---
 
 # Test a Latrunculi Candidate Offline
 
-Resolve paths from the Latrunculi checkout. Read the [development board](../../../docs/engine-development.md), [candidate revision rules](../explore-latrunculi-change/references/candidate-revisions.md), and [offline checks](references/offline-checks.md). Use the [analysis guide](../../../tools/analysis/README.md) or [tuning guide](../../../tools/tuning/README.md) for commands. Work on one local CPU-sensitive task at a time.
+Resolve paths from the Latrunculi checkout. Read the [development board](../../../docs/engine-development.md), shared [candidate identity](../../references/candidate-rules.md#candidate-identity), [evidence reuse](../../references/candidate-rules.md#evidence-reuse), and [retention](../../references/candidate-rules.md#retention) rules, and [offline checks](references/offline-checks.md). Use the [analysis guide](../../../tools/analysis/README.md) or [tuning guide](../../../tools/tuning/README.md) for commands. Apply the shared [measurement rules](../../references/measurement-rules.md) to local checks.
 
 ## Prepare
 
-1. Require a recorded branch, full candidate and baseline SHAs, intended benefit, tree classification, and claimed effect. Apply the checks for that purpose; record any nonstandard check, expected speed tradeoff, or extra risk test. Return unfinished exploration to **Issues and leads** and `explore-latrunculi-change`.
-2. Inspect the current baseline and worktree. Keep pending or stale work in **Candidates for local testing**. Refresh a stale candidate as a new commit on the current baseline, preserving the old revision. If adaptation changes intended behavior, return it to exploration.
-3. Review the recorded diff and build the exact candidate SHA in a clean, isolated worktree.
+Require a recorded branch, full candidate/base SHAs, [acceptance criteria](../../references/candidate-rules.md#acceptance), tree classification, and applicable completed quality review. For missing or affected review, record [review-latrunculi-candidate](../review-latrunculi-candidate/SKILL.md) as the next action and stop testing. For unfinished exploration, return the entry to **Issues and leads**, record exploration as the next action, and stop. A local-only candidate does not need a PR to be tested.
+
+Inspect the current baseline and complete candidate diff. If either revision changed, assess evidence applicability under the shared evidence-reuse rules and identify checks still needed. Build the recorded revision in a clean, isolated worktree.
 
 ## Test
 
-Run the cheap checks in [offline checks](references/offline-checks.md) first; continue if required checks pass, using numeric targets to decide whether more testing is worthwhile. Then complete correctness, repeatability, Release, applicable risk and sanitizer checks, and paired timing in the specified order. For fitted weights, run `python3 tools/tuning/tune.py verify <fit directory> --engine <recorded-commit binary>` against the retained fit even if tuning already verified it. Use [exploration evidence](../explore-latrunculi-change/references/exploration-evidence.md) to interpret cost and reference comparisons.
+Run missing cheap checks first, then complete required correctness, repeatability, Release, applicable risk/sanitizer checks, and paired timing in [offline checks](references/offline-checks.md). Reuse still-applicable results explicitly. For fitted weights, verify the compiled candidate against the retained fit; reuse verification only when its relevant inputs remain unchanged.
 
-Generated measurement files and the comparison summary suffice; do not add a separate command log, manifest, or binary hash. Fix only a mechanical implementation error needed to match the claim. Retain it as a new revision, then restart testing. A change in intended behavior ends this run and returns the item to **Issues and leads** under the same ID. Assign a new ID only if both candidates must remain distinct.
+Use shared analysis runners for corpus, fingerprint, legality, and timing collection. Keep experiment-specific mechanism checks separate. Generated measurements and a compact summary suffice; do not add a separate command log, manifest, or binary hash.
 
-## Finish
+A required implementation fix creates a new revision; record review of the affected code and the checks its impact requires as the next action, then stop this test run. Do not silently test different code under the old identity. For a change in intended behavior, record exploration as the next action and end this run.
 
-For a pass, retain the tested commit and report `git diff <baseline>..<candidate SHA>` and `git show <candidate SHA>` for review. Move tree-changing passes to **Ready for OpenBench** and tree-preserving passes to **Ready for integration**.
+## Hand off
 
-Keep incomplete or invalid runs in **Candidates for local testing** with the remaining checks and exact resume condition; move rejections to **Recent results**. For every outcome, retain the revision and a compact result with its stopping stage and reason. Preserve the inputs, corpus TSVs, paired timing files, fingerprint results, and correctness evidence supporting a pass or needed to resume incomplete testing. Remove disposable output; preserve historical artifacts and Git references. Clean up temporary worktrees and preserve unrelated work. Create only refreshed local candidate commits; leave bookkeeping uncommitted. Never push, run games, access OpenBench, or integrate.
+For a pass, retain the tested head and report `git diff <baseline>...<candidate SHA>` and `git log <baseline>..<candidate SHA>` for the complete candidate. Update its existing PR with concise results and make it ready for human review after verifying the remote head matches the tested revision. If publication remains, record the review skill's publication step as the next action; do not invoke it automatically or create a second PR.
+
+Move passes with outstanding game requirements to **Ready for OpenBench**; move those with acceptance requirements satisfied to **Ready for integration**. Record any remaining PR publication action for a local-only candidate. Keep incomplete runs in **Candidates for local testing** with their resume condition and rejections in **Recent results**.
+
+Stop after offline testing. Do not push candidate code, run games, access OpenBench, or merge automatically.

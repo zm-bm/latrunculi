@@ -2,8 +2,8 @@
 
 The tuning tool fits the linear handcrafted evaluation from recorded games.
 It prepares a grouped dataset, fits candidate weights, and verifies that an
-engine contains those weights. [Engine testing](../../docs/engine-testing.md)
-explains how a candidate is checked for playing strength.
+engine contains those weights. [OpenBench testing](../../docs/openbench.md#strength-tests)
+measures playing strength.
 
 Install the pinned dependencies with Python 3.12 or newer, then run:
 
@@ -35,8 +35,9 @@ the original PGNs or exporter.
 `fit` compares candidate weights on held-out opening groups, then writes
 `cross-validation.json` and `candidate.json` with the selection evidence and
 exact integer weights. Its numerical policy is in
-[`FIT_POLICY`](tune.py). A promising fit still needs engine testing
-and games.
+[`FIT_POLICY`](tune.py). Numerical support alone does not establish playing
+strength; the [tuning skill](../../.agents/skills/tune-latrunculi-evaluation/SKILL.md)
+defines candidate requirements and the next action.
 
 `verify` checks the compiled coefficients and evaluation invariants against
 the proposed weights and prints JSON. It can run again after rebuilding

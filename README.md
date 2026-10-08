@@ -81,7 +81,7 @@ tuning.
 - [Architecture](docs/architecture.md)
 - [OpenBench testing](docs/openbench.md)
 - [Current engine work](docs/engine-development.md)
-- [Engine testing rules](docs/engine-testing.md)
+- [Engine workflow skills](.agents/skills/)
 - [1.0.0 release evidence](docs/releases/1.0.0.md)
 - [Roadmap](docs/roadmap.md)
 - [UCI protocol reference](docs/uci-protocol-specification.txt)

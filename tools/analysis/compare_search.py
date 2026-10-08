@@ -102,6 +102,37 @@ def require_signatures(label: str, reference: Run, other: Run) -> None:
         fail(f"{label}: signature mismatches for {','.join(sorted(changed))}")
 
 
+def require_legal_pvs(run: Run) -> int:
+    """Validate every continuation independently from its full starting FEN."""
+    try:
+        import chess
+    except ModuleNotFoundError:
+        fail("PV legality requires tools/analysis/requirements.txt")
+
+    moves = 0
+    for case, row in run.rows.items():
+        try:
+            board = chess.Board(row["fen"])
+            if not board.is_valid():
+                raise ValueError("invalid position")
+            for ply, token in enumerate(row["pv"].split(), start=1):
+                move = chess.Move.from_uci(token)
+                if move not in board.legal_moves:
+                    raise ValueError(f"illegal PV move {token} at ply {ply}")
+                board.push(move)
+                moves += 1
+        except ValueError as error:
+            fail(f"{run.path}: {case}: {error}")
+    return moves
+
+
+def legality(args: argparse.Namespace) -> None:
+    for path in args.runs:
+        run = load_run(path)
+        moves = require_legal_pvs(run)
+        print(f"{path}: cases={len(run.rows)} legal_pv_moves={moves}")
+
+
 def nodes(args: argparse.Namespace) -> None:
     paths = [path.resolve() for path in (args.baseline, args.candidate)
              if path is not None]
@@ -171,7 +202,7 @@ def timing(args: argparse.Namespace) -> None:
     print(f"median_balanced_search_time_ratio={statistics.median(blocks):.9f}")
 
 
-def main() -> None:
+def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     node_parser = commands.add_parser("nodes")
@@ -184,8 +215,10 @@ def main() -> None:
     time_parser.add_argument("--pair", nargs=3, action="append", required=True,
                              metavar=("ORDER", "BASELINE", "CANDIDATE"))
     time_parser.add_argument("--exact-tree", action="store_true")
-    args = parser.parse_args()
-    (nodes if args.command == "nodes" else timing)(args)
+    legal_parser = commands.add_parser("legality")
+    legal_parser.add_argument("runs", nargs="+", type=Path)
+    args = parser.parse_args(argv)
+    {"nodes": nodes, "timing": timing, "legality": legality}[args.command](args)
 
 
 if __name__ == "__main__":
