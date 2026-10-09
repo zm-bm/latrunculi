@@ -1,6 +1,12 @@
 #include "search/tt.hpp"
 
 #include <bit>
+#include <cstdlib>
+#include <type_traits>
+
+#if defined(__linux__)
+#include <sys/mman.h>
+#endif
 #include <limits>
 #include <utility>
 
@@ -145,6 +151,35 @@ void TranspositionTable::clear() {
     generation = 0;
 }
 
+void TranspositionTable::ClusterDeleter::operator()(TTCluster* memory) const noexcept {
+    if (aligned_allocation) {
+        // The aligned path constructs clusters in malloc storage, without an array cookie.
+        static_assert(std::is_trivially_destructible_v<TTCluster>);
+        std::free(memory);
+    } else {
+        delete[] memory;
+    }
+}
+
+TranspositionTable::ClusterStorage TranspositionTable::allocate_clusters(std::size_t count) {
+#if defined(__linux__) && defined(MADV_HUGEPAGE)
+    constexpr std::size_t huge_page_size = std::size_t{2} << 20;
+    const std::size_t     bytes          = count * sizeof(TTCluster);
+    // Table sizes are powers of two. Advise before first touch so the kernel can
+    // back whole aligned regions with huge pages; ordinary pages remain valid.
+    if (bytes >= huge_page_size) {
+        if (void* memory = std::aligned_alloc(huge_page_size, bytes)) {
+            ClusterStorage result{static_cast<TTCluster*>(memory), ClusterDeleter{true}};
+            (void)madvise(memory, bytes, MADV_HUGEPAGE);
+            std::uninitialized_value_construct_n(result.get(), count);
+            return result;
+        }
+    }
+#endif
+    // Preserve ordinary allocation when large alignment is unavailable or unnecessary.
+    return ClusterStorage{new TTCluster[count](), ClusterDeleter{false}};
+}
+
 void TranspositionTable::resize(size_t mb) {
     if (mb == 0)
         mb = 1;
@@ -152,7 +187,7 @@ void TranspositionTable::resize(size_t mb) {
     const std::uint64_t bytes                   = mb << 20;
     const size_t        new_cluster_count       = std::bit_floor(bytes / sizeof(TTCluster));
     const int           new_cluster_index_shift = 64 - std::countr_zero(new_cluster_count);
-    auto                new_clusters            = std::make_unique<TTCluster[]>(new_cluster_count);
+    auto                new_clusters            = allocate_clusters(new_cluster_count);
 
     clusters            = std::move(new_clusters);
     cluster_count       = new_cluster_count;
