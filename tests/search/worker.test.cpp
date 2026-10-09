@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
+#include "eval/evaluation.hpp"
 #include "search/limits.hpp"
 #include "search/thread_pool.hpp"
 #include "support/board_fixtures.hpp"
@@ -57,6 +58,25 @@ protected:
 };
 
 } // namespace
+
+TEST_F(SearchWorkerTest, NewSearchClearsStaticEvaluationPath) {
+    Board board{board_test::fen::start};
+    load_worker_board(board);
+    auto& evaluations = SearchTestAccess::static_evals(worker());
+    auto& real_moves  = SearchTestAccess::real_moves(worker());
+    evaluations.fill(123);
+    real_moves.fill(true);
+    load_worker_board(board);
+    EXPECT_EQ(evaluations[0], eval::evaluate(board));
+    for (int i = 1; i < engine::max_search_ply; ++i)
+        EXPECT_FALSE(evaluations[i].has_value());
+    for (const bool real : real_moves)
+        EXPECT_FALSE(real);
+
+    Board checked{"4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
+    load_worker_board(checked);
+    EXPECT_FALSE(evaluations[0].has_value());
+}
 
 TEST_F(SearchWorkerTest, NullMoveKeepsSearchPlyInSync) {
     Board board{board_test::fen::start};

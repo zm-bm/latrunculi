@@ -215,6 +215,8 @@ EvalValue Worker::alphabeta(
         return eval::evaluate(board);
     }
 
+    static_evals[search_ply].reset();
+    real_moves[search_ply] = !board.previous_move().is_null();
     if (depth <= 0)
         return quiescence<Node>(alpha, beta, pv);
 
@@ -253,10 +255,16 @@ EvalValue Worker::alphabeta(
     bool        futility    = false;
     EvalValue   static_eval = TTRecord::no_static_eval;
 
+    bool declining = false;
     if constexpr (Node == NodeType::NonPv) {
         // Step 5. Razoring.
         static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
                                                                 : eval::evaluate(board);
+        if (!in_check) {
+            static_evals[search_ply] = static_eval;
+            declining = search_ply >= 2 && real_moves[search_ply] && real_moves[search_ply - 1]
+                     && static_evals[search_ply - 2] && static_eval < *static_evals[search_ply - 2];
+        }
         if (can_null && !in_check && depth <= algorithm_detail::RazorMaxDepth && tt_move.is_null()
             && static_eval + algorithm_detail::RazorMargin[depth] <= alpha) {
             stats.razor_try(search_ply);
@@ -375,7 +383,7 @@ EvalValue Worker::alphabeta(
         // If the reduced search beats alpha, research the move at full depth.
         EvalValue value;
         const int reduction = algorithm_detail::lmr_reduction<Node>(
-            depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer);
+            depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer, declining);
         if (reduction > 0) {
             stats.lmr_try(search_ply - 1);
             value = -alphabeta<NodeType::NonPv>(

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <mutex>
 #include <optional>
@@ -49,6 +50,11 @@ private:
     RootLine              root_result;
     std::vector<RootLine> root_lines;
     ordering::State       ordering_state;
+
+    // Evaluations belong to the current search path. Missing values include PV
+    // and checked nodes; real-move flags exclude trends crossing null moves.
+    std::array<std::optional<EvalValue>, engine::max_search_ply> static_evals{};
+    std::array<bool, engine::max_search_ply>                     real_moves{};
 
     // Current search request.
     Limits      limits;

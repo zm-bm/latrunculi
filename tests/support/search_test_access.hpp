@@ -14,6 +14,9 @@ public:
         return worker.ordering_state;
     }
 
+    static auto& static_evals(search::Worker& worker) { return worker.static_evals; }
+    static auto& real_moves(search::Worker& worker) { return worker.real_moves; }
+
     static const search::Limits& limits(const search::Worker& worker) { return worker.limits; }
 
     static search::RootLine& root_result(search::Worker& worker) { return worker.root_result; }
