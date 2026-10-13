@@ -1,0 +1,4 @@
+chess==1.11.2
+numpy==2.5.2
+scipy==1.18.1
+openbench-client @ git+https://github.com/zm-bm/OpenBench.git@89010f054df2713a2a5c6762bdf907a69b5d0a31#subdirectory=client-cli

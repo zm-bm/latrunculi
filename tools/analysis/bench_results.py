@@ -102,7 +102,7 @@ def require_legal_pvs(run: Run) -> int:
     try:
         import chess
     except ModuleNotFoundError:
-        raise ValueError("PV legality requires tools/analysis/requirements.txt")
+        raise ValueError("PV legality requires the shared environment; see tools/README.md")
 
     moves = 0
     for case, row in run.rows.items():
