@@ -2,31 +2,39 @@
 
 The tuning tool fits the linear handcrafted evaluation from recorded games.
 It prepares a grouped dataset, fits candidate weights, and verifies that an
-engine contains those weights. [OpenBench testing](../../docs/openbench.md#strength-tests)
+engine contains those weights. [OpenBench testing](../openbench.md#strength-tests)
 measures playing strength.
 
-Install the pinned dependencies with Python 3.12 or newer, then run:
+Set up the [shared Python environment](../README.md#setup), then run from the
+repository root:
 
 ```bash
-python3 -m pip install -r tools/tuning/requirements.txt
-
 DATA=tools/tuning/output/prepared
 FIT=tools/tuning/output/fit
 
-python3 tools/tuning/tune.py prepare \
+tools/.venv/bin/python tools/tuning/tune.py prepare \
   --engine build/release/latrunculi --output "$DATA" /path/to/games.pgn.tar
-python3 tools/tuning/tune.py fit --dataset "$DATA" --output "$FIT"
-python3 tools/tuning/tune.py verify "$FIT" --engine build/candidate/latrunculi
+tools/.venv/bin/python tools/tuning/tune.py fit --dataset "$DATA" --output "$FIT"
+tools/.venv/bin/python tools/tuning/tune.py verify "$FIT" --engine build/candidate/latrunculi
 ```
 
 Inputs may be `.pgn`, `.pgn.bz2`, or OpenBench `.pgn.tar`. Keep generated files
 under ignored `tools/tuning/output/`.
 
+For an existing OpenBench corpus whose PGNs are not local, use
+`tools/.venv/bin/python -m openbench_client` with the
+[status and download commands](../openbench.md#inspect-and-download)
+to retain its PGN archive, checksum, and workload provenance together. Verify
+the workload revisions against the intended baseline. Pass the downloaded
+`.pgn.tar` directly to `prepare`; extraction is unnecessary. Preparation
+validates the games; workload completion and pass/fail flags do not establish
+corpus usability.
+
 ## Prepared data
 
 `prepare` writes `manifest.json` and `development.jsonl`. It groups games by
 starting position so related examples stay together during validation. The
-[OpenBench tuning workload](../../docs/openbench.md#tuning-corpus) describes
+[OpenBench tuning workload](../openbench.md#tuning-corpus) describes
 how to collect fresh games. Once prepared, `fit` needs the dataset without
 the original PGNs or exporter.
 

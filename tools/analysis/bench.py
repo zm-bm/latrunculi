@@ -288,7 +288,7 @@ def main(argv=None):
         {"run": run_corpus, "compare": compare_benchmarks, "fingerprint": collect_fingerprint,
          "summarize": summarize_files}[args.command](args)
     except ModuleNotFoundError as error:
-        raise SystemExit(f"{error}; install tools/analysis/requirements.txt") from error
+        raise SystemExit(f"{error}; set up the shared environment in tools/README.md") from error
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         raise SystemExit(str(error)) from error
 

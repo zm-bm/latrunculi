@@ -79,7 +79,7 @@ tuning.
 ## Documentation
 
 - [Architecture](docs/architecture.md)
-- [OpenBench testing](docs/openbench.md)
+- [OpenBench testing](tools/openbench.md)
 - [Current engine work](docs/engine-development.md)
 - [Engine workflow skills](.agents/skills/)
 - [1.1.0 release notes](docs/releases/1.1.0.md)
