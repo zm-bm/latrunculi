@@ -961,6 +961,7 @@ TEST_F(SearchTest, DecliningLmrStillVerifiesAnApparentReducedCutoff) {
     };
     prepare();
     const EvalValue expected = search(-2000, 2000, 5, false);
+    ASSERT_LT(expected, 2000);
     prepare();
     const auto moves = legal_picker_moves();
     ASSERT_GE(moves.size(), 4U);
@@ -968,7 +969,15 @@ TEST_F(SearchTest, DecliningLmrStillVerifiesAnApparentReducedCutoff) {
     ASSERT_FALSE(position().gives_check(moves[3]));
     // Depth one can satisfy the extra-reduced search, but not its depth-four verification.
     store_child(moves[3], -2500, 1);
-    EXPECT_EQ(search(-2000, 2000, 5, false), expected);
+    // The extra search can change later selective-search decisions. Check that the false
+    // cutoff was rejected and the seeded child was verified at full depth, not score equality.
+    EXPECT_LT(search(-2000, 2000, 5, false), 2000);
+    with_move(moves[3], [&] {
+        const auto verified = record();
+        ASSERT_TRUE(verified.has_value());
+        EXPECT_GE(verified->depth, 4);
+        EXPECT_NE(verified->score_at_ply(ply()), -2500);
+    });
 }
 
 TEST_F(SearchTest, LmrRequiresDepthAndLateMove) {
