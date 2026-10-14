@@ -3,7 +3,7 @@
 Use one native search workload with `bench.py` to collect and compare measurements.
 Use `perf` to investigate CPU cost, and `uci_probe.py` for individual positions
 with move history or restricted root moves. Games on
-[OpenBench](../../docs/openbench.md#strength-tests) measure playing strength.
+[OpenBench](../openbench.md#strength-tests) measure playing strength.
 
 | File | Responsibility |
 |---|---|
@@ -14,13 +14,8 @@ with move history or restricted root moves. Games on
 | `uci_probe.py` | Position investigations with history, restricted roots and UCI reports |
 | `test_*.py` | Regressions for the corresponding Python modules |
 
-Install the Python dependency in a virtual environment:
-
-```bash
-python3 -m venv .cache/analysis-venv
-.cache/analysis-venv/bin/python -m pip install -r tools/analysis/requirements.txt
-source .cache/analysis-venv/bin/activate
-```
+Set up the [shared Python environment](../README.md#setup) before running the
+commands below. All commands run from the repository root.
 
 Build each recorded revision with the same compiler and settings:
 
@@ -39,7 +34,7 @@ For exploratory viability, compare the full suite at a shallower depth with two
 alternating pairs:
 
 ```bash
-python3 tools/analysis/bench.py compare /path/to/baseline-bench /path/to/candidate-bench \
+tools/.venv/bin/python tools/analysis/bench.py compare /path/to/baseline-bench /path/to/candidate-bench \
   --depth 8 --pairs 2 --output tools/analysis/output/quick-comparison
 ```
 
@@ -56,7 +51,7 @@ After required correctness and risk checks, use the same command with its standa
 defaults: all 200 positions, depth 10, one thread, 32 MiB Hash and six pairs.
 
 ```bash
-python3 tools/analysis/bench.py compare /path/to/baseline-bench /path/to/candidate-bench \
+tools/.venv/bin/python tools/analysis/bench.py compare /path/to/baseline-bench /path/to/candidate-bench \
   --cpu 2 --output tools/analysis/output/candidate-timing
 ```
 
@@ -96,7 +91,7 @@ or retries.
 Collect a single corpus pass, or request repeats and an optional exact reference:
 
 ```bash
-python3 tools/analysis/bench.py run ./build/release-dev/latrunculi-search-bench \
+tools/.venv/bin/python tools/analysis/bench.py run ./build/release-dev/latrunculi-search-bench \
   --repeats 2 --output tools/analysis/output/candidate-corpus
 ```
 
@@ -108,7 +103,7 @@ multithreaded legality checks; this does not replace single-thread repeatability
 Collect the engine's OpenBench compatibility fingerprint:
 
 ```bash
-python3 tools/analysis/bench.py fingerprint ./build/release-dev/latrunculi \
+tools/.venv/bin/python tools/analysis/bench.py fingerprint ./build/release-dev/latrunculi \
   --output tools/analysis/output/candidate-fingerprint
 ```
 
@@ -132,7 +127,7 @@ Recompute comparisons from existing `search_measurement_v5` files without runnin
 engines:
 
 ```bash
-python3 tools/analysis/bench.py summarize \
+tools/.venv/bin/python tools/analysis/bench.py summarize \
   --pair BC pair-1-baseline.tsv pair-1-candidate.tsv \
   --pair CB pair-2-baseline.tsv pair-2-candidate.tsv
 ```
@@ -205,7 +200,7 @@ Use a full six-field starting FEN and subsequent moves to preserve clocks and
 known repetition history:
 
 ```bash
-python3 tools/analysis/uci_probe.py \
+tools/.venv/bin/python tools/analysis/uci_probe.py \
   --fen 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' \
   --moves g1f3 g8f6 --nodes 500000 -- ./build/release-dev/latrunculi
 ```
@@ -227,6 +222,6 @@ untraced execution for UCI probes and tests when the environment is known to sta
 python-chess's background event loop:
 
 ```bash
-python3 -m unittest tools.analysis.test_bench_results tools.analysis.test_bench \
+tools/.venv/bin/python -m unittest tools.analysis.test_bench_results tools.analysis.test_bench \
   tools.analysis.test_uci_probe
 ```

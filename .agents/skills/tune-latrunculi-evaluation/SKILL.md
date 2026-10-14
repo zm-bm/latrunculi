@@ -13,6 +13,8 @@ Use the requested item or retain one in **Issues and leads**. Inspect its baseli
 
 Use supplied PGNs or a prepared dataset. If the user explicitly included fresh self-play in this task, invoke `manage-latrunculi-openbench` to arrange the pinned-baseline workload under its [tuning corpus rules](../manage-latrunculi-openbench/references/workloads-and-decisions.md#tuning-corpus). Record the workload and exact resume condition, then stop while data is pending; do not poll or restart it automatically. If fresh data is needed but generation was not requested, record it as the next action and stop without starting a workload. A stopped or incomplete workload may still yield usable data if preparation meets its requirements.
 
+For a supplied OpenBench workload whose PGNs are not local, use `tools/.venv/bin/python -m openbench_client` with the [status and download commands](../../../tools/openbench.md#inspect-and-download). Verify its revisions against the intended baseline and retain the archive, checksum, and workload metadata together. If games or uploads are pending, record the resume condition and stop without polling. Pass the archive directly to `prepare`; dataset validation decides usability, not workload scores or pass/fail flags.
+
 Build the operational baseline in an isolated worktree when preparation needs an exporter. Run `prepare` and `fit` under ignored `tools/tuning/output/`, reusing only matching completed checkpoints. Keep missing inputs or incomplete work in **Issues and leads** with available outputs and the exact resume condition. Review `cross-validation.json` and `candidate.json`; do not replace the versioned method with ad hoc thresholds or parameter variants.
 
 ## Hand off
