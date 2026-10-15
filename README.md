@@ -72,7 +72,8 @@ ctest --preset debug
 This runs unit tests and randomized stress tests. Use `debug-asan-ubsan` or
 `debug-tsan` instead of `debug` to run the same suite with sanitizers.
 
-See the [analysis guide](tools/analysis/README.md) for search benchmarks
+See the [development manual](docs/engine-development.md) for the edit–test–merge
+workflow, the [analysis guide](tools/analysis/README.md) for search benchmarks
 and UCI probing, and the [tuning guide](tools/tuning/README.md) for evaluation
 tuning.
 
@@ -80,10 +81,10 @@ tuning.
 
 - [Architecture](docs/architecture.md)
 - [OpenBench testing](tools/openbench.md)
-- [Current engine work](docs/engine-development.md)
-- [Engine workflow skills](.agents/skills/)
-- [1.1.0 release notes](docs/releases/1.1.0.md)
+- [Development manual](docs/engine-development.md)
+- [Research ideas](docs/engine-ideas.md)
 - [Roadmap](docs/roadmap.md)
+- [1.1.0 release notes](docs/releases/1.1.0.md)
 - [UCI protocol reference](docs/uci-protocol-specification.txt)
 
 ## License

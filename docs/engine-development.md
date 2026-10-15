@@ -1,99 +1,124 @@
 # Engine Development
 
-Current work, decisions, and next actions. Keep detailed evidence in linked
-reports and PRs; follow the [candidate rules](../.agents/references/candidate-rules.md).
+Build, test, compare, then decide whether to keep a change. Use the
+[research ideas](engine-ideas.md) for experiments and the [roadmap](roadmap.md)
+for longer-term features. Neither requires an issue number or a prescribed workflow.
 
-## Baseline
+## Save a baseline
 
-| Field | Current value |
-|---|---|
-| Engine | [`6a9d7a8`](https://github.com/zm-bm/latrunculi/commit/6a9d7a815281b11fb83705035c3af53ce4e6973d) (ENG-042: first HCE tuning pass) |
-| OpenBench fingerprint | 4,353,365 nodes |
-| Search corpus | `tools/analysis/output/eng-042-integration/corpus/`; 200 positions, depth 10, one thread, 32 MiB Hash; 48,951,842 nodes |
-| Build | `release-dev`, GCC 15.2.0, x86-64, `gazelle`; refreshed 2026-10-14 |
+Start with a clean checkout (`git status --short` should print nothing). From the
+repository root, build the revision you want to compare against:
 
-Validation and evidence reuse are recorded in the
-[integration report](../tools/analysis/output/eng-042-integration/report.md).
-The published [1.1.0 release](releases/1.1.0.md) predates this tuning.
+```bash
+git switch main
+git pull --ff-only
+git submodule update --init --recursive
+cmake --preset release-dev
+cmake --build --preset release-dev
+ctest --preset release-dev
+mkdir build/my-change-base
+cp build/release-dev/latrunculi build/release-dev/latrunculi-search-bench build/my-change-base/
+git rev-parse HEAD > build/my-change-base/revision.txt
+git switch -c my-change
+```
 
-## Issues and leads
+Choose a new branch and baseline directory for each experiment; don't overwrite
+binaries supporting earlier results. Saving both binaries lets you rebuild the
+candidate in the same checkout. A separate checkout or worktree is optional.
 
-ENG-037/038 are lower-priority follow-ups to the
-[TT audit at d3116b1](../tools/analysis/output/tt-design-audit-d3116b1/report.md).
+## Change and test
 
-### ENG-032 — Explain persistent quiet-move disagreements
+Make one focused change, then rebuild and run the tests:
 
-- **Question:** are alternative quiet root moves under-searched?
-- **Evidence:** on `ccb718b`, anchor `deb4939117f9cebe` chooses h3 at 50k, 500k,
-  and 5M nodes; a reference MultiPV report favors d4 by 125 cp. Disabling internal
-  LMR repaired none of eight development or two confirmation targets at 500k nodes.
-- **Next:** compare `d2d4` and `h2h3` with restricted roots, equal node budgets,
-  and identical FEN/history, then check other development groups. Use fresh
-  game/opening-disjoint confirmation; the pilot's confirmation groups were inspected.
-- **Evidence files:** `tools/analysis/output/diagnostic-pilot-ccb718b/`.
+```bash
+cmake --build --preset release-dev
+ctest --preset release-dev
+```
 
-### ENG-037 — Investigate TT aging and same-key retention
+Add a regression when it protects the behavior being changed. Run a focused test
+while iterating, then the complete suite before merging. For memory/lifetime or
+arithmetic changes, also use the `debug-asan-ubsan` configure, build, and test
+presets; use `debug-tsan` for affected threading behavior. See
+[sanitizer execution](../tools/analysis/README.md#sanitizers).
 
-- **Question:** does retaining old deep entries over newer shallow results reduce
-  useful TT reuse across searches?
-- **Evidence:** ENG-040 permits aged same-tag replacement and refreshes move hints
-  before the score-overwrite guard. Age is refreshed by accepted stores, not hits;
-  no weakness in the current policy has been measured.
-- **Next:** measure age, rejected updates, and useful hits across repeatable searches
-  that retain the TT. Test one age/retention change with layout and other policy
-  fixed. Cold-table runs alone cannot establish a benefit; treat policy changes
-  as tree-changing.
+## Compare locally
 
-### ENG-038 — Investigate evaluation-only TT records
+Set up the [shared Python environment](../tools/README.md#setup) once. For a quick
+look at search or performance changes:
 
-- **Question:** can caching static evaluation without a searched bound save enough
-  evaluation work to repay extra TT traffic and displacement?
-- **Evidence:** at `d3116b1`, `TTBound::None` is invalid, preventing evaluation-only
-  records. Their benefit to Latrunculi is unmeasured.
-- **Next:** measure repeated evaluations and prototype one insertion site, holding
-  entry size, layout, and evaluation values fixed. Evaluation-only hits must never
-  authorize cutoffs. Measure saved evaluations, displaced bounds, nodes, and paired
-  time; changed table occupancy requires strength testing.
+```bash
+tools/.venv/bin/python tools/analysis/bench.py compare \
+  build/my-change-base/latrunculi-search-bench build/release-dev/latrunculi-search-bench \
+  --depth 8 --pairs 2 --output tools/analysis/output/my-change-quick
+```
 
-## Candidates for review
+Read `summary.txt`; keep raw results with the revisions and settings they measure.
+Quick results help decide whether to continue. Before making a performance or
+search claim, complete the [local validation checks](../tools/analysis/README.md#validation)
+and run the standard depth-10, six-pair comparison by omitting `--depth` and
+`--pairs`, with a fresh output directory. Use the same compiler/settings for both
+binaries and run one CPU-sensitive task at a time.
 
-None.
+Add `--exact-tree` only when search behavior should remain identical. Fewer nodes
+do not necessarily mean faster search, and faster search does not establish
+stronger play. Small or noisy differences can remain unresolved.
 
-## Candidates for local testing
+## Test playing strength when needed
 
-None.
+Small documentation or tooling changes need no games. Evaluation tuning and
+strength-oriented search changes need game evidence; a narrow correctness fix
+may instead be justified by a regression and relevant local checks. Decide the
+intended benefit and acceptable tradeoffs before testing.
 
-## Ready for OpenBench
+Commit the candidate before strength testing, then record its SHA with
+`git rev-parse HEAD`. Push the tested revision so workers can build it. Follow the
+[OpenBench guide](../tools/openbench.md#submit-and-stop) to prepare settings using
+that candidate as Dev and the saved baseline revision as Base:
 
-None.
+```bash
+tools/.venv/bin/python -m openbench_client submit settings.json --dry-run
+tools/.venv/bin/python -m openbench_client submit settings.json \
+  --output tools/analysis/output/my-change-openbench
+```
 
-## OpenBench tests
+Inspect results in the web UI or with `status ID`. Let the declared SPRT reach a
+boundary; stopping early is inconclusive. The guide describes workload settings,
+fingerprints, and the current web-UI stop fallback. For fitting evaluation weights,
+use the [tuning guide](../tools/tuning/README.md).
 
-None.
+## Review and merge
 
-## Ready for integration
+Review the complete diff and confirm that required checks passed for the revision
+you are merging. A short commit or PR explanation should state what changed, why,
+and how it was checked. A PR is optional for your own local work.
 
-None.
+For an engine change, build the proposed merged result and run the full Release
+suite, standard corpus, and fingerprint. Compare with the accepted candidate's
+signatures; repeat affected checks if the combination changes behavior. Verify
+that the actual merged source/build inputs match what was checked.
 
-## Recent results
+For a local branch whose baseline has not moved:
 
-- **ENG-042 — Integrated 2026-10-14:** first HCE tuning pass plus shared Python/
-  OpenBench tooling and an independent LMR test correction, `6a9d7a8`,
-  [PR #71](https://github.com/zm-bm/latrunculi/pull/71). OpenBench #45 acceptance
-  applies through exact engine equivalence. [Evidence](../tools/analysis/output/eng-042-integration/report.md).
+```bash
+git diff main...my-change
+git switch main
+git pull --ff-only
+git merge --ff-only my-change
+```
 
-- **ENG-018 — Integrated 2026-10-08:** declining-quiet LMR, `e9bc6c9`,
-  [PR #69](https://github.com/zm-bm/latrunculi/pull/69). OpenBench #38 acceptance
-  retained after combination with ENG-036. [Evidence](../tools/analysis/output/eng-018-integration/report.md).
+If main advanced and the fast-forward fails, combine the changes deliberately
+and reassess the affected checks before merging. When using a PR, check its exact
+head and target, then squash-merge with a short single-line message.
 
-- **ENG-036 — Integrated 2026-10-08:** huge-page TT allocation, `62fd8a1`,
-  [PR #70](https://github.com/zm-bm/latrunculi/pull/70). Tree-preserving; no strength
-  gain claimed. [Evidence](../tools/analysis/output/eng-036-integration/report.md).
+### Reusing evidence
 
-- **ENG-040 — Integrated 2026-10-07:** compact clock-aware TT, `6237d6e`.
-  OpenBench #36 acceptance was retained after combination checks.
-  [Evidence](../tools/analysis/output/eng-040-integration/report.md).
+Results belong to their measured revisions and conditions. Documentation or
+test-only changes can reuse engine evidence when relevant inputs are unchanged;
+combining engine changes requires local combination checks and fresh games when
+strength interactions remain unresolved. Keep a brief reason for reuse with the
+results. Reuse avoids unnecessary reruns, not unresolved failures.
 
-- **ENG-039 — Integrated 2026-10-07:** fifty-move/checkmate precedence,
-  `2eee9a5`. Correctness checks passed; OpenBench was explicitly waived.
-  [Evidence](../tools/analysis/output/eng-039-integration/report.md).
+Keep useful inputs, results, and the measured SHAs under the existing ignored
+output directories. Record an outcome in a PR or a short local note when useful;
+there is no separate status board to maintain. Remove obsolete branches and
+scratch builds when you no longer need them, preserving reproducible evidence.

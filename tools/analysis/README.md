@@ -24,9 +24,8 @@ cmake --preset release-dev
 cmake --build --preset release-dev --target latrunculi-search-bench latrunculi
 ```
 
-Apply the shared [measurement rules](../../.agents/references/measurement-rules.md).
-Only one local CPU-sensitive task should run at a time. The tools take already-built
-binaries; they do not build, modify Git or decide candidate acceptance.
+Run one local CPU-sensitive task at a time. The tools take already-built binaries;
+they do not build, modify Git or decide whether a change is worth keeping.
 
 ## Quick comparison
 
@@ -75,9 +74,11 @@ root-move/score changes, individual time ratios, variation and balanced timing:
 - `median_balanced_search_time_ratio` (`R_time_balanced`) is the median of geometric
   means of adjacent `BC,CB` candidate/baseline search-time ratios.
 
-Lower ratios mean fewer nodes or less search time. Formal sample counts and
-acceptance targets belong to the [offline policy](../../.agents/skills/test-latrunculi-candidate/references/offline-checks.md),
-not the runner. Successful collection is not an acceptance decision.
+Lower ratios mean fewer nodes or less search time. Use these review targets:
+`R_node_g <= 0.9900` for a smaller-tree claim, `R_time_balanced <= 0.9925` for a
+speed claim, and `R_time_balanced > 1.0100` as a slowdown warning for a strength
+change. They are not automatic rejection thresholds: explain tradeoffs and leave
+small/noisy differences unresolved. Successful collection alone proves no benefit.
 
 `timing-load.jsonl` records a five-second initial idle sample and available per-CPU
 busy fractions for each process, with affinity and SMT siblings when selected.
@@ -117,9 +118,65 @@ seconds per child process (default 600). Raw TSV/stdout and separate stderr rema
 available on failure. A failed comparison writes no final summary. Resume a
 missing check into a new directory; do not overwrite earlier measurements.
 
-CMake/CTest presets own the Release and applicable sanitizer suites. Use their exit
-status rather than a hardcoded test count. See the shared
-[sanitizer requirements](../../.agents/references/measurement-rules.md#sanitizers).
+CMake/CTest presets own the Release and applicable [sanitizer suites](#sanitizers).
+Use their exit status rather than a hardcoded test count.
+
+## Validation
+
+Review the proposed change and decide what it should improve before measuring.
+A tree-preserving change needs both a source/build equivalence argument and exact
+corpus/fingerprint signatures; otherwise treat it as tree-changing.
+
+Before retaining a performance or search change:
+
+1. Run all 200 positions at depth 10, one thread, 32 MiB Hash, and collect the
+   fingerprint. Quick depth-8 runs do not replace these checks.
+2. Pass the full Release suite, relevant regressions, and applicable sanitizers.
+   Verify fitted coefficients against the retained fit when changing evaluation.
+3. Confirm determinism in fresh processes: depths, static/searched scores, nodes,
+   moves, and PVs must agree within each build. Repeat the fingerprint and corpus
+   twice; the comparison's warmup and measured passes can supply corpus repeats.
+4. Run the six alternating timing pairs above after correctness checks pass.
+   Inspect load and variation before claiming a gain. Use games for strength claims.
+
+Cold-table runs miss state retained across searches. Add focused sequences when
+changing TT reuse, clocks/limits, threading, or worker lifetime. Define expected
+results for correctness cases in advance; illegal moves, crashes, nondeterminism,
+and lost required solutions fail validation. In particular, main-search futility
+must preserve quiet checks and time-control changes must honor `movetime`.
+
+Old results may still apply when relevant source/build inputs are unchanged;
+record the reason using the [evidence guidance](../../docs/engine-development.md#reusing-evidence).
+Do not rerun an unchanged failed measurement until its cause is understood.
+
+### Sanitizers
+
+For arithmetic or memory/lifetime risks:
+
+```bash
+cmake --preset debug-asan-ubsan
+cmake --build --preset debug-asan-ubsan
+ctest --preset debug-asan-ubsan
+```
+
+Use `debug-tsan` for relevant threading changes. Keep the preset's checks enabled,
+including leak detection. LeakSanitizer cannot run under ptrace: use an untraced
+environment, with a short normal-exit preflight if compatibility is unknown.
+Resolve infrastructure failures before rerunning affected tests.
+
+## Investigating an idea
+
+Recheck historical leads on the current engine. Isolate one hypothesis using a
+restricted-root probe, extra search budget, one disabled selectivity rule, or a
+focused evaluation experiment. Profile hot paths before adding caches or state.
+Record variants together, including negative results, with their exact revisions.
+
+Select variants on development data, then freeze the candidate for independent
+confirmation. Keep positions from the same game/opening in one group and preserve
+full FENs and known history. Inspected confirmation data becomes development data
+for later work. Pin reference-engine settings; agreement is diagnostic, not proof
+of correctness or strength. Use independently verified exact WDL where available,
+and scope negative conclusions to the variants and positions actually tested.
 
 ## Summarize saved runs
 
