@@ -47,7 +47,7 @@ Set up the [shared Python environment](../tools/README.md#setup) once. For a qui
 look at search or performance changes:
 
 ```bash
-tools/.venv/bin/python tools/analysis/bench.py compare \
+./tools/bench compare \
   build/my-change-base/latrunculi-search-bench build/release-dev/latrunculi-search-bench \
   --depth 8 --pairs 2 --output tools/analysis/output/my-change-quick
 ```
@@ -70,16 +70,24 @@ strength-oriented search changes need game evidence; a narrow correctness fix
 may instead be justified by a regression and relevant local checks. Decide the
 intended benefit and acceptable tradeoffs before testing.
 
-Commit the candidate before strength testing, then record its SHA with
-`git rev-parse HEAD`. Push the tested revision so workers can build it. Follow the
-[OpenBench guide](../tools/openbench.md#submit-and-stop) to prepare settings using
-that candidate as Dev and the saved baseline revision as Base:
+Commit and push the candidate so workers can build it. Follow the
+[OpenBench guide](../tools/openbench.md#submit-and-stop) to build through the
+adapter and prepare a standard test using the candidate as Dev and the saved
+baseline as Base:
 
 ```bash
-tools/.venv/bin/python -m openbench_client submit settings.json --dry-run
-tools/.venv/bin/python -m openbench_client submit settings.json \
+./tools/openbench-submit sprt \
+  --candidate HEAD --candidate-engine bench/latrunculi \
+  --baseline "$(cat build/my-change-base/revision.txt)" \
+  --baseline-engine build/my-change-base/latrunculi \
+  --description "STC: Describe the change and expected benefit" \
   --output tools/analysis/output/my-change-openbench
 ```
+
+This collects repeated fingerprints, saves complete settings, and runs a client
+dry run. Inspect the settings and use the printed submission command, or add
+`--submit` to the wrapper command when you intend to start the test immediately.
+The supplied binaries must correspond to their revisions.
 
 Inspect results in the web UI or with `status ID`. Let the declared SPRT reach a
 boundary; stopping early is inconclusive. The guide describes workload settings,

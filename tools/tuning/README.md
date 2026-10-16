@@ -12,17 +12,17 @@ repository root:
 DATA=tools/tuning/output/prepared
 FIT=tools/tuning/output/fit
 
-tools/.venv/bin/python tools/tuning/tune.py prepare \
+./tools/tune prepare \
   --engine build/release/latrunculi --output "$DATA" /path/to/games.pgn.tar
-tools/.venv/bin/python tools/tuning/tune.py fit --dataset "$DATA" --output "$FIT"
-tools/.venv/bin/python tools/tuning/tune.py verify "$FIT" --engine build/candidate/latrunculi
+./tools/tune fit --dataset "$DATA" --output "$FIT"
+./tools/tune verify "$FIT" --engine build/candidate/latrunculi
 ```
 
 Inputs may be `.pgn`, `.pgn.bz2`, or OpenBench `.pgn.tar`. Keep generated files
 under ignored `tools/tuning/output/`.
 
 For an existing OpenBench corpus whose PGNs are not local, use
-`tools/.venv/bin/python -m openbench_client` with the
+`./tools/openbench-client` with the
 [status and download commands](../openbench.md#inspect-and-download)
 to retain its PGN archive, checksum, and workload provenance together. Verify
 the workload revisions against the intended baseline. Pass the downloaded

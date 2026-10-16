@@ -33,7 +33,7 @@ For exploratory viability, compare the full suite at a shallower depth with two
 alternating pairs:
 
 ```bash
-tools/.venv/bin/python tools/analysis/bench.py compare /path/to/baseline-bench /path/to/candidate-bench \
+./tools/bench compare /path/to/baseline-bench /path/to/candidate-bench \
   --depth 8 --pairs 2 --output tools/analysis/output/quick-comparison
 ```
 
@@ -50,7 +50,7 @@ After required correctness and risk checks, use the same command with its standa
 defaults: all 200 positions, depth 10, one thread, 32 MiB Hash and six pairs.
 
 ```bash
-tools/.venv/bin/python tools/analysis/bench.py compare /path/to/baseline-bench /path/to/candidate-bench \
+./tools/bench compare /path/to/baseline-bench /path/to/candidate-bench \
   --cpu 2 --output tools/analysis/output/candidate-timing
 ```
 
@@ -92,7 +92,7 @@ or retries.
 Collect a single corpus pass, or request repeats and an optional exact reference:
 
 ```bash
-tools/.venv/bin/python tools/analysis/bench.py run ./build/release-dev/latrunculi-search-bench \
+./tools/bench run ./build/release-dev/latrunculi-search-bench \
   --repeats 2 --output tools/analysis/output/candidate-corpus
 ```
 
@@ -104,7 +104,7 @@ multithreaded legality checks; this does not replace single-thread repeatability
 Collect the engine's OpenBench compatibility fingerprint:
 
 ```bash
-tools/.venv/bin/python tools/analysis/bench.py fingerprint ./build/release-dev/latrunculi \
+./tools/bench fingerprint ./build/release-dev/latrunculi \
   --output tools/analysis/output/candidate-fingerprint
 ```
 
@@ -184,7 +184,7 @@ Recompute comparisons from existing `search_measurement_v5` files without runnin
 engines:
 
 ```bash
-tools/.venv/bin/python tools/analysis/bench.py summarize \
+./tools/bench summarize \
   --pair BC pair-1-baseline.tsv pair-1-candidate.tsv \
   --pair CB pair-2-baseline.tsv pair-2-candidate.tsv
 ```
@@ -257,7 +257,7 @@ Use a full six-field starting FEN and subsequent moves to preserve clocks and
 known repetition history:
 
 ```bash
-tools/.venv/bin/python tools/analysis/uci_probe.py \
+./tools/uci-probe \
   --fen 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' \
   --moves g1f3 g8f6 --nodes 500000 -- ./build/release-dev/latrunculi
 ```

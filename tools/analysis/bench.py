@@ -136,18 +136,25 @@ def fingerprint_nodes(path):
     return int(matches[0])
 
 
-def collect_fingerprint(args):
-    binary = executable(args.engine)
-    reference = fingerprint_nodes(args.reference) if args.reference else None
-    args.output.mkdir(parents=True, exist_ok=False)
-    for repeat in range(1, args.repeats + 1):
-        path = args.output / f"fingerprint-{repeat}.txt"
-        collect([str(binary), "bench"], path, args.timeout)
+def fingerprint_engine(engine, output, *, repeats=2, timeout=600, reference=None):
+    """Collect repeatable bench outputs and return their node count."""
+    binary = executable(engine)
+    reference = fingerprint_nodes(reference) if reference else None
+    output.mkdir(parents=True, exist_ok=False)
+    for repeat in range(1, repeats + 1):
+        path = output / f"fingerprint-{repeat}.txt"
+        collect([str(binary), "bench"], path, timeout)
         nodes = fingerprint_nodes(path)
         if reference is not None and nodes != reference:
             raise ValueError(f"{path}: fingerprint differs: {nodes} != {reference}")
         reference = nodes
         print(f"{path.name}: {nodes} nodes; checks pass", flush=True)
+    return reference
+
+
+def collect_fingerprint(args):
+    fingerprint_engine(args.engine, args.output, repeats=args.repeats,
+                       timeout=args.timeout, reference=args.reference)
 
 
 def require_untraced():
