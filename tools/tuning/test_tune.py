@@ -17,7 +17,7 @@ import tune
 def schema(features):
     return {
         "type": "schema",
-        "version": 2,
+        "version": 3,
         "perspective": {
             "coefficients": "white",
             "fixed": "white",
@@ -65,7 +65,7 @@ def record(
 ):
     return {
         "type": "position",
-        "version": 2,
+        "version": 3,
         "source": source,
         "result": result,
         "fen": "",
@@ -780,7 +780,7 @@ class ArtifactTest(unittest.TestCase):
 def fitting_schema():
     current = base_schema([
         ("pawn.isolated", 0, 0), ("pawn.backward", 0, 0),
-        ("pawn.connected_link", 0, 0),
+        ("pawn.connected_link.r2", 0, 0),
     ])
     names = {feature["name"] for feature in current["features"]}
     constraints = tune.FIT_POLICY["constraints"]

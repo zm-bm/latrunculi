@@ -21,7 +21,7 @@ def make_schema(extra=()):
         *extra,
     ]
     return {
-        "type": "schema", "version": 2,
+        "type": "schema", "version": 3,
         "perspective": {"coefficients": "white", "fixed": "white", "eval": "side_to_move"},
         "result": "1=white_win,0=draw,-1=black_win",
         "phase_counts": ["knight", "bishop", "rook", "queen"],
@@ -45,7 +45,7 @@ def position(source, result, fen, schema=None):
             coefficients.append([index, coefficient])
     record = {
         "type": "position",
-        "version": 2,
+        "version": schema["version"],
         "source": source,
         "result": result,
         "fen": fen,
@@ -234,11 +234,11 @@ class ValidationTest(unittest.TestCase):
         manifest["outputs"][dataset.DATA_FILE] = dataset.sha256_file(path)
         manifest_path.write_text(json.dumps(manifest))
 
-    def test_real_schema_two_prepared_dataset_validates_without_originals(self):
+    def test_real_schema_three_prepared_dataset_validates_without_originals(self):
         self.engine.unlink()
         self.pgn.unlink()
         report, schema = dataset.validate_output(self.output)
-        self.assertEqual(report["schema_version"], 2)
+        self.assertEqual(report["schema_version"], 3)
         self.assertEqual(report["feature_count"], 5)
         self.assertEqual(report["positions"], 12)
         self.assertEqual(report["groups"], 1)
@@ -270,7 +270,7 @@ class ValidationTest(unittest.TestCase):
     def test_reauthenticated_corruption_is_audited(self):
         original = (self.output / dataset.DATA_FILE).read_text()
         changes = (
-            (lambda rows: rows[0].update(version=3), "unsupported dataset schema"),
+            (lambda rows: rows[0].update(version=4), "unsupported dataset schema"),
             (lambda rows: rows[0]["features"][1].update(id=0), "feature IDs"),
             (lambda rows: rows[0].update(scale_limit=0), "scaling invariants"),
             (lambda rows: rows[1].update(eval=rows[1]["eval"] + 1), "evaluation"),
@@ -313,9 +313,11 @@ class ValidationTest(unittest.TestCase):
 
 class SchemaTest(unittest.TestCase):
     def test_feature_count_is_derived_and_compatible_constants_are_allowed(self):
-        schema = make_schema([("pawn.connected_link", 3, 7)])
+        schema = make_schema([("pawn.connected_link.r2", 3, 7)])
         schema.update(scale_limit=80, scale_base=40, scale_per_pawn=5, tempo=25)
-        self.assertEqual(dataset.validate_schema(schema), schema)
+        for version in (2, 3):
+            schema["version"] = version
+            self.assertEqual(dataset.validate_schema(schema), schema)
 
     def test_invalid_schema_ids_names_material_and_invariants(self):
         changes = (

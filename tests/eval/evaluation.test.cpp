@@ -118,51 +118,140 @@ TEST(EvaluationTermsTest, Pawns) {
     std::vector<std::tuple<std::string, eval::TaperedScore, eval::TaperedScore>> test_cases = {
         // sanity check
         {board_test::fen::kings_only, eval::TaperedScore::Zero, eval::TaperedScore::Zero},
-        {board_test::fen::start, eval::connected_pawn_link * 7, eval::connected_pawn_link * 7},
+        {board_test::fen::start,
+         eval::connected_pawn_link[RANK2] * 7,
+         eval::connected_pawn_link[RANK2] * 7},
         // isolated pawns
         {both_isolated, eval::isolated_pawn, eval::isolated_pawn},
         {white_isolated,
-         eval::isolated_pawn + eval::connected_pawn_link * 5,
-         eval::connected_pawn_link * 5},
+         eval::isolated_pawn + eval::connected_pawn_link[RANK2] * 5,
+         eval::connected_pawn_link[RANK2] * 5},
         {black_isolated,
-         eval::connected_pawn_link * 7,
-         eval::isolated_pawn + eval::connected_pawn_link * 5},
+         eval::connected_pawn_link[RANK2] * 7,
+         eval::isolated_pawn + eval::connected_pawn_link[RANK2] * 5},
         // backwards pawns
         {both_backward,
-         eval::backward_pawn + eval::connected_pawn_link,
-         eval::backward_pawn + eval::connected_pawn_link},
+         eval::backward_pawn + eval::backward_open_pawn + eval::connected_pawn_link[RANK3],
+         eval::backward_pawn + eval::backward_open_pawn + eval::connected_pawn_link[RANK3]},
         {white_backward,
-         eval::backward_pawn + eval::connected_pawn_link,
-         eval::connected_pawn_link},
+         eval::backward_pawn + eval::backward_open_pawn + eval::connected_pawn_link[RANK3],
+         eval::connected_pawn_link[RANK4]},
         {black_backward,
-         eval::connected_pawn_link,
-         eval::backward_pawn + eval::connected_pawn_link},
+         eval::connected_pawn_link[RANK4],
+         eval::backward_pawn + eval::backward_open_pawn + eval::connected_pawn_link[RANK3]},
         // isolated pawns are not also backwards
-        {isolated_not_backward, eval::isolated_pawn, eval::isolated_pawn},
+        {isolated_not_backward,
+         eval::isolated_pawn + eval::isolated_open_pawn,
+         eval::isolated_pawn + eval::isolated_open_pawn},
         // doubled pawns
         {white_doubled,
-         eval::doubled_pawn + eval::connected_pawn_link * 4,
-         eval::connected_pawn_link * 3},
+         eval::doubled_pawn + eval::connected_pawn_link[RANK2] * 2
+             + eval::connected_pawn_link[RANK3] + eval::connected_pawn_link[RANK4],
+         eval::connected_pawn_link[RANK2] * 2 + eval::connected_pawn_link[RANK3]},
         {black_doubled,
-         eval::connected_pawn_link * 3,
-         eval::doubled_pawn + eval::connected_pawn_link * 4},
+         eval::connected_pawn_link[RANK2] * 2 + eval::connected_pawn_link[RANK3],
+         eval::doubled_pawn + eval::connected_pawn_link[RANK2] * 2
+             + eval::connected_pawn_link[RANK3] + eval::connected_pawn_link[RANK4]},
         // isolated and doubled pawns
         {white_isolated_doubled,
-         eval::isolated_pawn * 2 + eval::doubled_pawn + eval::passed_pawn[RANK2]
+         (eval::isolated_pawn + eval::isolated_open_pawn) * 2 + eval::doubled_pawn
              + eval::passed_pawn[RANK3],
          eval::TaperedScore::Zero},
         // passed pawns: opposed adjacent files, rank-four passers, advanced passers
-        {opposed_pawns, eval::isolated_pawn, eval::isolated_pawn},
+        {opposed_pawns,
+         eval::isolated_pawn + eval::isolated_open_pawn,
+         eval::isolated_pawn + eval::isolated_open_pawn},
         {passed_pawns,
-         eval::isolated_pawn + eval::passed_pawn[RANK4],
-         eval::isolated_pawn + eval::passed_pawn[RANK4]},
+         eval::isolated_pawn + eval::isolated_open_pawn + eval::passed_pawn[RANK4],
+         eval::isolated_pawn + eval::isolated_open_pawn + eval::passed_pawn[RANK4]},
         {advanced_passers,
-         eval::isolated_pawn + eval::passed_pawn[RANK7],
-         eval::isolated_pawn + eval::passed_pawn[RANK7]},
+         eval::isolated_pawn + eval::isolated_open_pawn + eval::passed_pawn[RANK7],
+         eval::isolated_pawn + eval::isolated_open_pawn + eval::passed_pawn[RANK7]},
     };
 
     for (const auto& [fen, white, black] : test_cases)
         expect_term_score(fen, eval::Term::Pawns, white, black);
+}
+
+TEST(EvaluationTermsTest, OnlyFrontmostPawnsReceivePassedBonus) {
+    // Signed feature counts by relative rank, independent of the current weights.
+    const std::vector<std::tuple<std::string_view, std::array<int, 8>>> test_cases = {
+        // Adjacent, separated, and tripled pawns, for both colors and edge files.
+        {"4k3/8/8/8/8/P7/P7/4K3 w - - 0 1", {0, 0, 1, 0, 0, 0, 0, 0}},
+        {"4k3/8/8/P7/8/8/P7/4K3 w - - 0 1", {0, 0, 0, 0, 1, 0, 0, 0}},
+        {"4k3/8/7P/8/7P/8/7P/4K3 w - - 0 1", {0, 0, 0, 0, 0, 1, 0, 0}},
+        {"4k3/7p/7p/8/8/8/8/4K3 b - - 0 1", {0, 0, -1, 0, 0, 0, 0, 0}},
+        {"4k3/7p/8/8/7p/8/8/4K3 b - - 0 1", {0, 0, 0, 0, -1, 0, 0, 0}},
+        {"4k3/p7/8/p7/8/p7/8/4K3 b - - 0 1", {0, 0, 0, 0, 0, -1, 0, 0}},
+        // Each file can have its own passer.
+        {"4k3/8/8/2P5/8/P7/8/4K3 w - - 0 1", {0, 0, 1, 0, 1, 0, 0, 0}},
+        // Opposing pawns ahead on the same or adjacent file prevent passing.
+        {"4k3/8/p7/8/P7/8/P7/4K3 w - - 0 1", {}},
+        {"4k3/8/8/1p6/P7/8/8/4K3 w - - 0 1", {}},
+        // An enemy pawn behind the front pawn must not suppress its bonus.
+        {"4k3/8/8/P7/1p6/P7/8/4K3 w - - 0 1", {0, 0, 0, 0, 1, 0, 0, 0}},
+        // A piece blockade does not change whether a pawn is passed.
+        {"4k3/8/8/n7/P7/8/8/4K3 w - - 0 1", {0, 0, 0, 1, 0, 0, 0, 0}},
+    };
+
+    for (const auto& [fen, expected] : test_cases) {
+        SCOPED_TRACE(fen);
+        const Board               board(fen);
+        const eval::FeatureRecord record = eval::extract_features(board);
+        for (int rank = RANK1; rank <= RANK8; ++rank)
+            EXPECT_EQ(record.coefficients[eval::feature::passed_pawn(Rank(rank))], expected[rank]);
+        EXPECT_EQ(record.reconstruct(), eval::evaluate(board));
+    }
+}
+
+TEST(EvaluationTermsTest, PawnStructurePredicates) {
+    using namespace eval::feature;
+    const std::vector<std::tuple<std::string_view, Id, int>> test_cases = {
+        // Neighboring files count regardless of rank; edge files never wrap.
+        {"4k3/8/1P6/8/8/8/P7/4K3 w - - 0 1", isolated_pawn, 0},
+        {"4k3/8/8/8/P7/7P/8/4K3 w - - 0 1", isolated_pawn, 2},
+        // Backward: attacked stop square, with adjacent friendly pawns only ahead.
+        {"4k3/8/3p4/1P6/2P5/8/8/4K3 w - - 0 1", backward_pawn, 1},
+        // A pawn beside or behind can support the advance.
+        {"4k3/8/3p4/8/1PP5/8/8/4K3 w - - 0 1", backward_pawn, 0},
+        {"4k3/8/3p4/8/2P5/8/1P6/4K3 w - - 0 1", backward_pawn, 0},
+        // Attacking the pawn itself is not the same as attacking its stop square.
+        {"4k3/8/8/1P1p4/2P5/8/8/4K3 w - - 0 1", backward_pawn, 0},
+        {"4k3/8/8/2p5/1p6/3P4/8/4K3 b - - 0 1", backward_pawn, -1},
+        // Doubled penalties apply to unsupported pawns with a friendly pawn behind.
+        {"4k3/8/8/8/P7/8/P7/4K3 w - - 0 1", doubled_pawn, 1},
+        {"4k3/8/8/8/P7/1P6/P7/4K3 w - - 0 1", doubled_pawn, 0},
+        {"4k3/8/P7/8/P7/8/P7/4K3 w - - 0 1", doubled_pawn, 2},
+        {"4k3/p7/8/p7/8/8/8/4K3 b - - 0 1", doubled_pawn, -1},
+        // Count each phalanx/support link once, including a pawn supported twice.
+        {"4k3/8/8/8/PPP5/8/8/4K3 w - - 0 1", connected_pawn_link(RANK4), 2},
+        {"4k3/8/8/8/2P5/1P6/P7/4K3 w - - 0 1", connected_pawn_link(RANK2), 1},
+        {"4k3/8/8/8/2P5/1P6/P7/4K3 w - - 0 1", connected_pawn_link(RANK3), 1},
+        {"4k3/8/8/8/8/1P6/P1P5/4K3 w - - 0 1", connected_pawn_link(RANK2), 2},
+        {"4k3/8/8/8/P7/7P/8/4K3 w - - 0 1", connected_pawn_link(RANK3), 0},
+        // Exposed weaknesses require no opposing pawn anywhere on the file.
+        {"4k3/p7/8/8/8/8/P1P5/4K3 w - - 0 1", isolated_open_pawn, 1},
+        {"4k3/p7/8/8/8/8/P7/4K3 w - - 0 1", isolated_open_pawn, 0},
+        {"4k3/8/3p4/1P6/2P5/8/8/4K3 w - - 0 1", backward_open_pawn, 1},
+        {"4k3/2p5/3p4/1P6/2P5/8/8/4K3 w - - 0 1", backward_open_pawn, 0},
+        // A supported push or supported capture can remove the remaining stopper.
+        {"4k3/8/p7/8/PP6/8/8/4K3 w - - 0 1", candidate_passed_pawn(RANK4), 1},
+        {"4k3/8/8/pp6/8/P7/8/4K3 b - - 0 1", candidate_passed_pawn(RANK4), -1},
+        {"4k3/8/8/2p5/1P6/P7/8/4K3 w - - 0 1", candidate_passed_pawn(RANK4), 1},
+        // Reject unsupported, outnumbered, distant, or same-file stoppers.
+        {"4k3/8/p7/8/1P6/8/8/4K3 w - - 0 1", candidate_passed_pawn(RANK4), 0},
+        {"4k3/8/p1p5/8/PP6/8/8/4K3 w - - 0 1", candidate_passed_pawn(RANK4), 0},
+        {"4k3/p7/8/8/PP6/8/8/4K3 w - - 0 1", candidate_passed_pawn(RANK4), 0},
+        {"4k3/8/8/1p6/PP6/8/8/4K3 w - - 0 1", candidate_passed_pawn(RANK4), 0},
+        // Rear pawns and true passers do not receive candidate bonuses.
+        {"4k3/8/8/8/pP6/8/PP6/4K3 w - - 0 1", candidate_passed_pawn(RANK2), 0},
+        {"4k3/8/8/8/PP6/8/8/4K3 w - - 0 1", candidate_passed_pawn(RANK4), 0},
+    };
+
+    for (const auto& [fen, feature, expected] : test_cases) {
+        SCOPED_TRACE(fen);
+        EXPECT_EQ(eval::extract_features(Board(fen)).coefficients[feature], expected);
+    }
 }
 
 TEST(EvaluationTermsTest, Knights) {

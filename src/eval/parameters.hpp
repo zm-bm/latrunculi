@@ -220,9 +220,18 @@ constexpr TaperedScore piece_sq(PieceType pt, Color c, Square sq) {
 inline constexpr TaperedScore isolated_pawn = {-12, -21};
 inline constexpr TaperedScore backward_pawn = {-24, -17};
 inline constexpr TaperedScore doubled_pawn  = {5, -30};
-inline constexpr TaperedScore connected_pawn_link = {31, 8};
 inline constexpr TaperedScore passed_pawn[] = {
     {0, 0}, {0, 0}, {-7, 15}, {-8, 69}, {37, 120}, {99, 211}, {195, 292}, {0, 0}};
+
+// Additional penalties for weak pawns on files without opposing pawns.
+inline constexpr TaperedScore isolated_open_pawn = {-10, -10};
+inline constexpr TaperedScore backward_open_pawn = {-12, -8};
+// Relative rank of the phalanx or the supporting pawn; each link is counted once.
+inline constexpr TaperedScore connected_pawn_link[] = {
+    {0, 0}, {31, 8}, {31, 8}, {35, 12}, {45, 24}, {65, 48}, {100, 80}, {0, 0}};
+inline constexpr TaperedScore candidate_passed_pawn[] = {
+    {0, 0}, {0, 5}, {0, 10}, {5, 20}, {15, 40}, {30, 70}, {0, 0}, {0, 0}};
+
 inline constexpr TaperedScore reachable_outpost       = {18, 23};
 inline constexpr TaperedScore bishop_outpost          = {49, -20};
 inline constexpr TaperedScore knight_outpost          = {59, 25};

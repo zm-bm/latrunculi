@@ -308,7 +308,16 @@ const std::array<FeatureDefinition, feature::count>& feature_schema() {
         set(feature::weak_piece(BISHOP), "threat.weak_bishop", eval::weak_piece[BISHOP]);
         set(feature::weak_piece(ROOK), "threat.weak_rook", eval::weak_piece[ROOK]);
         set(feature::weak_piece(QUEEN), "threat.weak_queen", eval::weak_piece[QUEEN]);
-        set(feature::connected_pawn_link, "pawn.connected_link", eval::connected_pawn_link);
+        for (Rank rank = RANK1; rank <= RANK8; rank = Rank(rank + 1)) {
+            set(feature::connected_pawn_link(rank),
+                "pawn.connected_link.r" + std::string(1, to_char(rank)),
+                eval::connected_pawn_link[rank]);
+            set(feature::candidate_passed_pawn(rank),
+                "pawn.candidate_passed.r" + std::string(1, to_char(rank)),
+                eval::candidate_passed_pawn[rank]);
+        }
+        set(feature::isolated_open_pawn, "pawn.isolated_open", eval::isolated_open_pawn);
+        set(feature::backward_open_pawn, "pawn.backward_open", eval::backward_open_pawn);
 
         assert(std::ranges::all_of(definitions, [](const FeatureDefinition& definition) {
             return !definition.name.empty();

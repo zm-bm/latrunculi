@@ -61,8 +61,11 @@ four-field FENs are deduplicated: agreeing results retain one copy; conflicting
 results discard all copies. Every retained evaluation must reconstruct exactly.
 
 Starting FENs identify groups across archives; games without one get their own
-group. Each group has total weight one. The schema-2 dataset header records
-baseline coefficients; the manifest records provenance and filtering.
+group. Each group has total weight one. The schema-3 dataset header records
+baseline coefficients, including rank-dependent connected links, exposed weak
+pawns, and candidate passers; the manifest records provenance and filtering.
+Historical schema-2 datasets remain readable, but the changed pawn features
+require fresh preparation and fitting for the schema-3 engine.
 
 ### Selection and review
 

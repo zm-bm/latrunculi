@@ -308,7 +308,7 @@ inline TaperedScore Evaluator::evaluate_term() {
     return score;
 }
 
-/// eval pawn structure: isolated + backward + doubled + connected + passed
+/// eval pawn structure: weak pawns, connected links, passers and candidate passers
 template <bool Collecting, Color C>
 TaperedScore Evaluator::evaluate_pawns() {
     constexpr Color Opp = ~C;
@@ -341,25 +341,62 @@ TaperedScore Evaluator::evaluate_pawns() {
     score += linear_feature<Collecting, C>(
         feature::backward_pawn, eval::backward_pawn, bb::count(backwards_pawns));
 
+    // Weak pawns are more exposed on files without any opposing pawn.
+    const Bitboard open_files = ~bb::fill(opp_pawns);
+    score += linear_feature<Collecting, C>(feature::isolated_open_pawn,
+                                         eval::isolated_open_pawn,
+                                         bb::count(isolated_pawns & open_files));
+    score += linear_feature<Collecting, C>(feature::backward_open_pawn,
+                                         eval::backward_open_pawn,
+                                         bb::count(backwards_pawns & open_files));
+
     // doubled pawns: unsupported pawn with friendly pawns behind
     Bitboard pawns_behind  = pawns & bb::span_front<C>(pawns);
     Bitboard doubled_pawns = pawns_behind & ~pawn_attacks;
     score += linear_feature<Collecting, C>(
         feature::doubled_pawn, eval::doubled_pawn, bb::count(doubled_pawns));
 
-    // connected links: count each adjacent pawn pair once, whether phalanx or diagonal support
-    const Bitboard east_pawns = bb::shift_east(pawns);
-    const int connected_links = bb::count(pawns & east_pawns)
-                              + bb::count(pawns & bb::shift_north(east_pawns))
-                              + bb::count(pawns & bb::shift_south(east_pawns));
-    score += linear_feature<Collecting, C>(
-        feature::connected_pawn_link, eval::connected_pawn_link, connected_links);
+    // Count phalanx links once, and diagonal links at the supporting pawn's rank.
+    // Keep both support masks: one pawn can support two neighbors.
+    const Bitboard phalanx = pawns & bb::shift_east(pawns);
+    const Bitboard support_left = pawns & attacks::pawn_shift<pawn_delta::left, Opp>(pawns);
+    const Bitboard support_right = pawns & attacks::pawn_shift<pawn_delta::right, Opp>(pawns);
+    for (Rank rank = RANK2; rank <= RANK7; rank = Rank(rank + 1)) {
+        const Bitboard rank_mask = bb::relative_rank<C>(rank);
+        const int links = bb::count(phalanx & rank_mask) + bb::count(support_left & rank_mask)
+                        + bb::count(support_right & rank_mask);
+        score += linear_feature<Collecting, C>(
+            feature::connected_pawn_link(rank), eval::connected_pawn_link[rank], links);
+    }
 
-    // passed pawns: no opposing pawn ahead on the same or an adjacent file
-    const Bitboard passed_pawns = pawns & ~bb::full_span<Opp>(opp_pawns);
-    bb::scan<C>(passed_pawns, [&](const Square square) {
-        const Rank rank = square::relative_rank(square, C);
-        score += linear_feature<Collecting, C>(feature::passed_pawn(rank), eval::passed_pawn[rank]);
+    // Only the frontmost pawn on each file can be passed or a candidate passer.
+    const Bitboard front_pawns = pawns & ~bb::span_back<C>(pawns);
+    bb::scan<C>(front_pawns, [&](const Square square) {
+        const Rank     rank = square::relative_rank(square, C);
+        const Bitboard pawn = bb::set(square);
+        const Bitboard stoppers = opp_pawns & bb::full_span<C>(pawn);
+        if (!stoppers) {
+            score += linear_feature<Collecting, C>(
+                feature::passed_pawn(rank), eval::passed_pawn[rank]);
+            return;
+        }
+
+        // Candidate: all stoppers can be exchanged now or after one push, with
+        // enough pawn support at both squares. A pawn blockade rules this out.
+        const Bitboard stop = attacks::pawn_shift<pawn_delta::push, C>(pawn);
+        if (stop & (pawns | opp_pawns))
+            return;
+        const Bitboard threats = opp_pawns & attacks::pawn_attacks<C>(pawn);
+        const Bitboard push_threats = opp_pawns & attacks::pawn_attacks<C>(stop);
+        if (stoppers & ~(threats | push_threats))
+            return;
+        const Bitboard support = pawns & attacks::pawn_attacks<Opp>(pawn);
+        const Bitboard push_support = pawns & attacks::pawn_attacks<Opp>(stop);
+        if (bb::count(support) >= bb::count(threats)
+            && bb::count(push_support) >= bb::count(push_threats)) {
+            score += linear_feature<Collecting, C>(
+                feature::candidate_passed_pawn(rank), eval::candidate_passed_pawn[rank]);
+        }
     });
 
     return score;
