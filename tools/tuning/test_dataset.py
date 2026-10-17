@@ -8,35 +8,12 @@ from unittest import mock
 import chess
 import chess.pgn
 
-import dataset
-
-
-def make_schema(extra=()):
-    features = [
-        ("material.pawn", 100, 166),
-        ("material.knight", 600, 680),
-        ("material.bishop", 650, 740),
-        ("material.rook", 1000, 1100),
-        ("material.queen", 2000, 2150),
-        *extra,
-    ]
-    return {
-        "type": "schema", "version": 2,
-        "perspective": {"coefficients": "white", "fixed": "white", "eval": "side_to_move"},
-        "result": "1=white_win,0=draw,-1=black_win",
-        "phase_counts": ["knight", "bishop", "rook", "queen"],
-        "pawn_counts": ["white", "black"],
-        "phase_limit": 128, "phase_material_min": 0, "phase_material_max": 13000,
-        "scale_limit": 64, "scale_base": 48, "scale_per_pawn": 4, "tempo": 20,
-        "features": [
-            {"id": index, "name": name, "mg": mg, "eg": eg}
-            for index, (name, mg, eg) in enumerate(features)
-        ],
-    }
+from . import dataset
+from .test_helpers import base_schema
 
 
 def position(source, result, fen, schema=None):
-    schema = make_schema() if schema is None else schema
+    schema = base_schema() if schema is None else schema
     board = chess.Board(fen)
     coefficients = []
     for index, piece in enumerate((chess.PAWN, chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN)):
@@ -77,7 +54,7 @@ TINY_POLICY = {**dataset.PREPARATION_POLICY, "minimum_game_ply": 2, "minimum_gam
 
 
 def fixture_export(_, input_path, output_path):
-    schema = make_schema()
+    schema = base_schema()
     with output_path.open("w") as stream:
         stream.write(dataset.canonical_json(schema) + "\n")
         for line in input_path.read_text().splitlines():
@@ -127,33 +104,13 @@ class IdentityTest(unittest.TestCase):
 
 class CollectionTest(unittest.TestCase):
     def test_collects_at_most_six_positions_per_game(self):
-        pgn = """[Event \"first\"]
-[Result \"1-0\"]
-[SetUp \"1\"]
-[FEN \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\"]
-
-1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 1-0
-
-[Event \"reverse\"]
-[Result \"0-1\"]
-[SetUp \"1\"]
-[FEN \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\"]
-
-1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 5. Bg5 O-O 6. e3 h6 0-1
-"""
-        config = {
-            "minimum_game_ply": 2,
-            "maximum_positions_per_game": 6,
-            "minimum_games": 2,
-            "minimum_groups": 1,
-        }
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             source = root / "games.pgn"
             output = root / "positions.tsv"
-            source.write_text(pgn)
+            source.write_text(TINY_PGN)
 
-            counts, _ = dataset.collect_positions([(source, "input-hash")], config, output)
+            counts, _ = dataset.collect_positions([(source, "input-hash")], TINY_POLICY, output)
 
             lines = output.read_text().splitlines()
             self.assertEqual(counts["games.valid"], 2)
@@ -189,7 +146,7 @@ class CollectionTest(unittest.TestCase):
 
 class DeduplicationTest(unittest.TestCase):
     def test_deduplicates_after_settling_and_drops_conflicting_results(self):
-        schema = make_schema()
+        schema = base_schema()
         records = [
             position("b-group:game:1", 1, "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"),
             position("a-group:game:2", 1, "4k3/8/8/8/8/8/4P3/4K3 w - - 8 9"),
@@ -242,7 +199,7 @@ class ValidationTest(unittest.TestCase):
         self.assertEqual(report["feature_count"], 5)
         self.assertEqual(report["positions"], 12)
         self.assertEqual(report["groups"], 1)
-        self.assertEqual(schema, make_schema())
+        self.assertEqual(schema, base_schema())
 
     def test_output_hashes_are_checked_before_structural_validation(self):
         path = self.output / dataset.DATA_FILE
@@ -257,7 +214,7 @@ class ValidationTest(unittest.TestCase):
         original = json.loads(path.read_text())
         for change, message in (
             (lambda manifest: manifest["outputs"].update({"extra.jsonl": "0" * 64}), "invalid dataset outputs"),
-            (lambda manifest: manifest.update(format_version=3), "unsupported dataset manifest"),
+            (lambda manifest: manifest.update(format_version=4), "unsupported dataset manifest"),
             (lambda manifest: manifest.update(experiment_sha256="0" * 64), "manifest fields"),
         ):
             with self.subTest(message=message):
@@ -313,7 +270,7 @@ class ValidationTest(unittest.TestCase):
 
 class SchemaTest(unittest.TestCase):
     def test_feature_count_is_derived_and_compatible_constants_are_allowed(self):
-        schema = make_schema([("pawn.connected_link", 3, 7)])
+        schema = base_schema([("pawn.connected_link", 3, 7)])
         schema.update(scale_limit=80, scale_base=40, scale_per_pawn=5, tempo=25)
         self.assertEqual(dataset.validate_schema(schema), schema)
 
@@ -335,13 +292,13 @@ class SchemaTest(unittest.TestCase):
         )
         for change in changes:
             with self.subTest(change=change):
-                schema = make_schema()
+                schema = base_schema()
                 change(schema)
                 with self.assertRaises(ValueError):
                     dataset.validate_schema(schema)
 
     def test_known_signed_reconstruction_remains_exact(self):
-        schema = make_schema()
+        schema = base_schema()
         white = position("group:game:8", 0, "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1")
         black = position("group:game:8", 0, "4k3/4p3/8/8/8/8/8/4K3 b - - 0 1")
         self.assertEqual(dataset.reconstruct(schema, white), (154, 0))

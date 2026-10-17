@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.analysis import bench_results
+from . import bench_results
 
 
 FIELDS = ("result_format", "case", "fen",
@@ -51,7 +51,7 @@ class BenchResultsTest(unittest.TestCase):
 
     def test_single_pair_reports_work_and_labels_time_as_diagnostic(self):
         baseline = self.read("b.tsv")
-        candidate = self.read("c.tsv", lambda _, row: row.update(nodes="90", score="13"))
+        candidate = self.read("c.tsv", lambda _, row: row.update(nodes="90", score="13", total_ns="1100"))
         for order in ("BC", "CB"):
             with self.subTest(order=order):
                 summary = bench_results.summarize([(order, baseline, candidate)])
@@ -62,6 +62,11 @@ class BenchResultsTest(unittest.TestCase):
                 self.assertEqual(summary["pair_1_order"], order)
                 self.assertEqual(summary["timing"], "single_pair_diagnostic")
                 self.assertNotIn("median_balanced_search_time_ratio", summary)
+                self.assertEqual(bench_results.format_overview(summary),
+                                 "Candidate search time: +10.00% (single pair; diagnostic only)\n"
+                                 "Candidate total nodes: -10.00%\n"
+                                 "Changed best moves: 0 / 2\n"
+                                 "PV legality checks: passed; repeatability not checked\n")
         with self.assertRaisesRegex(ValueError, "exact-tree comparison"):
             bench_results.summarize([("BC", baseline, candidate)], exact_tree=True)
 
@@ -125,6 +130,11 @@ class BenchResultsTest(unittest.TestCase):
             self.assertAlmostEqual(summary["median_balanced_search_time_ratio"], 0.994987437)
             self.assertEqual(summary["minimum_search_time_ratio"], 0.9)
             self.assertEqual(summary["maximum_search_time_ratio"], 1.1)
+            self.assertEqual(bench_results.format_overview(summary),
+                             "Candidate search time: -0.50% (median balanced ratio)\n"
+                             "Candidate total nodes: +0.00%\n"
+                             "Changed best moves: 0 / 2\n"
+                             "Repeatability and PV legality checks: passed\n")
         for invalid in (pairs[:3], [pairs[1], pairs[0]], [pairs[0], pairs[2]],
                         [("XX", *pairs[0][1:])], []):
             with self.assertRaisesRegex(ValueError, "alternate BC,CB"):

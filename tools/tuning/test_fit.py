@@ -1,0 +1,398 @@
+import types
+import unittest
+from unittest import mock
+
+import numpy as np
+
+from . import model, fit as fitting
+from .test_helpers import base_schema, experiment, make_split, record
+
+
+class SupportTest(unittest.TestCase):
+    def test_support_counts_distinct_groups(self):
+        current = base_schema([("pawn.isolated", -5, -15)])
+        records = [
+            record([[5, 1]], source="a:x:1"),
+            record([[5, -1]], source="a:y:2"),
+            record([[0, 1]], source="b:x:1"),
+        ]
+        split = make_split(records, len(current["features"]))
+        report = fitting.feature_support(split, current, 2)
+        self.assertEqual(report[5]["positions"], 2)
+        self.assertEqual(report[5]["groups"], 1)
+        self.assertEqual(report[5]["status"], "insufficient")
+
+
+class ParameterMapTest(unittest.TestCase):
+    def test_joint_map_selects_every_unfixed_coordinate(self):
+        current = base_schema()
+        split = make_split(
+            [record([[feature_id, 1] for feature_id in range(5)], source="a:x:1")],
+            len(current["features"]),
+        )
+
+        parameters = fitting.build_parameter_map(
+            current, model.baseline_weights(current), split, experiment()
+        )
+
+        self.assertEqual(len(parameters.members), 9)
+        self.assertEqual(parameters.frozen, {"material.pawn.mg": "fixed"})
+
+    def test_ties_use_union_support_and_penalize_each_coordinate(self):
+        current = base_schema(
+            [
+                ("psqt.knight.a1", -10, -20),
+                ("psqt.knight.h1", -10, -20),
+                ("psqt.knight.b1", -5, -8),
+                ("psqt.knight.g1", -5, -8),
+            ]
+        )
+        records = []
+        for index in range(40):
+            records.append(
+                record(
+                    [[7 if index % 2 else 8, 1]],
+                    source=f"g{index}:x:1",
+                )
+            )
+        split = make_split(records, len(current["features"]))
+        settings = experiment(
+            anchors=("psqt.knight.a1",),
+            mirrored=("knight",),
+            support=32,
+        )
+        parameters = fitting.build_parameter_map(
+            current, model.baseline_weights(current), split, settings
+        )
+
+        self.assertEqual(parameters.names, ["psqt.knight.b1.mg", "psqt.knight.b1.eg"])
+        self.assertEqual(parameters.support["psqt.knight.b1.mg"], 40)
+        np.testing.assert_array_equal(parameters.multiplicity, [2, 2])
+        self.assertEqual(parameters.frozen["psqt.knight.a1.mg"], "anchor")
+
+    def test_support_must_reach_the_minimum_in_every_training_fold(self):
+        current = base_schema([("pawn.isolated", -5, -15)])
+        split = make_split(
+            [
+                *[
+                    record([[1, 1], [5, 1]], source=f"a{index}:x:1")
+                    for index in range(3)
+                ],
+                record([[1, 1], [5, 1]], source="b0:x:1"),
+                record([[1, 1]], source="b1:x:1"),
+            ],
+            len(current["features"]),
+        )
+        settings = experiment(support=2)
+        settings["validation"]["folds"] = 2
+        assignments = np.asarray([0, 0, 0, 1, 1], dtype=np.int8)
+
+        parameters = fitting.build_parameter_map(
+            current,
+            model.baseline_weights(current),
+            split,
+            settings,
+            assignments,
+        )
+
+        self.assertEqual(parameters.support["pawn.isolated.mg"], 1)
+        self.assertEqual(parameters.frozen["pawn.isolated.mg"], "support")
+        self.assertEqual(parameters.frozen["pawn.isolated.eg"], "support")
+
+    def test_bounds_and_rounding_preserve_ties(self):
+        current = base_schema(
+            [
+                ("psqt.knight.a1", -10, -20),
+                ("psqt.knight.h1", -10, -20),
+                ("psqt.knight.b1", -5, -8),
+                ("psqt.knight.g1", -5, -8),
+            ]
+        )
+        records = [record([[7, 1]], source="a:x:1")]
+        split = make_split(records, len(current["features"]))
+        settings = experiment(
+            anchors=("psqt.knight.a1",),
+            mirrored=("knight",),
+        )
+        settings["fit"]["bounds"] = [
+            {"pattern": "psqt.knight.b1.mg", "minimum": -6, "maximum": -3}
+        ]
+        parameters = fitting.build_parameter_map(
+            current, model.baseline_weights(current), split, settings
+        )
+        self.assertEqual(parameters.bounds, [(-1.0, 2.0), (-100.0, 100.0)])
+        rounded = parameters.rounded([2.6, -0.5])
+        self.assertEqual(rounded[5:9].tolist(), [[-10, -20], [-10, -20], [-3, -9], [-3, -9]])
+
+
+class OptimizerTest(unittest.TestCase):
+    def test_joint_fit_is_deterministic(self):
+        current = base_schema([("pawn.isolated", -5, -15)])
+        records = [
+            record(
+                [[5, coefficient]],
+                source=f"g{index}:x:1",
+                phase_counts=(0, 0, 0, 0),
+            )
+            for index, coefficient in enumerate(range(-4, 5))
+        ]
+        train = make_split(records, len(current["features"]))
+        target = model.baseline_weights(current)
+        target[5, 1] = 30
+        train.targets = model.expected_score(
+            model.continuous_evaluation(train, current, target), 0.7
+        )
+        settings = experiment(fixed=("material.pawn.mg", "pawn.isolated.mg"))
+        parameters = fitting.build_parameter_map(
+            current, model.baseline_weights(current), train, settings
+        )
+
+        first = fitting.fit_parameters(train, current, parameters, settings, 0.7, 0.0)
+        second = fitting.fit_parameters(train, current, parameters, settings, 0.7, 0.0)
+        np.testing.assert_array_equal(first["deltas"], second["deltas"])
+        self.assertAlmostEqual(first["rounded"][5, 1], 30, delta=1)
+
+    def test_checkpoint_selection_uses_exact_rounded_loss(self):
+        current = base_schema([("pawn.isolated", 0, 0)])
+        split = make_split([record([[5, 1]])], len(current["features"]))
+        parent = model.baseline_weights(current)
+        parameters = fitting.ParameterMap(
+            parent=parent,
+            members=[[(5, 1)]],
+            names=["pawn.isolated.eg"],
+            bounds=[(-100, 100)],
+            support={"pawn.isolated.eg": 1},
+            frozen={},
+            multiplicity=np.asarray([1.0]),
+        )
+
+        def minimize(*_, callback, **__):
+            callback(np.asarray([1.51]))
+            callback(np.asarray([0.49]))
+            return types.SimpleNamespace(
+                x=np.asarray([0.49]),
+                nit=2,
+                nfev=2,
+                njev=2,
+                fun=0.0,
+                success=True,
+                message="ok",
+            )
+
+        def exact_metric(_, __, weights, ___):
+            return {"mean_squared_error": 0.1 if weights[5, 1] == 2 else 0.2}
+
+        with (
+            mock.patch.object(fitting.optimize, "minimize", side_effect=minimize),
+            mock.patch.object(model, "split_metric", side_effect=exact_metric),
+            mock.patch.object(model, "continuous_evaluation", return_value=np.asarray([0.0])),
+        ):
+            result = fitting.fit_parameters(
+                split, current, parameters, experiment(), 0.7, 0.0
+            )
+
+        self.assertEqual(result["rounded"][5, 1], 2)
+        self.assertEqual(result["selected_iteration"], 1)
+        self.assertEqual(result["optimizer"].x[0], 0.49)
+
+    def test_checkpoint_selection_penalizes_the_rounded_candidate(self):
+        current = base_schema([("pawn.isolated", 0, 0)])
+        split = make_split([record([[5, 1]])], len(current["features"]))
+        parameters = fitting.ParameterMap(
+            parent=model.baseline_weights(current),
+            members=[[(5, 1)]],
+            names=["pawn.isolated.eg"],
+            bounds=[(-100, 100)],
+            support={"pawn.isolated.eg": 1},
+            frozen={},
+            multiplicity=np.asarray([1.0]),
+        )
+
+        def minimize(*_, callback, **__):
+            callback(np.asarray([1.51]))
+            callback(np.asarray([0.51]))
+            return types.SimpleNamespace(
+                x=np.asarray([1.51]),
+                nit=2,
+                nfev=2,
+                njev=2,
+                fun=0.0,
+                success=True,
+                message="ok",
+            )
+
+        def exact_metric(_, __, weights, ___):
+            return {
+                "mean_squared_error": {0: 0.3, 1: 0.12, 2: 0.1}[weights[5, 1]]
+            }
+
+        with (
+            mock.patch.object(fitting.optimize, "minimize", side_effect=minimize),
+            mock.patch.object(model, "split_metric", side_effect=exact_metric),
+            mock.patch.object(model, "continuous_evaluation", return_value=np.asarray([0.0])),
+        ):
+            result = fitting.fit_parameters(
+                split, current, parameters, experiment(), 0.7, 0.02
+            )
+
+        self.assertEqual(result["rounded"][5, 1], 1)
+        self.assertAlmostEqual(result["exact_objective"], 0.14)
+
+
+class ValidationTest(unittest.TestCase):
+    def test_bootstrap_is_deterministic_and_uses_groups(self):
+        values = np.asarray([0.1, 0.2, 0.3])
+        first = fitting.bootstrap_interval(values, 200, 0.9, 7)
+        self.assertEqual(first, fitting.bootstrap_interval(values, 200, 0.9, 7))
+        self.assertEqual(first["groups"], 3)
+        self.assertAlmostEqual(first["mean"], 0.2)
+
+    def test_comparison_reports_all_phase_buckets_and_qualifies_clear_gain(self):
+        current = base_schema([("pawn.isolated", 0, 0)])
+        records = []
+        for index in range(160):
+            coefficient = 1 if index % 2 == 0 else -1
+            result = 1 if coefficient > 0 else -1
+            records.append(
+                record(
+                    [[5, coefficient]],
+                    source=f"g{index}:x:1",
+                    result=result,
+                    phase_counts=(0, 0, 0, 0),
+                    pawns=(0, 0),
+                )
+            )
+        split = make_split(records, len(current["features"]))
+        parent = model.baseline_weights(current).astype(int)
+        candidate = parent.copy()
+        candidate[5] = [100, 100]
+        report = fitting.comparison_report(
+            [(split, current, parent, candidate, 0.7)],
+            {
+                "bootstrap_samples": 500,
+                "confidence": 0.9,
+                "phase_buckets": [0, 32, 64, 96, 129],
+                "minimum_phase_groups": 128,
+            },
+            9,
+        )
+        self.assertTrue(report["qualified"])
+        self.assertLess(
+            report["mean_squared_error"]["candidate"],
+            report["mean_squared_error"]["baseline"],
+        )
+        self.assertEqual(
+            [item["bucket"] for item in report["phases"]],
+            ["0-31", "32-63", "64-95", "96-128"],
+        )
+
+    def test_selects_the_strongest_eligible_penalty_within_one_standard_error(self):
+        reports = [
+            {
+                "regularization": 1e-9,
+                "mean_improvement": 0.00068,
+                "standard_error": 0.00005,
+                "eligible": True,
+            },
+            {
+                "regularization": 3e-9,
+                "mean_improvement": 0.00065,
+                "standard_error": 0.00004,
+                "eligible": True,
+            },
+            {
+                "regularization": 1e-8,
+                "mean_improvement": 0.00059,
+                "standard_error": 0.00003,
+                "eligible": True,
+            },
+            {
+                "regularization": 3e-8,
+                "mean_improvement": 0.00067,
+                "standard_error": 0.00003,
+                "eligible": False,
+            },
+        ]
+
+        best, threshold, selected = fitting.select_regularization(reports)
+
+        self.assertEqual(best["regularization"], 1e-9)
+        self.assertAlmostEqual(threshold, 0.00063)
+        self.assertEqual(selected["regularization"], 3e-9)
+
+    def test_regularization_selection_falls_back_to_the_baseline(self):
+        best, threshold, selected = fitting.select_regularization(
+            [
+                {
+                    "regularization": 1e-9,
+                    "mean_improvement": -0.001,
+                    "standard_error": 0.0001,
+                    "eligible": False,
+                }
+            ]
+        )
+
+        self.assertIsNone(best)
+        self.assertIsNone(threshold)
+        self.assertIsNone(selected)
+
+
+    def test_development_folds_keep_groups_together(self):
+        current = base_schema()
+        split = make_split(
+            [
+                record([], source=f"g{group}:p{position}:1")
+                for group in range(50)
+                for position in range(2)
+            ],
+            len(current["features"]),
+        )
+        policy = {"folds": 5, "fold_seed": 7}
+        assignments = fitting.fold_assignments(split, policy)
+        np.testing.assert_array_equal(
+            assignments, fitting.fold_assignments(split, policy)
+        )
+
+        testing_positions = 0
+        for fold in range(policy["folds"]):
+            training = model.subset_split(split, assignments != fold)
+            testing = model.subset_split(split, assignments == fold)
+            testing_positions += len(testing.targets)
+            self.assertFalse(set(training.groups) & set(testing.groups))
+        self.assertEqual(testing_positions, len(split.targets))
+
+
+class CalibrationTest(unittest.TestCase):
+    def test_calibration_recovers_a_known_scale_with_group_weights(self):
+        evaluations = np.arange(-800, 801, 100, dtype=np.float64)
+        records = [record([], source=f"g{i}:x:1") for i in range(len(evaluations))]
+        split = make_split(records, 0)
+        split.exported = evaluations
+        split.targets = model.expected_score(evaluations, 0.75)
+
+        result = fitting.calibrate_scale(
+            split,
+            {"bounds": [0.0, 2.0], "absolute_tolerance": 1e-12, "maximum_iterations": 256},
+        )
+        self.assertAlmostEqual(result.x, 0.75, places=7)
+
+
+    def test_calibration_rejects_an_optimum_at_the_search_boundary(self):
+        split = make_split([record([])], 0)
+        result = types.SimpleNamespace(x=4.0, fun=0.1, success=True)
+        with (
+            mock.patch.object(fitting.optimize, "minimize_scalar", return_value=result),
+            self.assertRaisesRegex(ValueError, "search bound"),
+        ):
+            fitting.calibrate_scale(
+                split,
+                {
+                    "bounds": [0.0, 4.0],
+                    "absolute_tolerance": 1e-12,
+                    "maximum_iterations": 256,
+                },
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

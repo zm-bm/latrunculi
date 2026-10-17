@@ -80,7 +80,7 @@ tuning.
 ## Documentation
 
 - [Architecture](docs/architecture.md)
-- [OpenBench testing](tools/openbench.md)
+- [OpenBench testing](tools/openbench/README.md)
 - [Development manual](docs/engine-development.md)
 - [Research ideas](docs/engine-ideas.md)
 - [Roadmap](docs/roadmap.md)

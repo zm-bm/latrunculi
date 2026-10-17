@@ -1,6 +1,7 @@
 #!/bin/sh
 
-tools_dir=$(CDPATH= cd -P "$(dirname "$0")" && pwd) || exit 1
+repo_root=$(CDPATH= cd -P "$(dirname "$0")/.." && pwd) || exit 1
+tools_dir="$repo_root/tools"
 if [ ! -x "$tools_dir/.venv/bin/python" ]; then
     printf '%s\n' \
         "error: Python environment unavailable: $tools_dir/.venv/bin/python" \
@@ -10,4 +11,5 @@ if [ ! -x "$tools_dir/.venv/bin/python" ]; then
     exit 1
 fi
 
-exec "$tools_dir/.venv/bin/python" "$tools_dir/tuning/tune.py" "$@"
+PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}" \
+    exec "$tools_dir/.venv/bin/python" -P -m tools.openbench.submit "$@"

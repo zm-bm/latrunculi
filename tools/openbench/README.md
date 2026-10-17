@@ -1,15 +1,15 @@
 # OpenBench
 
 Latrunculi uses OpenBench for strength tests, tuning corpora, and release
-stability checks. Use the [development manual](../docs/engine-development.md)
+stability checks. Use the [development manual](../../docs/engine-development.md)
 for the local workflow; this guide covers server operations and workload settings.
 
 ## Setup
 
-Set up the [shared tools environment](README.md#setup) to install the OpenBench
-client pinned in [requirements.txt](requirements.txt). The local
-[submission wrapper](openbench-submit) prepares standard tests; use
-`./tools/openbench-client` for inspection, downloads, and custom
+Set up the [shared tools environment](../README.md#setup) to install the OpenBench
+client pinned in [requirements.txt](../requirements.txt). The local
+[submission wrapper](../../bin/openbench-submit) prepares standard tests; use
+`./bin/openbench-client` for inspection, downloads, and custom
 submissions.
 No local OpenBench checkout is required. The [pinned client guide][client]
 documents all commands, settings fields, output records, and error recovery.
@@ -18,7 +18,7 @@ Credentials belong in `~/.config/openbench/openbench.env`: `OPENBENCH_SERVER`
 (the HTTPS URL), `OPENBENCH_USERNAME`, and `OPENBENCH_PASSWORD`.
 
 When updating the dependency pin, reinstall the requirements, check
-`./tools/openbench-client --help`, and make one requested
+`./bin/openbench-client --help`, and make one requested
 read-only status check. Client tests and fixtures live in the OpenBench fork.
 
 ## Inspect and download
@@ -26,20 +26,20 @@ read-only status check. Client tests and fixtures live in the OpenBench fork.
 Run commands from the repository root:
 
 ```bash
-./tools/openbench-client status 46
-./tools/openbench-client download-pgns 46 \
+./bin/openbench-client status 46
+./bin/openbench-client download-pgns 46 \
   --output tools/tuning/output/corpus-46
 ```
 
 These commands use #46 as an example; substitute your workload ID and a new output
 directory. Verify the expected revisions and game count. Retain the archive,
 checksum, and workload metadata together. Follow the
-[tuning guide](tuning/README.md#prepared-data) to validate and prepare the games;
+[tuning guide](../tuning/README.md#prepared-data) to validate and prepare the games;
 completion and workload scores alone do not establish corpus usability.
 
 ## Submit and stop
 
-Before strength testing, complete applicable [local validation](analysis/README.md#validation).
+Before strength testing, complete applicable [local validation](../analysis/README.md#validation).
 Commit and push both tested revisions. A PR is optional. Build each revision with
 the same adapter/compiler/settings and preserve the baseline binary before
 changing revisions:
@@ -57,7 +57,7 @@ counts identify behavior; NPS is used separately for time scaling.
 Prepare an ordinary strength comparison from the repository root:
 
 ```bash
-./tools/openbench-submit sprt \
+./bin/openbench-submit sprt \
   --candidate HEAD --candidate-engine bench/latrunculi \
   --baseline "$(cat build/my-change-base/revision.txt)" \
   --baseline-engine build/my-change-base/latrunculi \
@@ -71,7 +71,7 @@ Inspect `settings.json`, then use the printed command to submit those saved
 settings without rerunning fingerprints:
 
 ```bash
-./tools/openbench-client submit \
+./bin/openbench-client submit \
   tools/analysis/output/my-change-openbench/settings.json \
   --output tools/analysis/output/my-change-openbench/submission
 ```
@@ -103,8 +103,8 @@ later. See the [client guide][client] for other commands and recovery details.
 
 ### Explicit settings
 
-The [SPRT](openbench/sprt.json), [fixed-game](openbench/games.json), and
-[corpus](openbench/corpus.json) templates contain the project defaults. They omit
+The [SPRT](sprt.json), [fixed-game](games.json), and
+[corpus](corpus.json) templates contain the project defaults. They omit
 fields filled by the wrapper and cannot be submitted directly. For unusual tests,
 edit the generated `settings.json`, run the client's dry run again, and submit
 that file directly. The [client guide][client] documents every settings field.
@@ -145,7 +145,7 @@ Corpus mode uses one revision for both sides, fingerprints it twice, and default
 to 42,000 games at `4+0.04`. Supply the concurrency of the single worker:
 
 ```bash
-./tools/openbench-submit corpus \
+./bin/openbench-submit corpus \
   --candidate HEAD --candidate-engine bench/latrunculi \
   --worker-concurrency 12 \
   --description "Self-play corpus for evaluation tuning" \
@@ -159,7 +159,7 @@ Multiple assignments/runners in this OpenBench version overlap opening ranges.
 The wrapper does not enforce the worker arrangement; configure it before actual
 submission. The assignment and final game count may slightly exceed the target.
 Scores and fixed-test pass/fail flags are irrelevant to fitting;
-[preparation](tuning/README.md#prepared-data) decides data usability, including
+[preparation](../tuning/README.md#prepared-data) decides data usability, including
 minimum dataset sizes. Retain the workload identity and download provenance.
 
 ## Release stability
@@ -169,7 +169,7 @@ itself using `GAMES`, `test_max_games: 2000`, and `N/A` bounds/confidence. Use t
 strength conditions and compact PGNs:
 
 ```bash
-./tools/openbench-submit games \
+./bin/openbench-submit games \
   --candidate HEAD --candidate-engine bench/latrunculi \
   --self-play --games 2000 \
   --description "Release stability self-play" \
@@ -183,14 +183,13 @@ fixed-test pass/fail flag. A plumbing smoke check instead uses two games.
 Other fixed workloads require a positive, even game count chosen before play;
 workers may finish a few in-flight games beyond the target.
 
-## Tool tests
+## Implementation
 
-Run wrapper and fingerprint-runner regressions without contacting OpenBench or
-running real engines:
-
-```bash
-tools/.venv/bin/python -m unittest tools.test_launchers tools.openbench.test_submit tools.analysis.test_bench
-```
+`submit.py` combines the JSON templates, pinned revisions, and fingerprints from
+`tools/fingerprint.py`, then delegates to the installed OpenBench client. The
+client owns authentication, API requests, and submission records. Use the `bin/`
+launchers to run these commands; run the [tool tests](../README.md#tests) after
+changing the wrapper or templates.
 
 ## Retained evidence
 
@@ -198,7 +197,7 @@ Keep the workload ID/URL, engine revisions, server revision if known, actual
 settings, termination rule, result, and server PGN location with the measurements
 or PR. For strength SPRTs, include games, terminal LLR, profile, and Elo interval.
 Don't relabel an old test as evidence for a new engine. Apply the
-[evidence-reuse guidance](../docs/engine-development.md#reusing-evidence) when
+[evidence-reuse guidance](../../docs/engine-development.md#reusing-evidence) when
 code, build inputs, or the baseline changes.
 
 [client]: https://github.com/zm-bm/OpenBench/blob/89010f054df2713a2a5c6762bdf907a69b5d0a31/client-cli/README.md

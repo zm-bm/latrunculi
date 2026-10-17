@@ -317,7 +317,7 @@ class UCI:
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     separator = argv.index("--") if "--" in argv else len(argv)
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(prog="uci-probe", description=__doc__)
     parser.add_argument("--fen", required=True, help="six-field starting FEN")
     parser.add_argument("--moves", nargs="*", default=[], help="UCI moves from the starting FEN")
     parser.add_argument("--nodes", required=True, type=int)

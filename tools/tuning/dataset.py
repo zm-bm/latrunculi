@@ -17,7 +17,7 @@ import chess.pgn
 RESULTS = {"1-0": 1, "1/2-1/2": 0, "0-1": -1}
 DATA_FILE = "development.jsonl"
 PHASE_BUCKETS = ((0, 31), (32, 63), (64, 95), (96, 128))
-FORMAT_VERSION = 4
+FORMAT_VERSION = 5
 PREPARATION_POLICY = {
     "schema_version": 2,
     "minimum_game_ply": 8,
@@ -521,7 +521,7 @@ def validate_output(output_dir):
     manifest = json.loads((output_dir / "manifest.json").read_text())
     if (not isinstance(manifest, dict) or type(manifest.get("format_version")) is not int
             or manifest["format_version"] != FORMAT_VERSION):
-        raise ValueError("unsupported dataset manifest; use the original tool revision for legacy outputs or prepare a new dataset")
+        raise ValueError("unsupported dataset manifest; prepare a new dataset")
     expected_manifest = {"format_version", "identity", "collection", "deduplication",
                          "source_results", "validation", "outputs"}
     if set(manifest) != expected_manifest:

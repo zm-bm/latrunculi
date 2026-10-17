@@ -41,23 +41,36 @@ arithmetic changes, also use the `debug-asan-ubsan` configure, build, and test
 presets; use `debug-tsan` for affected threading behavior. See
 [sanitizer execution](../tools/analysis/README.md#sanitizers).
 
+For changes to Python tooling or the feature-export interface it consumes, run
+the [tool tests](../tools/README.md#tests) as well.
+
 ## Compare locally
 
 Set up the [shared Python environment](../tools/README.md#setup) once. For a quick
 look at search or performance changes:
 
 ```bash
-./tools/bench compare \
+./bin/bench compare \
   build/my-change-base/latrunculi-search-bench build/release-dev/latrunculi-search-bench \
   --depth 8 --pairs 2 --output tools/analysis/output/my-change-quick
 ```
 
-Read `summary.txt`; keep raw results with the revisions and settings they measure.
-Quick results help decide whether to continue. Before making a performance or
-search claim, complete the [local validation checks](../tools/analysis/README.md#validation)
-and run the standard depth-10, six-pair comparison by omitting `--depth` and
-`--pairs`, with a fresh output directory. Use the same compiler/settings for both
-binaries and run one CPU-sensitive task at a time.
+The terminal overview reports relative changes; `summary.txt` retains the detailed
+statistics. Keep raw results with the revisions and settings they measure. Quick
+results help decide whether to continue. Before making a performance or search
+claim, complete the [local validation checks](../tools/analysis/README.md#validation)
+and run the standard depth-10, six-pair comparison in a fresh output directory:
+
+```bash
+./bin/bench compare \
+  build/my-change-base/latrunculi-search-bench build/release-dev/latrunculi-search-bench \
+  --depth 10 --pairs 6 --output tools/analysis/output/my-change-comparison
+```
+
+This uses all 200 positions, one thread, and 32 MiB Hash. Each comparison checks
+per-build repeatability and PV legality for its measured runs; separate corpus
+runs are unnecessary merely to repeat those checks. Use the same compiler/settings
+for both binaries and run one CPU-sensitive task at a time.
 
 Add `--exact-tree` only when search behavior should remain identical. Fewer nodes
 do not necessarily mean faster search, and faster search does not establish
@@ -71,12 +84,12 @@ may instead be justified by a regression and relevant local checks. Decide the
 intended benefit and acceptable tradeoffs before testing.
 
 Commit and push the candidate so workers can build it. Follow the
-[OpenBench guide](../tools/openbench.md#submit-and-stop) to build through the
+[OpenBench guide](../tools/openbench/README.md#submit-and-stop) to build through the
 adapter and prepare a standard test using the candidate as Dev and the saved
 baseline as Base:
 
 ```bash
-./tools/openbench-submit sprt \
+./bin/openbench-submit sprt \
   --candidate HEAD --candidate-engine bench/latrunculi \
   --baseline "$(cat build/my-change-base/revision.txt)" \
   --baseline-engine build/my-change-base/latrunculi \

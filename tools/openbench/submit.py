@@ -3,25 +3,35 @@
 
 import argparse
 import json
-import os
+import math
 from pathlib import Path
 import re
 import shlex
 import subprocess
 import sys
-import tempfile
 
-if not __package__:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from tools.analysis import bench
+from .. import fingerprint
 
 
 TEMPLATES = Path(__file__).resolve().parent
 
 
+def positive_int(value):
+    number = int(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return number
+
+
+def finite_seconds(value):
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError("must be finite and positive")
+    return number
+
+
 def even_games(value):
-    number = bench.positive_int(value)
+    number = positive_int(value)
     if number % 2:
         raise argparse.ArgumentTypeError("must be a positive, even game count")
     return number
@@ -39,7 +49,7 @@ def revision(value):
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(prog="openbench-submit", description=__doc__)
     modes = parser.add_subparsers(dest="mode", required=True)
     for name, help_text in (
         ("sprt", "strength comparison with the standard [0,3] bounds"),
@@ -55,7 +65,7 @@ def parse_args(argv):
         mode.add_argument("--output", type=Path, required=True, metavar="DIR",
                           help="new directory for settings, fingerprints, and submission")
         mode.add_argument("--config", type=Path, help="credential config forwarded to the client")
-        mode.add_argument("--timeout", type=bench.finite_seconds, default=600,
+        mode.add_argument("--timeout", type=finite_seconds, default=600,
                           help="seconds per fingerprint run (default: 600)")
         mode.add_argument("--submit", action="store_true",
                           help="submit once; default is preparation and client dry run")
@@ -71,7 +81,7 @@ def parse_args(argv):
                               help="positive, even game count" +
                               (" (default: 42000)" if name == "corpus" else ""))
         if name == "corpus":
-            mode.add_argument("--worker-concurrency", type=bench.positive_int, required=True,
+            mode.add_argument("--worker-concurrency", type=positive_int, required=True,
                               help="concurrency of the single worker running the corpus")
     args = parser.parse_args(argv)
     if not args.description.strip() or len(args.description) > 1024:
@@ -85,14 +95,12 @@ def parse_args(argv):
 
 
 def write_settings(path, settings):
-    """Publish complete settings without replacing an existing file."""
-    descriptor, name = tempfile.mkstemp(dir=path.parent, prefix=".settings-")
-    temporary = Path(name)
+    """Publish complete settings inside the newly created output directory."""
+    text = json.dumps(settings, indent=2) + "\n"
+    temporary = path.with_name(path.name + ".partial")
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
-            json.dump(settings, output, indent=2)
-            output.write("\n")
-        os.link(temporary, path)
+        temporary.write_text(text, encoding="utf-8")
+        temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -114,12 +122,12 @@ def prepare(args):
     self_play = args.mode == "corpus" or (args.mode == "games" and args.self_play)
     settings["dev_branch"] = revision(args.candidate)
     settings["base_branch"] = settings["dev_branch"] if self_play else revision(args.baseline)
-    candidate = bench.executable(args.candidate_engine)
-    baseline = candidate if self_play else bench.executable(args.baseline_engine)
+    candidate = fingerprint.executable(args.candidate_engine)
+    baseline = candidate if self_play else fingerprint.executable(args.baseline_engine)
     settings["info"] = args.description
     output.mkdir(parents=True, exist_ok=False)
-    settings["dev_bench"] = bench.fingerprint_engine(candidate, output / "candidate", timeout=args.timeout)
-    settings["base_bench"] = settings["dev_bench"] if self_play else bench.fingerprint_engine(
+    settings["dev_bench"] = fingerprint.fingerprint_engine(candidate, output / "candidate", timeout=args.timeout)
+    settings["base_bench"] = settings["dev_bench"] if self_play else fingerprint.fingerprint_engine(
         baseline, output / "baseline", timeout=args.timeout)
     path = output / "settings.json"
     write_settings(path, settings)
@@ -135,8 +143,8 @@ def client_command(settings, config=None):
 
 
 def display_client_command(command):
-    launcher = Path(__file__).resolve().parents[1] / "openbench-client"
-    location = "./tools/openbench-client" if Path.cwd() == launcher.parent.parent else str(launcher)
+    launcher = Path(__file__).resolve().parents[2] / "bin/openbench-client"
+    location = "./bin/openbench-client" if Path.cwd() == launcher.parent.parent else str(launcher)
     return shlex.join([location, *command[3:]])
 
 

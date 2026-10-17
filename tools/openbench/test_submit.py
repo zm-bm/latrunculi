@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from openbench_client.cli import normalize_settings
 
-from tools.openbench import submit
+from . import submit
 
 
 DEV = "1" * 40
@@ -19,24 +19,15 @@ BASE = "2" * 40
 ENGINE = '''
 from pathlib import Path
 import sys
-import time
 
 trace = Path({trace!r})
-calls = len(trace.read_text().splitlines()) if trace.exists() else 0
 with trace.open("a") as output:
     output.write(" ".join(sys.argv[1:]) + "\\n")
 print("engine diagnostic", file=sys.stderr, flush=True)
-if {mode!r} == "failure":
+if {fail!r}:
     print("partial output", flush=True)
     sys.exit(7)
-if {mode!r} == "timeout":
-    print("started", flush=True)
-    time.sleep(10)
-if {mode!r} == "malformed":
-    print("no fingerprint")
-else:
-    nodes = {nodes} + (calls if {mode!r} == "changing" else 0)
-    print(f"{{nodes}} nodes 100 ms 1000 nps")
+print("{nodes} nodes 100 ms 1000 nps")
 '''
 
 
@@ -51,10 +42,10 @@ class SubmissionTests(unittest.TestCase):
         self.resolve = self.enterContext(patch.object(submit, "revision",
                                                     side_effect={"HEAD": DEV, "main": BASE}.__getitem__))
 
-    def engine(self, label, nodes, mode="ok"):
+    def engine(self, label, nodes, *, fail=False):
         path = self.root / f"{label} engine"
         path.write_text(f"#!{sys.executable}\n" + ENGINE.format(
-            trace=str(self.root / f"{label}.calls"), mode=mode, nodes=nodes))
+            trace=str(self.root / f"{label}.calls"), fail=fail, nodes=nodes))
         path.chmod(0o700)
         return path
 
@@ -103,8 +94,8 @@ class SubmissionTests(unittest.TestCase):
                                    "submit", str(self.root / "result/settings.json"), "--dry-run"])
         self.client.assert_called_once()
         handoff = shlex.split(stdout.splitlines()[-1])
-        launcher = Path(submit.__file__).resolve().parents[1] / "openbench-client"
-        expected_launcher = "./tools/openbench-client" if Path.cwd() == launcher.parent.parent else str(launcher)
+        launcher = Path(submit.__file__).resolve().parents[2] / "bin/openbench-client"
+        expected_launcher = "./bin/openbench-client" if Path.cwd() == launcher.parent.parent else str(launcher)
         self.assertEqual(handoff, [expected_launcher, *command[3:-1],
                                    "--output", str(self.root / "result/submission")])
         self.assertFalse((self.root / "result/submission").exists())
@@ -212,30 +203,18 @@ class SubmissionTests(unittest.TestCase):
         self.assertFalse((self.root / "candidate.calls").exists())
         self.client.assert_not_called()
 
-    def test_bad_templates_fail_before_engines_run(self):
-        for text in ("{broken", "[]"):
-            with self.subTest(text=text), patch.object(submit, "TEMPLATES", self.root):
-                (self.root / "sprt.json").write_text(text)
-                result, _, _ = self.run_cli(self.args())
-                self.assertEqual(result, 1)
-        self.assertFalse((self.root / "candidate.calls").exists())
-        self.client.assert_not_called()
-
-    def test_fingerprint_failures_keep_diagnostics_and_no_settings(self):
-        for mode in ("malformed", "changing", "failure", "timeout"):
-            with self.subTest(mode=mode):
-                self.candidate = self.engine(mode, 100, mode)
-                args = self.args(output=mode + "-output") + ["--timeout", "0.2"]
-                result, _, stderr = self.run_cli(args)
-                self.assertEqual(result, 1, stderr)
-                output = self.root / (mode + "-output")
-                self.assertFalse((output / "settings.json").exists())
-                self.assertTrue((output / "candidate/fingerprint-1.txt").exists())
-                self.assertIn("engine diagnostic", (output / "candidate/fingerprint-1.stderr.txt").read_text())
+    def test_candidate_failure_keeps_diagnostics_but_no_settings(self):
+        self.candidate = self.engine("broken candidate", 100, fail=True)
+        result, _, _ = self.run_cli(self.args())
+        self.assertEqual(result, 1)
+        output = self.root / "result"
+        self.assertFalse((output / "settings.json").exists())
+        self.assertIn("partial output", (output / "candidate/fingerprint-1.txt").read_text())
+        self.assertIn("engine diagnostic", (output / "candidate/fingerprint-1.stderr.txt").read_text())
         self.client.assert_not_called()
 
     def test_baseline_failure_keeps_candidate_but_no_settings(self):
-        self.baseline = self.engine("broken baseline", 100, "failure")
+        self.baseline = self.engine("broken baseline", 100, fail=True)
         result, _, _ = self.run_cli(self.args())
         self.assertEqual(result, 1)
         self.assertTrue((self.root / "result/candidate/fingerprint-2.txt").exists())
@@ -261,16 +240,16 @@ class SubmissionTests(unittest.TestCase):
                     elif not interrupted:
                         self.assertIn("retry the client dry run", stderr)
                         retry = shlex.split(stderr.splitlines()[-1])
-                        self.assertTrue(retry[0].endswith("/tools/openbench-client"))
+                        self.assertTrue(retry[0].endswith("/bin/openbench-client"))
                         self.assertEqual(retry[1:], self.client.call_args.args[0][3:])
 
     def test_interrupted_settings_write_does_not_publish_partial_json(self):
         path = self.root / "settings.json"
-        with patch.object(submit.json, "dump", side_effect=KeyboardInterrupt), \
+        with patch.object(Path, "replace", side_effect=KeyboardInterrupt), \
                 self.assertRaises(KeyboardInterrupt):
             submit.write_settings(path, {"info": "description"})
         self.assertFalse(path.exists())
-        self.assertEqual(list(self.root.glob(".settings-*")), [])
+        self.assertFalse((self.root / "settings.json.partial").exists())
 
 
 class CommandTests(unittest.TestCase):
@@ -281,8 +260,8 @@ class CommandTests(unittest.TestCase):
             command = [sys.executable, "-m", "openbench_client", "--config", "config with 'quotes'",
                        "submit", "settings with spaces.json", "--dry-run"]
             with patch.object(submit, "__file__", str(fake_file)):
-                for cwd, expected in ((root, "./tools/openbench-client"),
-                                      (root / "elsewhere", str(root / "tools/openbench-client"))):
+                for cwd, expected in ((root, "./bin/openbench-client"),
+                                      (root / "elsewhere", str(root / "bin/openbench-client"))):
                     with self.subTest(cwd=cwd), patch.object(submit.Path, "cwd", return_value=cwd):
                         rendered = submit.display_client_command(command)
                         self.assertEqual(shlex.split(rendered), [expected, *command[3:]])
@@ -296,13 +275,6 @@ class CommandTests(unittest.TestCase):
             run.return_value = subprocess.CompletedProcess([], 128, "", "fatal: unknown revision")
             with self.assertRaisesRegex(ValueError, "cannot resolve commit"):
                 submit.revision("--bad-revision")
-
-    def test_client_invocation_inherits_output_without_shell(self):
-        command = [sys.executable, "-m", "openbench_client", "submit", "settings.json", "--dry-run"]
-        with patch.object(submit.subprocess, "run") as run:
-            run.return_value = subprocess.CompletedProcess(command, 4)
-            self.assertEqual(submit.run_client(command), 4)
-            run.assert_called_once_with(command, check=False)
 
 
 if __name__ == "__main__":

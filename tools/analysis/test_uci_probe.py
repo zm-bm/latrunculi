@@ -12,7 +12,7 @@ import unittest
 import chess
 import chess.engine
 
-from tools.analysis.uci_probe import IterationReports, UCI, position
+from .uci_probe import IterationReports, UCI, position
 
 
 START = chess.STARTING_FEN
@@ -366,9 +366,8 @@ class ChildTests(unittest.TestCase):
 
     def test_cli_emits_one_json_and_preserves_engine_argv(self):
         command = self.command() + ["--literal-engine-argument", "a b $(not-a-shell)"]
-        probe = Path(__file__).with_name("uci_probe.py")
         run = subprocess.run([
-            sys.executable, str(probe), "--fen", START, "--nodes", "500",
+            sys.executable, "-m", "tools.analysis.uci_probe", "--fen", START, "--nodes", "500",
             "--option", "Hash=64", "--timeout", "1", "--", *command,
         ], text=True, capture_output=True, timeout=5)
         self.assertEqual(run.returncode, 0, run.stderr)
@@ -379,7 +378,6 @@ class ChildTests(unittest.TestCase):
         self.assertEqual(result["request"], {"nodes": 500, "multipv": 1, "root_moves": None})
 
     def test_bad_cli_input_emits_no_result(self):
-        probe = Path(__file__).with_name("uci_probe.py")
         for extra in (["--fen", "8/8/8/8/8/8/8/8 w - -"],
                       ["--fen", START, "--moves", "e2e5"],
                       ["--fen", START, "--moves", "0000"],
@@ -387,7 +385,7 @@ class ChildTests(unittest.TestCase):
                       ["--fen", START, "--option", "Hash"]):
             with self.subTest(extra=extra):
                 run = subprocess.run([
-                    sys.executable, str(probe), *extra, "--nodes", "500", "--", *self.command(),
+                    sys.executable, "-m", "tools.analysis.uci_probe", *extra, "--nodes", "500", "--", *self.command(),
                 ], text=True, capture_output=True, timeout=5)
                 self.assertEqual(run.returncode, 1)
                 self.assertEqual(run.stdout, "")

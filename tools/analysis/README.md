@@ -1,14 +1,15 @@
 # Analysis
 
-Use one native search workload with `bench.py` to collect and compare measurements.
-Use `perf` to investigate CPU cost, and `uci_probe.py` for individual positions
+Use one native search workload with `./bin/bench` to collect and compare measurements.
+Use `perf` to investigate CPU cost, and `./bin/uci-probe` for individual positions
 with move history or restricted root moves. Games on
-[OpenBench](../openbench.md#strength-tests) measure playing strength.
+[OpenBench](../openbench/README.md#strength-tests) measure playing strength.
 
 | File | Responsibility |
 |---|---|
 | `bench.py` | Command interface and collection of benchmark runs and fingerprints |
 | `bench_results.py` | Reading, checking and summarizing benchmark results |
+| [`../fingerprint.py`](../fingerprint.py) | Shared fingerprint execution and subprocess output capture |
 | `search_bench.cpp` | Native search workload and search-only timing |
 | `search.epd` | Default position suite |
 | `uci_probe.py` | Position investigations with history, restricted roots and UCI reports |
@@ -33,7 +34,7 @@ For exploratory viability, compare the full suite at a shallower depth with two
 alternating pairs:
 
 ```bash
-./tools/bench compare /path/to/baseline-bench /path/to/candidate-bench \
+./bin/bench compare /path/to/baseline-bench /path/to/candidate-bench \
   --depth 8 --pairs 2 --output tools/analysis/output/quick-comparison
 ```
 
@@ -50,7 +51,7 @@ After required correctness and risk checks, use the same command with its standa
 defaults: all 200 positions, depth 10, one thread, 32 MiB Hash and six pairs.
 
 ```bash
-./tools/bench compare /path/to/baseline-bench /path/to/candidate-bench \
+./bin/bench compare /path/to/baseline-bench /path/to/candidate-bench \
   --cpu 2 --output tools/analysis/output/candidate-timing
 ```
 
@@ -66,8 +67,23 @@ use fresh processes in alternating `BC,CB` order; warmups do not enter the timin
 statistics. No separately collected reference files are needed. `--pairs` accepts
 an even count of at least two; shorter runs do not replace formal timing.
 
-The single `summary.txt` includes search settings, node totals and ratios,
-root-move/score changes, individual time ratios, variation and balanced timing:
+`compare` and `summarize` lead their final output with an overview, followed by the
+detailed statistics. For example:
+
+```text
+Candidate search time: +2.87% (median balanced ratio)
+Candidate total nodes: -1.87%
+Changed best moves: 47 / 200
+Repeatability and PV legality checks: passed
+```
+
+Positive percentages mean more search time or nodes than the baseline; negative
+percentages mean less. A single saved pair is labeled diagnostic and does not
+establish repeatability. These measurements do not establish playing strength.
+
+The saved `summary.txt` keeps its `key=value` format, including search settings,
+node totals and ratios, root-move/score changes, individual time ratios, variation
+and balanced timing:
 
 - `geometric_mean_node_ratio` (`R_node_g`) geometrically averages per-position node ratios.
 - `total_node_ratio` divides candidate total nodes by baseline total nodes.
@@ -92,7 +108,7 @@ or retries.
 Collect a single corpus pass, or request repeats and an optional exact reference:
 
 ```bash
-./tools/bench run ./build/release-dev/latrunculi-search-bench \
+./bin/bench run ./build/release-dev/latrunculi-search-bench \
   --repeats 2 --output tools/analysis/output/candidate-corpus
 ```
 
@@ -104,7 +120,7 @@ multithreaded legality checks; this does not replace single-thread repeatability
 Collect the engine's OpenBench compatibility fingerprint:
 
 ```bash
-./tools/bench fingerprint ./build/release-dev/latrunculi \
+./bin/bench fingerprint ./build/release-dev/latrunculi \
   --output tools/analysis/output/candidate-fingerprint
 ```
 
@@ -132,12 +148,17 @@ Before retaining a performance or search change:
 1. Run all 200 positions at depth 10, one thread, 32 MiB Hash, and collect the
    fingerprint. Quick depth-8 runs do not replace these checks.
 2. Pass the full Release suite, relevant regressions, and applicable sanitizers.
-   Verify fitted coefficients against the retained fit when changing evaluation.
+   When applying fitted coefficients, verify the compiled engine against the
+   retained fit. Manual evaluation changes do not require a fit artifact.
 3. Confirm determinism in fresh processes: depths, static/searched scores, nodes,
-   moves, and PVs must agree within each build. Repeat the fingerprint and corpus
-   twice; the comparison's warmup and measured passes can supply corpus repeats.
+   moves, and PVs must agree within each build. Repeat the fingerprint twice;
+   the comparison's warmup and measured passes supply corpus repeats and PV
+   legality checks without separate corpus runs.
 4. Run the six alternating timing pairs above after correctness checks pass.
    Inspect load and variation before claiming a gain. Use games for strength claims.
+
+For changes to Python tooling or its feature-export interface, also run the
+[tool tests](../README.md#tests).
 
 Cold-table runs miss state retained across searches. Add focused sequences when
 changing TT reuse, clocks/limits, threading, or worker lifetime. Define expected
@@ -184,7 +205,7 @@ Recompute comparisons from existing `search_measurement_v5` files without runnin
 engines:
 
 ```bash
-./tools/bench summarize \
+./bin/bench summarize \
   --pair BC pair-1-baseline.tsv pair-1-candidate.tsv \
   --pair CB pair-2-baseline.tsv pair-2-candidate.tsv
 ```
@@ -257,7 +278,7 @@ Use a full six-field starting FEN and subsequent moves to preserve clocks and
 known repetition history:
 
 ```bash
-./tools/uci-probe \
+./bin/uci-probe \
   --fen 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' \
   --moves g1f3 g8f6 --nodes 500000 -- ./build/release-dev/latrunculi
 ```
@@ -274,11 +295,6 @@ Raw report semantics and independent legality checks are retained while
 python-chess handles UCI transport. Scripts can reuse
 `UCI(command, options=None, timeout_s=90)`.
 
-Run the tool regressions in an environment supporting asyncio subprocesses. Use
-untraced execution for UCI probes and tests when the environment is known to stall
-python-chess's background event loop:
-
-```bash
-tools/.venv/bin/python -m unittest tools.analysis.test_bench_results tools.analysis.test_bench \
-  tools.analysis.test_uci_probe
-```
+Run the [tool tests](../README.md#tests) in an environment supporting asyncio
+subprocesses. Use untraced execution for UCI probes and tests when the environment
+is known to stall python-chess's background event loop.

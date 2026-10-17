@@ -12,10 +12,8 @@ import shutil
 import subprocess
 import time
 
-if __package__:
-    from . import bench_results
-else:
-    import bench_results
+from .. import fingerprint
+from . import bench_results
 
 
 DEFAULT_SUITE = Path(__file__).with_name("search.epd")
@@ -90,36 +88,20 @@ def load_corpus_run(path, suite, args):
     return run
 
 
-def executable(path):
-    path = path.resolve()
-    if not path.is_file() or not os.access(path, os.X_OK):
-        raise ValueError(f"not an executable: {path}")
-    return path
-
-
 def benchmark_command(binary, args):
     return [str(binary), "--suite", str(args.suite.resolve()),
             "--depth", str(args.depth), "--threads", str(args.threads),
             "--hash", str(args.hash_mb)]
 
 
-def collect(command, output, timeout):
-    """Keep raw stdout/stderr even when the child fails or times out."""
-    print(f"Running {output.name}", flush=True)
-    with output.open("x") as stdout, output.with_suffix(".stderr.txt").open("x") as stderr:
-        start = time.monotonic()
-        subprocess.run(command, stdout=stdout, stderr=stderr, check=True, timeout=timeout)
-    return time.monotonic() - start
-
-
 def run_corpus(args):
-    binary, suite = executable(args.bench), load_suite(args.suite)
+    binary, suite = fingerprint.executable(args.bench), load_suite(args.suite)
     prefix, _ = affinity(args.cpu)
     reference = load_corpus_run(args.reference, suite, args) if args.reference else None
     args.output.mkdir(parents=True, exist_ok=False)
     for repeat in range(1, args.repeats + 1):
         path = args.output / f"corpus-{repeat}.tsv"
-        collect(prefix + benchmark_command(binary, args), path, args.timeout)
+        fingerprint.collect(prefix + benchmark_command(binary, args), path, args.timeout)
         run = load_corpus_run(path, suite, args)
         if reference is not None:
             bench_results.require_signatures("corpus reference/repeat", reference, run)
@@ -129,32 +111,9 @@ def run_corpus(args):
               flush=True)
 
 
-def fingerprint_nodes(path):
-    matches = re.findall(r"^\s*(\d+) nodes(?:\s|$)", path.read_text(), re.MULTILINE)
-    if len(matches) != 1 or int(matches[0]) <= 0:
-        raise ValueError(f"{path}: expected one positive bench node count")
-    return int(matches[0])
-
-
-def fingerprint_engine(engine, output, *, repeats=2, timeout=600, reference=None):
-    """Collect repeatable bench outputs and return their node count."""
-    binary = executable(engine)
-    reference = fingerprint_nodes(reference) if reference else None
-    output.mkdir(parents=True, exist_ok=False)
-    for repeat in range(1, repeats + 1):
-        path = output / f"fingerprint-{repeat}.txt"
-        collect([str(binary), "bench"], path, timeout)
-        nodes = fingerprint_nodes(path)
-        if reference is not None and nodes != reference:
-            raise ValueError(f"{path}: fingerprint differs: {nodes} != {reference}")
-        reference = nodes
-        print(f"{path.name}: {nodes} nodes; checks pass", flush=True)
-    return reference
-
-
 def collect_fingerprint(args):
-    fingerprint_engine(args.engine, args.output, repeats=args.repeats,
-                       timeout=args.timeout, reference=args.reference)
+    fingerprint.fingerprint_engine(args.engine, args.output, repeats=args.repeats,
+                                   timeout=args.timeout, reference=args.reference)
 
 
 def require_untraced():
@@ -211,7 +170,7 @@ def compare_benchmarks(args):
     require_untraced()
     prefix, siblings = affinity(args.cpu)
     suite = load_suite(args.suite)
-    binaries = {name: executable(getattr(args, name)) for name in ("baseline", "candidate")}
+    binaries = {name: fingerprint.executable(getattr(args, name)) for name in ("baseline", "candidate")}
     args.output.mkdir(parents=True, exist_ok=False)
     schedule = [(f"warmup-{name}", name) for name in binaries]
     for pair in range(1, args.pairs + 1):
@@ -229,7 +188,7 @@ def compare_benchmarks(args):
         for label, name in schedule:
             before = cpu_counters()
             path = args.output / f"{label}.tsv"
-            wall = collect(prefix + benchmark_command(binaries[name], args), path, args.timeout)
+            wall = fingerprint.collect(prefix + benchmark_command(binaries[name], args), path, args.timeout)
             metrics.write(json.dumps({"run": label, "wall_seconds": wall,
                                       "cpu_busy_fraction": cpu_load(before, cpu_counters())}) + "\n")
             metrics.flush()
@@ -247,20 +206,22 @@ def compare_benchmarks(args):
 
     pairs = [("BC" if pair % 2 else "CB", runs[f"pair-{pair}-baseline"],
               runs[f"pair-{pair}-candidate"]) for pair in range(1, args.pairs + 1)]
-    summary = bench_results.format_summary(bench_results.summarize(pairs, args.exact_tree))
+    summary = bench_results.summarize(pairs, args.exact_tree)
+    details = bench_results.format_summary(summary)
     with (args.output / "summary.txt").open("x") as output:
-        output.write(summary)
-    print(summary, end="", flush=True)
+        output.write(details)
+    print(bench_results.format_overview(summary) + "\n" + details, end="", flush=True)
 
 
 def summarize_files(args):
     pairs = [(order, bench_results.load_run(Path(b)), bench_results.load_run(Path(c)))
              for order, b, c in args.pair]
-    print(bench_results.format_summary(bench_results.summarize(pairs, args.exact_tree)), end="")
+    summary = bench_results.summarize(pairs, args.exact_tree)
+    print(bench_results.format_overview(summary) + "\n" + bench_results.format_summary(summary), end="")
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(prog="bench", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     run_parser = commands.add_parser("run", help="collect corpus passes")
     run_parser.add_argument("bench", type=Path)

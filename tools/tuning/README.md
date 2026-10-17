@@ -2,7 +2,7 @@
 
 The tuning tool fits the linear handcrafted evaluation from recorded games.
 It prepares a grouped dataset, fits candidate weights, and verifies that an
-engine contains those weights. [OpenBench testing](../openbench.md#strength-tests)
+engine contains those weights. [OpenBench testing](../openbench/README.md#strength-tests)
 measures playing strength.
 
 Set up the [shared Python environment](../README.md#setup), then run from the
@@ -12,18 +12,18 @@ repository root:
 DATA=tools/tuning/output/prepared
 FIT=tools/tuning/output/fit
 
-./tools/tune prepare \
+./bin/tune prepare \
   --engine build/release/latrunculi --output "$DATA" /path/to/games.pgn.tar
-./tools/tune fit --dataset "$DATA" --output "$FIT"
-./tools/tune verify "$FIT" --engine build/candidate/latrunculi
+./bin/tune fit --dataset "$DATA" --output "$FIT"
+./bin/tune verify "$FIT" --engine build/candidate/latrunculi
 ```
 
 Inputs may be `.pgn`, `.pgn.bz2`, or OpenBench `.pgn.tar`. Keep generated files
 under ignored `tools/tuning/output/`.
 
 For an existing OpenBench corpus whose PGNs are not local, use
-`./tools/openbench-client` with the
-[status and download commands](../openbench.md#inspect-and-download)
+`./bin/openbench-client` with the
+[status and download commands](../openbench/README.md#inspect-and-download)
 to retain its PGN archive, checksum, and workload provenance together. Verify
 the workload revisions against the intended baseline. Pass the downloaded
 `.pgn.tar` directly to `prepare`; extraction is unnecessary. Preparation
@@ -34,7 +34,7 @@ corpus usability.
 
 `prepare` writes `manifest.json` and `development.jsonl`. It groups games by
 starting position so related examples stay together during validation. The
-[OpenBench tuning workload](../openbench.md#tuning-corpus) describes
+[OpenBench tuning workload](../openbench/README.md#tuning-corpus) describes
 how to collect fresh games. Once prepared, `fit` needs the dataset without
 the original PGNs or exporter.
 
@@ -43,9 +43,9 @@ the original PGNs or exporter.
 `fit` compares candidate weights on held-out opening groups, then writes
 `cross-validation.json` and `candidate.json` with the selection evidence and
 exact integer weights. Its numerical policy is in
-[`FIT_POLICY`](tune.py). Numerical support alone does not establish playing
+[`FIT_POLICY`](fit.py). Numerical support alone does not establish playing
 strength; fitted evaluation changes also need [local validation](../analysis/README.md#validation)
-and [strength testing](../openbench.md#strength-tests).
+and [strength testing](../openbench/README.md#strength-tests).
 
 `verify` checks the compiled coefficients and evaluation invariants against
 the proposed weights and prints JSON. It can run again after rebuilding
@@ -90,6 +90,11 @@ the candidate/base revisions. Verification checks the fit, not playing strength.
 
 ### Resume and reuse
 
+The current dataset manifests and fit artifacts use format version 5. Start a
+fresh `prepare` and `fit` after this tool reorganization; older outputs are retained
+as evidence and are not migrated. The engine feature schema is separate from the
+artifact format and remains version 2.
+
 `run.json` pins schema, policy, inputs, tools, and dependencies; final reports mark
 completion. Rerunning `prepare` validates an existing dataset; rerunning `fit`
 reuses completed matching checkpoints and restarts interrupted units. Changed
@@ -97,6 +102,18 @@ inputs, evaluation, schema, tools, dependencies, or policy require fresh output.
 A search-only change may preserve numerical evidence, but the resulting engine
 still needs relevant validation against its current baseline. Keep original
 provenance and use the [evidence guidance](../../docs/engine-development.md#reusing-evidence).
+
+## Implementation
+
+- `dataset.py` prepares and validates PGNs, exported features, and provenance.
+- `model.py` loads sparse data and calculates evaluations, loss, and gradients.
+- `fit.py` owns the numerical policy, constraints, optimization, and grouped validation.
+- `artifacts.py` reads and writes checkpoints, provenance, weights, and reports.
+- `tune.py` handles commands and verifies the compiled engine.
+
+Fit provenance hashes all tuning modules and their package initializers. Modules
+use package imports; use `./bin/tune` to run the CLI. Run the
+[tool tests](../README.md#tests) after changing the implementation.
 
 Background: [Texel's Tuning Method](https://www.chessprogramming.org/Texel%27s_Tuning_Method)
 and [Ethereal's tuning paper](https://github.com/AndyGrant/Ethereal/blob/master/Tuning.pdf).

@@ -187,6 +187,24 @@ def summarize(pairs: list[tuple[str, Run, Run]], exact_tree: bool = False) -> di
     return summary
 
 
+def format_overview(summary: dict) -> str:
+    """Describe a successfully validated comparison without judging its benefit."""
+    if summary["pairs"] == 1:
+        ratio = summary["pair_1_search_time_ratio"]
+        timing = "single pair; diagnostic only"
+        checks = "PV legality checks: passed; repeatability not checked"
+    else:
+        ratio = summary["median_balanced_search_time_ratio"]
+        timing = "median balanced ratio"
+        checks = "Repeatability and PV legality checks: passed"
+    return (
+        f"Candidate search time: {(ratio - 1) * 100:+.2f}% ({timing})\n"
+        f"Candidate total nodes: {(summary['total_node_ratio'] - 1) * 100:+.2f}%\n"
+        f"Changed best moves: {summary['root_move_changes']} / {summary['cases']}\n"
+        f"{checks}\n"
+    )
+
+
 def format_summary(summary: dict) -> str:
     return "".join(f"{key}={value:.9f}\n" if isinstance(value, float) else f"{key}={value}\n"
                    for key, value in summary.items())

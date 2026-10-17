@@ -8,7 +8,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from tools.analysis import bench, bench_results
+from . import bench, bench_results
+from .. import fingerprint
 
 
 FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -31,12 +32,6 @@ if MODE == "failure":
 if MODE == "timeout":
     print("started", flush=True)
     time.sleep(10)
-if sys.argv[1:] == ["bench"]:
-    if MODE == "missing_fingerprint":
-        print("no benchmark result")
-    else:
-        print(f"{1234 + (call if MODE == 'changing' else 0)} nodes 999 nps")
-    sys.exit(0)
 def option(name):
     return sys.argv[sys.argv.index(name) + 1]
 writer = csv.DictWriter(sys.stdout, fieldnames=FIELDS, delimiter="\t")
@@ -117,18 +112,12 @@ class RunnerTests(unittest.TestCase):
                           "--output", output])
         self.assertEqual(before, self.trace.read_bytes())
 
-    def test_fingerprint_repeats_reference_and_failures(self):
-        engine = self.child()
-        first = self.root / "fingerprint"
-        self.run_cli(["fingerprint", engine, "--output", first])
-        self.assertEqual(bench.fingerprint_nodes(first / "fingerprint-2.txt"), 1234)
-        self.run_cli(["fingerprint", engine, "--output", self.root / "second",
-                      "--reference", first / "fingerprint-1.txt"])
-        for mode, message in (("changing", "fingerprint differs"),
-                              ("missing_fingerprint", "expected one positive")):
-            with self.subTest(mode=mode), self.assertRaisesRegex(SystemExit, message):
-                self.run_cli(["fingerprint", self.child(mode=mode),
-                              "--output", self.root / mode])
+    def test_fingerprint_forwards_cli_arguments(self):
+        engine, output, reference = (self.root / name for name in ("engine", "output", "reference"))
+        with patch.object(fingerprint, "fingerprint_engine") as collect:
+            self.run_cli(["fingerprint", engine, "--output", output, "--reference", reference,
+                          "--repeats", "3", "--timeout", "5"])
+        collect.assert_called_once_with(engine, output, repeats=3, timeout=5, reference=reference)
 
     def comparison_args(self, mode="ok"):
         return ["compare", self.child("baseline", "warmup_noise"), self.child(mode=mode),
@@ -145,7 +134,8 @@ class RunnerTests(unittest.TestCase):
 
     def test_compare_defaults_to_six_pairs_and_excludes_warmups(self):
         with patch.object(bench, "require_untraced"):
-            self.run_cli(self.comparison_args() + ["--exact-tree"])
+            output = self.run_cli(self.comparison_args() + ["--exact-tree"])
+        self.assertIn("Candidate search time: +0.00% (median balanced ratio)", output)
         calls = [json.loads(line)[0] for line in self.trace.read_text().splitlines()]
         self.assertEqual(calls, ["baseline", "candidate"] +
                          ["baseline", "candidate", "candidate", "baseline"] * 3)
@@ -158,14 +148,17 @@ class RunnerTests(unittest.TestCase):
 
     def test_short_tree_changing_comparison_and_saved_summary_agree(self):
         with patch.object(bench, "require_untraced"):
-            self.run_cli(self.comparison_args("tree_change") + ["--pairs", "2", "--depth", "8"])
+            output = self.run_cli(self.comparison_args("tree_change") + ["--pairs", "2", "--depth", "8"])
         summary = (self.root / "comparison/summary.txt").read_text()
         self.assertIn("geometric_mean_node_ratio=0.900000000", summary)
         args = ["summarize"]
         for pair, order in ((1, "BC"), (2, "CB")):
             args.extend(["--pair", order, self.root / f"comparison/pair-{pair}-baseline.tsv",
                          self.root / f"comparison/pair-{pair}-candidate.tsv"])
-        self.assertEqual(self.run_cli(args), summary)
+        summarized = self.run_cli(args)
+        self.assertTrue(output.endswith(summarized))
+        self.assertEqual(summarized.split("\n\n", 1)[1], summary)
+        self.assertTrue(summary.startswith("limit_type=depth\n"))
 
     def test_compare_rejects_bad_pair_count_before_running_children(self):
         with self.assertRaisesRegex(SystemExit, "even pair count"):
@@ -177,8 +170,10 @@ class RunnerTests(unittest.TestCase):
             with self.subTest(mode=mode), patch.object(bench, "require_untraced"):
                 args = self.comparison_args(mode) + ["--pairs", "2", "--timeout", "0.2"]
                 args[args.index("--output") + 1] = self.root / mode
-                with self.assertRaises(SystemExit):
-                    self.run_cli(args)
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    with self.assertRaises(SystemExit):
+                        bench.main(list(map(str, args)))
+                self.assertNotIn("Candidate search time:", output.getvalue())
                 self.assertTrue((self.root / mode / "warmup-candidate.tsv").exists())
                 self.assertFalse((self.root / mode / "summary.txt").exists())
 
