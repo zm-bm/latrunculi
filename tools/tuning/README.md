@@ -61,8 +61,9 @@ four-field FENs are deduplicated: agreeing results retain one copy; conflicting
 results discard all copies. Every retained evaluation must reconstruct exactly.
 
 Starting FENs identify groups across archives; games without one get their own
-group. Each group has total weight one. The schema-2 dataset header records
-baseline coefficients; the manifest records provenance and filtering.
+group. Each group has total weight one. The schema-4 dataset header records
+baseline coefficients, including exposed isolated and backward pawns; the
+manifest records provenance and filtering.
 
 ### Selection and review
 
@@ -93,7 +94,8 @@ the candidate/base revisions. Verification checks the fit, not playing strength.
 The current dataset manifests and fit artifacts use format version 5. Start a
 fresh `prepare` and `fit` after this tool reorganization; older outputs are retained
 as evidence and are not migrated. The engine feature schema is separate from the
-artifact format and remains version 2.
+artifact format; this engine uses version 4. Changed pawn features require fresh
+preparation and fitting with the selected engine.
 
 `run.json` pins schema, policy, inputs, tools, and dependencies; final reports mark
 completion. Rerunning `prepare` validates an existing dataset; rerunning `fit`

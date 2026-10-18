@@ -22,7 +22,7 @@ def position(source, result, fen, schema=None):
             coefficients.append([index, coefficient])
     record = {
         "type": "position",
-        "version": 2,
+        "version": schema["version"],
         "source": source,
         "result": result,
         "fen": fen,
@@ -191,15 +191,20 @@ class ValidationTest(unittest.TestCase):
         manifest["outputs"][dataset.DATA_FILE] = dataset.sha256_file(path)
         manifest_path.write_text(json.dumps(manifest))
 
-    def test_real_schema_two_prepared_dataset_validates_without_originals(self):
+    def test_prepared_dataset_validates_without_originals(self):
         self.engine.unlink()
         self.pgn.unlink()
         report, schema = dataset.validate_output(self.output)
-        self.assertEqual(report["schema_version"], 2)
+        self.assertEqual(report["schema_version"], dataset.PREPARATION_POLICY["schema_version"])
         self.assertEqual(report["feature_count"], 5)
         self.assertEqual(report["positions"], 12)
         self.assertEqual(report["groups"], 1)
         self.assertEqual(schema, base_schema())
+
+    def test_dataset_schema_must_match_preparation_policy(self):
+        policy = {**TINY_POLICY, "schema_version": 3}
+        with self.assertRaisesRegex(ValueError, "schema does not match preparation policy"):
+            dataset.validate_dataset(self.output, policy)
 
     def test_output_hashes_are_checked_before_structural_validation(self):
         path = self.output / dataset.DATA_FILE

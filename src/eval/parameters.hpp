@@ -221,6 +221,9 @@ inline constexpr TaperedScore isolated_pawn = {-12, -21};
 inline constexpr TaperedScore backward_pawn = {-24, -17};
 inline constexpr TaperedScore doubled_pawn  = {5, -30};
 inline constexpr TaperedScore connected_pawn_link = {31, 8};
+// Additional penalties for weak pawns on files without opposing pawns.
+inline constexpr TaperedScore isolated_open_pawn = {-10, -10};
+inline constexpr TaperedScore backward_open_pawn = {-12, -8};
 inline constexpr TaperedScore passed_pawn[] = {
     {0, 0}, {0, 0}, {-7, 15}, {-8, 69}, {37, 120}, {99, 211}, {195, 292}, {0, 0}};
 inline constexpr TaperedScore reachable_outpost       = {18, 23};

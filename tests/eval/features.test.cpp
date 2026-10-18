@@ -36,12 +36,12 @@ std::uint64_t schema_name_hash(const auto& schema) {
 TEST(FeaturesTest, SchemaIsStableAndUnique) {
     const auto& schema = eval::feature_schema();
 
-    EXPECT_EQ(eval::feature_schema_version, 2);
-    EXPECT_EQ(schema.size(), 483u);
+    EXPECT_EQ(eval::feature_schema_version, 4);
+    EXPECT_EQ(schema.size(), 485u);
     EXPECT_EQ(schema.front().name, "material.pawn");
-    EXPECT_EQ(schema.back().name, "pawn.connected_link");
+    EXPECT_EQ(schema.back().name, "pawn.backward_open");
     // Feature names and IDs must not change without a schema-version bump.
-    EXPECT_EQ(schema_name_hash(schema), 3939322459266140287ull);
+    EXPECT_EQ(schema_name_hash(schema), 12504289562783657569ull);
 
     std::unordered_set<std::string> names;
     for (const auto& feature : schema) {
@@ -177,7 +177,7 @@ TEST(FeaturesTest, BatchExportIsDeterministic) {
     const std::string first = run();
     EXPECT_EQ(first, run());
     EXPECT_EQ(std::count(first.begin(), first.end(), '\n'), 4);
-    EXPECT_NE(first.find(R"("type":"schema","version":2)"), std::string::npos);
+    EXPECT_NE(first.find(R"("type":"schema","version":4)"), std::string::npos);
     EXPECT_NE(
         first.find(
             R"("perspective":{"coefficients":"white","fixed":"white","eval":"side_to_move"})"),

@@ -18,7 +18,7 @@ class Board;
 
 namespace eval {
 
-inline constexpr int feature_schema_version = 2;
+inline constexpr int feature_schema_version = 4;
 
 enum class Term : std::uint8_t {
     Material = 0,
@@ -83,7 +83,9 @@ inline constexpr Id mobility_count =
 inline constexpr Id weak_piece_offset = mobility_offset + mobility_count;
 inline constexpr Id weak_piece_count  = 4;
 inline constexpr Id connected_pawn_link = weak_piece_offset + weak_piece_count;
-inline constexpr Id count               = connected_pawn_link + 1;
+inline constexpr Id isolated_open_pawn   = connected_pawn_link + 1;
+inline constexpr Id backward_open_pawn   = isolated_open_pawn + 1;
+inline constexpr Id count               = backward_open_pawn + 1;
 
 constexpr Id material(PieceType piece) {
     return material_offset + std::size_t(piece - PAWN);

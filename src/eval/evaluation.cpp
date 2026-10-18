@@ -341,6 +341,15 @@ TaperedScore Evaluator::evaluate_pawns() {
     score += linear_feature<Collecting, C>(
         feature::backward_pawn, eval::backward_pawn, bb::count(backwards_pawns));
 
+    // Weak pawns are more exposed on files without any opposing pawn.
+    const Bitboard open_files = ~bb::fill(opp_pawns);
+    score += linear_feature<Collecting, C>(feature::isolated_open_pawn,
+                                         eval::isolated_open_pawn,
+                                         bb::count(isolated_pawns & open_files));
+    score += linear_feature<Collecting, C>(feature::backward_open_pawn,
+                                         eval::backward_open_pawn,
+                                         bb::count(backwards_pawns & open_files));
+
     // doubled pawns: unsupported pawn with friendly pawns behind
     Bitboard pawns_behind  = pawns & bb::span_front<C>(pawns);
     Bitboard doubled_pawns = pawns_behind & ~pawn_attacks;
@@ -355,8 +364,9 @@ TaperedScore Evaluator::evaluate_pawns() {
     score += linear_feature<Collecting, C>(
         feature::connected_pawn_link, eval::connected_pawn_link, connected_links);
 
-    // passed pawns: no opposing pawn ahead on the same or an adjacent file
-    const Bitboard passed_pawns = pawns & ~bb::full_span<Opp>(opp_pawns);
+    // passed pawns: frontmost friendly pawn, with no opposing pawn ahead on this or adjacent files
+    const Bitboard passed_pawns =
+        pawns & ~bb::full_span<Opp>(opp_pawns) & ~bb::span_back<C>(pawns);
     bb::scan<C>(passed_pawns, [&](const Square square) {
         const Rank rank = square::relative_rank(square, C);
         score += linear_feature<Collecting, C>(feature::passed_pawn(rank), eval::passed_pawn[rank]);

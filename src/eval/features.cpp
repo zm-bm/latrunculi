@@ -309,6 +309,8 @@ const std::array<FeatureDefinition, feature::count>& feature_schema() {
         set(feature::weak_piece(ROOK), "threat.weak_rook", eval::weak_piece[ROOK]);
         set(feature::weak_piece(QUEEN), "threat.weak_queen", eval::weak_piece[QUEEN]);
         set(feature::connected_pawn_link, "pawn.connected_link", eval::connected_pawn_link);
+        set(feature::isolated_open_pawn, "pawn.isolated_open", eval::isolated_open_pawn);
+        set(feature::backward_open_pawn, "pawn.backward_open", eval::backward_open_pawn);
 
         assert(std::ranges::all_of(definitions, [](const FeatureDefinition& definition) {
             return !definition.name.empty();
