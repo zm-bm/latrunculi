@@ -104,8 +104,7 @@ The supplied binaries must correspond to their revisions.
 
 Inspect results in the web UI or with `status ID`. Let the declared SPRT reach a
 boundary; stopping early is inconclusive. The guide describes workload settings,
-fingerprints, and the current web-UI stop fallback. For fitting evaluation weights,
-use the [tuning guide](../tools/tuning/README.md).
+fingerprints, and the current web-UI stop fallback.
 
 ## Review and merge
 

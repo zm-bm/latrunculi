@@ -43,9 +43,7 @@ The handcrafted [Evaluator](../src/eval/evaluation.cpp) uses tunable weights:
   middlegame and endgame scores based on the remaining non-pawn material.
 - It also applies endgame scaling and a tempo bonus.
 
-The same evaluator exports features for the
-[tuning tools](../tools/tuning/README.md), which fit linear weights from
-recorded games.
+The same evaluator exports linear features for fitting weights from recorded games.
 
 ## Search
 
@@ -102,6 +100,5 @@ tests use their own reporters.
 
 The [test suite](../tests/) includes unit tests organized by module and
 randomized stress tests. The [analysis tools](../tools/analysis/README.md)
-provide search benchmarks and UCI inspection; the
-[tuning tools](../tools/tuning/README.md) handle evaluation data and weight
-fitting. Build and test commands are in the [README](../README.md#development).
+provide search benchmarks and UCI inspection. Build and test commands are in the
+[README](../README.md#development).

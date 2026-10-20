@@ -47,7 +47,7 @@ FIT_POLICY = {
             {"pattern": "material.pawn.eg", "minimum": 50, "maximum": 300},
             {"pattern": "material.knight.*", "minimum": 301, "maximum": 900},
             {"pattern": "material.bishop.*", "minimum": 301, "maximum": 900},
-            {"pattern": "material.rook.*", "minimum": 901, "maximum": 1500},
+            {"pattern": "material.rook.*", "minimum": 800, "maximum": 1500},
             {"pattern": "material.queen.*", "minimum": 1501, "maximum": 3000},
         ],
         "regularization": [
@@ -120,9 +120,10 @@ class ParameterMap:
 
 def calibrate_scale(split, calibration):
     lower, upper = calibration["bounds"]
+    evaluations = model.white_exported(split)
     result = optimize.minimize_scalar(
         lambda scale: model.mean_squared_error(
-            model.white_exported(split), split.targets, scale, split.weights
+            evaluations, split.targets, scale, split.weights
         ),
         bounds=(lower, upper),
         method="bounded",
@@ -358,9 +359,7 @@ def fit_parameters(split, schema, parameters, policy, scale, regularization):
         "deltas": initial.copy(),
         "rounded": parent_integer,
         "iteration": 0,
-        "objective": model.split_metric(split, schema, parent_integer, scale)[
-            "mean_squared_error"
-        ],
+        "objective": model.exact_loss(split, schema, parent_integer, scale),
     }
     iteration = 0
 
@@ -376,9 +375,7 @@ def fit_parameters(split, schema, parameters, policy, scale, regularization):
         iteration += 1
         rounded_deltas = parameters.rounded_deltas(deltas)
         rounded = parameters.expand(rounded_deltas).astype(np.int64)
-        exact_objective = model.split_metric(split, schema, rounded, scale)[
-            "mean_squared_error"
-        ] + regularization * float(
+        exact_objective = model.exact_loss(split, schema, rounded, scale) + regularization * float(
             parameters.multiplicity @ (rounded_deltas * rounded_deltas)
         )
         if exact_objective < best["objective"]:

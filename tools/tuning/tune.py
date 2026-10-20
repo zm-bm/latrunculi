@@ -2,7 +2,6 @@
 
 import argparse
 import copy
-import hashlib
 import json
 import pathlib
 import subprocess
@@ -34,7 +33,7 @@ def candidate_verification(candidate, schema, engine):
     return {
         "candidate_id": candidate["artifact_id"],
         "engine_sha256": engine_hash,
-        "schema_sha256": hashlib.sha256(dataset.canonical_json(actual_schema).encode()).hexdigest(),
+        "schema_sha256": dataset.sha256_json(actual_schema),
     }
 
 
@@ -180,7 +179,7 @@ def verify_command(args):
     print(json.dumps({"format_version": artifacts.FORMAT_VERSION, **verification}, indent=2, sort_keys=True))
 
 
-def parse_args():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(prog="tune", description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -200,16 +199,19 @@ def parse_args():
     verify.add_argument("--engine", type=pathlib.Path, required=True)
     verify.set_defaults(function=verify_command)
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main():
+def main(argv=None):
     try:
-        args = parse_args()
+        args = parse_args(argv)
         args.function(args)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"tune: {error}", file=sys.stderr)
         return 1
+    except KeyboardInterrupt:
+        print("tune: interrupted", file=sys.stderr)
+        return 130
     return 0
 
 

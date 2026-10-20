@@ -4,8 +4,8 @@ from unittest import mock
 
 import numpy as np
 
-from . import model, fit as fitting
-from .test_helpers import base_schema, experiment, make_split, record
+from tools.tuning import model, fit as fitting
+from .fixtures import base_schema, fit_policy, make_split, record
 
 
 class SupportTest(unittest.TestCase):
@@ -32,7 +32,7 @@ class ParameterMapTest(unittest.TestCase):
         )
 
         parameters = fitting.build_parameter_map(
-            current, model.baseline_weights(current), split, experiment()
+            current, model.baseline_weights(current), split, fit_policy()
         )
 
         self.assertEqual(len(parameters.members), 9)
@@ -56,7 +56,7 @@ class ParameterMapTest(unittest.TestCase):
                 )
             )
         split = make_split(records, len(current["features"]))
-        settings = experiment(
+        settings = fit_policy(
             anchors=("psqt.knight.a1",),
             mirrored=("knight",),
             support=32,
@@ -83,7 +83,7 @@ class ParameterMapTest(unittest.TestCase):
             ],
             len(current["features"]),
         )
-        settings = experiment(support=2)
+        settings = fit_policy(support=2)
         settings["validation"]["folds"] = 2
         assignments = np.asarray([0, 0, 0, 1, 1], dtype=np.int8)
 
@@ -110,7 +110,7 @@ class ParameterMapTest(unittest.TestCase):
         )
         records = [record([[7, 1]], source="a:x:1")]
         split = make_split(records, len(current["features"]))
-        settings = experiment(
+        settings = fit_policy(
             anchors=("psqt.knight.a1",),
             mirrored=("knight",),
         )
@@ -142,7 +142,7 @@ class OptimizerTest(unittest.TestCase):
         train.targets = model.expected_score(
             model.continuous_evaluation(train, current, target), 0.7
         )
-        settings = experiment(fixed=("material.pawn.mg", "pawn.isolated.mg"))
+        settings = fit_policy(fixed=("material.pawn.mg", "pawn.isolated.mg"))
         parameters = fitting.build_parameter_map(
             current, model.baseline_weights(current), train, settings
         )
@@ -152,50 +152,7 @@ class OptimizerTest(unittest.TestCase):
         np.testing.assert_array_equal(first["deltas"], second["deltas"])
         self.assertAlmostEqual(first["rounded"][5, 1], 30, delta=1)
 
-    def test_checkpoint_selection_uses_exact_rounded_loss(self):
-        current = base_schema([("pawn.isolated", 0, 0)])
-        split = make_split([record([[5, 1]])], len(current["features"]))
-        parent = model.baseline_weights(current)
-        parameters = fitting.ParameterMap(
-            parent=parent,
-            members=[[(5, 1)]],
-            names=["pawn.isolated.eg"],
-            bounds=[(-100, 100)],
-            support={"pawn.isolated.eg": 1},
-            frozen={},
-            multiplicity=np.asarray([1.0]),
-        )
-
-        def minimize(*_, callback, **__):
-            callback(np.asarray([1.51]))
-            callback(np.asarray([0.49]))
-            return types.SimpleNamespace(
-                x=np.asarray([0.49]),
-                nit=2,
-                nfev=2,
-                njev=2,
-                fun=0.0,
-                success=True,
-                message="ok",
-            )
-
-        def exact_metric(_, __, weights, ___):
-            return {"mean_squared_error": 0.1 if weights[5, 1] == 2 else 0.2}
-
-        with (
-            mock.patch.object(fitting.optimize, "minimize", side_effect=minimize),
-            mock.patch.object(model, "split_metric", side_effect=exact_metric),
-            mock.patch.object(model, "continuous_evaluation", return_value=np.asarray([0.0])),
-        ):
-            result = fitting.fit_parameters(
-                split, current, parameters, experiment(), 0.7, 0.0
-            )
-
-        self.assertEqual(result["rounded"][5, 1], 2)
-        self.assertEqual(result["selected_iteration"], 1)
-        self.assertEqual(result["optimizer"].x[0], 0.49)
-
-    def test_checkpoint_selection_penalizes_the_rounded_candidate(self):
+    def test_checkpoint_selection_uses_rounded_loss_and_penalty(self):
         current = base_schema([("pawn.isolated", 0, 0)])
         split = make_split([record([[5, 1]])], len(current["features"]))
         parameters = fitting.ParameterMap(
@@ -208,35 +165,34 @@ class OptimizerTest(unittest.TestCase):
             multiplicity=np.asarray([1.0]),
         )
 
-        def minimize(*_, callback, **__):
-            callback(np.asarray([1.51]))
-            callback(np.asarray([0.51]))
-            return types.SimpleNamespace(
-                x=np.asarray([1.51]),
-                nit=2,
-                nfev=2,
-                njev=2,
-                fun=0.0,
-                success=True,
-                message="ok",
-            )
+        def exact_loss(_, __, weights, ___):
+            return {0: 0.3, 1: 0.12, 2: 0.1}[weights[5, 1]]
 
-        def exact_metric(_, __, weights, ___):
-            return {
-                "mean_squared_error": {0: 0.3, 1: 0.12, 2: 0.1}[weights[5, 1]]
-            }
-
-        with (
-            mock.patch.object(fitting.optimize, "minimize", side_effect=minimize),
-            mock.patch.object(model, "split_metric", side_effect=exact_metric),
-            mock.patch.object(model, "continuous_evaluation", return_value=np.asarray([0.0])),
+        for penalty, last, final, weight, iteration, objective in (
+            (0.0, 0.49, 0.49, 2, 1, 0.1),
+            (0.02, 0.51, 1.51, 1, 2, 0.14),
         ):
-            result = fitting.fit_parameters(
-                split, current, parameters, experiment(), 0.7, 0.02
-            )
+            with self.subTest(penalty=penalty):
+                def minimize(*_, callback, **__):
+                    callback(np.asarray([1.51]))
+                    callback(np.asarray([last]))
+                    return types.SimpleNamespace(
+                        x=np.asarray([final]), nit=2, nfev=2, njev=2,
+                        fun=0.0, success=True, message="ok",
+                    )
 
-        self.assertEqual(result["rounded"][5, 1], 1)
-        self.assertAlmostEqual(result["exact_objective"], 0.14)
+                with (
+                    mock.patch.object(fitting.optimize, "minimize", side_effect=minimize),
+                    mock.patch.object(model, "exact_loss", side_effect=exact_loss),
+                ):
+                    result = fitting.fit_parameters(
+                        split, current, parameters, fit_policy(), 0.7, penalty
+                    )
+
+                self.assertEqual(result["rounded"][5, 1], weight)
+                self.assertEqual(result["selected_iteration"], iteration)
+                self.assertEqual(result["optimizer"].x[0], final)
+                self.assertAlmostEqual(result["exact_objective"], objective)
 
 
 class ValidationTest(unittest.TestCase):

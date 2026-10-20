@@ -1,119 +1,98 @@
 # Latrunculi tuning
 
-The tuning tool fits the linear handcrafted evaluation from recorded games.
-It prepares a grouped dataset, fits candidate weights, and verifies that an
-engine contains those weights. [OpenBench testing](../openbench/README.md#strength-tests)
-measures playing strength.
+`./bin/tune` fits linear evaluation weights from PGNs and checks them against a
+compiled engine. It needs the [shared Python environment](../README.md#setup).
+Run commands from the repository root.
 
-Set up the [shared Python environment](../README.md#setup), then run from the
-repository root:
+## Prepare and fit
+
+Supply an engine built with the starting weights and one or more `.pgn`,
+`.pgn.bz2`, or `.pgn.tar` files. Use archives without extracting them. Replace the
+engine and PGN paths below as needed:
 
 ```bash
-DATA=tools/tuning/output/prepared
-FIT=tools/tuning/output/fit
+DATA=tools/tuning/output/my-pass/prepared
+FIT=tools/tuning/output/my-pass/fit
 
 ./bin/tune prepare \
-  --engine build/release/latrunculi --output "$DATA" /path/to/games.pgn.tar
+  --engine build/release-dev/latrunculi --output "$DATA" \
+  /path/to/games.pgn.tar
 ./bin/tune fit --dataset "$DATA" --output "$FIT"
-./bin/tune verify "$FIT" --engine build/candidate/latrunculi
 ```
 
-Inputs may be `.pgn`, `.pgn.bz2`, or OpenBench `.pgn.tar`. Keep generated files
-under ignored `tools/tuning/output/`.
+Keep the engine and PGNs unchanged while `prepare` runs. It writes
+`manifest.json` and `development.jsonl`. Afterward, `fit` needs only that dataset.
+It writes validation results to `cross-validation.json` and selected integer
+weights to `candidate.json`.
 
-For an existing OpenBench corpus whose PGNs are not local, use
-`./bin/openbench-client` with the
-[status and download commands](../openbench/README.md#inspect-and-download)
-to retain its PGN archive, checksum, and workload provenance together. Verify
-the workload revisions against the intended baseline. Pass the downloaded
-`.pgn.tar` directly to `prepare`; extraction is unnecessary. Preparation
-validates the games; workload completion and pass/fail flags do not establish
-corpus usability.
+## Apply and verify
 
-## Prepared data
+Check `cross_validation_supported` in `candidate.json`. If false, keep the baseline
+weights. Otherwise, review the weights and flagged large changes or bound hits
+before applying them. Flags do not automatically disqualify a fit.
 
-`prepare` writes `manifest.json` and `development.jsonl`. It groups games by
-starting position so related examples stay together during validation. The
-[OpenBench tuning workload](../openbench/README.md#tuning-corpus) describes
-how to collect fresh games. Once prepared, `fit` needs the dataset without
-the original PGNs or exporter.
+Copy the exact weights into [`src/eval/parameters.hpp`](../../src/eval/parameters.hpp)
+yourself, then rebuild and verify:
 
-## Fitting and verification
+```bash
+cmake --build --preset release-dev
+./bin/tune verify "$FIT" --engine build/release-dev/latrunculi
+```
 
-`fit` compares candidate weights on held-out opening groups, then writes
-`cross-validation.json` and `candidate.json` with the selection evidence and
-exact integer weights. Its numerical policy is in
-[`FIT_POLICY`](fit.py). Numerical support alone does not establish playing
-strength; fitted evaluation changes also need [local validation](../analysis/README.md#validation)
-and [strength testing](../openbench/README.md#strength-tests).
+`verify` rejects unsupported candidates and checks the compiled weights and
+evaluation invariants against the fit. Save its JSON output with the engine
+revision. You can verify again with just the fit directory and engine binary.
+This does not measure playing strength.
 
-`verify` checks the compiled coefficients and evaluation invariants against
-the proposed weights and prints JSON. It can run again after rebuilding
-without the dataset. `run.json` records the inputs and policy used for a fit;
-matching completed checkpoints can be reused after an interruption.
+## Resume and reuse
 
-### Dataset requirements
+Use new directories under ignored `tools/tuning/output/` for each experiment.
+Rerun the same command to resume. `prepare` validates an existing dataset; `fit`
+reuses completed matching checkpoints and restarts interrupted work.
 
-The current policy requires at least 40,000 valid games and 20,000 retained
-opening groups. Preparation samples at most six fixed quantiles per game from
-ply 8, settles captures/check evasions, and discards terminal positions. Settled
-four-field FENs are deduplicated: agreeing results retain one copy; conflicting
-results discard all copies. Every retained evaluation must reconstruct exactly.
+`run.json` records the schema, policy, inputs, tools, and dependencies. Changes to
+these or the evaluation require fresh output. Tool identity includes hashes of
+every tuning module and package initializer.
 
-Starting FENs identify groups across archives; games without one get their own
-group. Each group has total weight one. The schema-2 dataset header records
-baseline coefficients; the manifest records provenance and filtering.
+Dataset and fit formats must be version 5; older outputs need fresh preparation
+and fitting. The engine feature schema is version 2.
 
-### Selection and review
+## Dataset requirements
 
-The implemented `FIT_POLICY` is authoritative; do not adjust it to rescue a fit.
-It uses five deterministic, opening-disjoint folds, calibrating the Texel scale
-and fitting MG/EG weights on the other four. Variables need support from at least
-128 groups in every training complement. L-BFGS-B fits regularized weights;
-rounded checkpoints compete on exact training loss plus penalty, including the
-unchanged baseline.
+Preparation requires at least 40,000 valid games and 20,000 retained opening groups.
+It samples at most six fixed quantiles per game from ply 8, settles captures and
+check evasions, and drops terminal positions. It deduplicates settled four-field
+FENs, keeping one copy when results agree and none when they conflict. Exported
+features must reproduce the engine's evaluation exactly.
 
-Pawn MG and PSQT/mobility anchors stay fixed, non-pawn PSQTs retain file symmetry,
-and changes are bounded by 100 cp plus material-specific ranges. Regularization
-counts all tied coefficients. Nonlinear king danger, phase/scaling formulas,
-tempo, and search parameters remain outside the fit.
+Games with the same starting FEN share a group across archives. Games without a
+starting FEN get their own group. Each group has total weight one. The dataset
+header records baseline weights, and the manifest records input provenance and
+filtering counts.
 
-Eligibility uses held-out opening-group bootstrap comparisons: a positive overall
-90% lower improvement bound and no negative upper bound in supported phase buckets.
-Choose the strongest eligible penalty within one standard error of the best mean
-fold improvement, then refit all data. If none qualify, retain the baseline.
+## Numerical policy
 
-Review large changes and bound hits in `candidate.json`; they invite inspection,
-not automatic rejection. Apply the exact selected coefficients to
-`src/eval/parameters.hpp`, rebuild, and run `verify`. Preserve its JSON output and
-the candidate/base revisions. Verification checks the fit, not playing strength.
+[`FIT_POLICY`](fit.py) defines the policy. Do not change it to rescue a failed fit.
+Five deterministic folds keep opening groups separate. Each round calibrates the
+Texel scale and fits middlegame and endgame weights on four folds, then validates
+on the fifth. Variables need support from at least 128 groups in every training
+split.
 
-### Resume and reuse
+Pawn middlegame value and PSQT/mobility anchors stay fixed. Non-pawn PSQTs retain
+file symmetry. Changes are limited to 100 cp and the material-specific ranges.
+The fit excludes nonlinear king danger, phase/scaling formulas, tempo, and search
+parameters.
 
-The current dataset manifests and fit artifacts use format version 5. Start a
-fresh `prepare` and `fit` after this tool reorganization; older outputs are retained
-as evidence and are not migrated. The engine feature schema is separate from the
-artifact format and remains version 2.
+L-BFGS-B fits regularized weights, counting all tied coefficients in the penalty.
+Rounded checkpoints compete with the baseline on exact training loss plus penalty.
+Validation uses bootstrap comparisons on held-out opening groups. The overall
+improvement's 90% interval must have a positive lower bound. No supported phase
+bucket may have a negative upper bound.
+The tuner selects the strongest eligible penalty within one standard error of the
+best mean fold improvement, then refits all data. If none qualify, it keeps the
+baseline.
 
-`run.json` pins schema, policy, inputs, tools, and dependencies; final reports mark
-completion. Rerunning `prepare` validates an existing dataset; rerunning `fit`
-reuses completed matching checkpoints and restarts interrupted units. Changed
-inputs, evaluation, schema, tools, dependencies, or policy require fresh output.
-A search-only change may preserve numerical evidence, but the resulting engine
-still needs relevant validation against its current baseline. Keep original
-provenance and use the [evidence guidance](../../docs/engine-development.md#reusing-evidence).
-
-## Implementation
-
-- `dataset.py` prepares and validates PGNs, exported features, and provenance.
-- `model.py` loads sparse data and calculates evaluations, loss, and gradients.
-- `fit.py` owns the numerical policy, constraints, optimization, and grouped validation.
-- `artifacts.py` reads and writes checkpoints, provenance, weights, and reports.
-- `tune.py` handles commands and verifies the compiled engine.
-
-Fit provenance hashes all tuning modules and their package initializers. Modules
-use package imports; use `./bin/tune` to run the CLI. Run the
-[tool tests](../README.md#tests) after changing the implementation.
+Run the [tool tests](../README.md#tests) after changing the tuner.
 
 Background: [Texel's Tuning Method](https://www.chessprogramming.org/Texel%27s_Tuning_Method)
 and [Ethereal's tuning paper](https://github.com/AndyGrant/Ethereal/blob/master/Tuning.pdf).

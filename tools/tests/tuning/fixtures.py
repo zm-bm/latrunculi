@@ -8,7 +8,7 @@ from unittest import mock
 import numpy as np
 from scipy import sparse
 
-from . import dataset, model, fit as fitting, artifacts
+from tools.tuning import dataset, model, fit as fitting, artifacts
 
 
 def schema(features):
@@ -113,7 +113,7 @@ def make_split(records, feature_count):
     )
 
 
-def experiment(*, anchors=(), fixed=("material.pawn.mg",), mirrored=(), support=1):
+def fit_policy(*, anchors=(), fixed=("material.pawn.mg",), mirrored=(), support=1):
     return {
         "support": {"minimum_groups": support},
         "constraints": {
@@ -220,7 +220,7 @@ def mocked_optimizer(*, improve=True, interrupt_at=None):
         )
         penalty = regularization * float(parameters.multiplicity @ (deltas * deltas))
         rounded = parameters.rounded(deltas)
-        exact_objective = model.split_metric(split, current, rounded, scale)["mean_squared_error"] + penalty
+        exact_objective = model.exact_loss(split, current, rounded, scale) + penalty
         return {
             "parameters": parameters, "rounded": rounded, "deltas": deltas,
             "optimizer": types.SimpleNamespace(nit=1, nfev=1, njev=1, fun=continuous_loss + penalty),

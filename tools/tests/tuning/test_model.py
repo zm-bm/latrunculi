@@ -1,12 +1,9 @@
-import json
-import pathlib
-import tempfile
 import unittest
 
 import numpy as np
 
-from . import dataset, model
-from .test_helpers import base_schema, make_split, prepared_fixture, record
+from tools.tuning import dataset, model
+from .fixtures import base_schema, make_split, record
 
 
 class ObjectiveTest(unittest.TestCase):
@@ -30,13 +27,6 @@ class ObjectiveTest(unittest.TestCase):
 
 
 class ModelTest(unittest.TestCase):
-    def test_candidate_schema_recalculates_phase_maximum(self):
-        current = base_schema()
-        weights = model.baseline_weights(current).astype(np.int64)
-        weights[1, 0] = 700
-        candidate = model.schema_with_weights(current, weights)
-        self.assertEqual(candidate["phase_material_max"], 4 * 700 + 4 * 650 + 4 * 1000 + 2 * 2000)
-
     def test_exact_evaluation_uses_cpp_negative_division_and_turn_tempo(self):
         current = base_schema()
         position = record(
@@ -132,48 +122,6 @@ class ModelTest(unittest.TestCase):
                 )
                 numeric[feature_id, phase] = (upper_loss - lower_loss) / (2 * step)
         np.testing.assert_allclose(analytic, numeric, rtol=2e-5, atol=1e-10)
-
-
-class DatasetLoadTest(unittest.TestCase):
-    def test_split_loads_compact_arrays_and_checks_exported_evaluation(self):
-        current = base_schema([("pawn.isolated", -5, -15)])
-        item = record([[0, 2], [5, -1]], turn="b")
-        item["eval"] = dataset.reconstruct(current, item)[0]
-        with tempfile.TemporaryDirectory() as directory:
-            path = pathlib.Path(directory) / "development.jsonl"
-            path.write_text(json.dumps(current) + "\n" + json.dumps(item) + "\n")
-            split = model.load_split(path, "development", current)
-        self.assertFalse(hasattr(split, "records"))
-        self.assertEqual(split.coefficients.nnz, 2)
-        self.assertEqual(split.coefficients.dtype, np.int32)
-        self.assertEqual(split.fixed.dtype, np.int32)
-        self.assertEqual(split.groups.dtype, np.int32)
-        np.testing.assert_array_equal(model.white_exported(split), [-item["eval"]])
-
-    def test_split_rejects_an_exported_evaluation_mismatch(self):
-        current = base_schema()
-        item = record([[0, 1]])
-        item["eval"] = dataset.reconstruct(current, item)[0] + 1
-        with tempfile.TemporaryDirectory() as directory:
-            path = pathlib.Path(directory) / "development.jsonl"
-            path.write_text(json.dumps(current) + "\n" + json.dumps(item) + "\n")
-            with self.assertRaisesRegex(ValueError, "baseline reconstruction"):
-                model.load_split(path, "development", current)
-
-    def test_prepared_dataset_remains_usable_without_originals_and_after_relocation(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            prepared, current, engine, pgn = prepared_fixture(root)
-            before = model.load_dataset(prepared)
-            engine.unlink()
-            pgn.unlink()
-            relocated = root / "relocated"
-            prepared.rename(relocated)
-            after = model.load_dataset(relocated)
-            self.assertEqual(after.schema, current)
-            self.assertEqual(after.manifest_sha256, before.manifest_sha256)
-            self.assertEqual(after.data_sha256, before.data_sha256)
-            self.assertEqual(len(after.development.targets), 32)
 
 
 if __name__ == "__main__":

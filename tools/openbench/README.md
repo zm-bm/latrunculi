@@ -33,9 +33,7 @@ Run commands from the repository root:
 
 These commands use #46 as an example; substitute your workload ID and a new output
 directory. Verify the expected revisions and game count. Retain the archive,
-checksum, and workload metadata together. Follow the
-[tuning guide](../tuning/README.md#prepared-data) to validate and prepare the games;
-completion and workload scores alone do not establish corpus usability.
+checksum, and workload metadata together.
 
 ## Submit and stop
 
@@ -158,9 +156,8 @@ is 875. Override the game count with `--games N`, a positive, even number.
 Multiple assignments/runners in this OpenBench version overlap opening ranges.
 The wrapper does not enforce the worker arrangement; configure it before actual
 submission. The assignment and final game count may slightly exceed the target.
-Scores and fixed-test pass/fail flags are irrelevant to fitting;
-[preparation](../tuning/README.md#prepared-data) decides data usability, including
-minimum dataset sizes. Retain the workload identity and download provenance.
+Scores and fixed-test pass/fail flags do not establish corpus suitability for
+fitting. Retain the workload identity and download provenance.
 
 ## Release stability
 

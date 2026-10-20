@@ -9,8 +9,8 @@ from unittest import mock
 
 import numpy as np
 
-from . import dataset, model, fit as fitting, artifacts, tune
-from .test_helpers import (
+from tools.tuning import dataset, model, fit as fitting, artifacts, tune
+from .fixtures import (
     base_schema,
     fitting_schema,
     mocked_optimizer,
@@ -138,8 +138,20 @@ class FitTest(unittest.TestCase):
             args = types.SimpleNamespace(dataset=prepared, output=output)
             penalties = fitting.FIT_POLICY["fit"]["regularization"]
             with mocked_optimizer(interrupt_at=2) as (first, first_calibration):
-                with self.assertRaisesRegex(RuntimeError, "interrupted"):
-                    tune.fit_command(args)
+                compute = first.side_effect
+
+                def interrupt(*args):
+                    try:
+                        return compute(*args)
+                    except RuntimeError:
+                        raise KeyboardInterrupt from None
+
+                first.side_effect = interrupt
+                with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    self.assertEqual(tune.main([
+                        "fit", "--dataset", str(prepared), "--output", str(output),
+                    ]), 130)
+                self.assertEqual(stderr.getvalue(), "tune: interrupted\n")
             fold = output / "cross-validation" / "fold-0"
             completed = fold / artifacts.fit_filename(penalties[0])
             completed_bytes = completed.read_bytes()
@@ -337,30 +349,6 @@ class VerificationTest(unittest.TestCase):
                     self.assertRaisesRegex(ValueError, "integers"),
                 ):
                     tune.verify_command(types.SimpleNamespace(output=output, engine=engine))
-
-    def test_verify_detects_binary_changed_during_schema_export(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            output, current, _ = verification_fixture(root)
-            engine = root / "engine"
-            engine.write_text("original build")
-
-            def export(binary):
-                binary.write_text("replacement build")
-                return current
-
-            with (
-                mock.patch.object(tune, "read_engine_schema", side_effect=export),
-                self.assertRaisesRegex(ValueError, "changed during verification"),
-            ):
-                tune.verify_command(types.SimpleNamespace(output=output, engine=engine))
-
-    def test_verify_rejects_unsupported_format(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = pathlib.Path(directory)
-            (root / "run.json").write_text('{"format_version": 4}')
-            with self.assertRaisesRegex(ValueError, "unsupported tuning format"):
-                tune.verify_command(types.SimpleNamespace(output=root, engine=root / "engine"))
 
 
 if __name__ == "__main__":

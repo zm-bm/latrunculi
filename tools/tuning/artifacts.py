@@ -1,6 +1,5 @@
 """Tuning checkpoints, provenance, and retained result reports."""
 
-import hashlib
 import json
 import math
 import pathlib
@@ -18,22 +17,19 @@ FORMAT_VERSION = 5
 
 def artifact_id(artifact):
     payload = {key: value for key, value in artifact.items() if key != "artifact_id"}
-    return hashlib.sha256(dataset.canonical_json(payload).encode()).hexdigest()
+    return dataset.sha256_json(payload)
 
 
 def load_json(path):
     return json.loads(path.read_text())
 
 
-def atomic_write(path, text):
+def atomic_write_json(path, value):
+    text = json.dumps(value, indent=2, sort_keys=True) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     partial = path.with_name(path.name + ".partial")
     partial.write_text(text)
     partial.replace(path)
-
-
-def atomic_write_json(path, value):
-    atomic_write(path, json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
 def write_artifact(path, artifact):
@@ -207,12 +203,12 @@ def cross_validation_artifact(
                     "fold": fold,
                     "groups": int(np.unique(testing.groups).size),
                     "positions": len(testing.targets),
-                    "baseline_loss": model.split_metric(
-                        testing, data.schema, parent, scale
-                    )["mean_squared_error"],
-                    "candidate_loss": model.split_metric(
-                        testing, data.schema, candidate, scale
-                    )["mean_squared_error"],
+                    "baseline_loss": model.mean_squared_error(
+                        parent_eval, testing.targets, scale, testing.weights
+                    ),
+                    "candidate_loss": model.mean_squared_error(
+                        candidate_eval, testing.targets, scale, testing.weights
+                    ),
                     "improvement": improvement,
                 }
             )

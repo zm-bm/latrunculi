@@ -2,7 +2,7 @@ import pathlib
 import tempfile
 import unittest
 
-from . import artifacts
+from tools.tuning import artifacts
 
 
 class ArtifactTest(unittest.TestCase):
@@ -11,7 +11,6 @@ class ArtifactTest(unittest.TestCase):
         sources = {"__init__.py"} | {
             path.relative_to(tools).as_posix()
             for path in (tools / "tuning").glob("*.py")
-            if not path.name.startswith("test_")
         }
         self.assertEqual(set(artifacts.tool_record()), sources)
 

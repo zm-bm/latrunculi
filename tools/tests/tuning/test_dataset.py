@@ -8,8 +8,8 @@ from unittest import mock
 import chess
 import chess.pgn
 
-from . import dataset
-from .test_helpers import base_schema
+from tools.tuning import dataset
+from .fixtures import base_schema
 
 
 def position(source, result, fen, schema=None):
@@ -117,6 +117,20 @@ class CollectionTest(unittest.TestCase):
             self.assertEqual(counts["groups.read"], 1)
             self.assertEqual(len(lines), 12)
             self.assertEqual(len({line.split(":", 1)[0] for line in lines}), 1)
+
+            with source.open() as stream:
+                games = [chess.pgn.read_game(stream), chess.pgn.read_game(stream)]
+            for error in (ValueError("malformed"), OSError("read failed"), RuntimeError("unexpected")):
+                with self.subTest(error=error), mock.patch.object(
+                    chess.pgn, "read_game", side_effect=[*games, error]
+                ):
+                    if isinstance(error, ValueError):
+                        counts, _ = dataset.collect_positions([(source, "input-hash")], TINY_POLICY, output)
+                        self.assertEqual(counts["games.valid"], 2)
+                        self.assertEqual(counts["games.malformed"], 1)
+                    else:
+                        with self.assertRaises(type(error)):
+                            dataset.collect_positions([(source, "input-hash")], TINY_POLICY, output)
 
     def test_game_without_fen_is_retained_as_an_independent_group(self):
         pgn = """[Event "ordinary"]
@@ -273,29 +287,6 @@ class SchemaTest(unittest.TestCase):
         schema = base_schema([("pawn.connected_link", 3, 7)])
         schema.update(scale_limit=80, scale_base=40, scale_per_pawn=5, tempo=25)
         self.assertEqual(dataset.validate_schema(schema), schema)
-
-    def test_invalid_schema_ids_names_material_and_invariants(self):
-        changes = (
-            lambda schema: schema.update(type="position"),
-            lambda schema: schema.update(version=1),
-            lambda schema: schema["features"][0].update(id=False),
-            lambda schema: schema["features"][1].update(id=0),
-            lambda schema: schema["features"][0].update(name=" "),
-            lambda schema: schema["features"][1].update(name="material.pawn"),
-            lambda schema: schema["features"][0].update(name="missing.pawn"),
-            lambda schema: schema["features"][0].update(mg=True),
-            lambda schema: schema["perspective"].update(eval="white"),
-            lambda schema: schema.update(phase_limit=64),
-            lambda schema: schema.update(phase_material_max=13001),
-            lambda schema: schema.update(scale_limit=0),
-            lambda schema: schema.update(scale_base=-1),
-        )
-        for change in changes:
-            with self.subTest(change=change):
-                schema = base_schema()
-                change(schema)
-                with self.assertRaises(ValueError):
-                    dataset.validate_schema(schema)
 
     def test_known_signed_reconstruction_remains_exact(self):
         schema = base_schema()

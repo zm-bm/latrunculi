@@ -176,26 +176,32 @@ def phase_material_ids(schema):
     return np.asarray([ids[name] for name in PHASE_MATERIAL_FEATURES], dtype=np.int64)
 
 
+def _endgame_scale(split, schema, raw_eg):
+    stronger = (raw_eg < 0).astype(np.int8)
+    pawns = split.pawn_counts[np.arange(len(raw_eg)), stronger]
+    return np.minimum(
+        schema["scale_limit"], schema["scale_base"] + schema["scale_per_pawn"] * pawns
+    )
+
+
+def _continuous_phase(split, schema, material_weights):
+    phase_min = schema["phase_material_min"]
+    phase_max = float(PHASE_START_COUNTS @ material_weights)
+    if phase_max <= phase_min:
+        raise ValueError("candidate phase maximum is not positive")
+    material = split.phase_counts @ material_weights
+    blend = (np.clip(material, phase_min, phase_max) - phase_min) / (phase_max - phase_min)
+    return material, phase_max, blend
+
+
 def continuous_evaluation(split, schema, weights):
     scores = split.coefficients @ weights + split.fixed
     mg = scores[:, 0]
     raw_eg = scores[:, 1]
 
-    stronger = (raw_eg < 0).astype(np.int8)
-    pawns = split.pawn_counts[np.arange(len(raw_eg)), stronger]
-    eg_scale = np.minimum(
-        schema["scale_limit"], schema["scale_base"] + schema["scale_per_pawn"] * pawns
-    ) / schema["scale_limit"]
+    eg_scale = _endgame_scale(split, schema, raw_eg) / schema["scale_limit"]
     eg = raw_eg * eg_scale
-
-    ids = phase_material_ids(schema)
-    phase_min = schema["phase_material_min"]
-    phase_max = float(PHASE_START_COUNTS @ weights[ids, 0])
-    if phase_max <= phase_min:
-        raise ValueError("candidate phase maximum is not positive")
-    material = split.phase_counts @ weights[ids, 0]
-    blend = (np.clip(material, phase_min, phase_max) - phase_min) / (phase_max - phase_min)
-
+    _, _, blend = _continuous_phase(split, schema, weights[phase_material_ids(schema), 0])
     white = mg * blend + eg * (1 - blend)
     return white + split.turns * schema["tempo"]
 
@@ -205,23 +211,13 @@ def continuous_loss_gradient(split, schema, weights, scale):
     mg = scores[:, 0]
     raw_eg = scores[:, 1]
 
-    stronger = (raw_eg < 0).astype(np.int8)
-    pawns = split.pawn_counts[np.arange(len(raw_eg)), stronger]
-    eg_scale = np.minimum(
-        schema["scale_limit"], schema["scale_base"] + schema["scale_per_pawn"] * pawns
-    ) / schema["scale_limit"]
+    eg_scale = _endgame_scale(split, schema, raw_eg) / schema["scale_limit"]
     eg = raw_eg * eg_scale
 
     ids = phase_material_ids(schema)
+    material, phase_max, blend = _continuous_phase(split, schema, weights[ids, 0])
     phase_min = schema["phase_material_min"]
-    phase_max = float(PHASE_START_COUNTS @ weights[ids, 0])
     denominator = phase_max - phase_min
-    if denominator <= 0:
-        raise ValueError("candidate phase maximum is not positive")
-
-    material = split.phase_counts @ weights[ids, 0]
-    clipped = np.clip(material, phase_min, phase_max)
-    blend = (clipped - phase_min) / denominator
     white = mg * blend + eg * (1 - blend) + split.turns * schema["tempo"]
 
     prediction = expected_score(white, scale)
@@ -276,11 +272,7 @@ def exact_evaluations_and_phases(split, schema, weights):
     mg = scores[:, 0]
     raw_eg = scores[:, 1]
 
-    stronger = (raw_eg < 0).astype(np.int8)
-    pawns = split.pawn_counts[np.arange(len(raw_eg)), stronger]
-    scale = np.minimum(
-        schema["scale_limit"], schema["scale_base"] + schema["scale_per_pawn"] * pawns
-    )
+    scale = _endgame_scale(split, schema, raw_eg)
     eg = signed_divide(raw_eg * scale, schema["scale_limit"])
 
     ids = phase_material_ids(schema)
@@ -304,14 +296,16 @@ def exact_evaluations(split, schema, weights):
     return exact_evaluations_and_phases(split, schema, weights)[0]
 
 
-def split_metric(split, schema, weights, scale):
+def exact_loss(split, schema, weights, scale):
     evaluations = exact_evaluations(split, schema, weights)
+    return mean_squared_error(evaluations, split.targets, scale, split.weights)
+
+
+def split_metric(split, schema, weights, scale):
     return {
         "positions": len(split.targets),
         "groups": int(np.unique(split.groups).size),
-        "mean_squared_error": mean_squared_error(
-            evaluations, split.targets, scale, split.weights
-        ),
+        "mean_squared_error": exact_loss(split, schema, weights, scale),
     }
 
 

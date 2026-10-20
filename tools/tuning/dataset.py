@@ -89,11 +89,8 @@ def canonical_json(value):
 
 
 def sha256_file(path):
-    digest = hashlib.sha256()
     with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def sha256_json(value):
@@ -215,7 +212,7 @@ def collect_positions(inputs, config, input_path):
                 while True:
                     try:
                         game = chess.pgn.read_game(stream)
-                    except Exception:
+                    except ValueError:
                         counts["games.malformed"] += 1
                         break
                     if game is None:

@@ -73,15 +73,15 @@ This runs unit tests and randomized stress tests. Use `debug-asan-ubsan` or
 `debug-tsan` instead of `debug` to run the same suite with sanitizers.
 
 See the [development manual](docs/engine-development.md) for the edit–test–merge
-workflow, the [analysis guide](tools/analysis/README.md) for search benchmarks
-and UCI probing, and the [tuning guide](tools/tuning/README.md) for evaluation
-tuning.
+workflow and the [analysis guide](tools/analysis/README.md) for search benchmarks
+and UCI probing.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [OpenBench testing](tools/openbench/README.md)
 - [Development manual](docs/engine-development.md)
+- [Evaluation tuning](tools/tuning/README.md)
 - [Research ideas](docs/engine-ideas.md)
 - [Roadmap](docs/roadmap.md)
 - [1.1.0 release notes](docs/releases/1.1.0.md)

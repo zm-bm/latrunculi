@@ -1,7 +1,7 @@
 # Latrunculi tools
 
 - [`./bin/bench`](analysis/README.md): compare engine behavior and runtime.
-- [`./bin/tune`](tuning/README.md): prepare corpora, fit evaluation weights, and verify them.
+- `./bin/tune`: prepare corpora, fit evaluation weights, and verify them.
 - [`./bin/openbench-client`](openbench/README.md): inspect, submit, and download OpenBench workloads.
 - [`./bin/openbench-submit`](openbench/README.md#submit-and-stop): prepare and submit standard Latrunculi tests.
 - [`./bin/uci-probe`](analysis/README.md#probe-one-position): investigate individual positions.
