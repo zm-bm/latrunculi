@@ -14,7 +14,7 @@ from tools.tuning import dataset, model, fit as fitting, artifacts
 def schema(features):
     return {
         "type": "schema",
-        "version": 2,
+        "version": dataset.PREPARATION_POLICY["schema_version"],
         "perspective": {
             "coefficients": "white",
             "fixed": "white",
@@ -62,7 +62,7 @@ def record(
 ):
     return {
         "type": "position",
-        "version": 2,
+        "version": dataset.PREPARATION_POLICY["schema_version"],
         "source": source,
         "result": result,
         "fen": "",

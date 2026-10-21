@@ -19,7 +19,7 @@ DATA_FILE = "development.jsonl"
 PHASE_BUCKETS = ((0, 31), (32, 63), (64, 95), (96, 128))
 FORMAT_VERSION = 5
 PREPARATION_POLICY = {
-    "schema_version": 2,
+    "schema_version": 4,
     "minimum_game_ply": 8,
     "maximum_positions_per_game": 6,
     "minimum_games": 40000,
@@ -33,7 +33,7 @@ def validate_policy(policy):
         raise ValueError("invalid preparation policy")
     if any(type(value) is not int for value in policy.values()):
         raise ValueError("preparation policy values must be integers")
-    if policy["schema_version"] != 2 or policy["maximum_positions_per_game"] <= 0:
+    if policy["schema_version"] != 4 or policy["maximum_positions_per_game"] <= 0:
         raise ValueError("unsupported preparation policy")
     if any(policy[name] < 0 for name in ("minimum_game_ply", "minimum_games", "minimum_groups")):
         raise ValueError("preparation limits must be nonnegative")
@@ -41,7 +41,7 @@ def validate_policy(policy):
 
 def validate_schema(schema):
     if (not isinstance(schema, dict) or schema.get("type") != "schema"
-            or type(schema.get("version")) is not int or schema["version"] != 2):
+            or type(schema.get("version")) is not int or schema["version"] != 4):
         raise ValueError("unsupported dataset schema")
     features = schema.get("features")
     if not isinstance(features, list) or any(not isinstance(feature, dict) for feature in features):
@@ -434,6 +434,8 @@ def validate_dataset(output_dir, policy=None):
             raise ValueError(f"{path}: missing schema")
         schema = json.loads(line)
         validate_schema(schema)
+        if policy is not None and schema["version"] != policy["schema_version"]:
+            raise ValueError("dataset schema does not match preparation policy")
 
         for line_number, line in enumerate(stream, 2):
             record = json.loads(line)
