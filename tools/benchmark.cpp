@@ -25,13 +25,12 @@
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 
-namespace analysis {
 namespace {
 
 using MeasurementClock = std::chrono::steady_clock;
 
 constexpr std::string_view result_format   = "search_measurement_v5";
-constexpr int              default_depth   = 5;
+constexpr int              default_depth   = 10;
 constexpr std::size_t      default_threads = 1;
 constexpr std::size_t      default_hash_mb = engine::default_hash_mb;
 constexpr std::size_t      max_threads     = 64;
@@ -381,8 +380,6 @@ Options parse_args(int argc, char* argv[]) {
     return options;
 }
 
-} // namespace
-
 int run_search(int argc, char* argv[]) {
     try {
         const Options options   = parse_args(argc, argv);
@@ -421,9 +418,9 @@ int run_search(int argc, char* argv[]) {
     return 0;
 }
 
-} // namespace analysis
+} // namespace
 
 int main(int argc, char* argv[]) {
     attacks::init();
-    return analysis::run_search(argc, argv);
+    return run_search(argc, argv);
 }

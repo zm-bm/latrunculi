@@ -22,7 +22,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "BUILD_TESTING": "ON",
-        "LATRUNCULI_BUILD_SEARCH_BENCH": "OFF"
+        "LATRUNCULI_BUILD_BENCHMARK": "OFF"
       }
     },
     {
@@ -59,7 +59,7 @@
       "description": "Release build with tests and native search benchmark enabled",
       "cacheVariables": {
         "BUILD_TESTING": "ON",
-        "LATRUNCULI_BUILD_SEARCH_BENCH": "ON"
+        "LATRUNCULI_BUILD_BENCHMARK": "ON"
       }
     },
     {
@@ -69,6 +69,16 @@
       "description": "Release build with search stats, tests, and native search benchmark enabled",
       "cacheVariables": {
         "LATRUNCULI_SEARCH_STATS": "ON"
+      }
+    },
+    {
+      "name": "profile",
+      "inherits": ["release-dev"],
+      "displayName": "Release with debug symbols",
+      "description": "Release optimization with debug symbols for CPU profiling",
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG -g",
+        "LATRUNCULI_SEARCH_STATS": "OFF"
       }
     }
   ],
@@ -96,6 +106,11 @@
     {
       "name": "release-stats",
       "configurePreset": "release-stats"
+    },
+    {
+      "name": "profile",
+      "configurePreset": "profile",
+      "targets": ["latrunculi-benchmark"]
     }
   ],
   "testPresets": [

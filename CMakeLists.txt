@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.23)
-project(Latrunculi VERSION 1.1.0 LANGUAGES CXX)
+project(Latrunculi VERSION 1.1.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -99,14 +99,14 @@ add_executable(latrunculi
 target_link_libraries(latrunculi PRIVATE latrunculi_lib)
 set_property(TARGET latrunculi PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
 
-option(LATRUNCULI_BUILD_SEARCH_BENCH "Build native search benchmark" OFF)
-if(LATRUNCULI_BUILD_SEARCH_BENCH)
-    add_executable(latrunculi-search-bench tools/analysis/search_bench.cpp)
-    target_compile_definitions(latrunculi-search-bench PRIVATE
-        LATRUNCULI_SEARCH_SUITE="${CMAKE_CURRENT_SOURCE_DIR}/tools/analysis/search.epd"
+option(LATRUNCULI_BUILD_BENCHMARK "Build native search benchmark" OFF)
+if(LATRUNCULI_BUILD_BENCHMARK)
+    add_executable(latrunculi-benchmark tools/benchmark.cpp)
+    target_compile_definitions(latrunculi-benchmark PRIVATE
+        LATRUNCULI_SEARCH_SUITE="${CMAKE_CURRENT_SOURCE_DIR}/tools/resources/search.epd"
     )
-    target_link_libraries(latrunculi-search-bench PRIVATE latrunculi_lib)
-    set_property(TARGET latrunculi-search-bench PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
+    target_link_libraries(latrunculi-benchmark PRIVATE latrunculi_lib)
+    set_property(TARGET latrunculi-benchmark PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
 endif()
 
 if(BUILD_TESTING)

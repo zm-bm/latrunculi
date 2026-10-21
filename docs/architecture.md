@@ -99,6 +99,6 @@ tests use their own reporters.
 ## Tests and tools
 
 The [test suite](../tests/) includes unit tests organized by module and
-randomized stress tests. The [analysis tools](../tools/analysis/README.md)
-provide search benchmarks and UCI inspection. Build and test commands are in the
-[README](../README.md#development).
+randomized stress tests. The [scripts guide](scripts.md)
+covers search benchmarks and UCI inspection. Build and test commands are in the
+[development manual](engine-development.md#build-and-test).

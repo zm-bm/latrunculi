@@ -7,7 +7,7 @@ bin/
 !/bin/
 lib/
 logs/
-/tools/analysis/output/
+/tools/output/
 /tools/tuning/output/
 /tools/.venv/
 /bench/latrunculi

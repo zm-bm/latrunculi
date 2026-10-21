@@ -69,22 +69,15 @@ cmake --build --preset debug
 ctest --preset debug
 ```
 
-This runs unit tests and randomized stress tests. Use `debug-asan-ubsan` or
-`debug-tsan` instead of `debug` to run the same suite with sanitizers.
-
-See the [development manual](docs/engine-development.md) for the edit–test–merge
-workflow and the [analysis guide](tools/analysis/README.md) for search benchmarks
-and UCI probing.
-
 ## Documentation
 
 - [Architecture](docs/architecture.md)
-- [OpenBench testing](tools/openbench/README.md)
+- [OpenBench testing](docs/engine-development.md#test-strength)
 - [Development manual](docs/engine-development.md)
-- [Evaluation tuning](tools/tuning/README.md)
-- [Research ideas](docs/engine-ideas.md)
+- [Development scripts](docs/scripts.md)
+- [Evaluation tuning](docs/scripts.md#tune)
 - [Roadmap](docs/roadmap.md)
-- [1.1.0 release notes](docs/releases/1.1.0.md)
+- [1.1.1 release notes](docs/releases/1.1.1.md)
 - [UCI protocol reference](docs/uci-protocol-specification.txt)
 
 ## License

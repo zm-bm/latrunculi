@@ -73,7 +73,7 @@ def dependency_versions():
 def tool_record():
     tools = pathlib.Path(__file__).resolve().parents[1]
     sources = (
-        "__init__.py", "tuning/__init__.py", "tuning/dataset.py", "tuning/model.py",
+        "__init__.py", "paths.py", "tuning/__init__.py", "tuning/dataset.py", "tuning/model.py",
         "tuning/fit.py", "tuning/artifacts.py", "tuning/tune.py",
     )
     return {name: dataset.sha256_file(tools / name) for name in sources}

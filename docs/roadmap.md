@@ -1,33 +1,106 @@
 # Engine Roadmap
 
-This document records the engine's longer-horizon direction and backlog. **Next** is ordered and
-**Later** is informal. Research questions live in [Engine Ideas](engine-ideas.md); the
-[development manual](engine-development.md) explains how to build, test, and compare
-changes. The [architecture overview](architecture.md) describes the implementation.
+Possible improvements and investigations, grouped by area rather than priority.
 
-Revalidate an item before starting it and remove it when complete; Git history records completion.
+## Search
 
-## Next
+### Reduce LMR verification cost
 
-### TB-001 — Add optional Syzygy support
+Investigate whether some late-move-reduction fail-highs can be verified at a
+shallower depth without accepting false cutoffs or causing more re-searches later.
 
-Add optional WDL and DTZ probing without bundling tablebase files. Define UCI
-configuration, unavailable-path behavior, supported positions, probe depth,
-fifty-move handling, root move selection, and multi-threaded access. Preserve
-ordinary search when tablebases are disabled and validate correctness,
-performance, and equal-access matches.
+### Extend quiescence capture pruning
 
-## Later
+Explore additional pruning beyond the existing SEE filter, accounting for capture
+safety and potential gain beyond the captured piece's value. Reduce search work
+without discarding tactical refutations.
 
-- Treat an NNUE backend as a separate architecture project. Preserve the HCE as
-  a readable reference and account for shared immutable networks, per-worker
-  accumulator state, and Board make/unmake synchronization.
-- Add UCI capabilities when supported by the corresponding engine feature:
-  MultiPV, richer bound and progress reporting, Chess960, and optional strength
-  controls.
-- Improve multi-thread search scaling and TT/cache behavior before changing
-  the parallel-search design.
-- Add continuous integration for supported GCC and Clang builds, tests,
-  ASan/UBSan, and a separate ThreadSanitizer configuration.
-- Consider Lichess operation, tournament submission, and broader public testing
-  when engine and operational readiness justify public deployment.
+### Add singular extensions
+
+Explore a one-ply extension when excluding a reliable transposition-table move
+shows that all alternatives are substantially worse. Assess whether the extra
+search improves play enough to cover the verification cost.
+
+## Evaluation and endgames
+
+### Syzygy tablebases
+
+Add optional WDL/DTZ probing using user-supplied tablebase files.
+
+### Diagnose endgame errors with tablebases
+
+Compare engine choices with external tablebase WDL/DTZ results to identify
+recurring errors in low-material positions, accounting for the fifty-move rule.
+
+### Recognize candidate passed pawns
+
+Explore a bonus for pawns that become passed after another friendly pawn
+exchanges away their only enemy blocker. Distinguish feasible breakthroughs
+from unsupported pawns or multiple blockers.
+
+### Evaluate rooks behind passed pawns
+
+Explore evaluation terms for friendly and enemy rooks behind passed pawns,
+accounting for intervening pieces and whether the rook supports or restrains
+advancement.
+
+### Add a KPK bitbase
+
+Add a compact built-in bitbase for king-and-pawn versus king endings, with
+correct side-to-move, promotion, and fifty-move handling.
+
+### Recognize wrong-bishop rook-pawn draws
+
+Recognize drawn king, bishop, and rook-pawn versus king positions using king
+placement, bishop color, side to move, and promotion threats.
+
+### Improve evaluation of drawish minor-piece endings
+
+Investigate scaling for minor-piece endings with blocked pawns or few pawns on
+one flank. Treat bishop and knight endings separately, account for other draw
+effects, and preserve winning positions.
+
+### NNUE
+
+Explore a neural evaluation backend while retaining the handcrafted evaluation.
+
+## Performance and parallelism
+
+### Cache pawn and king evaluation
+
+Cache reusable pawn-structure and king-shelter terms per worker. Include all
+relevant pawn, king, and castling state in the key and preserve exact scores.
+
+### Reduce SEE cost and unnecessary calls
+
+Reduce static exchange evaluation (SEE) work in capture ordering:
+
+- Avoid rescoring the already-searched TT move and update only slider rays that
+  can change after each exchange. Preserve scores and move order, including ties.
+- Try cheap capture ordering with thresholded SEE as each move is selected,
+  rather than calculating numerical SEE scores for every capture up front. Use
+  material bounds to resolve easy cases without generating attackers. Initially
+  retain the zero threshold and existing promotion and TT handling.
+- Try cheap victim-based ordering for capture evasions, where SEE affects order
+  but does not exclude legal moves.
+
+The latter two change move ordering and need strength testing. Preserve en
+passant and king-recapture handling when simplifying the exchange calculation.
+
+### Reduce move-picker scanning
+
+Reduce repeated scanning when selecting quiet moves and unfavorable captures,
+while preserving move order.
+
+### Store evaluation-only TT entries
+
+Explore storing static evaluations without searched bounds. Weigh saved
+evaluation work against extra table traffic and displacement of search entries;
+evaluation-only records must never justify search cutoffs.
+
+## Interfaces and development
+
+### UCI features
+
+Add MultiPV, score-bound and current-move reporting, Chess960, and optional
+strength controls.

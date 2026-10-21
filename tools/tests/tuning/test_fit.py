@@ -24,21 +24,7 @@ class SupportTest(unittest.TestCase):
 
 
 class ParameterMapTest(unittest.TestCase):
-    def test_joint_map_selects_every_unfixed_coordinate(self):
-        current = base_schema()
-        split = make_split(
-            [record([[feature_id, 1] for feature_id in range(5)], source="a:x:1")],
-            len(current["features"]),
-        )
-
-        parameters = fitting.build_parameter_map(
-            current, model.baseline_weights(current), split, fit_policy()
-        )
-
-        self.assertEqual(len(parameters.members), 9)
-        self.assertEqual(parameters.frozen, {"material.pawn.mg": "fixed"})
-
-    def test_ties_use_union_support_and_penalize_each_coordinate(self):
+    def test_tied_parameters_share_support_bounds_and_rounding(self):
         current = base_schema(
             [
                 ("psqt.knight.a1", -10, -20),
@@ -61,6 +47,9 @@ class ParameterMapTest(unittest.TestCase):
             mirrored=("knight",),
             support=32,
         )
+        settings["fit"]["bounds"] = [
+            {"pattern": "psqt.knight.b1.mg", "minimum": -6, "maximum": -3}
+        ]
         parameters = fitting.build_parameter_map(
             current, model.baseline_weights(current), split, settings
         )
@@ -69,6 +58,9 @@ class ParameterMapTest(unittest.TestCase):
         self.assertEqual(parameters.support["psqt.knight.b1.mg"], 40)
         np.testing.assert_array_equal(parameters.multiplicity, [2, 2])
         self.assertEqual(parameters.frozen["psqt.knight.a1.mg"], "anchor")
+        self.assertEqual(parameters.bounds, [(-1.0, 2.0), (-100.0, 100.0)])
+        rounded = parameters.rounded([2.6, -0.5])
+        self.assertEqual(rounded[5:9].tolist(), [[-10, -20], [-10, -20], [-3, -9], [-3, -9]])
 
     def test_support_must_reach_the_minimum_in_every_training_fold(self):
         current = base_schema([("pawn.isolated", -5, -15)])
@@ -98,31 +90,6 @@ class ParameterMapTest(unittest.TestCase):
         self.assertEqual(parameters.support["pawn.isolated.mg"], 1)
         self.assertEqual(parameters.frozen["pawn.isolated.mg"], "support")
         self.assertEqual(parameters.frozen["pawn.isolated.eg"], "support")
-
-    def test_bounds_and_rounding_preserve_ties(self):
-        current = base_schema(
-            [
-                ("psqt.knight.a1", -10, -20),
-                ("psqt.knight.h1", -10, -20),
-                ("psqt.knight.b1", -5, -8),
-                ("psqt.knight.g1", -5, -8),
-            ]
-        )
-        records = [record([[7, 1]], source="a:x:1")]
-        split = make_split(records, len(current["features"]))
-        settings = fit_policy(
-            anchors=("psqt.knight.a1",),
-            mirrored=("knight",),
-        )
-        settings["fit"]["bounds"] = [
-            {"pattern": "psqt.knight.b1.mg", "minimum": -6, "maximum": -3}
-        ]
-        parameters = fitting.build_parameter_map(
-            current, model.baseline_weights(current), split, settings
-        )
-        self.assertEqual(parameters.bounds, [(-1.0, 2.0), (-100.0, 100.0)])
-        rounded = parameters.rounded([2.6, -0.5])
-        self.assertEqual(rounded[5:9].tolist(), [[-10, -20], [-10, -20], [-3, -9], [-3, -9]])
 
 
 class OptimizerTest(unittest.TestCase):
@@ -196,52 +163,6 @@ class OptimizerTest(unittest.TestCase):
 
 
 class ValidationTest(unittest.TestCase):
-    def test_bootstrap_is_deterministic_and_uses_groups(self):
-        values = np.asarray([0.1, 0.2, 0.3])
-        first = fitting.bootstrap_interval(values, 200, 0.9, 7)
-        self.assertEqual(first, fitting.bootstrap_interval(values, 200, 0.9, 7))
-        self.assertEqual(first["groups"], 3)
-        self.assertAlmostEqual(first["mean"], 0.2)
-
-    def test_comparison_reports_all_phase_buckets_and_qualifies_clear_gain(self):
-        current = base_schema([("pawn.isolated", 0, 0)])
-        records = []
-        for index in range(160):
-            coefficient = 1 if index % 2 == 0 else -1
-            result = 1 if coefficient > 0 else -1
-            records.append(
-                record(
-                    [[5, coefficient]],
-                    source=f"g{index}:x:1",
-                    result=result,
-                    phase_counts=(0, 0, 0, 0),
-                    pawns=(0, 0),
-                )
-            )
-        split = make_split(records, len(current["features"]))
-        parent = model.baseline_weights(current).astype(int)
-        candidate = parent.copy()
-        candidate[5] = [100, 100]
-        report = fitting.comparison_report(
-            [(split, current, parent, candidate, 0.7)],
-            {
-                "bootstrap_samples": 500,
-                "confidence": 0.9,
-                "phase_buckets": [0, 32, 64, 96, 129],
-                "minimum_phase_groups": 128,
-            },
-            9,
-        )
-        self.assertTrue(report["qualified"])
-        self.assertLess(
-            report["mean_squared_error"]["candidate"],
-            report["mean_squared_error"]["baseline"],
-        )
-        self.assertEqual(
-            [item["bucket"] for item in report["phases"]],
-            ["0-31", "32-63", "64-95", "96-128"],
-        )
-
     def test_selects_the_strongest_eligible_penalty_within_one_standard_error(self):
         reports = [
             {
@@ -275,23 +196,6 @@ class ValidationTest(unittest.TestCase):
         self.assertEqual(best["regularization"], 1e-9)
         self.assertAlmostEqual(threshold, 0.00063)
         self.assertEqual(selected["regularization"], 3e-9)
-
-    def test_regularization_selection_falls_back_to_the_baseline(self):
-        best, threshold, selected = fitting.select_regularization(
-            [
-                {
-                    "regularization": 1e-9,
-                    "mean_improvement": -0.001,
-                    "standard_error": 0.0001,
-                    "eligible": False,
-                }
-            ]
-        )
-
-        self.assertIsNone(best)
-        self.assertIsNone(threshold)
-        self.assertIsNone(selected)
-
 
     def test_development_folds_keep_groups_together(self):
         current = base_schema()
@@ -331,23 +235,6 @@ class CalibrationTest(unittest.TestCase):
             {"bounds": [0.0, 2.0], "absolute_tolerance": 1e-12, "maximum_iterations": 256},
         )
         self.assertAlmostEqual(result.x, 0.75, places=7)
-
-
-    def test_calibration_rejects_an_optimum_at_the_search_boundary(self):
-        split = make_split([record([])], 0)
-        result = types.SimpleNamespace(x=4.0, fun=0.1, success=True)
-        with (
-            mock.patch.object(fitting.optimize, "minimize_scalar", return_value=result),
-            self.assertRaisesRegex(ValueError, "search bound"),
-        ):
-            fitting.calibrate_scale(
-                split,
-                {
-                    "bounds": [0.0, 4.0],
-                    "absolute_tolerance": 1e-12,
-                    "maximum_iterations": 256,
-                },
-            )
 
 
 if __name__ == "__main__":

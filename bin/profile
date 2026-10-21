@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+    printf 'profile: %s\n' "$1" >&2
+    exit "${2:-1}"
+}
+
+usage() {
+    printf '%s\n' \
+        'Usage: profile BUILD (--name NAME | --output PATH) [-- BENCHMARK_ARGS...]' \
+        'Profile an existing benchmark with Linux perf; requires DWARF unwinding support.' \
+        '  BUILD          Build name under build/, or an executable path containing /' \
+        '  --name NAME    Save in a new tools/output/NAME directory' \
+        '  --output PATH  Save in a new directory relative to the caller, or an absolute path' \
+        '  -- ARG...      Pass benchmark options, such as --case ID or --depth N' \
+        '  -h, --help     Show this help'
+}
+
+case "${1-}" in
+    -h|--help) usage; exit 0 ;;
+    '') fail 'provide a build name; see --help' 2 ;;
+esac
+benchmark=$1
+shift
+repo_root=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+if [[ $benchmark != */* ]]; then
+    [[ $benchmark =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "invalid build name: $benchmark" 2
+    benchmark="$repo_root/build/$benchmark/latrunculi-benchmark"
+fi
+
+output=
+while (($#)); do
+    case "$1" in
+        --name|--output)
+            [[ $# -ge 2 && -n $2 ]] || fail "missing value for $1" 2
+            [[ -z $output ]] || fail 'choose either --name or --output' 2
+            if [[ $1 == --name ]]; then
+                [[ $2 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "invalid output name: $2" 2
+                output="$repo_root/tools/output/$2"
+            else
+                output=$2
+                [[ $output == /* ]] || output="$PWD/$output"
+            fi
+            shift 2 ;;
+        --) shift; break ;;
+        -h|--help) usage; exit 0 ;;
+        *) fail "unknown argument: $1; see --help" 2 ;;
+    esac
+done
+
+[[ -n $output ]] || fail 'provide --name or --output' 2
+[[ ! -e $output && ! -L $output ]] || fail "output already exists: $output"
+[[ -f $benchmark && -x $benchmark ]] || fail "not an executable: $benchmark"
+command -v perf >/dev/null || fail 'perf is required'
+
+mkdir -p -- "$(dirname -- "$output")"
+mkdir -- "$output"
+cp -- "$benchmark" "$output/latrunculi-benchmark"
+printf 'Benchmark: %s\nOutput: %s\n' "$benchmark" "$output"
+
+perf record -e cycles:u -F 199 --call-graph dwarf \
+    -o "$output/perf.data" -- \
+    "$output/latrunculi-benchmark" "$@" > "$output/search.tsv"
+perf report --stdio -i "$output/perf.data" > "$output/report.txt"
+perf stat -e cycles:u,instructions:u -o "$output/counters.txt" -- \
+    "$output/latrunculi-benchmark" "$@" > "$output/counter-search.tsv"
+
+printf 'Report saved: %s\n' "$output/report.txt"

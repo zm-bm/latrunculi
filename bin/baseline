@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# == 1 && ( $1 == --help || $1 == -h ) ]]; then
+    printf '%s\n' 'Usage: baseline NAME' \
+        'Build, test, and retain the current clean checkout in build/NAME using release-dev.'
+    exit 0
+fi
+if [[ $# != 1 || ! $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    printf '%s\n' 'Usage: baseline NAME' \
+        'Use letters, digits, dots, underscores, or hyphens; start with a letter or digit.' >&2
+    exit 2
+fi
+
+CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+status=$(git status --porcelain --untracked-files=all --ignore-submodules=none)
+if [[ -n $status ]]; then
+    printf 'Checkout must be clean; inspect git status --short.\n' >&2
+    exit 1
+fi
+
+revision=$(git rev-parse HEAD)
+output="$PWD/build/$1"
+mkdir -p build
+mkdir -- "$output"
+printf 'Building baseline: %s\nRevision: %s\n' "$output" "$revision"
+
+cmake --preset release-dev -B "$output"
+cmake --build "$output"
+ctest --preset release-dev --test-dir "$output"
+"$output/latrunculi" bench | tee "$output/bench.txt"
+printf '%s\n' "$revision" > "$output/revision.txt"
+printf 'Baseline saved: %s\n' "$output"

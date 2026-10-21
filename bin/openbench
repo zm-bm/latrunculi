@@ -1,0 +1,31 @@
+#!/bin/sh
+
+repo_root=$(CDPATH= cd -P "$(dirname "$0")/.." && pwd) || exit 1
+tools_dir="$repo_root/tools"
+if [ ! -x "$tools_dir/.venv/bin/python" ]; then
+    printf '%s\n' \
+        "error: Python environment unavailable: $tools_dir/.venv/bin/python" \
+        'From the repository root, run:' \
+        '  python3 -m venv tools/.venv' \
+        '  tools/.venv/bin/python -m pip install -r tools/requirements.txt' >&2
+    exit 1
+fi
+
+module=openbench_client
+case "${1-}" in
+    prepare)
+        module=tools.openbench_prepare
+        shift
+        ;;
+    -h|--help)
+        printf '%s\n' \
+            'Prepare Latrunculi settings locally:' \
+            '  openbench prepare {sprt,games,corpus} [options]' \
+            '  See openbench prepare --help for details.' \
+            '' \
+            'Other commands are provided by the OpenBench client:'
+        ;;
+esac
+
+PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}" \
+    exec "$tools_dir/.venv/bin/python" -P -m "$module" "$@"

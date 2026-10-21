@@ -209,7 +209,7 @@ def mocked_optimizer(*, improve=True, interrupt_at=None):
         nonlocal calls
         calls += 1
         if calls == interrupt_at:
-            raise RuntimeError("interrupted fit")
+            raise KeyboardInterrupt
         deltas = np.asarray([
             10.0 if improve and name.startswith("pawn.isolated.") else 0.0
             for name in parameters.names
@@ -240,7 +240,7 @@ def mocked_optimizer(*, improve=True, interrupt_at=None):
         yield optimizer, calibrate
 
 
-def verification_fixture(root, *, supported=True):
+def verification_fixture(root):
     output = root / "fit"
     current = fitting_schema()
     run = artifacts.write_artifact(output / "run.json", {
@@ -252,7 +252,7 @@ def verification_fixture(root, *, supported=True):
     weights[5] += 10
     candidate = artifacts.write_artifact(output / "candidate.json", {
         "kind": "candidate", "run_id": run["artifact_id"],
-        "cross_validation_supported": supported,
+        "cross_validation_supported": True,
         "weights": artifacts.weight_records(current, parent, weights),
     })
     return output, model.schema_with_weights(current, weights), candidate

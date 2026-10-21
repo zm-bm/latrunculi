@@ -7,6 +7,7 @@ import pathlib
 import subprocess
 import sys
 
+from .. import paths
 from . import dataset, model, fit as fitting, artifacts
 
 
@@ -39,18 +40,18 @@ def candidate_verification(candidate, schema, engine):
 
 def prepare_command(args):
     engine = args.engine.resolve()
-    paths = [path.resolve() for path in args.pgn]
+    pgn_paths = [path.resolve() for path in args.pgn]
     output = args.output.resolve()
-    identity = dataset.preparation_identity(engine, paths)
+    identity = dataset.preparation_identity(engine, pgn_paths)
     schema = read_engine_schema(engine)
     dataset.validate_schema(schema)
     if not output.exists():
-        dataset.atomic_build(engine, paths, output)
+        dataset.atomic_build(engine, pgn_paths, output)
     report, actual_schema = dataset.validate_output(output)
     manifest = artifacts.load_json(output / "manifest.json")
     if manifest["identity"] != identity:
         raise ValueError("preparation inputs, policy, or tools changed; use a new output directory")
-    if actual_schema != schema or dataset.preparation_identity(engine, paths) != identity:
+    if actual_schema != schema or dataset.preparation_identity(engine, pgn_paths) != identity:
         raise ValueError("preparation inputs or exporter changed")
     print(json.dumps(report, indent=2, sort_keys=True))
 
@@ -179,27 +180,49 @@ def verify_command(args):
     print(json.dumps({"format_version": artifacts.FORMAT_VERSION, **verification}, indent=2, sort_keys=True))
 
 
+def engine_path(value):
+    return paths.build_binary(value, "latrunculi")
+
+
+def tuning_directory(value):
+    if "/" in value:
+        return pathlib.Path(value)
+    return paths.ROOT / "tools/tuning/output" / paths.name(value)
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(prog="tune", description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     prepare = subparsers.add_parser("prepare", help="prepare or validate a settled dataset")
-    prepare.add_argument("--engine", type=pathlib.Path, required=True)
-    prepare.add_argument("--output", type=pathlib.Path, required=True)
+    prepare.add_argument("--engine", type=engine_path, required=True,
+                         help="build name or executable path containing /")
     prepare.add_argument("pgn", type=pathlib.Path, nargs="+")
     prepare.set_defaults(function=prepare_command)
 
     fit = subparsers.add_parser("fit", help="fit or resume weights from a prepared dataset")
-    fit.add_argument("--dataset", type=pathlib.Path, required=True)
-    fit.add_argument("--output", type=pathlib.Path, required=True)
+    fit.add_argument("--dataset", type=tuning_directory, required=True,
+                     help="dataset name or directory path containing /")
     fit.set_defaults(function=fit_command)
 
+    for command in (prepare, fit):
+        output = command.add_mutually_exclusive_group(required=True)
+        output.add_argument("--name", type=paths.name,
+                            help="output name under this checkout's tools/tuning/output/")
+        output.add_argument("--output", type=pathlib.Path,
+                            help="explicit output directory")
+
     verify = subparsers.add_parser("verify", help="check compiled weights and evaluation invariants")
-    verify.add_argument("output", type=pathlib.Path)
-    verify.add_argument("--engine", type=pathlib.Path, required=True)
+    verify.add_argument("output", type=tuning_directory, metavar="FIT",
+                        help="fit name or directory path containing /")
+    verify.add_argument("--engine", type=engine_path, required=True,
+                        help="build name or executable path containing /")
     verify.set_defaults(function=verify_command)
 
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.command in ("prepare", "fit") and args.name is not None:
+        args.output = tuning_directory(args.name)
+    return args
 
 
 def main(argv=None):

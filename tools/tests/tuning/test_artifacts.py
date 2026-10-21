@@ -8,7 +8,7 @@ from tools.tuning import artifacts
 class ArtifactTest(unittest.TestCase):
     def test_provenance_covers_all_production_tuning_modules(self):
         tools = pathlib.Path(artifacts.__file__).resolve().parents[1]
-        sources = {"__init__.py"} | {
+        sources = {"__init__.py", "paths.py"} | {
             path.relative_to(tools).as_posix()
             for path in (tools / "tuning").glob("*.py")
         }

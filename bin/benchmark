@@ -12,4 +12,4 @@ if [ ! -x "$tools_dir/.venv/bin/python" ]; then
 fi
 
 PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}" \
-    exec "$tools_dir/.venv/bin/python" -P -m tools.analysis.bench "$@"
+    exec "$tools_dir/.venv/bin/python" -P -m tools.benchmark "$@"

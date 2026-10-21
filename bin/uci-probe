@@ -1,15 +1,123 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -eo pipefail
 
-repo_root=$(CDPATH= cd -P "$(dirname "$0")/.." && pwd) || exit 1
-tools_dir="$repo_root/tools"
-if [ ! -x "$tools_dir/.venv/bin/python" ]; then
+fail() {
+    printf 'uci-probe: %s\n' "$1" >&2
+    exit "${2:-1}"
+}
+
+usage() {
     printf '%s\n' \
-        "error: Python environment unavailable: $tools_dir/.venv/bin/python" \
-        'From the repository root, run:' \
-        '  python3 -m venv tools/.venv' \
-        '  tools/.venv/bin/python -m pip install -r tools/requirements.txt' >&2
-    exit 1
+        'Usage: uci-probe BUILD --fen FEN --nodes N [--moves MOVE...] [--timeout SECONDS] [-- ARG...]' \
+        'Record one UCI search as text. Requires Bash 4+; uses Threads=1 and Hash=32 MiB.' \
+        '  BUILD              Existing build name under build/, or an executable path' \
+        '  --fen FEN          Starting position with all six FEN fields' \
+        '  --nodes N          Positive search budget in nodes' \
+        '  --moves MOVE...    Move history from the starting FEN' \
+        '  --timeout SECONDS  Overall session timeout in whole seconds (default: 90)' \
+        '  -h, --help         Show this help'
+}
+
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+    '') fail 'provide a build name; see --help' 2 ;;
+esac
+engine=$1
+shift
+if [[ $engine != */* ]]; then
+    [[ $engine =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "invalid build name: $engine" 2
+    repo_root=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+    engine="$repo_root/build/$engine/latrunculi"
 fi
 
-PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}" \
-    exec "$tools_dir/.venv/bin/python" -P -m tools.analysis.uci_probe "$@"
+fen= nodes= timeout=90
+moves=()
+while (($#)); do
+    case "$1" in
+        --fen) fen=${2:?missing FEN}; shift 2 ;;
+        --nodes) nodes=${2:?missing node budget}; shift 2 ;;
+        --timeout) timeout=${2:?missing timeout}; shift 2 ;;
+        --moves)
+            shift
+            while (($#)) && [[ $1 != -* ]]; do
+                moves+=("$1")
+                shift
+            done ;;
+        --) shift; break ;;
+        -h|--help) usage; exit 0 ;;
+        *) fail "unknown argument: $1; see --help" 2 ;;
+    esac
+done
+[[ -n $fen ]] || fail 'provide a starting position with --fen' 2
+[[ $nodes =~ ^[1-9][0-9]*$ ]] || fail '--nodes must be a positive integer' 2
+[[ $timeout =~ ^[1-9][0-9]*$ ]] || fail '--timeout must be positive whole seconds' 2
+deadline=$((SECONDS + timeout))
+
+cleanup() {
+    # Normal completion uses quit; failures must also stop unresponsive engines.
+    kill -KILL "$engine_pid" 2>/dev/null || :
+    wait "$engine_pid" 2>/dev/null || :
+}
+
+time_left() {
+    remaining=$((deadline - SECONDS))
+    ((remaining > 0)) || fail "session exceeded ${timeout}s timeout"
+}
+
+send() {
+    time_left
+    printf '> %s\n' "$1"
+    printf '%s\n' "$1" >&4
+}
+
+receive() {
+    time_left
+    IFS= read -r -t "$remaining" -u 3 line || return 1
+    printf '< %s\n' "$line"
+}
+
+await_reply() {
+    local word rest
+    while receive; do
+        read -r word rest <<< "${line%$'\r'}"
+        [[ $word == "$1" ]] && return
+    done
+    fail "no $1 response: engine exited or timed out"
+}
+
+set -- "$engine" "$@"
+printf '# engine:'
+printf ' %q' "$@"
+printf '\n'
+coproc ENGINE { exec "$@"; }
+engine_pid=$ENGINE_PID
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 141' PIPE
+# Keep our own descriptors: Bash closes its coprocess descriptors when the child exits.
+exec 3<&"${ENGINE[0]}" 4>&"${ENGINE[1]}"
+
+send uci
+await_reply uciok
+send 'setoption name Threads value 1'
+send 'setoption name Hash value 32'
+send ucinewgame
+send isready
+await_reply readyok
+position="position fen $fen"
+if ((${#moves[@]})); then
+    position+=" moves ${moves[*]}"
+fi
+send "$position"
+send "go nodes $nodes"
+await_reply bestmove
+send quit
+while receive; do :; done
+# An engine may close stdout before exiting; keep shutdown within the same deadline.
+while kill -0 "$engine_pid" 2>/dev/null; do
+    time_left
+    sleep 0.05
+done
+wait "$engine_pid"
+trap - EXIT
