@@ -91,7 +91,7 @@ private:
 
     template <ScorePolicy Policy>
     int score_move(Move move) const;
-    int score_noisy(Move move) const;
+    int score_evasion_noisy(Move move) const;
 
     template <ScorePolicy Policy>
     Candidate* score_moves(const movegen::MoveList& list, Candidate* out);

@@ -17,7 +17,7 @@ constexpr int GoodCaptureScoreBase = 1 << 22;
 constexpr int PromotionScore       = GoodCaptureScoreBase << 6;
 constexpr int WeakCaptureScore     = 0;
 
-// Orders captures within the good-capture band.
+// Orders captures within the good-capture band (including capture evasions).
 constexpr int CaptureVictimWeight = 7;
 
 static_assert(QuietHistory::max_score + ContinuationHistory::max_score < GoodCaptureScoreBase);
@@ -120,7 +120,7 @@ Move Picker::next_quiet_hint() {
     return NULL_MOVE;
 }
 
-int Picker::score_noisy(Move move) const {
+int Picker::score_evasion_noisy(Move move) const {
     if (move.type() == MOVE_PROM)
         return PromotionScore;
 
@@ -137,11 +137,19 @@ int Picker::score_move(Move move) const {
     if constexpr (Policy == ScorePolicy::Quiet)
         return state.quiet_score(context, board, move, true);
 
-    if constexpr (Policy == ScorePolicy::Noisy)
-        return score_noisy(move);
+    if constexpr (Policy == ScorePolicy::Noisy) {
+        if (move.type() == MOVE_PROM)
+            return PromotionScore;
+
+        const int victim_value   = eval::piece(board.captured_piece_type(move)).mg;
+        const int attacker_value = eval::piece(board.piece_type_on(move.from())).mg;
+        // Keep even queen-for-pawn captures in the unclassified good band.
+        return GoodCaptureScoreBase + CaptureVictimWeight * victim_value + eval::piece(QUEEN).mg
+             - attacker_value;
+    }
 
     if (move.type() == MOVE_PROM || board.is_capture(move))
-        return score_noisy(move);
+        return score_evasion_noisy(move);
 
     return state.quiet_score(context, board, move, false);
 }
@@ -182,27 +190,38 @@ bool Picker::is_pickable(const Candidate& candidate) const {
 
 template <Picker::PickPolicy Policy>
 Move Picker::pick(CandidateRange& range) {
-    Candidate* best       = nullptr;
-    int        best_score = 0;
+    for (;;) {
+        Candidate* best       = nullptr;
+        int        best_score = 0;
 
-    for (Candidate* candidate = range.next; candidate != range.end; ++candidate) {
-        if (!is_pickable<Policy>(*candidate))
-            continue;
+        for (Candidate* candidate = range.next; candidate != range.end; ++candidate) {
+            if (!is_pickable<Policy>(*candidate))
+                continue;
 
-        const int score = candidate->score;
-        if (best == nullptr || score > best_score) {
-            best       = candidate;
-            best_score = score;
+            const int score = candidate->score;
+            if (best == nullptr || score > best_score) {
+                best       = candidate;
+                best_score = score;
+            }
         }
+
+        if (best == nullptr)
+            return NULL_MOVE;
+
+        if constexpr (Policy == PickPolicy::GoodNoisy) {
+            if (best->move.type() != MOVE_PROM && !board.see_nonnegative(best->move)) {
+                // Leave losing captures in this range for the final main-search
+                // stage. Quiescence ends after the good captures, as before.
+                best->score = WeakCaptureScore;
+                continue;
+            }
+        }
+
+        std::swap(*range.next, *best);
+        Move move = range.next->move;
+        ++range.next;
+        return move;
     }
-
-    if (best == nullptr)
-        return NULL_MOVE;
-
-    std::swap(*range.next, *best);
-    Move move = range.next->move;
-    ++range.next;
-    return move;
 }
 
 void Picker::skip_nonchecking_quiets() {

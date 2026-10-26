@@ -294,8 +294,13 @@ TEST_F(PickerTest, MainSearchOrdersPromotionsAndWeakCapturesByStage) {
 }
 
 TEST_F(PickerTest, QSearchReturnsOnlyNonLosingNoisyMoves) {
-    for (std::string_view fen :
-         {std::string_view{board_test::fen::perft_position_3}, WEAK_CAPTURE_FEN}) {
+    for (std::string_view fen : {std::string_view{board_test::fen::perft_position_2},
+                                 std::string_view{board_test::fen::perft_position_3},
+                                 std::string_view{board_test::fen::legal_en_passant_a3},
+                                 std::string_view{board_test::fen::promotion_options},
+                                 std::string_view{board_test::fen::capture_promotion},
+                                 std::string_view{"1rr4k/P7/8/8/8/8/8/K7 w - - 0 1"},
+                                 WEAK_CAPTURE_FEN}) {
         SCOPED_TRACE(fen);
         Board position{fen};
         ASSERT_FALSE(position.is_check());
@@ -313,6 +318,33 @@ TEST_F(PickerTest, QSearchReturnsOnlyNonLosingNoisyMoves) {
             EXPECT_TRUE(expected_good_noisy(position, move)) << move.str();
         }
     }
+}
+
+TEST_F(PickerTest, LosingTtCaptureIsStillReturnedFirstOnce) {
+    const Board position{WEAK_CAPTURE_FEN};
+    const Move  capture{D1, D7};
+    ASSERT_LT(position.see(capture), 0);
+
+    expect_hash_move_first_once(picked_qsearch(position, state, capture), capture);
+    expect_hash_move_first_once(picked_main_search(position, state, ply, capture), capture);
+}
+
+TEST_F(PickerTest, CaptureEvasionsKeepNumericalSeeOrdering) {
+    const Board position{"1r5k/8/8/8/1b6/P7/2N5/1Q2K3 w - - 0 1"};
+    ASSERT_TRUE(position.is_check());
+    const Move pawn_capture{A3, B4};
+    const Move knight_capture{C2, B4};
+    const Move queen_capture{B1, B4};
+    ASSERT_EQ(position.see(pawn_capture), position.see(knight_capture));
+    ASSERT_GE(position.see(knight_capture), 0);
+    ASSERT_LT(position.see(queen_capture), 0);
+
+    const auto main_moves = picked_main_search(position, state, ply);
+    ASSERT_GE(main_moves.size(), 3U);
+    EXPECT_EQ(main_moves[0], knight_capture);
+    EXPECT_EQ(main_moves[1], pawn_capture);
+    EXPECT_EQ(picked_qsearch(position, state), main_moves);
+    EXPECT_EQ(sorted_move_bits(main_moves), sorted_move_bits(movegen::generate_evasions(position)));
 }
 
 TEST_F(PickerTest, QSearchValidatesAndPrioritizesTtHints) {

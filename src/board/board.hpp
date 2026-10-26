@@ -128,6 +128,8 @@ public:
     // Static exchange evaluation (board_see.cpp)
 
     EvalValue see(Move move) const noexcept;
+    // Equivalent to see(move) >= 0; accepts captures and promotions.
+    bool see_nonnegative(Move move) const noexcept;
 
 private:
     // Ply-state storage

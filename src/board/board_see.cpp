@@ -97,3 +97,68 @@ EvalValue Board::see(Move move) const noexcept {
 
     return gains[0];
 }
+
+// Tests the sign of see() without a swap-list or numerical result. This is
+// deliberately limited to zero: see()'s early cutoff preserves its sign, but
+// need not preserve the exact exchange value at an arbitrary threshold.
+bool Board::see_nonnegative(Move move) const noexcept {
+    assert(is_pseudo_legal(move));
+    assert(is_capture(move) || move.type() == MOVE_PROM);
+
+    int balance = see_initial_gain(*this, move);
+
+    const Square to   = move.to();
+    Color        side = side_to_move();
+    PieceType    piece_type =
+        move.type() == MOVE_PROM ? move.prom_piece() : piece_type_on(move.from());
+    balance = eval::piece(piece_type).mg - balance;
+    if (balance <= 0)
+        return true;
+
+    Bitboard occupancy        = this->occupancy();
+    Bitboard current_attacker = bb::set(move.from());
+
+    if (move.type() == MOVE_EP) {
+        bb::remove(occupancy, move_geometry::enpassant_captured_square(to, side));
+        bb::add(occupancy, to);
+    }
+
+    Bitboard       attackers      = all_attackers_to(to, occupancy) & occupancy;
+    const Bitboard bishop_sliders = pieces<BISHOP, QUEEN>();
+    const Bitboard rook_sliders   = pieces<ROOK, QUEEN>();
+    bool           result         = true;
+
+    for (;;) {
+        occupancy ^= current_attacker;
+        attackers |= (attacks::piece_moves<BISHOP>(to, occupancy) & bishop_sliders)
+                   | (attacks::piece_moves<ROOK>(to, occupancy) & rook_sliders);
+        attackers &= occupancy;
+        side = ~side;
+
+        current_attacker = 0;
+        for (PieceType attacker_type : see_attacker_order) {
+            Bitboard candidate = attackers & piece_bb[side][attacker_type];
+            if (!candidate)
+                continue;
+
+            candidate = bb::lsb_mask(candidate);
+            if (attacker_type == KING) {
+                const Bitboard kingless_occupancy = occupancy ^ candidate;
+                if (attacks_to(to, ~side, kingless_occupancy) & kingless_occupancy)
+                    continue;
+            }
+
+            piece_type       = attacker_type;
+            current_attacker = candidate;
+            break;
+        }
+
+        if (!current_attacker)
+            return result;
+        result  = !result;
+        balance = eval::piece(piece_type).mg - balance;
+        // Equality succeeds for the original side, but fails for its opponent.
+        if (balance < static_cast<int>(result))
+            return result;
+    }
+}
