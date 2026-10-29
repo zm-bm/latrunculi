@@ -101,8 +101,6 @@ TEST_F(TtClockTest, RejectsMismatchedExactLowerUpperAndMateBoundsInBothSearches)
                 const Board source(to_high ? low_clock_evasion_fen : high_clock_evasion_fen);
                 const Board target(to_high ? high_clock_evasion_fen : low_clock_evasion_fen);
                 for (const auto& tc : cases) {
-                    if (pv && tc.bound != TTBound::Exact)
-                        continue;
                     SCOPED_TRACE(testing::Message()
                                  << "depth=" << depth << " pv=" << pv << " to_high=" << to_high
                                  << " score=" << tc.score << " bound=" << int(tc.bound));
@@ -116,12 +114,15 @@ TEST_F(TtClockTest, RejectsMismatchedExactLowerUpperAndMateBoundsInBothSearches)
                     EXPECT_EQ(search(pv, depth, tc.alpha, tc.beta), cold);
                     EXPECT_GT(worker.node_count(), 1U);
 
-                    // Positive control: the same record must still cut off at a matching clock.
+                    // Matching clocks allow score cutoffs only at non-PV nodes.
                     tt.clear();
                     tt.store(target.tt_key(), NULL_MOVE, tc.score, depth, tc.bound, 0);
                     load(target);
-                    EXPECT_EQ(search(pv, depth, tc.alpha, tc.beta), tc.score);
-                    EXPECT_EQ(worker.node_count(), 1U);
+                    EXPECT_EQ(search(pv, depth, tc.alpha, tc.beta), pv ? cold : tc.score);
+                    if (pv)
+                        EXPECT_GT(worker.node_count(), 1U);
+                    else
+                        EXPECT_EQ(worker.node_count(), 1U);
                 }
             }
         }
@@ -176,8 +177,6 @@ TEST_F(TtClockTest, ClockGroupsControlMainAndQuiescenceCutoffs) {
                                                     << " depth=" << depth << " pv=" << pv);
                     for (TTBound bound :
                          {TTBound::Exact, TTBound::LowerBound, TTBound::UpperBound}) {
-                        if (pv && bound != TTBound::Exact)
-                            continue;
                         const EvalValue score = bound == TTBound::UpperBound ? -20000 : 20000;
                         const EvalValue alpha = bound == TTBound::UpperBound ? -10000 : 9000;
                         const EvalValue beta  = alpha + 1000;
@@ -189,8 +188,9 @@ TEST_F(TtClockTest, ClockGroupsControlMainAndQuiescenceCutoffs) {
                         tt.store(source.tt_key(), NULL_MOVE, score, depth, bound, 0);
                         load(Board(fen(clocks.current)));
                         const auto actual = search(pv, depth, alpha, beta);
-                        EXPECT_EQ(actual, clocks.share ? score : cold);
-                        if (clocks.share)
+                        const bool cutoff = clocks.share && !pv;
+                        EXPECT_EQ(actual, cutoff ? score : cold);
+                        if (cutoff)
                             EXPECT_EQ(worker.node_count(), 1U);
                         else
                             EXPECT_GT(worker.node_count(), 1U);

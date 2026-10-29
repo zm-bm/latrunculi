@@ -192,6 +192,29 @@ TEST_F(QuiescenceTest, BuildsPrincipalVariationFromTacticalMove) {
     EXPECT_TRUE(position().is_legal_move(pv.front()));
 }
 
+TEST_F(QuiescenceTest, PvSearchRebuildsContinuationWithRetainedTt) {
+    Board board{"k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1"};
+    load(board);
+    const Move capture = find_move("d1e2");
+    ASSERT_FALSE(capture.is_null());
+
+    PrincipalVariation cold_pv;
+    const EvalValue    value = pv_search(-eval_value::inf, eval_value::inf, cold_pv);
+    ASSERT_EQ(cold_pv.size(), 1);
+    EXPECT_EQ(cold_pv.front(), capture);
+    EXPECT_TRUE(position().is_legal_move(cold_pv.front()));
+
+    const auto stored = record();
+    ASSERT_TRUE(stored.has_value());
+    ASSERT_EQ(stored->bound, TTBound::Exact);
+
+    PrincipalVariation warm_pv;
+    EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, warm_pv), value);
+    ASSERT_EQ(warm_pv.size(), 1);
+    EXPECT_EQ(warm_pv.front(), capture);
+    EXPECT_TRUE(position().is_legal_move(warm_pv.front()));
+}
+
 TEST_F(QuiescenceTest, SettlesTacticalPositionWithoutSearchState) {
     constexpr auto tactical = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
     Board          first{tactical};

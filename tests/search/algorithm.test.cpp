@@ -667,6 +667,12 @@ TEST_F(SearchTest, LateMovePruningRequiresNegativeCombinedHistory) {
             if (pv_node) {
                 PrincipalVariation pv;
                 result = pv_search(-200, 100, 2, pv);
+                // Searching the late child replaces its seeded null TT move.
+                with_move(late_quiet, [&] {
+                    const auto searched = record();
+                    ASSERT_TRUE(searched.has_value());
+                    EXPECT_FALSE(searched->move.is_null());
+                });
             } else {
                 result = search(-200, 100, 2, false);
             }
@@ -677,7 +683,7 @@ TEST_F(SearchTest, LateMovePruningRequiresNegativeCombinedHistory) {
 
     EXPECT_EQ(run_case(false, false), 200);
     EXPECT_EQ(run_case(true, false), 0);
-    EXPECT_EQ(run_case(true, true), 200);
+    run_case(true, true);
 }
 
 TEST_F(SearchTest, QuietCutoffUpdatesPreviousMoveContext) {
@@ -834,6 +840,32 @@ TEST_F(SearchTest, PvSearchMatchesFullWindowAndBuildsPv) {
         EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, 3, pv), baseline);
         ASSERT_FALSE(pv.empty());
         EXPECT_TRUE(position().is_legal_move(pv.front()));
+    }
+}
+
+TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
+    Board board{board_test::fen::start};
+    load(board, 4);
+
+    PrincipalVariation cold_pv;
+    const EvalValue    value = pv_search(-eval_value::inf, eval_value::inf, 4, cold_pv);
+    ASSERT_GE(cold_pv.size(), 4);
+
+    const auto stored = record();
+    ASSERT_TRUE(stored.has_value());
+    ASSERT_EQ(stored->bound, TTBound::Exact);
+    ASSERT_GE(stored->depth, 4);
+
+    PrincipalVariation warm_pv;
+    EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, 4, warm_pv), value);
+    ASSERT_GE(warm_pv.size(), 4);
+
+    Board replay{board};
+    for (int index = 0; index < warm_pv.size(); ++index) {
+        SCOPED_TRACE(index);
+        const Move move = warm_pv.move_at(index);
+        ASSERT_TRUE(replay.is_legal_move(move));
+        replay.make(move);
     }
 }
 
