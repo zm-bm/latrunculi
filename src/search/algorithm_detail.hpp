@@ -61,8 +61,10 @@ inline constexpr int RazorMargin[]    = {0, 500, 900, 1800};
 inline constexpr int FutilityMargin[] = {0, 250, 400, 550};
 
 // Late-move reduction defaults.
-inline constexpr int LmrMinDepth     = 3;
-inline constexpr int LmrMinMoveCount = 4;
+inline constexpr int LmrMinDepth              = 3;
+inline constexpr int LmrMinMoveCount          = 4;
+inline constexpr int CaptureLmrMinDepth       = 4;
+inline constexpr int CaptureLmrHistoryDivisor = 8192;
 
 // Late-move pruning defaults.
 inline constexpr int LateMovePruningDepth     = 2;
@@ -95,22 +97,27 @@ null_move_reduction(const int depth, const EvalValue static_eval, const EvalValu
     return std::min({depth, NullMoveReductionMax, reduction});
 }
 
-// Late-move reduction formula.
+struct LmrReduction {
+    double unrounded{0.0};
+    int    plies{0};
+};
+
+// Retain the fractional value for capture-history adjustments before rounding.
 template <NodeType Node>
-int lmr_reduction(int  depth,
-                  int  move_count,
-                  bool is_quiet,
-                  bool is_promotion,
-                  bool in_check,
-                  bool gives_check,
-                  bool is_killer,
-                  bool declining) {
+LmrReduction lmr_reduction(int  depth,
+                           int  move_count,
+                           bool is_quiet,
+                           bool is_promotion,
+                           bool in_check,
+                           bool gives_check,
+                           bool is_killer,
+                           bool declining) {
     if (depth < LmrMinDepth || move_count < LmrMinMoveCount)
-        return 0;
+        return {};
 
     // Do not reduce moves that create immediate tactical obligations.
     if (is_promotion || in_check || gives_check)
-        return 0;
+        return {};
 
     // Use the LMR formula as a starting point.
     const double base = is_quiet ? 1.25 : 0.75;
@@ -130,10 +137,33 @@ int lmr_reduction(int  depth,
         if (declining && is_quiet && !is_killer && reduction < depth - 2)
             ++reduction;
     }
-    return reduction;
+    return {.unrounded = r, .plies = reduction};
 }
 
-struct FailedQuiets {
+struct CaptureLmrContext {
+    bool non_pv;
+    bool is_capture;
+    bool is_tt_move;
+    int  depth;
+    int  base_reduction;
+    bool is_promotion;
+    bool in_check;
+    bool gives_check;
+};
+
+inline bool capture_lmr_eligible(const CaptureLmrContext& context) {
+    return context.non_pv && context.is_capture && !context.is_tt_move
+        && context.depth >= CaptureLmrMinDepth && context.base_reduction > 0
+        && !context.is_promotion && !context.in_check && !context.gives_check;
+}
+
+inline int capture_lmr_reduction(double unrounded_reduction, int raw_capture_history, int depth) {
+    const double adjustment =
+        std::clamp(-static_cast<double>(raw_capture_history) / CaptureLmrHistoryDivisor, -1.0, 1.0);
+    return std::clamp(static_cast<int>(unrounded_reduction + adjustment), 0, depth - 2);
+}
+
+struct FailedMoves {
     static constexpr int Capacity = 32;
 
     bool add(Move move) {

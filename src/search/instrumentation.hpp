@@ -25,6 +25,8 @@ struct Counters {
     PerPly        null_move_tries{}, null_move_cutoffs{};
     PerPly        razor_tries{}, razor_cutoffs{}, futility_skips{};
     PerPly        lmr_tries{}, lmr_researches{};
+    std::uint64_t capture_eligible{0}, capture_nonzero{0}, capture_increased{0},
+        capture_decreased{0}, capture_researches{0};
     std::uint64_t quiet_cutoffs{0}, quiet_malus_eligible_nodes{0};
     std::uint64_t quiet_malus_failed_quiets{0}, quiet_malus_updates{0};
 };
@@ -35,6 +37,8 @@ class Instrumentation;
 template <>
 class Instrumentation<false> {
 public:
+    void             capture_lmr(bool, int, int, int) {}
+    void             capture_research(bool, bool) {}
     void             reset() {}
     void             node(int) {}
     void             qnode(int) {}
@@ -69,6 +73,17 @@ public:
     Instrumentation() = default;
     explicit Instrumentation(const Counters& values) : counters(values) {}
 
+    void capture_lmr(bool eligible, int h, int base, int reduced) {
+        if (!eligible)
+            return;
+        ++counters.capture_eligible;
+        counters.capture_nonzero += h != 0;
+        counters.capture_increased += reduced > base;
+        counters.capture_decreased += reduced < base;
+    }
+    void capture_research(bool eligible, bool adjusted) {
+        counters.capture_researches += eligible && adjusted;
+    }
     void reset() { counters = {}; }
     void node(int ply) {
         if (valid(ply))

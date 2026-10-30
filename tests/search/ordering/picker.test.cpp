@@ -7,10 +7,13 @@
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
+#include "board/see.hpp"
 #include "movegen/generator.hpp"
 #include "search/limits.hpp"
+#include "search/ordering/capture_scoring.hpp"
 #include "search/ordering/state.hpp"
 #include "support/board_fixtures.hpp"
+#include "support/see_oracle.hpp"
 
 namespace search::ordering {
 
@@ -99,8 +102,9 @@ void expect_hash_move_first_once(const std::vector<Move>& moves, Move expected) 
     EXPECT_EQ(std::count(moves.begin(), moves.end(), expected), 1);
 }
 
-bool expected_good_noisy(const Board& board, Move move) {
-    return move.type() == MOVE_PROM || board.see(move) >= 0;
+bool expected_qsearch_noisy(const Board& board, Move move) {
+    return move.type() == MOVE_PROM
+        || board_test::exchange_oracle(board, move, see::piece_values) >= 0;
 }
 
 } // namespace
@@ -308,14 +312,14 @@ TEST_F(PickerTest, QSearchReturnsOnlyNonLosingNoisyMoves) {
         const auto        moves = picked_qsearch(position, state);
         movegen::MoveList expected;
         for (const Move move : movegen::generate_noisy(position)) {
-            if (expected_good_noisy(position, move))
+            if (expected_qsearch_noisy(position, move))
                 expected.add(move);
         }
 
         EXPECT_EQ(sorted_move_bits(moves), sorted_move_bits(expected));
         for (const Move move : moves) {
             EXPECT_TRUE(move.type() == MOVE_PROM || position.is_capture(move)) << move.str();
-            EXPECT_TRUE(expected_good_noisy(position, move)) << move.str();
+            EXPECT_TRUE(expected_qsearch_noisy(position, move)) << move.str();
         }
     }
 }
@@ -437,6 +441,173 @@ TEST_F(PickerTest, SkipNoncheckingQuietsIsNoOpForQSearchAndEvasions) {
         picker.skip_nonchecking_quiets();
         EXPECT_EQ(sorted_move_bits(collect_moves(picker)),
                   sorted_move_bits(movegen::generate_evasions(position)));
+    }
+}
+
+TEST_F(PickerTest, CaptureHistoryBreaksEqualVictimTiesAndPreservesTtPriority) {
+    const Board position{"7k/8/8/2p1p3/8/3N4/6P1/4K3 w - - 0 1"};
+    const Move  preferred{D3, E5};
+    const Move  other{D3, C5};
+    state.reward_capture(position, preferred, 4);
+    state.penalize_capture(position, other, 4);
+    EXPECT_EQ(picked_main_search(position, state, ply).front(), preferred);
+    EXPECT_EQ(picked_qsearch(position, state).front(), preferred);
+    expect_hash_move_first_once(picked_main_search(position, state, ply, other), other);
+    expect_hash_move_first_once(picked_qsearch(position, state, other), other);
+}
+
+TEST_F(PickerTest, CaptureHistoryUsesSeePricesAcrossVictims) {
+    const Board position{"7k/8/8/2p1b3/8/3N4/6P1/4K3 w - - 0 1"};
+    const Move  higher_victim{D3, E5};
+    const Move  lower_victim{D3, C5};
+    EXPECT_EQ(picked_main_search(position, state, ply).front(), higher_victim);
+    for (int i = 0; i < 6; ++i)
+        state.reward_capture(position, lower_victim, 8);
+    const int scaled_capture_history =
+        state.capture_score(position, lower_victim) / capture_scoring::HistoryScoreDivisor;
+    // This outweighs the SEE bishop/pawn gap, but not the evaluation-price gap.
+    ASSERT_GT(scaled_capture_history, 285);
+    ASSERT_LT(scaled_capture_history, 515);
+    EXPECT_EQ(picked_main_search(position, state, ply).front(), lower_victim);
+    EXPECT_EQ(picked_qsearch(position, state).front(), lower_victim);
+}
+
+TEST_F(PickerTest, CaptureOrderingKeepsScoringTimeHistorySnapshot) {
+    const Board position{"7k/8/8/2p1p3/8/3N4/5pP1/K7 w - - 0 1"};
+    const auto  frozen = picked_main_search(position, state, ply);
+    ASSERT_GE(frozen.size(), 3U);
+    for (int i = 0; i < 3; ++i)
+        ASSERT_TRUE(position.is_capture(frozen[i]));
+    auto picker = Picker::for_main_search(position, state, State::make_context(position), ply);
+    ASSERT_EQ(picker.next(), frozen.front());
+    for (int i = 0; i < 128; ++i) {
+        state.penalize_capture(position, frozen[1], Limits::max_depth);
+        state.reward_capture(position, frozen[2], Limits::max_depth);
+    }
+    EXPECT_EQ(collect_moves(picker), std::vector<Move>(frozen.begin() + 1, frozen.end()));
+    EXPECT_EQ(picked_main_search(position, state, ply).front(), frozen[2]);
+}
+
+TEST_F(PickerTest, MainSeeUsesCachedHistoryRatherThanMutatedTable) {
+    const Board position{"3r4/7k/q7/3r4/3QP3/8/R7/1K6 w - - 0 1"};
+    const Move  first{A2, A6}, second{D4, D5};
+    auto        picker =
+        Picker::for_main_search(position, state, State::make_context(position), ply, NULL_MOVE);
+    ASSERT_EQ(picker.next(), first);
+    for (int i = 0; i < 128; ++i)
+        state.penalize_capture(position, second, Limits::max_depth);
+    // Victim/attacker scoring may first select the pawn taking the same rook.
+    // The cached queen capture must still precede every quiet move.
+    for (;;) {
+        const Move move = picker.next();
+        ASSERT_FALSE(move.is_null());
+        ASSERT_TRUE(position.is_capture(move));
+        if (move == second)
+            break;
+    }
+    const auto fresh   = picked_main_search(position, state, ply);
+    const auto capture = std::find(fresh.begin(), fresh.end(), second);
+    const auto quiet =
+        std::find_if(fresh.begin(), fresh.end(), [&](Move m) { return !position.is_capture(m); });
+    ASSERT_NE(capture, fresh.end());
+    ASSERT_NE(quiet, fresh.end());
+    EXPECT_LT(quiet, capture);
+}
+
+TEST_F(PickerTest, MainCaptureStagingUsesHistoryWhileQuiescenceUsesZeroSee) {
+    for (const auto fen :
+         {"7k/8/5p2/4n3/3B4/8/8/K7 w - - 0 1", "7k/8/5p2/4b3/3B4/8/8/K7 w - - 0 1"}) {
+        SCOPED_TRACE(fen);
+        const Board position{fen};
+        const Move  capture{D4, E5};
+        const int   exchange = board_test::exchange_oracle(position, capture, see::piece_values);
+        ASSERT_EQ(exchange, position.piece_type_on(E5) == KNIGHT ? -35 : 0);
+        for (int history_sign : {-1, 0, 1}) {
+            SCOPED_TRACE(history_sign);
+            state.clear();
+            for (int i = 0; i < 128; ++i) {
+                if (history_sign < 0)
+                    state.penalize_capture(position, capture, Limits::max_depth);
+                if (history_sign > 0)
+                    state.reward_capture(position, capture, Limits::max_depth);
+            }
+            const auto main_moves = picked_main_search(position, state, ply);
+            const auto ci         = std::find(main_moves.begin(), main_moves.end(), capture);
+            const auto qi         = std::find_if(main_moves.begin(), main_moves.end(), [&](Move m) {
+                return !position.is_capture(m);
+            });
+            ASSERT_NE(ci, main_moves.end());
+            ASSERT_NE(qi, main_moves.end());
+            EXPECT_EQ(ci < qi, history_sign >= 0);
+            const auto qsearch_moves = picked_qsearch(position, state);
+            EXPECT_EQ(std::count(qsearch_moves.begin(), qsearch_moves.end(), capture),
+                      exchange >= 0 ? 1 : 0);
+            expect_hash_move_first_once(picked_main_search(position, state, ply, capture), capture);
+            expect_hash_move_first_once(picked_qsearch(position, state, capture), capture);
+        }
+    }
+}
+
+TEST_F(PickerTest, VictimAttackerScoringOrdersAcrossVictimsAndKeepsTtPriority) {
+    const Board position{"7k/8/8/b1n5/Q7/3N4/8/7K w - - 0 1"};
+    const Move  knight{D3, C5}, queen{A4, A5};
+    const Move  preferred = knight;
+    EXPECT_EQ(picked_main_search(position, state, ply).front(), preferred);
+    EXPECT_EQ(picked_qsearch(position, state).front(), preferred);
+    expect_hash_move_first_once(picked_main_search(position, state, ply, queen), queen);
+}
+
+TEST_F(PickerTest, FlatDeferredCapturesFollowQuietMoves) {
+    const Board position{"3r1r2/7k/3r4/8/3Q1b2/8/8/K7 w - - 0 1"};
+    const Move  rook{D4, D6}, bishop{D4, F4};
+    auto        moves = picked_main_search(position, state, ply);
+    auto        ri    = std::find(moves.begin(), moves.end(), rook);
+    auto        bi    = std::find(moves.begin(), moves.end(), bishop);
+    ASSERT_NE(ri, moves.end());
+    ASSERT_NE(bi, moves.end());
+    const auto first = std::min(ri, bi);
+    for (auto it = first; it != moves.end(); ++it)
+        EXPECT_TRUE(position.is_capture(*it));
+}
+
+TEST(CaptureScoringTest, KeepsScoresWithinStageAndRecoversHistory) {
+    for (int victim_value : {100, 350, 385, 655, 1220})
+        for (int attacker_value : {0, 100, 350, 385, 655, 1220})
+            for (int scaled_capture_history : {-1024, -1, 0, 1, 1024}) {
+                const int order_score =
+                    capture_scoring::score(victim_value, attacker_value, scaled_capture_history);
+                EXPECT_GT(order_score, 0);
+                EXPECT_LT(order_score, 1 << 22);
+                EXPECT_EQ(capture_scoring::scaled_history_from_score(
+                              order_score, victim_value, attacker_value),
+                          scaled_capture_history);
+            }
+}
+
+TEST(CaptureScoringTest, MainSearchSeeThresholdPreservesSignedTruncation) {
+    struct Case {
+        PieceType victim;
+        int       scaled_capture_history;
+        int       expected_threshold;
+    };
+    constexpr std::array cases{
+        Case{PAWN, 0, -50},
+        Case{PAWN, -1, -49},
+        Case{PAWN, 1, -50},
+        Case{PAWN, -2, -49},
+        Case{PAWN, 2, -51},
+        Case{PAWN, -101, 0},
+        Case{PAWN, -102, 1},
+        Case{KNIGHT, 0, -175},
+        Case{BISHOP, 0, -192},
+        Case{ROOK, 0, -327},
+        Case{QUEEN, 0, -610},
+    };
+    for (const auto& tc : cases) {
+        SCOPED_TRACE(tc.victim);
+        SCOPED_TRACE(tc.scaled_capture_history);
+        EXPECT_EQ(capture_scoring::main_search_see_threshold(tc.victim, tc.scaled_capture_history),
+                  tc.expected_threshold);
     }
 }
 

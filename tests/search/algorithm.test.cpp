@@ -747,6 +747,57 @@ TEST_F(SearchTest, NonQuietCutoffSkipsRefutationUpdates) {
     }
 }
 
+TEST_F(SearchTest, CaptureCutoffRewardsWinnerAndPenalizesEarlierFailedCaptures) {
+    load(Board{"7k/8/8/2p1p3/5p2/3N4/6P1/4K3 w - - 0 1"}, 2);
+    const auto moves = legal_picker_moves();
+    ASSERT_GE(moves.size(), 3U);
+    ASSERT_TRUE(position().is_capture(moves[0]));
+    ASSERT_TRUE(position().is_capture(moves[1]));
+    tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
+    store_child(moves[0], 0, 1);
+    store_child(moves[1], -200, 1);
+    EXPECT_EQ(search(-200, 100, 2, false), 200);
+    EXPECT_EQ(ordering_state().capture_score(position(), moves[0]), -64);
+    EXPECT_EQ(ordering_state().capture_score(position(), moves[1]), 64);
+    EXPECT_EQ(ordering_state().capture_score(position(), Move(D3, F4)), 0);
+    EXPECT_EQ(ordering_state().killers.primary(ply()), NULL_MOVE);
+}
+
+TEST_F(SearchTest, QuietCutoffAlsoPenalizesEarlierFailedCaptures) {
+    load(Board{"7k/8/8/2p1p3/8/3N4/6P1/4K3 w - - 0 1"}, 2);
+    const auto moves = legal_picker_moves();
+    auto       quiet = std::find_if(
+        moves.begin(), moves.end(), [&](Move move) { return !position().is_capture(move); });
+    ASSERT_NE(quiet, moves.end());
+    ASSERT_EQ(quiet - moves.begin(), 2);
+    tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
+    store_child(moves[0], 0, 1);
+    store_child(moves[1], 0, 1);
+    store_child(*quiet, -200, 1);
+    EXPECT_EQ(search(-200, 100, 2, false), 200);
+    EXPECT_EQ(ordering_state().capture_score(position(), moves[0]), -64);
+    EXPECT_EQ(ordering_state().capture_score(position(), moves[1]), -64);
+}
+
+TEST_F(SearchTest, CaptureHistorySkipsPromotionsEvasionsAndQuiescenceUpdates) {
+    const auto cutoff = [&](const Board& board, Move move) {
+        load(board, 2);
+        tt.store(position().tt_key(), move, 0, 0, TTBound::UpperBound, ply(), 0);
+        store_child(move, -200, 1);
+        EXPECT_EQ(search(-200, 100, 2, false), 200);
+    };
+    cutoff(Board{"4k2r/6P1/8/8/8/8/8/K7 w - - 0 1"}, Move(G7, H8, MOVE_PROM, QUEEN));
+    EXPECT_EQ(ordering_state().captures.get(WHITE, PAWN, H8, ROOK), 0);
+    cutoff(Board{"1r5k/8/8/8/1b6/P7/2N5/1Q2K3 w - - 0 1"}, Move(A3, B4));
+    EXPECT_EQ(ordering_state().captures.get(WHITE, PAWN, B4, BISHOP), 0);
+    load(Board{"7k/8/8/2p1p3/8/3N4/6P1/4K3 w - - 0 1"}, 1);
+    const Move capture = legal_picker_moves().front();
+    tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
+    store_child(capture, -200, 0);
+    EXPECT_EQ(SearchTestAccess::quiescence<NodeType::NonPv>(worker, -200, 100), 200);
+    EXPECT_EQ(ordering_state().capture_score(position(), capture), 0);
+}
+
 TEST_F(SearchTest, QuietMalusPenalizesEligibleMovesInBothHistories) {
     Board board{board_test::fen::start};
     load(board, 4);
@@ -884,6 +935,100 @@ TEST_F(SearchTest, PvNodeIgnoresLowerTtBound) {
     EXPECT_EQ(pv_search(alpha, beta, 2, pv), baseline);
 }
 
+TEST(CaptureLmrTest, AdjustmentRespectsHistoryBoundariesAndDepthLimits) {
+    struct Case {
+        int    depth;
+        double unrounded_reduction;
+        int    raw_capture_history;
+        int    expected_reduction;
+    };
+    constexpr std::array cases{
+        Case{6, 2.0, 0, 2},       Case{6, 2.0, 1, 1},      Case{6, 2.0, -1, 2},
+        Case{6, 1.5, 4095, 1},    Case{6, 1.5, 4096, 1},   Case{6, 1.5, 4097, 0},
+        Case{6, 1.5, -4095, 1},   Case{6, 1.5, -4096, 2},  Case{6, 2.25, 2048, 2},
+        Case{6, 2.25, 2049, 1},   Case{6, 2.75, -2047, 2}, Case{6, 2.75, -2048, 3},
+        Case{6, 2.25, 8192, 1},   Case{6, 2.25, -8192, 3}, Case{6, 2.25, 16384, 1},
+        Case{6, 2.25, -16384, 3}, Case{4, 1.25, 8192, 0},  Case{4, 1.25, -8192, 2},
+        Case{4, 2.75, -16384, 2}, Case{4, 3.75, 16384, 2},
+    };
+    for (const auto& tc : cases) {
+        SCOPED_TRACE(tc.depth);
+        SCOPED_TRACE(tc.unrounded_reduction);
+        SCOPED_TRACE(tc.raw_capture_history);
+        EXPECT_EQ(algorithm_detail::capture_lmr_reduction(
+                      tc.unrounded_reduction, tc.raw_capture_history, tc.depth),
+                  tc.expected_reduction);
+    }
+    for (int depth = 4; depth < 16; ++depth)
+        for (int move_count : {4, 5, 8, 12, 32, 64, 128, 256}) {
+            const auto base = algorithm_detail::lmr_reduction<NodeType::NonPv>(
+                depth, move_count, false, false, false, false, false, false);
+            EXPECT_EQ(algorithm_detail::capture_lmr_reduction(base.unrounded, 0, depth),
+                      base.plies);
+            int previous = depth - 2;
+            for (int raw_capture_history : {-16384, -8192, -2000, -1, 0, 1, 2000, 8192, 16384}) {
+                const int reduction = algorithm_detail::capture_lmr_reduction(
+                    base.unrounded, raw_capture_history, depth);
+                EXPECT_LE(std::abs(reduction - base.plies), 1);
+                EXPECT_GE(reduction, 0);
+                EXPECT_LE(reduction, depth - 2);
+                EXPECT_LE(reduction, previous);
+                previous = reduction;
+            }
+        }
+}
+
+TEST(CaptureLmrTest, ModerateHistoryChangesTheFinalRoundedReduction) {
+    const auto good = algorithm_detail::lmr_reduction<NodeType::NonPv>(
+        4, 4, false, false, false, false, false, false);
+    ASSERT_EQ(good.plies, 1);
+    EXPECT_EQ(algorithm_detail::capture_lmr_reduction(good.unrounded, 3000, 4), 0);
+
+    const auto bad = algorithm_detail::lmr_reduction<NodeType::NonPv>(
+        6, 8, false, false, false, false, false, false);
+    ASSERT_EQ(bad.plies, 1);
+    EXPECT_EQ(algorithm_detail::capture_lmr_reduction(bad.unrounded, -2000, 6), 2);
+}
+
+TEST(CaptureLmrTest, ExcludesEveryTacticalAndSearchException) {
+    const algorithm_detail::CaptureLmrContext eligible{
+        .non_pv         = true,
+        .is_capture     = true,
+        .is_tt_move     = false,
+        .depth          = 4,
+        .base_reduction = 1,
+        .is_promotion   = false,
+        .in_check       = false,
+        .gives_check    = false,
+    };
+    EXPECT_TRUE(algorithm_detail::capture_lmr_eligible(eligible));
+
+    auto context   = eligible;
+    context.non_pv = false;
+    EXPECT_FALSE(algorithm_detail::capture_lmr_eligible(context));
+    context            = eligible;
+    context.is_capture = false;
+    EXPECT_FALSE(algorithm_detail::capture_lmr_eligible(context));
+    context            = eligible;
+    context.is_tt_move = true;
+    EXPECT_FALSE(algorithm_detail::capture_lmr_eligible(context));
+    context       = eligible;
+    context.depth = 3;
+    EXPECT_FALSE(algorithm_detail::capture_lmr_eligible(context));
+    context                = eligible;
+    context.base_reduction = 0;
+    EXPECT_FALSE(algorithm_detail::capture_lmr_eligible(context));
+    context              = eligible;
+    context.is_promotion = true;
+    EXPECT_FALSE(algorithm_detail::capture_lmr_eligible(context));
+    context          = eligible;
+    context.in_check = true;
+    EXPECT_FALSE(algorithm_detail::capture_lmr_eligible(context));
+    context             = eligible;
+    context.gives_check = true;
+    EXPECT_FALSE(algorithm_detail::capture_lmr_eligible(context));
+}
+
 TEST(LmrReductionTest, DecliningTrendPreservesExemptionsAndMainSearchDepth) {
     for (const int depth : {2, 3, 4, 5, 8}) {
         for (const int move_count : {1, 3, 4, 12, 32}) {
@@ -895,8 +1040,15 @@ TEST(LmrReductionTest, DecliningTrendPreservesExemptionsAndMainSearchDepth) {
                                        bool gives_check,
                                        bool killer,
                                        bool declining) {
-                return algorithm_detail::lmr_reduction<NodeType::NonPv>(
-                    depth, move_count, quiet, promotion, check, gives_check, killer, declining);
+                return algorithm_detail::lmr_reduction<NodeType::NonPv>(depth,
+                                                                        move_count,
+                                                                        quiet,
+                                                                        promotion,
+                                                                        check,
+                                                                        gives_check,
+                                                                        killer,
+                                                                        declining)
+                    .plies;
             };
             const int ordinary  = reduction(true, false, false, false, false, false);
             const int declining = reduction(true, false, false, false, false, true);
@@ -910,9 +1062,11 @@ TEST(LmrReductionTest, DecliningTrendPreservesExemptionsAndMainSearchDepth) {
             EXPECT_EQ(reduction(true, false, true, false, false, true), 0);
             EXPECT_EQ(reduction(true, false, false, true, false, true), 0);
             EXPECT_EQ(algorithm_detail::lmr_reduction<NodeType::Pv>(
-                          depth, move_count, true, false, false, false, false, true),
+                          depth, move_count, true, false, false, false, false, true)
+                          .plies,
                       algorithm_detail::lmr_reduction<NodeType::Pv>(
-                          depth, move_count, true, false, false, false, false, false));
+                          depth, move_count, true, false, false, false, false, false)
+                          .plies);
         }
     }
 }

@@ -127,14 +127,17 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeQuietAndPreserveContinuationHistory)
     load_worker_board(board);
 
     ordering_state().quiets.reward(WHITE, E2, E4, 4);
+    ordering_state().captures.reward(WHITE, KNIGHT, E5, PAWN, 4);
     ordering_state().continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
 
     SearchTestAccess::reset(worker());
     EXPECT_EQ(ordering_state().quiets.get(WHITE, E2, E4), 8);
+    EXPECT_EQ(ordering_state().captures.get(WHITE, KNIGHT, E5, PAWN), 128);
     EXPECT_EQ(ordering_state().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
 
     SearchTestAccess::reset(worker());
     EXPECT_EQ(ordering_state().quiets.get(WHITE, E2, E4), 4);
+    EXPECT_EQ(ordering_state().captures.get(WHITE, KNIGHT, E5, PAWN), 64);
     EXPECT_EQ(ordering_state().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
 }
 

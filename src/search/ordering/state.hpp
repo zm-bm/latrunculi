@@ -29,6 +29,7 @@ struct State {
     KillerMoves         killers;
     CounterMoves        counters;
     QuietHistory        quiets;
+    CaptureHistory      captures;
     ContinuationHistory continuations;
 
     static Context make_context(const Board& board);
@@ -45,6 +46,9 @@ struct State {
     void reward_quiet(const Context& context, const Board& board, Move move, int depth);
     void penalize_quiet(
         const Context& context, const Board& board, Move move, int depth, int divisor = 1);
+    int  capture_score(const Board& board, Move move) const;
+    void reward_capture(const Board& board, Move move, int depth);
+    void penalize_capture(const Board& board, Move move, int depth, int divisor = 1);
 
 private:
     static PieceType moving_piece(const Board& board, Move move);
@@ -54,12 +58,14 @@ inline void State::prepare_for_search() {
     killers.clear();
     counters.clear();
     quiets.age();
+    captures.age();
 }
 
 inline void State::clear() {
     killers.clear();
     counters.clear();
     quiets.clear();
+    captures.clear();
     continuations.clear();
 }
 
@@ -131,6 +137,33 @@ inline void State::penalize_quiet(
                                to,
                                depth,
                                divisor);
+}
+
+inline int State::capture_score(const Board& board, Move move) const {
+    assert(board.is_capture(move) && move.type() != MOVE_PROM);
+    return captures.get(board.side_to_move(),
+                        moving_piece(board, move),
+                        move.to(),
+                        board.captured_piece_type(move));
+}
+
+inline void State::reward_capture(const Board& board, Move move, int depth) {
+    assert(board.is_capture(move) && move.type() != MOVE_PROM);
+    captures.reward(board.side_to_move(),
+                    moving_piece(board, move),
+                    move.to(),
+                    board.captured_piece_type(move),
+                    depth);
+}
+
+inline void State::penalize_capture(const Board& board, Move move, int depth, int divisor) {
+    assert(board.is_capture(move) && move.type() != MOVE_PROM);
+    captures.penalize(board.side_to_move(),
+                      moving_piece(board, move),
+                      move.to(),
+                      board.captured_piece_type(move),
+                      depth,
+                      divisor);
 }
 
 inline State::Context State::make_context(const Board& board) {

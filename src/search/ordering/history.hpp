@@ -24,13 +24,13 @@ inline int depth_bonus(int depth, int divisor = 1) {
 }
 
 // Apply bounded gravity so entries approach saturation smoothly.
-inline void apply_gravity(Score& entry, int adjustment) {
-    adjustment        = std::clamp(adjustment, -max_score, max_score);
+inline void apply_gravity(Score& entry, int adjustment, int limit = max_score) {
+    adjustment        = std::clamp(adjustment, -limit, limit);
     const int current = entry;
     const int weight  = adjustment < 0 ? -adjustment : adjustment;
-    const int gravity = adjustment - (current * weight / max_score);
+    const int gravity = adjustment - (current * weight / limit);
 
-    entry = std::clamp(current + gravity, -max_score, max_score);
+    entry = std::clamp(current + gravity, -limit, limit);
 }
 
 // Shared mutation policy used by the concrete history tables.
@@ -107,6 +107,55 @@ inline void QuietHistory::clear() {
         }
     }
 }
+
+// Capture history learns by side, moving piece, destination, and victim type.
+struct CaptureHistory {
+    static constexpr int max_score = 16384;
+
+    int get(Color side, PieceType piece, Square to, PieceType victim) const {
+        return entry(side, piece, to, victim);
+    }
+    void reward(Color side, PieceType piece, Square to, PieceType victim, int depth) {
+        history::apply_gravity(entry(side, piece, to, victim), update_bonus(depth), max_score);
+    }
+    void
+    penalize(Color side, PieceType piece, Square to, PieceType victim, int depth, int divisor = 1) {
+        history::apply_gravity(
+            entry(side, piece, to, victim), -update_bonus(depth) / std::max(1, divisor), max_score);
+    }
+    void age() {
+        for (auto& side : table)
+            for (auto& piece : side)
+                for (auto& to : piece)
+                    for (auto& victim : to)
+                        history::age_entry(victim);
+    }
+    void clear() {
+        for (auto& side : table)
+            for (auto& piece : side)
+                for (auto& to : piece)
+                    for (auto& victim : to)
+                        victim = 0;
+    }
+
+private:
+    static constexpr int LearningRate  = 16;
+    static constexpr int MaxDepthBonus = 128;
+
+    // Quadratic updates cap at one eighth of the capture-history range.
+    static int update_bonus(int depth) {
+        return LearningRate * std::clamp(depth * depth, 0, MaxDepthBonus);
+    }
+
+    history::Score& entry(Color side, PieceType piece, Square to, PieceType victim) {
+        return table[side][piece_slot(piece)][to][piece_slot(victim)];
+    }
+    const history::Score& entry(Color side, PieceType piece, Square to, PieceType victim) const {
+        return table[side][piece_slot(piece)][to][piece_slot(victim)];
+    }
+
+    history::Score table[N_COLORS][piece_slots][N_SQUARES][piece_slots] = {};
+};
 
 /*
  * Continuation history scores a quiet move in the context of the previous move.

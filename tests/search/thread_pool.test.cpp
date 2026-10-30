@@ -132,9 +132,9 @@ TEST_F(SearchThreadPoolTest, ReportsAggregatedSearchInstrumentation) {
     ASSERT_EQ(reporter.diagnostics.size(), 1U);
     const std::string& diagnostic = reporter.diagnostics.front();
     EXPECT_NE(diagnostic.find("Aspiration:"), std::string::npos);
-    EXPECT_NE(diagnostic.find("RazorFutility:"), std::string::npos);
+    EXPECT_NE(diagnostic.find("Pruning:"), std::string::npos);
     EXPECT_NE(diagnostic.find("QuietHistory:"), std::string::npos);
-    EXPECT_NE(diagnostic.find("Ply"), std::string::npos);
+    EXPECT_NE(diagnostic.find("Nodes:"), std::string::npos);
 }
 #endif
 

@@ -127,9 +127,12 @@ public:
 
     // Static exchange evaluation (board_see.cpp)
 
+    // Legacy exchange score using evaluation prices. Its early cutoff does not
+    // preserve the exact magnitude for arbitrary threshold comparisons.
     EvalValue see(Move move) const noexcept;
-    // Equivalent to see(move) >= 0; accepts captures and promotions.
-    bool see_nonnegative(Move move) const noexcept;
+    // Tests an exchange against a threshold using fixed SEE prices. Both SEE
+    // methods accept captures and promotions and retain the same recapture model.
+    bool see_ge(Move move, int threshold) const noexcept;
 
 private:
     // Ply-state storage

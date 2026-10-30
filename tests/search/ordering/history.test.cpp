@@ -54,6 +54,53 @@ TEST(QuietHistoryTest, AgesAndClearsSignedEntries) {
     EXPECT_EQ(hist.get(BLACK, E7, E5), 0);
 }
 
+TEST(CaptureHistoryTest, IsolatesKeysBoundsUpdatesAndResets) {
+    CaptureHistory hist;
+    hist.reward(WHITE, KNIGHT, E5, PAWN, 4);
+    EXPECT_EQ(hist.get(WHITE, KNIGHT, E5, PAWN), 256);
+    EXPECT_EQ(hist.get(BLACK, KNIGHT, E5, PAWN), 0);
+    EXPECT_EQ(hist.get(WHITE, BISHOP, E5, PAWN), 0);
+    EXPECT_EQ(hist.get(WHITE, KNIGHT, D5, PAWN), 0);
+    EXPECT_EQ(hist.get(WHITE, KNIGHT, E5, BISHOP), 0);
+    hist.penalize(BLACK, ROOK, A3, QUEEN, 4, 2);
+    EXPECT_EQ(hist.get(BLACK, ROOK, A3, QUEEN), -128);
+    hist.age();
+    EXPECT_EQ(hist.get(WHITE, KNIGHT, E5, PAWN), 128);
+    EXPECT_EQ(hist.get(BLACK, ROOK, A3, QUEEN), -64);
+    for (int i = 0; i < 256; ++i) {
+        hist.reward(WHITE, KNIGHT, E5, PAWN, Limits::max_depth);
+        hist.penalize(BLACK, ROOK, A3, QUEEN, Limits::max_depth);
+    }
+    EXPECT_EQ(hist.get(WHITE, KNIGHT, E5, PAWN), CaptureHistory::max_score);
+    EXPECT_EQ(hist.get(BLACK, ROOK, A3, QUEEN), -CaptureHistory::max_score);
+    hist.clear();
+    EXPECT_EQ(hist.get(WHITE, KNIGHT, E5, PAWN), 0);
+    EXPECT_EQ(hist.get(BLACK, ROOK, A3, QUEEN), 0);
+}
+
+TEST(CaptureHistoryTest, CapsIndividualUpdatesWithoutChangingQuietHistoryScale) {
+    CaptureHistory captures;
+    QuietHistory   quiets;
+    captures.reward(WHITE, KNIGHT, E5, PAWN, Limits::max_depth);
+    quiets.reward(WHITE, E2, E4, Limits::max_depth);
+    EXPECT_EQ(captures.get(WHITE, KNIGHT, E5, PAWN), CaptureHistory::max_score / 8);
+    EXPECT_EQ(quiets.get(WHITE, E2, E4), QuietHistory::max_score);
+}
+
+TEST(CaptureHistoryTest, AgingOddSignedEntriesTruncatesTowardZero) {
+    CaptureHistory hist;
+    for (int i = 0; i < 3; ++i) {
+        hist.reward(WHITE, KNIGHT, E5, PAWN, 4);
+        hist.penalize(BLACK, ROOK, A3, QUEEN, 4);
+    }
+    ASSERT_EQ(hist.get(WHITE, KNIGHT, E5, PAWN), 757);
+    ASSERT_EQ(hist.get(BLACK, ROOK, A3, QUEEN), -757);
+
+    hist.age();
+    EXPECT_EQ(hist.get(WHITE, KNIGHT, E5, PAWN), 378);
+    EXPECT_EQ(hist.get(BLACK, ROOK, A3, QUEEN), -378);
+}
+
 TEST(ContinuationHistoryTest, TracksContinuationKeysAndLifecycle) {
     ContinuationHistory hist;
 

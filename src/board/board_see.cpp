@@ -1,5 +1,6 @@
 #include "board/board.hpp"
 
+#include "board/see.hpp"
 #include "core/attacks.hpp"
 #include "core/move_geometry.hpp"
 #include "eval/parameters.hpp"
@@ -98,22 +99,27 @@ EvalValue Board::see(Move move) const noexcept {
     return gains[0];
 }
 
-// Tests the sign of see() without a swap-list or numerical result. This is
-// deliberately limited to zero: see()'s early cutoff preserves its sign, but
-// need not preserve the exact exchange value at an arbitrary threshold.
-bool Board::see_nonnegative(Move move) const noexcept {
+// Threshold the exchange directly: see()'s early cutoff preserves its sign,
+// but its numerical result is not an oracle for arbitrary thresholds.
+bool Board::see_ge(Move move, int threshold) const noexcept {
     assert(is_pseudo_legal(move));
     assert(is_capture(move) || move.type() == MOVE_PROM);
 
-    int balance = see_initial_gain(*this, move);
+    int gain = see::piece_value(captured_piece_type(move));
+    if (move.type() == MOVE_PROM)
+        gain += see::piece_value(move.prom_piece()) - see::piece_value(PAWN);
+    if (gain < threshold)
+        return false;
 
     const Square to   = move.to();
     Color        side = side_to_move();
     PieceType    piece_type =
         move.type() == MOVE_PROM ? move.prom_piece() : piece_type_on(move.from());
-    balance = eval::piece(piece_type).mg - balance;
-    if (balance <= 0)
+    const int moving_value = see::piece_value(piece_type);
+    // Check both bounds before subtraction so even extreme thresholds are safe.
+    if (threshold <= gain - moving_value)
         return true;
+    int balance = moving_value - gain + threshold;
 
     Bitboard occupancy        = this->occupancy();
     Bitboard current_attacker = bb::set(move.from());
@@ -123,16 +129,14 @@ bool Board::see_nonnegative(Move move) const noexcept {
         bb::add(occupancy, to);
     }
 
+    // Build the first attack set after the initial capture, including its x-rays.
+    occupancy ^= current_attacker;
     Bitboard       attackers      = all_attackers_to(to, occupancy) & occupancy;
     const Bitboard bishop_sliders = pieces<BISHOP, QUEEN>();
     const Bitboard rook_sliders   = pieces<ROOK, QUEEN>();
     bool           result         = true;
 
     for (;;) {
-        occupancy ^= current_attacker;
-        attackers |= (attacks::piece_moves<BISHOP>(to, occupancy) & bishop_sliders)
-                   | (attacks::piece_moves<ROOK>(to, occupancy) & rook_sliders);
-        attackers &= occupancy;
         side = ~side;
 
         current_attacker = 0;
@@ -156,9 +160,14 @@ bool Board::see_nonnegative(Move move) const noexcept {
         if (!current_attacker)
             return result;
         result  = !result;
-        balance = eval::piece(piece_type).mg - balance;
+        balance = see::piece_value(piece_type) - balance;
         // Equality succeeds for the original side, but fails for its opponent.
         if (balance < static_cast<int>(result))
             return result;
+
+        occupancy ^= current_attacker;
+        attackers |= (attacks::piece_moves<BISHOP>(to, occupancy) & bishop_sliders)
+                   | (attacks::piece_moves<ROOK>(to, occupancy) & rook_sliders);
+        attackers &= occupancy;
     }
 }
