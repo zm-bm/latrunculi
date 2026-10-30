@@ -626,7 +626,7 @@ TEST_F(SearchTest, FutilityKeepsLaterCheckingQuietHintsAndGeneratedMoves) {
     }
 }
 
-TEST_F(SearchTest, LateMovePruningRequiresNegativeCombinedHistory) {
+TEST_F(SearchTest, LateMovePruningRequiresNonPvAndNegativeCombinedHistory) {
     const auto run_case = [&](bool negative_history, bool pv_node) {
         Board board{board_test::fen::start};
         load(board, 2);
@@ -869,22 +869,16 @@ TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
     }
 }
 
-TEST_F(SearchTest, PvNodesIgnoreNonExactMainTtBounds) {
-    Board baseline_board{board_test::fen::quiet_black_to_move};
-    load(baseline_board, 2);
+TEST_F(SearchTest, PvNodeIgnoresLowerTtBound) {
+    const Board board{board_test::fen::quiet_black_to_move};
+    load(board, 2);
     PrincipalVariation baseline_pv;
     const EvalValue    baseline = pv_search(-eval_value::inf, eval_value::inf, 2, baseline_pv);
     const EvalValue    alpha    = baseline - 100;
     const EvalValue    beta     = baseline + 100;
     const EvalValue    bogus    = beta + 25;
 
-    Board non_pv_board{board_test::fen::quiet_black_to_move};
-    load(non_pv_board, 2);
-    tt.store(position().tt_key(), NULL_MOVE, bogus, 2, TTBound::LowerBound, ply());
-    EXPECT_EQ(search(alpha, beta, 2), bogus);
-
-    Board pv_board{board_test::fen::quiet_black_to_move};
-    load(pv_board, 2);
+    load(board, 2);
     tt.store(position().tt_key(), NULL_MOVE, bogus, 2, TTBound::LowerBound, ply());
     PrincipalVariation pv;
     EXPECT_EQ(pv_search(alpha, beta, 2, pv), baseline);

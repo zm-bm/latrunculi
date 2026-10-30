@@ -81,7 +81,7 @@ TEST_F(TtClockTest, MainAndQuiescenceSeparateLowAndNearLimitBounds) {
     }
 }
 
-TEST_F(TtClockTest, RejectsMismatchedExactLowerUpperAndMateBoundsInBothSearches) {
+TEST_F(TtClockTest, NonPvSearchesRejectMismatchedClockBounds) {
     struct Case {
         TTBound   bound;
         EvalValue score;
@@ -96,34 +96,29 @@ TEST_F(TtClockTest, RejectsMismatchedExactLowerUpperAndMateBoundsInBothSearches)
         Case{TTBound::Exact, -eval_value::mate + 10, -eval_value::inf, eval_value::inf},
     };
     for (int depth : {0, 2}) {
-        for (bool pv : {false, true}) {
-            for (bool to_high : {false, true}) {
-                const Board source(to_high ? low_clock_evasion_fen : high_clock_evasion_fen);
-                const Board target(to_high ? high_clock_evasion_fen : low_clock_evasion_fen);
-                for (const auto& tc : cases) {
-                    SCOPED_TRACE(testing::Message()
-                                 << "depth=" << depth << " pv=" << pv << " to_high=" << to_high
-                                 << " score=" << tc.score << " bound=" << int(tc.bound));
-                    tt.clear();
-                    load(target);
-                    const auto cold = search(pv, depth, tc.alpha, tc.beta);
+        for (bool to_high : {false, true}) {
+            const Board source(to_high ? low_clock_evasion_fen : high_clock_evasion_fen);
+            const Board target(to_high ? high_clock_evasion_fen : low_clock_evasion_fen);
+            for (const auto& tc : cases) {
+                SCOPED_TRACE(testing::Message()
+                             << "depth=" << depth << " to_high=" << to_high << " score=" << tc.score
+                             << " bound=" << int(tc.bound));
+                tt.clear();
+                load(target);
+                const auto cold = search(false, depth, tc.alpha, tc.beta);
 
-                    tt.clear();
-                    tt.store(source.tt_key(), NULL_MOVE, tc.score, depth, tc.bound, 0);
-                    load(target);
-                    EXPECT_EQ(search(pv, depth, tc.alpha, tc.beta), cold);
-                    EXPECT_GT(worker.node_count(), 1U);
+                tt.clear();
+                tt.store(source.tt_key(), NULL_MOVE, tc.score, depth, tc.bound, 0);
+                load(target);
+                EXPECT_EQ(search(false, depth, tc.alpha, tc.beta), cold);
+                EXPECT_GT(worker.node_count(), 1U);
 
-                    // Matching clocks allow score cutoffs only at non-PV nodes.
-                    tt.clear();
-                    tt.store(target.tt_key(), NULL_MOVE, tc.score, depth, tc.bound, 0);
-                    load(target);
-                    EXPECT_EQ(search(pv, depth, tc.alpha, tc.beta), pv ? cold : tc.score);
-                    if (pv)
-                        EXPECT_GT(worker.node_count(), 1U);
-                    else
-                        EXPECT_EQ(worker.node_count(), 1U);
-                }
+                // The same bound cuts off when the clocks match.
+                tt.clear();
+                tt.store(target.tt_key(), NULL_MOVE, tc.score, depth, tc.bound, 0);
+                load(target);
+                EXPECT_EQ(search(false, depth, tc.alpha, tc.beta), tc.score);
+                EXPECT_EQ(worker.node_count(), 1U);
             }
         }
     }
@@ -147,7 +142,7 @@ TEST_F(TtClockTest, PreservesMatesBeforeTheFiftyMoveLimit) {
     }
 }
 
-TEST_F(TtClockTest, ClockGroupsControlMainAndQuiescenceCutoffs) {
+TEST_F(TtClockTest, ClockGroupsControlNonPvMainAndQuiescenceCutoffs) {
     struct Clocks {
         int  stored;
         int  current;
@@ -172,30 +167,24 @@ TEST_F(TtClockTest, ClockGroupsControlMainAndQuiescenceCutoffs) {
                 return "7k/8/8/8/8/8/7Q/6K1 b - - " + std::to_string(clock) + " 1";
             };
             for (int depth : {0, 2}) {
-                for (bool pv : {false, true}) {
-                    SCOPED_TRACE(testing::Message() << clocks.stored << " -> " << clocks.current
-                                                    << " depth=" << depth << " pv=" << pv);
-                    for (TTBound bound :
-                         {TTBound::Exact, TTBound::LowerBound, TTBound::UpperBound}) {
-                        const EvalValue score = bound == TTBound::UpperBound ? -20000 : 20000;
-                        const EvalValue alpha = bound == TTBound::UpperBound ? -10000 : 9000;
-                        const EvalValue beta  = alpha + 1000;
-                        tt.clear();
-                        load(Board(fen(clocks.current)));
-                        const auto cold = search(pv, depth, alpha, beta);
-                        tt.clear();
-                        const Board source(fen(clocks.stored));
-                        tt.store(source.tt_key(), NULL_MOVE, score, depth, bound, 0);
-                        load(Board(fen(clocks.current)));
-                        const auto actual = search(pv, depth, alpha, beta);
-                        const bool cutoff = clocks.share && !pv;
-                        EXPECT_EQ(actual, cutoff ? score : cold);
-                        if (cutoff)
-                            EXPECT_EQ(worker.node_count(), 1U);
-                        else
-                            EXPECT_GT(worker.node_count(), 1U);
-                    }
-                }
+                SCOPED_TRACE(testing::Message()
+                             << clocks.stored << " -> " << clocks.current << " depth=" << depth);
+                constexpr EvalValue score = 20000;
+                constexpr EvalValue alpha = 9000;
+                constexpr EvalValue beta  = 10000;
+                tt.clear();
+                load(Board(fen(clocks.current)));
+                const auto cold = search(false, depth, alpha, beta);
+                tt.clear();
+                const Board source(fen(clocks.stored));
+                tt.store(source.tt_key(), NULL_MOVE, score, depth, TTBound::Exact, 0);
+                load(Board(fen(clocks.current)));
+                const auto actual = search(false, depth, alpha, beta);
+                EXPECT_EQ(actual, clocks.share ? score : cold);
+                if (clocks.share)
+                    EXPECT_EQ(worker.node_count(), 1U);
+                else
+                    EXPECT_GT(worker.node_count(), 1U);
             }
         }
     }

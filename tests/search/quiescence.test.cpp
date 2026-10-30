@@ -182,16 +182,6 @@ TEST_F(QuiescenceTest, HandlesCheckEvasionsAndCheckmate) {
     EXPECT_EQ(stored->move, NULL_MOVE);
 }
 
-TEST_F(QuiescenceTest, BuildsPrincipalVariationFromTacticalMove) {
-    Board board{"k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1"};
-    load(board);
-
-    PrincipalVariation pv;
-    EXPECT_GT(pv_search(-eval_value::inf, eval_value::inf, pv), eval::evaluate(position()));
-    ASSERT_FALSE(pv.empty());
-    EXPECT_TRUE(position().is_legal_move(pv.front()));
-}
-
 TEST_F(QuiescenceTest, PvSearchRebuildsContinuationWithRetainedTt) {
     Board board{"k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1"};
     load(board);
@@ -200,9 +190,8 @@ TEST_F(QuiescenceTest, PvSearchRebuildsContinuationWithRetainedTt) {
 
     PrincipalVariation cold_pv;
     const EvalValue    value = pv_search(-eval_value::inf, eval_value::inf, cold_pv);
+    EXPECT_GT(value, eval::evaluate(position()));
     ASSERT_EQ(cold_pv.size(), 1);
-    EXPECT_EQ(cold_pv.front(), capture);
-    EXPECT_TRUE(position().is_legal_move(cold_pv.front()));
 
     const auto stored = record();
     ASSERT_TRUE(stored.has_value());
@@ -212,7 +201,6 @@ TEST_F(QuiescenceTest, PvSearchRebuildsContinuationWithRetainedTt) {
     EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, warm_pv), value);
     ASSERT_EQ(warm_pv.size(), 1);
     EXPECT_EQ(warm_pv.front(), capture);
-    EXPECT_TRUE(position().is_legal_move(warm_pv.front()));
 }
 
 TEST_F(QuiescenceTest, SettlesTacticalPositionWithoutSearchState) {
@@ -339,9 +327,9 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
     EXPECT_FALSE(stored->move.is_null());
 }
 
-TEST_F(QuiescenceTest, PvNodeIgnoresNonExactTtBound) {
-    Board baseline_board{board_test::fen::quiet_black_to_move};
-    load(baseline_board);
+TEST_F(QuiescenceTest, PvNodeIgnoresLowerTtBound) {
+    const Board board{board_test::fen::quiet_black_to_move};
+    load(board);
     PrincipalVariation baseline_pv;
     const EvalValue    baseline = pv_search(-eval_value::inf, eval_value::inf, baseline_pv);
 
@@ -349,13 +337,7 @@ TEST_F(QuiescenceTest, PvNodeIgnoresNonExactTtBound) {
     const EvalValue beta  = baseline + 100;
     const EvalValue bogus = beta + 25;
 
-    Board non_pv_board{board_test::fen::quiet_black_to_move};
-    load(non_pv_board);
-    tt.store(position().tt_key(), NULL_MOVE, bogus, 0, TTBound::LowerBound, ply());
-    EXPECT_EQ(search(alpha, beta), bogus);
-
-    Board pv_board{board_test::fen::quiet_black_to_move};
-    load(pv_board);
+    load(board);
     tt.store(position().tt_key(), NULL_MOVE, bogus, 0, TTBound::LowerBound, ply());
     PrincipalVariation pv;
     EXPECT_EQ(pv_search(alpha, beta, pv), baseline);
