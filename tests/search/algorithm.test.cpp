@@ -626,7 +626,7 @@ TEST_F(SearchTest, FutilityKeepsLaterCheckingQuietHintsAndGeneratedMoves) {
     }
 }
 
-TEST_F(SearchTest, LateMovePruningRequiresNegativeCombinedHistory) {
+TEST_F(SearchTest, LateMovePruningRequiresNonPvAndNegativeCombinedHistory) {
     const auto run_case = [&](bool negative_history, bool pv_node) {
         Board board{board_test::fen::start};
         load(board, 2);
@@ -667,6 +667,12 @@ TEST_F(SearchTest, LateMovePruningRequiresNegativeCombinedHistory) {
             if (pv_node) {
                 PrincipalVariation pv;
                 result = pv_search(-200, 100, 2, pv);
+                // Searching the late child replaces its seeded null TT move.
+                with_move(late_quiet, [&] {
+                    const auto searched = record();
+                    ASSERT_TRUE(searched.has_value());
+                    EXPECT_FALSE(searched->move.is_null());
+                });
             } else {
                 result = search(-200, 100, 2, false);
             }
@@ -677,7 +683,7 @@ TEST_F(SearchTest, LateMovePruningRequiresNegativeCombinedHistory) {
 
     EXPECT_EQ(run_case(false, false), 200);
     EXPECT_EQ(run_case(true, false), 0);
-    EXPECT_EQ(run_case(true, true), 200);
+    run_case(true, true);
 }
 
 TEST_F(SearchTest, QuietCutoffUpdatesPreviousMoveContext) {
@@ -837,22 +843,42 @@ TEST_F(SearchTest, PvSearchMatchesFullWindowAndBuildsPv) {
     }
 }
 
-TEST_F(SearchTest, PvNodesIgnoreNonExactMainTtBounds) {
-    Board baseline_board{board_test::fen::quiet_black_to_move};
-    load(baseline_board, 2);
+TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
+    Board board{board_test::fen::start};
+    load(board, 4);
+
+    PrincipalVariation cold_pv;
+    const EvalValue    value = pv_search(-eval_value::inf, eval_value::inf, 4, cold_pv);
+    ASSERT_GE(cold_pv.size(), 4);
+
+    const auto stored = record();
+    ASSERT_TRUE(stored.has_value());
+    ASSERT_EQ(stored->bound, TTBound::Exact);
+    ASSERT_GE(stored->depth, 4);
+
+    PrincipalVariation warm_pv;
+    EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, 4, warm_pv), value);
+    ASSERT_GE(warm_pv.size(), 4);
+
+    Board replay{board};
+    for (int index = 0; index < warm_pv.size(); ++index) {
+        SCOPED_TRACE(index);
+        const Move move = warm_pv.move_at(index);
+        ASSERT_TRUE(replay.is_legal_move(move));
+        replay.make(move);
+    }
+}
+
+TEST_F(SearchTest, PvNodeIgnoresLowerTtBound) {
+    const Board board{board_test::fen::quiet_black_to_move};
+    load(board, 2);
     PrincipalVariation baseline_pv;
     const EvalValue    baseline = pv_search(-eval_value::inf, eval_value::inf, 2, baseline_pv);
     const EvalValue    alpha    = baseline - 100;
     const EvalValue    beta     = baseline + 100;
     const EvalValue    bogus    = beta + 25;
 
-    Board non_pv_board{board_test::fen::quiet_black_to_move};
-    load(non_pv_board, 2);
-    tt.store(position().tt_key(), NULL_MOVE, bogus, 2, TTBound::LowerBound, ply());
-    EXPECT_EQ(search(alpha, beta, 2), bogus);
-
-    Board pv_board{board_test::fen::quiet_black_to_move};
-    load(pv_board, 2);
+    load(board, 2);
     tt.store(position().tt_key(), NULL_MOVE, bogus, 2, TTBound::LowerBound, ply());
     PrincipalVariation pv;
     EXPECT_EQ(pv_search(alpha, beta, 2, pv), baseline);

@@ -73,12 +73,12 @@ inline constexpr int QuietMalusMinDepth  = 4;
 inline constexpr int QuietMalusMinFailed = 2;
 inline constexpr int QuietMalusDivisor   = 2;
 
-// Apply the PV/non-PV TT cutoff policy.
+// A cached score has no continuation, so PV nodes must search.
 template <NodeType Node>
 bool tt_cutoff_allowed(
     const TTRecord& record, EvalValue adjusted_score, int depth, EvalValue alpha, EvalValue beta) {
     if constexpr (Node == NodeType::Pv)
-        return int(record.depth) >= depth && record.bound == TTBound::Exact;
+        return false;
 
     return record.can_cutoff(adjusted_score, depth, alpha, beta);
 }
