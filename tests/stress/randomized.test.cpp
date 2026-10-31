@@ -217,11 +217,9 @@ TEST(RandomizedStressTest, LegalPositionsRoundTripEvaluateAndSearch) {
                 if (!board.is_capture(move) && move.type() != MOVE_PROM)
                     continue;
                 SCOPED_TRACE(std::format("SEE move: {}", move.str()));
-                const EvalValue value = board.see(move);
-                EXPECT_EQ(value >= 0, board_test::exchange_oracle(board, move) >= 0);
                 const int exact = board_test::exchange_oracle(board, move, see::piece_values);
                 for (int threshold : {exact - 1, exact, exact + 1, 0})
-                    EXPECT_EQ(board.see_ge(move, threshold), exact >= threshold) << threshold;
+                    EXPECT_EQ(board.see(move, threshold), exact >= threshold) << threshold;
             }
 
             const std::vector<Move> moves = legal_moves(board);

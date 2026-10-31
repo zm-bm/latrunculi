@@ -4,7 +4,6 @@
 #include <utility>
 
 #include "board/board.hpp"
-#include "eval/parameters.hpp"
 #include "movegen/generator.hpp"
 #include "search/ordering/capture_scoring.hpp"
 
@@ -17,9 +16,6 @@ namespace {
 constexpr int EarlyCaptureScoreBase = 1 << 22;
 constexpr int PromotionScore        = EarlyCaptureScoreBase << 6;
 constexpr int DeferredCaptureScore  = 0;
-
-// Capture evasions use numerical SEE and evaluation prices.
-constexpr int EvasionVictimWeight = 7;
 
 static_assert(QuietHistory::max_score + ContinuationHistory::max_score < EarlyCaptureScoreBase);
 static_assert(capture_scoring::HistoryScoreBias
@@ -128,12 +124,11 @@ int Picker::score_evasion_noisy(Move move) const {
     if (move.type() == MOVE_PROM)
         return PromotionScore;
 
-    const int see_score = board.see(move);
-    if (see_score < 0)
-        return DeferredCaptureScore;
-
-    const int victim_value = eval::piece(board.captured_piece_type(move)).mg;
-    return EarlyCaptureScoreBase + EvasionVictimWeight * victim_value + see_score;
+    // All capture evasions precede quiet evasions without an exchange test.
+    const int victim_value   = see::piece_value(board.captured_piece_type(move));
+    const int attacker_value = see::piece_value(board.piece_type_on(move.from()));
+    return EarlyCaptureScoreBase + capture_scoring::VictimWeight * victim_value
+         + capture_scoring::QueenScoreBias - attacker_value;
 }
 
 template <Picker::ScorePolicy Policy>
@@ -224,7 +219,7 @@ Move Picker::pick(CandidateRange& range) {
                 see_threshold = capture_scoring::main_search_see_threshold(
                     board.captured_piece_type(best->move), scaled_capture_history);
             }
-            if (best->move.type() != MOVE_PROM && !board.see_ge(best->move, see_threshold)) {
+            if (best->move.type() != MOVE_PROM && !board.see(best->move, see_threshold)) {
                 // Main search revisits deferred captures after quiets; quiescence omits them.
                 best->score = DeferredCaptureScore;
                 continue;

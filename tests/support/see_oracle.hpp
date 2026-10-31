@@ -9,12 +9,11 @@
 namespace board_test {
 
 using SeeValues = std::array<int, N_PIECETYPES>;
-inline constexpr SeeValues exchange_values{0, 100, 603, 615, 901, 2073, 0};
 
 namespace see_oracle {
 
 // Deliberately use a square array and recursive captures, independent of the
-// production attack-set updates, threshold cutoffs, and swap-list backup.
+// production attack-set updates and threshold cutoffs.
 struct Position {
     std::array<Piece, N_SQUARES> squares{};
     Bitboard                     occupancy{};
@@ -79,8 +78,7 @@ struct Position {
 
 } // namespace see_oracle
 
-inline int
-exchange_oracle(const Board& board, Move move, const SeeValues& values = exchange_values) {
+inline int exchange_oracle(const Board& board, Move move, const SeeValues& values) {
     see_oracle::Position position;
     position.occupancy = board.occupancy();
     for (Square square = A1; square < N_SQUARES; ++square)

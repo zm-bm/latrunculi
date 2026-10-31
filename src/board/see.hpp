@@ -7,7 +7,6 @@
 namespace see {
 
 // Fixed prices for threshold SEE and capture ordering.
-// Numerical SEE and capture-evasion ordering use evaluation prices.
 inline constexpr std::array<int, N_PIECETYPES> piece_values{0, 100, 350, 385, 655, 1220, 0};
 
 inline constexpr int piece_value(PieceType piece) {

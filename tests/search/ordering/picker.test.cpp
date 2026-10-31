@@ -144,7 +144,7 @@ TEST_F(PickerTest, MainSearchIgnoresInvalidAndTacticalCounterHints) {
     }
 }
 
-TEST_F(PickerTest, EvasionsUseNumericalSeeAndIgnoreQuietOrderingState) {
+TEST_F(PickerTest, EvasionsUseMaterialScoresAndIgnoreQuietOrderingState) {
     Board position{"1r5k/8/8/b7/8/P7/2N5/1Q2K3 b - - 0 1"};
     position.make(Move(A5, B4));
     ASSERT_TRUE(position.is_check());
@@ -152,8 +152,10 @@ TEST_F(PickerTest, EvasionsUseNumericalSeeAndIgnoreQuietOrderingState) {
     const Move invalid_hint{B1, B2}, tt_evasion{E1, F1};
     const auto baseline = picked_main_search(position, state, ply);
     ASSERT_GE(baseline.size(), 3U);
-    EXPECT_EQ(baseline[0], knight_capture);
-    EXPECT_EQ(baseline[1], pawn_capture);
+    EXPECT_EQ(baseline[0], pawn_capture);
+    EXPECT_EQ(baseline[1], knight_capture);
+    EXPECT_EQ(baseline[2], queen_capture);
+    expect_capture_before_quiets(position, baseline, queen_capture, true);
     EXPECT_EQ(sorted_move_bits(baseline), sorted_move_bits(movegen::generate_evasions(position)));
 
     const auto last_quiet = std::find_if(
@@ -212,7 +214,7 @@ TEST_F(PickerTest, QSearchReturnsOnlyNonLosingNoisyMoves) {
 TEST_F(PickerTest, TtHintsPrioritizeTacticalsAndQSearchRejectsQuiets) {
     const Board position{"2b3k1/P2p4/8/8/8/8/8/3Q2K1 w - - 0 1"};
     const Move  capture{D1, D7}, promotion{A7, A8, MOVE_PROM, QUEEN};
-    ASSERT_FALSE(position.see_ge(capture, 0));
+    ASSERT_FALSE(position.see(capture, 0));
     for (int i = 0; i < 128; ++i)
         state.penalize_capture(position, capture, Limits::max_depth);
     for (Move hint : {capture, promotion}) {
