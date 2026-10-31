@@ -461,7 +461,8 @@ EvalValue Worker::alphabeta(
             }
 
             if (!in_check) {
-                if (is_capture && !is_promotion)
+                if (is_capture && !is_promotion
+                    && depth >= algorithm_detail::CaptureHistoryMinRewardDepth)
                     ordering_state.reward_capture(board, move, depth);
                 failed_captures.for_each(
                     [&](Move failed) { ordering_state.penalize_capture(board, failed, depth); });

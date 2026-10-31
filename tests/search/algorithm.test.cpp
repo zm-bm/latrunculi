@@ -747,20 +747,28 @@ TEST_F(SearchTest, NonQuietCutoffSkipsRefutationUpdates) {
     }
 }
 
-TEST_F(SearchTest, CaptureCutoffRewardsWinnerAndPenalizesEarlierFailedCaptures) {
-    load(Board{"7k/8/8/2p1p3/5p2/3N4/6P1/4K3 w - - 0 1"}, 2);
-    const auto moves = legal_picker_moves();
-    ASSERT_GE(moves.size(), 3U);
-    ASSERT_TRUE(position().is_capture(moves[0]));
-    ASSERT_TRUE(position().is_capture(moves[1]));
-    tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
-    store_child(moves[0], 0, 1);
-    store_child(moves[1], -200, 1);
-    EXPECT_EQ(search(-200, 100, 2, false), 200);
-    EXPECT_EQ(ordering_state().capture_score(position(), moves[0]), -64);
-    EXPECT_EQ(ordering_state().capture_score(position(), moves[1]), 64);
-    EXPECT_EQ(ordering_state().capture_score(position(), Move(D3, F4)), 0);
-    EXPECT_EQ(ordering_state().killers.primary(ply()), NULL_MOVE);
+TEST_F(SearchTest, CaptureCutoffSkipsShallowRewardsAndPenalizesEarlierFailures) {
+    struct Case {
+        int depth;
+        int penalty;
+        int reward;
+    };
+    for (const auto& tc : {Case{1, -16, 0}, Case{2, -64, 0}, Case{3, -144, 144}}) {
+        SCOPED_TRACE(tc.depth);
+        load(Board{"7k/8/8/2p1p3/5p2/3N4/6P1/4K3 w - - 0 1"}, tc.depth);
+        const auto moves = legal_picker_moves();
+        ASSERT_GE(moves.size(), 3U);
+        ASSERT_TRUE(position().is_capture(moves[0]));
+        ASSERT_TRUE(position().is_capture(moves[1]));
+        tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
+        store_child(moves[0], 0, tc.depth - 1);
+        store_child(moves[1], -200, tc.depth - 1);
+        EXPECT_EQ(search(-200, 100, tc.depth, false), 200);
+        EXPECT_EQ(ordering_state().capture_score(position(), moves[0]), tc.penalty);
+        EXPECT_EQ(ordering_state().capture_score(position(), moves[1]), tc.reward);
+        EXPECT_EQ(ordering_state().capture_score(position(), Move(D3, F4)), 0);
+        EXPECT_EQ(ordering_state().killers.primary(ply()), NULL_MOVE);
+    }
 }
 
 TEST_F(SearchTest, QuietCutoffAlsoPenalizesEarlierFailedCaptures) {
@@ -781,10 +789,10 @@ TEST_F(SearchTest, QuietCutoffAlsoPenalizesEarlierFailedCaptures) {
 
 TEST_F(SearchTest, CaptureHistorySkipsPromotionsEvasionsAndQuiescenceUpdates) {
     const auto cutoff = [&](const Board& board, Move move) {
-        load(board, 2);
+        load(board, 3);
         tt.store(position().tt_key(), move, 0, 0, TTBound::UpperBound, ply(), 0);
-        store_child(move, -200, 1);
-        EXPECT_EQ(search(-200, 100, 2, false), 200);
+        store_child(move, -200, 2);
+        EXPECT_EQ(search(-200, 100, 3, false), 200);
     };
     cutoff(Board{"4k2r/6P1/8/8/8/8/8/K7 w - - 0 1"}, Move(G7, H8, MOVE_PROM, QUEEN));
     EXPECT_EQ(ordering_state().captures.get(WHITE, PAWN, H8, ROOK), 0);

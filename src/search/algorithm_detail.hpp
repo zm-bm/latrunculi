@@ -75,6 +75,9 @@ inline constexpr int QuietMalusMinDepth  = 4;
 inline constexpr int QuietMalusMinFailed = 2;
 inline constexpr int QuietMalusDivisor   = 2;
 
+// Require more than a shallow cutoff before reinforcing capture history.
+inline constexpr int CaptureHistoryMinRewardDepth = 3;
+
 // A cached score has no continuation, so PV nodes must search.
 template <NodeType Node>
 bool tt_cutoff_allowed(
