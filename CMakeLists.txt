@@ -141,10 +141,10 @@ if(BUILD_TESTING)
         tests/search/algorithm.test.cpp
         tests/search/instrumentation.test.cpp
         tests/search/limits.test.cpp
+        tests/search/ordering/capture_scoring.test.cpp
         tests/search/ordering/history.test.cpp
         tests/search/ordering/picker.test.cpp
         tests/search/ordering/refutations.test.cpp
-        tests/search/ordering/state.test.cpp
         tests/search/principal_variation.test.cpp
         tests/search/quiescence.test.cpp
         tests/search/root_line.test.cpp

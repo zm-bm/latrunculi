@@ -39,6 +39,11 @@ Instrumentation<true>& Instrumentation<true>::operator+=(const Instrumentation& 
     ADD(first_move_cutoffs);
     ADD(aspiration_fail_lows);
     ADD(aspiration_fail_highs);
+    ADD(capture_eligible);
+    ADD(capture_nonzero);
+    ADD(capture_increased);
+    ADD(capture_decreased);
+    ADD(capture_researches);
     ADD(quiet_cutoffs);
     ADD(quiet_malus_eligible_nodes);
     ADD(quiet_malus_failed_quiets);
@@ -54,6 +59,7 @@ std::string Instrumentation<true>::str() const {
         "Aspiration: fail-low={} fail-high={}\n"
         "TT: main probes={} hits={} cutoffs={}; q probes={} hits={} cutoffs={}\n"
         "Pruning: null tries={} cutoffs={}; razor tries={} cutoffs={}; futility-skips={}\n"
+        "CaptureLMR: eligible={} nonzero={} increased={} decreased={} re-searches={}\n"
         "LMR: tries={} re-searches={}\n"
         "QuietHistory: quiet-cutoffs={} malus-eligible={} failed-quiets={} malus-updates={}\n",
         sum(c.nodes),
@@ -74,6 +80,11 @@ std::string Instrumentation<true>::str() const {
         sum(c.razor_tries),
         sum(c.razor_cutoffs),
         sum(c.futility_skips),
+        c.capture_eligible,
+        c.capture_nonzero,
+        c.capture_increased,
+        c.capture_decreased,
+        c.capture_researches,
         sum(c.lmr_tries),
         sum(c.lmr_researches),
         c.quiet_cutoffs,

@@ -41,11 +41,11 @@ private:
         LoadEvasions,
         PickEvasion,
         LoadNoisy,
-        PickGoodNoisy,
+        PickEarlyNoisy,
         PickQuietHint,
         LoadQuiet,
         PickQuiet,
-        PickBadNoisy,
+        PickDeferredNoisy,
         Done,
     };
 
@@ -57,9 +57,9 @@ private:
 
     enum class PickPolicy : std::uint8_t {
         Evasion,
-        GoodNoisy,
+        EarlyNoisy,
         Quiet,
-        BadNoisy,
+        DeferredNoisy,
     };
 
     struct Candidate {
