@@ -127,7 +127,9 @@ public:
 
     // Static exchange evaluation (board_see.cpp)
 
-    EvalValue see(Move move) const noexcept;
+    // Tests an inclusive threshold using fixed exchange prices.
+    // Requires a pseudo-legal capture or promotion.
+    bool see(Move move, int threshold) const noexcept;
 
 private:
     // Ply-state storage

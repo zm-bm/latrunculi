@@ -326,8 +326,9 @@ EvalValue Worker::alphabeta(
     auto       picker =
         ordering::Picker::for_main_search(board, ordering_state, context, search_ply, tt_move);
 
-    PrincipalVariation             child_pv;
-    algorithm_detail::FailedQuiets failed_quiets;
+    PrincipalVariation            child_pv;
+    algorithm_detail::FailedMoves failed_quiets;
+    algorithm_detail::FailedMoves failed_captures;
 
     const bool allow_quiet_malus = depth >= algorithm_detail::QuietMalusMinDepth && !in_check;
     if (allow_quiet_malus)
@@ -348,6 +349,10 @@ EvalValue Worker::alphabeta(
         const bool is_killer         = is_quiet && ordering_state.is_killer(move, search_ply);
         const bool is_counter        = is_quiet && move == counter_move;
 
+        // LMR uses current history, read before making the move. Ordering retains its snapshot.
+        int raw_capture_history = 0;
+        if (is_capture && !is_promotion && !in_check)
+            raw_capture_history = ordering_state.capture_history_score(board, move);
         bool history_lmp_candidate = false;
         if constexpr (Node == NodeType::NonPv) {
             history_lmp_candidate = depth == algorithm_detail::LateMovePruningDepth
@@ -381,15 +386,32 @@ EvalValue Worker::alphabeta(
 
         // Step 11. Late-move reductions.
         // If the reduced search beats alpha, research the move at full depth.
-        EvalValue value;
-        const int reduction = algorithm_detail::lmr_reduction<Node>(
+        EvalValue  value;
+        const auto base_reduction = algorithm_detail::lmr_reduction<Node>(
             depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer, declining);
+        int        reduction            = base_reduction.plies;
+        const bool capture_lmr_eligible = algorithm_detail::capture_lmr_eligible({
+            .non_pv         = Node == NodeType::NonPv,
+            .is_capture     = is_capture,
+            .is_tt_move     = move == tt_move,
+            .depth          = depth,
+            .base_reduction = reduction,
+            .is_promotion   = is_promotion,
+            .in_check       = in_check,
+            .gives_check    = gives_check,
+        });
+        if (capture_lmr_eligible)
+            reduction = algorithm_detail::capture_lmr_reduction(
+                base_reduction.unrounded, raw_capture_history, depth);
+        stats.capture_lmr(
+            capture_lmr_eligible, raw_capture_history, base_reduction.plies, reduction);
         if (reduction > 0) {
             stats.lmr_try(search_ply - 1);
             value = -alphabeta<NodeType::NonPv>(
                 -alpha - 1, -alpha, depth - 1 - reduction, nullptr, true);
             if (!stop_requested() && value > alpha) {
                 stats.lmr_research(search_ply - 1);
+                stats.capture_research(capture_lmr_eligible, base_reduction.plies != reduction);
                 if constexpr (Node == NodeType::Pv) {
                     stats.pvs_research(search_ply);
                     child_pv.clear();
@@ -424,7 +446,7 @@ EvalValue Worker::alphabeta(
             return alpha;
 
         if (value >= beta) {
-            // Step 13. Beta cutoff.
+            // Step 13. Train cutoff histories on the restored position.
             if (is_quiet) {
                 stats.quiet_cutoff(depth);
                 ordering_state.update_quiet_refutations(context, move, search_ply);
@@ -437,6 +459,14 @@ EvalValue Worker::alphabeta(
                         stats.quiet_malus_update(depth);
                     });
                 }
+            }
+
+            if (!in_check) {
+                if (is_capture && !is_promotion
+                    && depth >= algorithm_detail::CaptureHistoryMinRewardDepth)
+                    ordering_state.reward_capture(board, move, depth);
+                failed_captures.for_each(
+                    [&](Move failed) { ordering_state.penalize_capture(board, failed, depth); });
             }
 
             if (pv)
@@ -454,6 +484,8 @@ EvalValue Worker::alphabeta(
             return value;
         }
 
+        if (!in_check && is_capture && !is_promotion)
+            failed_captures.add(move);
         if (allow_quiet_malus && is_quiet && !(move == tt_move) && !is_killer) {
             if (failed_quiets.add(move))
                 stats.quiet_malus_failed_quiet(depth);

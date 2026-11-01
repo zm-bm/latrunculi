@@ -122,19 +122,26 @@ TEST_F(SearchWorkerTest, HelperDepthsFollowStaggeringSchedule) {
     }
 }
 
-TEST_F(SearchWorkerTest, RepeatedSearchesAgeQuietAndPreserveContinuationHistory) {
+TEST_F(SearchWorkerTest, RepeatedSearchesAgeMoveHistoriesAndPreserveContinuationHistory) {
     Board board{board_test::fen::start};
     load_worker_board(board);
 
+    ordering_state().killers.update(Move(E2, E4), 0);
+    ordering_state().counters.update(WHITE, PAWN, E4, Move(G8, F6));
     ordering_state().quiets.reward(WHITE, E2, E4, 4);
+    ordering_state().captures.reward(WHITE, KNIGHT, E5, PAWN, 4);
     ordering_state().continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
 
     SearchTestAccess::reset(worker());
+    EXPECT_EQ(ordering_state().killers.primary(0), NULL_MOVE);
+    EXPECT_EQ(ordering_state().counters.get(WHITE, PAWN, E4), NULL_MOVE);
     EXPECT_EQ(ordering_state().quiets.get(WHITE, E2, E4), 8);
+    EXPECT_EQ(ordering_state().captures.get(WHITE, KNIGHT, E5, PAWN), 128);
     EXPECT_EQ(ordering_state().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
 
     SearchTestAccess::reset(worker());
     EXPECT_EQ(ordering_state().quiets.get(WHITE, E2, E4), 4);
+    EXPECT_EQ(ordering_state().captures.get(WHITE, KNIGHT, E5, PAWN), 64);
     EXPECT_EQ(ordering_state().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
 }
 

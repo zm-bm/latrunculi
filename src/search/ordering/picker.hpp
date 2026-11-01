@@ -41,11 +41,11 @@ private:
         LoadEvasions,
         PickEvasion,
         LoadNoisy,
-        PickGoodNoisy,
+        PickEarlyNoisy,
         PickQuietHint,
         LoadQuiet,
         PickQuiet,
-        PickBadNoisy,
+        PickDeferredNoisy,
         Done,
     };
 
@@ -57,9 +57,9 @@ private:
 
     enum class PickPolicy : std::uint8_t {
         Evasion,
-        GoodNoisy,
+        EarlyNoisy,
         Quiet,
-        BadNoisy,
+        DeferredNoisy,
     };
 
     struct Candidate {
@@ -91,7 +91,6 @@ private:
 
     template <ScorePolicy Policy>
     int score_move(Move move) const;
-    int score_noisy(Move move) const;
 
     template <ScorePolicy Policy>
     Candidate* score_moves(const movegen::MoveList& list, Candidate* out);

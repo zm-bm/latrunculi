@@ -27,6 +27,7 @@
 #include "search/tt.hpp"
 #include "support/board_snapshot.hpp"
 #include "support/search_reporter.hpp"
+#include "support/see_oracle.hpp"
 
 namespace {
 
@@ -210,6 +211,15 @@ TEST(RandomizedStressTest, LegalPositionsRoundTripEvaluateAndSearch) {
             EXPECT_EQ(eval::evaluate(board), features.value);
             EXPECT_EQ(features.value, features.reconstruct());
             EXPECT_EQ(features.fixed_score, features.term(eval::Term::KingSafety).total());
+
+            for (Move move : movegen::generate_pseudo_legal(board)) {
+                if (!board.is_capture(move) && move.type() != MOVE_PROM)
+                    continue;
+                SCOPED_TRACE(std::format("SEE move: {}", move.str()));
+                const int exact = board_test::exchange_oracle(board, move);
+                for (int threshold : {exact - 1, exact, exact + 1, 0})
+                    EXPECT_EQ(board.see(move, threshold), exact >= threshold) << threshold;
+            }
 
             const std::vector<Move> moves = legal_moves(board);
             if (moves.empty())

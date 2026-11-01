@@ -686,22 +686,6 @@ TEST_F(SearchTest, LateMovePruningRequiresNonPvAndNegativeCombinedHistory) {
     run_case(true, true);
 }
 
-TEST_F(SearchTest, QuietCutoffUpdatesPreviousMoveContext) {
-    Board board{board_test::fen::start};
-    load(board, 2);
-    const Move previous = find_move("e2e4");
-
-    with_move(previous, [&] {
-        const Move cutoff = legal_picker_moves().front();
-        tt.store(position().tt_key(), cutoff, 0, 0, TTBound::UpperBound, ply());
-        store_child(cutoff, -200, 1);
-        EXPECT_EQ(search(-200, 100, 2, false), 200);
-        EXPECT_GT(quiet_history(cutoff), 0);
-        EXPECT_GT(continuation_history(WHITE, PAWN, E4, cutoff), 0);
-        EXPECT_EQ(ordering_state().counters.get(WHITE, PAWN, E4), cutoff);
-    });
-}
-
 TEST_F(SearchTest, QuietCutoffWithoutRealPreviousMoveSkipsContextUpdates) {
     const auto run_case = [&](bool after_null) {
         Board board{board_test::fen::start};
@@ -723,52 +707,82 @@ TEST_F(SearchTest, QuietCutoffWithoutRealPreviousMoveSkipsContextUpdates) {
     run_case(true);
 }
 
-TEST_F(SearchTest, NonQuietCutoffSkipsRefutationUpdates) {
+TEST_F(SearchTest, CaptureCutoffSkipsShallowRewardsAndPenalizesEarlierFailures) {
     struct Case {
-        const char* fen;
-        Move        previous;
-        Move        cutoff;
+        int depth;
+        int penalty;
+        int reward;
     };
-    constexpr std::array cases{
-        Case{"r3k3/B7/8/8/8/8/8/4K3 w - - 0 1", Move(E1, D1), Move(A8, A7)},
-        Case{"4k3/8/8/8/8/8/p7/4K3 w - - 0 1", Move(E1, D1), Move(A2, A1, MOVE_PROM, QUEEN)},
-    };
-
-    for (const auto& tc : cases) {
-        SCOPED_TRACE(tc.fen);
-        Board board{tc.fen};
-        load(board, 2);
-        with_move(tc.previous, [&] {
-            tt.store(position().tt_key(), tc.cutoff, 0, 0, TTBound::UpperBound, ply());
-            store_child(tc.cutoff, -200, 1);
-            EXPECT_EQ(search(-200, 100, 2, false), 200);
-        });
-        EXPECT_EQ(ordering_state().counters.get(WHITE, KING, D1), NULL_MOVE);
-    }
-}
-
-TEST_F(SearchTest, QuietMalusPenalizesEligibleMovesInBothHistories) {
-    Board board{board_test::fen::start};
-    load(board, 4);
-    const Move previous = find_move("e2e4");
-
-    with_move(previous, [&] {
+    for (const auto& tc : {Case{1, -16, 0}, Case{2, -64, 0}, Case{3, -144, 144}}) {
+        SCOPED_TRACE(tc.depth);
+        Board board{"7k/8/8/2p1p3/5p2/3N4/6P1/4K3 b - - 0 1"};
+        board.make(Move(H8, G8));
+        load(board, tc.depth);
         const auto moves = legal_picker_moves();
         ASSERT_GE(moves.size(), 3U);
-        store_child(moves[0], 0, 3);
-        store_child(moves[1], 50, 3);
-        store_child(moves[2], -200, 3);
-        EXPECT_EQ(search(-200, 100, 4, false), 200);
-        for (Move failed : {moves[0], moves[1]}) {
-            EXPECT_LT(quiet_history(failed), 0);
-            EXPECT_LT(continuation_history(WHITE, PAWN, E4, failed), 0);
-        }
-        EXPECT_GT(quiet_history(moves[2]), 0);
-        EXPECT_GT(continuation_history(WHITE, PAWN, E4, moves[2]), 0);
-    });
+        ASSERT_TRUE(position().is_capture(moves[0]));
+        ASSERT_TRUE(position().is_capture(moves[1]));
+        tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
+        store_child(moves[0], 0, tc.depth - 1);
+        store_child(moves[1], -200, tc.depth - 1);
+        EXPECT_EQ(search(-200, 100, tc.depth, false), 200);
+        EXPECT_EQ(ordering_state().capture_history_score(position(), moves[0]), tc.penalty);
+        EXPECT_EQ(ordering_state().capture_history_score(position(), moves[1]), tc.reward);
+        EXPECT_EQ(ordering_state().capture_history_score(position(), Move(D3, F4)), 0);
+        EXPECT_EQ(ordering_state().killers.primary(ply()), NULL_MOVE);
+        EXPECT_EQ(ordering_state().counter_hint(ordering::State::make_context(position())),
+                  NULL_MOVE);
+    }
+    load(Board{"4k3/8/8/8/Pp6/8/8/4K3 b - a3 0 1"}, 3);
+    const Move ep{B4, A3, MOVE_EP};
+    tt.store(position().tt_key(), ep, 0, 0, TTBound::UpperBound, ply());
+    store_child(ep, -200, 2);
+    EXPECT_EQ(search(-200, 100, 3, false), 200);
+    EXPECT_EQ(ordering_state().captures.get(BLACK, PAWN, A3, PAWN), 144);
 }
 
-TEST_F(SearchTest, QuietMalusExcludesTtAndKillerHints) {
+TEST_F(SearchTest, QuietCutoffAlsoPenalizesEarlierFailedCaptures) {
+    load(Board{"7k/8/8/2p1p3/8/3N4/6P1/4K3 w - - 0 1"}, 2);
+    const auto moves = legal_picker_moves();
+    auto       quiet = std::find_if(
+        moves.begin(), moves.end(), [&](Move move) { return !position().is_capture(move); });
+    ASSERT_NE(quiet, moves.end());
+    ASSERT_EQ(quiet - moves.begin(), 2);
+    tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
+    store_child(moves[0], 0, 1);
+    store_child(moves[1], 0, 1);
+    store_child(*quiet, -200, 1);
+    EXPECT_EQ(search(-200, 100, 2, false), 200);
+    EXPECT_EQ(ordering_state().capture_history_score(position(), moves[0]), -64);
+    EXPECT_EQ(ordering_state().capture_history_score(position(), moves[1]), -64);
+}
+
+TEST_F(SearchTest, CaptureHistorySkipsPromotionsEvasionsAndQuiescenceUpdates) {
+    const auto cutoff = [&](const Board& board, Move move) {
+        load(board, 3);
+        tt.store(position().tt_key(), move, 0, 0, TTBound::UpperBound, ply(), 0);
+        store_child(move, -200, 2);
+        EXPECT_EQ(search(-200, 100, 3, false), 200);
+        EXPECT_EQ(ordering_state().killers.primary(ply()), NULL_MOVE);
+        EXPECT_EQ(ordering_state().counter_hint(ordering::State::make_context(position())),
+                  NULL_MOVE);
+    };
+    cutoff(Board{"4k2r/6P1/8/8/8/8/8/K7 w - - 0 1"}, Move(G7, H8, MOVE_PROM, QUEEN));
+    EXPECT_EQ(ordering_state().captures.get(WHITE, PAWN, H8, ROOK), 0);
+    cutoff(Board{"1r5k/8/8/8/1b6/P7/2N5/1Q2K3 w - - 0 1"}, Move(A3, B4));
+    EXPECT_EQ(ordering_state().captures.get(WHITE, PAWN, B4, BISHOP), 0);
+    Board quiet_promotion{"4k3/8/8/8/8/8/p7/4K3 w - - 0 1"};
+    quiet_promotion.make(Move(E1, D1));
+    cutoff(quiet_promotion, Move(A2, A1, MOVE_PROM, QUEEN));
+    load(Board{"7k/8/8/2p1p3/8/3N4/6P1/4K3 w - - 0 1"}, 1);
+    const Move capture = legal_picker_moves().front();
+    tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
+    store_child(capture, -200, 0);
+    EXPECT_EQ(SearchTestAccess::quiescence<NodeType::NonPv>(worker, -200, 100), 200);
+    EXPECT_EQ(ordering_state().capture_history_score(position(), capture), 0);
+}
+
+TEST_F(SearchTest, QuietCutoffTrainsHistoriesAndSkipsFailedRefutationHints) {
     Board board{board_test::fen::start};
     load(board, 4);
     const Move previous = find_move("e2e4");
@@ -790,39 +804,32 @@ TEST_F(SearchTest, QuietMalusExcludesTtAndKillerHints) {
         EXPECT_EQ(quiet_history(killer), 0);
         EXPECT_EQ(continuation_history(WHITE, PAWN, E4, tt_move), 0);
         EXPECT_EQ(continuation_history(WHITE, PAWN, E4, killer), 0);
-        EXPECT_LT(quiet_history(moves[2]), 0);
-        EXPECT_LT(continuation_history(WHITE, PAWN, E4, moves[2]), 0);
+        for (Move failed : {moves[2], moves[3]}) {
+            EXPECT_LT(quiet_history(failed), 0);
+            EXPECT_LT(continuation_history(WHITE, PAWN, E4, failed), 0);
+        }
+        EXPECT_GT(quiet_history(moves[4]), 0);
+        EXPECT_GT(continuation_history(WHITE, PAWN, E4, moves[4]), 0);
+        EXPECT_EQ(ordering_state().counters.get(WHITE, PAWN, E4), moves[4]);
+        EXPECT_EQ(ordering_state().killers.primary(ply()), moves[4]);
     });
 }
 
 TEST_F(SearchTest, QuietMalusRequiresDepthAndTwoFailedMoves) {
-    {
+    for (const auto [depth, failures] : {std::pair{3, 2}, std::pair{4, 1}}) {
+        SCOPED_TRACE(depth);
         Board board{board_test::fen::start};
-        load(board, 3);
-        const Move previous = find_move("e2e4");
-        with_move(previous, [&] {
-            const auto moves = legal_picker_moves();
-            ASSERT_GE(moves.size(), 3U);
-            store_child(moves[0], 0, 2);
-            store_child(moves[1], 25, 2);
-            store_child(moves[2], -200, 2);
-            EXPECT_EQ(search(-200, 100, 3, false), 200);
-            for (int i = 0; i < 2; ++i) {
-                EXPECT_EQ(quiet_history(moves[i]), 0);
-                EXPECT_EQ(continuation_history(WHITE, PAWN, E4, moves[i]), 0);
-            }
-        });
-    }
-
-    {
-        Board board{board_test::fen::start};
-        load(board, 4);
+        board.make(Move(E2, E4));
+        load(board, depth);
         const auto moves = legal_picker_moves();
-        ASSERT_GE(moves.size(), 2U);
-        store_child(moves[0], 0, 3);
-        store_child(moves[1], -200, 3);
-        EXPECT_EQ(search(-200, 100, 4, false), 200);
-        EXPECT_EQ(quiet_history(moves[0]), 0);
+        ASSERT_GT(moves.size(), static_cast<std::size_t>(failures));
+        for (int i = 0; i <= failures; ++i)
+            store_child(moves[i], i == failures ? -200 : 0, depth - 1);
+        EXPECT_EQ(search(-200, 100, depth, false), 200);
+        for (int i = 0; i < failures; ++i) {
+            EXPECT_EQ(quiet_history(moves[i]), 0);
+            EXPECT_EQ(continuation_history(WHITE, PAWN, E4, moves[i]), 0);
+        }
     }
 }
 
@@ -884,37 +891,88 @@ TEST_F(SearchTest, PvNodeIgnoresLowerTtBound) {
     EXPECT_EQ(pv_search(alpha, beta, 2, pv), baseline);
 }
 
-TEST(LmrReductionTest, DecliningTrendPreservesExemptionsAndMainSearchDepth) {
-    for (const int depth : {2, 3, 4, 5, 8}) {
-        for (const int move_count : {1, 3, 4, 12, 32}) {
-            SCOPED_TRACE(depth);
-            SCOPED_TRACE(move_count);
-            const auto reduction = [&](bool quiet,
-                                       bool promotion,
-                                       bool check,
-                                       bool gives_check,
-                                       bool killer,
-                                       bool declining) {
-                return algorithm_detail::lmr_reduction<NodeType::NonPv>(
-                    depth, move_count, quiet, promotion, check, gives_check, killer, declining);
-            };
-            const int ordinary  = reduction(true, false, false, false, false, false);
-            const int declining = reduction(true, false, false, false, false, true);
-            EXPECT_EQ(declining, ordinary == 0 ? 0 : std::min(ordinary + 1, depth - 2));
-            EXPECT_EQ(reduction(false, false, false, false, false, true),
-                      reduction(false, false, false, false, false, false));
-            EXPECT_EQ(reduction(true, false, false, false, true, true),
-                      reduction(true, false, false, false, true, false));
-            EXPECT_EQ(reduction(false, true, false, false, false, true), 0);
-            EXPECT_EQ(reduction(true, false, true, false, false, false), 0);
-            EXPECT_EQ(reduction(true, false, true, false, false, true), 0);
-            EXPECT_EQ(reduction(true, false, false, true, false, true), 0);
-            EXPECT_EQ(algorithm_detail::lmr_reduction<NodeType::Pv>(
-                          depth, move_count, true, false, false, false, false, true),
-                      algorithm_detail::lmr_reduction<NodeType::Pv>(
-                          depth, move_count, true, false, false, false, false, false));
-        }
+TEST(CaptureLmrTest, AdjustsBeforeRoundingAndClampsDepth) {
+    struct Case {
+        int    depth;
+        double unrounded_reduction;
+        int    raw_capture_history;
+        int    expected_reduction;
+    };
+    constexpr std::array cases{
+        Case{6, 2.0, 0, 2},
+        Case{6, 2.0, 1, 1},
+        Case{6, 1.5, -4096, 2},
+        Case{6, 2.25, 16384, 1},
+        Case{6, 2.25, -16384, 3},
+        Case{4, 1.25, 8192, 0},
+        Case{4, 1.25, -8192, 2},
+        Case{4, 3.75, 16384, 2},
+    };
+    for (const auto& tc : cases) {
+        SCOPED_TRACE(tc.depth);
+        SCOPED_TRACE(tc.unrounded_reduction);
+        SCOPED_TRACE(tc.raw_capture_history);
+        EXPECT_EQ(algorithm_detail::capture_lmr_reduction(
+                      tc.unrounded_reduction, tc.raw_capture_history, tc.depth),
+                  tc.expected_reduction);
     }
+}
+
+TEST(CaptureLmrTest, LimitsHistoryAdjustmentToNonPvLateCaptures) {
+    const algorithm_detail::CaptureLmrContext eligible{
+        .non_pv         = true,
+        .is_capture     = true,
+        .is_tt_move     = false,
+        .depth          = 4,
+        .base_reduction = 1,
+        .is_promotion   = false,
+        .in_check       = false,
+        .gives_check    = false,
+    };
+    EXPECT_TRUE(algorithm_detail::capture_lmr_eligible(eligible));
+
+    std::array<algorithm_detail::CaptureLmrContext, 4> excluded;
+    excluded.fill(eligible);
+    excluded[0].non_pv         = false;
+    excluded[1].is_capture     = false;
+    excluded[2].depth          = 3;
+    excluded[3].base_reduction = 0;
+    for (std::size_t i = 0; i < excluded.size(); ++i) {
+        SCOPED_TRACE(i);
+        EXPECT_FALSE(algorithm_detail::capture_lmr_eligible(excluded[i]));
+    }
+}
+
+TEST(LmrReductionTest, HandlesDepthMoveCountAndDecliningTrend) {
+    struct Case {
+        int  depth     = 8;
+        int  moves     = 12;
+        bool quiet     = true;
+        bool killer    = false;
+        bool declining = false;
+        int  expected;
+    };
+    const std::array cases{
+        Case{.expected = 3},
+        Case{.declining = true, .expected = 4},
+        Case{.quiet = false, .declining = true, .expected = 2},
+        Case{.killer = true, .declining = true, .expected = 2},
+        Case{.depth = 2, .expected = 0},
+        Case{.moves = 3, .expected = 0},
+        Case{.depth = 4, .moves = 256, .declining = true, .expected = 2},
+    };
+    for (const auto& tc : cases) {
+        EXPECT_EQ(algorithm_detail::lmr_reduction<NodeType::NonPv>(
+                      tc.depth, tc.moves, tc.quiet, false, false, false, tc.killer, tc.declining)
+                      .plies,
+                  tc.expected);
+    }
+    const auto pv_reduction = [](bool declining) {
+        return algorithm_detail::lmr_reduction<NodeType::Pv>(
+                   8, 12, true, false, false, false, false, declining)
+            .plies;
+    };
+    EXPECT_EQ(pv_reduction(true), pv_reduction(false));
 }
 
 TEST_F(SearchTest, StaticEvalPathInvalidatesSkippedEvaluations) {
@@ -1004,25 +1062,6 @@ TEST_F(SearchTest, DecliningLmrStillVerifiesAnApparentReducedCutoff) {
         EXPECT_GE(verified->depth, 4);
         EXPECT_NE(verified->score_at_ply(ply()), -2500);
     });
-}
-
-TEST_F(SearchTest, LmrRequiresDepthAndLateMove) {
-    struct Case {
-        const char* fen;
-        int         depth;
-    };
-    constexpr std::array cases{
-        Case{board_test::fen::start, 2},
-        Case{"1k6/8/2K5/8/8/8/8/8 b - - 0 1", 4},
-    };
-    for (const auto& tc : cases) {
-        Board board{tc.fen};
-        load(board, tc.depth);
-        (void)search(-2000, 2000, tc.depth, false);
-#if LATRUNCULI_SEARCH_STATS
-        EXPECT_EQ(counters().lmr_tries[0], 0U);
-#endif
-    }
 }
 
 TEST_F(SearchTest, LmrSkipsTacticalAndEvasionMoves) {

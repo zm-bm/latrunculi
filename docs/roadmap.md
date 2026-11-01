@@ -1,5 +1,13 @@
 # Engine Roadmap
 
+Current priorities:
+
+1. Extend quiescence capture pruning.
+2. Add singular extensions.
+3. Cache pawn and king evaluation, if profiling supports it.
+4. Reduce LMR verification cost, if measurements support it.
+5. Recognize candidate passed pawns.
+
 Possible improvements and investigations, grouped by area rather than priority.
 
 ## Search
@@ -20,6 +28,13 @@ without discarding tactical refutations.
 Explore a one-ply extension when excluding a reliable transposition-table move
 shows that all alternatives are substantially worse. Assess whether the extra
 search improves play enough to cover the verification cost.
+
+### Refine deferred-capture placement
+
+Explore whether deferred captures should precede quiet moves with poor history.
+A zero-score split increased cold search cost without a clear warm-search
+benefit. A better boundary or rationale is needed before another trial; the
+policy has not been strength-tested.
 
 ## Evaluation and endgames
 
@@ -73,24 +88,21 @@ relevant pawn, king, and castling state in the key and preserve exact scores.
 
 ### Reduce SEE cost and unnecessary calls
 
-Reduce static exchange evaluation (SEE) work in capture ordering:
+Capture ordering uses material and history scores, with threshold SEE deferred
+until selection. Capture history also adjusts main-search SEE thresholds and
+LMR; capture evasions use material scoring without SEE.
 
-- Avoid rescoring the already-searched TT move and update only slider rays that
-  can change after each exchange. Preserve scores and move order, including ties.
-- Try cheap capture ordering with thresholded SEE as each move is selected,
-  rather than calculating numerical SEE scores for every capture up front. Use
-  material bounds to resolve easy cases without generating attackers. Initially
-  retain the zero threshold and existing promotion and TT handling.
-- Try cheap victim-based ordering for capture evasions, where SEE affects order
-  but does not exclude legal moves.
-
-The latter two change move ordering and need strength testing. Preserve en
-passant and king-recapture handling when simplifying the exchange calculation.
+Profile the remaining exchange-loop cost before attempting further rewrites.
+Avoid scoring the already-searched TT move when it cannot be selected again.
+Preserve ordering and ties, inclusive thresholds, promotion and en passant
+handling, king-recapture rules, and the existing non-king pin model.
 
 ### Reduce move-picker scanning
 
-Reduce repeated scanning when selecting quiet moves and unfavorable captures,
-while preserving move order.
+Reduce repeated scanning when selecting quiet moves and deferred captures,
+preserving move order, scoring-time history snapshots, and ties. The selector
+already compares scores before testing eligibility; profile the remaining scans
+before adding sorting or cached selection state.
 
 ### Store evaluation-only TT entries
 

@@ -4,23 +4,23 @@
 #include <utility>
 
 #include "board/board.hpp"
-#include "eval/parameters.hpp"
 #include "movegen/generator.hpp"
+#include "search/ordering/capture_scoring.hpp"
 
 namespace search::ordering {
 
 namespace {
 
-// Coarse score bands, not tuned chess values. In-band terms order moves only
-// within their stage; they should not cross into another stage.
-constexpr int GoodCaptureScoreBase = 1 << 22;
-constexpr int PromotionScore       = GoodCaptureScoreBase << 6;
-constexpr int WeakCaptureScore     = 0;
+// Score bands classify promotions and early/deferred captures.
+// In-band ordering terms must stay within their stage.
+constexpr int EarlyCaptureScoreBase = 1 << 22;
+constexpr int PromotionScore        = EarlyCaptureScoreBase << 6;
+constexpr int DeferredCaptureScore  = 0;
 
-// Orders captures within the good-capture band.
-constexpr int CaptureVictimWeight = 7;
-
-static_assert(QuietHistory::max_score + ContinuationHistory::max_score < GoodCaptureScoreBase);
+static_assert(QuietHistory::max_score + ContinuationHistory::max_score < EarlyCaptureScoreBase);
+static_assert(capture_scoring::HistoryScoreOffset
+              == capture_scoring::VictimWeight
+                     * (CaptureHistory::max_score / capture_scoring::HistoryScoreDivisor));
 
 } // namespace
 
@@ -120,30 +120,33 @@ Move Picker::next_quiet_hint() {
     return NULL_MOVE;
 }
 
-int Picker::score_noisy(Move move) const {
-    if (move.type() == MOVE_PROM)
-        return PromotionScore;
-
-    const int see_score = board.see(move);
-    if (see_score < 0)
-        return WeakCaptureScore;
-
-    const int victim_value = eval::piece(board.captured_piece_type(move)).mg;
-    return GoodCaptureScoreBase + CaptureVictimWeight * victim_value + see_score;
-}
-
 template <Picker::ScorePolicy Policy>
 int Picker::score_move(Move move) const {
-    if constexpr (Policy == ScorePolicy::Quiet)
+    if constexpr (Policy == ScorePolicy::Quiet) {
         return state.quiet_score(context, board, move, true);
+    } else {
+        if (move.type() == MOVE_PROM)
+            return PromotionScore;
 
-    if constexpr (Policy == ScorePolicy::Noisy)
-        return score_noisy(move);
+        if constexpr (Policy == ScorePolicy::Evasion) {
+            if (!board.is_capture(move))
+                return state.quiet_score(context, board, move, false);
+        }
 
-    if (move.type() == MOVE_PROM || board.is_capture(move))
-        return score_noisy(move);
-
-    return state.quiet_score(context, board, move, false);
+        const int victim_value   = see::piece_value(board.captured_piece_type(move));
+        const int attacker_value = see::piece_value(board.piece_type_on(move.from()));
+        if constexpr (Policy == ScorePolicy::Noisy) {
+            const int raw_capture_history = state.capture_history_score(board, move);
+            const int scaled_capture_history =
+                raw_capture_history / capture_scoring::HistoryScoreDivisor;
+            return EarlyCaptureScoreBase
+                 + capture_scoring::score(victim_value, attacker_value, scaled_capture_history);
+        } else {
+            // All capture evasions precede quiet evasions without an exchange test.
+            return EarlyCaptureScoreBase
+                 + capture_scoring::material_score(victim_value, attacker_value);
+        }
+    }
 }
 
 template <Picker::ScorePolicy Policy>
@@ -171,38 +174,54 @@ bool Picker::is_pickable(const Candidate& candidate) const {
 
     if constexpr (Policy == PickPolicy::Evasion) {
         return true;
-    } else if constexpr (Policy == PickPolicy::GoodNoisy) {
-        return move.type() == MOVE_PROM || score >= GoodCaptureScoreBase;
+    } else if constexpr (Policy == PickPolicy::EarlyNoisy) {
+        return move.type() == MOVE_PROM || score >= EarlyCaptureScoreBase;
     } else if constexpr (Policy == PickPolicy::Quiet) {
         return !is_quiet_hint(move) && (!quiet_checks_only || board.gives_check(move));
     } else {
-        return move.type() != MOVE_PROM && score < GoodCaptureScoreBase;
+        return move.type() != MOVE_PROM && score < EarlyCaptureScoreBase;
     }
 }
 
 template <Picker::PickPolicy Policy>
 Move Picker::pick(CandidateRange& range) {
-    Candidate* best       = nullptr;
-    int        best_score = 0;
+    for (;;) {
+        Candidate* best       = nullptr;
+        int        best_score = 0;
 
-    for (Candidate* candidate = range.next; candidate != range.end; ++candidate) {
-        if (!is_pickable<Policy>(*candidate))
-            continue;
-
-        const int score = candidate->score;
-        if (best == nullptr || score > best_score) {
-            best       = candidate;
-            best_score = score;
+        for (Candidate* candidate = range.next; candidate != range.end; ++candidate) {
+            const int score = candidate->score;
+            if ((best == nullptr || score > best_score) && is_pickable<Policy>(*candidate)) {
+                best       = candidate;
+                best_score = score;
+            }
         }
+
+        if (best == nullptr)
+            return NULL_MOVE;
+
+        if constexpr (Policy == PickPolicy::EarlyNoisy) {
+            int see_threshold = 0;
+            if (best->move.type() != MOVE_PROM && mode == Mode::MainSearch) {
+                const int victim   = see::piece_value(board.captured_piece_type(best->move));
+                const int attacker = see::piece_value(board.piece_type_on(best->move.from()));
+                const int scaled_capture_history = capture_scoring::scaled_history_from_score(
+                    best->score - EarlyCaptureScoreBase, victim, attacker);
+                see_threshold = capture_scoring::main_search_see_threshold(
+                    board.captured_piece_type(best->move), scaled_capture_history);
+            }
+            if (best->move.type() != MOVE_PROM && !board.see(best->move, see_threshold)) {
+                // Main search revisits deferred captures after quiets; quiescence omits them.
+                best->score = DeferredCaptureScore;
+                continue;
+            }
+        }
+
+        std::swap(*range.next, *best);
+        Move move = range.next->move;
+        ++range.next;
+        return move;
     }
-
-    if (best == nullptr)
-        return NULL_MOVE;
-
-    std::swap(*range.next, *best);
-    Move move = range.next->move;
-    ++range.next;
-    return move;
 }
 
 void Picker::skip_nonchecking_quiets() {
@@ -246,12 +265,12 @@ Move Picker::next() {
             primary_range.end = score_moves<ScorePolicy::Noisy>(noisy_moves, primary_range.next);
             quiet_range.next  = primary_range.end;
             quiet_range.end   = primary_range.end;
-            stage             = Stage::PickGoodNoisy;
+            stage             = Stage::PickEarlyNoisy;
             [[fallthrough]];
         }
 
-        case Stage::PickGoodNoisy: {
-            Move move = pick<PickPolicy::GoodNoisy>(primary_range);
+        case Stage::PickEarlyNoisy: {
+            Move move = pick<PickPolicy::EarlyNoisy>(primary_range);
             if (!move.is_null())
                 return move;
 
@@ -283,12 +302,12 @@ Move Picker::next() {
             Move move = pick<PickPolicy::Quiet>(quiet_range);
             if (!move.is_null())
                 return move;
-            stage = Stage::PickBadNoisy;
+            stage = Stage::PickDeferredNoisy;
             break;
         }
 
-        case Stage::PickBadNoisy: {
-            Move move = pick<PickPolicy::BadNoisy>(primary_range);
+        case Stage::PickDeferredNoisy: {
+            Move move = pick<PickPolicy::DeferredNoisy>(primary_range);
             if (!move.is_null())
                 return move;
             stage = Stage::Done;
