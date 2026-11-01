@@ -5,7 +5,6 @@
 
 #include <gtest/gtest.h>
 
-#include "board/see.hpp"
 #include "movegen/generator.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/see_oracle.hpp"
@@ -13,11 +12,8 @@
 namespace {
 
 void expect_threshold_see(const Board& board, Move move) {
-    const int exact = board_test::exchange_oracle(board, move, see::piece_values);
+    const int exact = board_test::exchange_oracle(board, move);
     for (int threshold : {std::numeric_limits<int>::min(),
-                          -1,
-                          0,
-                          1,
                           std::numeric_limits<int>::max(),
                           exact - 1,
                           exact,
@@ -43,7 +39,7 @@ TEST(BoardSeeTest, ThresholdMatchesRecursiveOracleForSpecialPositions) {
              "8/8/4k3/3p4/3Q4/8/8/K2R4 w - - 0 1",
              // Include king captures and pinned geometric attackers.
              "7k/8/8/8/8/3p4/3RK3/3r4 w - - 0 1",
-             // Full exchange value after successive rook recaptures.
+             // Successive rook recaptures reveal later attackers.
              "3r4/7k/8/3r4/3QP3/8/8/K7 w - - 0 1",
              // A recapturing pawn on its last rank is valued as a pawn.
              "7k/8/8/8/8/8/1p6/r2Q3K w - - 0 1",

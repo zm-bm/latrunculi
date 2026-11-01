@@ -18,7 +18,6 @@
 
 #include "board/board.hpp"
 #include "board/notation.hpp"
-#include "board/see.hpp"
 #include "core/attacks.hpp"
 #include "eval/evaluation.hpp"
 #include "eval/features.hpp"
@@ -217,7 +216,7 @@ TEST(RandomizedStressTest, LegalPositionsRoundTripEvaluateAndSearch) {
                 if (!board.is_capture(move) && move.type() != MOVE_PROM)
                     continue;
                 SCOPED_TRACE(std::format("SEE move: {}", move.str()));
-                const int exact = board_test::exchange_oracle(board, move, see::piece_values);
+                const int exact = board_test::exchange_oracle(board, move);
                 for (int threshold : {exact - 1, exact, exact + 1, 0})
                     EXPECT_EQ(board.see(move, threshold), exact >= threshold) << threshold;
             }

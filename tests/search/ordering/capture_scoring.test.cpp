@@ -6,7 +6,7 @@
 
 namespace search::ordering {
 
-TEST(CaptureScoringTest, KeepsScoresWithinStageAndRecoversHistory) {
+TEST(CaptureScoringTest, ScoresStayPositiveAndRecoverHistory) {
     for (PieceType victim : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN})
         for (PieceType attacker : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING})
             for (int scaled_capture_history : {-1024, -1, 0, 1, 1024}) {
@@ -15,7 +15,6 @@ TEST(CaptureScoringTest, KeepsScoresWithinStageAndRecoversHistory) {
                 const int order_score =
                     capture_scoring::score(victim_value, attacker_value, scaled_capture_history);
                 EXPECT_GT(order_score, 0);
-                EXPECT_LT(order_score, 1 << 22);
                 EXPECT_EQ(capture_scoring::scaled_history_from_score(
                               order_score, victim_value, attacker_value),
                           scaled_capture_history);

@@ -18,7 +18,7 @@ constexpr int PromotionScore        = EarlyCaptureScoreBase << 6;
 constexpr int DeferredCaptureScore  = 0;
 
 static_assert(QuietHistory::max_score + ContinuationHistory::max_score < EarlyCaptureScoreBase);
-static_assert(capture_scoring::HistoryScoreBias
+static_assert(capture_scoring::HistoryScoreOffset
               == capture_scoring::VictimWeight
                      * (CaptureHistory::max_score / capture_scoring::HistoryScoreDivisor));
 
@@ -120,39 +120,33 @@ Move Picker::next_quiet_hint() {
     return NULL_MOVE;
 }
 
-int Picker::score_evasion_noisy(Move move) const {
-    if (move.type() == MOVE_PROM)
-        return PromotionScore;
-
-    // All capture evasions precede quiet evasions without an exchange test.
-    const int victim_value   = see::piece_value(board.captured_piece_type(move));
-    const int attacker_value = see::piece_value(board.piece_type_on(move.from()));
-    return EarlyCaptureScoreBase + capture_scoring::VictimWeight * victim_value
-         + capture_scoring::QueenScoreBias - attacker_value;
-}
-
 template <Picker::ScorePolicy Policy>
 int Picker::score_move(Move move) const {
-    if constexpr (Policy == ScorePolicy::Quiet)
+    if constexpr (Policy == ScorePolicy::Quiet) {
         return state.quiet_score(context, board, move, true);
-
-    if constexpr (Policy == ScorePolicy::Noisy) {
+    } else {
         if (move.type() == MOVE_PROM)
             return PromotionScore;
 
-        const int victim_value        = see::piece_value(board.captured_piece_type(move));
-        const int attacker_value      = see::piece_value(board.piece_type_on(move.from()));
-        const int raw_capture_history = state.capture_history_score(board, move);
-        const int scaled_capture_history =
-            raw_capture_history / capture_scoring::HistoryScoreDivisor;
-        return EarlyCaptureScoreBase
-             + capture_scoring::score(victim_value, attacker_value, scaled_capture_history);
+        if constexpr (Policy == ScorePolicy::Evasion) {
+            if (!board.is_capture(move))
+                return state.quiet_score(context, board, move, false);
+        }
+
+        const int victim_value   = see::piece_value(board.captured_piece_type(move));
+        const int attacker_value = see::piece_value(board.piece_type_on(move.from()));
+        if constexpr (Policy == ScorePolicy::Noisy) {
+            const int raw_capture_history = state.capture_history_score(board, move);
+            const int scaled_capture_history =
+                raw_capture_history / capture_scoring::HistoryScoreDivisor;
+            return EarlyCaptureScoreBase
+                 + capture_scoring::score(victim_value, attacker_value, scaled_capture_history);
+        } else {
+            // All capture evasions precede quiet evasions without an exchange test.
+            return EarlyCaptureScoreBase
+                 + capture_scoring::material_score(victim_value, attacker_value);
+        }
     }
-
-    if (move.type() == MOVE_PROM || board.is_capture(move))
-        return score_evasion_noisy(move);
-
-    return state.quiet_score(context, board, move, false);
 }
 
 template <Picker::ScorePolicy Policy>

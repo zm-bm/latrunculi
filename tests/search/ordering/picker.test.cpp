@@ -7,7 +7,6 @@
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
-#include "board/see.hpp"
 #include "movegen/generator.hpp"
 #include "search/limits.hpp"
 #include "search/ordering/state.hpp"
@@ -144,7 +143,7 @@ TEST_F(PickerTest, MainSearchIgnoresInvalidAndTacticalCounterHints) {
     }
 }
 
-TEST_F(PickerTest, EvasionsUseMaterialScoresAndIgnoreQuietOrderingState) {
+TEST_F(PickerTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
     Board position{"1r5k/8/8/b7/8/P7/2N5/1Q2K3 b - - 0 1"};
     position.make(Move(A5, B4));
     ASSERT_TRUE(position.is_check());
@@ -187,7 +186,7 @@ TEST_F(PickerTest, PromotionsPrecedeCaptures) {
     EXPECT_LT(promotion_it, capture_it);
 }
 
-TEST_F(PickerTest, QSearchReturnsOnlyNonLosingNoisyMoves) {
+TEST_F(PickerTest, QSearchFiltersCapturesButKeepsPromotions) {
     for (std::string_view fen : {std::string_view{board_test::fen::perft_position_2},
                                  std::string_view{board_test::fen::legal_en_passant_a3},
                                  std::string_view{"1rr4k/P7/8/8/8/8/8/K7 w - - 0 1"},
@@ -199,8 +198,7 @@ TEST_F(PickerTest, QSearchReturnsOnlyNonLosingNoisyMoves) {
         const auto        moves = picked_qsearch(position, state);
         movegen::MoveList expected;
         for (const Move move : movegen::generate_noisy(position)) {
-            if (move.type() == MOVE_PROM
-                || board_test::exchange_oracle(position, move, see::piece_values) >= 0)
+            if (move.type() == MOVE_PROM || board_test::exchange_oracle(position, move) >= 0)
                 expected.add(move);
         }
 
@@ -251,15 +249,19 @@ TEST_F(PickerTest, SkipNoncheckingQuietsKeepsQuietChecksAndWeakCaptures) {
     }
 }
 
-TEST_F(PickerTest, CaptureHistoryCanOutweighMaterialPreference) {
-    const Board position{"7k/8/8/2p1b3/8/3N4/6P1/4K3 w - - 0 1"};
-    const Move  higher_victim{D3, E5};
-    const Move  lower_victim{D3, C5};
-    EXPECT_EQ(picked_main_search(position, state, ply).front(), higher_victim);
+TEST_F(PickerTest, CaptureOrderingCombinesMaterialAndHistory) {
+    const Board             position{"7k/8/8/b1p1b3/Q7/3N4/6P1/7K w - - 0 1"};
+    const Move              knight_bishop{D3, E5}, queen_bishop{A4, A5}, knight_pawn{D3, C5};
+    const std::vector<Move> expected{knight_bishop, queen_bishop, knight_pawn};
+    const auto              main_moves = picked_main_search(position, state, ply);
+    ASSERT_GE(main_moves.size(), expected.size());
+    EXPECT_EQ(std::vector<Move>(main_moves.begin(), main_moves.begin() + expected.size()),
+              expected);
+    EXPECT_EQ(picked_qsearch(position, state), expected);
     for (int i = 0; i < 6; ++i)
-        state.reward_capture(position, lower_victim, 8);
-    EXPECT_EQ(picked_main_search(position, state, ply).front(), lower_victim);
-    EXPECT_EQ(picked_qsearch(position, state).front(), lower_victim);
+        state.reward_capture(position, knight_pawn, 8);
+    EXPECT_EQ(picked_main_search(position, state, ply).front(), knight_pawn);
+    EXPECT_EQ(picked_qsearch(position, state).front(), knight_pawn);
 }
 
 TEST_F(PickerTest, CaptureOrderingKeepsScoringTimeHistorySnapshot) {
@@ -278,7 +280,7 @@ TEST_F(PickerTest, CaptureOrderingKeepsScoringTimeHistorySnapshot) {
     EXPECT_EQ(picked_main_search(position, state, ply).front(), frozen[2]);
 }
 
-TEST_F(PickerTest, MainSeeUsesCachedHistoryRatherThanMutatedTable) {
+TEST_F(PickerTest, CaptureStagingKeepsScoringTimeHistory) {
     const Board position{"3r4/7k/q7/3r4/3QP3/8/R7/1K6 w - - 0 1"};
     const Move  first{A2, A6}, second{D4, D5};
     auto        picker =
@@ -296,7 +298,7 @@ TEST_F(PickerTest, MainCaptureStagingUsesHistoryWhileQuiescenceUsesZeroSee) {
         SCOPED_TRACE(fen);
         const Board position{fen};
         const Move  capture{D4, E5};
-        const int   exchange = board_test::exchange_oracle(position, capture, see::piece_values);
+        const int   exchange = board_test::exchange_oracle(position, capture);
         for (int history_sign : {-1, 0, 1}) {
             SCOPED_TRACE(history_sign);
             state.clear();
@@ -313,13 +315,6 @@ TEST_F(PickerTest, MainCaptureStagingUsesHistoryWhileQuiescenceUsesZeroSee) {
                       exchange >= 0 ? 1 : 0);
         }
     }
-}
-
-TEST_F(PickerTest, CaptureOrderingAccountsForAttackerAsWellAsVictim) {
-    const Board position{"7k/8/8/b1n5/Q7/3N4/8/7K w - - 0 1"};
-    const Move  knight{D3, C5};
-    EXPECT_EQ(picked_main_search(position, state, ply).front(), knight);
-    EXPECT_EQ(picked_qsearch(position, state).front(), knight);
 }
 
 TEST_F(PickerTest, DeferredCapturesFollowAllQuietMoves) {

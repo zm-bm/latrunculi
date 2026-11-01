@@ -1,6 +1,6 @@
 #include "board/board.hpp"
 
-#include "board/see.hpp"
+#include "board/see_values.hpp"
 #include "core/attacks.hpp"
 #include "core/move_geometry.hpp"
 
@@ -11,29 +11,27 @@ namespace {
 constexpr PieceType see_attacker_order[] = {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING};
 } // namespace
 
-// Fixed-price exchange test with an inclusive threshold.
 bool Board::see(Move move, int threshold) const noexcept {
     assert(is_pseudo_legal(move));
     assert(is_capture(move) || move.type() == MOVE_PROM);
 
-    int gain = see::piece_value(captured_piece_type(move));
+    int initial_gain = see::piece_value(captured_piece_type(move));
     if (move.type() == MOVE_PROM)
-        gain += see::piece_value(move.prom_piece()) - see::piece_value(PAWN);
-    if (gain < threshold)
+        initial_gain += see::piece_value(move.prom_piece()) - see::piece_value(PAWN);
+    if (initial_gain < threshold)
         return false;
 
-    const Square to   = move.to();
-    Color        side = side_to_move();
-    PieceType    piece_type =
+    const Square    to   = move.to();
+    Color           side = side_to_move();
+    const PieceType moving_piece =
         move.type() == MOVE_PROM ? move.prom_piece() : piece_type_on(move.from());
-    const int moving_value = see::piece_value(piece_type);
+    const int moving_value = see::piece_value(moving_piece);
     // Check both bounds before subtraction so even extreme thresholds are safe.
-    if (threshold <= gain - moving_value)
+    if (threshold <= initial_gain - moving_value)
         return true;
-    int balance = moving_value - gain + threshold;
+    int balance = moving_value - initial_gain + threshold;
 
-    Bitboard occupancy        = this->occupancy();
-    Bitboard current_attacker = bb::set(move.from());
+    Bitboard occupancy = this->occupancy();
 
     if (move.type() == MOVE_EP) {
         bb::remove(occupancy, move_geometry::enpassant_captured_square(to, side));
@@ -41,16 +39,18 @@ bool Board::see(Move move, int threshold) const noexcept {
     }
 
     // Build the first attack set after the initial capture, including its x-rays.
-    occupancy ^= current_attacker;
+    occupancy ^= bb::set(move.from());
     Bitboard       attackers      = all_attackers_to(to, occupancy) & occupancy;
     const Bitboard bishop_sliders = pieces<BISHOP, QUEEN>();
     const Bitboard rook_sliders   = pieces<ROOK, QUEEN>();
     bool           result         = true;
 
+    // Non-king pins are ignored; later pawn recaptures keep their pawn price.
     for (;;) {
         side = ~side;
 
-        current_attacker = 0;
+        Bitboard  recapturer      = 0;
+        PieceType recapturer_type = NO_PIECETYPE;
         for (PieceType attacker_type : see_attacker_order) {
             Bitboard candidate = attackers & piece_bb[side][attacker_type];
             if (!candidate)
@@ -63,20 +63,20 @@ bool Board::see(Move move, int threshold) const noexcept {
                     continue;
             }
 
-            piece_type       = attacker_type;
-            current_attacker = candidate;
+            recapturer_type = attacker_type;
+            recapturer      = candidate;
             break;
         }
 
-        if (!current_attacker)
+        if (!recapturer)
             return result;
         result  = !result;
-        balance = see::piece_value(piece_type) - balance;
+        balance = see::piece_value(recapturer_type) - balance;
         // Equality succeeds for the original side, but fails for its opponent.
         if (balance < static_cast<int>(result))
             return result;
 
-        occupancy ^= current_attacker;
+        occupancy ^= recapturer;
         attackers |= (attacks::piece_moves<BISHOP>(to, occupancy) & bishop_sliders)
                    | (attacks::piece_moves<ROOK>(to, occupancy) & rook_sliders);
         attackers &= occupancy;

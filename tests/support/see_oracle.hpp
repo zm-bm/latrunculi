@@ -5,10 +5,9 @@
 #include <cstdlib>
 
 #include "board/board.hpp"
+#include "board/see_values.hpp"
 
 namespace board_test {
-
-using SeeValues = std::array<int, N_PIECETYPES>;
 
 namespace see_oracle {
 
@@ -60,7 +59,7 @@ struct Position {
         return false;
     }
 
-    int reply(Square to, Color side, const SeeValues& values) const {
+    int reply(Square to, Color side) const {
         for (PieceType type : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING}) {
             for (Square from = A1; from < N_SQUARES; ++from) {
                 if (from == to || squares[from] != make_piece(side, type) || !attacks(from, to))
@@ -69,7 +68,7 @@ struct Position {
                 if (type == KING && next.attacked(to, ~side))
                     continue;
                 // Non-king pins are ignored; later pawn recaptures keep the pawn price.
-                return std::max(0, values[type_of(squares[to])] - next.reply(to, ~side, values));
+                return std::max(0, see::piece_value(type_of(squares[to])) - next.reply(to, ~side));
             }
         }
         return 0;
@@ -78,13 +77,14 @@ struct Position {
 
 } // namespace see_oracle
 
-inline int exchange_oracle(const Board& board, Move move, const SeeValues& values) {
+// Numerical exchange value under the engine's fixed prices.
+inline int exchange_oracle(const Board& board, Move move) {
     see_oracle::Position position;
     position.occupancy = board.occupancy();
     for (Square square = A1; square < N_SQUARES; ++square)
         position.squares[square] = board.piece_on(square);
 
-    int gain = values[board.captured_piece_type(move)];
+    int gain = see::piece_value(board.captured_piece_type(move));
     if (move.type() == MOVE_EP) {
         const Square victim =
             move_geometry::enpassant_captured_square(move.to(), board.side_to_move());
@@ -93,10 +93,10 @@ inline int exchange_oracle(const Board& board, Move move, const SeeValues& value
     }
     position = position.capture(move.from(), move.to());
     if (move.type() == MOVE_PROM) {
-        gain += values[move.prom_piece()] - values[PAWN];
+        gain += see::piece_value(move.prom_piece()) - see::piece_value(PAWN);
         position.squares[move.to()] = make_piece(board.side_to_move(), move.prom_piece());
     }
-    return gain - position.reply(move.to(), ~board.side_to_move(), values);
+    return gain - position.reply(move.to(), ~board.side_to_move());
 }
 
 } // namespace board_test

@@ -127,8 +127,8 @@ public:
 
     // Static exchange evaluation (board_see.cpp)
 
-    // Whether the fixed-price exchange meets the inclusive threshold.
-    // Accepts captures and promotions.
+    // Tests an inclusive threshold using fixed exchange prices.
+    // Requires a pseudo-legal capture or promotion.
     bool see(Move move, int threshold) const noexcept;
 
 private:
