@@ -196,11 +196,8 @@ Move Picker::pick(CandidateRange& range) {
         int        best_score = 0;
 
         for (Candidate* candidate = range.next; candidate != range.end; ++candidate) {
-            if (!is_pickable<Policy>(*candidate))
-                continue;
-
             const int score = candidate->score;
-            if (best == nullptr || score > best_score) {
+            if ((best == nullptr || score > best_score) && is_pickable<Policy>(*candidate)) {
                 best       = candidate;
                 best_score = score;
             }
