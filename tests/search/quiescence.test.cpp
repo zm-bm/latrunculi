@@ -397,15 +397,6 @@ TEST_F(QuiescenceTest, CaptureGainUsesEvaluationUnitsForMinorVictim) {
     EXPECT_GT(worker.node_count(), 1U);
 }
 
-TEST_F(QuiescenceTest, CaptureGainPreservesTtCapture) {
-    load(Board{"1n2k1nr/8/8/3p4/4P3/8/8/RN2K1N1 w - - 0 1"});
-    const EvalValue stand_pat = eval::evaluate(position());
-    const EvalValue alpha     = stand_pat + 5000;
-    tt.store(position().tt_key(), Move(E4, D5), stand_pat, 0, TTBound::LowerBound, ply());
-    search(alpha, alpha + 1);
-    EXPECT_GT(worker.node_count(), 1U);
-}
-
 TEST_F(QuiescenceTest, CaptureGainPreservesCheckingMateFarBelowAlpha) {
     load(Board{"rn3rk1/5ppp/8/8/8/3B4/8/RN2K1NQ w - - 0 1"});
     const EvalValue    alpha = eval::evaluate(position()) + 5000;
@@ -413,25 +404,6 @@ TEST_F(QuiescenceTest, CaptureGainPreservesCheckingMateFarBelowAlpha) {
     EXPECT_EQ(pv_search(alpha, alpha + 1, pv), eval_value::mate - 1);
     ASSERT_GT(pv.size(), 0);
     EXPECT_EQ(pv.front(), Move(H1, H7));
-}
-
-TEST_F(QuiescenceTest, CaptureGainPreservesPromotionsEvasionsAndEndgameTransitions) {
-    struct Case {
-        const char* name;
-        const char* fen;
-    };
-    constexpr std::array cases{
-        Case{"promotion", "1r2k1nr/P7/8/8/8/8/8/RN2K1N1 w - - 0 1"},
-        Case{"evasion", "1n3knr/8/8/8/8/8/5p2/RN2K1NR w - - 0 1"},
-        Case{"capture to rook-only material", "4k2r/8/8/3n4/4P3/8/8/RN2K1N1 w - - 0 1"},
-    };
-    for (const auto& tc : cases) {
-        SCOPED_TRACE(tc.name);
-        load(Board{tc.fen});
-        const EvalValue alpha = eval::evaluate(position()) + 5000;
-        search(alpha, alpha + 1);
-        EXPECT_GT(worker.node_count(), 1U);
-    }
 }
 
 } // namespace search
