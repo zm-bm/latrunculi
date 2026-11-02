@@ -317,17 +317,19 @@ TEST_F(PickerTest, MainCaptureStagingUsesHistoryWhileQuiescenceUsesZeroSee) {
     }
 }
 
-TEST_F(PickerTest, DeferredCapturesFollowAllQuietMoves) {
-    const Board position{"3r1r2/7k/3r4/8/3Q1b2/8/8/K7 w - - 0 1"};
-    const Move  rook{D4, D6}, bishop{D4, F4};
-    auto        moves = picked_main_search(position, state, ply);
-    auto        ri    = std::find(moves.begin(), moves.end(), rook);
-    auto        bi    = std::find(moves.begin(), moves.end(), bishop);
-    ASSERT_NE(ri, moves.end());
-    ASSERT_NE(bi, moves.end());
-    const auto first = std::min(ri, bi);
-    for (auto it = first; it != moves.end(); ++it)
-        EXPECT_TRUE(position.is_capture(*it));
+TEST_F(PickerTest, DeferredCapturesFollowQuietsAndKeepSwapOrder) {
+    const Board position{"3r1r2/7k/3r4/8/3Q1b2/8/p7/K7 w - - 0 1"};
+    const Move  early{A1, A2}, rook{D4, D6}, bishop{D4, F4};
+    ASSERT_FALSE(position.is_check());
+    const auto moves = picked_main_search(position, state, ply);
+    ASSERT_GT(moves.size(), 3U);
+    EXPECT_EQ(moves.front(), early);
+    for (auto it = moves.begin() + 1; it != moves.end() - 2; ++it)
+        EXPECT_FALSE(position.is_capture(*it));
+    // Both queen captures fail SEE. Taking the king capture swaps the rook
+    // capture behind the bishop capture; deferred moves keep that order, not MVV.
+    EXPECT_EQ(std::vector<Move>(moves.end() - 2, moves.end()), (std::vector<Move>{bishop, rook}));
+    EXPECT_EQ(picked_qsearch(position, state), (std::vector<Move>{early}));
 }
 
 } // namespace search::ordering
