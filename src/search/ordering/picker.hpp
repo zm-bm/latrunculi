@@ -27,6 +27,8 @@ public:
     static Picker for_quiescence(const Board& board, const State& state, Move tt_move = NULL_MOVE);
 
     // Returns ordered pseudo-legal candidates; search remains the legal-move authority.
+    // Restore the board to this node before each call. Histories may change between
+    // calls; generated lists retain their scoring-time snapshot.
     Move next();
     void skip_nonchecking_quiets();
 
@@ -55,16 +57,12 @@ private:
         Evasion,
     };
 
-    enum class PickPolicy : std::uint8_t {
-        Evasion,
-        EarlyNoisy,
-        Quiet,
-        DeferredNoisy,
-    };
-
     struct Candidate {
         Move move;
+        bool deferred;
         int  score;
+        // Captured with the score, before child searches can train the history table.
+        int see_threshold;
     };
 
     struct CandidateRange {
@@ -83,22 +81,19 @@ private:
            QuietHintCandidates   quiet_hint_candidates = {});
 
     void add_quiet_hint(Move move);
-    bool is_tt_move(Move move) const;
     bool is_quiet_hint(Move move) const;
     Move validate_tt_hint(Move move) const;
     Move validate_quiet_hint(Move move) const;
-    Move next_quiet_hint();
 
     template <ScorePolicy Policy>
-    int score_move(Move move) const;
+    Candidate score_move(Move move) const;
 
     template <ScorePolicy Policy>
     Candidate* score_moves(const movegen::MoveList& list, Candidate* out);
 
-    template <PickPolicy Policy>
-    bool is_pickable(const Candidate& candidate) const;
-    template <PickPolicy Policy>
-    Move pick(CandidateRange& range);
+    template <typename Eligible>
+    static Candidate* find_best(CandidateRange& range, Eligible eligible);
+    static Move       take(CandidateRange& range, Candidate* best);
 
     const Board&                                       board;
     const State&                                       state;
