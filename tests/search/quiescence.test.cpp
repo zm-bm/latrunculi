@@ -7,6 +7,7 @@
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/generator.hpp"
+#include "search/algorithm_detail.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -371,6 +372,38 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
     EXPECT_GT(counters().q_tt_hits[1], 0U);
     EXPECT_EQ(counters().q_tt_cutoffs[1], 0U);
 #endif
+}
+
+TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
+    load(Board{"1n2k1nr/8/8/3p4/4P3/8/8/RN2K1N1 w - - 0 1"});
+    const EvalValue stand_pat = eval::evaluate(position());
+    const EvalValue estimate  = stand_pat + eval::pawn.eg + algorithm_detail::QCaptureMargin;
+
+    PrincipalVariation pv;
+    EXPECT_EQ(pv_search(estimate + 1, estimate + 2, pv), estimate);
+    EXPECT_EQ(worker.node_count(), 1U);
+    EXPECT_EQ(pv.size(), 0);
+    const auto stored = record();
+    ASSERT_TRUE(stored);
+    EXPECT_EQ(stored->bound, TTBound::UpperBound);
+    EXPECT_EQ(stored->score_at_ply(ply()), estimate);
+}
+
+TEST_F(QuiescenceTest, CaptureGainUsesEvaluationUnitsForMinorVictim) {
+    load(Board{"1n2k1nr/8/8/3n4/4P3/8/8/RN2K1N1 w - - 0 1"});
+    const EvalValue alpha = eval::evaluate(position()) + 700;
+    // A SEE knight price plus the margin would incorrectly discard this capture.
+    search(alpha, alpha + 1);
+    EXPECT_GT(worker.node_count(), 1U);
+}
+
+TEST_F(QuiescenceTest, CaptureGainPreservesCheckingMateFarBelowAlpha) {
+    load(Board{"rn3rk1/5ppp/8/8/8/3B4/8/RN2K1NQ w - - 0 1"});
+    const EvalValue    alpha = eval::evaluate(position()) + 5000;
+    PrincipalVariation pv;
+    EXPECT_EQ(pv_search(alpha, alpha + 1, pv), eval_value::mate - 1);
+    ASSERT_GT(pv.size(), 0);
+    EXPECT_EQ(pv.front(), Move(H1, H7));
 }
 
 } // namespace search

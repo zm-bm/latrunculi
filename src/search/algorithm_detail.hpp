@@ -60,6 +60,9 @@ inline constexpr int FutilityMaxDepth = 3;
 inline constexpr int RazorMargin[]    = {0, 500, 900, 1800};
 inline constexpr int FutilityMargin[] = {0, 250, 400, 550};
 
+// Positional allowance for the heuristic qsearch capture-gain estimate.
+inline constexpr EvalValue QCaptureMargin = 300;
+
 // Late-move reduction defaults.
 inline constexpr int LmrMinDepth              = 3;
 inline constexpr int LmrMinMoveCount          = 4;

@@ -615,6 +615,24 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
         ++move_count;
 
+        // SEE prices classify exchanges; use evaluation material for the gain estimate.
+        // This is a heuristic allowance for positional and phase changes, not a strict bound.
+        if (!in_check && move != tt_move && move.type() == BASIC_MOVE
+            && alpha > -eval_value::mate_bound && beta < eval_value::mate_bound) {
+            const PieceType victim = board.captured_piece_type(move);
+            const auto      price  = eval::piece(victim);
+            const EvalValue gain_bound =
+                static_eval + std::max(price.mg, price.eg) + algorithm_detail::QCaptureMargin;
+            if (gain_bound < alpha && board.non_pawn_material(board.side_to_move()) > eval::rook.mg
+                && board.non_pawn_material(~board.side_to_move()) - (victim == PAWN ? 0 : price.mg)
+                       > eval::rook.mg
+                && !board.gives_check(move)) {
+                // Keep a fail-low estimate without inventing an alpha raise or PV move.
+                best_value = std::max(best_value, gain_bound);
+                continue;
+            }
+        }
+
         board.make(move, UseTt ? algorithm_detail::prefetch_child_tt : nullptr);
         ++search_ply;
         const EvalValue value = -quiescence<Node, UseTt>(-beta, -alpha, pv ? &child_pv : nullptr);
