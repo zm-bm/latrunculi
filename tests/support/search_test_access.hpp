@@ -10,6 +10,9 @@ public:
 
     static int& search_ply(search::Worker& worker) { return worker.search_ply; }
 
+    static int& root_iteration_depth(search::Worker& worker) { return worker.root_iteration_depth; }
+    static void set_nodes(search::Worker& worker, NodeCount n) { worker.nodes.store(n); }
+
     static search::ordering::State& ordering_state(search::Worker& worker) {
         return worker.ordering_state;
     }
@@ -34,9 +37,19 @@ public:
                                EvalValue                   alpha,
                                EvalValue                   beta,
                                int                         depth,
-                               search::PrincipalVariation* pv       = nullptr,
-                               bool                        can_null = true) {
-        return worker.alphabeta<Node>(alpha, beta, depth, pv, can_null);
+                               search::PrincipalVariation* pv            = nullptr,
+                               bool                        can_null      = true,
+                               Move                        excluded_move = NULL_MOVE) {
+        return worker.alphabeta<Node>(alpha, beta, depth, pv, can_null, excluded_move);
+    }
+
+    template <search::NodeType Node>
+    static int singular_extension(search::Worker&         worker,
+                                  const search::TTRecord& record,
+                                  int                     depth,
+                                  bool                    can_null      = true,
+                                  Move                    excluded_move = NULL_MOVE) {
+        return worker.singular_extension<Node>(record, depth, can_null, excluded_move);
     }
 
     template <search::NodeType Node>

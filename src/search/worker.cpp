@@ -86,8 +86,9 @@ EvalValue Worker::search() {
 
 void Worker::reset_search_state() {
     reset_nodes();
-    search_ply  = 0;
-    root_result = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
+    search_ply           = 0;
+    root_iteration_depth = 0;
+    root_result          = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
     static_evals.fill(std::nullopt);
     real_moves.fill(false);
     if (!board.is_check())

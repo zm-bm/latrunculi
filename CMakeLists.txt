@@ -139,6 +139,7 @@ if(BUILD_TESTING)
         tests/eval/parameters.test.cpp
         tests/eval/tapered_score.test.cpp
         tests/search/algorithm.test.cpp
+        tests/search/singular.test.cpp
         tests/search/instrumentation.test.cpp
         tests/search/limits.test.cpp
         tests/search/ordering/capture_scoring.test.cpp
