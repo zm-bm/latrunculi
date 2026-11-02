@@ -107,16 +107,10 @@ bool ThreadPool::start_search(const Board& root_board, Limits limits) {
     const TimePoint start_time = SearchClock::now();
     pondering.store(limits.ponder, std::memory_order_relaxed);
 
-    // Close the gate so helpers wait for the main worker.
-    close_helper_gate();
-
     for (auto& thread : threads)
         thread->configure_search(root_board, limits, start_time);
 
-    // Helpers must be waiting behind the gate before the main worker can
-    // release or stop them.
-    for (size_t i = 1; i < threads.size(); ++i)
-        threads[i]->wake_for_search();
+    // The main worker prepares the shared TT before waking configured helpers.
     threads.front()->wake_for_search();
 
     return true;
@@ -128,9 +122,6 @@ void ThreadPool::request_stop() {
     }
 
     leave_pondering();
-
-    // Release the gate in case helpers are waiting.
-    release_helper_searches();
 }
 
 void ThreadPool::leave_pondering() noexcept {
@@ -228,26 +219,13 @@ std::vector<RootLine> ThreadPool::root_snapshots() const {
     return lines;
 }
 
-// Helper release gate control.
-void ThreadPool::close_helper_gate() {
-    std::lock_guard<std::mutex> lock(helper_gate_mutex);
-    helper_gate_open = false;
-}
-
-void ThreadPool::release_helper_searches() {
-    {
-        std::lock_guard<std::mutex> lock(helper_gate_mutex);
-        helper_gate_open = true;
-    }
-    helper_gate_cv.notify_all();
-}
-
-void ThreadPool::wait_for_helper_release() {
-    std::unique_lock<std::mutex> lock(helper_gate_mutex);
-    helper_gate_cv.wait(lock, [&] { return helper_gate_open; });
-}
-
 // Helper worker control.
+void ThreadPool::start_helper_searches() {
+    // Start every configured helper, preserving stops requested before startup.
+    for (size_t i = 1; i < threads.size(); ++i)
+        threads[i]->wake_for_search();
+}
+
 void ThreadPool::stop_helper_searches() {
     for (size_t i = 1; i < threads.size(); ++i) {
         threads[i]->request_stop();

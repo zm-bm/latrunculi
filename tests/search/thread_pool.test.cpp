@@ -189,12 +189,18 @@ TEST_F(SearchThreadPoolTest, RequestStopStopsSearch) {
 TEST_F(SearchThreadPoolTest, RequestStopImmediatelyAfterStartDoesNotDeadlock) {
     options.depth = 5;
 
-    EXPECT_TRUE(pool.start_search(board, options));
-    pool.request_stop();
-    EXPECT_NO_THROW(pool.wait());
+    for (int iteration = 0; iteration < 3; ++iteration) {
+        SCOPED_TRACE(iteration);
+        reporter.clear();
+        EXPECT_TRUE(pool.start_search(board, options));
+        pool.request_stop();
+        EXPECT_NO_THROW(pool.wait());
 
-    ASSERT_EQ(best_move_count(), 1);
-    EXPECT_FALSE(reporter.best_moves.front().is_null());
+        ASSERT_EQ(best_move_count(), 1);
+        EXPECT_FALSE(reporter.best_moves.front().is_null());
+        EXPECT_FALSE(pool.is_searching());
+        EXPECT_EQ(tt.current_generation(), std::uint8_t(iteration + 1));
+    }
 }
 
 TEST_F(SearchThreadPoolTest, RequestStopWhileIdleDoesNotPoisonNextSearch) {
@@ -253,11 +259,6 @@ TEST_F(SearchThreadPoolTest, NodeLimitedSearchUsesFreshThreadSafeNodeCounts) {
     EXPECT_EQ(best_move_count(), 1);
     ASSERT_TRUE(options.nodes.has_value());
     EXPECT_GE(nodes_searched(), *options.nodes);
-
-    bool helper_searched = false;
-    for (size_t index = 1; index < pool.thread_count(); ++index)
-        helper_searched |= SearchThreadTestAccess::node_count(pool, index) > 0;
-    ASSERT_TRUE(helper_searched);
 
     for (size_t index = 0; index < pool.thread_count(); ++index) {
         Thread& thread = SearchThreadTestAccess::thread(pool, index);

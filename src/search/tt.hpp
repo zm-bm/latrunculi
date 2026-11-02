@@ -139,7 +139,7 @@ public:
         return cluster_count * TTCluster::size;
     }
 
-    // Advance once before the root search releases helpers to access the table.
+    // Advance once before the root search starts helpers that access the table.
     void advance_generation() { generation = (generation + 1) & tt_generation_mask; }
     [[nodiscard]] std::uint8_t current_generation() const { return generation; }
 

@@ -82,16 +82,15 @@ private:
     std::optional<Move>     pending_best_move;
 
     // Search lifecycle.
-    bool      settle(Board& position);
-    void      reset_search_state();
-    void      clear_search_heuristics();
-    void      wait_for_stop() const noexcept;
-    void      build_root_lines();
-    EvalValue search_root();
-    RootLine  terminal_root_result() const;
-    bool      search_root_depth(int depth, EvalValue previous_value);
+    bool     settle(Board& position);
+    void     reset_search_state();
+    void     clear_search_heuristics();
+    void     wait_for_stop() const noexcept;
+    void     build_root_lines();
+    void     search_root();
+    RootLine terminal_root_result() const;
+    bool     search_root_depth(int depth, EvalValue previous_value);
     bool search_root_window(int search_depth, int nominal_depth, EvalValue alpha, EvalValue beta);
-    void finalize_root_result(EvalValue value);
     void prepare_final_result();
     void publish_final_result();
     void report_root_progress(const RootLine& line);

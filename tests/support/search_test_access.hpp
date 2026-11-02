@@ -49,7 +49,7 @@ public:
 
     static void build_root_lines(search::Worker& worker) { worker.build_root_lines(); }
 
-    static EvalValue search_root(search::Worker& worker) { return worker.search_root(); }
+    static void search_root(search::Worker& worker) { worker.search_root(); }
 
     static bool should_search_root_depth(const search::Worker& worker, int depth) noexcept {
         return worker.should_search_root_depth(depth);
