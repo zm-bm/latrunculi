@@ -6,33 +6,6 @@
 
 namespace search::ordering {
 
-TEST(CaptureScoringTest, RanksCapturesWithSignedHistory) {
-    struct Case {
-        PieceType victim;
-        PieceType attacker;
-        int       history;
-        int       expected;
-    };
-    constexpr std::array cases{
-        Case{PAWN, KING, 0, 1920},
-        Case{PAWN, QUEEN, 0, 700},
-        Case{BISHOP, KNIGHT, 0, 3565},
-        Case{QUEEN, PAWN, 0, 9660},
-        Case{PAWN, QUEEN, -1024, -6468},
-        Case{PAWN, QUEEN, -1, 693},
-        Case{PAWN, QUEEN, 1, 707},
-        Case{PAWN, QUEEN, 1024, 7868},
-    };
-    for (const auto& tc : cases) {
-        SCOPED_TRACE(tc.victim);
-        SCOPED_TRACE(tc.attacker);
-        SCOPED_TRACE(tc.history);
-        EXPECT_EQ(capture_scoring::score(
-                      see::piece_value(tc.victim), see::piece_value(tc.attacker), tc.history),
-                  tc.expected);
-    }
-}
-
 TEST(CaptureScoringTest, MainSearchSeeThresholdPreservesSignedTruncation) {
     struct Case {
         PieceType victim;

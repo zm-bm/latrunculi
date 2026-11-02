@@ -13,7 +13,7 @@ namespace {
 
 // Evasions share one range: promotions precede captures, which precede quiets.
 constexpr int EvasionCaptureScoreBase = 1 << 22;
-constexpr int PromotionScore          = EvasionCaptureScoreBase << 6;
+constexpr int PromotionScore          = 1 << 28;
 constexpr int DeferredCaptureScore    = 0;
 
 static_assert(QuietHistory::max_score < EvasionCaptureScoreBase);
@@ -46,24 +46,21 @@ Picker::Picker(Mode                  mode,
       state(state),
       context(context),
       mode(mode),
-      in_check(board.is_check()),
-      stage(Stage::TtMove) {
+      in_check(board.is_check()) {
     tt_move = validate_tt_hint(tt);
 
     if (mode == Mode::MainSearch && !in_check) {
-        for (Move hint : quiet_hint_candidates)
-            add_quiet_hint(hint);
+        for (Move move : quiet_hint_candidates) {
+            if (move.is_null() || is_quiet_hint(move) || move == tt_move)
+                continue;
+
+            if (move.type() == MOVE_PROM || board.is_capture(move) || !board.is_pseudo_legal(move))
+                continue;
+
+            assert(quiet_hint_count < QuietHintCapacity);
+            quiet_hints[quiet_hint_count++] = move;
+        }
     }
-}
-
-void Picker::add_quiet_hint(Move move) {
-    Move accepted = validate_quiet_hint(move);
-    if (accepted.is_null())
-        return;
-
-    assert(quiet_hint_count < QuietHintCapacity);
-    quiet_hints[quiet_hint_count] = accepted;
-    ++quiet_hint_count;
 }
 
 bool Picker::is_quiet_hint(Move move) const {
@@ -86,16 +83,6 @@ Move Picker::validate_tt_hint(Move move) const {
         return NULL_MOVE;
 
     if (mode == Mode::QSearch && !in_check && move.type() != MOVE_PROM && !board.is_capture(move))
-        return NULL_MOVE;
-
-    return move;
-}
-
-Move Picker::validate_quiet_hint(Move move) const {
-    if (move.is_null() || is_quiet_hint(move) || move == tt_move)
-        return NULL_MOVE;
-
-    if (move.type() == MOVE_PROM || board.is_capture(move) || !board.is_pseudo_legal(move))
         return NULL_MOVE;
 
     return move;
@@ -197,9 +184,7 @@ Move Picker::next() {
             const movegen::MoveList evasion_moves = movegen::generate_evasions(board);
             primary_range.end =
                 score_moves<ScorePolicy::Evasion>(evasion_moves, primary_range.next);
-            quiet_range.next = primary_range.end;
-            quiet_range.end  = primary_range.end;
-            stage            = Stage::PickEvasion;
+            stage = Stage::PickEvasion;
             [[fallthrough]];
         }
 
@@ -217,8 +202,6 @@ Move Picker::next() {
             primary_range.next                  = candidates.data();
             const movegen::MoveList noisy_moves = movegen::generate_noisy(board);
             primary_range.end = score_moves<ScorePolicy::Noisy>(noisy_moves, primary_range.next);
-            quiet_range.next  = primary_range.end;
-            quiet_range.end   = primary_range.end;
             stage             = Stage::PickEarlyNoisy;
             [[fallthrough]];
         }

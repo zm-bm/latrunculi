@@ -80,10 +80,8 @@ private:
            Move                  tt,
            QuietHintCandidates   quiet_hint_candidates = {});
 
-    void add_quiet_hint(Move move);
     bool is_quiet_hint(Move move) const;
     Move validate_tt_hint(Move move) const;
-    Move validate_quiet_hint(Move move) const;
 
     template <ScorePolicy Policy>
     Candidate score_move(Move move) const;

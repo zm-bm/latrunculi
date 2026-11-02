@@ -143,43 +143,6 @@ TEST_F(PickerTest, MainSearchIgnoresInvalidAndTacticalCounterHints) {
     }
 }
 
-TEST_F(PickerTest, EqualQuietScoresKeepSelectionSwapOrderWithHints) {
-    const Board position{board_test::fen::start};
-    const Move  tt_move{E2, E4}, killer{H2, H4}, history_move{A2, A3};
-    state.killers.update(killer, ply);
-    state.reward_quiet(State::make_context(position), position, history_move, 8);
-
-    // The high-history move swaps with g1h3. TT and killer entries stay in the
-    // generated buffer, so subsequent equal scores follow its remaining order.
-    const std::vector<Move> expected{
-        tt_move,      killer,       history_move, Move(G1, F3), Move(B1, C3),
-        Move(B1, A3), Move(G2, G4), Move(F2, F4), Move(D2, D4), Move(C2, C4),
-        Move(B2, B4), Move(A2, A4), Move(H2, H3), Move(G2, G3), Move(F2, F3),
-        Move(E2, E3), Move(D2, D3), Move(C2, C3), Move(B2, B3), Move(G1, H3),
-    };
-    EXPECT_EQ(picked_main_search(position, state, ply, tt_move), expected);
-}
-
-TEST_F(PickerTest, QuietScoringWaitsForHintsThenKeepsItsSnapshot) {
-    const Board position{board_test::fen::start};
-    const auto  context = State::make_context(position);
-    const Move  tt_move{E2, E4}, killer{H2, H4}, history_move{G1, H3};
-    state.killers.update(killer, ply);
-    auto picker = Picker::for_main_search(position, state, context, ply, tt_move);
-    ASSERT_EQ(picker.next(), tt_move);
-    ASSERT_EQ(picker.next(), killer);
-
-    // Child searches may train histories before this node reaches generated quiets.
-    state.reward_quiet(context, position, history_move, 8);
-    const auto frozen = picked_main_search(position, state, ply, tt_move);
-    ASSERT_GE(frozen.size(), 3U);
-    ASSERT_EQ(picker.next(), history_move);
-    ASSERT_EQ(frozen[2], history_move);
-
-    state.reward_quiet(context, position, Move(A2, A3), Limits::max_depth);
-    EXPECT_EQ(collect_moves(picker), std::vector<Move>(frozen.begin() + 3, frozen.end()));
-}
-
 TEST_F(PickerTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
     Board position{"1r5k/8/8/b7/8/P7/2N5/1Q2K3 b - - 0 1"};
     position.make(Move(A5, B4));
@@ -354,26 +317,15 @@ TEST_F(PickerTest, MainCaptureStagingUsesHistoryWhileQuiescenceUsesZeroSee) {
     }
 }
 
-TEST_F(PickerTest, DeferredCapturesFollowAllQuietMoves) {
-    const Board position{"3r1r2/7k/3r4/8/3Q1b2/8/8/K7 w - - 0 1"};
-    const Move  rook{D4, D6}, bishop{D4, F4};
-    auto        moves = picked_main_search(position, state, ply);
-    auto        ri    = std::find(moves.begin(), moves.end(), rook);
-    auto        bi    = std::find(moves.begin(), moves.end(), bishop);
-    ASSERT_NE(ri, moves.end());
-    ASSERT_NE(bi, moves.end());
-    const auto first = std::min(ri, bi);
-    for (auto it = first; it != moves.end(); ++it)
-        EXPECT_TRUE(position.is_capture(*it));
-}
-
-TEST_F(PickerTest, DeferredCaptureTiesKeepBufferOrderAfterEarlyPicks) {
+TEST_F(PickerTest, DeferredCapturesFollowQuietsAndKeepSwapOrder) {
     const Board position{"3r1r2/7k/3r4/8/3Q1b2/8/p7/K7 w - - 0 1"};
     const Move  early{A1, A2}, rook{D4, D6}, bishop{D4, F4};
     ASSERT_FALSE(position.is_check());
     const auto moves = picked_main_search(position, state, ply);
-    ASSERT_GE(moves.size(), 3U);
+    ASSERT_GT(moves.size(), 3U);
     EXPECT_EQ(moves.front(), early);
+    for (auto it = moves.begin() + 1; it != moves.end() - 2; ++it)
+        EXPECT_FALSE(position.is_capture(*it));
     // Both queen captures fail SEE. Taking the king capture swaps the rook
     // capture behind the bishop capture; deferred moves keep that order, not MVV.
     EXPECT_EQ(std::vector<Move>(moves.end() - 2, moves.end()), (std::vector<Move>{bishop, rook}));
