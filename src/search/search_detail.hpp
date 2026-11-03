@@ -70,13 +70,6 @@ inline constexpr int CaptureLmrHistoryDivisor = 8192;
 inline constexpr int LateMovePruningDepth     = 2;
 inline constexpr int LateMovePruningMoveCount = 12;
 
-// Quiet-history malus defaults.
-inline constexpr int QuietMalusMinDepth  = 4;
-inline constexpr int QuietMalusMinFailed = 2;
-inline constexpr int QuietMalusDivisor   = 2;
-
-inline constexpr int CaptureHistoryMinRewardDepth = 3;
-
 // A cached score has no continuation, so PV nodes must search.
 template <NodeType Node>
 bool tt_cutoff_allowed(
@@ -162,29 +155,5 @@ inline int capture_lmr_reduction(double unrounded_reduction, int raw_capture_his
         std::clamp(-static_cast<double>(raw_capture_history) / CaptureLmrHistoryDivisor, -1.0, 1.0);
     return std::clamp(static_cast<int>(unrounded_reduction + adjustment), 0, depth - 2);
 }
-
-struct FailedMoves {
-    static constexpr int Capacity = 32;
-
-    bool add(Move move) {
-        if (count_ >= Capacity)
-            return false;
-
-        moves_[count_++] = move;
-        return true;
-    }
-
-    int size() const { return count_; }
-
-    template <typename Fn>
-    void for_each(Fn fn) const {
-        for (int i = 0; i < count_; ++i)
-            fn(moves_[i]);
-    }
-
-private:
-    Move moves_[Capacity];
-    int  count_{0};
-};
 
 } // namespace search::detail

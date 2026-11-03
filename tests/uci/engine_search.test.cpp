@@ -241,12 +241,16 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
     ASSERT_TRUE(search::tt.probe(board().tt_key()).record.has_value());
     ASSERT_EQ(search::tt.current_generation(), std::uint8_t{1});
 
+    const search::ordering::NodeContext context{
+        BLACK, search::ordering::NodeContext::previous_index(WHITE, PAWN, E4)};
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
-        auto& ordering_state =
-            SearchTestAccess::ordering_state(SearchThreadTestAccess::worker(thread_pool(), index));
-        ordering_state.quiets.reward(WHITE, E2, E4, 4);
-        ordering_state.captures.reward(WHITE, KNIGHT, E5, PAWN, 4);
-        ordering_state.continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
+        auto& ordering_history = SearchTestAccess::ordering_history(
+            SearchThreadTestAccess::worker(thread_pool(), index));
+        ordering_history.update_quiet_refutations(context, Move(G8, F6), 0);
+        SearchTestAccess::quiet_history_entry(ordering_history, WHITE, E2, E4)             = 16;
+        SearchTestAccess::capture_history_entry(ordering_history, WHITE, KNIGHT, E5, PAWN) = 256;
+        SearchTestAccess::continuation_history_entry(
+            ordering_history, WHITE, PAWN, E4, KNIGHT, F6) = 16;
     }
 
     EXPECT_TRUE(execute("ucinewgame"));
@@ -255,11 +259,16 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
     EXPECT_EQ(search::tt.current_generation(), std::uint8_t{0});
 
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
-        auto& ordering_state =
-            SearchTestAccess::ordering_state(SearchThreadTestAccess::worker(thread_pool(), index));
-        EXPECT_EQ(ordering_state.quiets.get(WHITE, E2, E4), 0);
-        EXPECT_EQ(ordering_state.captures.get(WHITE, KNIGHT, E5, PAWN), 0);
-        EXPECT_EQ(ordering_state.continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 0);
+        auto& ordering_history = SearchTestAccess::ordering_history(
+            SearchThreadTestAccess::worker(thread_pool(), index));
+        EXPECT_EQ(ordering_history.primary_killer(0), NULL_MOVE);
+        EXPECT_EQ(ordering_history.counter_hint(context), NULL_MOVE);
+        EXPECT_EQ(SearchTestAccess::quiet_history_entry(ordering_history, WHITE, E2, E4), 0);
+        EXPECT_EQ(
+            SearchTestAccess::capture_history_entry(ordering_history, WHITE, KNIGHT, E5, PAWN), 0);
+        EXPECT_EQ(SearchTestAccess::continuation_history_entry(
+                      ordering_history, WHITE, PAWN, E4, KNIGHT, F6),
+                  0);
     }
 }
 

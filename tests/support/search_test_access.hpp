@@ -13,8 +13,53 @@ public:
     static int& root_iteration_depth(search::Worker& worker) { return worker.root_iteration_depth; }
     static void set_nodes(search::Worker& worker, NodeCount n) { worker.nodes.store(n); }
 
-    static search::ordering::State& ordering_state(search::Worker& worker) {
-        return worker.ordering_state;
+    static search::ordering::History& ordering_history(search::Worker& worker) {
+        return worker.ordering_history;
+    }
+
+    // Direct slots are for fixture seeding and inspection, not production updates.
+    static auto&
+    quiet_history_entry(search::ordering::History& history, Color side, Square from, Square to) {
+        return history.quiet_scores[side][from][to];
+    }
+
+    static auto& capture_history_entry(search::ordering::History& history,
+                                       Color                      side,
+                                       PieceType                  piece,
+                                       Square                     to,
+                                       PieceType                  victim) {
+        return history.capture_scores[side][piece_slot(piece)][to][piece_slot(victim)];
+    }
+
+    static auto& continuation_history_entry(search::ordering::History& history,
+                                            Color                      previous_side,
+                                            PieceType                  previous_piece,
+                                            Square                     previous_to,
+                                            PieceType                  piece,
+                                            Square                     to) {
+        return (*history.continuation_scores)[search::ordering::History::continuation_index(
+            search::ordering::NodeContext::previous_index(
+                previous_side, previous_piece, previous_to),
+            piece,
+            to)];
+    }
+
+    static auto& continuation_history_entry(search::ordering::History&           history,
+                                            const search::ordering::NodeContext& context,
+                                            PieceType                            piece,
+                                            Square                               to) {
+        return history.continuation_entry(context, piece, to);
+    }
+
+    static Move&
+    counter_move_entry(search::ordering::History& history, Color side, PieceType piece, Square to) {
+        return history
+            .counter_moves[search::ordering::NodeContext::previous_index(side, piece, to)];
+    }
+
+    static Move& counter_move_entry(search::ordering::History&           history,
+                                    const search::ordering::NodeContext& context) {
+        return history.counter_moves[context.previous_key];
     }
 
     static auto& frames(search::Worker& worker) { return worker.frames; }

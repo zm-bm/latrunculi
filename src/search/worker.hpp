@@ -11,7 +11,7 @@
 #include "search/instrumentation.hpp"
 #include "search/limits.hpp"
 #include "search/node_type.hpp"
-#include "search/ordering/state.hpp"
+#include "search/ordering/history.hpp"
 #include "search/reporter.hpp"
 #include "search/root_line.hpp"
 #include "search/search_frame.hpp"
@@ -51,7 +51,7 @@ private:
     int                   root_iteration_depth{0};
     RootLine              root_result;
     std::vector<RootLine> root_lines;
-    ordering::State       ordering_state;
+    ordering::History     ordering_history;
 
     std::array<SearchFrame, engine::max_search_ply> frames{};
 
