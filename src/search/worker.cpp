@@ -53,13 +53,11 @@ EvalValue Worker::search() {
 
     if (is_main_worker()) {
         tt.advance_generation();
-        thread_pool.release_helper_searches();
-    } else {
-        thread_pool.wait_for_helper_release();
+        thread_pool.start_helper_searches();
     }
 
     build_root_lines();
-    const EvalValue value = search_root();
+    search_root();
 
     if (is_main_worker()) {
         // Ponderhit leaves only ponder mode; an explicit infinite request still
@@ -70,7 +68,15 @@ EvalValue Worker::search() {
             wait_for_stop();
     }
 
-    finalize_root_result(value);
+    if (!root_result.completed && !stop_requested()) {
+        root_result.depth     = limits.depth;
+        root_result.completed = true;
+    }
+
+    if (!root_result.completed)
+        root_result.pv.clear();
+
+    publish_root_snapshot();
 
     if (is_main_worker())
         prepare_final_result();
@@ -123,19 +129,6 @@ RootLine Worker::terminal_root_result() const {
         .depth     = 0,
         .completed = true,
     };
-}
-
-void Worker::finalize_root_result(EvalValue value) {
-    if (!root_result.completed && !stop_requested()) {
-        root_result.value     = value;
-        root_result.depth     = limits.depth;
-        root_result.completed = true;
-    }
-
-    if (!root_result.completed)
-        root_result.pv.clear();
-
-    publish_root_snapshot();
 }
 
 void Worker::prepare_final_result() {

@@ -110,17 +110,8 @@ private:
     // the initial request; ponderhit only transitions this runtime flag.
     std::atomic<bool> pondering{false};
 
-    // Helper release gate.
-    std::mutex              helper_gate_mutex;
-    std::condition_variable helper_gate_cv;
-    bool                    helper_gate_open{false};
-
-    // Helper release gate control.
-    void close_helper_gate();
-    void release_helper_searches();
-    void wait_for_helper_release();
-
     // Helper worker control.
+    void start_helper_searches();
     void stop_helper_searches();
 
     // Ponder lifecycle.

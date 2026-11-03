@@ -70,8 +70,9 @@ private:
     template <bool Collecting>
     EvalValue evaluate_impl();
 
-    template <bool Collecting, Term term, Color C = WHITE>
-    TaperedScore evaluate_term();
+    template <bool Collecting>
+    TaperedScore
+    record_term(Term term, TaperedScore white, TaperedScore black = TaperedScore::Zero) const;
 
     template <bool Collecting, Color C>
     TaperedScore evaluate_pawns();
@@ -104,9 +105,6 @@ private:
     TaperedScore evaluate_bishop(const PieceContext& context) const;
 
     template <bool Collecting, Color C>
-    TaperedScore evaluate_bishop_blockers(const PieceContext& context) const;
-
-    template <bool Collecting, Color C>
     TaperedScore evaluate_rook(const PieceContext& context) const;
 
     template <bool Collecting, Color C>
@@ -123,9 +121,6 @@ private:
 
     template <Color C>
     TaperedScore evaluate_danger(Square king_sq) const;
-
-    template <Color C>
-    int calculate_raw_danger(Square king_sq) const;
 
     template <PieceType P>
     int calculate_check_danger(Bitboard safe_checks, Bitboard all_checks) const;
@@ -159,26 +154,29 @@ EvalValue Evaluator::evaluate_impl() {
     TaperedScore score;
 
     // Basic terms.
-    score += evaluate_term<Collecting, Term::Material>();
-    score += evaluate_term<Collecting, Term::PieceSquare>();
-    score += evaluate_term<Collecting, Term::Pawns, WHITE>()
-           - evaluate_term<Collecting, Term::Pawns, BLACK>();
-    score += evaluate_term<Collecting, Term::Knights, WHITE>()
-           - evaluate_term<Collecting, Term::Knights, BLACK>();
-    score += evaluate_term<Collecting, Term::Bishops, WHITE>()
-           - evaluate_term<Collecting, Term::Bishops, BLACK>();
-    score += evaluate_term<Collecting, Term::Rooks, WHITE>()
-           - evaluate_term<Collecting, Term::Rooks, BLACK>();
-    score += evaluate_term<Collecting, Term::Queens, WHITE>()
-           - evaluate_term<Collecting, Term::Queens, BLACK>();
+    score += record_term<Collecting>(Term::Material, board.base_terms().material());
+    score += record_term<Collecting>(Term::PieceSquare, board.base_terms().piece_square());
+    score += record_term<Collecting>(
+        Term::Pawns, evaluate_pawns<Collecting, WHITE>(), evaluate_pawns<Collecting, BLACK>());
+    score += record_term<Collecting>(Term::Knights,
+                                     evaluate_pieces<Collecting, WHITE, KNIGHT>(),
+                                     evaluate_pieces<Collecting, BLACK, KNIGHT>());
+    score += record_term<Collecting>(Term::Bishops,
+                                     evaluate_pieces<Collecting, WHITE, BISHOP>(),
+                                     evaluate_pieces<Collecting, BLACK, BISHOP>());
+    score += record_term<Collecting>(Term::Rooks,
+                                     evaluate_pieces<Collecting, WHITE, ROOK>(),
+                                     evaluate_pieces<Collecting, BLACK, ROOK>());
+    score += record_term<Collecting>(Term::Queens,
+                                     evaluate_pieces<Collecting, WHITE, QUEEN>(),
+                                     evaluate_pieces<Collecting, BLACK, QUEEN>());
 
     // Terms requiring data accumulated by basic terms.
-    score += evaluate_term<Collecting, Term::KingSafety, WHITE>()
-           - evaluate_term<Collecting, Term::KingSafety, BLACK>();
-    score += evaluate_term<Collecting, Term::Mobility, WHITE>()
-           - evaluate_term<Collecting, Term::Mobility, BLACK>();
-    score += evaluate_term<Collecting, Term::Threats, WHITE>()
-           - evaluate_term<Collecting, Term::Threats, BLACK>();
+    score += record_term<Collecting>(
+        Term::KingSafety, evaluate_king_safety<WHITE>(), evaluate_king_safety<BLACK>());
+    score +=
+        record_term<Collecting>(Term::Mobility, scores.mobility[WHITE], scores.mobility[BLACK]);
+    score += record_term<Collecting>(Term::Threats, scores.threats[WHITE], scores.threats[BLACK]);
 
     const Color        side_to_move   = board.side_to_move();
     const Color        stronger_side  = score.eg < 0 ? BLACK : WHITE;
@@ -283,29 +281,15 @@ inline void Evaluator::record_base_features() {
     });
 }
 
-/// dispatch a single eval term -> score
-template <bool Collecting, Term term, Color C>
-inline TaperedScore Evaluator::evaluate_term() {
-    TaperedScore score;
-
-    switch (term) {
-    case Term::Material:    score = board.base_terms().material(); break;
-    case Term::PieceSquare: score = board.base_terms().piece_square(); break;
-    case Term::Pawns:       score = evaluate_pawns<Collecting, C>(); break;
-    case Term::Knights:     score = evaluate_pieces<Collecting, C, KNIGHT>(); break;
-    case Term::Bishops:     score = evaluate_pieces<Collecting, C, BISHOP>(); break;
-    case Term::Rooks:       score = evaluate_pieces<Collecting, C, ROOK>(); break;
-    case Term::Queens:      score = evaluate_pieces<Collecting, C, QUEEN>(); break;
-    case Term::KingSafety:  score = evaluate_king_safety<C>(); break;
-    case Term::Mobility:    score = scores.mobility[C]; break;
-    case Term::Threats:     score = scores.threats[C]; break;
-    default:                break;
+// Record a term's computed color scores and return its white-relative total.
+template <bool Collecting>
+inline TaperedScore
+Evaluator::record_term(Term term, TaperedScore white, TaperedScore black) const {
+    if constexpr (Collecting) {
+        feature_record->record(term, WHITE, white);
+        feature_record->record(term, BLACK, black);
     }
-
-    if constexpr (Collecting)
-        feature_record->record(term, C, score);
-
-    return score;
+    return white - black;
 }
 
 /// eval pawn structure: isolated + backward + doubled + connected + passed
@@ -541,7 +525,8 @@ inline TaperedScore Evaluator::evaluate_minor_piece(const PieceContext& ctx,
 /// bishop eval: long diagonals + pawn block penalty
 template <bool Collecting, Color C>
 inline TaperedScore Evaluator::evaluate_bishop(const PieceContext& ctx) const {
-    TaperedScore score;
+    constexpr Color Opp = ~C;
+    TaperedScore    score;
 
     const Bitboard xray_moves = attacks::piece_moves<BISHOP>(ctx.square, ctx.pawns);
     if (bb::is_many(eval::masks::center_squares & xray_moves))
@@ -549,16 +534,7 @@ inline TaperedScore Evaluator::evaluate_bishop(const PieceContext& ctx) const {
             feature::piece_feature(feature::PieceFeature::BishopLongDiagonal),
             eval::bishop_long_diagonal);
 
-    score += evaluate_bishop_blockers<Collecting, C>(ctx);
-
-    return score;
-}
-
-/// penalize bishops blocked by pawns on the same color squares
-template <bool Collecting, Color C>
-inline TaperedScore Evaluator::evaluate_bishop_blockers(const PieceContext& ctx) const {
-    constexpr Color Opp = ~C;
-
+    // Penalize bishops blocked by pawns on the same color squares.
     const bool     dark_square = ctx.piece_bb & eval::masks::dark_squares;
     const Bitboard color_mask =
         dark_square ? eval::masks::dark_squares : eval::masks::light_squares;
@@ -570,10 +546,11 @@ inline TaperedScore Evaluator::evaluate_bishop_blockers(const PieceContext& ctx)
     const Bitboard pawn_chain = ctx.piece_bb & attacks::pawn_attacks<C>(ctx.pawns);
     const int blocking_factor = bb::count(blocked_pawns & eval::masks::center_files) + !pawn_chain;
 
-    return linear_feature<Collecting, C>(
-        feature::piece_feature(feature::PieceFeature::BishopBlockers),
-        eval::bishop_blockers,
-        pawn_count * blocking_factor);
+    score +=
+        linear_feature<Collecting, C>(feature::piece_feature(feature::PieceFeature::BishopBlockers),
+                                      eval::bishop_blockers,
+                                      pawn_count * blocking_factor);
+    return score;
 }
 
 /// rook eval: open/semi-open file bonus, closed+blocked penalty
@@ -681,18 +658,9 @@ inline TaperedScore Evaluator::evaluate_shelter_file(const Bitboard pawns,
     return score;
 }
 
-/// convert raw danger into score {mg=quadratic scaling, eg=linear scaling}
+/// king danger from checks, weak defenses, pins, and king-zone attackers
 template <Color C>
-inline TaperedScore Evaluator::evaluate_danger(Square king_sq) const {
-    const int danger  = calculate_raw_danger<C>(king_sq);
-    const int midgame = danger * danger / 2048;
-    const int endgame = danger / 8;
-    return {midgame, endgame};
-}
-
-/// return raw king danger metric (checks, weak defenses, pins, etc)
-template <Color C>
-int Evaluator::calculate_raw_danger(Square king_sq) const {
+TaperedScore Evaluator::evaluate_danger(Square king_sq) const {
     constexpr Color Opp = ~C;
 
     int danger = 0;
@@ -728,7 +696,7 @@ int Evaluator::calculate_raw_danger(Square king_sq) const {
     danger += eval::weak_king_zone_danger * bb::count(zones.king[C] & weak_defense);
     danger += eval::pinned_piece_danger * bb::count(board.blockers(C) & board.pieces(C));
 
-    return danger;
+    return {danger * danger / 2048, danger / 8};
 }
 
 /// scale danger non-linearly, 1 check = 1×, 2 checks = ~1.3×, 3 checks = 1.5×, asymptotes to 2×

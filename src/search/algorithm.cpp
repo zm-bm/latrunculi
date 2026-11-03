@@ -29,11 +29,11 @@ EvalValue draw_or_mate_score(const Board& board, int search_ply) {
 } // namespace
 
 // Main root search driver.
-EvalValue Worker::search_root() {
+void Worker::search_root() {
     // Terminal root: return immediately when no legal root move exists.
     if (root_lines.empty()) {
         root_result = terminal_root_result();
-        return root_result.value;
+        return;
     }
 
     // An exhausted budget must retain a legal fallback without completing a depth.
@@ -51,8 +51,6 @@ EvalValue Worker::search_root() {
         if (limits.has_mate_within_limit(root_result.value))
             break;
     }
-
-    return root_result.value;
 }
 
 bool Worker::should_search_root_depth(int depth) const noexcept {
@@ -385,8 +383,6 @@ EvalValue Worker::alphabeta(
         }
 
         // Step 11. Late-move reductions.
-        // If the reduced search beats alpha, research the move at full depth.
-        EvalValue  value;
         const auto base_reduction = algorithm_detail::lmr_reduction<Node>(
             depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer, declining);
         int        reduction            = base_reduction.plies;
@@ -405,38 +401,30 @@ EvalValue Worker::alphabeta(
                 base_reduction.unrounded, raw_capture_history, depth);
         stats.capture_lmr(
             capture_lmr_eligible, raw_capture_history, base_reduction.plies, reduction);
-        if (reduction > 0) {
-            stats.lmr_try(search_ply - 1);
+
+        // Step 12. Scout reduced moves and later PV moves before a full-depth search.
+        const bool scout = reduction > 0 || (Node == NodeType::Pv && !first_legal);
+        EvalValue  value;
+        if (scout) {
+            if (reduction > 0)
+                stats.lmr_try(search_ply - 1);
             value = -alphabeta<NodeType::NonPv>(
                 -alpha - 1, -alpha, depth - 1 - reduction, nullptr, true);
-            if (!stop_requested() && value > alpha) {
+        }
+
+        if (!scout || (!stop_requested() && value > alpha)) {
+            if (reduction > 0) {
                 stats.lmr_research(search_ply - 1);
                 stats.capture_research(capture_lmr_eligible, base_reduction.plies != reduction);
-                if constexpr (Node == NodeType::Pv) {
+            }
+            if constexpr (Node == NodeType::Pv) {
+                if (scout) {
                     stats.pvs_research(search_ply);
                     child_pv.clear();
-                    value = -alphabeta<NodeType::Pv>(
-                        -beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
-                } else {
-                    value = -alphabeta<NodeType::NonPv>(-beta, -alpha, depth - 1, nullptr, true);
                 }
             }
-        } else {
-            // Step 12. Principal variation search.
-            if constexpr (Node == NodeType::NonPv) {
-                value = -alphabeta<NodeType::NonPv>(-beta, -alpha, depth - 1, nullptr, true);
-            } else if (move_count == 1) {
-                value = -alphabeta<NodeType::Pv>(
-                    -beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
-            } else {
-                value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, depth - 1, nullptr, true);
-                if (!stop_requested() && value > alpha) {
-                    stats.pvs_research(search_ply);
-                    child_pv.clear();
-                    value = -alphabeta<NodeType::Pv>(
-                        -beta, -alpha, depth - 1, pv ? &child_pv : nullptr, true);
-                }
-            }
+            value = -alphabeta<Node>(
+                -beta, -alpha, depth - 1, Node == NodeType::Pv && pv ? &child_pv : nullptr, true);
         }
 
         board.unmake();

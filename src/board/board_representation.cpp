@@ -27,7 +27,6 @@ void copy_array(const T (&source)[Rows][Cols], T (&target)[Rows][Cols]) {
 Board::Board(std::string_view fen) {
     ply_states.reserve(engine::max_search_ply + 1);
     ply_states.emplace_back();
-    active_state = &ply_states.back();
     load_fen(fen);
 }
 
@@ -53,7 +52,6 @@ Board& Board::operator=(const Board& source) {
     absolute_ply      = source.absolute_ply;
     cached_base_terms = source.cached_base_terms;
 
-    active_state = &ply_states.back();
     return *this;
 }
 
@@ -74,8 +72,7 @@ void Board::clear_position() noexcept {
     turn               = WHITE;
     absolute_ply       = 0;
     ply_states.resize(1);
-    active_state = &ply_states.back();
-    ply_state()  = PlyState{};
+    ply_state() = PlyState{};
 }
 
 // Recompute the Zobrist key from piece placement and rule state.

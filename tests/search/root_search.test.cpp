@@ -60,9 +60,9 @@ protected:
 
     void build_lines() { SearchTestAccess::build_root_lines(worker); }
 
-    EvalValue root_search() {
+    void root_search() {
         build_lines();
-        return SearchTestAccess::search_root(worker);
+        SearchTestAccess::search_root(worker);
     }
 
     Move find_move(std::string_view move_string) {
@@ -102,7 +102,7 @@ TEST_F(RootSearchTest, DoesNotStoreRootPositionInTt) {
     load(board, 1);
     const PositionKey root_key = position().tt_key();
 
-    (void)root_search();
+    root_search();
     EXPECT_FALSE(tt.probe(root_key).record.has_value());
 }
 

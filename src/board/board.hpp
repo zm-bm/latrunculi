@@ -164,21 +164,20 @@ private:
     // HCE-specific incremental material and piece-square terms.
     eval::BaseTerms cached_base_terms;
 
-    // Reversible history from the loaded root; active_state points to ply_states.back().
+    // Reversible history from the loaded root; the final entry is the current state.
     std::vector<PlyState> ply_states;
-    PlyState*             active_state = nullptr;
 };
 
 // Inline ply-state storage definitions
 
 inline PlyState& Board::ply_state() noexcept {
-    assert(!ply_states.empty() && active_state == &ply_states.back());
-    return *active_state;
+    assert(!ply_states.empty());
+    return ply_states.back();
 }
 
 inline const PlyState& Board::ply_state() const noexcept {
-    assert(!ply_states.empty() && active_state == &ply_states.back());
-    return *active_state;
+    assert(!ply_states.empty());
+    return ply_states.back();
 }
 
 inline PlyState& Board::push_ply_state(Move move) {
@@ -186,7 +185,6 @@ inline PlyState& Board::push_ply_state(Move move) {
 
     const std::size_t previous_index = ply_states.size() - 1;
     PlyState&         state          = ply_states.emplace_back();
-    active_state                     = &state;
 
     const PlyState& previous = ply_states[previous_index];
     state.zkey               = previous.zkey;
@@ -199,7 +197,6 @@ inline PlyState& Board::push_ply_state(Move move) {
 inline void Board::pop_ply_state() noexcept {
     assert(ply_states.size() > 1);
     ply_states.pop_back();
-    active_state = &ply_states.back();
 }
 
 // Inline query definitions
