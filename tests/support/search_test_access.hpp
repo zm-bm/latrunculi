@@ -49,7 +49,22 @@ public:
                                   int                     depth,
                                   bool                    can_null      = true,
                                   Move                    excluded_move = NULL_MOVE) {
-        return worker.singular_extension<Node>(record, depth, can_null, excluded_move);
+        return worker
+            .singular_extension<Node>(
+                record, depth, can_null, excluded_move, -eval_value::inf, eval_value::inf)
+            .depth_adjustment;
+    }
+
+    static bool& singular_verification_active(search::Worker& worker) {
+        return worker.singular_verification_active;
+    }
+    template <search::NodeType Node = search::NodeType::NonPv>
+    static auto singular_result(search::Worker&         worker,
+                                const search::TTRecord& record,
+                                int                     depth,
+                                EvalValue               alpha,
+                                EvalValue               beta) {
+        return worker.singular_extension<Node>(record, depth, true, NULL_MOVE, alpha, beta);
     }
 
     template <search::NodeType Node>

@@ -49,6 +49,7 @@ private:
     Board                 board;
     int                   search_ply{0};
     int                   root_iteration_depth{0};
+    bool                  singular_verification_active{false};
     RootLine              root_result;
     std::vector<RootLine> root_lines;
     ordering::State       ordering_state;
@@ -109,8 +110,17 @@ private:
                         PrincipalVariation* pv            = nullptr,
                         bool                can_null      = true,
                         Move                excluded_move = NULL_MOVE);
+    struct SingularResult {
+        int                      depth_adjustment{0};
+        std::optional<EvalValue> cutoff;
+    };
     template <NodeType Node>
-    int singular_extension(const TTRecord& record, int depth, bool can_null, Move excluded_move);
+    SingularResult singular_extension(const TTRecord& record,
+                                      int             depth,
+                                      bool            can_null,
+                                      Move            excluded_move,
+                                      EvalValue       alpha,
+                                      EvalValue       beta);
 
     template <NodeType Node = NodeType::NonPv, bool UseTt = true>
     EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);

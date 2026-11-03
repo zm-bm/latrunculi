@@ -188,37 +188,60 @@ bool Worker::search_root_window(int       search_depth,
 
 // Verify that alternatives to a reliable TT move fail below its score.
 template <NodeType Node>
-int Worker::singular_extension(const TTRecord& record,
-                               int             depth,
-                               bool            can_null,
-                               Move            excluded_move) {
+Worker::SingularResult Worker::singular_extension(const TTRecord& record,
+                                                  int             depth,
+                                                  bool            can_null,
+                                                  Move            excluded_move,
+                                                  EvalValue       alpha,
+                                                  EvalValue       beta) {
     if (depth < algorithm_detail::SingularMinDepth || search_ply == 0
         || search_ply >= 2 * root_iteration_depth || search_ply + 1 >= engine::max_search_ply
         || !can_null || !excluded_move.is_null()
         || record.depth < depth - algorithm_detail::SingularTtDepthSlack
         || (record.bound != TTBound::Exact && record.bound != TTBound::LowerBound))
-        return 0;
+        return {};
 
     const EvalValue tt_score = record.score_at_ply(search_ply);
     if (std::abs(tt_score) >= eval_value::mate_bound || record.move.is_null()
         || !board.is_pseudo_legal(record.move) || !board.is_legal_pseudo_move(record.move))
-        return 0;
+        return {};
 
     const EvalValue singular_beta = tt_score - algorithm_detail::singular_margin(depth);
     if (singular_beta <= -eval_value::mate_bound || singular_beta >= eval_value::mate_bound)
-        return 0;
+        return {};
 
-    // Verification re-enters this ply; retain the ordinary path's evaluation state.
-    const auto      saved_eval = static_evals[search_ply];
-    const bool      saved_real = real_moves[search_ply];
-    const EvalValue value      = alphabeta<NodeType::NonPv>(
+    const bool positive_allowed = true;
+    // Only the new shortcuts are disabled in verifier descendants. Ordinary search remains intact.
+    const bool selectivity_allowed = Node == NodeType::NonPv && !singular_verification_active
+                                  && !board.is_check() && alpha > -eval_value::mate_bound
+                                  && alpha < eval_value::mate_bound
+                                  && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
+                                  && singular_beta - 1 > -eval_value::mate_bound;
+    const bool multicut_possible = selectivity_allowed && singular_beta >= beta;
+    const bool negative_possible = false;
+    if (!positive_allowed && !multicut_possible && !negative_possible)
+        return {};
+
+    // Verification re-enters this ply; preserve both its path state and any enclosing scope.
+    const auto saved_eval         = static_evals[search_ply];
+    const bool saved_real         = real_moves[search_ply];
+    const bool saved_verification = singular_verification_active;
+    singular_verification_active  = true;
+    const EvalValue value         = alphabeta<NodeType::NonPv>(
         singular_beta - 1, singular_beta, (depth - 1) / 2, nullptr, false, record.move);
-    static_evals[search_ply] = saved_eval;
-    real_moves[search_ply]   = saved_real;
-    if (stop_requested() || value >= singular_beta)
-        return 0;
+    static_evals[search_ply]     = saved_eval;
+    real_moves[search_ply]       = saved_real;
+    singular_verification_active = saved_verification;
+    if (stop_requested())
+        return {};
 
-    return 1;
+    if (value < singular_beta)
+        return {.depth_adjustment = positive_allowed ? 1 : 0};
+    if (multicut_possible)
+        return {.cutoff = singular_beta};
+    if (negative_possible)
+        return {.depth_adjustment = -1};
+    return {};
 }
 
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
@@ -358,11 +381,15 @@ EvalValue Worker::alphabeta(EvalValue           alpha,
                 && static_eval + algorithm_detail::FutilityMargin[depth] <= alpha;
     }
 
-    int extension = 0;
+    SingularResult singular;
     if (tt_record)
-        extension = singular_extension<Node>(*tt_record, depth, can_null, excluded_move);
+        singular =
+            singular_extension<Node>(*tt_record, depth, can_null, excluded_move, alpha, beta);
     if (stop_requested())
         return alpha;
+    // A multicut returns before the ordinary picker, TT store, or cutoff training.
+    if (singular.cutoff)
+        return *singular.cutoff;
 
     // Step 7. Move ordering and quiet-malus tracking.
     int       move_count = 0;
@@ -413,7 +440,7 @@ EvalValue Worker::alphabeta(EvalValue           alpha,
                 && ordering_state.quiet_score(context, board, move, true) < 0;
         }
 
-        const int child_depth = depth - 1 + (move == tt_move ? extension : 0);
+        const int child_depth = depth - 1 + (move == tt_move ? singular.depth_adjustment : 0);
         board.make(move, algorithm_detail::prefetch_child_tt);
         ++search_ply;
 
@@ -778,8 +805,10 @@ template EvalValue
 Worker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, PrincipalVariation*, bool, Move);
 template EvalValue
 Worker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*, bool, Move);
-template int Worker::singular_extension<NodeType::Pv>(const TTRecord&, int, bool, Move);
-template int Worker::singular_extension<NodeType::NonPv>(const TTRecord&, int, bool, Move);
+template Worker::SingularResult
+Worker::singular_extension<NodeType::Pv>(const TTRecord&, int, bool, Move, EvalValue, EvalValue);
+template Worker::SingularResult
+Worker::singular_extension<NodeType::NonPv>(const TTRecord&, int, bool, Move, EvalValue, EvalValue);
 template EvalValue
 Worker::quiescence<NodeType::Pv, true>(EvalValue, EvalValue, PrincipalVariation*);
 template EvalValue
