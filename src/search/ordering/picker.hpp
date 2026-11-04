@@ -60,6 +60,29 @@ public:
     }
 
     template <Batch Which, CandidateState State = CandidateState::Ready, typename Eligible>
+    Move take_best(Eligible eligible) {
+        Candidate* selected = best<Which, State>(eligible);
+        return selected ? take<Which>(selected) : NULL_MOVE;
+    }
+
+    template <Batch Which, CandidateState State = CandidateState::Ready>
+    Move take_best() {
+        return take_best<Which, State>([](const Candidate&) { return true; });
+    }
+
+    // Test acceptance only after ranking. Rejected candidates stay in place for later.
+    template <typename Accept>
+    Move take_best_or_defer(Accept accept) {
+        while (Candidate* selected = best<Batch::Primary>()) {
+            if (accept(*selected))
+                return take<Batch::Primary>(selected);
+            defer(*selected);
+        }
+        return NULL_MOVE;
+    }
+
+private:
+    template <Batch Which, CandidateState State = CandidateState::Ready, typename Eligible>
     Candidate* best(Eligible eligible) {
         auto&      range      = range_for<Which>();
         Candidate* best       = nullptr;
@@ -97,7 +120,6 @@ public:
         candidate.score = 0;
     }
 
-private:
     struct Range {
         Candidate* next{nullptr};
         Candidate* end{nullptr};

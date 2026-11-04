@@ -304,6 +304,12 @@ TEST_F(PickerTest, DeferredCapturesFollowQuietsAndKeepSwapOrder) {
     // capture behind the bishop capture; deferred moves keep that order, not MVV.
     EXPECT_EQ(std::vector<Move>(moves.end() - 2, moves.end()), (std::vector<Move>{bishop, rook}));
     EXPECT_EQ(picked_qsearch(position, history), (std::vector<Move>{early}));
+
+    // Emitting the king capture as a TT hint excludes its slot without a selection swap.
+    const auto hinted = picked_main_search(position, history, ply, early);
+    ASSERT_EQ(hinted.size(), moves.size());
+    EXPECT_EQ(hinted.front(), early);
+    EXPECT_EQ(std::vector<Move>(hinted.end() - 2, hinted.end()), (std::vector<Move>{rook, bishop}));
 }
 
 } // namespace search::ordering

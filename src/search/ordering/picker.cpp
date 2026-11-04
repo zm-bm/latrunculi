@@ -173,9 +173,8 @@ Move Picker<Mode>::next_candidate() {
         }
 
         case Stage::PickEvasion: {
-            Candidate* best = candidates.best<Batch::Primary>();
-            if (best)
-                return candidates.take<Batch::Primary>(best);
+            if (Move move = candidates.take_best<Batch::Primary>(); !move.is_null())
+                return move;
             stage = Stage::Done;
             break;
         }
@@ -187,15 +186,12 @@ Move Picker<Mode>::next_candidate() {
         }
 
         case Stage::PickEarlyNoisy: {
-            while (Candidate* best = candidates.best<Batch::Primary>()) {
-                const Move move = best->move();
-                if (move.type() != MOVE_PROM && !board.see(move, best->see_threshold)) {
-                    // Main search revisits these after quiets; quiescence omits them.
-                    candidates.defer(*best);
-                    continue;
-                }
-                return candidates.take<Batch::Primary>(best);
-            }
+            const Move move = candidates.take_best_or_defer([this](const Candidate& candidate) {
+                const Move move = candidate.move();
+                return move.type() == MOVE_PROM || board.see(move, candidate.see_threshold);
+            });
+            if (!move.is_null())
+                return move;
 
             if constexpr (Mode == PickerMode::Quiescence)
                 stage = Stage::Done;
@@ -231,12 +227,12 @@ Move Picker<Mode>::next_candidate() {
 
         case Stage::PickQuiet: {
             if constexpr (Mode == PickerMode::MainSearch) {
-                Candidate* best = candidates.best<Batch::Quiet>([this](const Candidate& candidate) {
-                    const Move move = candidate.move();
-                    return !quiet_checks_only || board.gives_check(move);
-                });
-                if (best)
-                    return candidates.take<Batch::Quiet>(best);
+                const Move move =
+                    candidates.take_best<Batch::Quiet>([this](const Candidate& candidate) {
+                        return !quiet_checks_only || board.gives_check(candidate.move());
+                    });
+                if (!move.is_null())
+                    return move;
                 stage = Stage::PickDeferredNoisy;
             } else {
                 stage = Stage::Done;
@@ -246,9 +242,9 @@ Move Picker<Mode>::next_candidate() {
 
         case Stage::PickDeferredNoisy: {
             if constexpr (Mode == PickerMode::MainSearch) {
-                Candidate* best = candidates.best<Batch::Primary, CandidateState::Deferred>();
-                if (best)
-                    return candidates.take<Batch::Primary>(best);
+                if (Move move = candidates.take_best<Batch::Primary, CandidateState::Deferred>();
+                    !move.is_null())
+                    return move;
             }
             stage = Stage::Done;
             break;
