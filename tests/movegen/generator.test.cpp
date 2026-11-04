@@ -1,8 +1,10 @@
 #include "movegen/generator.hpp"
+#include "movegen/generator_detail.hpp"
 
 #include <algorithm>
 #include <array>
 #include <iterator>
+#include <ranges>
 #include <string_view>
 #include <vector>
 
@@ -41,29 +43,52 @@ std::vector<MoveBits> sorted_union(std::vector<MoveBits> lhs, const std::vector<
 
 } // namespace
 
+static_assert(std::ranges::input_range<const movegen::LegalMoves>);
+
 TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
+    auto check_legal = [](const Board& board) {
+        std::vector<Move> expected;
+        for (Move move : movegen::detail::generate_pseudo_legal(board))
+            if (board.is_legal_pseudo_move(move))
+                expected.push_back(move);
+        std::vector<Move> actual;
+        for (Move move : movegen::LegalMoves(board))
+            actual.push_back(move);
+        EXPECT_EQ(actual, expected);
+        EXPECT_EQ(movegen::LegalMoves(board).empty(), expected.empty());
+        EXPECT_TRUE(movegen::LegalMoves(board).find([](Move) { return false; }).is_null());
+        if (!expected.empty())
+            EXPECT_EQ(
+                movegen::LegalMoves(board).find([&](Move move) { return move == expected.back(); }),
+                expected.back());
+    };
     Board      quiet_board{board_test::fen::start};
-    const auto quiet_moves = movegen::generate_non_evasions(quiet_board);
-    EXPECT_EQ(sorted_move_bits(movegen::generate_pseudo_legal(quiet_board)),
+    const auto quiet_moves = movegen::detail::generate_non_evasions(quiet_board);
+    EXPECT_EQ(sorted_move_bits(movegen::detail::generate_pseudo_legal(quiet_board)),
               sorted_move_bits(quiet_moves));
     std::vector<Move> emitted;
-    movegen::generate_non_evasions(quiet_board, [&](Move move, PieceType piece) {
-        EXPECT_EQ(piece, quiet_board.piece_type_on(move.from()));
-        emitted.push_back(move);
-    });
+    movegen::detail::generate<movegen::MoveGenType::NonEvasions>(
+        quiet_board, [&](Move move, PieceType piece) {
+            EXPECT_EQ(piece, quiet_board.piece_type_on(move.from()));
+            emitted.push_back(move);
+        });
     EXPECT_EQ(emitted, std::vector<Move>(quiet_moves.begin(), quiet_moves.end()));
+
+    check_legal(quiet_board);
 
     Board evasion_board{board_test::fen::check_evasion};
     ASSERT_TRUE(evasion_board.is_check());
-    const auto evasions = movegen::generate_evasions(evasion_board);
-    EXPECT_EQ(sorted_move_bits(movegen::generate_pseudo_legal(evasion_board)),
+    const auto evasions = movegen::detail::generate_evasions(evasion_board);
+    EXPECT_EQ(sorted_move_bits(movegen::detail::generate_pseudo_legal(evasion_board)),
               sorted_move_bits(evasions));
     emitted.clear();
-    movegen::generate_evasions(evasion_board, [&](Move move, PieceType piece) {
-        EXPECT_EQ(piece, evasion_board.piece_type_on(move.from()));
-        emitted.push_back(move);
-    });
+    movegen::detail::generate<movegen::MoveGenType::Evasions>(
+        evasion_board, [&](Move move, PieceType piece) {
+            EXPECT_EQ(piece, evasion_board.piece_type_on(move.from()));
+            emitted.push_back(move);
+        });
     EXPECT_EQ(emitted, std::vector<Move>(evasions.begin(), evasions.end()));
+    check_legal(evasion_board);
 }
 
 TEST(MoveGeneratorTest, EnPassantCanInterposeAgainstSliderCheck) {
@@ -82,7 +107,7 @@ TEST(MoveGeneratorTest, EnPassantCanInterposeAgainstSliderCheck) {
         ASSERT_TRUE(board.is_check()) << test.fen;
         ASSERT_TRUE(board.is_legal_move(test.move)) << test.fen;
 
-        const movegen::MoveList evasions = movegen::generate_evasions(board);
+        const movegen::MoveList evasions = movegen::detail::generate_evasions(board);
         EXPECT_NE(std::find(evasions.begin(), evasions.end(), test.move), evasions.end())
             << test.fen;
     }
@@ -102,9 +127,9 @@ TEST(MoveGeneratorTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
         Board board{fen};
         ASSERT_FALSE(board.is_check()) << fen;
 
-        const auto non_evasions = sorted_move_bits(movegen::generate_non_evasions(board));
-        const auto noisy        = sorted_move_bits(movegen::generate_noisy(board));
-        const auto quiet        = sorted_move_bits(movegen::generate_quiet(board));
+        const auto non_evasions = sorted_move_bits(movegen::detail::generate_non_evasions(board));
+        const auto noisy        = sorted_move_bits(movegen::detail::generate_noisy(board));
+        const auto quiet        = sorted_move_bits(movegen::detail::generate_quiet(board));
 
         EXPECT_FALSE(has_duplicates(non_evasions)) << fen;
         EXPECT_FALSE(has_duplicates(noisy)) << fen;
@@ -114,9 +139,16 @@ TEST(MoveGeneratorTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
 
         // List and callback outputs must preserve the same sequence in each mode.
         auto check_emission = [&]<movegen::MoveGenType Kind>() {
-            const auto        moves = movegen::generate<Kind>(board);
+            const auto moves = [&] {
+                if constexpr (Kind == movegen::MoveGenType::NonEvasions)
+                    return movegen::detail::generate_non_evasions(board);
+                else if constexpr (Kind == movegen::MoveGenType::Noisy)
+                    return movegen::detail::generate_noisy(board);
+                else
+                    return movegen::detail::generate_quiet(board);
+            }();
             std::vector<Move> emitted;
-            movegen::generate<Kind>(board, [&](Move move, PieceType piece) {
+            movegen::detail::generate<Kind>(board, [&](Move move, PieceType piece) {
                 EXPECT_EQ(piece, board.piece_type_on(move.from())) << move;
                 emitted.push_back(move);
             });
@@ -126,12 +158,12 @@ TEST(MoveGeneratorTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
         check_emission.template operator()<movegen::MoveGenType::Noisy>();
         check_emission.template operator()<movegen::MoveGenType::Quiet>();
 
-        for (const Move& move : movegen::generate_noisy(board)) {
+        for (const Move& move : movegen::detail::generate_noisy(board)) {
             EXPECT_TRUE(move.type() == MOVE_PROM || board.is_capture(move))
                 << move << " in " << fen;
         }
 
-        for (const Move& move : movegen::generate_quiet(board)) {
+        for (const Move& move : movegen::detail::generate_quiet(board)) {
             EXPECT_NE(move.type(), MOVE_PROM) << move << " in " << fen;
             EXPECT_FALSE(board.is_capture(move)) << move << " in " << fen;
         }
@@ -142,7 +174,7 @@ TEST(MoveGeneratorTest, DoubleCheckEvasionsContainOnlyKingMoves) {
     Board board{"R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
     ASSERT_TRUE(board.is_double_check());
 
-    const movegen::MoveList evasions = movegen::generate_evasions(board);
+    const movegen::MoveList evasions = movegen::detail::generate_evasions(board);
     ASSERT_FALSE(evasions.empty());
     for (const Move move : evasions)
         EXPECT_EQ(move.from(), E8) << move;

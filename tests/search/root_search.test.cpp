@@ -7,9 +7,9 @@
 
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
-#include "movegen/generator.hpp"
-#include "search/root_line.hpp"
+#include "movegen/generator_detail.hpp"
 #include "search/search_detail.hpp"
+#include "search/root_line.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -66,7 +66,7 @@ protected:
     }
 
     Move find_move(std::string_view move_string) {
-        for (Move move : movegen::generate_pseudo_legal(position())) {
+        for (Move move : movegen::detail::generate_pseudo_legal(position())) {
             if (move.str() == move_string && position().is_legal_pseudo_move(move))
                 return move;
         }
@@ -143,7 +143,7 @@ TEST_F(RootSearchTest, BuildsLegalRootCandidates) {
     load(board, 1);
 
     int expected = 0;
-    for (Move move : movegen::generate_pseudo_legal(position())) {
+    for (Move move : movegen::detail::generate_pseudo_legal(position())) {
         if (position().is_legal_pseudo_move(move))
             ++expected;
     }

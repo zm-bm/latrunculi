@@ -265,23 +265,13 @@ bool Engine::move(const std::string& arguments) {
 }
 
 bool Engine::moves() {
-    auto movelist = movegen::generate_pseudo_legal(board);
-    for (auto& move : movelist) {
-        if (!board.is_legal_pseudo_move(move))
-            continue;
+    for (Move move : movegen::LegalMoves(board))
         writer.diagnostic_line(move.str());
-    }
     return true;
 }
 
 Move Engine::find_legal_move(const Board& position, const std::string& token) const {
-    auto movelist = movegen::generate_pseudo_legal(position);
-    for (auto& move : movelist) {
-        if (move.str() == token && position.is_legal_pseudo_move(move)) {
-            return move;
-        }
-    }
-    return NULL_MOVE;
+    return movegen::LegalMoves(position).find([&](Move move) { return move.str() == token; });
 }
 
 std::vector<Move> Engine::resolve_searchmoves(const std::vector<std::string>& tokens) const {

@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/generator_detail.hpp"
 #include "search/ordering/history.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_test_access.hpp"
@@ -93,7 +93,7 @@ TEST_F(PickerTest, ReturnsLegalMainAndQuiescenceMoves) {
         ASSERT_FALSE(position.is_check());
 
         movegen::MoveList expected_main, expected_qsearch;
-        for (Move move : movegen::generate_pseudo_legal(position)) {
+        for (Move move : movegen::detail::generate_pseudo_legal(position)) {
             if (!position.is_legal_pseudo_move(move))
                 continue;
             expected_main.add(move);
@@ -149,7 +149,7 @@ TEST_F(PickerTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
     EXPECT_EQ(baseline[2], queen_capture);
     expect_capture_before_quiets(position, baseline, queen_capture, true);
     movegen::MoveList expected;
-    for (Move move : movegen::generate_evasions(position)) {
+    for (Move move : movegen::detail::generate_evasions(position)) {
         if (position.is_legal_pseudo_move(move))
             expected.add(move);
     }

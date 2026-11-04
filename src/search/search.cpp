@@ -41,11 +41,8 @@ private:
 // Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
 EvalValue draw_or_mate_score(const Board& board, int search_ply) {
     if (board.halfmove_clock() >= 100 && board.is_check()) {
-        for (Move move : movegen::generate_evasions(board)) {
-            if (board.is_legal_pseudo_move(move))
-                return eval_value::draw;
-        }
-        return -eval_value::mate + search_ply;
+        return movegen::LegalMoves(board).empty() ? -eval_value::mate + search_ply
+                                                  : eval_value::draw;
     }
     return eval_value::draw;
 }
@@ -615,11 +612,9 @@ bool Worker::settle(Board& position) {
     if (board.is_draw())
         return false;
 
-    for (Move move : movegen::generate_pseudo_legal(board)) {
-        if (board.is_legal_pseudo_move(move)) {
-            position = board;
-            return true;
-        }
+    if (!movegen::LegalMoves(board).empty()) {
+        position = board;
+        return true;
     }
     return false;
 }

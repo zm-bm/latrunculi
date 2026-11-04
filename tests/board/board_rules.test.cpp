@@ -6,7 +6,7 @@
 #include <array>
 #include <string_view>
 
-#include "movegen/generator.hpp"
+#include "movegen/generator_detail.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/board_snapshot.hpp"
 
@@ -135,7 +135,7 @@ TEST(BoardRulesTest, CachesLegalEnPassantForBothColorsIncludingCheckEvasion) {
         EXPECT_NE(with_enpassant.key(), without_enpassant.key());
         EXPECT_TRUE(with_enpassant.is_legal_move(test.move));
 
-        const auto moves = movegen::generate_pseudo_legal(with_enpassant);
+        const auto moves = movegen::detail::generate_pseudo_legal(with_enpassant);
         EXPECT_NE(std::find(moves.begin(), moves.end(), test.move), moves.end());
     }
 }
@@ -151,7 +151,7 @@ TEST(BoardRulesTest, AppliesLegalEnPassantCachePerCaptureOrigin) {
     EXPECT_FALSE(board.is_legal_move(pinned_capture));
     EXPECT_TRUE(board.is_legal_move(legal_capture));
 
-    const auto moves = movegen::generate_pseudo_legal(board);
+    const auto moves = movegen::detail::generate_pseudo_legal(board);
     ASSERT_NE(std::find(moves.begin(), moves.end(), pinned_capture), moves.end());
     ASSERT_NE(std::find(moves.begin(), moves.end(), legal_capture), moves.end());
     EXPECT_FALSE(board.is_legal_pseudo_move(pinned_capture));
@@ -194,7 +194,7 @@ TEST(BoardRulesTest, DoesNotCacheUnavailableEnPassantForEitherColor) {
         if (!test.rejected_move.is_null()) {
             EXPECT_TRUE(with_enpassant.is_pseudo_legal(test.rejected_move));
             EXPECT_FALSE(with_enpassant.is_legal_move(test.rejected_move));
-            const auto moves = movegen::generate_pseudo_legal(with_enpassant);
+            const auto moves = movegen::detail::generate_pseudo_legal(with_enpassant);
             EXPECT_EQ(std::find(moves.begin(), moves.end(), test.rejected_move), moves.end());
         }
     }

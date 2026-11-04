@@ -152,17 +152,23 @@ TEST_F(SearchThreadPoolTest, IsSearchingTracksLifecycle) {
 }
 
 TEST_F(SearchThreadPoolTest, MainWorkerCoordinatesHelperLifecycle) {
-    options.depth = 5;
+    options.infinite = true;
+    ASSERT_TRUE(pool.start_search(board, options));
 
-    EXPECT_TRUE(pool.start_search(board, options));
+    const auto helper_searched = [&] {
+        for (size_t index = 1; index < pool.thread_count(); ++index)
+            if (SearchThreadTestAccess::node_count(pool, index) > 0)
+                return true;
+        return false;
+    };
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+    while (!helper_searched() && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    pool.request_stop();
     pool.wait();
 
-    bool helper_searched = false;
-    for (size_t index = 1; index < pool.thread_count(); ++index) {
-        helper_searched |= SearchThreadTestAccess::node_count(pool, index) > 0;
-    }
-
-    EXPECT_TRUE(helper_searched);
+    EXPECT_TRUE(helper_searched());
     EXPECT_FALSE(pool.is_searching());
 }
 

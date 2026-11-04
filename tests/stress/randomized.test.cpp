@@ -21,7 +21,7 @@
 #include "core/attacks.hpp"
 #include "eval/evaluation.hpp"
 #include "eval/features.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/generator_detail.hpp"
 #include "search/limits.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
@@ -97,7 +97,7 @@ std::uint64_t case_seed(std::uint64_t seed, std::size_t case_index) {
 
 std::vector<Move> legal_moves(const Board& board) {
     std::vector<Move> moves;
-    for (const Move move : movegen::generate_pseudo_legal(board)) {
+    for (const Move move : movegen::detail::generate_pseudo_legal(board)) {
         if (board.is_legal_pseudo_move(move))
             moves.push_back(move);
     }
@@ -212,7 +212,7 @@ TEST(RandomizedStressTest, LegalPositionsRoundTripEvaluateAndSearch) {
             EXPECT_EQ(features.value, features.reconstruct());
             EXPECT_EQ(features.fixed_score, features.term(eval::Term::KingSafety).total());
 
-            for (Move move : movegen::generate_pseudo_legal(board)) {
+            for (Move move : movegen::detail::generate_pseudo_legal(board)) {
                 if (!board.is_capture(move) && move.type() != MOVE_PROM)
                     continue;
                 SCOPED_TRACE(std::format("SEE move: {}", move.str()));

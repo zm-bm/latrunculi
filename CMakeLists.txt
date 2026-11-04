@@ -48,6 +48,7 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/board/board_see.cpp
     src/board/fen_parser.cpp
     src/board/notation.cpp
+    src/movegen/generator.cpp
     src/movegen/perft.cpp
     src/eval/evaluation.cpp
     src/eval/features.cpp

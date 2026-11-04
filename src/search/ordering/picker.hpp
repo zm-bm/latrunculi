@@ -10,10 +10,6 @@
 #include "movegen/move_list.hpp"
 #include "search/ordering/history.hpp"
 
-namespace movegen {
-enum class MoveGenType;
-}
-
 namespace search::ordering {
 
 namespace detail {

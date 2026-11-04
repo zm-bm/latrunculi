@@ -4,7 +4,7 @@
 #include <span>
 
 #include "board/board.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/generator_detail.hpp"
 #include "search/ordering/capture_scoring.hpp"
 
 namespace search::ordering {
@@ -43,7 +43,7 @@ void load_candidates(CandidateBuffer&      candidates,
     assert((Kind == MoveGenType::Evasions) == board.is_check());
     constexpr Batch batch = Kind == MoveGenType::Quiet ? Batch::Quiet : Batch::Primary;
     candidates.load<batch>([&](auto&& append) {
-        movegen::generate<Kind>(board, [&](Move move, PieceType moving_piece) {
+        movegen::detail::generate<Kind>(board, [&](Move move, PieceType moving_piece) {
             Candidate candidate{.move_bits     = move.bits,
                                 .state         = CandidateState::Ready,
                                 .score         = 0,

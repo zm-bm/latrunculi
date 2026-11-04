@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-#include "movegen/generator.hpp"
+#include "movegen/generator_detail.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/see_oracle.hpp"
 
@@ -50,7 +50,7 @@ TEST(BoardSeeTest, ThresholdMatchesRecursiveOracleForSpecialPositions) {
          }) {
         const Board board{fen};
         SCOPED_TRACE(fen);
-        for (Move move : movegen::generate_pseudo_legal(board)) {
+        for (Move move : movegen::detail::generate_pseudo_legal(board)) {
             if (!board.is_capture(move) && move.type() != MOVE_PROM)
                 continue;
             SCOPED_TRACE(move.str());
