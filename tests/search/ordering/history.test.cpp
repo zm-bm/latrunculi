@@ -7,12 +7,12 @@
 namespace search::ordering {
 
 TEST(HistoryTest, QuietScoresCombineBaseAndContinuation) {
-    History              history;
-    const Board          board;
-    const NodeContext    positive{BLACK, NodeContext::previous_index(WHITE, PAWN, E4)};
-    const NodeContext    negative{WHITE, NodeContext::previous_index(BLACK, BISHOP, D4)};
-    const NodeContext    other_previous{BLACK, NodeContext::previous_index(WHITE, PAWN, D4)};
-    const Move           knight{G8, F6}, pawn{E2, E3};
+    History           history;
+    const Board       board;
+    const NodeContext positive{BLACK, NodeContext::previous_index(WHITE, PAWN, E4)};
+    const NodeContext negative{WHITE, NodeContext::previous_index(BLACK, BISHOP, D4)};
+    const NodeContext other_previous{BLACK, NodeContext::previous_index(WHITE, PAWN, D4)};
+    const Move        knight{G8, F6}, pawn{E2, E3};
     history.update_quiet(positive, board, knight, 9);
     history.update_quiet(negative, board, pawn, -9);
     EXPECT_EQ(history.base_quiet_score(BLACK, knight), 9);
@@ -49,12 +49,12 @@ TEST(HistoryTest, CaptureScoresPreserveGravityAndBounds) {
 }
 
 TEST(NodeLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
-    History              history;
-    const Board          board{"7k/8/8/b1p1b3/Q7/3N4/6P1/7K w - - 0 1"};
-    const NodeContext    context = NodeContext::from_board(board);
-    Instrumentation<>    stats;
-    NodeLearning         learning(board, history, context, 0, 40, NULL_MOVE, stats);
-    const Move           king{H1, G1}, pawn{G2, G3}, capture{D3, C5}, cutoff{A4, B4};
+    History           history;
+    const Board       board{"7k/8/8/b1p1b3/Q7/3N4/6P1/7K w - - 0 1"};
+    const NodeContext context = NodeContext::from_board(board);
+    Instrumentation<> stats;
+    NodeLearning      learning(board, history, context, 0, 40, NULL_MOVE, stats);
+    const Move        king{H1, G1}, pawn{G2, G3}, capture{D3, C5}, cutoff{A4, B4};
     learning.record_non_cutoff(king, false, false);
     learning.record_non_cutoff(pawn, false, false);
     learning.record_non_cutoff(capture, true, false);
@@ -65,13 +65,33 @@ TEST(NodeLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
     EXPECT_EQ(history.base_quiet_score(WHITE, king), -800);
     EXPECT_EQ(history.base_quiet_score(WHITE, pawn), -800);
     EXPECT_EQ(history.capture_history_score(board, capture), -2048);
+
+    history.clear();
+    stats.reset();
+    NodeLearning bounded(board, history, context, 0, 4, NULL_MOVE, stats);
+    for (int i = 0; i < 32; ++i) {
+        bounded.record_non_cutoff(king, false, false);
+        bounded.record_non_cutoff(capture, true, false);
+    }
+    const Move extra_capture{D3, E5};
+    bounded.record_non_cutoff(pawn, false, false);
+    bounded.record_non_cutoff(extra_capture, true, false);
+    bounded.record_cutoff(cutoff, false);
+    EXPECT_LT(history.base_quiet_score(WHITE, king), 0);
+    EXPECT_LT(history.capture_history_score(board, capture), 0);
+    EXPECT_EQ(history.base_quiet_score(WHITE, pawn), 0);
+    EXPECT_EQ(history.capture_history_score(board, extra_capture), 0);
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(stats.raw_counters().quiet_malus_failed_quiets, 32U);
+    EXPECT_EQ(stats.raw_counters().quiet_malus_updates, 32U);
+#endif
 }
 
 TEST(HistoryTest, QuietRefutationsRotateAndReplace) {
-    History              history;
-    const NodeContext    first_key{BLACK, NodeContext::previous_index(WHITE, PAWN, E4)};
-    const NodeContext    second_key{BLACK, NodeContext::previous_index(WHITE, PAWN, D4)};
-    const Move           first{C2, C4}, second{D2, D4}, third{E2, E4}, other_ply{G2, G3};
+    History           history;
+    const NodeContext first_key{BLACK, NodeContext::previous_index(WHITE, PAWN, E4)};
+    const NodeContext second_key{BLACK, NodeContext::previous_index(WHITE, PAWN, D4)};
+    const Move        first{C2, C4}, second{D2, D4}, third{E2, E4}, other_ply{G2, G3};
     history.update_quiet_refutations(first_key, first, 0);
     EXPECT_EQ(history.primary_killer(0), first);
     EXPECT_EQ(history.secondary_killer(0), NULL_MOVE);

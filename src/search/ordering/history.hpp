@@ -233,11 +233,10 @@ public:
             return;
 
         if (is_capture) {
-            if (!in_check && capture_count < FailedCapacity)
-                failed_captures[capture_count++] = move;
+            if (!in_check)
+                failed_captures.record(move);
         } else if (allow_quiet_malus && move != tt_move && !is_killer
-                   && quiet_count < FailedCapacity) {
-            failed_quiets[quiet_count++] = move;
+                   && failed_quiets.record(move)) {
             stats.quiet_malus_failed_quiet(depth);
         }
     }
@@ -248,22 +247,22 @@ public:
             stats.quiet_cutoff(depth);
             history.update_quiet_refutations(context, move, ply);
             history.update_quiet(context, board, move, quiet_bonus(depth));
-            if (allow_quiet_malus && quiet_count >= QuietMalusMinFailed) {
+            if (allow_quiet_malus && failed_quiets.size() >= QuietMalusMinFailed) {
                 const int penalty = -quiet_bonus(depth, QuietMalusDivisor);
-                for (int i = 0; i < quiet_count; ++i) {
-                    history.update_quiet(context, board, failed_quiets[i], penalty);
+                failed_quiets.for_each([&](Move failed) {
+                    history.update_quiet(context, board, failed, penalty);
                     stats.quiet_malus_update(depth);
-                }
+                });
             }
         }
         const bool reward_capture =
             is_capture && !is_promotion && depth >= CaptureHistoryMinRewardDepth;
-        if (!in_check && (reward_capture || capture_count != 0)) {
+        if (!in_check && (reward_capture || !failed_captures.empty())) {
             const int bonus = capture_bonus(depth);
             if (reward_capture)
                 history.update_capture(board, move, bonus);
-            for (int i = 0; i < capture_count; ++i)
-                history.update_capture(board, failed_captures[i], -bonus);
+            failed_captures.for_each(
+                [&](Move failed) { history.update_capture(board, failed, -bonus); });
         }
     }
 
@@ -276,6 +275,35 @@ private:
     static constexpr int CaptureLearningRate          = 16;
     static constexpr int CaptureMaxDepthBonus         = 128;
 
+    // Only recorded entries are initialized; both feedback lists share the same bound.
+    class FailedMoves {
+    public:
+        FailedMoves() : count(0) {}
+
+        bool record(Move move) {
+            if (count == FailedCapacity)
+                return false;
+            moves[count++] = move.bits;
+            return true;
+        }
+
+        int  size() const { return count; }
+        bool empty() const { return count == 0; }
+
+        template <typename Visit>
+        void for_each(Visit visit) const {
+            for (int i = 0; i < count; ++i) {
+                Move move;
+                move.bits = moves[i];
+                visit(move);
+            }
+        }
+
+    private:
+        std::array<MoveBits, FailedCapacity> moves;
+        int                                  count;
+    };
+
     static int quiet_bonus(int depth, int divisor = 1) {
         return std::clamp(depth * depth / std::max(1, divisor), 0, History::QuietMaxScore);
     }
@@ -284,19 +312,17 @@ private:
         return CaptureLearningRate * std::clamp(depth * depth, 0, CaptureMaxDepthBonus);
     }
 
-    const Board&                     board;
-    History&                         history;
-    const NodeContext                context;
-    const int                        ply;
-    const int                        depth;
-    const Move                       tt_move;
-    const bool                       in_check;
-    const bool                       allow_quiet_malus;
-    Instrumentation<>&               stats;
-    std::array<Move, FailedCapacity> failed_quiets;
-    std::array<Move, FailedCapacity> failed_captures;
-    int                              quiet_count{0};
-    int                              capture_count{0};
+    const Board&       board;
+    History&           history;
+    const NodeContext  context;
+    const int          ply;
+    const int          depth;
+    const Move         tt_move;
+    const bool         in_check;
+    const bool         allow_quiet_malus;
+    Instrumentation<>& stats;
+    FailedMoves        failed_quiets;
+    FailedMoves        failed_captures;
 };
 
 } // namespace search::ordering
