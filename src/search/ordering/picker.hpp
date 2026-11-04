@@ -141,29 +141,21 @@ private:
 
 } // namespace detail
 
-// Search mode is fixed by the picker type; both modes retain legal check evasions.
-enum class PickerMode : std::uint8_t { MainSearch, Quiescence };
-
-template <PickerMode Mode>
-class Picker {
+// Main search owns quiet hints and suppression; quiescence has no quiet stage.
+class MainPicker {
 public:
-    Picker(const Picker&)            = delete;
-    Picker(Picker&&)                 = delete;
-    Picker& operator=(const Picker&) = delete;
-    Picker& operator=(Picker&&)      = delete;
+    MainPicker(const Board&       board,
+               const History&     history,
+               const NodeContext& context,
+               int                ply,
+               Move               tt_move = NULL_MOVE);
+    MainPicker(const MainPicker&)            = delete;
+    MainPicker(MainPicker&&)                 = delete;
+    MainPicker& operator=(const MainPicker&) = delete;
+    MainPicker& operator=(MainPicker&&)      = delete;
 
-    Picker(const Board&       board,
-           const History&     history,
-           const NodeContext& context,
-           int                ply,
-           Move               tt_move = NULL_MOVE) requires(Mode == PickerMode::MainSearch);
-
-    Picker(const Board& board, const History& history, Move tt_move = NULL_MOVE)
-        requires(Mode == PickerMode::Quiescence);
-
-    // Returns ordered legal moves, filtering after selection to preserve swaps and ties.
-    // Restore the board to this node before each call. Hints are node-start snapshots;
-    // scores and SEE thresholds are captured when each stage loads, including lazy quiets.
+    // Restore this node before each call. Legality follows selection so swaps and ties
+    // survive filtering. Hints are node-start snapshots; scores freeze at batch loading.
     Move next() {
         for (Move move = next_candidate(); !move.is_null(); move = next_candidate()) {
             if (board.is_legal_pseudo_move(move))
@@ -171,20 +163,15 @@ public:
         }
         return NULL_MOVE;
     }
-    void skip_nonchecking_quiets() requires(Mode == PickerMode::MainSearch);
-
-    // Raw node-start snapshot, even if validation excludes it from the quiet hints.
-    Move counter_hint() const requires(Mode == PickerMode::MainSearch)
-    {
-        return counter_move;
-    }
+    void skip_nonchecking_quiets();
+    // Raw node-start snapshot, even if excluded from the validated quiet hints.
+    Move counter_hint() const { return counter_move; }
 
 private:
     enum class Stage : std::uint8_t {
         TtMove,
-        LoadEvasions,
+        LoadPrimary,
         PickEvasion,
-        LoadNoisy,
         PickEarlyNoisy,
         PickQuietHint,
         LoadQuiet,
@@ -192,35 +179,19 @@ private:
         PickDeferredNoisy,
         Done,
     };
-
-    using CandidateState  = detail::CandidateState;
-    using Batch           = detail::Batch;
-    using Candidate       = detail::Candidate;
-    using CandidateBuffer = detail::CandidateBuffer;
-
     static constexpr int QuietHintCapacity = 3;
     struct QuietHintCandidates {
         Move primary_killer;
         Move secondary_killer;
         Move counter;
     };
-
-    Picker(const Board&        board,
-           const History&      history,
-           const NodeContext&  context,
-           Move                tt,
-           QuietHintCandidates quiet_hint_candidates = {});
-
+    MainPicker(const Board&        board,
+               const History&      history,
+               const NodeContext&  context,
+               Move                tt,
+               QuietHintCandidates quiet_hint_candidates);
     Move next_candidate();
-
     bool is_quiet_hint(Move move) const;
-    Move validate_tt_hint(Move move) const;
-
-    template <movegen::MoveGenType Kind>
-    void load();
-
-    template <movegen::MoveGenType Kind>
-    Candidate score_move(Move move) const;
 
     const Board&                        board;
     const History&                      history;
@@ -229,17 +200,42 @@ private:
     Move                                tt_move{NULL_MOVE};
     const bool                          in_check;
     Stage                               stage{Stage::TtMove};
-    CandidateBuffer                     candidates;
+    detail::CandidateBuffer             candidates;
     std::array<Move, QuietHintCapacity> quiet_hints{};
     int                                 quiet_hint_count{0};
     int                                 quiet_hint_next{0};
     bool                                quiet_checks_only{false};
 };
 
-using MainPicker       = Picker<PickerMode::MainSearch>;
-using QuiescencePicker = Picker<PickerMode::Quiescence>;
+class QuiescencePicker {
+public:
+    QuiescencePicker(const Board& board, const History& history, Move tt_move = NULL_MOVE);
+    QuiescencePicker(const QuiescencePicker&)            = delete;
+    QuiescencePicker(QuiescencePicker&&)                 = delete;
+    QuiescencePicker& operator=(const QuiescencePicker&) = delete;
+    QuiescencePicker& operator=(QuiescencePicker&&)      = delete;
 
-extern template class Picker<PickerMode::MainSearch>;
-extern template class Picker<PickerMode::Quiescence>;
+    // Checked nodes return all legal evasions; ordinary nodes keep non-losing noisy
+    // moves. Capture history orders them, while the exchange threshold stays zero.
+    Move next() {
+        for (Move move = next_candidate(); !move.is_null(); move = next_candidate()) {
+            if (board.is_legal_pseudo_move(move))
+                return move;
+        }
+        return NULL_MOVE;
+    }
+
+private:
+    enum class Stage : std::uint8_t { TtMove, LoadPrimary, PickEvasion, PickNoisy, Done };
+    Move next_candidate();
+
+    const Board&            board;
+    const History&          history;
+    const NodeContext       context;
+    Move                    tt_move{NULL_MOVE};
+    const bool              in_check;
+    Stage                   stage{Stage::TtMove};
+    detail::CandidateBuffer candidates;
+};
 
 } // namespace search::ordering
