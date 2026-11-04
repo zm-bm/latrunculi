@@ -11,7 +11,8 @@ namespace search {
 
 // Principal variation line built during search.
 struct PrincipalVariation {
-    PrincipalVariation() noexcept = default;
+    // Keep unused move slots uninitialized, including during value initialization.
+    PrincipalVariation() noexcept : length(0) {}
 
     PrincipalVariation(const PrincipalVariation& rhs) noexcept { *this = rhs; }
     PrincipalVariation(PrincipalVariation&& rhs) noexcept { *this = rhs; }
@@ -45,7 +46,9 @@ struct PrincipalVariation {
 
     Move move_at(int index) const noexcept {
         assert(index >= 0 && index < length);
-        return moves[index];
+        Move move;
+        move.bits = moves[index];
+        return move;
     }
 
     // Replace this PV with head followed by child.
@@ -55,15 +58,15 @@ struct PrincipalVariation {
         const int child_length =
             child.length < engine::max_search_ply ? child.length : engine::max_search_ply;
 
-        moves[0] = head;
+        moves[0] = head.bits;
         std::copy_n(child.moves.begin(), child_length, moves.begin() + 1);
         length = child_length + 1;
     }
 
 private:
     // Only [0, length) is valid PV data.
-    std::array<Move, engine::max_search_ply + 1> moves;
-    int                                          length{0};
+    std::array<MoveBits, engine::max_search_ply + 1> moves;
+    int                                              length;
 };
 
 } // namespace search
