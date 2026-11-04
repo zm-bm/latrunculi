@@ -1,7 +1,5 @@
 #include "movegen/generator.hpp"
 
-#include <cassert>
-
 #include "movegen/generator_detail.hpp"
 
 namespace movegen::detail {
@@ -24,28 +22,9 @@ MoveList generate_list(const Board& board) {
 
 } // namespace
 
-MoveList generate_non_evasions(const Board& board) {
-    assert(!board.is_check());
-    return generate_list<MoveGenType::NonEvasions>(board);
-}
-
-MoveList generate_noisy(const Board& board) {
-    assert(!board.is_check());
-    return generate_list<MoveGenType::Noisy>(board);
-}
-
-MoveList generate_quiet(const Board& board) {
-    assert(!board.is_check());
-    return generate_list<MoveGenType::Quiet>(board);
-}
-
-MoveList generate_evasions(const Board& board) {
-    assert(board.is_check());
-    return generate_list<MoveGenType::Evasions>(board);
-}
-
 MoveList generate_pseudo_legal(const Board& board) {
-    return board.is_check() ? generate_evasions(board) : generate_non_evasions(board);
+    return board.is_check() ? generate_list<MoveGenType::Evasions>(board)
+                            : generate_list<MoveGenType::NonEvasions>(board);
 }
 
 } // namespace movegen::detail

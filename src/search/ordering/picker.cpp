@@ -40,7 +40,6 @@ void load_candidates(CandidateBuffer&      candidates,
                      std::span<const Move> quiet_hints = {}) {
     static_assert(Kind == MoveGenType::Evasions || Kind == MoveGenType::Noisy
                   || Kind == MoveGenType::Quiet);
-    assert((Kind == MoveGenType::Evasions) == board.is_check());
     constexpr Batch batch = Kind == MoveGenType::Quiet ? Batch::Quiet : Batch::Primary;
     candidates.load<batch>([&](auto&& append) {
         movegen::detail::generate<Kind>(board, [&](Move move, PieceType moving_piece) {

@@ -18,10 +18,6 @@ enum class MoveGenType { NonEvasions, Noisy, Evasions, Quiet };
 namespace detail {
 
 // Raw generation is shared by the public legal range and ordered candidate loading.
-MoveList generate_non_evasions(const Board& board);
-MoveList generate_noisy(const Board& board);
-MoveList generate_quiet(const Board& board);
-MoveList generate_evasions(const Board& board);
 MoveList generate_pseudo_legal(const Board& board);
 
 // Board geometry for one synchronous pass; kind and output belong to the operation.
@@ -245,6 +241,7 @@ private:
 // Promotions and en passant report PAWN; castling reports KING.
 template <MoveGenType Type, typename Emit>
 inline void generate(const Board& board, Emit&& output) {
+    assert((Type == MoveGenType::Evasions) == board.is_check());
     // Dispatch runtime side-to-move into a color-specialized hot path.
     if (board.side_to_move() == WHITE)
         Generator<WHITE>(board).run<Type>(output);

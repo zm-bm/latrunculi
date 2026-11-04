@@ -149,7 +149,7 @@ TEST_F(PickerTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
     EXPECT_EQ(baseline[2], queen_capture);
     expect_capture_before_quiets(position, baseline, queen_capture, true);
     movegen::MoveList expected;
-    for (Move move : movegen::detail::generate_evasions(position)) {
+    for (Move move : movegen::detail::generate_pseudo_legal(position)) {
         if (position.is_legal_pseudo_move(move))
             expected.add(move);
     }
