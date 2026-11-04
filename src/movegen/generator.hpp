@@ -58,11 +58,12 @@ public:
 private:
     template <typename Emit>
     static void emit(Emit&     output,
+                     PieceType moving_piece,
                      Square    from,
                      Square    to,
                      MoveType  type      = BASIC_MOVE,
                      PieceType promotion = KNIGHT) {
-        output(Move(from, to, type, promotion));
+        output(Move(from, to, type, promotion), moving_piece);
     }
 
     // Restricts non-king destinations according to the requested generation mode.
@@ -85,7 +86,7 @@ private:
 
         bb::scan<Us>(bitboard, [&](Square from) {
             Bitboard moves = attacks::piece_moves<P>(from, occupancy) & targets;
-            bb::scan<Us>(moves, [&](Square to) { emit(output, from, to); });
+            bb::scan<Us>(moves, [&](Square to) { emit(output, P, from, to); });
         });
     }
 
@@ -93,7 +94,7 @@ private:
     template <int Delta, typename Emit>
     void emit_pawn_moves(Bitboard moves, Emit& output) {
         constexpr int offset = (Us == WHITE) ? -Delta : Delta;
-        bb::scan<Us>(moves, [&](Square to) { emit(output, to + offset, to); });
+        bb::scan<Us>(moves, [&](Square to) { emit(output, PAWN, to + offset, to); });
     }
 
     template <int Delta, typename Emit>
@@ -103,10 +104,10 @@ private:
         bb::scan<Us>(moves, [&](Square to) {
             Square from = to + offset;
             // Emit promotions from highest to lowest material value.
-            emit(output, from, to, MOVE_PROM, QUEEN);
-            emit(output, from, to, MOVE_PROM, ROOK);
-            emit(output, from, to, MOVE_PROM, BISHOP);
-            emit(output, from, to, MOVE_PROM, KNIGHT);
+            emit(output, PAWN, from, to, MOVE_PROM, QUEEN);
+            emit(output, PAWN, from, to, MOVE_PROM, ROOK);
+            emit(output, PAWN, from, to, MOVE_PROM, BISHOP);
+            emit(output, PAWN, from, to, MOVE_PROM, KNIGHT);
         });
     }
 
@@ -115,7 +116,7 @@ private:
         constexpr int offset = (Us == WHITE) ? -Delta : Delta;
 
         if (bb::contains(attacks::pawn_shift<Delta, Us>(pawns), target))
-            emit(output, target + offset, target, MOVE_EP);
+            emit(output, PAWN, target + offset, target, MOVE_EP);
     }
 
     // Separates promotion pawns because every promotion is noisy.
@@ -200,7 +201,7 @@ private:
     void king_moves(Bitboard targets, Emit& output) {
         Bitboard moves = attacks::piece_moves<KING>(king_sq) & targets;
 
-        bb::scan<Us>(moves, [&](Square to) { emit(output, king_sq, to); });
+        bb::scan<Us>(moves, [&](Square to) { emit(output, KING, king_sq, to); });
 
         // Castling is quiet and cannot be an evasion because the king is already in check.
         if constexpr (Type == MoveGenType::NonEvasions || Type == MoveGenType::Quiet) {
@@ -209,10 +210,10 @@ private:
                 constexpr const auto& queenside = move_geometry::castling(CASTLE_QUEENSIDE, Us);
 
                 if (board.has_castling_right(CASTLE_KINGSIDE, Us) && can_castle<CASTLE_KINGSIDE>())
-                    emit(output, kingside.king_from, kingside.king_to, MOVE_CASTLE);
+                    emit(output, KING, kingside.king_from, kingside.king_to, MOVE_CASTLE);
                 if (board.has_castling_right(CASTLE_QUEENSIDE, Us)
                     && can_castle<CASTLE_QUEENSIDE>())
-                    emit(output, queenside.king_from, queenside.king_to, MOVE_CASTLE);
+                    emit(output, KING, queenside.king_from, queenside.king_to, MOVE_CASTLE);
             }
         }
     }
@@ -231,7 +232,8 @@ private:
     Bitboard     enemy_pieces;
 };
 
-// The output callable is borrowed for this synchronous generation pass.
+// Borrowed synchronous output receives (Move, original moving PieceType).
+// Promotions and en passant report PAWN; castling reports KING.
 template <MoveGenType Type, typename Emit>
 inline void generate(const Board& board, Emit&& output) {
     // Dispatch runtime side-to-move into a color-specialized hot path.
@@ -246,7 +248,7 @@ namespace detail {
 // One sink type lets equivalent geometry share instantiations across kinds.
 struct MoveListOutput {
     MoveList& moves;
-    void      operator()(Move move) const { moves.add(move); }
+    void      operator()(Move move, PieceType) const { moves.add(move); }
 };
 
 } // namespace detail

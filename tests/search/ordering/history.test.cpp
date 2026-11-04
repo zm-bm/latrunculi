@@ -18,7 +18,9 @@ TEST(HistoryTest, QuietScoresCombineBaseAndContinuation) {
     EXPECT_EQ(history.base_quiet_score(BLACK, knight), 9);
     EXPECT_EQ(history.base_quiet_score(WHITE, pawn), -9);
     EXPECT_EQ(history.quiet_score(positive, board, knight), 18);
+    EXPECT_EQ(history.quiet_score(positive, KNIGHT, knight), 18);
     EXPECT_EQ(history.quiet_score(negative, board, pawn), -18);
+    EXPECT_EQ(history.quiet_score(negative, PAWN, pawn), -18);
     EXPECT_EQ(history.base_quiet_score(WHITE, knight), 0);
     EXPECT_EQ(history.quiet_score(other_previous, board, knight), 9);
 
@@ -40,7 +42,9 @@ TEST(HistoryTest, CaptureScoresPreserveGravityAndBounds) {
         history.update_capture(black, black_move, -256);
     }
     EXPECT_EQ(history.capture_history_score(white, white_move), 757);
+    EXPECT_EQ(history.capture_history_score(WHITE, KNIGHT, E5, PAWN), 757);
     EXPECT_EQ(history.capture_history_score(black, black_move), -757);
+    EXPECT_EQ(history.capture_history_score(BLACK, ROOK, A3, QUEEN), -757);
     EXPECT_EQ(SearchTestAccess::capture_history_entry(history, WHITE, KNIGHT, E5, BISHOP), 0);
     history.update_capture(white, white_move, History::CaptureMaxScore);
     history.update_capture(black, black_move, -History::CaptureMaxScore);

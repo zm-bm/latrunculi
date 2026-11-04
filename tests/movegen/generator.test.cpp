@@ -47,7 +47,10 @@ TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
     EXPECT_EQ(sorted_move_bits(movegen::generate_pseudo_legal(quiet_board)),
               sorted_move_bits(quiet_moves));
     std::vector<Move> emitted;
-    movegen::generate_non_evasions(quiet_board, [&](Move move) { emitted.push_back(move); });
+    movegen::generate_non_evasions(quiet_board, [&](Move move, PieceType piece) {
+        EXPECT_EQ(piece, quiet_board.piece_type_on(move.from()));
+        emitted.push_back(move);
+    });
     EXPECT_EQ(emitted, std::vector<Move>(quiet_moves.begin(), quiet_moves.end()));
 
     Board evasion_board{board_test::fen::check_evasion};
@@ -56,7 +59,10 @@ TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
     EXPECT_EQ(sorted_move_bits(movegen::generate_pseudo_legal(evasion_board)),
               sorted_move_bits(evasions));
     emitted.clear();
-    movegen::generate_evasions(evasion_board, [&](Move move) { emitted.push_back(move); });
+    movegen::generate_evasions(evasion_board, [&](Move move, PieceType piece) {
+        EXPECT_EQ(piece, evasion_board.piece_type_on(move.from()));
+        emitted.push_back(move);
+    });
     EXPECT_EQ(emitted, std::vector<Move>(evasions.begin(), evasions.end()));
 }
 
@@ -110,7 +116,10 @@ TEST(MoveGeneratorTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
         auto check_emission = [&]<movegen::MoveGenType Kind>() {
             const auto        moves = movegen::generate<Kind>(board);
             std::vector<Move> emitted;
-            movegen::generate<Kind>(board, [&](Move move) { emitted.push_back(move); });
+            movegen::generate<Kind>(board, [&](Move move, PieceType piece) {
+                EXPECT_EQ(piece, board.piece_type_on(move.from())) << move;
+                emitted.push_back(move);
+            });
             EXPECT_EQ(emitted, std::vector<Move>(moves.begin(), moves.end())) << fen;
         };
         check_emission.template operator()<movegen::MoveGenType::NonEvasions>();

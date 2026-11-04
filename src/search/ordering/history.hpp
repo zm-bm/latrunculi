@@ -113,12 +113,15 @@ public:
     }
 
     int quiet_score(const NodeContext& context, const Board& board, Move move) const {
-        int score = base_quiet_score(context.side, move);
         if (!context.has_previous_move())
-            return score;
+            return base_quiet_score(context.side, move);
+        return quiet_score(context, board.piece_type_on(move.from()), move);
+    }
 
-        const PieceType piece = board.piece_type_on(move.from());
-        if (piece != NO_PIECETYPE)
+    // Generation already knows the original mover; no board lookup is needed.
+    int quiet_score(const NodeContext& context, PieceType piece, Move move) const {
+        int score = base_quiet_score(context.side, move);
+        if (context.has_previous_move() && piece != NO_PIECETYPE)
             score += continuation_entry(context, piece, move.to());
         return score;
     }
@@ -136,7 +139,14 @@ public:
     // Raw learned history; capture ordering applies its own scaling and material weights.
     int capture_history_score(const Board& board, Move move) const {
         assert(board.is_capture(move) && move.type() != MOVE_PROM);
-        return capture_entry(board, move);
+        return capture_history_score(board.side_to_move(),
+                                     board.piece_type_on(move.from()),
+                                     move.to(),
+                                     board.captured_piece_type(move));
+    }
+
+    int capture_history_score(Color side, PieceType piece, Square to, PieceType victim) const {
+        return capture_scores[side][piece_slot(piece)][to][piece_slot(victim)];
     }
 
     void update_capture(const Board& board, Move move, int adjustment) {
@@ -159,11 +169,6 @@ private:
     }
 
     Score& capture_entry(const Board& board, Move move) {
-        return capture_scores[board.side_to_move()][piece_slot(board.piece_type_on(move.from()))]
-                             [move.to()][piece_slot(board.captured_piece_type(move))];
-    }
-
-    const Score& capture_entry(const Board& board, Move move) const {
         return capture_scores[board.side_to_move()][piece_slot(board.piece_type_on(move.from()))]
                              [move.to()][piece_slot(board.captured_piece_type(move))];
     }

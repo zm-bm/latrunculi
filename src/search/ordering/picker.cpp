@@ -43,33 +43,36 @@ void load_candidates(CandidateBuffer&      candidates,
     assert((Kind == MoveGenType::Evasions) == board.is_check());
     constexpr Batch batch = Kind == MoveGenType::Quiet ? Batch::Quiet : Batch::Primary;
     candidates.load<batch>([&](auto&& append) {
-        movegen::generate<Kind>(board, [&](Move move) {
+        movegen::generate<Kind>(board, [&](Move move, PieceType moving_piece) {
             Candidate candidate{.move_bits     = move.bits,
                                 .state         = CandidateState::Ready,
                                 .score         = 0,
                                 .see_threshold = 0};
             if constexpr (Kind == MoveGenType::Quiet) {
-                candidate.score = history.quiet_score(context, board, move);
+                candidate.score = history.quiet_score(context, moving_piece, move);
             } else if (move.type() == MOVE_PROM) {
                 candidate.score = PromotionScore;
             } else if constexpr (Kind == MoveGenType::Evasions) {
                 if (board.is_capture(move)) {
                     const int victim   = see::piece_value(board.captured_piece_type(move));
-                    const int attacker = see::piece_value(board.piece_type_on(move.from()));
+                    const int attacker = see::piece_value(moving_piece);
                     candidate.score =
                         EvasionCaptureScoreBase + capture_scoring::material_score(victim, attacker);
                 } else {
                     candidate.score = history.base_quiet_score(context.side, move);
                 }
             } else {
-                const int victim         = see::piece_value(board.captured_piece_type(move));
-                const int attacker       = see::piece_value(board.piece_type_on(move.from()));
-                const int raw_history    = history.capture_history_score(board, move);
+                const PieceType victim         = board.captured_piece_type(move);
+                const int       victim_value   = see::piece_value(victim);
+                const int       attacker_value = see::piece_value(moving_piece);
+                const int       raw_history    = history.capture_history_score(
+                    board.side_to_move(), moving_piece, move.to(), victim);
                 const int scaled_history = raw_history / capture_scoring::HistoryScoreDivisor;
-                candidate.score          = capture_scoring::score(victim, attacker, scaled_history);
+                candidate.score =
+                    capture_scoring::score(victim_value, attacker_value, scaled_history);
                 if constexpr (HistorySee)
-                    candidate.see_threshold = capture_scoring::main_search_see_threshold(
-                        board.captured_piece_type(move), scaled_history);
+                    candidate.see_threshold =
+                        capture_scoring::main_search_see_threshold(victim, scaled_history);
             }
             bool excluded = move == tt_move;
             if constexpr (Kind == MoveGenType::Quiet) {
