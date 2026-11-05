@@ -135,63 +135,45 @@ void OrderedCandidates::load_quiets(const Board&           board,
 // Candidate storage and selection.
 
 inline Move OrderedCandidates::take_evasion() {
-    return take_best<Batch::Primary>();
+    return take(primary, best_ready(primary, [](Move) { return true; }));
 }
 
 // Test acceptance only after ranking. Rejected candidates stay in place for later.
 template <typename Accept>
 inline Move OrderedCandidates::take_noisy(Accept accept) {
-    while (Candidate* selected = best<Batch::Primary>()) {
+    while (Candidate* selected = best_ready(primary, [](Move) { return true; })) {
         if (accept(selected->move, selected->see_threshold))
-            return take<Batch::Primary>(selected);
-        defer(*selected);
+            return take(primary, selected);
+        // Defer in place, without swapping or advancing. Deferred scores tie at zero.
+        selected->state = CandidateState::Deferred;
+        selected->score = 0;
     }
     return NULL_MOVE;
 }
 
 template <typename Eligible>
 inline Move OrderedCandidates::take_quiet(Eligible eligible) {
-    return take_best<Batch::Quiet>(
-        [&](const Candidate& candidate) { return eligible(candidate.move); });
+    return take(quiet, best_ready(quiet, eligible));
 }
 
 inline Move OrderedCandidates::take_deferred_noisy() {
-    return take_best<Batch::Primary, CandidateState::Deferred>();
+    // Equal deferred scores select the first match in the current buffer order.
+    for (Candidate* candidate = primary.next; candidate != primary.end; ++candidate)
+        if (candidate->state == CandidateState::Deferred)
+            return take(primary, candidate);
+    return NULL_MOVE;
 }
 
-template <OrderedCandidates::Batch          Which,
-          OrderedCandidates::CandidateState State,
-          typename Eligible>
-inline Move OrderedCandidates::take_best(Eligible eligible) {
-    Candidate* selected = best<Which, State>(eligible);
-    return selected ? take<Which>(selected) : NULL_MOVE;
-}
-
-template <OrderedCandidates::Batch Which, OrderedCandidates::CandidateState State>
-inline Move OrderedCandidates::take_best() {
-    return take_best<Which, State>([](const Candidate&) { return true; });
-}
-
-template <OrderedCandidates::Batch Which>
-inline OrderedCandidates::Range& OrderedCandidates::range_for() {
-    if constexpr (Which == Batch::Primary)
-        return primary;
-    else
-        return quiet;
-}
-
-template <OrderedCandidates::Batch          Which,
-          OrderedCandidates::CandidateState State,
-          typename Eligible>
-inline OrderedCandidates::Candidate* OrderedCandidates::best(Eligible eligible) {
-    auto&      range      = range_for<Which>();
+template <typename Eligible>
+inline OrderedCandidates::Candidate* OrderedCandidates::best_ready(const Range& range,
+                                                                   Eligible     eligible) {
     Candidate* best       = nullptr;
     int        best_score = 0;
     for (Candidate* candidate = range.next; candidate != range.end; ++candidate) {
         // Strict comparison preserves the first tie in the current buffer order.
         const int score = candidate->score;
-        if ((best == nullptr || score > best_score) && candidate->state == State
-            && eligible(*candidate)) {
+        if ((best == nullptr || score > best_score) && candidate->state == CandidateState::Ready
+            && eligible(candidate->move)) {
             best       = candidate;
             best_score = score;
         }
@@ -199,25 +181,14 @@ inline OrderedCandidates::Candidate* OrderedCandidates::best(Eligible eligible) 
     return best;
 }
 
-template <OrderedCandidates::Batch Which, OrderedCandidates::CandidateState State>
-inline OrderedCandidates::Candidate* OrderedCandidates::best() {
-    return best<Which, State>([](const Candidate&) { return true; });
-}
-
-template <OrderedCandidates::Batch Which>
-inline Move OrderedCandidates::take(Candidate* best) {
-    auto& range = range_for<Which>();
+inline Move OrderedCandidates::take(Range& range, Candidate* selected) {
+    if (selected == nullptr)
+        return NULL_MOVE;
     // Retain excluded entries: removing them changes later selection ties.
-    std::swap(*range.next, *best);
+    std::swap(*range.next, *selected);
     const Move move = range.next->move;
     ++range.next;
     return move;
-}
-
-inline void OrderedCandidates::defer(Candidate& candidate) {
-    // Defer in place, without swapping or advancing. Deferred scores tie at zero.
-    candidate.state = CandidateState::Deferred;
-    candidate.score = 0;
 }
 
 namespace {

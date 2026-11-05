@@ -63,7 +63,6 @@ public:
 
 private:
     enum class CandidateState : std::uint8_t { Ready, Excluded, Deferred };
-    enum class Batch : std::uint8_t { Primary, Quiet };
 
     struct Candidate {
         // Scoring fills every field before the candidate becomes part of an active range.
@@ -80,25 +79,10 @@ private:
         Candidate* end{nullptr};
     };
 
-    template <Batch Which, CandidateState State = CandidateState::Ready, typename Eligible>
-    Move take_best(Eligible eligible);
+    template <typename Eligible>
+    static Candidate* best_ready(const Range& range, Eligible eligible);
 
-    template <Batch Which, CandidateState State = CandidateState::Ready>
-    Move take_best();
-
-    template <Batch Which>
-    Range& range_for();
-
-    template <Batch Which, CandidateState State = CandidateState::Ready, typename Eligible>
-    Candidate* best(Eligible eligible);
-
-    template <Batch Which, CandidateState State = CandidateState::Ready>
-    Candidate* best();
-
-    template <Batch Which>
-    Move take(Candidate* best);
-
-    void defer(Candidate& candidate);
+    static Move take(Range& range, Candidate* selected);
 
     std::array<Candidate, MoveCapacity> storage;
     // Evasions when in check, otherwise noisy moves; quiets load only if reached.
