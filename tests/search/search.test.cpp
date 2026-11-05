@@ -66,7 +66,7 @@ protected:
     }
 
     Move find_move(std::string_view move_string) {
-        return movegen::Moves<movegen::MovePolicy::Unordered>(position()).find([&](Move move) {
+        return movegen::UnorderedMoves(position()).find([&](Move move) {
             return move.str() == move_string;
         });
     }
@@ -108,8 +108,7 @@ protected:
     std::vector<Move> ordered_moves(Move tt_move = NULL_MOVE) {
         std::vector<Move> moves;
         const auto        context = history().context_for(position(), ply(), tt_move);
-        auto              picker =
-            movegen::Moves<movegen::MovePolicy::MainSearch>(position(), history(), context);
+        auto              picker  = movegen::MainSearchMoves(position(), history(), context);
         for (Move move = picker.next(); !move.is_null(); move = picker.next())
             moves.push_back(move);
         return moves;

@@ -277,7 +277,7 @@ TEST(BoardMoveTest, TTKeyReadyCallbackMatchesCompletedPositionAcrossMoveTypes) {
         Board      board(fen);
         const auto before = board_test::snapshot_board(board);
 
-        movegen::Moves<movegen::MovePolicy::Unordered> moves(board);
+        movegen::UnorderedMoves moves(board);
         for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
 
             SCOPED_TRACE(testing::Message() << fen << " move=" << move);

@@ -111,7 +111,7 @@ void Worker::build_root_lines() {
 
     // Root candidates start in ordered-stream order.
     const auto context = history.context_for(board, 0);
-    auto       moves   = movegen::Moves<movegen::MovePolicy::MainSearch>(board, history, context);
+    auto       moves   = movegen::MainSearchMoves(board, history, context);
 
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         if (limits.allows_root_move(move))

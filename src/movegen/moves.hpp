@@ -69,6 +69,11 @@ private:
     MoveSource<Policy> source;
 };
 
+// Named policies keep call sites explicit while sharing one traversal interface.
+using UnorderedMoves  = Moves<MovePolicy::Unordered>;
+using MainSearchMoves = Moves<MovePolicy::MainSearch>;
+using QuiescenceMoves = Moves<MovePolicy::Quiescence>;
+
 // Candidate storage and selection.
 
 inline constexpr std::size_t MoveCapacity = 256;

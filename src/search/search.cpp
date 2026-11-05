@@ -40,9 +40,8 @@ private:
 // Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
 EvalValue draw_or_mate_score(const Board& board, int search_ply) {
     if (board.halfmove_clock() >= 100 && board.is_check()) {
-        return movegen::Moves<movegen::MovePolicy::Unordered>(board).next().is_null()
-                 ? -eval_value::mate + search_ply
-                 : eval_value::draw;
+        return movegen::UnorderedMoves(board).next().is_null() ? -eval_value::mate + search_ply
+                                                               : eval_value::draw;
     }
     return eval_value::draw;
 }
@@ -251,7 +250,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
     Move      best_move  = NULL_MOVE;
 
     const auto context = history.context_for(board, search_ply, tt_move);
-    auto       moves   = movegen::Moves<movegen::MovePolicy::MainSearch>(board, history, context);
+    auto       moves   = movegen::MainSearchMoves(board, history, context);
 
     PrincipalVariation child_pv;
     std::optional<HistoryLearning> learning;
@@ -502,7 +501,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
             alpha = best_value;
     }
 
-    auto moves = movegen::Moves<movegen::MovePolicy::Quiescence>(board, history, tt_move);
+    auto               moves = movegen::QuiescenceMoves(board, history, tt_move);
     PrincipalVariation child_pv;
 
     // Step 5. Tactical move or evasion loop.
@@ -612,7 +611,7 @@ bool Worker::settle(Board& position) {
     if (board.is_draw())
         return false;
 
-    if (!movegen::Moves<movegen::MovePolicy::Unordered>(board).next().is_null()) {
+    if (!movegen::UnorderedMoves(board).next().is_null()) {
         position = board;
         return true;
     }

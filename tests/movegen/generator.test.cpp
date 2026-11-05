@@ -40,13 +40,13 @@ bool are_disjoint(const std::vector<Move>& lhs, const std::vector<Move>& rhs) {
 
 } // namespace
 
-static_assert(!std::is_copy_constructible_v<movegen::Moves<movegen::MovePolicy::Unordered>>);
-static_assert(!std::is_move_constructible_v<movegen::Moves<movegen::MovePolicy::Unordered>>);
-static_assert(std::is_constructible_v<movegen::Moves<movegen::MovePolicy::MainSearch>,
+static_assert(!std::is_copy_constructible_v<movegen::UnorderedMoves>);
+static_assert(!std::is_move_constructible_v<movegen::UnorderedMoves>);
+static_assert(std::is_constructible_v<movegen::MainSearchMoves,
                                       const Board&,
                                       const search::History&,
                                       const search::OrderingContext&>);
-static_assert(!std::is_constructible_v<movegen::Moves<movegen::MovePolicy::MainSearch>,
+static_assert(!std::is_constructible_v<movegen::MainSearchMoves,
                                        const Board&,
                                        const search::History&,
                                        search::OrderingContext&&>);
@@ -57,15 +57,14 @@ TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
         for (Move move : board_test::pseudo_legal_moves(board))
             if (board.is_legal_pseudo_move(move))
                 expected.push_back(move);
-        std::vector<Move>                              actual;
-        movegen::Moves<movegen::MovePolicy::Unordered> moves(board);
+        std::vector<Move>       actual;
+        movegen::UnorderedMoves moves(board);
         for (Move move = moves.next(); !move.is_null(); move = moves.next())
             actual.push_back(move);
         EXPECT_EQ(actual, expected);
         EXPECT_TRUE(moves.next().is_null());
-        EXPECT_EQ(movegen::Moves<movegen::MovePolicy::Unordered>(board).next().is_null(),
-                  expected.empty());
-        movegen::Moves<movegen::MovePolicy::Unordered> matches(board);
+        EXPECT_EQ(movegen::UnorderedMoves(board).next().is_null(), expected.empty());
+        movegen::UnorderedMoves matches(board);
         if (expected.size() > 1) {
             const std::size_t middle = expected.size() / 2 - 1;
             EXPECT_EQ(matches.find([&](Move move) { return move == expected[middle]; }),
@@ -93,7 +92,7 @@ TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
     ASSERT_TRUE(pinned.is_pseudo_legal(illegal));
     ASSERT_FALSE(pinned.is_legal_pseudo_move(illegal));
     int matched = 0;
-    EXPECT_TRUE(movegen::Moves<movegen::MovePolicy::Unordered>(pinned)
+    EXPECT_TRUE(movegen::UnorderedMoves(pinned)
                     .find([&](Move move) {
                         if (move != illegal)
                             return false;
