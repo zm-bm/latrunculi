@@ -14,95 +14,7 @@ namespace movegen {
 using search::History;
 using search::OrderingContext;
 
-// Candidate storage and selection.
-
-template <OrderedCandidates::Batch          Which,
-          OrderedCandidates::CandidateState State,
-          typename Eligible>
-inline Move OrderedCandidates::take_best(Eligible eligible) {
-    Candidate* selected = best<Which, State>(eligible);
-    return selected ? take<Which>(selected) : NULL_MOVE;
-}
-
-template <OrderedCandidates::Batch Which, OrderedCandidates::CandidateState State>
-inline Move OrderedCandidates::take_best() {
-    return take_best<Which, State>([](const Candidate&) { return true; });
-}
-
-inline Move OrderedCandidates::take_evasion() {
-    return take_best<Batch::Primary>();
-}
-
-// Test acceptance only after ranking. Rejected candidates stay in place for later.
-template <typename Accept>
-inline Move OrderedCandidates::take_noisy(Accept accept) {
-    while (Candidate* selected = best<Batch::Primary>()) {
-        if (accept(selected->move, selected->see_threshold))
-            return take<Batch::Primary>(selected);
-        defer(*selected);
-    }
-    return NULL_MOVE;
-}
-
-template <typename Eligible>
-inline Move OrderedCandidates::take_quiet(Eligible eligible) {
-    return take_best<Batch::Quiet>(
-        [&](const Candidate& candidate) { return eligible(candidate.move); });
-}
-
-inline Move OrderedCandidates::take_deferred_noisy() {
-    return take_best<Batch::Primary, CandidateState::Deferred>();
-}
-
-template <OrderedCandidates::Batch Which>
-inline OrderedCandidates::Range& OrderedCandidates::range_for() {
-    if constexpr (Which == Batch::Primary)
-        return primary;
-    else
-        return quiet;
-}
-
-template <OrderedCandidates::Batch          Which,
-          OrderedCandidates::CandidateState State,
-          typename Eligible>
-inline OrderedCandidates::Candidate* OrderedCandidates::best(Eligible eligible) {
-    auto&      range      = range_for<Which>();
-    Candidate* best       = nullptr;
-    int        best_score = 0;
-    for (Candidate* candidate = range.next; candidate != range.end; ++candidate) {
-        // Strict comparison preserves the first tie in the current buffer order.
-        const int score = candidate->score;
-        if ((best == nullptr || score > best_score) && candidate->state == State
-            && eligible(*candidate)) {
-            best       = candidate;
-            best_score = score;
-        }
-    }
-    return best;
-}
-
-template <OrderedCandidates::Batch Which, OrderedCandidates::CandidateState State>
-inline OrderedCandidates::Candidate* OrderedCandidates::best() {
-    return best<Which, State>([](const Candidate&) { return true; });
-}
-
-template <OrderedCandidates::Batch Which>
-inline Move OrderedCandidates::take(Candidate* best) {
-    auto& range = range_for<Which>();
-    // Retain excluded entries: removing them changes later selection ties.
-    std::swap(*range.next, *best);
-    const Move move = range.next->move;
-    ++range.next;
-    return move;
-}
-
-inline void OrderedCandidates::defer(Candidate& candidate) {
-    // Defer in place, without swapping or advancing. Deferred scores tie at zero.
-    candidate.state = CandidateState::Deferred;
-    candidate.score = 0;
-}
-
-// Shared scoring and batch loading.
+// Scoring arithmetic.
 
 int main_search_see_threshold(PieceType victim, int scaled_history) {
     return -(see::piece_value(victim) + scaled_history) / 2;
@@ -129,15 +41,9 @@ constexpr int capture_score(int victim_value, int attacker_value, int scaled_his
          + CaptureVictimWeight * scaled_history;
 }
 
-Move validate_tt_hint(const Board& board, Move move, bool in_check) {
-    if (move.is_null() || !board.is_pseudo_legal(move))
-        return NULL_MOVE;
-    if (in_check && !board.is_legal_pseudo_move(move))
-        return NULL_MOVE;
-    return move;
-}
-
 } // namespace
+
+// Batch loading.
 
 // Each loader scores even excluded entries and publishes only after generation finishes.
 void OrderedCandidates::load_evasions(const Board&   board,
@@ -226,6 +132,106 @@ void OrderedCandidates::load_quiets(const Board&           board,
     quiet = {first, end};
 }
 
+// Candidate storage and selection.
+
+inline Move OrderedCandidates::take_evasion() {
+    return take_best<Batch::Primary>();
+}
+
+// Test acceptance only after ranking. Rejected candidates stay in place for later.
+template <typename Accept>
+inline Move OrderedCandidates::take_noisy(Accept accept) {
+    while (Candidate* selected = best<Batch::Primary>()) {
+        if (accept(selected->move, selected->see_threshold))
+            return take<Batch::Primary>(selected);
+        defer(*selected);
+    }
+    return NULL_MOVE;
+}
+
+template <typename Eligible>
+inline Move OrderedCandidates::take_quiet(Eligible eligible) {
+    return take_best<Batch::Quiet>(
+        [&](const Candidate& candidate) { return eligible(candidate.move); });
+}
+
+inline Move OrderedCandidates::take_deferred_noisy() {
+    return take_best<Batch::Primary, CandidateState::Deferred>();
+}
+
+template <OrderedCandidates::Batch          Which,
+          OrderedCandidates::CandidateState State,
+          typename Eligible>
+inline Move OrderedCandidates::take_best(Eligible eligible) {
+    Candidate* selected = best<Which, State>(eligible);
+    return selected ? take<Which>(selected) : NULL_MOVE;
+}
+
+template <OrderedCandidates::Batch Which, OrderedCandidates::CandidateState State>
+inline Move OrderedCandidates::take_best() {
+    return take_best<Which, State>([](const Candidate&) { return true; });
+}
+
+template <OrderedCandidates::Batch Which>
+inline OrderedCandidates::Range& OrderedCandidates::range_for() {
+    if constexpr (Which == Batch::Primary)
+        return primary;
+    else
+        return quiet;
+}
+
+template <OrderedCandidates::Batch          Which,
+          OrderedCandidates::CandidateState State,
+          typename Eligible>
+inline OrderedCandidates::Candidate* OrderedCandidates::best(Eligible eligible) {
+    auto&      range      = range_for<Which>();
+    Candidate* best       = nullptr;
+    int        best_score = 0;
+    for (Candidate* candidate = range.next; candidate != range.end; ++candidate) {
+        // Strict comparison preserves the first tie in the current buffer order.
+        const int score = candidate->score;
+        if ((best == nullptr || score > best_score) && candidate->state == State
+            && eligible(*candidate)) {
+            best       = candidate;
+            best_score = score;
+        }
+    }
+    return best;
+}
+
+template <OrderedCandidates::Batch Which, OrderedCandidates::CandidateState State>
+inline OrderedCandidates::Candidate* OrderedCandidates::best() {
+    return best<Which, State>([](const Candidate&) { return true; });
+}
+
+template <OrderedCandidates::Batch Which>
+inline Move OrderedCandidates::take(Candidate* best) {
+    auto& range = range_for<Which>();
+    // Retain excluded entries: removing them changes later selection ties.
+    std::swap(*range.next, *best);
+    const Move move = range.next->move;
+    ++range.next;
+    return move;
+}
+
+inline void OrderedCandidates::defer(Candidate& candidate) {
+    // Defer in place, without swapping or advancing. Deferred scores tie at zero.
+    candidate.state = CandidateState::Deferred;
+    candidate.score = 0;
+}
+
+namespace {
+
+Move validate_tt_hint(const Board& board, Move move, bool in_check) {
+    if (move.is_null() || !board.is_pseudo_legal(move))
+        return NULL_MOVE;
+    if (in_check && !board.is_legal_pseudo_move(move))
+        return NULL_MOVE;
+    return move;
+}
+
+} // namespace
+
 // Unordered traversal.
 
 MoveSource<MovePolicy::Unordered>::MoveSource(const Board& board)
@@ -258,18 +264,6 @@ MoveSource<MovePolicy::MainSearch>::MoveSource(const Board&           board,
             quiet_hints[quiet_hint_count++] = move;
         }
     }
-}
-
-bool MoveSource<MovePolicy::MainSearch>::is_quiet_hint(Move move) const {
-    for (int i = 0; i < quiet_hint_count; ++i)
-        if (quiet_hints[i] == move)
-            return true;
-    return false;
-}
-
-void MoveSource<MovePolicy::MainSearch>::skip_nonchecking_quiets() {
-    if (!context.in_check)
-        quiet_checks_only = true;
 }
 
 Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
@@ -337,6 +331,18 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
         }
     }
     return NULL_MOVE;
+}
+
+void MoveSource<MovePolicy::MainSearch>::skip_nonchecking_quiets() {
+    if (!context.in_check)
+        quiet_checks_only = true;
+}
+
+bool MoveSource<MovePolicy::MainSearch>::is_quiet_hint(Move move) const {
+    for (int i = 0; i < quiet_hint_count; ++i)
+        if (quiet_hints[i] == move)
+            return true;
+    return false;
 }
 
 // Quiescence ordering.
