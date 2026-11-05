@@ -10,6 +10,7 @@
 #include "core/types.hpp"
 #include "search/instrumentation.hpp"
 #include "search/limits.hpp"
+#include "search/node_type.hpp"
 #include "search/ordering/state.hpp"
 #include "search/reporter.hpp"
 #include "search/root_line.hpp"
@@ -23,8 +24,6 @@ namespace search {
 class ThreadPool;
 class Thread;
 struct TTRecord;
-
-enum class NodeType { Pv, NonPv };
 
 // Per-thread search state and search execution.
 class Worker {
@@ -99,21 +98,18 @@ private:
     void clear_root_snapshot();
     void publish_root_snapshot();
 
-    // Search algorithm. (algorithm.cpp)
+    // Recursive search. (search.cpp)
     template <NodeType Node = NodeType::NonPv>
-    EvalValue alphabeta(EvalValue           alpha,
-                        EvalValue           beta,
-                        int                 depth,
-                        PrincipalVariation* pv       = nullptr,
-                        bool                can_null = true);
+    EvalValue
+    alphabeta(EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv = nullptr);
     EvalValue search_excluding_move(EvalValue alpha, EvalValue beta, int depth, Move excluded_move);
     struct SingularResult {
         bool                     extend{false};
         std::optional<EvalValue> cutoff;
     };
     template <NodeType Node>
-    SingularResult singular_extension(
-        const TTRecord& record, int depth, bool can_null, EvalValue alpha, EvalValue beta);
+    SingularResult
+    singular_extension(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta);
 
     template <NodeType Node = NodeType::NonPv, bool UseTt = true>
     EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
@@ -131,6 +127,7 @@ private:
     bool is_main_worker() const noexcept;
     bool should_search_root_depth(int depth) const noexcept;
     bool should_poll_search_limits() const noexcept;
+    bool after_null_move() const noexcept;
 
     friend class ::SearchTestAccess;
     friend class Thread;
@@ -168,6 +165,13 @@ inline bool Worker::is_main_worker() const noexcept {
 
 inline bool Worker::should_poll_search_limits() const noexcept {
     return is_main_worker() && ((node_count() & 0xFFF) == 0);
+}
+
+inline bool Worker::after_null_move() const noexcept {
+    // Skip razoring, reverse futility, NMP, and singular verification at the null-search root.
+    // Move-loop pruning and TT behavior remain ordinary; a real child restores all heuristics.
+    // A loaded position without reversible history is not a null move.
+    return search_ply > 0 && board.previous_move().is_null() && board.can_unmake();
 }
 
 } // namespace search

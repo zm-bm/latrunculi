@@ -36,10 +36,11 @@ public:
                                EvalValue                   alpha,
                                EvalValue                   beta,
                                int                         depth,
-                               search::PrincipalVariation* pv       = nullptr,
-                               bool                        can_null = true) {
-        return worker.alphabeta<Node>(alpha, beta, depth, pv, can_null);
+                               search::PrincipalVariation* pv = nullptr) {
+        return worker.alphabeta<Node>(alpha, beta, depth, pv);
     }
+
+    static bool after_null_move(const search::Worker& worker) { return worker.after_null_move(); }
 
     static EvalValue search_excluding_move(
         search::Worker& worker, EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
@@ -49,10 +50,9 @@ public:
     static auto singular_result(search::Worker&         worker,
                                 const search::TTRecord& record,
                                 int                     depth,
-                                EvalValue               alpha    = -eval_value::inf,
-                                EvalValue               beta     = eval_value::inf,
-                                bool                    can_null = true) {
-        return worker.singular_extension<Node>(record, depth, can_null, alpha, beta);
+                                EvalValue               alpha = -eval_value::inf,
+                                EvalValue               beta  = eval_value::inf) {
+        return worker.singular_extension<Node>(record, depth, alpha, beta);
     }
 
     template <search::NodeType Node>

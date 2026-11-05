@@ -1,22 +1,18 @@
 #pragma once
 
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cmath>
 
 #include "eval/parameters.hpp"
+#include "search/node_type.hpp"
 #include "search/tt.hpp"
-#include "search/worker.hpp"
 
-namespace search::algorithm_detail {
+namespace search::detail {
 
 inline void prefetch_child_tt(PositionKey tt_key) noexcept {
     tt.prefetch(tt_key);
 }
-
-// Aspiration-window defaults.
-inline constexpr EvalValue AspirationWindow = 50;
 
 enum class AspirationMiss { FailLow, FailHigh };
 
@@ -38,13 +34,6 @@ inline EvalValue widen_aspiration_delta(const EvalValue delta) noexcept {
     const EvalValue growth = delta / 2;
     return delta >= eval_value::inf - growth ? eval_value::inf : delta + growth;
 }
-
-inline constexpr std::array<int, 20> HelperDepthSkipSize{
-    1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
-};
-inline constexpr std::array<int, 20> HelperDepthSkipPhase{
-    0, 1, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7,
-};
 
 // Null-move pruning defaults.
 inline constexpr int       NullMoveMinDepth        = 3;
@@ -198,4 +187,4 @@ private:
     int  count_{0};
 };
 
-} // namespace search::algorithm_detail
+} // namespace search::detail
