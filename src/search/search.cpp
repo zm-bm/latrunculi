@@ -5,14 +5,36 @@
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/generator.hpp"
-#include "search/algorithm_detail.hpp"
 #include "search/ordering/picker.hpp"
+#include "search/search_detail.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
 
 namespace search {
 
 namespace {
+
+// Exclusion belongs to this ply; its verification context is inherited by children.
+// Restore the entire frame when a same-ply verification returns or is interrupted.
+class ScopedSingularVerification {
+public:
+    ScopedSingularVerification(SearchFrame& frame, Move excluded_move) noexcept
+        : frame(frame),
+          saved(frame) {
+        assert(!excluded_move.is_null());
+        frame.excluded_move            = excluded_move;
+        frame.in_singular_verification = true;
+    }
+
+    ~ScopedSingularVerification() { frame = saved; }
+
+    ScopedSingularVerification(const ScopedSingularVerification&)            = delete;
+    ScopedSingularVerification& operator=(const ScopedSingularVerification&) = delete;
+
+private:
+    SearchFrame&      frame;
+    const SearchFrame saved;
+};
 
 // Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
 EvalValue draw_or_mate_score(const Board& board, int search_ply) {
@@ -28,167 +50,59 @@ EvalValue draw_or_mate_score(const Board& board, int search_ply) {
 
 } // namespace
 
-// Main root search driver.
-void Worker::search_root() {
-    // Terminal root: return immediately when no legal root move exists.
-    if (root_lines.empty()) {
-        root_result = terminal_root_result();
-        return;
-    }
-
-    // An exhausted budget must retain a legal fallback without completing a depth.
-    if (is_main_worker())
-        poll_search_limits();
-
-    // Iterative deepening searches one completed depth at a time.
-    for (int depth = 1; depth <= limits.depth && !stop_requested(); ++depth) {
-        if (!should_search_root_depth(depth))
-            continue;
-        if (!search_root_depth(depth, root_result.value))
-            break;
-        if (is_main_worker())
-            finish_timed_iteration();
-        if (limits.has_mate_within_limit(root_result.value))
-            break;
-    }
+EvalValue
+Worker::search_excluding_move(EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
+    assert(search_ply >= 0 && search_ply < engine::max_search_ply);
+    assert(depth > 0);
+    const ScopedSingularVerification verification{frames[search_ply], excluded_move};
+    return alphabeta<NodeType::NonPv>(alpha, beta, depth, nullptr);
 }
 
-bool Worker::should_search_root_depth(int depth) const noexcept {
-    if (is_main_worker() || depth == 1)
-        return true;
+// Verify alternatives before extending the TT move or taking a multicut.
+template <NodeType Node>
+Worker::SingularResult
+Worker::singular_decision(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta) {
+    if (depth < detail::SingularMinDepth || search_ply == 0
+        || search_ply >= 2 * root_iteration_depth || search_ply + 1 >= engine::max_search_ply
+        || after_null_move() || record.depth < depth - detail::SingularTtDepthSlack
+        || (record.bound != TTBound::Exact && record.bound != TTBound::LowerBound))
+        return {};
 
-    // Stagger helper depths to diversify shared-TT work.
-    const size_t index =
-        static_cast<size_t>(worker_id - 1) % algorithm_detail::HelperDepthSkipSize.size();
-    return ((depth + algorithm_detail::HelperDepthSkipPhase[index])
-            / algorithm_detail::HelperDepthSkipSize[index])
-             % 2
-        == 0;
-}
+    const auto& frame = frames[search_ply];
+    if (!frame.excluded_move.is_null())
+        return {};
 
-// Root aspiration loop for a single depth.
-bool Worker::search_root_depth(int depth, EvalValue previous_value) {
-    EvalValue delta       = algorithm_detail::AspirationWindow;
-    EvalValue alpha       = std::max(previous_value - delta, -eval_value::inf);
-    EvalValue beta        = std::min(previous_value + delta, eval_value::inf);
-    int       retry_depth = depth;
+    const EvalValue tt_score = record.score_at_ply(search_ply);
+    if (std::abs(tt_score) >= eval_value::mate_bound || record.move.is_null()
+        || !board.is_pseudo_legal(record.move) || !board.is_legal_pseudo_move(record.move))
+        return {};
 
-    while (!stop_requested()) {
-        // Keep root order but clear stale attempt state.
-        for (RootLine& line : root_lines) {
-            line.reset_attempt();
-        }
+    const EvalValue singular_beta = tt_score - detail::singular_margin(depth);
+    if (singular_beta <= -eval_value::mate_bound || singular_beta >= eval_value::mate_bound)
+        return {};
 
-        // Search this attempt while retaining the nominal iteration depth.
-        if (!search_root_window(retry_depth, depth, alpha, beta))
-            return false;
+    // Verifier descendants retain ordinary search and extensions, but cannot take multicuts.
+    const bool multicut_allowed =
+        Node == NodeType::NonPv && !frame.in_singular_verification && !board.is_check()
+        && alpha > -eval_value::mate_bound && alpha < eval_value::mate_bound
+        && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
+        && singular_beta - 1 > -eval_value::mate_bound && singular_beta >= beta;
 
-        // Promote the best completed root line.
-        std::stable_sort(root_lines.begin(), root_lines.end(), is_better_root_line);
-        const RootLine& best_line = root_lines.front();
-        assert(best_line.has_completed_depth());
-        const EvalValue value = best_line.value;
-        assert(value > -eval_value::inf && value < eval_value::inf);
+    const EvalValue value =
+        search_excluding_move(singular_beta - 1, singular_beta, (depth - 1) / 2, record.move);
+    if (stop_requested())
+        return {};
 
-        if (value <= alpha) {
-            // Fail low: recenter the lower bound and retry at full depth.
-            stats.aspiration_fail_low();
-            alpha       = std::max(value - delta, -eval_value::inf);
-            retry_depth = algorithm_detail::aspiration_retry_depth(
-                depth, value, algorithm_detail::AspirationMiss::FailLow);
-        } else if (value >= beta) {
-            // Fail high: recenter the upper bound and guard mate-like retries.
-            stats.aspiration_fail_high();
-            beta        = std::min(value + delta, eval_value::inf);
-            retry_depth = algorithm_detail::aspiration_retry_depth(
-                depth, value, algorithm_detail::AspirationMiss::FailHigh);
-        } else {
-            // Window hit: accept and publish the completed depth.
-            root_result = best_line;
-            publish_root_snapshot();
-            if (is_main_worker())
-                report_root_progress(root_result);
-            return true;
-        }
-
-        // Increase retry width after each aspiration miss.
-        delta = algorithm_detail::widen_aspiration_delta(delta);
-    }
-
-    return false;
-}
-
-// Fixed-window root pass. Caller owns attempt reset and result ordering.
-bool Worker::search_root_window(int       search_depth,
-                                int       nominal_depth,
-                                EvalValue alpha,
-                                EvalValue beta) {
-    assert(!root_lines.empty());
-    assert(search_depth >= 1);
-    assert(nominal_depth >= search_depth);
-
-    int  move_count  = 0;
-    bool has_pv_move = false;
-
-    // Preserve caller order for iterative deepening and aspiration retries.
-    for (RootLine& line : root_lines) {
-        assert(line.has_root_move());
-        const Move root_move = line.root_move;
-        assert(board.is_legal_pseudo_move(root_move));
-
-        ++move_count;
-
-        board.make(root_move, algorithm_detail::prefetch_child_tt);
-        ++search_ply;
-
-        // Root PVS searches full-window until a root PV is established.
-        // Scout later root moves and re-search only strict alpha improvements.
-        PrincipalVariation child_pv;
-        EvalValue          value;
-        if (move_count == 1 || !has_pv_move) {
-            value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, &child_pv);
-        } else {
-            value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, search_depth - 1);
-            if (!stop_requested() && value > alpha) {
-                stats.pvs_research(search_ply);
-                child_pv.clear();
-                value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, &child_pv);
-            }
-        }
-
-        board.unmake();
-        --search_ply;
-
-        // Do not record partial root-line state after a stop.
-        if (stop_requested())
-            return false;
-
-        line.complete(nominal_depth, value, child_pv);
-
-        // Let aspiration handle the fail-high window miss.
-        if (value >= beta)
-            return true;
-
-        if (value > alpha) {
-            // A new root move improved alpha.
-            if (is_main_worker())
-                report_root_progress(line);
-
-            alpha       = value;
-            has_pv_move = true;
-        } else if (move_count > 1 && has_pv_move && value == alpha && alpha > -eval_value::inf) {
-            // Keep the full-window alpha raiser ordered first on scout ties.
-            line.value = alpha - 1;
-        }
-    }
-
-    return true;
+    if (value < singular_beta)
+        return {.extend = true};
+    if (multicut_allowed)
+        return {.cutoff = singular_beta};
+    return {};
 }
 
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
 template <NodeType Node>
-EvalValue Worker::alphabeta(
-    EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv, bool can_null) {
+EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv) {
     // Step 1. PV and stop checks.
     if (pv)
         pv->clear();
@@ -213,8 +127,14 @@ EvalValue Worker::alphabeta(
         return eval::evaluate(board);
     }
 
-    static_evals[search_ply].reset();
-    real_moves[search_ply] = !board.previous_move().is_null();
+    auto&      frame             = frames[search_ply];
+    const Move excluded_move     = frame.excluded_move;
+    const bool verification_root = !excluded_move.is_null();
+    assert(!verification_root || depth > 0);
+    frame.static_eval.reset();
+    frame.real_move = !board.previous_move().is_null();
+    frame.in_singular_verification =
+        verification_root || (search_ply > 0 && frames[search_ply - 1].in_singular_verification);
     if (depth <= 0)
         return quiescence<Node>(alpha, beta, pv);
 
@@ -240,7 +160,8 @@ EvalValue Worker::alphabeta(
 
         const TTRecord& record   = *tt_record;
         const EvalValue tt_score = record.score_at_ply(search_ply);
-        if (algorithm_detail::tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
+        if (!verification_root
+            && detail::tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
             stats.main_tt_cutoff(search_ply);
             return tt_score;
         }
@@ -255,16 +176,18 @@ EvalValue Worker::alphabeta(
 
     bool declining = false;
     if constexpr (Node == NodeType::NonPv) {
+        const bool after_null = after_null_move();
         // Step 5. Razoring.
         static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
                                                                 : eval::evaluate(board);
         if (!in_check) {
-            static_evals[search_ply] = static_eval;
-            declining = search_ply >= 2 && real_moves[search_ply] && real_moves[search_ply - 1]
-                     && static_evals[search_ply - 2] && static_eval < *static_evals[search_ply - 2];
+            frame.static_eval = static_eval;
+            declining = search_ply >= 2 && frame.real_move && frames[search_ply - 1].real_move
+                     && frames[search_ply - 2].static_eval
+                     && static_eval < *frames[search_ply - 2].static_eval;
         }
-        if (can_null && !in_check && depth <= algorithm_detail::RazorMaxDepth && tt_move.is_null()
-            && static_eval + algorithm_detail::RazorMargin[depth] <= alpha) {
+        if (!verification_root && !after_null && !in_check && depth <= detail::RazorMaxDepth
+            && tt_move.is_null() && static_eval + detail::RazorMargin[depth] <= alpha) {
             stats.razor_try(search_ply);
             const EvalValue value = quiescence<NodeType::NonPv>(alpha - 1, alpha);
             if (stop_requested())
@@ -281,22 +204,22 @@ EvalValue Worker::alphabeta(
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
                                 && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(search_ply) < beta;
-        if (can_null && !in_check && depth <= algorithm_detail::FutilityMaxDepth
+        if (!verification_root && !after_null && !in_check && depth <= detail::FutilityMaxDepth
             && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
             && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto
-            && static_eval - algorithm_detail::FutilityMargin[depth] >= beta)
+            && static_eval - detail::FutilityMargin[depth] >= beta)
             return static_eval;
 
-        if (can_null && !in_check && depth >= algorithm_detail::NullMoveMinDepth
+        if (!verification_root && !after_null && !in_check && depth >= detail::NullMoveMinDepth
             && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto) {
             stats.null_move_try(search_ply);
 
-            const int reduction = algorithm_detail::null_move_reduction(depth, static_eval, beta);
+            const int reduction = detail::null_move_reduction(depth, static_eval, beta);
 
-            board.make_null(algorithm_detail::prefetch_child_tt);
+            board.make_null(detail::prefetch_child_tt);
             ++search_ply;
             const EvalValue value =
-                -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, nullptr, false);
+                -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, nullptr);
             board.unmake_null();
             --search_ply;
 
@@ -309,10 +232,19 @@ EvalValue Worker::alphabeta(
         }
 
         // Prepare shallow futility pruning. The move loop performs the actual skip.
-        futility = depth <= algorithm_detail::FutilityMaxDepth && !in_check
+        futility = !verification_root && depth <= detail::FutilityMaxDepth && !in_check
                 && alpha > -eval_value::mate_bound && alpha < eval_value::mate_bound
-                && static_eval + algorithm_detail::FutilityMargin[depth] <= alpha;
+                && static_eval + detail::FutilityMargin[depth] <= alpha;
     }
+
+    SingularResult singular;
+    if (tt_record)
+        singular = singular_decision<Node>(*tt_record, depth, alpha, beta);
+    if (stop_requested())
+        return alpha;
+    // A multicut returns before the ordinary picker, TT store, or cutoff training.
+    if (singular.cutoff)
+        return *singular.cutoff;
 
     // Step 7. Move ordering and quiet-malus tracking.
     int       move_count = 0;
@@ -324,17 +256,18 @@ EvalValue Worker::alphabeta(
     auto       picker =
         ordering::Picker::for_main_search(board, ordering_state, context, search_ply, tt_move);
 
-    PrincipalVariation            child_pv;
-    algorithm_detail::FailedMoves failed_quiets;
-    algorithm_detail::FailedMoves failed_captures;
+    PrincipalVariation  child_pv;
+    detail::FailedMoves failed_quiets;
+    detail::FailedMoves failed_captures;
 
-    const bool allow_quiet_malus = depth >= algorithm_detail::QuietMalusMinDepth && !in_check;
+    const bool allow_quiet_malus =
+        !verification_root && depth >= detail::QuietMalusMinDepth && !in_check;
     if (allow_quiet_malus)
         stats.quiet_malus_eligible_node(depth);
 
     // Step 8. Move loop.
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-        if (!board.is_legal_pseudo_move(move))
+        if (move == excluded_move || !board.is_legal_pseudo_move(move))
             continue;
 
         ++move_count;
@@ -353,16 +286,17 @@ EvalValue Worker::alphabeta(
             raw_capture_history = ordering_state.capture_history_score(board, move);
         bool history_lmp_candidate = false;
         if constexpr (Node == NodeType::NonPv) {
-            history_lmp_candidate = depth == algorithm_detail::LateMovePruningDepth
-                                 && move_count > algorithm_detail::LateMovePruningMoveCount
-                                 && !futility && !in_check && best_value > -eval_value::mate_bound
+            history_lmp_candidate = !verification_root && depth == detail::LateMovePruningDepth
+                                 && move_count > detail::LateMovePruningMoveCount && !futility
+                                 && !in_check && best_value > -eval_value::mate_bound
                                  && alpha > -eval_value::mate_bound && beta < eval_value::mate_bound
                                  && board.non_pawn_material(side) > 0 && is_ordinary_quiet
                                  && move != tt_move && !is_killer && !is_counter
                                  && ordering_state.quiet_score(context, board, move, true) < 0;
         }
 
-        board.make(move, algorithm_detail::prefetch_child_tt);
+        const int child_depth = depth - 1 + (move == tt_move && singular.extend);
+        board.make(move, detail::prefetch_child_tt);
         ++search_ply;
 
         const bool gives_check = board.is_check();
@@ -383,10 +317,10 @@ EvalValue Worker::alphabeta(
         }
 
         // Step 11. Late-move reductions.
-        const auto base_reduction = algorithm_detail::lmr_reduction<Node>(
+        const auto base_reduction = detail::lmr_reduction<Node>(
             depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer, declining);
         int        reduction            = base_reduction.plies;
-        const bool capture_lmr_eligible = algorithm_detail::capture_lmr_eligible({
+        const bool capture_lmr_eligible = detail::capture_lmr_eligible({
             .non_pv         = Node == NodeType::NonPv,
             .is_capture     = is_capture,
             .is_tt_move     = move == tt_move,
@@ -397,8 +331,8 @@ EvalValue Worker::alphabeta(
             .gives_check    = gives_check,
         });
         if (capture_lmr_eligible)
-            reduction = algorithm_detail::capture_lmr_reduction(
-                base_reduction.unrounded, raw_capture_history, depth);
+            reduction =
+                detail::capture_lmr_reduction(base_reduction.unrounded, raw_capture_history, depth);
         stats.capture_lmr(
             capture_lmr_eligible, raw_capture_history, base_reduction.plies, reduction);
 
@@ -408,8 +342,8 @@ EvalValue Worker::alphabeta(
         if (scout) {
             if (reduction > 0)
                 stats.lmr_try(search_ply - 1);
-            value = -alphabeta<NodeType::NonPv>(
-                -alpha - 1, -alpha, depth - 1 - reduction, nullptr, true);
+            value =
+                -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, child_depth - reduction, nullptr);
         }
 
         if (!scout || (!stop_requested() && value > alpha)) {
@@ -424,7 +358,7 @@ EvalValue Worker::alphabeta(
                 }
             }
             value = -alphabeta<Node>(
-                -beta, -alpha, depth - 1, Node == NodeType::Pv && pv ? &child_pv : nullptr, true);
+                -beta, -alpha, child_depth, Node == NodeType::Pv && pv ? &child_pv : nullptr);
         }
 
         board.unmake();
@@ -435,44 +369,47 @@ EvalValue Worker::alphabeta(
 
         if (value >= beta) {
             // Step 13. Train cutoff histories on the restored position.
-            if (is_quiet) {
-                stats.quiet_cutoff(depth);
-                ordering_state.update_quiet_refutations(context, move, search_ply);
-                ordering_state.reward_quiet(context, board, move, depth);
-                if (allow_quiet_malus
-                    && failed_quiets.size() >= algorithm_detail::QuietMalusMinFailed) {
-                    failed_quiets.for_each([&](Move quiet) {
-                        ordering_state.penalize_quiet(
-                            context, board, quiet, depth, algorithm_detail::QuietMalusDivisor);
-                        stats.quiet_malus_update(depth);
+            if (!verification_root) {
+                if (is_quiet) {
+                    stats.quiet_cutoff(depth);
+                    ordering_state.update_quiet_refutations(context, move, search_ply);
+                    ordering_state.reward_quiet(context, board, move, depth);
+                    if (allow_quiet_malus && failed_quiets.size() >= detail::QuietMalusMinFailed) {
+                        failed_quiets.for_each([&](Move quiet) {
+                            ordering_state.penalize_quiet(
+                                context, board, quiet, depth, detail::QuietMalusDivisor);
+                            stats.quiet_malus_update(depth);
+                        });
+                    }
+                }
+
+                if (!in_check) {
+                    if (is_capture && !is_promotion
+                        && depth >= detail::CaptureHistoryMinRewardDepth)
+                        ordering_state.reward_capture(board, move, depth);
+                    failed_captures.for_each([&](Move failed) {
+                        ordering_state.penalize_capture(board, failed, depth);
                     });
                 }
-            }
-
-            if (!in_check) {
-                if (is_capture && !is_promotion
-                    && depth >= algorithm_detail::CaptureHistoryMinRewardDepth)
-                    ordering_state.reward_capture(board, move, depth);
-                failed_captures.for_each(
-                    [&](Move failed) { ordering_state.penalize_capture(board, failed, depth); });
             }
 
             if (pv)
                 pv->update(move, child_pv);
 
             stats.beta_cutoff(search_ply, move_count);
-            tt.store(tt_probe.writer,
-                     tt_key,
-                     move,
-                     value,
-                     depth,
-                     TTBound::LowerBound,
-                     search_ply,
-                     static_eval);
+            if (!verification_root)
+                tt.store(tt_probe.writer,
+                         tt_key,
+                         move,
+                         value,
+                         depth,
+                         TTBound::LowerBound,
+                         search_ply,
+                         static_eval);
             return value;
         }
 
-        if (!in_check && is_capture && !is_promotion)
+        if (!verification_root && !in_check && is_capture && !is_promotion)
             failed_captures.add(move);
         if (allow_quiet_malus && is_quiet && !(move == tt_move) && !is_killer) {
             if (failed_quiets.add(move))
@@ -493,6 +430,9 @@ EvalValue Worker::alphabeta(
 
     // Step 15. Mate and stalemate.
     if (move_count == 0) {
+        // Excluding the only move does not make the actual position terminal.
+        if (verification_root)
+            return original_alpha;
         best_value = in_check ? -eval_value::mate + search_ply : eval_value::draw;
         tt.store(tt_probe.writer,
                  tt_key,
@@ -506,14 +446,15 @@ EvalValue Worker::alphabeta(
     }
 
     // Step 16. TT store.
-    tt.store(tt_probe.writer,
-             tt_key,
-             best_move,
-             best_value,
-             depth,
-             tt_bound_for_window(best_value, original_alpha, beta),
-             search_ply,
-             static_eval);
+    if (!verification_root)
+        tt.store(tt_probe.writer,
+                 tt_key,
+                 best_move,
+                 best_value,
+                 depth,
+                 tt_bound_for_window(best_value, original_alpha, beta),
+                 search_ply,
+                 static_eval);
 
     return best_value;
 }
@@ -555,7 +496,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
             stats.q_tt_hit(search_ply);
 
             const EvalValue tt_score = tt_record->score_at_ply(search_ply);
-            if (algorithm_detail::tt_cutoff_allowed<Node>(
+            if (detail::tt_cutoff_allowed<Node>(
                     *tt_record, tt_score, qsearch_tt_depth, alpha, beta)) {
                 stats.q_tt_cutoff(search_ply);
                 return tt_score;
@@ -610,7 +551,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
             const PieceType victim = board.captured_piece_type(move);
             const auto      price  = eval::piece(victim);
             const EvalValue gain_bound =
-                static_eval + std::max(price.mg, price.eg) + algorithm_detail::QCaptureMargin;
+                static_eval + std::max(price.mg, price.eg) + detail::QCaptureMargin;
             if (gain_bound < alpha && board.non_pawn_material(board.side_to_move()) > eval::rook.mg
                 && board.non_pawn_material(~board.side_to_move()) - (victim == PAWN ? 0 : price.mg)
                        > eval::rook.mg
@@ -621,7 +562,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
             }
         }
 
-        board.make(move, UseTt ? algorithm_detail::prefetch_child_tt : nullptr);
+        board.make(move, UseTt ? detail::prefetch_child_tt : nullptr);
         ++search_ply;
         const EvalValue value = -quiescence<Node, UseTt>(-beta, -alpha, pv ? &child_pv : nullptr);
         board.unmake();
@@ -716,10 +657,13 @@ bool Worker::settle(Board& position) {
 }
 
 // Template definitions live in this translation unit; instantiate the node types we use.
+template EvalValue Worker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, PrincipalVariation*);
 template EvalValue
-Worker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
-template EvalValue
-Worker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
+Worker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*);
+template Worker::SingularResult
+Worker::singular_decision<NodeType::Pv>(const TTRecord&, int, EvalValue, EvalValue);
+template Worker::SingularResult
+Worker::singular_decision<NodeType::NonPv>(const TTRecord&, int, EvalValue, EvalValue);
 template EvalValue
 Worker::quiescence<NodeType::Pv, true>(EvalValue, EvalValue, PrincipalVariation*);
 template EvalValue

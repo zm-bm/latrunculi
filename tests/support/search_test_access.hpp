@@ -10,12 +10,14 @@ public:
 
     static int& search_ply(search::Worker& worker) { return worker.search_ply; }
 
+    static int& root_iteration_depth(search::Worker& worker) { return worker.root_iteration_depth; }
+    static void set_nodes(search::Worker& worker, NodeCount n) { worker.nodes.store(n); }
+
     static search::ordering::State& ordering_state(search::Worker& worker) {
         return worker.ordering_state;
     }
 
-    static auto& static_evals(search::Worker& worker) { return worker.static_evals; }
-    static auto& real_moves(search::Worker& worker) { return worker.real_moves; }
+    static auto& frames(search::Worker& worker) { return worker.frames; }
 
     static const search::Limits& limits(const search::Worker& worker) { return worker.limits; }
 
@@ -34,9 +36,23 @@ public:
                                EvalValue                   alpha,
                                EvalValue                   beta,
                                int                         depth,
-                               search::PrincipalVariation* pv       = nullptr,
-                               bool                        can_null = true) {
-        return worker.alphabeta<Node>(alpha, beta, depth, pv, can_null);
+                               search::PrincipalVariation* pv = nullptr) {
+        return worker.alphabeta<Node>(alpha, beta, depth, pv);
+    }
+
+    static bool after_null_move(const search::Worker& worker) { return worker.after_null_move(); }
+
+    static EvalValue search_excluding_move(
+        search::Worker& worker, EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
+        return worker.search_excluding_move(alpha, beta, depth, excluded_move);
+    }
+    template <search::NodeType Node = search::NodeType::NonPv>
+    static auto singular_result(search::Worker&         worker,
+                                const search::TTRecord& record,
+                                int                     depth,
+                                EvalValue               alpha = -eval_value::inf,
+                                EvalValue               beta  = eval_value::inf) {
+        return worker.singular_decision<Node>(record, depth, alpha, beta);
     }
 
     template <search::NodeType Node>

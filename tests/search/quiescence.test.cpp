@@ -7,7 +7,7 @@
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/generator.hpp"
-#include "search/algorithm_detail.hpp"
+#include "search/search_detail.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -377,7 +377,7 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
 TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
     load(Board{"1n2k1nr/8/8/3p4/4P3/8/8/RN2K1N1 w - - 0 1"});
     const EvalValue stand_pat = eval::evaluate(position());
-    const EvalValue estimate  = stand_pat + eval::pawn.eg + algorithm_detail::QCaptureMargin;
+    const EvalValue estimate  = stand_pat + eval::pawn.eg + detail::QCaptureMargin;
 
     PrincipalVariation pv;
     EXPECT_EQ(pv_search(estimate + 1, estimate + 2, pv), estimate);

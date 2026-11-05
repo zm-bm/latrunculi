@@ -8,8 +8,8 @@
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/generator.hpp"
-#include "search/algorithm_detail.hpp"
 #include "search/root_line.hpp"
+#include "search/search_detail.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -239,8 +239,8 @@ TEST_F(RootSearchTest, WidensAspirationWindowAfterFailLowAndFailHigh) {
 }
 
 TEST(AspirationPolicyTest, SelectsOnlyTheImmediatelyFollowingRetryDepth) {
-    using algorithm_detail::aspiration_retry_depth;
-    using algorithm_detail::AspirationMiss;
+    using detail::aspiration_retry_depth;
+    using detail::AspirationMiss;
 
     EXPECT_EQ(aspiration_retry_depth(6, 200, AspirationMiss::FailHigh), 5);
     EXPECT_EQ(aspiration_retry_depth(1, 200, AspirationMiss::FailHigh), 1);
@@ -251,7 +251,7 @@ TEST(AspirationPolicyTest, SelectsOnlyTheImmediatelyFollowingRetryDepth) {
 }
 
 TEST(AspirationPolicyTest, WidensGraduallyAndSaturatesAtInfinity) {
-    using algorithm_detail::widen_aspiration_delta;
+    using detail::widen_aspiration_delta;
 
     EXPECT_EQ(widen_aspiration_delta(50), 75);
     EXPECT_EQ(widen_aspiration_delta(75), 112);

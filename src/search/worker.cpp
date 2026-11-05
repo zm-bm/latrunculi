@@ -86,12 +86,12 @@ EvalValue Worker::search() {
 
 void Worker::reset_search_state() {
     reset_nodes();
-    search_ply  = 0;
-    root_result = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
-    static_evals.fill(std::nullopt);
-    real_moves.fill(false);
+    search_ply           = 0;
+    root_iteration_depth = 0;
+    root_result          = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
+    frames.fill({});
     if (!board.is_check())
-        static_evals[0] = root_result.value;
+        frames[0].static_eval = root_result.value;
     root_lines.clear();
     last_reported_root_line.reset();
     pending_best_move.reset();

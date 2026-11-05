@@ -48,8 +48,10 @@ The same evaluator exports linear features for fitting weights from recorded gam
 ## Search
 
 [Worker](../src/search/worker.hpp) handles search setup, limits, and results.
-Its search algorithm lives in [algorithm.cpp](../src/search/algorithm.cpp)
-and uses:
+[Root search](../src/search/root_search.cpp) handles iterative deepening and
+aspiration retries. [Recursive search](../src/search/search.cpp) implements
+alpha-beta, quiescence, and singular verification, with per-ply state in
+[SearchFrame](../src/search/search_frame.hpp). The search uses:
 
 - **Iterative deepening:** Each iteration starts with an
   [aspiration window](https://chessprogramming.org/Aspiration_Windows) around

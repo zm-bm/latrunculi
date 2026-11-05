@@ -51,7 +51,8 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/movegen/perft.cpp
     src/eval/evaluation.cpp
     src/eval/features.cpp
-    src/search/algorithm.cpp
+    src/search/root_search.cpp
+    src/search/search.cpp
     src/search/instrumentation.cpp
     src/search/ordering/picker.cpp
     src/search/root_line.cpp
@@ -138,7 +139,8 @@ if(BUILD_TESTING)
         tests/eval/features.test.cpp
         tests/eval/parameters.test.cpp
         tests/eval/tapered_score.test.cpp
-        tests/search/algorithm.test.cpp
+        tests/search/search.test.cpp
+        tests/search/singular.test.cpp
         tests/search/instrumentation.test.cpp
         tests/search/limits.test.cpp
         tests/search/ordering/capture_scoring.test.cpp
