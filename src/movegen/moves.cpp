@@ -16,39 +16,20 @@ using search::OrderingContext;
 
 // Candidate storage and selection.
 
-template <Batch Which, typename Populate>
-inline void CandidateBuffer::load(Populate&& populate) {
-    Candidate* first = storage.data();
-    if constexpr (Which == Batch::Quiet) {
-        // Append after the full primary batch, including taken and excluded entries.
-        assert(primary.end != nullptr);
-        first = primary.end;
-    }
-
-    Candidate* end = first;
-    populate([&](Candidate candidate) {
-        assert(end < storage.data() + storage.size());
-        *end = candidate;
-        ++end;
-    });
-    // The producer is synchronous; publish only the completed batch.
-    range_for<Which>() = {first, end};
-}
-
 template <Batch Which, CandidateState State, typename Eligible>
-inline Move CandidateBuffer::take_best(Eligible eligible) {
+inline Move OrderedCandidates::take_best(Eligible eligible) {
     Candidate* selected = best<Which, State>(eligible);
     return selected ? take<Which>(selected) : NULL_MOVE;
 }
 
 template <Batch Which, CandidateState State>
-inline Move CandidateBuffer::take_best() {
+inline Move OrderedCandidates::take_best() {
     return take_best<Which, State>([](const Candidate&) { return true; });
 }
 
 // Test acceptance only after ranking. Rejected candidates stay in place for later.
 template <typename Accept>
-inline Move CandidateBuffer::take_best_or_defer(Accept accept) {
+inline Move OrderedCandidates::take_best_or_defer(Accept accept) {
     while (Candidate* selected = best<Batch::Primary>()) {
         if (accept(*selected))
             return take<Batch::Primary>(selected);
@@ -58,7 +39,7 @@ inline Move CandidateBuffer::take_best_or_defer(Accept accept) {
 }
 
 template <Batch Which>
-inline CandidateBuffer::Range& CandidateBuffer::range_for() {
+inline OrderedCandidates::Range& OrderedCandidates::range_for() {
     if constexpr (Which == Batch::Primary)
         return primary;
     else
@@ -66,7 +47,7 @@ inline CandidateBuffer::Range& CandidateBuffer::range_for() {
 }
 
 template <Batch Which, CandidateState State, typename Eligible>
-inline Candidate* CandidateBuffer::best(Eligible eligible) {
+inline Candidate* OrderedCandidates::best(Eligible eligible) {
     auto&      range      = range_for<Which>();
     Candidate* best       = nullptr;
     int        best_score = 0;
@@ -83,12 +64,12 @@ inline Candidate* CandidateBuffer::best(Eligible eligible) {
 }
 
 template <Batch Which, CandidateState State>
-inline Candidate* CandidateBuffer::best() {
+inline Candidate* OrderedCandidates::best() {
     return best<Which, State>([](const Candidate&) { return true; });
 }
 
 template <Batch Which>
-inline Move CandidateBuffer::take(Candidate* best) {
+inline Move OrderedCandidates::take(Candidate* best) {
     auto& range = range_for<Which>();
     // Retain excluded entries: removing them changes later selection ties.
     std::swap(*range.next, *best);
@@ -97,7 +78,7 @@ inline Move CandidateBuffer::take(Candidate* best) {
     return move;
 }
 
-inline void CandidateBuffer::defer(Candidate& candidate) {
+inline void OrderedCandidates::defer(Candidate& candidate) {
     // Defer in place, without swapping or advancing. Deferred scores tie at zero.
     candidate.state = CandidateState::Deferred;
     candidate.score = 0;
@@ -130,70 +111,6 @@ constexpr int capture_score(int victim_value, int attacker_value, int scaled_his
          + CaptureVictimWeight * scaled_history;
 }
 
-// One synchronous batch operation shares generation and scoring across both flows.
-// Excluded moves are still scored and stored; each entire batch loads before selection.
-template <GenerationKind Kind, bool UseHistorySeeThreshold = false>
-void load_candidates(CandidateBuffer&       candidates,
-                     const Board&           board,
-                     const History&         history,
-                     const OrderingContext& context,
-                     Move                   tt_move,
-                     std::span<const Move>  quiet_hints = {}) {
-    static_assert(Kind == GenerationKind::Evasions || Kind == GenerationKind::Noisy
-                  || Kind == GenerationKind::Quiet);
-    constexpr Batch batch = Kind == GenerationKind::Quiet ? Batch::Quiet : Batch::Primary;
-    candidates.load<batch>([&](auto&& append) {
-        // Only quiet scoring borrows the full context; evasions need just the side.
-        generate<Kind>(
-            board,
-            [&,
-             side          = context.side,
-             quiet_context = Kind == GenerationKind::Quiet ? &context : nullptr](
-                Move move, PieceType moving_piece) {
-                Candidate candidate{
-                    .move = move, .state = CandidateState::Ready, .score = 0, .see_threshold = 0};
-                if constexpr (Kind == GenerationKind::Quiet) {
-                    candidate.score = history.quiet_score(*quiet_context, moving_piece, move);
-                } else if (move.type() == MOVE_PROM) {
-                    candidate.score = PromotionScore;
-                } else if constexpr (Kind == GenerationKind::Evasions) {
-                    if (board.is_capture(move)) {
-                        const int victim   = see::piece_value(board.captured_piece_type(move));
-                        const int attacker = see::piece_value(moving_piece);
-                        candidate.score =
-                            EvasionCaptureScoreBase + capture_material_score(victim, attacker);
-                    } else {
-                        candidate.score = history.base_quiet_score(side, move);
-                    }
-                } else {
-                    const PieceType victim         = board.captured_piece_type(move);
-                    const int       victim_value   = see::piece_value(victim);
-                    const int       attacker_value = see::piece_value(moving_piece);
-                    const int       raw_history    = history.capture_history_score(
-                        board.side_to_move(), moving_piece, move.to(), victim);
-                    const int scaled_history = raw_history / CaptureHistoryDivisor;
-                    candidate.score = capture_score(victim_value, attacker_value, scaled_history);
-                    if constexpr (UseHistorySeeThreshold)
-                        candidate.see_threshold = main_search_see_threshold(victim, scaled_history);
-                }
-                bool excluded = move == tt_move;
-                if constexpr (Kind == GenerationKind::Quiet) {
-                    if (!excluded) {
-                        for (Move hint : quiet_hints) {
-                            if (move == hint) {
-                                excluded = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (excluded)
-                    candidate.state = CandidateState::Excluded;
-                append(candidate);
-            });
-    });
-}
-
 Move validate_tt_hint(const Board& board, Move move, bool in_check) {
     if (move.is_null() || !board.is_pseudo_legal(move))
         return NULL_MOVE;
@@ -203,6 +120,93 @@ Move validate_tt_hint(const Board& board, Move move, bool in_check) {
 }
 
 } // namespace
+
+// Each loader scores even excluded entries and publishes only after generation finishes.
+void OrderedCandidates::load_evasions(const Board&   board,
+                                      const History& history,
+                                      Color          side,
+                                      Move           tt_move) {
+    Candidate* const first = storage.data();
+    Candidate*       end   = first;
+    generate<GenerationKind::Evasions>(board, [&, side](Move move, PieceType moving_piece) {
+        Candidate candidate{
+            .move = move, .state = CandidateState::Ready, .score = 0, .see_threshold = 0};
+        if (move.type() == MOVE_PROM) {
+            candidate.score = PromotionScore;
+        } else if (board.is_capture(move)) {
+            const int victim   = see::piece_value(board.captured_piece_type(move));
+            const int attacker = see::piece_value(moving_piece);
+            candidate.score    = EvasionCaptureScoreBase + capture_material_score(victim, attacker);
+        } else {
+            candidate.score = history.base_quiet_score(side, move);
+        }
+        if (move == tt_move)
+            candidate.state = CandidateState::Excluded;
+        assert(end < storage.data() + storage.size());
+        *end++ = candidate;
+    });
+    primary = {first, end};
+}
+
+template <MovePolicy Policy>
+void OrderedCandidates::load_noisy(const Board& board, const History& history, Move tt_move) {
+    static_assert(Policy == MovePolicy::MainSearch || Policy == MovePolicy::Quiescence);
+    Candidate* const first = storage.data();
+    Candidate*       end   = first;
+    generate<GenerationKind::Noisy>(board, [&](Move move, PieceType moving_piece) {
+        Candidate candidate{
+            .move = move, .state = CandidateState::Ready, .score = 0, .see_threshold = 0};
+        if (move.type() == MOVE_PROM) {
+            candidate.score = PromotionScore;
+        } else {
+            const PieceType victim         = board.captured_piece_type(move);
+            const int       victim_value   = see::piece_value(victim);
+            const int       attacker_value = see::piece_value(moving_piece);
+            const int       raw_history    = history.capture_history_score(
+                board.side_to_move(), moving_piece, move.to(), victim);
+            const int scaled_history = raw_history / CaptureHistoryDivisor;
+            candidate.score          = capture_score(victim_value, attacker_value, scaled_history);
+            if constexpr (Policy == MovePolicy::MainSearch)
+                candidate.see_threshold = main_search_see_threshold(victim, scaled_history);
+        }
+        if (move == tt_move)
+            candidate.state = CandidateState::Excluded;
+        assert(end < storage.data() + storage.size());
+        *end++ = candidate;
+    });
+    primary = {first, end};
+}
+
+void OrderedCandidates::load_quiets(const Board&           board,
+                                    const History&         history,
+                                    const OrderingContext& context,
+                                    Move                   tt_move,
+                                    std::span<const Move>  quiet_hints) {
+    // Append after the full primary batch, including taken and excluded entries.
+    assert(primary.end != nullptr);
+    Candidate* const first = primary.end;
+    Candidate*       end   = first;
+    generate<GenerationKind::Quiet>(board, [&](Move move, PieceType moving_piece) {
+        Candidate candidate{.move          = move,
+                            .state         = CandidateState::Ready,
+                            .score         = history.quiet_score(context, moving_piece, move),
+                            .see_threshold = 0};
+        bool      excluded = move == tt_move;
+        if (!excluded) {
+            for (Move hint : quiet_hints) {
+                if (move == hint) {
+                    excluded = true;
+                    break;
+                }
+            }
+        }
+        if (excluded)
+            candidate.state = CandidateState::Excluded;
+        assert(end < storage.data() + storage.size());
+        *end++ = candidate;
+    });
+    quiet = {first, end};
+}
 
 // Unordered traversal.
 
@@ -265,13 +269,11 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
             break;
         case Stage::LoadPrimary:
             if (context.in_check) {
-                load_candidates<GenerationKind::Evasions>(
-                    candidates, board, history, context, tt_move);
+                candidates.load_evasions(board, history, context.side, tt_move);
                 stage = Stage::PickEvasion;
                 break;
             }
-            load_candidates<GenerationKind::Noisy, true>(
-                candidates, board, history, context, tt_move);
+            candidates.load_noisy<MovePolicy::MainSearch>(board, history, tt_move);
             stage = Stage::PickEarlyNoisy;
             [[fallthrough]];
         case Stage::PickEarlyNoisy: {
@@ -293,8 +295,7 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
             stage = Stage::LoadQuiet;
             break;
         case Stage::LoadQuiet:
-            load_candidates<GenerationKind::Quiet>(
-                candidates,
+            candidates.load_quiets(
                 board,
                 history,
                 context,
@@ -352,13 +353,11 @@ Move MoveSource<MovePolicy::Quiescence>::next_candidate() {
             break;
         case Stage::LoadPrimary:
             if (in_check) {
-                load_candidates<GenerationKind::Evasions>(
-                    candidates, board, history, OrderingContext{.side = side}, tt_move);
+                candidates.load_evasions(board, history, side, tt_move);
                 stage = Stage::PickEvasion;
                 break;
             }
-            load_candidates<GenerationKind::Noisy>(
-                candidates, board, history, OrderingContext{.side = side}, tt_move);
+            candidates.load_noisy<MovePolicy::Quiescence>(board, history, tt_move);
             stage = Stage::PickNoisy;
             [[fallthrough]];
         case Stage::PickNoisy: {

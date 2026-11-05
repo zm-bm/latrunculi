@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 #include "board/board.hpp"
 
@@ -94,12 +95,22 @@ struct Candidate {
     int see_threshold;
 };
 
-// Selection mechanics only; ordered sources supply scored and classified candidates.
+// Owns complete scored batches and their selection. Sources control stage progression,
+// validate hints, and decide whether the selected candidate passes SEE/checking tests.
 // The templated operations are defined and instantiated in moves.cpp.
-class CandidateBuffer {
+class OrderedCandidates {
 public:
-    template <Batch Which, typename Populate>
-    void load(Populate&& populate);
+    void
+    load_evasions(const Board& board, const search::History& history, Color side, Move tt_move);
+
+    template <MovePolicy Policy>
+    void load_noisy(const Board& board, const search::History& history, Move tt_move);
+
+    void load_quiets(const Board&                   board,
+                     const search::History&         history,
+                     const search::OrderingContext& context,
+                     Move                           tt_move,
+                     std::span<const Move>          quiet_hints);
 
     template <Batch Which, CandidateState State = CandidateState::Ready, typename Eligible>
     Move take_best(Eligible eligible);
@@ -184,7 +195,7 @@ class MoveSource<MovePolicy::MainSearch> {
     const search::OrderingContext&      context;
     Move                                tt_move{NULL_MOVE};
     Stage                               stage{Stage::TtMove};
-    CandidateBuffer                     candidates;
+    OrderedCandidates                   candidates;
     std::array<Move, QuietHintCapacity> quiet_hints{};
     int                                 quiet_hint_count{0};
     int                                 quiet_hint_next{0};
@@ -209,7 +220,7 @@ class MoveSource<MovePolicy::Quiescence> {
     Move                   tt_move{NULL_MOVE};
     const bool             in_check;
     Stage                  stage{Stage::TtMove};
-    CandidateBuffer        candidates;
+    OrderedCandidates      candidates;
 };
 
 } // namespace movegen
