@@ -242,7 +242,8 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
     ASSERT_EQ(search::tt.current_generation(), std::uint8_t{1});
 
     const search::ordering::NodeContext context{
-        BLACK, search::ordering::NodeContext::previous_index(WHITE, PAWN, E4)};
+        .side         = BLACK,
+        .previous_key = search::ordering::NodeContext::previous_index(WHITE, PAWN, E4)};
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
         auto& ordering_history = SearchTestAccess::ordering_history(
             SearchThreadTestAccess::worker(thread_pool(), index));

@@ -48,14 +48,13 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/board/board_see.cpp
     src/board/fen_parser.cpp
     src/board/notation.cpp
-    src/movegen/generator.cpp
+    src/movegen/moves.cpp
     src/movegen/perft.cpp
     src/eval/evaluation.cpp
     src/eval/features.cpp
     src/search/root_search.cpp
     src/search/search.cpp
     src/search/instrumentation.cpp
-    src/search/ordering/picker.cpp
     src/search/root_line.cpp
     src/search/thread_pool.cpp
     src/search/time_manager.cpp
@@ -134,6 +133,7 @@ if(BUILD_TESTING)
         tests/board/notation.test.cpp
         tests/cli/cli.test.cpp
         tests/movegen/generator.test.cpp
+        tests/movegen/moves.test.cpp
         tests/movegen/perft.test.cpp
         tests/eval/evaluation.test.cpp
         tests/eval/features.test.cpp
@@ -145,7 +145,6 @@ if(BUILD_TESTING)
         tests/search/limits.test.cpp
         tests/search/ordering/capture_scoring.test.cpp
         tests/search/ordering/history.test.cpp
-        tests/search/ordering/picker.test.cpp
         tests/search/principal_variation.test.cpp
         tests/search/quiescence.test.cpp
         tests/search/root_line.test.cpp

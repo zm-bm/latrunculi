@@ -1,11 +1,12 @@
-#include "search/ordering/picker.hpp"
+#include "movegen/moves.hpp"
 
 #include <cassert>
 #include <span>
 
 #include "board/board.hpp"
-#include "movegen/generator_detail.hpp"
+#include "movegen/generator.hpp"
 #include "search/ordering/capture_scoring.hpp"
+#include "search/ordering/history.hpp"
 
 namespace movegen::detail {
 
@@ -38,80 +39,79 @@ void load_candidates(CandidateBuffer&      candidates,
                   || Kind == MoveGenType::Quiet);
     constexpr Batch batch = Kind == MoveGenType::Quiet ? Batch::Quiet : Batch::Primary;
     candidates.load<batch>([&](auto&& append) {
-        movegen::detail::generate<Kind>(board, [&](Move move, PieceType moving_piece) {
-            Candidate candidate{
-                .move = move, .state = CandidateState::Ready, .score = 0, .see_threshold = 0};
-            if constexpr (Kind == MoveGenType::Quiet) {
-                candidate.score = history.quiet_score(context, moving_piece, move);
-            } else if (move.type() == MOVE_PROM) {
-                candidate.score = PromotionScore;
-            } else if constexpr (Kind == MoveGenType::Evasions) {
-                if (board.is_capture(move)) {
-                    const int victim   = see::piece_value(board.captured_piece_type(move));
-                    const int attacker = see::piece_value(moving_piece);
-                    candidate.score =
-                        EvasionCaptureScoreBase + capture_scoring::material_score(victim, attacker);
+        // Only quiet scoring borrows the full context; evasions need just the side.
+        movegen::detail::generate<Kind>(
+            board,
+            [&,
+             side          = context.side,
+             quiet_context = Kind == MoveGenType::Quiet ? &context : nullptr](
+                Move move, PieceType moving_piece) {
+                Candidate candidate{
+                    .move = move, .state = CandidateState::Ready, .score = 0, .see_threshold = 0};
+                if constexpr (Kind == MoveGenType::Quiet) {
+                    candidate.score = history.quiet_score(*quiet_context, moving_piece, move);
+                } else if (move.type() == MOVE_PROM) {
+                    candidate.score = PromotionScore;
+                } else if constexpr (Kind == MoveGenType::Evasions) {
+                    if (board.is_capture(move)) {
+                        const int victim   = see::piece_value(board.captured_piece_type(move));
+                        const int attacker = see::piece_value(moving_piece);
+                        candidate.score    = EvasionCaptureScoreBase
+                                        + capture_scoring::material_score(victim, attacker);
+                    } else {
+                        candidate.score = history.base_quiet_score(side, move);
+                    }
                 } else {
-                    candidate.score = history.base_quiet_score(context.side, move);
+                    const PieceType victim         = board.captured_piece_type(move);
+                    const int       victim_value   = see::piece_value(victim);
+                    const int       attacker_value = see::piece_value(moving_piece);
+                    const int       raw_history    = history.capture_history_score(
+                        board.side_to_move(), moving_piece, move.to(), victim);
+                    const int scaled_history = raw_history / capture_scoring::HistoryScoreDivisor;
+                    candidate.score =
+                        capture_scoring::score(victim_value, attacker_value, scaled_history);
+                    if constexpr (HistorySee)
+                        candidate.see_threshold =
+                            capture_scoring::main_search_see_threshold(victim, scaled_history);
                 }
-            } else {
-                const PieceType victim         = board.captured_piece_type(move);
-                const int       victim_value   = see::piece_value(victim);
-                const int       attacker_value = see::piece_value(moving_piece);
-                const int       raw_history    = history.capture_history_score(
-                    board.side_to_move(), moving_piece, move.to(), victim);
-                const int scaled_history = raw_history / capture_scoring::HistoryScoreDivisor;
-                candidate.score =
-                    capture_scoring::score(victim_value, attacker_value, scaled_history);
-                if constexpr (HistorySee)
-                    candidate.see_threshold =
-                        capture_scoring::main_search_see_threshold(victim, scaled_history);
-            }
-            bool excluded = move == tt_move;
-            if constexpr (Kind == MoveGenType::Quiet) {
-                if (!excluded) {
-                    for (Move hint : quiet_hints) {
-                        if (move == hint) {
-                            excluded = true;
-                            break;
+                bool excluded = move == tt_move;
+                if constexpr (Kind == MoveGenType::Quiet) {
+                    if (!excluded) {
+                        for (Move hint : quiet_hints) {
+                            if (move == hint) {
+                                excluded = true;
+                                break;
+                            }
                         }
                     }
                 }
-            }
-            if (excluded)
-                candidate.state = CandidateState::Excluded;
-            append(candidate);
-        });
+                if (excluded)
+                    candidate.state = CandidateState::Excluded;
+                append(candidate);
+            });
     });
 }
 
 } // namespace
 
-MoveSource<Mode::MainSearch>::MoveSource(
-    const Board& board, const History& history, const NodeContext& context, int ply, Move tt_move)
-    : MoveSource(board,
-                 history,
-                 context,
-                 tt_move,
-                 {.primary_killer   = history.primary_killer(ply),
-                  .secondary_killer = history.secondary_killer(ply),
-                  .counter          = history.counter_hint(context)}) {}
+MoveSource<Mode::All>::MoveSource(const Board& board) : board(board), next(storage.data()) {
+    Move* end = next;
+    generate_pseudo_legal(board, [&](Move move, PieceType) {
+        assert(end < storage.data() + storage.size());
+        *end++ = move;
+    });
+    last = end;
+}
 
-MoveSource<Mode::MainSearch>::MoveSource(const Board&        board,
-                                         const History&      history,
-                                         const NodeContext&  context,
-                                         Move                tt,
-                                         QuietHintCandidates quiet_hint_candidates)
+MoveSource<Mode::MainSearch>::MoveSource(const Board&       board,
+                                         const History&     history,
+                                         const NodeContext& context)
     : board(board),
       history(history),
-      context(context),
-      counter_move(quiet_hint_candidates.counter),
-      in_check(board.is_check()) {
-    tt_move = validate_tt_hint(board, tt, in_check);
-    if (!in_check) {
-        for (Move move : {quiet_hint_candidates.primary_killer,
-                          quiet_hint_candidates.secondary_killer,
-                          quiet_hint_candidates.counter}) {
+      context(context) {
+    tt_move = validate_tt_hint(board, context.tt_move, context.in_check);
+    if (!context.in_check) {
+        for (Move move : {context.primary_killer, context.secondary_killer, context.counter_move}) {
             if (move.is_null() || is_quiet_hint(move) || move == tt_move)
                 continue;
             if (move.type() == MOVE_PROM || board.is_capture(move) || !board.is_pseudo_legal(move))
@@ -132,7 +132,7 @@ bool MoveSource<Mode::MainSearch>::is_quiet_hint(Move move) const {
 }
 
 void MoveSource<Mode::MainSearch>::skip_nonchecking_quiets() {
-    if (!in_check)
+    if (!context.in_check)
         quiet_checks_only = true;
 }
 
@@ -150,7 +150,7 @@ Move MoveSource<Mode::MainSearch>::next_candidate() {
             stage = Stage::Done;
             break;
         case Stage::LoadPrimary:
-            if (in_check) {
+            if (context.in_check) {
                 load_candidates<MoveGenType::Evasions>(
                     candidates, board, history, context, tt_move);
                 stage = Stage::PickEvasion;
@@ -212,7 +212,7 @@ Move MoveSource<Mode::MainSearch>::next_candidate() {
 MoveSource<Mode::Quiescence>::MoveSource(const Board& board, const History& history, Move tt)
     : board(board),
       history(history),
-      context{.side = board.side_to_move()},
+      side(board.side_to_move()),
       in_check(board.is_check()) {
     tt_move = validate_tt_hint(board, tt, in_check);
     if (!in_check && !tt_move.is_null() && tt_move.type() != MOVE_PROM
@@ -236,11 +236,12 @@ Move MoveSource<Mode::Quiescence>::next_candidate() {
         case Stage::LoadPrimary:
             if (in_check) {
                 load_candidates<MoveGenType::Evasions>(
-                    candidates, board, history, context, tt_move);
+                    candidates, board, history, NodeContext{.side = side}, tt_move);
                 stage = Stage::PickEvasion;
                 break;
             }
-            load_candidates<MoveGenType::Noisy>(candidates, board, history, context, tt_move);
+            load_candidates<MoveGenType::Noisy>(
+                candidates, board, history, NodeContext{.side = side}, tt_move);
             stage = Stage::PickNoisy;
             [[fallthrough]];
         case Stage::PickNoisy: {

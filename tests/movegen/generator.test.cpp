@@ -1,5 +1,5 @@
 #include "movegen/generator.hpp"
-#include "movegen/generator_detail.hpp"
+#include "movegen/moves.hpp"
 
 #include <algorithm>
 #include <array>
@@ -68,16 +68,14 @@ TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
     };
     Board      quiet_board{board_test::fen::start};
     const auto quiet_moves = board_test::pseudo_legal_moves(quiet_board);
-    EXPECT_EQ(emitted_moves<movegen::MoveGenType::NonEvasions>(quiet_board),
-              quiet_moves);
+    EXPECT_EQ(emitted_moves<movegen::MoveGenType::NonEvasions>(quiet_board), quiet_moves);
 
     check_legal(quiet_board);
 
     Board evasion_board{board_test::fen::check_evasion};
     ASSERT_TRUE(evasion_board.is_check());
     const auto evasions = board_test::pseudo_legal_moves(evasion_board);
-    EXPECT_EQ(emitted_moves<movegen::MoveGenType::Evasions>(evasion_board),
-              evasions);
+    EXPECT_EQ(emitted_moves<movegen::MoveGenType::Evasions>(evasion_board), evasions);
     check_legal(evasion_board);
     check_legal(Board{board_test::fen::stalemate});
 

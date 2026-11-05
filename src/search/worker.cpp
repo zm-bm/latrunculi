@@ -5,7 +5,7 @@
 
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
-#include "search/ordering/picker.hpp"
+#include "movegen/moves.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -109,11 +109,11 @@ void Worker::clear_search_heuristics() {
 void Worker::build_root_lines() {
     root_lines.clear();
 
-    // Root candidates start in the current picker order.
-    const auto context = ordering::NodeContext::from_board(board);
-    auto picker = movegen::Moves<movegen::Mode::MainSearch>(board, ordering_history, context, 0);
+    // Root candidates start in ordered-stream order.
+    const auto context = ordering_history.context_for(board, 0);
+    auto       moves = movegen::Moves<movegen::Mode::MainSearch>(board, ordering_history, context);
 
-    for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         if (limits.allows_root_move(move))
             root_lines.push_back(RootLine{.root_move = move, .value = -eval_value::inf});
     }

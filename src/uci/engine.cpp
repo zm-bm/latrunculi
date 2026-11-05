@@ -12,7 +12,7 @@
 #include "board/notation.hpp"
 #include "core/move.hpp"
 #include "eval/features.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/moves.hpp"
 #include "movegen/perft.hpp"
 #include "search/limits.hpp"
 #include "search/tt.hpp"

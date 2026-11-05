@@ -10,9 +10,8 @@
 #include "board/board.hpp"
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/moves.hpp"
 #include "search/search_detail.hpp"
-#include "search/ordering/picker.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -106,11 +105,11 @@ protected:
         }
     }
 
-    std::vector<Move> legal_picker_moves(Move tt_move = NULL_MOVE) {
+    std::vector<Move> ordered_moves(Move tt_move = NULL_MOVE) {
         std::vector<Move> moves;
-        const auto        context = ordering::NodeContext::from_board(position());
-        auto              picker  = movegen::Moves<movegen::Mode::MainSearch>(
-            position(), ordering_history(), context, ply(), tt_move);
+        const auto        context = ordering_history().context_for(position(), ply(), tt_move);
+        auto              picker =
+            movegen::Moves<movegen::Mode::MainSearch>(position(), ordering_history(), context);
         for (Move move = picker.next(); !move.is_null(); move = picker.next())
             moves.push_back(move);
         return moves;
@@ -547,7 +546,7 @@ TEST_F(SearchTest, RazoringRequiresAllGuards) {
         else
             load(board, tc.depth);
         if (tc.seed_tt) {
-            const Move move = legal_picker_moves().front();
+            const Move move = ordered_moves().front();
             tt.store(position().tt_key(), move, 0, 0, TTBound::Exact, ply());
         }
         const EvalValue alpha = eval::evaluate(position()) + tc.alpha_offset;
@@ -577,7 +576,7 @@ TEST_F(SearchTest, FutilitySkipsOnlyAfterFirstLegalQuiet) {
     load(expected_board, 2);
     const EvalValue alpha    = eval::evaluate(position()) + 401;
     const EvalValue beta     = alpha + 100;
-    const Move      first    = legal_picker_moves().front();
+    const Move      first    = ordered_moves().front();
     const EvalValue expected = with_move(first, [&] { return -search(-beta, -alpha, 1); });
 
     Board board{board_test::fen::start};
@@ -680,7 +679,7 @@ TEST_F(SearchTest, FutilityKeepsLaterCheckingQuietHintsAndGeneratedMoves) {
             ordering_history().update_quiet_refutations(ordering::NodeContext{}, checking, ply());
         ordering_history().update_quiet_refutations(ordering::NodeContext{}, skipped, ply());
 
-        const auto moves       = legal_picker_moves(first);
+        const auto moves       = ordered_moves(first);
         const auto skipped_it  = std::find(moves.begin(), moves.end(), skipped);
         const auto checking_it = std::find(moves.begin(), moves.end(), checking);
         ASSERT_FALSE(moves.empty());
@@ -709,7 +708,7 @@ TEST_F(SearchTest, LateMovePruningRequiresNonPvAndNegativeCombinedHistory) {
         EvalValue  result   = -eval_value::inf;
 
         with_move(previous, [&] {
-            auto moves = legal_picker_moves();
+            auto moves = ordered_moves();
             ASSERT_GT(moves.size(), 12U);
             const Move late_quiet = moves.back();
             ASSERT_EQ(late_quiet.type(), BASIC_MOVE);
@@ -730,12 +729,12 @@ TEST_F(SearchTest, LateMovePruningRequiresNonPvAndNegativeCombinedHistory) {
                     late_quiet.to()) = -9;
             }
 
-            moves              = legal_picker_moves();
+            moves              = ordered_moves();
             const auto late_it = std::find(moves.begin(), moves.end(), late_quiet);
             ASSERT_NE(late_it, moves.end());
             ASSERT_GT(late_it - moves.begin(), 12);
             EXPECT_EQ(ordering_history().quiet_score(
-                          ordering::NodeContext::from_board(position()), position(), late_quiet)
+                          ordering_history().context_for(position(), ply()), position(), late_quiet)
                           < 0,
                       negative_history);
 
@@ -769,7 +768,7 @@ TEST_F(SearchTest, QuietCutoffWithoutRealPreviousMoveSkipsContextUpdates) {
         Board board{board_test::fen::start};
         load(board, 2);
         const auto test = [&] {
-            const Move cutoff = legal_picker_moves().front();
+            const Move cutoff = ordered_moves().front();
             store_child(cutoff, -200, 1);
             EXPECT_EQ(search(-200, 100, 2), 200);
             EXPECT_EQ(SearchTestAccess::counter_move_entry(ordering_history(), WHITE, PAWN, E4),
@@ -797,7 +796,7 @@ TEST_F(SearchTest, CaptureCutoffSkipsShallowRewardsAndPenalizesEarlierFailures) 
         Board board{"7k/8/8/2p1p3/5p2/3N4/6P1/4K3 b - - 0 1"};
         board.make(Move(H8, G8));
         load(board, tc.depth);
-        const auto moves = legal_picker_moves();
+        const auto moves = ordered_moves();
         ASSERT_GE(moves.size(), 3U);
         ASSERT_TRUE(position().is_capture(moves[0]));
         ASSERT_TRUE(position().is_capture(moves[1]));
@@ -809,8 +808,9 @@ TEST_F(SearchTest, CaptureCutoffSkipsShallowRewardsAndPenalizesEarlierFailures) 
         EXPECT_EQ(ordering_history().capture_history_score(position(), moves[1]), tc.reward);
         EXPECT_EQ(ordering_history().capture_history_score(position(), Move(D3, F4)), 0);
         EXPECT_EQ(ordering_history().primary_killer(ply()), NULL_MOVE);
-        EXPECT_EQ(ordering_history().counter_hint(ordering::NodeContext::from_board(position())),
-                  NULL_MOVE);
+        EXPECT_EQ(
+            ordering_history().counter_hint(ordering_history().context_for(position(), ply())),
+            NULL_MOVE);
     }
 }
 
@@ -821,8 +821,9 @@ TEST_F(SearchTest, CaptureHistorySkipsPromotionsEvasionsAndQuiescenceUpdates) {
         store_child(move, -200, 2);
         EXPECT_EQ(search(-200, 100, 3), 200);
         EXPECT_EQ(ordering_history().primary_killer(ply()), NULL_MOVE);
-        EXPECT_EQ(ordering_history().counter_hint(ordering::NodeContext::from_board(position())),
-                  NULL_MOVE);
+        EXPECT_EQ(
+            ordering_history().counter_hint(ordering_history().context_for(position(), ply())),
+            NULL_MOVE);
     };
     cutoff(Board{"4k2r/6P1/8/8/8/8/8/K7 w - - 0 1"}, Move(G7, H8, MOVE_PROM, QUEEN));
     EXPECT_EQ(SearchTestAccess::capture_history_entry(ordering_history(), WHITE, PAWN, H8, ROOK),
@@ -834,7 +835,7 @@ TEST_F(SearchTest, CaptureHistorySkipsPromotionsEvasionsAndQuiescenceUpdates) {
     quiet_promotion.make(Move(E1, D1));
     cutoff(quiet_promotion, Move(A2, A1, MOVE_PROM, QUEEN));
     load(Board{"7k/8/8/2p1p3/8/3N4/6P1/4K3 w - - 0 1"}, 1);
-    const Move capture = legal_picker_moves().front();
+    const Move capture = ordered_moves().front();
     tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
     store_child(capture, -200, 0);
     EXPECT_EQ(SearchTestAccess::quiescence<NodeType::NonPv>(worker, -200, 100), 200);
@@ -847,7 +848,7 @@ TEST_F(SearchTest, QuietCutoffTrainsHistoriesAndSkipsFailedRefutationHints) {
     const Move previous = find_move("e2e4");
 
     with_move(previous, [&] {
-        const auto moves = legal_picker_moves();
+        const auto moves = ordered_moves();
         ASSERT_GE(moves.size(), 5U);
         const Move tt_move = moves[0];
         const Move killer  = moves[1];
@@ -881,7 +882,7 @@ TEST_F(SearchTest, QuietMalusRequiresDepthAndTwoFailedMoves) {
         Board board{board_test::fen::start};
         board.make(Move(E2, E4));
         load(board, depth);
-        const auto moves = legal_picker_moves();
+        const auto moves = ordered_moves();
         ASSERT_GT(moves.size(), static_cast<std::size_t>(failures));
         for (int i = 0; i <= failures; ++i)
             store_child(moves[i], i == failures ? -200 : 0, depth - 1);
@@ -1081,7 +1082,7 @@ TEST_F(SearchTest, LmrResearchesAtFullDepthAfterAlphaImprovement) {
 
     Board board{board_test::fen::start};
     load(board, 4);
-    const auto moves = legal_picker_moves();
+    const auto moves = ordered_moves();
     ASSERT_GE(moves.size(), 4U);
     store_child(moves[3], -1500, 2);
     EXPECT_EQ(search(-2000, 2000, 4), expected);
@@ -1106,7 +1107,7 @@ TEST_F(SearchTest, DecliningLmrStillVerifiesAnApparentReducedCutoff) {
     const EvalValue expected = search(-2000, 2000, 5);
     ASSERT_LT(expected, 2000);
     prepare();
-    const auto moves = legal_picker_moves();
+    const auto moves = ordered_moves();
     ASSERT_GE(moves.size(), 4U);
     ASSERT_FALSE(position().is_capture(moves[3]));
     ASSERT_FALSE(position().gives_check(moves[3]));
@@ -1143,7 +1144,7 @@ TEST_F(SearchTest, LmrSkipsTacticalAndEvasionMoves) {
         SCOPED_TRACE(tc.fen);
         Board board{tc.fen};
         load(board, 4);
-        auto moves     = legal_picker_moves(tc.tt_move);
+        auto moves     = ordered_moves(tc.tt_move);
         Move candidate = tc.candidate;
         if (candidate.is_null()) {
             ASSERT_GE(moves.size(), 3U);
@@ -1156,7 +1157,7 @@ TEST_F(SearchTest, LmrSkipsTacticalAndEvasionMoves) {
             SearchTestAccess::quiet_history_entry(
                 ordering_history(), position().side_to_move(), candidate.from(), candidate.to()) =
                 16;
-            moves = legal_picker_moves(tc.tt_move);
+            moves = ordered_moves(tc.tt_move);
         }
         const auto it = std::find(moves.begin(), moves.end(), candidate);
         ASSERT_NE(it, moves.end());

@@ -7,7 +7,7 @@
 
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/moves.hpp"
 #include "search/search_detail.hpp"
 #include "search/root_line.hpp"
 #include "search/thread_pool.hpp"

@@ -5,7 +5,7 @@
 #include "core/move.hpp"
 #include "core/move_geometry.hpp"
 #include "core/notation.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/moves.hpp"
 
 #include <cassert>
 

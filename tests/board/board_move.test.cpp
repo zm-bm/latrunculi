@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "core/constants.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/moves.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/board_snapshot.hpp"
 

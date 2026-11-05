@@ -17,35 +17,26 @@ class SearchTestAccess;
 
 namespace search::ordering {
 
-// Keys for one node, shared by the picker and learning policy; contains no scores.
+// Immutable node inputs shared by move selection and learning. Hints are raw
+// node-start snapshots; history scores remain live until their consumer reads them.
 struct NodeContext {
     static constexpr int           PreviousKeyCount = N_COLORS * piece_slots * N_SQUARES;
     static constexpr std::uint16_t NoPreviousKey    = PreviousKeyCount;
 
     Color         side{WHITE};
+    bool          in_check{false};
     std::uint16_t previous_key{NoPreviousKey};
+    int           ply{0};
+    Move          tt_move{NULL_MOVE};
+    Move          primary_killer{NULL_MOVE};
+    Move          secondary_killer{NULL_MOVE};
+    Move          counter_move{NULL_MOVE};
 
     bool                 has_previous_move() const { return previous_key != NoPreviousKey; }
     static std::uint16_t previous_index(Color side, PieceType piece, Square to) {
         return static_cast<std::uint16_t>((static_cast<int>(side) * piece_slots + piece_slot(piece))
                                               * N_SQUARES
                                           + static_cast<int>(to));
-    }
-
-    static NodeContext from_board(const Board& board) {
-        NodeContext context{.side = board.side_to_move()};
-
-        const Move prev_move = board.previous_move();
-        if (prev_move.is_null())
-            return context;
-
-        const PieceType prev_piece =
-            prev_move.type() == MOVE_PROM ? PAWN : type_of(board.piece_on(prev_move.to()));
-        if (prev_piece == NO_PIECETYPE)
-            return context;
-
-        context.previous_key = previous_index(~context.side, prev_piece, prev_move.to());
-        return context;
     }
 };
 
@@ -57,6 +48,24 @@ public:
     static constexpr int CaptureMaxScore = 16384;
 
     History() : continuation_scores(std::make_unique<ContinuationTable>()) {}
+
+    // Build once before constructing the node's stream and learning object.
+    NodeContext context_for(const Board& board, int ply, Move tt_move = NULL_MOVE) const {
+        NodeContext context{.side = board.side_to_move(), .ply = ply, .tt_move = tt_move};
+        const Move  previous = board.previous_move();
+        if (!previous.is_null()) {
+            const PieceType piece =
+                previous.type() == MOVE_PROM ? PAWN : type_of(board.piece_on(previous.to()));
+            if (piece != NO_PIECETYPE)
+                context.previous_key =
+                    NodeContext::previous_index(~context.side, piece, previous.to());
+        }
+        context.primary_killer   = primary_killer(ply);
+        context.secondary_killer = secondary_killer(ply);
+        context.counter_move     = counter_hint(context);
+        context.in_check         = board.is_check();
+        return context;
+    }
 
     // Clear refutations and age quiet/capture scores; continuation scores persist.
     void prepare_for_search() {
@@ -214,23 +223,21 @@ class NodeLearning {
 public:
     NodeLearning(const Board&       board,
                  History&           history,
-                 NodeContext        context,
-                 int                ply,
+                 const NodeContext& context,
                  int                depth,
-                 Move               tt_move,
                  Instrumentation<>& stats)
         : board(board),
           history(history),
           context(context),
-          ply(ply),
           depth(depth),
-          tt_move(tt_move),
-          in_check(board.is_check()),
-          allow_quiet_malus(depth >= QuietMalusMinDepth && !in_check),
+          allow_quiet_malus(depth >= QuietMalusMinDepth && !context.in_check),
           stats(stats) {
         if (allow_quiet_malus)
             stats.quiet_malus_eligible_node(depth);
     }
+
+    // Both consumers borrow the same named context for the lifetime of this node.
+    NodeLearning(const Board&, History&, const NodeContext&&, int, Instrumentation<>&) = delete;
 
     // Includes alpha improvements that did not reach beta.
     void record_non_cutoff(Move move, bool is_capture, bool is_killer) {
@@ -238,9 +245,9 @@ public:
             return;
 
         if (is_capture) {
-            if (!in_check)
+            if (!context.in_check)
                 failed_captures.record(move);
-        } else if (allow_quiet_malus && move != tt_move && !is_killer
+        } else if (allow_quiet_malus && move != context.tt_move && !is_killer
                    && failed_quiets.record(move)) {
             stats.quiet_malus_failed_quiet(depth);
         }
@@ -250,7 +257,7 @@ public:
         const bool is_promotion = move.type() == MOVE_PROM;
         if (!is_capture && !is_promotion) {
             stats.quiet_cutoff(depth);
-            history.update_quiet_refutations(context, move, ply);
+            history.update_quiet_refutations(context, move, context.ply);
             history.update_quiet(context, board, move, quiet_bonus(depth));
             if (allow_quiet_malus && failed_quiets.size() >= QuietMalusMinFailed) {
                 const int penalty = -quiet_bonus(depth, QuietMalusDivisor);
@@ -262,7 +269,7 @@ public:
         }
         const bool reward_capture =
             is_capture && !is_promotion && depth >= CaptureHistoryMinRewardDepth;
-        if (!in_check && (reward_capture || !failed_captures.empty())) {
+        if (!context.in_check && (reward_capture || !failed_captures.empty())) {
             const int bonus = capture_bonus(depth);
             if (reward_capture)
                 history.update_capture(board, move, bonus);
@@ -316,11 +323,8 @@ private:
 
     const Board&       board;
     History&           history;
-    const NodeContext  context;
-    const int          ply;
+    const NodeContext& context;
     const int          depth;
-    const Move         tt_move;
-    const bool         in_check;
     const bool         allow_quiet_malus;
     Instrumentation<>& stats;
     FailedMoves        failed_quiets;

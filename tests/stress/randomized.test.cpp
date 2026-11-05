@@ -1,3 +1,4 @@
+#include "movegen/moves.hpp"
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -21,7 +22,7 @@
 #include "core/attacks.hpp"
 #include "eval/evaluation.hpp"
 #include "eval/features.hpp"
-#include "movegen/generator_detail.hpp"
+#include "movegen/generator.hpp"
 #include "search/limits.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"

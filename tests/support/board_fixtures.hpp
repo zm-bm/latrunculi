@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "board/board.hpp"
-#include "movegen/generator_detail.hpp"
+#include "movegen/generator.hpp"
 
 namespace board_test::fen {
 

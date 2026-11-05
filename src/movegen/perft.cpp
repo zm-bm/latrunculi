@@ -5,7 +5,7 @@
 
 #include "board/board.hpp"
 #include "core/constants.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/moves.hpp"
 
 namespace movegen {
 

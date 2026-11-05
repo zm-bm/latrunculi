@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-#include "movegen/generator_detail.hpp"
+#include "movegen/generator.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/see_oracle.hpp"
 

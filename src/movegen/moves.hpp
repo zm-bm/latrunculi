@@ -2,15 +2,44 @@
 
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 
 #include "board/board.hpp"
-#include "core/move.hpp"
-#include "movegen/generator.hpp"
-#include "search/ordering/history.hpp"
 
-namespace movegen::detail {
+namespace search::ordering {
+class History;
+struct NodeContext;
+} // namespace search::ordering
+
+namespace movegen {
+
+enum class Mode { All, MainSearch, Quiescence };
+
+template <Mode Which>
+class Moves;
+
+namespace detail {
+
+inline constexpr std::size_t MoveCapacity = 256;
+
+template <Mode Which>
+class MoveSource;
+
+// Ordinary traversal loads the complete batch before consuming it in generation order.
+template <>
+class MoveSource<Mode::All> {
+    friend class Moves<Mode::All>;
+
+    explicit MoveSource(const Board& board);
+    Move next_candidate() { return next != last ? *next++ : NULL_MOVE; }
+
+    const Board&                   board;
+    std::array<Move, MoveCapacity> storage;
+    Move*                          next;
+    Move*                          last;
+};
 
 using search::ordering::History;
 using search::ordering::NodeContext;
@@ -136,11 +165,8 @@ template <>
 class MoveSource<Mode::MainSearch> {
     friend class Moves<Mode::MainSearch>;
 
-    MoveSource(const Board&       board,
-               const History&     history,
-               const NodeContext& context,
-               int                ply,
-               Move               tt_move = NULL_MOVE);
+    MoveSource(const Board& board, const History& history, const NodeContext& context);
+    MoveSource(const Board&, const History&, const NodeContext&&) = delete;
     void skip_nonchecking_quiets();
 
     enum class Stage : std::uint8_t {
@@ -155,25 +181,13 @@ class MoveSource<Mode::MainSearch> {
         Done,
     };
     static constexpr int QuietHintCapacity = 3;
-    struct QuietHintCandidates {
-        Move primary_killer;
-        Move secondary_killer;
-        Move counter;
-    };
-    MoveSource(const Board&        board,
-               const History&      history,
-               const NodeContext&  context,
-               Move                tt,
-               QuietHintCandidates quiet_hint_candidates);
-    Move next_candidate();
-    bool is_quiet_hint(Move move) const;
+    Move                 next_candidate();
+    bool                 is_quiet_hint(Move move) const;
 
     const Board&                        board;
     const History&                      history;
-    const NodeContext                   context;
-    const Move                          counter_move;
+    const NodeContext&                  context;
     Move                                tt_move{NULL_MOVE};
-    const bool                          in_check;
     Stage                               stage{Stage::TtMove};
     CandidateBuffer                     candidates;
     std::array<Move, QuietHintCapacity> quiet_hints{};
@@ -193,13 +207,52 @@ class MoveSource<Mode::Quiescence> {
     enum class Stage : std::uint8_t { TtMove, LoadPrimary, PickEvasion, PickNoisy, Done };
     Move next_candidate();
 
-    const Board&      board;
-    const History&    history;
-    const NodeContext context;
-    Move              tt_move{NULL_MOVE};
-    const bool        in_check;
-    Stage             stage{Stage::TtMove};
-    CandidateBuffer   candidates;
+    const Board&    board;
+    const History&  history;
+    const Color     side;
+    Move            tt_move{NULL_MOVE};
+    const bool      in_check;
+    Stage           stage{Stage::TtMove};
+    CandidateBuffer candidates;
 };
 
-} // namespace movegen::detail
+} // namespace detail
+
+// A single-pass legal move stream. Restore the node's board before advancing.
+// Main-search streams borrow a named NodeContext which must outlive the stream.
+// Selection precedes legality so ordered modes retain their swaps and tie order.
+template <Mode Which>
+class Moves {
+public:
+    template <typename... Args>
+    explicit Moves(const Board& board, Args&&... args)
+        : source(board, std::forward<Args>(args)...) {}
+
+    Moves(const Moves&)            = delete;
+    Moves(Moves&&)                 = delete;
+    Moves& operator=(const Moves&) = delete;
+    Moves& operator=(Moves&&)      = delete;
+
+    Move next() {
+        return find([](Move) { return true; });
+    }
+
+    // Consume through the match, checking cheap predicates before legality (e.g. UCI).
+    template <typename Match>
+    Move find(Match match) {
+        for (Move move = source.next_candidate(); !move.is_null(); move = source.next_candidate())
+            if (match(move) && source.board.is_legal_pseudo_move(move))
+                return move;
+        return NULL_MOVE;
+    }
+
+    void skip_nonchecking_quiets() requires(Which == Mode::MainSearch)
+    {
+        source.skip_nonchecking_quiets();
+    }
+
+private:
+    detail::MoveSource<Which> source;
+};
+
+} // namespace movegen

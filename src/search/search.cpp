@@ -5,10 +5,9 @@
 
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
-#include "movegen/generator.hpp"
-#include "search/ordering/history.hpp"
-#include "search/ordering/picker.hpp"
+#include "movegen/moves.hpp"
 #include "search/search_detail.hpp"
+#include "search/ordering/history.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
 
@@ -251,17 +250,16 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
     EvalValue best_value = -eval_value::inf;
     Move      best_move  = NULL_MOVE;
 
-    const auto context = ordering::NodeContext::from_board(board);
-    auto       picker  = movegen::Moves<movegen::Mode::MainSearch>(
-        board, ordering_history, context, search_ply, tt_move);
+    const auto context = ordering_history.context_for(board, search_ply, tt_move);
+    auto       moves = movegen::Moves<movegen::Mode::MainSearch>(board, ordering_history, context);
 
     PrincipalVariation child_pv;
     std::optional<ordering::NodeLearning> learning;
     if (!verification_root)
-        learning.emplace(board, ordering_history, context, search_ply, depth, tt_move, stats);
+        learning.emplace(board, ordering_history, context, depth, stats);
 
     // Step 8. Move loop.
-    for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         if (move == excluded_move)
             continue;
 
@@ -273,7 +271,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         const bool is_quiet          = !is_capture && !is_promotion;
         const bool is_ordinary_quiet = is_quiet && move.type() == BASIC_MOVE;
         const bool is_killer         = is_quiet && ordering_history.is_killer(move, search_ply);
-        const bool is_counter        = is_quiet && move == picker.counter_hint();
+        const bool is_counter        = is_quiet && move == context.counter_move;
 
         // LMR uses current history, read before making the move. Ordering retains its snapshot.
         int raw_capture_history = 0;
@@ -299,7 +297,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
             // Step 9. Futility pruning.
             board.unmake();
             --search_ply;
-            picker.skip_nonchecking_quiets();
+            moves.skip_nonchecking_quiets();
             stats.futility_skip(search_ply);
             continue;
         }
@@ -504,11 +502,11 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
             alpha = best_value;
     }
 
-    auto picker = movegen::Moves<movegen::Mode::Quiescence>(board, ordering_history, tt_move);
+    auto moves = movegen::Moves<movegen::Mode::Quiescence>(board, ordering_history, tt_move);
     PrincipalVariation child_pv;
 
     // Step 5. Tactical move or evasion loop.
-    for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         ++move_count;
 
         // SEE prices classify exchanges; use evaluation material for the gain estimate.
