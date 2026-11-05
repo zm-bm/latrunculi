@@ -274,9 +274,6 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
                 if (!quiet_checks_only || board.gives_check(move))
                     return move;
             }
-            stage = Stage::LoadQuiet;
-            break;
-        case Stage::LoadQuiet:
             candidates.load_quiets(
                 board,
                 history,

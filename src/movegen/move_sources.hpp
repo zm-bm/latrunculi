@@ -128,7 +128,6 @@ class MoveSource<MovePolicy::MainSearch> {
         PickEvasion,
         PickEarlyNoisy,
         PickQuietHint,
-        LoadQuiet,
         PickQuiet,
         PickDeferredNoisy,
         Done,
