@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <span>
+#include <utility>
 
 #include "board/board.hpp"
 #include "board/see_values.hpp"
@@ -9,6 +10,100 @@
 #include "search/ordering/history.hpp"
 
 namespace movegen {
+
+using search::ordering::History;
+using search::ordering::NodeContext;
+
+// Candidate storage and selection.
+
+template <Batch Which, typename Populate>
+inline void CandidateBuffer::load(Populate&& populate) {
+    Candidate* first = storage.data();
+    if constexpr (Which == Batch::Quiet) {
+        // Append after the full primary batch, including taken and excluded entries.
+        assert(primary.end != nullptr);
+        first = primary.end;
+    }
+
+    Candidate* end = first;
+    populate([&](Candidate candidate) {
+        assert(end < storage.data() + storage.size());
+        *end = candidate;
+        ++end;
+    });
+    // The producer is synchronous; publish only the completed batch.
+    range_for<Which>() = {first, end};
+}
+
+template <Batch Which, CandidateState State, typename Eligible>
+inline Move CandidateBuffer::take_best(Eligible eligible) {
+    Candidate* selected = best<Which, State>(eligible);
+    return selected ? take<Which>(selected) : NULL_MOVE;
+}
+
+template <Batch Which, CandidateState State>
+inline Move CandidateBuffer::take_best() {
+    return take_best<Which, State>([](const Candidate&) { return true; });
+}
+
+// Test acceptance only after ranking. Rejected candidates stay in place for later.
+template <typename Accept>
+inline Move CandidateBuffer::take_best_or_defer(Accept accept) {
+    while (Candidate* selected = best<Batch::Primary>()) {
+        if (accept(*selected))
+            return take<Batch::Primary>(selected);
+        defer(*selected);
+    }
+    return NULL_MOVE;
+}
+
+template <Batch Which>
+inline CandidateBuffer::Range& CandidateBuffer::range_for() {
+    if constexpr (Which == Batch::Primary)
+        return primary;
+    else
+        return quiet;
+}
+
+template <Batch Which, CandidateState State, typename Eligible>
+inline Candidate* CandidateBuffer::best(Eligible eligible) {
+    auto&      range      = range_for<Which>();
+    Candidate* best       = nullptr;
+    int        best_score = 0;
+    for (Candidate* candidate = range.next; candidate != range.end; ++candidate) {
+        // Strict comparison preserves the first tie in the current buffer order.
+        const int score = candidate->score;
+        if ((best == nullptr || score > best_score) && candidate->state == State
+            && eligible(*candidate)) {
+            best       = candidate;
+            best_score = score;
+        }
+    }
+    return best;
+}
+
+template <Batch Which, CandidateState State>
+inline Candidate* CandidateBuffer::best() {
+    return best<Which, State>([](const Candidate&) { return true; });
+}
+
+template <Batch Which>
+inline Move CandidateBuffer::take(Candidate* best) {
+    auto& range = range_for<Which>();
+    // Retain excluded entries: removing them changes later selection ties.
+    std::swap(*range.next, *best);
+    const Move move = range.next->move;
+    ++range.next;
+    return move;
+}
+
+inline void CandidateBuffer::defer(Candidate& candidate) {
+    // Defer in place, without swapping or advancing. Deferred scores tie at zero.
+    candidate.state = CandidateState::Deferred;
+    candidate.score = 0;
+}
+
+// Shared scoring and batch loading.
 
 int main_search_see_threshold(PieceType victim, int scaled_history) {
     return -(see::piece_value(victim) + scaled_history) / 2;
@@ -21,7 +116,7 @@ constexpr int PromotionScore          = 1 << 28;
 constexpr int CaptureVictimWeight     = 7;
 constexpr int CaptureMaterialOffset   = see::piece_value(QUEEN);
 constexpr int CaptureHistoryDivisor   = 16;
-static_assert(search::ordering::History::QuietMaxScore < EvasionCaptureScoreBase);
+static_assert(History::QuietMaxScore < EvasionCaptureScoreBase);
 static_assert(see::piece_value(PAWN) == 100, "Capture history uses pawn=100 exchange units");
 
 // Fixed-price material score shared by captures and capture evasions.
@@ -35,23 +130,15 @@ constexpr int capture_score(int victim_value, int attacker_value, int scaled_his
          + CaptureVictimWeight * scaled_history;
 }
 
-Move validate_tt_hint(const Board& board, Move move, bool in_check) {
-    if (move.is_null() || !board.is_pseudo_legal(move))
-        return NULL_MOVE;
-    if (in_check && !board.is_legal_pseudo_move(move))
-        return NULL_MOVE;
-    return move;
-}
-
 // One synchronous batch operation shares generation and scoring across both flows.
 // Excluded moves are still scored and stored; each entire batch loads before selection.
 template <GenerationKind Kind, bool UseHistorySeeThreshold = false>
-void load_candidates(CandidateBuffer&                     candidates,
-                     const Board&                         board,
-                     const search::ordering::History&     history,
-                     const search::ordering::NodeContext& context,
-                     Move                                 tt_move,
-                     std::span<const Move>                quiet_hints = {}) {
+void load_candidates(CandidateBuffer&      candidates,
+                     const Board&          board,
+                     const History&        history,
+                     const NodeContext&    context,
+                     Move                  tt_move,
+                     std::span<const Move> quiet_hints = {}) {
     static_assert(Kind == GenerationKind::Evasions || Kind == GenerationKind::Noisy
                   || Kind == GenerationKind::Quiet);
     constexpr Batch batch = Kind == GenerationKind::Quiet ? Batch::Quiet : Batch::Primary;
@@ -107,7 +194,17 @@ void load_candidates(CandidateBuffer&                     candidates,
     });
 }
 
+Move validate_tt_hint(const Board& board, Move move, bool in_check) {
+    if (move.is_null() || !board.is_pseudo_legal(move))
+        return NULL_MOVE;
+    if (in_check && !board.is_legal_pseudo_move(move))
+        return NULL_MOVE;
+    return move;
+}
+
 } // namespace
+
+// Unordered traversal.
 
 MoveSource<MovePolicy::Unordered>::MoveSource(const Board& board)
     : board(board),
@@ -120,9 +217,11 @@ MoveSource<MovePolicy::Unordered>::MoveSource(const Board& board)
     end = fill;
 }
 
-MoveSource<MovePolicy::MainSearch>::MoveSource(const Board&                         board,
-                                               const search::ordering::History&     history,
-                                               const search::ordering::NodeContext& context)
+// Main-search ordering.
+
+MoveSource<MovePolicy::MainSearch>::MoveSource(const Board&       board,
+                                               const History&     history,
+                                               const NodeContext& context)
     : board(board),
       history(history),
       context(context) {
@@ -225,9 +324,9 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
     return NULL_MOVE;
 }
 
-MoveSource<MovePolicy::Quiescence>::MoveSource(const Board&                     board,
-                                               const search::ordering::History& history,
-                                               Move                             tt)
+// Quiescence ordering.
+
+MoveSource<MovePolicy::Quiescence>::MoveSource(const Board& board, const History& history, Move tt)
     : board(board),
       history(history),
       side(board.side_to_move()),
@@ -254,16 +353,12 @@ Move MoveSource<MovePolicy::Quiescence>::next_candidate() {
         case Stage::LoadPrimary:
             if (in_check) {
                 load_candidates<GenerationKind::Evasions>(
-                    candidates,
-                    board,
-                    history,
-                    search::ordering::NodeContext{.side = side},
-                    tt_move);
+                    candidates, board, history, NodeContext{.side = side}, tt_move);
                 stage = Stage::PickEvasion;
                 break;
             }
             load_candidates<GenerationKind::Noisy>(
-                candidates, board, history, search::ordering::NodeContext{.side = side}, tt_move);
+                candidates, board, history, NodeContext{.side = side}, tt_move);
             stage = Stage::PickNoisy;
             [[fallthrough]];
         case Stage::PickNoisy: {
