@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "core/constants.hpp"
-#include "movegen/generator_detail.hpp"
+#include "movegen/generator.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/board_snapshot.hpp"
 
@@ -277,9 +277,8 @@ TEST(BoardMoveTest, TTKeyReadyCallbackMatchesCompletedPositionAcrossMoveTypes) {
         Board      board(fen);
         const auto before = board_test::snapshot_board(board);
 
-        for (const Move move : movegen::detail::generate_pseudo_legal(board)) {
-            if (!board.is_legal_pseudo_move(move))
-                continue;
+        movegen::Moves<movegen::Mode::All> moves(board);
+        for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
 
             SCOPED_TRACE(testing::Message() << fen << " move=" << move);
 

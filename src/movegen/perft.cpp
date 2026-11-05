@@ -20,8 +20,9 @@ NodeCount perft_impl(Board& board, int depth) {
     if (depth == 0)
         return 1;
 
-    NodeCount nodes = 0;
-    for (Move move : LegalMoves(board)) {
+    NodeCount        nodes = 0;
+    Moves<Mode::All> moves(board);
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
 
         board.make(move);
         NodeCount count = perft_impl(board, depth - 1);
@@ -53,7 +54,8 @@ PerftResult perft_root(Board& board, int depth) {
         return result;
     }
 
-    for (Move move : LegalMoves(board)) {
+    Moves<Mode::All> moves(board);
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
 
         board.make(move);
         const NodeCount nodes = perft_impl(board, depth - 1);

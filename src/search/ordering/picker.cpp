@@ -7,15 +7,11 @@
 #include "movegen/generator_detail.hpp"
 #include "search/ordering/capture_scoring.hpp"
 
-namespace search::ordering {
+namespace movegen::detail {
 
 namespace {
 
-using detail::Batch;
-using detail::Candidate;
-using detail::CandidateBuffer;
-using detail::CandidateState;
-using movegen::MoveGenType;
+namespace capture_scoring = search::ordering::capture_scoring;
 
 constexpr int EvasionCaptureScoreBase = 1 << 22;
 constexpr int PromotionScore          = 1 << 28;
@@ -91,9 +87,9 @@ void load_candidates(CandidateBuffer&      candidates,
 
 } // namespace
 
-MainPicker::MainPicker(
+MoveSource<Mode::MainSearch>::MoveSource(
     const Board& board, const History& history, const NodeContext& context, int ply, Move tt_move)
-    : MainPicker(board,
+    : MoveSource(board,
                  history,
                  context,
                  tt_move,
@@ -101,11 +97,11 @@ MainPicker::MainPicker(
                   .secondary_killer = history.secondary_killer(ply),
                   .counter          = history.counter_hint(context)}) {}
 
-MainPicker::MainPicker(const Board&        board,
-                       const History&      history,
-                       const NodeContext&  context,
-                       Move                tt,
-                       QuietHintCandidates quiet_hint_candidates)
+MoveSource<Mode::MainSearch>::MoveSource(const Board&        board,
+                                         const History&      history,
+                                         const NodeContext&  context,
+                                         Move                tt,
+                                         QuietHintCandidates quiet_hint_candidates)
     : board(board),
       history(history),
       context(context),
@@ -126,7 +122,7 @@ MainPicker::MainPicker(const Board&        board,
     }
 }
 
-bool MainPicker::is_quiet_hint(Move move) const {
+bool MoveSource<Mode::MainSearch>::is_quiet_hint(Move move) const {
     if (move.is_null())
         return false;
     for (int i = 0; i < quiet_hint_count; ++i)
@@ -135,12 +131,12 @@ bool MainPicker::is_quiet_hint(Move move) const {
     return false;
 }
 
-void MainPicker::skip_nonchecking_quiets() {
+void MoveSource<Mode::MainSearch>::skip_nonchecking_quiets() {
     if (!in_check)
         quiet_checks_only = true;
 }
 
-Move MainPicker::next_candidate() {
+Move MoveSource<Mode::MainSearch>::next_candidate() {
     while (stage != Stage::Done) {
         switch (stage) {
         case Stage::TtMove:
@@ -213,7 +209,7 @@ Move MainPicker::next_candidate() {
     return NULL_MOVE;
 }
 
-QuiescencePicker::QuiescencePicker(const Board& board, const History& history, Move tt)
+MoveSource<Mode::Quiescence>::MoveSource(const Board& board, const History& history, Move tt)
     : board(board),
       history(history),
       context{.side = board.side_to_move()},
@@ -224,7 +220,7 @@ QuiescencePicker::QuiescencePicker(const Board& board, const History& history, M
         tt_move = NULL_MOVE;
 }
 
-Move QuiescencePicker::next_candidate() {
+Move MoveSource<Mode::Quiescence>::next_candidate() {
     while (stage != Stage::Done) {
         switch (stage) {
         case Stage::TtMove:
@@ -262,4 +258,4 @@ Move QuiescencePicker::next_candidate() {
     return NULL_MOVE;
 }
 
-} // namespace search::ordering
+} // namespace movegen::detail

@@ -1,77 +1,82 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
-#include <iterator>
+#include <utility>
 
 #include "board/board.hpp"
-#include "movegen/move_list.hpp"
 
 namespace movegen {
 
-// Unscored legal moves in generation order. Generation finishes before iteration;
-// restore the board before advancing. Ordered search uses Picker instead.
-class LegalMoves {
-private:
-    class Iterator {
-    public:
-        using value_type        = Move;
-        using difference_type   = std::ptrdiff_t;
-        using reference         = Move;
-        using pointer           = void;
-        using iterator_concept  = std::input_iterator_tag;
-        using iterator_category = std::input_iterator_tag;
+// Ordered modes also require search/ordering/picker.hpp.
+enum class Mode { All, MainSearch, Quiescence };
 
-        Iterator() = default;
-        Iterator(const Board& board, const Move* next, const Move* last)
-            : board(&board),
-              next(next),
-              last(last) {
-            skip_illegal();
-        }
+template <Mode Which>
+class Moves;
 
-        Move      operator*() const { return *next; }
-        Iterator& operator++() {
-            ++next;
-            skip_illegal();
-            return *this;
-        }
-        Iterator operator++(int) {
-            Iterator previous = *this;
-            ++*this;
-            return previous;
-        }
-        bool operator==(const Iterator& other) const { return next == other.next; }
-        bool operator==(std::default_sentinel_t) const { return next == last; }
+namespace detail {
 
-    private:
-        void skip_illegal() {
-            while (next != last && !board->is_legal_pseudo_move(*next))
-                ++next;
-        }
-        const Board* board{nullptr};
-        const Move*  next{nullptr};
-        const Move*  last{nullptr};
-    };
+inline constexpr std::size_t MoveCapacity = 256;
 
+template <Mode Which>
+class MoveSource;
+
+// Ordinary traversal loads the complete batch before consuming it in generation order.
+template <>
+class MoveSource<Mode::All> {
+    friend class Moves<Mode::All>;
+
+    explicit MoveSource(const Board& board);
+    Move next_candidate() { return next != last ? *next++ : NULL_MOVE; }
+
+    const Board&                   board;
+    std::array<Move, MoveCapacity> storage;
+    Move*                          next;
+    Move*                          last;
+};
+
+} // namespace detail
+
+// A single-pass legal move stream. Restore the node's board before advancing.
+// Selection precedes legality so ordered modes retain their swaps and tie order.
+template <Mode Which>
+class Moves {
 public:
-    explicit LegalMoves(const Board& board);
+    template <typename... Args>
+    explicit Moves(const Board& board, Args&&... args)
+        : source(board, std::forward<Args>(args)...) {}
 
-    Iterator                begin() const { return {board, moves.begin(), moves.end()}; }
-    std::default_sentinel_t end() const { return {}; }
-    bool                    empty() const { return begin() == end(); }
+    Moves(const Moves&)            = delete;
+    Moves(Moves&&)                 = delete;
+    Moves& operator=(const Moves&) = delete;
+    Moves& operator=(Moves&&)      = delete;
 
-    // Match before testing legality, retaining cheap lookup for a specific UCI token.
+    Move next() {
+        return find([](Move) { return true; });
+    }
+
+    // Consume through the match, checking cheap predicates before legality (e.g. UCI).
     template <typename Match>
-    Move find(Match match) const {
-        for (Move move : moves)
-            if (match(move) && board.is_legal_pseudo_move(move))
+    Move find(Match match) {
+        for (Move move = source.next_candidate(); !move.is_null(); move = source.next_candidate())
+            if (match(move) && source.board.is_legal_pseudo_move(move))
                 return move;
         return NULL_MOVE;
     }
 
+    void skip_nonchecking_quiets() requires(Which == Mode::MainSearch)
+    {
+        source.skip_nonchecking_quiets();
+    }
+
+    // Raw node-start snapshot, even if excluded from validated quiet hints.
+    Move counter_hint() const requires(Which == Mode::MainSearch)
+    {
+        return source.counter_move;
+    }
+
 private:
-    const Board& board;
-    MoveList     moves;
+    detail::MoveSource<Which> source;
 };
 
 } // namespace movegen

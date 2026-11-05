@@ -134,7 +134,6 @@ if(BUILD_TESTING)
         tests/board/notation.test.cpp
         tests/cli/cli.test.cpp
         tests/movegen/generator.test.cpp
-        tests/movegen/move_list.test.cpp
         tests/movegen/perft.test.cpp
         tests/eval/evaluation.test.cpp
         tests/eval/features.test.cpp

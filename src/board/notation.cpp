@@ -84,7 +84,7 @@ std::string to_san(const Board& board, Move move) {
     if (board.gives_check(move)) {
         Board next(board);
         next.make(move);
-        san += movegen::LegalMoves(next).empty() ? '#' : '+';
+        san += movegen::Moves<movegen::Mode::All>(next).next().is_null() ? '#' : '+';
     }
     return san;
 }

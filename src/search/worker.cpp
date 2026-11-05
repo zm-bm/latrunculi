@@ -111,7 +111,7 @@ void Worker::build_root_lines() {
 
     // Root candidates start in the current picker order.
     const auto context = ordering::NodeContext::from_board(board);
-    auto       picker  = ordering::MainPicker(board, ordering_history, context, 0);
+    auto picker = movegen::Moves<movegen::Mode::MainSearch>(board, ordering_history, context, 0);
 
     for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
         if (limits.allows_root_move(move))

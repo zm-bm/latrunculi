@@ -7,12 +7,13 @@
 
 #include "board/board.hpp"
 #include "core/move.hpp"
-#include "movegen/move_list.hpp"
+#include "movegen/generator.hpp"
 #include "search/ordering/history.hpp"
 
-namespace search::ordering {
+namespace movegen::detail {
 
-namespace detail {
+using search::ordering::History;
+using search::ordering::NodeContext;
 
 enum class CandidateState : std::uint8_t { Ready, Excluded, Deferred };
 enum class Batch : std::uint8_t { Primary, Quiet };
@@ -27,7 +28,7 @@ struct Candidate {
     int see_threshold;
 };
 
-// Selection mechanics only; Picker supplies scored and classified candidates.
+// Selection mechanics only; ordered sources supply scored and classified candidates.
 class CandidateBuffer {
 public:
     template <Batch Which, typename Populate>
@@ -123,41 +124,25 @@ private:
             return quiet;
     }
 
-    std::array<Candidate, movegen::MoveList::capacity> storage;
+    std::array<Candidate, MoveCapacity> storage;
     // Evasions when in check, otherwise noisy moves; quiets load only if reached.
     Range primary;
     Range quiet;
 };
 
-} // namespace detail
-
+// Hints are node-start snapshots; scores freeze when their batch loads.
 // Main search owns quiet hints and suppression; quiescence has no quiet stage.
-class MainPicker {
-public:
-    MainPicker(const Board&       board,
+template <>
+class MoveSource<Mode::MainSearch> {
+    friend class Moves<Mode::MainSearch>;
+
+    MoveSource(const Board&       board,
                const History&     history,
                const NodeContext& context,
                int                ply,
                Move               tt_move = NULL_MOVE);
-    MainPicker(const MainPicker&)            = delete;
-    MainPicker(MainPicker&&)                 = delete;
-    MainPicker& operator=(const MainPicker&) = delete;
-    MainPicker& operator=(MainPicker&&)      = delete;
-
-    // Restore this node before each call. Legality follows selection so swaps and ties
-    // survive filtering. Hints are node-start snapshots; scores freeze at batch loading.
-    Move next() {
-        for (Move move = next_candidate(); !move.is_null(); move = next_candidate()) {
-            if (board.is_legal_pseudo_move(move))
-                return move;
-        }
-        return NULL_MOVE;
-    }
     void skip_nonchecking_quiets();
-    // Raw node-start snapshot, even if excluded from the validated quiet hints.
-    Move counter_hint() const { return counter_move; }
 
-private:
     enum class Stage : std::uint8_t {
         TtMove,
         LoadPrimary,
@@ -175,7 +160,7 @@ private:
         Move secondary_killer;
         Move counter;
     };
-    MainPicker(const Board&        board,
+    MoveSource(const Board&        board,
                const History&      history,
                const NodeContext&  context,
                Move                tt,
@@ -190,42 +175,31 @@ private:
     Move                                tt_move{NULL_MOVE};
     const bool                          in_check;
     Stage                               stage{Stage::TtMove};
-    detail::CandidateBuffer             candidates;
+    CandidateBuffer                     candidates;
     std::array<Move, QuietHintCapacity> quiet_hints{};
     int                                 quiet_hint_count{0};
     int                                 quiet_hint_next{0};
     bool                                quiet_checks_only{false};
 };
 
-class QuiescencePicker {
-public:
-    QuiescencePicker(const Board& board, const History& history, Move tt_move = NULL_MOVE);
-    QuiescencePicker(const QuiescencePicker&)            = delete;
-    QuiescencePicker(QuiescencePicker&&)                 = delete;
-    QuiescencePicker& operator=(const QuiescencePicker&) = delete;
-    QuiescencePicker& operator=(QuiescencePicker&&)      = delete;
+// Checked nodes return all legal evasions; ordinary nodes keep non-losing noisy
+// moves. Capture history orders them, while the exchange threshold stays zero.
+template <>
+class MoveSource<Mode::Quiescence> {
+    friend class Moves<Mode::Quiescence>;
 
-    // Checked nodes return all legal evasions; ordinary nodes keep non-losing noisy
-    // moves. Capture history orders them, while the exchange threshold stays zero.
-    Move next() {
-        for (Move move = next_candidate(); !move.is_null(); move = next_candidate()) {
-            if (board.is_legal_pseudo_move(move))
-                return move;
-        }
-        return NULL_MOVE;
-    }
+    MoveSource(const Board& board, const History& history, Move tt_move = NULL_MOVE);
 
-private:
     enum class Stage : std::uint8_t { TtMove, LoadPrimary, PickEvasion, PickNoisy, Done };
     Move next_candidate();
 
-    const Board&            board;
-    const History&          history;
-    const NodeContext       context;
-    Move                    tt_move{NULL_MOVE};
-    const bool              in_check;
-    Stage                   stage{Stage::TtMove};
-    detail::CandidateBuffer candidates;
+    const Board&      board;
+    const History&    history;
+    const NodeContext context;
+    Move              tt_move{NULL_MOVE};
+    const bool        in_check;
+    Stage             stage{Stage::TtMove};
+    CandidateBuffer   candidates;
 };
 
-} // namespace search::ordering
+} // namespace movegen::detail

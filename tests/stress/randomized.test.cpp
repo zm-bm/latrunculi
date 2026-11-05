@@ -25,6 +25,7 @@
 #include "search/limits.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
+#include "support/board_fixtures.hpp"
 #include "support/board_snapshot.hpp"
 #include "support/search_reporter.hpp"
 #include "support/see_oracle.hpp"
@@ -96,11 +97,10 @@ std::uint64_t case_seed(std::uint64_t seed, std::size_t case_index) {
 }
 
 std::vector<Move> legal_moves(const Board& board) {
-    std::vector<Move> moves;
-    for (const Move move : movegen::detail::generate_pseudo_legal(board)) {
-        if (board.is_legal_pseudo_move(move))
-            moves.push_back(move);
-    }
+    std::vector<Move>                  moves;
+    movegen::Moves<movegen::Mode::All> stream(board);
+    for (Move move = stream.next(); !move.is_null(); move = stream.next())
+        moves.push_back(move);
     return moves;
 }
 
@@ -212,7 +212,7 @@ TEST(RandomizedStressTest, LegalPositionsRoundTripEvaluateAndSearch) {
             EXPECT_EQ(features.value, features.reconstruct());
             EXPECT_EQ(features.fixed_score, features.term(eval::Term::KingSafety).total());
 
-            for (Move move : movegen::detail::generate_pseudo_legal(board)) {
+            for (Move move : board_test::pseudo_legal_moves(board)) {
                 if (!board.is_capture(move) && move.type() != MOVE_PROM)
                     continue;
                 SCOPED_TRACE(std::format("SEE move: {}", move.str()));

@@ -10,7 +10,7 @@
 #include "board/board.hpp"
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
-#include "movegen/generator_detail.hpp"
+#include "movegen/generator.hpp"
 #include "search/search_detail.hpp"
 #include "search/ordering/picker.hpp"
 #include "search/thread_pool.hpp"
@@ -67,11 +67,9 @@ protected:
     }
 
     Move find_move(std::string_view move_string) {
-        for (Move move : movegen::detail::generate_pseudo_legal(position())) {
-            if (move.str() == move_string && position().is_legal_pseudo_move(move))
-                return move;
-        }
-        return NULL_MOVE;
+        return movegen::Moves<movegen::Mode::All>(position()).find([&](Move move) {
+            return move.str() == move_string;
+        });
     }
 
     template <typename Fn>
@@ -111,7 +109,8 @@ protected:
     std::vector<Move> legal_picker_moves(Move tt_move = NULL_MOVE) {
         std::vector<Move> moves;
         const auto        context = ordering::NodeContext::from_board(position());
-        auto picker = ordering::MainPicker(position(), ordering_history(), context, ply(), tt_move);
+        auto              picker  = movegen::Moves<movegen::Mode::MainSearch>(
+            position(), ordering_history(), context, ply(), tt_move);
         for (Move move = picker.next(); !move.is_null(); move = picker.next())
             moves.push_back(move);
         return moves;

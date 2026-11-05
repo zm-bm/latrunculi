@@ -17,9 +17,6 @@ enum class MoveGenType { NonEvasions, Noisy, Evasions, Quiet };
 
 namespace detail {
 
-// Raw generation is shared by the public legal range and ordered candidate loading.
-MoveList generate_pseudo_legal(const Board& board);
-
 // Board geometry for one synchronous pass; kind and output belong to the operation.
 template <Color Us>
 class Generator {
@@ -247,6 +244,15 @@ inline void generate(const Board& board, Emit&& output) {
         Generator<WHITE>(board).run<Type>(output);
     else
         Generator<BLACK>(board).run<Type>(output);
+}
+
+// Ordinary loading shares the same emission protocol as ordered candidate batches.
+template <typename Emit>
+inline void generate_pseudo_legal(const Board& board, Emit&& output) {
+    if (board.is_check())
+        generate<MoveGenType::Evasions>(board, output);
+    else
+        generate<MoveGenType::NonEvasions>(board, output);
 }
 
 } // namespace detail

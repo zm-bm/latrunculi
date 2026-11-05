@@ -28,7 +28,7 @@ constexpr std::string_view PROMOTION_AND_CAPTURE_FEN = "4k3/P7/8/1p6/3N4/8/8/4K3
 
 std::vector<Move> collect_moves(auto& picker) {
     std::vector<Move> moves;
-    moves.reserve(movegen::MoveList::capacity);
+    moves.reserve(movegen::detail::MoveCapacity);
     for (Move move = picker.next(); !move.is_null(); move = picker.next())
         moves.push_back(move);
     return moves;
@@ -42,12 +42,12 @@ std::vector<Move> picked_main_search(const Board& board,
     const auto context = NodeContext::from_board(board);
     if (!counter.is_null() && context.has_previous_move())
         SearchTestAccess::counter_move_entry(history, context) = counter;
-    auto picker = MainPicker(board, history, context, ply, tt_move);
+    auto picker = movegen::Moves<movegen::Mode::MainSearch>(board, history, context, ply, tt_move);
     return collect_moves(picker);
 }
 
 std::vector<Move> picked_qsearch(const Board& board, History& history, Move tt_move = NULL_MOVE) {
-    auto picker = QuiescencePicker(board, history, tt_move);
+    auto picker = movegen::Moves<movegen::Mode::Quiescence>(board, history, tt_move);
     return collect_moves(picker);
 }
 
@@ -83,14 +83,14 @@ TEST_F(PickerTest, ReturnsLegalMainAndQuiescenceMoves) {
         Board position{fen};
         ASSERT_FALSE(position.is_check());
 
-        movegen::MoveList expected_main, expected_qsearch;
-        for (Move move : movegen::detail::generate_pseudo_legal(position)) {
+        std::vector<Move> expected_main, expected_qsearch;
+        for (Move move : board_test::pseudo_legal_moves(position)) {
             if (!position.is_legal_pseudo_move(move))
                 continue;
-            expected_main.add(move);
+            expected_main.push_back(move);
             if (move.type() == MOVE_PROM
                 || (position.is_capture(move) && board_test::exchange_oracle(position, move) >= 0))
-                expected_qsearch.add(move);
+                expected_qsearch.push_back(move);
         }
         EXPECT_TRUE(
             std::ranges::is_permutation(picked_main_search(position, history, ply), expected_main));
@@ -139,10 +139,10 @@ TEST_F(PickerTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
     EXPECT_EQ(baseline[1], knight_capture);
     EXPECT_EQ(baseline[2], queen_capture);
     expect_capture_before_quiets(position, baseline, queen_capture, true);
-    movegen::MoveList expected;
-    for (Move move : movegen::detail::generate_pseudo_legal(position)) {
+    std::vector<Move> expected;
+    for (Move move : board_test::pseudo_legal_moves(position)) {
         if (position.is_legal_pseudo_move(move))
-            expected.add(move);
+            expected.push_back(move);
     }
     EXPECT_TRUE(std::ranges::is_permutation(baseline, expected));
 
@@ -162,7 +162,8 @@ TEST_F(PickerTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
     expect_hash_move_first_once(picked_main_search(position, history, ply, tt_evasion), tt_evasion);
     expect_hash_move_first_once(picked_qsearch(position, history, tt_evasion), tt_evasion);
 
-    auto picker = MainPicker(position, history, NodeContext::from_board(position), ply);
+    auto picker = movegen::Moves<movegen::Mode::MainSearch>(
+        position, history, NodeContext::from_board(position), ply);
     picker.skip_nonchecking_quiets();
     EXPECT_EQ(collect_moves(picker), baseline);
 }
@@ -196,7 +197,7 @@ TEST_F(PickerTest, ValidatesAndPrioritizesHints) {
     for (Move hint : {Move(A1, A3), capture, promotion}) {
         SCOPED_TRACE(hint.str());
         SearchTestAccess::counter_move_entry(history, context) = hint;
-        auto picker = MainPicker(position, history, context, ply);
+        auto picker = movegen::Moves<movegen::Mode::MainSearch>(position, history, context, ply);
         SearchTestAccess::counter_move_entry(history, context) = NULL_MOVE;
         EXPECT_EQ(picker.counter_hint(), hint);
         EXPECT_EQ(collect_moves(picker), baseline);
@@ -216,7 +217,7 @@ TEST_F(PickerTest, SkipNoncheckingQuietsKeepsQuietChecksAndWeakCaptures) {
     history.update_quiet_refutations(NodeContext{}, checking, ply);
     history.update_quiet_refutations(NodeContext{}, nonchecking, ply);
     const auto context = NodeContext::from_board(position);
-    auto       picker  = MainPicker(position, history, context, ply);
+    auto       picker  = movegen::Moves<movegen::Mode::MainSearch>(position, history, context, ply);
     picker.skip_nonchecking_quiets();
     const auto moves = collect_moves(picker);
 
@@ -249,7 +250,8 @@ TEST_F(PickerTest, CaptureOrderingKeepsScoringTimeHistorySnapshot) {
     ASSERT_GE(frozen.size(), 3U);
     for (int i = 0; i < 3; ++i)
         ASSERT_TRUE(position.is_capture(frozen[i]));
-    auto picker = MainPicker(position, history, NodeContext::from_board(position), ply);
+    auto picker = movegen::Moves<movegen::Mode::MainSearch>(
+        position, history, NodeContext::from_board(position), ply);
     ASSERT_EQ(picker.next(), frozen.front());
     history.update_capture(position, frozen[1], -History::CaptureMaxScore);
     history.update_capture(position, frozen[2], History::CaptureMaxScore);
@@ -260,7 +262,8 @@ TEST_F(PickerTest, CaptureOrderingKeepsScoringTimeHistorySnapshot) {
 TEST_F(PickerTest, CaptureStagingKeepsScoringTimeHistory) {
     const Board position{"3r4/7k/q7/3r4/3QP3/8/R7/1K6 w - - 0 1"};
     const Move  first{A2, A6}, second{D4, D5};
-    auto picker = MainPicker(position, history, NodeContext::from_board(position), ply, NULL_MOVE);
+    auto        picker = movegen::Moves<movegen::Mode::MainSearch>(
+        position, history, NodeContext::from_board(position), ply, NULL_MOVE);
     ASSERT_EQ(picker.next(), first);
     history.update_capture(position, second, -History::CaptureMaxScore);
     expect_capture_before_quiets(position, collect_moves(picker), second, true);

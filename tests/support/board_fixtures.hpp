@@ -1,6 +1,9 @@
 #pragma once
 
+#include <vector>
+
 #include "board/board.hpp"
+#include "movegen/generator_detail.hpp"
 
 namespace board_test::fen {
 
@@ -42,3 +45,15 @@ inline constexpr char checking_move_candidates[]   = "4k3/8/8/8/6N1/8/8/RB1QK3 w
 inline constexpr char max_halfmove_long_fullmove[] = "4k3/8/8/8/8/8/8/4K3 w - - 255 300";
 
 } // namespace board_test::fen
+
+namespace board_test {
+
+// Keep raw-generation expectations independent of the legal stream's filtering.
+inline std::vector<Move> pseudo_legal_moves(const Board& board) {
+    std::vector<Move> moves;
+    movegen::detail::generate_pseudo_legal(board,
+                                           [&](Move move, PieceType) { moves.push_back(move); });
+    return moves;
+}
+
+} // namespace board_test
