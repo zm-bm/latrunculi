@@ -52,7 +52,7 @@ public:
                                 int                     depth,
                                 EvalValue               alpha = -eval_value::inf,
                                 EvalValue               beta  = eval_value::inf) {
-        return worker.singular_extension<Node>(record, depth, alpha, beta);
+        return worker.singular_decision<Node>(record, depth, alpha, beta);
     }
 
     template <search::NodeType Node>

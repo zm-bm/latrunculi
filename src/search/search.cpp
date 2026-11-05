@@ -61,7 +61,7 @@ Worker::search_excluding_move(EvalValue alpha, EvalValue beta, int depth, Move e
 // Verify alternatives before extending the TT move or taking a multicut.
 template <NodeType Node>
 Worker::SingularResult
-Worker::singular_extension(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta) {
+Worker::singular_decision(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta) {
     if (depth < detail::SingularMinDepth || search_ply == 0
         || search_ply >= 2 * root_iteration_depth || search_ply + 1 >= engine::max_search_ply
         || after_null_move() || record.depth < depth - detail::SingularTtDepthSlack
@@ -239,7 +239,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
 
     SingularResult singular;
     if (tt_record)
-        singular = singular_extension<Node>(*tt_record, depth, alpha, beta);
+        singular = singular_decision<Node>(*tt_record, depth, alpha, beta);
     if (stop_requested())
         return alpha;
     // A multicut returns before the ordinary picker, TT store, or cutoff training.
@@ -661,9 +661,9 @@ template EvalValue Worker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, Pr
 template EvalValue
 Worker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*);
 template Worker::SingularResult
-Worker::singular_extension<NodeType::Pv>(const TTRecord&, int, EvalValue, EvalValue);
+Worker::singular_decision<NodeType::Pv>(const TTRecord&, int, EvalValue, EvalValue);
 template Worker::SingularResult
-Worker::singular_extension<NodeType::NonPv>(const TTRecord&, int, EvalValue, EvalValue);
+Worker::singular_decision<NodeType::NonPv>(const TTRecord&, int, EvalValue, EvalValue);
 template EvalValue
 Worker::quiescence<NodeType::Pv, true>(EvalValue, EvalValue, PrincipalVariation*);
 template EvalValue

@@ -81,24 +81,18 @@ private:
     std::optional<Move>     pending_best_move;
 
     // Search lifecycle.
-    bool     settle(Board& position);
-    void     reset_search_state();
-    void     clear_search_heuristics();
-    void     wait_for_stop() const noexcept;
-    void     build_root_lines();
-    void     search_root();
-    RootLine terminal_root_result() const;
-    bool     search_root_depth(int depth, EvalValue previous_value);
-    bool search_root_window(int search_depth, int nominal_depth, EvalValue alpha, EvalValue beta);
-    void prepare_final_result();
-    void publish_final_result();
-    void report_root_progress(const RootLine& line);
+    void reset_search_state();
+    void clear_search_heuristics();
+    void wait_for_stop() const noexcept;
 
-    // Root snapshot publication.
-    void clear_root_snapshot();
-    void publish_root_snapshot();
+    // Root search. (root_search.cpp)
+    void search_root();
+    bool should_search_root_depth(int depth) const noexcept;
+    bool search_root_depth(int depth, EvalValue previous_value);
+    bool search_root_window(int search_depth, int nominal_depth, EvalValue alpha, EvalValue beta);
 
     // Recursive search. (search.cpp)
+    bool settle(Board& position);
     template <NodeType Node = NodeType::NonPv>
     EvalValue
     alphabeta(EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv = nullptr);
@@ -109,10 +103,19 @@ private:
     };
     template <NodeType Node>
     SingularResult
-    singular_extension(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta);
+    singular_decision(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta);
 
     template <NodeType Node = NodeType::NonPv, bool UseTt = true>
     EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
+
+    // Root results and reporting. (worker.cpp)
+    void     build_root_lines();
+    RootLine terminal_root_result() const;
+    void     prepare_final_result();
+    void     publish_final_result();
+    void     report_root_progress(const RootLine& line);
+    void     clear_root_snapshot();
+    void     publish_root_snapshot();
 
     // Accounting and limits.
     Milliseconds runtime() const;
@@ -125,7 +128,6 @@ private:
     // Hot predicates.
     bool stop_requested() const noexcept;
     bool is_main_worker() const noexcept;
-    bool should_search_root_depth(int depth) const noexcept;
     bool should_poll_search_limits() const noexcept;
     bool after_null_move() const noexcept;
 
