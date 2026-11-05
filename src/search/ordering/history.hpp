@@ -240,10 +240,11 @@ public:
             return;
 
         if (is_capture) {
-            if (!context.in_check)
-                non_cutoff_captures.record(move);
+            if (!context.in_check && capture_count != NonCutoffCapacity)
+                non_cutoff_captures[capture_count++] = move;
         } else if (allow_quiet_malus && move != context.tt_move && !was_killer
-                   && non_cutoff_quiets.record(move)) {
+                   && quiet_count != NonCutoffCapacity) {
+            non_cutoff_quiets[quiet_count++] = move;
             stats.quiet_malus_failed_quiet(depth);
         }
     }
@@ -254,22 +255,22 @@ public:
             stats.quiet_cutoff(depth);
             history.update_quiet_refutations(context, move);
             history.update_quiet(context, board, move, quiet_bonus(depth));
-            if (allow_quiet_malus && non_cutoff_quiets.size() >= QuietMalusMinNonCutoffs) {
+            if (allow_quiet_malus && quiet_count >= QuietMalusMinNonCutoffs) {
                 const int penalty = -quiet_bonus(depth, QuietMalusDivisor);
-                non_cutoff_quiets.for_each([&](Move previous) {
-                    history.update_quiet(context, board, previous, penalty);
+                for (int i = 0; i < quiet_count; ++i) {
+                    history.update_quiet(context, board, non_cutoff_quiets[i], penalty);
                     stats.quiet_malus_update(depth);
-                });
+                }
             }
         }
         const bool reward_capture =
             is_capture && !is_promotion && depth >= CaptureHistoryMinRewardDepth;
-        if (!context.in_check && (reward_capture || !non_cutoff_captures.empty())) {
+        if (!context.in_check && (reward_capture || capture_count != 0)) {
             const int bonus = capture_bonus(depth);
             if (reward_capture)
                 history.update_capture(board, move, bonus);
-            non_cutoff_captures.for_each(
-                [&](Move previous) { history.update_capture(board, previous, -bonus); });
+            for (int i = 0; i < capture_count; ++i)
+                history.update_capture(board, non_cutoff_captures[i], -bonus);
         }
     }
 
@@ -281,32 +282,6 @@ private:
     static constexpr int NonCutoffCapacity            = 32;
     static constexpr int CaptureLearningRate          = 16;
     static constexpr int CaptureMaxDepthBonus         = 128;
-
-    // Only recorded entries are initialized; both feedback lists share the same bound.
-    class NonCutoffMoves {
-    public:
-        NonCutoffMoves() : count(0) {}
-
-        bool record(Move move) {
-            if (count == NonCutoffCapacity)
-                return false;
-            moves[count++] = move;
-            return true;
-        }
-
-        int  size() const { return count; }
-        bool empty() const { return count == 0; }
-
-        template <typename Visit>
-        void for_each(Visit visit) const {
-            for (int i = 0; i < count; ++i)
-                visit(moves[i]);
-        }
-
-    private:
-        std::array<Move, NonCutoffCapacity> moves;
-        int                                 count;
-    };
 
     static int quiet_bonus(int depth, int divisor = 1) {
         return std::clamp(depth * depth / std::max(1, divisor), 0, History::QuietMaxScore);
@@ -322,8 +297,11 @@ private:
     const int          depth;
     const bool         allow_quiet_malus;
     Instrumentation<>& stats;
-    NonCutoffMoves     non_cutoff_quiets;
-    NonCutoffMoves     non_cutoff_captures;
+    // Only recorded entries are initialized; both counts stay within the shared bound.
+    std::array<Move, NonCutoffCapacity> non_cutoff_quiets;
+    int                                 quiet_count{0};
+    std::array<Move, NonCutoffCapacity> non_cutoff_captures;
+    int                                 capture_count{0};
 };
 
 } // namespace search::ordering
