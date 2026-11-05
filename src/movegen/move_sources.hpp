@@ -34,7 +34,7 @@ int main_search_see_threshold(PieceType victim, int scaled_history);
 
 // Owns complete scored batches and their selection. Sources control stage progression,
 // validate hints, and supply SEE acceptance and quiet eligibility.
-// The templated operations are defined and instantiated in moves.cpp.
+// The templated operations are defined and instantiated in move_sources.cpp.
 class OrderedCandidates {
 public:
     void

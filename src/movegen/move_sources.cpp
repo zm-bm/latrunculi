@@ -1,4 +1,4 @@
-#include "movegen/moves.hpp"
+#include "movegen/move_sources.hpp"
 
 #include <cassert>
 #include <span>
