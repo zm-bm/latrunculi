@@ -186,7 +186,7 @@ bool Worker::search_root_window(int       search_depth,
     return true;
 }
 
-// Verify that alternatives to a reliable TT move fail below its score.
+// Verify alternatives before extending the TT move or taking a multicut.
 template <NodeType Node>
 Worker::SingularResult Worker::singular_extension(const TTRecord& record,
                                                   int             depth,
@@ -210,17 +210,12 @@ Worker::SingularResult Worker::singular_extension(const TTRecord& record,
     if (singular_beta <= -eval_value::mate_bound || singular_beta >= eval_value::mate_bound)
         return {};
 
-    const bool positive_allowed = true;
-    // Only the new shortcuts are disabled in verifier descendants. Ordinary search remains intact.
-    const bool selectivity_allowed = Node == NodeType::NonPv && !singular_verification_active
-                                  && !board.is_check() && alpha > -eval_value::mate_bound
-                                  && alpha < eval_value::mate_bound
-                                  && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
-                                  && singular_beta - 1 > -eval_value::mate_bound;
-    const bool multicut_possible = selectivity_allowed && singular_beta >= beta;
-    const bool negative_possible = false;
-    if (!positive_allowed && !multicut_possible && !negative_possible)
-        return {};
+    // Verifier descendants retain ordinary search and extensions, but cannot take multicuts.
+    const bool multicut_allowed =
+        Node == NodeType::NonPv && !singular_verification_active && !board.is_check()
+        && alpha > -eval_value::mate_bound && alpha < eval_value::mate_bound
+        && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
+        && singular_beta - 1 > -eval_value::mate_bound && singular_beta >= beta;
 
     // Verification re-enters this ply; preserve both its path state and any enclosing scope.
     const auto saved_eval         = static_evals[search_ply];
@@ -229,6 +224,7 @@ Worker::SingularResult Worker::singular_extension(const TTRecord& record,
     singular_verification_active  = true;
     const EvalValue value         = alphabeta<NodeType::NonPv>(
         singular_beta - 1, singular_beta, (depth - 1) / 2, nullptr, false, record.move);
+    // Restore the parent state before consuming the result, including after interruption.
     static_evals[search_ply]     = saved_eval;
     real_moves[search_ply]       = saved_real;
     singular_verification_active = saved_verification;
@@ -236,11 +232,9 @@ Worker::SingularResult Worker::singular_extension(const TTRecord& record,
         return {};
 
     if (value < singular_beta)
-        return {.depth_adjustment = positive_allowed ? 1 : 0};
-    if (multicut_possible)
+        return {.extend = true};
+    if (multicut_allowed)
         return {.cutoff = singular_beta};
-    if (negative_possible)
-        return {.depth_adjustment = -1};
     return {};
 }
 
@@ -440,7 +434,7 @@ EvalValue Worker::alphabeta(EvalValue           alpha,
                 && ordering_state.quiet_score(context, board, move, true) < 0;
         }
 
-        const int child_depth = depth - 1 + (move == tt_move ? singular.depth_adjustment : 0);
+        const int child_depth = depth - 1 + (move == tt_move && singular.extend);
         board.make(move, algorithm_detail::prefetch_child_tt);
         ++search_ply;
 
@@ -514,26 +508,29 @@ EvalValue Worker::alphabeta(EvalValue           alpha,
 
         if (value >= beta) {
             // Step 13. Train cutoff histories on the restored position.
-            if (!verification_root && is_quiet) {
-                stats.quiet_cutoff(depth);
-                ordering_state.update_quiet_refutations(context, move, search_ply);
-                ordering_state.reward_quiet(context, board, move, depth);
-                if (allow_quiet_malus
-                    && failed_quiets.size() >= algorithm_detail::QuietMalusMinFailed) {
-                    failed_quiets.for_each([&](Move quiet) {
-                        ordering_state.penalize_quiet(
-                            context, board, quiet, depth, algorithm_detail::QuietMalusDivisor);
-                        stats.quiet_malus_update(depth);
+            if (!verification_root) {
+                if (is_quiet) {
+                    stats.quiet_cutoff(depth);
+                    ordering_state.update_quiet_refutations(context, move, search_ply);
+                    ordering_state.reward_quiet(context, board, move, depth);
+                    if (allow_quiet_malus
+                        && failed_quiets.size() >= algorithm_detail::QuietMalusMinFailed) {
+                        failed_quiets.for_each([&](Move quiet) {
+                            ordering_state.penalize_quiet(
+                                context, board, quiet, depth, algorithm_detail::QuietMalusDivisor);
+                            stats.quiet_malus_update(depth);
+                        });
+                    }
+                }
+
+                if (!in_check) {
+                    if (is_capture && !is_promotion
+                        && depth >= algorithm_detail::CaptureHistoryMinRewardDepth)
+                        ordering_state.reward_capture(board, move, depth);
+                    failed_captures.for_each([&](Move failed) {
+                        ordering_state.penalize_capture(board, failed, depth);
                     });
                 }
-            }
-
-            if (!verification_root && !in_check) {
-                if (is_capture && !is_promotion
-                    && depth >= algorithm_detail::CaptureHistoryMinRewardDepth)
-                    ordering_state.reward_capture(board, move, depth);
-                failed_captures.for_each(
-                    [&](Move failed) { ordering_state.penalize_capture(board, failed, depth); });
             }
 
             if (pv)
@@ -552,7 +549,7 @@ EvalValue Worker::alphabeta(EvalValue           alpha,
             return value;
         }
 
-        if (!in_check && is_capture && !is_promotion)
+        if (!verification_root && !in_check && is_capture && !is_promotion)
             failed_captures.add(move);
         if (allow_quiet_malus && is_quiet && !(move == tt_move) && !is_killer) {
             if (failed_quiets.add(move))
@@ -571,12 +568,11 @@ EvalValue Worker::alphabeta(EvalValue           alpha,
         }
     }
 
-    // Excluding the only move does not make the actual position terminal.
-    if (verification_root && move_count == 0)
-        return original_alpha;
-
     // Step 15. Mate and stalemate.
     if (move_count == 0) {
+        // Excluding the only move does not make the actual position terminal.
+        if (verification_root)
+            return original_alpha;
         best_value = in_check ? -eval_value::mate + search_ply : eval_value::draw;
         tt.store(tt_probe.writer,
                  tt_key,

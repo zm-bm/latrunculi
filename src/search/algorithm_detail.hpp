@@ -63,7 +63,7 @@ inline constexpr int FutilityMargin[] = {0, 250, 400, 550};
 // Positional allowance for the heuristic qsearch capture-gain estimate.
 inline constexpr EvalValue QCaptureMargin = 300;
 
-// Initial singular-extension settings, expressed in evaluation units.
+// Singular-extension defaults; score margins use evaluation units.
 inline constexpr int SingularMinDepth     = 8;
 inline constexpr int SingularTtDepthSlack = 3;
 

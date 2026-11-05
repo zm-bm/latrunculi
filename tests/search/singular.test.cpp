@@ -1,5 +1,4 @@
 #include <array>
-#include <optional>
 
 #include <gtest/gtest.h>
 
@@ -37,10 +36,6 @@ protected:
         SearchTestAccess::root_iteration_depth(worker) = 12;
     }
 
-    static constexpr bool negative_enabled = false;
-    static constexpr bool multicut_enabled = true;
-    static constexpr bool pv_positive      = false;
-
     Board& board() { return SearchTestAccess::board(worker); }
     int&   ply() { return SearchTestAccess::search_ply(worker); }
     Move   move(std::string_view name) {
@@ -66,10 +61,11 @@ protected:
         board().unmake();
     }
     template <NodeType Node = NodeType::Pv>
-    int
+    bool
     extend(const TTRecord& record, int depth = 8, bool can_null = true, Move excluded = NULL_MOVE) {
-        return SearchTestAccess::singular_extension<Node>(
-            worker, record, depth, can_null, excluded);
+        return SearchTestAccess::singular_result<Node>(
+                   worker, record, depth, -eval_value::inf, eval_value::inf, can_null, excluded)
+            .extend;
     }
     EvalValue excluded_search(Move excluded, int depth, EvalValue alpha, EvalValue beta) {
         return SearchTestAccess::alphabeta<NodeType::NonPv>(
@@ -212,7 +208,7 @@ TEST_F(SingularTest, RespectsRootNullExclusionAndPathLimits) {
     EXPECT_EQ(SearchTestAccess::root_iteration_depth(worker), 0);
 }
 
-TEST_F(SingularTest, AppliesTheVariantNodeTypePolicy) {
+TEST_F(SingularTest, ExtendsSingularMovesAtPvAndNonPvNodes) {
     load(Board{one_quiet});
     auto record = entry(move("a8b8"));
     EXPECT_EQ(extend<NodeType::NonPv>(record), 1);
@@ -244,61 +240,39 @@ TEST_F(SingularTest, ExtendsTheActualChildAndRebuildsPvWithRetainedTt) {
     }
 }
 
-TEST_F(SingularTest, RefutationEqualitySelectsTheFixedActionAndMulticutTakesPrecedence) {
+TEST_F(SingularTest, RefutationEqualityAllowsMulticutInsteadOfExtension) {
     for (int offset : {-1, 0, 1}) {
         load(Board{board_test::fen::quiet_black_to_move});
         const auto record = entry(move("a8b8"));
         const auto sb     = record.score - algorithm_detail::singular_margin(8);
         seed_alternative(sb + offset);
         const auto result = SearchTestAccess::singular_result(worker, record, 8, sb - 1, sb);
-        EXPECT_EQ(result.depth_adjustment,
-                  offset < 0 ? int(!pv_positive) : (multicut_enabled ? 0 : -int(negative_enabled)));
-        EXPECT_EQ(result.cutoff.has_value(), offset >= 0 && multicut_enabled);
+        EXPECT_EQ(result.extend, offset < 0);
+        EXPECT_EQ(result.cutoff.has_value(), offset >= 0);
         if (result.cutoff)
             EXPECT_EQ(*result.cutoff, sb);
         EXPECT_FALSE(SearchTestAccess::singular_verification_active(worker));
     }
 }
 
-TEST_F(SingularTest, NegativeExtensionRequiresTtFailHighAndProtectsPromotionsAndChecks) {
-    for (const auto& test : std::array<std::pair<const char*, const char*>, 3>{
-             {{board_test::fen::quiet_black_to_move, "a8b8"},
-              {"8/P7/7k/8/8/8/8/7K w - - 0 1", "a7a8q"},
-              {"7k/8/8/8/8/8/8/R6K w - - 0 1", "a1a8"}}}) {
-        for (int beta_offset : {0, 1}) {
-            load(Board{test.first});
-            const auto record = entry(move(test.second));
-            ASSERT_FALSE(record.move.is_null());
-            const auto sb           = record.score - algorithm_detail::singular_margin(8);
-            int        alternatives = 0;
-            for (Move m : movegen::generate_pseudo_legal(board())) {
-                if (m == record.move || !board().is_legal_pseudo_move(m))
-                    continue;
-                board().make(m);
-                tt.store(board().tt_key(),
-                         NULL_MOVE,
-                         -sb,
-                         engine::max_search_depth,
-                         TTBound::Exact,
-                         ply() + 1);
-                board().unmake();
-                ++alternatives;
-            }
-            ASSERT_GT(alternatives, 0);
-            const auto beta = record.score + beta_offset;
-            const auto r    = SearchTestAccess::singular_result(worker, record, 8, beta - 1, beta);
-            EXPECT_FALSE(r.cutoff);
-            const bool protected_move =
-                record.move.type() == MOVE_PROM || board().gives_check(record.move);
-            EXPECT_EQ(r.depth_adjustment,
-                      -int(negative_enabled && !protected_move && beta_offset == 0));
-        }
+TEST_F(SingularTest, MulticutRequiresThresholdAtOrAboveBeta) {
+    for (int beta_offset : {-1, 0, 1}) {
+        SCOPED_TRACE(beta_offset);
+        load(Board{board_test::fen::quiet_black_to_move});
+        const auto record = entry(move("a8b8"));
+        const auto sb     = record.score - algorithm_detail::singular_margin(8);
+        seed_alternative(sb);
+        const auto beta   = sb + beta_offset;
+        const auto result = SearchTestAccess::singular_result(worker, record, 8, beta - 1, beta);
+        EXPECT_FALSE(result.extend);
+        EXPECT_EQ(result.cutoff.has_value(), beta_offset <= 0);
+        if (result.cutoff)
+            EXPECT_EQ(*result.cutoff, sb);
+        EXPECT_GT(worker.node_count(), 1U);
     }
 }
 
 TEST_F(SingularTest, MulticutReturnsThresholdWithoutOrdinaryTtOrHistoryTraining) {
-    if (!multicut_enabled)
-        GTEST_SKIP();
     load(Board{board_test::fen::quiet_black_to_move});
     const auto record = entry(move("a8b8"));
     const auto sb     = record.score - algorithm_detail::singular_margin(8);
@@ -324,8 +298,9 @@ TEST_F(SingularTest, MulticutReturnsThresholdWithoutOrdinaryTtOrHistoryTraining)
     EXPECT_FALSE(SearchTestAccess::singular_verification_active(worker));
 }
 
-TEST_F(SingularTest, NegativeExtensionChangesTheActualChildDraftIncludingInVerifierDescendants) {
+TEST_F(SingularTest, RefutedSingularityKeepsOriginalChildDepth) {
     for (bool verification : {false, true}) {
+        SCOPED_TRACE(verification);
         load(Board{board_test::fen::quiet_black_to_move});
         SearchTestAccess::singular_verification_active(worker) = verification;
         const auto record                                      = entry(move("a8b8"));
@@ -339,12 +314,12 @@ TEST_F(SingularTest, NegativeExtensionChangesTheActualChildDraftIncludingInVerif
         board().make(record.move);
         const auto child = tt.probe(board().tt_key()).record;
         ASSERT_TRUE(child);
-        EXPECT_EQ(child->depth, negative_enabled && !verification ? 6 : 7);
+        EXPECT_EQ(child->depth, 7);
         board().unmake();
     }
 }
 
-TEST_F(SingularTest, SelectivityProtectsPvChecksAndMateWindows) {
+TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
     for (auto window :
          std::array<std::pair<EvalValue, EvalValue>, 4>{{{-eval_value::inf, 100},
                                                          {-eval_value::mate_bound, 100},
@@ -356,7 +331,7 @@ TEST_F(SingularTest, SelectivityProtectsPvChecksAndMateWindows) {
         seed_alternative(sb);
         const auto r =
             SearchTestAccess::singular_result(worker, record, 8, window.first, window.second);
-        EXPECT_EQ(r.depth_adjustment, 0);
+        EXPECT_FALSE(r.extend);
         EXPECT_FALSE(r.cutoff);
     }
     load(Board{board_test::fen::quiet_black_to_move});
@@ -364,7 +339,7 @@ TEST_F(SingularTest, SelectivityProtectsPvChecksAndMateWindows) {
     auto sb     = record.score - algorithm_detail::singular_margin(8);
     seed_alternative(sb);
     const auto pv = SearchTestAccess::singular_result<NodeType::Pv>(worker, record, 8, sb - 1, sb);
-    EXPECT_EQ(pv.depth_adjustment, 0);
+    EXPECT_FALSE(pv.extend);
     EXPECT_FALSE(pv.cutoff);
 
     load(Board{"k7/8/3K4/8/8/8/R7/8 b - - 0 1"});
@@ -380,7 +355,7 @@ TEST_F(SingularTest, SelectivityProtectsPvChecksAndMateWindows) {
         board().unmake();
     }
     const auto checked = SearchTestAccess::singular_result(worker, record, 8, sb - 1, sb);
-    EXPECT_EQ(checked.depth_adjustment, 0);
+    EXPECT_FALSE(checked.extend);
     EXPECT_FALSE(checked.cutoff);
 }
 
@@ -392,7 +367,7 @@ TEST_F(SingularTest, VerificationWindowMustAlsoStayStrictlyOutsideMateRanges) {
     ASSERT_EQ(sb - 1, -eval_value::mate_bound);
     seed_alternative(sb);
     const auto r = SearchTestAccess::singular_result(worker, record, 8, sb, sb + 1);
-    EXPECT_EQ(r.depth_adjustment, 0);
+    EXPECT_FALSE(r.extend);
     EXPECT_FALSE(r.cutoff);
 }
 
@@ -410,7 +385,7 @@ TEST_F(SingularTest, VerificationContextRestoresNestedAndInterruptedScopesAndRes
         EXPECT_EQ(SearchTestAccess::static_evals(worker)[ply()], 123);
         EXPECT_TRUE(SearchTestAccess::real_moves(worker)[ply()]);
         if (outer) {
-            EXPECT_EQ(r.depth_adjustment, 0);
+            EXPECT_FALSE(r.extend);
             EXPECT_FALSE(r.cutoff);
         }
 
@@ -421,34 +396,17 @@ TEST_F(SingularTest, VerificationContextRestoresNestedAndInterruptedScopesAndRes
         SearchTestAccess::static_evals(worker)[ply()] = 456;
         SearchTestAccess::real_moves(worker)[ply()]   = true;
         SearchTestAccess::set_nodes(worker, 4095);
-        // PV forces verification even for the PV-positive candidate in an enclosing scope.
         const auto stopped =
             SearchTestAccess::singular_result<NodeType::Pv>(worker, record, 8, sb - 1, sb);
-        EXPECT_EQ(stopped.depth_adjustment, 0);
+        EXPECT_FALSE(stopped.extend);
         EXPECT_FALSE(stopped.cutoff);
+        EXPECT_GE(worker.node_count(), 4096U);
         EXPECT_EQ(SearchTestAccess::singular_verification_active(worker), outer);
         EXPECT_EQ(SearchTestAccess::static_evals(worker)[ply()], 456);
         EXPECT_TRUE(SearchTestAccess::real_moves(worker)[ply()]);
         SearchTestAccess::reset(worker);
         EXPECT_FALSE(SearchTestAccess::singular_verification_active(worker));
     }
-}
-
-TEST_F(SingularTest, PvPositivePolicySkipsUnusableNonPvVerification) {
-    if (!pv_positive)
-        GTEST_SKIP();
-    load(Board{one_quiet});
-    const auto record = entry(move("a8b8"));
-    const auto r =
-        SearchTestAccess::singular_result(worker, record, 8, record.score, record.score + 1);
-    EXPECT_EQ(r.depth_adjustment, 0);
-    EXPECT_FALSE(r.cutoff);
-    EXPECT_EQ(worker.node_count(), 0U);
-    const auto useful =
-        SearchTestAccess::singular_result(worker, record, 8, record.score - 1, record.score);
-    EXPECT_EQ(useful.depth_adjustment, 0); // Singular, but positive extensions remain PV-only.
-    EXPECT_FALSE(useful.cutoff);
-    EXPECT_GT(worker.node_count(), 0U);
 }
 
 } // namespace search

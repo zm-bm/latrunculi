@@ -111,7 +111,7 @@ private:
                         bool                can_null      = true,
                         Move                excluded_move = NULL_MOVE);
     struct SingularResult {
-        int                      depth_adjustment{0};
+        bool                     extend{false};
         std::optional<EvalValue> cutoff;
     };
     template <NodeType Node>

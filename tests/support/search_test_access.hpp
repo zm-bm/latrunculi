@@ -43,18 +43,6 @@ public:
         return worker.alphabeta<Node>(alpha, beta, depth, pv, can_null, excluded_move);
     }
 
-    template <search::NodeType Node>
-    static int singular_extension(search::Worker&         worker,
-                                  const search::TTRecord& record,
-                                  int                     depth,
-                                  bool                    can_null      = true,
-                                  Move                    excluded_move = NULL_MOVE) {
-        return worker
-            .singular_extension<Node>(
-                record, depth, can_null, excluded_move, -eval_value::inf, eval_value::inf)
-            .depth_adjustment;
-    }
-
     static bool& singular_verification_active(search::Worker& worker) {
         return worker.singular_verification_active;
     }
@@ -62,9 +50,11 @@ public:
     static auto singular_result(search::Worker&         worker,
                                 const search::TTRecord& record,
                                 int                     depth,
-                                EvalValue               alpha,
-                                EvalValue               beta) {
-        return worker.singular_extension<Node>(record, depth, true, NULL_MOVE, alpha, beta);
+                                EvalValue               alpha         = -eval_value::inf,
+                                EvalValue               beta          = eval_value::inf,
+                                bool                    can_null      = true,
+                                Move                    excluded_move = NULL_MOVE) {
+        return worker.singular_extension<Node>(record, depth, can_null, excluded_move, alpha, beta);
     }
 
     template <search::NodeType Node>
