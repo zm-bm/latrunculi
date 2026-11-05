@@ -88,8 +88,8 @@ TEST_F(TTTest, StoredFieldBoundariesRoundTrip) {
     for (int i = 0; i < tt_generation_mask; ++i)
         tt.advance_generation();
 
-    Move packed_move;
-    packed_move.bits = std::numeric_limits<MoveBits>::max();
+    // Set every encoded field to its maximum to exercise all 16 storage bits.
+    constexpr Move packed_move{H8, H8, MOVE_CASTLE, QUEEN};
 
     constexpr std::int16_t packed_score       = -12345;
     constexpr int          packed_depth       = engine::max_search_depth;
