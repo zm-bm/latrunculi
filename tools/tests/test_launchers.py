@@ -14,8 +14,8 @@ BIN = Path(__file__).resolve().parents[2] / "bin"
 ENTRIES = {
     ("benchmark",): "tools.benchmark",
     ("tune",): "tools.tuning.tune",
-    ("openbench",): "openbench_client",
-    ("openbench", "prepare"): "tools.openbench_prepare",
+    ("openbench",): "tools.openbench",
+    ("openbench", "prepare"): "tools.openbench",
 }
 INTERPRETER = '''
 import json
@@ -57,7 +57,7 @@ class LauncherTests(unittest.TestCase):
                 )
                 self.assertEqual(run.returncode, 37)
                 result = json.loads(run.stdout)
-                self.assertEqual(result["argv"], ["-P", "-m", entry, *arguments])
+                self.assertEqual(result["argv"], ["-P", "-m", entry, *command[1:], *arguments])
                 self.assertEqual(result["cwd"], str(self.work))
                 self.assertEqual(run.stderr, "child stderr\n")
 

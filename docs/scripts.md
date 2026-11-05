@@ -84,6 +84,9 @@ Build names select existing directories under `build/`; `--name` selects an outp
 directory within this checkout. Relative file paths use the current working directory.
 
 For a quick comparison, use `--depth 8 --pairs 2`.
+For a short runtime regression screen, use `--depth 10 --pairs 4`; use `--pairs 2`
+for a shorter exploratory check. Both retain the full position suite.
+Use the standard six-pair comparison before claiming a performance improvement.
 For multithreaded legality checks, use `run` with one pass and no reference.
 
 ### Results
@@ -258,11 +261,16 @@ Server commands:
 - `list`: list workloads.
 - `config [ENGINE]`: show available engines/books or one engine's configuration.
 - `status ID`: inspect a workload's settings, progress, and result.
+- `stop ID --output DIR`: stop a requested workload and retain verified before/after
+  state in a new output directory.
 - `download-pgns ID`: download a finished workload; workers and uploads must also
   be ready.
 
-Use the web UI's **Stop** action, then check `status ID`. The pinned client's
-`stop` request is incompatible with this server. In-flight results may arrive later.
+`stop` verifies the server state and leaves already-finished workloads alone.
+If a stop response is uncertain, inspect `stop.json` and `status ID` before
+retrying. In-flight results may arrive after a workload is stopped.
+The local `tools/openbench.py` entry point also corrects the pinned client's
+missing trailing slash in the stop URL.
 
 ### Options
 

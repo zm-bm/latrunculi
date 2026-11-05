@@ -5,11 +5,12 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+from urllib import error, parse
 
 from openbench_client.cli import normalize_settings
 
-from tools import openbench_prepare as prepare
+from tools import openbench
 
 
 DEV = "1" * 40
@@ -36,7 +37,7 @@ class PreparationTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.candidate = self.engine("candidate", 1234)
         self.baseline = self.engine("baseline", 4321)
-        self.enterContext(patch.object(prepare, "revision",
+        self.enterContext(patch.object(openbench, "revision",
                                        side_effect={"HEAD": DEV, "main": BASE}.__getitem__))
 
     def engine(self, label, nodes, *, fail=False):
@@ -63,7 +64,7 @@ class PreparationTests(unittest.TestCase):
     def run_cli(self, args):
         with contextlib.redirect_stdout(io.StringIO()) as stdout, \
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
-            result = prepare.main(args)
+            result = openbench.main(["prepare", *args])
         return result, stdout.getvalue(), stderr.getvalue()
 
     def settings(self, output="result"):
@@ -163,6 +164,53 @@ class PreparationTests(unittest.TestCase):
         self.assertIn("partial output", (output / "baseline-bench.txt").read_text())
         self.assertIn("engine diagnostic", (output / "baseline-bench.stderr.txt").read_text())
         self.assertFalse((output / "settings.json").exists())
+
+
+class StopTests(unittest.TestCase):
+    def test_stop_uses_canonical_route_and_verifies_readback(self):
+        cli = openbench.cli
+        original_session = cli.Session
+        before = {"info": {"id": 46, "test_mode": "GAMES", "finished": False,
+                           "dev": {"sha": "candidate"}, "base": {"sha": "baseline"}}}
+        after = {"info": dict(before["info"], finished=True)}
+        stopped = False
+
+        def respond(req, timeout):
+            nonlocal stopped
+            self.assertEqual(req.get_method(), "GET")
+            path = parse.urlsplit(req.full_url).path
+            if path == "/test/46/STOP":
+                raise error.HTTPError(req.full_url, 301, "redirect",
+                                      {"Location": "/test/46/STOP/"}, io.BytesIO())
+            if path == "/test/46/STOP/":
+                stopped = True
+                raise error.HTTPError(req.full_url, 302, "redirect",
+                                      {"Location": "/index/"}, io.BytesIO())
+            self.assertEqual(path, "/index/")
+            return io.BytesIO(b"<html></html>")
+
+        opener = Mock()
+        opener.open.side_effect = respond
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = root / "openbench.env"
+            config.write_text('OPENBENCH_SERVER="https://openbench.example"\n'
+                              'OPENBENCH_USERNAME="test-user"\nOPENBENCH_PASSWORD="test-password"\n')
+            output = root / "stop"
+            with patch.object(cli.request, "build_opener", return_value=opener), \
+                 patch.object(cli.Session, "login"), \
+                 patch.object(cli, "workload_status", side_effect=lambda *_: after if stopped else before), \
+                 contextlib.redirect_stdout(io.StringIO()), \
+                 contextlib.redirect_stderr(io.StringIO()) as stderr:
+                result = openbench.main(["--config", str(config), "stop", "46", "--output", str(output)])
+            self.assertEqual(result, 0, stderr.getvalue())
+            record = json.loads((output / "stop.json").read_text())
+            self.assertEqual(record["before"], before)
+            self.assertEqual(record["after"], after)
+            self.assertTrue(record["verified"])
+            self.assertNotIn("action_error", record)
+        self.assertEqual(opener.open.call_count, 2)  # Stop once, then follow the index redirect.
+        self.assertIs(cli.Session, original_session)
 
 
 if __name__ == "__main__":
