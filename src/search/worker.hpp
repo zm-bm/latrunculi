@@ -13,6 +13,7 @@
 #include "search/ordering/state.hpp"
 #include "search/reporter.hpp"
 #include "search/root_line.hpp"
+#include "search/search_frame.hpp"
 #include "search/time_manager.hpp"
 
 class SearchTestAccess;
@@ -49,15 +50,11 @@ private:
     Board                 board;
     int                   search_ply{0};
     int                   root_iteration_depth{0};
-    bool                  singular_verification_active{false};
     RootLine              root_result;
     std::vector<RootLine> root_lines;
     ordering::State       ordering_state;
 
-    // Evaluations belong to the current search path. Missing values include PV
-    // and checked nodes; real-move flags exclude trends crossing null moves.
-    std::array<std::optional<EvalValue>, engine::max_search_ply> static_evals{};
-    std::array<bool, engine::max_search_ply>                     real_moves{};
+    std::array<SearchFrame, engine::max_search_ply> frames{};
 
     // Current search request.
     Limits      limits;
@@ -107,20 +104,16 @@ private:
     EvalValue alphabeta(EvalValue           alpha,
                         EvalValue           beta,
                         int                 depth,
-                        PrincipalVariation* pv            = nullptr,
-                        bool                can_null      = true,
-                        Move                excluded_move = NULL_MOVE);
+                        PrincipalVariation* pv       = nullptr,
+                        bool                can_null = true);
+    EvalValue search_excluding_move(EvalValue alpha, EvalValue beta, int depth, Move excluded_move);
     struct SingularResult {
         bool                     extend{false};
         std::optional<EvalValue> cutoff;
     };
     template <NodeType Node>
-    SingularResult singular_extension(const TTRecord& record,
-                                      int             depth,
-                                      bool            can_null,
-                                      Move            excluded_move,
-                                      EvalValue       alpha,
-                                      EvalValue       beta);
+    SingularResult singular_extension(
+        const TTRecord& record, int depth, bool can_null, EvalValue alpha, EvalValue beta);
 
     template <NodeType Node = NodeType::NonPv, bool UseTt = true>
     EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);

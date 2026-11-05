@@ -59,23 +59,24 @@ protected:
 
 } // namespace
 
-TEST_F(SearchWorkerTest, NewSearchClearsStaticEvaluationPath) {
+TEST_F(SearchWorkerTest, NewSearchResetsAllFrames) {
     Board board{board_test::fen::start};
     load_worker_board(board);
-    auto& evaluations = SearchTestAccess::static_evals(worker());
-    auto& real_moves  = SearchTestAccess::real_moves(worker());
-    evaluations.fill(123);
-    real_moves.fill(true);
+    auto& frames = SearchTestAccess::frames(worker());
+    frames.fill({123, Move{A2, A3}, true, true});
     load_worker_board(board);
-    EXPECT_EQ(evaluations[0], eval::evaluate(board));
+    EXPECT_EQ(frames[0].static_eval, eval::evaluate(board));
     for (int i = 1; i < engine::max_search_ply; ++i)
-        EXPECT_FALSE(evaluations[i].has_value());
-    for (const bool real : real_moves)
-        EXPECT_FALSE(real);
+        EXPECT_FALSE(frames[i].static_eval.has_value());
+    for (const auto& frame : frames) {
+        EXPECT_FALSE(frame.real_move);
+        EXPECT_TRUE(frame.excluded_move.is_null());
+        EXPECT_FALSE(frame.in_singular_verification);
+    }
 
     Board checked{"4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
     load_worker_board(checked);
-    EXPECT_FALSE(evaluations[0].has_value());
+    EXPECT_FALSE(frames[0].static_eval.has_value());
 }
 
 TEST_F(SearchWorkerTest, NullMoveKeepsSearchPlyInSync) {

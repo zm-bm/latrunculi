@@ -36,9 +36,10 @@ protected:
         SearchTestAccess::root_iteration_depth(worker) = 12;
     }
 
-    Board& board() { return SearchTestAccess::board(worker); }
-    int&   ply() { return SearchTestAccess::search_ply(worker); }
-    Move   move(std::string_view name) {
+    Board&       board() { return SearchTestAccess::board(worker); }
+    int&         ply() { return SearchTestAccess::search_ply(worker); }
+    SearchFrame& frame() { return SearchTestAccess::frames(worker)[ply()]; }
+    Move         move(std::string_view name) {
         for (Move m : movegen::generate_pseudo_legal(board()))
             if (m.str() == name && board().is_legal_pseudo_move(m))
                 return m;
@@ -61,15 +62,13 @@ protected:
         board().unmake();
     }
     template <NodeType Node = NodeType::Pv>
-    bool
-    extend(const TTRecord& record, int depth = 8, bool can_null = true, Move excluded = NULL_MOVE) {
+    bool extend(const TTRecord& record, int depth = 8, bool can_null = true) {
         return SearchTestAccess::singular_result<Node>(
-                   worker, record, depth, -eval_value::inf, eval_value::inf, can_null, excluded)
+                   worker, record, depth, -eval_value::inf, eval_value::inf, can_null)
             .extend;
     }
     EvalValue excluded_search(Move excluded, int depth, EvalValue alpha, EvalValue beta) {
-        return SearchTestAccess::alphabeta<NodeType::NonPv>(
-            worker, alpha, beta, depth, nullptr, true, excluded);
+        return SearchTestAccess::search_excluding_move(worker, alpha, beta, depth, excluded);
     }
 };
 
@@ -140,27 +139,27 @@ TEST_F(SingularTest, VerificationRestoresParentEvaluationState) {
     const auto record = entry(move("a8b8"));
     seed_alternative(-200);
     tt.store(board().tt_key(), record.move, record.score, record.depth, record.bound, ply());
-    SearchTestAccess::static_evals(worker)[ply()] = 123;
-    SearchTestAccess::real_moves(worker)[ply()]   = true;
-    const auto original                           = board().to_fen();
+    frame().static_eval    = 123;
+    frame().real_move      = true;
+    const auto saved_frame = frame();
+    const auto original    = board().to_fen();
     EXPECT_EQ(extend(record), 1);
-    EXPECT_EQ(SearchTestAccess::static_evals(worker)[ply()], 123);
-    EXPECT_TRUE(SearchTestAccess::real_moves(worker)[ply()]);
+    EXPECT_EQ(frame(), saved_frame);
     EXPECT_EQ(board().to_fen(), original);
     EXPECT_EQ(tt.probe(board().tt_key()).record->score_at_ply(ply()), record.score);
 }
 
 TEST_F(SingularTest, StopsDuringVerificationWithoutExtendingOrLeakingState) {
     load(Board{board_test::fen::quiet_black_to_move}, 4096);
-    const auto record                             = entry(move("a8b8"));
-    SearchTestAccess::static_evals(worker)[ply()] = 123;
-    SearchTestAccess::real_moves(worker)[ply()]   = true;
+    const auto record      = entry(move("a8b8"));
+    frame().static_eval    = 123;
+    frame().real_move      = true;
+    const auto saved_frame = frame();
     SearchTestAccess::set_nodes(worker, 4095);
     const auto original = board().to_fen();
     EXPECT_EQ(extend(record), 0);
     EXPECT_GE(worker.node_count(), 4096U);
-    EXPECT_EQ(SearchTestAccess::static_evals(worker)[ply()], 123);
-    EXPECT_TRUE(SearchTestAccess::real_moves(worker)[ply()]);
+    EXPECT_EQ(frame(), saved_frame);
     EXPECT_EQ(board().to_fen(), original);
     EXPECT_FALSE(tt.probe(board().tt_key()).record);
 }
@@ -196,8 +195,10 @@ TEST_F(SingularTest, RespectsRootNullExclusionAndPathLimits) {
     load(Board{one_quiet});
     const auto record = entry(move("a8b8"));
     EXPECT_EQ(extend(record, 8, false), 0);
-    EXPECT_EQ(extend(record, 8, true, record.move), 0);
-    ply() = 0;
+    frame().excluded_move = record.move;
+    EXPECT_EQ(extend(record), 0);
+    frame().excluded_move = NULL_MOVE;
+    ply()                 = 0;
     EXPECT_EQ(extend(record), 0);
     ply() = 24;
     EXPECT_EQ(extend(record), 0);
@@ -209,12 +210,18 @@ TEST_F(SingularTest, RespectsRootNullExclusionAndPathLimits) {
 }
 
 TEST_F(SingularTest, ExtendsSingularMovesAtPvAndNonPvNodes) {
-    load(Board{one_quiet});
-    auto record = entry(move("a8b8"));
-    EXPECT_EQ(extend<NodeType::NonPv>(record), 1);
-    load(Board{one_quiet});
-    record = entry(move("a8b8"));
-    EXPECT_EQ(extend<NodeType::Pv>(record), 1);
+    for (bool verification : {false, true}) {
+        SCOPED_TRACE(verification);
+        load(Board{one_quiet});
+        frame().in_singular_verification                                     = verification;
+        SearchTestAccess::frames(worker)[ply() - 1].in_singular_verification = verification;
+        const auto record                                                    = entry(move("a8b8"));
+        const auto saved_frame                                               = frame();
+        EXPECT_TRUE(extend<NodeType::NonPv>(record));
+        EXPECT_EQ(frame(), saved_frame);
+        EXPECT_TRUE(extend<NodeType::Pv>(record));
+        EXPECT_EQ(frame(), saved_frame);
+    }
 }
 
 TEST_F(SingularTest, ExtendsTheActualChildAndRebuildsPvWithRetainedTt) {
@@ -251,7 +258,7 @@ TEST_F(SingularTest, RefutationEqualityAllowsMulticutInsteadOfExtension) {
         EXPECT_EQ(result.cutoff.has_value(), offset >= 0);
         if (result.cutoff)
             EXPECT_EQ(*result.cutoff, sb);
-        EXPECT_FALSE(SearchTestAccess::singular_verification_active(worker));
+        EXPECT_FALSE(frame().in_singular_verification);
     }
 }
 
@@ -278,9 +285,9 @@ TEST_F(SingularTest, MulticutReturnsThresholdWithoutOrdinaryTtOrHistoryTraining)
     const auto sb     = record.score - algorithm_detail::singular_margin(8);
     seed_alternative(sb + 150);
     tt.store(board().tt_key(), record.move, record.score, record.depth, record.bound, ply());
-    SearchTestAccess::static_evals(worker)[ply()] = 321;
-    SearchTestAccess::real_moves(worker)[ply()]   = true;
-    const auto original                           = board().to_fen();
+    frame().static_eval = 321;
+    frame().real_move   = true;
+    const auto original = board().to_fen();
     EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, sb - 1, sb, 8), sb);
     EXPECT_EQ(board().to_fen(), original);
     const auto stored = tt.probe(board().tt_key()).record;
@@ -294,23 +301,25 @@ TEST_F(SingularTest, MulticutReturnsThresholdWithoutOrdinaryTtOrHistoryTraining)
     EXPECT_FALSE(history.is_killer(move("a8a7"), ply()));
     EXPECT_FALSE(history.is_killer(record.move, ply()));
     // alphabeta established the parent evaluation before verification, which must survive it.
-    EXPECT_TRUE(SearchTestAccess::static_evals(worker)[ply()].has_value());
-    EXPECT_FALSE(SearchTestAccess::singular_verification_active(worker));
+    EXPECT_TRUE(frame().static_eval.has_value());
+    EXPECT_FALSE(frame().in_singular_verification);
 }
 
 TEST_F(SingularTest, RefutedSingularityKeepsOriginalChildDepth) {
     for (bool verification : {false, true}) {
         SCOPED_TRACE(verification);
         load(Board{board_test::fen::quiet_black_to_move});
-        SearchTestAccess::singular_verification_active(worker) = verification;
-        const auto record                                      = entry(move("a8b8"));
+        // A reused slot must obtain context from its current parent.
+        frame().in_singular_verification                                     = !verification;
+        SearchTestAccess::frames(worker)[ply() - 1].in_singular_verification = verification;
+        const auto record                                                    = entry(move("a8b8"));
         const auto sb = record.score - algorithm_detail::singular_margin(8);
         seed_alternative(sb);
         tt.store(board().tt_key(), record.move, record.score, record.depth, record.bound, ply());
         const auto original = board().to_fen();
         SearchTestAccess::alphabeta<NodeType::NonPv>(worker, record.score - 1, record.score, 8);
         EXPECT_EQ(board().to_fen(), original);
-        EXPECT_EQ(SearchTestAccess::singular_verification_active(worker), verification);
+        EXPECT_EQ(frame().in_singular_verification, verification);
         board().make(record.move);
         const auto child = tt.probe(board().tt_key()).record;
         ASSERT_TRUE(child);
@@ -377,36 +386,97 @@ TEST_F(SingularTest, VerificationContextRestoresNestedAndInterruptedScopesAndRes
         auto record = entry(move("a8b8"));
         auto sb     = record.score - algorithm_detail::singular_margin(8);
         seed_alternative(sb);
-        SearchTestAccess::singular_verification_active(worker) = outer;
-        SearchTestAccess::static_evals(worker)[ply()]          = 123;
-        SearchTestAccess::real_moves(worker)[ply()]            = true;
+        frame().in_singular_verification                                     = outer;
+        SearchTestAccess::frames(worker)[ply() - 1].in_singular_verification = outer;
+        frame().static_eval                                                  = 123;
+        frame().real_move                                                    = true;
+        const auto saved_frame                                               = frame();
         const auto r = SearchTestAccess::singular_result(worker, record, 8, sb - 1, sb);
-        EXPECT_EQ(SearchTestAccess::singular_verification_active(worker), outer);
-        EXPECT_EQ(SearchTestAccess::static_evals(worker)[ply()], 123);
-        EXPECT_TRUE(SearchTestAccess::real_moves(worker)[ply()]);
+        EXPECT_EQ(frame(), saved_frame);
         if (outer) {
             EXPECT_FALSE(r.extend);
             EXPECT_FALSE(r.cutoff);
         }
 
         load(Board{board_test::fen::quiet_black_to_move}, 4096);
-        SearchTestAccess::singular_verification_active(worker) = outer;
-        record                                                 = entry(move("a8b8"));
-        sb = record.score - algorithm_detail::singular_margin(8);
-        SearchTestAccess::static_evals(worker)[ply()] = 456;
-        SearchTestAccess::real_moves(worker)[ply()]   = true;
+        frame().in_singular_verification                                     = outer;
+        SearchTestAccess::frames(worker)[ply() - 1].in_singular_verification = outer;
+        record                                                               = entry(move("a8b8"));
+        sb                           = record.score - algorithm_detail::singular_margin(8);
+        frame().static_eval          = 456;
+        frame().real_move            = true;
+        const auto interrupted_frame = frame();
         SearchTestAccess::set_nodes(worker, 4095);
         const auto stopped =
             SearchTestAccess::singular_result<NodeType::Pv>(worker, record, 8, sb - 1, sb);
         EXPECT_FALSE(stopped.extend);
         EXPECT_FALSE(stopped.cutoff);
         EXPECT_GE(worker.node_count(), 4096U);
-        EXPECT_EQ(SearchTestAccess::singular_verification_active(worker), outer);
-        EXPECT_EQ(SearchTestAccess::static_evals(worker)[ply()], 456);
-        EXPECT_TRUE(SearchTestAccess::real_moves(worker)[ply()]);
+        EXPECT_EQ(frame(), interrupted_frame);
         SearchTestAccess::reset(worker);
-        EXPECT_FALSE(SearchTestAccess::singular_verification_active(worker));
+        EXPECT_FALSE(frame().in_singular_verification);
     }
+}
+
+TEST_F(SingularTest, ExclusionStaysLocalAndChildContextDoesNotLeakToOrdinarySearches) {
+    load(Board{board_test::fen::quiet_black_to_move});
+    const Move excluded    = move("a8b8");
+    const Move alternative = move("a8a7");
+    seed_alternative(900);
+    frame().static_eval    = 123;
+    frame().real_move      = true;
+    const auto saved_frame = frame();
+    EXPECT_EQ(excluded_search(excluded, 3, 499, 500), 900);
+    EXPECT_EQ(frame(), saved_frame);
+    const auto& child = SearchTestAccess::frames(worker)[ply() + 1];
+    EXPECT_TRUE(child.excluded_move.is_null());
+    EXPECT_TRUE(child.in_singular_verification);
+
+    // Reuse that child slot outside verification, including its ordinary TT cutoff.
+    board().make(alternative);
+    ++ply();
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -901, -899, 2), -900);
+    EXPECT_TRUE(frame().excluded_move.is_null());
+    EXPECT_FALSE(frame().in_singular_verification);
+    --ply();
+    board().unmake();
+    EXPECT_EQ(frame(), saved_frame);
+}
+
+TEST_F(SingularTest, AlreadyStoppedVerificationRestoresTheCompleteFrame) {
+    load(Board{board_test::fen::quiet_black_to_move});
+    frame().static_eval              = 123;
+    frame().real_move                = true;
+    frame().in_singular_verification = true;
+    const auto saved_frame           = frame();
+    const Move excluded              = move("a8b8");
+    worker.request_stop();
+    EXPECT_EQ(excluded_search(excluded, 3, 100, 101), 100);
+    EXPECT_EQ(frame(), saved_frame);
+    EXPECT_EQ(worker.node_count(), 0U);
+}
+
+TEST_F(SingularTest, EarlyExitsDoNotAccessOrOverwriteFrames) {
+    load(Board{board_test::fen::quiet_black_to_move});
+    frame().static_eval              = 123;
+    frame().real_move                = true;
+    frame().in_singular_verification = true;
+    const auto saved_frames          = SearchTestAccess::frames(worker);
+    ply()                            = engine::max_search_ply;
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1),
+              eval::evaluate(board()));
+    EXPECT_EQ(SearchTestAccess::frames(worker), saved_frames);
+    worker.request_stop();
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1), -1000);
+    EXPECT_EQ(SearchTestAccess::frames(worker), saved_frames);
+
+    load(Board{"7k/8/8/8/8/8/8/K7 w - - 0 1"});
+    ASSERT_TRUE(board().is_draw(ply()));
+    frame().static_eval     = 456;
+    const auto drawn_frames = SearchTestAccess::frames(worker);
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1),
+              eval_value::draw);
+    EXPECT_EQ(SearchTestAccess::frames(worker), drawn_frames);
 }
 
 } // namespace search

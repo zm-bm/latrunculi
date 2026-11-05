@@ -978,41 +978,40 @@ TEST(LmrReductionTest, HandlesDepthMoveCountAndDecliningTrend) {
 TEST_F(SearchTest, StaticEvalPathInvalidatesSkippedEvaluations) {
     Board board{board_test::fen::start};
     load(board, 2);
-    auto& evaluations = SearchTestAccess::static_evals(worker);
-    auto& real_moves  = SearchTestAccess::real_moves(worker);
+    auto& frames = SearchTestAccess::frames(worker);
     with_move(Move(E2, E4), [&] {
         const EvalValue expected = eval::evaluate(position());
         (void)search(-eval_value::inf, eval_value::inf, 1, false);
-        EXPECT_EQ(evaluations[ply()], expected);
-        EXPECT_TRUE(real_moves[ply()]);
+        EXPECT_EQ(frames[ply()].static_eval, expected);
+        EXPECT_TRUE(frames[ply()].real_move);
 
         // A PV re-search at the same ply must not retain the previous non-PV value.
         tt.clear();
         PrincipalVariation pv;
         (void)pv_search(-eval_value::inf, eval_value::inf, 1, pv);
-        EXPECT_FALSE(evaluations[ply()].has_value());
+        EXPECT_FALSE(frames[ply()].static_eval.has_value());
 
-        evaluations[ply()] = expected;
+        frames[ply()].static_eval = expected;
         tt.store(position().tt_key(), NULL_MOVE, 100, 2, TTBound::Exact, ply());
         EXPECT_EQ(search(-1, 0, 2), 100);
-        EXPECT_FALSE(evaluations[ply()].has_value());
+        EXPECT_FALSE(frames[ply()].static_eval.has_value());
 
-        evaluations[ply()] = expected;
+        frames[ply()].static_eval = expected;
         tt.clear();
         (void)search(-eval_value::inf, eval_value::inf, 0, false);
-        EXPECT_FALSE(evaluations[ply()].has_value());
+        EXPECT_FALSE(frames[ply()].static_eval.has_value());
     });
 
     with_null_move([&] {
         (void)search(-eval_value::inf, eval_value::inf, 1, false);
-        EXPECT_FALSE(real_moves[ply()]);
+        EXPECT_FALSE(frames[ply()].real_move);
     });
 
     Board checked{"4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
     load(checked, 1);
-    evaluations[0] = 100;
+    frames[0].static_eval = 100;
     (void)search(-eval_value::inf, eval_value::inf, 1, false);
-    EXPECT_FALSE(evaluations[0].has_value());
+    EXPECT_FALSE(frames[0].static_eval.has_value());
 }
 
 TEST_F(SearchTest, LmrResearchesAtFullDepthAfterAlphaImprovement) {
@@ -1039,9 +1038,9 @@ TEST_F(SearchTest, DecliningLmrStillVerifiesAnApparentReducedCutoff) {
     board.make(Move(E7, E5));
     const auto prepare = [&] {
         load(board, 5);
-        ply()                                     = 2;
-        SearchTestAccess::static_evals(worker)[0] = eval::evaluate(position()) + 100;
-        SearchTestAccess::real_moves(worker)[1]   = true;
+        ply()                                           = 2;
+        SearchTestAccess::frames(worker)[0].static_eval = eval::evaluate(position()) + 100;
+        SearchTestAccess::frames(worker)[1].real_move   = true;
     };
     prepare();
     const EvalValue expected = search(-2000, 2000, 5, false);

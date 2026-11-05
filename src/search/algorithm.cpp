@@ -14,6 +14,28 @@ namespace search {
 
 namespace {
 
+// Exclusion belongs to this ply; its verification context is inherited by children.
+// Restore the entire frame when a same-ply verification returns or is interrupted.
+class ScopedSingularVerification {
+public:
+    ScopedSingularVerification(SearchFrame& frame, Move excluded_move) noexcept
+        : frame(frame),
+          saved(frame) {
+        assert(!excluded_move.is_null());
+        frame.excluded_move            = excluded_move;
+        frame.in_singular_verification = true;
+    }
+
+    ~ScopedSingularVerification() { frame = saved; }
+
+    ScopedSingularVerification(const ScopedSingularVerification&)            = delete;
+    ScopedSingularVerification& operator=(const ScopedSingularVerification&) = delete;
+
+private:
+    SearchFrame&      frame;
+    const SearchFrame saved;
+};
+
 // Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
 EvalValue draw_or_mate_score(const Board& board, int search_ply) {
     if (board.halfmove_clock() >= 100 && board.is_check()) {
@@ -186,19 +208,26 @@ bool Worker::search_root_window(int       search_depth,
     return true;
 }
 
+EvalValue
+Worker::search_excluding_move(EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
+    assert(search_ply >= 0 && search_ply < engine::max_search_ply);
+    assert(depth > 0);
+    const ScopedSingularVerification verification{frames[search_ply], excluded_move};
+    return alphabeta<NodeType::NonPv>(alpha, beta, depth, nullptr, false);
+}
+
 // Verify alternatives before extending the TT move or taking a multicut.
 template <NodeType Node>
-Worker::SingularResult Worker::singular_extension(const TTRecord& record,
-                                                  int             depth,
-                                                  bool            can_null,
-                                                  Move            excluded_move,
-                                                  EvalValue       alpha,
-                                                  EvalValue       beta) {
+Worker::SingularResult Worker::singular_extension(
+    const TTRecord& record, int depth, bool can_null, EvalValue alpha, EvalValue beta) {
     if (depth < algorithm_detail::SingularMinDepth || search_ply == 0
         || search_ply >= 2 * root_iteration_depth || search_ply + 1 >= engine::max_search_ply
-        || !can_null || !excluded_move.is_null()
-        || record.depth < depth - algorithm_detail::SingularTtDepthSlack
+        || !can_null || record.depth < depth - algorithm_detail::SingularTtDepthSlack
         || (record.bound != TTBound::Exact && record.bound != TTBound::LowerBound))
+        return {};
+
+    const auto& frame = frames[search_ply];
+    if (!frame.excluded_move.is_null())
         return {};
 
     const EvalValue tt_score = record.score_at_ply(search_ply);
@@ -212,22 +241,13 @@ Worker::SingularResult Worker::singular_extension(const TTRecord& record,
 
     // Verifier descendants retain ordinary search and extensions, but cannot take multicuts.
     const bool multicut_allowed =
-        Node == NodeType::NonPv && !singular_verification_active && !board.is_check()
+        Node == NodeType::NonPv && !frame.in_singular_verification && !board.is_check()
         && alpha > -eval_value::mate_bound && alpha < eval_value::mate_bound
         && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
         && singular_beta - 1 > -eval_value::mate_bound && singular_beta >= beta;
 
-    // Verification re-enters this ply; preserve both its path state and any enclosing scope.
-    const auto saved_eval         = static_evals[search_ply];
-    const bool saved_real         = real_moves[search_ply];
-    const bool saved_verification = singular_verification_active;
-    singular_verification_active  = true;
-    const EvalValue value         = alphabeta<NodeType::NonPv>(
-        singular_beta - 1, singular_beta, (depth - 1) / 2, nullptr, false, record.move);
-    // Restore the parent state before consuming the result, including after interruption.
-    static_evals[search_ply]     = saved_eval;
-    real_moves[search_ply]       = saved_real;
-    singular_verification_active = saved_verification;
+    const EvalValue value =
+        search_excluding_move(singular_beta - 1, singular_beta, (depth - 1) / 2, record.move);
     if (stop_requested())
         return {};
 
@@ -240,14 +260,8 @@ Worker::SingularResult Worker::singular_extension(const TTRecord& record,
 
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
 template <NodeType Node>
-EvalValue Worker::alphabeta(EvalValue           alpha,
-                            EvalValue           beta,
-                            int                 depth,
-                            PrincipalVariation* pv,
-                            bool                can_null,
-                            Move                excluded_move) {
-    assert(excluded_move.is_null() || depth > 0);
-    const bool verification_root = !excluded_move.is_null();
+EvalValue Worker::alphabeta(
+    EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv, bool can_null) {
     // Step 1. PV and stop checks.
     if (pv)
         pv->clear();
@@ -272,8 +286,14 @@ EvalValue Worker::alphabeta(EvalValue           alpha,
         return eval::evaluate(board);
     }
 
-    static_evals[search_ply].reset();
-    real_moves[search_ply] = !board.previous_move().is_null();
+    auto&      frame             = frames[search_ply];
+    const Move excluded_move     = frame.excluded_move;
+    const bool verification_root = !excluded_move.is_null();
+    assert(!verification_root || depth > 0);
+    frame.static_eval.reset();
+    frame.real_move = !board.previous_move().is_null();
+    frame.in_singular_verification =
+        verification_root || (search_ply > 0 && frames[search_ply - 1].in_singular_verification);
     if (depth <= 0)
         return quiescence<Node>(alpha, beta, pv);
 
@@ -319,9 +339,10 @@ EvalValue Worker::alphabeta(EvalValue           alpha,
         static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
                                                                 : eval::evaluate(board);
         if (!in_check) {
-            static_evals[search_ply] = static_eval;
-            declining = search_ply >= 2 && real_moves[search_ply] && real_moves[search_ply - 1]
-                     && static_evals[search_ply - 2] && static_eval < *static_evals[search_ply - 2];
+            frame.static_eval = static_eval;
+            declining = search_ply >= 2 && frame.real_move && frames[search_ply - 1].real_move
+                     && frames[search_ply - 2].static_eval
+                     && static_eval < *frames[search_ply - 2].static_eval;
         }
         if (!verification_root && can_null && !in_check && depth <= algorithm_detail::RazorMaxDepth
             && tt_move.is_null() && static_eval + algorithm_detail::RazorMargin[depth] <= alpha) {
@@ -377,8 +398,7 @@ EvalValue Worker::alphabeta(EvalValue           alpha,
 
     SingularResult singular;
     if (tt_record)
-        singular =
-            singular_extension<Node>(*tt_record, depth, can_null, excluded_move, alpha, beta);
+        singular = singular_extension<Node>(*tt_record, depth, can_null, alpha, beta);
     if (stop_requested())
         return alpha;
     // A multicut returns before the ordinary picker, TT store, or cutoff training.
@@ -798,13 +818,13 @@ bool Worker::settle(Board& position) {
 
 // Template definitions live in this translation unit; instantiate the node types we use.
 template EvalValue
-Worker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, PrincipalVariation*, bool, Move);
+Worker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
 template EvalValue
-Worker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*, bool, Move);
+Worker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*, bool);
 template Worker::SingularResult
-Worker::singular_extension<NodeType::Pv>(const TTRecord&, int, bool, Move, EvalValue, EvalValue);
+Worker::singular_extension<NodeType::Pv>(const TTRecord&, int, bool, EvalValue, EvalValue);
 template Worker::SingularResult
-Worker::singular_extension<NodeType::NonPv>(const TTRecord&, int, bool, Move, EvalValue, EvalValue);
+Worker::singular_extension<NodeType::NonPv>(const TTRecord&, int, bool, EvalValue, EvalValue);
 template EvalValue
 Worker::quiescence<NodeType::Pv, true>(EvalValue, EvalValue, PrincipalVariation*);
 template EvalValue

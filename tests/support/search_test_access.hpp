@@ -17,8 +17,7 @@ public:
         return worker.ordering_state;
     }
 
-    static auto& static_evals(search::Worker& worker) { return worker.static_evals; }
-    static auto& real_moves(search::Worker& worker) { return worker.real_moves; }
+    static auto& frames(search::Worker& worker) { return worker.frames; }
 
     static const search::Limits& limits(const search::Worker& worker) { return worker.limits; }
 
@@ -37,24 +36,23 @@ public:
                                EvalValue                   alpha,
                                EvalValue                   beta,
                                int                         depth,
-                               search::PrincipalVariation* pv            = nullptr,
-                               bool                        can_null      = true,
-                               Move                        excluded_move = NULL_MOVE) {
-        return worker.alphabeta<Node>(alpha, beta, depth, pv, can_null, excluded_move);
+                               search::PrincipalVariation* pv       = nullptr,
+                               bool                        can_null = true) {
+        return worker.alphabeta<Node>(alpha, beta, depth, pv, can_null);
     }
 
-    static bool& singular_verification_active(search::Worker& worker) {
-        return worker.singular_verification_active;
+    static EvalValue search_excluding_move(
+        search::Worker& worker, EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
+        return worker.search_excluding_move(alpha, beta, depth, excluded_move);
     }
     template <search::NodeType Node = search::NodeType::NonPv>
     static auto singular_result(search::Worker&         worker,
                                 const search::TTRecord& record,
                                 int                     depth,
-                                EvalValue               alpha         = -eval_value::inf,
-                                EvalValue               beta          = eval_value::inf,
-                                bool                    can_null      = true,
-                                Move                    excluded_move = NULL_MOVE) {
-        return worker.singular_extension<Node>(record, depth, can_null, excluded_move, alpha, beta);
+                                EvalValue               alpha    = -eval_value::inf,
+                                EvalValue               beta     = eval_value::inf,
+                                bool                    can_null = true) {
+        return worker.singular_extension<Node>(record, depth, can_null, alpha, beta);
     }
 
     template <search::NodeType Node>
