@@ -13,7 +13,8 @@ class MoveList {
 public:
     static constexpr std::size_t capacity = 256;
 
-    MoveList() = default;
+    // Initialize the active range only, including when constructing MoveList{}.
+    MoveList() : last(moves.data()) {}
     MoveList(const MoveList& other);
     MoveList(MoveList&& other) noexcept;
 
@@ -39,7 +40,7 @@ private:
 
     // Fixed storage and cached end pointer; copies and moves rebind the pointer.
     std::array<Move, capacity> moves;
-    Move*                      last{moves.data()};
+    Move*                      last;
 };
 
 inline MoveList::MoveList(const MoveList& other) {

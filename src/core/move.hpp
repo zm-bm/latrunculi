@@ -17,6 +17,7 @@ using MoveBits = std::uint16_t;
 
 // Value type for chess moves, stored entirely in MoveBits.
 struct Move {
+    // Like a scalar: Move{} is null; a bare Move must be assigned before reading.
     constexpr Move() = default;
 
     // Packs a move; promotion is meaningful only for MOVE_PROM.
@@ -69,7 +70,7 @@ struct Move {
     // MoveBits layout:
     // 6 bits for from square (0-5), 6 bits for to square (6-11),
     // 2 bits for move type (12-13), 2 bits for promotion piece (14-15).
-    MoveBits bits = {0};
+    MoveBits bits;
 };
 
 // Null move sentinel.
@@ -102,4 +103,5 @@ constexpr PieceType Move::unpack_prom(MoveBits packed) noexcept {
 }
 
 static_assert(sizeof(Move) == sizeof(MoveBits));
+static_assert(std::is_trivially_default_constructible_v<Move>);
 static_assert(std::is_trivially_copyable_v<Move>);

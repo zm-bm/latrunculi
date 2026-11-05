@@ -43,10 +43,8 @@ void load_candidates(CandidateBuffer&      candidates,
     constexpr Batch batch = Kind == MoveGenType::Quiet ? Batch::Quiet : Batch::Primary;
     candidates.load<batch>([&](auto&& append) {
         movegen::detail::generate<Kind>(board, [&](Move move, PieceType moving_piece) {
-            Candidate candidate{.move_bits     = move.bits,
-                                .state         = CandidateState::Ready,
-                                .score         = 0,
-                                .see_threshold = 0};
+            Candidate candidate{
+                .move = move, .state = CandidateState::Ready, .score = 0, .see_threshold = 0};
             if constexpr (Kind == MoveGenType::Quiet) {
                 candidate.score = history.quiet_score(context, moving_piece, move);
             } else if (move.type() == MOVE_PROM) {
@@ -167,7 +165,7 @@ Move MainPicker::next_candidate() {
             [[fallthrough]];
         case Stage::PickEarlyNoisy: {
             const Move move = candidates.take_best_or_defer([this](const Candidate& candidate) {
-                const Move move = candidate.move();
+                const Move move = candidate.move;
                 return move.type() == MOVE_PROM || board.see(move, candidate.see_threshold);
             });
             if (!move.is_null())
@@ -196,7 +194,7 @@ Move MainPicker::next_candidate() {
         case Stage::PickQuiet: {
             const Move move =
                 candidates.take_best<Batch::Quiet>([this](const Candidate& candidate) {
-                    return !quiet_checks_only || board.gives_check(candidate.move());
+                    return !quiet_checks_only || board.gives_check(candidate.move);
                 });
             if (!move.is_null())
                 return move;
@@ -251,7 +249,7 @@ Move QuiescencePicker::next_candidate() {
             [[fallthrough]];
         case Stage::PickNoisy: {
             const Move move = candidates.take_best_or_defer([this](const Candidate& candidate) {
-                return candidate.move().type() == MOVE_PROM || board.see(candidate.move(), 0);
+                return candidate.move.type() == MOVE_PROM || board.see(candidate.move, 0);
             });
             if (!move.is_null())
                 return move;

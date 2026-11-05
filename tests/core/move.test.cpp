@@ -2,9 +2,10 @@
 
 #include <gtest/gtest.h>
 
-TEST(MoveTest, DefaultConstructor) {
-    Move move;
-    EXPECT_TRUE(move.is_null()) << "should create null move by default";
+TEST(MoveTest, ValueInitializationIsNull) {
+    constexpr Move move{};
+    static_assert(move.is_null());
+    EXPECT_EQ(move, NULL_MOVE);
 }
 
 TEST(MoveTest, Constructor) {

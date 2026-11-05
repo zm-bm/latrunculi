@@ -288,7 +288,7 @@ private:
         bool record(Move move) {
             if (count == FailedCapacity)
                 return false;
-            moves[count++] = move.bits;
+            moves[count++] = move;
             return true;
         }
 
@@ -297,16 +297,13 @@ private:
 
         template <typename Visit>
         void for_each(Visit visit) const {
-            for (int i = 0; i < count; ++i) {
-                Move move;
-                move.bits = moves[i];
-                visit(move);
-            }
+            for (int i = 0; i < count; ++i)
+                visit(moves[i]);
         }
 
     private:
-        std::array<MoveBits, FailedCapacity> moves;
-        int                                  count;
+        std::array<Move, FailedCapacity> moves;
+        int                              count;
     };
 
     static int quiet_bonus(int depth, int divisor = 1) {

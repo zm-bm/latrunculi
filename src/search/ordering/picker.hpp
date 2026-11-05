@@ -18,19 +18,13 @@ enum class CandidateState : std::uint8_t { Ready, Excluded, Deferred };
 enum class Batch : std::uint8_t { Primary, Quiet };
 
 struct Candidate {
-    // Packed storage avoids initializing unused slots. Scoring fills every field
-    // before the candidate becomes part of an active range.
-    MoveBits       move_bits;
+    // Scoring fills every field before the candidate becomes part of an active range.
+    // Unused slots remain uninitialized.
+    Move           move;
     CandidateState state;
     int            score;
     // Captured with the score, before child searches can train the history table.
     int see_threshold;
-
-    Move move() const {
-        Move result;
-        result.bits = move_bits;
-        return result;
-    }
 };
 
 // Selection mechanics only; Picker supplies scored and classified candidates.
@@ -105,7 +99,7 @@ private:
         auto& range = range_for<Which>();
         // Retain excluded entries: removing them changes later selection ties.
         std::swap(*range.next, *best);
-        const Move move = range.next->move();
+        const Move move = range.next->move;
         ++range.next;
         return move;
     }

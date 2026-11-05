@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 
 TEST(MoveListTest, AppendsMovesAndExposesActiveRange) {
-    movegen::MoveList movelist;
+    movegen::MoveList movelist{};
     Move              first(E2, E4);
     Move              second(G1, F3);
 

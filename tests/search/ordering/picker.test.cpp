@@ -26,15 +26,6 @@ namespace {
 constexpr std::string_view WEAK_CAPTURE_FEN          = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
 constexpr std::string_view PROMOTION_AND_CAPTURE_FEN = "4k3/P7/8/1p6/3N4/8/8/4K3 w - - 0 1";
 
-template <typename Moves>
-std::vector<MoveBits> sorted_move_bits(const Moves& moves) {
-    std::vector<MoveBits> bits;
-    for (Move move : moves)
-        bits.push_back(move.bits);
-    std::sort(bits.begin(), bits.end());
-    return bits;
-}
-
 std::vector<Move> collect_moves(auto& picker) {
     std::vector<Move> moves;
     moves.reserve(movegen::MoveList::capacity);
@@ -101,10 +92,10 @@ TEST_F(PickerTest, ReturnsLegalMainAndQuiescenceMoves) {
                 || (position.is_capture(move) && board_test::exchange_oracle(position, move) >= 0))
                 expected_qsearch.add(move);
         }
-        EXPECT_EQ(sorted_move_bits(picked_main_search(position, history, ply)),
-                  sorted_move_bits(expected_main));
-        EXPECT_EQ(sorted_move_bits(picked_qsearch(position, history)),
-                  sorted_move_bits(expected_qsearch));
+        EXPECT_TRUE(
+            std::ranges::is_permutation(picked_main_search(position, history, ply), expected_main));
+        EXPECT_TRUE(
+            std::ranges::is_permutation(picked_qsearch(position, history), expected_qsearch));
     }
 }
 
@@ -133,7 +124,7 @@ TEST_F(PickerTest, MainSearchOrdersStagesAndDeduplicatesHints) {
 
     const auto duplicated = picked_main_search(position, history, ply, killer_1, killer_1);
     expect_hash_move_first_once(duplicated, killer_1);
-    EXPECT_EQ(sorted_move_bits(duplicated), sorted_move_bits(moves));
+    EXPECT_TRUE(std::ranges::is_permutation(duplicated, moves));
 }
 
 TEST_F(PickerTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
@@ -153,7 +144,7 @@ TEST_F(PickerTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
         if (position.is_legal_pseudo_move(move))
             expected.add(move);
     }
-    EXPECT_EQ(sorted_move_bits(baseline), sorted_move_bits(expected));
+    EXPECT_TRUE(std::ranges::is_permutation(baseline, expected));
 
     const auto last_quiet = std::find_if(
         baseline.rbegin(), baseline.rend(), [&](Move move) { return !position.is_capture(move); });
