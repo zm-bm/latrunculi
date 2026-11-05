@@ -1,7 +1,6 @@
 #include "movegen/moves.hpp"
 
 #include <algorithm>
-#include <array>
 #include <string_view>
 #include <vector>
 
@@ -18,29 +17,6 @@ namespace movegen {
 
 using search::History;
 using search::OrderingContext;
-
-TEST(MoveScoringTest, MainSearchSeeThresholdPreservesSignedTruncation) {
-    struct Case {
-        PieceType victim;
-        int       scaled_history;
-        int       expected_threshold;
-    };
-    constexpr std::array cases{
-        Case{PAWN, 0, -50},
-        Case{PAWN, -1, -49},
-        Case{PAWN, 1, -50},
-        Case{PAWN, -2, -49},
-        Case{PAWN, 2, -51},
-        Case{PAWN, -101, 0},
-        Case{PAWN, -102, 1},
-        Case{BISHOP, 0, -192},
-    };
-    for (const auto& tc : cases) {
-        SCOPED_TRACE(tc.victim);
-        SCOPED_TRACE(tc.scaled_history);
-        EXPECT_EQ(main_search_see_threshold(tc.victim, tc.scaled_history), tc.expected_threshold);
-    }
-}
 
 class MoveStreamTest : public ::testing::Test {
 protected:

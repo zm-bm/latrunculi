@@ -16,10 +16,6 @@ using search::OrderingContext;
 
 // Candidate scoring.
 
-int main_search_see_threshold(PieceType victim, int scaled_history) {
-    return -(see::piece_value(victim) + scaled_history) / 2;
-}
-
 namespace {
 
 constexpr int EvasionCaptureScoreBase = 1 << 22;
@@ -69,8 +65,9 @@ score_noisy(const Board& board, const History& history, Move move, PieceType mov
     NoisyScore score{.ordering_score = capture_material_score(victim_value, attacker_value)
                                      + CaptureVictimWeight * scaled_history,
                      .see_threshold = 0};
+    // Divide after combining material and history to preserve signed truncation.
     if constexpr (Policy == MovePolicy::MainSearch)
-        score.see_threshold = main_search_see_threshold(victim, scaled_history);
+        score.see_threshold = -(victim_value + scaled_history) / 2;
     return score;
 }
 

@@ -29,9 +29,6 @@ class MoveSource;
 
 inline constexpr std::size_t MoveCapacity = 256;
 
-// History-adjusted threshold for main-search capture staging.
-int main_search_see_threshold(PieceType victim, int scaled_history);
-
 // Owns complete scored batches and their selection. Sources control stage progression,
 // validate hints, and supply SEE acceptance and quiet eligibility.
 // The templated operations are defined and instantiated in move_sources.cpp.
