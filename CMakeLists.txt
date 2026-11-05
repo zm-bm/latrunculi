@@ -141,9 +141,9 @@ if(BUILD_TESTING)
         tests/eval/tapered_score.test.cpp
         tests/search/search.test.cpp
         tests/search/singular.test.cpp
+        tests/search/history.test.cpp
         tests/search/instrumentation.test.cpp
         tests/search/limits.test.cpp
-        tests/search/ordering/history.test.cpp
         tests/search/principal_variation.test.cpp
         tests/search/quiescence.test.cpp
         tests/search/root_line.test.cpp

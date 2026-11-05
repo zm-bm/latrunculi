@@ -7,7 +7,7 @@
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
 #include "search/search_detail.hpp"
-#include "search/ordering/history.hpp"
+#include "search/history_learning.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
 
@@ -250,13 +250,13 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
     EvalValue best_value = -eval_value::inf;
     Move      best_move  = NULL_MOVE;
 
-    const auto context = ordering_history.context_for(board, search_ply, tt_move);
-    auto moves = movegen::Moves<movegen::MovePolicy::MainSearch>(board, ordering_history, context);
+    const auto context = history.context_for(board, search_ply, tt_move);
+    auto       moves   = movegen::Moves<movegen::MovePolicy::MainSearch>(board, history, context);
 
     PrincipalVariation child_pv;
-    std::optional<ordering::NodeLearning> learning;
+    std::optional<HistoryLearning> learning;
     if (!verification_root)
-        learning.emplace(board, ordering_history, context, depth, stats);
+        learning.emplace(board, history, context, depth, stats);
 
     // Step 8. Move loop.
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
@@ -270,13 +270,13 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         const bool is_capture        = board.is_capture(move);
         const bool is_quiet          = !is_capture && !is_promotion;
         const bool is_ordinary_quiet = is_quiet && move.type() == BASIC_MOVE;
-        const bool is_killer         = is_quiet && ordering_history.is_killer(move, search_ply);
+        const bool is_killer         = is_quiet && history.is_killer(move, search_ply);
         const bool is_counter        = is_quiet && move == context.counter_move;
 
         // LMR uses current history, read before making the move. Ordering retains its snapshot.
         int raw_capture_history = 0;
         if (is_capture && !is_promotion && !in_check)
-            raw_capture_history = ordering_history.capture_history_score(board, move);
+            raw_capture_history = history.capture_history_score(board, move);
         bool history_lmp_candidate = false;
         if constexpr (Node == NodeType::NonPv) {
             history_lmp_candidate = !verification_root && depth == detail::LateMovePruningDepth
@@ -285,7 +285,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
                                  && alpha > -eval_value::mate_bound && beta < eval_value::mate_bound
                                  && board.non_pawn_material(side) > 0 && is_ordinary_quiet
                                  && move != tt_move && !is_killer && !is_counter
-                                 && ordering_history.quiet_score(context, board, move) < 0;
+                                 && history.quiet_score(context, board, move) < 0;
         }
 
         const int child_depth = depth - 1 + (move == tt_move && singular.extend);
@@ -502,7 +502,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
             alpha = best_value;
     }
 
-    auto moves = movegen::Moves<movegen::MovePolicy::Quiescence>(board, ordering_history, tt_move);
+    auto moves = movegen::Moves<movegen::MovePolicy::Quiescence>(board, history, tt_move);
     PrincipalVariation child_pv;
 
     // Step 5. Tactical move or evasion loop.
@@ -599,7 +599,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
 bool Worker::settle(Board& position) {
     configure_search(position, Limits{}, SearchClock::now());
-    ordering_history.clear();
+    history.clear();
 
     PrincipalVariation pv;
     const EvalValue value = quiescence<NodeType::Pv, false>(-eval_value::inf, eval_value::inf, &pv);

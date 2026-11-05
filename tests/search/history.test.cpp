@@ -1,21 +1,22 @@
-#include "search/ordering/history.hpp"
+#include "search/history.hpp"
+#include "search/history_learning.hpp"
 
 #include <gtest/gtest.h>
 
 #include "support/search_test_access.hpp"
 
-namespace search::ordering {
+namespace search {
 
 TEST(HistoryTest, QuietScoresCombineBaseAndContinuation) {
-    History           history;
-    const Board       board;
-    const NodeContext positive{.side         = BLACK,
-                               .previous_key = NodeContext::previous_index(WHITE, PAWN, E4)};
-    const NodeContext negative{.side         = WHITE,
-                               .previous_key = NodeContext::previous_index(BLACK, BISHOP, D4)};
-    const NodeContext other_previous{.side         = BLACK,
-                                     .previous_key = NodeContext::previous_index(WHITE, PAWN, D4)};
-    const Move        knight{G8, F6}, pawn{E2, E3};
+    History               history;
+    const Board           board;
+    const OrderingContext positive{
+        .side = BLACK, .previous_key = OrderingContext::previous_index(WHITE, PAWN, E4)};
+    const OrderingContext negative{
+        .side = WHITE, .previous_key = OrderingContext::previous_index(BLACK, BISHOP, D4)};
+    const OrderingContext other_previous{
+        .side = BLACK, .previous_key = OrderingContext::previous_index(WHITE, PAWN, D4)};
+    const Move knight{G8, F6}, pawn{E2, E3};
     history.update_quiet(positive, board, knight, 9);
     history.update_quiet(negative, board, pawn, -9);
     EXPECT_EQ(history.base_quiet_score(BLACK, knight), 9);
@@ -55,13 +56,13 @@ TEST(HistoryTest, CaptureScoresPreserveGravityAndBounds) {
     EXPECT_EQ(history.capture_history_score(black, black_move), -History::CaptureMaxScore);
 }
 
-TEST(NodeLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
-    History           history;
-    const Board       board{"7k/8/8/b1p1b3/Q7/3N4/6P1/7K w - - 0 1"};
-    const NodeContext context = history.context_for(board, 0);
-    Instrumentation<> stats;
-    NodeLearning      learning(board, history, context, 40, stats);
-    const Move        king{H1, G1}, pawn{G2, G3}, capture{D3, C5}, cutoff{A4, B4};
+TEST(HistoryLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
+    History               history;
+    const Board           board{"7k/8/8/b1p1b3/Q7/3N4/6P1/7K w - - 0 1"};
+    const OrderingContext context = history.context_for(board, 0);
+    Instrumentation<>     stats;
+    HistoryLearning       learning(board, history, context, 40, stats);
+    const Move            king{H1, G1}, pawn{G2, G3}, capture{D3, C5}, cutoff{A4, B4};
     learning.record_non_cutoff(king, false, false);
     learning.record_non_cutoff(pawn, false, false);
     learning.record_non_cutoff(capture, true, false);
@@ -75,7 +76,7 @@ TEST(NodeLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
 
     history.clear();
     stats.reset();
-    NodeLearning bounded(board, history, context, 4, stats);
+    HistoryLearning bounded(board, history, context, 4, stats);
     for (int i = 0; i < 32; ++i) {
         bounded.record_non_cutoff(king, false, false);
         bounded.record_non_cutoff(capture, true, false);
@@ -95,13 +96,13 @@ TEST(NodeLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
 }
 
 TEST(HistoryTest, QuietRefutationsRotateAndReplace) {
-    History           history;
-    const Board       board;
-    const NodeContext first_key{.side         = BLACK,
-                                .previous_key = NodeContext::previous_index(WHITE, PAWN, E4)};
-    const NodeContext second_key{.side         = BLACK,
-                                 .previous_key = NodeContext::previous_index(WHITE, PAWN, D4)};
-    const Move        first{C2, C4}, second{D2, D4}, third{E2, E4}, other_ply{G2, G3};
+    History               history;
+    const Board           board;
+    const OrderingContext first_key{
+        .side = BLACK, .previous_key = OrderingContext::previous_index(WHITE, PAWN, E4)};
+    const OrderingContext second_key{
+        .side = BLACK, .previous_key = OrderingContext::previous_index(WHITE, PAWN, D4)};
+    const Move first{C2, C4}, second{D2, D4}, third{E2, E4}, other_ply{G2, G3};
     history.update_quiet_refutations(first_key, first);
     EXPECT_EQ(history.context_for(board, 0).primary_killer, first);
     EXPECT_EQ(history.context_for(board, 0).secondary_killer, NULL_MOVE);
@@ -126,4 +127,4 @@ TEST(HistoryTest, QuietRefutationsRotateAndReplace) {
     EXPECT_EQ(history.context_for(board, 0).primary_killer, third);
 }
 
-} // namespace search::ordering
+} // namespace search

@@ -11,15 +11,14 @@
 #include "core/move.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
-#include "search/instrumentation.hpp"
 
 class SearchTestAccess;
 
-namespace search::ordering {
+namespace search {
 
-// Immutable node inputs shared by move selection and learning. Hints are raw
+// Immutable ordering inputs shared by move selection and learning. Hints are raw
 // node-start snapshots; history scores remain live until their consumer reads them.
-struct NodeContext {
+struct OrderingContext {
     static constexpr int           PreviousKeyCount = N_COLORS * piece_slots * N_SQUARES;
     static constexpr std::uint16_t NoPreviousKey    = PreviousKeyCount;
 
@@ -50,15 +49,15 @@ public:
     History() : continuation_scores(std::make_unique<ContinuationTable>()) {}
 
     // Build once before constructing the node's stream and learning object.
-    NodeContext context_for(const Board& board, int ply, Move tt_move = NULL_MOVE) const {
-        NodeContext context{.side = board.side_to_move(), .ply = ply, .tt_move = tt_move};
-        const Move  previous = board.previous_move();
+    OrderingContext context_for(const Board& board, int ply, Move tt_move = NULL_MOVE) const {
+        OrderingContext context{.side = board.side_to_move(), .ply = ply, .tt_move = tt_move};
+        const Move      previous = board.previous_move();
         if (!previous.is_null()) {
             const PieceType piece =
                 previous.type() == MOVE_PROM ? PAWN : type_of(board.piece_on(previous.to()));
             if (piece != NO_PIECETYPE)
                 context.previous_key =
-                    NodeContext::previous_index(~context.side, piece, previous.to());
+                    OrderingContext::previous_index(~context.side, piece, previous.to());
         }
         context.primary_killer   = killer_moves[ply][0];
         context.secondary_killer = killer_moves[ply][1];
@@ -101,7 +100,7 @@ public:
         return move == killer_moves[ply][0] || move == killer_moves[ply][1];
     }
 
-    void update_quiet_refutations(const NodeContext& context, Move move) {
+    void update_quiet_refutations(const OrderingContext& context, Move move) {
         const int ply = context.ply;
         if (killer_moves[ply][0] != move) {
             killer_moves[ply][1] = killer_moves[ply][0];
@@ -115,21 +114,22 @@ public:
         return quiet_scores[side][move.from()][move.to()];
     }
 
-    int quiet_score(const NodeContext& context, const Board& board, Move move) const {
+    int quiet_score(const OrderingContext& context, const Board& board, Move move) const {
         if (!context.has_previous_move())
             return base_quiet_score(context.side, move);
         return quiet_score(context, board.piece_type_on(move.from()), move);
     }
 
     // Generation already knows the original mover; no board lookup is needed.
-    int quiet_score(const NodeContext& context, PieceType piece, Move move) const {
+    int quiet_score(const OrderingContext& context, PieceType piece, Move move) const {
         int score = base_quiet_score(context.side, move);
         if (context.has_previous_move() && piece != NO_PIECETYPE)
             score += continuation_entry(context, piece, move.to());
         return score;
     }
 
-    void update_quiet(const NodeContext& context, const Board& board, Move move, int adjustment) {
+    void
+    update_quiet(const OrderingContext& context, const Board& board, Move move, int adjustment) {
         apply_gravity(quiet_scores[context.side][move.from()][move.to()], adjustment);
         if (!context.has_previous_move())
             return;
@@ -160,7 +160,7 @@ public:
 private:
     using Score                       = std::int16_t;
     static constexpr int MoveKeyCount = piece_slots * N_SQUARES;
-    using ContinuationTable = std::array<Score, NodeContext::PreviousKeyCount * MoveKeyCount>;
+    using ContinuationTable = std::array<Score, OrderingContext::PreviousKeyCount * MoveKeyCount>;
 
     void clear_refutations() {
         for (auto& ply : killer_moves) {
@@ -181,11 +181,12 @@ private:
         return previous_key * MoveKeyCount + move_key;
     }
 
-    Score& continuation_entry(const NodeContext& context, PieceType piece, Square to) {
+    Score& continuation_entry(const OrderingContext& context, PieceType piece, Square to) {
         return (*continuation_scores)[continuation_index(context.previous_key, piece, to)];
     }
 
-    const Score& continuation_entry(const NodeContext& context, PieceType piece, Square to) const {
+    const Score&
+    continuation_entry(const OrderingContext& context, PieceType piece, Square to) const {
         return (*continuation_scores)[continuation_index(context.previous_key, piece, to)];
     }
 
@@ -202,7 +203,7 @@ private:
     static void age_entry(Score& entry) { entry /= 2; }
 
     Move  killer_moves[engine::max_search_ply][2]{};
-    Move  counter_moves[NodeContext::PreviousKeyCount]{};
+    Move  counter_moves[OrderingContext::PreviousKeyCount]{};
     Score quiet_scores[N_COLORS][N_SQUARES][N_SQUARES]{};
     Score capture_scores[N_COLORS][piece_slots][N_SQUARES][piece_slots]{};
     // Keep the large continuation table off the worker's inline storage.
@@ -211,97 +212,4 @@ private:
     friend class ::SearchTestAccess;
 };
 
-// Per-node learning policy and feedback, borrowing the worker's history. Restore the board
-// before reporting an outcome; pruned and stopped moves must not train history.
-class NodeLearning {
-public:
-    NodeLearning(const Board&       board,
-                 History&           history,
-                 const NodeContext& context,
-                 int                depth,
-                 Instrumentation<>& stats)
-        : board(board),
-          history(history),
-          context(context),
-          depth(depth),
-          allow_quiet_malus(depth >= QuietMalusMinDepth && !context.in_check),
-          stats(stats) {
-        if (allow_quiet_malus)
-            stats.quiet_malus_eligible_node(depth);
-    }
-
-    // Both consumers borrow the same named context for the lifetime of this node.
-    NodeLearning(const Board&, History&, const NodeContext&&, int, Instrumentation<>&) = delete;
-
-    // Includes alpha improvements that did not reach beta. Classification is from
-    // before the child search, which may have changed the live killer entries.
-    void record_non_cutoff(Move move, bool is_capture, bool was_killer) {
-        if (move.type() == MOVE_PROM)
-            return;
-
-        if (is_capture) {
-            if (!context.in_check && capture_count != NonCutoffCapacity)
-                non_cutoff_captures[capture_count++] = move;
-        } else if (allow_quiet_malus && move != context.tt_move && !was_killer
-                   && quiet_count != NonCutoffCapacity) {
-            non_cutoff_quiets[quiet_count++] = move;
-            stats.quiet_malus_failed_quiet(depth);
-        }
-    }
-
-    [[gnu::always_inline]] void record_cutoff(Move move, bool is_capture) {
-        const bool is_promotion = move.type() == MOVE_PROM;
-        if (!is_capture && !is_promotion) {
-            stats.quiet_cutoff(depth);
-            history.update_quiet_refutations(context, move);
-            history.update_quiet(context, board, move, quiet_bonus(depth));
-            if (allow_quiet_malus && quiet_count >= QuietMalusMinNonCutoffs) {
-                const int penalty = -quiet_bonus(depth, QuietMalusDivisor);
-                for (int i = 0; i < quiet_count; ++i) {
-                    history.update_quiet(context, board, non_cutoff_quiets[i], penalty);
-                    stats.quiet_malus_update(depth);
-                }
-            }
-        }
-        const bool reward_capture =
-            is_capture && !is_promotion && depth >= CaptureHistoryMinRewardDepth;
-        if (!context.in_check && (reward_capture || capture_count != 0)) {
-            const int bonus = capture_bonus(depth);
-            if (reward_capture)
-                history.update_capture(board, move, bonus);
-            for (int i = 0; i < capture_count; ++i)
-                history.update_capture(board, non_cutoff_captures[i], -bonus);
-        }
-    }
-
-private:
-    static constexpr int QuietMalusMinDepth           = 4;
-    static constexpr int QuietMalusMinNonCutoffs      = 2;
-    static constexpr int QuietMalusDivisor            = 2;
-    static constexpr int CaptureHistoryMinRewardDepth = 3;
-    static constexpr int NonCutoffCapacity            = 32;
-    static constexpr int CaptureLearningRate          = 16;
-    static constexpr int CaptureMaxDepthBonus         = 128;
-
-    static int quiet_bonus(int depth, int divisor = 1) {
-        return std::clamp(depth * depth / std::max(1, divisor), 0, History::QuietMaxScore);
-    }
-
-    static int capture_bonus(int depth) {
-        return CaptureLearningRate * std::clamp(depth * depth, 0, CaptureMaxDepthBonus);
-    }
-
-    const Board&       board;
-    History&           history;
-    const NodeContext& context;
-    const int          depth;
-    const bool         allow_quiet_malus;
-    Instrumentation<>& stats;
-    // Only recorded entries are initialized; both counts stay within the shared bound.
-    std::array<Move, NonCutoffCapacity> non_cutoff_quiets;
-    int                                 quiet_count{0};
-    std::array<Move, NonCutoffCapacity> non_cutoff_captures;
-    int                                 capture_count{0};
-};
-
-} // namespace search::ordering
+} // namespace search

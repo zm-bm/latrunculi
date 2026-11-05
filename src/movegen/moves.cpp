@@ -7,12 +7,12 @@
 #include "board/board.hpp"
 #include "board/see_values.hpp"
 #include "movegen/generator.hpp"
-#include "search/ordering/history.hpp"
+#include "search/history.hpp"
 
 namespace movegen {
 
-using search::ordering::History;
-using search::ordering::NodeContext;
+using search::History;
+using search::OrderingContext;
 
 // Candidate storage and selection.
 
@@ -133,12 +133,12 @@ constexpr int capture_score(int victim_value, int attacker_value, int scaled_his
 // One synchronous batch operation shares generation and scoring across both flows.
 // Excluded moves are still scored and stored; each entire batch loads before selection.
 template <GenerationKind Kind, bool UseHistorySeeThreshold = false>
-void load_candidates(CandidateBuffer&      candidates,
-                     const Board&          board,
-                     const History&        history,
-                     const NodeContext&    context,
-                     Move                  tt_move,
-                     std::span<const Move> quiet_hints = {}) {
+void load_candidates(CandidateBuffer&       candidates,
+                     const Board&           board,
+                     const History&         history,
+                     const OrderingContext& context,
+                     Move                   tt_move,
+                     std::span<const Move>  quiet_hints = {}) {
     static_assert(Kind == GenerationKind::Evasions || Kind == GenerationKind::Noisy
                   || Kind == GenerationKind::Quiet);
     constexpr Batch batch = Kind == GenerationKind::Quiet ? Batch::Quiet : Batch::Primary;
@@ -219,9 +219,9 @@ MoveSource<MovePolicy::Unordered>::MoveSource(const Board& board)
 
 // Main-search ordering.
 
-MoveSource<MovePolicy::MainSearch>::MoveSource(const Board&       board,
-                                               const History&     history,
-                                               const NodeContext& context)
+MoveSource<MovePolicy::MainSearch>::MoveSource(const Board&           board,
+                                               const History&         history,
+                                               const OrderingContext& context)
     : board(board),
       history(history),
       context(context) {
@@ -353,12 +353,12 @@ Move MoveSource<MovePolicy::Quiescence>::next_candidate() {
         case Stage::LoadPrimary:
             if (in_check) {
                 load_candidates<GenerationKind::Evasions>(
-                    candidates, board, history, NodeContext{.side = side}, tt_move);
+                    candidates, board, history, OrderingContext{.side = side}, tt_move);
                 stage = Stage::PickEvasion;
                 break;
             }
             load_candidates<GenerationKind::Noisy>(
-                candidates, board, history, NodeContext{.side = side}, tt_move);
+                candidates, board, history, OrderingContext{.side = side}, tt_move);
             stage = Stage::PickNoisy;
             [[fallthrough]];
         case Stage::PickNoisy: {

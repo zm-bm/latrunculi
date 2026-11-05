@@ -96,22 +96,22 @@ void Worker::reset_search_state() {
     last_reported_root_line.reset();
     pending_best_move.reset();
 
-    ordering_history.prepare_for_search();
+    history.prepare_for_search();
 
     if constexpr (stats_enabled)
         stats.reset();
 }
 
 void Worker::clear_search_heuristics() {
-    ordering_history.clear();
+    history.clear();
 }
 
 void Worker::build_root_lines() {
     root_lines.clear();
 
     // Root candidates start in ordered-stream order.
-    const auto context = ordering_history.context_for(board, 0);
-    auto moves = movegen::Moves<movegen::MovePolicy::MainSearch>(board, ordering_history, context);
+    const auto context = history.context_for(board, 0);
+    auto       moves   = movegen::Moves<movegen::MovePolicy::MainSearch>(board, history, context);
 
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         if (limits.allows_root_move(move))

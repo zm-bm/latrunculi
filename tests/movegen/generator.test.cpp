@@ -44,12 +44,12 @@ static_assert(!std::is_copy_constructible_v<movegen::Moves<movegen::MovePolicy::
 static_assert(!std::is_move_constructible_v<movegen::Moves<movegen::MovePolicy::Unordered>>);
 static_assert(std::is_constructible_v<movegen::Moves<movegen::MovePolicy::MainSearch>,
                                       const Board&,
-                                      const search::ordering::History&,
-                                      const search::ordering::NodeContext&>);
+                                      const search::History&,
+                                      const search::OrderingContext&>);
 static_assert(!std::is_constructible_v<movegen::Moves<movegen::MovePolicy::MainSearch>,
                                        const Board&,
-                                       const search::ordering::History&,
-                                       search::ordering::NodeContext&&>);
+                                       const search::History&,
+                                       search::OrderingContext&&>);
 
 TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
     auto check_legal = [](const Board& board) {
