@@ -2,7 +2,7 @@
 
 #include "board/see_values.hpp"
 
-namespace search::ordering::capture_scoring {
+namespace movegen::detail::capture_scoring {
 
 inline constexpr int VictimWeight        = 7;
 inline constexpr int MaterialScoreOffset = see::piece_value(QUEEN);
@@ -24,4 +24,4 @@ inline int main_search_see_threshold(PieceType victim, int scaled_capture_histor
     return -(see::piece_value(victim) + scaled_capture_history) / 2;
 }
 
-} // namespace search::ordering::capture_scoring
+} // namespace movegen::detail::capture_scoring

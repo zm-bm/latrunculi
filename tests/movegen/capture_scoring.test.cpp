@@ -1,10 +1,10 @@
-#include "search/ordering/capture_scoring.hpp"
+#include "movegen/capture_scoring.hpp"
 
 #include <array>
 
 #include <gtest/gtest.h>
 
-namespace search::ordering {
+namespace movegen::detail {
 
 TEST(CaptureScoringTest, MainSearchSeeThresholdPreservesSignedTruncation) {
     struct Case {
@@ -30,4 +30,4 @@ TEST(CaptureScoringTest, MainSearchSeeThresholdPreservesSignedTruncation) {
     }
 }
 
-} // namespace search::ordering
+} // namespace movegen::detail

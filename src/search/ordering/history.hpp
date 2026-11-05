@@ -60,10 +60,11 @@ public:
                 context.previous_key =
                     NodeContext::previous_index(~context.side, piece, previous.to());
         }
-        context.primary_killer   = primary_killer(ply);
-        context.secondary_killer = secondary_killer(ply);
-        context.counter_move     = counter_hint(context);
-        context.in_check         = board.is_check();
+        context.primary_killer   = killer_moves[ply][0];
+        context.secondary_killer = killer_moves[ply][1];
+        context.counter_move =
+            context.has_previous_move() ? counter_moves[context.previous_key] : NULL_MOVE;
+        context.in_check = board.is_check();
         return context;
     }
 
@@ -100,15 +101,8 @@ public:
         return move == killer_moves[ply][0] || move == killer_moves[ply][1];
     }
 
-    Move primary_killer(int ply) const { return killer_moves[ply][0]; }
-
-    Move secondary_killer(int ply) const { return killer_moves[ply][1]; }
-
-    Move counter_hint(const NodeContext& context) const {
-        return context.has_previous_move() ? counter_moves[context.previous_key] : NULL_MOVE;
-    }
-
-    void update_quiet_refutations(const NodeContext& context, Move move, int ply) {
+    void update_quiet_refutations(const NodeContext& context, Move move) {
+        const int ply = context.ply;
         if (killer_moves[ply][0] != move) {
             killer_moves[ply][1] = killer_moves[ply][0];
             killer_moves[ply][0] = move;
@@ -239,16 +233,17 @@ public:
     // Both consumers borrow the same named context for the lifetime of this node.
     NodeLearning(const Board&, History&, const NodeContext&&, int, Instrumentation<>&) = delete;
 
-    // Includes alpha improvements that did not reach beta.
-    void record_non_cutoff(Move move, bool is_capture, bool is_killer) {
+    // Includes alpha improvements that did not reach beta. Classification is from
+    // before the child search, which may have changed the live killer entries.
+    void record_non_cutoff(Move move, bool is_capture, bool was_killer) {
         if (move.type() == MOVE_PROM)
             return;
 
         if (is_capture) {
             if (!context.in_check)
-                failed_captures.record(move);
-        } else if (allow_quiet_malus && move != context.tt_move && !is_killer
-                   && failed_quiets.record(move)) {
+                non_cutoff_captures.record(move);
+        } else if (allow_quiet_malus && move != context.tt_move && !was_killer
+                   && non_cutoff_quiets.record(move)) {
             stats.quiet_malus_failed_quiet(depth);
         }
     }
@@ -257,43 +252,43 @@ public:
         const bool is_promotion = move.type() == MOVE_PROM;
         if (!is_capture && !is_promotion) {
             stats.quiet_cutoff(depth);
-            history.update_quiet_refutations(context, move, context.ply);
+            history.update_quiet_refutations(context, move);
             history.update_quiet(context, board, move, quiet_bonus(depth));
-            if (allow_quiet_malus && failed_quiets.size() >= QuietMalusMinFailed) {
+            if (allow_quiet_malus && non_cutoff_quiets.size() >= QuietMalusMinNonCutoffs) {
                 const int penalty = -quiet_bonus(depth, QuietMalusDivisor);
-                failed_quiets.for_each([&](Move failed) {
-                    history.update_quiet(context, board, failed, penalty);
+                non_cutoff_quiets.for_each([&](Move previous) {
+                    history.update_quiet(context, board, previous, penalty);
                     stats.quiet_malus_update(depth);
                 });
             }
         }
         const bool reward_capture =
             is_capture && !is_promotion && depth >= CaptureHistoryMinRewardDepth;
-        if (!context.in_check && (reward_capture || !failed_captures.empty())) {
+        if (!context.in_check && (reward_capture || !non_cutoff_captures.empty())) {
             const int bonus = capture_bonus(depth);
             if (reward_capture)
                 history.update_capture(board, move, bonus);
-            failed_captures.for_each(
-                [&](Move failed) { history.update_capture(board, failed, -bonus); });
+            non_cutoff_captures.for_each(
+                [&](Move previous) { history.update_capture(board, previous, -bonus); });
         }
     }
 
 private:
     static constexpr int QuietMalusMinDepth           = 4;
-    static constexpr int QuietMalusMinFailed          = 2;
+    static constexpr int QuietMalusMinNonCutoffs      = 2;
     static constexpr int QuietMalusDivisor            = 2;
     static constexpr int CaptureHistoryMinRewardDepth = 3;
-    static constexpr int FailedCapacity               = 32;
+    static constexpr int NonCutoffCapacity            = 32;
     static constexpr int CaptureLearningRate          = 16;
     static constexpr int CaptureMaxDepthBonus         = 128;
 
     // Only recorded entries are initialized; both feedback lists share the same bound.
-    class FailedMoves {
+    class NonCutoffMoves {
     public:
-        FailedMoves() : count(0) {}
+        NonCutoffMoves() : count(0) {}
 
         bool record(Move move) {
-            if (count == FailedCapacity)
+            if (count == NonCutoffCapacity)
                 return false;
             moves[count++] = move;
             return true;
@@ -309,8 +304,8 @@ private:
         }
 
     private:
-        std::array<Move, FailedCapacity> moves;
-        int                              count;
+        std::array<Move, NonCutoffCapacity> moves;
+        int                                 count;
     };
 
     static int quiet_bonus(int depth, int divisor = 1) {
@@ -327,8 +322,8 @@ private:
     const int          depth;
     const bool         allow_quiet_malus;
     Instrumentation<>& stats;
-    FailedMoves        failed_quiets;
-    FailedMoves        failed_captures;
+    NonCutoffMoves     non_cutoff_quiets;
+    NonCutoffMoves     non_cutoff_captures;
 };
 
 } // namespace search::ordering

@@ -247,7 +247,7 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
         auto& ordering_history = SearchTestAccess::ordering_history(
             SearchThreadTestAccess::worker(thread_pool(), index));
-        ordering_history.update_quiet_refutations(context, Move(G8, F6), 0);
+        ordering_history.update_quiet_refutations(context, Move(G8, F6));
         SearchTestAccess::quiet_history_entry(ordering_history, WHITE, E2, E4)             = 16;
         SearchTestAccess::capture_history_entry(ordering_history, WHITE, KNIGHT, E5, PAWN) = 256;
         SearchTestAccess::continuation_history_entry(
@@ -262,8 +262,8 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
         auto& ordering_history = SearchTestAccess::ordering_history(
             SearchThreadTestAccess::worker(thread_pool(), index));
-        EXPECT_EQ(ordering_history.primary_killer(0), NULL_MOVE);
-        EXPECT_EQ(ordering_history.counter_hint(context), NULL_MOVE);
+        EXPECT_EQ(ordering_history.context_for(board(), 0).primary_killer, NULL_MOVE);
+        EXPECT_EQ(SearchTestAccess::counter_move_entry(ordering_history, context), NULL_MOVE);
         EXPECT_EQ(SearchTestAccess::quiet_history_entry(ordering_history, WHITE, E2, E4), 0);
         EXPECT_EQ(
             SearchTestAccess::capture_history_entry(ordering_history, WHITE, KNIGHT, E5, PAWN), 0);

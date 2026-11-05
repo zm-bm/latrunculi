@@ -127,8 +127,8 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeMoveHistoriesAndPreserveContinuation
     Board board{board_test::fen::start};
     load_worker_board(board);
 
-    ordering_history().update_quiet_refutations(ordering::NodeContext{}, Move(E2, E4), 0);
-    ordering_history().update_quiet_refutations(ordering::NodeContext{}, Move(D2, D4), 0);
+    ordering_history().update_quiet_refutations(ordering::NodeContext{}, Move(E2, E4));
+    ordering_history().update_quiet_refutations(ordering::NodeContext{}, Move(D2, D4));
     SearchTestAccess::counter_move_entry(ordering_history(), WHITE, PAWN, E4) = Move(G8, F6);
     SearchTestAccess::quiet_history_entry(ordering_history(), WHITE, E2, E4)  = 9;
     SearchTestAccess::capture_history_entry(ordering_history(), WHITE, KNIGHT, E5, PAWN) = -257;
@@ -136,8 +136,8 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeMoveHistoriesAndPreserveContinuation
         16;
 
     SearchTestAccess::reset(worker());
-    EXPECT_EQ(ordering_history().primary_killer(0), NULL_MOVE);
-    EXPECT_EQ(ordering_history().secondary_killer(0), NULL_MOVE);
+    EXPECT_EQ(ordering_history().context_for(board, 0).primary_killer, NULL_MOVE);
+    EXPECT_EQ(ordering_history().context_for(board, 0).secondary_killer, NULL_MOVE);
     EXPECT_EQ(SearchTestAccess::counter_move_entry(ordering_history(), WHITE, PAWN, E4), NULL_MOVE);
     EXPECT_EQ(SearchTestAccess::quiet_history_entry(ordering_history(), WHITE, E2, E4), 4);
     EXPECT_EQ(SearchTestAccess::capture_history_entry(ordering_history(), WHITE, KNIGHT, E5, PAWN),

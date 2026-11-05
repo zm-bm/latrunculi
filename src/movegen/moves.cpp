@@ -4,15 +4,13 @@
 #include <span>
 
 #include "board/board.hpp"
+#include "movegen/capture_scoring.hpp"
 #include "movegen/generator.hpp"
-#include "search/ordering/capture_scoring.hpp"
 #include "search/ordering/history.hpp"
 
 namespace movegen::detail {
 
 namespace {
-
-namespace capture_scoring = search::ordering::capture_scoring;
 
 constexpr int EvasionCaptureScoreBase = 1 << 22;
 constexpr int PromotionScore          = 1 << 28;

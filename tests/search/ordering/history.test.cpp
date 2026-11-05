@@ -96,31 +96,34 @@ TEST(NodeLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
 
 TEST(HistoryTest, QuietRefutationsRotateAndReplace) {
     History           history;
+    const Board       board;
     const NodeContext first_key{.side         = BLACK,
                                 .previous_key = NodeContext::previous_index(WHITE, PAWN, E4)};
     const NodeContext second_key{.side         = BLACK,
                                  .previous_key = NodeContext::previous_index(WHITE, PAWN, D4)};
     const Move        first{C2, C4}, second{D2, D4}, third{E2, E4}, other_ply{G2, G3};
-    history.update_quiet_refutations(first_key, first, 0);
-    EXPECT_EQ(history.primary_killer(0), first);
-    EXPECT_EQ(history.secondary_killer(0), NULL_MOVE);
-    history.update_quiet_refutations(second_key, second, 0);
-    EXPECT_EQ(history.counter_hint(first_key), first);
-    EXPECT_EQ(history.counter_hint(second_key), second);
-    history.update_quiet_refutations(first_key, third, 0);
-    EXPECT_EQ(history.primary_killer(0), third);
-    EXPECT_EQ(history.secondary_killer(0), second);
+    history.update_quiet_refutations(first_key, first);
+    EXPECT_EQ(history.context_for(board, 0).primary_killer, first);
+    EXPECT_EQ(history.context_for(board, 0).secondary_killer, NULL_MOVE);
+    history.update_quiet_refutations(second_key, second);
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, first_key), first);
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, second_key), second);
+    history.update_quiet_refutations(first_key, third);
+    EXPECT_EQ(history.context_for(board, 0).primary_killer, third);
+    EXPECT_EQ(history.context_for(board, 0).secondary_killer, second);
     EXPECT_FALSE(history.is_killer(first, 0));
-    EXPECT_EQ(history.counter_hint(first_key), third);
-    EXPECT_EQ(history.counter_hint(second_key), second);
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, first_key), third);
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, second_key), second);
 
     // An unchanged primary killer must still replace another counter key.
-    history.update_quiet_refutations(second_key, third, 0);
-    EXPECT_EQ(history.secondary_killer(0), second);
-    EXPECT_EQ(history.counter_hint(second_key), third);
-    history.update_quiet_refutations(first_key, other_ply, 1);
-    EXPECT_EQ(history.primary_killer(1), other_ply);
-    EXPECT_EQ(history.primary_killer(0), third);
+    history.update_quiet_refutations(second_key, third);
+    EXPECT_EQ(history.context_for(board, 0).secondary_killer, second);
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, second_key), third);
+    auto other_context = first_key;
+    other_context.ply  = 1;
+    history.update_quiet_refutations(other_context, other_ply);
+    EXPECT_EQ(history.context_for(board, 1).primary_killer, other_ply);
+    EXPECT_EQ(history.context_for(board, 0).primary_killer, third);
 }
 
 } // namespace search::ordering

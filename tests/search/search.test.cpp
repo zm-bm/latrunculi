@@ -653,8 +653,8 @@ TEST_F(SearchTest, FutilityKeepsTacticalMoves) {
         const EvalValue beta  = alpha + 1000;
         tt.store(position().tt_key(), tc.first, 0, 0, TTBound::Exact, ply());
         if (tc.killer)
-            ordering_history().update_quiet_refutations(
-                ordering::NodeContext{}, tc.tactical, ply());
+            ordering_history().update_quiet_refutations(ordering::NodeContext{.ply = ply()},
+                                                        tc.tactical);
         store_child(tc.tactical, -(beta + 100), 1);
         EXPECT_GE(search(alpha, beta, 2), beta);
     }
@@ -676,8 +676,9 @@ TEST_F(SearchTest, FutilityKeepsLaterCheckingQuietHintsAndGeneratedMoves) {
         EXPECT_TRUE(position().gives_check(checking));
 
         if (checking_is_hint)
-            ordering_history().update_quiet_refutations(ordering::NodeContext{}, checking, ply());
-        ordering_history().update_quiet_refutations(ordering::NodeContext{}, skipped, ply());
+            ordering_history().update_quiet_refutations(ordering::NodeContext{.ply = ply()},
+                                                        checking);
+        ordering_history().update_quiet_refutations(ordering::NodeContext{.ply = ply()}, skipped);
 
         const auto moves       = ordered_moves(first);
         const auto skipped_it  = std::find(moves.begin(), moves.end(), skipped);
@@ -807,10 +808,8 @@ TEST_F(SearchTest, CaptureCutoffSkipsShallowRewardsAndPenalizesEarlierFailures) 
         EXPECT_EQ(ordering_history().capture_history_score(position(), moves[0]), tc.penalty);
         EXPECT_EQ(ordering_history().capture_history_score(position(), moves[1]), tc.reward);
         EXPECT_EQ(ordering_history().capture_history_score(position(), Move(D3, F4)), 0);
-        EXPECT_EQ(ordering_history().primary_killer(ply()), NULL_MOVE);
-        EXPECT_EQ(
-            ordering_history().counter_hint(ordering_history().context_for(position(), ply())),
-            NULL_MOVE);
+        EXPECT_EQ(ordering_history().context_for(position(), ply()).primary_killer, NULL_MOVE);
+        EXPECT_EQ(ordering_history().context_for(position(), ply()).counter_move, NULL_MOVE);
     }
 }
 
@@ -820,10 +819,8 @@ TEST_F(SearchTest, CaptureHistorySkipsPromotionsEvasionsAndQuiescenceUpdates) {
         tt.store(position().tt_key(), move, 0, 0, TTBound::UpperBound, ply(), 0);
         store_child(move, -200, 2);
         EXPECT_EQ(search(-200, 100, 3), 200);
-        EXPECT_EQ(ordering_history().primary_killer(ply()), NULL_MOVE);
-        EXPECT_EQ(
-            ordering_history().counter_hint(ordering_history().context_for(position(), ply())),
-            NULL_MOVE);
+        EXPECT_EQ(ordering_history().context_for(position(), ply()).primary_killer, NULL_MOVE);
+        EXPECT_EQ(ordering_history().context_for(position(), ply()).counter_move, NULL_MOVE);
     };
     cutoff(Board{"4k2r/6P1/8/8/8/8/8/K7 w - - 0 1"}, Move(G7, H8, MOVE_PROM, QUEEN));
     EXPECT_EQ(SearchTestAccess::capture_history_entry(ordering_history(), WHITE, PAWN, H8, ROOK),
@@ -853,7 +850,7 @@ TEST_F(SearchTest, QuietCutoffTrainsHistoriesAndSkipsFailedRefutationHints) {
         const Move tt_move = moves[0];
         const Move killer  = moves[1];
         tt.store(position().tt_key(), tt_move, 0, 4, TTBound::UpperBound, ply());
-        ordering_history().update_quiet_refutations(ordering::NodeContext{}, killer, ply());
+        ordering_history().update_quiet_refutations(ordering::NodeContext{.ply = ply()}, killer);
         store_child(tt_move, 0, 3);
         store_child(killer, 10, 3);
         store_child(moves[2], 25, 3);
@@ -872,7 +869,7 @@ TEST_F(SearchTest, QuietCutoffTrainsHistoriesAndSkipsFailedRefutationHints) {
         EXPECT_GT(continuation_history(WHITE, PAWN, E4, moves[4]), 0);
         EXPECT_EQ(SearchTestAccess::counter_move_entry(ordering_history(), WHITE, PAWN, E4),
                   moves[4]);
-        EXPECT_EQ(ordering_history().primary_killer(ply()), moves[4]);
+        EXPECT_EQ(ordering_history().context_for(position(), ply()).primary_killer, moves[4]);
     });
 }
 
@@ -1152,8 +1149,8 @@ TEST_F(SearchTest, LmrSkipsTacticalAndEvasionMoves) {
         } else {
             tt.store(position().tt_key(), tc.tt_move, 0, 0, TTBound::Exact, ply());
             if (!tc.killer.is_null())
-                ordering_history().update_quiet_refutations(
-                    ordering::NodeContext{}, tc.killer, ply());
+                ordering_history().update_quiet_refutations(ordering::NodeContext{.ply = ply()},
+                                                            tc.killer);
             SearchTestAccess::quiet_history_entry(
                 ordering_history(), position().side_to_move(), candidate.from(), candidate.to()) =
                 16;

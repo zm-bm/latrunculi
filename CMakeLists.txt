@@ -132,6 +132,7 @@ if(BUILD_TESTING)
         tests/board/fen_parser.test.cpp
         tests/board/notation.test.cpp
         tests/cli/cli.test.cpp
+        tests/movegen/capture_scoring.test.cpp
         tests/movegen/generator.test.cpp
         tests/movegen/moves.test.cpp
         tests/movegen/perft.test.cpp
@@ -143,7 +144,6 @@ if(BUILD_TESTING)
         tests/search/singular.test.cpp
         tests/search/instrumentation.test.cpp
         tests/search/limits.test.cpp
-        tests/search/ordering/capture_scoring.test.cpp
         tests/search/ordering/history.test.cpp
         tests/search/principal_variation.test.cpp
         tests/search/quiescence.test.cpp

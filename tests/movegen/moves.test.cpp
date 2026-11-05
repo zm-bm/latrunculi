@@ -113,8 +113,8 @@ TEST_F(MoveStreamTest, MainSearchOrdersStagesAndDeduplicatesHints) {
     const Move history_move{B4, C4}, continuation_move{B4, B3};
     const auto context = history.context_for(position, ply);
 
-    history.update_quiet_refutations(NodeContext{}, killer_2, ply);
-    history.update_quiet_refutations(NodeContext{}, killer_1, ply);
+    history.update_quiet_refutations(NodeContext{.ply = ply}, killer_2);
+    history.update_quiet_refutations(NodeContext{.ply = ply}, killer_1);
     SearchTestAccess::quiet_history_entry(history, WHITE, history_move.from(), history_move.to()) =
         History::QuietMaxScore;
     SearchTestAccess::continuation_history_entry(history,
@@ -133,7 +133,7 @@ TEST_F(MoveStreamTest, MainSearchOrdersStagesAndDeduplicatesHints) {
     EXPECT_TRUE(std::ranges::is_permutation(duplicated, moves));
 
     const auto snapshot = history.context_for(position, ply, killer_1);
-    history.update_quiet_refutations(snapshot, history_move, ply);
+    history.update_quiet_refutations(snapshot, history_move);
     EXPECT_EQ(snapshot.primary_killer, killer_1);
     EXPECT_EQ(snapshot.secondary_killer, killer_2);
     EXPECT_EQ(snapshot.counter_move, killer_1);
@@ -168,7 +168,7 @@ TEST_F(MoveStreamTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
                                                  history.context_for(position, ply),
                                                  position.piece_type_on(last_quiet->from()),
                                                  last_quiet->to()) = 16;
-    history.update_quiet_refutations(NodeContext{}, invalid_hint, ply);
+    history.update_quiet_refutations(NodeContext{.ply = ply}, invalid_hint);
     history.update_capture(position, queen_capture, 2048);
     ASSERT_TRUE(position.is_pseudo_legal(invalid_hint));
     ASSERT_FALSE(position.is_legal_pseudo_move(invalid_hint));
@@ -230,8 +230,8 @@ TEST_F(MoveStreamTest, SkipNoncheckingQuietsKeepsQuietChecksAndWeakCaptures) {
     ASSERT_FALSE(position.gives_check(nonchecking));
     ASSERT_TRUE(position.gives_check(checking));
 
-    history.update_quiet_refutations(NodeContext{}, checking, ply);
-    history.update_quiet_refutations(NodeContext{}, nonchecking, ply);
+    history.update_quiet_refutations(NodeContext{.ply = ply}, checking);
+    history.update_quiet_refutations(NodeContext{.ply = ply}, nonchecking);
     const auto context = history.context_for(position, ply);
     auto       picker  = movegen::Moves<movegen::Mode::MainSearch>(position, history, context);
     picker.skip_nonchecking_quiets();
