@@ -15,10 +15,10 @@
 
 namespace {
 
-template <movegen::MoveGenType Kind>
+template <movegen::GenerationKind Kind>
 std::vector<Move> emitted_moves(const Board& board) {
     std::vector<Move> moves;
-    movegen::detail::generate<Kind>(board, [&](Move move, PieceType piece) {
+    movegen::generate<Kind>(board, [&](Move move, PieceType piece) {
         EXPECT_EQ(piece, board.piece_type_on(move.from())) << move;
         moves.push_back(move);
     });
@@ -40,8 +40,16 @@ bool are_disjoint(const std::vector<Move>& lhs, const std::vector<Move>& rhs) {
 
 } // namespace
 
-static_assert(!std::is_copy_constructible_v<movegen::Moves<movegen::Mode::All>>);
-static_assert(!std::is_move_constructible_v<movegen::Moves<movegen::Mode::All>>);
+static_assert(!std::is_copy_constructible_v<movegen::Moves<movegen::MovePolicy::Unordered>>);
+static_assert(!std::is_move_constructible_v<movegen::Moves<movegen::MovePolicy::Unordered>>);
+static_assert(std::is_constructible_v<movegen::Moves<movegen::MovePolicy::MainSearch>,
+                                      const Board&,
+                                      const search::ordering::History&,
+                                      const search::ordering::NodeContext&>);
+static_assert(!std::is_constructible_v<movegen::Moves<movegen::MovePolicy::MainSearch>,
+                                       const Board&,
+                                       const search::ordering::History&,
+                                       search::ordering::NodeContext&&>);
 
 TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
     auto check_legal = [](const Board& board) {
@@ -49,14 +57,15 @@ TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
         for (Move move : board_test::pseudo_legal_moves(board))
             if (board.is_legal_pseudo_move(move))
                 expected.push_back(move);
-        std::vector<Move>                  actual;
-        movegen::Moves<movegen::Mode::All> moves(board);
+        std::vector<Move>                              actual;
+        movegen::Moves<movegen::MovePolicy::Unordered> moves(board);
         for (Move move = moves.next(); !move.is_null(); move = moves.next())
             actual.push_back(move);
         EXPECT_EQ(actual, expected);
         EXPECT_TRUE(moves.next().is_null());
-        EXPECT_EQ(movegen::Moves<movegen::Mode::All>(board).next().is_null(), expected.empty());
-        movegen::Moves<movegen::Mode::All> matches(board);
+        EXPECT_EQ(movegen::Moves<movegen::MovePolicy::Unordered>(board).next().is_null(),
+                  expected.empty());
+        movegen::Moves<movegen::MovePolicy::Unordered> matches(board);
         if (expected.size() > 1) {
             const std::size_t middle = expected.size() / 2 - 1;
             EXPECT_EQ(matches.find([&](Move move) { return move == expected[middle]; }),
@@ -68,14 +77,14 @@ TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
     };
     Board      quiet_board{board_test::fen::start};
     const auto quiet_moves = board_test::pseudo_legal_moves(quiet_board);
-    EXPECT_EQ(emitted_moves<movegen::MoveGenType::NonEvasions>(quiet_board), quiet_moves);
+    EXPECT_EQ(emitted_moves<movegen::GenerationKind::NonEvasions>(quiet_board), quiet_moves);
 
     check_legal(quiet_board);
 
     Board evasion_board{board_test::fen::check_evasion};
     ASSERT_TRUE(evasion_board.is_check());
     const auto evasions = board_test::pseudo_legal_moves(evasion_board);
-    EXPECT_EQ(emitted_moves<movegen::MoveGenType::Evasions>(evasion_board), evasions);
+    EXPECT_EQ(emitted_moves<movegen::GenerationKind::Evasions>(evasion_board), evasions);
     check_legal(evasion_board);
     check_legal(Board{board_test::fen::stalemate});
 
@@ -84,7 +93,7 @@ TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
     ASSERT_TRUE(pinned.is_pseudo_legal(illegal));
     ASSERT_FALSE(pinned.is_legal_pseudo_move(illegal));
     int matched = 0;
-    EXPECT_TRUE(movegen::Moves<movegen::Mode::All>(pinned)
+    EXPECT_TRUE(movegen::Moves<movegen::MovePolicy::Unordered>(pinned)
                     .find([&](Move move) {
                         if (move != illegal)
                             return false;
@@ -132,8 +141,8 @@ TEST(MoveGeneratorTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
         ASSERT_FALSE(board.is_check()) << fen;
 
         const auto non_evasions = board_test::pseudo_legal_moves(board);
-        const auto noisy_moves  = emitted_moves<movegen::MoveGenType::Noisy>(board);
-        const auto quiet_moves  = emitted_moves<movegen::MoveGenType::Quiet>(board);
+        const auto noisy_moves  = emitted_moves<movegen::GenerationKind::Noisy>(board);
+        const auto quiet_moves  = emitted_moves<movegen::GenerationKind::Quiet>(board);
         EXPECT_FALSE(has_duplicates(non_evasions)) << fen;
         EXPECT_FALSE(has_duplicates(noisy_moves)) << fen;
         EXPECT_FALSE(has_duplicates(quiet_moves)) << fen;

@@ -15,34 +15,33 @@ struct NodeContext;
 
 namespace movegen {
 
-enum class Mode { All, MainSearch, Quiescence };
+// Ordering and eligibility of a legal move stream.
+enum class MovePolicy { Unordered, MainSearch, Quiescence };
 
-template <Mode Which>
+template <MovePolicy Policy>
 class Moves;
-
-namespace detail {
 
 inline constexpr std::size_t MoveCapacity = 256;
 
-template <Mode Which>
+// History-adjusted threshold for main-search capture staging.
+int main_search_see_threshold(PieceType victim, int scaled_history);
+
+template <MovePolicy Policy>
 class MoveSource;
 
 // Ordinary traversal loads the complete batch before consuming it in generation order.
 template <>
-class MoveSource<Mode::All> {
-    friend class Moves<Mode::All>;
+class MoveSource<MovePolicy::Unordered> {
+    friend class Moves<MovePolicy::Unordered>;
 
     explicit MoveSource(const Board& board);
-    Move next_candidate() { return next != last ? *next++ : NULL_MOVE; }
+    Move next_candidate() { return cursor != end ? *cursor++ : NULL_MOVE; }
 
     const Board&                   board;
     std::array<Move, MoveCapacity> storage;
-    Move*                          next;
-    Move*                          last;
+    Move*                          cursor;
+    Move*                          end;
 };
-
-using search::ordering::History;
-using search::ordering::NodeContext;
 
 enum class CandidateState : std::uint8_t { Ready, Excluded, Deferred };
 enum class Batch : std::uint8_t { Primary, Quiet };
@@ -162,11 +161,15 @@ private:
 // Hints are node-start snapshots; scores freeze when their batch loads.
 // Main search owns quiet hints and suppression; quiescence has no quiet stage.
 template <>
-class MoveSource<Mode::MainSearch> {
-    friend class Moves<Mode::MainSearch>;
+class MoveSource<MovePolicy::MainSearch> {
+    friend class Moves<MovePolicy::MainSearch>;
 
-    MoveSource(const Board& board, const History& history, const NodeContext& context);
-    MoveSource(const Board&, const History&, const NodeContext&&) = delete;
+    MoveSource(const Board&                         board,
+               const search::ordering::History&     history,
+               const search::ordering::NodeContext& context);
+    MoveSource(const Board&,
+               const search::ordering::History&,
+               const search::ordering::NodeContext&&) = delete;
     void skip_nonchecking_quiets();
 
     enum class Stage : std::uint8_t {
@@ -184,49 +187,63 @@ class MoveSource<Mode::MainSearch> {
     Move                 next_candidate();
     bool                 is_quiet_hint(Move move) const;
 
-    const Board&                        board;
-    const History&                      history;
-    const NodeContext&                  context;
-    Move                                tt_move{NULL_MOVE};
-    Stage                               stage{Stage::TtMove};
-    CandidateBuffer                     candidates;
-    std::array<Move, QuietHintCapacity> quiet_hints{};
-    int                                 quiet_hint_count{0};
-    int                                 quiet_hint_next{0};
-    bool                                quiet_checks_only{false};
+    const Board&                         board;
+    const search::ordering::History&     history;
+    const search::ordering::NodeContext& context;
+    Move                                 tt_move{NULL_MOVE};
+    Stage                                stage{Stage::TtMove};
+    CandidateBuffer                      candidates;
+    std::array<Move, QuietHintCapacity>  quiet_hints{};
+    int                                  quiet_hint_count{0};
+    int                                  quiet_hint_next{0};
+    bool                                 quiet_checks_only{false};
 };
 
 // Checked nodes return all legal evasions; ordinary nodes keep non-losing noisy
 // moves. Capture history orders them, while the exchange threshold stays zero.
 template <>
-class MoveSource<Mode::Quiescence> {
-    friend class Moves<Mode::Quiescence>;
+class MoveSource<MovePolicy::Quiescence> {
+    friend class Moves<MovePolicy::Quiescence>;
 
-    MoveSource(const Board& board, const History& history, Move tt_move = NULL_MOVE);
+    MoveSource(const Board&                     board,
+               const search::ordering::History& history,
+               Move                             tt_move = NULL_MOVE);
 
     enum class Stage : std::uint8_t { TtMove, LoadPrimary, PickEvasion, PickNoisy, Done };
     Move next_candidate();
 
-    const Board&    board;
-    const History&  history;
-    const Color     side;
-    Move            tt_move{NULL_MOVE};
-    const bool      in_check;
-    Stage           stage{Stage::TtMove};
-    CandidateBuffer candidates;
+    const Board&                     board;
+    const search::ordering::History& history;
+    const Color                      side;
+    Move                             tt_move{NULL_MOVE};
+    const bool                       in_check;
+    Stage                            stage{Stage::TtMove};
+    CandidateBuffer                  candidates;
 };
-
-} // namespace detail
 
 // A single-pass legal move stream. Restore the node's board before advancing.
 // Main-search streams borrow a named NodeContext which must outlive the stream.
 // Selection precedes legality so ordered modes retain their swaps and tie order.
-template <Mode Which>
+template <MovePolicy Policy>
 class Moves {
 public:
-    template <typename... Args>
-    explicit Moves(const Board& board, Args&&... args)
-        : source(board, std::forward<Args>(args)...) {}
+    explicit Moves(const Board& board) requires(Policy == MovePolicy::Unordered)
+        : source(board) {}
+
+    explicit Moves(const Board&                         board,
+                   const search::ordering::History&     history,
+                   const search::ordering::NodeContext& context)
+        requires(Policy == MovePolicy::MainSearch)
+        : source(board, history, context) {}
+
+    Moves(const Board&, const search::ordering::History&, const search::ordering::NodeContext&&)
+        requires(Policy == MovePolicy::MainSearch)
+        = delete;
+
+    explicit Moves(const Board&                     board,
+                   const search::ordering::History& history,
+                   Move tt_move = NULL_MOVE) requires(Policy == MovePolicy::Quiescence)
+        : source(board, history, tt_move) {}
 
     Moves(const Moves&)            = delete;
     Moves(Moves&&)                 = delete;
@@ -246,13 +263,13 @@ public:
         return NULL_MOVE;
     }
 
-    void skip_nonchecking_quiets() requires(Which == Mode::MainSearch)
+    void skip_nonchecking_quiets() requires(Policy == MovePolicy::MainSearch)
     {
         source.skip_nonchecking_quiets();
     }
 
 private:
-    detail::MoveSource<Which> source;
+    MoveSource<Policy> source;
 };
 
 } // namespace movegen

@@ -98,8 +98,8 @@ std::uint64_t case_seed(std::uint64_t seed, std::size_t case_index) {
 }
 
 std::vector<Move> legal_moves(const Board& board) {
-    std::vector<Move>                  moves;
-    movegen::Moves<movegen::Mode::All> stream(board);
+    std::vector<Move>                              moves;
+    movegen::Moves<movegen::MovePolicy::Unordered> stream(board);
     for (Move move = stream.next(); !move.is_null(); move = stream.next())
         moves.push_back(move);
     return moves;

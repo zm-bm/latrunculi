@@ -51,8 +51,7 @@ namespace board_test {
 // Keep raw-generation expectations independent of the legal stream's filtering.
 inline std::vector<Move> pseudo_legal_moves(const Board& board) {
     std::vector<Move> moves;
-    movegen::detail::generate_pseudo_legal(board,
-                                           [&](Move move, PieceType) { moves.push_back(move); });
+    movegen::generate_pseudo_legal(board, [&](Move move, PieceType) { moves.push_back(move); });
     return moves;
 }
 

@@ -54,7 +54,7 @@ protected:
     }
 
     Move find_move(std::string_view move_string) {
-        return movegen::Moves<movegen::Mode::All>(position()).find([&](Move move) {
+        return movegen::Moves<movegen::MovePolicy::Unordered>(position()).find([&](Move move) {
             return move.str() == move_string;
         });
     }

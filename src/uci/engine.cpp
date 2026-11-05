@@ -265,14 +265,14 @@ bool Engine::move(const std::string& arguments) {
 }
 
 bool Engine::moves() {
-    movegen::Moves<movegen::Mode::All> moves(board);
+    movegen::Moves<movegen::MovePolicy::Unordered> moves(board);
     for (Move move = moves.next(); !move.is_null(); move = moves.next())
         writer.diagnostic_line(move.str());
     return true;
 }
 
 Move Engine::find_legal_move(const Board& position, const std::string& token) const {
-    return movegen::Moves<movegen::Mode::All>(position).find(
+    return movegen::Moves<movegen::MovePolicy::Unordered>(position).find(
         [&](Move move) { return move.str() == token; });
 }
 
