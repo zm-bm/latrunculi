@@ -1,5 +1,7 @@
 #include "core/move.hpp"
 
+#include <sstream>
+
 #include <gtest/gtest.h>
 
 TEST(MoveTest, ValueInitializationIsNull) {
@@ -37,6 +39,8 @@ TEST(MoveTest, PromotionMove) {
 }
 
 TEST(MoveTest, OutputStreamOperator) {
-    Move move(A7, A8, MOVE_PROM, ROOK);
-    EXPECT_EQ(move.str(), "a7a8r") << "should output move string";
+    Move               move(A7, A8, MOVE_PROM, ROOK);
+    std::ostringstream output;
+    output << move;
+    EXPECT_EQ(output.str(), "a7a8r");
 }

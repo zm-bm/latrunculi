@@ -15,11 +15,10 @@ public:
 
     // Initialize the active range only, including when constructing MoveList{}.
     MoveList() : last(moves.data()) {}
-    MoveList(const MoveList& other);
-    MoveList(MoveList&& other) noexcept;
 
-    MoveList& operator=(const MoveList& other);
-    MoveList& operator=(MoveList&& other) noexcept;
+    // Inline storage uses the same active-prefix copy for lvalues and rvalues.
+    MoveList(const MoveList& other) noexcept;
+    MoveList& operator=(const MoveList& other) noexcept;
 
     void add(Move move);
     void add(Square from, Square to, MoveType type = BASIC_MOVE, PieceType promotion = KNIGHT);
@@ -32,34 +31,28 @@ public:
     Move*       end() { return last; }
     const Move* end() const { return last; }
 
-    Move&       operator[](int index) { return moves[index]; }
-    const Move& operator[](int index) const { return moves[index]; }
+    Move& operator[](int index) {
+        assert(index >= 0 && static_cast<std::size_t>(index) < size());
+        return moves[index];
+    }
+    const Move& operator[](int index) const {
+        assert(index >= 0 && static_cast<std::size_t>(index) < size());
+        return moves[index];
+    }
 
 private:
-    void copy_active_range_from(const MoveList& other);
+    void copy_active_range_from(const MoveList& other) noexcept;
 
-    // Fixed storage and cached end pointer; copies and moves rebind the pointer.
+    // Only [moves.data(), last) is initialized. Copies rebind last to this storage.
     std::array<Move, capacity> moves;
     Move*                      last;
 };
 
-inline MoveList::MoveList(const MoveList& other) {
+inline MoveList::MoveList(const MoveList& other) noexcept {
     copy_active_range_from(other);
 }
 
-inline MoveList::MoveList(MoveList&& other) noexcept {
-    copy_active_range_from(other);
-}
-
-inline MoveList& MoveList::operator=(const MoveList& other) {
-    if (this == &other)
-        return *this;
-
-    copy_active_range_from(other);
-    return *this;
-}
-
-inline MoveList& MoveList::operator=(MoveList&& other) noexcept {
+inline MoveList& MoveList::operator=(const MoveList& other) noexcept {
     if (this == &other)
         return *this;
 
@@ -73,11 +66,10 @@ inline void MoveList::add(Move move) {
 }
 
 inline void MoveList::add(Square from, Square to, MoveType type, PieceType promotion) {
-    assert(size() < moves.size());
-    *last++ = Move(from, to, type, promotion);
+    add(Move(from, to, type, promotion));
 }
 
-inline void MoveList::copy_active_range_from(const MoveList& other) {
+inline void MoveList::copy_active_range_from(const MoveList& other) noexcept {
     const auto active_count = other.size();
     for (std::size_t i = 0; i < active_count; ++i)
         moves[i] = other.moves[i];

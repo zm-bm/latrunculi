@@ -24,19 +24,28 @@ struct Move {
     constexpr Move(Square    from,
                    Square    to,
                    MoveType  move_type = BASIC_MOVE,
-                   PieceType promotion = KNIGHT);
+                   PieceType promotion = KNIGHT)
+        : bits{static_cast<MoveBits>((from & move_mask) | ((to & move_mask) << to_shift)
+                                     | ((int(move_type) & flag_mask) << type_shift)
+                                     | ((int(promotion - KNIGHT) & flag_mask) << prom_shift))} {}
 
     // Decoded source square.
-    constexpr Square from() const noexcept { return unpack_from(bits); }
+    constexpr Square from() const noexcept { return static_cast<Square>(bits & move_mask); }
 
     // Decoded destination square.
-    constexpr Square to() const noexcept { return unpack_to(bits); }
+    constexpr Square to() const noexcept {
+        return static_cast<Square>((bits >> to_shift) & move_mask);
+    }
 
     // Decoded move kind.
-    constexpr MoveType type() const noexcept { return unpack_type(bits); }
+    constexpr MoveType type() const noexcept {
+        return static_cast<MoveType>((bits >> type_shift) & flag_mask);
+    }
 
     // Decoded promotion result; defaults to KNIGHT for non-promotions.
-    constexpr PieceType prom_piece() const noexcept { return unpack_prom(bits); }
+    constexpr PieceType prom_piece() const noexcept {
+        return static_cast<PieceType>(((bits >> prom_shift) & flag_mask) + KNIGHT);
+    }
 
     // UCI-style move text, or "none" for NULL_MOVE.
     std::string str() const;
@@ -50,57 +59,22 @@ struct Move {
     // Streams UCI-style move text.
     friend std::ostream& operator<<(std::ostream& os, const Move& move);
 
-    // Packs move fields into the 16-bit layout.
-    static constexpr MoveBits
-    pack(Square from, Square to, MoveType move_type, PieceType promotion) noexcept;
+    // MoveBits layout:
+    // 6 bits for from square (0-5), 6 bits for to square (6-11),
+    // 2 bits for move type (12-13), 2 bits for promotion piece (14-15).
+    MoveBits bits;
 
-    // Extractors for the 16-bit move layout.
-    static constexpr Square    unpack_from(MoveBits packed) noexcept;
-    static constexpr Square    unpack_to(MoveBits packed) noexcept;
-    static constexpr MoveType  unpack_type(MoveBits packed) noexcept;
-    static constexpr PieceType unpack_prom(MoveBits packed) noexcept;
-
+private:
     // Bit masks and shifts for MoveBits.
     static constexpr MoveBits move_mask  = 0x3F;
     static constexpr MoveBits flag_mask  = 0x03;
     static constexpr MoveBits to_shift   = 6;
     static constexpr MoveBits type_shift = 12;
     static constexpr MoveBits prom_shift = 14;
-
-    // MoveBits layout:
-    // 6 bits for from square (0-5), 6 bits for to square (6-11),
-    // 2 bits for move type (12-13), 2 bits for promotion piece (14-15).
-    MoveBits bits;
 };
 
 // Null move sentinel.
 constexpr Move NULL_MOVE{};
-
-constexpr Move::Move(Square from, Square to, MoveType move_type, PieceType promotion)
-    : bits{pack(from, to, move_type, promotion)} {}
-
-constexpr MoveBits
-Move::pack(Square from, Square to, MoveType move_type, PieceType promotion) noexcept {
-    return (from & move_mask) | ((to & move_mask) << to_shift)
-         | ((int(move_type) & flag_mask) << type_shift)
-         | ((int(promotion - KNIGHT) & flag_mask) << prom_shift);
-}
-
-constexpr Square Move::unpack_from(MoveBits packed) noexcept {
-    return static_cast<Square>(packed & move_mask);
-}
-
-constexpr Square Move::unpack_to(MoveBits packed) noexcept {
-    return static_cast<Square>((packed >> to_shift) & move_mask);
-}
-
-constexpr MoveType Move::unpack_type(MoveBits packed) noexcept {
-    return static_cast<MoveType>((packed >> type_shift) & flag_mask);
-}
-
-constexpr PieceType Move::unpack_prom(MoveBits packed) noexcept {
-    return static_cast<PieceType>(((packed >> prom_shift) & flag_mask) + KNIGHT);
-}
 
 static_assert(sizeof(Move) == sizeof(MoveBits));
 static_assert(std::is_trivially_default_constructible_v<Move>);

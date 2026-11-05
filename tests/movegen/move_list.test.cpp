@@ -49,7 +49,7 @@ TEST(MoveListTest, CopyAssignmentPreservesActiveRange) {
     EXPECT_EQ(target[1], Move(B2, B3));
 }
 
-TEST(MoveListTest, MoveConstructionPreservesActiveRange) {
+TEST(MoveListTest, RvalueConstructionPreservesActiveRange) {
     movegen::MoveList source;
     source.add(A2, A3);
     source.add(B2, B3);
@@ -61,7 +61,7 @@ TEST(MoveListTest, MoveConstructionPreservesActiveRange) {
     EXPECT_EQ(moved[1], Move(B2, B3));
 }
 
-TEST(MoveListTest, MoveAssignmentPreservesActiveRange) {
+TEST(MoveListTest, RvalueAssignmentPreservesActiveRange) {
     movegen::MoveList source;
     source.add(A2, A3);
     source.add(B2, B3);
