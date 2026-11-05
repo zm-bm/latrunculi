@@ -35,6 +35,8 @@ public:
         requires(Policy == MovePolicy::MainSearch)
         : source(board, history, context) {}
 
+    // The stream borrows context. Reject temporaries that would be destroyed
+    // at the end of the construction expression, before traversal begins.
     Moves(const Board&, const search::History&, const search::OrderingContext&&)
         requires(Policy == MovePolicy::MainSearch)
         = delete;
@@ -82,19 +84,6 @@ inline constexpr std::size_t MoveCapacity = 256;
 // History-adjusted threshold for main-search capture staging.
 int main_search_see_threshold(PieceType victim, int scaled_history);
 
-enum class CandidateState : std::uint8_t { Ready, Excluded, Deferred };
-enum class Batch : std::uint8_t { Primary, Quiet };
-
-struct Candidate {
-    // Scoring fills every field before the candidate becomes part of an active range.
-    // Unused slots remain uninitialized.
-    Move           move;
-    CandidateState state;
-    int            score;
-    // Captured with the score, before child searches can train the history table.
-    int see_threshold;
-};
-
 // Owns complete scored batches and their selection. Sources control stage progression,
 // validate hints, and decide whether the selected candidate passes SEE/checking tests.
 // The templated operations are defined and instantiated in moves.cpp.
@@ -112,20 +101,40 @@ public:
                      Move                           tt_move,
                      std::span<const Move>          quiet_hints);
 
+    Move take_evasion();
+
+    template <typename Accept>
+    Move take_noisy(Accept accept);
+
+    template <typename Eligible>
+    Move take_quiet(Eligible eligible);
+
+    Move take_deferred_noisy();
+
+private:
+    enum class CandidateState : std::uint8_t { Ready, Excluded, Deferred };
+    enum class Batch : std::uint8_t { Primary, Quiet };
+
+    struct Candidate {
+        // Scoring fills every field before the candidate becomes part of an active range.
+        // Unused slots remain uninitialized.
+        Move           move;
+        CandidateState state;
+        int            score;
+        // Captured with the score, before child searches can train the history table.
+        int see_threshold;
+    };
+
+    struct Range {
+        Candidate* next{nullptr};
+        Candidate* end{nullptr};
+    };
+
     template <Batch Which, CandidateState State = CandidateState::Ready, typename Eligible>
     Move take_best(Eligible eligible);
 
     template <Batch Which, CandidateState State = CandidateState::Ready>
     Move take_best();
-
-    template <typename Accept>
-    Move take_best_or_defer(Accept accept);
-
-private:
-    struct Range {
-        Candidate* next{nullptr};
-        Candidate* end{nullptr};
-    };
 
     template <Batch Which>
     Range& range_for();
@@ -172,6 +181,8 @@ class MoveSource<MovePolicy::MainSearch> {
     MoveSource(const Board&                   board,
                const search::History&         history,
                const search::OrderingContext& context);
+    // The source borrows context. Reject temporaries that would be destroyed
+    // at the end of the construction expression, before traversal begins.
     MoveSource(const Board&, const search::History&, const search::OrderingContext&&) = delete;
     Move next_candidate();
     void skip_nonchecking_quiets();

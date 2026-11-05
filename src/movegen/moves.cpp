@@ -16,29 +16,45 @@ using search::OrderingContext;
 
 // Candidate storage and selection.
 
-template <Batch Which, CandidateState State, typename Eligible>
+template <OrderedCandidates::Batch          Which,
+          OrderedCandidates::CandidateState State,
+          typename Eligible>
 inline Move OrderedCandidates::take_best(Eligible eligible) {
     Candidate* selected = best<Which, State>(eligible);
     return selected ? take<Which>(selected) : NULL_MOVE;
 }
 
-template <Batch Which, CandidateState State>
+template <OrderedCandidates::Batch Which, OrderedCandidates::CandidateState State>
 inline Move OrderedCandidates::take_best() {
     return take_best<Which, State>([](const Candidate&) { return true; });
 }
 
+inline Move OrderedCandidates::take_evasion() {
+    return take_best<Batch::Primary>();
+}
+
 // Test acceptance only after ranking. Rejected candidates stay in place for later.
 template <typename Accept>
-inline Move OrderedCandidates::take_best_or_defer(Accept accept) {
+inline Move OrderedCandidates::take_noisy(Accept accept) {
     while (Candidate* selected = best<Batch::Primary>()) {
-        if (accept(*selected))
+        if (accept(selected->move, selected->see_threshold))
             return take<Batch::Primary>(selected);
         defer(*selected);
     }
     return NULL_MOVE;
 }
 
-template <Batch Which>
+template <typename Eligible>
+inline Move OrderedCandidates::take_quiet(Eligible eligible) {
+    return take_best<Batch::Quiet>(
+        [&](const Candidate& candidate) { return eligible(candidate.move); });
+}
+
+inline Move OrderedCandidates::take_deferred_noisy() {
+    return take_best<Batch::Primary, CandidateState::Deferred>();
+}
+
+template <OrderedCandidates::Batch Which>
 inline OrderedCandidates::Range& OrderedCandidates::range_for() {
     if constexpr (Which == Batch::Primary)
         return primary;
@@ -46,8 +62,10 @@ inline OrderedCandidates::Range& OrderedCandidates::range_for() {
         return quiet;
 }
 
-template <Batch Which, CandidateState State, typename Eligible>
-inline Candidate* OrderedCandidates::best(Eligible eligible) {
+template <OrderedCandidates::Batch          Which,
+          OrderedCandidates::CandidateState State,
+          typename Eligible>
+inline OrderedCandidates::Candidate* OrderedCandidates::best(Eligible eligible) {
     auto&      range      = range_for<Which>();
     Candidate* best       = nullptr;
     int        best_score = 0;
@@ -63,12 +81,12 @@ inline Candidate* OrderedCandidates::best(Eligible eligible) {
     return best;
 }
 
-template <Batch Which, CandidateState State>
-inline Candidate* OrderedCandidates::best() {
+template <OrderedCandidates::Batch Which, OrderedCandidates::CandidateState State>
+inline OrderedCandidates::Candidate* OrderedCandidates::best() {
     return best<Which, State>([](const Candidate&) { return true; });
 }
 
-template <Batch Which>
+template <OrderedCandidates::Batch Which>
 inline Move OrderedCandidates::take(Candidate* best) {
     auto& range = range_for<Which>();
     // Retain excluded entries: removing them changes later selection ties.
@@ -263,7 +281,7 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
                 return tt_move;
             break;
         case Stage::PickEvasion:
-            if (Move move = candidates.take_best<Batch::Primary>(); !move.is_null())
+            if (Move move = candidates.take_evasion(); !move.is_null())
                 return move;
             stage = Stage::Done;
             break;
@@ -277,9 +295,8 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
             stage = Stage::PickEarlyNoisy;
             [[fallthrough]];
         case Stage::PickEarlyNoisy: {
-            const Move move = candidates.take_best_or_defer([this](const Candidate& candidate) {
-                const Move move = candidate.move;
-                return move.type() == MOVE_PROM || board.see(move, candidate.see_threshold);
+            const Move move = candidates.take_noisy([this](Move move, int see_threshold) {
+                return move.type() == MOVE_PROM || board.see(move, see_threshold);
             });
             if (!move.is_null())
                 return move;
@@ -304,18 +321,15 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
             stage = Stage::PickQuiet;
             [[fallthrough]];
         case Stage::PickQuiet: {
-            const Move move =
-                candidates.take_best<Batch::Quiet>([this](const Candidate& candidate) {
-                    return !quiet_checks_only || board.gives_check(candidate.move);
-                });
+            const Move move = candidates.take_quiet(
+                [this](Move move) { return !quiet_checks_only || board.gives_check(move); });
             if (!move.is_null())
                 return move;
             stage = Stage::PickDeferredNoisy;
             break;
         }
         case Stage::PickDeferredNoisy:
-            if (Move move = candidates.take_best<Batch::Primary, CandidateState::Deferred>();
-                !move.is_null())
+            if (Move move = candidates.take_deferred_noisy(); !move.is_null())
                 return move;
             stage = Stage::Done;
             break;
@@ -347,7 +361,7 @@ Move MoveSource<MovePolicy::Quiescence>::next_candidate() {
                 return tt_move;
             break;
         case Stage::PickEvasion:
-            if (Move move = candidates.take_best<Batch::Primary>(); !move.is_null())
+            if (Move move = candidates.take_evasion(); !move.is_null())
                 return move;
             stage = Stage::Done;
             break;
@@ -361,9 +375,8 @@ Move MoveSource<MovePolicy::Quiescence>::next_candidate() {
             stage = Stage::PickNoisy;
             [[fallthrough]];
         case Stage::PickNoisy: {
-            const Move move = candidates.take_best_or_defer([this](const Candidate& candidate) {
-                return candidate.move.type() == MOVE_PROM || board.see(candidate.move, 0);
-            });
+            const Move move = candidates.take_noisy(
+                [this](Move move, int) { return move.type() == MOVE_PROM || board.see(move, 0); });
             if (!move.is_null())
                 return move;
             stage = Stage::Done;
