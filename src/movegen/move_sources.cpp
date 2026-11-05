@@ -14,7 +14,7 @@ namespace movegen {
 using search::History;
 using search::OrderingContext;
 
-// Scoring arithmetic.
+// Candidate scoring.
 
 int main_search_see_threshold(PieceType victim, int scaled_history) {
     return -(see::piece_value(victim) + scaled_history) / 2;
@@ -35,10 +35,43 @@ constexpr int capture_material_score(int victim_value, int attacker_value) {
     return CaptureVictimWeight * victim_value + CaptureMaterialOffset - attacker_value;
 }
 
-// Noisy capture scores only rank moves; stage membership is stored separately.
-constexpr int capture_score(int victim_value, int attacker_value, int scaled_history) {
-    return capture_material_score(victim_value, attacker_value)
-         + CaptureVictimWeight * scaled_history;
+int score_evasion(
+    const Board& board, const History& history, Color side, Move move, PieceType moving_piece) {
+    if (move.type() == MOVE_PROM)
+        return PromotionScore;
+    if (board.is_capture(move)) {
+        const int victim   = see::piece_value(board.captured_piece_type(move));
+        const int attacker = see::piece_value(moving_piece);
+        return EvasionCaptureScoreBase + capture_material_score(victim, attacker);
+    }
+    return history.base_quiet_score(side, move);
+}
+
+// Ranking and SEE staging share one history snapshot but serve different purposes.
+struct NoisyScore {
+    int ordering_score;
+    int see_threshold;
+};
+
+template <MovePolicy Policy>
+NoisyScore
+score_noisy(const Board& board, const History& history, Move move, PieceType moving_piece) {
+    static_assert(Policy == MovePolicy::MainSearch || Policy == MovePolicy::Quiescence);
+    if (move.type() == MOVE_PROM)
+        return {.ordering_score = PromotionScore, .see_threshold = 0};
+
+    const PieceType victim         = board.captured_piece_type(move);
+    const int       victim_value   = see::piece_value(victim);
+    const int       attacker_value = see::piece_value(moving_piece);
+    const int       raw_history =
+        history.capture_history_score(board.side_to_move(), moving_piece, move.to(), victim);
+    const int  scaled_history = raw_history / CaptureHistoryDivisor;
+    NoisyScore score{.ordering_score = capture_material_score(victim_value, attacker_value)
+                                     + CaptureVictimWeight * scaled_history,
+                     .see_threshold = 0};
+    if constexpr (Policy == MovePolicy::MainSearch)
+        score.see_threshold = main_search_see_threshold(victim, scaled_history);
+    return score;
 }
 
 } // namespace
@@ -53,17 +86,10 @@ void OrderedCandidates::load_evasions(const Board&   board,
     Candidate* const first = storage.data();
     Candidate*       end   = first;
     generate<GenerationKind::Evasions>(board, [&, side](Move move, PieceType moving_piece) {
-        Candidate candidate{
-            .move = move, .state = CandidateState::Ready, .score = 0, .see_threshold = 0};
-        if (move.type() == MOVE_PROM) {
-            candidate.score = PromotionScore;
-        } else if (board.is_capture(move)) {
-            const int victim   = see::piece_value(board.captured_piece_type(move));
-            const int attacker = see::piece_value(moving_piece);
-            candidate.score    = EvasionCaptureScoreBase + capture_material_score(victim, attacker);
-        } else {
-            candidate.score = history.base_quiet_score(side, move);
-        }
+        Candidate candidate{.move  = move,
+                            .state = CandidateState::Ready,
+                            .score = score_evasion(board, history, side, move, moving_piece),
+                            .see_threshold = 0};
         if (move == tt_move)
             candidate.state = CandidateState::Excluded;
         assert(end < storage.data() + storage.size());
@@ -74,25 +100,14 @@ void OrderedCandidates::load_evasions(const Board&   board,
 
 template <MovePolicy Policy>
 void OrderedCandidates::load_noisy(const Board& board, const History& history, Move tt_move) {
-    static_assert(Policy == MovePolicy::MainSearch || Policy == MovePolicy::Quiescence);
     Candidate* const first = storage.data();
     Candidate*       end   = first;
     generate<GenerationKind::Noisy>(board, [&](Move move, PieceType moving_piece) {
-        Candidate candidate{
-            .move = move, .state = CandidateState::Ready, .score = 0, .see_threshold = 0};
-        if (move.type() == MOVE_PROM) {
-            candidate.score = PromotionScore;
-        } else {
-            const PieceType victim         = board.captured_piece_type(move);
-            const int       victim_value   = see::piece_value(victim);
-            const int       attacker_value = see::piece_value(moving_piece);
-            const int       raw_history    = history.capture_history_score(
-                board.side_to_move(), moving_piece, move.to(), victim);
-            const int scaled_history = raw_history / CaptureHistoryDivisor;
-            candidate.score          = capture_score(victim_value, attacker_value, scaled_history);
-            if constexpr (Policy == MovePolicy::MainSearch)
-                candidate.see_threshold = main_search_see_threshold(victim, scaled_history);
-        }
+        const NoisyScore score = score_noisy<Policy>(board, history, move, moving_piece);
+        Candidate        candidate{.move          = move,
+                                   .state         = CandidateState::Ready,
+                                   .score         = score.ordering_score,
+                                   .see_threshold = score.see_threshold};
         if (move == tt_move)
             candidate.state = CandidateState::Excluded;
         assert(end < storage.data() + storage.size());
