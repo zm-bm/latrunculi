@@ -4,7 +4,7 @@
 #include <span>
 
 #include "board/board.hpp"
-#include "movegen/capture_scoring.hpp"
+#include "board/see_values.hpp"
 #include "movegen/generator.hpp"
 #include "search/ordering/history.hpp"
 
@@ -14,7 +14,36 @@ namespace {
 
 constexpr int EvasionCaptureScoreBase = 1 << 22;
 constexpr int PromotionScore          = 1 << 28;
+constexpr int CaptureVictimWeight     = 7;
+constexpr int CaptureMaterialOffset   = see::piece_value(QUEEN);
+constexpr int CaptureHistoryDivisor   = 16;
 static_assert(History::QuietMaxScore < EvasionCaptureScoreBase);
+static_assert(see::piece_value(PAWN) == 100, "Capture history uses pawn=100 exchange units");
+
+// Fixed-price material score shared by captures and capture evasions.
+constexpr int capture_material_score(int victim_value, int attacker_value) {
+    return CaptureVictimWeight * victim_value + CaptureMaterialOffset - attacker_value;
+}
+
+// Noisy capture scores only rank moves; stage membership is stored separately.
+constexpr int capture_score(int victim_value, int attacker_value, int scaled_history) {
+    return capture_material_score(victim_value, attacker_value)
+         + CaptureVictimWeight * scaled_history;
+}
+
+constexpr int main_search_see_threshold(PieceType victim, int scaled_history) {
+    return -(see::piece_value(victim) + scaled_history) / 2;
+}
+
+// Preserve signed truncation, including odd and negative exchange values.
+static_assert(main_search_see_threshold(PAWN, 0) == -50);
+static_assert(main_search_see_threshold(PAWN, -1) == -49);
+static_assert(main_search_see_threshold(PAWN, 1) == -50);
+static_assert(main_search_see_threshold(PAWN, -2) == -49);
+static_assert(main_search_see_threshold(PAWN, 2) == -51);
+static_assert(main_search_see_threshold(PAWN, -101) == 0);
+static_assert(main_search_see_threshold(PAWN, -102) == 1);
+static_assert(main_search_see_threshold(BISHOP, 0) == -192);
 
 Move validate_tt_hint(const Board& board, Move move, bool in_check) {
     if (move.is_null() || !board.is_pseudo_legal(move))
@@ -54,8 +83,8 @@ void load_candidates(CandidateBuffer&      candidates,
                     if (board.is_capture(move)) {
                         const int victim   = see::piece_value(board.captured_piece_type(move));
                         const int attacker = see::piece_value(moving_piece);
-                        candidate.score    = EvasionCaptureScoreBase
-                                        + capture_scoring::material_score(victim, attacker);
+                        candidate.score =
+                            EvasionCaptureScoreBase + capture_material_score(victim, attacker);
                     } else {
                         candidate.score = history.base_quiet_score(side, move);
                     }
@@ -65,12 +94,10 @@ void load_candidates(CandidateBuffer&      candidates,
                     const int       attacker_value = see::piece_value(moving_piece);
                     const int       raw_history    = history.capture_history_score(
                         board.side_to_move(), moving_piece, move.to(), victim);
-                    const int scaled_history = raw_history / capture_scoring::HistoryScoreDivisor;
-                    candidate.score =
-                        capture_scoring::score(victim_value, attacker_value, scaled_history);
+                    const int scaled_history = raw_history / CaptureHistoryDivisor;
+                    candidate.score = capture_score(victim_value, attacker_value, scaled_history);
                     if constexpr (HistorySee)
-                        candidate.see_threshold =
-                            capture_scoring::main_search_see_threshold(victim, scaled_history);
+                        candidate.see_threshold = main_search_see_threshold(victim, scaled_history);
                 }
                 bool excluded = move == tt_move;
                 if constexpr (Kind == MoveGenType::Quiet) {

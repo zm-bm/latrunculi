@@ -132,7 +132,6 @@ if(BUILD_TESTING)
         tests/board/fen_parser.test.cpp
         tests/board/notation.test.cpp
         tests/cli/cli.test.cpp
-        tests/movegen/capture_scoring.test.cpp
         tests/movegen/generator.test.cpp
         tests/movegen/moves.test.cpp
         tests/movegen/perft.test.cpp
