@@ -2,11 +2,11 @@
 
 Current priorities:
 
-1. Extend quiescence capture pruning.
-2. Add singular extensions.
-3. Cache pawn and king evaluation, if profiling supports it.
-4. Reduce LMR verification cost, if measurements support it.
-5. Recognize candidate passed pawns.
+1. Try `.clang-format` changes on representative source, header, and test files,
+   then apply the chosen rules repository-wide in a separate formatting commit.
+2. Cache pawn and king evaluation, if profiling supports it.
+3. Reduce LMR verification cost, if measurements support it.
+4. Recognize candidate passed pawns.
 
 Possible improvements and investigations, grouped by area rather than priority.
 
@@ -16,18 +16,6 @@ Possible improvements and investigations, grouped by area rather than priority.
 
 Investigate whether some late-move-reduction fail-highs can be verified at a
 shallower depth without accepting false cutoffs or causing more re-searches later.
-
-### Extend quiescence capture pruning
-
-Explore additional pruning beyond the existing SEE filter, accounting for capture
-safety and potential gain beyond the captured piece's value. Reduce search work
-without discarding tactical refutations.
-
-### Add singular extensions
-
-Explore a one-ply extension when excluding a reliable transposition-table move
-shows that all alternatives are substantially worse. Assess whether the extra
-search improves play enough to cover the verification cost.
 
 ### Refine deferred-capture placement
 

@@ -29,7 +29,10 @@ Score draw_or_mate_score(const Board& board, int search_ply) {
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
 template <NodeType Node>
 Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* pv) {
-    // PV and stop checks.
+    /*
+     * PV reset and stop checks.
+     * Clear the PV, check search limits, and return if a stop was requested.
+     */
     if (pv)
         pv->clear();
 
@@ -38,7 +41,10 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
     if (stop_requested())
         return alpha;
 
-    // Draw, max-ply, and qsearch exits.
+    /*
+     * Draws and ply limit.
+     * Return for a draw or the ply limit before using the current search frame.
+     */
     const bool drawn = board.is_draw(search_ply);
 
     if (drawn) {
@@ -53,10 +59,14 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
         return eval::evaluate(board);
     }
 
-    auto&      frame             = frames[search_ply];
-    const Move excluded_move     = frame.excluded_move;
-    const bool verification_root = !excluded_move.is_null();
-    assert(!verification_root || depth > 0);
+    /*
+     * Frame setup and quiescence.
+     * Set up the frame, then use quiescence at depth zero or below. It counts its own nodes.
+     */
+    auto&      frame           = frames[search_ply];
+    const Move excluded_move   = frame.excluded_move;
+    const bool excluded_search = !excluded_move.is_null();
+    assert(!excluded_search || depth > 0);
     frame.static_eval.reset();
     frame.real_move = !board.previous_move().is_null();
     if (depth <= 0)
@@ -84,7 +94,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
 
         const TTRecord& record   = *tt_record;
         const Score     tt_score = record.score_at_ply(search_ply);
-        if (!verification_root
+        if (!excluded_search
             && detail::tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
             stats.main_tt_cutoff(search_ply);
             return tt_score;
@@ -110,7 +120,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
                      && frames[search_ply - 2].static_eval
                      && static_eval < *frames[search_ply - 2].static_eval;
         }
-        if (!verification_root && !after_null && !in_check && depth <= detail::RazorMaxDepth
+        if (!excluded_search && !after_null && !in_check && depth <= detail::RazorMaxDepth
             && tt_move.is_null() && static_eval + detail::RazorMargin[depth] <= alpha) {
             stats.razor_try(search_ply);
             const Score value = quiescence<NodeType::NonPv>(alpha - 1, alpha);
@@ -128,13 +138,13 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
                                 && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(search_ply) < beta;
-        if (!verification_root && !after_null && !in_check && depth <= detail::FutilityMaxDepth
+        if (!excluded_search && !after_null && !in_check && depth <= detail::FutilityMaxDepth
             && beta > -scores::mate_bound && beta < scores::mate_bound
             && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto
             && static_eval - detail::FutilityMargin[depth] >= beta)
             return static_eval;
 
-        if (!verification_root && !after_null && !in_check && depth >= detail::NullMoveMinDepth
+        if (!excluded_search && !after_null && !in_check && depth >= detail::NullMoveMinDepth
             && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto) {
             stats.null_move_try(search_ply);
 
@@ -156,45 +166,67 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
         }
 
         // Prepare shallow futility pruning. The move loop performs the actual skip.
-        futility = !verification_root && depth <= detail::FutilityMaxDepth && !in_check
+        futility = !excluded_search && depth <= detail::FutilityMaxDepth && !in_check
                 && alpha > -scores::mate_bound && alpha < scores::mate_bound
                 && static_eval + detail::FutilityMargin[depth] <= alpha;
     }
 
-    // Same-ply verification restores its frame before interpreting the result.
-    bool                 singular_extension = false;
-    std::optional<Score> singular_cutoff;
-    if (tt_record) {
-        if (const auto verification = detail::singular_verification<Node>(board,
-                                                                          *tt_record,
-                                                                          frame,
-                                                                          search_ply,
-                                                                          root_iteration_depth,
-                                                                          depth,
-                                                                          alpha,
-                                                                          beta,
-                                                                          verification_active)) {
-            Score value;
-            {
-                const detail::ScopedSingularVerification scope{
-                    frame, verification_active, tt_record->move};
-                value = alphabeta<NodeType::NonPv>(
-                    verification->beta - 1, verification->beta, verification->depth, nullptr);
-            }
-            if (!stop_requested()) {
-                if (value < verification->beta)
-                    singular_extension = true;
-                else if (verification->multicut_allowed)
-                    singular_cutoff = verification->beta;
+    /*
+     * Singular search.
+     * Search without the TT move to decide whether to extend it or take a multicut.
+     */
+    constexpr int SingularMinDepth     = 8;
+    constexpr int SingularTtDepthSlack = 3;
+
+    bool singular_extension = false;
+
+    const bool within_singular_limits = depth >= SingularMinDepth && search_ply > 0
+                                     && search_ply < 2 * root_iteration_depth
+                                     && search_ply + 1 < engine::max_search_ply;
+
+    // Require a sufficiently deep TT bound and room to extend this search path.
+    if (tt_record && within_singular_limits && !excluded_search
+        && !detail::after_null_move(board, search_ply)
+        && tt_record->depth >= depth - SingularTtDepthSlack
+        && (tt_record->bound == TTBound::Exact || tt_record->bound == TTBound::LowerBound)) {
+        const Score tt_score       = tt_record->score_at_ply(search_ply);
+        const Score singular_beta  = tt_score - std::max(1, depth * eval::pawn.mg / 50);
+        const int   singular_depth = (depth - 1) / 2;
+
+        const bool non_mate_scores = std::abs(tt_score) < scores::mate_bound
+                                  && singular_beta > -scores::mate_bound
+                                  && singular_beta < scores::mate_bound;
+        if (non_mate_scores && !tt_move.is_null() && board.is_pseudo_legal(tt_move)
+            && board.is_legal_pseudo_move(tt_move)) {
+            // Search the same position without the TT move, then restore the parent state.
+            const SearchFrame saved_frame = frame;
+            const bool        was_active  = singular_search_active;
+            frame.excluded_move           = tt_move;
+            singular_search_active        = true;
+            const Score singular_score    = alphabeta<NodeType::NonPv>(
+                singular_beta - 1, singular_beta, singular_depth, nullptr);
+            frame                  = saved_frame;
+            singular_search_active = was_active;
+
+            if (stop_requested())
+                return alpha;
+
+            if (singular_score < singular_beta) {
+                singular_extension = true;
+            } else if constexpr (Node == NodeType::NonPv) {
+                const bool non_mate_window =
+                    alpha > -scores::mate_bound && alpha < scores::mate_bound
+                    && beta > -scores::mate_bound && beta < scores::mate_bound;
+
+                // Multicuts also require the singular window's lower edge outside mate ranges.
+                if (!singular_search_active && !in_check && non_mate_window
+                    && singular_beta - 1 > -scores::mate_bound && singular_beta >= beta)
+                    return stop_requested() ? alpha : singular_beta;
             }
         }
     }
     if (stop_requested())
         return alpha;
-    // A multicut returns before the ordinary move stream, TT store, or cutoff training.
-    if (singular_cutoff)
-        return *singular_cutoff;
-
     // Move ordering and node-local history feedback.
     int   move_count = 0;
     Score best_value = -scores::inf;
@@ -204,9 +236,9 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
     auto       moves   = movegen::MainSearchMoves(board, history, context);
 
     PrincipalVariation child_pv;
-    // Verification roots neither train history nor contribute learning instrumentation.
+    // Excluded searches neither train history nor contribute learning instrumentation.
     std::optional<HistoryLearning> learning;
-    if (!verification_root)
+    if (!excluded_search)
         learning.emplace(board, history, context, depth, stats);
 
     // Move loop.
@@ -231,7 +263,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
             raw_capture_history = history.capture_score(board, move);
         bool history_lmp_candidate = false;
         if constexpr (Node == NodeType::NonPv) {
-            history_lmp_candidate = !verification_root && depth == detail::LateMovePruningDepth
+            history_lmp_candidate = !excluded_search && depth == detail::LateMovePruningDepth
                                  && move_count > detail::LateMovePruningMoveCount && !futility
                                  && !in_check && best_value > -scores::mate_bound
                                  && alpha > -scores::mate_bound && beta < scores::mate_bound
@@ -317,7 +349,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
                 pv->update(move, child_pv);
 
             stats.beta_cutoff(search_ply, move_count);
-            if (!verification_root)
+            if (!excluded_search)
                 tt.store(tt_probe.writer,
                          tt_key,
                          move,
@@ -347,7 +379,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
     // Mate and stalemate.
     if (move_count == 0) {
         // Excluding the only move does not make the actual position terminal.
-        if (verification_root)
+        if (excluded_search)
             return original_alpha;
         best_value = in_check ? -scores::mate + search_ply : scores::draw;
         tt.store(tt_probe.writer,
@@ -362,7 +394,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
     }
 
     // TT store.
-    if (!verification_root)
+    if (!excluded_search)
         tt.store(tt_probe.writer,
                  tt_key,
                  best_move,

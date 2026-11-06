@@ -11,7 +11,9 @@ public:
 
     static int& search_ply(search::Worker& worker) { return worker.search_ply; }
 
-    static bool& verification_active(search::Worker& worker) { return worker.verification_active; }
+    static bool& singular_search_active(search::Worker& worker) {
+        return worker.singular_search_active;
+    }
 
     static int& root_iteration_depth(search::Worker& worker) { return worker.root_iteration_depth; }
     static void set_nodes(search::Worker& worker, NodeCount n) { worker.nodes.store(n); }
@@ -81,45 +83,6 @@ public:
                            int                         depth,
                            search::PrincipalVariation* pv = nullptr) {
         return worker.alphabeta<Node>(alpha, beta, depth, pv);
-    }
-
-    static Score search_excluding_move(
-        search::Worker& worker, Score alpha, Score beta, int depth, Move excluded_move) {
-        const search::detail::ScopedSingularVerification scope{
-            worker.frames[worker.search_ply], worker.verification_active, excluded_move};
-        return worker.alphabeta<search::NodeType::NonPv>(alpha, beta, depth, nullptr);
-    }
-    template <search::NodeType Node = search::NodeType::NonPv>
-    static auto singular_result(search::Worker&         worker,
-                                const search::TTRecord& record,
-                                int                     depth,
-                                Score                   alpha = -scores::inf,
-                                Score                   beta  = scores::inf) {
-        struct Result {
-            bool                 extend{false};
-            std::optional<Score> cutoff;
-        };
-        const auto request =
-            search::detail::singular_verification<Node>(worker.board,
-                                                        record,
-                                                        worker.frames[worker.search_ply],
-                                                        worker.search_ply,
-                                                        worker.root_iteration_depth,
-                                                        depth,
-                                                        alpha,
-                                                        beta,
-                                                        worker.verification_active);
-        if (!request)
-            return Result{};
-        const auto value = search_excluding_move(
-            worker, request->beta - 1, request->beta, request->depth, record.move);
-        if (worker.stop_requested())
-            return Result{};
-        if (value < request->beta)
-            return Result{.extend = true};
-        if (request->multicut_allowed)
-            return Result{.cutoff = request->beta};
-        return Result{};
     }
 
     template <search::NodeType Node>

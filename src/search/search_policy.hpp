@@ -3,12 +3,10 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <optional>
 
 #include "board/board.hpp"
 #include "eval/parameters.hpp"
 #include "search/node_type.hpp"
-#include "search/search_frame.hpp"
 #include "search/tt.hpp"
 
 namespace search::detail {
@@ -25,7 +23,7 @@ bool tt_cutoff_allowed(
 }
 
 // Early and quiet-move pruning.
-// Null-search roots suppress early pruning and singular verification, but retain
+// Null-search roots suppress early pruning and singular searches, but retain
 // ordinary TT and move-loop behavior. A loaded position without history is not a null edge.
 inline bool after_null_move(const Board& board, int ply) noexcept {
     return ply > 0 && board.previous_move().is_null() && board.can_unmake();
@@ -60,52 +58,6 @@ inline constexpr int FutilityMargin[] = {0, 250, 400, 550};
 // Late-move pruning defaults.
 inline constexpr int LateMovePruningDepth     = 2;
 inline constexpr int LateMovePruningMoveCount = 12;
-
-// Singular verification policy and same-ply restoration.
-struct SingularVerification {
-    Score beta;
-    int   depth;
-    bool  multicut_allowed;
-};
-
-template <NodeType Node>
-std::optional<SingularVerification> singular_verification(const Board&       board,
-                                                          const TTRecord&    record,
-                                                          const SearchFrame& frame,
-                                                          int                ply,
-                                                          int                root_depth,
-                                                          int                depth,
-                                                          Score              alpha,
-                                                          Score              beta,
-                                                          bool               verification_active);
-
-// Exclusion belongs to this ply; verification stays active throughout the call.
-// Restore the entire frame before interpreting the result, including after a stop.
-class ScopedSingularVerification {
-public:
-    ScopedSingularVerification(SearchFrame& frame, bool& active, Move excluded_move) noexcept
-        : frame(frame),
-          saved(frame),
-          active(active),
-          was_active(active) {
-        assert(!excluded_move.is_null());
-        frame.excluded_move = excluded_move;
-        active              = true;
-    }
-    ~ScopedSingularVerification() {
-        frame  = saved;
-        active = was_active;
-    }
-
-    ScopedSingularVerification(const ScopedSingularVerification&)            = delete;
-    ScopedSingularVerification& operator=(const ScopedSingularVerification&) = delete;
-
-private:
-    SearchFrame&      frame;
-    const SearchFrame saved;
-    bool&             active;
-    const bool        was_active;
-};
 
 // Late-move reduction defaults.
 inline constexpr int LmrMinDepth              = 3;

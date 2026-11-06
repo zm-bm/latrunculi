@@ -54,7 +54,6 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/eval/features.cpp
     src/search/root_search.cpp
     src/search/search.cpp
-    src/search/singular.cpp
     src/search/instrumentation.cpp
     src/search/root_line.cpp
     src/search/thread_pool.cpp
@@ -141,7 +140,6 @@ if(BUILD_TESTING)
         tests/eval/parameters.test.cpp
         tests/eval/tapered_score.test.cpp
         tests/search/search.test.cpp
-        tests/search/singular.test.cpp
         tests/search/history.test.cpp
         tests/search/instrumentation.test.cpp
         tests/search/limits.test.cpp

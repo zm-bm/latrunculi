@@ -323,6 +323,133 @@ TEST_F(SearchTest, StoresWindowClassifiedTtBounds) {
     EXPECT_EQ(stored->move, NULL_MOVE);
 }
 
+TEST_F(SearchTest, SingularExclusionDoesNotCreateMateOrStalemate) {
+    for (const char* fen : {"k7/8/1PK5/8/8/8/P7/8 b - - 0 1", board_test::fen::one_legal_evasion}) {
+        SCOPED_TRACE(fen);
+        load(Board{fen});
+        ply()           = 1;
+        const Move only = find_move("a8b8");
+        ASSERT_FALSE(only.is_null());
+        tt.store(position().tt_key(), only, 1000, 9, TTBound::Exact, ply());
+        SearchTestAccess::frames(worker)[ply()].excluded_move = only;
+        SearchTestAccess::singular_search_active(worker)      = true;
+
+        EXPECT_EQ(search(200, 201, 3), 200);
+        EXPECT_EQ(position().to_fen(), fen);
+        const auto stored = record();
+        ASSERT_TRUE(stored);
+        EXPECT_EQ(stored->score_at_ply(ply()), 1000);
+        EXPECT_EQ(stored->depth, 9);
+        EXPECT_EQ(stored->bound, TTBound::Exact);
+        EXPECT_EQ(stored->move, only);
+    }
+}
+
+TEST_F(SearchTest, SingularExtensionRequiresFailLow) {
+    // At depth eight, a TT score of 1000 gives a singular beta of 984.
+    for (Score alternative_score : {983, 984}) {
+        SCOPED_TRACE(alternative_score);
+        load(Board{board_test::fen::quiet_black_to_move}, 12);
+        ply()                                          = 1;
+        SearchTestAccess::root_iteration_depth(worker) = 12;
+        const Move tt_move                             = find_move("a8b8");
+        store_child(find_move("a8a7"), -alternative_score, engine::max_search_depth);
+        tt.store(position().tt_key(), tt_move, 1000, 5, TTBound::LowerBound, ply());
+
+        search(999, 1000, 8);
+        EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
+        EXPECT_EQ(ply(), 1);
+        EXPECT_TRUE(SearchTestAccess::frames(worker)[ply()].excluded_move.is_null());
+        EXPECT_FALSE(SearchTestAccess::singular_search_active(worker));
+        const auto child = with_move(tt_move, [&] { return record(); });
+        ASSERT_TRUE(child);
+        EXPECT_EQ(child->depth, alternative_score < 984 ? 8 : 7);
+    }
+}
+
+TEST_F(SearchTest, SingularExtensionBuildsLegalPv) {
+    load(Board{board_test::fen::one_legal_evasion}, 12);
+    ply()                                          = 1;
+    SearchTestAccess::root_iteration_depth(worker) = 12;
+    const Move only                                = find_move("a8b8");
+    tt.store(position().tt_key(), only, 30000, 7, TTBound::LowerBound, ply());
+
+    PrincipalVariation pv;
+    pv_search(-scores::inf, scores::inf, 8, pv);
+    ASSERT_FALSE(pv.empty());
+    EXPECT_EQ(pv.front(), only);
+    const auto child = with_move(only, [&] { return record(); });
+    ASSERT_TRUE(child);
+    EXPECT_GE(child->depth, 8);
+
+    Board replay{position()};
+    for (int index = 0; index < pv.size(); ++index) {
+        const Move move = pv.move_at(index);
+        ASSERT_TRUE(replay.is_legal_move(move));
+        replay.make(move);
+    }
+}
+
+TEST_F(SearchTest, SingularMulticutLeavesTtAndHistoryUnchanged) {
+    load(Board{board_test::fen::quiet_black_to_move}, 12);
+    ply()                                          = 1;
+    SearchTestAccess::root_iteration_depth(worker) = 12;
+    const Move tt_move                             = find_move("a8b8");
+    const Move alternative                         = find_move("a8a7");
+    store_child(alternative, -1134, engine::max_search_depth);
+    tt.store(position().tt_key(), tt_move, 1000, 5, TTBound::LowerBound, ply());
+
+    // Return singular beta (1000 - 16), not the alternative's fail-soft score of 1134.
+    EXPECT_EQ(search(983, 984, 8), 984);
+    EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
+    EXPECT_EQ(ply(), 1);
+    const auto stored = record();
+    ASSERT_TRUE(stored);
+    EXPECT_EQ(stored->depth, 5);
+    EXPECT_EQ(stored->score_at_ply(ply()), 1000);
+    EXPECT_EQ(stored->bound, TTBound::LowerBound);
+    EXPECT_EQ(stored->move, tt_move);
+    for (Move move : {tt_move, alternative}) {
+        EXPECT_EQ(quiet_history(move), 0);
+        EXPECT_FALSE(history().is_killer(move, ply()));
+    }
+    const auto& frame = SearchTestAccess::frames(worker)[ply()];
+    EXPECT_EQ(frame.static_eval, eval::evaluate(position()));
+    EXPECT_TRUE(frame.excluded_move.is_null());
+    EXPECT_FALSE(SearchTestAccess::singular_search_active(worker));
+}
+
+TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
+    for (bool was_active : {false, true}) {
+        SCOPED_TRACE(was_active);
+        limits.set_nodes(4096);
+        load(Board{board_test::fen::quiet_black_to_move}, 12);
+        ply()                                          = 1;
+        SearchTestAccess::root_iteration_depth(worker) = 12;
+        tt.store(position().tt_key(), find_move("a8b8"), 1000, 5, TTBound::LowerBound, ply());
+        SearchTestAccess::singular_search_active(worker) = was_active;
+        auto& frame                                      = SearchTestAccess::frames(worker)[ply()];
+        frame.static_eval                                = 456;
+        frame.real_move                                  = true;
+
+        // The parent and excluded root run; the next child polls the node limit.
+        SearchTestAccess::set_nodes(worker, 4094);
+        PrincipalVariation pv;
+        EXPECT_EQ(pv_search(-1000, 1000, 8, pv), -1000);
+        EXPECT_EQ(worker.node_count(), 4096U);
+        EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
+        EXPECT_EQ(ply(), 1);
+        EXPECT_FALSE(frame.static_eval);
+        EXPECT_FALSE(frame.real_move);
+        EXPECT_TRUE(frame.excluded_move.is_null());
+        EXPECT_EQ(SearchTestAccess::singular_search_active(worker), was_active);
+        EXPECT_TRUE(pv.empty());
+        const auto stored = record();
+        ASSERT_TRUE(stored);
+        EXPECT_EQ(stored->depth, 5);
+    }
+}
+
 TEST(NullMoveReductionTest, AdaptsToDepthAndStaticSurplusWithinBounds) {
     struct Case {
         const char* name;

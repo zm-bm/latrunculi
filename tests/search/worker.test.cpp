@@ -49,7 +49,7 @@ TEST_F(SearchWorkerTest, NewSearchResetsAllFrames) {
     load_worker_board(board);
     auto& frames = SearchTestAccess::frames(worker());
     frames.fill({123, Move{A2, A3}, true});
-    SearchTestAccess::verification_active(worker()) = true;
+    SearchTestAccess::singular_search_active(worker()) = true;
     load_worker_board(board);
     EXPECT_EQ(frames[0].static_eval, eval::evaluate(board));
     for (int i = 1; i < engine::max_search_ply; ++i)
@@ -59,7 +59,7 @@ TEST_F(SearchWorkerTest, NewSearchResetsAllFrames) {
         EXPECT_TRUE(frame.excluded_move.is_null());
     }
 
-    EXPECT_FALSE(SearchTestAccess::verification_active(worker()));
+    EXPECT_FALSE(SearchTestAccess::singular_search_active(worker()));
 
     Board checked{"4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
     load_worker_board(checked);

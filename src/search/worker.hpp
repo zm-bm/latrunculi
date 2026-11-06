@@ -70,8 +70,9 @@ private:
 
     // Search control state.
     std::atomic<bool> stop_requested_flag{false};
-    // Active throughout a verification call, including descendants and nested verification.
-    bool verification_active{false};
+    // Active in a singular search and its descendants; prevents multicuts.
+    // SearchFrame::excluded_move excludes a move only at its own ply.
+    bool singular_search_active{false};
 
     // Root result snapshots.
     mutable std::mutex root_snapshot_mutex;
