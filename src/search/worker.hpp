@@ -46,10 +46,8 @@ public:
 
 private:
     // Board and search state.
-    Board board;
-    int   root_iteration_depth{0};
-    // Active throughout a verification call, including descendants and nested verification.
-    bool                  verification_active{false};
+    Board                 board;
+    int                   root_iteration_depth{0};
     RootLine              root_result;
     std::vector<RootLine> root_lines;
     History               history;
@@ -70,8 +68,10 @@ private:
     ThreadPool& thread_pool;
     const int   worker_id;
 
-    // Stop state.
+    // Search control state.
     std::atomic<bool> stop_requested_flag{false};
+    // Active throughout a verification call, including descendants and nested verification.
+    bool verification_active{false};
 
     // Root result snapshots.
     mutable std::mutex root_snapshot_mutex;
