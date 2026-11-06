@@ -5,7 +5,6 @@
 
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
-#include "movegen/moves.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -107,31 +106,7 @@ void Worker::clear_search_heuristics() {
     history.clear();
 }
 
-void Worker::build_root_lines() {
-    root_lines.clear();
-
-    // Root candidates start in ordered-stream order.
-    const auto context = history.context_for(board, 0);
-    auto       moves   = movegen::MainSearchMoves(board, history, context);
-
-    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
-        if (limits.allows_root_move(move))
-            root_lines.push_back(RootLine{.root_move = move, .value = -eval_value::inf});
-    }
-}
-
 // Root result reporting.
-RootLine Worker::terminal_root_result() const {
-    assert(root_lines.empty());
-
-    return RootLine{
-        .root_move = NULL_MOVE,
-        .value     = board.is_check() ? -eval_value::mate : eval_value::draw,
-        .depth     = 0,
-        .completed = true,
-    };
-}
-
 void Worker::prepare_final_result() {
     thread_pool.stop_helper_searches();
 

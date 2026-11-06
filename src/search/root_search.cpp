@@ -2,7 +2,8 @@
 #include <array>
 #include <cassert>
 
-#include "search/search_detail.hpp"
+#include "movegen/moves.hpp"
+#include "search/search_policy.hpp"
 #include "search/worker.hpp"
 
 namespace search {
@@ -16,6 +17,30 @@ inline constexpr std::array<int, 20> HelperDepthSkipPhase{
 };
 
 } // namespace
+
+void Worker::build_root_lines() {
+    root_lines.clear();
+
+    // Root candidates start in ordered-stream order.
+    const auto context = history.context_for(board, 0);
+    auto       moves   = movegen::MainSearchMoves(board, history, context);
+
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
+        if (limits.allows_root_move(move))
+            root_lines.push_back(RootLine{.root_move = move, .value = -eval_value::inf});
+    }
+}
+
+RootLine Worker::terminal_root_result() const {
+    assert(root_lines.empty());
+
+    return RootLine{
+        .root_move = NULL_MOVE,
+        .value     = board.is_check() ? -eval_value::mate : eval_value::draw,
+        .depth     = 0,
+        .completed = true,
+    };
+}
 
 // Main root search driver.
 void Worker::search_root() {
@@ -109,7 +134,7 @@ bool Worker::search_root_window(int       search_depth,
 
         ++move_count;
 
-        board.make(root_move, detail::prefetch_child_tt);
+        board.make(root_move, prefetch_child_tt);
         ++search_ply;
 
         // Root PVS searches full-window until a root PV is established.

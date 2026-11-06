@@ -87,9 +87,11 @@ private:
     void wait_for_stop() const noexcept;
 
     // Root search. (root_search.cpp)
-    void search_root();
-    bool should_search_root_depth(int depth) const noexcept;
-    bool search_root_depth(int depth, EvalValue previous_value);
+    void     build_root_lines();
+    RootLine terminal_root_result() const;
+    void     search_root();
+    bool     should_search_root_depth(int depth) const noexcept;
+    bool     search_root_depth(int depth, EvalValue previous_value);
     bool search_root_window(int search_depth, int nominal_depth, EvalValue alpha, EvalValue beta);
 
     // Recursive search. (search.cpp)
@@ -101,13 +103,11 @@ private:
     EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
 
     // Root results and reporting. (worker.cpp)
-    void     build_root_lines();
-    RootLine terminal_root_result() const;
-    void     prepare_final_result();
-    void     publish_final_result();
-    void     report_root_progress(const RootLine& line);
-    void     clear_root_snapshot();
-    void     publish_root_snapshot();
+    void prepare_final_result();
+    void publish_final_result();
+    void report_root_progress(const RootLine& line);
+    void clear_root_snapshot();
+    void publish_root_snapshot();
 
     // Accounting and limits.
     Milliseconds runtime() const;

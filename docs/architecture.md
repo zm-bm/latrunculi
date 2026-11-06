@@ -50,9 +50,12 @@ The same evaluator exports linear features for fitting weights from recorded gam
 [Worker](../src/search/worker.hpp) handles search setup, limits, and results.
 [Root search](../src/search/root_search.cpp) handles iterative deepening and
 aspiration retries. [Recursive search](../src/search/search.cpp) implements
-alpha-beta and quiescence. [Singular verification](../src/search/singular.cpp)
-handles exclusion searches, extensions, and multicuts. Per-ply state lives in
-[SearchFrame](../src/search/search_frame.hpp). The search uses:
+alpha-beta, quiescence, and same-ply exclusion searches. Standalone
+[search policy](../src/search/search_policy.hpp) owns pruning and reduction
+calculations and aspiration retry state; [singular policy](../src/search/singular.cpp)
+selects verification parameters and multicut eligibility. Recursive execution,
+restoration, stop checks, and learning stay visible in search. Per-ply state lives
+in [SearchFrame](../src/search/search_frame.hpp). The search uses:
 
 - **Iterative deepening:** Each iteration starts with an
   [aspiration window](https://chessprogramming.org/Aspiration_Windows) around

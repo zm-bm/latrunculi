@@ -3,8 +3,8 @@
 
 #include "core/constants.hpp"
 #include "eval/parameters.hpp"
-#include "search/search_detail.hpp"
 #include "search/search_frame.hpp"
+#include "search/search_policy.hpp"
 #include "search/tt.hpp"
 
 namespace search::detail {

@@ -170,6 +170,11 @@ inline void TranspositionTable::prefetch(PositionKey tt_key) const noexcept {
     __builtin_prefetch(&clusters[cluster_index(tt_key)]);
 }
 
+// Board's make callback prefetches as soon as the child key is available.
+inline void prefetch_child_tt(PositionKey tt_key) noexcept {
+    tt.prefetch(tt_key);
+}
+
 // Convert a stored current-position mate score back into a root-relative search score.
 inline EvalValue TTRecord::score_at_ply(int ply) const noexcept {
     const EvalValue value = score;
