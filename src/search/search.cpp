@@ -75,7 +75,10 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
     increment_nodes();
     stats.node(search_ply);
 
-    // Mate-distance pruning.
+    /*
+     * Mate-distance limits and TT lookup.
+     * Limit the window to possible mate scores, then check for a usable TT bound.
+     */
     alpha = std::max(alpha, -scores::mate + search_ply);
     beta  = std::min(beta, scores::mate - search_ply - 1);
     if (alpha >= beta)
@@ -85,7 +88,6 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
     const PositionKey tt_key         = board.tt_key();
     Move              tt_move        = NULL_MOVE;
 
-    // TT probe.
     stats.main_tt_probe(search_ply);
     const auto  tt_probe  = tt.probe(tt_key);
     const auto& tt_record = tt_probe.record;
@@ -103,10 +105,14 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
         tt_move = record.move;
     }
 
-    const bool  in_check    = board.is_check();
-    const Color side        = board.side_to_move();
-    bool        futility    = false;
-    Score       static_eval = TTRecord::no_static_eval;
+    /*
+     * Static evaluation and early pruning.
+     * Save the evaluation, then try non-PV pruning before generating moves.
+     */
+    const bool  in_check       = board.is_check();
+    const Color side           = board.side_to_move();
+    bool        quiet_futility = false;
+    Score       static_eval    = TTRecord::no_static_eval;
 
     bool declining = false;
     if constexpr (Node == NodeType::NonPv) {
@@ -120,8 +126,11 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
                      && frames[search_ply - 2].static_eval
                      && static_eval < *frames[search_ply - 2].static_eval;
         }
-        if (!excluded_search && !after_null && !in_check && depth <= detail::RazorMaxDepth
-            && tt_move.is_null() && static_eval + detail::RazorMargin[depth] <= alpha) {
+
+        // At shallow depth, try quiescence when the evaluation is far below alpha.
+        const bool razor_candidate = !excluded_search && !after_null && !in_check
+                                  && depth <= detail::RazorMaxDepth && tt_move.is_null();
+        if (razor_candidate && static_eval + detail::RazorMargin[depth] <= alpha) {
             stats.razor_try(search_ply);
             const Score value = quiescence<NodeType::NonPv>(alpha - 1, alpha);
             if (stop_requested())
@@ -132,20 +141,24 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
             }
         }
 
-        // Reverse futility and null-move pruning.
-        // Skip static high-side cutoffs and NMP when a depth-sufficient TT upper bound suggests
-        // they will fail low.
+        // Skip reverse futility and null-move pruning when a deep TT bound is below beta.
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
                                 && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(search_ply) < beta;
-        if (!excluded_search && !after_null && !in_check && depth <= detail::FutilityMaxDepth
-            && beta > -scores::mate_bound && beta < scores::mate_bound
-            && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto
-            && static_eval - detail::FutilityMargin[depth] >= beta)
+
+        // Reverse futility: return when the evaluation remains above beta after its margin.
+        const bool reverse_futility_candidate =
+            !excluded_search && !after_null && !in_check && depth <= detail::FutilityMaxDepth
+            && beta > -scores::mate_bound && beta < scores::mate_bound;
+        if (reverse_futility_candidate && board.non_pawn_material(side) > eval::piece(ROOK).mg
+            && !tt_upper_veto && static_eval - detail::FutilityMargin[depth] >= beta)
             return static_eval;
 
-        if (!excluded_search && !after_null && !in_check && depth >= detail::NullMoveMinDepth
-            && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto) {
+        // Null-move pruning: try a reduced search after passing the turn.
+        const bool null_move_candidate =
+            !excluded_search && !after_null && !in_check && depth >= detail::NullMoveMinDepth;
+        if (null_move_candidate && board.non_pawn_material(side) > eval::piece(ROOK).mg
+            && !tt_upper_veto) {
             stats.null_move_try(search_ply);
 
             const int reduction = detail::null_move_reduction(depth, static_eval, beta);
@@ -154,6 +167,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
             ++search_ply;
             const Score value =
                 -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, nullptr);
+            // Restore the parent position before checking the result or stop request.
             board.unmake_null();
             --search_ply;
 
@@ -166,9 +180,9 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
         }
 
         // Prepare shallow futility pruning. The move loop performs the actual skip.
-        futility = !excluded_search && depth <= detail::FutilityMaxDepth && !in_check
-                && alpha > -scores::mate_bound && alpha < scores::mate_bound
-                && static_eval + detail::FutilityMargin[depth] <= alpha;
+        quiet_futility = !excluded_search && depth <= detail::FutilityMaxDepth && !in_check
+                      && alpha > -scores::mate_bound && alpha < scores::mate_bound
+                      && static_eval + detail::FutilityMargin[depth] <= alpha;
     }
 
     /*
@@ -227,7 +241,10 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
     }
     if (stop_requested())
         return alpha;
-    // Move ordering and node-local history feedback.
+    /*
+     * Move preparation.
+     * Set up ordered moves and history learning for this node.
+     */
     int   move_count = 0;
     Score best_value = -scores::inf;
     Move  best_move  = NULL_MOVE;
@@ -241,7 +258,6 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
     if (!excluded_search)
         learning.emplace(board, history, context, depth, stats);
 
-    // Move loop.
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         if (move == excluded_move)
             continue;
@@ -249,7 +265,10 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
         ++move_count;
         const bool first_legal = move_count == 1;
 
-        // Parent position: classify the move and read current learning tables.
+        /*
+         * Move pruning and reductions.
+         * Read parent history before making the move, then check whether it gives check.
+         */
         const bool is_promotion      = move.type() == MOVE_PROM;
         const bool is_capture        = board.is_capture(move);
         const bool is_quiet          = !is_capture && !is_promotion;
@@ -263,13 +282,17 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
             raw_capture_history = history.capture_score(board, move);
         bool history_lmp_candidate = false;
         if constexpr (Node == NodeType::NonPv) {
-            history_lmp_candidate = !excluded_search && depth == detail::LateMovePruningDepth
-                                 && move_count > detail::LateMovePruningMoveCount && !futility
-                                 && !in_check && best_value > -scores::mate_bound
-                                 && alpha > -scores::mate_bound && beta < scores::mate_bound
-                                 && board.non_pawn_material(side) > 0 && is_ordinary_quiet
-                                 && move != tt_move && !is_killer && !is_counter
-                                 && history.quiet_score(context, board, move) < 0;
+            const bool late_quiet_pruning_node =
+                !excluded_search && depth == detail::LateMovePruningDepth
+                && move_count > detail::LateMovePruningMoveCount && !quiet_futility && !in_check
+                && best_value > -scores::mate_bound && alpha > -scores::mate_bound
+                && beta < scores::mate_bound;
+            if (late_quiet_pruning_node && board.non_pawn_material(side) > 0) {
+                const bool unprotected_quiet =
+                    is_ordinary_quiet && move != tt_move && !is_killer && !is_counter;
+                history_lmp_candidate =
+                    unprotected_quiet && history.quiet_score(context, board, move) < 0;
+            }
         }
 
         const int child_depth = depth - 1 + (move == tt_move && singular_extension);
@@ -278,7 +301,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
 
         // Child position: checking status gates pruning and reduction.
         const bool gives_check = board.is_check();
-        if (futility && !first_legal && is_quiet && !gives_check) {
+        if (quiet_futility && !first_legal && is_quiet && !gives_check) {
             // Futility pruning.
             board.unmake();
             --search_ply;
@@ -308,7 +331,10 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
         const int  reduction = lmr.plies;
         stats.capture_lmr(lmr.capture_adjustment, raw_capture_history, lmr.base_plies, reduction);
 
-        // Scout reduced moves and later PV moves before a full-depth search.
+        /*
+         * Recursive search.
+         * Scout reduced moves and later PV moves before a full-depth search.
+         */
         const bool scout = reduction > 0 || (Node == NodeType::Pv && !first_legal);
         Score      value;
         if (scout) {
@@ -333,7 +359,10 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
                 -beta, -alpha, child_depth, Node == NodeType::Pv && pv ? &child_pv : nullptr);
         }
 
-        // Restore before stop handling, learning, PV updates, or TT stores.
+        /*
+         * Move results.
+         * Restore the parent position before stop checks, learning, PV updates, or TT stores.
+         */
         board.unmake();
         --search_ply;
 
@@ -363,7 +392,6 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
 
         if (learning)
             learning->record_non_cutoff(move, is_capture, is_killer);
-        // Best-move update.
         if (value > best_value) {
             best_value = value;
             best_move  = move;
@@ -376,7 +404,10 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
         }
     }
 
-    // Mate and stalemate.
+    /*
+     * Final node result.
+     * Handle an empty move list, otherwise store the best score and its bound.
+     */
     if (move_count == 0) {
         // Excluding the only move does not make the actual position terminal.
         if (excluded_search)
@@ -393,7 +424,6 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
         return best_value;
     }
 
-    // TT store.
     if (!excluded_search)
         tt.store(tt_probe.writer,
                  tt_key,
@@ -410,7 +440,10 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
 // Quiescence search for tactical depth-zero nodes.
 template <NodeType Node, bool UseTt>
 Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
-    // PV and stop checks.
+    /*
+     * PV reset and stop checks.
+     * Clear the PV, check search limits, and return if a stop was requested.
+     */
     if (pv)
         pv->clear();
 
@@ -419,16 +452,23 @@ Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
     if (stop_requested())
         return alpha;
 
+    /*
+     * Node counting and terminal exits.
+     * Count this node, then return for a draw or the ply limit.
+     */
     increment_nodes();
     stats.qnode(search_ply);
 
-    // Draw and max-ply exits.
     if (board.is_draw(search_ply))
         return draw_or_mate_score(board, search_ply);
 
     if (search_ply >= engine::max_search_ply)
         return eval::evaluate(board);
 
+    /*
+     * TT lookup.
+     * Check for a usable bound and retain the TT move for ordering.
+     */
     constexpr int     qsearch_tt_depth = 0;
     const Score       original_alpha   = alpha;
     const PositionKey tt_key           = board.tt_key();
@@ -436,7 +476,6 @@ Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
     TTProbe           tt_probe;
     const auto&       tt_record = tt_probe.record;
 
-    // TT probe.
     if constexpr (UseTt) {
         stats.q_tt_probe(search_ply);
         tt_probe = tt.probe(tt_key);
@@ -454,13 +493,16 @@ Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
         }
     }
 
+    /*
+     * Stand pat.
+     * Outside check, use the static evaluation to try a cutoff or raise alpha.
+     */
     const bool in_check    = board.is_check();
     int        move_count  = 0;
     Score      best_value  = -scores::inf;
     Move       best_move   = NULL_MOVE;
     Score      static_eval = TTRecord::no_static_eval;
 
-    // Stand pat.
     if (!in_check) {
         static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
                                                                 : eval::evaluate(board);
@@ -482,35 +524,56 @@ Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
             alpha = best_value;
     }
 
+    /*
+     * Move preparation.
+     * Set up tactical moves, or all legal evasions when in check.
+     */
     auto               moves = movegen::QuiescenceMoves(board, history, tt_move);
     PrincipalVariation child_pv;
 
-    // Tactical move or evasion loop.
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         ++move_count;
 
+        /*
+         * Capture pruning.
+         * Skip eligible nonchecking captures whose estimated gain cannot raise alpha.
+         */
         // SEE prices classify exchanges; use evaluation material for the gain estimate.
         // This is a heuristic allowance for positional and phase changes, not a strict bound.
-        if (!in_check && move != tt_move && move.type() == BASIC_MOVE && alpha > -scores::mate_bound
-            && beta < scores::mate_bound) {
+        const bool capture_pruning_candidate =
+            !in_check && move != tt_move && move.type() == BASIC_MOVE && alpha > -scores::mate_bound
+            && beta < scores::mate_bound;
+        if (capture_pruning_candidate) {
             const PieceType victim = board.captured_piece_type(move);
             const auto      price  = eval::piece(victim);
-            const Score     gain_bound =
+            const Score     capture_gain_estimate =
                 static_eval + std::max(price.mg, price.eg) + detail::QCaptureMargin;
-            if (gain_bound < alpha && board.non_pawn_material(board.side_to_move()) > eval::rook.mg
-                && board.non_pawn_material(~board.side_to_move()) - (victim == PAWN ? 0 : price.mg)
-                       > eval::rook.mg
-                && !board.gives_check(move)) {
-                // Keep a fail-low estimate without inventing an alpha raise or PV move.
-                best_value = std::max(best_value, gain_bound);
-                continue;
+            if (capture_gain_estimate < alpha) {
+                const bool material_allows_capture_pruning =
+                    board.non_pawn_material(board.side_to_move()) > eval::rook.mg
+                    && board.non_pawn_material(~board.side_to_move())
+                               - (victim == PAWN ? 0 : price.mg)
+                           > eval::rook.mg;
+                if (material_allows_capture_pruning && !board.gives_check(move)) {
+                    // Keep a fail-low estimate without inventing an alpha raise or PV move.
+                    best_value = std::max(best_value, capture_gain_estimate);
+                    continue;
+                }
             }
         }
 
+        /*
+         * Recursive search.
+         * Make the move and search the child with the negated window.
+         */
         board.make(move, UseTt ? prefetch_child_tt : nullptr);
         ++search_ply;
         const Score value = -quiescence<Node, UseTt>(-beta, -alpha, pv ? &child_pv : nullptr);
-        // Restore before stop handling, PV updates, or TT stores.
+
+        /*
+         * Move results.
+         * Restore the parent position before stop checks, PV updates, or TT stores.
+         */
         board.unmake();
         --search_ply;
 
@@ -518,7 +581,6 @@ Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
             return alpha;
 
         if (value >= beta) {
-            // Beta cutoff.
             if (pv)
                 pv->update(move, child_pv);
             stats.beta_cutoff(search_ply, move_count);
@@ -535,7 +597,6 @@ Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
             return value;
         }
 
-        // Best-move update.
         if (value > best_value) {
             best_value = value;
             best_move  = move;
@@ -547,7 +608,10 @@ Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
         }
     }
 
-    // Checkmate.
+    /*
+     * Final node result.
+     * Handle checkmate, otherwise store the best score and its bound.
+     */
     if (in_check && move_count == 0) {
         best_value = -scores::mate + search_ply;
         if constexpr (UseTt) {
@@ -563,7 +627,6 @@ Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
         return best_value;
     }
 
-    // TT store.
     if constexpr (UseTt) {
         tt.store(tt_probe.writer,
                  tt_key,
