@@ -26,6 +26,7 @@ namespace {
 
 class SearchTest : public ::testing::Test {
 protected:
+    int                     search_ply{0};
     RecordingSearchReporter reporter;
     ThreadPool              pool{1, reporter};
     Thread&                 thread{SearchThreadTestAccess::thread(pool)};
@@ -43,14 +44,15 @@ protected:
         limits.depth = depth;
         worker.configure_search(board, limits, SearchClock::now());
         SearchTestAccess::reset(worker);
+        search_ply = 0;
     }
 
     Board&   position() { return SearchTestAccess::board(worker); }
-    int&     ply() { return SearchTestAccess::search_ply(worker); }
+    int&     ply() { return search_ply; }
     History& history() { return SearchTestAccess::history(worker); }
 
     EvalValue search(EvalValue alpha, EvalValue beta, int depth) {
-        return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, depth);
+        return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, depth, ply());
     }
 
     void load_after_null(const Board& parent, int depth) {
@@ -58,11 +60,11 @@ protected:
         board.make_null();
         load(board, depth);
         ply() = 1;
-        ASSERT_TRUE(SearchTestAccess::after_null_move(worker));
+        ASSERT_TRUE(SearchTestAccess::after_null_move(worker, ply()));
     }
 
     EvalValue pv_search(EvalValue alpha, EvalValue beta, int depth, PrincipalVariation& pv) {
-        return SearchTestAccess::alphabeta<NodeType::Pv>(worker, alpha, beta, depth, &pv);
+        return SearchTestAccess::alphabeta<NodeType::Pv>(worker, alpha, beta, depth, ply(), &pv);
     }
 
     Move find_move(std::string_view move_string) {
@@ -457,19 +459,19 @@ TEST_F(SearchTest, NullMoveReenablesAfterARealDescendantMove) {
 
 TEST_F(SearchTest, NullMoveContextRequiresAnActualNullSearchEdge) {
     load(Board{board_test::fen::start});
-    EXPECT_FALSE(SearchTestAccess::after_null_move(worker));
+    EXPECT_FALSE(SearchTestAccess::after_null_move(worker, ply()));
     ply() = 1;
     EXPECT_FALSE(position().can_unmake());
-    EXPECT_FALSE(SearchTestAccess::after_null_move(worker));
+    EXPECT_FALSE(SearchTestAccess::after_null_move(worker, ply()));
     ply() = 0;
 
     with_null_move([&] {
-        EXPECT_TRUE(SearchTestAccess::after_null_move(worker));
+        EXPECT_TRUE(SearchTestAccess::after_null_move(worker, ply()));
         with_move(find_move("e7e5"),
-                  [&] { EXPECT_FALSE(SearchTestAccess::after_null_move(worker)); });
-        EXPECT_TRUE(SearchTestAccess::after_null_move(worker));
+                  [&] { EXPECT_FALSE(SearchTestAccess::after_null_move(worker, ply())); });
+        EXPECT_TRUE(SearchTestAccess::after_null_move(worker, ply()));
     });
-    EXPECT_FALSE(SearchTestAccess::after_null_move(worker));
+    EXPECT_FALSE(SearchTestAccess::after_null_move(worker, ply()));
 }
 
 TEST_F(SearchTest, AfterNullMoveSkipsReverseFutilityButRetainsOrdinaryTtStores) {
@@ -611,12 +613,8 @@ TEST_F(SearchTest, FutilityRequiresAllGuards) {
         load(board, tc.depth);
         if (tc.alpha >= eval_value::mate_bound) {
             // Bypass razoring so this case reaches the move-loop futility guard.
-            tt.store(position().tt_key(),
-                     ordered_moves().front(),
-                     0,
-                     0,
-                     TTBound::UpperBound,
-                     ply());
+            tt.store(
+                position().tt_key(), ordered_moves().front(), 0, 0, TTBound::UpperBound, ply());
         }
         if (tc.pv) {
             PrincipalVariation pv;
@@ -827,7 +825,7 @@ TEST_F(SearchTest, CaptureHistorySkipsPromotionsEvasionsAndQuiescenceUpdates) {
     const Move capture = ordered_moves().front();
     tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
     store_child(capture, -200, 0);
-    EXPECT_EQ(SearchTestAccess::quiescence<NodeType::NonPv>(worker, -200, 100), 200);
+    EXPECT_EQ(SearchTestAccess::quiescence<NodeType::NonPv>(worker, -200, 100, ply()), 200);
     EXPECT_EQ(history().capture_score(position(), capture), 0);
 }
 

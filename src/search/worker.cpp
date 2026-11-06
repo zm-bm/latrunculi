@@ -19,8 +19,7 @@ Worker::Worker(int id, Reporter& reporter, ThreadPool& pool)
 
 // Configuration.
 void Worker::configure_search(const Board& root_board, Limits limits, TimePoint search_start_time) {
-    board      = root_board;
-    search_ply = 0;
+    board = root_board;
 
     this->limits = limits;
     start_time   = search_start_time;
@@ -86,7 +85,7 @@ EvalValue Worker::search() {
 
 void Worker::reset_search_state() {
     reset_nodes();
-    search_ply           = 0;
+    verification_active  = false;
     root_iteration_depth = 0;
     root_result          = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
     frames.fill({});

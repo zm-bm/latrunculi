@@ -22,6 +22,7 @@ namespace {
 
 class QuiescenceTest : public ::testing::Test {
 protected:
+    int                     search_ply{0};
     RecordingSearchReporter reporter;
     ThreadPool              pool{1, reporter};
     Worker&                 worker{SearchThreadTestAccess::worker(pool)};
@@ -36,21 +37,22 @@ protected:
         tt.clear();
         worker.configure_search(board, limits, SearchClock::now());
         SearchTestAccess::reset(worker);
+        search_ply = 0;
     }
 
     Board& position() { return SearchTestAccess::board(worker); }
-    int&   ply() { return SearchTestAccess::search_ply(worker); }
+    int&   ply() { return search_ply; }
 
     EvalValue search(EvalValue alpha, EvalValue beta) {
-        return SearchTestAccess::quiescence<NodeType::NonPv>(worker, alpha, beta);
+        return SearchTestAccess::quiescence<NodeType::NonPv>(worker, alpha, beta, ply());
     }
 
     EvalValue pv_search(EvalValue alpha, EvalValue beta, PrincipalVariation& pv) {
-        return SearchTestAccess::quiescence<NodeType::Pv>(worker, alpha, beta, &pv);
+        return SearchTestAccess::quiescence<NodeType::Pv>(worker, alpha, beta, ply(), &pv);
     }
 
     EvalValue depth_zero(EvalValue alpha, EvalValue beta) {
-        return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, 0);
+        return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, 0, ply());
     }
 
     Move find_move(std::string_view move_string) {

@@ -127,25 +127,23 @@ bool Worker::search_root_window(int       search_depth,
         ++move_count;
 
         board.make(root_move, detail::prefetch_child_tt);
-        ++search_ply;
 
         // Root PVS searches full-window until a root PV is established.
         // Scout later root moves and re-search only strict alpha improvements.
         PrincipalVariation child_pv;
         EvalValue          value;
         if (move_count == 1 || !has_pv_move) {
-            value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, &child_pv);
+            value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, 1, &child_pv);
         } else {
-            value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, search_depth - 1);
+            value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, search_depth - 1, 1);
             if (!stop_requested() && value > alpha) {
-                stats.pvs_research(search_ply);
+                stats.pvs_research(1);
                 child_pv.clear();
-                value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, &child_pv);
+                value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, 1, &child_pv);
             }
         }
 
         board.unmake();
-        --search_ply;
 
         // Do not record partial root-line state after a stop.
         if (stop_requested())

@@ -8,8 +8,8 @@
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
-#include "search/search_detail.hpp"
 #include "search/root_line.hpp"
+#include "search/search_detail.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -54,7 +54,6 @@ protected:
     }
 
     Board&                 position() { return SearchTestAccess::board(worker); }
-    int&                   ply() { return SearchTestAccess::search_ply(worker); }
     RootLine&              result() { return SearchTestAccess::root_result(worker); }
     std::vector<RootLine>& lines() { return SearchTestAccess::root_lines(worker); }
 

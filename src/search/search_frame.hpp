@@ -13,7 +13,6 @@ struct SearchFrame {
     std::optional<EvalValue> static_eval;
     Move                     excluded_move{NULL_MOVE};
     bool                     real_move{false};
-    bool                     in_singular_verification{false};
 
     bool operator==(const SearchFrame&) const = default;
 };

@@ -8,7 +8,7 @@ public:
 
     static Board& board(search::Worker& worker) { return worker.board; }
 
-    static int& search_ply(search::Worker& worker) { return worker.search_ply; }
+    static bool& verification_active(search::Worker& worker) { return worker.verification_active; }
 
     static int& root_iteration_depth(search::Worker& worker) { return worker.root_iteration_depth; }
     static void set_nodes(search::Worker& worker, NodeCount n) { worker.nodes.store(n); }
@@ -76,31 +76,40 @@ public:
                                EvalValue                   alpha,
                                EvalValue                   beta,
                                int                         depth,
+                               int                         ply,
                                search::PrincipalVariation* pv = nullptr) {
-        return worker.alphabeta<Node>(alpha, beta, depth, pv);
+        return worker.alphabeta<Node>(alpha, beta, depth, ply, pv);
     }
 
-    static bool after_null_move(const search::Worker& worker) { return worker.after_null_move(); }
+    static bool after_null_move(const search::Worker& worker, int ply) {
+        return worker.after_null_move(ply);
+    }
 
-    static EvalValue search_excluding_move(
-        search::Worker& worker, EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
-        return worker.search_excluding_move(alpha, beta, depth, excluded_move);
+    static EvalValue search_excluding_move(search::Worker& worker,
+                                           EvalValue       alpha,
+                                           EvalValue       beta,
+                                           int             depth,
+                                           int             ply,
+                                           Move            excluded_move) {
+        return worker.search_excluding_move(alpha, beta, depth, ply, excluded_move);
     }
     template <search::NodeType Node = search::NodeType::NonPv>
     static auto singular_result(search::Worker&         worker,
                                 const search::TTRecord& record,
                                 int                     depth,
+                                int                     ply,
                                 EvalValue               alpha = -eval_value::inf,
                                 EvalValue               beta  = eval_value::inf) {
-        return worker.singular_decision<Node>(record, depth, alpha, beta);
+        return worker.singular_decision<Node>(record, depth, ply, alpha, beta);
     }
 
     template <search::NodeType Node>
     static EvalValue quiescence(search::Worker&             worker,
                                 EvalValue                   alpha,
                                 EvalValue                   beta,
+                                int                         ply,
                                 search::PrincipalVariation* pv = nullptr) {
-        return worker.quiescence<Node>(alpha, beta, pv);
+        return worker.quiescence<Node>(alpha, beta, ply, pv);
     }
 
     static void build_root_lines(search::Worker& worker) { worker.build_root_lines(); }
