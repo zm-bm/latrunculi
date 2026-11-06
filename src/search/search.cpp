@@ -6,8 +6,8 @@
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
-#include "search/search_detail.hpp"
 #include "search/history_learning.hpp"
+#include "search/search_detail.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
 
@@ -240,7 +240,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         singular = singular_decision<Node>(*tt_record, depth, alpha, beta);
     if (stop_requested())
         return alpha;
-    // A multicut returns before the ordinary picker, TT store, or cutoff training.
+    // A multicut returns before the ordinary move stream, TT store, or cutoff training.
     if (singular.cutoff)
         return *singular.cutoff;
 
@@ -253,6 +253,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
     auto       moves   = movegen::MainSearchMoves(board, history, context);
 
     PrincipalVariation child_pv;
+    // Verification roots neither train history nor contribute learning instrumentation.
     std::optional<HistoryLearning> learning;
     if (!verification_root)
         learning.emplace(board, history, context, depth, stats);

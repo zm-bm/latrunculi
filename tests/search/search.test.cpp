@@ -477,7 +477,7 @@ TEST_F(SearchTest, AfterNullMoveSkipsReverseFutilityButRetainsOrdinaryTtStores) 
     const EvalValue static_eval = eval::evaluate(position());
     const EvalValue beta        = static_eval - 250;
     const EvalValue expected    = static_eval + 200;
-    const Move      first       = legal_picker_moves().front();
+    const Move      first       = ordered_moves().front();
     store_child(first, -expected, 0);
     EXPECT_EQ(search(beta - 1, beta, 1), expected);
     const auto stored = record();
@@ -490,7 +490,7 @@ TEST_F(SearchTest, AfterNullMoveSkipsReverseFutilityButRetainsOrdinaryTtStores) 
 TEST_F(SearchTest, AfterNullMoveStillAllowsMoveLoopFutility) {
     load_after_null(Board{board_test::fen::start}, 2);
     const EvalValue alpha = eval::evaluate(position()) + 401;
-    const auto      moves = legal_picker_moves();
+    const auto      moves = ordered_moves();
     ASSERT_GT(moves.size(), 1U);
     (void)search(alpha, alpha + 100, 2);
     const auto stored = record();
@@ -612,7 +612,7 @@ TEST_F(SearchTest, FutilityRequiresAllGuards) {
         if (tc.alpha >= eval_value::mate_bound) {
             // Bypass razoring so this case reaches the move-loop futility guard.
             tt.store(position().tt_key(),
-                     legal_picker_moves().front(),
+                     ordered_moves().front(),
                      0,
                      0,
                      TTBound::UpperBound,
