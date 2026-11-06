@@ -18,11 +18,11 @@ namespace {
 constexpr std::uint32_t one_mb_cluster_shift = 49;
 
 struct TTStoredFields {
-    Move      move;
-    EvalValue score;
-    int       depth;
-    TTBound   bound;
-    EvalValue static_eval;
+    Move    move;
+    Score   score;
+    int     depth;
+    TTBound bound;
+    Score   static_eval;
 };
 
 [[nodiscard]] std::uint64_t cluster_index_for_one_mb_table(PositionKey zkey) {
@@ -48,7 +48,7 @@ void expect_record(PositionKey zkey,
                    int         expected_score,
                    int         expected_depth,
                    TTBound     expected_bound,
-                   EvalValue   expected_static_eval = TTRecord::no_static_eval) {
+                   Score       expected_static_eval = TTRecord::no_static_eval) {
     auto entry = tt.probe(zkey).record;
     ASSERT_TRUE(entry.has_value());
     EXPECT_EQ(expected_move, entry->move);
@@ -63,7 +63,7 @@ class TTTest : public ::testing::Test {
 protected:
     PositionKey key   = 0x123456789ABCDEF;
     Move        move  = Move(Square::A2, Square::A4);
-    EvalValue   score = 100;
+    Score       score = 100;
     int         depth = 5;
     TTBound     bound = TTBound::Exact;
 
@@ -94,7 +94,7 @@ TEST_F(TTTest, StoredFieldBoundariesRoundTrip) {
     constexpr std::int16_t packed_score       = -12345;
     constexpr int          packed_depth       = engine::max_search_depth;
     constexpr TTBound      packed_bound       = TTBound::UpperBound;
-    constexpr EvalValue    packed_static_eval = std::numeric_limits<std::int16_t>::min();
+    constexpr Score        packed_static_eval = std::numeric_limits<std::int16_t>::min();
 
     tt.store(key, packed_move, packed_score, packed_depth, packed_bound, 0, packed_static_eval);
 
@@ -139,9 +139,9 @@ TEST_F(TTTest, CompleteCacheableStaticEvaluationDomainRoundTrips) {
         EXPECT_EQ(value, entry->static_eval);
     }
 
-    for (EvalValue value : {EvalValue{TTRecord::no_static_eval},
-                            EvalValue{std::numeric_limits<std::int16_t>::max()} + 1,
-                            EvalValue{std::numeric_limits<std::int16_t>::min()} - 1}) {
+    for (Score value : {Score{TTRecord::no_static_eval},
+                        Score{std::numeric_limits<std::int16_t>::max()} + 1,
+                        Score{std::numeric_limits<std::int16_t>::min()} - 1}) {
         tt.clear();
         tt.store(key, move, score, depth, TTBound::Exact, 0, value);
         auto entry = tt.probe(key).record;
@@ -159,14 +159,14 @@ TEST_F(TTTest, ClearRemovesEntries) {
 
 TEST_F(TTTest, MateScoresRoundTripThroughStorage) {
     struct Case {
-        EvalValue root_score;
-        int       ply;
-        EvalValue stored_score;
+        Score root_score;
+        int   ply;
+        Score stored_score;
     };
 
     const std::array cases{
-        Case{.root_score = eval_value::mate - 5, .ply = 2, .stored_score = eval_value::mate - 3},
-        Case{.root_score = -eval_value::mate + 6, .ply = 5, .stored_score = -eval_value::mate + 1},
+        Case{.root_score = scores::mate - 5, .ply = 2, .stored_score = scores::mate - 3},
+        Case{.root_score = -scores::mate + 6, .ply = 5, .stored_score = -scores::mate + 1},
     };
 
     for (const auto& tc : cases) {
@@ -406,8 +406,8 @@ TEST_F(TTTest, ProbeReturnsDetachedRecord) {
     auto first_probe = tt.probe(key).record;
     ASSERT_TRUE(first_probe.has_value());
 
-    Move      new_move  = Move(Square::E2, Square::E4);
-    EvalValue new_score = 200;
+    Move  new_move  = Move(Square::E2, Square::E4);
+    Score new_score = 200;
     tt.store(key, new_move, new_score, depth + 1, TTBound::LowerBound, 0);
 
     EXPECT_EQ(move, first_probe->move);

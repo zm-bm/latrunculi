@@ -95,7 +95,7 @@ public:
                 for (auto& to_scores : piece_scores)
                     for (auto& entry : to_scores)
                         entry = 0;
-        std::fill(continuation_scores->begin(), continuation_scores->end(), Score{0});
+        std::fill(continuation_scores->begin(), continuation_scores->end(), HistoryScore{0});
     }
 
     bool is_killer(Move move, int ply) const {
@@ -124,10 +124,10 @@ public:
 
     // Generation already knows the original mover; no board lookup is needed.
     int quiet_score(const OrderingContext& context, PieceType moving_piece, Move move) const {
-        int score = base_quiet_score(context.side, move);
+        int history_score = base_quiet_score(context.side, move);
         if (context.has_previous_move() && moving_piece != NO_PIECETYPE)
-            score += continuation_entry(context, moving_piece, move.to());
-        return score;
+            history_score += continuation_entry(context, moving_piece, move.to());
+        return history_score;
     }
 
     void
@@ -160,9 +160,10 @@ public:
     }
 
 private:
-    using Score                       = std::int16_t;
+    using HistoryScore                = std::int16_t;
     static constexpr int MoveKeyCount = piece_slots * N_SQUARES;
-    using ContinuationTable = std::array<Score, OrderingContext::PreviousKeyCount * MoveKeyCount>;
+    using ContinuationTable =
+        std::array<HistoryScore, OrderingContext::PreviousKeyCount * MoveKeyCount>;
 
     void clear_refutations() {
         for (auto& killers : killer_moves) {
@@ -173,7 +174,7 @@ private:
             move = NULL_MOVE;
     }
 
-    Score& capture_entry(const Board& board, Move move) {
+    HistoryScore& capture_entry(const Board& board, Move move) {
         return capture_scores[board.side_to_move()][piece_slot(board.piece_type_on(move.from()))]
                              [move.to()][piece_slot(board.captured_piece_type(move))];
     }
@@ -183,31 +184,32 @@ private:
         return previous_key * MoveKeyCount + move_key;
     }
 
-    Score& continuation_entry(const OrderingContext& context, PieceType moving_piece, Square to) {
+    HistoryScore&
+    continuation_entry(const OrderingContext& context, PieceType moving_piece, Square to) {
         return (*continuation_scores)[continuation_index(context.previous_key, moving_piece, to)];
     }
 
-    const Score&
+    const HistoryScore&
     continuation_entry(const OrderingContext& context, PieceType moving_piece, Square to) const {
         return (*continuation_scores)[continuation_index(context.previous_key, moving_piece, to)];
     }
 
     // Apply bounded gravity so entries approach saturation smoothly.
-    static void apply_gravity(Score& entry, int adjustment, int limit = QuietMaxScore) {
-        adjustment        = std::clamp(adjustment, -limit, limit);
-        const int current = entry;
+    static void apply_gravity(HistoryScore& entry, int adjustment, int limit = QuietMaxScore) {
+        adjustment          = std::clamp(adjustment, -limit, limit);
+        const int current   = entry;
         const int magnitude = adjustment < 0 ? -adjustment : adjustment;
         const int delta     = adjustment - (current * magnitude / limit);
 
         entry = std::clamp(current + delta, -limit, limit);
     }
 
-    static void age_entry(Score& entry) { entry /= 2; }
+    static void age_entry(HistoryScore& entry) { entry /= 2; }
 
-    Move  killer_moves[engine::max_search_ply][2]{};
-    Move  counter_moves[OrderingContext::PreviousKeyCount]{};
-    Score quiet_scores[N_COLORS][N_SQUARES][N_SQUARES]{};
-    Score capture_scores[N_COLORS][piece_slots][N_SQUARES][piece_slots]{};
+    Move         killer_moves[engine::max_search_ply][2]{};
+    Move         counter_moves[OrderingContext::PreviousKeyCount]{};
+    HistoryScore quiet_scores[N_COLORS][N_SQUARES][N_SQUARES]{};
+    HistoryScore capture_scores[N_COLORS][piece_slots][N_SQUARES][piece_slots]{};
     // Keep the large continuation table off the worker's inline storage.
     std::unique_ptr<ContinuationTable> continuation_scores;
 

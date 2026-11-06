@@ -85,7 +85,7 @@ public:
     bool     is_double_check() const noexcept { return bb::is_many(checkers()); }
 
     const eval::BaseTerms& base_terms() const noexcept { return cached_base_terms; }
-    EvalValue              non_pawn_material(Color color) const noexcept;
+    Score                  non_pawn_material(Color color) const noexcept;
 
     // Attacks, castling, and move classification
 
@@ -201,7 +201,7 @@ inline void Board::pop_ply_state() noexcept {
 
 // Inline query definitions
 
-inline EvalValue Board::non_pawn_material(Color color) const noexcept {
+inline Score Board::non_pawn_material(Color color) const noexcept {
     return ((count(color, KNIGHT) * eval::piece(KNIGHT).mg)
             + (count(color, BISHOP) * eval::piece(BISHOP).mg)
             + (count(color, ROOK) * eval::piece(ROOK).mg)

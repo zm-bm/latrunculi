@@ -19,33 +19,33 @@ namespace eval {
 namespace {
 
 TaperedScore weighted_score(const std::array<int, feature::count>& coefficients) noexcept {
-    TaperedScore score;
+    TaperedScore phase_scores;
     const auto&  schema = feature_schema();
 
     for (std::size_t id = 0; id < coefficients.size(); ++id)
-        score += schema[id].weight * coefficients[id];
+        phase_scores += schema[id].weight * coefficients[id];
 
-    return score;
+    return phase_scores;
 }
 
-std::string format_score(TaperedScore score) {
+std::string format_score(TaperedScore phase_scores) {
     return std::format("{:5.2f} {:5.2f}",
-                       double(score.mg) / int(eval::pawn.mg),
-                       double(score.eg) / int(eval::pawn.mg));
+                       double(phase_scores.mg) / int(eval::pawn.mg),
+                       double(phase_scores.eg) / int(eval::pawn.mg));
 }
 
-std::string format_total(TaperedScore score) {
-    return std::format(" |  ----  ---- |  ----  ---- | {} | ", format_score(score));
+std::string format_total(TaperedScore phase_scores) {
+    return std::format(" |  ----  ---- |  ----  ---- | {} | ", format_score(phase_scores));
 }
 
-std::string format_term(Term term, const TermScore& score) {
+std::string format_term(Term term, const TermScore& term_score) {
     if (term != Term::Material && term != Term::PieceSquare) {
         return std::format(" | {} | {} | {} | ",
-                           format_score(score.white),
-                           format_score(score.black),
-                           format_score(score.total()));
+                           format_score(term_score.white),
+                           format_score(term_score.black),
+                           format_score(term_score.total()));
     }
-    return format_total(score.total());
+    return format_total(term_score.total());
 }
 
 void write_json_string(std::ostream& output, std::string_view text) {
@@ -163,22 +163,22 @@ const TermScore& FeatureRecord::term(Term term) const noexcept {
 
 TaperedScore FeatureRecord::term_total() const noexcept {
     TaperedScore total;
-    for (const TermScore& score : terms)
-        total += score.total();
+    for (const TermScore& term_score : terms)
+        total += term_score.total();
     return total;
 }
 
-EvalValue FeatureRecord::white_value() const noexcept {
+Score FeatureRecord::white_value() const noexcept {
     return turn == WHITE ? value : -value;
 }
 
-EvalValue FeatureRecord::reconstruct() const noexcept {
-    TaperedScore score = weighted_score(coefficients) + fixed_score;
+Score FeatureRecord::reconstruct() const noexcept {
+    TaperedScore phase_scores = weighted_score(coefficients) + fixed_score;
 
-    const Color stronger_side = score.eg < 0 ? BLACK : WHITE;
+    const Color stronger_side = phase_scores.eg < 0 ? BLACK : WHITE;
     const int   scale         = std::min(
         eval::scale_limit, eval::scale_base + eval::scale_per_pawn * pawn_counts[stronger_side]);
-    score.eg = (score.eg * scale) / eval::scale_limit;
+    phase_scores.eg = (phase_scores.eg * scale) / eval::scale_limit;
 
     const auto& schema            = feature_schema();
     const int   non_pawn_material = phase_counts[0] * schema[feature::material(KNIGHT)].weight.mg
@@ -189,18 +189,19 @@ EvalValue FeatureRecord::reconstruct() const noexcept {
     const int phase    = ((material - eval::material_eg) * eval::phase_limit)
                     / (eval::material_mg - eval::material_eg);
 
-    const EvalValue white_value =
-        (score.mg * phase + score.eg * (eval::phase_limit - phase)) / eval::phase_limit;
-    const EvalValue side_value = turn == WHITE ? white_value : -white_value;
+    const Score white_value =
+        (phase_scores.mg * phase + phase_scores.eg * (eval::phase_limit - phase))
+        / eval::phase_limit;
+    const Score side_value = turn == WHITE ? white_value : -white_value;
     return side_value + eval::tempo_bonus;
 }
 
 void FeatureRecord::complete(const Board& board,
                              TaperedScore unscaled,
                              TaperedScore scaled,
-                             EvalValue    tapered_value,
-                             EvalValue    side_to_move_value,
-                             EvalValue    value) noexcept {
+                             Score        tapered_value,
+                             Score        side_to_move_value,
+                             Score        value) noexcept {
     phase_counts = {
         board.count(WHITE, KNIGHT) + board.count(BLACK, KNIGHT),
         board.count(WHITE, BISHOP) + board.count(BLACK, BISHOP),

@@ -27,7 +27,7 @@ void Worker::build_root_lines() {
 
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         if (limits.allows_root_move(move))
-            root_lines.push_back(RootLine{.root_move = move, .value = -eval_value::inf});
+            root_lines.push_back(RootLine{.root_move = move, .value = -scores::inf});
     }
 }
 
@@ -36,7 +36,7 @@ RootLine Worker::terminal_root_result() const {
 
     return RootLine{
         .root_move = NULL_MOVE,
-        .value     = board.is_check() ? -eval_value::mate : eval_value::draw,
+        .value     = board.is_check() ? -scores::mate : scores::draw,
         .depth     = 0,
         .completed = true,
     };
@@ -77,13 +77,13 @@ bool Worker::should_search_root_depth(int depth) const noexcept {
 }
 
 // Root aspiration loop for a single depth.
-bool Worker::search_root_depth(int depth, EvalValue previous_value) {
+bool Worker::search_root_depth(int depth, Score previous_value) {
     assert(depth >= 1);
 
-    EvalValue delta       = 50;
-    EvalValue alpha       = std::max(previous_value - delta, -eval_value::inf);
-    EvalValue beta        = std::min(previous_value + delta, eval_value::inf);
-    int       retry_depth = depth;
+    Score delta       = 50;
+    Score alpha       = std::max(previous_value - delta, -scores::inf);
+    Score beta        = std::min(previous_value + delta, scores::inf);
+    int   retry_depth = depth;
 
     while (!stop_requested()) {
         // Keep root order but clear stale attempt state.
@@ -99,19 +99,19 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
         std::stable_sort(root_lines.begin(), root_lines.end(), is_better_root_line);
         const RootLine& best_line = root_lines.front();
         assert(best_line.has_completed_depth());
-        const EvalValue value = best_line.value;
-        assert(value > -eval_value::inf && value < eval_value::inf);
+        const Score value = best_line.value;
+        assert(value > -scores::inf && value < scores::inf);
 
         if (value <= alpha) {
             // Fail low: recenter the lower bound and restore the nominal depth.
             stats.aspiration_fail_low();
-            alpha       = std::max(value - delta, -eval_value::inf);
+            alpha       = std::max(value - delta, -scores::inf);
             retry_depth = depth;
         } else if (value >= beta) {
             // Fail high: retry one ply shallower, except for mate-like scores.
             stats.aspiration_fail_high();
-            beta        = std::min(value + delta, eval_value::inf);
-            retry_depth = value <= -eval_value::mate_bound || value >= eval_value::mate_bound
+            beta        = std::min(value + delta, scores::inf);
+            retry_depth = value <= -scores::mate_bound || value >= scores::mate_bound
                             ? depth
                             : std::max(1, depth - 1);
         } else {
@@ -124,18 +124,15 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
         }
 
         // Recenter with the current delta above, then grow it for the next miss.
-        const EvalValue growth = delta / 2;
-        delta = delta >= eval_value::inf - growth ? eval_value::inf : delta + growth;
+        const Score growth = delta / 2;
+        delta              = delta >= scores::inf - growth ? scores::inf : delta + growth;
     }
 
     return false;
 }
 
 // Fixed-window root pass. Caller owns attempt reset and result ordering.
-bool Worker::search_root_window(int       search_depth,
-                                int       nominal_depth,
-                                EvalValue alpha,
-                                EvalValue beta) {
+bool Worker::search_root_window(int search_depth, int nominal_depth, Score alpha, Score beta) {
     assert(!root_lines.empty());
     assert(search_depth >= 1);
     assert(nominal_depth >= search_depth);
@@ -158,7 +155,7 @@ bool Worker::search_root_window(int       search_depth,
         // Root PVS searches full-window until a root PV is established.
         // Scout later root moves and re-search only strict alpha improvements.
         PrincipalVariation child_pv;
-        EvalValue          value;
+        Score              value;
         if (move_count == 1 || !has_pv_move) {
             value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, &child_pv);
         } else {
@@ -190,7 +187,7 @@ bool Worker::search_root_window(int       search_depth,
 
             alpha       = value;
             has_pv_move = true;
-        } else if (move_count > 1 && has_pv_move && value == alpha && alpha > -eval_value::inf) {
+        } else if (move_count > 1 && has_pv_move && value == alpha && alpha > -scores::inf) {
             // Keep the full-window alpha raiser ordered first on scout ties.
             line.value = alpha - 1;
         }

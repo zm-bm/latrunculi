@@ -9,7 +9,7 @@ namespace search {
 
 namespace {
 
-RootLine completed_root_line(Move move, EvalValue value, int depth) {
+RootLine completed_root_line(Move move, Score value, int depth) {
     return RootLine{.root_move = move, .value = value, .depth = depth, .completed = true};
 }
 
@@ -65,7 +65,7 @@ TEST(RootLineTest, PreservesFallbackWhenCandidatesAreUnusable) {
     EXPECT_EQ(select_best_root_line(usable_fallback, candidates), usable_fallback);
 
     const RootLine unusable_fallback{
-        .root_move = NULL_MOVE, .value = eval_value::draw, .depth = 1, .completed = true};
+        .root_move = NULL_MOVE, .value = scores::draw, .depth = 1, .completed = true};
     EXPECT_EQ(select_best_root_line(unusable_fallback, candidates), unusable_fallback);
 }
 

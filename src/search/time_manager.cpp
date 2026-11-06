@@ -69,12 +69,12 @@ TimeManager::TimeManager(const Limits& limits, Color side) {
     soft_target = base_target;
 }
 
-void TimeManager::update_after_iteration(int depth, Move best_move, EvalValue score) {
+void TimeManager::update_after_iteration(int depth, Move best_move, Score score) {
     if (!soft_target)
         return;
 
     assert(depth >= 1 && !best_move.is_null());
-    assert(score > -eval_value::inf && score < eval_value::inf);
+    assert(score > -scores::inf && score < scores::inf);
 
     const bool has_previous_move = !previous_best_move.is_null();
     const bool same_best_move    = has_previous_move && best_move == previous_best_move;
@@ -89,8 +89,8 @@ void TimeManager::update_after_iteration(int depth, Move best_move, EvalValue sc
             percent = ChangedMovePercent;
 
         // Mate distance is not a centipawn swing; only compare ordinary scores.
-        if (has_previous_move && std::abs(previous_score) <= eval_value::mate_bound
-            && std::abs(score) <= eval_value::mate_bound)
+        if (has_previous_move && std::abs(previous_score) <= scores::mate_bound
+            && std::abs(score) <= scores::mate_bound)
             percent += std::clamp(
                 (previous_score - score) / ScoreDropCpPerPercent, 0, MaxScoreDropPercent);
         soft_target =

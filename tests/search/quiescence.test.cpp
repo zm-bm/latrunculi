@@ -41,15 +41,15 @@ protected:
     Board& position() { return SearchTestAccess::board(worker); }
     int&   ply() { return SearchTestAccess::search_ply(worker); }
 
-    EvalValue search(EvalValue alpha, EvalValue beta) {
+    Score search(Score alpha, Score beta) {
         return SearchTestAccess::quiescence<NodeType::NonPv>(worker, alpha, beta);
     }
 
-    EvalValue pv_search(EvalValue alpha, EvalValue beta, PrincipalVariation& pv) {
+    Score pv_search(Score alpha, Score beta, PrincipalVariation& pv) {
         return SearchTestAccess::quiescence<NodeType::Pv>(worker, alpha, beta, &pv);
     }
 
-    EvalValue depth_zero(EvalValue alpha, EvalValue beta) {
+    Score depth_zero(Score alpha, Score beta) {
         return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, 0);
     }
 
@@ -84,8 +84,8 @@ TEST_F(QuiescenceTest, DepthZeroDispatchesToQuiescence) {
     Board board{"k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1"};
     load(board);
 
-    const EvalValue static_eval = eval::evaluate(position());
-    EXPECT_GT(depth_zero(-eval_value::inf, eval_value::inf), static_eval);
+    const Score static_eval = eval::evaluate(position());
+    EXPECT_GT(depth_zero(-scores::inf, scores::inf), static_eval);
     EXPECT_GT(worker.node_count(), 1U);
 
 #if LATRUNCULI_SEARCH_STATS
@@ -98,20 +98,20 @@ TEST_F(QuiescenceTest, TerminatesDrawAndMaxPlyWithoutTtStore) {
 
     Board depth_zero_draw{drawn};
     load(depth_zero_draw);
-    EXPECT_EQ(depth_zero(-eval_value::inf, eval_value::inf), eval_value::draw);
+    EXPECT_EQ(depth_zero(-scores::inf, scores::inf), scores::draw);
     EXPECT_EQ(worker.node_count(), 1U);
     EXPECT_FALSE(record().has_value());
 
     Board qsearch_draw{drawn};
     load(qsearch_draw);
-    EXPECT_EQ(search(-eval_value::inf, eval_value::inf), eval_value::draw);
+    EXPECT_EQ(search(-scores::inf, scores::inf), scores::draw);
     EXPECT_EQ(worker.node_count(), 1U);
     EXPECT_FALSE(record().has_value());
 
     Board max_ply{board_test::fen::quiet_black_to_move};
     load(max_ply);
     ply() = engine::max_search_ply;
-    EXPECT_EQ(search(-eval_value::inf, eval_value::inf), eval::evaluate(position()));
+    EXPECT_EQ(search(-scores::inf, scores::inf), eval::evaluate(position()));
     EXPECT_EQ(worker.node_count(), 1U);
     EXPECT_FALSE(record().has_value());
 }
@@ -120,14 +120,14 @@ TEST_F(QuiescenceTest, AdjudicatesFiftyMoveBoundaryBeforeTtAndMaxPly) {
     struct Case {
         const char* fen;
         int         search_ply;
-        EvalValue   value;
+        Score       value;
     };
     constexpr std::array cases{
-        Case{"7k/6Q1/5K2/8/8/8/8/8 b - - 100 1", 3, -eval_value::mate + 3},
+        Case{"7k/6Q1/5K2/8/8/8/8/8 b - - 100 1", 3, -scores::mate + 3},
         Case{"7k/6Q1/5K2/8/8/8/8/8 b - - 100 1",
              engine::max_search_ply,
-             -eval_value::mate + engine::max_search_ply},
-        Case{"7k/7Q/5K2/8/8/8/8/8 b - - 100 1", 3, eval_value::draw},
+             -scores::mate + engine::max_search_ply},
+        Case{"7k/7Q/5K2/8/8/8/8/8 b - - 100 1", 3, scores::draw},
     };
 
     for (const auto& tc : cases) {
@@ -139,7 +139,7 @@ TEST_F(QuiescenceTest, AdjudicatesFiftyMoveBoundaryBeforeTtAndMaxPly) {
         tt.store(position().tt_key(), NULL_MOVE, 1234, 8, TTBound::Exact, ply());
         EXPECT_EQ(search(-1, 0), tc.value);
         PrincipalVariation pv;
-        EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, pv), tc.value);
+        EXPECT_EQ(pv_search(-scores::inf, scores::inf, pv), tc.value);
     }
 }
 
@@ -147,7 +147,7 @@ TEST_F(QuiescenceTest, StandPatFailHighStoresLowerBound) {
     Board board{board_test::fen::quiet_black_to_move};
     load(board);
 
-    const EvalValue static_eval = eval::evaluate(position());
+    const Score static_eval = eval::evaluate(position());
     EXPECT_EQ(search(static_eval - 100, static_eval), static_eval);
 
     const auto stored = record();
@@ -163,20 +163,19 @@ TEST_F(QuiescenceTest, HandlesCheckEvasionsAndCheckmate) {
     load(evasion_board);
     const Move evasion = find_move("a8b8");
     ASSERT_FALSE(evasion.is_null());
-    const EvalValue expected =
-        -with_move(evasion, [&] { return search(-eval_value::inf, eval_value::inf); });
+    const Score expected = -with_move(evasion, [&] { return search(-scores::inf, scores::inf); });
 
     load(evasion_board);
-    EXPECT_EQ(search(-eval_value::inf, eval_value::inf), expected);
+    EXPECT_EQ(search(-scores::inf, scores::inf), expected);
 
     Board mate{"7k/6Q1/6K1/8/8/8/8/8 b - - 0 1"};
     load(mate);
     ply() = 3;
-    EXPECT_EQ(search(-eval_value::inf, eval_value::inf), -eval_value::mate + 3);
+    EXPECT_EQ(search(-scores::inf, scores::inf), -scores::mate + 3);
 
     const auto stored = record();
     ASSERT_TRUE(stored.has_value());
-    EXPECT_EQ(stored->score, -eval_value::mate);
+    EXPECT_EQ(stored->score, -scores::mate);
     EXPECT_EQ(stored->bound, TTBound::Exact);
     EXPECT_EQ(stored->move, NULL_MOVE);
 }
@@ -188,7 +187,7 @@ TEST_F(QuiescenceTest, PvSearchRebuildsContinuationWithRetainedTt) {
     ASSERT_FALSE(capture.is_null());
 
     PrincipalVariation cold_pv;
-    const EvalValue    value = pv_search(-eval_value::inf, eval_value::inf, cold_pv);
+    const Score        value = pv_search(-scores::inf, scores::inf, cold_pv);
     EXPECT_GT(value, eval::evaluate(position()));
     ASSERT_EQ(cold_pv.size(), 1);
 
@@ -197,7 +196,7 @@ TEST_F(QuiescenceTest, PvSearchRebuildsContinuationWithRetainedTt) {
     ASSERT_EQ(stored->bound, TTBound::Exact);
 
     PrincipalVariation warm_pv;
-    EXPECT_EQ(pv_search(-eval_value::inf, eval_value::inf, warm_pv), value);
+    EXPECT_EQ(pv_search(-scores::inf, scores::inf, warm_pv), value);
     ASSERT_EQ(warm_pv.size(), 1);
     EXPECT_EQ(warm_pv.front(), capture);
 }
@@ -208,7 +207,7 @@ TEST_F(QuiescenceTest, SettlesTacticalPositionWithoutSearchState) {
     Board          intervening{board_test::fen::one_legal_evasion};
     Board          second{tactical};
 
-    tt.store(first.tt_key(), NULL_MOVE, -eval_value::mate, 0, TTBound::Exact, 0);
+    tt.store(first.tt_key(), NULL_MOVE, -scores::mate, 0, TTBound::Exact, 0);
     ASSERT_TRUE(pool.settle(first));
     tt.clear();
     ASSERT_TRUE(pool.settle(intervening));
@@ -249,13 +248,13 @@ TEST_F(QuiescenceTest, UsesEligibleTtCutoffs) {
     struct Case {
         const char* name;
         TTBound     bound;
-        EvalValue   score;
-        EvalValue   alpha;
-        EvalValue   beta;
+        Score       score;
+        Score       alpha;
+        Score       beta;
     };
 
     constexpr std::array cases{
-        Case{"exact", TTBound::Exact, 321, -eval_value::inf, eval_value::inf},
+        Case{"exact", TTBound::Exact, 321, -scores::inf, scores::inf},
         Case{"lower", TTBound::LowerBound, 500, 100, 200},
         Case{"upper", TTBound::UpperBound, -500, -200, -100},
     };
@@ -278,16 +277,16 @@ TEST_F(QuiescenceTest, UsesEligibleTtCutoffs) {
 TEST_F(QuiescenceTest, IgnoresQuietNoncheckingTtMove) {
     Board baseline_board{board_test::fen::perft_position_3};
     load(baseline_board);
-    const EvalValue baseline = search(-eval_value::inf, eval_value::inf);
+    const Score baseline = search(-scores::inf, scores::inf);
 
     Board board{board_test::fen::perft_position_3};
     load(board);
     const Move quiet{E2, E3};
     ASSERT_TRUE(position().is_pseudo_legal(quiet));
     ASSERT_FALSE(position().is_capture(quiet));
-    tt.store(position().tt_key(), quiet, -eval_value::inf + 1000, 0, TTBound::LowerBound, ply());
+    tt.store(position().tt_key(), quiet, -scores::inf + 1000, 0, TTBound::LowerBound, ply());
 
-    EXPECT_EQ(search(-eval_value::inf, eval_value::inf), baseline);
+    EXPECT_EQ(search(-scores::inf, scores::inf), baseline);
 }
 
 TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
@@ -295,13 +294,13 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
 
     Board exact_source{tactical};
     load(exact_source);
-    const EvalValue static_eval = eval::evaluate(position());
-    const EvalValue exact       = search(-eval_value::inf, eval_value::inf);
+    const Score static_eval = eval::evaluate(position());
+    const Score exact       = search(-scores::inf, scores::inf);
     ASSERT_GT(exact, static_eval);
 
     Board lower_board{tactical};
     load(lower_board);
-    const EvalValue beta = static_eval + std::max(1, (exact - static_eval) / 2);
+    const Score beta = static_eval + std::max(1, (exact - static_eval) / 2);
     EXPECT_GE(search(beta - 100, beta), beta);
     auto stored = record();
     ASSERT_TRUE(stored.has_value());
@@ -310,7 +309,7 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
 
     Board upper_board{board_test::fen::quiet_black_to_move};
     load(upper_board);
-    const EvalValue upper_eval = eval::evaluate(position());
+    const Score upper_eval = eval::evaluate(position());
     EXPECT_LT(search(upper_eval + 1, upper_eval + 100), upper_eval + 1);
     stored = record();
     ASSERT_TRUE(stored.has_value());
@@ -319,7 +318,7 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
 
     Board exact_board{tactical};
     load(exact_board);
-    EXPECT_GT(search(static_eval - 1, eval_value::inf), static_eval);
+    EXPECT_GT(search(static_eval - 1, scores::inf), static_eval);
     stored = record();
     ASSERT_TRUE(stored.has_value());
     EXPECT_EQ(stored->bound, TTBound::Exact);
@@ -330,11 +329,11 @@ TEST_F(QuiescenceTest, PvNodeIgnoresLowerTtBound) {
     const Board board{board_test::fen::quiet_black_to_move};
     load(board);
     PrincipalVariation baseline_pv;
-    const EvalValue    baseline = pv_search(-eval_value::inf, eval_value::inf, baseline_pv);
+    const Score        baseline = pv_search(-scores::inf, scores::inf, baseline_pv);
 
-    const EvalValue alpha = baseline - 100;
-    const EvalValue beta  = baseline + 100;
-    const EvalValue bogus = beta + 25;
+    const Score alpha = baseline - 100;
+    const Score beta  = baseline + 100;
+    const Score bogus = beta + 25;
 
     load(board);
     tt.store(position().tt_key(), NULL_MOVE, bogus, 0, TTBound::LowerBound, ply());
@@ -347,11 +346,11 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
     Board          baseline_board{tactical};
     load(baseline_board);
 
-    const EvalValue    static_eval = eval::evaluate(position());
-    const EvalValue    alpha       = static_eval - 100;
-    const EvalValue    beta        = static_eval + 500;
+    const Score        static_eval = eval::evaluate(position());
+    const Score        alpha       = static_eval - 100;
+    const Score        beta        = static_eval + 500;
     PrincipalVariation baseline_pv;
-    const EvalValue    baseline = pv_search(alpha, beta, baseline_pv);
+    const Score        baseline = pv_search(alpha, beta, baseline_pv);
 
     Board bounded_board{tactical};
     load(bounded_board);
@@ -374,8 +373,8 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
 
 TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
     load(Board{"1n2k1nr/8/8/3p4/4P3/8/8/RN2K1N1 w - - 0 1"});
-    const EvalValue stand_pat = eval::evaluate(position());
-    const EvalValue estimate  = stand_pat + eval::pawn.eg + detail::QCaptureMargin;
+    const Score stand_pat = eval::evaluate(position());
+    const Score estimate  = stand_pat + eval::pawn.eg + detail::QCaptureMargin;
 
     PrincipalVariation pv;
     EXPECT_EQ(pv_search(estimate + 1, estimate + 2, pv), estimate);
@@ -389,7 +388,7 @@ TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
 
 TEST_F(QuiescenceTest, CaptureGainUsesEvaluationUnitsForMinorVictim) {
     load(Board{"1n2k1nr/8/8/3n4/4P3/8/8/RN2K1N1 w - - 0 1"});
-    const EvalValue alpha = eval::evaluate(position()) + 700;
+    const Score alpha = eval::evaluate(position()) + 700;
     // A SEE knight price plus the margin would incorrectly discard this capture.
     search(alpha, alpha + 1);
     EXPECT_GT(worker.node_count(), 1U);
@@ -397,9 +396,9 @@ TEST_F(QuiescenceTest, CaptureGainUsesEvaluationUnitsForMinorVictim) {
 
 TEST_F(QuiescenceTest, CaptureGainPreservesCheckingMateFarBelowAlpha) {
     load(Board{"rn3rk1/5ppp/8/8/8/3B4/8/RN2K1NQ w - - 0 1"});
-    const EvalValue    alpha = eval::evaluate(position()) + 5000;
+    const Score        alpha = eval::evaluate(position()) + 5000;
     PrincipalVariation pv;
-    EXPECT_EQ(pv_search(alpha, alpha + 1, pv), eval_value::mate - 1);
+    EXPECT_EQ(pv_search(alpha, alpha + 1, pv), scores::mate - 1);
     ASSERT_GT(pv.size(), 0);
     EXPECT_EQ(pv.front(), Move(H1, H7));
 }

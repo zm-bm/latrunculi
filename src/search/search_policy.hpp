@@ -17,7 +17,7 @@ namespace search::detail {
 // A cached score has no continuation, so PV nodes must search.
 template <NodeType Node>
 bool tt_cutoff_allowed(
-    const TTRecord& record, EvalValue adjusted_score, int depth, EvalValue alpha, EvalValue beta) {
+    const TTRecord& record, Score adjusted_score, int depth, Score alpha, Score beta) {
     if constexpr (Node == NodeType::Pv)
         return false;
 
@@ -36,15 +36,15 @@ inline constexpr int       NullMoveMinDepth        = 3;
 inline constexpr int       NullMoveReductionBase   = 3;
 inline constexpr int       NullMoveReductionMax    = 6;
 inline constexpr int       NullMoveDepthDivisor    = 7;
-inline constexpr EvalValue NullMoveSurplusPerPly   = 2 * eval::pawn.mg;
+inline constexpr Score     NullMoveSurplusPerPly   = 2 * eval::pawn.mg;
 inline constexpr int       NullMoveSurplusBonusMax = 2;
 
 inline int
-null_move_reduction(const int depth, const EvalValue static_eval, const EvalValue beta) noexcept {
+null_move_reduction(const int depth, const Score static_eval, const Score beta) noexcept {
     assert(depth >= NullMoveMinDepth);
 
-    const EvalValue positive_surplus = std::max(static_eval - beta, EvalValue{0});
-    const int       surplus_bonus =
+    const Score positive_surplus = std::max(static_eval - beta, Score{0});
+    const int   surplus_bonus =
         std::min(int(positive_surplus / NullMoveSurplusPerPly), NullMoveSurplusBonusMax);
     const int reduction = NullMoveReductionBase + depth / NullMoveDepthDivisor + surplus_bonus;
 
@@ -63,9 +63,9 @@ inline constexpr int LateMovePruningMoveCount = 12;
 
 // Singular verification policy and same-ply restoration.
 struct SingularVerification {
-    EvalValue beta;
-    int       depth;
-    bool      multicut_allowed;
+    Score beta;
+    int   depth;
+    bool  multicut_allowed;
 };
 
 template <NodeType Node>
@@ -75,8 +75,8 @@ std::optional<SingularVerification> singular_verification(const Board&       boa
                                                           int                ply,
                                                           int                root_depth,
                                                           int                depth,
-                                                          EvalValue          alpha,
-                                                          EvalValue          beta,
+                                                          Score              alpha,
+                                                          Score              beta,
                                                           bool               verification_active);
 
 // Exclusion belongs to this ply; verification stays active throughout the call.
@@ -175,6 +175,6 @@ LmrReduction lmr_reduction(const LmrInputs& input) {
 }
 
 // Positional allowance for the heuristic qsearch capture-gain estimate.
-inline constexpr EvalValue QCaptureMargin = 300;
+inline constexpr Score QCaptureMargin = 300;
 
 } // namespace search::detail

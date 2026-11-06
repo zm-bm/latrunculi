@@ -86,7 +86,7 @@ TEST_F(RootSearchTest, SearchesDrawnRootForLegalMove) {
     load(board, 1);
     ASSERT_TRUE(position().is_draw());
 
-    EXPECT_EQ(worker.search(), eval_value::draw);
+    EXPECT_EQ(worker.search(), scores::draw);
     EXPECT_TRUE(result().completed);
     EXPECT_TRUE(position().is_legal_move(result().root_move));
     EXPECT_GT(worker.node_count(), 1U);
@@ -124,8 +124,7 @@ TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
     const RootLine winning_line = *winning_it;
     lines()                     = {first_line, winning_line};
 
-    ASSERT_TRUE(
-        SearchTestAccess::search_root_window(worker, 1, 1, -eval_value::inf, eval_value::inf));
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 1, 1, -scores::inf, scores::inf));
     EXPECT_GT(lines()[1].value, lines()[0].value);
     EXPECT_EQ(progress_count(1), 2);
 
@@ -200,7 +199,7 @@ TEST_F(RootSearchTest, SuppressesOnlyIdenticalProgressReports) {
 TEST_F(RootSearchTest, WidensAspirationWindowAfterFailLowAndFailHigh) {
     struct Case {
         const char* name;
-        EvalValue   previous;
+        Score       previous;
         bool        fail_low;
     };
 
@@ -265,17 +264,17 @@ TEST_F(RootSearchTest, StoppedAspirationPreservesLastAcceptedSnapshot) {
 TEST_F(RootSearchTest, HandlesMateInOneCheckmateAndStalemate) {
     struct Case {
         const char* fen;
-        EvalValue   value;
+        Score       value;
         const char* move;
         std::size_t pv_size;
     };
 
     constexpr std::array cases{
-        Case{"7R/8/8/8/8/1K6/8/1k6 w - - 0 1", eval_value::mate - 1, "h8h1", 1},
-        Case{"7k/8/5KQ1/8/8/8/8/8 w - - 98 1", eval_value::mate - 1, "g6g7", 1},
-        Case{"7k/8/5KQ1/8/8/8/8/8 w - - 99 1", eval_value::mate - 1, "g6g7", 1},
-        Case{"7k/6Q1/6K1/8/8/8/8/8 b - - 0 1", -eval_value::mate, "none", 0},
-        Case{board_test::fen::stalemate, eval_value::draw, "none", 0},
+        Case{"7R/8/8/8/8/1K6/8/1k6 w - - 0 1", scores::mate - 1, "h8h1", 1},
+        Case{"7k/8/5KQ1/8/8/8/8/8 w - - 98 1", scores::mate - 1, "g6g7", 1},
+        Case{"7k/8/5KQ1/8/8/8/8/8 w - - 99 1", scores::mate - 1, "g6g7", 1},
+        Case{"7k/6Q1/6K1/8/8/8/8/8 b - - 0 1", -scores::mate, "none", 0},
+        Case{board_test::fen::stalemate, scores::draw, "none", 0},
     };
 
     for (const auto& tc : cases) {
@@ -296,7 +295,7 @@ TEST_F(RootSearchTest, TakesLooseRookAtDepthOne) {
     Board board{"k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1"};
     load(board, 1);
 
-    const EvalValue static_score = eval::evaluate(board);
+    const Score static_score = eval::evaluate(board);
     EXPECT_GT(worker.search(), static_score);
     EXPECT_EQ(worker.root_snapshot().root_move.str(), "d1e2");
 }

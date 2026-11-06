@@ -29,7 +29,7 @@ constexpr int          same_tag_depth_slack = 2;
     return record;
 }
 
-[[nodiscard]] std::int16_t encode_static_eval(EvalValue value) {
+[[nodiscard]] std::int16_t encode_static_eval(Score value) {
     if (value < std::numeric_limits<std::int16_t>::min() || value >= TTRecord::no_static_eval)
         return TTRecord::no_static_eval;
     return std::int16_t(value);
@@ -83,30 +83,30 @@ TTProbe TranspositionTable::probe(PositionKey tt_key) const {
 
 void TranspositionTable::store(PositionKey tt_key,
                                Move        move,
-                               EvalValue   score,
+                               Score       score,
                                int         depth,
                                TTBound     bound,
                                int         ply,
-                               EvalValue   static_eval) {
+                               Score       static_eval) {
     store(probe(tt_key).writer, tt_key, move, score, depth, bound, ply, static_eval);
 }
 
 void TranspositionTable::store(TTWriter    writer,
                                PositionKey tt_key,
                                Move        move,
-                               EvalValue   score,
+                               Score       score,
                                int         depth,
                                TTBound     bound,
                                int         ply,
-                               EvalValue   static_eval) {
+                               Score       static_eval) {
     assert(writer.slot);
     assert(depth >= 0 && depth <= engine::max_search_depth);
     if (bound != TTBound::Exact && bound != TTBound::LowerBound && bound != TTBound::UpperBound)
         return;
 
-    if (score >= eval_value::tt_mate_bound)
+    if (score >= scores::tt_mate_bound)
         score += ply;
-    else if (score <= -eval_value::tt_mate_bound)
+    else if (score <= -scores::tt_mate_bound)
         score -= ply;
     assert(score >= std::numeric_limits<std::int16_t>::min()
            && score <= std::numeric_limits<std::int16_t>::max());

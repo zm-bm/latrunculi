@@ -20,7 +20,7 @@ private:
     explicit Evaluator(const Board&);
     Evaluator(const Evaluator&) = delete;
 
-    [[nodiscard]] EvalValue     evaluate();
+    [[nodiscard]] Score         evaluate();
     [[nodiscard]] FeatureRecord extract_features();
 
     const Board& board;
@@ -37,8 +37,8 @@ private:
     } zones;
 
     struct KingAttackersData {
-        int       count[N_COLORS]{};
-        EvalValue danger[N_COLORS]{};
+        int   count[N_COLORS]{};
+        Score danger[N_COLORS]{};
     } king_attackers;
 
     struct ScoreData {
@@ -68,7 +68,7 @@ private:
     FeatureRecord* feature_record = nullptr;
 
     template <bool Collecting>
-    EvalValue evaluate_impl();
+    Score evaluate_impl();
 
     template <bool Collecting>
     TaperedScore
@@ -125,9 +125,9 @@ private:
     template <PieceType P>
     int calculate_check_danger(Bitboard safe_checks, Bitboard all_checks) const;
 
-    int       scale_factor(Color color) const;
-    EvalValue taper_score(TaperedScore score) const;
-    int       phase() const;
+    int   scale_factor(Color color) const;
+    Score taper_score(TaperedScore phase_scores) const;
+    int   phase() const;
 
     template <Color C>
     void record_base_features();
@@ -135,7 +135,7 @@ private:
     template <bool Collecting, Color C>
     TaperedScore linear_feature(feature::Id id, TaperedScore weight, int coefficient = 1) const;
 
-    friend EvalValue     evaluate(const Board& board);
+    friend Score         evaluate(const Board& board);
     friend FeatureRecord extract_features(const Board& board);
 };
 
@@ -145,56 +145,57 @@ Evaluator::Evaluator(const Board& board) : board{board} {
 }
 
 template <bool Collecting>
-EvalValue Evaluator::evaluate_impl() {
+Score Evaluator::evaluate_impl() {
     if constexpr (Collecting) {
         record_base_features<WHITE>();
         record_base_features<BLACK>();
     }
 
-    TaperedScore score;
+    TaperedScore phase_scores;
 
     // Basic terms.
-    score += record_term<Collecting>(Term::Material, board.base_terms().material());
-    score += record_term<Collecting>(Term::PieceSquare, board.base_terms().piece_square());
-    score += record_term<Collecting>(
+    phase_scores += record_term<Collecting>(Term::Material, board.base_terms().material());
+    phase_scores += record_term<Collecting>(Term::PieceSquare, board.base_terms().piece_square());
+    phase_scores += record_term<Collecting>(
         Term::Pawns, evaluate_pawns<Collecting, WHITE>(), evaluate_pawns<Collecting, BLACK>());
-    score += record_term<Collecting>(Term::Knights,
-                                     evaluate_pieces<Collecting, WHITE, KNIGHT>(),
-                                     evaluate_pieces<Collecting, BLACK, KNIGHT>());
-    score += record_term<Collecting>(Term::Bishops,
-                                     evaluate_pieces<Collecting, WHITE, BISHOP>(),
-                                     evaluate_pieces<Collecting, BLACK, BISHOP>());
-    score += record_term<Collecting>(Term::Rooks,
-                                     evaluate_pieces<Collecting, WHITE, ROOK>(),
-                                     evaluate_pieces<Collecting, BLACK, ROOK>());
-    score += record_term<Collecting>(Term::Queens,
-                                     evaluate_pieces<Collecting, WHITE, QUEEN>(),
-                                     evaluate_pieces<Collecting, BLACK, QUEEN>());
+    phase_scores += record_term<Collecting>(Term::Knights,
+                                            evaluate_pieces<Collecting, WHITE, KNIGHT>(),
+                                            evaluate_pieces<Collecting, BLACK, KNIGHT>());
+    phase_scores += record_term<Collecting>(Term::Bishops,
+                                            evaluate_pieces<Collecting, WHITE, BISHOP>(),
+                                            evaluate_pieces<Collecting, BLACK, BISHOP>());
+    phase_scores += record_term<Collecting>(Term::Rooks,
+                                            evaluate_pieces<Collecting, WHITE, ROOK>(),
+                                            evaluate_pieces<Collecting, BLACK, ROOK>());
+    phase_scores += record_term<Collecting>(Term::Queens,
+                                            evaluate_pieces<Collecting, WHITE, QUEEN>(),
+                                            evaluate_pieces<Collecting, BLACK, QUEEN>());
 
     // Terms requiring data accumulated by basic terms.
-    score += record_term<Collecting>(
+    phase_scores += record_term<Collecting>(
         Term::KingSafety, evaluate_king_safety<WHITE>(), evaluate_king_safety<BLACK>());
-    score +=
+    phase_scores +=
         record_term<Collecting>(Term::Mobility, scores.mobility[WHITE], scores.mobility[BLACK]);
-    score += record_term<Collecting>(Term::Threats, scores.threats[WHITE], scores.threats[BLACK]);
+    phase_scores +=
+        record_term<Collecting>(Term::Threats, scores.threats[WHITE], scores.threats[BLACK]);
 
     const Color        side_to_move   = board.side_to_move();
-    const Color        stronger_side  = score.eg < 0 ? BLACK : WHITE;
-    const TaperedScore unscaled_score = score;
-    score.eg = (score.eg * scale_factor(stronger_side)) / eval::scale_limit;
+    const Color        stronger_side  = phase_scores.eg < 0 ? BLACK : WHITE;
+    const TaperedScore unscaled_score = phase_scores;
+    phase_scores.eg = (phase_scores.eg * scale_factor(stronger_side)) / eval::scale_limit;
 
-    const EvalValue tapered_value      = taper_score(score);
-    const EvalValue side_to_move_value = tapered_value * (side_to_move == WHITE ? 1 : -1);
-    const EvalValue final_value        = side_to_move_value + eval::tempo_bonus;
+    const Score tapered_value      = taper_score(phase_scores);
+    const Score side_to_move_value = tapered_value * (side_to_move == WHITE ? 1 : -1);
+    const Score final_value        = side_to_move_value + eval::tempo_bonus;
 
     if constexpr (Collecting)
         feature_record->complete(
-            board, unscaled_score, score, tapered_value, side_to_move_value, final_value);
+            board, unscaled_score, phase_scores, tapered_value, side_to_move_value, final_value);
 
     return final_value;
 }
 
-EvalValue Evaluator::evaluate() {
+Score Evaluator::evaluate() {
     return evaluate_impl<false>();
 }
 
@@ -312,7 +313,7 @@ TaperedScore Evaluator::evaluate_pawns() {
     const Bitboard pawn_files = bb::fill(pawns);
     const Bitboard isolated_pawns =
         (pawns & ~bb::shift_west(pawn_files)) & (pawns & ~bb::shift_east(pawn_files));
-    TaperedScore score = linear_feature<Collecting, C>(
+    TaperedScore phase_scores = linear_feature<Collecting, C>(
         feature::isolated_pawn, eval::isolated_pawn, bb::count(isolated_pawns));
 
     // backwards pawns: non-isolated pawns that can't advance safely
@@ -322,41 +323,41 @@ TaperedScore Evaluator::evaluate_pawns() {
     const Bitboard backwards_pawns =
         attacks::pawn_shift<pawn_delta::push, Opp>(stops & opp_attacks & ~attack_span)
         & ~isolated_pawns;
-    score += linear_feature<Collecting, C>(
+    phase_scores += linear_feature<Collecting, C>(
         feature::backward_pawn, eval::backward_pawn, bb::count(backwards_pawns));
 
     // Weak pawns are more exposed on files without any opposing pawn.
     const Bitboard open_files = ~bb::fill(opp_pawns);
-    score += linear_feature<Collecting, C>(feature::isolated_open_pawn,
-                                         eval::isolated_open_pawn,
-                                         bb::count(isolated_pawns & open_files));
-    score += linear_feature<Collecting, C>(feature::backward_open_pawn,
-                                         eval::backward_open_pawn,
-                                         bb::count(backwards_pawns & open_files));
+    phase_scores += linear_feature<Collecting, C>(feature::isolated_open_pawn,
+                                                  eval::isolated_open_pawn,
+                                                  bb::count(isolated_pawns & open_files));
+    phase_scores += linear_feature<Collecting, C>(feature::backward_open_pawn,
+                                                  eval::backward_open_pawn,
+                                                  bb::count(backwards_pawns & open_files));
 
     // doubled pawns: unsupported pawn with friendly pawns behind
     Bitboard pawns_behind  = pawns & bb::span_front<C>(pawns);
     Bitboard doubled_pawns = pawns_behind & ~pawn_attacks;
-    score += linear_feature<Collecting, C>(
+    phase_scores += linear_feature<Collecting, C>(
         feature::doubled_pawn, eval::doubled_pawn, bb::count(doubled_pawns));
 
     // connected links: count each adjacent pawn pair once, whether phalanx or diagonal support
-    const Bitboard east_pawns = bb::shift_east(pawns);
-    const int connected_links = bb::count(pawns & east_pawns)
+    const Bitboard east_pawns      = bb::shift_east(pawns);
+    const int      connected_links = bb::count(pawns & east_pawns)
                               + bb::count(pawns & bb::shift_north(east_pawns))
                               + bb::count(pawns & bb::shift_south(east_pawns));
-    score += linear_feature<Collecting, C>(
+    phase_scores += linear_feature<Collecting, C>(
         feature::connected_pawn_link, eval::connected_pawn_link, connected_links);
 
     // passed pawns: frontmost friendly pawn, with no opposing pawn ahead on this or adjacent files
-    const Bitboard passed_pawns =
-        pawns & ~bb::full_span<Opp>(opp_pawns) & ~bb::span_back<C>(pawns);
+    const Bitboard passed_pawns = pawns & ~bb::full_span<Opp>(opp_pawns) & ~bb::span_back<C>(pawns);
     bb::scan<C>(passed_pawns, [&](const Square square) {
         const Rank rank = square::relative_rank(square, C);
-        score += linear_feature<Collecting, C>(feature::passed_pawn(rank), eval::passed_pawn[rank]);
+        phase_scores +=
+            linear_feature<Collecting, C>(feature::passed_pawn(rank), eval::passed_pawn[rank]);
     });
 
-    return score;
+    return phase_scores;
 }
 
 /// eval all pieces of type p for color c
@@ -368,7 +369,7 @@ TaperedScore Evaluator::evaluate_pieces() {
     const Bitboard pawns     = board.pieces<PAWN>(C);
     const Bitboard opp_pawns = board.pieces<PAWN>(Opp);
 
-    TaperedScore score;
+    TaperedScore phase_scores;
     Bitboard     piece_bb = board.pieces<P>(C);
     bb::scan<C>(piece_bb, [&](Square sq) {
         const PieceContext context{.square    = sq,
@@ -381,28 +382,28 @@ TaperedScore Evaluator::evaluate_pieces() {
         update_attacks<C, P>(moves);
         update_mobility<Collecting, C, P>(moves);
         update_threats<Collecting, C, P>(context);
-        score += update_attackers<Collecting, C, P>(context, moves);
+        phase_scores += update_attackers<Collecting, C, P>(context, moves);
 
         if constexpr (P == BISHOP || P == KNIGHT) {
-            score += evaluate_minor_piece<Collecting, C, P>(context, moves);
+            phase_scores += evaluate_minor_piece<Collecting, C, P>(context, moves);
         }
 
         if constexpr (P == BISHOP) {
-            score += evaluate_bishop<Collecting, C>(context);
+            phase_scores += evaluate_bishop<Collecting, C>(context);
         } else if constexpr (P == ROOK) {
-            score += evaluate_rook<Collecting, C>(context);
+            phase_scores += evaluate_rook<Collecting, C>(context);
         } else if constexpr (P == QUEEN) {
-            score += evaluate_queen<Collecting, C>(context);
+            phase_scores += evaluate_queen<Collecting, C>(context);
         }
     });
 
     if constexpr (P == BISHOP) {
         if (board.count(C, BISHOP) > 1)
-            score += linear_feature<Collecting, C>(
+            phase_scores += linear_feature<Collecting, C>(
                 feature::piece_feature(feature::PieceFeature::BishopPair), eval::bishop_pair);
     }
 
-    return score;
+    return phase_scores;
 }
 
 /// king safety: pawn shelter and king danger
@@ -497,40 +498,40 @@ inline TaperedScore Evaluator::evaluate_minor_piece(const PieceContext& ctx,
     constexpr Color Opp = ~C;
     static_assert(P == KNIGHT || P == BISHOP);
 
-    TaperedScore score;
+    TaperedScore phase_scores;
     if (bb::contains(zones.outposts[C], ctx.square)) {
         if constexpr (P == KNIGHT)
-            score += linear_feature<Collecting, C>(
+            phase_scores += linear_feature<Collecting, C>(
                 feature::piece_feature(feature::PieceFeature::KnightOutpost), eval::knight_outpost);
         else
-            score += linear_feature<Collecting, C>(
+            phase_scores += linear_feature<Collecting, C>(
                 feature::piece_feature(feature::PieceFeature::BishopOutpost), eval::bishop_outpost);
     } else if constexpr (P == KNIGHT) {
         if (moves & zones.outposts[C]) {
-            score += linear_feature<Collecting, C>(
+            phase_scores += linear_feature<Collecting, C>(
                 feature::piece_feature(feature::PieceFeature::ReachableOutpost),
                 eval::reachable_outpost);
         }
     }
 
     if (bb::contains(attacks::pawn_shift<pawn_delta::push, Opp>(ctx.pawns), ctx.square)) {
-        score += linear_feature<Collecting, C>(
+        phase_scores += linear_feature<Collecting, C>(
             feature::piece_feature(feature::PieceFeature::MinorPawnShield),
             eval::minor_pawn_shield);
     }
 
-    return score;
+    return phase_scores;
 }
 
 /// bishop eval: long diagonals + pawn block penalty
 template <bool Collecting, Color C>
 inline TaperedScore Evaluator::evaluate_bishop(const PieceContext& ctx) const {
     constexpr Color Opp = ~C;
-    TaperedScore    score;
+    TaperedScore    phase_scores;
 
     const Bitboard xray_moves = attacks::piece_moves<BISHOP>(ctx.square, ctx.pawns);
     if (bb::is_many(eval::masks::center_squares & xray_moves))
-        score += linear_feature<Collecting, C>(
+        phase_scores += linear_feature<Collecting, C>(
             feature::piece_feature(feature::PieceFeature::BishopLongDiagonal),
             eval::bishop_long_diagonal);
 
@@ -546,11 +547,11 @@ inline TaperedScore Evaluator::evaluate_bishop(const PieceContext& ctx) const {
     const Bitboard pawn_chain = ctx.piece_bb & attacks::pawn_attacks<C>(ctx.pawns);
     const int blocking_factor = bb::count(blocked_pawns & eval::masks::center_files) + !pawn_chain;
 
-    score +=
+    phase_scores +=
         linear_feature<Collecting, C>(feature::piece_feature(feature::PieceFeature::BishopBlockers),
                                       eval::bishop_blockers,
                                       pawn_count * blocking_factor);
-    return score;
+    return phase_scores;
 }
 
 /// rook eval: open/semi-open file bonus, closed+blocked penalty
@@ -620,20 +621,20 @@ TaperedScore Evaluator::evaluate_shelter(const Square king_sq) const {
     const Bitboard opp_pawns_ahead = opp_pawns & pawn_mask;
     const File     file            = std::clamp(king_file, FILE2, FILE7);
 
-    TaperedScore score;
-    score += evaluate_shelter_file<C>(pawns_ahead, opp_pawns_ahead, file - 1);
-    score += evaluate_shelter_file<C>(pawns_ahead, opp_pawns_ahead, file);
-    score += evaluate_shelter_file<C>(pawns_ahead, opp_pawns_ahead, file + 1);
+    TaperedScore phase_scores;
+    phase_scores += evaluate_shelter_file<C>(pawns_ahead, opp_pawns_ahead, file - 1);
+    phase_scores += evaluate_shelter_file<C>(pawns_ahead, opp_pawns_ahead, file);
+    phase_scores += evaluate_shelter_file<C>(pawns_ahead, opp_pawns_ahead, file + 1);
 
-    score += eval::king_file[king_file];
+    phase_scores += eval::king_file[king_file];
 
     const Bitboard file_mask     = bb::file(king_file);
     const bool     open_file     = !(pawns & file_mask);
     const bool     opp_open_file = !(opp_pawns & file_mask);
 
-    score += eval::king_open_file[open_file][opp_open_file];
+    phase_scores += eval::king_open_file[open_file][opp_open_file];
 
-    return score;
+    return phase_scores;
 }
 
 /// shelter score for one file: friendly pawn rank + enemy pawn rank
@@ -651,11 +652,11 @@ inline TaperedScore Evaluator::evaluate_shelter_file(const Bitboard pawns,
         file_opp_pawns ? square::relative_rank(bb::frontmost<Opp>(file_opp_pawns), C) : RANK1;
     const bool blocked = file_pawns && (rank + 1 == opp_rank);
 
-    TaperedScore score;
-    score += eval::pawn_shelter[rank];
-    score += eval::pawn_storm[blocked][opp_rank];
+    TaperedScore phase_scores;
+    phase_scores += eval::pawn_shelter[rank];
+    phase_scores += eval::pawn_storm[blocked][opp_rank];
 
-    return score;
+    return phase_scores;
 }
 
 /// king danger from checks, weak defenses, pins, and king-zone attackers
@@ -732,11 +733,11 @@ int Evaluator::scale_factor(Color color) const {
 }
 
 // Blend middlegame and endgame scores based on game phase.
-EvalValue Evaluator::taper_score(TaperedScore score) const {
+Score Evaluator::taper_score(TaperedScore phase_scores) const {
     const int mg_phase = phase();
     const int eg_phase = eval::phase_limit - mg_phase;
 
-    return ((score.mg * mg_phase) + (score.eg * eg_phase)) / eval::phase_limit;
+    return ((phase_scores.mg * mg_phase) + (phase_scores.eg * eg_phase)) / eval::phase_limit;
 }
 
 // Game phase from MG piece values: zero is endgame and phase_limit is middlegame.
@@ -748,7 +749,7 @@ int Evaluator::phase() const {
          / (eval::material_mg - eval::material_eg);
 }
 
-EvalValue evaluate(const Board& board) {
+Score evaluate(const Board& board) {
     return Evaluator(board).evaluate();
 }
 

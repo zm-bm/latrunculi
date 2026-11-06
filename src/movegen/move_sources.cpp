@@ -175,11 +175,11 @@ inline OrderedCandidates::Candidate* OrderedCandidates::find_best_ready(const Ra
     int        best_score = 0;
     for (Candidate* candidate = range.cursor; candidate != range.end; ++candidate) {
         // Strict comparison preserves the first tie in the current buffer order.
-        const int score = candidate->score;
-        if ((best == nullptr || score > best_score) && candidate->state == CandidateState::Ready
-            && eligible(candidate->move)) {
+        const int candidate_score = candidate->score;
+        if ((best == nullptr || candidate_score > best_score)
+            && candidate->state == CandidateState::Ready && eligible(candidate->move)) {
             best       = candidate;
-            best_score = score;
+            best_score = candidate_score;
         }
     }
     return best;

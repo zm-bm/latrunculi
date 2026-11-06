@@ -139,15 +139,15 @@ struct FeatureRecord {
     TaperedScore                                           fixed_score        = TaperedScore::Zero;
     TaperedScore                                           unscaled_score     = TaperedScore::Zero;
     TaperedScore                                           scaled_score       = TaperedScore::Zero;
-    EvalValue                                              tapered_value      = 0;
-    EvalValue                                              side_to_move_value = 0;
-    EvalValue                                              value              = 0;
+    Score                                                  tapered_value      = 0;
+    Score                                                  side_to_move_value = 0;
+    Score                                                  value              = 0;
     Color                                                  turn               = WHITE;
 
     [[nodiscard]] const TermScore& term(Term term) const noexcept;
     [[nodiscard]] TaperedScore     term_total() const noexcept;
-    [[nodiscard]] EvalValue        white_value() const noexcept;
-    [[nodiscard]] EvalValue        reconstruct() const noexcept;
+    [[nodiscard]] Score            white_value() const noexcept;
+    [[nodiscard]] Score            reconstruct() const noexcept;
 
 private:
     void add(feature::Id id, int coefficient) noexcept {
@@ -155,20 +155,20 @@ private:
         coefficients[id] += coefficient;
     }
 
-    void record(Term term, Color color, TaperedScore score) noexcept {
+    void record(Term term, Color color, TaperedScore phase_scores) noexcept {
         TermScore& term_score = terms[std::to_underlying(term)];
         if (color == WHITE)
-            term_score.white = score;
+            term_score.white = phase_scores;
         else
-            term_score.black = score;
+            term_score.black = phase_scores;
     }
 
     void complete(const Board& board,
                   TaperedScore unscaled,
                   TaperedScore scaled,
-                  EvalValue    tapered_value,
-                  EvalValue    side_to_move_value,
-                  EvalValue    value) noexcept;
+                  Score        tapered_value,
+                  Score        side_to_move_value,
+                  Score        value) noexcept;
 
     friend class Evaluator;
 };

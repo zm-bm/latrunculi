@@ -139,14 +139,14 @@ TEST(TimeManagerTest, StabilitySavesTimeAndChangedFallingMoveRestoresIt) {
 
 TEST(TimeManagerTest, MateTransitionsDoNotBecomeCentipawnSwings) {
     struct ScoreTransition {
-        EvalValue previous;
-        EvalValue current;
+        Score previous;
+        Score current;
     };
     constexpr std::array cases{
-        ScoreTransition{eval_value::mate - 5, 100},
-        ScoreTransition{100, -eval_value::mate + 5},
-        ScoreTransition{eval_value::mate - 5, eval_value::mate - 9},
-        ScoreTransition{-eval_value::mate + 5, 100},
+        ScoreTransition{scores::mate - 5, 100},
+        ScoreTransition{100, -scores::mate + 5},
+        ScoreTransition{scores::mate - 5, scores::mate - 9},
+        ScoreTransition{-scores::mate + 5, 100},
     };
 
     for (const auto [previous, score] : cases) {

@@ -86,13 +86,13 @@ TEST(SearchLimitsTest, MateLimitUsesUciMoveDistanceForEitherSide) {
     Limits limits;
     limits.set_mate(2);
 
-    EXPECT_TRUE(limits.has_mate_within_limit(eval_value::mate - 3));
-    EXPECT_TRUE(limits.has_mate_within_limit(-eval_value::mate + 4));
-    EXPECT_FALSE(limits.has_mate_within_limit(eval_value::mate - 5));
+    EXPECT_TRUE(limits.has_mate_within_limit(scores::mate - 3));
+    EXPECT_TRUE(limits.has_mate_within_limit(-scores::mate + 4));
+    EXPECT_FALSE(limits.has_mate_within_limit(scores::mate - 5));
     EXPECT_FALSE(limits.has_mate_within_limit(200));
 
     limits.mate.reset();
-    EXPECT_FALSE(limits.has_mate_within_limit(eval_value::mate - 1));
+    EXPECT_FALSE(limits.has_mate_within_limit(scores::mate - 1));
 }
 
 } // namespace search

@@ -75,16 +75,16 @@ public:
     }
 
     template <search::NodeType Node>
-    static EvalValue alphabeta(search::Worker&             worker,
-                               EvalValue                   alpha,
-                               EvalValue                   beta,
-                               int                         depth,
-                               search::PrincipalVariation* pv = nullptr) {
+    static Score alphabeta(search::Worker&             worker,
+                           Score                       alpha,
+                           Score                       beta,
+                           int                         depth,
+                           search::PrincipalVariation* pv = nullptr) {
         return worker.alphabeta<Node>(alpha, beta, depth, pv);
     }
 
-    static EvalValue search_excluding_move(
-        search::Worker& worker, EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
+    static Score search_excluding_move(
+        search::Worker& worker, Score alpha, Score beta, int depth, Move excluded_move) {
         const search::detail::ScopedSingularVerification scope{
             worker.frames[worker.search_ply], worker.verification_active, excluded_move};
         return worker.alphabeta<search::NodeType::NonPv>(alpha, beta, depth, nullptr);
@@ -93,11 +93,11 @@ public:
     static auto singular_result(search::Worker&         worker,
                                 const search::TTRecord& record,
                                 int                     depth,
-                                EvalValue               alpha = -eval_value::inf,
-                                EvalValue               beta  = eval_value::inf) {
+                                Score                   alpha = -scores::inf,
+                                Score                   beta  = scores::inf) {
         struct Result {
-            bool                     extend{false};
-            std::optional<EvalValue> cutoff;
+            bool                 extend{false};
+            std::optional<Score> cutoff;
         };
         const auto request =
             search::detail::singular_verification<Node>(worker.board,
@@ -123,10 +123,10 @@ public:
     }
 
     template <search::NodeType Node>
-    static EvalValue quiescence(search::Worker&             worker,
-                                EvalValue                   alpha,
-                                EvalValue                   beta,
-                                search::PrincipalVariation* pv = nullptr) {
+    static Score quiescence(search::Worker&             worker,
+                            Score                       alpha,
+                            Score                       beta,
+                            search::PrincipalVariation* pv = nullptr) {
         return worker.quiescence<Node>(alpha, beta, pv);
     }
 
@@ -138,15 +138,12 @@ public:
         return worker.should_search_root_depth(depth);
     }
 
-    static bool search_root_depth(search::Worker& worker, int depth, EvalValue previous_value) {
+    static bool search_root_depth(search::Worker& worker, int depth, Score previous_value) {
         return worker.search_root_depth(depth, previous_value);
     }
 
-    static bool search_root_window(search::Worker& worker,
-                                   int             search_depth,
-                                   int             nominal_depth,
-                                   EvalValue       alpha,
-                                   EvalValue       beta) {
+    static bool search_root_window(
+        search::Worker& worker, int search_depth, int nominal_depth, Score alpha, Score beta) {
         return worker.search_root_window(search_depth, nominal_depth, alpha, beta);
     }
 

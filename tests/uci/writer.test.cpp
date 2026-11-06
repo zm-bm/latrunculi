@@ -103,8 +103,8 @@ TEST_F(UciWriterTest, SearchProgressWritesScoreFormats) {
 
     const ScoreCase cases[] = {
         {.value = 50, .expected_score = "score cp 50"},
-        {.value = eval_value::mate - 4, .expected_score = "score mate 2"},
-        {.value = -(eval_value::mate - 4), .expected_score = "score mate -2"},
+        {.value = scores::mate - 4, .expected_score = "score mate 2"},
+        {.value = -(scores::mate - 4), .expected_score = "score mate -2"},
     };
 
     Board board{board_test::fen::start};
@@ -145,7 +145,7 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
 
     search::RootLine null_best{
         .root_move = NULL_MOVE,
-        .value     = eval_value::draw,
+        .value     = scores::draw,
         .depth     = 1,
         .completed = true,
     };
@@ -154,7 +154,7 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
 
     search::RootLine incomplete{
         .root_move = Move{E2, E4},
-        .value     = eval_value::draw,
+        .value     = scores::draw,
         .depth     = 1,
         .completed = false,
         .pv        = pv_for_move(Move{E2, E4}),
@@ -164,7 +164,7 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
 
     search::RootLine depth_zero{
         .root_move = Move{E2, E4},
-        .value     = eval_value::draw,
+        .value     = scores::draw,
         .depth     = 0,
         .completed = true,
         .pv        = pv_for_move(Move{E2, E4}),
@@ -178,7 +178,7 @@ TEST_F(UciWriterTest, SearchProgressRejectsStaleRootPv) {
 
     search::RootLine first_move_mismatch{
         .root_move = Move{E2, E4},
-        .value     = eval_value::draw,
+        .value     = scores::draw,
         .depth     = 1,
         .completed = true,
         .pv        = pv_for_move(Move{D2, D4}),
@@ -188,7 +188,7 @@ TEST_F(UciWriterTest, SearchProgressRejectsStaleRootPv) {
 
     search::RootLine illegal_child{
         .root_move = Move{E2, E4},
-        .value     = eval_value::draw,
+        .value     = scores::draw,
         .depth     = 2,
         .completed = true,
         .pv        = pv_for_line(Move{E2, E4}, Move{H1, H2}),

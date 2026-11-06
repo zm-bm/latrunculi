@@ -30,14 +30,14 @@ void expect_term_score(std::string_view   fen,
 eval::TaperedScore shelter(std::initializer_list<Rank> shelter_ranks,
                            std::initializer_list<Rank> storm_ranks,
                            std::initializer_list<Rank> blocked_ranks) {
-    eval::TaperedScore score;
+    eval::TaperedScore shelter_scores;
     for (const Rank rank : shelter_ranks)
-        score += eval::pawn_shelter[rank];
+        shelter_scores += eval::pawn_shelter[rank];
     for (const Rank rank : storm_ranks)
-        score += eval::pawn_storm[0][rank];
+        shelter_scores += eval::pawn_storm[0][rank];
     for (const Rank rank : blocked_ranks)
-        score += eval::pawn_storm[1][rank];
-    return score;
+        shelter_scores += eval::pawn_storm[1][rank];
+    return shelter_scores;
 }
 
 eval::TaperedScore danger_score(int raw_danger) {

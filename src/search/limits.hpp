@@ -57,11 +57,11 @@ struct Limits {
             || std::find(root_moves.begin(), root_moves.end(), move) != root_moves.end();
     }
 
-    [[nodiscard]] bool has_mate_within_limit(EvalValue value) const noexcept {
-        if (!mate || *mate <= 0 || std::abs(value) <= eval_value::mate_bound)
+    [[nodiscard]] bool has_mate_within_limit(Score value) const noexcept {
+        if (!mate || *mate <= 0 || std::abs(value) <= scores::mate_bound)
             return false;
 
-        const int distance_in_plies = eval_value::mate - std::abs(value);
+        const int distance_in_plies = scores::mate - std::abs(value);
         const int distance_in_moves = (distance_in_plies + 1) / 2;
         return distance_in_moves <= *mate;
     }

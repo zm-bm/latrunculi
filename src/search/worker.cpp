@@ -47,7 +47,7 @@ RootLine Worker::root_snapshot() const {
 }
 
 // Search lifecycle.
-EvalValue Worker::search() {
+Score Worker::search() {
     reset_search_state();
 
     if (is_main_worker()) {

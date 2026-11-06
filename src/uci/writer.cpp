@@ -13,9 +13,9 @@ namespace uci {
 
 namespace {
 
-std::string format_score(EvalValue score) {
-    if (std::abs(score) > eval_value::mate_bound) {
-        int mate_distance = eval_value::mate - std::abs(score);
+std::string format_score(Score score) {
+    if (std::abs(score) > scores::mate_bound) {
+        int mate_distance = scores::mate - std::abs(score);
         int mate_in_n     = (mate_distance + 1) / 2;
         return "mate " + std::to_string(mate_in_n * (score > 0 ? 1 : -1));
     }

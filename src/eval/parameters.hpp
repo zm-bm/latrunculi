@@ -209,16 +209,16 @@ constexpr TaperedScore piece(PieceType pt, Color c = WHITE) {
 
 constexpr TaperedScore piece_sq(PieceType pt, Color c, Square sq) {
     assert(is_piece_type(pt));
-    Square       relative = square::relative(sq, c);
-    TaperedScore score    = {
-           .mg = piece_squares[piece_slot(pt)][std::to_underlying(Phase::Midgame)][relative],
-           .eg = piece_squares[piece_slot(pt)][std::to_underlying(Phase::Endgame)][relative]};
+    Square       relative      = square::relative(sq, c);
+    TaperedScore square_scores = {
+        .mg = piece_squares[piece_slot(pt)][std::to_underlying(Phase::Midgame)][relative],
+        .eg = piece_squares[piece_slot(pt)][std::to_underlying(Phase::Endgame)][relative]};
 
-    return (score * c * 2) - score;
+    return (square_scores * c * 2) - square_scores;
 }
 
-inline constexpr TaperedScore isolated_pawn = {-12, -21};
-inline constexpr TaperedScore backward_pawn = {-24, -17};
+inline constexpr TaperedScore isolated_pawn       = {-12, -21};
+inline constexpr TaperedScore backward_pawn       = {-24, -17};
 inline constexpr TaperedScore doubled_pawn  = {5, -30};
 inline constexpr TaperedScore connected_pawn_link = {31, 8};
 // Additional penalties for weak pawns on files without opposing pawns.

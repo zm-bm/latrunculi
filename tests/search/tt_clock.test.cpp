@@ -36,12 +36,12 @@ protected:
         SearchTestAccess::reset(worker);
     }
 
-    EvalValue root(const char* fen) {
+    Score root(const char* fen) {
         load(Board(fen));
         return worker.search();
     }
 
-    EvalValue search(bool pv, int depth, EvalValue alpha, EvalValue beta) {
+    Score search(bool pv, int depth, Score alpha, Score beta) {
         if (pv)
             return SearchTestAccess::alphabeta<NodeType::Pv>(worker, alpha, beta, depth);
         return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, depth);
@@ -52,12 +52,12 @@ TEST_F(TtClockTest, RetainedLowClockSearchCannotHideImminentDraw) {
     for (int repeat = 0; repeat < 3; ++repeat) {
         SCOPED_TRACE(repeat);
         tt.clear();
-        EXPECT_EQ(root(high_clock_queen_fen), eval_value::draw);
+        EXPECT_EQ(root(high_clock_queen_fen), scores::draw);
         tt.clear();
         EXPECT_GT(root(low_clock_queen_fen), 1000);
-        EXPECT_EQ(root(high_clock_queen_fen), eval_value::draw);
+        EXPECT_EQ(root(high_clock_queen_fen), scores::draw);
         tt.clear(); // Clear only the TT, preserving search heuristics.
-        EXPECT_EQ(root(high_clock_queen_fen), eval_value::draw);
+        EXPECT_EQ(root(high_clock_queen_fen), scores::draw);
         EXPECT_GT(root(low_clock_queen_fen), 1000);
     }
 }
@@ -68,32 +68,32 @@ TEST_F(TtClockTest, MainAndQuiescenceSeparateLowAndNearLimitBounds) {
             SCOPED_TRACE(testing::Message() << "depth=" << depth << " pv=" << pv);
             tt.clear();
             load(Board(low_clock_evasion_fen));
-            const auto low = search(pv, depth, -eval_value::inf, eval_value::inf);
+            const auto low = search(pv, depth, -scores::inf, scores::inf);
             EXPECT_LT(low, -1000);
             load(Board(high_clock_evasion_fen));
-            EXPECT_EQ(search(pv, depth, -eval_value::inf, eval_value::inf), eval_value::draw);
+            EXPECT_EQ(search(pv, depth, -scores::inf, scores::inf), scores::draw);
             tt.clear();
             load(Board(high_clock_evasion_fen));
-            EXPECT_EQ(search(pv, depth, -eval_value::inf, eval_value::inf), eval_value::draw);
+            EXPECT_EQ(search(pv, depth, -scores::inf, scores::inf), scores::draw);
             load(Board(low_clock_evasion_fen));
-            EXPECT_LT(search(pv, depth, -eval_value::inf, eval_value::inf), -1000);
+            EXPECT_LT(search(pv, depth, -scores::inf, scores::inf), -1000);
         }
     }
 }
 
 TEST_F(TtClockTest, NonPvSearchesRejectMismatchedClockBounds) {
     struct Case {
-        TTBound   bound;
-        EvalValue score;
-        EvalValue alpha;
-        EvalValue beta;
+        TTBound bound;
+        Score   score;
+        Score   alpha;
+        Score   beta;
     };
     constexpr std::array cases{
-        Case{TTBound::Exact, 20000, -eval_value::inf, eval_value::inf},
+        Case{TTBound::Exact, 20000, -scores::inf, scores::inf},
         Case{TTBound::LowerBound, 20000, 9000, 10000},
         Case{TTBound::UpperBound, -20000, -10000, -9000},
-        Case{TTBound::Exact, eval_value::mate - 10, -eval_value::inf, eval_value::inf},
-        Case{TTBound::Exact, -eval_value::mate + 10, -eval_value::inf, eval_value::inf},
+        Case{TTBound::Exact, scores::mate - 10, -scores::inf, scores::inf},
+        Case{TTBound::Exact, -scores::mate + 10, -scores::inf, scores::inf},
     };
     for (int depth : {0, 2}) {
         for (bool to_high : {false, true}) {
@@ -127,17 +127,17 @@ TEST_F(TtClockTest, NonPvSearchesRejectMismatchedClockBounds) {
 TEST_F(TtClockTest, PreservesMatesBeforeTheFiftyMoveLimit) {
     constexpr auto low_mate  = "7k/8/5KQ1/8/8/8/8/8 w - - 0 1";
     constexpr auto high_mate = "7k/8/5KQ1/8/8/8/8/8 w - - 98 1";
-    EXPECT_EQ(root(low_mate), eval_value::mate - 1);
-    EXPECT_EQ(root(high_mate), eval_value::mate - 1);
+    EXPECT_EQ(root(low_mate), scores::mate - 1);
+    EXPECT_EQ(root(high_mate), scores::mate - 1);
     tt.clear();
-    EXPECT_EQ(root(high_mate), eval_value::mate - 1);
-    EXPECT_EQ(root(low_mate), eval_value::mate - 1);
+    EXPECT_EQ(root(high_mate), scores::mate - 1);
+    EXPECT_EQ(root(low_mate), scores::mate - 1);
 
     for (int depth : {0, 2}) {
         for (bool pv : {false, true}) {
             tt.clear();
             load(Board("7k/6Q1/6K1/8/8/8/8/8 b - - 99 1"));
-            EXPECT_EQ(search(pv, depth, -eval_value::inf, eval_value::inf), -eval_value::mate);
+            EXPECT_EQ(search(pv, depth, -scores::inf, scores::inf), -scores::mate);
         }
     }
 }
@@ -169,9 +169,9 @@ TEST_F(TtClockTest, ClockGroupsControlNonPvMainAndQuiescenceCutoffs) {
             for (int depth : {0, 2}) {
                 SCOPED_TRACE(testing::Message()
                              << clocks.stored << " -> " << clocks.current << " depth=" << depth);
-                constexpr EvalValue score = 20000;
-                constexpr EvalValue alpha = 9000;
-                constexpr EvalValue beta  = 10000;
+                constexpr Score score = 20000;
+                constexpr Score alpha = 9000;
+                constexpr Score beta  = 10000;
                 tt.clear();
                 load(Board(fen(clocks.current)));
                 const auto cold = search(false, depth, alpha, beta);

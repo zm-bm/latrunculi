@@ -19,7 +19,7 @@ namespace {
 class SingularTest : public ::testing::Test {
 protected:
     // Expected margin used by the depth-eight verification fixtures.
-    static constexpr EvalValue margin_at_depth_8 = 16;
+    static constexpr Score margin_at_depth_8 = 16;
 
     static constexpr auto   one_quiet = "k7/8/1PK5/8/8/8/P7/8 b - - 0 1";
     RecordingSearchReporter reporter;
@@ -51,7 +51,7 @@ protected:
         return TTRecord{
             .move = m, .score = std::int16_t(score), .depth = std::uint8_t(depth), .bound = bound};
     }
-    void seed_alternative(EvalValue value) {
+    void seed_alternative(Score value) {
         const Move alternative = move("a8a7");
         ASSERT_FALSE(alternative.is_null());
         board().make(alternative);
@@ -66,10 +66,10 @@ protected:
     template <NodeType Node = NodeType::Pv>
     bool extend(const TTRecord& record, int depth = 8) {
         return SearchTestAccess::singular_result<Node>(
-                   worker, record, depth, -eval_value::inf, eval_value::inf)
+                   worker, record, depth, -scores::inf, scores::inf)
             .extend;
     }
-    EvalValue excluded_search(Move excluded, int depth, EvalValue alpha, EvalValue beta) {
+    Score excluded_search(Move excluded, int depth, Score alpha, Score beta) {
         return SearchTestAccess::search_excluding_move(worker, alpha, beta, depth, excluded);
     }
 };
@@ -117,7 +117,7 @@ TEST_F(SingularTest, VerifierChildrenRetainOrdinaryTtBehavior) {
     load(Board{board_test::fen::quiet_black_to_move});
     const Move excluded    = move("a8b8");
     const Move alternative = move("a8a7");
-    excluded_search(excluded, 1, -eval_value::inf, eval_value::inf);
+    excluded_search(excluded, 1, -scores::inf, scores::inf);
     EXPECT_FALSE(tt.probe(board().tt_key()).record);
     board().make(alternative);
     EXPECT_TRUE(tt.probe(board().tt_key()).record);
@@ -128,8 +128,8 @@ TEST_F(SingularTest, EqualityRefutesSingularityWhileFailLowExtends) {
     for (bool fail_low : {false, true}) {
         SCOPED_TRACE(fail_low);
         load(Board{board_test::fen::quiet_black_to_move});
-        const auto      record    = entry(move("a8b8"));
-        const EvalValue threshold = record.score - margin_at_depth_8;
+        const auto  record    = entry(move("a8b8"));
+        const Score threshold = record.score - margin_at_depth_8;
         seed_alternative(threshold - int(fail_low));
         EXPECT_EQ(extend(record), int(fail_low));
         EXPECT_GT(worker.node_count(), 1U);
@@ -176,7 +176,7 @@ TEST_F(SingularTest, RequiresDepthReliableLegalNonMateTtEvidence) {
     record.bound = TTBound::UpperBound;
     EXPECT_EQ(extend(record), 0);
     record.bound = TTBound::LowerBound;
-    record.score = eval_value::mate - 1;
+    record.score = scores::mate - 1;
     EXPECT_EQ(extend(record), 0);
     record.score = 1000;
     record.move  = NULL_MOVE;
@@ -242,7 +242,7 @@ TEST_F(SingularTest, ExtendsTheActualChildAndRebuildsPvWithRetainedTt) {
     const Move only = move("a8b8");
     tt.store(board().tt_key(), only, 30000, 7, TTBound::LowerBound, ply());
     PrincipalVariation pv;
-    SearchTestAccess::alphabeta<NodeType::Pv>(worker, -eval_value::inf, eval_value::inf, 8, &pv);
+    SearchTestAccess::alphabeta<NodeType::Pv>(worker, -scores::inf, scores::inf, 8, &pv);
     ASSERT_GT(pv.size(), 0);
     EXPECT_EQ(pv.front(), only);
     board().make(only);
@@ -250,7 +250,7 @@ TEST_F(SingularTest, ExtendsTheActualChildAndRebuildsPvWithRetainedTt) {
     ASSERT_TRUE(child);
     EXPECT_GE(child->depth, 8);
     board().unmake();
-    SearchTestAccess::alphabeta<NodeType::Pv>(worker, -eval_value::inf, eval_value::inf, 8, &pv);
+    SearchTestAccess::alphabeta<NodeType::Pv>(worker, -scores::inf, scores::inf, 8, &pv);
     ASSERT_GT(pv.size(), 0);
     Board copy = board();
     for (int i = 0; i < pv.size(); ++i) {
@@ -341,11 +341,10 @@ TEST_F(SingularTest, RefutedSingularityKeepsOriginalChildDepth) {
 }
 
 TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
-    for (auto window :
-         std::array<std::pair<EvalValue, EvalValue>, 4>{{{-eval_value::inf, 100},
-                                                         {-eval_value::mate_bound, 100},
-                                                         {100, eval_value::mate_bound},
-                                                         {100, eval_value::inf}}}) {
+    for (auto window : std::array<std::pair<Score, Score>, 4>{{{-scores::inf, 100},
+                                                               {-scores::mate_bound, 100},
+                                                               {100, scores::mate_bound},
+                                                               {100, scores::inf}}}) {
         load(Board{board_test::fen::quiet_black_to_move});
         const auto record = entry(move("a8b8"));
         const auto sb     = record.score - margin_at_depth_8;
@@ -383,9 +382,9 @@ TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
 
 TEST_F(SingularTest, VerificationWindowMustAlsoStayStrictlyOutsideMateRanges) {
     load(Board{board_test::fen::quiet_black_to_move});
-    auto record   = entry(move("a8b8"), -eval_value::mate_bound + 1 - ply() + margin_at_depth_8);
-    const auto sb = record.score_at_ply(ply()) - margin_at_depth_8;
-    ASSERT_EQ(sb - 1, -eval_value::mate_bound);
+    auto       record = entry(move("a8b8"), -scores::mate_bound + 1 - ply() + margin_at_depth_8);
+    const auto sb     = record.score_at_ply(ply()) - margin_at_depth_8;
+    ASSERT_EQ(sb - 1, -scores::mate_bound);
     seed_alternative(sb);
     const auto r = SearchTestAccess::singular_result(worker, record, 8, sb, sb + 1);
     EXPECT_FALSE(r.extend);
@@ -487,8 +486,7 @@ TEST_F(SingularTest, EarlyExitsDoNotAccessOrOverwriteFrames) {
     ASSERT_TRUE(board().is_draw(ply()));
     frame().static_eval     = 456;
     const auto drawn_frames = SearchTestAccess::frames(worker);
-    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1),
-              eval_value::draw);
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1), scores::draw);
     EXPECT_EQ(SearchTestAccess::frames(worker), drawn_frames);
 }
 

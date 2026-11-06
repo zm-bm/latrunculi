@@ -23,14 +23,14 @@ public:
     // Supply the best move and root-side score once per completed aspiration
     // iteration. Partial results and bounds must not advance stability.
     // Does nothing when the soft limit is disabled.
-    void update_after_iteration(int depth, Move best_move, EvalValue score);
+    void update_after_iteration(int depth, Move best_move, Score score);
 
 private:
     std::optional<Milliseconds> hard_budget;
     std::optional<Milliseconds> soft_target;
     Milliseconds                base_target{0};
     Move                        previous_best_move{NULL_MOVE};
-    EvalValue                   previous_score{0};
+    Score                       previous_score{0};
     int                         stable_move_iterations{0};
 };
 

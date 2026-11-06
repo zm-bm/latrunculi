@@ -185,8 +185,8 @@ struct Row {
     int           completed_depth{0};
     std::size_t   threads{0};
     std::size_t   hash_mb{0};
-    EvalValue     static_score{0};
-    EvalValue     score{0};
+    Score         static_score{0};
+    Score         score{0};
     NodeCount     nodes{0};
     std::uint64_t total_ns{0};
     Move          best_move{NULL_MOVE};
@@ -231,8 +231,8 @@ Row measure(const Position&     position,
         break;
     }
 
-    const EvalValue static_score = eval::evaluate(board);
-    const auto      start        = MeasurementClock::now();
+    const Score static_score = eval::evaluate(board);
+    const auto  start        = MeasurementClock::now();
     if (!thread_pool.start_search(board, limits))
         throw std::runtime_error("failed to start search for " + std::string(position.id));
     thread_pool.wait();

@@ -23,8 +23,7 @@ enum class TTBound : std::uint8_t {
     UpperBound = 3,
 };
 
-[[nodiscard]] constexpr TTBound
-tt_bound_for_window(EvalValue value, EvalValue alpha, EvalValue beta) noexcept {
+[[nodiscard]] constexpr TTBound tt_bound_for_window(Score value, Score alpha, Score beta) noexcept {
     if (value >= beta)
         return TTBound::LowerBound;
     if (value <= alpha)
@@ -73,11 +72,9 @@ struct TTRecord {
         return false;
     }
     [[nodiscard]] bool has_static_eval() const noexcept { return static_eval != no_static_eval; }
-    EvalValue          score_at_ply(int ply) const noexcept;
-    [[nodiscard]] bool can_cutoff(EvalValue adjusted_score,
-                                  int       search_depth,
-                                  EvalValue alpha,
-                                  EvalValue beta) const noexcept;
+    Score              score_at_ply(int ply) const noexcept;
+    [[nodiscard]] bool
+    can_cutoff(Score adjusted_score, int search_depth, Score alpha, Score beta) const noexcept;
 };
 static_assert(sizeof(TTRecord) == 10);
 
@@ -117,20 +114,20 @@ public:
     void store(TTWriter    writer,
                PositionKey tt_key,
                Move        move,
-               EvalValue   score,
+               Score       score,
                int         depth,
                TTBound     bound,
                int         ply,
-               EvalValue   static_eval = TTRecord::no_static_eval);
+               Score       static_eval = TTRecord::no_static_eval);
 
     // Select a writer immediately when the caller has no retained probe.
     void store(PositionKey tt_key,
                Move        move,
-               EvalValue   score,
+               Score       score,
                int         depth,
                TTBound     bound,
                int         ply,
-               EvalValue   static_eval = TTRecord::no_static_eval);
+               Score       static_eval = TTRecord::no_static_eval);
 
     void resize(size_t megabytes);
     void clear();
@@ -176,20 +173,20 @@ inline void prefetch_child_tt(PositionKey tt_key) noexcept {
 }
 
 // Convert a stored current-position mate score back into a root-relative search score.
-inline EvalValue TTRecord::score_at_ply(int ply) const noexcept {
-    const EvalValue value = score;
+inline Score TTRecord::score_at_ply(int ply) const noexcept {
+    const Score value = score;
 
-    if (value >= eval_value::tt_mate_bound)
+    if (value >= scores::tt_mate_bound)
         return value - ply;
-    if (value <= -eval_value::tt_mate_bound)
+    if (value <= -scores::tt_mate_bound)
         return value + ply;
     return value;
 }
 
-inline bool TTRecord::can_cutoff(EvalValue adjusted_score,
-                                 int       search_depth,
-                                 EvalValue alpha,
-                                 EvalValue beta) const noexcept {
+inline bool TTRecord::can_cutoff(Score adjusted_score,
+                                 int   search_depth,
+                                 Score alpha,
+                                 Score beta) const noexcept {
     assert(search_depth >= 0 && search_depth <= engine::max_search_ply);
 
     if (int(depth) < search_depth)

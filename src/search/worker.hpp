@@ -35,9 +35,9 @@ public:
     Worker& operator=(Worker&&)      = delete;
 
     // Thread-facing lifecycle.
-    void      configure_search(const Board& root_board, Limits limits, TimePoint start_time);
-    EvalValue search();
-    void      request_stop() noexcept;
+    void  configure_search(const Board& root_board, Limits limits, TimePoint start_time);
+    Score search();
+    void  request_stop() noexcept;
 
     // ThreadPool-facing progress and results.
     NodeCount node_count() const noexcept;
@@ -91,16 +91,15 @@ private:
     RootLine terminal_root_result() const;
     void     search_root();
     bool     should_search_root_depth(int depth) const noexcept;
-    bool     search_root_depth(int depth, EvalValue previous_value);
-    bool search_root_window(int search_depth, int nominal_depth, EvalValue alpha, EvalValue beta);
+    bool     search_root_depth(int depth, Score previous_value);
+    bool     search_root_window(int search_depth, int nominal_depth, Score alpha, Score beta);
 
     // Recursive search. (search.cpp)
     bool settle(Board& position);
     template <NodeType Node = NodeType::NonPv>
-    EvalValue
-    alphabeta(EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv = nullptr);
+    Score alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* pv = nullptr);
     template <NodeType Node = NodeType::NonPv, bool UseTt = true>
-    EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
+    Score quiescence(Score alpha, Score beta, PrincipalVariation* pv = nullptr);
 
     // Root results and reporting. (worker.cpp)
     void prepare_final_result();

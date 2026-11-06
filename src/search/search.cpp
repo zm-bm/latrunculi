@@ -16,19 +16,19 @@ namespace search {
 namespace {
 
 // Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
-EvalValue draw_or_mate_score(const Board& board, int search_ply) {
+Score draw_or_mate_score(const Board& board, int search_ply) {
     if (board.halfmove_clock() >= 100 && board.is_check()) {
-        return movegen::UnscoredMoves(board).next().is_null() ? -eval_value::mate + search_ply
-                                                              : eval_value::draw;
+        return movegen::UnscoredMoves(board).next().is_null() ? -scores::mate + search_ply
+                                                              : scores::draw;
     }
-    return eval_value::draw;
+    return scores::draw;
 }
 
 } // namespace
 
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
 template <NodeType Node>
-EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv) {
+Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* pv) {
     // PV and stop checks.
     if (pv)
         pv->clear();
@@ -66,12 +66,12 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
     stats.node(search_ply);
 
     // Mate-distance pruning.
-    alpha = std::max(alpha, -eval_value::mate + search_ply);
-    beta  = std::min(beta, eval_value::mate - search_ply - 1);
+    alpha = std::max(alpha, -scores::mate + search_ply);
+    beta  = std::min(beta, scores::mate - search_ply - 1);
     if (alpha >= beta)
         return alpha;
 
-    const EvalValue   original_alpha = alpha;
+    const Score       original_alpha = alpha;
     const PositionKey tt_key         = board.tt_key();
     Move              tt_move        = NULL_MOVE;
 
@@ -83,7 +83,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         stats.main_tt_hit(search_ply);
 
         const TTRecord& record   = *tt_record;
-        const EvalValue tt_score = record.score_at_ply(search_ply);
+        const Score     tt_score = record.score_at_ply(search_ply);
         if (!verification_root
             && detail::tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
             stats.main_tt_cutoff(search_ply);
@@ -96,7 +96,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
     const bool  in_check    = board.is_check();
     const Color side        = board.side_to_move();
     bool        futility    = false;
-    EvalValue   static_eval = TTRecord::no_static_eval;
+    Score       static_eval = TTRecord::no_static_eval;
 
     bool declining = false;
     if constexpr (Node == NodeType::NonPv) {
@@ -113,7 +113,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         if (!verification_root && !after_null && !in_check && depth <= detail::RazorMaxDepth
             && tt_move.is_null() && static_eval + detail::RazorMargin[depth] <= alpha) {
             stats.razor_try(search_ply);
-            const EvalValue value = quiescence<NodeType::NonPv>(alpha - 1, alpha);
+            const Score value = quiescence<NodeType::NonPv>(alpha - 1, alpha);
             if (stop_requested())
                 return alpha;
             if (value < alpha) {
@@ -129,7 +129,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
                                 && tt_record->bound == TTBound::UpperBound
                                 && tt_record->score_at_ply(search_ply) < beta;
         if (!verification_root && !after_null && !in_check && depth <= detail::FutilityMaxDepth
-            && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
+            && beta > -scores::mate_bound && beta < scores::mate_bound
             && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto
             && static_eval - detail::FutilityMargin[depth] >= beta)
             return static_eval;
@@ -142,7 +142,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
 
             board.make_null(prefetch_child_tt);
             ++search_ply;
-            const EvalValue value =
+            const Score value =
                 -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, nullptr);
             board.unmake_null();
             --search_ply;
@@ -157,13 +157,13 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
 
         // Prepare shallow futility pruning. The move loop performs the actual skip.
         futility = !verification_root && depth <= detail::FutilityMaxDepth && !in_check
-                && alpha > -eval_value::mate_bound && alpha < eval_value::mate_bound
+                && alpha > -scores::mate_bound && alpha < scores::mate_bound
                 && static_eval + detail::FutilityMargin[depth] <= alpha;
     }
 
     // Same-ply verification restores its frame before interpreting the result.
-    bool                     singular_extension = false;
-    std::optional<EvalValue> singular_cutoff;
+    bool                 singular_extension = false;
+    std::optional<Score> singular_cutoff;
     if (tt_record) {
         if (const auto verification = detail::singular_verification<Node>(board,
                                                                           *tt_record,
@@ -174,7 +174,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
                                                                           alpha,
                                                                           beta,
                                                                           verification_active)) {
-            EvalValue value;
+            Score value;
             {
                 const detail::ScopedSingularVerification scope{
                     frame, verification_active, tt_record->move};
@@ -196,9 +196,9 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         return *singular_cutoff;
 
     // Move ordering and node-local history feedback.
-    int       move_count = 0;
-    EvalValue best_value = -eval_value::inf;
-    Move      best_move  = NULL_MOVE;
+    int   move_count = 0;
+    Score best_value = -scores::inf;
+    Move  best_move  = NULL_MOVE;
 
     const auto context = history.context_for(board, search_ply, tt_move);
     auto       moves   = movegen::MainSearchMoves(board, history, context);
@@ -233,8 +233,8 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         if constexpr (Node == NodeType::NonPv) {
             history_lmp_candidate = !verification_root && depth == detail::LateMovePruningDepth
                                  && move_count > detail::LateMovePruningMoveCount && !futility
-                                 && !in_check && best_value > -eval_value::mate_bound
-                                 && alpha > -eval_value::mate_bound && beta < eval_value::mate_bound
+                                 && !in_check && best_value > -scores::mate_bound
+                                 && alpha > -scores::mate_bound && beta < scores::mate_bound
                                  && board.non_pawn_material(side) > 0 && is_ordinary_quiet
                                  && move != tt_move && !is_killer && !is_counter
                                  && history.quiet_score(context, board, move) < 0;
@@ -278,7 +278,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
 
         // Scout reduced moves and later PV moves before a full-depth search.
         const bool scout = reduction > 0 || (Node == NodeType::Pv && !first_legal);
-        EvalValue  value;
+        Score      value;
         if (scout) {
             if (reduction > 0)
                 stats.lmr_try(search_ply - 1);
@@ -349,7 +349,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         // Excluding the only move does not make the actual position terminal.
         if (verification_root)
             return original_alpha;
-        best_value = in_check ? -eval_value::mate + search_ply : eval_value::draw;
+        best_value = in_check ? -scores::mate + search_ply : scores::draw;
         tt.store(tt_probe.writer,
                  tt_key,
                  NULL_MOVE,
@@ -377,7 +377,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
 
 // Quiescence search for tactical depth-zero nodes.
 template <NodeType Node, bool UseTt>
-EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv) {
+Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
     // PV and stop checks.
     if (pv)
         pv->clear();
@@ -398,7 +398,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
         return eval::evaluate(board);
 
     constexpr int     qsearch_tt_depth = 0;
-    const EvalValue   original_alpha   = alpha;
+    const Score       original_alpha   = alpha;
     const PositionKey tt_key           = board.tt_key();
     Move              tt_move          = NULL_MOVE;
     TTProbe           tt_probe;
@@ -411,7 +411,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
         if (tt_record) {
             stats.q_tt_hit(search_ply);
 
-            const EvalValue tt_score = tt_record->score_at_ply(search_ply);
+            const Score tt_score = tt_record->score_at_ply(search_ply);
             if (detail::tt_cutoff_allowed<Node>(
                     *tt_record, tt_score, qsearch_tt_depth, alpha, beta)) {
                 stats.q_tt_cutoff(search_ply);
@@ -424,9 +424,9 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
     const bool in_check    = board.is_check();
     int        move_count  = 0;
-    EvalValue  best_value  = -eval_value::inf;
+    Score      best_value  = -scores::inf;
     Move       best_move   = NULL_MOVE;
-    EvalValue  static_eval = TTRecord::no_static_eval;
+    Score      static_eval = TTRecord::no_static_eval;
 
     // Stand pat.
     if (!in_check) {
@@ -459,11 +459,11 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
         // SEE prices classify exchanges; use evaluation material for the gain estimate.
         // This is a heuristic allowance for positional and phase changes, not a strict bound.
-        if (!in_check && move != tt_move && move.type() == BASIC_MOVE
-            && alpha > -eval_value::mate_bound && beta < eval_value::mate_bound) {
+        if (!in_check && move != tt_move && move.type() == BASIC_MOVE && alpha > -scores::mate_bound
+            && beta < scores::mate_bound) {
             const PieceType victim = board.captured_piece_type(move);
             const auto      price  = eval::piece(victim);
-            const EvalValue gain_bound =
+            const Score     gain_bound =
                 static_eval + std::max(price.mg, price.eg) + detail::QCaptureMargin;
             if (gain_bound < alpha && board.non_pawn_material(board.side_to_move()) > eval::rook.mg
                 && board.non_pawn_material(~board.side_to_move()) - (victim == PAWN ? 0 : price.mg)
@@ -477,7 +477,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
         board.make(move, UseTt ? prefetch_child_tt : nullptr);
         ++search_ply;
-        const EvalValue value = -quiescence<Node, UseTt>(-beta, -alpha, pv ? &child_pv : nullptr);
+        const Score value = -quiescence<Node, UseTt>(-beta, -alpha, pv ? &child_pv : nullptr);
         // Restore before stop handling, PV updates, or TT stores.
         board.unmake();
         --search_ply;
@@ -517,7 +517,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
     // Checkmate.
     if (in_check && move_count == 0) {
-        best_value = -eval_value::mate + search_ply;
+        best_value = -scores::mate + search_ply;
         if constexpr (UseTt) {
             tt.store(tt_probe.writer,
                      tt_key,
@@ -551,8 +551,8 @@ bool Worker::settle(Board& position) {
     history.clear();
 
     PrincipalVariation pv;
-    const EvalValue value = quiescence<NodeType::Pv, false>(-eval_value::inf, eval_value::inf, &pv);
-    if (std::abs(value) >= eval_value::mate_bound)
+    const Score        value = quiescence<NodeType::Pv, false>(-scores::inf, scores::inf, &pv);
+    if (std::abs(value) >= scores::mate_bound)
         return false;
 
     for (int index = 0; index < pv.size(); ++index)
@@ -569,12 +569,9 @@ bool Worker::settle(Board& position) {
 }
 
 // Template definitions live in this translation unit; instantiate the node types we use.
-template EvalValue Worker::alphabeta<NodeType::Pv>(EvalValue, EvalValue, int, PrincipalVariation*);
-template EvalValue
-Worker::alphabeta<NodeType::NonPv>(EvalValue, EvalValue, int, PrincipalVariation*);
-template EvalValue
-Worker::quiescence<NodeType::Pv, true>(EvalValue, EvalValue, PrincipalVariation*);
-template EvalValue
-Worker::quiescence<NodeType::NonPv, true>(EvalValue, EvalValue, PrincipalVariation*);
+template Score Worker::alphabeta<NodeType::Pv>(Score, Score, int, PrincipalVariation*);
+template Score Worker::alphabeta<NodeType::NonPv>(Score, Score, int, PrincipalVariation*);
+template Score Worker::quiescence<NodeType::Pv, true>(Score, Score, PrincipalVariation*);
+template Score Worker::quiescence<NodeType::NonPv, true>(Score, Score, PrincipalVariation*);
 
 } // namespace search
