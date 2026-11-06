@@ -34,6 +34,14 @@ inline constexpr std::size_t MoveCapacity = 256;
 // The templated operations are defined and instantiated in move_sources.cpp.
 class OrderedCandidates {
 public:
+    OrderedCandidates() = default;
+
+    // Active ranges point into this object's storage.
+    OrderedCandidates(const OrderedCandidates&)            = delete;
+    OrderedCandidates(OrderedCandidates&&)                 = delete;
+    OrderedCandidates& operator=(const OrderedCandidates&) = delete;
+    OrderedCandidates& operator=(OrderedCandidates&&)      = delete;
+
     void
     load_evasions(const Board& board, const search::History& history, Color side, Move tt_move);
 
@@ -95,6 +103,13 @@ class MoveSource<MovePolicy::Unordered> {
     friend class Moves<MovePolicy::Unordered>;
 
     explicit MoveSource(const Board& board);
+
+    // Traversal cursors point into this object's storage.
+    MoveSource(const MoveSource&)            = delete;
+    MoveSource(MoveSource&&)                 = delete;
+    MoveSource& operator=(const MoveSource&) = delete;
+    MoveSource& operator=(MoveSource&&)      = delete;
+
     Move next_candidate() { return cursor != end ? *cursor++ : NULL_MOVE; }
 
     const Board&                   board;
@@ -117,7 +132,6 @@ class MoveSource<MovePolicy::MainSearch> {
     MoveSource(const Board&, const search::History&, const search::OrderingContext&&) = delete;
     Move next_candidate();
     void skip_nonchecking_quiets();
-    bool is_quiet_hint(Move move) const;
 
     enum class Stage : std::uint8_t {
         TtMove,

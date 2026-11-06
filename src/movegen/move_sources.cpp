@@ -149,9 +149,8 @@ inline Move OrderedCandidates::take_noisy(Accept accept) {
     while (Candidate* selected = best_ready(primary, [](Move) { return true; })) {
         if (accept(selected->move, selected->see_threshold))
             return take(primary, selected);
-        // Defer in place, without swapping or advancing. Deferred scores tie at zero.
+        // Defer in place, without swapping or advancing; retain the scoring snapshot.
         selected->state = CandidateState::Deferred;
-        selected->ordering_score = 0;
     }
     return NULL_MOVE;
 }
@@ -162,7 +161,7 @@ inline Move OrderedCandidates::take_quiet(Eligible eligible) {
 }
 
 inline Move OrderedCandidates::take_deferred_noisy() {
-    // Equal deferred scores select the first match in the current buffer order.
+    // Deferred moves follow the current buffer order, regardless of their scores.
     for (Candidate* candidate = primary.next; candidate != primary.end; ++candidate)
         if (candidate->state == CandidateState::Deferred)
             return take(primary, candidate);
@@ -232,7 +231,9 @@ MoveSource<MovePolicy::MainSearch>::MoveSource(const Board&           board,
     tt_move = validate_tt_hint(board, context.tt_move, context.in_check);
     if (!context.in_check) {
         for (Move move : {context.primary_killer, context.secondary_killer, context.counter_move}) {
-            if (move.is_null() || is_quiet_hint(move) || move == tt_move)
+            if (move.is_null()
+                || std::ranges::contains(std::span(quiet_hints).first(quiet_hint_count), move)
+                || move == tt_move)
                 continue;
             if (move.type() == MOVE_PROM || board.is_capture(move) || !board.is_pseudo_legal(move))
                 continue;
@@ -309,13 +310,6 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
 void MoveSource<MovePolicy::MainSearch>::skip_nonchecking_quiets() {
     if (!context.in_check)
         quiet_checks_only = true;
-}
-
-bool MoveSource<MovePolicy::MainSearch>::is_quiet_hint(Move move) const {
-    for (int i = 0; i < quiet_hint_count; ++i)
-        if (quiet_hints[i] == move)
-            return true;
-    return false;
 }
 
 // Quiescence ordering.
