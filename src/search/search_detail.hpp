@@ -68,26 +68,50 @@ private:
     const bool        was_active;
 };
 
-enum class AspirationMiss { FailLow, FailHigh };
+class AspirationWindow {
+public:
+    enum class Outcome { Accepted, FailLow, FailHigh };
 
-inline int aspiration_retry_depth(const int            nominal_depth,
-                                  const EvalValue      value,
-                                  const AspirationMiss miss) noexcept {
-    assert(nominal_depth >= 1);
+    AspirationWindow(int depth, EvalValue previous_value) noexcept
+        : alpha(std::max(previous_value - InitialDelta, -eval_value::inf)),
+          beta(std::min(previous_value + InitialDelta, eval_value::inf)),
+          retry_depth(depth),
+          nominal_depth(depth) {
+        assert(depth >= 1);
+    }
 
-    if (miss == AspirationMiss::FailLow || value <= -eval_value::mate_bound
-        || value >= eval_value::mate_bound)
-        return nominal_depth;
+    // Inputs for the next root attempt; only this transition changes them.
+    EvalValue alpha;
+    EvalValue beta;
+    int       retry_depth;
 
-    return std::max(1, nominal_depth - 1);
-}
+    Outcome accept_or_widen(EvalValue value) noexcept {
+        Outcome outcome;
+        if (value <= alpha) {
+            alpha       = std::max(value - delta, -eval_value::inf);
+            retry_depth = nominal_depth;
+            outcome     = Outcome::FailLow;
+        } else if (value >= beta) {
+            beta        = std::min(value + delta, eval_value::inf);
+            retry_depth = value <= -eval_value::mate_bound || value >= eval_value::mate_bound
+                            ? nominal_depth
+                            : std::max(1, nominal_depth - 1);
+            outcome     = Outcome::FailHigh;
+        } else {
+            return Outcome::Accepted;
+        }
 
-inline EvalValue widen_aspiration_delta(const EvalValue delta) noexcept {
-    assert(delta > 0 && delta <= eval_value::inf);
+        // Recenter with the current delta, then grow it for the next miss.
+        const EvalValue growth = delta / 2;
+        delta = delta >= eval_value::inf - growth ? eval_value::inf : delta + growth;
+        return outcome;
+    }
 
-    const EvalValue growth = delta / 2;
-    return delta >= eval_value::inf - growth ? eval_value::inf : delta + growth;
-}
+private:
+    static constexpr EvalValue InitialDelta = 50;
+    EvalValue                  delta{InitialDelta};
+    const int                  nominal_depth;
+};
 
 // Null-move pruning defaults.
 inline constexpr int       NullMoveMinDepth        = 3;

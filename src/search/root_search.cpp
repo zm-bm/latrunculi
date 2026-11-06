@@ -8,8 +8,6 @@
 namespace search {
 namespace {
 
-constexpr EvalValue AspirationWindow = 50;
-
 inline constexpr std::array<int, 20> HelperDepthSkipSize{
     1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4,
 };
@@ -55,10 +53,7 @@ bool Worker::should_search_root_depth(int depth) const noexcept {
 
 // Root aspiration loop for a single depth.
 bool Worker::search_root_depth(int depth, EvalValue previous_value) {
-    EvalValue delta       = AspirationWindow;
-    EvalValue alpha       = std::max(previous_value - delta, -eval_value::inf);
-    EvalValue beta        = std::min(previous_value + delta, eval_value::inf);
-    int       retry_depth = depth;
+    detail::AspirationWindow window{depth, previous_value};
 
     while (!stop_requested()) {
         // Keep root order but clear stale attempt state.
@@ -67,7 +62,7 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
         }
 
         // Search this attempt while retaining the nominal iteration depth.
-        if (!search_root_window(retry_depth, depth, alpha, beta))
+        if (!search_root_window(window.retry_depth, depth, window.alpha, window.beta))
             return false;
 
         // Promote the best completed root line.
@@ -77,19 +72,10 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
         const EvalValue value = best_line.value;
         assert(value > -eval_value::inf && value < eval_value::inf);
 
-        if (value <= alpha) {
-            // Fail low: recenter the lower bound and retry at full depth.
-            stats.aspiration_fail_low();
-            alpha = std::max(value - delta, -eval_value::inf);
-            retry_depth =
-                detail::aspiration_retry_depth(depth, value, detail::AspirationMiss::FailLow);
-        } else if (value >= beta) {
-            // Fail high: recenter the upper bound and guard mate-like retries.
-            stats.aspiration_fail_high();
-            beta = std::min(value + delta, eval_value::inf);
-            retry_depth =
-                detail::aspiration_retry_depth(depth, value, detail::AspirationMiss::FailHigh);
-        } else {
+        switch (window.accept_or_widen(value)) {
+        case detail::AspirationWindow::Outcome::FailLow:  stats.aspiration_fail_low(); break;
+        case detail::AspirationWindow::Outcome::FailHigh: stats.aspiration_fail_high(); break;
+        case detail::AspirationWindow::Outcome::Accepted:
             // Window hit: accept and publish the completed depth.
             root_result = best_line;
             publish_root_snapshot();
@@ -97,9 +83,6 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
                 report_root_progress(root_result);
             return true;
         }
-
-        // Increase retry width after each aspiration miss.
-        delta = detail::widen_aspiration_delta(delta);
     }
 
     return false;

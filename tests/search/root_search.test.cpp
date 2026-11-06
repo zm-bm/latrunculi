@@ -236,24 +236,47 @@ TEST_F(RootSearchTest, WidensAspirationWindowAfterFailLowAndFailHigh) {
 }
 
 TEST(AspirationPolicyTest, SelectsOnlyTheImmediatelyFollowingRetryDepth) {
-    using detail::aspiration_retry_depth;
-    using detail::AspirationMiss;
+    using detail::AspirationWindow;
+    using Outcome = AspirationWindow::Outcome;
 
-    EXPECT_EQ(aspiration_retry_depth(6, 200, AspirationMiss::FailHigh), 5);
-    EXPECT_EQ(aspiration_retry_depth(1, 200, AspirationMiss::FailHigh), 1);
-    EXPECT_EQ(aspiration_retry_depth(6, 200, AspirationMiss::FailLow), 6);
+    AspirationWindow window{6, 0};
+    EXPECT_EQ(window.accept_or_widen(200), Outcome::FailHigh);
+    EXPECT_EQ(window.retry_depth, 5);
+    EXPECT_EQ(window.accept_or_widen(300), Outcome::FailHigh);
+    EXPECT_EQ(window.retry_depth, 5);
+    EXPECT_EQ(window.accept_or_widen(-200), Outcome::FailLow);
+    EXPECT_EQ(window.retry_depth, 6);
 
-    EXPECT_EQ(aspiration_retry_depth(6, eval_value::mate_bound, AspirationMiss::FailHigh), 6);
-    EXPECT_EQ(aspiration_retry_depth(6, -eval_value::mate_bound, AspirationMiss::FailHigh), 6);
+    AspirationWindow shallow{1, 0};
+    EXPECT_EQ(shallow.accept_or_widen(200), Outcome::FailHigh);
+    EXPECT_EQ(shallow.retry_depth, 1);
+    for (EvalValue value : {eval_value::mate_bound, -eval_value::mate_bound}) {
+        AspirationWindow mate_window{6, value - 50};
+        EXPECT_EQ(mate_window.accept_or_widen(value), Outcome::FailHigh);
+        EXPECT_EQ(mate_window.retry_depth, 6);
+    }
 }
 
 TEST(AspirationPolicyTest, WidensGraduallyAndSaturatesAtInfinity) {
-    using detail::widen_aspiration_delta;
+    using detail::AspirationWindow;
+    using Outcome = AspirationWindow::Outcome;
 
-    EXPECT_EQ(widen_aspiration_delta(50), 75);
-    EXPECT_EQ(widen_aspiration_delta(75), 112);
-    EXPECT_EQ(widen_aspiration_delta(eval_value::inf - 1), eval_value::inf);
-    EXPECT_EQ(widen_aspiration_delta(eval_value::inf), eval_value::inf);
+    AspirationWindow window{6, 0};
+    EXPECT_EQ(window.alpha, -50);
+    EXPECT_EQ(window.beta, 50);
+    EXPECT_EQ(window.accept_or_widen(50), Outcome::FailHigh);
+    EXPECT_EQ(window.beta, 100);
+    EXPECT_EQ(window.accept_or_widen(100), Outcome::FailHigh);
+    EXPECT_EQ(window.beta, 175);
+    EXPECT_EQ(window.accept_or_widen(175), Outcome::FailHigh);
+    EXPECT_EQ(window.beta, 287);
+    EXPECT_EQ(window.accept_or_widen(eval_value::inf - 1), Outcome::FailHigh);
+    EXPECT_EQ(window.beta, eval_value::inf);
+    EXPECT_EQ(window.accept_or_widen(-eval_value::inf + 1), Outcome::FailLow);
+    EXPECT_EQ(window.alpha, -eval_value::inf);
+    EXPECT_EQ(window.accept_or_widen(0), Outcome::Accepted);
+    EXPECT_EQ(window.alpha, -eval_value::inf);
+    EXPECT_EQ(window.beta, eval_value::inf);
 }
 
 TEST_F(RootSearchTest, ReducedAspirationRetryPublishesNominalDepth) {
