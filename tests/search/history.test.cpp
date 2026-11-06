@@ -1,11 +1,16 @@
 #include "search/history.hpp"
 #include "search/history_learning.hpp"
 
+#include <type_traits>
+
 #include <gtest/gtest.h>
 
 #include "support/search_test_access.hpp"
 
 namespace search {
+
+static_assert(!std::is_copy_constructible_v<HistoryLearning>);
+static_assert(!std::is_move_constructible_v<HistoryLearning>);
 
 TEST(HistoryTest, QuietScoresCombineBaseAndContinuation) {
     History               history;

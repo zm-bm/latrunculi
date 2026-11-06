@@ -1,5 +1,6 @@
 #include "movegen/move_sources.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <span>
 #include <utility>
@@ -36,9 +37,9 @@ int score_evasion(
     if (move.type() == MOVE_PROM)
         return PromotionScore;
     if (board.is_capture(move)) {
-        const int victim   = see::piece_value(board.captured_piece_type(move));
-        const int attacker = see::piece_value(moving_piece);
-        return EvasionCaptureScoreBase + capture_material_score(victim, attacker);
+        const int victim_value   = see::piece_value(board.captured_piece_type(move));
+        const int attacker_value = see::piece_value(moving_piece);
+        return EvasionCaptureScoreBase + capture_material_score(victim_value, attacker_value);
     }
     return history.base_quiet_score(side, move);
 }
@@ -85,7 +86,8 @@ void OrderedCandidates::load_evasions(const Board&   board,
     generate<GenerationKind::Evasions>(board, [&, side](Move move, PieceType moving_piece) {
         Candidate candidate{.move  = move,
                             .state = CandidateState::Ready,
-                            .score = score_evasion(board, history, side, move, moving_piece),
+                            .ordering_score =
+                                score_evasion(board, history, side, move, moving_piece),
                             .see_threshold = 0};
         if (move == tt_move)
             candidate.state = CandidateState::Excluded;
@@ -101,10 +103,10 @@ void OrderedCandidates::load_noisy(const Board& board, const History& history, M
     Candidate*       end   = first;
     generate<GenerationKind::Noisy>(board, [&](Move move, PieceType moving_piece) {
         const NoisyScore score = score_noisy<Policy>(board, history, move, moving_piece);
-        Candidate        candidate{.move          = move,
-                                   .state         = CandidateState::Ready,
-                                   .score         = score.ordering_score,
-                                   .see_threshold = score.see_threshold};
+        Candidate        candidate{.move           = move,
+                                   .state          = CandidateState::Ready,
+                                   .ordering_score = score.ordering_score,
+                                   .see_threshold  = score.see_threshold};
         if (move == tt_move)
             candidate.state = CandidateState::Excluded;
         assert(end < storage.data() + storage.size());
@@ -123,20 +125,11 @@ void OrderedCandidates::load_quiets(const Board&           board,
     Candidate* const first = primary.end;
     Candidate*       end   = first;
     generate<GenerationKind::Quiet>(board, [&](Move move, PieceType moving_piece) {
-        Candidate candidate{.move          = move,
-                            .state         = CandidateState::Ready,
-                            .score         = history.quiet_score(context, moving_piece, move),
-                            .see_threshold = 0};
-        bool      excluded = move == tt_move;
-        if (!excluded) {
-            for (Move hint : quiet_hints) {
-                if (move == hint) {
-                    excluded = true;
-                    break;
-                }
-            }
-        }
-        if (excluded)
+        Candidate candidate{.move           = move,
+                            .state          = CandidateState::Ready,
+                            .ordering_score = history.quiet_score(context, moving_piece, move),
+                            .see_threshold  = 0};
+        if (move == tt_move || std::ranges::contains(quiet_hints, move))
             candidate.state = CandidateState::Excluded;
         assert(end < storage.data() + storage.size());
         *end++ = candidate;
@@ -158,7 +151,7 @@ inline Move OrderedCandidates::take_noisy(Accept accept) {
             return take(primary, selected);
         // Defer in place, without swapping or advancing. Deferred scores tie at zero.
         selected->state = CandidateState::Deferred;
-        selected->score = 0;
+        selected->ordering_score = 0;
     }
     return NULL_MOVE;
 }
@@ -183,7 +176,7 @@ inline OrderedCandidates::Candidate* OrderedCandidates::best_ready(const Range& 
     int        best_score = 0;
     for (Candidate* candidate = range.next; candidate != range.end; ++candidate) {
         // Strict comparison preserves the first tie in the current buffer order.
-        const int score = candidate->score;
+        const int score = candidate->ordering_score;
         if ((best == nullptr || score > best_score) && candidate->state == CandidateState::Ready
             && eligible(candidate->move)) {
             best       = candidate;

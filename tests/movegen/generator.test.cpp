@@ -1,11 +1,9 @@
 #include "movegen/generator.hpp"
-#include "movegen/moves.hpp"
 
 #include <algorithm>
 #include <array>
 #include <ranges>
 #include <string_view>
-#include <type_traits>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -40,67 +38,15 @@ bool are_disjoint(const std::vector<Move>& lhs, const std::vector<Move>& rhs) {
 
 } // namespace
 
-static_assert(!std::is_copy_constructible_v<movegen::UnorderedMoves>);
-static_assert(!std::is_move_constructible_v<movegen::UnorderedMoves>);
-static_assert(std::is_constructible_v<movegen::MainSearchMoves,
-                                      const Board&,
-                                      const search::History&,
-                                      const search::OrderingContext&>);
-static_assert(!std::is_constructible_v<movegen::MainSearchMoves,
-                                       const Board&,
-                                       const search::History&,
-                                       search::OrderingContext&&>);
-
 TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
-    auto check_legal = [](const Board& board) {
-        std::vector<Move> expected;
-        for (Move move : board_test::pseudo_legal_moves(board))
-            if (board.is_legal_pseudo_move(move))
-                expected.push_back(move);
-        std::vector<Move>       actual;
-        movegen::UnorderedMoves moves(board);
-        for (Move move = moves.next(); !move.is_null(); move = moves.next())
-            actual.push_back(move);
-        EXPECT_EQ(actual, expected);
-        EXPECT_TRUE(moves.next().is_null());
-        EXPECT_EQ(movegen::UnorderedMoves(board).next().is_null(), expected.empty());
-        movegen::UnorderedMoves matches(board);
-        if (expected.size() > 1) {
-            const std::size_t middle = expected.size() / 2 - 1;
-            EXPECT_EQ(matches.find([&](Move move) { return move == expected[middle]; }),
-                      expected[middle]);
-            EXPECT_EQ(matches.next(), expected[middle + 1]);
-        }
-        EXPECT_TRUE(matches.find([](Move) { return false; }).is_null());
-        EXPECT_TRUE(matches.next().is_null());
-    };
     Board      quiet_board{board_test::fen::start};
     const auto quiet_moves = board_test::pseudo_legal_moves(quiet_board);
     EXPECT_EQ(emitted_moves<movegen::GenerationKind::NonEvasions>(quiet_board), quiet_moves);
-
-    check_legal(quiet_board);
 
     Board evasion_board{board_test::fen::check_evasion};
     ASSERT_TRUE(evasion_board.is_check());
     const auto evasions = board_test::pseudo_legal_moves(evasion_board);
     EXPECT_EQ(emitted_moves<movegen::GenerationKind::Evasions>(evasion_board), evasions);
-    check_legal(evasion_board);
-    check_legal(Board{board_test::fen::stalemate});
-
-    Board      pinned{board_test::fen::pinned_rook};
-    const Move illegal{E2, F2};
-    ASSERT_TRUE(pinned.is_pseudo_legal(illegal));
-    ASSERT_FALSE(pinned.is_legal_pseudo_move(illegal));
-    int matched = 0;
-    EXPECT_TRUE(movegen::UnorderedMoves(pinned)
-                    .find([&](Move move) {
-                        if (move != illegal)
-                            return false;
-                        ++matched;
-                        return true;
-                    })
-                    .is_null());
-    EXPECT_EQ(matched, 1); // Matching precedes legality, but cannot return an illegal move.
 }
 
 TEST(MoveGeneratorTest, EnPassantCanInterposeAgainstSliderCheck) {

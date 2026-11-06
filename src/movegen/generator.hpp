@@ -13,6 +13,7 @@
 namespace movegen {
 
 // Pseudo-legal batch emitted by one generator pass.
+// Noisy includes captures and all promotions, including noncapturing promotions.
 enum class GenerationKind { NonEvasions, Noisy, Evasions, Quiet };
 
 // Board geometry for one synchronous pass; kind and output belong to the operation.

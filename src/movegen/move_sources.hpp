@@ -66,7 +66,7 @@ private:
         // Unused slots remain uninitialized.
         Move           move;
         CandidateState state;
-        int            score;
+        int            ordering_score;
         // Captured with the score, before child searches can train the history table.
         int see_threshold;
     };

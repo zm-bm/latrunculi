@@ -33,6 +33,11 @@ public:
     HistoryLearning(const Board&, History&, const OrderingContext&&, int, Instrumentation<>&) =
         delete;
 
+    HistoryLearning(const HistoryLearning&)            = delete;
+    HistoryLearning(HistoryLearning&&)                 = delete;
+    HistoryLearning& operator=(const HistoryLearning&) = delete;
+    HistoryLearning& operator=(HistoryLearning&&)      = delete;
+
     // Includes alpha improvements that did not reach beta. Classification is from
     // before the child search, which may have changed the live killer entries.
     void record_non_cutoff(Move move, bool is_capture, bool was_killer) {
@@ -84,7 +89,7 @@ private:
     static constexpr int CaptureMaxDepthBonus         = 128;
 
     static int quiet_bonus(int depth, int divisor = 1) {
-        return std::clamp(depth * depth / std::max(1, divisor), 0, History::QuietMaxScore);
+        return std::clamp(depth * depth / divisor, 0, History::QuietMaxScore);
     }
 
     static int capture_bonus(int depth) {

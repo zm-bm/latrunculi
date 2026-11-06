@@ -6,6 +6,7 @@
 namespace movegen {
 
 // A single-pass legal move stream. Restore the node's board before advancing.
+// Board and history are borrowed and must outlive the stream.
 // Main-search streams borrow a named OrderingContext which must outlive the stream.
 // Selection precedes legality so ordered modes retain their swaps and tie order.
 template <MovePolicy Policy>

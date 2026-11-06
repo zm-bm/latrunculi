@@ -2,12 +2,12 @@
 
 #include <algorithm>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 #include "board/board.hpp"
-#include "movegen/generator.hpp"
 #include "search/history.hpp"
 #include "support/board_fixtures.hpp"
 #include "support/search_test_access.hpp"
@@ -17,6 +17,13 @@ namespace movegen {
 
 using search::History;
 using search::OrderingContext;
+
+static_assert(!std::is_copy_constructible_v<UnorderedMoves>);
+static_assert(!std::is_move_constructible_v<UnorderedMoves>);
+static_assert(
+    std::is_constructible_v<MainSearchMoves, const Board&, const History&, const OrderingContext&>);
+static_assert(
+    !std::is_constructible_v<MainSearchMoves, const Board&, const History&, OrderingContext&&>);
 
 class MoveStreamTest : public ::testing::Test {
 protected:
@@ -37,22 +44,15 @@ std::vector<Move> collect_moves(auto& stream) {
     return moves;
 }
 
-std::vector<Move> main_search_moves(const Board& board,
-                                    History&     history,
-                                    int          ply,
-                                    Move         tt_move = NULL_MOVE,
-                                    Move         counter = NULL_MOVE) {
-    if (!counter.is_null()) {
-        const auto key = history.context_for(board, ply);
-        if (key.has_previous_move())
-            SearchTestAccess::counter_move_entry(history, key) = counter;
-    }
+std::vector<Move>
+main_search_moves(const Board& board, const History& history, int ply, Move tt_move = NULL_MOVE) {
     const auto context = history.context_for(board, ply, tt_move);
     auto       stream  = movegen::MainSearchMoves(board, history, context);
     return collect_moves(stream);
 }
 
-std::vector<Move> quiescence_moves(const Board& board, History& history, Move tt_move = NULL_MOVE) {
+std::vector<Move>
+quiescence_moves(const Board& board, const History& history, Move tt_move = NULL_MOVE) {
     auto stream = movegen::QuiescenceMoves(board, history, tt_move);
     return collect_moves(stream);
 }
@@ -77,6 +77,48 @@ void expect_capture_before_quiets(const Board&             board,
 }
 
 } // namespace
+
+TEST_F(MoveStreamTest, UnorderedTraversalPreservesGenerationOrder) {
+    for (std::string_view fen :
+         {board_test::fen::start, board_test::fen::check_evasion, board_test::fen::stalemate}) {
+        SCOPED_TRACE(fen);
+        const Board       board{fen};
+        std::vector<Move> expected;
+        for (Move move : board_test::pseudo_legal_moves(board))
+            if (board.is_legal_pseudo_move(move))
+                expected.push_back(move);
+
+        UnorderedMoves stream(board);
+        EXPECT_EQ(collect_moves(stream), expected);
+        EXPECT_TRUE(stream.next().is_null());
+        EXPECT_EQ(UnorderedMoves(board).next().is_null(), expected.empty());
+
+        UnorderedMoves matches(board);
+        if (expected.size() > 1) {
+            const std::size_t middle = expected.size() / 2 - 1;
+            EXPECT_EQ(matches.find([&](Move move) { return move == expected[middle]; }),
+                      expected[middle]);
+            EXPECT_EQ(matches.next(), expected[middle + 1]);
+        }
+        EXPECT_TRUE(matches.find([](Move) { return false; }).is_null());
+        EXPECT_TRUE(matches.next().is_null());
+    }
+
+    const Board pinned{board_test::fen::pinned_rook};
+    const Move  illegal{E2, F2};
+    ASSERT_TRUE(pinned.is_pseudo_legal(illegal));
+    ASSERT_FALSE(pinned.is_legal_pseudo_move(illegal));
+    int matched = 0;
+    EXPECT_TRUE(UnorderedMoves(pinned)
+                    .find([&](Move move) {
+                        if (move != illegal)
+                            return false;
+                        ++matched;
+                        return true;
+                    })
+                    .is_null());
+    EXPECT_EQ(matched, 1); // Matching precedes legality, but cannot return an illegal move.
+}
 
 TEST_F(MoveStreamTest, ReturnsLegalMainAndQuiescenceMoves) {
     constexpr std::string_view positions[]{board_test::fen::start,
@@ -122,13 +164,15 @@ TEST_F(MoveStreamTest, MainSearchOrdersStagesAndDeduplicatesHints) {
                                                  position.piece_type_on(continuation_move.from()),
                                                  continuation_move.to()) = 16;
 
-    const auto              moves = main_search_moves(position, history, ply, tt_move, counter);
+    SearchTestAccess::counter_move_entry(history, context) = counter;
+    const auto              moves = main_search_moves(position, history, ply, tt_move);
     const std::vector<Move> prefix{
         tt_move, capture, killer_1, killer_2, counter, history_move, continuation_move};
     ASSERT_GE(moves.size(), prefix.size());
     EXPECT_EQ(std::vector<Move>(moves.begin(), moves.begin() + prefix.size()), prefix);
 
-    const auto duplicated = main_search_moves(position, history, ply, killer_1, killer_1);
+    SearchTestAccess::counter_move_entry(history, context) = killer_1;
+    const auto duplicated = main_search_moves(position, history, ply, killer_1);
     expect_hash_move_first_once(duplicated, killer_1);
     EXPECT_TRUE(std::ranges::is_permutation(duplicated, moves));
 
@@ -172,7 +216,9 @@ TEST_F(MoveStreamTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
     history.update_capture(position, queen_capture, 2048);
     ASSERT_TRUE(position.is_pseudo_legal(invalid_hint));
     ASSERT_FALSE(position.is_legal_pseudo_move(invalid_hint));
-    EXPECT_EQ(main_search_moves(position, history, ply, invalid_hint, invalid_hint), baseline);
+    SearchTestAccess::counter_move_entry(history, history.context_for(position, ply)) =
+        invalid_hint;
+    EXPECT_EQ(main_search_moves(position, history, ply, invalid_hint), baseline);
     EXPECT_EQ(quiescence_moves(position, history, invalid_hint), baseline);
     expect_hash_move_first_once(main_search_moves(position, history, ply, tt_evasion), tt_evasion);
     expect_hash_move_first_once(quiescence_moves(position, history, tt_evasion), tt_evasion);
