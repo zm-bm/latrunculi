@@ -85,11 +85,13 @@ null_move_reduction(const int depth, const EvalValue static_eval, const EvalValu
 }
 
 struct LmrReduction {
-    double unrounded{0.0};
-    int    plies{0};
+    int  plies{0};
+    int  base_plies{0};
+    bool capture_adjustment{false};
 };
 
-// Retain the fractional value for capture-history adjustments before rounding.
+// Complete reduction policy. Capture history adjusts the fractional base before
+// rounding; retain the integer base and eligibility for search instrumentation.
 template <NodeType Node>
 LmrReduction lmr_reduction(int  depth,
                            int  move_count,
@@ -98,7 +100,9 @@ LmrReduction lmr_reduction(int  depth,
                            bool in_check,
                            bool gives_check,
                            bool is_killer,
-                           bool declining) {
+                           bool declining,
+                           bool is_tt_move,
+                           int  capture_history) {
     if (depth < LmrMinDepth || move_count < LmrMinMoveCount)
         return {};
 
@@ -122,30 +126,17 @@ LmrReduction lmr_reduction(int  depth,
         if (declining && is_quiet && !is_killer && reduction < depth - 2)
             ++reduction;
     }
-    return {.unrounded = r, .plies = reduction};
-}
-
-struct CaptureLmrContext {
-    bool non_pv;
-    bool is_capture;
-    bool is_tt_move;
-    int  depth;
-    int  base_reduction;
-    bool is_promotion;
-    bool in_check;
-    bool gives_check;
-};
-
-inline bool capture_lmr_eligible(const CaptureLmrContext& context) {
-    return context.non_pv && context.is_capture && !context.is_tt_move
-        && context.depth >= CaptureLmrMinDepth && context.base_reduction > 0
-        && !context.is_promotion && !context.in_check && !context.gives_check;
-}
-
-inline int capture_lmr_reduction(double unrounded_reduction, int raw_capture_history, int depth) {
-    const double adjustment =
-        std::clamp(-static_cast<double>(raw_capture_history) / CaptureLmrHistoryDivisor, -1.0, 1.0);
-    return std::clamp(static_cast<int>(unrounded_reduction + adjustment), 0, depth - 2);
+    LmrReduction result{.plies = reduction, .base_plies = reduction};
+    if constexpr (Node == NodeType::NonPv) {
+        // Promotions and checking moves exited above; a non-quiet move is a capture.
+        if (!is_quiet && !is_tt_move && depth >= CaptureLmrMinDepth) {
+            const double adjustment = std::clamp(
+                -static_cast<double>(capture_history) / CaptureLmrHistoryDivisor, -1.0, 1.0);
+            result.plies              = std::clamp(static_cast<int>(r + adjustment), 0, depth - 2);
+            result.capture_adjustment = true;
+        }
+    }
+    return result;
 }
 
 } // namespace search::detail

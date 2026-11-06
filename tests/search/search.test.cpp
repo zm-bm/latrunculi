@@ -938,54 +938,54 @@ TEST_F(SearchTest, PvNodeIgnoresLowerTtBound) {
 
 TEST(CaptureLmrTest, AdjustsBeforeRoundingAndClampsDepth) {
     struct Case {
-        int    depth;
-        double unrounded_reduction;
-        int    raw_capture_history;
-        int    expected_reduction;
+        int depth;
+        int move_count;
+        int raw_capture_history;
+        int expected_reduction;
     };
     constexpr std::array cases{
-        Case{6, 2.0, 0, 2},
-        Case{6, 2.0, 1, 1},
-        Case{6, 1.5, -4096, 2},
-        Case{6, 2.25, 16384, 1},
-        Case{6, 2.25, -16384, 3},
-        Case{4, 1.25, 8192, 0},
-        Case{4, 1.25, -8192, 2},
-        Case{4, 3.75, 16384, 2},
+        Case{6, 16, 0, 2},
+        Case{6, 16, 4096, 1},
+        Case{6, 5, -4096, 2},
+        Case{6, 16, 16384, 1},
+        Case{6, 16, -16384, 3},
+        Case{4, 4, 8192, 0},
+        Case{4, 4, -8192, 2},
+        Case{4, 256, 16384, 2},
     };
     for (const auto& tc : cases) {
         SCOPED_TRACE(tc.depth);
-        SCOPED_TRACE(tc.unrounded_reduction);
+        SCOPED_TRACE(tc.move_count);
         SCOPED_TRACE(tc.raw_capture_history);
-        EXPECT_EQ(
-            detail::capture_lmr_reduction(tc.unrounded_reduction, tc.raw_capture_history, tc.depth),
-            tc.expected_reduction);
+        const auto result = detail::lmr_reduction<NodeType::NonPv>(tc.depth,
+                                                                   tc.move_count,
+                                                                   false,
+                                                                   false,
+                                                                   false,
+                                                                   false,
+                                                                   false,
+                                                                   false,
+                                                                   false,
+                                                                   tc.raw_capture_history);
+        EXPECT_EQ(result.plies, tc.expected_reduction);
+        EXPECT_TRUE(result.capture_adjustment);
     }
 }
 
 TEST(CaptureLmrTest, LimitsHistoryAdjustmentToNonPvLateCaptures) {
-    const detail::CaptureLmrContext eligible{
-        .non_pv         = true,
-        .is_capture     = true,
-        .is_tt_move     = false,
-        .depth          = 4,
-        .base_reduction = 1,
-        .is_promotion   = false,
-        .in_check       = false,
-        .gives_check    = false,
+    const auto adjusted = [](int depth, int moves, bool quiet, bool tt_move) {
+        return detail::lmr_reduction<NodeType::NonPv>(
+                   depth, moves, quiet, false, false, false, false, false, tt_move, 0)
+            .capture_adjustment;
     };
-    EXPECT_TRUE(detail::capture_lmr_eligible(eligible));
-
-    std::array<detail::CaptureLmrContext, 4> excluded;
-    excluded.fill(eligible);
-    excluded[0].non_pv         = false;
-    excluded[1].is_capture     = false;
-    excluded[2].depth          = 3;
-    excluded[3].base_reduction = 0;
-    for (std::size_t i = 0; i < excluded.size(); ++i) {
-        SCOPED_TRACE(i);
-        EXPECT_FALSE(detail::capture_lmr_eligible(excluded[i]));
-    }
+    EXPECT_TRUE(adjusted(4, 4, false, false));
+    EXPECT_FALSE(adjusted(4, 4, true, false));
+    EXPECT_FALSE(adjusted(3, 4, false, false));
+    EXPECT_FALSE(adjusted(4, 3, false, false));
+    EXPECT_FALSE(adjusted(4, 4, false, true));
+    EXPECT_FALSE(detail::lmr_reduction<NodeType::Pv>(
+                     4, 4, false, false, false, false, false, false, false, 0)
+                     .capture_adjustment);
 }
 
 TEST(LmrReductionTest, HandlesDepthMoveCountAndDecliningTrend) {
@@ -1007,14 +1007,22 @@ TEST(LmrReductionTest, HandlesDepthMoveCountAndDecliningTrend) {
         Case{.depth = 4, .moves = 256, .declining = true, .expected = 2},
     };
     for (const auto& tc : cases) {
-        EXPECT_EQ(detail::lmr_reduction<NodeType::NonPv>(
-                      tc.depth, tc.moves, tc.quiet, false, false, false, tc.killer, tc.declining)
+        EXPECT_EQ(detail::lmr_reduction<NodeType::NonPv>(tc.depth,
+                                                         tc.moves,
+                                                         tc.quiet,
+                                                         false,
+                                                         false,
+                                                         false,
+                                                         tc.killer,
+                                                         tc.declining,
+                                                         false,
+                                                         0)
                       .plies,
                   tc.expected);
     }
     const auto pv_reduction = [](bool declining) {
         return detail::lmr_reduction<NodeType::Pv>(
-                   8, 12, true, false, false, false, false, declining)
+                   8, 12, true, false, false, false, false, declining, false, 0)
             .plies;
     };
     EXPECT_EQ(pv_reduction(true), pv_reduction(false));

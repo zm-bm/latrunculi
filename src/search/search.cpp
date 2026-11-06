@@ -236,24 +236,18 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         }
 
         // Step 11. Late-move reductions.
-        const auto base_reduction = detail::lmr_reduction<Node>(
-            depth, move_count, is_quiet, is_promotion, in_check, gives_check, is_killer, declining);
-        int        reduction            = base_reduction.plies;
-        const bool capture_lmr_eligible = detail::capture_lmr_eligible({
-            .non_pv         = Node == NodeType::NonPv,
-            .is_capture     = is_capture,
-            .is_tt_move     = move == tt_move,
-            .depth          = depth,
-            .base_reduction = reduction,
-            .is_promotion   = is_promotion,
-            .in_check       = in_check,
-            .gives_check    = gives_check,
-        });
-        if (capture_lmr_eligible)
-            reduction =
-                detail::capture_lmr_reduction(base_reduction.unrounded, raw_capture_history, depth);
-        stats.capture_lmr(
-            capture_lmr_eligible, raw_capture_history, base_reduction.plies, reduction);
+        const auto lmr       = detail::lmr_reduction<Node>(depth,
+                                                     move_count,
+                                                     is_quiet,
+                                                     is_promotion,
+                                                     in_check,
+                                                     gives_check,
+                                                     is_killer,
+                                                     declining,
+                                                     move == tt_move,
+                                                     raw_capture_history);
+        const int  reduction = lmr.plies;
+        stats.capture_lmr(lmr.capture_adjustment, raw_capture_history, lmr.base_plies, reduction);
 
         // Step 12. Scout reduced moves and later PV moves before a full-depth search.
         const bool scout = reduction > 0 || (Node == NodeType::Pv && !first_legal);
@@ -268,7 +262,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         if (!scout || (!stop_requested() && value > alpha)) {
             if (reduction > 0) {
                 stats.lmr_research(search_ply - 1);
-                stats.capture_research(capture_lmr_eligible, base_reduction.plies != reduction);
+                stats.capture_research(lmr.capture_adjustment, lmr.base_plies != reduction);
             }
             if constexpr (Node == NodeType::Pv) {
                 if (scout) {
