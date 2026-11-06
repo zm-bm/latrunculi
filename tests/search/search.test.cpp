@@ -957,16 +957,10 @@ TEST(CaptureLmrTest, AdjustsBeforeRoundingAndClampsDepth) {
         SCOPED_TRACE(tc.depth);
         SCOPED_TRACE(tc.move_count);
         SCOPED_TRACE(tc.raw_capture_history);
-        const auto result = detail::lmr_reduction<NodeType::NonPv>(tc.depth,
-                                                                   tc.move_count,
-                                                                   false,
-                                                                   false,
-                                                                   false,
-                                                                   false,
-                                                                   false,
-                                                                   false,
-                                                                   false,
-                                                                   tc.raw_capture_history);
+        const auto result =
+            detail::lmr_reduction<NodeType::NonPv>({.depth           = tc.depth,
+                                                    .move_count      = tc.move_count,
+                                                    .capture_history = tc.raw_capture_history});
         EXPECT_EQ(result.plies, tc.expected_reduction);
         EXPECT_TRUE(result.capture_adjustment);
     }
@@ -975,7 +969,7 @@ TEST(CaptureLmrTest, AdjustsBeforeRoundingAndClampsDepth) {
 TEST(CaptureLmrTest, LimitsHistoryAdjustmentToNonPvLateCaptures) {
     const auto adjusted = [](int depth, int moves, bool quiet, bool tt_move) {
         return detail::lmr_reduction<NodeType::NonPv>(
-                   depth, moves, quiet, false, false, false, false, false, tt_move, 0)
+                   {.depth = depth, .move_count = moves, .is_quiet = quiet, .is_tt_move = tt_move})
             .capture_adjustment;
     };
     EXPECT_TRUE(adjusted(4, 4, false, false));
@@ -983,9 +977,8 @@ TEST(CaptureLmrTest, LimitsHistoryAdjustmentToNonPvLateCaptures) {
     EXPECT_FALSE(adjusted(3, 4, false, false));
     EXPECT_FALSE(adjusted(4, 3, false, false));
     EXPECT_FALSE(adjusted(4, 4, false, true));
-    EXPECT_FALSE(detail::lmr_reduction<NodeType::Pv>(
-                     4, 4, false, false, false, false, false, false, false, 0)
-                     .capture_adjustment);
+    EXPECT_FALSE(
+        detail::lmr_reduction<NodeType::Pv>({.depth = 4, .move_count = 4}).capture_adjustment);
 }
 
 TEST(LmrReductionTest, HandlesDepthMoveCountAndDecliningTrend) {
@@ -1007,22 +1000,17 @@ TEST(LmrReductionTest, HandlesDepthMoveCountAndDecliningTrend) {
         Case{.depth = 4, .moves = 256, .declining = true, .expected = 2},
     };
     for (const auto& tc : cases) {
-        EXPECT_EQ(detail::lmr_reduction<NodeType::NonPv>(tc.depth,
-                                                         tc.moves,
-                                                         tc.quiet,
-                                                         false,
-                                                         false,
-                                                         false,
-                                                         tc.killer,
-                                                         tc.declining,
-                                                         false,
-                                                         0)
+        EXPECT_EQ(detail::lmr_reduction<NodeType::NonPv>({.depth      = tc.depth,
+                                                          .move_count = tc.moves,
+                                                          .is_quiet   = tc.quiet,
+                                                          .is_killer  = tc.killer,
+                                                          .declining  = tc.declining})
                       .plies,
                   tc.expected);
     }
     const auto pv_reduction = [](bool declining) {
         return detail::lmr_reduction<NodeType::Pv>(
-                   8, 12, true, false, false, false, false, declining, false, 0)
+                   {.depth = 8, .move_count = 12, .is_quiet = true, .declining = declining})
             .plies;
     };
     EXPECT_EQ(pv_reduction(true), pv_reduction(false));

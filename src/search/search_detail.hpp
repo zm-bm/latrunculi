@@ -162,6 +162,19 @@ null_move_reduction(const int depth, const EvalValue static_eval, const EvalValu
     return std::min({depth, NullMoveReductionMax, reduction});
 }
 
+struct LmrInputs {
+    int  depth;
+    int  move_count;
+    bool is_quiet{false};
+    bool is_promotion{false};
+    bool in_check{false};
+    bool gives_check{false};
+    bool is_killer{false};
+    bool declining{false};
+    bool is_tt_move{false};
+    int  capture_history{0};
+};
+
 struct LmrReduction {
     int  plies{0};
     int  base_plies{0};
@@ -171,46 +184,37 @@ struct LmrReduction {
 // Complete reduction policy. Capture history adjusts the fractional base before
 // rounding; retain the integer base and eligibility for search instrumentation.
 template <NodeType Node>
-LmrReduction lmr_reduction(int  depth,
-                           int  move_count,
-                           bool is_quiet,
-                           bool is_promotion,
-                           bool in_check,
-                           bool gives_check,
-                           bool is_killer,
-                           bool declining,
-                           bool is_tt_move,
-                           int  capture_history) {
-    if (depth < LmrMinDepth || move_count < LmrMinMoveCount)
+LmrReduction lmr_reduction(const LmrInputs& input) {
+    if (input.depth < LmrMinDepth || input.move_count < LmrMinMoveCount)
         return {};
 
     // Do not reduce moves that create immediate tactical obligations.
-    if (is_promotion || in_check || gives_check)
+    if (input.is_promotion || input.in_check || input.gives_check)
         return {};
 
-    const double base = is_quiet ? 1.25 : 0.75;
-    const double div  = is_quiet ? 2.5 : 3.3;
-    double       r    = base + std::log(depth) * std::log(move_count) / div;
+    const double base = input.is_quiet ? 1.25 : 0.75;
+    const double div  = input.is_quiet ? 2.5 : 3.3;
+    double       r    = base + std::log(input.depth) * std::log(input.move_count) / div;
 
     // Reduce less for PV and killer moves.
     if constexpr (Node == NodeType::Pv)
         r *= 0.7;
-    if (is_killer)
+    if (input.is_killer)
         r *= 0.8;
 
     // Keep at least one main-search ply after the move.
-    int reduction = std::clamp(static_cast<int>(r), 1, depth - 2);
+    int reduction = std::clamp(static_cast<int>(r), 1, input.depth - 2);
     if constexpr (Node == NodeType::NonPv) {
-        if (declining && is_quiet && !is_killer && reduction < depth - 2)
+        if (input.declining && input.is_quiet && !input.is_killer && reduction < input.depth - 2)
             ++reduction;
     }
     LmrReduction result{.plies = reduction, .base_plies = reduction};
     if constexpr (Node == NodeType::NonPv) {
         // Promotions and checking moves exited above; a non-quiet move is a capture.
-        if (!is_quiet && !is_tt_move && depth >= CaptureLmrMinDepth) {
+        if (!input.is_quiet && !input.is_tt_move && input.depth >= CaptureLmrMinDepth) {
             const double adjustment = std::clamp(
-                -static_cast<double>(capture_history) / CaptureLmrHistoryDivisor, -1.0, 1.0);
-            result.plies              = std::clamp(static_cast<int>(r + adjustment), 0, depth - 2);
+                -static_cast<double>(input.capture_history) / CaptureLmrHistoryDivisor, -1.0, 1.0);
+            result.plies = std::clamp(static_cast<int>(r + adjustment), 0, input.depth - 2);
             result.capture_adjustment = true;
         }
     }

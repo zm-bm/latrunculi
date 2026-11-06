@@ -260,16 +260,16 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         }
 
         // Step 11. Late-move reductions.
-        const auto lmr       = detail::lmr_reduction<Node>(depth,
-                                                     move_count,
-                                                     is_quiet,
-                                                     is_promotion,
-                                                     in_check,
-                                                     gives_check,
-                                                     is_killer,
-                                                     declining,
-                                                     move == tt_move,
-                                                     raw_capture_history);
+        const auto lmr       = detail::lmr_reduction<Node>({.depth           = depth,
+                                                            .move_count      = move_count,
+                                                            .is_quiet        = is_quiet,
+                                                            .is_promotion    = is_promotion,
+                                                            .in_check        = in_check,
+                                                            .gives_check     = gives_check,
+                                                            .is_killer       = is_killer,
+                                                            .declining       = declining,
+                                                            .is_tt_move      = move == tt_move,
+                                                            .capture_history = raw_capture_history});
         const int  reduction = lmr.plies;
         stats.capture_lmr(lmr.capture_adjustment, raw_capture_history, lmr.base_plies, reduction);
 
