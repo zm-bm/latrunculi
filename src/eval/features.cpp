@@ -13,6 +13,7 @@
 #include "board/board.hpp"
 #include "core/notation.hpp"
 #include "eval/parameters.hpp"
+#include "eval/score_finalization.hpp"
 
 namespace eval {
 
@@ -173,27 +174,16 @@ Score FeatureRecord::white_value() const noexcept {
 }
 
 Score FeatureRecord::reconstruct() const noexcept {
-    TaperedScore phase_scores = weighted_score(coefficients) + fixed_score;
-
-    const Color stronger_side = phase_scores.eg < 0 ? BLACK : WHITE;
-    const int   scale         = std::min(
-        eval::scale_limit, eval::scale_base + eval::scale_per_pawn * pawn_counts[stronger_side]);
-    phase_scores.eg = (phase_scores.eg * scale) / eval::scale_limit;
+    const TaperedScore phase_scores = weighted_score(coefficients) + fixed_score;
 
     const auto& schema            = feature_schema();
     const int   non_pawn_material = phase_counts[0] * schema[feature::material(KNIGHT)].weight.mg
                                 + phase_counts[1] * schema[feature::material(BISHOP)].weight.mg
                                 + phase_counts[2] * schema[feature::material(ROOK)].weight.mg
                                 + phase_counts[3] * schema[feature::material(QUEEN)].weight.mg;
-    const int material = std::clamp(non_pawn_material, eval::material_eg, eval::material_mg);
-    const int phase    = ((material - eval::material_eg) * eval::phase_limit)
-                    / (eval::material_mg - eval::material_eg);
-
-    const Score white_value =
-        (phase_scores.mg * phase + phase_scores.eg * (eval::phase_limit - phase))
-        / eval::phase_limit;
-    const Score side_value = turn == WHITE ? white_value : -white_value;
-    return side_value + eval::tempo_bonus;
+    return finalize_score(
+               phase_scores, non_pawn_material, pawn_counts[WHITE], pawn_counts[BLACK], turn)
+        .value;
 }
 
 void FeatureRecord::complete(const Board& board,

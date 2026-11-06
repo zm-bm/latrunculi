@@ -10,6 +10,7 @@
 #include "core/square.hpp"
 #include "eval/features.hpp"
 #include "eval/parameters.hpp"
+#include "eval/score_finalization.hpp"
 #include "eval/tapered_score.hpp"
 
 namespace eval {
@@ -125,10 +126,6 @@ private:
     template <PieceType P>
     int calculate_check_danger(Bitboard safe_checks, Bitboard all_checks) const;
 
-    int   scale_factor(Color color) const;
-    Score taper_score(TaperedScore phase_scores) const;
-    int   phase() const;
-
     template <Color C>
     void record_base_features();
 
@@ -179,20 +176,18 @@ Score Evaluator::evaluate_impl() {
     phase_scores +=
         record_term<Collecting>(Term::Threats, scores.threats[WHITE], scores.threats[BLACK]);
 
-    const Color        side_to_move   = board.side_to_move();
-    const Color        stronger_side  = phase_scores.eg < 0 ? BLACK : WHITE;
-    const TaperedScore unscaled_score = phase_scores;
-    phase_scores.eg = (phase_scores.eg * scale_factor(stronger_side)) / eval::scale_limit;
-
-    const Score tapered_value      = taper_score(phase_scores);
-    const Score side_to_move_value = tapered_value * (side_to_move == WHITE ? 1 : -1);
-    const Score final_value        = side_to_move_value + eval::tempo_bonus;
+    const auto final =
+        finalize_score(phase_scores,
+                       board.non_pawn_material(WHITE) + board.non_pawn_material(BLACK),
+                       board.count(WHITE, PAWN),
+                       board.count(BLACK, PAWN),
+                       board.side_to_move());
 
     if constexpr (Collecting)
         feature_record->complete(
-            board, unscaled_score, phase_scores, tapered_value, side_to_move_value, final_value);
+            board, phase_scores, final.scaled, final.tapered, final.side_to_move, final.value);
 
-    return final_value;
+    return final.value;
 }
 
 Score Evaluator::evaluate() {
@@ -724,29 +719,6 @@ inline int Evaluator::calculate_check_danger(const Bitboard safe_checks,
 
     assert(count < static_cast<int>(danger_by_count[safe].size()));
     return danger_by_count[safe][count];
-}
-
-// Integer numerator for scaling endgame evaluation toward zero in drawish pawn endings.
-int Evaluator::scale_factor(Color color) const {
-    const int pawn_count = board.count(color, PAWN);
-    return std::min(eval::scale_limit, eval::scale_base + eval::scale_per_pawn * pawn_count);
-}
-
-// Blend middlegame and endgame scores based on game phase.
-Score Evaluator::taper_score(TaperedScore phase_scores) const {
-    const int mg_phase = phase();
-    const int eg_phase = eval::phase_limit - mg_phase;
-
-    return ((phase_scores.mg * mg_phase) + (phase_scores.eg * eg_phase)) / eval::phase_limit;
-}
-
-// Game phase from MG piece values: zero is endgame and phase_limit is middlegame.
-int Evaluator::phase() const {
-    const int non_pawn_material = board.non_pawn_material(WHITE) + board.non_pawn_material(BLACK);
-    const int material = std::clamp(non_pawn_material, eval::material_eg, eval::material_mg);
-
-    return ((material - eval::material_eg) * eval::phase_limit)
-         / (eval::material_mg - eval::material_eg);
 }
 
 Score evaluate(const Board& board) {
