@@ -82,8 +82,6 @@ public:
         return worker.alphabeta<Node>(alpha, beta, depth, pv);
     }
 
-    static bool after_null_move(const search::Worker& worker) { return worker.after_null_move(); }
-
     static EvalValue search_excluding_move(
         search::Worker& worker, EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
         return worker.search_excluding_move(alpha, beta, depth, excluded_move);

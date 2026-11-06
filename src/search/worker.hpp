@@ -132,7 +132,6 @@ private:
     bool stop_requested() const noexcept;
     bool is_main_worker() const noexcept;
     bool should_poll_search_limits() const noexcept;
-    bool after_null_move() const noexcept;
 
     friend class ::SearchTestAccess;
     friend class Thread;
@@ -170,13 +169,6 @@ inline bool Worker::is_main_worker() const noexcept {
 
 inline bool Worker::should_poll_search_limits() const noexcept {
     return is_main_worker() && ((node_count() & 0xFFF) == 0);
-}
-
-inline bool Worker::after_null_move() const noexcept {
-    // Skip razoring, reverse futility, NMP, and singular verification at the null-search root.
-    // Move-loop pruning and TT behavior remain ordinary; a real child restores all heuristics.
-    // A loaded position without reversible history is not a null move.
-    return search_ply > 0 && board.previous_move().is_null() && board.can_unmake();
 }
 
 } // namespace search

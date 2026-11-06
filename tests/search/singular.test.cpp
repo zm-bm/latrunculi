@@ -5,6 +5,7 @@
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
+#include "search/search_detail.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
@@ -213,7 +214,7 @@ TEST_F(SingularTest, NullMoveRootCannotStartSingularVerification) {
     Board parent{"k7/8/1PK5/8/8/8/P7/8 w - - 0 1"};
     parent.make_null();
     load(parent);
-    ASSERT_TRUE(SearchTestAccess::after_null_move(worker));
+    ASSERT_TRUE(detail::after_null_move(board(), ply()));
     const auto record = entry(move("a8b8"));
     ASSERT_FALSE(record.move.is_null());
     EXPECT_FALSE(extend(record));

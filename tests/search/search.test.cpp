@@ -58,7 +58,7 @@ protected:
         board.make_null();
         load(board, depth);
         ply() = 1;
-        ASSERT_TRUE(SearchTestAccess::after_null_move(worker));
+        ASSERT_TRUE(detail::after_null_move(position(), ply()));
     }
 
     EvalValue pv_search(EvalValue alpha, EvalValue beta, int depth, PrincipalVariation& pv) {
@@ -457,19 +457,19 @@ TEST_F(SearchTest, NullMoveReenablesAfterARealDescendantMove) {
 
 TEST_F(SearchTest, NullMoveContextRequiresAnActualNullSearchEdge) {
     load(Board{board_test::fen::start});
-    EXPECT_FALSE(SearchTestAccess::after_null_move(worker));
+    EXPECT_FALSE(detail::after_null_move(position(), ply()));
     ply() = 1;
     EXPECT_FALSE(position().can_unmake());
-    EXPECT_FALSE(SearchTestAccess::after_null_move(worker));
+    EXPECT_FALSE(detail::after_null_move(position(), ply()));
     ply() = 0;
 
     with_null_move([&] {
-        EXPECT_TRUE(SearchTestAccess::after_null_move(worker));
+        EXPECT_TRUE(detail::after_null_move(position(), ply()));
         with_move(find_move("e7e5"),
-                  [&] { EXPECT_FALSE(SearchTestAccess::after_null_move(worker)); });
-        EXPECT_TRUE(SearchTestAccess::after_null_move(worker));
+                  [&] { EXPECT_FALSE(detail::after_null_move(position(), ply())); });
+        EXPECT_TRUE(detail::after_null_move(position(), ply()));
     });
-    EXPECT_FALSE(SearchTestAccess::after_null_move(worker));
+    EXPECT_FALSE(detail::after_null_move(position(), ply()));
 }
 
 TEST_F(SearchTest, AfterNullMoveSkipsReverseFutilityButRetainsOrdinaryTtStores) {

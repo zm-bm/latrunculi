@@ -100,7 +100,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
 
     bool declining = false;
     if constexpr (Node == NodeType::NonPv) {
-        const bool after_null = after_null_move();
+        const bool after_null = detail::after_null_move(board, search_ply);
         // Step 5. Razoring.
         static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
                                                                 : eval::evaluate(board);

@@ -4,6 +4,7 @@
 
 #include "core/constants.hpp"
 #include "eval/parameters.hpp"
+#include "search/search_detail.hpp"
 #include "search/search_frame.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -64,7 +65,7 @@ template <NodeType Node>
 Worker::SingularResult
 Worker::singular_decision(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta) {
     if (depth < SingularMinDepth || search_ply == 0 || search_ply >= 2 * root_iteration_depth
-        || search_ply + 1 >= engine::max_search_ply || after_null_move()
+        || search_ply + 1 >= engine::max_search_ply || detail::after_null_move(board, search_ply)
         || record.depth < depth - SingularTtDepthSlack
         || (record.bound != TTBound::Exact && record.bound != TTBound::LowerBound))
         return {};

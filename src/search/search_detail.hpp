@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cmath>
 
+#include "board/board.hpp"
 #include "eval/parameters.hpp"
 #include "search/node_type.hpp"
 #include "search/tt.hpp"
@@ -12,6 +13,12 @@ namespace search::detail {
 
 inline void prefetch_child_tt(PositionKey tt_key) noexcept {
     tt.prefetch(tt_key);
+}
+
+// Null-search roots suppress early pruning and singular verification, but retain
+// ordinary TT and move-loop behavior. A loaded position without history is not a null edge.
+inline bool after_null_move(const Board& board, int ply) noexcept {
+    return ply > 0 && board.previous_move().is_null() && board.can_unmake();
 }
 
 enum class AspirationMiss { FailLow, FailHigh };
