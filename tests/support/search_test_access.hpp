@@ -1,5 +1,6 @@
 #pragma once
 
+#include "search/search_detail.hpp"
 #include "search/worker.hpp"
 
 class SearchTestAccess {
@@ -84,7 +85,9 @@ public:
 
     static EvalValue search_excluding_move(
         search::Worker& worker, EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
-        return worker.search_excluding_move(alpha, beta, depth, excluded_move);
+        const search::detail::ScopedSingularVerification scope{
+            worker.frames[worker.search_ply], worker.verification_active, excluded_move};
+        return worker.alphabeta<search::NodeType::NonPv>(alpha, beta, depth, nullptr);
     }
     template <search::NodeType Node = search::NodeType::NonPv>
     static auto singular_result(search::Worker&         worker,
@@ -92,7 +95,31 @@ public:
                                 int                     depth,
                                 EvalValue               alpha = -eval_value::inf,
                                 EvalValue               beta  = eval_value::inf) {
-        return worker.singular_decision<Node>(record, depth, alpha, beta);
+        struct Result {
+            bool                     extend{false};
+            std::optional<EvalValue> cutoff;
+        };
+        const auto request =
+            search::detail::singular_verification<Node>(worker.board,
+                                                        record,
+                                                        worker.frames[worker.search_ply],
+                                                        worker.search_ply,
+                                                        worker.root_iteration_depth,
+                                                        depth,
+                                                        alpha,
+                                                        beta,
+                                                        worker.verification_active);
+        if (!request)
+            return Result{};
+        const auto value = search_excluding_move(
+            worker, request->beta - 1, request->beta, request->depth, record.move);
+        if (worker.stop_requested())
+            return Result{};
+        if (value < request->beta)
+            return Result{.extend = true};
+        if (request->multicut_allowed)
+            return Result{.cutoff = request->beta};
+        return Result{};
     }
 
     template <search::NodeType Node>

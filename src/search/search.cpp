@@ -161,14 +161,38 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
                 && static_eval + detail::FutilityMargin[depth] <= alpha;
     }
 
-    SingularResult singular;
-    if (tt_record)
-        singular = singular_decision<Node>(*tt_record, depth, alpha, beta);
+    bool                     singular_extension = false;
+    std::optional<EvalValue> singular_cutoff;
+    if (tt_record) {
+        if (const auto verification = detail::singular_verification<Node>(board,
+                                                                          *tt_record,
+                                                                          frame,
+                                                                          search_ply,
+                                                                          root_iteration_depth,
+                                                                          depth,
+                                                                          alpha,
+                                                                          beta,
+                                                                          verification_active)) {
+            EvalValue value;
+            {
+                const detail::ScopedSingularVerification scope{
+                    frame, verification_active, tt_record->move};
+                value = alphabeta<NodeType::NonPv>(
+                    verification->beta - 1, verification->beta, verification->depth, nullptr);
+            }
+            if (!stop_requested()) {
+                if (value < verification->beta)
+                    singular_extension = true;
+                else if (verification->multicut_allowed)
+                    singular_cutoff = verification->beta;
+            }
+        }
+    }
     if (stop_requested())
         return alpha;
     // A multicut returns before the ordinary move stream, TT store, or cutoff training.
-    if (singular.cutoff)
-        return *singular.cutoff;
+    if (singular_cutoff)
+        return *singular_cutoff;
 
     // Step 7. Move ordering and node-local history feedback.
     int       move_count = 0;
@@ -214,7 +238,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
                                  && history.quiet_score(context, board, move) < 0;
         }
 
-        const int child_depth = depth - 1 + (move == tt_move && singular.extend);
+        const int child_depth = depth - 1 + (move == tt_move && singular_extension);
         board.make(move, detail::prefetch_child_tt);
         ++search_ply;
 

@@ -3,10 +3,12 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <optional>
 
 #include "board/board.hpp"
 #include "eval/parameters.hpp"
 #include "search/node_type.hpp"
+#include "search/search_frame.hpp"
 #include "search/tt.hpp"
 
 namespace search::detail {
@@ -20,6 +22,51 @@ inline void prefetch_child_tt(PositionKey tt_key) noexcept {
 inline bool after_null_move(const Board& board, int ply) noexcept {
     return ply > 0 && board.previous_move().is_null() && board.can_unmake();
 }
+
+struct SingularVerification {
+    EvalValue beta;
+    int       depth;
+    bool      multicut_allowed;
+};
+
+template <NodeType Node>
+std::optional<SingularVerification> singular_verification(const Board&       board,
+                                                          const TTRecord&    record,
+                                                          const SearchFrame& frame,
+                                                          int                ply,
+                                                          int                root_depth,
+                                                          int                depth,
+                                                          EvalValue          alpha,
+                                                          EvalValue          beta,
+                                                          bool               verification_active);
+
+// Exclusion belongs to this ply; verification stays active throughout the call.
+// Restore the entire frame before interpreting the result, including after a stop.
+class ScopedSingularVerification {
+public:
+    ScopedSingularVerification(SearchFrame& frame, bool& active, Move excluded_move) noexcept
+        : frame(frame),
+          saved(frame),
+          active(active),
+          was_active(active) {
+        assert(!excluded_move.is_null());
+        frame.excluded_move = excluded_move;
+        active              = true;
+    }
+    ~ScopedSingularVerification() {
+        frame  = saved;
+        active = was_active;
+    }
+
+    ScopedSingularVerification(const ScopedSingularVerification&)            = delete;
+    ScopedSingularVerification& operator=(const ScopedSingularVerification&) = delete;
+
+private:
+    SearchFrame&      frame;
+    const SearchFrame saved;
+    bool&             active;
+    const bool        was_active;
+};
 
 enum class AspirationMiss { FailLow, FailHigh };
 

@@ -23,7 +23,6 @@ namespace search {
 
 class ThreadPool;
 class Thread;
-struct TTRecord;
 
 // Per-thread search state and search execution.
 class Worker {
@@ -100,16 +99,6 @@ private:
     alphabeta(EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv = nullptr);
     template <NodeType Node = NodeType::NonPv, bool UseTt = true>
     EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
-
-    // Singular verification and multicuts. (singular.cpp)
-    EvalValue search_excluding_move(EvalValue alpha, EvalValue beta, int depth, Move excluded_move);
-    struct SingularResult {
-        bool                     extend{false};
-        std::optional<EvalValue> cutoff;
-    };
-    template <NodeType Node>
-    SingularResult
-    singular_decision(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta);
 
     // Root results and reporting. (worker.cpp)
     void     build_root_lines();
