@@ -47,6 +47,7 @@ public:
 private:
     // Board and search state.
     Board                 board;
+    int                   search_ply{0};
     int                   root_iteration_depth{0};
     RootLine              root_result;
     std::vector<RootLine> root_lines;
@@ -95,22 +96,20 @@ private:
     // Recursive search. (search.cpp)
     bool settle(Board& position);
     template <NodeType Node = NodeType::NonPv>
-    EvalValue alphabeta(
-        EvalValue alpha, EvalValue beta, int depth, int ply, PrincipalVariation* pv = nullptr);
-    template <NodeType Node = NodeType::NonPv, bool UseTt = true>
     EvalValue
-    quiescence(EvalValue alpha, EvalValue beta, int ply, PrincipalVariation* pv = nullptr);
+    alphabeta(EvalValue alpha, EvalValue beta, int depth, PrincipalVariation* pv = nullptr);
+    template <NodeType Node = NodeType::NonPv, bool UseTt = true>
+    EvalValue quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation* pv = nullptr);
 
     // Singular verification and multicuts. (singular.cpp)
-    EvalValue
-    search_excluding_move(EvalValue alpha, EvalValue beta, int depth, int ply, Move excluded_move);
+    EvalValue search_excluding_move(EvalValue alpha, EvalValue beta, int depth, Move excluded_move);
     struct SingularResult {
         bool                     extend{false};
         std::optional<EvalValue> cutoff;
     };
     template <NodeType Node>
     SingularResult
-    singular_decision(const TTRecord& record, int depth, int ply, EvalValue alpha, EvalValue beta);
+    singular_decision(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta);
 
     // Root results and reporting. (worker.cpp)
     void     build_root_lines();
@@ -133,7 +132,7 @@ private:
     bool stop_requested() const noexcept;
     bool is_main_worker() const noexcept;
     bool should_poll_search_limits() const noexcept;
-    bool after_null_move(int ply) const noexcept;
+    bool after_null_move() const noexcept;
 
     friend class ::SearchTestAccess;
     friend class Thread;
@@ -173,11 +172,11 @@ inline bool Worker::should_poll_search_limits() const noexcept {
     return is_main_worker() && ((node_count() & 0xFFF) == 0);
 }
 
-inline bool Worker::after_null_move(int ply) const noexcept {
+inline bool Worker::after_null_move() const noexcept {
     // Skip razoring, reverse futility, NMP, and singular verification at the null-search root.
     // Move-loop pruning and TT behavior remain ordinary; a real child restores all heuristics.
     // A loaded position without reversible history is not a null move.
-    return ply > 0 && board.previous_move().is_null() && board.can_unmake();
+    return search_ply > 0 && board.previous_move().is_null() && board.can_unmake();
 }
 
 } // namespace search

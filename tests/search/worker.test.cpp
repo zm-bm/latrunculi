@@ -19,7 +19,6 @@ namespace {
 
 class SearchWorkerTest : public ::testing::Test {
 protected:
-    int                     ply{0};
     RecordingSearchReporter reporter;
     ThreadPool              pool{1, reporter};
 
@@ -30,16 +29,16 @@ protected:
     void load_worker_board(Board& board) {
         worker().configure_search(board, Limits{}, SearchClock::now());
         SearchTestAccess::reset(worker());
-        ply = 0;
     }
 
-    bool worker_is_draw() { return SearchTestAccess::board(worker()).is_draw(ply); }
+    int& search_ply() { return SearchTestAccess::search_ply(worker()); }
+    bool worker_is_draw() { return SearchTestAccess::board(worker()).is_draw(search_ply()); }
 
     History& history() { return SearchTestAccess::history(worker()); }
 
     void make_worker_move(Move move) {
         SearchTestAccess::board(worker()).make(move);
-        ++ply;
+        ++search_ply();
     }
 };
 

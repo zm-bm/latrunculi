@@ -43,8 +43,8 @@ protected:
 
     EvalValue search(bool pv, int depth, EvalValue alpha, EvalValue beta) {
         if (pv)
-            return SearchTestAccess::alphabeta<NodeType::Pv>(worker, alpha, beta, depth, 0);
-        return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, depth, 0);
+            return SearchTestAccess::alphabeta<NodeType::Pv>(worker, alpha, beta, depth);
+        return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, depth);
     }
 };
 

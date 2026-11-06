@@ -17,7 +17,6 @@ namespace {
 
 class SingularTest : public ::testing::Test {
 protected:
-    int search_ply{0};
     // Expected margin used by the depth-eight verification fixtures.
     static constexpr EvalValue margin_at_depth_8 = 16;
 
@@ -40,7 +39,7 @@ protected:
     }
 
     Board&       board() { return SearchTestAccess::board(worker); }
-    int&         ply() { return search_ply; }
+    int&         ply() { return SearchTestAccess::search_ply(worker); }
     bool&        verification_active() { return SearchTestAccess::verification_active(worker); }
     SearchFrame& frame() { return SearchTestAccess::frames(worker)[ply()]; }
     Move         move(std::string_view name) {
@@ -66,11 +65,11 @@ protected:
     template <NodeType Node = NodeType::Pv>
     bool extend(const TTRecord& record, int depth = 8) {
         return SearchTestAccess::singular_result<Node>(
-                   worker, record, depth, ply(), -eval_value::inf, eval_value::inf)
+                   worker, record, depth, -eval_value::inf, eval_value::inf)
             .extend;
     }
     EvalValue excluded_search(Move excluded, int depth, EvalValue alpha, EvalValue beta) {
-        return SearchTestAccess::search_excluding_move(worker, alpha, beta, depth, ply(), excluded);
+        return SearchTestAccess::search_excluding_move(worker, alpha, beta, depth, excluded);
     }
 };
 
@@ -214,7 +213,7 @@ TEST_F(SingularTest, NullMoveRootCannotStartSingularVerification) {
     Board parent{"k7/8/1PK5/8/8/8/P7/8 w - - 0 1"};
     parent.make_null();
     load(parent);
-    ASSERT_TRUE(SearchTestAccess::after_null_move(worker, ply()));
+    ASSERT_TRUE(SearchTestAccess::after_null_move(worker));
     const auto record = entry(move("a8b8"));
     ASSERT_FALSE(record.move.is_null());
     EXPECT_FALSE(extend(record));
@@ -242,8 +241,7 @@ TEST_F(SingularTest, ExtendsTheActualChildAndRebuildsPvWithRetainedTt) {
     const Move only = move("a8b8");
     tt.store(board().tt_key(), only, 30000, 7, TTBound::LowerBound, ply());
     PrincipalVariation pv;
-    SearchTestAccess::alphabeta<NodeType::Pv>(
-        worker, -eval_value::inf, eval_value::inf, 8, ply(), &pv);
+    SearchTestAccess::alphabeta<NodeType::Pv>(worker, -eval_value::inf, eval_value::inf, 8, &pv);
     ASSERT_GT(pv.size(), 0);
     EXPECT_EQ(pv.front(), only);
     board().make(only);
@@ -251,8 +249,7 @@ TEST_F(SingularTest, ExtendsTheActualChildAndRebuildsPvWithRetainedTt) {
     ASSERT_TRUE(child);
     EXPECT_GE(child->depth, 8);
     board().unmake();
-    SearchTestAccess::alphabeta<NodeType::Pv>(
-        worker, -eval_value::inf, eval_value::inf, 8, ply(), &pv);
+    SearchTestAccess::alphabeta<NodeType::Pv>(worker, -eval_value::inf, eval_value::inf, 8, &pv);
     ASSERT_GT(pv.size(), 0);
     Board copy = board();
     for (int i = 0; i < pv.size(); ++i) {
@@ -268,7 +265,7 @@ TEST_F(SingularTest, RefutationEqualityAllowsMulticutInsteadOfExtension) {
         const auto record = entry(move("a8b8"));
         const auto sb     = record.score - margin_at_depth_8;
         seed_alternative(sb + offset);
-        const auto result = SearchTestAccess::singular_result(worker, record, 8, ply(), sb - 1, sb);
+        const auto result = SearchTestAccess::singular_result(worker, record, 8, sb - 1, sb);
         EXPECT_EQ(result.extend, offset < 0);
         EXPECT_EQ(result.cutoff.has_value(), offset >= 0);
         if (result.cutoff)
@@ -284,9 +281,8 @@ TEST_F(SingularTest, MulticutRequiresThresholdAtOrAboveBeta) {
         const auto record = entry(move("a8b8"));
         const auto sb     = record.score - margin_at_depth_8;
         seed_alternative(sb);
-        const auto beta = sb + beta_offset;
-        const auto result =
-            SearchTestAccess::singular_result(worker, record, 8, ply(), beta - 1, beta);
+        const auto beta   = sb + beta_offset;
+        const auto result = SearchTestAccess::singular_result(worker, record, 8, beta - 1, beta);
         EXPECT_FALSE(result.extend);
         EXPECT_EQ(result.cutoff.has_value(), beta_offset <= 0);
         if (result.cutoff)
@@ -304,7 +300,7 @@ TEST_F(SingularTest, MulticutReturnsThresholdWithoutOrdinaryTtOrHistoryTraining)
     frame().static_eval = 321;
     frame().real_move   = true;
     const auto original = board().to_fen();
-    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, sb - 1, sb, 8, ply()), sb);
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, sb - 1, sb, 8), sb);
     EXPECT_EQ(board().to_fen(), original);
     const auto stored = tt.probe(board().tt_key()).record;
     ASSERT_TRUE(stored);
@@ -332,8 +328,7 @@ TEST_F(SingularTest, RefutedSingularityKeepsOriginalChildDepth) {
         seed_alternative(sb);
         tt.store(board().tt_key(), record.move, record.score, record.depth, record.bound, ply());
         const auto original = board().to_fen();
-        SearchTestAccess::alphabeta<NodeType::NonPv>(
-            worker, record.score - 1, record.score, 8, ply());
+        SearchTestAccess::alphabeta<NodeType::NonPv>(worker, record.score - 1, record.score, 8);
         EXPECT_EQ(board().to_fen(), original);
         EXPECT_EQ(verification_active(), verification);
         board().make(record.move);
@@ -354,8 +349,8 @@ TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
         const auto record = entry(move("a8b8"));
         const auto sb     = record.score - margin_at_depth_8;
         seed_alternative(sb);
-        const auto r = SearchTestAccess::singular_result(
-            worker, record, 8, ply(), window.first, window.second);
+        const auto r =
+            SearchTestAccess::singular_result(worker, record, 8, window.first, window.second);
         EXPECT_FALSE(r.extend);
         EXPECT_FALSE(r.cutoff);
     }
@@ -363,8 +358,7 @@ TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
     auto record = entry(move("a8b8"));
     auto sb     = record.score - margin_at_depth_8;
     seed_alternative(sb);
-    const auto pv =
-        SearchTestAccess::singular_result<NodeType::Pv>(worker, record, 8, ply(), sb - 1, sb);
+    const auto pv = SearchTestAccess::singular_result<NodeType::Pv>(worker, record, 8, sb - 1, sb);
     EXPECT_FALSE(pv.extend);
     EXPECT_FALSE(pv.cutoff);
 
@@ -381,7 +375,7 @@ TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
             board().tt_key(), NULL_MOVE, -sb, engine::max_search_depth, TTBound::Exact, ply() + 1);
         board().unmake();
     }
-    const auto checked = SearchTestAccess::singular_result(worker, record, 8, ply(), sb - 1, sb);
+    const auto checked = SearchTestAccess::singular_result(worker, record, 8, sb - 1, sb);
     EXPECT_FALSE(checked.extend);
     EXPECT_FALSE(checked.cutoff);
 }
@@ -392,7 +386,7 @@ TEST_F(SingularTest, VerificationWindowMustAlsoStayStrictlyOutsideMateRanges) {
     const auto sb = record.score_at_ply(ply()) - margin_at_depth_8;
     ASSERT_EQ(sb - 1, -eval_value::mate_bound);
     seed_alternative(sb);
-    const auto r = SearchTestAccess::singular_result(worker, record, 8, ply(), sb, sb + 1);
+    const auto r = SearchTestAccess::singular_result(worker, record, 8, sb, sb + 1);
     EXPECT_FALSE(r.extend);
     EXPECT_FALSE(r.cutoff);
 }
@@ -407,7 +401,7 @@ TEST_F(SingularTest, VerificationContextRestoresNestedAndInterruptedScopesAndRes
         frame().static_eval    = 123;
         frame().real_move      = true;
         const auto saved_frame = frame();
-        const auto r = SearchTestAccess::singular_result(worker, record, 8, ply(), sb - 1, sb);
+        const auto r           = SearchTestAccess::singular_result(worker, record, 8, sb - 1, sb);
         EXPECT_EQ(frame(), saved_frame);
         EXPECT_EQ(verification_active(), outer);
         if (outer) {
@@ -424,7 +418,7 @@ TEST_F(SingularTest, VerificationContextRestoresNestedAndInterruptedScopesAndRes
         const auto interrupted_frame = frame();
         SearchTestAccess::set_nodes(worker, 4095);
         const auto stopped =
-            SearchTestAccess::singular_result<NodeType::Pv>(worker, record, 8, ply(), sb - 1, sb);
+            SearchTestAccess::singular_result<NodeType::Pv>(worker, record, 8, sb - 1, sb);
         EXPECT_FALSE(stopped.extend);
         EXPECT_FALSE(stopped.cutoff);
         EXPECT_GE(worker.node_count(), 4096U);
@@ -452,7 +446,7 @@ TEST_F(SingularTest, ExclusionStaysLocalAndChildContextDoesNotLeakToOrdinarySear
     // Reuse that child slot outside verification, including its ordinary TT cutoff.
     board().make(alternative);
     ++ply();
-    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -901, -899, 2, ply()), -900);
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -901, -899, 2), -900);
     EXPECT_TRUE(frame().excluded_move.is_null());
     EXPECT_FALSE(verification_active());
     --ply();
@@ -481,18 +475,18 @@ TEST_F(SingularTest, EarlyExitsDoNotAccessOrOverwriteFrames) {
     verification_active()   = true;
     const auto saved_frames = SearchTestAccess::frames(worker);
     ply()                   = engine::max_search_ply;
-    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1, ply()),
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1),
               eval::evaluate(board()));
     EXPECT_EQ(SearchTestAccess::frames(worker), saved_frames);
     worker.request_stop();
-    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1, ply()), -1000);
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1), -1000);
     EXPECT_EQ(SearchTestAccess::frames(worker), saved_frames);
 
     load(Board{"7k/8/8/8/8/8/8/K7 w - - 0 1"});
     ASSERT_TRUE(board().is_draw(ply()));
     frame().static_eval     = 456;
     const auto drawn_frames = SearchTestAccess::frames(worker);
-    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1, ply()),
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, -1000, 1000, 1),
               eval_value::draw);
     EXPECT_EQ(SearchTestAccess::frames(worker), drawn_frames);
 }

@@ -50,29 +50,30 @@ private:
 
 } // namespace
 
-EvalValue Worker::search_excluding_move(
-    EvalValue alpha, EvalValue beta, int depth, int ply, Move excluded_move) {
-    assert(ply >= 0 && ply < engine::max_search_ply);
+EvalValue
+Worker::search_excluding_move(EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
+    assert(search_ply >= 0 && search_ply < engine::max_search_ply);
     assert(depth > 0);
-    const ScopedSingularVerification verification{frames[ply], verification_active, excluded_move};
-    return alphabeta<NodeType::NonPv>(alpha, beta, depth, ply, nullptr);
+    const ScopedSingularVerification verification{
+        frames[search_ply], verification_active, excluded_move};
+    return alphabeta<NodeType::NonPv>(alpha, beta, depth, nullptr);
 }
 
 // Verify alternatives before extending the TT move or taking a multicut.
 template <NodeType Node>
-Worker::SingularResult Worker::singular_decision(
-    const TTRecord& record, int depth, int ply, EvalValue alpha, EvalValue beta) {
-    if (depth < SingularMinDepth || ply == 0 || ply >= 2 * root_iteration_depth
-        || ply + 1 >= engine::max_search_ply || after_null_move(ply)
+Worker::SingularResult
+Worker::singular_decision(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta) {
+    if (depth < SingularMinDepth || search_ply == 0 || search_ply >= 2 * root_iteration_depth
+        || search_ply + 1 >= engine::max_search_ply || after_null_move()
         || record.depth < depth - SingularTtDepthSlack
         || (record.bound != TTBound::Exact && record.bound != TTBound::LowerBound))
         return {};
 
-    const auto& frame = frames[ply];
+    const auto& frame = frames[search_ply];
     if (!frame.excluded_move.is_null())
         return {};
 
-    const EvalValue tt_score = record.score_at_ply(ply);
+    const EvalValue tt_score = record.score_at_ply(search_ply);
     if (std::abs(tt_score) >= eval_value::mate_bound || record.move.is_null()
         || !board.is_pseudo_legal(record.move) || !board.is_legal_pseudo_move(record.move))
         return {};
@@ -89,7 +90,7 @@ Worker::SingularResult Worker::singular_decision(
         && singular_beta - 1 > -eval_value::mate_bound && singular_beta >= beta;
 
     const EvalValue value =
-        search_excluding_move(singular_beta - 1, singular_beta, (depth - 1) / 2, ply, record.move);
+        search_excluding_move(singular_beta - 1, singular_beta, (depth - 1) / 2, record.move);
     if (stop_requested())
         return {};
 
@@ -102,8 +103,8 @@ Worker::SingularResult Worker::singular_decision(
 
 // The policy differs between PV and non-PV nodes; keep both instantiations here.
 template Worker::SingularResult
-Worker::singular_decision<NodeType::Pv>(const TTRecord&, int, int, EvalValue, EvalValue);
+Worker::singular_decision<NodeType::Pv>(const TTRecord&, int, EvalValue, EvalValue);
 template Worker::SingularResult
-Worker::singular_decision<NodeType::NonPv>(const TTRecord&, int, int, EvalValue, EvalValue);
+Worker::singular_decision<NodeType::NonPv>(const TTRecord&, int, EvalValue, EvalValue);
 
 } // namespace search
