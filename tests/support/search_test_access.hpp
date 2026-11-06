@@ -21,32 +21,35 @@ public:
     }
 
     static auto& capture_history_entry(
-        search::History& history, Color side, PieceType piece, Square to, PieceType victim) {
-        return history.capture_scores[side][piece_slot(piece)][to][piece_slot(victim)];
+        search::History& history, Color side, PieceType moving_piece, Square to, PieceType victim) {
+        return history.capture_scores[side][piece_slot(moving_piece)][to][piece_slot(victim)];
     }
 
     static auto& continuation_history_entry(search::History& history,
                                             Color            previous_side,
                                             PieceType        previous_piece,
                                             Square           previous_to,
-                                            PieceType        piece,
+                                            PieceType        moving_piece,
                                             Square           to) {
         return (*history.continuation_scores)[search::History::continuation_index(
-            search::OrderingContext::previous_index(previous_side, previous_piece, previous_to),
-            piece,
+            search::OrderingContext::make_previous_key(previous_side, previous_piece, previous_to),
+            moving_piece,
             to)];
     }
 
     static auto& continuation_history_entry(search::History&               history,
                                             const search::OrderingContext& context,
-                                            PieceType                      piece,
+                                            PieceType                      moving_piece,
                                             Square                         to) {
-        return history.continuation_entry(context, piece, to);
+        return history.continuation_entry(context, moving_piece, to);
     }
 
-    static Move&
-    counter_move_entry(search::History& history, Color side, PieceType piece, Square to) {
-        return history.counter_moves[search::OrderingContext::previous_index(side, piece, to)];
+    static Move& counter_move_entry(search::History& history,
+                                    Color            previous_side,
+                                    PieceType        previous_piece,
+                                    Square           previous_to) {
+        return history.counter_moves[search::OrderingContext::make_previous_key(
+            previous_side, previous_piece, previous_to)];
     }
 
     static Move& counter_move_entry(search::History&               history,

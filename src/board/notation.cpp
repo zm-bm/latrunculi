@@ -84,7 +84,7 @@ std::string to_san(const Board& board, Move move) {
     if (board.gives_check(move)) {
         Board next(board);
         next.make(move);
-        san += movegen::UnorderedMoves(next).next().is_null() ? '#' : '+';
+        san += movegen::UnscoredMoves(next).next().is_null() ? '#' : '+';
     }
     return san;
 }

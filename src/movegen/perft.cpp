@@ -21,7 +21,7 @@ NodeCount perft_impl(Board& board, int depth) {
         return 1;
 
     NodeCount      nodes = 0;
-    UnorderedMoves moves(board);
+    UnscoredMoves  moves(board);
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
 
         board.make(move);
@@ -54,7 +54,7 @@ PerftResult perft_root(Board& board, int depth) {
         return result;
     }
 
-    UnorderedMoves moves(board);
+    UnscoredMoves moves(board);
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
 
         board.make(move);

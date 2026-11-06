@@ -99,7 +99,7 @@ std::uint64_t case_seed(std::uint64_t seed, std::size_t case_index) {
 
 std::vector<Move> legal_moves(const Board& board) {
     std::vector<Move>       moves;
-    movegen::UnorderedMoves stream(board);
+    movegen::UnscoredMoves  stream(board);
     for (Move move = stream.next(); !move.is_null(); move = stream.next())
         moves.push_back(move);
     return moves;

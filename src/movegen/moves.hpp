@@ -8,11 +8,11 @@ namespace movegen {
 // A single-pass legal move stream. Restore the node's board before advancing.
 // Board and history are borrowed and must outlive the stream.
 // Main-search streams borrow a named OrderingContext which must outlive the stream.
-// Selection precedes legality so ordered modes retain their swaps and tie order.
+// Selection precedes legality so scored streams retain their swaps and tie order.
 template <MovePolicy Policy>
 class Moves {
 public:
-    explicit Moves(const Board& board) requires(Policy == MovePolicy::Unordered)
+    explicit Moves(const Board& board) requires(Policy == MovePolicy::Unscored)
         : source(board) {}
 
     explicit Moves(const Board&                   board,
@@ -37,14 +37,14 @@ public:
     Moves& operator=(Moves&&)      = delete;
 
     Move next() {
-        return find([](Move) { return true; });
+        return next_matching([](Move) { return true; });
     }
 
     // Consume through the match, checking cheap predicates before legality (e.g. UCI).
     template <typename Match>
-    Move find(Match match) {
+    Move next_matching(Match matches) {
         for (Move move = source.next_candidate(); !move.is_null(); move = source.next_candidate())
-            if (match(move) && source.board.is_legal_pseudo_move(move))
+            if (matches(move) && source.board.is_legal_pseudo_move(move))
                 return move;
         return NULL_MOVE;
     }
@@ -59,7 +59,7 @@ private:
 };
 
 // Named policies keep call sites explicit while sharing one traversal interface.
-using UnorderedMoves  = Moves<MovePolicy::Unordered>;
+using UnscoredMoves   = Moves<MovePolicy::Unscored>;
 using MainSearchMoves = Moves<MovePolicy::MainSearch>;
 using QuiescenceMoves = Moves<MovePolicy::Quiescence>;
 

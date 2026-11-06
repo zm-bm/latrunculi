@@ -67,7 +67,7 @@ private:
         output(Move(from, to, type, promotion), moving_piece);
     }
 
-    // Restricts non-king destinations according to the requested generation mode.
+    // Restricts non-king destinations according to the requested generation kind.
     template <GenerationKind Kind>
     Bitboard piece_targets() const {
         if constexpr (Kind == GenerationKind::NonEvasions)
@@ -83,9 +83,9 @@ private:
 
     template <PieceType P, typename Emit>
     void piece_moves(Bitboard targets, Emit& output) {
-        Bitboard bitboard = board.pieces<P>(Us);
+        Bitboard pieces = board.pieces<P>(Us);
 
-        bb::scan<Us>(bitboard, [&](Square from) {
+        bb::scan<Us>(pieces, [&](Square from) {
             Bitboard moves = attacks::piece_moves<P>(from, occupancy) & targets;
             bb::scan<Us>(moves, [&](Square to) { emit(output, P, from, to); });
         });
@@ -125,43 +125,43 @@ private:
     void pawn_moves(Bitboard targets, Emit& output) {
         constexpr Bitboard promotion_rank = bb::relative_rank<Us>(RANK7);
 
-        Bitboard enemies = enemy_pieces;
+        Bitboard capture_targets = enemy_pieces;
         if constexpr (Kind == GenerationKind::Evasions)
-            enemies &= targets;
+            capture_targets &= targets;
 
         const Bitboard all_pawns       = board.pieces<PAWN>(Us);
         Bitboard       promotion_pawns = all_pawns & promotion_rank;
         if constexpr (Kind != GenerationKind::Quiet) {
             if (promotion_pawns)
-                pawn_promotions<Kind>(targets, enemies, promotion_pawns, output);
+                pawn_promotions<Kind>(targets, capture_targets, promotion_pawns, output);
         }
 
-        Bitboard normal_pawns = all_pawns & ~promotion_rank;
+        Bitboard non_promotion_pawns = all_pawns & ~promotion_rank;
         if constexpr (Kind != GenerationKind::Quiet)
-            pawn_captures<Kind>(targets, enemies, normal_pawns, output);
+            pawn_captures<Kind>(targets, capture_targets, non_promotion_pawns, output);
         if constexpr (Kind != GenerationKind::Noisy)
-            pawn_pushes<Kind>(targets, normal_pawns, output);
+            pawn_pushes<Kind>(targets, non_promotion_pawns, output);
     }
 
     template <GenerationKind Kind, typename Emit>
-    void pawn_promotions(Bitboard targets, Bitboard enemies, Bitboard pawns, Emit& output) {
+    void pawn_promotions(Bitboard targets, Bitboard capture_targets, Bitboard pawns, Emit& output) {
         Bitboard push_moves = attacks::pawn_shift<pawn_delta::push, Us>(pawns) & ~occupancy;
         if constexpr (Kind == GenerationKind::Evasions)
             push_moves &= targets;
 
         emit_promotions<pawn_delta::push>(push_moves, output);
 
-        Bitboard left_moves = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & enemies;
+        Bitboard left_moves = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & capture_targets;
         emit_promotions<pawn_delta::left>(left_moves, output);
 
-        Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & enemies;
+        Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & capture_targets;
         emit_promotions<pawn_delta::right>(right_moves, output);
     }
 
     template <GenerationKind Kind, typename Emit>
-    void pawn_captures(Bitboard targets, Bitboard enemies, Bitboard pawns, Emit& output) {
-        Bitboard left_moves  = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & enemies;
-        Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & enemies;
+    void pawn_captures(Bitboard targets, Bitboard capture_targets, Bitboard pawns, Emit& output) {
+        Bitboard left_moves  = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & capture_targets;
+        Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & capture_targets;
         emit_pawn_moves<pawn_delta::left>(left_moves, output);
         emit_pawn_moves<pawn_delta::right>(right_moves, output);
 
@@ -170,9 +170,10 @@ private:
             return;
 
         if constexpr (Kind == GenerationKind::Evasions) {
-            const Square captured = move_geometry::enpassant_captured_square(enpassant_target, Us);
+            const Square captured_square =
+                move_geometry::enpassant_captured_square(enpassant_target, Us);
             // En passant can evade by removing the checker or interposing on the destination.
-            if (!bb::contains(targets, captured) && !bb::contains(targets, enpassant_target))
+            if (!bb::contains(targets, captured_square) && !bb::contains(targets, enpassant_target))
                 return;
         }
 
@@ -182,12 +183,13 @@ private:
 
     template <GenerationKind Kind, typename Emit>
     void pawn_pushes(Bitboard targets, Bitboard pawns, Emit& output) {
-        constexpr Bitboard double_push_rank = bb::relative_rank<Us>(RANK3);
+        constexpr Bitboard double_push_intermediate_rank = bb::relative_rank<Us>(RANK3);
 
         Bitboard push_moves = attacks::pawn_shift<pawn_delta::push, Us>(pawns) & ~occupancy;
         // Deriving double pushes from available single pushes also checks the intermediate square.
         Bitboard double_push_moves =
-            attacks::pawn_shift<pawn_delta::push, Us>(push_moves & double_push_rank) & ~occupancy;
+            attacks::pawn_shift<pawn_delta::push, Us>(push_moves & double_push_intermediate_rank)
+            & ~occupancy;
 
         if constexpr (Kind == GenerationKind::Evasions) {
             push_moves &= targets;
@@ -233,10 +235,11 @@ private:
     Bitboard     enemy_pieces;
 };
 
-// Borrowed synchronous output receives (Move, original moving PieceType).
+// Emit one pseudo-legal batch through a borrowed synchronous output callable.
+// Output receives (Move, original moving PieceType).
 // Promotions and en passant report PAWN; castling reports KING.
 template <GenerationKind Kind, typename Emit>
-inline void generate(const Board& board, Emit&& output) {
+inline void generate_pseudo_legal(const Board& board, Emit&& output) {
     assert((Kind == GenerationKind::Evasions) == board.is_check());
     // Dispatch runtime side-to-move into a color-specialized hot path.
     if (board.side_to_move() == WHITE)
@@ -245,13 +248,13 @@ inline void generate(const Board& board, Emit&& output) {
         Generator<BLACK>(board).run<Kind>(output);
 }
 
-// Ordinary loading shares the same emission protocol as ordered candidate batches.
+// Dispatch the full pseudo-legal batch according to the board's check state.
 template <typename Emit>
 inline void generate_pseudo_legal(const Board& board, Emit&& output) {
     if (board.is_check())
-        generate<GenerationKind::Evasions>(board, output);
+        generate_pseudo_legal<GenerationKind::Evasions>(board, output);
     else
-        generate<GenerationKind::NonEvasions>(board, output);
+        generate_pseudo_legal<GenerationKind::NonEvasions>(board, output);
 }
 
 } // namespace movegen

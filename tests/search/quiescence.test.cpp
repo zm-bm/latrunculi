@@ -54,7 +54,7 @@ protected:
     }
 
     Move find_move(std::string_view move_string) {
-        return movegen::UnorderedMoves(position()).find([&](Move move) {
+        return movegen::UnscoredMoves(position()).next_matching([&](Move move) {
             return move.str() == move_string;
         });
     }

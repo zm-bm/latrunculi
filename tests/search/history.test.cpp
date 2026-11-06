@@ -16,11 +16,11 @@ TEST(HistoryTest, QuietScoresCombineBaseAndContinuation) {
     History               history;
     const Board           board;
     const OrderingContext positive{
-        .side = BLACK, .previous_key = OrderingContext::previous_index(WHITE, PAWN, E4)};
+        .side = BLACK, .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, E4)};
     const OrderingContext negative{
-        .side = WHITE, .previous_key = OrderingContext::previous_index(BLACK, BISHOP, D4)};
+        .side = WHITE, .previous_key = OrderingContext::make_previous_key(BLACK, BISHOP, D4)};
     const OrderingContext other_previous{
-        .side = BLACK, .previous_key = OrderingContext::previous_index(WHITE, PAWN, D4)};
+        .side = BLACK, .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, D4)};
     const Move knight{G8, F6}, pawn{E2, E3};
     history.update_quiet(positive, board, knight, 9);
     history.update_quiet(negative, board, pawn, -9);
@@ -50,15 +50,15 @@ TEST(HistoryTest, CaptureScoresPreserveGravityAndBounds) {
         history.update_capture(white, white_move, 256);
         history.update_capture(black, black_move, -256);
     }
-    EXPECT_EQ(history.capture_history_score(white, white_move), 757);
-    EXPECT_EQ(history.capture_history_score(WHITE, KNIGHT, E5, PAWN), 757);
-    EXPECT_EQ(history.capture_history_score(black, black_move), -757);
-    EXPECT_EQ(history.capture_history_score(BLACK, ROOK, A3, QUEEN), -757);
+    EXPECT_EQ(history.capture_score(white, white_move), 757);
+    EXPECT_EQ(history.capture_score(WHITE, KNIGHT, E5, PAWN), 757);
+    EXPECT_EQ(history.capture_score(black, black_move), -757);
+    EXPECT_EQ(history.capture_score(BLACK, ROOK, A3, QUEEN), -757);
     EXPECT_EQ(SearchTestAccess::capture_history_entry(history, WHITE, KNIGHT, E5, BISHOP), 0);
     history.update_capture(white, white_move, History::CaptureMaxScore);
     history.update_capture(black, black_move, -History::CaptureMaxScore);
-    EXPECT_EQ(history.capture_history_score(white, white_move), History::CaptureMaxScore);
-    EXPECT_EQ(history.capture_history_score(black, black_move), -History::CaptureMaxScore);
+    EXPECT_EQ(history.capture_score(white, white_move), History::CaptureMaxScore);
+    EXPECT_EQ(history.capture_score(black, black_move), -History::CaptureMaxScore);
 }
 
 TEST(HistoryLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
@@ -71,13 +71,13 @@ TEST(HistoryLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
     learning.record_non_cutoff(king, false, false);
     learning.record_non_cutoff(pawn, false, false);
     learning.record_non_cutoff(capture, true, false);
-    learning.record_cutoff(cutoff, false);
+    learning.learn_from_cutoff(cutoff, false);
 
     EXPECT_EQ(history.base_quiet_score(WHITE, cutoff), 1024);
     // Divide depth squared before clamping: 1600 / 2 is 800, not 1024 / 2.
     EXPECT_EQ(history.base_quiet_score(WHITE, king), -800);
     EXPECT_EQ(history.base_quiet_score(WHITE, pawn), -800);
-    EXPECT_EQ(history.capture_history_score(board, capture), -2048);
+    EXPECT_EQ(history.capture_score(board, capture), -2048);
 
     history.clear();
     stats.reset();
@@ -89,43 +89,43 @@ TEST(HistoryLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
     const Move extra_capture{D3, E5};
     bounded.record_non_cutoff(pawn, false, false);
     bounded.record_non_cutoff(extra_capture, true, false);
-    bounded.record_cutoff(cutoff, false);
+    bounded.learn_from_cutoff(cutoff, false);
     EXPECT_LT(history.base_quiet_score(WHITE, king), 0);
-    EXPECT_LT(history.capture_history_score(board, capture), 0);
+    EXPECT_LT(history.capture_score(board, capture), 0);
     EXPECT_EQ(history.base_quiet_score(WHITE, pawn), 0);
-    EXPECT_EQ(history.capture_history_score(board, extra_capture), 0);
+    EXPECT_EQ(history.capture_score(board, extra_capture), 0);
 #if LATRUNCULI_SEARCH_STATS
-    EXPECT_EQ(stats.raw_counters().quiet_malus_failed_quiets, 32U);
-    EXPECT_EQ(stats.raw_counters().quiet_malus_updates, 32U);
+    EXPECT_EQ(stats.raw_counters().quiet_penalty_candidates, 32U);
+    EXPECT_EQ(stats.raw_counters().quiet_penalty_updates, 32U);
 #endif
 }
 
 TEST(HistoryTest, QuietRefutationsRotateAndReplace) {
     History               history;
     const Board           board;
-    const OrderingContext first_key{
-        .side = BLACK, .previous_key = OrderingContext::previous_index(WHITE, PAWN, E4)};
-    const OrderingContext second_key{
-        .side = BLACK, .previous_key = OrderingContext::previous_index(WHITE, PAWN, D4)};
+    const OrderingContext first_context{
+        .side = BLACK, .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, E4)};
+    const OrderingContext second_context{
+        .side = BLACK, .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, D4)};
     const Move first{C2, C4}, second{D2, D4}, third{E2, E4}, other_ply{G2, G3};
-    history.update_quiet_refutations(first_key, first);
+    history.update_quiet_refutations(first_context, first);
     EXPECT_EQ(history.context_for(board, 0).primary_killer, first);
     EXPECT_EQ(history.context_for(board, 0).secondary_killer, NULL_MOVE);
-    history.update_quiet_refutations(second_key, second);
-    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, first_key), first);
-    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, second_key), second);
-    history.update_quiet_refutations(first_key, third);
+    history.update_quiet_refutations(second_context, second);
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, first_context), first);
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, second_context), second);
+    history.update_quiet_refutations(first_context, third);
     EXPECT_EQ(history.context_for(board, 0).primary_killer, third);
     EXPECT_EQ(history.context_for(board, 0).secondary_killer, second);
     EXPECT_FALSE(history.is_killer(first, 0));
-    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, first_key), third);
-    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, second_key), second);
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, first_context), third);
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, second_context), second);
 
     // An unchanged primary killer must still replace another counter key.
-    history.update_quiet_refutations(second_key, third);
+    history.update_quiet_refutations(second_context, third);
     EXPECT_EQ(history.context_for(board, 0).secondary_killer, second);
-    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, second_key), third);
-    auto other_context = first_key;
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history, second_context), third);
+    auto other_context = first_context;
     other_context.ply  = 1;
     history.update_quiet_refutations(other_context, other_ply);
     EXPECT_EQ(history.context_for(board, 1).primary_killer, other_ply);

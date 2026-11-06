@@ -32,10 +32,11 @@ struct OrderingContext {
     Move          counter_move{NULL_MOVE};
 
     bool                 has_previous_move() const { return previous_key != NoPreviousKey; }
-    static std::uint16_t previous_index(Color side, PieceType piece, Square to) {
-        return static_cast<std::uint16_t>((static_cast<int>(side) * piece_slots + piece_slot(piece))
-                                              * N_SQUARES
-                                          + static_cast<int>(to));
+    static std::uint16_t
+    make_previous_key(Color previous_side, PieceType previous_piece, Square previous_to) {
+        return static_cast<std::uint16_t>(
+            (static_cast<int>(previous_side) * piece_slots + piece_slot(previous_piece)) * N_SQUARES
+            + static_cast<int>(previous_to));
     }
 };
 
@@ -51,13 +52,14 @@ public:
     // Build once before constructing the node's stream and learning object.
     OrderingContext context_for(const Board& board, int ply, Move tt_move = NULL_MOVE) const {
         OrderingContext context{.side = board.side_to_move(), .ply = ply, .tt_move = tt_move};
-        const Move      previous = board.previous_move();
-        if (!previous.is_null()) {
-            const PieceType piece =
-                previous.type() == MOVE_PROM ? PAWN : type_of(board.piece_on(previous.to()));
-            if (piece != NO_PIECETYPE)
-                context.previous_key =
-                    OrderingContext::previous_index(~context.side, piece, previous.to());
+        const Move      previous_move = board.previous_move();
+        if (!previous_move.is_null()) {
+            const PieceType previous_piece = previous_move.type() == MOVE_PROM
+                                               ? PAWN
+                                               : type_of(board.piece_on(previous_move.to()));
+            if (previous_piece != NO_PIECETYPE)
+                context.previous_key = OrderingContext::make_previous_key(
+                    ~context.side, previous_piece, previous_move.to());
         }
         context.primary_killer   = killer_moves[ply][0];
         context.secondary_killer = killer_moves[ply][1];
@@ -70,29 +72,29 @@ public:
     // Clear refutations and age quiet/capture scores; continuation scores persist.
     void prepare_for_search() {
         clear_refutations();
-        for (auto& side : quiet_scores)
-            for (auto& from : side)
-                for (auto& entry : from)
+        for (auto& side_scores : quiet_scores)
+            for (auto& from_scores : side_scores)
+                for (auto& entry : from_scores)
                     age_entry(entry);
-        for (auto& side : capture_scores)
-            for (auto& piece : side)
-                for (auto& to : piece)
-                    for (auto& victim : to)
-                        age_entry(victim);
+        for (auto& side_scores : capture_scores)
+            for (auto& piece_scores : side_scores)
+                for (auto& to_scores : piece_scores)
+                    for (auto& entry : to_scores)
+                        age_entry(entry);
     }
 
     // Reset all ordering memory, reusing the continuation allocation.
     void clear() {
         clear_refutations();
-        for (auto& side : quiet_scores)
-            for (auto& from : side)
-                for (auto& entry : from)
+        for (auto& side_scores : quiet_scores)
+            for (auto& from_scores : side_scores)
+                for (auto& entry : from_scores)
                     entry = 0;
-        for (auto& side : capture_scores)
-            for (auto& piece : side)
-                for (auto& to : piece)
-                    for (auto& victim : to)
-                        victim = 0;
+        for (auto& side_scores : capture_scores)
+            for (auto& piece_scores : side_scores)
+                for (auto& to_scores : piece_scores)
+                    for (auto& entry : to_scores)
+                        entry = 0;
         std::fill(continuation_scores->begin(), continuation_scores->end(), Score{0});
     }
 
@@ -121,10 +123,10 @@ public:
     }
 
     // Generation already knows the original mover; no board lookup is needed.
-    int quiet_score(const OrderingContext& context, PieceType piece, Move move) const {
+    int quiet_score(const OrderingContext& context, PieceType moving_piece, Move move) const {
         int score = base_quiet_score(context.side, move);
-        if (context.has_previous_move() && piece != NO_PIECETYPE)
-            score += continuation_entry(context, piece, move.to());
+        if (context.has_previous_move() && moving_piece != NO_PIECETYPE)
+            score += continuation_entry(context, moving_piece, move.to());
         return score;
     }
 
@@ -134,22 +136,22 @@ public:
         if (!context.has_previous_move())
             return;
 
-        const PieceType piece = board.piece_type_on(move.from());
-        if (piece != NO_PIECETYPE)
-            apply_gravity(continuation_entry(context, piece, move.to()), adjustment);
+        const PieceType moving_piece = board.piece_type_on(move.from());
+        if (moving_piece != NO_PIECETYPE)
+            apply_gravity(continuation_entry(context, moving_piece, move.to()), adjustment);
     }
 
     // Raw learned history; capture ordering applies its own scaling and material weights.
-    int capture_history_score(const Board& board, Move move) const {
+    int capture_score(const Board& board, Move move) const {
         assert(board.is_capture(move) && move.type() != MOVE_PROM);
-        return capture_history_score(board.side_to_move(),
-                                     board.piece_type_on(move.from()),
-                                     move.to(),
-                                     board.captured_piece_type(move));
+        return capture_score(board.side_to_move(),
+                             board.piece_type_on(move.from()),
+                             move.to(),
+                             board.captured_piece_type(move));
     }
 
-    int capture_history_score(Color side, PieceType piece, Square to, PieceType victim) const {
-        return capture_scores[side][piece_slot(piece)][to][piece_slot(victim)];
+    int capture_score(Color side, PieceType moving_piece, Square to, PieceType victim) const {
+        return capture_scores[side][piece_slot(moving_piece)][to][piece_slot(victim)];
     }
 
     void update_capture(const Board& board, Move move, int adjustment) {
@@ -163,12 +165,12 @@ private:
     using ContinuationTable = std::array<Score, OrderingContext::PreviousKeyCount * MoveKeyCount>;
 
     void clear_refutations() {
-        for (auto& ply : killer_moves) {
-            ply[0] = NULL_MOVE;
-            ply[1] = NULL_MOVE;
+        for (auto& killers : killer_moves) {
+            killers[0] = NULL_MOVE;
+            killers[1] = NULL_MOVE;
         }
-        for (auto& entry : counter_moves)
-            entry = NULL_MOVE;
+        for (auto& move : counter_moves)
+            move = NULL_MOVE;
     }
 
     Score& capture_entry(const Board& board, Move move) {
@@ -176,28 +178,28 @@ private:
                              [move.to()][piece_slot(board.captured_piece_type(move))];
     }
 
-    static int continuation_index(std::uint16_t previous_key, PieceType piece, Square to) {
-        const int move_key = piece_slot(piece) * N_SQUARES + static_cast<int>(to);
+    static int continuation_index(std::uint16_t previous_key, PieceType moving_piece, Square to) {
+        const int move_key = piece_slot(moving_piece) * N_SQUARES + static_cast<int>(to);
         return previous_key * MoveKeyCount + move_key;
     }
 
-    Score& continuation_entry(const OrderingContext& context, PieceType piece, Square to) {
-        return (*continuation_scores)[continuation_index(context.previous_key, piece, to)];
+    Score& continuation_entry(const OrderingContext& context, PieceType moving_piece, Square to) {
+        return (*continuation_scores)[continuation_index(context.previous_key, moving_piece, to)];
     }
 
     const Score&
-    continuation_entry(const OrderingContext& context, PieceType piece, Square to) const {
-        return (*continuation_scores)[continuation_index(context.previous_key, piece, to)];
+    continuation_entry(const OrderingContext& context, PieceType moving_piece, Square to) const {
+        return (*continuation_scores)[continuation_index(context.previous_key, moving_piece, to)];
     }
 
     // Apply bounded gravity so entries approach saturation smoothly.
     static void apply_gravity(Score& entry, int adjustment, int limit = QuietMaxScore) {
         adjustment        = std::clamp(adjustment, -limit, limit);
         const int current = entry;
-        const int weight  = adjustment < 0 ? -adjustment : adjustment;
-        const int gravity = adjustment - (current * weight / limit);
+        const int magnitude = adjustment < 0 ? -adjustment : adjustment;
+        const int delta     = adjustment - (current * magnitude / limit);
 
-        entry = std::clamp(current + gravity, -limit, limit);
+        entry = std::clamp(current + delta, -limit, limit);
     }
 
     static void age_entry(Score& entry) { entry /= 2; }

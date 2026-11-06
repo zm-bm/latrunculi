@@ -40,8 +40,8 @@ private:
 // Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
 EvalValue draw_or_mate_score(const Board& board, int search_ply) {
     if (board.halfmove_clock() >= 100 && board.is_check()) {
-        return movegen::UnorderedMoves(board).next().is_null() ? -eval_value::mate + search_ply
-                                                               : eval_value::draw;
+        return movegen::UnscoredMoves(board).next().is_null() ? -eval_value::mate + search_ply
+                                                              : eval_value::draw;
     }
     return eval_value::draw;
 }
@@ -275,7 +275,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         // LMR uses current history, read before making the move. Ordering retains its snapshot.
         int raw_capture_history = 0;
         if (is_capture && !is_promotion && !in_check)
-            raw_capture_history = history.capture_history_score(board, move);
+            raw_capture_history = history.capture_score(board, move);
         bool history_lmp_candidate = false;
         if constexpr (Node == NodeType::NonPv) {
             history_lmp_candidate = !verification_root && depth == detail::LateMovePruningDepth
@@ -362,7 +362,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         if (value >= beta) {
             // Step 13. Train cutoff histories on the restored position.
             if (learning)
-                learning->record_cutoff(move, is_capture);
+                learning->learn_from_cutoff(move, is_capture);
 
             if (pv)
                 pv->update(move, child_pv);
@@ -611,7 +611,7 @@ bool Worker::settle(Board& position) {
     if (board.is_draw())
         return false;
 
-    if (!movegen::UnorderedMoves(board).next().is_null()) {
+    if (!movegen::UnscoredMoves(board).next().is_null()) {
         position = board;
         return true;
     }

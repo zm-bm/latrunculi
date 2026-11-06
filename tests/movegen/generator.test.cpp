@@ -16,8 +16,8 @@ namespace {
 template <movegen::GenerationKind Kind>
 std::vector<Move> emitted_moves(const Board& board) {
     std::vector<Move> moves;
-    movegen::generate<Kind>(board, [&](Move move, PieceType piece) {
-        EXPECT_EQ(piece, board.piece_type_on(move.from())) << move;
+    movegen::generate_pseudo_legal<Kind>(board, [&](Move move, PieceType moving_piece) {
+        EXPECT_EQ(moving_piece, board.piece_type_on(move.from())) << move;
         moves.push_back(move);
     });
     return moves;

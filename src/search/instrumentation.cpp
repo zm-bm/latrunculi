@@ -45,15 +45,16 @@ Instrumentation<true>& Instrumentation<true>::operator+=(const Instrumentation& 
     ADD(capture_decreased);
     ADD(capture_researches);
     ADD(quiet_cutoffs);
-    ADD(quiet_malus_eligible_nodes);
-    ADD(quiet_malus_failed_quiets);
-    ADD(quiet_malus_updates);
+    ADD(quiet_penalty_eligible_nodes);
+    ADD(quiet_penalty_candidates);
+    ADD(quiet_penalty_updates);
 #undef ADD
     return *this;
 }
 
 std::string Instrumentation<true>::str() const {
     const Counters& c = counters;
+    // Keep diagnostic labels stable; "failed-quiets" counts quiet penalty candidates.
     return std::format(
         "\nNodes: total={} qnodes={} beta-cutoffs={} first-move-cutoffs={} pvs-researches={}\n"
         "Aspiration: fail-low={} fail-high={}\n"
@@ -88,9 +89,9 @@ std::string Instrumentation<true>::str() const {
         sum(c.lmr_tries),
         sum(c.lmr_researches),
         c.quiet_cutoffs,
-        c.quiet_malus_eligible_nodes,
-        c.quiet_malus_failed_quiets,
-        c.quiet_malus_updates);
+        c.quiet_penalty_eligible_nodes,
+        c.quiet_penalty_candidates,
+        c.quiet_penalty_updates);
 }
 
 } // namespace search

@@ -66,7 +66,7 @@ protected:
     }
 
     Move find_move(std::string_view move_string) {
-        return movegen::UnorderedMoves(position()).find([&](Move move) {
+        return movegen::UnscoredMoves(position()).next_matching([&](Move move) {
             return move.str() == move_string;
         });
     }
@@ -780,7 +780,7 @@ TEST_F(SearchTest, QuietCutoffWithoutRealPreviousMoveSkipsContextUpdates) {
     run_case(true);
 }
 
-TEST_F(SearchTest, CaptureCutoffSkipsShallowRewardsAndPenalizesEarlierFailures) {
+TEST_F(SearchTest, CaptureCutoffSkipsShallowRewardsAndPenalizesEarlierNonCutoffs) {
     struct Case {
         int depth;
         int penalty;
@@ -799,9 +799,9 @@ TEST_F(SearchTest, CaptureCutoffSkipsShallowRewardsAndPenalizesEarlierFailures) 
         store_child(moves[0], 0, tc.depth - 1);
         store_child(moves[1], -200, tc.depth - 1);
         EXPECT_EQ(search(-200, 100, tc.depth), 200);
-        EXPECT_EQ(history().capture_history_score(position(), moves[0]), tc.penalty);
-        EXPECT_EQ(history().capture_history_score(position(), moves[1]), tc.reward);
-        EXPECT_EQ(history().capture_history_score(position(), Move(D3, F4)), 0);
+        EXPECT_EQ(history().capture_score(position(), moves[0]), tc.penalty);
+        EXPECT_EQ(history().capture_score(position(), moves[1]), tc.reward);
+        EXPECT_EQ(history().capture_score(position(), Move(D3, F4)), 0);
         EXPECT_EQ(history().context_for(position(), ply()).primary_killer, NULL_MOVE);
         EXPECT_EQ(history().context_for(position(), ply()).counter_move, NULL_MOVE);
     }
@@ -828,15 +828,15 @@ TEST_F(SearchTest, CaptureHistorySkipsPromotionsEvasionsAndQuiescenceUpdates) {
     tt.store(position().tt_key(), NULL_MOVE, 0, 0, TTBound::UpperBound, ply(), 0);
     store_child(capture, -200, 0);
     EXPECT_EQ(SearchTestAccess::quiescence<NodeType::NonPv>(worker, -200, 100), 200);
-    EXPECT_EQ(history().capture_history_score(position(), capture), 0);
+    EXPECT_EQ(history().capture_score(position(), capture), 0);
 }
 
-TEST_F(SearchTest, QuietCutoffTrainsHistoriesAndSkipsFailedRefutationHints) {
+TEST_F(SearchTest, QuietCutoffTrainsHistoriesAndExemptsTtAndKillerHints) {
     Board board{board_test::fen::start};
     load(board, 4);
-    const Move previous = find_move("e2e4");
+    const Move previous_move = find_move("e2e4");
 
-    with_move(previous, [&] {
+    with_move(previous_move, [&] {
         const auto moves = ordered_moves();
         ASSERT_GE(moves.size(), 5U);
         const Move tt_move = moves[0];
@@ -853,9 +853,9 @@ TEST_F(SearchTest, QuietCutoffTrainsHistoriesAndSkipsFailedRefutationHints) {
         EXPECT_EQ(quiet_history(killer), 0);
         EXPECT_EQ(continuation_history(WHITE, PAWN, E4, tt_move), 0);
         EXPECT_EQ(continuation_history(WHITE, PAWN, E4, killer), 0);
-        for (Move failed : {moves[2], moves[3]}) {
-            EXPECT_LT(quiet_history(failed), 0);
-            EXPECT_LT(continuation_history(WHITE, PAWN, E4, failed), 0);
+        for (Move non_cutoff : {moves[2], moves[3]}) {
+            EXPECT_LT(quiet_history(non_cutoff), 0);
+            EXPECT_LT(continuation_history(WHITE, PAWN, E4, non_cutoff), 0);
         }
         EXPECT_GT(quiet_history(moves[4]), 0);
         EXPECT_GT(continuation_history(WHITE, PAWN, E4, moves[4]), 0);
@@ -864,18 +864,18 @@ TEST_F(SearchTest, QuietCutoffTrainsHistoriesAndSkipsFailedRefutationHints) {
     });
 }
 
-TEST_F(SearchTest, QuietMalusRequiresDepthAndTwoFailedMoves) {
-    for (const auto [depth, failures] : {std::pair{3, 2}, std::pair{4, 1}}) {
+TEST_F(SearchTest, QuietPenaltiesRequireDepthAndTwoRecordedMoves) {
+    for (const auto [depth, non_cutoffs] : {std::pair{3, 2}, std::pair{4, 1}}) {
         SCOPED_TRACE(depth);
         Board board{board_test::fen::start};
         board.make(Move(E2, E4));
         load(board, depth);
         const auto moves = ordered_moves();
-        ASSERT_GT(moves.size(), static_cast<std::size_t>(failures));
-        for (int i = 0; i <= failures; ++i)
-            store_child(moves[i], i == failures ? -200 : 0, depth - 1);
+        ASSERT_GT(moves.size(), static_cast<std::size_t>(non_cutoffs));
+        for (int i = 0; i <= non_cutoffs; ++i)
+            store_child(moves[i], i == non_cutoffs ? -200 : 0, depth - 1);
         EXPECT_EQ(search(-200, 100, depth), 200);
-        for (int i = 0; i < failures; ++i) {
+        for (int i = 0; i < non_cutoffs; ++i) {
             EXPECT_EQ(quiet_history(moves[i]), 0);
             EXPECT_EQ(continuation_history(WHITE, PAWN, E4, moves[i]), 0);
         }

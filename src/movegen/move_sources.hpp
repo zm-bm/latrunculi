@@ -17,7 +17,7 @@ struct OrderingContext;
 namespace movegen {
 
 // Ordering and eligibility of a legal move stream.
-enum class MovePolicy { Unordered, MainSearch, Quiescence };
+enum class MovePolicy { Unscored, MainSearch, Quiescence };
 
 template <MovePolicy Policy>
 class Moves;
@@ -43,15 +43,15 @@ public:
     OrderedCandidates& operator=(OrderedCandidates&&)      = delete;
 
     void
-    load_evasions(const Board& board, const search::History& history, Color side, Move tt_move);
+    load_evasions(const Board& board, const search::History& history, Color side, Move tt_hint);
 
     template <MovePolicy Policy>
-    void load_noisy(const Board& board, const search::History& history, Move tt_move);
+    void load_noisy(const Board& board, const search::History& history, Move tt_hint);
 
     void load_quiets(const Board&                   board,
                      const search::History&         history,
                      const search::OrderingContext& context,
-                     Move                           tt_move,
+                     Move                           tt_hint,
                      std::span<const Move>          quiet_hints);
 
     Move take_evasion();
@@ -74,20 +74,20 @@ private:
         // Unused slots remain uninitialized.
         Move           move;
         CandidateState state;
-        int            ordering_score;
+        int            score;
         // Captured with the score, before child searches can train the history table.
         int see_threshold;
     };
 
     struct Range {
-        Candidate* next{nullptr};
+        Candidate* cursor{nullptr};
         Candidate* end{nullptr};
     };
 
     template <typename Eligible>
-    static Candidate* best_ready(const Range& range, Eligible eligible);
+    static Candidate* find_best_ready(const Range& range, Eligible eligible);
 
-    static Move take(Range& range, Candidate* selected);
+    static Move consume(Range& range, Candidate* selected);
 
     std::array<Candidate, MoveCapacity> storage;
     // Evasions when in check, otherwise noisy moves; quiets load only if reached.
@@ -95,12 +95,12 @@ private:
     Range quiet;
 };
 
-// Mode-specific move sources.
+// Move sources for each policy.
 
-// Ordinary traversal loads the complete batch before consuming it in generation order.
+// Unscored traversal loads the complete batch before consuming it in generation order.
 template <>
-class MoveSource<MovePolicy::Unordered> {
-    friend class Moves<MovePolicy::Unordered>;
+class MoveSource<MovePolicy::Unscored> {
+    friend class Moves<MovePolicy::Unscored>;
 
     explicit MoveSource(const Board& board);
 
@@ -134,13 +134,13 @@ class MoveSource<MovePolicy::MainSearch> {
     void skip_nonchecking_quiets();
 
     enum class Stage : std::uint8_t {
-        TtMove,
+        TtHint,
         LoadPrimary,
-        PickEvasion,
-        PickEarlyNoisy,
-        PickQuietHint,
-        PickQuiet,
-        PickDeferredNoisy,
+        Evasions,
+        EarlyNoisy,
+        QuietHints,
+        Quiets,
+        DeferredNoisy,
         Done,
     };
     static constexpr int QuietHintCapacity = 3;
@@ -148,17 +148,17 @@ class MoveSource<MovePolicy::MainSearch> {
     const Board&                        board;
     const search::History&              history;
     const search::OrderingContext&      context;
-    Move                                tt_move{NULL_MOVE};
-    Stage                               stage{Stage::TtMove};
+    Move                                tt_hint{NULL_MOVE};
+    Stage                               stage{Stage::TtHint};
     OrderedCandidates                   candidates;
     std::array<Move, QuietHintCapacity> quiet_hints{};
     int                                 quiet_hint_count{0};
-    int                                 quiet_hint_next{0};
-    bool                                quiet_checks_only{false};
+    int                                 quiet_hint_index{0};
+    bool                                quiets_must_check{false};
 };
 
-// Checked nodes return all legal evasions; ordinary nodes keep non-losing noisy
-// moves. Capture history orders them, while the exchange threshold stays zero.
+// Checked nodes return all legal evasions. Outside check, the TT hint and promotions
+// bypass SEE; other captures must pass SEE at zero, with history used for ordering.
 template <>
 class MoveSource<MovePolicy::Quiescence> {
     friend class Moves<MovePolicy::Quiescence>;
@@ -167,14 +167,14 @@ class MoveSource<MovePolicy::Quiescence> {
 
     Move next_candidate();
 
-    enum class Stage : std::uint8_t { TtMove, LoadPrimary, PickEvasion, PickNoisy, Done };
+    enum class Stage : std::uint8_t { TtHint, LoadPrimary, Evasions, Noisy, Done };
 
     const Board&           board;
     const search::History& history;
     const Color            side;
-    Move                   tt_move{NULL_MOVE};
+    Move                   tt_hint{NULL_MOVE};
     const bool             in_check;
-    Stage                  stage{Stage::TtMove};
+    Stage                  stage{Stage::TtHint};
     OrderedCandidates      candidates;
 };
 
