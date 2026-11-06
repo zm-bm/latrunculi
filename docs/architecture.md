@@ -52,7 +52,7 @@ The same evaluator exports linear features for fitting weights from recorded gam
 aspiration retries. [Recursive search](../src/search/search.cpp) implements
 alpha-beta, quiescence, and same-ply exclusion searches. Standalone
 [search policy](../src/search/search_policy.hpp) owns pruning and reduction
-calculations and aspiration retry state; [singular policy](../src/search/singular.cpp)
+calculations; [singular policy](../src/search/singular.cpp)
 selects verification parameters and multicut eligibility. Recursive execution,
 restoration, stop checks, and learning stay visible in search. Per-ply state lives
 in [SearchFrame](../src/search/search_frame.hpp). The search uses:

@@ -3,7 +3,7 @@
 #include <cassert>
 
 #include "movegen/moves.hpp"
-#include "search/search_policy.hpp"
+#include "search/tt.hpp"
 #include "search/worker.hpp"
 
 namespace search {
@@ -78,7 +78,12 @@ bool Worker::should_search_root_depth(int depth) const noexcept {
 
 // Root aspiration loop for a single depth.
 bool Worker::search_root_depth(int depth, EvalValue previous_value) {
-    detail::AspirationWindow window{depth, previous_value};
+    assert(depth >= 1);
+
+    EvalValue delta       = 50;
+    EvalValue alpha       = std::max(previous_value - delta, -eval_value::inf);
+    EvalValue beta        = std::min(previous_value + delta, eval_value::inf);
+    int       retry_depth = depth;
 
     while (!stop_requested()) {
         // Keep root order but clear stale attempt state.
@@ -87,7 +92,7 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
         }
 
         // Search this attempt while retaining the nominal iteration depth.
-        if (!search_root_window(window.retry_depth, depth, window.alpha, window.beta))
+        if (!search_root_window(retry_depth, depth, alpha, beta))
             return false;
 
         // Promote the best completed root line.
@@ -97,10 +102,19 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
         const EvalValue value = best_line.value;
         assert(value > -eval_value::inf && value < eval_value::inf);
 
-        switch (window.accept_or_widen(value)) {
-        case detail::AspirationWindow::Outcome::FailLow:  stats.aspiration_fail_low(); break;
-        case detail::AspirationWindow::Outcome::FailHigh: stats.aspiration_fail_high(); break;
-        case detail::AspirationWindow::Outcome::Accepted:
+        if (value <= alpha) {
+            // Fail low: recenter the lower bound and restore the nominal depth.
+            stats.aspiration_fail_low();
+            alpha       = std::max(value - delta, -eval_value::inf);
+            retry_depth = depth;
+        } else if (value >= beta) {
+            // Fail high: retry one ply shallower, except for mate-like scores.
+            stats.aspiration_fail_high();
+            beta        = std::min(value + delta, eval_value::inf);
+            retry_depth = value <= -eval_value::mate_bound || value >= eval_value::mate_bound
+                            ? depth
+                            : std::max(1, depth - 1);
+        } else {
             // Window hit: accept and publish the completed depth.
             root_result = best_line;
             publish_root_snapshot();
@@ -108,6 +122,10 @@ bool Worker::search_root_depth(int depth, EvalValue previous_value) {
                 report_root_progress(root_result);
             return true;
         }
+
+        // Recenter with the current delta above, then grow it for the next miss.
+        const EvalValue growth = delta / 2;
+        delta = delta >= eval_value::inf - growth ? eval_value::inf : delta + growth;
     }
 
     return false;

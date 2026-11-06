@@ -9,7 +9,6 @@
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
 #include "search/root_line.hpp"
-#include "search/search_policy.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -233,50 +232,6 @@ TEST_F(RootSearchTest, WidensAspirationWindowAfterFailLowAndFailHigh) {
         }
 #endif
     }
-}
-
-TEST(AspirationPolicyTest, SelectsOnlyTheImmediatelyFollowingRetryDepth) {
-    using detail::AspirationWindow;
-    using Outcome = AspirationWindow::Outcome;
-
-    AspirationWindow window{6, 0};
-    EXPECT_EQ(window.accept_or_widen(200), Outcome::FailHigh);
-    EXPECT_EQ(window.retry_depth, 5);
-    EXPECT_EQ(window.accept_or_widen(300), Outcome::FailHigh);
-    EXPECT_EQ(window.retry_depth, 5);
-    EXPECT_EQ(window.accept_or_widen(-200), Outcome::FailLow);
-    EXPECT_EQ(window.retry_depth, 6);
-
-    AspirationWindow shallow{1, 0};
-    EXPECT_EQ(shallow.accept_or_widen(200), Outcome::FailHigh);
-    EXPECT_EQ(shallow.retry_depth, 1);
-    for (EvalValue value : {eval_value::mate_bound, -eval_value::mate_bound}) {
-        AspirationWindow mate_window{6, value - 50};
-        EXPECT_EQ(mate_window.accept_or_widen(value), Outcome::FailHigh);
-        EXPECT_EQ(mate_window.retry_depth, 6);
-    }
-}
-
-TEST(AspirationPolicyTest, WidensGraduallyAndSaturatesAtInfinity) {
-    using detail::AspirationWindow;
-    using Outcome = AspirationWindow::Outcome;
-
-    AspirationWindow window{6, 0};
-    EXPECT_EQ(window.alpha, -50);
-    EXPECT_EQ(window.beta, 50);
-    EXPECT_EQ(window.accept_or_widen(50), Outcome::FailHigh);
-    EXPECT_EQ(window.beta, 100);
-    EXPECT_EQ(window.accept_or_widen(100), Outcome::FailHigh);
-    EXPECT_EQ(window.beta, 175);
-    EXPECT_EQ(window.accept_or_widen(175), Outcome::FailHigh);
-    EXPECT_EQ(window.beta, 287);
-    EXPECT_EQ(window.accept_or_widen(eval_value::inf - 1), Outcome::FailHigh);
-    EXPECT_EQ(window.beta, eval_value::inf);
-    EXPECT_EQ(window.accept_or_widen(-eval_value::inf + 1), Outcome::FailLow);
-    EXPECT_EQ(window.alpha, -eval_value::inf);
-    EXPECT_EQ(window.accept_or_widen(0), Outcome::Accepted);
-    EXPECT_EQ(window.alpha, -eval_value::inf);
-    EXPECT_EQ(window.beta, eval_value::inf);
 }
 
 TEST_F(RootSearchTest, ReducedAspirationRetryPublishesNominalDepth) {
