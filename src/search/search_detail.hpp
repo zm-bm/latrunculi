@@ -52,14 +52,6 @@ inline constexpr int FutilityMargin[] = {0, 250, 400, 550};
 // Positional allowance for the heuristic qsearch capture-gain estimate.
 inline constexpr EvalValue QCaptureMargin = 300;
 
-// Singular-extension defaults; score margins use evaluation units.
-inline constexpr int SingularMinDepth     = 8;
-inline constexpr int SingularTtDepthSlack = 3;
-
-inline EvalValue singular_margin(int depth) noexcept {
-    return std::max(1, depth * eval::pawn.mg / 50);
-}
-
 // Late-move reduction defaults.
 inline constexpr int LmrMinDepth              = 3;
 inline constexpr int LmrMinMoveCount          = 4;

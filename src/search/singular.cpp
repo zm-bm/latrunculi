@@ -1,0 +1,102 @@
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+
+#include "core/constants.hpp"
+#include "eval/parameters.hpp"
+#include "search/search_frame.hpp"
+#include "search/tt.hpp"
+#include "search/worker.hpp"
+
+namespace search {
+namespace {
+
+// Singular-extension defaults; score margins use evaluation units.
+constexpr int SingularMinDepth     = 8;
+constexpr int SingularTtDepthSlack = 3;
+
+EvalValue singular_margin(int depth) noexcept {
+    return std::max(1, depth * eval::pawn.mg / 50);
+}
+
+// Exclusion belongs to this ply; its verification context is inherited by children.
+// Restore the entire frame when a same-ply verification returns or is interrupted.
+class ScopedSingularVerification {
+public:
+    ScopedSingularVerification(SearchFrame& frame, Move excluded_move) noexcept
+        : frame(frame),
+          saved(frame) {
+        assert(!excluded_move.is_null());
+        frame.excluded_move            = excluded_move;
+        frame.in_singular_verification = true;
+    }
+
+    ~ScopedSingularVerification() { frame = saved; }
+
+    ScopedSingularVerification(const ScopedSingularVerification&)            = delete;
+    ScopedSingularVerification& operator=(const ScopedSingularVerification&) = delete;
+
+private:
+    SearchFrame&      frame;
+    const SearchFrame saved;
+};
+
+} // namespace
+
+EvalValue
+Worker::search_excluding_move(EvalValue alpha, EvalValue beta, int depth, Move excluded_move) {
+    assert(search_ply >= 0 && search_ply < engine::max_search_ply);
+    assert(depth > 0);
+    const ScopedSingularVerification verification{frames[search_ply], excluded_move};
+    return alphabeta<NodeType::NonPv>(alpha, beta, depth, nullptr);
+}
+
+// Verify alternatives before extending the TT move or taking a multicut.
+template <NodeType Node>
+Worker::SingularResult
+Worker::singular_decision(const TTRecord& record, int depth, EvalValue alpha, EvalValue beta) {
+    if (depth < SingularMinDepth || search_ply == 0 || search_ply >= 2 * root_iteration_depth
+        || search_ply + 1 >= engine::max_search_ply || after_null_move()
+        || record.depth < depth - SingularTtDepthSlack
+        || (record.bound != TTBound::Exact && record.bound != TTBound::LowerBound))
+        return {};
+
+    const auto& frame = frames[search_ply];
+    if (!frame.excluded_move.is_null())
+        return {};
+
+    const EvalValue tt_score = record.score_at_ply(search_ply);
+    if (std::abs(tt_score) >= eval_value::mate_bound || record.move.is_null()
+        || !board.is_pseudo_legal(record.move) || !board.is_legal_pseudo_move(record.move))
+        return {};
+
+    const EvalValue singular_beta = tt_score - singular_margin(depth);
+    if (singular_beta <= -eval_value::mate_bound || singular_beta >= eval_value::mate_bound)
+        return {};
+
+    // Verifier descendants retain ordinary search and extensions, but cannot take multicuts.
+    const bool multicut_allowed =
+        Node == NodeType::NonPv && !frame.in_singular_verification && !board.is_check()
+        && alpha > -eval_value::mate_bound && alpha < eval_value::mate_bound
+        && beta > -eval_value::mate_bound && beta < eval_value::mate_bound
+        && singular_beta - 1 > -eval_value::mate_bound && singular_beta >= beta;
+
+    const EvalValue value =
+        search_excluding_move(singular_beta - 1, singular_beta, (depth - 1) / 2, record.move);
+    if (stop_requested())
+        return {};
+
+    if (value < singular_beta)
+        return {.extend = true};
+    if (multicut_allowed)
+        return {.cutoff = singular_beta};
+    return {};
+}
+
+// The policy differs between PV and non-PV nodes; keep both instantiations here.
+template Worker::SingularResult
+Worker::singular_decision<NodeType::Pv>(const TTRecord&, int, EvalValue, EvalValue);
+template Worker::SingularResult
+Worker::singular_decision<NodeType::NonPv>(const TTRecord&, int, EvalValue, EvalValue);
+
+} // namespace search

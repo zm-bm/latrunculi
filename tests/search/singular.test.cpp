@@ -5,7 +5,6 @@
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
-#include "search/search_detail.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
@@ -18,6 +17,9 @@ namespace {
 
 class SingularTest : public ::testing::Test {
 protected:
+    // Expected margin used by the depth-eight verification fixtures.
+    static constexpr EvalValue margin_at_depth_8 = 16;
+
     static constexpr auto   one_quiet = "k7/8/1PK5/8/8/8/P7/8 b - - 0 1";
     RecordingSearchReporter reporter;
     ThreadPool              pool{1, reporter};
@@ -126,7 +128,7 @@ TEST_F(SingularTest, EqualityRefutesSingularityWhileFailLowExtends) {
         SCOPED_TRACE(fail_low);
         load(Board{board_test::fen::quiet_black_to_move});
         const auto      record    = entry(move("a8b8"));
-        const EvalValue threshold = record.score - detail::singular_margin(8);
+        const EvalValue threshold = record.score - margin_at_depth_8;
         seed_alternative(threshold - int(fail_low));
         EXPECT_EQ(extend(record), int(fail_low));
         EXPECT_GT(worker.node_count(), 1U);
@@ -260,7 +262,7 @@ TEST_F(SingularTest, RefutationEqualityAllowsMulticutInsteadOfExtension) {
     for (int offset : {-1, 0, 1}) {
         load(Board{board_test::fen::quiet_black_to_move});
         const auto record = entry(move("a8b8"));
-        const auto sb     = record.score - detail::singular_margin(8);
+        const auto sb     = record.score - margin_at_depth_8;
         seed_alternative(sb + offset);
         const auto result = SearchTestAccess::singular_result(worker, record, 8, sb - 1, sb);
         EXPECT_EQ(result.extend, offset < 0);
@@ -276,7 +278,7 @@ TEST_F(SingularTest, MulticutRequiresThresholdAtOrAboveBeta) {
         SCOPED_TRACE(beta_offset);
         load(Board{board_test::fen::quiet_black_to_move});
         const auto record = entry(move("a8b8"));
-        const auto sb     = record.score - detail::singular_margin(8);
+        const auto sb     = record.score - margin_at_depth_8;
         seed_alternative(sb);
         const auto beta   = sb + beta_offset;
         const auto result = SearchTestAccess::singular_result(worker, record, 8, beta - 1, beta);
@@ -291,7 +293,7 @@ TEST_F(SingularTest, MulticutRequiresThresholdAtOrAboveBeta) {
 TEST_F(SingularTest, MulticutReturnsThresholdWithoutOrdinaryTtOrHistoryTraining) {
     load(Board{board_test::fen::quiet_black_to_move});
     const auto record = entry(move("a8b8"));
-    const auto sb     = record.score - detail::singular_margin(8);
+    const auto sb     = record.score - margin_at_depth_8;
     seed_alternative(sb + 150);
     tt.store(board().tt_key(), record.move, record.score, record.depth, record.bound, ply());
     frame().static_eval = 321;
@@ -322,7 +324,7 @@ TEST_F(SingularTest, RefutedSingularityKeepsOriginalChildDepth) {
         frame().in_singular_verification                                     = !verification;
         SearchTestAccess::frames(worker)[ply() - 1].in_singular_verification = verification;
         const auto record                                                    = entry(move("a8b8"));
-        const auto sb = record.score - detail::singular_margin(8);
+        const auto sb = record.score - margin_at_depth_8;
         seed_alternative(sb);
         tt.store(board().tt_key(), record.move, record.score, record.depth, record.bound, ply());
         const auto original = board().to_fen();
@@ -345,7 +347,7 @@ TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
                                                          {100, eval_value::inf}}}) {
         load(Board{board_test::fen::quiet_black_to_move});
         const auto record = entry(move("a8b8"));
-        const auto sb     = record.score - detail::singular_margin(8);
+        const auto sb     = record.score - margin_at_depth_8;
         seed_alternative(sb);
         const auto r =
             SearchTestAccess::singular_result(worker, record, 8, window.first, window.second);
@@ -354,7 +356,7 @@ TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
     }
     load(Board{board_test::fen::quiet_black_to_move});
     auto record = entry(move("a8b8"));
-    auto sb     = record.score - detail::singular_margin(8);
+    auto sb     = record.score - margin_at_depth_8;
     seed_alternative(sb);
     const auto pv = SearchTestAccess::singular_result<NodeType::Pv>(worker, record, 8, sb - 1, sb);
     EXPECT_FALSE(pv.extend);
@@ -363,7 +365,7 @@ TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
     load(Board{"k7/8/3K4/8/8/8/R7/8 b - - 0 1"});
     ASSERT_TRUE(board().is_check());
     record = entry(move("a8b8"));
-    sb     = record.score - detail::singular_margin(8);
+    sb     = record.score - margin_at_depth_8;
     movegen::UnscoredMoves moves(board());
     for (Move m = moves.next(); !m.is_null(); m = moves.next()) {
         if (m == record.move)
@@ -381,8 +383,8 @@ TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
 TEST_F(SingularTest, VerificationWindowMustAlsoStayStrictlyOutsideMateRanges) {
     load(Board{board_test::fen::quiet_black_to_move});
     auto record =
-        entry(move("a8b8"), -eval_value::mate_bound + 1 - ply() + detail::singular_margin(8));
-    const auto sb = record.score_at_ply(ply()) - detail::singular_margin(8);
+        entry(move("a8b8"), -eval_value::mate_bound + 1 - ply() + margin_at_depth_8);
+    const auto sb = record.score_at_ply(ply()) - margin_at_depth_8;
     ASSERT_EQ(sb - 1, -eval_value::mate_bound);
     seed_alternative(sb);
     const auto r = SearchTestAccess::singular_result(worker, record, 8, sb, sb + 1);
@@ -394,7 +396,7 @@ TEST_F(SingularTest, VerificationContextRestoresNestedAndInterruptedScopesAndRes
     for (bool outer : {false, true}) {
         load(Board{board_test::fen::quiet_black_to_move});
         auto record = entry(move("a8b8"));
-        auto sb     = record.score - detail::singular_margin(8);
+        auto sb     = record.score - margin_at_depth_8;
         seed_alternative(sb);
         frame().in_singular_verification                                     = outer;
         SearchTestAccess::frames(worker)[ply() - 1].in_singular_verification = outer;
@@ -412,7 +414,7 @@ TEST_F(SingularTest, VerificationContextRestoresNestedAndInterruptedScopesAndRes
         frame().in_singular_verification                                     = outer;
         SearchTestAccess::frames(worker)[ply() - 1].in_singular_verification = outer;
         record                                                               = entry(move("a8b8"));
-        sb                           = record.score - detail::singular_margin(8);
+        sb                           = record.score - margin_at_depth_8;
         frame().static_eval          = 456;
         frame().real_move            = true;
         const auto interrupted_frame = frame();
