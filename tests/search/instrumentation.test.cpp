@@ -12,7 +12,7 @@ TEST(Instrumentation, DisabledInstrumentationIsEmptyAndNoop) {
     stats.node(1);
     stats.qnode(1);
     stats.beta_cutoff(1, 2);
-    stats.quiet_malus_update(1);
+    stats.quiet_penalty_update(1);
     stats.reset();
     EXPECT_TRUE(stats.str().empty());
 }
@@ -27,14 +27,14 @@ TEST(Instrumentation, RecordsAndAggregatesEvents) {
     first.beta_cutoff(1, 4);
     first.main_tt_probe(1);
     first.main_tt_hit(1);
-    first.quiet_malus_update(3);
+    first.quiet_penalty_update(3);
     first.aspiration_fail_low();
 
     Instrumentation<true> second;
     second.node(1);
     second.beta_cutoff(2, 1);
     second.lmr_try(2);
-    second.quiet_malus_update(4);
+    second.quiet_penalty_update(4);
     second.aspiration_fail_high();
     first += second;
 
@@ -47,7 +47,7 @@ TEST(Instrumentation, RecordsAndAggregatesEvents) {
     EXPECT_EQ(c.main_tt_probes[1], 1);
     EXPECT_EQ(c.main_tt_hits[1], 1);
     EXPECT_EQ(c.lmr_tries[2], 1);
-    EXPECT_EQ(c.quiet_malus_updates, 2);
+    EXPECT_EQ(c.quiet_penalty_updates, 2);
     EXPECT_EQ(c.aspiration_fail_lows, 1);
     EXPECT_EQ(c.aspiration_fail_highs, 1);
     EXPECT_NE(first.str().find("QuietHistory: quiet-cutoffs=0"), std::string::npos);
@@ -55,7 +55,7 @@ TEST(Instrumentation, RecordsAndAggregatesEvents) {
 
     first.reset();
     EXPECT_EQ(first.raw_counters().nodes[1], 0);
-    EXPECT_EQ(first.raw_counters().quiet_malus_updates, 0);
+    EXPECT_EQ(first.raw_counters().quiet_penalty_updates, 0);
 }
 
 TEST(Instrumentation, RejectsInvalidIndices) {
@@ -64,10 +64,10 @@ TEST(Instrumentation, RejectsInvalidIndices) {
     stats.qnode(engine::max_search_ply);
     stats.beta_cutoff(1, 0);
     stats.beta_cutoff(engine::max_search_ply, 1);
-    stats.quiet_malus_update(-1);
+    stats.quiet_penalty_update(-1);
     EXPECT_EQ(stats.raw_counters().nodes[0], 0);
     EXPECT_EQ(stats.raw_counters().beta_cutoffs, 0);
-    EXPECT_EQ(stats.raw_counters().quiet_malus_updates, 0);
+    EXPECT_EQ(stats.raw_counters().quiet_penalty_updates, 0);
 }
 
 #endif

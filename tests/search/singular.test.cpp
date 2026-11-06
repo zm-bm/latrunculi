@@ -4,7 +4,7 @@
 
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/moves.hpp"
 #include "search/search_detail.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
@@ -31,7 +31,7 @@ protected:
             limits.set_nodes(budget);
         worker.configure_search(b, limits, SearchClock::now());
         SearchTestAccess::reset(worker);
-        SearchTestAccess::ordering_state(worker).clear();
+        SearchTestAccess::history(worker).clear();
         ply()                                          = 1;
         SearchTestAccess::root_iteration_depth(worker) = 12;
     }
@@ -40,10 +40,9 @@ protected:
     int&         ply() { return SearchTestAccess::search_ply(worker); }
     SearchFrame& frame() { return SearchTestAccess::frames(worker)[ply()]; }
     Move         move(std::string_view name) {
-        for (Move m : movegen::generate_pseudo_legal(board()))
-            if (m.str() == name && board().is_legal_pseudo_move(m))
-                return m;
-        return NULL_MOVE;
+        return movegen::UnscoredMoves(board()).next_matching([&](Move move) {
+            return move.str() == name;
+        });
     }
     TTRecord entry(Move m, int score = 1000, int depth = 5, TTBound bound = TTBound::LowerBound) {
         return TTRecord{
@@ -106,8 +105,8 @@ TEST_F(SingularTest, VerificationFailHighCannotStoreOrdinaryBoundsOrTrainRefutat
     EXPECT_EQ(stored->score_at_ply(ply()), -500);
     EXPECT_EQ(stored->bound, TTBound::Exact);
     EXPECT_EQ(stored->move, excluded);
-    const auto& history = SearchTestAccess::ordering_state(worker);
-    EXPECT_EQ(history.quiets.get(BLACK, A8, A7), 0);
+    const auto& history = SearchTestAccess::history(worker);
+    EXPECT_EQ(history.base_quiet_score(BLACK, Move(A8, A7)), 0);
     EXPECT_FALSE(history.is_killer(alternative, ply()));
 }
 
@@ -305,9 +304,9 @@ TEST_F(SingularTest, MulticutReturnsThresholdWithoutOrdinaryTtOrHistoryTraining)
     EXPECT_EQ(stored->depth, record.depth);
     EXPECT_EQ(stored->score, record.score);
     EXPECT_EQ(stored->move, record.move);
-    const auto& history = SearchTestAccess::ordering_state(worker);
-    EXPECT_EQ(history.quiets.get(BLACK, A8, A7), 0);
-    EXPECT_EQ(history.quiets.get(BLACK, A8, B8), 0);
+    const auto& history = SearchTestAccess::history(worker);
+    EXPECT_EQ(history.base_quiet_score(BLACK, Move(A8, A7)), 0);
+    EXPECT_EQ(history.base_quiet_score(BLACK, Move(A8, B8)), 0);
     EXPECT_FALSE(history.is_killer(move("a8a7"), ply()));
     EXPECT_FALSE(history.is_killer(record.move, ply()));
     // alphabeta established the parent evaluation before verification, which must survive it.
@@ -365,8 +364,9 @@ TEST_F(SingularTest, MulticutProtectsPvChecksAndMateWindows) {
     ASSERT_TRUE(board().is_check());
     record = entry(move("a8b8"));
     sb     = record.score - detail::singular_margin(8);
-    for (Move m : movegen::generate_evasions(board())) {
-        if (m == record.move || !board().is_legal_pseudo_move(m))
+    movegen::UnscoredMoves moves(board());
+    for (Move m = moves.next(); !m.is_null(); m = moves.next()) {
+        if (m == record.move)
             continue;
         board().make(m);
         tt.store(

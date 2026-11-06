@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate OpenBench settings from a Latrunculi template, revisions, and binaries."""
+"""Prepare settings and run OpenBench commands for Latrunculi."""
 
 import argparse
 import json
@@ -9,10 +9,20 @@ import re
 import subprocess
 import sys
 
+from openbench_client import cli
+
 from . import engine
 
 
 TEMPLATES = Path(__file__).resolve().parent / "resources/openbench"
+
+
+class Session(cli.Session):
+    def fetch(self, path, data=None, redirects=()):
+        # Django requires the slash; the pinned client rejects its 301 redirect.
+        if re.fullmatch(r"/test/\d+/STOP", path):
+            path += "/"
+        return super().fetch(path, data=data, redirects=redirects)
 
 
 def positive_int(value):
@@ -47,8 +57,11 @@ def revision(value):
     return sha
 
 
-def parse_args(argv):
-    parser = argparse.ArgumentParser(prog="openbench prepare", description=__doc__)
+def parse_prepare_args(argv):
+    parser = argparse.ArgumentParser(
+        prog="openbench prepare",
+        description="Generate OpenBench settings from a template, revisions, and binaries.",
+    )
     modes = parser.add_subparsers(dest="mode", required=True)
     for name, help_text in (
         ("sprt", "strength comparison with the standard [0,3] bounds"),
@@ -132,16 +145,30 @@ def prepare(args):
 
 
 def main(argv=None):
-    args = parse_args(argv)
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] == ["prepare"]:
+        args = parse_prepare_args(argv[1:])
+        try:
+            prepare(args)
+            return 0
+        except (OSError, ValueError, KeyError, argparse.ArgumentTypeError, subprocess.SubprocessError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        except KeyboardInterrupt:
+            print("error: interrupted; any completed settings and diagnostic files were retained", file=sys.stderr)
+            return 130
+
+    if argv[:1] in (["-h"], ["--help"]):
+        print("Prepare Latrunculi settings locally:\n"
+              "  openbench prepare {sprt,games,corpus} [options]\n"
+              "  See openbench prepare --help for details.\n\n"
+              "Other commands are provided by the OpenBench client:")
+    original = cli.Session
+    cli.Session = Session
     try:
-        prepare(args)
-        return 0
-    except (OSError, ValueError, KeyError, argparse.ArgumentTypeError, subprocess.SubprocessError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
-    except KeyboardInterrupt:
-        print("error: interrupted; any completed settings and diagnostic files were retained", file=sys.stderr)
-        return 130
+        return cli.main(argv)
+    finally:
+        cli.Session = original
 
 
 if __name__ == "__main__":

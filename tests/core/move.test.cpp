@@ -1,10 +1,13 @@
 #include "core/move.hpp"
 
+#include <sstream>
+
 #include <gtest/gtest.h>
 
-TEST(MoveTest, DefaultConstructor) {
-    Move move;
-    EXPECT_TRUE(move.is_null()) << "should create null move by default";
+TEST(MoveTest, ValueInitializationIsNull) {
+    constexpr Move move{};
+    static_assert(move.is_null());
+    EXPECT_EQ(move, NULL_MOVE);
 }
 
 TEST(MoveTest, Constructor) {
@@ -36,6 +39,8 @@ TEST(MoveTest, PromotionMove) {
 }
 
 TEST(MoveTest, OutputStreamOperator) {
-    Move move(A7, A8, MOVE_PROM, ROOK);
-    EXPECT_EQ(move.str(), "a7a8r") << "should output move string";
+    Move               move(A7, A8, MOVE_PROM, ROOK);
+    std::ostringstream output;
+    output << move;
+    EXPECT_EQ(output.str(), "a7a8r");
 }

@@ -34,7 +34,7 @@ protected:
     int& search_ply() { return SearchTestAccess::search_ply(worker()); }
     bool worker_is_draw() { return SearchTestAccess::board(worker()).is_draw(search_ply()); }
 
-    ordering::State& ordering_state() { return SearchTestAccess::ordering_state(worker()); }
+    History& history() { return SearchTestAccess::history(worker()); }
 
     void make_worker_move(Move move) {
         SearchTestAccess::board(worker()).make(move);
@@ -127,23 +127,27 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeMoveHistoriesAndPreserveContinuation
     Board board{board_test::fen::start};
     load_worker_board(board);
 
-    ordering_state().killers.update(Move(E2, E4), 0);
-    ordering_state().counters.update(WHITE, PAWN, E4, Move(G8, F6));
-    ordering_state().quiets.reward(WHITE, E2, E4, 4);
-    ordering_state().captures.reward(WHITE, KNIGHT, E5, PAWN, 4);
-    ordering_state().continuations.reward(WHITE, PAWN, E4, KNIGHT, F6, 4);
+    history().update_quiet_refutations(OrderingContext{}, Move(E2, E4));
+    history().update_quiet_refutations(OrderingContext{}, Move(D2, D4));
+    SearchTestAccess::counter_move_entry(history(), WHITE, PAWN, E4)            = Move(G8, F6);
+    SearchTestAccess::quiet_history_entry(history(), WHITE, E2, E4)             = 9;
+    SearchTestAccess::capture_history_entry(history(), WHITE, KNIGHT, E5, PAWN) = -257;
+    SearchTestAccess::continuation_history_entry(history(), WHITE, PAWN, E4, KNIGHT, F6) = 16;
 
     SearchTestAccess::reset(worker());
-    EXPECT_EQ(ordering_state().killers.primary(0), NULL_MOVE);
-    EXPECT_EQ(ordering_state().counters.get(WHITE, PAWN, E4), NULL_MOVE);
-    EXPECT_EQ(ordering_state().quiets.get(WHITE, E2, E4), 8);
-    EXPECT_EQ(ordering_state().captures.get(WHITE, KNIGHT, E5, PAWN), 128);
-    EXPECT_EQ(ordering_state().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
+    EXPECT_EQ(history().context_for(board, 0).primary_killer, NULL_MOVE);
+    EXPECT_EQ(history().context_for(board, 0).secondary_killer, NULL_MOVE);
+    EXPECT_EQ(SearchTestAccess::counter_move_entry(history(), WHITE, PAWN, E4), NULL_MOVE);
+    EXPECT_EQ(SearchTestAccess::quiet_history_entry(history(), WHITE, E2, E4), 4);
+    EXPECT_EQ(SearchTestAccess::capture_history_entry(history(), WHITE, KNIGHT, E5, PAWN), -128);
+    EXPECT_EQ(SearchTestAccess::continuation_history_entry(history(), WHITE, PAWN, E4, KNIGHT, F6),
+              16);
 
     SearchTestAccess::reset(worker());
-    EXPECT_EQ(ordering_state().quiets.get(WHITE, E2, E4), 4);
-    EXPECT_EQ(ordering_state().captures.get(WHITE, KNIGHT, E5, PAWN), 64);
-    EXPECT_EQ(ordering_state().continuations.get(WHITE, PAWN, E4, KNIGHT, F6), 16);
+    EXPECT_EQ(SearchTestAccess::quiet_history_entry(history(), WHITE, E2, E4), 2);
+    EXPECT_EQ(SearchTestAccess::capture_history_entry(history(), WHITE, KNIGHT, E5, PAWN), -64);
+    EXPECT_EQ(SearchTestAccess::continuation_history_entry(history(), WHITE, PAWN, E4, KNIGHT, F6),
+              16);
 }
 
 TEST_F(SearchWorkerTest, RootPositionHistoryFeedsSearchRepetitionAfterSourceReset) {

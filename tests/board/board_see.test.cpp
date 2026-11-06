@@ -50,7 +50,7 @@ TEST(BoardSeeTest, ThresholdMatchesRecursiveOracleForSpecialPositions) {
          }) {
         const Board board{fen};
         SCOPED_TRACE(fen);
-        for (Move move : movegen::generate_pseudo_legal(board)) {
+        for (Move move : board_test::pseudo_legal_moves(board)) {
             if (!board.is_capture(move) && move.type() != MOVE_PROM)
                 continue;
             SCOPED_TRACE(move.str());

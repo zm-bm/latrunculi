@@ -12,7 +12,7 @@
 #include "board/notation.hpp"
 #include "core/move.hpp"
 #include "eval/features.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/moves.hpp"
 #include "movegen/perft.hpp"
 #include "search/limits.hpp"
 #include "search/tt.hpp"
@@ -265,23 +265,15 @@ bool Engine::move(const std::string& arguments) {
 }
 
 bool Engine::moves() {
-    auto movelist = movegen::generate_pseudo_legal(board);
-    for (auto& move : movelist) {
-        if (!board.is_legal_pseudo_move(move))
-            continue;
+    movegen::UnscoredMoves moves(board);
+    for (Move move = moves.next(); !move.is_null(); move = moves.next())
         writer.diagnostic_line(move.str());
-    }
     return true;
 }
 
 Move Engine::find_legal_move(const Board& position, const std::string& token) const {
-    auto movelist = movegen::generate_pseudo_legal(position);
-    for (auto& move : movelist) {
-        if (move.str() == token && position.is_legal_pseudo_move(move)) {
-            return move;
-        }
-    }
-    return NULL_MOVE;
+    return movegen::UnscoredMoves(position).next_matching(
+        [&](Move move) { return move.str() == token; });
 }
 
 std::vector<Move> Engine::resolve_searchmoves(const std::vector<std::string>& tokens) const {

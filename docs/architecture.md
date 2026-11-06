@@ -67,10 +67,13 @@ alpha-beta, quiescence, and singular verification, with per-ply state in
   if the score still reaches beta.
 - **Futility pruning:** Skip non-checking quiet moves at shallow depths when
   static evaluation plus a margin cannot improve alpha.
-- **Move ordering:** The staged [Picker](../src/search/ordering/picker.hpp)
+- **Move ordering:** The staged [Moves](../src/movegen/moves.hpp) stream
   tries the transposition-table move and promising captures, then uses killers,
   countermoves, and history scores for quiet moves. Capture ordering uses static
-  exchange evaluation (SEE).
+  exchange evaluation (SEE). Each worker owns a [History](../src/search/history.hpp),
+  which supplies shared `OrderingContext` snapshots. Per-node
+  [HistoryLearning](../src/search/history_learning.hpp) updates that history from
+  searched-move outcomes.
 - **Quiescence:** At the depth limit, search continues through SEE-filtered
   captures and promotions, or all legal evasions when in check.
 

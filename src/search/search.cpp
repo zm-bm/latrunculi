@@ -1,11 +1,12 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <optional>
 
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
-#include "movegen/generator.hpp"
-#include "search/ordering/picker.hpp"
+#include "movegen/moves.hpp"
+#include "search/history_learning.hpp"
 #include "search/search_detail.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -39,11 +40,8 @@ private:
 // Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
 EvalValue draw_or_mate_score(const Board& board, int search_ply) {
     if (board.halfmove_clock() >= 100 && board.is_check()) {
-        for (Move move : movegen::generate_evasions(board)) {
-            if (board.is_legal_pseudo_move(move))
-                return eval_value::draw;
-        }
-        return -eval_value::mate + search_ply;
+        return movegen::UnscoredMoves(board).next().is_null() ? -eval_value::mate + search_ply
+                                                              : eval_value::draw;
     }
     return eval_value::draw;
 }
@@ -242,32 +240,27 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         singular = singular_decision<Node>(*tt_record, depth, alpha, beta);
     if (stop_requested())
         return alpha;
-    // A multicut returns before the ordinary picker, TT store, or cutoff training.
+    // A multicut returns before the ordinary move stream, TT store, or cutoff training.
     if (singular.cutoff)
         return *singular.cutoff;
 
-    // Step 7. Move ordering and quiet-malus tracking.
+    // Step 7. Move ordering and node-local history feedback.
     int       move_count = 0;
     EvalValue best_value = -eval_value::inf;
     Move      best_move  = NULL_MOVE;
 
-    const auto context      = ordering::State::make_context(board);
-    const Move counter_move = ordering_state.counter_hint(context);
-    auto       picker =
-        ordering::Picker::for_main_search(board, ordering_state, context, search_ply, tt_move);
+    const auto context = history.context_for(board, search_ply, tt_move);
+    auto       moves   = movegen::MainSearchMoves(board, history, context);
 
-    PrincipalVariation  child_pv;
-    detail::FailedMoves failed_quiets;
-    detail::FailedMoves failed_captures;
-
-    const bool allow_quiet_malus =
-        !verification_root && depth >= detail::QuietMalusMinDepth && !in_check;
-    if (allow_quiet_malus)
-        stats.quiet_malus_eligible_node(depth);
+    PrincipalVariation child_pv;
+    // Verification roots neither train history nor contribute learning instrumentation.
+    std::optional<HistoryLearning> learning;
+    if (!verification_root)
+        learning.emplace(board, history, context, depth, stats);
 
     // Step 8. Move loop.
-    for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-        if (move == excluded_move || !board.is_legal_pseudo_move(move))
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
+        if (move == excluded_move)
             continue;
 
         ++move_count;
@@ -277,13 +270,13 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
         const bool is_capture        = board.is_capture(move);
         const bool is_quiet          = !is_capture && !is_promotion;
         const bool is_ordinary_quiet = is_quiet && move.type() == BASIC_MOVE;
-        const bool is_killer         = is_quiet && ordering_state.is_killer(move, search_ply);
-        const bool is_counter        = is_quiet && move == counter_move;
+        const bool is_killer         = is_quiet && history.is_killer(move, search_ply);
+        const bool is_counter        = is_quiet && move == context.counter_move;
 
         // LMR uses current history, read before making the move. Ordering retains its snapshot.
         int raw_capture_history = 0;
         if (is_capture && !is_promotion && !in_check)
-            raw_capture_history = ordering_state.capture_history_score(board, move);
+            raw_capture_history = history.capture_score(board, move);
         bool history_lmp_candidate = false;
         if constexpr (Node == NodeType::NonPv) {
             history_lmp_candidate = !verification_root && depth == detail::LateMovePruningDepth
@@ -292,7 +285,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
                                  && alpha > -eval_value::mate_bound && beta < eval_value::mate_bound
                                  && board.non_pawn_material(side) > 0 && is_ordinary_quiet
                                  && move != tt_move && !is_killer && !is_counter
-                                 && ordering_state.quiet_score(context, board, move, true) < 0;
+                                 && history.quiet_score(context, board, move) < 0;
         }
 
         const int child_depth = depth - 1 + (move == tt_move && singular.extend);
@@ -304,7 +297,7 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
             // Step 9. Futility pruning.
             board.unmake();
             --search_ply;
-            picker.skip_nonchecking_quiets();
+            moves.skip_nonchecking_quiets();
             stats.futility_skip(search_ply);
             continue;
         }
@@ -369,29 +362,8 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
 
         if (value >= beta) {
             // Step 13. Train cutoff histories on the restored position.
-            if (!verification_root) {
-                if (is_quiet) {
-                    stats.quiet_cutoff(depth);
-                    ordering_state.update_quiet_refutations(context, move, search_ply);
-                    ordering_state.reward_quiet(context, board, move, depth);
-                    if (allow_quiet_malus && failed_quiets.size() >= detail::QuietMalusMinFailed) {
-                        failed_quiets.for_each([&](Move quiet) {
-                            ordering_state.penalize_quiet(
-                                context, board, quiet, depth, detail::QuietMalusDivisor);
-                            stats.quiet_malus_update(depth);
-                        });
-                    }
-                }
-
-                if (!in_check) {
-                    if (is_capture && !is_promotion
-                        && depth >= detail::CaptureHistoryMinRewardDepth)
-                        ordering_state.reward_capture(board, move, depth);
-                    failed_captures.for_each([&](Move failed) {
-                        ordering_state.penalize_capture(board, failed, depth);
-                    });
-                }
-            }
+            if (learning)
+                learning->learn_from_cutoff(move, is_capture);
 
             if (pv)
                 pv->update(move, child_pv);
@@ -409,12 +381,8 @@ EvalValue Worker::alphabeta(EvalValue alpha, EvalValue beta, int depth, Principa
             return value;
         }
 
-        if (!verification_root && !in_check && is_capture && !is_promotion)
-            failed_captures.add(move);
-        if (allow_quiet_malus && is_quiet && !(move == tt_move) && !is_killer) {
-            if (failed_quiets.add(move))
-                stats.quiet_malus_failed_quiet(depth);
-        }
+        if (learning)
+            learning->record_non_cutoff(move, is_capture, is_killer);
         // Step 14. Best-move update.
         if (value > best_value) {
             best_value = value;
@@ -534,14 +502,11 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
             alpha = best_value;
     }
 
-    auto               picker = ordering::Picker::for_quiescence(board, ordering_state, tt_move);
+    auto               moves = movegen::QuiescenceMoves(board, history, tt_move);
     PrincipalVariation child_pv;
 
     // Step 5. Tactical move or evasion loop.
-    for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-        if (!board.is_legal_pseudo_move(move))
-            continue;
-
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         ++move_count;
 
         // SEE prices classify exchanges; use evaluation material for the gain estimate.
@@ -634,7 +599,7 @@ EvalValue Worker::quiescence(EvalValue alpha, EvalValue beta, PrincipalVariation
 
 bool Worker::settle(Board& position) {
     configure_search(position, Limits{}, SearchClock::now());
-    ordering_state.clear();
+    history.clear();
 
     PrincipalVariation pv;
     const EvalValue value = quiescence<NodeType::Pv, false>(-eval_value::inf, eval_value::inf, &pv);
@@ -647,11 +612,9 @@ bool Worker::settle(Board& position) {
     if (board.is_draw())
         return false;
 
-    for (Move move : movegen::generate_pseudo_legal(board)) {
-        if (board.is_legal_pseudo_move(move)) {
-            position = board;
-            return true;
-        }
+    if (!movegen::UnscoredMoves(board).next().is_null()) {
+        position = board;
+        return true;
     }
     return false;
 }

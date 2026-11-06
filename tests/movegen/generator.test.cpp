@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <array>
-#include <iterator>
+#include <ranges>
 #include <string_view>
 #include <vector>
 
@@ -13,43 +13,40 @@
 
 namespace {
 
-std::vector<MoveBits> sorted_move_bits(const movegen::MoveList& movelist) {
-    std::vector<MoveBits> bits;
-    bits.reserve(movelist.size());
-    for (const Move& move : movelist)
-        bits.push_back(move.bits);
-    std::sort(bits.begin(), bits.end());
-    return bits;
+template <movegen::GenerationKind Kind>
+std::vector<Move> emitted_moves(const Board& board) {
+    std::vector<Move> moves;
+    movegen::generate_pseudo_legal<Kind>(board, [&](Move move, PieceType moving_piece) {
+        EXPECT_EQ(moving_piece, board.piece_type_on(move.from())) << move;
+        moves.push_back(move);
+    });
+    return moves;
 }
 
-bool has_duplicates(const std::vector<MoveBits>& sorted_bits) {
-    return std::adjacent_find(sorted_bits.begin(), sorted_bits.end()) != sorted_bits.end();
+bool has_duplicates(const auto& moves) {
+    for (auto it = moves.begin(); it != moves.end(); ++it)
+        if (std::find(it + 1, moves.end(), *it) != moves.end())
+            return true;
+    return false;
 }
 
-bool are_disjoint(const std::vector<MoveBits>& lhs, const std::vector<MoveBits>& rhs) {
-    std::vector<MoveBits> intersection;
-    std::set_intersection(
-        lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), std::back_inserter(intersection));
-    return intersection.empty();
-}
-
-std::vector<MoveBits> sorted_union(std::vector<MoveBits> lhs, const std::vector<MoveBits>& rhs) {
-    lhs.insert(lhs.end(), rhs.begin(), rhs.end());
-    std::sort(lhs.begin(), lhs.end());
-    return lhs;
+bool are_disjoint(const std::vector<Move>& lhs, const std::vector<Move>& rhs) {
+    return std::none_of(lhs.begin(), lhs.end(), [&](Move move) {
+        return std::find(rhs.begin(), rhs.end(), move) != rhs.end();
+    });
 }
 
 } // namespace
 
 TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
-    Board quiet_board{board_test::fen::start};
-    EXPECT_EQ(sorted_move_bits(movegen::generate_pseudo_legal(quiet_board)),
-              sorted_move_bits(movegen::generate_non_evasions(quiet_board)));
+    Board      quiet_board{board_test::fen::start};
+    const auto quiet_moves = board_test::pseudo_legal_moves(quiet_board);
+    EXPECT_EQ(emitted_moves<movegen::GenerationKind::NonEvasions>(quiet_board), quiet_moves);
 
     Board evasion_board{board_test::fen::check_evasion};
     ASSERT_TRUE(evasion_board.is_check());
-    EXPECT_EQ(sorted_move_bits(movegen::generate_pseudo_legal(evasion_board)),
-              sorted_move_bits(movegen::generate_evasions(evasion_board)));
+    const auto evasions = board_test::pseudo_legal_moves(evasion_board);
+    EXPECT_EQ(emitted_moves<movegen::GenerationKind::Evasions>(evasion_board), evasions);
 }
 
 TEST(MoveGeneratorTest, EnPassantCanInterposeAgainstSliderCheck) {
@@ -68,7 +65,7 @@ TEST(MoveGeneratorTest, EnPassantCanInterposeAgainstSliderCheck) {
         ASSERT_TRUE(board.is_check()) << test.fen;
         ASSERT_TRUE(board.is_legal_move(test.move)) << test.fen;
 
-        const movegen::MoveList evasions = movegen::generate_evasions(board);
+        const std::vector<Move> evasions = board_test::pseudo_legal_moves(board);
         EXPECT_NE(std::find(evasions.begin(), evasions.end(), test.move), evasions.end())
             << test.fen;
     }
@@ -88,22 +85,23 @@ TEST(MoveGeneratorTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
         Board board{fen};
         ASSERT_FALSE(board.is_check()) << fen;
 
-        const auto non_evasions = sorted_move_bits(movegen::generate_non_evasions(board));
-        const auto noisy        = sorted_move_bits(movegen::generate_noisy(board));
-        const auto quiet        = sorted_move_bits(movegen::generate_quiet(board));
-
+        const auto non_evasions = board_test::pseudo_legal_moves(board);
+        const auto noisy_moves  = emitted_moves<movegen::GenerationKind::Noisy>(board);
+        const auto quiet_moves  = emitted_moves<movegen::GenerationKind::Quiet>(board);
         EXPECT_FALSE(has_duplicates(non_evasions)) << fen;
-        EXPECT_FALSE(has_duplicates(noisy)) << fen;
-        EXPECT_FALSE(has_duplicates(quiet)) << fen;
-        EXPECT_TRUE(are_disjoint(noisy, quiet)) << fen;
-        EXPECT_EQ(non_evasions, sorted_union(noisy, quiet)) << fen;
+        EXPECT_FALSE(has_duplicates(noisy_moves)) << fen;
+        EXPECT_FALSE(has_duplicates(quiet_moves)) << fen;
+        EXPECT_TRUE(are_disjoint(noisy_moves, quiet_moves)) << fen;
+        auto combined = noisy_moves;
+        combined.insert(combined.end(), quiet_moves.begin(), quiet_moves.end());
+        EXPECT_TRUE(std::ranges::is_permutation(non_evasions, combined)) << fen;
 
-        for (const Move& move : movegen::generate_noisy(board)) {
+        for (const Move& move : noisy_moves) {
             EXPECT_TRUE(move.type() == MOVE_PROM || board.is_capture(move))
                 << move << " in " << fen;
         }
 
-        for (const Move& move : movegen::generate_quiet(board)) {
+        for (const Move& move : quiet_moves) {
             EXPECT_NE(move.type(), MOVE_PROM) << move << " in " << fen;
             EXPECT_FALSE(board.is_capture(move)) << move << " in " << fen;
         }
@@ -114,7 +112,7 @@ TEST(MoveGeneratorTest, DoubleCheckEvasionsContainOnlyKingMoves) {
     Board board{"R3k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
     ASSERT_TRUE(board.is_double_check());
 
-    const movegen::MoveList evasions = movegen::generate_evasions(board);
+    const std::vector<Move> evasions = board_test::pseudo_legal_moves(board);
     ASSERT_FALSE(evasions.empty());
     for (const Move move : evasions)
         EXPECT_EQ(move.from(), E8) << move;

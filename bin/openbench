@@ -11,21 +11,5 @@ if [ ! -x "$tools_dir/.venv/bin/python" ]; then
     exit 1
 fi
 
-module=openbench_client
-case "${1-}" in
-    prepare)
-        module=tools.openbench_prepare
-        shift
-        ;;
-    -h|--help)
-        printf '%s\n' \
-            'Prepare Latrunculi settings locally:' \
-            '  openbench prepare {sprt,games,corpus} [options]' \
-            '  See openbench prepare --help for details.' \
-            '' \
-            'Other commands are provided by the OpenBench client:'
-        ;;
-esac
-
 PYTHONPATH="$repo_root${PYTHONPATH:+:$PYTHONPATH}" \
-    exec "$tools_dir/.venv/bin/python" -P -m "$module" "$@"
+    exec "$tools_dir/.venv/bin/python" -P -m tools.openbench "$@"

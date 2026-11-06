@@ -5,7 +5,7 @@
 #include "core/move.hpp"
 #include "core/move_geometry.hpp"
 #include "core/notation.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/moves.hpp"
 
 #include <cassert>
 
@@ -50,14 +50,6 @@ void append_disambiguation(std::string& san, const Board& board, Move move, Piec
     }
 }
 
-bool has_legal_reply(const Board& board) {
-    for (const Move reply : movegen::generate_pseudo_legal(board)) {
-        if (board.is_legal_pseudo_move(reply))
-            return true;
-    }
-    return false;
-}
-
 } // namespace
 
 std::string to_san(const Board& board, Move move) {
@@ -92,7 +84,7 @@ std::string to_san(const Board& board, Move move) {
     if (board.gives_check(move)) {
         Board next(board);
         next.make(move);
-        san += has_legal_reply(next) ? '+' : '#';
+        san += movegen::UnscoredMoves(next).next().is_null() ? '#' : '+';
     }
     return san;
 }

@@ -39,11 +39,12 @@ struct TTEntry {
     std::atomic<std::uint16_t> key_tag     = 0;
     std::atomic<std::uint8_t>  depth       = 0;
     std::atomic<std::uint8_t>  metadata    = 0;
-    std::atomic<MoveBits>      move        = 0;
+    std::atomic<Move>          move        = NULL_MOVE;
     std::atomic<std::int16_t>  score       = 0;
     std::atomic<std::int16_t>  static_eval = 0;
 };
 static_assert(sizeof(TTEntry) == 10);
+static_assert(std::atomic<Move>::is_always_lock_free);
 static_assert(std::atomic<std::uint16_t>::is_always_lock_free);
 static_assert(std::atomic<std::uint8_t>::is_always_lock_free);
 

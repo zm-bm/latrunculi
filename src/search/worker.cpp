@@ -5,7 +5,7 @@
 
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
-#include "search/ordering/picker.hpp"
+#include "movegen/moves.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -96,25 +96,25 @@ void Worker::reset_search_state() {
     last_reported_root_line.reset();
     pending_best_move.reset();
 
-    ordering_state.prepare_for_search();
+    history.prepare_for_search();
 
     if constexpr (stats_enabled)
         stats.reset();
 }
 
 void Worker::clear_search_heuristics() {
-    ordering_state.clear();
+    history.clear();
 }
 
 void Worker::build_root_lines() {
     root_lines.clear();
 
-    // Root candidates start in the current picker order.
-    const auto context = ordering::State::make_context(board);
-    auto       picker  = ordering::Picker::for_main_search(board, ordering_state, context, 0);
+    // Root candidates start in ordered-stream order.
+    const auto context = history.context_for(board, 0);
+    auto       moves   = movegen::MainSearchMoves(board, history, context);
 
-    for (Move move = picker.next(); !move.is_null(); move = picker.next()) {
-        if (board.is_legal_pseudo_move(move) && limits.allows_root_move(move))
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
+        if (limits.allows_root_move(move))
             root_lines.push_back(RootLine{.root_move = move, .value = -eval_value::inf});
     }
 }

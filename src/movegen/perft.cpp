@@ -5,7 +5,7 @@
 
 #include "board/board.hpp"
 #include "core/constants.hpp"
-#include "movegen/generator.hpp"
+#include "movegen/moves.hpp"
 
 namespace movegen {
 
@@ -20,12 +20,9 @@ NodeCount perft_impl(Board& board, int depth) {
     if (depth == 0)
         return 1;
 
-    NodeCount nodes    = 0;
-    auto      movelist = movegen::generate_pseudo_legal(board);
-
-    for (auto& move : movelist) {
-        if (!board.is_legal_pseudo_move(move))
-            continue;
+    NodeCount      nodes = 0;
+    UnscoredMoves  moves(board);
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
 
         board.make(move);
         NodeCount count = perft_impl(board, depth - 1);
@@ -57,11 +54,8 @@ PerftResult perft_root(Board& board, int depth) {
         return result;
     }
 
-    auto movelist = movegen::generate_pseudo_legal(board);
-
-    for (auto& move : movelist) {
-        if (!board.is_legal_pseudo_move(move))
-            continue;
+    UnscoredMoves moves(board);
+    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
 
         board.make(move);
         const NodeCount nodes = perft_impl(board, depth - 1);

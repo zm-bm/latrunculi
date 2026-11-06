@@ -27,8 +27,8 @@ struct Counters {
     PerPly        lmr_tries{}, lmr_researches{};
     std::uint64_t capture_eligible{0}, capture_nonzero{0}, capture_increased{0},
         capture_decreased{0}, capture_researches{0};
-    std::uint64_t quiet_cutoffs{0}, quiet_malus_eligible_nodes{0};
-    std::uint64_t quiet_malus_failed_quiets{0}, quiet_malus_updates{0};
+    std::uint64_t quiet_cutoffs{0}, quiet_penalty_eligible_nodes{0};
+    std::uint64_t quiet_penalty_candidates{0}, quiet_penalty_updates{0};
 };
 
 template <bool Enable = stats_enabled>
@@ -60,9 +60,9 @@ public:
     void             lmr_try(int) {}
     void             lmr_research(int) {}
     void             quiet_cutoff(int) {}
-    void             quiet_malus_eligible_node(int) {}
-    void             quiet_malus_failed_quiet(int) {}
-    void             quiet_malus_update(int) {}
+    void             quiet_penalty_eligible_node(int) {}
+    void             quiet_penalty_candidate(int) {}
+    void             quiet_penalty_update(int) {}
     std::string      str() const { return {}; }
     Instrumentation& operator+=(const Instrumentation&) { return *this; }
 };
@@ -165,17 +165,17 @@ public:
         if (valid(depth))
             ++counters.quiet_cutoffs;
     }
-    void quiet_malus_eligible_node(int depth) {
+    void quiet_penalty_eligible_node(int depth) {
         if (valid(depth))
-            ++counters.quiet_malus_eligible_nodes;
+            ++counters.quiet_penalty_eligible_nodes;
     }
-    void quiet_malus_failed_quiet(int depth) {
+    void quiet_penalty_candidate(int depth) {
         if (valid(depth))
-            ++counters.quiet_malus_failed_quiets;
+            ++counters.quiet_penalty_candidates;
     }
-    void quiet_malus_update(int depth) {
+    void quiet_penalty_update(int depth) {
         if (valid(depth))
-            ++counters.quiet_malus_updates;
+            ++counters.quiet_penalty_updates;
     }
 
     Instrumentation& operator+=(const Instrumentation& other);

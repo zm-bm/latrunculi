@@ -9,199 +9,214 @@
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "core/types.hpp"
-#include "movegen/move_list.hpp"
 
 namespace movegen {
 
-enum class MoveGenType { NonEvasions, Noisy, Evasions, Quiet };
+// Pseudo-legal batch emitted by one generator pass.
+// Noisy includes captures and all promotions, including noncapturing promotions.
+enum class GenerationKind { NonEvasions, Noisy, Evasions, Quiet };
 
-// Color- and mode-specialized generator kept header-defined for hot-path inlining.
-template <MoveGenType Type, Color Us>
+// Board geometry for one synchronous pass; kind and output belong to the operation.
+template <Color Us>
 class Generator {
 public:
-    Generator(const Board& board, MoveList& moves)
+    explicit Generator(const Board& board)
         : board(board),
-          moves(moves),
           king_sq(board.king_sq(Us)),
           occupancy(board.occupancy()),
           own_pieces(board.pieces(Us)),
           enemy_pieces(board.pieces(~Us)) {}
 
     // Preserve emission order because it affects downstream move ordering.
-    void run() {
+    template <GenerationKind Kind, typename Emit>
+    void run(Emit& output) {
         Bitboard target_squares = 0;
 
-        if constexpr (Type == MoveGenType::Evasions) {
+        if constexpr (Kind == GenerationKind::Evasions) {
             // Only king moves can evade double check.
             if (!board.is_double_check()) {
-                target_squares = mode_targets();
-                piece_moves<KNIGHT>(target_squares);
-                piece_moves<BISHOP>(target_squares);
-                piece_moves<ROOK>(target_squares);
-                piece_moves<QUEEN>(target_squares);
-                pawn_moves(target_squares);
+                target_squares = piece_targets<Kind>();
+                piece_moves<KNIGHT>(target_squares, output);
+                piece_moves<BISHOP>(target_squares, output);
+                piece_moves<ROOK>(target_squares, output);
+                piece_moves<QUEEN>(target_squares, output);
+                pawn_moves<Kind>(target_squares, output);
             }
 
             target_squares = ~own_pieces;
         } else {
-            target_squares = mode_targets();
-            piece_moves<KNIGHT>(target_squares);
-            piece_moves<BISHOP>(target_squares);
-            piece_moves<ROOK>(target_squares);
-            piece_moves<QUEEN>(target_squares);
-            pawn_moves(target_squares);
+            target_squares = piece_targets<Kind>();
+            piece_moves<KNIGHT>(target_squares, output);
+            piece_moves<BISHOP>(target_squares, output);
+            piece_moves<ROOK>(target_squares, output);
+            piece_moves<QUEEN>(target_squares, output);
+            pawn_moves<Kind>(target_squares, output);
         }
 
-        king_moves(target_squares);
+        king_moves<Kind>(target_squares, output);
     }
 
 private:
-    void emit(Square from, Square to, MoveType type = BASIC_MOVE, PieceType promotion = KNIGHT) {
-        moves.add(from, to, type, promotion);
+    template <typename Emit>
+    static void emit(Emit&     output,
+                     PieceType moving_piece,
+                     Square    from,
+                     Square    to,
+                     MoveType  type      = BASIC_MOVE,
+                     PieceType promotion = KNIGHT) {
+        output(Move(from, to, type, promotion), moving_piece);
     }
 
-    // Restricts non-king destinations according to the requested generation mode.
-    Bitboard mode_targets() const {
-        if constexpr (Type == MoveGenType::NonEvasions)
+    // Restricts non-king destinations according to the requested generation kind.
+    template <GenerationKind Kind>
+    Bitboard piece_targets() const {
+        if constexpr (Kind == GenerationKind::NonEvasions)
             return ~own_pieces;
-        else if constexpr (Type == MoveGenType::Noisy)
+        else if constexpr (Kind == GenerationKind::Noisy)
             return enemy_pieces;
-        else if constexpr (Type == MoveGenType::Evasions) {
+        else if constexpr (Kind == GenerationKind::Evasions) {
             const Bitboard checks = board.checkers();
             return checks | square::between(bb::frontmost<Us>(checks), king_sq);
         }
         return ~occupancy;
     }
 
-    template <PieceType P>
-    void piece_moves(Bitboard targets) {
-        Bitboard bitboard = board.pieces<P>(Us);
+    template <PieceType P, typename Emit>
+    void piece_moves(Bitboard targets, Emit& output) {
+        Bitboard pieces = board.pieces<P>(Us);
 
-        bb::scan<Us>(bitboard, [&](Square from) {
+        bb::scan<Us>(pieces, [&](Square from) {
             Bitboard moves = attacks::piece_moves<P>(from, occupancy) & targets;
-            bb::scan<Us>(moves, [&](Square to) { emit(from, to); });
+            bb::scan<Us>(moves, [&](Square to) { emit(output, P, from, to); });
         });
     }
 
     // Pawn move bitboards encode destinations; recover each source by reversing the shift.
-    template <int Delta>
-    void emit_pawn_moves(Bitboard moves) {
+    template <int Delta, typename Emit>
+    void emit_pawn_moves(Bitboard moves, Emit& output) {
         constexpr int offset = (Us == WHITE) ? -Delta : Delta;
-        bb::scan<Us>(moves, [&](Square to) { emit(to + offset, to); });
+        bb::scan<Us>(moves, [&](Square to) { emit(output, PAWN, to + offset, to); });
     }
 
-    template <int Delta>
-    void emit_promotions(Bitboard moves) {
+    template <int Delta, typename Emit>
+    void emit_promotions(Bitboard moves, Emit& output) {
         constexpr int offset = (Us == WHITE) ? -Delta : Delta;
 
         bb::scan<Us>(moves, [&](Square to) {
             Square from = to + offset;
             // Emit promotions from highest to lowest material value.
-            emit(from, to, MOVE_PROM, QUEEN);
-            emit(from, to, MOVE_PROM, ROOK);
-            emit(from, to, MOVE_PROM, BISHOP);
-            emit(from, to, MOVE_PROM, KNIGHT);
+            emit(output, PAWN, from, to, MOVE_PROM, QUEEN);
+            emit(output, PAWN, from, to, MOVE_PROM, ROOK);
+            emit(output, PAWN, from, to, MOVE_PROM, BISHOP);
+            emit(output, PAWN, from, to, MOVE_PROM, KNIGHT);
         });
     }
 
-    template <int Delta>
-    void emit_enpassant(Bitboard pawns, Square target) {
+    template <int Delta, typename Emit>
+    void emit_enpassant(Bitboard pawns, Square target, Emit& output) {
         constexpr int offset = (Us == WHITE) ? -Delta : Delta;
 
         if (bb::contains(attacks::pawn_shift<Delta, Us>(pawns), target))
-            emit(target + offset, target, MOVE_EP);
+            emit(output, PAWN, target + offset, target, MOVE_EP);
     }
 
     // Separates promotion pawns because every promotion is noisy.
-    void pawn_moves(Bitboard targets) {
+    template <GenerationKind Kind, typename Emit>
+    void pawn_moves(Bitboard targets, Emit& output) {
         constexpr Bitboard promotion_rank = bb::relative_rank<Us>(RANK7);
 
-        Bitboard enemies = enemy_pieces;
-        if constexpr (Type == MoveGenType::Evasions)
-            enemies &= targets;
+        Bitboard capture_targets = enemy_pieces;
+        if constexpr (Kind == GenerationKind::Evasions)
+            capture_targets &= targets;
 
         const Bitboard all_pawns       = board.pieces<PAWN>(Us);
         Bitboard       promotion_pawns = all_pawns & promotion_rank;
-        if constexpr (Type != MoveGenType::Quiet) {
+        if constexpr (Kind != GenerationKind::Quiet) {
             if (promotion_pawns)
-                pawn_promotions(targets, enemies, promotion_pawns);
+                pawn_promotions<Kind>(targets, capture_targets, promotion_pawns, output);
         }
 
-        Bitboard normal_pawns = all_pawns & ~promotion_rank;
-        if constexpr (Type != MoveGenType::Quiet)
-            pawn_captures(targets, enemies, normal_pawns);
-        if constexpr (Type != MoveGenType::Noisy)
-            pawn_pushes(targets, normal_pawns);
+        Bitboard non_promotion_pawns = all_pawns & ~promotion_rank;
+        if constexpr (Kind != GenerationKind::Quiet)
+            pawn_captures<Kind>(targets, capture_targets, non_promotion_pawns, output);
+        if constexpr (Kind != GenerationKind::Noisy)
+            pawn_pushes<Kind>(targets, non_promotion_pawns, output);
     }
 
-    void pawn_promotions(Bitboard targets, Bitboard enemies, Bitboard pawns) {
+    template <GenerationKind Kind, typename Emit>
+    void pawn_promotions(Bitboard targets, Bitboard capture_targets, Bitboard pawns, Emit& output) {
         Bitboard push_moves = attacks::pawn_shift<pawn_delta::push, Us>(pawns) & ~occupancy;
-        if constexpr (Type == MoveGenType::Evasions)
+        if constexpr (Kind == GenerationKind::Evasions)
             push_moves &= targets;
 
-        emit_promotions<pawn_delta::push>(push_moves);
+        emit_promotions<pawn_delta::push>(push_moves, output);
 
-        Bitboard left_moves = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & enemies;
-        emit_promotions<pawn_delta::left>(left_moves);
+        Bitboard left_moves = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & capture_targets;
+        emit_promotions<pawn_delta::left>(left_moves, output);
 
-        Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & enemies;
-        emit_promotions<pawn_delta::right>(right_moves);
+        Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & capture_targets;
+        emit_promotions<pawn_delta::right>(right_moves, output);
     }
 
-    void pawn_captures(Bitboard targets, Bitboard enemies, Bitboard pawns) {
-        Bitboard left_moves  = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & enemies;
-        Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & enemies;
-        emit_pawn_moves<pawn_delta::left>(left_moves);
-        emit_pawn_moves<pawn_delta::right>(right_moves);
+    template <GenerationKind Kind, typename Emit>
+    void pawn_captures(Bitboard targets, Bitboard capture_targets, Bitboard pawns, Emit& output) {
+        Bitboard left_moves  = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & capture_targets;
+        Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & capture_targets;
+        emit_pawn_moves<pawn_delta::left>(left_moves, output);
+        emit_pawn_moves<pawn_delta::right>(right_moves, output);
 
         const Square enpassant_target = board.legal_enpassant_target();
         if (enpassant_target == INVALID)
             return;
 
-        if constexpr (Type == MoveGenType::Evasions) {
-            const Square captured = move_geometry::enpassant_captured_square(enpassant_target, Us);
+        if constexpr (Kind == GenerationKind::Evasions) {
+            const Square captured_square =
+                move_geometry::enpassant_captured_square(enpassant_target, Us);
             // En passant can evade by removing the checker or interposing on the destination.
-            if (!bb::contains(targets, captured) && !bb::contains(targets, enpassant_target))
+            if (!bb::contains(targets, captured_square) && !bb::contains(targets, enpassant_target))
                 return;
         }
 
-        emit_enpassant<pawn_delta::left>(pawns, enpassant_target);
-        emit_enpassant<pawn_delta::right>(pawns, enpassant_target);
+        emit_enpassant<pawn_delta::left>(pawns, enpassant_target, output);
+        emit_enpassant<pawn_delta::right>(pawns, enpassant_target, output);
     }
 
-    void pawn_pushes(Bitboard targets, Bitboard pawns) {
-        constexpr Bitboard double_push_rank = bb::relative_rank<Us>(RANK3);
+    template <GenerationKind Kind, typename Emit>
+    void pawn_pushes(Bitboard targets, Bitboard pawns, Emit& output) {
+        constexpr Bitboard double_push_intermediate_rank = bb::relative_rank<Us>(RANK3);
 
         Bitboard push_moves = attacks::pawn_shift<pawn_delta::push, Us>(pawns) & ~occupancy;
         // Deriving double pushes from available single pushes also checks the intermediate square.
         Bitboard double_push_moves =
-            attacks::pawn_shift<pawn_delta::push, Us>(push_moves & double_push_rank) & ~occupancy;
+            attacks::pawn_shift<pawn_delta::push, Us>(push_moves & double_push_intermediate_rank)
+            & ~occupancy;
 
-        if constexpr (Type == MoveGenType::Evasions) {
+        if constexpr (Kind == GenerationKind::Evasions) {
             push_moves &= targets;
             double_push_moves &= targets;
         }
 
-        emit_pawn_moves<pawn_delta::double_push>(double_push_moves);
-        emit_pawn_moves<pawn_delta::push>(push_moves);
+        emit_pawn_moves<pawn_delta::double_push>(double_push_moves, output);
+        emit_pawn_moves<pawn_delta::push>(push_moves, output);
     }
 
-    void king_moves(Bitboard targets) {
+    template <GenerationKind Kind, typename Emit>
+    void king_moves(Bitboard targets, Emit& output) {
         Bitboard moves = attacks::piece_moves<KING>(king_sq) & targets;
 
-        bb::scan<Us>(moves, [&](Square to) { emit(king_sq, to); });
+        bb::scan<Us>(moves, [&](Square to) { emit(output, KING, king_sq, to); });
 
         // Castling is quiet and cannot be an evasion because the king is already in check.
-        if constexpr (Type == MoveGenType::NonEvasions || Type == MoveGenType::Quiet) {
+        if constexpr (Kind == GenerationKind::NonEvasions || Kind == GenerationKind::Quiet) {
             if (board.has_castling_rights(Us)) {
                 constexpr const auto& kingside  = move_geometry::castling(CASTLE_KINGSIDE, Us);
                 constexpr const auto& queenside = move_geometry::castling(CASTLE_QUEENSIDE, Us);
 
                 if (board.has_castling_right(CASTLE_KINGSIDE, Us) && can_castle<CASTLE_KINGSIDE>())
-                    emit(kingside.king_from, kingside.king_to, MOVE_CASTLE);
+                    emit(output, KING, kingside.king_from, kingside.king_to, MOVE_CASTLE);
                 if (board.has_castling_right(CASTLE_QUEENSIDE, Us)
                     && can_castle<CASTLE_QUEENSIDE>())
-                    emit(queenside.king_from, queenside.king_to, MOVE_CASTLE);
+                    emit(output, KING, queenside.king_from, queenside.king_to, MOVE_CASTLE);
             }
         }
     }
@@ -214,47 +229,32 @@ private:
     }
 
     const Board& board;
-    MoveList&    moves;
     Square       king_sq;
     Bitboard     occupancy;
     Bitboard     own_pieces;
     Bitboard     enemy_pieces;
 };
 
-template <MoveGenType Type>
-inline MoveList generate(const Board& board) {
+// Emit one pseudo-legal batch through a borrowed synchronous output callable.
+// Output receives (Move, original moving PieceType).
+// Promotions and en passant report PAWN; castling reports KING.
+template <GenerationKind Kind, typename Emit>
+inline void generate_pseudo_legal(const Board& board, Emit&& output) {
+    assert((Kind == GenerationKind::Evasions) == board.is_check());
     // Dispatch runtime side-to-move into a color-specialized hot path.
-    MoveList moves;
     if (board.side_to_move() == WHITE)
-        Generator<Type, WHITE>(board, moves).run();
+        Generator<WHITE>(board).run<Kind>(output);
     else
-        Generator<Type, BLACK>(board, moves).run();
-    return moves;
+        Generator<BLACK>(board).run<Kind>(output);
 }
 
-// Generators emit pseudo-legal candidates; callers use Board for final king-safety filtering.
-inline MoveList generate_non_evasions(const Board& board) {
-    assert(!board.is_check());
-    return generate<MoveGenType::NonEvasions>(board);
-}
-
-inline MoveList generate_noisy(const Board& board) {
-    assert(!board.is_check());
-    return generate<MoveGenType::Noisy>(board);
-}
-
-inline MoveList generate_quiet(const Board& board) {
-    assert(!board.is_check());
-    return generate<MoveGenType::Quiet>(board);
-}
-
-inline MoveList generate_evasions(const Board& board) {
-    assert(board.is_check());
-    return generate<MoveGenType::Evasions>(board);
-}
-
-inline MoveList generate_pseudo_legal(const Board& board) {
-    return board.is_check() ? generate_evasions(board) : generate_non_evasions(board);
+// Dispatch the full pseudo-legal batch according to the board's check state.
+template <typename Emit>
+inline void generate_pseudo_legal(const Board& board, Emit&& output) {
+    if (board.is_check())
+        generate_pseudo_legal<GenerationKind::Evasions>(board, output);
+    else
+        generate_pseudo_legal<GenerationKind::NonEvasions>(board, output);
 }
 
 } // namespace movegen

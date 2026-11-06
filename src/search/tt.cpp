@@ -23,7 +23,7 @@ constexpr int          same_tag_depth_slack = 2;
     record.depth       = entry.depth.load(std::memory_order_relaxed);
     record.bound       = TTBound(metadata & bound_mask);
     record.generation  = (metadata >> generation_shift) & tt_generation_mask;
-    record.move.bits   = entry.move.load(std::memory_order_relaxed);
+    record.move        = entry.move.load(std::memory_order_relaxed);
     record.score       = entry.score.load(std::memory_order_relaxed);
     record.static_eval = entry.static_eval.load(std::memory_order_relaxed);
     return record;
@@ -120,7 +120,7 @@ void TranspositionTable::store(TTWriter    writer,
 
     // A new move can refresh an existing entry even when its deeper bound is retained.
     if (!matching_entry || !move.is_null())
-        entry.move.store(move.bits, std::memory_order_relaxed);
+        entry.move.store(move, std::memory_order_relaxed);
 
     const int age = (unsigned(generation) - (metadata >> generation_shift)) & tt_generation_mask;
     if (matching_entry && age == 0 && bound != TTBound::Exact
@@ -143,7 +143,7 @@ void TranspositionTable::clear() {
             entry.key_tag.store(0, std::memory_order_relaxed);
             entry.depth.store(0, std::memory_order_relaxed);
             entry.metadata.store(0, std::memory_order_relaxed);
-            entry.move.store(0, std::memory_order_relaxed);
+            entry.move.store(NULL_MOVE, std::memory_order_relaxed);
             entry.score.store(0, std::memory_order_relaxed);
             entry.static_eval.store(0, std::memory_order_relaxed);
         }
