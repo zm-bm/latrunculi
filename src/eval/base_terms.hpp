@@ -11,8 +11,12 @@ namespace eval {
 // not an intrinsic property of the chess position representation.
 class BaseTerms {
 public:
-    [[nodiscard]] constexpr TaperedScore material() const noexcept { return material_score; }
-    [[nodiscard]] constexpr TaperedScore piece_square() const noexcept {
+    [[nodiscard]]
+    constexpr TaperedScore material() const noexcept {
+        return material_score;
+    }
+    [[nodiscard]]
+    constexpr TaperedScore piece_square() const noexcept {
         return piece_square_score;
     }
 
@@ -34,7 +38,7 @@ public:
     friend constexpr bool operator==(const BaseTerms&, const BaseTerms&) noexcept = default;
 
 private:
-    TaperedScore material_score     = TaperedScore::Zero;
+    TaperedScore material_score = TaperedScore::Zero;
     TaperedScore piece_square_score = TaperedScore::Zero;
 };
 

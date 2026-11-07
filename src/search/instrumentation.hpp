@@ -16,15 +16,15 @@ constexpr bool stats_enabled = LATRUNCULI_SEARCH_STATS;
 
 struct Counters {
     using PerPly = std::array<std::uint64_t, engine::max_search_ply>;
-    PerPly        nodes{}, qnodes{};
+    PerPly nodes{}, qnodes{};
     std::uint64_t beta_cutoffs{0}, first_move_cutoffs{0};
-    PerPly        pvs_researches{};
+    PerPly pvs_researches{};
     std::uint64_t aspiration_fail_lows{0}, aspiration_fail_highs{0};
-    PerPly        main_tt_probes{}, main_tt_hits{}, main_tt_cutoffs{};
-    PerPly        q_tt_probes{}, q_tt_hits{}, q_tt_cutoffs{};
-    PerPly        null_move_tries{}, null_move_cutoffs{};
-    PerPly        razor_tries{}, razor_cutoffs{}, futility_skips{};
-    PerPly        lmr_tries{}, lmr_researches{};
+    PerPly main_tt_probes{}, main_tt_hits{}, main_tt_cutoffs{};
+    PerPly q_tt_probes{}, q_tt_hits{}, q_tt_cutoffs{};
+    PerPly null_move_tries{}, null_move_cutoffs{};
+    PerPly razor_tries{}, razor_cutoffs{}, futility_skips{};
+    PerPly lmr_tries{}, lmr_researches{};
     std::uint64_t capture_eligible{0}, capture_nonzero{0}, capture_increased{0},
         capture_decreased{0}, capture_researches{0};
     std::uint64_t quiet_cutoffs{0}, quiet_penalty_eligible_nodes{0};
@@ -37,33 +37,33 @@ class Instrumentation;
 template <>
 class Instrumentation<false> {
 public:
-    void             capture_lmr(bool, int, int, int) {}
-    void             capture_research(bool, bool) {}
-    void             reset() {}
-    void             node(int) {}
-    void             qnode(int) {}
-    void             beta_cutoff(int, int) {}
-    void             pvs_research(int) {}
-    void             aspiration_fail_low() {}
-    void             aspiration_fail_high() {}
-    void             main_tt_probe(int) {}
-    void             main_tt_hit(int) {}
-    void             main_tt_cutoff(int) {}
-    void             q_tt_probe(int) {}
-    void             q_tt_hit(int) {}
-    void             q_tt_cutoff(int) {}
-    void             null_move_try(int) {}
-    void             null_move_cutoff(int) {}
-    void             razor_try(int) {}
-    void             razor_cutoff(int) {}
-    void             futility_skip(int) {}
-    void             lmr_try(int) {}
-    void             lmr_research(int) {}
-    void             quiet_cutoff(int) {}
-    void             quiet_penalty_eligible_node(int) {}
-    void             quiet_penalty_candidate(int) {}
-    void             quiet_penalty_update(int) {}
-    std::string      str() const { return {}; }
+    void capture_lmr(bool, int, int, int) {}
+    void capture_research(bool, bool) {}
+    void reset() {}
+    void node(int) {}
+    void qnode(int) {}
+    void beta_cutoff(int, int) {}
+    void pvs_research(int) {}
+    void aspiration_fail_low() {}
+    void aspiration_fail_high() {}
+    void main_tt_probe(int) {}
+    void main_tt_hit(int) {}
+    void main_tt_cutoff(int) {}
+    void q_tt_probe(int) {}
+    void q_tt_hit(int) {}
+    void q_tt_cutoff(int) {}
+    void null_move_try(int) {}
+    void null_move_cutoff(int) {}
+    void razor_try(int) {}
+    void razor_cutoff(int) {}
+    void futility_skip(int) {}
+    void lmr_try(int) {}
+    void lmr_research(int) {}
+    void quiet_cutoff(int) {}
+    void quiet_penalty_eligible_node(int) {}
+    void quiet_penalty_candidate(int) {}
+    void quiet_penalty_update(int) {}
+    std::string str() const { return {}; }
     Instrumentation& operator+=(const Instrumentation&) { return *this; }
 };
 
@@ -71,7 +71,8 @@ template <>
 class Instrumentation<true> {
 public:
     Instrumentation() = default;
-    explicit Instrumentation(const Counters& values) : counters(values) {}
+    explicit Instrumentation(const Counters& values)
+        : counters(values) {}
 
     void capture_lmr(bool eligible, int raw_history, int base_reduction, int reduction) {
         if (!eligible)
@@ -179,12 +180,12 @@ public:
     }
 
     Instrumentation& operator+=(const Instrumentation& other);
-    const Counters&  raw_counters() const { return counters; }
-    std::string      str() const;
+    const Counters& raw_counters() const { return counters; }
+    std::string str() const;
 
 private:
     static bool valid(int index) { return index >= 0 && index < engine::max_search_ply; }
-    Counters    counters;
+    Counters counters;
 };
 
 } // namespace search

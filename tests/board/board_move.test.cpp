@@ -14,7 +14,7 @@
 namespace {
 
 PositionKey observed_child_tt_key = 0;
-int         tt_key_ready_calls    = 0;
+int tt_key_ready_calls = 0;
 
 void observe_child_tt_key(PositionKey tt_key) noexcept {
     observed_child_tt_key = tt_key;
@@ -22,7 +22,7 @@ void observe_child_tt_key(PositionKey tt_key) noexcept {
 }
 
 void expect_move_round_trip(std::string_view before, Move move, std::string_view after) {
-    Board      board(before);
+    Board board(before);
     const auto before_snapshot = board_test::snapshot_board(board);
 
     board.make(move);
@@ -37,7 +37,7 @@ void expect_move_round_trip(std::string_view before, Move move, std::string_view
 } // namespace
 
 TEST(BoardMoveTest, MakesAndUnmakesOrdinaryMovesInLifoOrder) {
-    Board      board(board_test::fen::start);
+    Board board(board_test::fen::start);
     const auto root = board_test::snapshot_board(board);
     EXPECT_FALSE(board.can_unmake());
     EXPECT_TRUE(board.previous_move().is_null());
@@ -73,7 +73,7 @@ TEST(BoardMoveTest, MakesAndUnmakesCapture) {
 TEST(BoardMoveTest, UpdatesCastlingRights) {
     struct Case {
         std::string_view before;
-        Move             move;
+        Move move;
         std::string_view after;
     };
 
@@ -101,10 +101,10 @@ TEST(BoardMoveTest, UpdatesCastlingRights) {
 TEST(BoardMoveTest, DoublePushUpdatesEnPassantState) {
     struct Case {
         std::string_view before;
-        Move             move;
+        Move move;
         std::string_view after;
-        Square           enpassant_target;
-        Square           legal_enpassant_target;
+        Square enpassant_target;
+        Square legal_enpassant_target;
     };
 
     constexpr std::array cases = {
@@ -122,7 +122,7 @@ TEST(BoardMoveTest, DoublePushUpdatesEnPassantState) {
 
     for (const auto& test : cases) {
         SCOPED_TRACE(test.before);
-        Board      board(test.before);
+        Board board(test.before);
         const auto before = board_test::snapshot_board(board);
 
         board.make(test.move);
@@ -138,7 +138,7 @@ TEST(BoardMoveTest, DoublePushUpdatesEnPassantState) {
 }
 
 TEST(BoardMoveTest, MakesAndUnmakesEnPassantCapture) {
-    Board      board(board_test::fen::legal_en_passant_a3);
+    Board board(board_test::fen::legal_en_passant_a3);
     const auto before = board_test::snapshot_board(board);
 
     board.make(Move(B4, A3, MOVE_EP));
@@ -153,7 +153,7 @@ TEST(BoardMoveTest, MakesAndUnmakesEnPassantCapture) {
 
 TEST(BoardMoveTest, MakesAndUnmakesCastling) {
     struct Case {
-        Move             move;
+        Move move;
         std::string_view after;
     };
 
@@ -173,7 +173,7 @@ TEST(BoardMoveTest, MakesAndUnmakesCastling) {
 TEST(BoardMoveTest, MakesAndUnmakesPromotions) {
     struct Case {
         std::string_view before;
-        Move             move;
+        Move move;
         std::string_view after;
     };
 
@@ -196,17 +196,18 @@ TEST(BoardMoveTest, MakesAndUnmakesPromotions) {
 }
 
 TEST(BoardMoveTest, MakesAndUnmakesNullMove) {
-    constexpr std::string_view fens[] = {board_test::fen::start,
-                                         board_test::fen::perft_position_2,
-                                         board_test::fen::legal_en_passant_a3,
-                                         board_test::fen::unhashable_en_passant_e3};
+    constexpr std::string_view fens[] = {
+        board_test::fen::start,
+        board_test::fen::perft_position_2,
+        board_test::fen::legal_en_passant_a3,
+        board_test::fen::unhashable_en_passant_e3};
 
     for (const std::string_view fen : fens) {
         SCOPED_TRACE(fen);
-        Board      board(fen);
-        const auto before          = board_test::snapshot_board(board);
-        const auto side_to_move    = board.side_to_move();
-        const auto halfmove_clock  = board.halfmove_clock();
+        Board board(fen);
+        const auto before = board_test::snapshot_board(board);
+        const auto side_to_move = board.side_to_move();
+        const auto halfmove_clock = board.halfmove_clock();
         const auto fullmove_number = board.fullmove_number();
 
         board.make_null();
@@ -237,7 +238,7 @@ TEST(BoardMoveTest, TraversesAndUnwindsBeyondTheSearchDepthReserve) {
     };
     constexpr int traversal_plies = engine::max_search_ply + 8;
 
-    Board                                  board(board_test::fen::corner_cycle);
+    Board board(board_test::fen::corner_cycle);
     std::vector<board_test::BoardSnapshot> positions;
     positions.reserve(traversal_plies);
 
@@ -274,7 +275,7 @@ TEST(BoardMoveTest, TTKeyReadyCallbackMatchesCompletedPositionAcrossMoveTypes) {
     };
 
     for (const auto fen : fens) {
-        Board      board(fen);
+        Board board(fen);
         const auto before = board_test::snapshot_board(board);
 
         movegen::UnscoredMoves moves(board);
@@ -314,8 +315,8 @@ TEST(BoardMoveTest, NullTTKeyReadyCallbackMatchesCompletedPosition) {
     for (const auto fen : fens) {
         SCOPED_TRACE(fen);
 
-        Board      board(fen);
-        Board      reference(board);
+        Board board(fen);
+        Board reference(board);
         const auto before = board_test::snapshot_board(board);
         reference.make_null();
 

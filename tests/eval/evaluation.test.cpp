@@ -17,11 +17,11 @@
 
 namespace {
 
-void expect_term_score(std::string_view   fen,
-                       eval::Term         term,
+void expect_term_score(std::string_view fen,
+                       eval::Term term,
                        eval::TaperedScore white,
                        eval::TaperedScore black) {
-    const Board               board(fen);
+    const Board board(fen);
     const eval::FeatureRecord record = eval::extract_features(board);
     EXPECT_EQ(record.term(term).white, white) << fen;
     EXPECT_EQ(record.term(term).black, black) << fen;
@@ -89,7 +89,7 @@ TEST(EvaluationTermsTest, Mobility) {
 }
 
 TEST(EvaluationTermsTest, PinnedPieceMobilityStaysOnPinRay) {
-    const Board               board(board_test::fen::pinned_rook);
+    const Board board(board_test::fen::pinned_rook);
     const eval::FeatureRecord record = eval::extract_features(board);
 
     EXPECT_EQ(record.coefficients[eval::feature::mobility(ROOK, 6)], 1);
@@ -101,19 +101,19 @@ TEST(EvaluationTermsTest, PinnedPieceMobilityStaysOnPinRay) {
 }
 
 TEST(EvaluationTermsTest, Pawns) {
-    constexpr auto both_isolated  = "4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1";
+    constexpr auto both_isolated = "4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1";
     constexpr auto white_isolated = "rnbqkbnr/ppppp1pp/8/8/8/8/P1PPPPPP/RNBQKBNR w KQkq - 0 2";
     constexpr auto black_isolated = "rnbqkbnr/pppppp1p/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 3";
-    constexpr auto both_backward  = "4k3/8/3p4/2p5/2P5/1P6/8/4K3 w - - 0 4";
+    constexpr auto both_backward = "4k3/8/3p4/2p5/2P5/1P6/8/4K3 w - - 0 4";
     constexpr auto white_backward = "4k3/8/8/2pp4/2P5/1P6/8/4K3 w - - 0 5";
     constexpr auto black_backward = "4k3/8/3p4/2p5/1PP5/8/8/4K3 w - - 0 6";
-    constexpr auto white_doubled  = "4k3/5pp1/4p3/3p4/3PP3/4P3/5PP1/4K3 w - - 0 7";
-    constexpr auto black_doubled  = "4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 8";
+    constexpr auto white_doubled = "4k3/5pp1/4p3/3p4/3PP3/4P3/5PP1/4K3 w - - 0 7";
+    constexpr auto black_doubled = "4k3/5pp1/4p3/3pp3/3P4/4P3/5PP1/4K3 w - - 0 8";
     constexpr auto white_isolated_doubled = "k7/8/8/8/8/P7/P7/K7 w KQkq - 0 9";
-    constexpr auto opposed_pawns          = "4k3/8/2p5/8/1P6/8/8/4K3 w - - 0 1";
-    constexpr auto passed_pawns           = "4k3/8/8/6p1/1P6/8/8/4K3 w - - 0 1";
-    constexpr auto advanced_passers       = "4k3/P7/8/8/8/8/7p/4K3 w - - 0 1";
-    constexpr auto isolated_not_backward  = "4k3/8/3p4/8/2P5/8/8/4K3 w - - 0 1";
+    constexpr auto opposed_pawns = "4k3/8/2p5/8/1P6/8/8/4K3 w - - 0 1";
+    constexpr auto passed_pawns = "4k3/8/8/6p1/1P6/8/8/4K3 w - - 0 1";
+    constexpr auto advanced_passers = "4k3/P7/8/8/8/8/7p/4K3 w - - 0 1";
+    constexpr auto isolated_not_backward = "4k3/8/3p4/8/2P5/8/8/4K3 w - - 0 1";
 
     std::vector<std::tuple<std::string, eval::TaperedScore, eval::TaperedScore>> test_cases = {
         // sanity check
@@ -150,7 +150,8 @@ TEST(EvaluationTermsTest, Pawns) {
          eval::doubled_pawn + eval::connected_pawn_link * 4},
         // isolated and doubled pawns
         {white_isolated_doubled,
-         (eval::isolated_pawn + eval::isolated_open_pawn) * 2 + eval::doubled_pawn
+         (eval::isolated_pawn + eval::isolated_open_pawn) * 2
+             + eval::doubled_pawn
              + eval::passed_pawn[RANK3],
          eval::TaperedScore::Zero},
         // passed pawns: opposed adjacent files, rank-four passers, advanced passers
@@ -192,7 +193,7 @@ TEST(EvaluationTermsTest, OnlyFrontmostPawnsReceivePassedBonus) {
 
     for (const auto& [fen, expected] : test_cases) {
         SCOPED_TRACE(fen);
-        const Board               board(fen);
+        const Board board(fen);
         const eval::FeatureRecord record = eval::extract_features(board);
         for (int rank = RANK1; rank <= RANK8; ++rank)
             EXPECT_EQ(record.coefficients[eval::feature::passed_pawn(Rank(rank))], expected[rank]);
@@ -237,7 +238,7 @@ TEST(EvaluationTermsTest, PawnStructurePredicates) {
 
     for (const auto& [fen, feature, expected] : test_cases) {
         SCOPED_TRACE(fen);
-        const Board               board(fen);
+        const Board board(fen);
         const eval::FeatureRecord record = eval::extract_features(board);
         EXPECT_EQ(record.coefficients[feature], expected);
         EXPECT_EQ(record.reconstruct(), eval::evaluate(board));
@@ -274,11 +275,11 @@ TEST(EvaluationTermsTest, Knights) {
 TEST(EvaluationTermsTest, Bishops) {
     const auto start_score =
         eval::minor_pawn_shield * 2 + eval::bishop_pair + eval::bishop_blockers * 8;
-    const auto has_outpost           = eval::bishop_outpost + eval::bishop_blockers * 2;
-    const auto no_outpost            = eval::bishop_blockers * 4;
-    const auto has_long_diagonal     = eval::bishop_long_diagonal + eval::bishop_blockers;
-    const auto no_long_diagonal      = eval::bishop_blockers * 2;
-    const auto two_pawns_defended    = eval::bishop_blockers * 2 + eval::bishop_outpost;
+    const auto has_outpost = eval::bishop_outpost + eval::bishop_blockers * 2;
+    const auto no_outpost = eval::bishop_blockers * 4;
+    const auto has_long_diagonal = eval::bishop_long_diagonal + eval::bishop_blockers;
+    const auto no_long_diagonal = eval::bishop_blockers * 2;
+    const auto two_pawns_defended = eval::bishop_blockers * 2 + eval::bishop_outpost;
     const auto two_pawns_one_blocked = eval::bishop_blockers * 4;
     const auto two_pawns_two_blocked = eval::bishop_blockers * 6;
 
@@ -363,9 +364,11 @@ TEST(EvaluationTermsTest, Threats) {
 
 TEST(EvaluationTermsTest, KingSafety) {
     const auto empty = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {})
-                     + eval::king_file[FILE5] + eval::king_open_file[true][true];
+        + eval::king_file[FILE5]
+        + eval::king_open_file[true][true];
     const auto start = shelter({RANK2, RANK2, RANK2}, {RANK7, RANK7, RANK7}, {})
-                     + eval::king_file[FILE7] + eval::king_open_file[false][false];
+        + eval::king_file[FILE7]
+        + eval::king_open_file[false][false];
 
     std::vector<std::tuple<std::string, eval::TaperedScore>> test_cases = {
         {board_test::fen::kings_only, empty},
@@ -377,10 +380,12 @@ TEST(EvaluationTermsTest, KingSafety) {
 
     const Board with_rights("4k2r/8/8/8/8/8/5PPP/4K2R w K - 0 1");
     const Board without_rights("4k2r/8/8/8/8/8/5PPP/4K2R w - - 0 1");
-    const auto  current_shelter = shelter({RANK1, RANK1, RANK2}, {RANK1, RANK1, RANK1}, {})
-                               + eval::king_file[FILE5] + eval::king_open_file[true][true];
+    const auto current_shelter = shelter({RANK1, RANK1, RANK2}, {RANK1, RANK1, RANK1}, {})
+        + eval::king_file[FILE5]
+        + eval::king_open_file[true][true];
     const auto castled_shelter = shelter({RANK2, RANK2, RANK2}, {RANK1, RANK1, RANK1}, {})
-                               + eval::king_file[FILE7] + eval::king_open_file[false][true];
+        + eval::king_file[FILE7]
+        + eval::king_open_file[false][true];
     const auto danger = danger_score(eval::unsafe_check_danger[ROOK]);
 
     const auto with_rights_score =
@@ -395,15 +400,20 @@ TEST(EvaluationTermsTest, KingSafety) {
 
 TEST(EvaluationTermsTest, Shelter) {
     const auto blocked = shelter({RANK3, RANK4, RANK5}, {RANK6, RANK4}, {RANK5})
-                       + eval::king_file[FILE1] + eval::king_open_file[false][false];
+        + eval::king_file[FILE1]
+        + eval::king_open_file[false][false];
     const auto own_pawn_only = shelter({RANK2, RANK2, RANK2}, {RANK1, RANK1, RANK1}, {})
-                             + eval::king_file[FILE1] + eval::king_open_file[false][true];
+        + eval::king_file[FILE1]
+        + eval::king_open_file[false][true];
     const auto opponent_pawn_only = shelter({RANK1, RANK1, RANK1}, {RANK7, RANK7, RANK7}, {})
-                                  + eval::king_file[FILE1] + eval::king_open_file[true][false];
+        + eval::king_file[FILE1]
+        + eval::king_open_file[true][false];
     const auto rank2 = shelter({RANK1, RANK1, RANK3}, {RANK7, RANK7, RANK6}, {})
-                     + eval::king_file[FILE2] + eval::king_open_file[false][false];
+        + eval::king_file[FILE2]
+        + eval::king_open_file[false][false];
     const auto attacked = shelter({RANK2, RANK2, RANK1}, {RANK7, RANK7, RANK7}, {})
-                        + eval::king_file[FILE1] + eval::king_open_file[false][false];
+        + eval::king_file[FILE1]
+        + eval::king_open_file[false][false];
 
     const auto weak_zone_danger = danger_score(eval::weak_king_zone_danger);
     std::vector<std::tuple<std::string, eval::TaperedScore, eval::TaperedScore>> test_cases = {
@@ -424,18 +434,24 @@ TEST(EvaluationTermsTest, Shelter) {
 
 TEST(EvaluationTermsTest, KingDanger) {
     const auto empty_e = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {})
-                       + eval::king_file[FILE5] + eval::king_open_file[true][true];
+        + eval::king_file[FILE5]
+        + eval::king_open_file[true][true];
     const auto empty_h = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK1, RANK1}, {})
-                       + eval::king_file[FILE8] + eval::king_open_file[true][true];
+        + eval::king_file[FILE8]
+        + eval::king_open_file[true][true];
     const auto own_e2 = shelter({RANK1, RANK2, RANK1}, {RANK1, RANK1, RANK1}, {})
-                      + eval::king_file[FILE5] + eval::king_open_file[false][true];
+        + eval::king_file[FILE5]
+        + eval::king_open_file[false][true];
     const auto storm_e7 = shelter({RANK1, RANK1, RANK1}, {RANK1, RANK7, RANK1}, {})
-                        + eval::king_file[FILE5] + eval::king_open_file[true][false];
-    const int checks = eval::safe_check_danger[QUEEN] + eval::safe_check_danger[BISHOP]
-                     + eval::king_zone_attack_danger[QUEEN] + eval::weak_king_zone_danger;
+        + eval::king_file[FILE5]
+        + eval::king_open_file[true][false];
+    const int checks = eval::safe_check_danger[QUEEN]
+        + eval::safe_check_danger[BISHOP]
+        + eval::king_zone_attack_danger[QUEEN]
+        + eval::weak_king_zone_danger;
     const int pinned_defender = eval::unsafe_check_danger[ROOK]
-                              + eval::king_zone_attack_danger[ROOK]
-                              + 2 * eval::weak_king_zone_danger;
+        + eval::king_zone_attack_danger[ROOK]
+        + 2 * eval::weak_king_zone_danger;
 
     using Case = std::tuple<std::string, eval::TaperedScore, eval::TaperedScore, int, int>;
     const std::vector<Case> test_cases = {
@@ -455,10 +471,11 @@ TEST(EvaluationTermsTest, KingDanger) {
     };
 
     for (const auto& [fen, white_shelter, black_shelter, white_danger, black_danger] : test_cases) {
-        expect_term_score(fen,
-                          eval::Term::KingSafety,
-                          white_shelter - danger_score(white_danger),
-                          black_shelter - danger_score(black_danger));
+        expect_term_score(
+            fen,
+            eval::Term::KingSafety,
+            white_shelter - danger_score(white_danger),
+            black_shelter - danger_score(black_danger));
     }
 }
 
@@ -481,22 +498,22 @@ TEST(EvaluationTermsTest, EndgameScalingUsesStrongerSidePawnCount) {
 
 TEST(EvaluationTermsTest, TaperingUsesMaterialPhase) {
     struct Case {
-        std::string_view   fen;
+        std::string_view fen;
         std::array<int, 4> phase_counts;
-        int                phase;
+        int phase;
     };
 
-    const int               mixed_material = 4 * eval::rook.mg + eval::knight.mg + eval::bishop.mg;
-    const int               rook_endgame   = 2 * eval::rook.mg;
-    const std::vector<Case> test_cases     = {
+    const int mixed_material = 4 * eval::rook.mg + eval::knight.mg + eval::bishop.mg;
+    const int rook_endgame = 2 * eval::rook.mg;
+    const std::vector<Case> test_cases = {
         {board_test::fen::white_pawn_e2, {0, 0, 0, 0}, 0},
         {"rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/QNBQKBNR w - - 0 1", {4, 4, 3, 3}, eval::phase_limit},
         {"krrnBRRK/8/8/8/8/8/8/8 w - - 0 1",
-             {1, 1, 4, 0},
-             mixed_material * eval::phase_limit / eval::material_mg},
+         {1, 1, 4, 0},
+         mixed_material * eval::phase_limit / eval::material_mg},
         {"kr6/8/8/8/8/8/8/5R1K w - - 0 1",
-             {0, 0, 2, 0},
-             rook_endgame * eval::phase_limit / eval::material_mg},
+         {0, 0, 2, 0},
+         rook_endgame * eval::phase_limit / eval::material_mg},
     };
 
     for (const auto& [fen, phase_counts, phase] : test_cases) {

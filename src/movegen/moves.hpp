@@ -15,8 +15,8 @@ public:
     explicit Moves(const Board& board) requires(Policy == MovePolicy::Unscored)
         : source(board) {}
 
-    explicit Moves(const Board&                   board,
-                   const search::History&         history,
+    explicit Moves(const Board& board,
+                   const search::History& history,
                    const search::OrderingContext& context)
         requires(Policy == MovePolicy::MainSearch)
         : source(board, history, context) {}
@@ -31,10 +31,10 @@ public:
         requires(Policy == MovePolicy::Quiescence)
         : source(board, history, tt_move) {}
 
-    Moves(const Moves&)            = delete;
-    Moves(Moves&&)                 = delete;
+    Moves(const Moves&) = delete;
+    Moves(Moves&&) = delete;
     Moves& operator=(const Moves&) = delete;
-    Moves& operator=(Moves&&)      = delete;
+    Moves& operator=(Moves&&) = delete;
 
     Move next() {
         return next_matching([](Move) { return true; });
@@ -59,7 +59,7 @@ private:
 };
 
 // Named policies keep call sites explicit while sharing one traversal interface.
-using UnscoredMoves   = Moves<MovePolicy::Unscored>;
+using UnscoredMoves = Moves<MovePolicy::Unscored>;
 using MainSearchMoves = Moves<MovePolicy::MainSearch>;
 using QuiescenceMoves = Moves<MovePolicy::Quiescence>;
 

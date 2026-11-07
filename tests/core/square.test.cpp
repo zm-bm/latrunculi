@@ -53,8 +53,8 @@ TEST(SquareTest, Distance) {
 
 TEST(SquareTest, RayMasks) {
     struct Case {
-        Square   from;
-        Square   to;
+        Square from;
+        Square to;
         Bitboard collinear;
         Bitboard between;
     };

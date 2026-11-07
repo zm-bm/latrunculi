@@ -12,52 +12,52 @@ namespace board_test {
 
 inline Bitboard piece_bits(const Board& board, Color color, PieceType piece) {
     switch (piece) {
-    case PAWN:   return board.pieces<PAWN>(color);
-    case KNIGHT: return board.pieces<KNIGHT>(color);
-    case BISHOP: return board.pieces<BISHOP>(color);
-    case ROOK:   return board.pieces<ROOK>(color);
-    case QUEEN:  return board.pieces<QUEEN>(color);
-    case KING:   return board.pieces<KING>(color);
-    default:     return 0;
+        case PAWN:   return board.pieces<PAWN>(color);
+        case KNIGHT: return board.pieces<KNIGHT>(color);
+        case BISHOP: return board.pieces<BISHOP>(color);
+        case ROOK:   return board.pieces<ROOK>(color);
+        case QUEEN:  return board.pieces<QUEEN>(color);
+        case KING:   return board.pieces<KING>(color);
+        default:     return 0;
     }
 }
 
 struct BoardSnapshot {
-    std::string                                                  fen;
-    Square                                                       legal_enpassant_target;
-    PositionKey                                                  key;
-    Move                                                         previous_move;
-    bool                                                         can_unmake;
-    Bitboard                                                     occupancy;
-    Bitboard                                                     checkers;
-    std::array<Bitboard, N_COLORS>                               blockers{};
-    std::array<Square, N_COLORS>                                 kings{};
-    eval::BaseTerms                                              base_terms;
-    std::array<std::array<Bitboard, N_PIECETYPES>, N_COLORS>     piece_bb{};
+    std::string fen;
+    Square legal_enpassant_target;
+    PositionKey key;
+    Move previous_move;
+    bool can_unmake;
+    Bitboard occupancy;
+    Bitboard checkers;
+    std::array<Bitboard, N_COLORS> blockers{};
+    std::array<Square, N_COLORS> kings{};
+    eval::BaseTerms base_terms;
+    std::array<std::array<Bitboard, N_PIECETYPES>, N_COLORS> piece_bb{};
     std::array<std::array<std::uint8_t, N_PIECETYPES>, N_COLORS> counts{};
 };
 
 inline BoardSnapshot snapshot_board(const Board& board) {
     BoardSnapshot snapshot{};
 
-    snapshot.fen                    = board.to_fen();
+    snapshot.fen = board.to_fen();
     snapshot.legal_enpassant_target = board.legal_enpassant_target();
-    snapshot.key                    = board.key();
-    snapshot.previous_move          = board.previous_move();
-    snapshot.can_unmake             = board.can_unmake();
-    snapshot.occupancy              = board.occupancy();
-    snapshot.checkers               = board.checkers();
-    snapshot.base_terms             = board.base_terms();
+    snapshot.key = board.key();
+    snapshot.previous_move = board.previous_move();
+    snapshot.can_unmake = board.can_unmake();
+    snapshot.occupancy = board.occupancy();
+    snapshot.checkers = board.checkers();
+    snapshot.base_terms = board.base_terms();
 
     for (int c = BLACK; c < N_COLORS; ++c) {
-        const auto color                      = Color(c);
-        snapshot.blockers[c]                  = board.blockers(color);
-        snapshot.kings[c]                     = board.king_sq(color);
+        const auto color = Color(c);
+        snapshot.blockers[c] = board.blockers(color);
+        snapshot.kings[c] = board.king_sq(color);
         snapshot.piece_bb[c][all_pieces_slot] = board.pieces(color);
 
         for (int p = PAWN; p <= KING; ++p) {
             snapshot.piece_bb[c][p] = piece_bits(board, color, PieceType(p));
-            snapshot.counts[c][p]   = board.count(color, PieceType(p));
+            snapshot.counts[c][p] = board.count(color, PieceType(p));
         }
     }
 
@@ -84,13 +84,21 @@ inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& 
         EXPECT_EQ(board.king_sq(color), expected.kings[c]);
         EXPECT_EQ(board.blockers(color), expected.blockers[c]);
         EXPECT_EQ(board.pieces(color), expected.piece_bb[c][all_pieces_slot])
-            << "color " << c << " all pieces";
+            << "color "
+            << c
+            << " all pieces";
 
         for (int p = PAWN; p <= KING; ++p) {
             EXPECT_EQ(piece_bits(board, color, PieceType(p)), expected.piece_bb[c][p])
-                << "color " << c << " piece " << p;
+                << "color "
+                << c
+                << " piece "
+                << p;
             EXPECT_EQ(board.count(color, PieceType(p)), expected.counts[c][p])
-                << "color " << c << " piece " << p;
+                << "color "
+                << c
+                << " piece "
+                << p;
         }
     }
 }

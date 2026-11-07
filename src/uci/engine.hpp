@@ -52,20 +52,20 @@ private:
     bool moves();
 
     // Board position helpers
-    Move              find_legal_move(const Board& position, const std::string& token) const;
+    Move find_legal_move(const Board& position, const std::string& token) const;
     std::vector<Move> resolve_searchmoves(const std::vector<std::string>& tokens) const;
-    void              make_board_move(Move move);
-    void              unmake_board_move();
+    void make_board_move(Move move);
+    void unmake_board_move();
 
     // Option and search helpers
     void apply_option_effect(OptionId option, const Options& candidate);
     void require_idle(std::string_view action) const;
 
-    std::istream&      input;
-    Writer             writer;
-    Options            options;
-    bool               debug_mode{false};
-    Board              board;
+    std::istream& input;
+    Writer writer;
+    Options options;
+    bool debug_mode{false};
+    Board board;
     search::ThreadPool thread_pool;
 
     friend class ::EngineTest;

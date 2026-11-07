@@ -18,10 +18,10 @@ public:
     virtual ~Reporter() = default;
 
     virtual void report_progress(const RootLine& line,
-                                 const Board&    root_board,
-                                 NodeCount       nodes,
-                                 Milliseconds    time)       = 0;
-    virtual void report_best_move(Move move)              = 0;
+                                 const Board& root_board,
+                                 NodeCount nodes,
+                                 Milliseconds time) = 0;
+    virtual void report_best_move(Move move) = 0;
     virtual void report_diagnostic(std::string_view text) = 0;
 };
 

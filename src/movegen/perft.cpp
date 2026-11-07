@@ -20,8 +20,8 @@ NodeCount perft_impl(Board& board, int depth) {
     if (depth == 0)
         return 1;
 
-    NodeCount      nodes = 0;
-    UnscoredMoves  moves(board);
+    NodeCount nodes = 0;
+    UnscoredMoves moves(board);
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
 
         board.make(move);
@@ -45,7 +45,7 @@ PerftResult perft_root(Board& board, int depth) {
     validate_perft_depth(depth);
 
     PerftResult result{
-        .nodes      = 0,
+        .nodes = 0,
         .root_moves = {},
     };
 

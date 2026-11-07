@@ -21,8 +21,8 @@ class EngineSearchTest : public EngineTest {
 protected:
     int count_output_lines_starting_with(std::string_view prefix) const {
         std::istringstream lines{output.str()};
-        std::string        line;
-        int                count = 0;
+        std::string line;
+        int count = 0;
 
         while (std::getline(lines, line)) {
             if (line.starts_with(prefix))
@@ -42,10 +42,10 @@ protected:
         return thread_pool().is_searching();
     }
 
-    bool wait_for_depth(int                       depth,
+    bool wait_for_depth(int depth,
                         std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
-        search::Worker& worker   = SearchThreadTestAccess::worker(thread_pool());
-        const auto      deadline = std::chrono::steady_clock::now() + timeout;
+        search::Worker& worker = SearchThreadTestAccess::worker(thread_pool());
+        const auto deadline = std::chrono::steady_clock::now() + timeout;
         while (std::chrono::steady_clock::now() < deadline) {
             if (worker.root_snapshot().depth >= depth)
                 return true;
@@ -97,10 +97,10 @@ TEST_F(EngineSearchTest, GoDepthReportsFreshFinalInformationBeforeBestmove) {
     EXPECT_GE(count_output_lines_starting_with("info depth 3 "), 1) << transcript;
     EXPECT_EQ(count_output_lines_starting_with("bestmove "), 1) << transcript;
 
-    const auto depth1     = transcript.find("info depth 1 ");
-    const auto depth2     = transcript.find("info depth 2 ");
-    const auto depth3     = transcript.find("info depth 3 ");
-    const auto bestmove   = transcript.find("bestmove ");
+    const auto depth1 = transcript.find("info depth 1 ");
+    const auto depth2 = transcript.find("info depth 2 ");
+    const auto depth3 = transcript.find("info depth 3 ");
+    const auto bestmove = transcript.find("bestmove ");
     const auto final_info = transcript.rfind("info depth ", bestmove);
 
     ASSERT_NE(depth1, std::string::npos) << transcript;
@@ -119,7 +119,7 @@ TEST_F(EngineSearchTest, GoDepthReportsFreshFinalInformationBeforeBestmove) {
     const auto nodes_begin = transcript.find(" nodes ", final_info);
     ASSERT_NE(nodes_begin, std::string::npos) << transcript;
     const auto nodes_value = nodes_begin + std::string_view{" nodes "}.size();
-    const auto nodes_end   = transcript.find(' ', nodes_value);
+    const auto nodes_end = transcript.find(' ', nodes_value);
     ASSERT_NE(nodes_end, std::string::npos) << transcript;
     EXPECT_EQ(std::stoull(transcript.substr(nodes_value, nodes_end - nodes_value)),
               thread_pool().nodes_searched())
@@ -236,19 +236,20 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
     ASSERT_TRUE(execute("setoption name Threads value 2"));
 
     search::tt.advance_generation();
-    search::tt.store(
-        board().tt_key(), Move(Square::E2, Square::E4), 42, 3, search::TTBound::Exact, 0);
+    search::tt
+        .store(board().tt_key(), Move(Square::E2, Square::E4), 42, 3, search::TTBound::Exact, 0);
     ASSERT_TRUE(search::tt.probe(board().tt_key()).record.has_value());
     ASSERT_EQ(search::tt.current_generation(), std::uint8_t{1});
 
     const search::OrderingContext context{
-        .side = BLACK, .previous_key = search::OrderingContext::make_previous_key(WHITE, PAWN, E4)};
+        .side = BLACK,
+        .previous_key = search::OrderingContext::make_previous_key(WHITE, PAWN, E4)};
     for (size_t index = 0; index < thread_pool().thread_count(); ++index) {
         auto& history =
             SearchTestAccess::history(SearchThreadTestAccess::worker(thread_pool(), index));
         history.update_quiet_refutations(context, Move(G8, F6));
-        SearchTestAccess::quiet_history_entry(history, WHITE, E2, E4)                      = 16;
-        SearchTestAccess::capture_history_entry(history, WHITE, KNIGHT, E5, PAWN)          = 256;
+        SearchTestAccess::quiet_history_entry(history, WHITE, E2, E4) = 16;
+        SearchTestAccess::capture_history_entry(history, WHITE, KNIGHT, E5, PAWN) = 256;
         SearchTestAccess::continuation_history_entry(history, WHITE, PAWN, E4, KNIGHT, F6) = 16;
     }
 
@@ -265,7 +266,8 @@ TEST_F(EngineSearchTest, UciNewGameClearsTTAndSearchHeuristics) {
         EXPECT_EQ(SearchTestAccess::quiet_history_entry(history, WHITE, E2, E4), 0);
         EXPECT_EQ(SearchTestAccess::capture_history_entry(history, WHITE, KNIGHT, E5, PAWN), 0);
         EXPECT_EQ(
-            SearchTestAccess::continuation_history_entry(history, WHITE, PAWN, E4, KNIGHT, F6), 0);
+            SearchTestAccess::continuation_history_entry(history, WHITE, PAWN, E4, KNIGHT, F6),
+            0);
     }
 }
 
@@ -324,9 +326,9 @@ TEST_F(EngineSearchTest, IsReadyRespondsWhileSearchIsActive) {
     EXPECT_TRUE(execute("stop"));
     thread_pool().wait();
 
-    const std::string  transcript     = output.str();
-    int                ready_lines    = 0;
-    int                bestmove_lines = 0;
+    const std::string transcript = output.str();
+    int ready_lines = 0;
+    int bestmove_lines = 0;
     std::istringstream lines{transcript};
     for (std::string line; std::getline(lines, line);) {
         if (line == "readyok")
@@ -361,11 +363,11 @@ TEST_P(GoTest, ValidateOutput) {
     EXPECT_NE(output.str().find(param.output), std::string::npos) << output.str();
 }
 
-INSTANTIATE_TEST_SUITE_P(GoTests,
-                         GoTest,
-                         ::testing::Values(GoCase{"go depth 3", "bestmove"},
-                                           GoCase{"go movetime 50", "bestmove"},
-                                           GoCase{"go nodes 1000", "bestmove"},
-                                           GoCase{"go wtime 1000 btime 1000", "bestmove"},
-                                           GoCase{"go wtime 1000 btime 1000 winc 100 binc 100",
-                                                  "bestmove"}));
+INSTANTIATE_TEST_SUITE_P(
+    GoTests,
+    GoTest,
+    ::testing::Values(GoCase{"go depth 3", "bestmove"},
+                      GoCase{"go movetime 50", "bestmove"},
+                      GoCase{"go nodes 1000", "bestmove"},
+                      GoCase{"go wtime 1000 btime 1000", "bestmove"},
+                      GoCase{"go wtime 1000 btime 1000 winc 100 binc 100", "bestmove"}));

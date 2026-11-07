@@ -39,7 +39,7 @@ TEST(TimeManagerTest, IncrementCannotSpendTimeNotYetOnClock) {
 }
 
 TEST(TimeManagerTest, ClockCapOverridesMinimumAndHugeIncrement) {
-    using Rep              = Milliseconds::rep;
+    using Rep = Milliseconds::rep;
     constexpr Rep max_time = std::numeric_limits<Rep>::max();
     for (Rep remaining :
          {Rep{0}, Rep{1}, Rep{49}, Rep{50}, Rep{51}, Rep{60}, Rep{1030}, max_time}) {
@@ -49,8 +49,8 @@ TEST(TimeManagerTest, ClockCapOverridesMinimumAndHugeIncrement) {
                 auto limits = clock_limits(remaining, increment);
                 limits.set_movestogo(moves);
                 TimeManager manager{limits, WHITE};
-                const auto  cap = Milliseconds{remaining > 50 ? remaining - 50 : 0};
-                const auto  expect_capped_budget = [&] {
+                const auto cap = Milliseconds{remaining > 50 ? remaining - 50 : 0};
+                const auto expect_capped_budget = [&] {
                     ASSERT_TRUE(manager.soft_limit());
                     ASSERT_TRUE(manager.hard_limit());
                     EXPECT_GE(*manager.soft_limit(), Milliseconds{0});
@@ -71,7 +71,7 @@ TEST(TimeManagerTest, ClockCapOverridesMinimumAndHugeIncrement) {
 
 TEST(TimeManagerTest, WideClockAndIncrementSaturateSafely) {
     constexpr auto max_time = std::numeric_limits<Milliseconds::rep>::max();
-    auto           limits   = clock_limits(max_time, max_time);
+    auto limits = clock_limits(max_time, max_time);
     limits.set_movestogo(1);
     TimeManager manager{limits, WHITE};
     EXPECT_EQ(manager.soft_limit(), Milliseconds{max_time - 50});

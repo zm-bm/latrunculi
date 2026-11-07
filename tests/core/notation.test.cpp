@@ -24,14 +24,15 @@ TEST(NotationTest, BitboardDebugToString) {
 
     out << debug_bitboard(bb::set(A1, H8));
 
-    EXPECT_EQ(out.str(),
-              " .......1 8\n"
-              " ........ 7\n"
-              " ........ 6\n"
-              " ........ 5\n"
-              " ........ 4\n"
-              " ........ 3\n"
-              " ........ 2\n"
-              " 1....... 1\n"
-              " abcdefgh\n");
+    EXPECT_EQ(
+        out.str(),
+        " .......1 8\n"
+        " ........ 7\n"
+        " ........ 6\n"
+        " ........ 5\n"
+        " ........ 4\n"
+        " ........ 3\n"
+        " ........ 2\n"
+        " 1....... 1\n"
+        " abcdefgh\n");
 }

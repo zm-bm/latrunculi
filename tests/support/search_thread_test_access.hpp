@@ -9,7 +9,7 @@
 class SearchThreadTestAccess {
 public:
     static search::RootLine select_root_result(search::ThreadPool& pool,
-                                               search::RootLine    fallback) {
+                                               search::RootLine fallback) {
         return pool.select_root_result(fallback);
     }
 
@@ -24,13 +24,15 @@ public:
         return worker(thread(pool, index));
     }
 
-    static void
-    configure_search(search::Thread& thread, const Board& root_board, search::Limits limits) {
+    static void configure_search(search::Thread& thread,
+                                 const Board& root_board,
+                                 search::Limits limits) {
         thread.configure_search(root_board, limits, SearchClock::now());
     }
 
-    static void
-    start_search(search::Thread& thread, const Board& root_board, search::Limits limits) {
+    static void start_search(search::Thread& thread,
+                             const Board& root_board,
+                             search::Limits limits) {
         configure_search(thread, root_board, limits);
         thread.wake_for_search();
     }

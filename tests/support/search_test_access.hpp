@@ -21,38 +21,46 @@ public:
     }
 
     static auto& capture_history_entry(
-        search::History& history, Color side, PieceType moving_piece, Square to, PieceType victim) {
+        search::History& history,
+        Color side,
+        PieceType moving_piece,
+        Square to,
+        PieceType victim) {
         return history.capture_scores[side][piece_slot(moving_piece)][to][piece_slot(victim)];
     }
 
-    static auto& continuation_history_entry(search::History& history,
-                                            Color            previous_side,
-                                            PieceType        previous_piece,
-                                            Square           previous_to,
-                                            PieceType        moving_piece,
-                                            Square           to) {
+    static auto& continuation_history_entry(
+        search::History& history,
+        Color previous_side,
+        PieceType previous_piece,
+        Square previous_to,
+        PieceType moving_piece,
+        Square to) {
         return (*history.continuation_scores)[search::History::continuation_index(
             search::OrderingContext::make_previous_key(previous_side, previous_piece, previous_to),
             moving_piece,
             to)];
     }
 
-    static auto& continuation_history_entry(search::History&               history,
-                                            const search::OrderingContext& context,
-                                            PieceType                      moving_piece,
-                                            Square                         to) {
+    static auto& continuation_history_entry(
+        search::History& history,
+        const search::OrderingContext& context,
+        PieceType moving_piece,
+        Square to) {
         return history.continuation_entry(context, moving_piece, to);
     }
 
-    static Move& counter_move_entry(search::History& history,
-                                    Color            previous_side,
-                                    PieceType        previous_piece,
-                                    Square           previous_to) {
-        return history.counter_moves[search::OrderingContext::make_previous_key(
-            previous_side, previous_piece, previous_to)];
+    static Move& counter_move_entry(
+        search::History& history,
+        Color previous_side,
+        PieceType previous_piece,
+        Square previous_to) {
+        return history.counter_moves[search::OrderingContext::make_previous_key(previous_side,
+                                                                                previous_piece,
+                                                                                previous_to)];
     }
 
-    static Move& counter_move_entry(search::History&               history,
+    static Move& counter_move_entry(search::History& history,
                                     const search::OrderingContext& context) {
         return history.counter_moves[context.previous_key];
     }
@@ -76,13 +84,14 @@ public:
     }
 
     template <NodeType Node>
-    static Score alphabeta(search::Worker& worker,
-                           Score           alpha,
-                           Score           beta,
-                           int             depth,
-                           search::PV*     pv  = nullptr,
-                           int             ply = 0) {
-        auto* frame       = &worker.frames[ply];
+    static Score alphabeta(
+        search::Worker& worker,
+        Score alpha,
+        Score beta,
+        int depth,
+        search::PV* pv = nullptr,
+        int ply = 0) {
+        auto* frame = &worker.frames[ply];
         frame->pv_enabled = pv != nullptr;
         const Score value = worker.alphabeta<Node>(alpha, beta, depth, frame);
         if (pv)
@@ -91,9 +100,12 @@ public:
     }
 
     template <NodeType Node>
-    static Score quiescence(
-        search::Worker& worker, Score alpha, Score beta, search::PV* pv = nullptr, int ply = 0) {
-        auto* frame       = &worker.frames[ply];
+    static Score quiescence(search::Worker& worker,
+                            Score alpha,
+                            Score beta,
+                            search::PV* pv = nullptr,
+                            int ply = 0) {
+        auto* frame = &worker.frames[ply];
         frame->pv_enabled = pv != nullptr;
         const Score value = worker.quiescence<Node>(alpha, beta, frame);
         if (pv)
@@ -114,7 +126,11 @@ public:
     }
 
     static bool search_root_window(
-        search::Worker& worker, int search_depth, int nominal_depth, Score alpha, Score beta) {
+        search::Worker& worker,
+        int search_depth,
+        int nominal_depth,
+        Score alpha,
+        Score beta) {
         return worker.search_root_window(search_depth, nominal_depth, alpha, beta);
     }
 

@@ -20,10 +20,10 @@ public:
     explicit Writer(std::ostream& output_stream, std::ostream& diagnostic_stream)
         : output(output_stream),
           diagnostics(diagnostic_stream) {}
-    Writer(const Writer&)            = delete;
+    Writer(const Writer&) = delete;
     Writer& operator=(const Writer&) = delete;
-    Writer(Writer&&)                 = delete;
-    Writer& operator=(Writer&&)      = delete;
+    Writer(Writer&&) = delete;
+    Writer& operator=(Writer&&) = delete;
 
     void help() const;
     void identify(const Options& options) const;
@@ -33,9 +33,9 @@ public:
     void diagnostic_text(std::string_view text) const;
 
     void report_progress(const search::RootLine& line,
-                         const Board&            root_board,
-                         NodeCount               nodes,
-                         Milliseconds            time) override;
+                         const Board& root_board,
+                         NodeCount nodes,
+                         Milliseconds time) override;
     void report_best_move(Move move) override;
     void report_diagnostic(std::string_view text) override;
 

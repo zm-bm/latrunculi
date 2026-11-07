@@ -21,7 +21,7 @@ void append_disambiguation(std::string& san, const Board& board, Move move, Piec
     bool same_rank = false;
 
     const Square from = move.from();
-    const Square to   = move.to();
+    const Square to = move.to();
 
     Bitboard candidates = board.attacks_to(to, board.side_to_move());
     bb::remove(candidates, from);
@@ -55,10 +55,10 @@ void append_disambiguation(std::string& san, const Board& board, Move move, Piec
 std::string to_san(const Board& board, Move move) {
     assert(board.is_legal_move(move));
 
-    const Square    from       = move.from();
-    const Square    to         = move.to();
+    const Square from = move.from();
+    const Square to = move.to();
     const PieceType piece_type = board.piece_type_on(from);
-    std::string     san;
+    std::string san;
 
     if (move.type() == MOVE_CASTLE) {
         san = move_geometry::castle_side(from, to) == CASTLE_KINGSIDE ? "O-O" : "O-O-O";
@@ -89,7 +89,7 @@ std::string to_san(const Board& board, Move move) {
     return san;
 }
 
-std::format_context::iterator std::formatter<Board>::format(const Board&         board,
+std::format_context::iterator std::formatter<Board>::format(const Board& board,
                                                             std::format_context& ctx) const {
     auto out = ctx.out();
 

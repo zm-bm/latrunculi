@@ -21,7 +21,7 @@ void expect_top_level_usage(int argument_count, char* arguments[]) {
 }
 
 TEST(CliTest, RunsUciWithoutArguments) {
-    char  executable[] = "latrunculi";
+    char executable[] = "latrunculi";
     char* arguments[]{executable};
 
     std::istringstream input{"isready\nquit\n"};
@@ -34,8 +34,8 @@ TEST(CliTest, RunsUciWithoutArguments) {
 }
 
 TEST(CliTest, ExportsRawFeatures) {
-    char  executable[] = "latrunculi";
-    char  command[]    = "features";
+    char executable[] = "latrunculi";
+    char command[] = "features";
     char* arguments[]{executable, command};
 
     std::istringstream input(input_record);
@@ -48,9 +48,9 @@ TEST(CliTest, ExportsRawFeatures) {
 }
 
 TEST(CliTest, ExportsSettledFeatures) {
-    char  executable[] = "latrunculi";
-    char  command[]    = "features";
-    char  option[]     = "--settle";
+    char executable[] = "latrunculi";
+    char command[] = "features";
+    char option[] = "--settle";
     char* arguments[]{executable, command, option};
 
     std::istringstream input(input_record);
@@ -63,9 +63,9 @@ TEST(CliTest, ExportsSettledFeatures) {
 }
 
 TEST(CliTest, RejectsInvalidFeatureArguments) {
-    char  executable[] = "latrunculi";
-    char  command[]    = "features";
-    char  option[]     = "--unknown";
+    char executable[] = "latrunculi";
+    char command[] = "features";
+    char option[] = "--unknown";
     char* arguments[]{executable, command, option};
 
     std::istringstream input;
@@ -78,8 +78,8 @@ TEST(CliTest, RejectsInvalidFeatureArguments) {
 }
 
 TEST(CliTest, ReportsFeatureExportErrors) {
-    char  executable[] = "latrunculi";
-    char  command[]    = "features";
+    char executable[] = "latrunculi";
+    char command[] = "features";
     char* arguments[]{executable, command};
 
     std::istringstream input{"missing-fields\n"};
@@ -91,17 +91,17 @@ TEST(CliTest, ReportsFeatureExportErrors) {
 }
 
 TEST(CliTest, RejectsUnknownCommand) {
-    char  executable[] = "latrunculi";
-    char  command[]    = "unknown";
+    char executable[] = "latrunculi";
+    char command[] = "unknown";
     char* arguments[]{executable, command};
 
     expect_top_level_usage(2, arguments);
 }
 
 TEST(CliTest, RejectsBenchmarkArguments) {
-    char  executable[] = "latrunculi";
-    char  command[]    = "bench";
-    char  extra[]      = "extra";
+    char executable[] = "latrunculi";
+    char command[] = "bench";
+    char extra[] = "extra";
     char* arguments[]{executable, command, extra};
 
     expect_top_level_usage(3, arguments);

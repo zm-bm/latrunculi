@@ -24,10 +24,10 @@ using NodeType = SearchTestAccess::NodeType;
 class QuiescenceTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{1, reporter};
-    Worker&                 worker{SearchThreadTestAccess::worker(pool)};
-    Limits                  limits;
-    int                     current_ply{0};
+    ThreadPool pool{1, reporter};
+    Worker& worker{SearchThreadTestAccess::worker(pool)};
+    Limits limits;
+    int current_ply{0};
 
     void SetUp() override {
         limits.depth = 4;
@@ -42,7 +42,7 @@ protected:
     }
 
     Board& position() { return SearchTestAccess::board(worker); }
-    int&   ply() { return current_ply; }
+    int& ply() { return current_ply; }
 
     Score search(Score alpha, Score beta) {
         return SearchTestAccess::quiescence<NodeType::NonPv>(worker, alpha, beta, nullptr, ply());
@@ -128,8 +128,8 @@ TEST_F(QuiescenceTest, TerminatesDrawAndMaxPlyWithoutTtStore) {
 TEST_F(QuiescenceTest, AdjudicatesFiftyMoveBoundaryBeforeTtAndMaxPly) {
     struct Case {
         const char* fen;
-        int         search_ply;
-        Score       value;
+        int search_ply;
+        Score value;
     };
     constexpr std::array cases{
         Case{"7k/6Q1/5K2/8/8/8/8/8 b - - 100 1", 3, -scores::mate + 3},
@@ -195,7 +195,7 @@ TEST_F(QuiescenceTest, PvSearchRebuildsContinuationWithRetainedTt) {
     const Move capture = find_move("d1e2");
     ASSERT_FALSE(capture.is_null());
 
-    PV          cold_pv;
+    PV cold_pv;
     const Score value = pv_search(-scores::inf, scores::inf, cold_pv);
     EXPECT_GT(value, eval::evaluate(position()));
     ASSERT_EQ(cold_pv.size(), 1);
@@ -212,9 +212,9 @@ TEST_F(QuiescenceTest, PvSearchRebuildsContinuationWithRetainedTt) {
 
 TEST_F(QuiescenceTest, SettlesTacticalPositionWithoutSearchState) {
     constexpr auto tactical = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
-    Board          first{tactical};
-    Board          intervening{board_test::fen::one_legal_evasion};
-    Board          second{tactical};
+    Board first{tactical};
+    Board intervening{board_test::fen::one_legal_evasion};
+    Board second{tactical};
 
     tt.store(first.tt_key(), NULL_MOVE, -scores::mate, 0, TTBound::Exact, 0);
     ASSERT_TRUE(pool.settle(first));
@@ -237,17 +237,17 @@ TEST_F(QuiescenceTest, SettlingHandlesCheckEvasion) {
 }
 
 TEST_F(QuiescenceTest, SettlingKeepsQuietPositionAndRejectsTerminalPositions) {
-    Board             quiet{board_test::fen::start};
+    Board quiet{board_test::fen::start};
     const std::string original = quiet.to_fen();
     ASSERT_TRUE(pool.settle(quiet));
     EXPECT_EQ(quiet.to_fen(), original);
 
-    Board             mate{"7k/6Q1/6K1/8/8/8/8/8 b - - 0 1"};
+    Board mate{"7k/6Q1/6K1/8/8/8/8/8 b - - 0 1"};
     const std::string checkmate = mate.to_fen();
     EXPECT_FALSE(pool.settle(mate));
     EXPECT_EQ(mate.to_fen(), checkmate);
 
-    Board             stalemate{"7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"};
+    Board stalemate{"7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"};
     const std::string drawn = stalemate.to_fen();
     EXPECT_FALSE(pool.settle(stalemate));
     EXPECT_EQ(stalemate.to_fen(), drawn);
@@ -256,10 +256,10 @@ TEST_F(QuiescenceTest, SettlingKeepsQuietPositionAndRejectsTerminalPositions) {
 TEST_F(QuiescenceTest, UsesEligibleTtCutoffs) {
     struct Case {
         const char* name;
-        TTBound     bound;
-        Score       score;
-        Score       alpha;
-        Score       beta;
+        TTBound bound;
+        Score score;
+        Score alpha;
+        Score beta;
     };
 
     constexpr std::array cases{
@@ -304,7 +304,7 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
     Board exact_source{tactical};
     load(exact_source);
     const Score static_eval = eval::evaluate(position());
-    const Score exact       = search(-scores::inf, scores::inf);
+    const Score exact = search(-scores::inf, scores::inf);
     ASSERT_GT(exact, static_eval);
 
     Board lower_board{tactical};
@@ -337,11 +337,11 @@ TEST_F(QuiescenceTest, StoresWindowClassifiedTtBounds) {
 TEST_F(QuiescenceTest, PvNodeIgnoresLowerTtBound) {
     const Board board{board_test::fen::quiet_black_to_move};
     load(board);
-    PV          baseline_pv;
+    PV baseline_pv;
     const Score baseline = pv_search(-scores::inf, scores::inf, baseline_pv);
 
     const Score alpha = baseline - 100;
-    const Score beta  = baseline + 100;
+    const Score beta = baseline + 100;
     const Score bogus = beta + 25;
 
     load(board);
@@ -352,13 +352,13 @@ TEST_F(QuiescenceTest, PvNodeIgnoresLowerTtBound) {
 
 TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
     constexpr auto tactical = "k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1";
-    Board          baseline_board{tactical};
+    Board baseline_board{tactical};
     load(baseline_board);
 
     const Score static_eval = eval::evaluate(position());
-    const Score alpha       = static_eval - 100;
-    const Score beta        = static_eval + 500;
-    PV          baseline_pv;
+    const Score alpha = static_eval - 100;
+    const Score beta = static_eval + 500;
+    PV baseline_pv;
     const Score baseline = pv_search(alpha, beta, baseline_pv);
 
     Board bounded_board{tactical};
@@ -383,7 +383,7 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
 TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
     load(Board{"1n2k1nr/8/8/3p4/4P3/8/8/RN2K1N1 w - - 0 1"});
     const Score stand_pat = eval::evaluate(position());
-    const Score estimate  = stand_pat + eval::pawn.eg + 300;
+    const Score estimate = stand_pat + eval::pawn.eg + 300;
 
     PV pv;
     EXPECT_EQ(pv_search(estimate + 1, estimate + 2, pv), estimate);
@@ -406,7 +406,7 @@ TEST_F(QuiescenceTest, CaptureGainUsesEvaluationUnitsForMinorVictim) {
 TEST_F(QuiescenceTest, CaptureGainPreservesCheckingMateFarBelowAlpha) {
     load(Board{"rn3rk1/5ppp/8/8/8/3B4/8/RN2K1NQ w - - 0 1"});
     const Score alpha = eval::evaluate(position()) + 5000;
-    PV          pv;
+    PV pv;
     EXPECT_EQ(pv_search(alpha, alpha + 1, pv), scores::mate - 1);
     ASSERT_GT(pv.size(), 0);
     EXPECT_EQ(pv.front(), Move(H1, H7));

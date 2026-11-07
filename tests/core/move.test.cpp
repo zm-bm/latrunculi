@@ -12,7 +12,7 @@ TEST(MoveTest, ValueInitializationIsNull) {
 
 TEST(MoveTest, Constructor) {
     Square from = A2;
-    Square to   = A3;
+    Square to = A3;
 
     Move move(from, to);
 
@@ -39,7 +39,7 @@ TEST(MoveTest, PromotionMove) {
 }
 
 TEST(MoveTest, OutputStreamOperator) {
-    Move               move(A7, A8, MOVE_PROM, ROOK);
+    Move move(A7, A8, MOVE_PROM, ROOK);
     std::ostringstream output;
     output << move;
     EXPECT_EQ(output.str(), "a7a8r");

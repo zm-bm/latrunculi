@@ -61,7 +61,7 @@ TEST(FeaturesTest, RawCoefficientsReconstructProductionEvaluation) {
     };
 
     for (const std::string& fen : fens) {
-        const Board               board(fen);
+        const Board board(fen);
         const eval::FeatureRecord record = eval::extract_features(board);
 
         EXPECT_EQ(record.fixed_score, record.term(eval::Term::KingSafety).total()) << fen;
@@ -71,7 +71,7 @@ TEST(FeaturesTest, RawCoefficientsReconstructProductionEvaluation) {
 }
 
 TEST(FeaturesTest, CoefficientsUseWhiteRelativePerspective) {
-    const Board               board(board_test::fen::white_pawn_e2);
+    const Board board(board_test::fen::white_pawn_e2);
     const eval::FeatureRecord record = eval::extract_features(board);
 
     EXPECT_EQ(record.coefficients[eval::feature::material(PAWN)], 1);
@@ -88,17 +88,15 @@ TEST(FeaturesTest, ConnectedPawnLinksAreRepresentationInvariantAndCountedOnce) {
     const Board white_two_links("4k3/8/8/8/8/2P5/1P1P4/4K3 w - - 0 1");
     const Board black_chain("4k3/1p6/2p5/8/8/8/8/4K3 b - - 0 1");
 
-    EXPECT_EQ(eval::extract_features(white_phalanx)
-                  .coefficients[eval::feature::connected_pawn_link],
+    EXPECT_EQ(
+        eval::extract_features(white_phalanx).coefficients[eval::feature::connected_pawn_link],
+        1);
+    EXPECT_EQ(eval::extract_features(white_chain).coefficients[eval::feature::connected_pawn_link],
               1);
-    EXPECT_EQ(eval::extract_features(white_chain)
-                  .coefficients[eval::feature::connected_pawn_link],
-              1);
-    EXPECT_EQ(eval::extract_features(white_two_links)
-                  .coefficients[eval::feature::connected_pawn_link],
-              2);
-    EXPECT_EQ(eval::extract_features(black_chain)
-                  .coefficients[eval::feature::connected_pawn_link],
+    EXPECT_EQ(
+        eval::extract_features(white_two_links).coefficients[eval::feature::connected_pawn_link],
+        2);
+    EXPECT_EQ(eval::extract_features(black_chain).coefficients[eval::feature::connected_pawn_link],
               -1);
 }
 
@@ -107,7 +105,7 @@ TEST(FeaturesTest, EvaluationIsColorSymmetric) {
     const Board color_swapped("1k6/8/5p2/1p1pN3/1PnP4/8/8/1K6 b - - 0 1");
 
     const eval::FeatureRecord original_record = eval::extract_features(original);
-    const eval::FeatureRecord swapped_record  = eval::extract_features(color_swapped);
+    const eval::FeatureRecord swapped_record = eval::extract_features(color_swapped);
 
     ASSERT_NE(original_record.coefficients[eval::feature::material(PAWN)], 0);
     for (std::size_t id = 0; id < original_record.coefficients.size(); ++id) {
@@ -122,9 +120,9 @@ TEST(FeaturesTest, EvaluationIsColorSymmetric) {
 
     for (int index = 0; index < static_cast<int>(eval::Term::Count); ++index) {
         SCOPED_TRACE(index);
-        const auto             term          = static_cast<eval::Term>(index);
+        const auto term = static_cast<eval::Term>(index);
         const eval::TermScore& original_term = original_record.term(term);
-        const eval::TermScore& swapped_term  = swapped_record.term(term);
+        const eval::TermScore& swapped_term = swapped_record.term(term);
 
         EXPECT_EQ(original_term.total(), -swapped_term.total());
         if (term != eval::Term::Material && term != eval::Term::PieceSquare) {
@@ -147,9 +145,9 @@ TEST(FeaturesTest, EvaluationIsColorSymmetric) {
 }
 
 TEST(FeaturesTest, RecordMatchesNormalEvaluationAndFormatsStableTermBreakdown) {
-    const Board               board(board_test::fen::start);
+    const Board board(board_test::fen::start);
     const eval::FeatureRecord record = eval::extract_features(board);
-    const std::string         output = eval::format_evaluation(record);
+    const std::string output = eval::format_evaluation(record);
 
     EXPECT_EQ(record.value, eval::evaluate(board));
     EXPECT_EQ(record.term_total(), record.unscaled_score);
@@ -163,9 +161,10 @@ TEST(FeaturesTest, RecordMatchesNormalEvaluationAndFormatsStableTermBreakdown) {
 }
 
 TEST(FeaturesTest, BatchExportIsDeterministic) {
-    const std::string input = "game-1:12\t1-0\t4k3/8/8/8/8/8/4P3/4K3 w - - 0 1\n"
-                              "game-2:31\t1/2-1/2\t8/4k3/2p5/3P4/8/4K3/8/8 b - - 17 54\n"
-                              "game-3:8\t0-1\t4k3/4p3/8/8/8/8/8/4K3 b - - 0 1\n";
+    const std::string input =
+        "game-1:12\t1-0\t4k3/8/8/8/8/8/4P3/4K3 w - - 0 1\n"
+        "game-2:31\t1/2-1/2\t8/4k3/2p5/3P4/8/4K3/8/8 b - - 17 54\n"
+        "game-3:8\t0-1\t4k3/4p3/8/8/8/8/8/4K3 b - - 0 1\n";
 
     const auto run = [&] {
         std::istringstream in(input);
@@ -195,7 +194,7 @@ TEST(FeaturesTest, BatchExportPreparesOrSkipsPositions) {
     std::istringstream input("game-1:12\t1-0\t4k3/8/8/8/8/8/4P3/4K3 w - - 0 1\n"
                              "game-2:18\t0-1\t4k3/8/8/8/8/8/3P4/4K3 w - - 0 1\n");
     std::ostringstream output;
-    int                calls = 0;
+    int calls = 0;
 
     eval::export_features(input, output, [&](Board& board) {
         ++calls;

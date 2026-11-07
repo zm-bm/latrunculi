@@ -39,7 +39,7 @@ class GatedSearchReporter final : public Reporter {
 public:
     void wait_for_best_move() { best_move_observed.acquire(); }
     void release_best_move() { best_move_released.release(); }
-    int  best_move_count() const { return reported_best_moves.load(); }
+    int best_move_count() const { return reported_best_moves.load(); }
 
     void report_progress(const RootLine&, const Board&, NodeCount, Milliseconds) override {}
 
@@ -57,16 +57,16 @@ public:
 private:
     std::binary_semaphore best_move_observed{0};
     std::binary_semaphore best_move_released{0};
-    std::atomic<int>      reported_best_moves{0};
-    bool                  gated_best_move{false};
+    std::atomic<int> reported_best_moves{0};
+    bool gated_best_move{false};
 };
 
 class SearchThreadPoolTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{THREAD_COUNT, reporter};
-    Board                   board{board_test::fen::start};
-    Limits                  options{default_limits()};
+    ThreadPool pool{THREAD_COUNT, reporter};
+    Board board{board_test::fen::start};
+    Limits options{default_limits()};
 
     NodeCount nodes_searched() const { return pool.nodes_searched(); }
 
@@ -107,17 +107,17 @@ TEST_F(SearchThreadPoolTest, StartSearchCompletes) {
 
 TEST(SearchThreadPoolTransitionTest, ImmediateRestartAfterBestMovePublicationIsAccepted) {
     GatedSearchReporter reporter;
-    ThreadPool          pool{2, reporter};
-    Board               board{board_test::fen::start};
-    Limits              limits;
+    ThreadPool pool{2, reporter};
+    Board board{board_test::fen::start};
+    Limits limits;
     limits.depth = 1;
     tt.clear();
 
     ASSERT_TRUE(pool.start_search(board, limits));
     reporter.wait_for_best_move();
 
-    const bool   publication_holds_state_lock = SearchThreadTestAccess::state_lock_is_held(pool);
-    bool         next_search_accepted         = false;
+    const bool publication_holds_state_lock = SearchThreadTestAccess::state_lock_is_held(pool);
+    bool next_search_accepted = false;
     std::jthread next_search([&] { next_search_accepted = pool.start_search(board, limits); });
 
     reporter.release_best_move();
@@ -227,7 +227,7 @@ TEST_F(SearchThreadPoolTest, RequestStopWhileIdleDoesNotPoisonNextSearch) {
 }
 
 TEST_F(SearchThreadPoolTest, ShutdownPonderSearchDoesNotDeadlock) {
-    options.depth  = 5;
+    options.depth = 5;
     options.ponder = true;
 
     EXPECT_TRUE(pool.start_search(board, options));
@@ -350,32 +350,32 @@ TEST_F(SearchThreadPoolTest, ResizeToZeroThenBackUp) {
 
 TEST_F(SearchThreadPoolTest, SelectsByDepthValueAndMoveBits) {
     struct Case {
-        std::string_view        name;
-        RootLine                fallback;
+        std::string_view name;
+        RootLine fallback;
         std::array<RootLine, 2> candidates;
-        Move                    expected_move;
+        Move expected_move;
     };
 
     const std::array cases{
         Case{
-            .name          = "greater depth",
-            .fallback      = completed_root_line(Move(E2, E4), 50, 2),
-            .candidates    = {completed_root_line(Move(G1, F3), 0, 3),
-                              completed_root_line(Move(D2, D4), 200, 1)},
+            .name = "greater depth",
+            .fallback = completed_root_line(Move(E2, E4), 50, 2),
+            .candidates = {completed_root_line(Move(G1, F3), 0, 3),
+                           completed_root_line(Move(D2, D4), 200, 1)},
             .expected_move = Move(G1, F3),
         },
         Case{
-            .name          = "greater value at equal depth",
-            .fallback      = completed_root_line(Move(E2, E4), 10, 3),
-            .candidates    = {completed_root_line(Move(G1, F3), 25, 3),
-                              completed_root_line(Move(D2, D4), 20, 3)},
+            .name = "greater value at equal depth",
+            .fallback = completed_root_line(Move(E2, E4), 10, 3),
+            .candidates = {completed_root_line(Move(G1, F3), 25, 3),
+                           completed_root_line(Move(D2, D4), 20, 3)},
             .expected_move = Move(G1, F3),
         },
         Case{
-            .name          = "lower move bits at equal depth and value",
-            .fallback      = completed_root_line(Move(H2, H3), 10, 3),
-            .candidates    = {completed_root_line(Move(G2, G3), 10, 3),
-                              completed_root_line(Move(A2, A3), 10, 3)},
+            .name = "lower move bits at equal depth and value",
+            .fallback = completed_root_line(Move(H2, H3), 10, 3),
+            .candidates = {completed_root_line(Move(G2, G3), 10, 3),
+                           completed_root_line(Move(A2, A3), 10, 3)},
             .expected_move = Move(A2, A3),
         },
     };
@@ -383,7 +383,7 @@ TEST_F(SearchThreadPoolTest, SelectsByDepthValueAndMoveBits) {
     for (const auto& tc : cases) {
         SCOPED_TRACE(tc.name);
         for (size_t i = 0; i < tc.candidates.size(); ++i) {
-            auto& worker                              = SearchThreadTestAccess::worker(pool, i);
+            auto& worker = SearchThreadTestAccess::worker(pool, i);
             SearchTestAccess::accepted_result(worker) = tc.candidates[i];
             SearchTestAccess::publish_root_snapshot(worker);
         }
@@ -400,7 +400,7 @@ TEST_F(SearchThreadPoolTest, PreservesFallbackWhenCandidatesAreUnusable) {
     };
 
     for (size_t i = 0; i < candidates.size(); ++i) {
-        auto& worker                              = SearchThreadTestAccess::worker(pool, i);
+        auto& worker = SearchThreadTestAccess::worker(pool, i);
         SearchTestAccess::accepted_result(worker) = candidates[i];
         SearchTestAccess::publish_root_snapshot(worker);
     }
@@ -409,7 +409,10 @@ TEST_F(SearchThreadPoolTest, PreservesFallbackWhenCandidatesAreUnusable) {
     EXPECT_EQ(SearchThreadTestAccess::select_root_result(pool, usable_fallback), usable_fallback);
 
     const RootLine unusable_fallback{
-        .root_move = NULL_MOVE, .value = scores::draw, .depth = 1, .completed = true};
+        .root_move = NULL_MOVE,
+        .value = scores::draw,
+        .depth = 1,
+        .completed = true};
     EXPECT_EQ(SearchThreadTestAccess::select_root_result(pool, unusable_fallback),
               unusable_fallback);
 }

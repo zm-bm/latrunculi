@@ -94,8 +94,8 @@ bool Engine::handle(const SetOptionCommand& command) {
     if (command.name.empty())
         throw std::runtime_error("missing option name");
 
-    auto           candidate = options;
-    const OptionId option    = candidate.set(command.name, command.value, command.has_value);
+    auto candidate = options;
+    const OptionId option = candidate.set(command.name, command.value, command.has_value);
     apply_option_effect(option, candidate);
     options = candidate;
     return true;
@@ -118,13 +118,13 @@ bool Engine::handle(const PositionCommand& command) {
     Board candidate;
 
     switch (command.source) {
-    case Source::Startpos: candidate.load_fen(Board::start_fen); break;
-    case Source::Fen:
-        if (command.fen.empty())
-            throw std::runtime_error("invalid position command");
-        candidate.load_fen(command.fen);
-        break;
-    case Source::Invalid: throw std::runtime_error("invalid position command");
+        case Source::Startpos: candidate.load_fen(Board::start_fen); break;
+        case Source::Fen:
+            if (command.fen.empty())
+                throw std::runtime_error("invalid position command");
+            candidate.load_fen(command.fen);
+            break;
+        case Source::Invalid: throw std::runtime_error("invalid position command");
     }
 
     for (const auto& token : command.moves) {
@@ -146,11 +146,11 @@ bool Engine::handle(const GoCommand& command) {
         return true;
     }
 
-    const auto&    go_parameters = command.parameters;
+    const auto& go_parameters = command.parameters;
     search::Limits limits;
 
     limits.infinite = go_parameters.infinite;
-    limits.ponder   = go_parameters.ponder;
+    limits.ponder = go_parameters.ponder;
 
     if (go_parameters.depth)
         limits.set_depth(*go_parameters.depth);
@@ -205,12 +205,12 @@ bool Engine::handle(const ConsoleCommand& command) {
     require_idle("run console command");
 
     switch (command.name) {
-    case ConsoleCommand::Name::Help:  return help();
-    case ConsoleCommand::Name::Board: return display_board();
-    case ConsoleCommand::Name::Eval:  return evaluate();
-    case ConsoleCommand::Name::Move:  return move(command.arguments);
-    case ConsoleCommand::Name::Moves: return moves();
-    case ConsoleCommand::Name::Perft: return perft(command.arguments);
+        case ConsoleCommand::Name::Help:  return help();
+        case ConsoleCommand::Name::Board: return display_board();
+        case ConsoleCommand::Name::Eval:  return evaluate();
+        case ConsoleCommand::Name::Move:  return move(command.arguments);
+        case ConsoleCommand::Name::Moves: return moves();
+        case ConsoleCommand::Name::Perft: return perft(command.arguments);
     }
 
     return true;
@@ -237,7 +237,7 @@ bool Engine::evaluate() {
 
 bool Engine::perft(const std::string& arguments) {
     std::istringstream stream(arguments);
-    int                depth;
+    int depth;
 
     if (stream >> depth) {
         writer.diagnostic_text(movegen::format_perft_result(movegen::perft_root(board, depth)));
@@ -248,7 +248,7 @@ bool Engine::perft(const std::string& arguments) {
 
 bool Engine::move(const std::string& arguments) {
     std::istringstream stream(arguments);
-    std::string        token;
+    std::string token;
     stream >> token;
 
     if (token == "undo") {
@@ -272,8 +272,9 @@ bool Engine::moves() {
 }
 
 Move Engine::find_legal_move(const Board& position, const std::string& token) const {
-    return movegen::UnscoredMoves(position).next_matching(
-        [&](Move move) { return move.str() == token; });
+    return movegen::UnscoredMoves(position).next_matching([&](Move move) {
+        return move.str() == token;
+    });
 }
 
 std::vector<Move> Engine::resolve_searchmoves(const std::vector<std::string>& tokens) const {
@@ -304,13 +305,13 @@ void Engine::unmake_board_move() {
 
 void Engine::apply_option_effect(OptionId option, const Options& candidate) {
     switch (option) {
-    case OptionId::Hash: search::tt.resize(candidate.hash.value); break;
-    case OptionId::Threads:
-        if (!thread_pool.resize(candidate.threads.value))
-            throw std::runtime_error("failed to resize thread pool");
-        break;
-    case OptionId::Ponder:    break;
-    case OptionId::ClearHash: search::tt.clear(); break;
+        case OptionId::Hash: search::tt.resize(candidate.hash.value); break;
+        case OptionId::Threads:
+            if (!thread_pool.resize(candidate.threads.value))
+                throw std::runtime_error("failed to resize thread pool");
+            break;
+        case OptionId::Ponder:    break;
+        case OptionId::ClearHash: search::tt.clear(); break;
     }
 }
 

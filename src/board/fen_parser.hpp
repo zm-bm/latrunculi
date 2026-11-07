@@ -10,18 +10,18 @@
 #include "core/types.hpp"
 
 struct PieceSquare {
-    Color     color;
+    Color color;
     PieceType type;
-    Square    square;
+    Square square;
 };
 
 struct ParsedFen {
     std::vector<PieceSquare> pieces;
-    Color                    turn             = WHITE;
-    CastlingRights           castling_rights  = NO_CASTLE;
-    Square                   enpassant_target = INVALID;
-    std::uint8_t             halfmove_clock   = 0;
-    int                      absolute_ply     = 0;
+    Color turn = WHITE;
+    CastlingRights castling_rights = NO_CASTLE;
+    Square enpassant_target = INVALID;
+    std::uint8_t halfmove_clock = 0;
+    int absolute_ply = 0;
 };
 
 // Parses a four- or six-field FEN.

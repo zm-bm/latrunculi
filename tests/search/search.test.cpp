@@ -28,11 +28,11 @@ using NodeType = SearchTestAccess::NodeType;
 class SearchTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{1, reporter};
-    Thread&                 thread{SearchThreadTestAccess::thread(pool)};
-    Worker&                 worker{SearchThreadTestAccess::worker(thread)};
-    Limits                  limits;
-    int                     current_ply{0};
+    ThreadPool pool{1, reporter};
+    Thread& thread{SearchThreadTestAccess::thread(pool)};
+    Worker& worker{SearchThreadTestAccess::worker(thread)};
+    Limits limits;
+    int current_ply{0};
 
     void SetUp() override {
         limits.depth = 4;
@@ -48,13 +48,18 @@ protected:
         current_ply = 0;
     }
 
-    Board&   position() { return SearchTestAccess::board(worker); }
-    int&     ply() { return current_ply; }
+    Board& position() { return SearchTestAccess::board(worker); }
+    int& ply() { return current_ply; }
     History& history() { return SearchTestAccess::history(worker); }
 
     Score search(Score alpha, Score beta, int depth) {
         return SearchTestAccess::alphabeta<NodeType::NonPv>(
-            worker, alpha, beta, depth, nullptr, ply());
+            worker,
+            alpha,
+            beta,
+            depth,
+            nullptr,
+            ply());
     }
 
     void load_after_null(const Board& parent, int depth) {
@@ -112,16 +117,17 @@ protected:
 
     std::vector<Move> ordered_moves(Move tt_move = NULL_MOVE) {
         std::vector<Move> moves;
-        const auto        context = history().context_for(position(), ply(), tt_move);
-        auto              picker  = movegen::MainSearchMoves(position(), history(), context);
+        const auto context = history().context_for(position(), ply(), tt_move);
+        auto picker = movegen::MainSearchMoves(position(), history(), context);
         for (Move move = picker.next(); !move.is_null(); move = picker.next())
             moves.push_back(move);
         return moves;
     }
 
     void store_child(Move move, Score score, int depth, TTBound bound = TTBound::Exact) {
-        with_move(move,
-                  [&] { tt.store(position().tt_key(), NULL_MOVE, score, depth, bound, ply()); });
+        with_move(move, [&] {
+            tt.store(position().tt_key(), NULL_MOVE, score, depth, bound, ply());
+        });
     }
 
     PositionKey null_child_key() {
@@ -143,16 +149,20 @@ protected:
 
     int quiet_history(Move move) {
         return SearchTestAccess::quiet_history_entry(
-            history(), position().side_to_move(), move.from(), move.to());
+            history(),
+            position().side_to_move(),
+            move.from(),
+            move.to());
     }
 
     int continuation_history(Color prev_c, PieceType prev_piece, Square prev_to, Move move) {
-        return SearchTestAccess::continuation_history_entry(history(),
-                                                            prev_c,
-                                                            prev_piece,
-                                                            prev_to,
-                                                            position().piece_type_on(move.from()),
-                                                            move.to());
+        return SearchTestAccess::continuation_history_entry(
+            history(),
+            prev_c,
+            prev_piece,
+            prev_to,
+            position().piece_type_on(move.from()),
+            move.to());
     }
 
 #if LATRUNCULI_SEARCH_STATS
@@ -188,8 +198,8 @@ TEST_F(SearchTest, HandlesDrawAndMaxPlyExits) {
 TEST_F(SearchTest, AdjudicatesFiftyMoveBoundaryBeforeTtAndMaxPly) {
     struct Case {
         const char* fen;
-        int         search_ply;
-        Score       value;
+        int search_ply;
+        Score value;
     };
     constexpr std::array cases{
         Case{"7k/6Q1/5K2/8/8/8/8/8 b - - 100 1", 3, -scores::mate + 3},
@@ -214,13 +224,13 @@ TEST_F(SearchTest, AdjudicatesFiftyMoveBoundaryBeforeTtAndMaxPly) {
 
 TEST_F(SearchTest, ReturnsFailSoftValues) {
     constexpr auto one_evasion = board_test::fen::one_legal_evasion;
-    constexpr int  depth       = 1;
-    const Move     evasion{A8, B8};
+    constexpr int depth = 1;
+    const Move evasion{A8, B8};
 
     struct Case {
         const char* name;
-        Score       alpha;
-        Score       beta;
+        Score alpha;
+        Score beta;
     };
 
     constexpr std::array cases{
@@ -253,7 +263,7 @@ TEST_F(SearchTest, AppliesMateDistanceBounds) {
     EXPECT_EQ(search(-scores::inf, lower - 1, 1), lower);
 
     load(board);
-    ply()                 = 4;
+    ply() = 4;
     constexpr Score upper = scores::mate - 5;
     EXPECT_EQ(search(upper + 1, scores::inf, 1), upper + 1);
 }
@@ -261,10 +271,10 @@ TEST_F(SearchTest, AppliesMateDistanceBounds) {
 TEST_F(SearchTest, UsesOnlyDepthEligibleTtBounds) {
     struct Case {
         const char* name;
-        TTBound     bound;
-        Score       score;
-        Score       alpha;
-        Score       beta;
+        TTBound bound;
+        Score score;
+        Score alpha;
+        Score beta;
     };
 
     constexpr std::array cases{
@@ -299,8 +309,8 @@ TEST_F(SearchTest, UsesOnlyDepthEligibleTtBounds) {
 TEST_F(SearchTest, StoresWindowClassifiedTtBounds) {
     Board exact_board{board_test::fen::quiet_black_to_move};
     load(exact_board, 2);
-    const Score exact  = search(-scores::inf, scores::inf, 2);
-    auto        stored = record();
+    const Score exact = search(-scores::inf, scores::inf, 2);
+    auto stored = record();
     ASSERT_TRUE(stored.has_value());
     EXPECT_EQ(stored->score_at_ply(ply()), exact);
     EXPECT_EQ(stored->depth, 2);
@@ -339,7 +349,7 @@ TEST_F(SearchTest, SingularExclusionDoesNotCreateMateOrStalemate) {
     for (const char* fen : {"k7/8/1PK5/8/8/8/P7/8 b - - 0 1", board_test::fen::one_legal_evasion}) {
         SCOPED_TRACE(fen);
         load(Board{fen});
-        ply()           = 1;
+        ply() = 1;
         const Move only = find_move("a8b8");
         ASSERT_FALSE(only.is_null());
         tt.store(position().tt_key(), only, 1000, 9, TTBound::Exact, ply());
@@ -362,9 +372,9 @@ TEST_F(SearchTest, SingularExtensionRequiresFailLow) {
     for (Score alternative_score : {983, 984}) {
         SCOPED_TRACE(alternative_score);
         load(Board{board_test::fen::quiet_black_to_move}, 12);
-        ply()                                          = 1;
+        ply() = 1;
         SearchTestAccess::root_iteration_depth(worker) = 12;
-        const Move tt_move                             = find_move("a8b8");
+        const Move tt_move = find_move("a8b8");
         store_child(find_move("a8a7"), -alternative_score, engine::max_search_depth);
         tt.store(position().tt_key(), tt_move, 1000, 5, TTBound::LowerBound, ply());
 
@@ -380,9 +390,9 @@ TEST_F(SearchTest, SingularExtensionRequiresFailLow) {
 
 TEST_F(SearchTest, SingularExtensionBuildsLegalPv) {
     load(Board{board_test::fen::one_legal_evasion}, 12);
-    ply()                                          = 1;
+    ply() = 1;
     SearchTestAccess::root_iteration_depth(worker) = 12;
-    const Move only                                = find_move("a8b8");
+    const Move only = find_move("a8b8");
     tt.store(position().tt_key(), only, 30000, 7, TTBound::LowerBound, ply());
 
     PV pv;
@@ -403,10 +413,10 @@ TEST_F(SearchTest, SingularExtensionBuildsLegalPv) {
 
 TEST_F(SearchTest, SingularMulticutLeavesTtAndHistoryUnchanged) {
     load(Board{board_test::fen::quiet_black_to_move}, 12);
-    ply()                                          = 1;
+    ply() = 1;
     SearchTestAccess::root_iteration_depth(worker) = 12;
-    const Move tt_move                             = find_move("a8b8");
-    const Move alternative                         = find_move("a8a7");
+    const Move tt_move = find_move("a8b8");
+    const Move alternative = find_move("a8a7");
     store_child(alternative, -1134, engine::max_search_depth);
     tt.store(position().tt_key(), tt_move, 1000, 5, TTBound::LowerBound, ply());
 
@@ -452,13 +462,13 @@ TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
         SCOPED_TRACE(was_active);
         limits.set_nodes(4096);
         load(Board{board_test::fen::quiet_black_to_move}, 12);
-        ply()                                          = 1;
+        ply() = 1;
         SearchTestAccess::root_iteration_depth(worker) = 12;
         tt.store(position().tt_key(), find_move("a8b8"), 1000, 5, TTBound::LowerBound, ply());
         SearchTestAccess::frames(worker)[ply()].singular_search_active = was_active;
-        auto& frame                                      = SearchTestAccess::frames(worker)[ply()];
-        frame.static_eval                                = 456;
-        frame.real_move                                  = true;
+        auto& frame = SearchTestAccess::frames(worker)[ply()];
+        frame.static_eval = 456;
+        frame.real_move = true;
 
         // The parent and excluded root run; the next child polls the node limit.
         SearchTestAccess::set_nodes(worker, 4094);
@@ -485,7 +495,7 @@ TEST_F(SearchTest, NullMovePruningReturnsFailSoftCutoff) {
     const PositionKey root_key = position().tt_key();
     tt.store(null_child_key(), NULL_MOVE, -200, 1, TTBound::Exact, 1);
 
-    auto& frames                     = SearchTestAccess::frames(worker);
+    auto& frames = SearchTestAccess::frames(worker);
     frames[0].singular_search_active = true;
     EXPECT_EQ(search(-50, 50, 4), 200);
     EXPECT_TRUE(frames[1].singular_search_active);
@@ -501,7 +511,7 @@ TEST_F(SearchTest, NullMovePruningReturnsFailSoftCutoff) {
 TEST_F(SearchTest, PvNodesDoNotUseNullMovePruning) {
     Board baseline_board{board_test::fen::start};
     load(baseline_board, 4);
-    PV          baseline_pv;
+    PV baseline_pv;
     const Score baseline = pv_search(-50, 50, 4, baseline_pv);
 
     Board board{board_test::fen::start};
@@ -519,8 +529,8 @@ TEST_F(SearchTest, NullMovePruningRequiresAllGuards) {
     struct Case {
         const char* name;
         const char* fen;
-        int         depth;
-        bool        after_null;
+        int depth;
+        bool after_null;
     };
 
     constexpr std::array cases{
@@ -578,7 +588,7 @@ TEST_F(SearchTest, NullMoveReenablesAfterARealDescendantMove) {
     load_after_null(Board{board_test::fen::start}, 5);
     const Move real_move = find_move("e7e5");
     ASSERT_FALSE(real_move.is_null());
-    const PositionKey immediate  = null_child_key();
+    const PositionKey immediate = null_child_key();
     const PositionKey descendant = descendant_null_key(real_move);
 
     tt.store(position().tt_key(), real_move, 0, 0, TTBound::LowerBound, ply());
@@ -593,7 +603,7 @@ TEST_F(SearchTest, NullMoveContextRequiresAnActualNullSearchEdge) {
     ply() = 1;
     ASSERT_FALSE(position().can_unmake());
     const Score static_eval = eval::evaluate(position());
-    const Score beta        = static_eval - 250;
+    const Score beta = static_eval - 250;
 
     // A loaded position at a nonzero ply still permits reverse futility.
     EXPECT_EQ(search(beta - 1, beta, 1), static_eval);
@@ -604,9 +614,9 @@ TEST_F(SearchTest, NullMoveContextRequiresAnActualNullSearchEdge) {
 TEST_F(SearchTest, AfterNullMoveSkipsReverseFutilityButRetainsOrdinaryTtStores) {
     load_after_null(Board{board_test::fen::start}, 1);
     const Score static_eval = eval::evaluate(position());
-    const Score beta        = static_eval - 250;
-    const Score expected    = static_eval + 200;
-    const Move  first       = ordered_moves().front();
+    const Score beta = static_eval - 250;
+    const Score expected = static_eval + 200;
+    const Move first = ordered_moves().front();
     store_child(first, -expected, 0);
     EXPECT_EQ(search(beta - 1, beta, 1), expected);
     const auto stored = record();
@@ -619,7 +629,7 @@ TEST_F(SearchTest, AfterNullMoveSkipsReverseFutilityButRetainsOrdinaryTtStores) 
 TEST_F(SearchTest, AfterNullMoveStillAllowsMoveLoopFutility) {
     load_after_null(Board{board_test::fen::start}, 2);
     const Score alpha = eval::evaluate(position()) + 401;
-    const auto  moves = ordered_moves();
+    const auto moves = ordered_moves();
     ASSERT_GT(moves.size(), 1U);
     (void)search(alpha, alpha + 100, 2);
     const auto stored = record();
@@ -636,9 +646,9 @@ TEST_F(SearchTest, RazoringRestoresOutputAndContinuesUnlessFailLow) {
     Board board{board_test::fen::quiet_black_to_move};
     load(board, 2);
     const Score static_eval = eval::evaluate(position());
-    PV          pv;
-    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(
-                  worker, static_eval + 901, static_eval + 1001, 2, &pv),
+    PV pv;
+    EXPECT_EQ(SearchTestAccess::alphabeta<
+                  NodeType::NonPv>(worker, static_eval + 901, static_eval + 1001, 2, &pv),
               static_eval);
     EXPECT_TRUE(SearchTestAccess::frames(worker)[0].pv_enabled);
     EXPECT_TRUE(pv.empty());
@@ -653,7 +663,7 @@ TEST_F(SearchTest, RazoringRestoresOutputAndContinuesUnlessFailLow) {
     // The queen capture raises the razor result above alpha, so main search continues.
     load(Board{"4k3/8/8/8/2q5/3P4/8/4K3 w - - 0 1"}, 1);
     const Score alpha = eval::evaluate(position()) + 500;
-    auto&       frame = SearchTestAccess::frames(worker)[0];
+    auto& frame = SearchTestAccess::frames(worker)[0];
     frame.pv.update(Move{E2, E4}, PV{});
     SearchTestAccess::frames(worker)[1].pv.update(Move{E7, E5}, PV{});
     EXPECT_GE(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, alpha + 1, 1, &pv),
@@ -674,11 +684,11 @@ TEST_F(SearchTest, RazoringRequiresAllGuards) {
     struct Case {
         const char* name;
         const char* fen;
-        int         depth;
-        bool        after_null;
-        bool        pv;
-        bool        seed_tt;
-        int         alpha_offset;
+        int depth;
+        bool after_null;
+        bool pv;
+        bool seed_tt;
+        int alpha_offset;
     };
 
     constexpr std::array cases{
@@ -717,7 +727,7 @@ TEST_F(SearchTest, ReverseFutilityPruningReturnsStaticEval) {
     Board board{board_test::fen::start};
     load(board, 1);
     const Score static_eval = eval::evaluate(position());
-    const Score beta        = static_eval - 250;
+    const Score beta = static_eval - 250;
 
     EXPECT_EQ(search(beta - 1, beta, 1), static_eval);
     EXPECT_FALSE(record().has_value());
@@ -726,9 +736,9 @@ TEST_F(SearchTest, ReverseFutilityPruningReturnsStaticEval) {
 TEST_F(SearchTest, FutilitySkipsOnlyAfterFirstLegalQuiet) {
     Board expected_board{board_test::fen::start};
     load(expected_board, 2);
-    const Score alpha    = eval::evaluate(position()) + 401;
-    const Score beta     = alpha + 100;
-    const Move  first    = ordered_moves().front();
+    const Score alpha = eval::evaluate(position()) + 401;
+    const Score beta = alpha + 100;
+    const Move first = ordered_moves().front();
     const Score expected = with_move(first, [&] { return -search(-beta, -alpha, 1); });
 
     Board board{board_test::fen::start};
@@ -741,14 +751,14 @@ TEST_F(SearchTest, FutilitySkipsOnlyAfterFirstLegalQuiet) {
 }
 
 TEST_F(SearchTest, FutilityRequiresAllGuards) {
-    Board       eval_board{board_test::fen::start};
+    Board eval_board{board_test::fen::start};
     const Score static_eval = eval::evaluate(eval_board);
     struct Case {
         const char* name;
         const char* fen;
-        int         depth;
-        Score       alpha;
-        bool        pv;
+        int depth;
+        Score alpha;
+        bool pv;
     };
     const std::array cases{
         Case{"PV", board_test::fen::start, 2, static_eval + 401, true},
@@ -764,8 +774,12 @@ TEST_F(SearchTest, FutilityRequiresAllGuards) {
         load(board, tc.depth);
         if (tc.alpha >= scores::mate_bound) {
             // Bypass razoring so this case reaches the move-loop futility guard.
-            tt.store(
-                position().tt_key(), ordered_moves().front(), 0, 0, TTBound::UpperBound, ply());
+            tt.store(position().tt_key(),
+                     ordered_moves().front(),
+                     0,
+                     0,
+                     TTBound::UpperBound,
+                     ply());
         }
         if (tc.pv) {
             PV pv;
@@ -782,14 +796,16 @@ TEST_F(SearchTest, FutilityRequiresAllGuards) {
 TEST_F(SearchTest, FutilityKeepsTacticalMoves) {
     struct Case {
         const char* fen;
-        Move        first;
-        Move        tactical;
-        bool        killer;
+        Move first;
+        Move tactical;
+        bool killer;
     };
     constexpr std::array cases{
         Case{"4k3/8/8/8/8/8/R6r/4K3 w - - 0 1", Move(E1, D1), Move(A2, H2), false},
-        Case{
-            "4k3/P6p/8/8/8/8/8/4K3 w - - 0 1", Move(E1, D1), Move(A7, A8, MOVE_PROM, QUEEN), false},
+        Case{"4k3/P6p/8/8/8/8/8/4K3 w - - 0 1",
+             Move(E1, D1),
+             Move(A7, A8, MOVE_PROM, QUEEN),
+             false},
         Case{"4k3/8/8/8/8/8/R7/4K3 w - - 0 1", Move(A2, A3), Move(A2, E2), true},
     };
 
@@ -798,7 +814,7 @@ TEST_F(SearchTest, FutilityKeepsTacticalMoves) {
         Board board{tc.fen};
         load(board, 2);
         const Score alpha = eval::evaluate(position()) + 401;
-        const Score beta  = alpha + 1000;
+        const Score beta = alpha + 1000;
         tt.store(position().tt_key(), tc.first, 0, 0, TTBound::Exact, ply());
         if (tc.killer)
             history().update_quiet_refutations(OrderingContext{.ply = ply()}, tc.tactical);
@@ -826,8 +842,8 @@ TEST_F(SearchTest, FutilityKeepsLaterCheckingQuietHintsAndGeneratedMoves) {
             history().update_quiet_refutations(OrderingContext{.ply = ply()}, checking);
         history().update_quiet_refutations(OrderingContext{.ply = ply()}, skipped);
 
-        const auto moves       = ordered_moves(first);
-        const auto skipped_it  = std::find(moves.begin(), moves.end(), skipped);
+        const auto moves = ordered_moves(first);
+        const auto skipped_it = std::find(moves.begin(), moves.end(), skipped);
         const auto checking_it = std::find(moves.begin(), moves.end(), checking);
         ASSERT_FALSE(moves.empty());
         ASSERT_EQ(moves.front(), first);
@@ -836,7 +852,7 @@ TEST_F(SearchTest, FutilityKeepsLaterCheckingQuietHintsAndGeneratedMoves) {
         ASSERT_LT(skipped_it, checking_it);
 
         const Score alpha = eval::evaluate(position()) + 401;
-        const Score beta  = alpha + 1000;
+        const Score beta = alpha + 1000;
         tt.store(position().tt_key(), first, 0, 0, TTBound::Exact, ply());
         store_child(checking, -(beta + 100), 1);
         EXPECT_GE(search(alpha, beta, 2), beta);
@@ -852,7 +868,7 @@ TEST_F(SearchTest, LateMovePruningRequiresNonPvAndNegativeCombinedHistory) {
         Board board{board_test::fen::start};
         load(board, 2);
         const Move previous = find_move("e2e4");
-        Score      result   = -scores::inf;
+        Score result = -scores::inf;
 
         with_move(previous, [&] {
             auto moves = ordered_moves();
@@ -864,7 +880,10 @@ TEST_F(SearchTest, LateMovePruningRequiresNonPvAndNegativeCombinedHistory) {
 
             if (negative_history) {
                 SearchTestAccess::quiet_history_entry(
-                    history(), position().side_to_move(), late_quiet.from(), late_quiet.to()) = 4;
+                    history(),
+                    position().side_to_move(),
+                    late_quiet.from(),
+                    late_quiet.to()) = 4;
                 SearchTestAccess::continuation_history_entry(
                     history(),
                     WHITE,
@@ -874,12 +893,13 @@ TEST_F(SearchTest, LateMovePruningRequiresNonPvAndNegativeCombinedHistory) {
                     late_quiet.to()) = -9;
             }
 
-            moves              = ordered_moves();
+            moves = ordered_moves();
             const auto late_it = std::find(moves.begin(), moves.end(), late_quiet);
             ASSERT_NE(late_it, moves.end());
             ASSERT_GT(late_it - moves.begin(), 12);
-            EXPECT_EQ(history().quiet_score(
-                          history().context_for(position(), ply()), position(), late_quiet)
+            EXPECT_EQ(history().quiet_score(history().context_for(position(), ply()),
+                                            position(),
+                                            late_quiet)
                           < 0,
                       negative_history);
 
@@ -989,7 +1009,7 @@ TEST_F(SearchTest, QuietCutoffTrainsHistoriesAndExemptsTtAndKillerHints) {
         const auto moves = ordered_moves();
         ASSERT_GE(moves.size(), 5U);
         const Move tt_move = moves[0];
-        const Move killer  = moves[1];
+        const Move killer = moves[1];
         tt.store(position().tt_key(), tt_move, 0, 4, TTBound::UpperBound, ply());
         history().update_quiet_refutations(OrderingContext{.ply = ply()}, killer);
         store_child(tt_move, 0, 3);
@@ -1052,7 +1072,7 @@ TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
     Board board{board_test::fen::start};
     load(board, 4);
 
-    PV          cold_pv;
+    PV cold_pv;
     const Score value = pv_search(-scores::inf, scores::inf, 4, cold_pv);
     ASSERT_GE(cold_pv.size(), 4);
 
@@ -1077,11 +1097,11 @@ TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
 TEST_F(SearchTest, PvNodeIgnoresLowerTtBound) {
     const Board board{board_test::fen::quiet_black_to_move};
     load(board, 2);
-    PV          baseline_pv;
+    PV baseline_pv;
     const Score baseline = pv_search(-scores::inf, scores::inf, 2, baseline_pv);
-    const Score alpha    = baseline - 100;
-    const Score beta     = baseline + 100;
-    const Score bogus    = beta + 25;
+    const Score alpha = baseline - 100;
+    const Score beta = baseline + 100;
+    const Score bogus = beta + 25;
 
     load(board, 2);
     tt.store(position().tt_key(), NULL_MOVE, bogus, 2, TTBound::LowerBound, ply());
@@ -1098,12 +1118,12 @@ TEST_F(SearchTest, CaptureHistoryAdjustsLateMoveReductions) {
             // Satisfy both reduced and full-depth child searches without changing history.
             store_child(move, 100, 5);
             if (position().is_capture(move)) {
-                SearchTestAccess::capture_history_entry(history(),
-                                                        position().side_to_move(),
-                                                        position().piece_type_on(move.from()),
-                                                        move.to(),
-                                                        position().captured_piece_type(move)) =
-                    capture_history;
+                SearchTestAccess::capture_history_entry(
+                    history(),
+                    position().side_to_move(),
+                    position().piece_type_on(move.from()),
+                    move.to(),
+                    position().captured_piece_type(move)) = capture_history;
             }
         }
         tt.store(null_child_key(), NULL_MOVE, 100, 5, TTBound::Exact, 1);
@@ -1182,9 +1202,9 @@ TEST_F(SearchTest, DecliningLmrStillVerifiesAnApparentReducedCutoff) {
     board.make(Move(E7, E5));
     const auto prepare = [&] {
         load(board, 5);
-        ply()                                           = 2;
+        ply() = 2;
         SearchTestAccess::frames(worker)[0].static_eval = eval::evaluate(position()) + 100;
-        SearchTestAccess::frames(worker)[1].real_move   = true;
+        SearchTestAccess::frames(worker)[1].real_move = true;
     };
     prepare();
     const Score expected = search(-2000, 2000, 5);
@@ -1210,9 +1230,9 @@ TEST_F(SearchTest, DecliningLmrStillVerifiesAnApparentReducedCutoff) {
 TEST_F(SearchTest, LmrSkipsTacticalAndEvasionMoves) {
     struct Case {
         const char* fen;
-        Move        tt_move;
-        Move        killer;
-        Move        candidate;
+        Move tt_move;
+        Move killer;
+        Move candidate;
     };
     constexpr std::array cases{
         Case{board_test::fen::white_pawn_on_a7,
@@ -1227,7 +1247,7 @@ TEST_F(SearchTest, LmrSkipsTacticalAndEvasionMoves) {
         SCOPED_TRACE(tc.fen);
         Board board{tc.fen};
         load(board, 4);
-        auto moves     = ordered_moves(tc.tt_move);
+        auto moves = ordered_moves(tc.tt_move);
         Move candidate = tc.candidate;
         if (candidate.is_null()) {
             ASSERT_GE(moves.size(), 3U);
@@ -1237,7 +1257,10 @@ TEST_F(SearchTest, LmrSkipsTacticalAndEvasionMoves) {
             if (!tc.killer.is_null())
                 history().update_quiet_refutations(OrderingContext{.ply = ply()}, tc.killer);
             SearchTestAccess::quiet_history_entry(
-                history(), position().side_to_move(), candidate.from(), candidate.to()) = 16;
+                history(),
+                position().side_to_move(),
+                candidate.from(),
+                candidate.to()) = 16;
             moves = ordered_moves(tc.tt_move);
         }
         const auto it = std::find(moves.begin(), moves.end(), candidate);

@@ -14,9 +14,9 @@ namespace {
 using Tokens = std::span<const std::string>;
 
 std::vector<std::string> tokenize(std::string_view line) {
-    std::istringstream       stream{std::string(line)};
+    std::istringstream stream{std::string(line)};
     std::vector<std::string> tokens;
-    std::string              token;
+    std::string token;
 
     while (stream >> token)
         tokens.push_back(token);
@@ -52,21 +52,21 @@ std::optional<T> parse_integer_token(std::string_view token) {
 SetOptionCommand parse_setoption_command(Tokens tokens) {
     SetOptionCommand command;
 
-    bool in_name  = false;
+    bool in_name = false;
     bool in_value = false;
 
     for (size_t i = 1; i < tokens.size(); ++i) {
         const std::string& token = tokens[i];
 
         if (token == "name") {
-            in_name  = true;
+            in_name = true;
             in_value = false;
             continue;
         }
         if (token == "value") {
             command.has_value = true;
-            in_name           = false;
-            in_value          = true;
+            in_name = false;
+            in_value = true;
             continue;
         }
 
@@ -141,7 +141,7 @@ GoParameters parse_go_parameters(Tokens tokens) {
 PositionCommand parse_position_command(Tokens tokens) {
     PositionCommand command;
 
-    bool in_fen   = false;
+    bool in_fen = false;
     bool in_moves = false;
 
     for (size_t i = 1; i < tokens.size(); ++i) {
@@ -149,19 +149,19 @@ PositionCommand parse_position_command(Tokens tokens) {
 
         if (token == "startpos") {
             command.source = PositionCommand::Source::Startpos;
-            in_fen         = false;
-            in_moves       = false;
+            in_fen = false;
+            in_moves = false;
             continue;
         }
         if (token == "fen") {
             command.source = PositionCommand::Source::Fen;
             command.fen.clear();
-            in_fen   = true;
+            in_fen = true;
             in_moves = false;
             continue;
         }
         if (token == "moves") {
-            in_fen   = false;
+            in_fen = false;
             in_moves = true;
             continue;
         }

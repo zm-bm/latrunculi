@@ -1,9 +1,9 @@
 #include "board/board.hpp"
 
+#include <sstream>
+
 #include "board/fen_parser.hpp"
 #include "core/notation.hpp"
-
-#include <sstream>
 
 // Replaces the position and move history; invalid FEN leaves the Board unchanged.
 void Board::load_fen(std::string_view fen) {
@@ -16,12 +16,12 @@ void Board::load_fen(std::string_view fen) {
             king_square[piece.color] = piece.square;
     }
 
-    auto& state            = ply_state();
-    turn                   = parsed.turn;
-    state.castling_rights  = parsed.castling_rights;
+    auto& state = ply_state();
+    turn = parsed.turn;
+    state.castling_rights = parsed.castling_rights;
     state.enpassant_target = parsed.enpassant_target;
-    state.halfmove_clock   = parsed.halfmove_clock;
-    absolute_ply           = parsed.absolute_ply;
+    state.halfmove_clock = parsed.halfmove_clock;
+    absolute_ply = parsed.absolute_ply;
 
     refresh_tactical_cache();
     refresh_legal_enpassant_target();
@@ -30,7 +30,7 @@ void Board::load_fen(std::string_view fen) {
 
 std::string Board::to_fen() const {
     std::ostringstream output;
-    int                empty_squares = 0;
+    int empty_squares = 0;
 
     auto flush_empty_squares = [&]() {
         if (empty_squares > 0) {

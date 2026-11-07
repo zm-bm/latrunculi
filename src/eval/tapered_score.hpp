@@ -15,8 +15,8 @@ struct TaperedScore {
     constexpr TaperedScore operator-(const TaperedScore& other) const;
     constexpr TaperedScore operator*(Score scalar) const;
     constexpr TaperedScore operator-() const;
-    constexpr bool         operator==(const TaperedScore& other) const;
-    constexpr bool         operator!=(const TaperedScore& other) const;
+    constexpr bool operator==(const TaperedScore& other) const;
+    constexpr bool operator!=(const TaperedScore& other) const;
 
     TaperedScore& operator+=(const TaperedScore& other);
     TaperedScore& operator-=(const TaperedScore& other);

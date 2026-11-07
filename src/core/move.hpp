@@ -21,13 +21,15 @@ struct Move {
     constexpr Move() = default;
 
     // Packs a move; promotion is meaningful only for MOVE_PROM.
-    constexpr Move(Square    from,
-                   Square    to,
-                   MoveType  move_type = BASIC_MOVE,
+    constexpr Move(Square from,
+                   Square to,
+                   MoveType move_type = BASIC_MOVE,
                    PieceType promotion = KNIGHT)
-        : bits{static_cast<MoveBits>((from & move_mask) | ((to & move_mask) << to_shift)
-                                     | ((int(move_type) & flag_mask) << type_shift)
-                                     | ((int(promotion - KNIGHT) & flag_mask) << prom_shift))} {}
+        : bits{static_cast<MoveBits>(
+              (from & move_mask)
+              | ((to & move_mask) << to_shift)
+              | ((int(move_type) & flag_mask) << type_shift)
+              | ((int(promotion - KNIGHT) & flag_mask) << prom_shift))} {}
 
     // Decoded source square.
     constexpr Square from() const noexcept { return static_cast<Square>(bits & move_mask); }
@@ -66,9 +68,9 @@ struct Move {
 
 private:
     // Bit masks and shifts for MoveBits.
-    static constexpr MoveBits move_mask  = 0x3F;
-    static constexpr MoveBits flag_mask  = 0x03;
-    static constexpr MoveBits to_shift   = 6;
+    static constexpr MoveBits move_mask = 0x3F;
+    static constexpr MoveBits flag_mask = 0x03;
+    static constexpr MoveBits to_shift = 6;
     static constexpr MoveBits type_shift = 12;
     static constexpr MoveBits prom_shift = 14;
 };

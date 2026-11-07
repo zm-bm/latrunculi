@@ -14,7 +14,7 @@ namespace storage {
 
 struct Table {
     // Fixed project seed keeps keys reproducible; xorshift64* requires nonzero state.
-    static constexpr PositionKey key_seed          = 0x4C617472756E6375ULL;
+    static constexpr PositionKey key_seed = 0x4C617472756E6375ULL;
     static constexpr PositionKey output_multiplier = 0x2545F4914F6CDD1DULL;
 
     static_assert(key_seed != 0);
@@ -41,7 +41,7 @@ struct Table {
             key = next_key(state);
 
         for (int color = 0; color < N_COLORS; ++color) {
-            castle_keys[CASTLE_KINGSIDE][color]  = next_key(state);
+            castle_keys[CASTLE_KINGSIDE][color] = next_key(state);
             castle_keys[CASTLE_QUEENSIDE][color] = next_key(state);
         }
 
@@ -62,32 +62,37 @@ inline constexpr Table table{};
 
 } // namespace storage
 
-[[nodiscard]] constexpr PositionKey
-hash_piece(Color color, PieceType piece, Square square) noexcept {
+[[nodiscard]]
+constexpr PositionKey hash_piece(Color color, PieceType piece, Square square) noexcept {
     return storage::table.piece_keys[color][piece][square];
 }
 
-[[nodiscard]] constexpr PositionKey hash_turn() noexcept {
+[[nodiscard]]
+constexpr PositionKey hash_turn() noexcept {
     return storage::table.turn_key;
 }
 
-[[nodiscard]] constexpr PositionKey hash_tt_clock(std::uint8_t halfmove_clock) noexcept {
+[[nodiscard]]
+constexpr PositionKey hash_tt_clock(std::uint8_t halfmove_clock) noexcept {
     // Clock grouping is a TT reuse heuristic: bounds can still depend on the
     // halfmove clock within a group.
     constexpr int first_bucketed_clock = 16;
-    constexpr int first_exact_clock    = 80;
-    constexpr int bucket_width         = 8;
-    const int     group                = halfmove_clock < first_bucketed_clock ? 0
-                                       : halfmove_clock < first_exact_clock ? halfmove_clock / bucket_width
-                                                                            : halfmove_clock;
+    constexpr int first_exact_clock = 80;
+    constexpr int bucket_width = 8;
+    const int group = halfmove_clock < first_bucketed_clock ? 0
+        : halfmove_clock < first_exact_clock
+        ? halfmove_clock / bucket_width
+        : halfmove_clock;
     return storage::table.tt_clock_group_keys[group];
 }
 
-[[nodiscard]] constexpr PositionKey hash_ep(Square square) noexcept {
+[[nodiscard]]
+constexpr PositionKey hash_ep(Square square) noexcept {
     return storage::table.enpassant_keys[square::file_of(square)];
 }
 
-[[nodiscard]] constexpr PositionKey hash_castle(CastleSide side, Color color) noexcept {
+[[nodiscard]]
+constexpr PositionKey hash_castle(CastleSide side, Color color) noexcept {
     return storage::table.castle_keys[side][color];
 }
 

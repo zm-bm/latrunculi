@@ -28,7 +28,7 @@ TEST(PVTest, StoresAndCopiesActiveMoves) {
     EXPECT_EQ(pv_for_move(Move(E2, E4)), pv_for_move(Move(E2, E4)));
     EXPECT_EQ(pv_for_line(Move(E2, E4), Move(E7, E5)), pv_for_line(Move(E2, E4), Move(E7, E5)));
     const PV original = pv_for_line(Move(E2, E4), Move(E7, E5));
-    PV       copy(original);
+    PV copy(original);
     EXPECT_EQ(copy, original);
     PV moved(std::move(copy));
     EXPECT_EQ(moved, original);
@@ -52,7 +52,7 @@ TEST(PVTest, DistinguishesLinesAndTruncatesAtCapacity) {
 
 TEST(PVTest, ClearingAndAssignmentIgnoreInactiveStorage) {
     PV shortened = pv_for_line(Move(E2, E4), Move(E7, E5));
-    shortened    = pv_for_move(Move(E2, E4));
+    shortened = pv_for_move(Move(E2, E4));
 
     EXPECT_EQ(shortened, pv_for_move(Move(E2, E4)));
     const PV empty{};

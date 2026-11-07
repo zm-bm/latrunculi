@@ -35,7 +35,8 @@ enum class Term : std::uint8_t {
 };
 
 struct TermScore {
-    [[nodiscard]] TaperedScore total() const noexcept;
+    [[nodiscard]]
+    TaperedScore total() const noexcept;
 
     TaperedScore white = TaperedScore::Zero;
     TaperedScore black = TaperedScore::Zero;
@@ -45,15 +46,15 @@ namespace feature {
 
 using Id = std::size_t;
 
-inline constexpr Id material_offset      = 0;
-inline constexpr Id material_count       = 5;
-inline constexpr Id piece_square_offset  = material_offset + material_count;
-inline constexpr Id piece_square_count   = piece_slots * N_SQUARES;
-inline constexpr Id isolated_pawn        = piece_square_offset + piece_square_count;
-inline constexpr Id backward_pawn        = isolated_pawn + 1;
-inline constexpr Id doubled_pawn         = backward_pawn + 1;
-inline constexpr Id passed_pawn_offset   = doubled_pawn + 1;
-inline constexpr Id passed_pawn_count    = 8;
+inline constexpr Id material_offset = 0;
+inline constexpr Id material_count = 5;
+inline constexpr Id piece_square_offset = material_offset + material_count;
+inline constexpr Id piece_square_count = piece_slots * N_SQUARES;
+inline constexpr Id isolated_pawn = piece_square_offset + piece_square_count;
+inline constexpr Id backward_pawn = isolated_pawn + 1;
+inline constexpr Id doubled_pawn = backward_pawn + 1;
+inline constexpr Id passed_pawn_offset = doubled_pawn + 1;
+inline constexpr Id passed_pawn_count = 8;
 inline constexpr Id piece_feature_offset = passed_pawn_offset + passed_pawn_count;
 
 enum class PieceFeature : std::size_t {
@@ -71,21 +72,21 @@ enum class PieceFeature : std::size_t {
 };
 
 inline constexpr Id piece_feature_count = std::to_underlying(PieceFeature::Count);
-inline constexpr Id rook_open_offset    = piece_feature_offset + piece_feature_count;
-inline constexpr Id rook_open_count     = 2;
-inline constexpr Id mobility_offset     = rook_open_offset + rook_open_count;
-inline constexpr Id knight_mob_count    = 9;
-inline constexpr Id bishop_mob_count    = 14;
-inline constexpr Id rook_mob_count      = 15;
-inline constexpr Id queen_mob_count     = 28;
+inline constexpr Id rook_open_offset = piece_feature_offset + piece_feature_count;
+inline constexpr Id rook_open_count = 2;
+inline constexpr Id mobility_offset = rook_open_offset + rook_open_count;
+inline constexpr Id knight_mob_count = 9;
+inline constexpr Id bishop_mob_count = 14;
+inline constexpr Id rook_mob_count = 15;
+inline constexpr Id queen_mob_count = 28;
 inline constexpr Id mobility_count =
     knight_mob_count + bishop_mob_count + rook_mob_count + queen_mob_count;
 inline constexpr Id weak_piece_offset = mobility_offset + mobility_count;
-inline constexpr Id weak_piece_count  = 4;
+inline constexpr Id weak_piece_count = 4;
 inline constexpr Id connected_pawn_link = weak_piece_offset + weak_piece_count;
-inline constexpr Id isolated_open_pawn   = connected_pawn_link + 1;
-inline constexpr Id backward_open_pawn   = isolated_open_pawn + 1;
-inline constexpr Id count               = backward_open_pawn + 1;
+inline constexpr Id isolated_open_pawn = connected_pawn_link + 1;
+inline constexpr Id backward_open_pawn = isolated_open_pawn + 1;
+inline constexpr Id count = backward_open_pawn + 1;
 
 constexpr Id material(PieceType piece) {
     return material_offset + std::size_t(piece - PAWN);
@@ -109,14 +110,17 @@ constexpr Id rook_open(bool fully_open) {
 
 constexpr Id mobility(PieceType piece, int move_count) {
     switch (piece) {
-    case KNIGHT: return mobility_offset + std::size_t(move_count);
-    case BISHOP: return mobility_offset + knight_mob_count + std::size_t(move_count);
-    case ROOK:
-        return mobility_offset + knight_mob_count + bishop_mob_count + std::size_t(move_count);
-    case QUEEN:
-        return mobility_offset + knight_mob_count + bishop_mob_count + rook_mob_count
-             + std::size_t(move_count);
-    default: return count;
+        case KNIGHT: return mobility_offset + std::size_t(move_count);
+        case BISHOP: return mobility_offset + knight_mob_count + std::size_t(move_count);
+        case ROOK:
+            return mobility_offset + knight_mob_count + bishop_mob_count + std::size_t(move_count);
+        case QUEEN:
+            return mobility_offset
+                + knight_mob_count
+                + bishop_mob_count
+                + rook_mob_count
+                + std::size_t(move_count);
+        default: return count;
     }
 }
 
@@ -127,27 +131,31 @@ constexpr Id weak_piece(PieceType piece) {
 } // namespace feature
 
 struct FeatureDefinition {
-    std::string  name;
+    std::string name;
     TaperedScore weight;
 };
 
 struct FeatureRecord {
     std::array<TermScore, std::to_underlying(Term::Count)> terms{};
-    std::array<int, feature::count>                        coefficients{};
-    std::array<int, 4>                                     phase_counts{};
-    std::array<int, N_COLORS>                              pawn_counts{};
-    TaperedScore                                           fixed_score        = TaperedScore::Zero;
-    TaperedScore                                           unscaled_score     = TaperedScore::Zero;
-    TaperedScore                                           scaled_score       = TaperedScore::Zero;
-    Score                                                  tapered_value      = 0;
-    Score                                                  side_to_move_value = 0;
-    Score                                                  value              = 0;
-    Color                                                  turn               = WHITE;
+    std::array<int, feature::count> coefficients{};
+    std::array<int, 4> phase_counts{};
+    std::array<int, N_COLORS> pawn_counts{};
+    TaperedScore fixed_score = TaperedScore::Zero;
+    TaperedScore unscaled_score = TaperedScore::Zero;
+    TaperedScore scaled_score = TaperedScore::Zero;
+    Score tapered_value = 0;
+    Score side_to_move_value = 0;
+    Score value = 0;
+    Color turn = WHITE;
 
-    [[nodiscard]] const TermScore& term(Term term) const noexcept;
-    [[nodiscard]] TaperedScore     term_total() const noexcept;
-    [[nodiscard]] Score            white_value() const noexcept;
-    [[nodiscard]] Score            reconstruct() const noexcept;
+    [[nodiscard]]
+    const TermScore& term(Term term) const noexcept;
+    [[nodiscard]]
+    TaperedScore term_total() const noexcept;
+    [[nodiscard]]
+    Score white_value() const noexcept;
+    [[nodiscard]]
+    Score reconstruct() const noexcept;
 
 private:
     void add(feature::Id id, int coefficient) noexcept {
@@ -166,23 +174,26 @@ private:
     void complete(const Board& board,
                   TaperedScore unscaled,
                   TaperedScore scaled,
-                  Score        tapered_value,
-                  Score        side_to_move_value,
-                  Score        value) noexcept;
+                  Score tapered_value,
+                  Score side_to_move_value,
+                  Score value) noexcept;
 
     friend class Evaluator;
 };
 
-[[nodiscard]] const std::array<FeatureDefinition, feature::count>& feature_schema();
-[[nodiscard]] FeatureRecord extract_features(const Board& board);
-[[nodiscard]] std::string   format_evaluation(const FeatureRecord& record);
+[[nodiscard]]
+const std::array<FeatureDefinition, feature::count>& feature_schema();
+[[nodiscard]]
+FeatureRecord extract_features(const Board& board);
+[[nodiscard]]
+std::string format_evaluation(const FeatureRecord& record);
 
 using PositionPreparer = std::function<bool(Board&)>;
 
 // Exports source<TAB>result<TAB>fen records as versioned JSONL. The optional
 // preparer may modify a board or return false to skip it.
-void export_features(std::istream&           input,
-                     std::ostream&           output,
+void export_features(std::istream& input,
+                     std::ostream& output,
                      const PositionPreparer& prepare = {});
 
 } // namespace eval

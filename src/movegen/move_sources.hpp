@@ -37,22 +37,24 @@ public:
     OrderedCandidates() = default;
 
     // Active ranges point into this object's storage.
-    OrderedCandidates(const OrderedCandidates&)            = delete;
-    OrderedCandidates(OrderedCandidates&&)                 = delete;
+    OrderedCandidates(const OrderedCandidates&) = delete;
+    OrderedCandidates(OrderedCandidates&&) = delete;
     OrderedCandidates& operator=(const OrderedCandidates&) = delete;
-    OrderedCandidates& operator=(OrderedCandidates&&)      = delete;
+    OrderedCandidates& operator=(OrderedCandidates&&) = delete;
 
-    void
-    load_evasions(const Board& board, const search::History& history, Color side, Move tt_hint);
+    void load_evasions(const Board& board,
+                       const search::History& history,
+                       Color side,
+                       Move tt_hint);
 
     template <MovePolicy Policy>
     void load_noisy(const Board& board, const search::History& history, Move tt_hint);
 
-    void load_quiets(const Board&                   board,
-                     const search::History&         history,
+    void load_quiets(const Board& board,
+                     const search::History& history,
                      const search::OrderingContext& context,
-                     Move                           tt_hint,
-                     std::span<const Move>          quiet_hints);
+                     Move tt_hint,
+                     std::span<const Move> quiet_hints);
 
     Move take_evasion();
 
@@ -72,9 +74,9 @@ private:
     struct Candidate {
         // Scoring fills every field before the candidate becomes part of an active range.
         // Unused slots remain uninitialized.
-        Move           move;
+        Move move;
         CandidateState state;
-        int            score;
+        int score;
         // Captured with the score, before child searches can train the history table.
         int see_threshold;
     };
@@ -105,17 +107,17 @@ class MoveSource<MovePolicy::Unscored> {
     explicit MoveSource(const Board& board);
 
     // Traversal cursors point into this object's storage.
-    MoveSource(const MoveSource&)            = delete;
-    MoveSource(MoveSource&&)                 = delete;
+    MoveSource(const MoveSource&) = delete;
+    MoveSource(MoveSource&&) = delete;
     MoveSource& operator=(const MoveSource&) = delete;
-    MoveSource& operator=(MoveSource&&)      = delete;
+    MoveSource& operator=(MoveSource&&) = delete;
 
     Move next_candidate() { return cursor != end ? *cursor++ : NULL_MOVE; }
 
-    const Board&                   board;
+    const Board& board;
     std::array<Move, MoveCapacity> storage;
-    Move*                          cursor;
-    Move*                          end;
+    Move* cursor;
+    Move* end;
 };
 
 // Hints are node-start snapshots; scores freeze when their batch loads.
@@ -124,8 +126,8 @@ template <>
 class MoveSource<MovePolicy::MainSearch> {
     friend class Moves<MovePolicy::MainSearch>;
 
-    MoveSource(const Board&                   board,
-               const search::History&         history,
+    MoveSource(const Board& board,
+               const search::History& history,
                const search::OrderingContext& context);
     // The source borrows context. Reject temporaries that would be destroyed
     // at the end of the construction expression, before traversal begins.
@@ -145,16 +147,16 @@ class MoveSource<MovePolicy::MainSearch> {
     };
     static constexpr int QuietHintCapacity = 3;
 
-    const Board&                        board;
-    const search::History&              history;
-    const search::OrderingContext&      context;
-    Move                                tt_hint{NULL_MOVE};
-    Stage                               stage{Stage::TtHint};
-    OrderedCandidates                   candidates;
+    const Board& board;
+    const search::History& history;
+    const search::OrderingContext& context;
+    Move tt_hint{NULL_MOVE};
+    Stage stage{Stage::TtHint};
+    OrderedCandidates candidates;
     std::array<Move, QuietHintCapacity> quiet_hints{};
-    int                                 quiet_hint_count{0};
-    int                                 quiet_hint_index{0};
-    bool                                quiets_must_check{false};
+    int quiet_hint_count{0};
+    int quiet_hint_index{0};
+    bool quiets_must_check{false};
 };
 
 // Checked nodes return all legal evasions. Outside check, the TT hint and promotions
@@ -169,13 +171,13 @@ class MoveSource<MovePolicy::Quiescence> {
 
     enum class Stage : std::uint8_t { TtHint, LoadPrimary, Evasions, Noisy, Done };
 
-    const Board&           board;
+    const Board& board;
     const search::History& history;
-    const Color            side;
-    Move                   tt_hint{NULL_MOVE};
-    const bool             in_check;
-    Stage                  stage{Stage::TtHint};
-    OrderedCandidates      candidates;
+    const Color side;
+    Move tt_hint{NULL_MOVE};
+    const bool in_check;
+    Stage stage{Stage::TtHint};
+    OrderedCandidates candidates;
 };
 
 } // namespace movegen

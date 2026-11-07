@@ -18,19 +18,21 @@ namespace {
 constexpr std::uint32_t one_mb_cluster_shift = 49;
 
 struct TTStoredFields {
-    Move    move;
-    Score   score;
-    int     depth;
+    Move move;
+    Score score;
+    int depth;
     TTBound bound;
-    Score   static_eval;
+    Score static_eval;
 };
 
-[[nodiscard]] std::uint64_t cluster_index_for_one_mb_table(PositionKey zkey) {
+[[nodiscard]]
+std::uint64_t cluster_index_for_one_mb_table(PositionKey zkey) {
     return zkey >> one_mb_cluster_shift;
 }
 
-[[nodiscard]] std::vector<PositionKey> keys_in_same_one_mb_cluster(PositionKey zkey, size_t count) {
-    const std::uint64_t      target_index = cluster_index_for_one_mb_table(zkey);
+[[nodiscard]]
+std::vector<PositionKey> keys_in_same_one_mb_cluster(PositionKey zkey, size_t count) {
+    const std::uint64_t target_index = cluster_index_for_one_mb_table(zkey);
     std::vector<PositionKey> keys{zkey};
 
     for (std::uint64_t offset = 1; keys.size() < count; ++offset) {
@@ -44,11 +46,11 @@ struct TTStoredFields {
 }
 
 void expect_record(PositionKey zkey,
-                   Move        expected_move,
-                   int         expected_score,
-                   int         expected_depth,
-                   TTBound     expected_bound,
-                   Score       expected_static_eval = TTRecord::no_static_eval) {
+                   Move expected_move,
+                   int expected_score,
+                   int expected_depth,
+                   TTBound expected_bound,
+                   Score expected_static_eval = TTRecord::no_static_eval) {
     auto entry = tt.probe(zkey).record;
     ASSERT_TRUE(entry.has_value());
     EXPECT_EQ(expected_move, entry->move);
@@ -61,11 +63,11 @@ void expect_record(PositionKey zkey,
 
 class TTTest : public ::testing::Test {
 protected:
-    PositionKey key   = 0x123456789ABCDEF;
-    Move        move  = Move(Square::A2, Square::A4);
-    Score       score = 100;
-    int         depth = 5;
-    TTBound     bound = TTBound::Exact;
+    PositionKey key = 0x123456789ABCDEF;
+    Move move = Move(Square::A2, Square::A4);
+    Score score = 100;
+    int depth = 5;
+    TTBound bound = TTBound::Exact;
 
     void SetUp() override { tt.clear(); }
 };
@@ -91,10 +93,10 @@ TEST_F(TTTest, StoredFieldBoundariesRoundTrip) {
     // Set every encoded field to its maximum to exercise all 16 storage bits.
     constexpr Move packed_move{H8, H8, MOVE_CASTLE, QUEEN};
 
-    constexpr std::int16_t packed_score       = -12345;
-    constexpr int          packed_depth       = engine::max_search_depth;
-    constexpr TTBound      packed_bound       = TTBound::UpperBound;
-    constexpr Score        packed_static_eval = std::numeric_limits<std::int16_t>::min();
+    constexpr std::int16_t packed_score = -12345;
+    constexpr int packed_depth = engine::max_search_depth;
+    constexpr TTBound packed_bound = TTBound::UpperBound;
+    constexpr Score packed_static_eval = std::numeric_limits<std::int16_t>::min();
 
     tt.store(key, packed_move, packed_score, packed_depth, packed_bound, 0, packed_static_eval);
 
@@ -160,7 +162,7 @@ TEST_F(TTTest, ClearRemovesEntries) {
 TEST_F(TTTest, MateScoresRoundTripThroughStorage) {
     struct Case {
         Score root_score;
-        int   ply;
+        int ply;
         Score stored_score;
     };
 
@@ -182,11 +184,11 @@ TEST_F(TTTest, MateScoresRoundTripThroughStorage) {
 
 TEST_F(TTTest, RecordCanCutoffWithSufficientDepthAndMatchingBound) {
     TTRecord record{
-        .move       = move,
-        .score      = std::int16_t(score),
-        .depth      = std::uint8_t{5},
+        .move = move,
+        .score = std::int16_t(score),
+        .depth = std::uint8_t{5},
         .generation = 0,
-        .bound      = TTBound::Exact,
+        .bound = TTBound::Exact,
     };
 
     EXPECT_TRUE(record.can_cutoff(0, 5, -10, 10));
@@ -254,7 +256,9 @@ TEST_F(TTTest, ResizeRoundsCapacityDownToLargestFittingPowerOfTwo) {
 
 TEST_F(TTTest, ResizeAcrossAllocationSizesResetsEntriesAndGeneration) {
     constexpr std::array<PositionKey, 3> keys{
-        0x0000000000001234ULL, 0x8000000000005678ULL, 0xffffffffffff9abcULL};
+        0x0000000000001234ULL,
+        0x8000000000005678ULL,
+        0xffffffffffff9abcULL};
 
     TranspositionTable table;
     for (std::size_t megabytes : {1U, 2U, 3U, 32U, 0U, 2U}) {
@@ -332,11 +336,11 @@ TEST_F(TTTest, SameKeyNullMoveStorePreservesPreviousMoveAndUpdatesAcceptedFields
 TEST_F(TTTest, SameKeyReplacementUsesDepthAndBoundQuality) {
     struct Case {
         const char* name;
-        int         old_depth;
-        TTBound     old_bound;
-        int         new_depth;
-        TTBound     new_bound;
-        bool        replaces;
+        int old_depth;
+        TTBound old_bound;
+        int new_depth;
+        TTBound new_bound;
+        bool replaces;
     };
 
     constexpr std::array cases{
@@ -383,8 +387,8 @@ TEST_F(TTTest, FullClusterReplacementChoosesLowestReplacementScore) {
     const auto keys = keys_in_same_one_mb_cluster(key, 4);
     ASSERT_EQ(4U, keys.size());
 
-    const std::array<int, 3>  depths = {9, 1, 5};
-    const std::array<Move, 4> moves  = {Move(A2, A3), Move(B2, B3), Move(C2, C3), Move(D2, D3)};
+    const std::array<int, 3> depths = {9, 1, 5};
+    const std::array<Move, 4> moves = {Move(A2, A3), Move(B2, B3), Move(C2, C3), Move(D2, D3)};
 
     for (size_t i = 0; i < depths.size(); ++i) {
         tt.store(keys[i], moves[i], score + int(i), depths[i], TTBound::Exact, 0);
@@ -406,7 +410,7 @@ TEST_F(TTTest, ProbeReturnsDetachedRecord) {
     auto first_probe = tt.probe(key).record;
     ASSERT_TRUE(first_probe.has_value());
 
-    Move  new_move  = Move(Square::E2, Square::E4);
+    Move new_move = Move(Square::E2, Square::E4);
     Score new_score = 200;
     tt.store(key, new_move, new_score, depth + 1, TTBound::LowerBound, 0);
 
@@ -492,7 +496,7 @@ TEST_F(TTTest, AgedBoundCanBeReplacedByAShallowResult) {
 TEST_F(TTTest, ConcurrentRecordsContainOnlyStoredFieldValues) {
     for (bool different_keys : {false, true}) {
         tt.clear();
-        constexpr PositionKey               shared_key = 0x0F0E0D0C0B0A0908ULL;
+        constexpr PositionKey shared_key = 0x0F0E0D0C0B0A0908ULL;
         const std::array<TTStoredFields, 4> stored_fields{{
             {Move(Square::A2, Square::A4), 111, 4, TTBound::Exact, -1200},
             {Move(Square::B2, Square::B4), -77, 6, TTBound::LowerBound, 2300},
@@ -513,7 +517,7 @@ TEST_F(TTTest, ConcurrentRecordsContainOnlyStoredFieldValues) {
         constexpr int writer_iterations = 20000;
         constexpr int reader_iterations = 30000;
 
-        std::barrier     start_line(static_cast<std::ptrdiff_t>(stored_fields.size() + 2));
+        std::barrier start_line(static_cast<std::ptrdiff_t>(stored_fields.size() + 2));
         std::atomic<int> hit_count{0};
         std::atomic<int> miss_count{0};
         std::atomic<int> invalid_record_count{0};
@@ -567,7 +571,7 @@ TEST_F(TTTest, ConcurrentRecordsContainOnlyStoredFieldValues) {
         for (auto& worker : workers)
             worker.join();
 
-        const int hits   = hit_count.load(std::memory_order_relaxed);
+        const int hits = hit_count.load(std::memory_order_relaxed);
         const int misses = miss_count.load(std::memory_order_relaxed);
 
         EXPECT_GT(hits, 0);

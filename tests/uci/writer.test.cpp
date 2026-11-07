@@ -35,7 +35,7 @@ search::PV pv_for_line(Move first, Move second) {
 class UciWriterTest : public ::testing::Test {
 protected:
     std::ostringstream oss, err;
-    uci::Writer        writer{oss, err};
+    uci::Writer writer{oss, err};
 
     void SetUp() override {
         oss.str("");
@@ -45,9 +45,9 @@ protected:
     }
 
     std::string write_search_info(const search::RootLine& line,
-                                  const Board&            board,
-                                  NodeCount               nodes = 0,
-                                  Milliseconds            time  = Milliseconds{0}) {
+                                  const Board& board,
+                                  NodeCount nodes = 0,
+                                  Milliseconds time = Milliseconds{0}) {
         writer.report_progress(line, board, nodes, time);
         std::string output = oss.str();
         oss.str("");
@@ -63,7 +63,7 @@ TEST_F(UciWriterTest, Help) {
 }
 
 TEST_F(UciWriterTest, Identify) {
-    uci::Options               options;
+    uci::Options options;
     search::TranspositionTable default_table;
 
     writer.identify(options);
@@ -97,7 +97,7 @@ TEST_F(UciWriterTest, BestmoveFormatsNullMoveAsUciNullMove) {
 
 TEST_F(UciWriterTest, SearchProgressWritesScoreFormats) {
     struct ScoreCase {
-        int         value;
+        int value;
         std::string expected_score;
     };
 
@@ -111,10 +111,10 @@ TEST_F(UciWriterTest, SearchProgressWritesScoreFormats) {
     for (const ScoreCase& test_case : cases) {
         search::RootLine line{
             .root_move = Move{E2, E4},
-            .value     = test_case.value,
-            .depth     = 10,
+            .value = test_case.value,
+            .depth = 10,
             .completed = true,
-            .pv        = pv_for_line(Move{E2, E4}, Move{E7, E5}),
+            .pv = pv_for_line(Move{E2, E4}, Move{E7, E5}),
         };
 
         const std::string output = write_search_info(line, board, 1000, Milliseconds{100});
@@ -127,13 +127,13 @@ TEST_F(UciWriterTest, SearchProgressWritesScoreFormats) {
 }
 
 TEST_F(UciWriterTest, SearchProgressSerializesLegalRootPv) {
-    Board            board{board_test::fen::start};
+    Board board{board_test::fen::start};
     search::RootLine line{
         .root_move = Move{E2, E4},
-        .value     = 20,
-        .depth     = 2,
+        .value = 20,
+        .depth = 2,
         .completed = true,
-        .pv        = pv_for_line(Move{E2, E4}, Move{E7, E5}),
+        .pv = pv_for_line(Move{E2, E4}, Move{E7, E5}),
     };
 
     EXPECT_EQ(write_search_info(line, board, 1234, Milliseconds{56}),
@@ -145,8 +145,8 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
 
     search::RootLine null_best{
         .root_move = NULL_MOVE,
-        .value     = scores::draw,
-        .depth     = 1,
+        .value = scores::draw,
+        .depth = 1,
         .completed = true,
     };
     EXPECT_EQ(write_search_info(null_best, board),
@@ -154,20 +154,20 @@ TEST_F(UciWriterTest, SearchProgressClearsUnusableRootPv) {
 
     search::RootLine incomplete{
         .root_move = Move{E2, E4},
-        .value     = scores::draw,
-        .depth     = 1,
+        .value = scores::draw,
+        .depth = 1,
         .completed = false,
-        .pv        = pv_for_move(Move{E2, E4}),
+        .pv = pv_for_move(Move{E2, E4}),
     };
     EXPECT_EQ(write_search_info(incomplete, board),
               "info depth 1 score cp 0 nodes 0 time 0 nps 0\n");
 
     search::RootLine depth_zero{
         .root_move = Move{E2, E4},
-        .value     = scores::draw,
-        .depth     = 0,
+        .value = scores::draw,
+        .depth = 0,
         .completed = true,
-        .pv        = pv_for_move(Move{E2, E4}),
+        .pv = pv_for_move(Move{E2, E4}),
     };
     EXPECT_EQ(write_search_info(depth_zero, board),
               "info depth 0 score cp 0 nodes 0 time 0 nps 0\n");
@@ -178,20 +178,20 @@ TEST_F(UciWriterTest, SearchProgressRejectsStaleRootPv) {
 
     search::RootLine first_move_mismatch{
         .root_move = Move{E2, E4},
-        .value     = scores::draw,
-        .depth     = 1,
+        .value = scores::draw,
+        .depth = 1,
         .completed = true,
-        .pv        = pv_for_move(Move{D2, D4}),
+        .pv = pv_for_move(Move{D2, D4}),
     };
     EXPECT_EQ(write_search_info(first_move_mismatch, board),
               "info depth 1 score cp 0 nodes 0 time 0 nps 0\n");
 
     search::RootLine illegal_child{
         .root_move = Move{E2, E4},
-        .value     = scores::draw,
-        .depth     = 2,
+        .value = scores::draw,
+        .depth = 2,
         .completed = true,
-        .pv        = pv_for_line(Move{E2, E4}, Move{H1, H2}),
+        .pv = pv_for_line(Move{E2, E4}, Move{H1, H2}),
     };
     EXPECT_EQ(write_search_info(illegal_child, board),
               "info depth 2 score cp 0 nodes 0 time 0 nps 0\n");
@@ -225,8 +225,8 @@ TEST(UciWriterConcurrencyTest, SerializesSharedOutputAndErrorStream) {
     constexpr int writes_per_thread = 128;
 
     std::ostringstream output;
-    uci::Writer        writer{output, output};
-    std::barrier       start_line{2};
+    uci::Writer writer{output, output};
+    std::barrier start_line{2};
 
     std::jthread output_thread([&] {
         start_line.arrive_and_wait();
@@ -247,8 +247,8 @@ TEST(UciWriterConcurrencyTest, SerializesSharedOutputAndErrorStream) {
     output_thread.join();
     error_thread.join();
 
-    int                output_lines = 0;
-    int                error_lines  = 0;
+    int output_lines = 0;
+    int error_lines = 0;
     std::istringstream lines{output.str()};
     for (std::string line; std::getline(lines, line);) {
         if (line == "info string output")

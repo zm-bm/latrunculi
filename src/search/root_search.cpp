@@ -23,7 +23,7 @@ void Worker::build_root_candidates() {
 
     // Root candidates start in ordered-stream order.
     const auto context = history.context_for(board, 0);
-    auto       moves   = movegen::MainSearchMoves(board, history, context);
+    auto moves = movegen::MainSearchMoves(board, history, context);
 
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         if (limits.allows_root_move(move))
@@ -36,8 +36,8 @@ RootLine Worker::terminal_root_result() const {
 
     return RootLine{
         .root_move = NULL_MOVE,
-        .value     = board.is_check() ? -scores::mate : scores::draw,
-        .depth     = 0,
+        .value = board.is_check() ? -scores::mate : scores::draw,
+        .depth = 0,
         .completed = true,
     };
 }
@@ -80,10 +80,10 @@ bool Worker::should_search_root_depth(int depth) const noexcept {
 bool Worker::search_root_depth(int depth, Score previous_value) {
     assert(depth >= 1);
 
-    Score delta       = 50;
-    Score alpha       = std::max(previous_value - delta, -scores::inf);
-    Score beta        = std::min(previous_value + delta, scores::inf);
-    int   retry_depth = depth;
+    Score delta = 50;
+    Score alpha = std::max(previous_value - delta, -scores::inf);
+    Score beta = std::min(previous_value + delta, scores::inf);
+    int retry_depth = depth;
 
     while (!stop_requested()) {
         // Keep root order but clear stale attempt state.
@@ -105,15 +105,15 @@ bool Worker::search_root_depth(int depth, Score previous_value) {
         if (value <= alpha) {
             // Fail low: recenter the lower bound and restore the nominal depth.
             stats.aspiration_fail_low();
-            alpha       = std::max(value - delta, -scores::inf);
+            alpha = std::max(value - delta, -scores::inf);
             retry_depth = depth;
         } else if (value >= beta) {
             // Fail high: retry one ply shallower, except for mate-like scores.
             stats.aspiration_fail_high();
-            beta        = std::min(value + delta, scores::inf);
+            beta = std::min(value + delta, scores::inf);
             retry_depth = value <= -scores::mate_bound || value >= scores::mate_bound
-                            ? depth
-                            : std::max(1, depth - 1);
+                ? depth
+                : std::max(1, depth - 1);
         } else {
             // Window hit: accept and publish the completed depth.
             accepted_result = best_line;
@@ -125,7 +125,7 @@ bool Worker::search_root_depth(int depth, Score previous_value) {
 
         // Recenter with the current delta above, then grow it for the next miss.
         const Score growth = delta / 2;
-        delta              = delta >= scores::inf - growth ? scores::inf : delta + growth;
+        delta = delta >= scores::inf - growth ? scores::inf : delta + growth;
     }
 
     return false;
@@ -138,7 +138,7 @@ bool Worker::search_root_window(int search_depth, int nominal_depth, Score alpha
     assert(nominal_depth >= search_depth);
     root_iteration_depth = nominal_depth;
 
-    int  move_count  = 0;
+    int move_count = 0;
     bool has_pv_move = false;
 
     // Preserve caller order for iterative deepening and aspiration retries.
@@ -159,7 +159,7 @@ bool Worker::search_root_window(int search_depth, int nominal_depth, Score alpha
         Score value;
         if (move_count == 1 || !has_pv_move) {
             child->pv_enabled = true;
-            value             = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, child);
+            value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, child);
         } else {
             child->pv_enabled = false;
             value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, search_depth - 1, child);
@@ -188,7 +188,7 @@ bool Worker::search_root_window(int search_depth, int nominal_depth, Score alpha
             if (is_main_worker())
                 report_root_progress(line);
 
-            alpha       = value;
+            alpha = value;
             has_pv_move = true;
         } else if (move_count > 1 && has_pv_move && value == alpha && alpha > -scores::inf) {
             // Keep the full-window alpha raiser ordered first on scout ties.

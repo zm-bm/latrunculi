@@ -19,21 +19,22 @@ namespace search {
 // Immutable ordering inputs shared by move selection and learning. Hints are raw
 // node-start snapshots; history scores remain live until their consumer reads them.
 struct OrderingContext {
-    static constexpr int           PreviousKeyCount = N_COLORS * piece_slots * N_SQUARES;
-    static constexpr std::uint16_t NoPreviousKey    = PreviousKeyCount;
+    static constexpr int PreviousKeyCount = N_COLORS * piece_slots * N_SQUARES;
+    static constexpr std::uint16_t NoPreviousKey = PreviousKeyCount;
 
-    Color         side{WHITE};
-    bool          in_check{false};
+    Color side{WHITE};
+    bool in_check{false};
     std::uint16_t previous_key{NoPreviousKey};
-    int           ply{0};
-    Move          tt_move{NULL_MOVE};
-    Move          primary_killer{NULL_MOVE};
-    Move          secondary_killer{NULL_MOVE};
-    Move          counter_move{NULL_MOVE};
+    int ply{0};
+    Move tt_move{NULL_MOVE};
+    Move primary_killer{NULL_MOVE};
+    Move secondary_killer{NULL_MOVE};
+    Move counter_move{NULL_MOVE};
 
-    bool                 has_previous_move() const { return previous_key != NoPreviousKey; }
-    static std::uint16_t
-    make_previous_key(Color previous_side, PieceType previous_piece, Square previous_to) {
+    bool has_previous_move() const { return previous_key != NoPreviousKey; }
+    static std::uint16_t make_previous_key(Color previous_side,
+                                           PieceType previous_piece,
+                                           Square previous_to) {
         return static_cast<std::uint16_t>(
             (static_cast<int>(previous_side) * piece_slots + piece_slot(previous_piece)) * N_SQUARES
             + static_cast<int>(previous_to));
@@ -44,24 +45,27 @@ struct OrderingContext {
 // quiet/capture scores age, while continuation scores persist until full clearing.
 class History {
 public:
-    static constexpr int QuietMaxScore   = 1024;
+    static constexpr int QuietMaxScore = 1024;
     static constexpr int CaptureMaxScore = 16384;
 
-    History() : continuation_scores(std::make_unique<ContinuationTable>()) {}
+    History()
+        : continuation_scores(std::make_unique<ContinuationTable>()) {}
 
     // Build once before constructing the node's stream and learning object.
     OrderingContext context_for(const Board& board, int ply, Move tt_move = NULL_MOVE) const {
         OrderingContext context{.side = board.side_to_move(), .ply = ply, .tt_move = tt_move};
-        const Move      previous_move = board.previous_move();
+        const Move previous_move = board.previous_move();
         if (!previous_move.is_null()) {
             const PieceType previous_piece = previous_move.type() == MOVE_PROM
-                                               ? PAWN
-                                               : type_of(board.piece_on(previous_move.to()));
+                ? PAWN
+                : type_of(board.piece_on(previous_move.to()));
             if (previous_piece != NO_PIECETYPE)
                 context.previous_key = OrderingContext::make_previous_key(
-                    ~context.side, previous_piece, previous_move.to());
+                    ~context.side,
+                    previous_piece,
+                    previous_move.to());
         }
-        context.primary_killer   = killer_moves[ply][0];
+        context.primary_killer = killer_moves[ply][0];
         context.secondary_killer = killer_moves[ply][1];
         context.counter_move =
             context.has_previous_move() ? counter_moves[context.previous_key] : NULL_MOVE;
@@ -130,8 +134,10 @@ public:
         return history_score;
     }
 
-    void
-    update_quiet(const OrderingContext& context, const Board& board, Move move, int adjustment) {
+    void update_quiet(const OrderingContext& context,
+                      const Board& board,
+                      Move move,
+                      int adjustment) {
         apply_gravity(quiet_scores[context.side][move.from()][move.to()], adjustment);
         if (!context.has_previous_move())
             return;
@@ -144,10 +150,11 @@ public:
     // Raw learned history; capture ordering applies its own scaling and material weights.
     int capture_score(const Board& board, Move move) const {
         assert(board.is_capture(move) && move.type() != MOVE_PROM);
-        return capture_score(board.side_to_move(),
-                             board.piece_type_on(move.from()),
-                             move.to(),
-                             board.captured_piece_type(move));
+        return capture_score(
+            board.side_to_move(),
+            board.piece_type_on(move.from()),
+            move.to(),
+            board.captured_piece_type(move));
     }
 
     int capture_score(Color side, PieceType moving_piece, Square to, PieceType victim) const {
@@ -160,7 +167,7 @@ public:
     }
 
 private:
-    using HistoryScore                = std::int16_t;
+    using HistoryScore = std::int16_t;
     static constexpr int MoveKeyCount = piece_slots * N_SQUARES;
     using ContinuationTable =
         std::array<HistoryScore, OrderingContext::PreviousKeyCount * MoveKeyCount>;
@@ -184,30 +191,32 @@ private:
         return previous_key * MoveKeyCount + move_key;
     }
 
-    HistoryScore&
-    continuation_entry(const OrderingContext& context, PieceType moving_piece, Square to) {
+    HistoryScore& continuation_entry(const OrderingContext& context,
+                                     PieceType moving_piece,
+                                     Square to) {
         return (*continuation_scores)[continuation_index(context.previous_key, moving_piece, to)];
     }
 
-    const HistoryScore&
-    continuation_entry(const OrderingContext& context, PieceType moving_piece, Square to) const {
+    const HistoryScore& continuation_entry(const OrderingContext& context,
+                                           PieceType moving_piece,
+                                           Square to) const {
         return (*continuation_scores)[continuation_index(context.previous_key, moving_piece, to)];
     }
 
     // Apply bounded gravity so entries approach saturation smoothly.
     static void apply_gravity(HistoryScore& entry, int adjustment, int limit = QuietMaxScore) {
-        adjustment          = std::clamp(adjustment, -limit, limit);
-        const int current   = entry;
+        adjustment = std::clamp(adjustment, -limit, limit);
+        const int current = entry;
         const int magnitude = adjustment < 0 ? -adjustment : adjustment;
-        const int delta     = adjustment - (current * magnitude / limit);
+        const int delta = adjustment - (current * magnitude / limit);
 
         entry = std::clamp(current + delta, -limit, limit);
     }
 
     static void age_entry(HistoryScore& entry) { entry /= 2; }
 
-    Move         killer_moves[engine::max_search_ply][2]{};
-    Move         counter_moves[OrderingContext::PreviousKeyCount]{};
+    Move killer_moves[engine::max_search_ply][2]{};
+    Move counter_moves[OrderingContext::PreviousKeyCount]{};
     HistoryScore quiet_scores[N_COLORS][N_SQUARES][N_SQUARES]{};
     HistoryScore capture_scores[N_COLORS][piece_slots][N_SQUARES][piece_slots]{};
     // Keep the large continuation table off the worker's inline storage.

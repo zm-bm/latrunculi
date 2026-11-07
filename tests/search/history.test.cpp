@@ -13,14 +13,17 @@ static_assert(!std::is_copy_constructible_v<HistoryLearning>);
 static_assert(!std::is_move_constructible_v<HistoryLearning>);
 
 TEST(HistoryTest, QuietScoresCombineBaseAndContinuation) {
-    History               history;
-    const Board           board;
+    History history;
+    const Board board;
     const OrderingContext positive{
-        .side = BLACK, .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, E4)};
+        .side = BLACK,
+        .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, E4)};
     const OrderingContext negative{
-        .side = WHITE, .previous_key = OrderingContext::make_previous_key(BLACK, BISHOP, D4)};
+        .side = WHITE,
+        .previous_key = OrderingContext::make_previous_key(BLACK, BISHOP, D4)};
     const OrderingContext other_previous{
-        .side = BLACK, .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, D4)};
+        .side = BLACK,
+        .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, D4)};
     const Move knight{G8, F6}, pawn{E2, E3};
     history.update_quiet(positive, board, knight, 9);
     history.update_quiet(negative, board, pawn, -9);
@@ -42,10 +45,10 @@ TEST(HistoryTest, QuietScoresCombineBaseAndContinuation) {
 }
 
 TEST(HistoryTest, CaptureScoresPreserveGravityAndBounds) {
-    History     history;
+    History history;
     const Board white{"7k/8/8/4p3/8/3N4/8/7K w - - 0 1"};
     const Board black{"r6k/8/8/8/8/Q7/8/7K b - - 0 1"};
-    const Move  white_move{D3, E5}, black_move{A8, A3};
+    const Move white_move{D3, E5}, black_move{A8, A3};
     for (int i = 0; i < 3; ++i) {
         history.update_capture(white, white_move, 256);
         history.update_capture(black, black_move, -256);
@@ -62,12 +65,12 @@ TEST(HistoryTest, CaptureScoresPreserveGravityAndBounds) {
 }
 
 TEST(HistoryLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
-    History               history;
-    const Board           board{"7k/8/8/b1p1b3/Q7/3N4/6P1/7K w - - 0 1"};
+    History history;
+    const Board board{"7k/8/8/b1p1b3/Q7/3N4/6P1/7K w - - 0 1"};
     const OrderingContext context = history.context_for(board, 0);
-    Instrumentation<>     stats;
-    HistoryLearning       learning(board, history, context, 40, stats);
-    const Move            king{H1, G1}, pawn{G2, G3}, capture{D3, C5}, cutoff{A4, B4};
+    Instrumentation<> stats;
+    HistoryLearning learning(board, history, context, 40, stats);
+    const Move king{H1, G1}, pawn{G2, G3}, capture{D3, C5}, cutoff{A4, B4};
     learning.record_non_cutoff(king, false, false);
     learning.record_non_cutoff(pawn, false, false);
     learning.record_non_cutoff(capture, true, false);
@@ -101,12 +104,14 @@ TEST(HistoryLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
 }
 
 TEST(HistoryTest, QuietRefutationsRotateAndReplace) {
-    History               history;
-    const Board           board;
+    History history;
+    const Board board;
     const OrderingContext first_context{
-        .side = BLACK, .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, E4)};
+        .side = BLACK,
+        .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, E4)};
     const OrderingContext second_context{
-        .side = BLACK, .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, D4)};
+        .side = BLACK,
+        .previous_key = OrderingContext::make_previous_key(WHITE, PAWN, D4)};
     const Move first{C2, C4}, second{D2, D4}, third{E2, E4}, other_ply{G2, G3};
     history.update_quiet_refutations(first_context, first);
     EXPECT_EQ(history.context_for(board, 0).primary_killer, first);
@@ -126,7 +131,7 @@ TEST(HistoryTest, QuietRefutationsRotateAndReplace) {
     EXPECT_EQ(history.context_for(board, 0).secondary_killer, second);
     EXPECT_EQ(SearchTestAccess::counter_move_entry(history, second_context), third);
     auto other_context = first_context;
-    other_context.ply  = 1;
+    other_context.ply = 1;
     history.update_quiet_refutations(other_context, other_ply);
     EXPECT_EQ(history.context_for(board, 1).primary_killer, other_ply);
     EXPECT_EQ(history.context_for(board, 0).primary_killer, third);

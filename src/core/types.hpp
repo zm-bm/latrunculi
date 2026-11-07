@@ -4,15 +4,15 @@
 #include <cstdint>
 
 // Monotonic clock used by search timing.
-using SearchClock  = std::chrono::steady_clock;
-using TimePoint    = SearchClock::time_point;
+using SearchClock = std::chrono::steady_clock;
+using TimePoint = SearchClock::time_point;
 using Milliseconds = std::chrono::milliseconds;
 
 // Engine-wide scalar aliases.
-using Score       = std::int32_t; // Evaluation/search units, including mate encodings and infinity.
-using Bitboard    = std::uint64_t;
+using Score = std::int32_t; // Evaluation/search units, including mate encodings and infinity.
+using Bitboard = std::uint64_t;
 using PositionKey = std::uint64_t;
-using NodeCount   = std::uint64_t;
+using NodeCount = std::uint64_t;
 
 // Board-coordinate types are defined in square.hpp.
 enum Rank : std::int8_t;

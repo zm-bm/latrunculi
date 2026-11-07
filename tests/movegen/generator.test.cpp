@@ -39,7 +39,7 @@ bool are_disjoint(const std::vector<Move>& lhs, const std::vector<Move>& rhs) {
 } // namespace
 
 TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
-    Board      quiet_board{board_test::fen::start};
+    Board quiet_board{board_test::fen::start};
     const auto quiet_moves = board_test::pseudo_legal_moves(quiet_board);
     EXPECT_EQ(emitted_moves<movegen::GenerationKind::NonEvasions>(quiet_board), quiet_moves);
 
@@ -52,7 +52,7 @@ TEST(MoveGeneratorTest, PseudoLegalDispatchesToNonEvasionsOrEvasions) {
 TEST(MoveGeneratorTest, EnPassantCanInterposeAgainstSliderCheck) {
     struct TestCase {
         std::string_view fen;
-        Move             move;
+        Move move;
     };
 
     constexpr std::array cases = {
@@ -86,8 +86,8 @@ TEST(MoveGeneratorTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
         ASSERT_FALSE(board.is_check()) << fen;
 
         const auto non_evasions = board_test::pseudo_legal_moves(board);
-        const auto noisy_moves  = emitted_moves<movegen::GenerationKind::Noisy>(board);
-        const auto quiet_moves  = emitted_moves<movegen::GenerationKind::Quiet>(board);
+        const auto noisy_moves = emitted_moves<movegen::GenerationKind::Noisy>(board);
+        const auto quiet_moves = emitted_moves<movegen::GenerationKind::Quiet>(board);
         EXPECT_FALSE(has_duplicates(non_evasions)) << fen;
         EXPECT_FALSE(has_duplicates(noisy_moves)) << fen;
         EXPECT_FALSE(has_duplicates(quiet_moves)) << fen;
@@ -98,7 +98,9 @@ TEST(MoveGeneratorTest, NoisyAndQuietMovesPartitionAndClassifyNonEvasions) {
 
         for (const Move& move : noisy_moves) {
             EXPECT_TRUE(move.type() == MOVE_PROM || board.is_capture(move))
-                << move << " in " << fen;
+                << move
+                << " in "
+                << fen;
         }
 
         for (const Move& move : quiet_moves) {

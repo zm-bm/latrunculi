@@ -13,7 +13,7 @@
 class EngineTest : public ::testing::Test {
 protected:
     std::ostringstream output;
-    uci::Engine        engine{output, output, std::cin};
+    uci::Engine engine{output, output, std::cin};
 
     void SetUp() override {
         output.str("");
@@ -21,8 +21,8 @@ protected:
         search::tt.clear();
     }
 
-    bool                execute(const std::string& command) { return engine.execute(command); }
-    Board&              board() { return engine.board; }
+    bool execute(const std::string& command) { return engine.execute(command); }
+    Board& board() { return engine.board; }
     search::ThreadPool& thread_pool() { return engine.thread_pool; }
     const uci::Options& options() const { return engine.options; }
 };

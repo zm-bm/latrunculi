@@ -15,36 +15,36 @@ namespace see_oracle {
 // production attack-set updates and threshold cutoffs.
 struct Position {
     std::array<Piece, N_SQUARES> squares{};
-    Bitboard                     occupancy{};
+    Bitboard occupancy{};
 
     bool attacks(Square from, Square to) const {
         const Piece piece = squares[from];
-        const int   df    = square::file_of(to) - square::file_of(from);
-        const int   dr    = square::rank_of(to) - square::rank_of(from);
+        const int df = square::file_of(to) - square::file_of(from);
+        const int dr = square::rank_of(to) - square::rank_of(from);
         switch (type_of(piece)) {
-        case PAWN:   return std::abs(df) == 1 && dr == (color_of(piece) == WHITE ? 1 : -1);
-        case KNIGHT: return std::abs(df) * std::abs(dr) == 2;
-        case KING:   return std::max(std::abs(df), std::abs(dr)) == 1;
-        case BISHOP:
-            if (std::abs(df) != std::abs(dr))
-                return false;
-            break;
-        case ROOK:
-            if (df != 0 && dr != 0)
-                return false;
-            break;
-        case QUEEN:
-            if (df != 0 && dr != 0 && std::abs(df) != std::abs(dr))
-                return false;
-            break;
-        default: return false;
+            case PAWN:   return std::abs(df) == 1 && dr == (color_of(piece) == WHITE ? 1 : -1);
+            case KNIGHT: return std::abs(df) * std::abs(dr) == 2;
+            case KING:   return std::max(std::abs(df), std::abs(dr)) == 1;
+            case BISHOP:
+                if (std::abs(df) != std::abs(dr))
+                    return false;
+                break;
+            case ROOK:
+                if (df != 0 && dr != 0)
+                    return false;
+                break;
+            case QUEEN:
+                if (df != 0 && dr != 0 && std::abs(df) != std::abs(dr))
+                    return false;
+                break;
+            default: return false;
         }
         return !(square::between(from, to) & occupancy);
     }
 
     Position capture(Square from, Square to) const {
-        Position next      = *this;
-        next.squares[to]   = squares[from];
+        Position next = *this;
+        next.squares[to] = squares[from];
         next.squares[from] = NO_PIECE;
         bb::remove(next.occupancy, from);
         bb::add(next.occupancy, to);
@@ -53,7 +53,9 @@ struct Position {
 
     bool attacked(Square to, Color side) const {
         for (Square from = A1; from < N_SQUARES; ++from)
-            if (from != to && squares[from] != NO_PIECE && color_of(squares[from]) == side
+            if (from != to
+                && squares[from] != NO_PIECE
+                && color_of(squares[from]) == side
                 && attacks(from, to))
                 return true;
         return false;

@@ -8,24 +8,24 @@ namespace search {
 
 // Root-search result passed between workers and final reporting.
 struct RootLine {
-    Move  root_move{NULL_MOVE};
+    Move root_move{NULL_MOVE};
     Score value{scores::draw};
 
-    int  depth{0};
+    int depth{0};
     bool completed{false};
 
     PV pv;
 
     void reset_attempt() noexcept {
-        value     = -scores::inf;
-        depth     = 0;
+        value = -scores::inf;
+        depth = 0;
         completed = false;
         pv.clear();
     }
 
     void complete(int completed_depth, Score score, const PV& child_pv) {
-        value     = score;
-        depth     = completed_depth;
+        value = score;
+        depth = completed_depth;
         completed = true;
         pv.update(root_move, child_pv);
     }

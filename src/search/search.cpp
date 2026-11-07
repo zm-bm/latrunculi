@@ -1,3 +1,5 @@
+#include "search/worker.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -8,51 +10,50 @@
 #include "movegen/moves.hpp"
 #include "search/history_learning.hpp"
 #include "search/tt.hpp"
-#include "search/worker.hpp"
 
 namespace search {
 
 namespace {
 
 // Shallow pruning. Both reverse and move-loop futility use the same margins.
-constexpr int FutilityMaxDepth         = 3;
-constexpr int FutilityMargin[]         = {0, 250, 400, 550};
-constexpr int RazorMaxDepth            = 3;
-constexpr int RazorMargin[]            = {0, 500, 900, 1800};
-constexpr int LateMovePruningDepth     = 2;
+constexpr int FutilityMaxDepth = 3;
+constexpr int FutilityMargin[] = {0, 250, 400, 550};
+constexpr int RazorMaxDepth = 3;
+constexpr int RazorMargin[] = {0, 500, 900, 1800};
+constexpr int LateMovePruningDepth = 2;
 constexpr int LateMovePruningMoveCount = 12;
 
 // Null-move reductions.
-constexpr int   NullMoveMinDepth        = 3;
-constexpr int   NullMoveReductionBase   = 3;
-constexpr int   NullMoveReductionMax    = 6;
-constexpr int   NullMoveDepthDivisor    = 7;
-constexpr Score NullMoveSurplusPerPly   = 2 * eval::pawn.mg;
-constexpr int   NullMoveSurplusBonusMax = 2;
+constexpr int NullMoveMinDepth = 3;
+constexpr int NullMoveReductionBase = 3;
+constexpr int NullMoveReductionMax = 6;
+constexpr int NullMoveDepthDivisor = 7;
+constexpr Score NullMoveSurplusPerPly = 2 * eval::pawn.mg;
+constexpr int NullMoveSurplusBonusMax = 2;
 
 // Singular searches.
-constexpr int SingularMinDepth       = 8;
-constexpr int SingularTtDepthSlack   = 3;
+constexpr int SingularMinDepth = 8;
+constexpr int SingularTtDepthSlack = 3;
 constexpr int SingularPlyLimitFactor = 2;
-constexpr int SingularMarginDivisor  = 50;
-constexpr int SingularDepthDivisor   = 2;
+constexpr int SingularMarginDivisor = 50;
+constexpr int SingularDepthDivisor = 2;
 
 // Late-move reductions.
-constexpr int    LmrMinDepth              = 3;
-constexpr int    LmrMinMoveCount          = 4;
-constexpr double LmrQuietOffset           = 1.25;
-constexpr double LmrCaptureOffset         = 0.75;
-constexpr double LmrQuietDivisor          = 2.5;
-constexpr double LmrCaptureDivisor        = 3.3;
-constexpr double LmrPvScale               = 0.7;
-constexpr double LmrKillerScale           = 0.8;
-constexpr int    CaptureLmrMinDepth       = 4;
-constexpr int    CaptureLmrHistoryDivisor = 8192;
-constexpr double CaptureLmrMaxAdjustment  = 1.0;
+constexpr int LmrMinDepth = 3;
+constexpr int LmrMinMoveCount = 4;
+constexpr double LmrQuietOffset = 1.25;
+constexpr double LmrCaptureOffset = 0.75;
+constexpr double LmrQuietDivisor = 2.5;
+constexpr double LmrCaptureDivisor = 3.3;
+constexpr double LmrPvScale = 0.7;
+constexpr double LmrKillerScale = 0.8;
+constexpr int CaptureLmrMinDepth = 4;
+constexpr int CaptureLmrHistoryDivisor = 8192;
+constexpr double CaptureLmrMaxAdjustment = 1.0;
 
 // Quiescence.
-constexpr int   QuiescenceTtDepth = 0;
-constexpr Score QCaptureMargin    = 300;
+constexpr int QuiescenceTtDepth = 0;
+constexpr Score QCaptureMargin = 300;
 
 // Null-search roots suppress early pruning and singular searches, but retain
 // ordinary TT and move-loop behavior. A loaded position without history is not a null edge.
@@ -126,24 +127,25 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
      * Limit the window to possible mate scores, then check for a usable TT bound.
      */
     alpha = std::max(alpha, -scores::mate + ply);
-    beta  = std::min(beta, scores::mate - ply - 1);
+    beta = std::min(beta, scores::mate - ply - 1);
     if (alpha >= beta)
         return alpha;
 
-    const Score       original_alpha = alpha;
-    const PositionKey tt_key         = board.tt_key();
-    Move              tt_move        = NULL_MOVE;
+    const Score original_alpha = alpha;
+    const PositionKey tt_key = board.tt_key();
+    Move tt_move = NULL_MOVE;
 
     stats.main_tt_probe(ply);
-    const auto  tt_probe  = tt.probe(tt_key);
+    const auto tt_probe = tt.probe(tt_key);
     const auto& tt_record = tt_probe.record;
     if (tt_record) {
         stats.main_tt_hit(ply);
 
-        const TTRecord& record   = *tt_record;
-        const Score     tt_score = record.score_at_ply(ply);
+        const TTRecord& record = *tt_record;
+        const Score tt_score = record.score_at_ply(ply);
         // A TT score has no continuation; PV nodes must search.
-        if (!excluded_search && Node == NodeType::NonPv
+        if (!excluded_search
+            && Node == NodeType::NonPv
             && record.can_cutoff(tt_score, depth, alpha, beta)) {
             stats.main_tt_cutoff(ply);
             return tt_score;
@@ -156,32 +158,39 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
      * Static evaluation and early pruning.
      * Non-PV nodes keep an evaluation for pruning and TT storage; PV nodes leave it unset.
      */
-    const bool  in_check       = board.is_check();
-    const Color side           = board.side_to_move();
-    bool        quiet_futility = false;
-    Score       static_eval    = TTRecord::no_static_eval;
+    const bool in_check = board.is_check();
+    const Color side = board.side_to_move();
+    bool quiet_futility = false;
+    Score static_eval = TTRecord::no_static_eval;
 
     bool declining = false;
     if constexpr (Node == NodeType::NonPv) {
         const bool after_null = after_null_move(board, ply);
-        static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
-                                                                : eval::evaluate(board);
+        static_eval = tt_record && tt_record->has_static_eval()
+            ? tt_record->static_eval
+            : eval::evaluate(board);
         if (!in_check) {
             // Keep evaluations outside check in the frame for LMR's two-ply comparison.
             frame->static_eval = static_eval;
-            declining          = ply >= 2 && frame->real_move && (frame - 1)->real_move
-                     && (frame - 2)->static_eval && static_eval < *(frame - 2)->static_eval;
+            declining = ply >= 2
+                && frame->real_move
+                && (frame - 1)->real_move
+                && (frame - 2)->static_eval
+                && static_eval < *(frame - 2)->static_eval;
         }
 
         // At shallow depth, try quiescence when the evaluation is far below alpha.
-        const bool razor_candidate = !excluded_search && !after_null && !in_check
-                                  && depth <= RazorMaxDepth && tt_move.is_null();
+        const bool razor_candidate = !excluded_search
+            && !after_null
+            && !in_check
+            && depth <= RazorMaxDepth
+            && tt_move.is_null();
         if (razor_candidate && static_eval + RazorMargin[depth] <= alpha) {
             stats.razor_try(ply);
             const bool pv_enabled = frame->pv_enabled;
-            frame->pv_enabled     = false;
-            const Score value     = quiescence<NodeType::NonPv>(alpha - 1, alpha, frame);
-            frame->pv_enabled     = pv_enabled;
+            frame->pv_enabled = false;
+            const Score value = quiescence<NodeType::NonPv>(alpha - 1, alpha, frame);
+            frame->pv_enabled = pv_enabled;
             if (stop_requested())
                 return alpha;
             if (value < alpha) {
@@ -191,25 +200,35 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         }
 
         // Skip reverse futility and null-move pruning when a deep TT bound is below beta.
-        const bool tt_upper_veto = tt_record && tt_record->depth >= depth
-                                && tt_record->bound == TTBound::UpperBound
-                                && tt_record->score_at_ply(ply) < beta;
+        const bool tt_upper_veto = tt_record
+            && tt_record->depth >= depth
+            && tt_record->bound == TTBound::UpperBound
+            && tt_record->score_at_ply(ply) < beta;
 
         // Reverse futility: return when the evaluation remains above beta after its margin.
-        const bool reverse_futility_candidate =
-            !excluded_search && !after_null && !in_check && depth <= FutilityMaxDepth
-            && beta > -scores::mate_bound && beta < scores::mate_bound;
-        if (reverse_futility_candidate && board.non_pawn_material(side) > eval::piece(ROOK).mg
-            && !tt_upper_veto && static_eval - FutilityMargin[depth] >= beta)
+        const bool reverse_futility_candidate = !excluded_search
+            && !after_null
+            && !in_check
+            && depth <= FutilityMaxDepth
+            && beta > -scores::mate_bound
+            && beta < scores::mate_bound;
+        if (reverse_futility_candidate
+            && board.non_pawn_material(side) > eval::piece(ROOK).mg
+            && !tt_upper_veto
+            && static_eval - FutilityMargin[depth] >= beta)
             return static_eval;
 
         // Null-move pruning: try a reduced search after passing the turn.
-        if (!excluded_search && !after_null && !in_check && depth >= NullMoveMinDepth
-            && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto) {
+        if (!excluded_search
+            && !after_null
+            && !in_check
+            && depth >= NullMoveMinDepth
+            && board.non_pawn_material(side) > eval::piece(ROOK).mg
+            && !tt_upper_veto) {
             stats.null_move_try(ply);
 
             const Score positive_surplus = std::max(static_eval - beta, Score{0});
-            const int   surplus_bonus =
+            const int surplus_bonus =
                 std::min(int(positive_surplus / NullMoveSurplusPerPly), NullMoveSurplusBonusMax);
             const int reduction =
                 std::min({depth,
@@ -218,7 +237,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
 
             board.make_null(prefetch_child_tt);
             (frame + 1)->singular_search_active = frame->singular_search_active;
-            (frame + 1)->pv_enabled             = false;
+            (frame + 1)->pv_enabled = false;
             const Score value =
                 -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, frame + 1);
             // Restore the parent position before checking the result or stop request.
@@ -233,9 +252,12 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         }
 
         // Prepare shallow futility pruning. The move loop performs the actual skip.
-        quiet_futility = !excluded_search && depth <= FutilityMaxDepth && !in_check
-                      && alpha > -scores::mate_bound && alpha < scores::mate_bound
-                      && static_eval + FutilityMargin[depth] <= alpha;
+        quiet_futility = !excluded_search
+            && depth <= FutilityMaxDepth
+            && !in_check
+            && alpha > -scores::mate_bound
+            && alpha < scores::mate_bound
+            && static_eval + FutilityMargin[depth] <= alpha;
     }
 
     /*
@@ -244,12 +266,16 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
      */
     bool singular_extension = false;
 
-    const bool within_singular_limits = depth >= SingularMinDepth && ply > 0
-                                     && ply < SingularPlyLimitFactor * root_iteration_depth
-                                     && ply + 1 < engine::max_search_ply;
+    const bool within_singular_limits = depth >= SingularMinDepth
+        && ply > 0
+        && ply < SingularPlyLimitFactor * root_iteration_depth
+        && ply + 1 < engine::max_search_ply;
 
     // Require a sufficiently deep TT bound and room to extend this search path.
-    if (tt_record && within_singular_limits && !excluded_search && !after_null_move(board, ply)
+    if (tt_record
+        && within_singular_limits
+        && !excluded_search
+        && !after_null_move(board, ply)
         && tt_record->depth >= depth - SingularTtDepthSlack
         && (tt_record->bound == TTBound::Exact || tt_record->bound == TTBound::LowerBound)) {
         const Score tt_score = tt_record->score_at_ply(ply);
@@ -258,24 +284,26 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         const int singular_depth = (depth - 1) / SingularDepthDivisor;
 
         const bool non_mate_scores = std::abs(tt_score) < scores::mate_bound
-                                  && singular_beta > -scores::mate_bound
-                                  && singular_beta < scores::mate_bound;
-        if (non_mate_scores && !tt_move.is_null() && board.is_pseudo_legal(tt_move)
+            && singular_beta > -scores::mate_bound
+            && singular_beta < scores::mate_bound;
+        if (non_mate_scores
+            && !tt_move.is_null()
+            && board.is_pseudo_legal(tt_move)
             && board.is_legal_pseudo_move(tt_move)) {
             // Reuse this ply without PV output, then restore its search metadata.
-            const auto saved_eval         = frame->static_eval;
-            const bool saved_real_move    = frame->real_move;
-            const bool pv_enabled         = frame->pv_enabled;
-            const bool was_active         = frame->singular_search_active;
-            frame->excluded_move          = tt_move;
-            frame->pv_enabled             = false;
+            const auto saved_eval = frame->static_eval;
+            const bool saved_real_move = frame->real_move;
+            const bool pv_enabled = frame->pv_enabled;
+            const bool was_active = frame->singular_search_active;
+            frame->excluded_move = tt_move;
+            frame->pv_enabled = false;
             frame->singular_search_active = true;
             const Score singular_score =
                 alphabeta<NodeType::NonPv>(singular_beta - 1, singular_beta, singular_depth, frame);
-            frame->static_eval            = saved_eval;
-            frame->real_move              = saved_real_move;
-            frame->excluded_move          = excluded_move;
-            frame->pv_enabled             = pv_enabled;
+            frame->static_eval = saved_eval;
+            frame->real_move = saved_real_move;
+            frame->excluded_move = excluded_move;
+            frame->pv_enabled = pv_enabled;
             frame->singular_search_active = was_active;
 
             if (stop_requested())
@@ -284,13 +312,17 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             if (singular_score < singular_beta) {
                 singular_extension = true;
             } else if constexpr (Node == NodeType::NonPv) {
-                const bool non_mate_window =
-                    alpha > -scores::mate_bound && alpha < scores::mate_bound
-                    && beta > -scores::mate_bound && beta < scores::mate_bound;
+                const bool non_mate_window = alpha > -scores::mate_bound
+                    && alpha < scores::mate_bound
+                    && beta > -scores::mate_bound
+                    && beta < scores::mate_bound;
 
                 // Multicuts also require the singular window's lower edge outside mate ranges.
-                if (!frame->singular_search_active && !in_check && non_mate_window
-                    && singular_beta - 1 > -scores::mate_bound && singular_beta >= beta)
+                if (!frame->singular_search_active
+                    && !in_check
+                    && non_mate_window
+                    && singular_beta - 1 > -scores::mate_bound
+                    && singular_beta >= beta)
                     return stop_requested() ? alpha : singular_beta;
             }
         }
@@ -302,12 +334,12 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
      * Move preparation.
      * Set up ordered moves and history learning for this node.
      */
-    int   move_count = 0;
+    int move_count = 0;
     Score best_value = -scores::inf;
-    Move  best_move  = NULL_MOVE;
+    Move best_move = NULL_MOVE;
 
     const auto context = history.context_for(board, ply, tt_move);
-    auto       moves   = movegen::MainSearchMoves(board, history, context);
+    auto moves = movegen::MainSearchMoves(board, history, context);
 
     SearchFrame* child = frame + 1;
     child->pv.clear();
@@ -328,12 +360,12 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
          * Move pruning and reductions.
          * Read parent history before making the move, then check whether it gives check.
          */
-        const bool is_promotion      = move.type() == MOVE_PROM;
-        const bool is_capture        = board.is_capture(move);
-        const bool is_quiet          = !is_capture && !is_promotion;
+        const bool is_promotion = move.type() == MOVE_PROM;
+        const bool is_capture = board.is_capture(move);
+        const bool is_quiet = !is_capture && !is_promotion;
         const bool is_ordinary_quiet = is_quiet && move.type() == BASIC_MOVE;
-        const bool is_killer         = is_quiet && history.is_killer(move, ply);
-        const bool is_counter        = is_quiet && move == context.counter_move;
+        const bool is_killer = is_quiet && history.is_killer(move, ply);
+        const bool is_counter = is_quiet && move == context.counter_move;
 
         // LMR uses current history, read before making the move. Ordering retains its snapshot.
         int raw_capture_history = 0;
@@ -341,10 +373,13 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             raw_capture_history = history.capture_score(board, move);
         bool history_lmp_candidate = false;
         if constexpr (Node == NodeType::NonPv) {
-            const bool late_quiet_pruning_node =
-                !excluded_search && depth == LateMovePruningDepth
-                && move_count > LateMovePruningMoveCount && !quiet_futility && !in_check
-                && best_value > -scores::mate_bound && alpha > -scores::mate_bound
+            const bool late_quiet_pruning_node = !excluded_search
+                && depth == LateMovePruningDepth
+                && move_count > LateMovePruningMoveCount
+                && !quiet_futility
+                && !in_check
+                && best_value > -scores::mate_bound
+                && alpha > -scores::mate_bound
                 && beta < scores::mate_bound;
             if (late_quiet_pruning_node && board.non_pawn_material(side) > 0) {
                 const bool unprotected_quiet =
@@ -375,13 +410,16 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         }
 
         // Reduce late moves unless they promote, give check, or escape check.
-        int  reduction          = 0;
-        int  base_reduction     = 0;
+        int reduction = 0;
+        int base_reduction = 0;
         bool capture_adjustment = false;
-        if (depth >= LmrMinDepth && move_count >= LmrMinMoveCount && !is_promotion && !in_check
+        if (depth >= LmrMinDepth
+            && move_count >= LmrMinMoveCount
+            && !is_promotion
+            && !in_check
             && !gives_check) {
-            const double offset         = is_quiet ? LmrQuietOffset : LmrCaptureOffset;
-            const double divisor        = is_quiet ? LmrQuietDivisor : LmrCaptureDivisor;
+            const double offset = is_quiet ? LmrQuietOffset : LmrCaptureOffset;
+            const double divisor = is_quiet ? LmrQuietDivisor : LmrCaptureDivisor;
             double fractional_reduction = offset + std::log(depth) * std::log(move_count) / divisor;
 
             if constexpr (Node == NodeType::Pv)
@@ -403,9 +441,12 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
                     const double history_adjustment =
                         -static_cast<double>(raw_capture_history) / CaptureLmrHistoryDivisor;
                     const double adjustment = std::clamp(
-                        history_adjustment, -CaptureLmrMaxAdjustment, CaptureLmrMaxAdjustment);
-                    reduction = std::clamp(
-                        static_cast<int>(fractional_reduction + adjustment), 0, depth - 2);
+                        history_adjustment,
+                        -CaptureLmrMaxAdjustment,
+                        CaptureLmrMaxAdjustment);
+                    reduction = std::clamp(static_cast<int>(fractional_reduction + adjustment),
+                                           0,
+                                           depth - 2);
                     capture_adjustment = true;
                 }
             }
@@ -417,7 +458,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
          * Scout reduced moves and later PV moves before a full-depth search.
          */
         const bool scout = reduction > 0 || (Node == NodeType::Pv && !first_legal);
-        Score      value;
+        Score value;
         if (scout) {
             if (reduction > 0)
                 stats.lmr_try(ply);
@@ -437,7 +478,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
                 }
             }
             child->pv_enabled = Node == NodeType::Pv && frame->pv_enabled;
-            value             = -alphabeta<Node>(-beta, -alpha, child_depth, child);
+            value = -alphabeta<Node>(-beta, -alpha, child_depth, child);
         }
 
         /*
@@ -473,7 +514,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             learning->record_non_cutoff(move, is_capture, is_killer);
         if (value > best_value) {
             best_value = value;
-            best_move  = move;
+            best_move = move;
 
             if (value > alpha) {
                 alpha = value;
@@ -549,11 +590,11 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
      * TT lookup.
      * Check for a usable bound and retain the TT move for ordering.
      */
-    const Score       original_alpha = alpha;
-    const PositionKey tt_key         = board.tt_key();
-    Move              tt_move        = NULL_MOVE;
-    TTProbe           tt_probe;
-    const auto&       tt_record = tt_probe.record;
+    const Score original_alpha = alpha;
+    const PositionKey tt_key = board.tt_key();
+    Move tt_move = NULL_MOVE;
+    TTProbe tt_probe;
+    const auto& tt_record = tt_probe.record;
 
     if constexpr (UseTt) {
         stats.q_tt_probe(ply);
@@ -576,16 +617,17 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
      * Stand pat.
      * Outside check, use the static evaluation to try a cutoff or raise alpha.
      */
-    const bool in_check    = board.is_check();
-    int        move_count  = 0;
-    Score      best_value  = -scores::inf;
-    Move       best_move   = NULL_MOVE;
-    Score      static_eval = TTRecord::no_static_eval;
+    const bool in_check = board.is_check();
+    int move_count = 0;
+    Score best_value = -scores::inf;
+    Move best_move = NULL_MOVE;
+    Score static_eval = TTRecord::no_static_eval;
 
     if (!in_check) {
-        static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
-                                                                : eval::evaluate(board);
-        best_value  = static_eval;
+        static_eval = tt_record && tt_record->has_static_eval()
+            ? tt_record->static_eval
+            : eval::evaluate(board);
+        best_value = static_eval;
         if (best_value >= beta) {
             if constexpr (UseTt) {
                 tt.store(tt_probe.writer,
@@ -616,18 +658,21 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
          * Capture pruning.
          * Use evaluation material to estimate whether a capture can improve alpha.
          */
-        if (!in_check && move != tt_move && move.type() == BASIC_MOVE && alpha > -scores::mate_bound
+        if (!in_check
+            && move != tt_move
+            && move.type() == BASIC_MOVE
+            && alpha > -scores::mate_bound
             && beta < scores::mate_bound) {
             const PieceType victim = board.captured_piece_type(move);
-            const auto      price  = eval::piece(victim);
-            const Score     capture_gain_estimate =
+            const auto price = eval::piece(victim);
+            const Score capture_gain_estimate =
                 static_eval + std::max(price.mg, price.eg) + QCaptureMargin;
             if (capture_gain_estimate < alpha) {
                 const bool material_allows_capture_pruning =
                     board.non_pawn_material(board.side_to_move()) > eval::rook.mg
                     && board.non_pawn_material(~board.side_to_move())
-                               - (victim == PAWN ? 0 : price.mg)
-                           > eval::rook.mg;
+                            - (victim == PAWN ? 0 : price.mg)
+                        > eval::rook.mg;
                 if (material_allows_capture_pruning && !board.gives_check(move)) {
                     // Keep a fail-low estimate; leave alpha and the PV unchanged.
                     best_value = std::max(best_value, capture_gain_estimate);
@@ -670,7 +715,7 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
 
         if (value > best_value) {
             best_value = value;
-            best_move  = move;
+            best_move = move;
             if (value > alpha) {
                 alpha = value;
                 if (frame->pv_enabled)
@@ -716,8 +761,8 @@ bool Worker::settle(Board& position) {
     configure_search(position, Limits{}, SearchClock::now());
     history.clear();
 
-    SearchFrame* frame            = &frames[0];
-    frame->pv_enabled             = true;
+    SearchFrame* frame = &frames[0];
+    frame->pv_enabled = true;
     frame->singular_search_active = false;
     const Score value = quiescence<NodeType::Pv, false>(-scores::inf, scores::inf, frame);
     if (std::abs(value) >= scores::mate_bound)
@@ -740,7 +785,9 @@ bool Worker::settle(Board& position) {
 template Score Worker::alphabeta<Worker::NodeType::Pv>(Score, Score, int, Worker::SearchFrame*);
 template Score Worker::alphabeta<Worker::NodeType::NonPv>(Score, Score, int, Worker::SearchFrame*);
 template Score Worker::quiescence<Worker::NodeType::Pv, true>(Score, Score, Worker::SearchFrame*);
-template Score
-Worker::quiescence<Worker::NodeType::NonPv, true>(Score, Score, Worker::SearchFrame*);
+template Score Worker::quiescence<Worker::NodeType::NonPv, true>(
+    Score,
+    Score,
+    Worker::SearchFrame*);
 
 } // namespace search

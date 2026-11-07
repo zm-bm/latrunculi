@@ -156,18 +156,18 @@ const Bitboard bishop_mask[64] = {
     0x0028440200000000ull, 0x0050080402000000ull, 0x0020100804020000ull, 0x0040201008040200ull};
 
 // Right shifts that compact each magic product into its table slice.
-const int rook_shift[64] = {52, 53, 53, 53, 53, 53, 53, 52, 53, 54, 54, 54, 54, 54, 54, 53,
-                            53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53,
-                            53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53,
-                            53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 53, 53, 53, 53, 53};
+const int rook_shift[64] = {
+    52, 53, 53, 53, 53, 53, 53, 52, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54,
+    54, 53, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54,
+    54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 53, 53, 53, 53, 53};
 
-const int bishop_shift[64] = {58, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 59, 59,
-                              59, 59, 57, 57, 57, 57, 59, 59, 59, 59, 57, 55, 55, 57, 59, 59,
-                              59, 59, 57, 55, 55, 57, 59, 59, 59, 59, 57, 57, 57, 57, 59, 59,
-                              59, 59, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 58};
+const int bishop_shift[64] = {
+    58, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 57, 57, 57, 57,
+    59, 59, 59, 59, 57, 55, 55, 57, 59, 59, 59, 59, 57, 55, 55, 57, 59, 59, 59, 59, 57, 57,
+    57, 57, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 58};
 
 // File/rank delta for one slider ray.
-using SliderDirection  = std::pair<int, int>;
+using SliderDirection = std::pair<int, int>;
 using SliderDirections = std::array<SliderDirection, 4>;
 
 // Slow slider walk used only while building lookup tables.
@@ -208,10 +208,10 @@ Bitboard reconstruct_occupancy(const std::vector<Square>& squares, std::uint64_t
 }
 
 // Fill each square's slice with attacks for every blocker subset.
-void init_slider_magic(const Bitboard          masks[64],
-                       const std::uint64_t     magic_nums[64],
-                       const int               shifts[64],
-                       Bitboard* const         moves[64],
+void init_slider_magic(const Bitboard masks[64],
+                       const std::uint64_t magic_nums[64],
+                       const int shifts[64],
+                       Bitboard* const moves[64],
                        const SliderDirections& directions) {
 
     for (Square sq = A1; sq < INVALID; ++sq) {
@@ -224,8 +224,8 @@ void init_slider_magic(const Bitboard          masks[64],
         // There are 2^N subsets for N relevant blocker squares.
         Bitboard max_occ = bb::set(Square(squares.size()));
         for (std::uint64_t subset = 0; subset < max_occ; subset++) {
-            Bitboard      occupied = reconstruct_occupancy(squares, subset);
-            std::uint64_t offset   = (occupied * magic_nums[sq]) >> shifts[sq];
+            Bitboard occupied = reconstruct_occupancy(squares, subset);
+            std::uint64_t offset = (occupied * magic_nums[sq]) >> shifts[sq];
 
             *(moves[sq] + offset) = generate_slider_moves(sq, occupied, directions);
         }
@@ -235,7 +235,7 @@ void init_slider_magic(const Bitboard          masks[64],
 void init() {
     // Directions are file/rank deltas from the source square.
     SliderDirections bishop_dirs = {{{-1, 1}, {1, 1}, {-1, -1}, {1, -1}}};
-    SliderDirections rook_dirs   = {{{0, 1}, {1, 0}, {0, -1}, {-1, 0}}};
+    SliderDirections rook_dirs = {{{0, 1}, {1, 0}, {0, -1}, {-1, 0}}};
 
     init_slider_magic(bishop_mask, bishop_magic, bishop_shift, bishop_moves_table, bishop_dirs);
     init_slider_magic(rook_mask, rook_magic, rook_shift, rook_moves_table, rook_dirs);

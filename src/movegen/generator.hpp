@@ -58,11 +58,11 @@ public:
 
 private:
     template <typename Emit>
-    static void emit(Emit&     output,
+    static void emit(Emit& output,
                      PieceType moving_piece,
-                     Square    from,
-                     Square    to,
-                     MoveType  type      = BASIC_MOVE,
+                     Square from,
+                     Square to,
+                     MoveType type = BASIC_MOVE,
                      PieceType promotion = KNIGHT) {
         output(Move(from, to, type, promotion), moving_piece);
     }
@@ -129,8 +129,8 @@ private:
         if constexpr (Kind == GenerationKind::Evasions)
             capture_targets &= targets;
 
-        const Bitboard all_pawns       = board.pieces<PAWN>(Us);
-        Bitboard       promotion_pawns = all_pawns & promotion_rank;
+        const Bitboard all_pawns = board.pieces<PAWN>(Us);
+        Bitboard promotion_pawns = all_pawns & promotion_rank;
         if constexpr (Kind != GenerationKind::Quiet) {
             if (promotion_pawns)
                 pawn_promotions<Kind>(targets, capture_targets, promotion_pawns, output);
@@ -160,7 +160,7 @@ private:
 
     template <GenerationKind Kind, typename Emit>
     void pawn_captures(Bitboard targets, Bitboard capture_targets, Bitboard pawns, Emit& output) {
-        Bitboard left_moves  = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & capture_targets;
+        Bitboard left_moves = attacks::pawn_shift<pawn_delta::left, Us>(pawns) & capture_targets;
         Bitboard right_moves = attacks::pawn_shift<pawn_delta::right, Us>(pawns) & capture_targets;
         emit_pawn_moves<pawn_delta::left>(left_moves, output);
         emit_pawn_moves<pawn_delta::right>(right_moves, output);
@@ -209,7 +209,7 @@ private:
         // Castling is quiet and cannot be an evasion because the king is already in check.
         if constexpr (Kind == GenerationKind::NonEvasions || Kind == GenerationKind::Quiet) {
             if (board.has_castling_rights(Us)) {
-                constexpr const auto& kingside  = move_geometry::castling(CASTLE_KINGSIDE, Us);
+                constexpr const auto& kingside = move_geometry::castling(CASTLE_KINGSIDE, Us);
                 constexpr const auto& queenside = move_geometry::castling(CASTLE_QUEENSIDE, Us);
 
                 if (board.has_castling_right(CASTLE_KINGSIDE, Us) && can_castle<CASTLE_KINGSIDE>())
@@ -229,10 +229,10 @@ private:
     }
 
     const Board& board;
-    Square       king_sq;
-    Bitboard     occupancy;
-    Bitboard     own_pieces;
-    Bitboard     enemy_pieces;
+    Square king_sq;
+    Bitboard occupancy;
+    Bitboard own_pieces;
+    Bitboard enemy_pieces;
 };
 
 // Emit one pseudo-legal batch through a borrowed synchronous output callable.

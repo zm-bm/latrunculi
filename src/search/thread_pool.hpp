@@ -26,10 +26,10 @@ class Thread {
 public:
     Thread() = delete;
     ~Thread();
-    Thread(const Thread&)            = delete;
+    Thread(const Thread&) = delete;
     Thread& operator=(const Thread&) = delete;
-    Thread(Thread&&)                 = delete;
-    Thread& operator=(Thread&&)      = delete;
+    Thread(Thread&&) = delete;
+    Thread& operator=(Thread&&) = delete;
 
 private:
     Thread(int id, Reporter& reporter, ThreadPool& pool);
@@ -43,10 +43,10 @@ private:
     Worker worker;
 
     // Parked thread state. Guarded by state_mutex.
-    mutable std::mutex      state_mutex;
+    mutable std::mutex state_mutex;
     std::condition_variable state_cv;
-    bool                    shutdown_requested{false};
-    bool                    searching{false};
+    bool shutdown_requested{false};
+    bool searching{false};
 
     std::thread native_thread;
 
@@ -67,10 +67,10 @@ public:
     ThreadPool() = delete;
     ThreadPool(size_t thread_count, Reporter& reporter);
     ~ThreadPool();
-    ThreadPool(const ThreadPool&)            = delete;
+    ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
-    ThreadPool(ThreadPool&&)                 = delete;
-    ThreadPool& operator=(ThreadPool&&)      = delete;
+    ThreadPool(ThreadPool&&) = delete;
+    ThreadPool& operator=(ThreadPool&&) = delete;
 
     // Search lifecycle.
     bool start_search(const Board& root_board, Limits limits);
@@ -85,11 +85,11 @@ public:
     bool settle(Board& position);
 
     // Worker configuration.
-    bool   resize(size_t thread_count);
+    bool resize(size_t thread_count);
     size_t thread_count() const;
 
     // Search progress and results.
-    bool      is_searching() const;
+    bool is_searching() const;
     NodeCount nodes_searched() const;
 
     friend class Worker;
@@ -119,8 +119,8 @@ private:
     void wait_while_pondering() const noexcept;
 
     // Worker results and diagnostics.
-    RootLine              select_root_result(RootLine fallback) const;
-    Instrumentation<>     aggregate_instrumentation() const;
+    RootLine select_root_result(RootLine fallback) const;
+    Instrumentation<> aggregate_instrumentation() const;
 };
 
 } // namespace search

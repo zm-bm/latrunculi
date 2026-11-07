@@ -20,8 +20,8 @@ namespace {
 class SearchWorkerTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{1, reporter};
-    int                     current_ply{0};
+    ThreadPool pool{1, reporter};
+    int current_ply{0};
 
     Thread& test_thread() { return SearchThreadTestAccess::thread(pool); }
 
@@ -51,10 +51,10 @@ TEST_F(SearchWorkerTest, NewSearchResetsAllFrames) {
     load_worker_board(board);
     auto& frames = SearchTestAccess::frames(worker());
     for (auto& frame : frames) {
-        frame.static_eval   = 123;
+        frame.static_eval = 123;
         frame.excluded_move = Move{A2, A3};
-        frame.real_move     = true;
-        frame.pv_enabled    = true;
+        frame.real_move = true;
+        frame.pv_enabled = true;
         frame.singular_search_active = true;
         frame.pv.update(Move{E2, E4}, PV{});
     }
@@ -91,7 +91,10 @@ TEST_F(SearchWorkerTest, HelperDepthsFollowStaggeringSchedule) {
         for (int depth = 1; depth <= static_cast<int>(expected[worker_id].size()); ++depth) {
             EXPECT_EQ(SearchTestAccess::should_search_root_depth(search_worker, depth),
                       expected[worker_id][depth - 1])
-                << "worker " << worker_id << ", depth " << depth;
+                << "worker "
+                << worker_id
+                << ", depth "
+                << depth;
         }
     }
 }
@@ -102,8 +105,8 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeMoveHistoriesAndPreserveContinuation
 
     history().update_quiet_refutations(OrderingContext{}, Move(E2, E4));
     history().update_quiet_refutations(OrderingContext{}, Move(D2, D4));
-    SearchTestAccess::counter_move_entry(history(), WHITE, PAWN, E4)            = Move(G8, F6);
-    SearchTestAccess::quiet_history_entry(history(), WHITE, E2, E4)             = 9;
+    SearchTestAccess::counter_move_entry(history(), WHITE, PAWN, E4) = Move(G8, F6);
+    SearchTestAccess::quiet_history_entry(history(), WHITE, E2, E4) = 9;
     SearchTestAccess::capture_history_entry(history(), WHITE, KNIGHT, E5, PAWN) = -257;
     SearchTestAccess::continuation_history_entry(history(), WHITE, PAWN, E4, KNIGHT, F6) = 16;
 
@@ -171,7 +174,7 @@ TEST_F(SearchWorkerTest, StoppedSearchReportsFallbackWithoutCompletingRootSnapsh
 }
 
 TEST_F(SearchWorkerTest, ExhaustedClockPublishesLegalIncompleteFallback) {
-    Board  board{board_test::fen::start};
+    Board board{board_test::fen::start};
     Limits limits;
     limits.set_wtime(50);
     limits.set_btime(50);
@@ -190,7 +193,7 @@ TEST_F(SearchWorkerTest, ExhaustedClockPublishesLegalIncompleteFallback) {
 }
 
 TEST_F(SearchWorkerTest, SoleRootMoveSavesClockButPreservesExplicitDepth) {
-    Board  board{"1rb1r1k1/5ppQ/p3p1n1/q2pP1P1/2pP2B1/b1N1B2R/P1R3PP/6K1 b - - 4 25"};
+    Board board{"1rb1r1k1/5ppQ/p3p1n1/q2pP1P1/2pP2B1/b1N1B2R/P1R3PP/6K1 b - - 4 25"};
     Limits limits;
     limits.set_wtime(401929);
     limits.set_btime(401929);

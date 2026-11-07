@@ -11,8 +11,8 @@
 namespace {
 
 // Piece-character table indexed by Piece or PieceType encoding.
-inline constexpr char piece_chars[] = {
-    ' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
+inline constexpr char piece_chars[] =
+    {' ', 'p', 'n', 'b', 'r', 'q', 'k', ' ', ' ', 'P', 'N', 'B', 'R', 'Q', 'K', ' '};
 
 } // namespace
 
@@ -99,5 +99,5 @@ struct BitboardDebug {
 };
 
 BitboardDebug debug_bitboard(Bitboard bitboard);
-void          print_bitboard(Bitboard bitboard);
+void print_bitboard(Bitboard bitboard);
 std::ostream& operator<<(std::ostream& os, BitboardDebug debug);

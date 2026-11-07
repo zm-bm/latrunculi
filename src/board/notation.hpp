@@ -6,7 +6,8 @@
 class Board;
 struct Move;
 
-[[nodiscard]] std::string to_san(const Board& board, Move move);
+[[nodiscard]]
+std::string to_san(const Board& board, Move move);
 
 template <>
 struct std::formatter<Board> {

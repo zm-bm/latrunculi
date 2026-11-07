@@ -35,10 +35,10 @@ PV pv_for(Move first, Move second = NULL_MOVE) {
 class RootSearchTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{1, reporter};
-    Thread&                 thread{SearchThreadTestAccess::thread(pool)};
-    Worker&                 worker{SearchThreadTestAccess::worker(thread)};
-    Limits                  limits;
+    ThreadPool pool{1, reporter};
+    Thread& thread{SearchThreadTestAccess::thread(pool)};
+    Worker& worker{SearchThreadTestAccess::worker(thread)};
+    Limits limits;
 
     void SetUp() override {
         limits.depth = 4;
@@ -52,8 +52,8 @@ protected:
         SearchTestAccess::reset(worker);
     }
 
-    Board&                 position() { return SearchTestAccess::board(worker); }
-    RootLine&              result() { return SearchTestAccess::accepted_result(worker); }
+    Board& position() { return SearchTestAccess::board(worker); }
+    RootLine& result() { return SearchTestAccess::accepted_result(worker); }
     std::vector<RootLine>& candidates() { return SearchTestAccess::root_candidates(worker); }
 
     void build_candidates() { SearchTestAccess::build_root_candidates(worker); }
@@ -70,8 +70,10 @@ protected:
     }
 
     int progress_count(int depth) const {
-        return static_cast<int>(std::ranges::count_if(
-            reporter.progress, [depth](const RootLine& line) { return line.depth == depth; }));
+        return static_cast<int>(
+            std::ranges::count_if(reporter.progress, [depth](const RootLine& line) {
+                return line.depth == depth;
+            }));
     }
 
 #if LATRUNCULI_SEARCH_STATS
@@ -107,7 +109,7 @@ TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
     load(board, 1);
     build_candidates();
 
-    const Move first   = find_move("d3e2");
+    const Move first = find_move("d3e2");
     const Move winning = find_move("d3d8");
     ASSERT_FALSE(first.is_null());
     ASSERT_FALSE(winning.is_null());
@@ -122,9 +124,9 @@ TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
         });
     ASSERT_NE(first_it, candidates().end());
     ASSERT_NE(winning_it, candidates().end());
-    const RootLine first_line   = *first_it;
+    const RootLine first_line = *first_it;
     const RootLine winning_line = *winning_it;
-    candidates()                = {first_line, winning_line};
+    candidates() = {first_line, winning_line};
 
     ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 1, 1, -scores::inf, scores::inf));
     EXPECT_GT(candidates()[1].value, candidates()[0].value);
@@ -136,9 +138,9 @@ TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
 
     // Reuse the same child storage for a full search followed by a failed scout.
     const RootLine best = candidates()[1];
-    candidates()        = {best, first_line};
-    auto& child         = SearchTestAccess::frames(worker)[1];
-    child.pv            = pv_for(Move(E2, E4), Move(E7, E5));
+    candidates() = {best, first_line};
+    auto& child = SearchTestAccess::frames(worker)[1];
+    child.pv = pv_for(Move(E2, E4), Move(E7, E5));
     ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 1, 1, -scores::inf, scores::inf));
     EXPECT_LT(candidates()[1].value, candidates()[0].value);
     EXPECT_EQ(candidates()[0].pv, best.pv);
@@ -190,10 +192,10 @@ TEST_F(RootSearchTest, SuppressesOnlyIdenticalProgressReports) {
 
     RootLine line{
         .root_move = Move(E2, E4),
-        .value     = 20,
-        .depth     = 1,
+        .value = 20,
+        .depth = 1,
         .completed = true,
-        .pv        = pv_for(Move(E2, E4)),
+        .pv = pv_for(Move(E2, E4)),
     };
 
     SearchTestAccess::report_root_progress(worker, line);
@@ -214,8 +216,8 @@ TEST_F(RootSearchTest, SuppressesOnlyIdenticalProgressReports) {
 TEST_F(RootSearchTest, WidensAspirationWindowAfterFailLowAndFailHigh) {
     struct Case {
         const char* name;
-        Score       previous;
-        bool        fail_low;
+        Score previous;
+        bool fail_low;
     };
 
     constexpr std::array cases{
@@ -279,7 +281,7 @@ TEST_F(RootSearchTest, StoppedAspirationPreservesLastAcceptedSnapshot) {
 TEST_F(RootSearchTest, HandlesMateInOneCheckmateAndStalemate) {
     struct Case {
         const char* fen;
-        Score       value;
+        Score value;
         const char* move;
         std::size_t pv_size;
     };

@@ -8,8 +8,8 @@
 
 class EngineOptionsTest : public EngineTest {
 protected:
-    int  hash_option_mb() const { return options().hash.value; }
-    int  thread_option_count() const { return options().threads.value; }
+    int hash_option_mb() const { return options().hash.value; }
+    int thread_option_count() const { return options().threads.value; }
     bool ponder_enabled() const { return options().ponder.value; }
 };
 
@@ -41,8 +41,8 @@ TEST_F(EngineOptionsTest, HashOptionResizesAndClearHashClearsTT) {
     ASSERT_EQ(hash_option_mb(), 8);
     ASSERT_EQ(search::tt.capacity_mb(), 8U);
 
-    search::tt.store(
-        board().tt_key(), Move(Square::E2, Square::E4), 42, 3, search::TTBound::Exact, 0);
+    search::tt
+        .store(board().tt_key(), Move(Square::E2, Square::E4), 42, 3, search::TTBound::Exact, 0);
     ASSERT_TRUE(search::tt.probe(board().tt_key()).record.has_value());
 
     EXPECT_TRUE(execute("setoption name Clear Hash"));
@@ -52,12 +52,13 @@ TEST_F(EngineOptionsTest, HashOptionResizesAndClearHashClearsTT) {
 
 struct SetOptionCase {
     std::string command;
-    int         threads = uci::Options::default_threads;
-    std::string output  = "error";
+    int threads = uci::Options::default_threads;
+    std::string output = "error";
 };
 
-class SetOptionTest : public EngineOptionsTest,
-                      public ::testing::WithParamInterface<SetOptionCase> {};
+class SetOptionTest
+    : public EngineOptionsTest,
+      public ::testing::WithParamInterface<SetOptionCase> {};
 
 TEST_P(SetOptionTest, ValidateSetOption) {
     const auto& param = GetParam();

@@ -36,8 +36,8 @@ TEST(SearchLimitsTest, SettersPreserveWideLimits) {
     using Rep = Milliseconds::rep;
 
     constexpr NodeCount max_nodes = std::numeric_limits<NodeCount>::max();
-    constexpr Rep       max_time  = std::numeric_limits<Rep>::max();
-    Limits              limits;
+    constexpr Rep max_time = std::numeric_limits<Rep>::max();
+    Limits limits;
 
     limits.set_movetime(max_time);
     limits.set_nodes(max_nodes);

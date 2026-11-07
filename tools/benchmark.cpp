@@ -29,22 +29,22 @@ namespace {
 
 using MeasurementClock = std::chrono::steady_clock;
 
-constexpr std::string_view result_format   = "search_measurement_v5";
-constexpr int              default_depth   = 10;
-constexpr std::size_t      default_threads = 1;
-constexpr std::size_t      default_hash_mb = engine::default_hash_mb;
-constexpr std::size_t      max_threads     = 64;
-constexpr std::size_t      max_hash_mb     = 2048;
+constexpr std::string_view result_format = "search_measurement_v5";
+constexpr int default_depth = 10;
+constexpr std::size_t default_threads = 1;
+constexpr std::size_t default_hash_mb = engine::default_hash_mb;
+constexpr std::size_t max_threads = 64;
+constexpr std::size_t max_hash_mb = 2048;
 
 enum class LimitType { Depth, Nodes, Movetime };
 
 struct Options {
-    LimitType                  limit_type{LimitType::Depth};
-    std::uint64_t              limit_value{default_depth};
-    std::string                suite{LATRUNCULI_SEARCH_SUITE};
+    LimitType limit_type{LimitType::Depth};
+    std::uint64_t limit_value{default_depth};
+    std::string suite{LATRUNCULI_SEARCH_SUITE};
     std::optional<std::string> case_id;
-    std::size_t                threads{default_threads};
-    std::size_t                hash_mb{default_hash_mb};
+    std::size_t threads{default_threads};
+    std::size_t hash_mb{default_hash_mb};
 };
 
 struct Position {
@@ -54,7 +54,7 @@ struct Position {
 
 std::string_view trim(std::string_view text) {
     constexpr std::string_view whitespace = " \t\r\n";
-    const std::size_t          first      = text.find_first_not_of(whitespace);
+    const std::size_t first = text.find_first_not_of(whitespace);
     if (first == std::string_view::npos)
         return {};
     const std::size_t last = text.find_last_not_of(whitespace);
@@ -64,7 +64,7 @@ std::string_view trim(std::string_view text) {
 std::string extract_id(std::string_view operations) {
     std::optional<std::string> id;
     while (!operations.empty()) {
-        const std::size_t      separator = operations.find(';');
+        const std::size_t separator = operations.find(';');
         const std::string_view operation = trim(operations.substr(0, separator));
         if (operation.starts_with("id")
             && (operation.size() == 2 || operation[2] == ' ' || operation[2] == '\t')) {
@@ -96,7 +96,7 @@ std::vector<Position> load_positions(const std::string& path) {
         throw std::runtime_error("cannot open search suite: " + path);
 
     std::vector<Position> positions;
-    std::string           line;
+    std::string line;
     for (std::size_t line_number = 1; std::getline(input, line); ++line_number) {
         const std::string_view record = trim(line);
         if (record.empty() || record.starts_with('#'))
@@ -104,17 +104,17 @@ std::vector<Position> load_positions(const std::string& path) {
 
         try {
             std::istringstream fields{std::string(record)};
-            std::string        placement;
-            std::string        side;
-            std::string        castling;
-            std::string        en_passant;
+            std::string placement;
+            std::string side;
+            std::string castling;
+            std::string en_passant;
             if (!(fields >> placement >> side >> castling >> en_passant))
                 throw std::runtime_error("expected four FEN fields");
 
             std::string operations;
             std::getline(fields, operations);
             Position position{
-                .id  = extract_id(operations),
+                .id = extract_id(operations),
                 .fen = placement + ' ' + side + ' ' + castling + ' ' + en_passant + " 0 1",
             };
             if (position.id.empty())
@@ -125,8 +125,13 @@ std::vector<Position> load_positions(const std::string& path) {
             (void)Board(position.fen);
             positions.push_back(std::move(position));
         } catch (const std::exception& error) {
-            throw std::runtime_error("invalid search suite record " + path + ':'
-                                     + std::to_string(line_number) + ": " + error.what());
+            throw std::runtime_error(
+                "invalid search suite record "
+                + path
+                + ':'
+                + std::to_string(line_number)
+                + ": "
+                + error.what());
         }
     }
     if (!input.eof())
@@ -138,16 +143,14 @@ std::vector<Position> load_positions(const std::string& path) {
 
 struct Result {
     search::RootLine line;
-    NodeCount        nodes{0};
-    Move             best_move{NULL_MOVE};
+    NodeCount nodes{0};
+    Move best_move{NULL_MOVE};
 };
 
 class Reporter final : public search::Reporter {
 public:
-    void report_progress(const search::RootLine& line,
-                         const Board&,
-                         NodeCount nodes,
-                         Milliseconds) override {
+    void report_progress(const search::RootLine& line, const Board&, NodeCount nodes, Milliseconds)
+        override {
         progress = Result{.line = line, .nodes = nodes};
     }
 
@@ -164,41 +167,45 @@ public:
         diagnostic_text.clear();
     }
 
-    [[nodiscard]] const Result& result() const {
+    [[nodiscard]]
+    const Result& result() const {
         if (!progress || progress->best_move.is_null())
             throw std::runtime_error("search did not publish a final result");
         return *progress;
     }
 
-    [[nodiscard]] const std::string& diagnostic() const { return diagnostic_text; }
+    [[nodiscard]]
+    const std::string& diagnostic() const {
+        return diagnostic_text;
+    }
 
 private:
     std::optional<Result> progress;
-    std::string           diagnostic_text;
+    std::string diagnostic_text;
 };
 
 struct Row {
-    std::string   case_id;
-    std::string   fen;
-    LimitType     limit_type{LimitType::Depth};
+    std::string case_id;
+    std::string fen;
+    LimitType limit_type{LimitType::Depth};
     std::uint64_t limit_value{0};
-    int           completed_depth{0};
-    std::size_t   threads{0};
-    std::size_t   hash_mb{0};
-    Score         static_score{0};
-    Score         score{0};
-    NodeCount     nodes{0};
+    int completed_depth{0};
+    std::size_t threads{0};
+    std::size_t hash_mb{0};
+    Score static_score{0};
+    Score score{0};
+    NodeCount nodes{0};
     std::uint64_t total_ns{0};
-    Move          best_move{NULL_MOVE};
-    std::string   pv;
-    std::string   diagnostic;
+    Move best_move{NULL_MOVE};
+    std::string pv;
+    std::string diagnostic;
 };
 
 std::string_view limit_type_name(LimitType type) {
     switch (type) {
-    case LimitType::Depth:    return "depth";
-    case LimitType::Nodes:    return "nodes";
-    case LimitType::Movetime: return "movetime";
+        case LimitType::Depth:    return "depth";
+        case LimitType::Nodes:    return "nodes";
+        case LimitType::Movetime: return "movetime";
     }
     throw std::runtime_error("unknown search limit type");
 }
@@ -213,9 +220,9 @@ std::string format_pv(const search::PV& pv) {
     return result;
 }
 
-Row measure(const Position&     position,
-            const Options&      options,
-            Reporter&           reporter,
+Row measure(const Position& position,
+            const Options& options,
+            Reporter& reporter,
             search::ThreadPool& thread_pool) {
     Board board(position.fen);
     reporter.reset();
@@ -224,15 +231,15 @@ Row measure(const Position&     position,
 
     search::Limits limits;
     switch (options.limit_type) {
-    case LimitType::Depth: limits.set_depth(static_cast<int>(options.limit_value)); break;
-    case LimitType::Nodes: limits.set_nodes(options.limit_value); break;
-    case LimitType::Movetime:
-        limits.set_movetime(static_cast<Milliseconds::rep>(options.limit_value));
-        break;
+        case LimitType::Depth: limits.set_depth(static_cast<int>(options.limit_value)); break;
+        case LimitType::Nodes: limits.set_nodes(options.limit_value); break;
+        case LimitType::Movetime:
+            limits.set_movetime(static_cast<Milliseconds::rep>(options.limit_value));
+            break;
     }
 
     const Score static_score = eval::evaluate(board);
-    const auto  start        = MeasurementClock::now();
+    const auto start = MeasurementClock::now();
     if (!thread_pool.start_search(board, limits))
         throw std::runtime_error("failed to start search for " + std::string(position.id));
     thread_pool.wait();
@@ -245,20 +252,20 @@ Row measure(const Position&     position,
 
     const Result& result = reporter.result();
     return {
-        .case_id         = std::string(position.id),
-        .fen             = position.fen,
-        .limit_type      = options.limit_type,
-        .limit_value     = options.limit_value,
+        .case_id = std::string(position.id),
+        .fen = position.fen,
+        .limit_type = options.limit_type,
+        .limit_value = options.limit_value,
         .completed_depth = result.line.depth,
-        .threads         = options.threads,
-        .hash_mb         = search::tt.capacity_mb(),
-        .static_score    = static_score,
-        .score           = result.line.value,
-        .nodes           = result.nodes,
-        .total_ns        = total_ns,
-        .best_move       = result.best_move,
-        .pv              = format_pv(result.line.pv),
-        .diagnostic      = reporter.diagnostic(),
+        .threads = options.threads,
+        .hash_mb = search::tt.capacity_mb(),
+        .static_score = static_score,
+        .score = result.line.value,
+        .nodes = result.nodes,
+        .total_ns = total_ns,
+        .best_move = result.best_move,
+        .pv = format_pv(result.line.pv),
+        .diagnostic = reporter.diagnostic(),
     };
 }
 
@@ -267,11 +274,35 @@ void emit_tsv(const std::vector<Row>& rows) {
                  "completed_depth\tthreads\thash_mb\tstatic_score\tscore\tnodes\ttotal_ns\t"
                  "best_move\tpv\n";
     for (const Row& row : rows) {
-        std::cout << result_format << '\t' << row.case_id << '\t' << row.fen << '\t'
-                  << limit_type_name(row.limit_type) << '\t' << row.limit_value << '\t'
-                  << row.completed_depth << '\t' << row.threads << '\t' << row.hash_mb << '\t'
-                  << row.static_score << '\t' << row.score << '\t' << row.nodes << '\t'
-                  << row.total_ns << '\t' << row.best_move.str() << '\t' << row.pv << '\n';
+        std::cout
+            << result_format
+            << '\t'
+            << row.case_id
+            << '\t'
+            << row.fen
+            << '\t'
+            << limit_type_name(row.limit_type)
+            << '\t'
+            << row.limit_value
+            << '\t'
+            << row.completed_depth
+            << '\t'
+            << row.threads
+            << '\t'
+            << row.hash_mb
+            << '\t'
+            << row.static_score
+            << '\t'
+            << row.score
+            << '\t'
+            << row.nodes
+            << '\t'
+            << row.total_ns
+            << '\t'
+            << row.best_move.str()
+            << '\t'
+            << row.pv
+            << '\n';
     }
 }
 
@@ -279,35 +310,45 @@ void emit_diagnostics(const std::vector<Row>& rows) {
     for (const Row& row : rows) {
         if (row.diagnostic.empty())
             continue;
-        std::cerr << "search_diagnostic_v1 case=" << row.case_id
-                  << " limit_type=" << limit_type_name(row.limit_type)
-                  << " limit_value=" << row.limit_value << " threads=" << row.threads
-                  << " hash_mb=" << row.hash_mb << row.diagnostic;
+        std::cerr
+            << "search_diagnostic_v1 case="
+            << row.case_id
+            << " limit_type="
+            << limit_type_name(row.limit_type)
+            << " limit_value="
+            << row.limit_value
+            << " threads="
+            << row.threads
+            << " hash_mb="
+            << row.hash_mb
+            << row.diagnostic;
         if (row.diagnostic.back() != '\n')
             std::cerr << '\n';
     }
 }
 
 std::uint64_t parse_count(std::string_view text, std::string_view option) {
-    std::uint64_t value     = 0;
+    std::uint64_t value = 0;
     const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
     if (text.empty() || error != std::errc{} || end != text.data() + text.size())
-        throw std::runtime_error("invalid value for " + std::string(option) + ": "
-                                 + std::string(text));
+        throw std::runtime_error(
+            "invalid value for " + std::string(option) + ": " + std::string(text));
     return value;
 }
 
 void print_usage(const char* argv0) {
     std::cerr << "Integrated search benchmark; output is TSV.\n";
-    std::cerr << "Usage: " << argv0
-              << " [--suite EPD] [--case ID] [--depth N | --nodes N | --movetime MS]"
-                 " [--hash MB]"
-                 " [--threads N]\n";
+    std::cerr
+        << "Usage: "
+        << argv0
+        << " [--suite EPD] [--case ID] [--depth N | --nodes N | --movetime MS]"
+           " [--hash MB]"
+           " [--threads N]\n";
 }
 
 Options parse_args(int argc, char* argv[]) {
     Options options;
-    bool    limit_set = false;
+    bool limit_set = false;
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument = argv[index];
         if (argument == "--help" || argument == "-h") {
@@ -325,18 +366,19 @@ Options parse_args(int argc, char* argv[]) {
                 throw std::runtime_error(std::string(argument) + " must be at least 1");
             if (argument == "--depth"
                 && value > static_cast<std::uint64_t>(search::Limits::max_depth))
-                throw std::runtime_error("--depth must be between 1 and "
-                                         + std::to_string(search::Limits::max_depth));
+                throw std::runtime_error(
+                    "--depth must be between 1 and " + std::to_string(search::Limits::max_depth));
             if (argument == "--movetime"
                 && value
-                       > static_cast<std::uint64_t>(std::numeric_limits<Milliseconds::rep>::max()))
+                    > static_cast<std::uint64_t>(std::numeric_limits<Milliseconds::rep>::max()))
                 throw std::runtime_error("--movetime is out of range");
 
-            options.limit_type  = argument == "--depth" ? LimitType::Depth
-                                : argument == "--nodes" ? LimitType::Nodes
-                                                        : LimitType::Movetime;
+            options.limit_type = argument == "--depth" ? LimitType::Depth
+                : argument == "--nodes"
+                ? LimitType::Nodes
+                : LimitType::Movetime;
             options.limit_value = value;
-            limit_set           = true;
+            limit_set = true;
             continue;
         }
         if (argument == "--suite") {
@@ -360,8 +402,8 @@ Options parse_args(int argc, char* argv[]) {
                 throw std::runtime_error("missing value for --hash");
             const std::uint64_t hash_mb = parse_count(argv[index], "--hash");
             if (hash_mb == 0 || hash_mb > max_hash_mb)
-                throw std::runtime_error("--hash must be between 1 and "
-                                         + std::to_string(max_hash_mb));
+                throw std::runtime_error(
+                    "--hash must be between 1 and " + std::to_string(max_hash_mb));
             options.hash_mb = static_cast<std::size_t>(hash_mb);
             continue;
         }
@@ -370,8 +412,8 @@ Options parse_args(int argc, char* argv[]) {
                 throw std::runtime_error("missing value for --threads");
             const std::uint64_t threads = parse_count(argv[index], "--threads");
             if (threads == 0 || threads > max_threads)
-                throw std::runtime_error("--threads must be between 1 and "
-                                         + std::to_string(max_threads));
+                throw std::runtime_error(
+                    "--threads must be between 1 and " + std::to_string(max_threads));
             options.threads = static_cast<std::size_t>(threads);
             continue;
         }
@@ -382,8 +424,8 @@ Options parse_args(int argc, char* argv[]) {
 
 int run_search(int argc, char* argv[]) {
     try {
-        const Options options   = parse_args(argc, argv);
-        const auto    positions = load_positions(options.suite);
+        const Options options = parse_args(argc, argv);
+        const auto positions = load_positions(options.suite);
 
         const Position* selected = nullptr;
         if (options.case_id) {
@@ -395,9 +437,9 @@ int run_search(int argc, char* argv[]) {
             selected = &*found;
         }
 
-        Reporter           reporter;
+        Reporter reporter;
         search::ThreadPool thread_pool(options.threads, reporter);
-        std::vector<Row>   rows;
+        std::vector<Row> rows;
         rows.reserve(selected == nullptr ? positions.size() : 1);
         search::tt.resize(options.hash_mb);
 

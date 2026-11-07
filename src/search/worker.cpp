@@ -24,7 +24,7 @@ void Worker::configure_search(const Board& root_board, Limits limits, TimePoint 
     board = root_board;
 
     this->limits = limits;
-    start_time   = search_start_time;
+    start_time = search_start_time;
     time_manager = TimeManager{this->limits, board.side_to_move()};
 
     reset_nodes();
@@ -70,7 +70,7 @@ Score Worker::search() {
     }
 
     if (!accepted_result.completed && !stop_requested()) {
-        accepted_result.depth     = limits.depth;
+        accepted_result.depth = limits.depth;
         accepted_result.completed = true;
     }
 
@@ -88,12 +88,12 @@ Score Worker::search() {
 void Worker::reset_search_state() {
     reset_nodes();
     root_iteration_depth = 0;
-    accepted_result      = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
+    accepted_result = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
     for (auto& frame : frames) {
         frame.static_eval.reset();
-        frame.excluded_move          = NULL_MOVE;
-        frame.real_move              = false;
-        frame.pv_enabled             = false;
+        frame.excluded_move = NULL_MOVE;
+        frame.real_move = false;
+        frame.pv_enabled = false;
         frame.singular_search_active = false;
         frame.pv.clear();
     }
@@ -127,7 +127,7 @@ void Worker::prepare_final_result() {
     // A stopped depth-zero search still needs a legal fallback move.
     if (!selected.usable_root_move() && !root_candidates.empty()) {
         selected.root_move = root_candidates.front().root_move;
-        selected.depth     = 0;
+        selected.depth = 0;
         selected.completed = false;
         selected.pv.clear();
     }
@@ -190,7 +190,9 @@ void Worker::finish_timed_iteration() {
         return;
 
     time_manager.update_after_iteration(
-        accepted_result.depth, accepted_result.root_move, accepted_result.value);
+        accepted_result.depth,
+        accepted_result.root_move,
+        accepted_result.value);
     if (root_candidates.size() == 1 || runtime() >= *time_manager.soft_limit())
         thread_pool.request_stop();
 }

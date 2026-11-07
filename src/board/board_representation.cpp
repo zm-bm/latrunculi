@@ -1,10 +1,10 @@
 #include "board/board.hpp"
 
-#include "board/ply_state.hpp"
-
 #include <algorithm>
 #include <cstddef>
 #include <type_traits>
+
+#include "board/ply_state.hpp"
 
 static_assert(std::is_nothrow_copy_constructible_v<PlyState>);
 static_assert(std::is_nothrow_copy_assignable_v<PlyState>);
@@ -48,8 +48,8 @@ Board& Board::operator=(const Board& source) {
     copy_array(source.piece_counts, piece_counts);
     copy_array(source.squares, squares);
     copy_array(source.king_square, king_square);
-    turn              = source.turn;
-    absolute_ply      = source.absolute_ply;
+    turn = source.turn;
+    absolute_ply = source.absolute_ply;
     cached_base_terms = source.cached_base_terms;
 
     return *this;
@@ -59,18 +59,18 @@ Board& Board::operator=(const Board& source) {
 void Board::clear_position() noexcept {
     for (int color_index = 0; color_index < N_COLORS; ++color_index) {
         for (int piece_index = 0; piece_index < N_PIECETYPES; ++piece_index) {
-            piece_bb[color_index][piece_index]     = 0;
+            piece_bb[color_index][piece_index] = 0;
             piece_counts[color_index][piece_index] = 0;
         }
     }
     for (int square_index = 0; square_index < N_SQUARES; ++square_index)
         squares[square_index] = NO_PIECE;
 
-    cached_base_terms  = {};
+    cached_base_terms = {};
     king_square[WHITE] = INVALID;
     king_square[BLACK] = INVALID;
-    turn               = WHITE;
-    absolute_ply       = 0;
+    turn = WHITE;
+    absolute_ply = 0;
     ply_states.resize(1);
     ply_state() = PlyState{};
 }

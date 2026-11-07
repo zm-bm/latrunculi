@@ -1,10 +1,10 @@
 #include "board/board.hpp"
 
+#include <cassert>
+
 #include "board/see_values.hpp"
 #include "core/attacks.hpp"
 #include "core/move_geometry.hpp"
-
-#include <cassert>
 
 namespace {
 
@@ -21,8 +21,8 @@ bool Board::see(Move move, int threshold) const noexcept {
     if (initial_gain < threshold)
         return false;
 
-    const Square    to   = move.to();
-    Color           side = side_to_move();
+    const Square to = move.to();
+    Color side = side_to_move();
     const PieceType moving_piece =
         move.type() == MOVE_PROM ? move.prom_piece() : piece_type_on(move.from());
     const int moving_value = see::piece_value(moving_piece);
@@ -40,16 +40,16 @@ bool Board::see(Move move, int threshold) const noexcept {
 
     // Build the first attack set after the initial capture, including its x-rays.
     occupancy ^= bb::set(move.from());
-    Bitboard       attackers      = all_attackers_to(to, occupancy) & occupancy;
+    Bitboard attackers = all_attackers_to(to, occupancy) & occupancy;
     const Bitboard bishop_sliders = pieces<BISHOP, QUEEN>();
-    const Bitboard rook_sliders   = pieces<ROOK, QUEEN>();
-    bool           result         = true;
+    const Bitboard rook_sliders = pieces<ROOK, QUEEN>();
+    bool result = true;
 
     // Non-king pins are ignored; later pawn recaptures keep their pawn price.
     for (;;) {
         side = ~side;
 
-        Bitboard  recapturer      = 0;
+        Bitboard recapturer = 0;
         PieceType recapturer_type = NO_PIECETYPE;
         for (PieceType attacker_type : see_attacker_order) {
             Bitboard candidate = attackers & piece_bb[side][attacker_type];
@@ -64,13 +64,13 @@ bool Board::see(Move move, int threshold) const noexcept {
             }
 
             recapturer_type = attacker_type;
-            recapturer      = candidate;
+            recapturer = candidate;
             break;
         }
 
         if (!recapturer)
             return result;
-        result  = !result;
+        result = !result;
         balance = see::piece_value(recapturer_type) - balance;
         // Equality succeeds for the original side, but fails for its opponent.
         if (balance < static_cast<int>(result))
@@ -78,7 +78,7 @@ bool Board::see(Move move, int threshold) const noexcept {
 
         occupancy ^= recapturer;
         attackers |= (attacks::piece_moves<BISHOP>(to, occupancy) & bishop_sliders)
-                   | (attacks::piece_moves<ROOK>(to, occupancy) & rook_sliders);
+            | (attacks::piece_moves<ROOK>(to, occupancy) & rook_sliders);
         attackers &= occupancy;
     }
 }

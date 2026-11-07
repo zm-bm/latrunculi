@@ -87,7 +87,8 @@ void Thread::wake_for_search() {
     state_cv.notify_one();
 }
 
-ThreadPool::ThreadPool(size_t thread_count, Reporter& reporter) : reporter(reporter) {
+ThreadPool::ThreadPool(size_t thread_count, Reporter& reporter)
+    : reporter(reporter) {
     threads.reserve(thread_count);
     for (size_t i = 0; i < thread_count; ++i) {
         threads.push_back(

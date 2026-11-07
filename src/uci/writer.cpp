@@ -16,7 +16,7 @@ namespace {
 std::string format_score(Score score) {
     if (std::abs(score) > scores::mate_bound) {
         int mate_distance = scores::mate - std::abs(score);
-        int mate_in_n     = (mate_distance + 1) / 2;
+        int mate_in_n = (mate_distance + 1) / 2;
         return "mate " + std::to_string(mate_in_n * (score > 0 ? 1 : -1));
     }
     return "cp " + std::to_string(score);
@@ -24,7 +24,7 @@ std::string format_score(Score score) {
 
 std::string format_nps(NodeCount nodes, Milliseconds time) {
     auto count = time.count();
-    auto nps   = count > 0 ? (nodes * 1000 / count) : 0;
+    auto nps = count > 0 ? (nodes * 1000 / count) : 0;
     return std::to_string(nps);
 }
 
@@ -52,15 +52,16 @@ std::string format_root_pv(const search::RootLine& line, const Board& root_board
 }
 
 std::string format_search_info(const search::RootLine& line,
-                               const Board&            root_board,
-                               NodeCount               nodes,
-                               Milliseconds            time) {
-    std::string info = std::format("info depth {} score {} nodes {} time {} nps {}",
-                                   line.depth,
-                                   format_score(line.value),
-                                   nodes,
-                                   time.count(),
-                                   format_nps(nodes, time));
+                               const Board& root_board,
+                               NodeCount nodes,
+                               Milliseconds time) {
+    std::string info = std::format(
+        "info depth {} score {} nodes {} time {} nps {}",
+        line.depth,
+        format_score(line.value),
+        nodes,
+        time.count(),
+        format_nps(nodes, time));
 
     const std::string pv = format_root_pv(line, root_board);
     if (!pv.empty())
@@ -74,16 +75,18 @@ std::string format_uci_move(Move move) {
 }
 
 std::string format_option(std::string_view name, const SpinOption& opt) {
-    return std::format("option name {} type spin default {} min {} max {}",
-                       name,
-                       opt.default_value,
-                       opt.min_value,
-                       opt.max_value);
+    return std::format(
+        "option name {} type spin default {} min {} max {}",
+        name,
+        opt.default_value,
+        opt.min_value,
+        opt.max_value);
 }
 
 std::string format_option(std::string_view name, const CheckOption& opt) {
-    return std::format(
-        "option name {} type check default {}", name, opt.default_value ? "true" : "false");
+    return std::format("option name {} type check default {}",
+                       name,
+                       opt.default_value ? "true" : "false");
 }
 
 std::string format_option(std::string_view name, const ButtonOption&) {
@@ -91,18 +94,19 @@ std::string format_option(std::string_view name, const ButtonOption&) {
 }
 
 std::string format_identification(const Options& options) {
-    return std::format("id name Latrunculi {}\n"
-                       "id author Eric VanderHelm\n"
-                       "{}\n"
-                       "{}\n"
-                       "{}\n"
-                       "{}\n"
-                       "uciok",
-                       engine::version,
-                       format_option("Hash", options.hash),
-                       format_option("Clear Hash", options.clear_hash),
-                       format_option("Threads", options.threads),
-                       format_option("Ponder", options.ponder));
+    return std::format(
+        "id name Latrunculi {}\n"
+        "id author Eric VanderHelm\n"
+        "{}\n"
+        "{}\n"
+        "{}\n"
+        "{}\n"
+        "uciok",
+        engine::version,
+        format_option("Hash", options.hash),
+        format_option("Clear Hash", options.clear_hash),
+        format_option("Threads", options.threads),
+        format_option("Ponder", options.ponder));
 }
 
 std::string format_bestmove(Move move) {
@@ -162,9 +166,9 @@ void Writer::ready() const {
 }
 
 void Writer::report_progress(const search::RootLine& line,
-                             const Board&            root_board,
-                             NodeCount               nodes,
-                             Milliseconds            time) {
+                             const Board& root_board,
+                             NodeCount nodes,
+                             Milliseconds time) {
     const std::string text = format_search_info(line, root_board, nodes, time);
     write_line(output, text);
 }
