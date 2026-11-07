@@ -52,9 +52,9 @@ The same evaluator exports linear features for fitting weights from recorded gam
 aspiration retries. [Recursive search](../src/search/search.cpp) implements
 alpha-beta, quiescence, and singular searches. Singular-search eligibility,
 exclusion, recursion, restoration, and extension or multicut decisions are kept
-together in `alphabeta`. Standalone [reduction calculations](../src/search/reductions.hpp)
-cover null-move and late-move reductions. Pruning conditions, stop checks, and learning
-stay visible in search. Per-ply state lives in [SearchFrame](../src/search/search_frame.hpp).
+together in `alphabeta`, alongside pruning, null-move and late-move reductions,
+stop checks, and learning. Search-policy constants are grouped at the top of `search.cpp`.
+Per-ply state lives in [SearchFrame](../src/search/search_frame.hpp).
 The search uses:
 
 - **Iterative deepening:** Each iteration starts with an

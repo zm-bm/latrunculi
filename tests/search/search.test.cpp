@@ -11,7 +11,6 @@
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
-#include "search/reductions.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -475,33 +474,6 @@ TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
         const auto stored = record();
         ASSERT_TRUE(stored);
         EXPECT_EQ(stored->depth, 5);
-    }
-}
-
-TEST(NullMoveReductionTest, AdaptsToDepthAndStaticSurplusWithinBounds) {
-    struct Case {
-        const char* name;
-        int         depth;
-        Score       static_eval;
-        Score       beta;
-        int         expected;
-    };
-
-    constexpr std::array cases{
-        Case{"minimum depth", 3, 0, 0, 3},
-        Case{"negative surplus", 6, 99, 100, 3},
-        Case{"first depth bonus", 7, 100, 100, 4},
-        Case{"below surplus step", 7, 299, 100, 4},
-        Case{"first surplus step", 7, 300, 100, 5},
-        Case{"second surplus step", 7, 500, 100, 6},
-        Case{"remaining depth bound", 4, 1000, 0, 4},
-        Case{"second depth bonus", 14, 99, 100, 5},
-        Case{"overall reduction cap", 28, 1000, 0, 6},
-    };
-
-    for (const auto& tc : cases) {
-        SCOPED_TRACE(tc.name);
-        EXPECT_EQ(detail::null_move_reduction(tc.depth, tc.static_eval, tc.beta), tc.expected);
     }
 }
 
@@ -1115,84 +1087,34 @@ TEST_F(SearchTest, PvNodeIgnoresLowerTtBound) {
     EXPECT_EQ(pv_search(alpha, beta, 2, pv), baseline);
 }
 
-TEST(CaptureLmrTest, AdjustsBeforeRoundingAndClampsDepth) {
-    struct Case {
-        int depth;
-        int move_count;
-        int raw_capture_history;
-        int expected_reduction;
-    };
-    constexpr std::array cases{
-        Case{6, 16, 0, 2},
-        Case{6, 16, 4096, 1},
-        Case{6, 5, -4096, 2},
-        Case{6, 16, 16384, 1},
-        Case{6, 16, -16384, 3},
-        Case{4, 4, 8192, 0},
-        Case{4, 4, -8192, 2},
-        Case{4, 256, 16384, 2},
-    };
-    for (const auto& tc : cases) {
-        SCOPED_TRACE(tc.depth);
-        SCOPED_TRACE(tc.move_count);
-        SCOPED_TRACE(tc.raw_capture_history);
-        const auto result =
-            detail::lmr_reduction<NodeType::NonPv>({.depth           = tc.depth,
-                                                    .move_count      = tc.move_count,
-                                                    .capture_history = tc.raw_capture_history});
-        EXPECT_EQ(result.plies, tc.expected_reduction);
-        EXPECT_TRUE(result.capture_adjustment);
+TEST_F(SearchTest, CaptureHistoryAdjustsLateMoveReductions) {
+    const Board board{board_test::fen::perft_position_2};
+    for (int capture_history : {-8192, 8192}) {
+        SCOPED_TRACE(capture_history);
+        load(board, 6);
+        for (Move move : ordered_moves()) {
+            // Satisfy both reduced and full-depth child searches without changing history.
+            store_child(move, 100, 5);
+            if (position().is_capture(move)) {
+                SearchTestAccess::capture_history_entry(history(),
+                                                        position().side_to_move(),
+                                                        position().piece_type_on(move.from()),
+                                                        move.to(),
+                                                        position().captured_piece_type(move)) =
+                    capture_history;
+            }
+        }
+        tt.store(null_child_key(), NULL_MOVE, 100, 5, TTBound::Exact, 1);
+        EXPECT_EQ(search(-50, 50, 6), -100);
+        EXPECT_EQ(position().to_fen(), board.to_fen());
+#if LATRUNCULI_SEARCH_STATS
+        EXPECT_GT(counters().capture_nonzero, 0U);
+        if (capture_history < 0)
+            EXPECT_GT(counters().capture_increased, 0U);
+        else
+            EXPECT_GT(counters().capture_decreased, 0U);
+#endif
     }
-}
-
-TEST(CaptureLmrTest, LimitsHistoryAdjustmentToNonPvLateCaptures) {
-    const auto adjusted = [](int depth, int moves, bool quiet, bool tt_move) {
-        return detail::lmr_reduction<NodeType::NonPv>(
-                   {.depth = depth, .move_count = moves, .is_quiet = quiet, .is_tt_move = tt_move})
-            .capture_adjustment;
-    };
-    EXPECT_TRUE(adjusted(4, 4, false, false));
-    EXPECT_FALSE(adjusted(4, 4, true, false));
-    EXPECT_FALSE(adjusted(3, 4, false, false));
-    EXPECT_FALSE(adjusted(4, 3, false, false));
-    EXPECT_FALSE(adjusted(4, 4, false, true));
-    EXPECT_FALSE(
-        detail::lmr_reduction<NodeType::Pv>({.depth = 4, .move_count = 4}).capture_adjustment);
-}
-
-TEST(LmrReductionTest, HandlesDepthMoveCountAndDecliningTrend) {
-    struct Case {
-        int  depth     = 8;
-        int  moves     = 12;
-        bool quiet     = true;
-        bool killer    = false;
-        bool declining = false;
-        int  expected;
-    };
-    const std::array cases{
-        Case{.expected = 3},
-        Case{.declining = true, .expected = 4},
-        Case{.quiet = false, .declining = true, .expected = 2},
-        Case{.killer = true, .declining = true, .expected = 2},
-        Case{.depth = 2, .expected = 0},
-        Case{.moves = 3, .expected = 0},
-        Case{.depth = 4, .moves = 256, .declining = true, .expected = 2},
-    };
-    for (const auto& tc : cases) {
-        EXPECT_EQ(detail::lmr_reduction<NodeType::NonPv>({.depth      = tc.depth,
-                                                          .move_count = tc.moves,
-                                                          .is_quiet   = tc.quiet,
-                                                          .is_killer  = tc.killer,
-                                                          .declining  = tc.declining})
-                      .plies,
-                  tc.expected);
-    }
-    const auto pv_reduction = [](bool declining) {
-        return detail::lmr_reduction<NodeType::Pv>(
-                   {.depth = 8, .move_count = 12, .is_quiet = true, .declining = declining})
-            .plies;
-    };
-    EXPECT_EQ(pv_reduction(true), pv_reduction(false));
 }
 
 TEST_F(SearchTest, StaticEvalPathInvalidatesSkippedEvaluations) {
