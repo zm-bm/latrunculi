@@ -23,6 +23,8 @@ namespace search {
 
 namespace {
 
+using NodeType = SearchTestAccess::NodeType;
+
 class SearchTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;

@@ -71,7 +71,7 @@ Score draw_or_mate_score(const Board& board, int ply) {
 } // namespace
 
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
-template <NodeType Node>
+template <Worker::NodeType Node>
 Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) {
     const int ply = frame->ply;
     /*
@@ -517,7 +517,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
 }
 
 // Quiescence search for tactical depth-zero nodes.
-template <NodeType Node, bool UseTt>
+template <Worker::NodeType Node, bool UseTt>
 Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
     const int ply = frame->ply;
     /*
@@ -737,9 +737,10 @@ bool Worker::settle(Board& position) {
 }
 
 // Template definitions live in this translation unit; instantiate the node types we use.
-template Score Worker::alphabeta<NodeType::Pv>(Score, Score, int, SearchFrame*);
-template Score Worker::alphabeta<NodeType::NonPv>(Score, Score, int, SearchFrame*);
-template Score Worker::quiescence<NodeType::Pv, true>(Score, Score, SearchFrame*);
-template Score Worker::quiescence<NodeType::NonPv, true>(Score, Score, SearchFrame*);
+template Score Worker::alphabeta<Worker::NodeType::Pv>(Score, Score, int, Worker::SearchFrame*);
+template Score Worker::alphabeta<Worker::NodeType::NonPv>(Score, Score, int, Worker::SearchFrame*);
+template Score Worker::quiescence<Worker::NodeType::Pv, true>(Score, Score, Worker::SearchFrame*);
+template Score
+Worker::quiescence<Worker::NodeType::NonPv, true>(Score, Score, Worker::SearchFrame*);
 
 } // namespace search

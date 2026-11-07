@@ -14,6 +14,8 @@
 namespace search {
 namespace {
 
+using NodeType = SearchTestAccess::NodeType;
+
 constexpr auto low_clock_queen_fen  = "7k/8/8/8/8/8/6Q1/6K1 w - - 0 1";
 constexpr auto high_clock_queen_fen = "7k/8/8/8/8/8/6Q1/6K1 w - - 98 1";
 // All evasions are quiet and reach the fifty-move limit from clock 99.

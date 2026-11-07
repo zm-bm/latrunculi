@@ -19,6 +19,8 @@ namespace search {
 
 namespace {
 
+using NodeType = SearchTestAccess::NodeType;
+
 class QuiescenceTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;

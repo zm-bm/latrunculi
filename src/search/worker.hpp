@@ -7,13 +7,14 @@
 #include <vector>
 
 #include "board/board.hpp"
+#include "core/move.hpp"
 #include "core/types.hpp"
 #include "search/history.hpp"
 #include "search/instrumentation.hpp"
 #include "search/limits.hpp"
+#include "search/pv.hpp"
 #include "search/reporter.hpp"
 #include "search/root_line.hpp"
-#include "search/search_frame.hpp"
 #include "search/time_manager.hpp"
 
 class SearchTestAccess;
@@ -43,6 +44,28 @@ public:
     RootLine  root_snapshot() const;
 
 private:
+    // Compile-time search policy, independent of a call's PV-output request.
+    enum class NodeType { Pv, NonPv };
+
+    // One ply on the search path. Its index is fixed for the worker's lifetime.
+    // Missing evaluations include PV and checked nodes; real-move flags exclude null edges.
+    struct SearchFrame {
+        int                  ply{0};
+        std::optional<Score> static_eval;
+        Move                 excluded_move{NULL_MOVE};
+        bool                 real_move{false};
+        bool                 pv_enabled{false};
+
+        // Inherited by descendants; excluded_move applies only at its own ply.
+        bool singular_search_active{false};
+
+        // Output for this ply. Disabled searches leave it alone; the caller clears it
+        // when starting a new child buffer. Unused move slots remain uninitialized.
+        PV pv;
+
+        bool operator==(const SearchFrame&) const = default;
+    };
+
     // Current position.
     Board board;
 

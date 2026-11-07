@@ -4,6 +4,8 @@
 
 class SearchTestAccess {
 public:
+    using NodeType = search::Worker::NodeType;
+
     static void reset(search::Worker& worker) { worker.reset_search_state(); }
 
     static Board& board(search::Worker& worker) { return worker.board; }
@@ -73,7 +75,7 @@ public:
         return worker.stats;
     }
 
-    template <search::NodeType Node>
+    template <NodeType Node>
     static Score alphabeta(search::Worker& worker,
                            Score           alpha,
                            Score           beta,
@@ -88,7 +90,7 @@ public:
         return value;
     }
 
-    template <search::NodeType Node>
+    template <NodeType Node>
     static Score quiescence(
         search::Worker& worker, Score alpha, Score beta, search::PV* pv = nullptr, int ply = 0) {
         auto* frame       = &worker.frames[ply];
