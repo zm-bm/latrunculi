@@ -65,6 +65,8 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
      */
     auto&      frame           = frames[search_ply];
     const Move excluded_move   = frame.excluded_move;
+    // An excluded search tests alternatives with restricted pruning and no TT cutoffs,
+    // TT stores, or history learning at this node.
     const bool excluded_search = !excluded_move.is_null();
     assert(!excluded_search || depth > 0);
     frame.static_eval.reset();
@@ -107,7 +109,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
 
     /*
      * Static evaluation and early pruning.
-     * Save the evaluation, then try non-PV pruning before generating moves.
+     * Non-PV nodes keep an evaluation for pruning and TT storage; PV nodes leave it unset.
      */
     const bool  in_check       = board.is_check();
     const Color side           = board.side_to_move();
@@ -120,6 +122,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
         static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
                                                                 : eval::evaluate(board);
         if (!in_check) {
+            // Keep evaluations outside check in the frame for LMR's two-ply comparison.
             frame.static_eval = static_eval;
             declining = search_ply >= 2 && frame.real_move && frames[search_ply - 1].real_move
                      && frames[search_ply - 2].static_eval
@@ -154,10 +157,8 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
             return static_eval;
 
         // Null-move pruning: try a reduced search after passing the turn.
-        const bool null_move_candidate =
-            !excluded_search && !after_null && !in_check && depth >= detail::NullMoveMinDepth;
-        if (null_move_candidate && board.non_pawn_material(side) > eval::piece(ROOK).mg
-            && !tt_upper_veto) {
+        if (!excluded_search && !after_null && !in_check && depth >= detail::NullMoveMinDepth
+            && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto) {
             stats.null_move_try(search_ply);
 
             const int reduction = detail::null_move_reduction(depth, static_eval, beta);
@@ -316,17 +317,20 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
             continue;
         }
 
-        const auto lmr       = detail::lmr_reduction<Node>({.depth           = depth,
-                                                            .move_count      = move_count,
-                                                            .is_quiet        = is_quiet,
-                                                            .is_promotion    = is_promotion,
-                                                            .in_check        = in_check,
-                                                            .gives_check     = gives_check,
-                                                            .is_killer       = is_killer,
-                                                            .declining       = declining,
-                                                            .is_tt_move      = move == tt_move,
-                                                            .capture_history = raw_capture_history});
-        const int  reduction = lmr.plies;
+        const auto lmr = detail::lmr_reduction<Node>({
+            .depth           = depth,
+            .move_count      = move_count,
+            .is_quiet        = is_quiet,
+            .is_promotion    = is_promotion,
+            .in_check        = in_check,
+            .gives_check     = gives_check,
+            .is_killer       = is_killer,
+            .declining       = declining,
+            .is_tt_move      = move == tt_move,
+            .capture_history = raw_capture_history,
+        });
+
+        const int reduction = lmr.plies;
         stats.capture_lmr(lmr.capture_adjustment, raw_capture_history, lmr.base_plies, reduction);
 
         /*
@@ -532,10 +536,8 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
          * Capture pruning.
          * Use evaluation material to estimate whether a capture can improve alpha.
          */
-        const bool capture_pruning_candidate =
-            !in_check && move != tt_move && move.type() == BASIC_MOVE && alpha > -scores::mate_bound
-            && beta < scores::mate_bound;
-        if (capture_pruning_candidate) {
+        if (!in_check && move != tt_move && move.type() == BASIC_MOVE && alpha > -scores::mate_bound
+            && beta < scores::mate_bound) {
             const PieceType victim = board.captured_piece_type(move);
             const auto      price  = eval::piece(victim);
             const Score     capture_gain_estimate =
