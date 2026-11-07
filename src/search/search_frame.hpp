@@ -8,6 +8,9 @@
 
 namespace search {
 
+// Compile-time search policy, independent of a call's PV-output request.
+enum class NodeType { Pv, NonPv };
+
 // One ply on the search path. Its index is fixed for the worker's lifetime.
 // Missing evaluations include PV and checked nodes; real-move flags exclude null edges.
 struct SearchFrame {

@@ -7,7 +7,6 @@
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
-#include "search/search_policy.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -382,7 +381,7 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
 TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
     load(Board{"1n2k1nr/8/8/3p4/4P3/8/8/RN2K1N1 w - - 0 1"});
     const Score stand_pat = eval::evaluate(position());
-    const Score estimate  = stand_pat + eval::pawn.eg + detail::QCaptureMargin;
+    const Score estimate  = stand_pat + eval::pawn.eg + 300;
 
     PV pv;
     EXPECT_EQ(pv_search(estimate + 1, estimate + 2, pv), estimate);

@@ -4,38 +4,18 @@
 #include <cassert>
 #include <cmath>
 
-#include "board/board.hpp"
 #include "eval/parameters.hpp"
-#include "search/node_type.hpp"
-#include "search/tt.hpp"
+#include "search/search_frame.hpp"
 
 namespace search::detail {
 
-// Transposition-table cutoffs.
-// A cached score has no continuation, so PV nodes must search.
-template <NodeType Node>
-bool tt_cutoff_allowed(
-    const TTRecord& record, Score adjusted_score, int depth, Score alpha, Score beta) {
-    if constexpr (Node == NodeType::Pv)
-        return false;
-
-    return record.can_cutoff(adjusted_score, depth, alpha, beta);
-}
-
-// Early and quiet-move pruning.
-// Null-search roots suppress early pruning and singular searches, but retain
-// ordinary TT and move-loop behavior. A loaded position without history is not a null edge.
-inline bool after_null_move(const Board& board, int ply) noexcept {
-    return ply > 0 && board.previous_move().is_null() && board.can_unmake();
-}
-
 // Null-move pruning defaults.
-inline constexpr int       NullMoveMinDepth        = 3;
-inline constexpr int       NullMoveReductionBase   = 3;
-inline constexpr int       NullMoveReductionMax    = 6;
-inline constexpr int       NullMoveDepthDivisor    = 7;
-inline constexpr Score     NullMoveSurplusPerPly   = 2 * eval::pawn.mg;
-inline constexpr int       NullMoveSurplusBonusMax = 2;
+inline constexpr int   NullMoveMinDepth        = 3;
+inline constexpr int   NullMoveReductionBase   = 3;
+inline constexpr int   NullMoveReductionMax    = 6;
+inline constexpr int   NullMoveDepthDivisor    = 7;
+inline constexpr Score NullMoveSurplusPerPly   = 2 * eval::pawn.mg;
+inline constexpr int   NullMoveSurplusBonusMax = 2;
 
 inline int
 null_move_reduction(const int depth, const Score static_eval, const Score beta) noexcept {
@@ -48,16 +28,6 @@ null_move_reduction(const int depth, const Score static_eval, const Score beta) 
 
     return std::min({depth, NullMoveReductionMax, reduction});
 }
-
-// Razoring and futility defaults.
-inline constexpr int RazorMaxDepth    = 3;
-inline constexpr int FutilityMaxDepth = 3;
-inline constexpr int RazorMargin[]    = {0, 500, 900, 1800};
-inline constexpr int FutilityMargin[] = {0, 250, 400, 550};
-
-// Late-move pruning defaults.
-inline constexpr int LateMovePruningDepth     = 2;
-inline constexpr int LateMovePruningMoveCount = 12;
 
 // Late-move reduction defaults.
 inline constexpr int LmrMinDepth              = 3;
@@ -125,8 +95,5 @@ LmrReduction lmr_reduction(const LmrInputs& input) {
     }
     return result;
 }
-
-// Positional allowance for the heuristic qsearch capture-gain estimate.
-inline constexpr Score QCaptureMargin = 300;
 
 } // namespace search::detail

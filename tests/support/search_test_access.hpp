@@ -1,6 +1,5 @@
 #pragma once
 
-#include "search/search_policy.hpp"
 #include "search/worker.hpp"
 
 class SearchTestAccess {

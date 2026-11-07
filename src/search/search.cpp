@@ -7,13 +7,19 @@
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
 #include "search/history_learning.hpp"
-#include "search/search_policy.hpp"
+#include "search/reductions.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
 
 namespace search {
 
 namespace {
+
+// Null-search roots suppress early pruning and singular searches, but retain
+// ordinary TT and move-loop behavior. A loaded position without history is not a null edge.
+bool after_null_move(const Board& board, int ply) noexcept {
+    return ply > 0 && board.previous_move().is_null() && board.can_unmake();
+}
 
 // Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
 Score draw_or_mate_score(const Board& board, int ply) {
@@ -97,8 +103,9 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
 
         const TTRecord& record   = *tt_record;
         const Score     tt_score = record.score_at_ply(ply);
-        if (!excluded_search
-            && detail::tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
+        // A TT score has no continuation; PV nodes must search.
+        if (!excluded_search && Node == NodeType::NonPv
+            && record.can_cutoff(tt_score, depth, alpha, beta)) {
             stats.main_tt_cutoff(ply);
             return tt_score;
         }
@@ -110,6 +117,9 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
      * Static evaluation and early pruning.
      * Non-PV nodes keep an evaluation for pruning and TT storage; PV nodes leave it unset.
      */
+    constexpr int        FutilityMaxDepth = 3;
+    static constexpr int FutilityMargin[] = {0, 250, 400, 550};
+
     const bool  in_check       = board.is_check();
     const Color side           = board.side_to_move();
     bool        quiet_futility = false;
@@ -117,7 +127,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
 
     bool declining = false;
     if constexpr (Node == NodeType::NonPv) {
-        const bool after_null = detail::after_null_move(board, ply);
+        const bool after_null = after_null_move(board, ply);
         static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
                                                                 : eval::evaluate(board);
         if (!in_check) {
@@ -128,9 +138,11 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         }
 
         // At shallow depth, try quiescence when the evaluation is far below alpha.
-        const bool razor_candidate = !excluded_search && !after_null && !in_check
-                                  && depth <= detail::RazorMaxDepth && tt_move.is_null();
-        if (razor_candidate && static_eval + detail::RazorMargin[depth] <= alpha) {
+        constexpr int        RazorMaxDepth   = 3;
+        static constexpr int RazorMargin[]   = {0, 500, 900, 1800};
+        const bool           razor_candidate = !excluded_search && !after_null && !in_check
+                                  && depth <= RazorMaxDepth && tt_move.is_null();
+        if (razor_candidate && static_eval + RazorMargin[depth] <= alpha) {
             stats.razor_try(ply);
             const bool pv_enabled = frame->pv_enabled;
             frame->pv_enabled     = false;
@@ -151,10 +163,10 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
 
         // Reverse futility: return when the evaluation remains above beta after its margin.
         const bool reverse_futility_candidate =
-            !excluded_search && !after_null && !in_check && depth <= detail::FutilityMaxDepth
+            !excluded_search && !after_null && !in_check && depth <= FutilityMaxDepth
             && beta > -scores::mate_bound && beta < scores::mate_bound;
         if (reverse_futility_candidate && board.non_pawn_material(side) > eval::piece(ROOK).mg
-            && !tt_upper_veto && static_eval - detail::FutilityMargin[depth] >= beta)
+            && !tt_upper_veto && static_eval - FutilityMargin[depth] >= beta)
             return static_eval;
 
         // Null-move pruning: try a reduced search after passing the turn.
@@ -180,9 +192,9 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         }
 
         // Prepare shallow futility pruning. The move loop performs the actual skip.
-        quiet_futility = !excluded_search && depth <= detail::FutilityMaxDepth && !in_check
+        quiet_futility = !excluded_search && depth <= FutilityMaxDepth && !in_check
                       && alpha > -scores::mate_bound && alpha < scores::mate_bound
-                      && static_eval + detail::FutilityMargin[depth] <= alpha;
+                      && static_eval + FutilityMargin[depth] <= alpha;
     }
 
     /*
@@ -199,8 +211,8 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
                                      && ply + 1 < engine::max_search_ply;
 
     // Require a sufficiently deep TT bound and room to extend this search path.
-    if (tt_record && within_singular_limits && !excluded_search
-        && !detail::after_null_move(board, ply) && tt_record->depth >= depth - SingularTtDepthSlack
+    if (tt_record && within_singular_limits && !excluded_search && !after_null_move(board, ply)
+        && tt_record->depth >= depth - SingularTtDepthSlack
         && (tt_record->bound == TTBound::Exact || tt_record->bound == TTBound::LowerBound)) {
         const Score tt_score       = tt_record->score_at_ply(ply);
         const Score singular_beta  = tt_score - std::max(1, depth * eval::pawn.mg / 50);
@@ -289,9 +301,11 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             raw_capture_history = history.capture_score(board, move);
         bool history_lmp_candidate = false;
         if constexpr (Node == NodeType::NonPv) {
-            const bool late_quiet_pruning_node =
-                !excluded_search && depth == detail::LateMovePruningDepth
-                && move_count > detail::LateMovePruningMoveCount && !quiet_futility && !in_check
+            constexpr int LateMovePruningDepth     = 2;
+            constexpr int LateMovePruningMoveCount = 12;
+            const bool    late_quiet_pruning_node =
+                !excluded_search && depth == LateMovePruningDepth
+                && move_count > LateMovePruningMoveCount && !quiet_futility && !in_check
                 && best_value > -scores::mate_bound && alpha > -scores::mate_bound
                 && beta < scores::mate_bound;
             if (late_quiet_pruning_node && board.non_pawn_material(side) > 0) {
@@ -489,8 +503,8 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
             stats.q_tt_hit(ply);
 
             const Score tt_score = tt_record->score_at_ply(ply);
-            if (detail::tt_cutoff_allowed<Node>(
-                    *tt_record, tt_score, qsearch_tt_depth, alpha, beta)) {
+            if (Node == NodeType::NonPv
+                && tt_record->can_cutoff(tt_score, qsearch_tt_depth, alpha, beta)) {
                 stats.q_tt_cutoff(ply);
                 return tt_score;
             }
@@ -542,12 +556,13 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
          * Capture pruning.
          * Use evaluation material to estimate whether a capture can improve alpha.
          */
+        constexpr Score QCaptureMargin = 300;
         if (!in_check && move != tt_move && move.type() == BASIC_MOVE && alpha > -scores::mate_bound
             && beta < scores::mate_bound) {
             const PieceType victim = board.captured_piece_type(move);
             const auto      price  = eval::piece(victim);
             const Score     capture_gain_estimate =
-                static_eval + std::max(price.mg, price.eg) + detail::QCaptureMargin;
+                static_eval + std::max(price.mg, price.eg) + QCaptureMargin;
             if (capture_gain_estimate < alpha) {
                 const bool material_allows_capture_pruning =
                     board.non_pawn_material(board.side_to_move()) > eval::rook.mg

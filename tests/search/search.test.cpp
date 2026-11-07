@@ -11,7 +11,7 @@
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
-#include "search/search_policy.hpp"
+#include "search/reductions.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -61,7 +61,8 @@ protected:
         board.make_null();
         load(board, depth);
         ply() = 1;
-        ASSERT_TRUE(detail::after_null_move(position(), ply()));
+        ASSERT_TRUE(position().previous_move().is_null());
+        ASSERT_TRUE(position().can_unmake());
     }
 
     Score pv_search(Score alpha, Score beta, int depth, PV& pv) {
@@ -592,20 +593,16 @@ TEST_F(SearchTest, NullMoveReenablesAfterARealDescendantMove) {
 }
 
 TEST_F(SearchTest, NullMoveContextRequiresAnActualNullSearchEdge) {
-    load(Board{board_test::fen::start});
-    EXPECT_FALSE(detail::after_null_move(position(), ply()));
+    load(Board{board_test::fen::start}, 1);
     ply() = 1;
-    EXPECT_FALSE(position().can_unmake());
-    EXPECT_FALSE(detail::after_null_move(position(), ply()));
-    ply() = 0;
+    ASSERT_FALSE(position().can_unmake());
+    const Score static_eval = eval::evaluate(position());
+    const Score beta        = static_eval - 250;
 
-    with_null_move([&] {
-        EXPECT_TRUE(detail::after_null_move(position(), ply()));
-        with_move(find_move("e7e5"),
-                  [&] { EXPECT_FALSE(detail::after_null_move(position(), ply())); });
-        EXPECT_TRUE(detail::after_null_move(position(), ply()));
-    });
-    EXPECT_FALSE(detail::after_null_move(position(), ply()));
+    // A loaded position at a nonzero ply still permits reverse futility.
+    EXPECT_EQ(search(beta - 1, beta, 1), static_eval);
+    EXPECT_EQ(worker.node_count(), 1U);
+    EXPECT_FALSE(record());
 }
 
 TEST_F(SearchTest, AfterNullMoveSkipsReverseFutilityButRetainsOrdinaryTtStores) {
@@ -659,7 +656,7 @@ TEST_F(SearchTest, RazoringRestoresOutputAndContinuesUnlessFailLow) {
 
     // The queen capture raises the razor result above alpha, so main search continues.
     load(Board{"4k3/8/8/8/2q5/3P4/8/4K3 w - - 0 1"}, 1);
-    const Score alpha = eval::evaluate(position()) + detail::RazorMargin[1];
+    const Score alpha = eval::evaluate(position()) + 500;
     auto&       frame = SearchTestAccess::frames(worker)[0];
     frame.pv.update(Move{E2, E4}, PV{});
     SearchTestAccess::frames(worker)[1].pv.update(Move{E7, E5}, PV{});

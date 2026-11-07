@@ -11,7 +11,6 @@
 #include "search/history.hpp"
 #include "search/instrumentation.hpp"
 #include "search/limits.hpp"
-#include "search/node_type.hpp"
 #include "search/reporter.hpp"
 #include "search/root_line.hpp"
 #include "search/search_frame.hpp"
