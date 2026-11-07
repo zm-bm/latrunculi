@@ -31,7 +31,7 @@ template <NodeType Node>
 Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
     /*
      * PV reset and stop checks.
-     * Clear the PV, check search limits, and return if a stop was requested.
+     * Clear the PV and check whether the search should stop.
      */
     if (pv)
         pv->clear();
@@ -117,7 +117,6 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
     bool declining = false;
     if constexpr (Node == NodeType::NonPv) {
         const bool after_null = detail::after_null_move(board, search_ply);
-        // Preserve the evaluation snapshot before trying early pruning.
         static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
                                                                 : eval::evaluate(board);
         if (!in_check) {
@@ -241,6 +240,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
     }
     if (stop_requested())
         return alpha;
+
     /*
      * Move preparation.
      * Set up ordered moves and history learning for this node.
@@ -302,7 +302,6 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
         // Child position: checking status gates pruning and reduction.
         const bool gives_check = board.is_check();
         if (quiet_futility && !first_legal && is_quiet && !gives_check) {
-            // Futility pruning.
             board.unmake();
             --search_ply;
             moves.skip_nonchecking_quiets();
@@ -317,7 +316,6 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
             continue;
         }
 
-        // Late-move reductions.
         const auto lmr       = detail::lmr_reduction<Node>({.depth           = depth,
                                                             .move_count      = move_count,
                                                             .is_quiet        = is_quiet,
@@ -370,7 +368,6 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
             return alpha;
 
         if (value >= beta) {
-            // Train cutoff histories on the restored position.
             if (learning)
                 learning->learn_from_cutoff(move, is_capture);
 
@@ -442,7 +439,7 @@ template <NodeType Node, bool UseTt>
 Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
     /*
      * PV reset and stop checks.
-     * Clear the PV, check search limits, and return if a stop was requested.
+     * Clear the PV and check whether the search should stop.
      */
     if (pv)
         pv->clear();
@@ -524,10 +521,7 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
             alpha = best_value;
     }
 
-    /*
-     * Move preparation.
-     * Set up tactical moves, or all legal evasions when in check.
-     */
+    // Search tactical moves, or all legal evasions when in check.
     auto moves = movegen::QuiescenceMoves(board, history, tt_move);
     PV   child_pv;
 
@@ -536,10 +530,8 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
 
         /*
          * Capture pruning.
-         * Skip eligible nonchecking captures whose estimated gain cannot raise alpha.
+         * Use evaluation material to estimate whether a capture can improve alpha.
          */
-        // SEE prices classify exchanges; use evaluation material for the gain estimate.
-        // This is a heuristic allowance for positional and phase changes, not a strict bound.
         const bool capture_pruning_candidate =
             !in_check && move != tt_move && move.type() == BASIC_MOVE && alpha > -scores::mate_bound
             && beta < scores::mate_bound;
@@ -555,17 +547,14 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
                                - (victim == PAWN ? 0 : price.mg)
                            > eval::rook.mg;
                 if (material_allows_capture_pruning && !board.gives_check(move)) {
-                    // Keep a fail-low estimate without inventing an alpha raise or PV move.
+                    // Keep a fail-low estimate; leave alpha and the PV unchanged.
                     best_value = std::max(best_value, capture_gain_estimate);
                     continue;
                 }
             }
         }
 
-        /*
-         * Recursive search.
-         * Make the move and search the child with the negated window.
-         */
+        // Search the child position.
         board.make(move, UseTt ? prefetch_child_tt : nullptr);
         ++search_ply;
         const Score value = -quiescence<Node, UseTt>(-beta, -alpha, pv ? &child_pv : nullptr);
