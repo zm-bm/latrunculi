@@ -8,6 +8,11 @@
 
 class SearchThreadTestAccess {
 public:
+    static search::RootLine select_root_result(search::ThreadPool& pool,
+                                               search::RootLine    fallback) {
+        return pool.select_root_result(fallback);
+    }
+
     static search::Thread& thread(search::ThreadPool& pool, size_t index = 0) {
         assert(index < pool.thread_count());
         return *pool.threads[index];

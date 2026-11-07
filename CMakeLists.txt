@@ -145,7 +145,6 @@ if(BUILD_TESTING)
         tests/search/limits.test.cpp
         tests/search/pv.test.cpp
         tests/search/quiescence.test.cpp
-        tests/search/root_line.test.cpp
         tests/search/root_search.test.cpp
         tests/search/thread_pool.test.cpp
         tests/search/time_manager.test.cpp

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <span>
-
 #include "core/constants.hpp"
 #include "core/move.hpp"
 #include "search/pv.hpp"
@@ -40,8 +38,5 @@ struct RootLine {
 };
 
 bool is_better_root_line(const RootLine& candidate, const RootLine& current) noexcept;
-
-// Pick the best usable completed line, falling back to the caller's line.
-RootLine select_best_root_line(RootLine fallback, std::span<const RootLine> lines);
 
 } // namespace search

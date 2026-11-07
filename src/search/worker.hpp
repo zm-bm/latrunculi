@@ -43,12 +43,16 @@ public:
     RootLine  root_snapshot() const;
 
 private:
-    // Board and search state.
-    Board                 board;
+    // Current position.
+    Board board;
+
+    // Root-search state: current candidates and the last accepted result.
     int                   root_iteration_depth{0};
-    RootLine              root_result;
-    std::vector<RootLine> root_lines;
-    History               history;
+    RootLine              accepted_result;
+    std::vector<RootLine> root_candidates;
+
+    // Persistent ordering memory.
+    History history;
 
     // Include the maximum-ply entry so terminal calls have a valid frame and PV.
     // Default-initialize metadata without zeroing unused PV move slots.
@@ -74,12 +78,12 @@ private:
     // SearchFrame::excluded_move excludes a move only at its own ply.
     bool singular_search_active{false};
 
-    // Root result snapshots.
-    mutable std::mutex root_snapshot_mutex;
-    RootLine           root_result_snapshot;
+    // Synchronized result publication.
+    mutable std::mutex published_result_mutex;
+    RootLine           published_result;
 
-    // Search info reporting.
-    std::optional<RootLine> last_reported_root_line;
+    // Reporting state for this search.
+    std::optional<RootLine> last_reported_result;
     std::optional<Move>     pending_best_move;
 
     // Search lifecycle.
@@ -88,7 +92,7 @@ private:
     void wait_for_stop() const noexcept;
 
     // Root search. (root_search.cpp)
-    void     build_root_lines();
+    void     build_root_candidates();
     RootLine terminal_root_result() const;
     void     search_root();
     bool     should_search_root_depth(int depth) const noexcept;

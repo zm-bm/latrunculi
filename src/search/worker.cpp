@@ -34,18 +34,18 @@ void Worker::configure_search(const Board& root_board, Limits limits, TimePoint 
 
 // Root snapshot publication.
 void Worker::clear_root_snapshot() {
-    std::lock_guard<std::mutex> lock(root_snapshot_mutex);
-    root_result_snapshot = {};
+    std::lock_guard<std::mutex> lock(published_result_mutex);
+    published_result = {};
 }
 
 void Worker::publish_root_snapshot() {
-    std::lock_guard<std::mutex> lock(root_snapshot_mutex);
-    root_result_snapshot = root_result;
+    std::lock_guard<std::mutex> lock(published_result_mutex);
+    published_result = accepted_result;
 }
 
 RootLine Worker::root_snapshot() const {
-    std::lock_guard<std::mutex> lock(root_snapshot_mutex);
-    return root_result_snapshot;
+    std::lock_guard<std::mutex> lock(published_result_mutex);
+    return published_result;
 }
 
 // Search lifecycle.
@@ -57,7 +57,7 @@ Score Worker::search() {
         thread_pool.start_helper_searches();
     }
 
-    build_root_lines();
+    build_root_candidates();
     search_root();
 
     if (is_main_worker()) {
@@ -69,27 +69,27 @@ Score Worker::search() {
             wait_for_stop();
     }
 
-    if (!root_result.completed && !stop_requested()) {
-        root_result.depth     = limits.depth;
-        root_result.completed = true;
+    if (!accepted_result.completed && !stop_requested()) {
+        accepted_result.depth     = limits.depth;
+        accepted_result.completed = true;
     }
 
-    if (!root_result.completed)
-        root_result.pv.clear();
+    if (!accepted_result.completed)
+        accepted_result.pv.clear();
 
     publish_root_snapshot();
 
     if (is_main_worker())
         prepare_final_result();
 
-    return root_result.value;
+    return accepted_result.value;
 }
 
 void Worker::reset_search_state() {
     reset_nodes();
     singular_search_active = false;
     root_iteration_depth   = 0;
-    root_result            = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
+    accepted_result        = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
     for (auto& frame : frames) {
         frame.static_eval.reset();
         frame.excluded_move = NULL_MOVE;
@@ -98,9 +98,9 @@ void Worker::reset_search_state() {
         frame.pv.clear();
     }
     if (!board.is_check())
-        frames[0].static_eval = root_result.value;
-    root_lines.clear();
-    last_reported_root_line.reset();
+        frames[0].static_eval = accepted_result.value;
+    root_candidates.clear();
+    last_reported_result.reset();
     pending_best_move.reset();
 
     history.prepare_for_search();
@@ -117,16 +117,16 @@ void Worker::clear_search_heuristics() {
 void Worker::prepare_final_result() {
     thread_pool.stop_helper_searches();
 
-    RootLine selected = root_result;
+    RootLine selected = accepted_result;
 
     // Preserve a proven mate instead of replacing it with a deeper helper
     // result that does not satisfy the requested mate limit.
     if (!limits.has_mate_within_limit(selected.value))
-        selected = select_best_root_line(selected, thread_pool.root_snapshots());
+        selected = thread_pool.select_root_result(selected);
 
     // A stopped depth-zero search still needs a legal fallback move.
-    if (!selected.usable_root_move() && !root_lines.empty()) {
-        selected.root_move = root_lines.front().root_move;
+    if (!selected.usable_root_move() && !root_candidates.empty()) {
+        selected.root_move = root_candidates.front().root_move;
         selected.depth     = 0;
         selected.completed = false;
         selected.pv.clear();
@@ -150,11 +150,11 @@ void Worker::publish_final_result() {
 }
 
 void Worker::report_root_progress(const RootLine& line) {
-    if (last_reported_root_line && line == *last_reported_root_line)
+    if (last_reported_result && line == *last_reported_result)
         return;
 
     reporter.report_progress(line, board, total_nodes(), runtime());
-    last_reported_root_line = line;
+    last_reported_result = line;
 }
 
 // Accounting and limits.
@@ -184,14 +184,14 @@ void Worker::poll_search_limits() {
 }
 
 void Worker::finish_timed_iteration() {
-    assert(is_main_worker() && root_result.usable_root_move());
+    assert(is_main_worker() && accepted_result.usable_root_move());
 
     if (!time_manager.soft_limit() || thread_pool.is_pondering())
         return;
 
     time_manager.update_after_iteration(
-        root_result.depth, root_result.root_move, root_result.value);
-    if (root_lines.size() == 1 || runtime() >= *time_manager.soft_limit())
+        accepted_result.depth, accepted_result.root_move, accepted_result.value);
+    if (root_candidates.size() == 1 || runtime() >= *time_manager.soft_limit())
         thread_pool.request_stop();
 }
 

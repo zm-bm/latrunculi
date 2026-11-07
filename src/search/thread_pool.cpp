@@ -210,13 +210,13 @@ NodeCount ThreadPool::nodes_searched() const {
     return total;
 }
 
-std::vector<RootLine> ThreadPool::root_snapshots() const {
-    std::vector<RootLine> lines;
-    lines.reserve(threads.size());
+RootLine ThreadPool::select_root_result(RootLine fallback) const {
     for (const auto& thread : threads) {
-        lines.push_back(thread->worker.root_snapshot());
+        const RootLine candidate = thread->worker.root_snapshot();
+        if (is_better_root_line(candidate, fallback))
+            fallback = candidate;
     }
-    return lines;
+    return fallback;
 }
 
 // Helper worker control.

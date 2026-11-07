@@ -53,13 +53,13 @@ protected:
     }
 
     Board&                 position() { return SearchTestAccess::board(worker); }
-    RootLine&              result() { return SearchTestAccess::root_result(worker); }
-    std::vector<RootLine>& lines() { return SearchTestAccess::root_lines(worker); }
+    RootLine&              result() { return SearchTestAccess::accepted_result(worker); }
+    std::vector<RootLine>& candidates() { return SearchTestAccess::root_candidates(worker); }
 
-    void build_lines() { SearchTestAccess::build_root_lines(worker); }
+    void build_candidates() { SearchTestAccess::build_root_candidates(worker); }
 
     void root_search() {
-        build_lines();
+        build_candidates();
         SearchTestAccess::search_root(worker);
     }
 
@@ -105,27 +105,29 @@ TEST_F(RootSearchTest, DoesNotStoreRootPositionInTt) {
 TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
     Board board{"k7/4r3/8/8/8/3Q4/4p3/K7 w - - 0 1"};
     load(board, 1);
-    build_lines();
+    build_candidates();
 
     const Move first   = find_move("d3e2");
     const Move winning = find_move("d3d8");
     ASSERT_FALSE(first.is_null());
     ASSERT_FALSE(winning.is_null());
 
-    const auto first_it   = std::find_if(lines().begin(), lines().end(), [&](const RootLine& line) {
-        return line.root_move == first;
-    });
-    const auto winning_it = std::find_if(lines().begin(), lines().end(), [&](const RootLine& line) {
-        return line.root_move == winning;
-    });
-    ASSERT_NE(first_it, lines().end());
-    ASSERT_NE(winning_it, lines().end());
+    const auto first_it =
+        std::find_if(candidates().begin(), candidates().end(), [&](const RootLine& line) {
+            return line.root_move == first;
+        });
+    const auto winning_it =
+        std::find_if(candidates().begin(), candidates().end(), [&](const RootLine& line) {
+            return line.root_move == winning;
+        });
+    ASSERT_NE(first_it, candidates().end());
+    ASSERT_NE(winning_it, candidates().end());
     const RootLine first_line   = *first_it;
     const RootLine winning_line = *winning_it;
-    lines()                     = {first_line, winning_line};
+    candidates()                = {first_line, winning_line};
 
     ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 1, 1, -scores::inf, scores::inf));
-    EXPECT_GT(lines()[1].value, lines()[0].value);
+    EXPECT_GT(candidates()[1].value, candidates()[0].value);
     EXPECT_EQ(progress_count(1), 2);
 
 #if LATRUNCULI_SEARCH_STATS
@@ -133,15 +135,15 @@ TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
 #endif
 
     // Reuse the same child storage for a full search followed by a failed scout.
-    const RootLine best = lines()[1];
-    lines()             = {best, first_line};
+    const RootLine best = candidates()[1];
+    candidates()        = {best, first_line};
     auto& child         = SearchTestAccess::frames(worker)[1];
     child.pv            = pv_for(Move(E2, E4), Move(E7, E5));
     ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 1, 1, -scores::inf, scores::inf));
-    EXPECT_LT(lines()[1].value, lines()[0].value);
-    EXPECT_EQ(lines()[0].pv, best.pv);
-    ASSERT_EQ(lines()[1].pv.size(), 1);
-    EXPECT_EQ(lines()[1].pv.front(), first);
+    EXPECT_LT(candidates()[1].value, candidates()[0].value);
+    EXPECT_EQ(candidates()[0].pv, best.pv);
+    ASSERT_EQ(candidates()[1].pv.size(), 1);
+    EXPECT_EQ(candidates()[1].pv.front(), first);
     EXPECT_FALSE(child.pv_enabled);
     EXPECT_TRUE(child.pv.empty());
 }
@@ -156,9 +158,9 @@ TEST_F(RootSearchTest, BuildsLegalRootCandidates) {
             ++expected;
     }
 
-    build_lines();
-    ASSERT_EQ(lines().size(), static_cast<std::size_t>(expected));
-    for (const RootLine& line : lines()) {
+    build_candidates();
+    ASSERT_EQ(candidates().size(), static_cast<std::size_t>(expected));
+    for (const RootLine& line : candidates()) {
         EXPECT_TRUE(position().is_legal_pseudo_move(line.root_move));
         EXPECT_FALSE(line.completed);
     }
@@ -175,10 +177,10 @@ TEST_F(RootSearchTest, CompletesOrdersAndPublishesPV) {
     ASSERT_EQ(result().depth, 2);
     ASSERT_EQ(result().pv.size(), 2);
     EXPECT_EQ(result().pv.front(), result().root_move);
-    ASSERT_FALSE(lines().empty());
-    EXPECT_EQ(lines().front(), result());
-    for (std::size_t i = 1; i < lines().size(); ++i)
-        EXPECT_FALSE(is_better_root_line(lines()[i], lines()[i - 1]));
+    ASSERT_FALSE(candidates().empty());
+    EXPECT_EQ(candidates().front(), result());
+    for (std::size_t i = 1; i < candidates().size(); ++i)
+        EXPECT_FALSE(is_better_root_line(candidates()[i], candidates()[i - 1]));
     EXPECT_EQ(worker.root_snapshot(), result());
 }
 
@@ -225,7 +227,7 @@ TEST_F(RootSearchTest, WidensAspirationWindowAfterFailLowAndFailHigh) {
         SCOPED_TRACE(tc.name);
         Board board{board_test::fen::start};
         load(board, 1);
-        build_lines();
+        build_candidates();
 
         ASSERT_TRUE(SearchTestAccess::search_root_depth(worker, 1, tc.previous));
         EXPECT_TRUE(result().completed);
@@ -249,7 +251,7 @@ TEST_F(RootSearchTest, WidensAspirationWindowAfterFailLowAndFailHigh) {
 TEST_F(RootSearchTest, ReducedAspirationRetryPublishesNominalDepth) {
     Board board{board_test::fen::start};
     load(board, 3);
-    build_lines();
+    build_candidates();
 
     ASSERT_TRUE(SearchTestAccess::search_root_depth(worker, 3, -1000));
     EXPECT_TRUE(result().completed);
@@ -264,7 +266,7 @@ TEST_F(RootSearchTest, ReducedAspirationRetryPublishesNominalDepth) {
 TEST_F(RootSearchTest, StoppedAspirationPreservesLastAcceptedSnapshot) {
     Board board{board_test::fen::start};
     load(board, 2);
-    build_lines();
+    build_candidates();
     ASSERT_TRUE(SearchTestAccess::search_root_depth(worker, 1, eval::evaluate(position())));
     const RootLine accepted = worker.root_snapshot();
 

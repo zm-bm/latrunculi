@@ -63,10 +63,14 @@ public:
 
     static const search::Limits& limits(const search::Worker& worker) { return worker.limits; }
 
-    static search::RootLine& root_result(search::Worker& worker) { return worker.root_result; }
+    static void publish_root_snapshot(search::Worker& worker) { worker.publish_root_snapshot(); }
 
-    static std::vector<search::RootLine>& root_lines(search::Worker& worker) {
-        return worker.root_lines;
+    static search::RootLine& accepted_result(search::Worker& worker) {
+        return worker.accepted_result;
+    }
+
+    static std::vector<search::RootLine>& root_candidates(search::Worker& worker) {
+        return worker.root_candidates;
     }
 
     static search::Instrumentation<>& instrumentation(search::Worker& worker) {
@@ -99,7 +103,7 @@ public:
         return value;
     }
 
-    static void build_root_lines(search::Worker& worker) { worker.build_root_lines(); }
+    static void build_root_candidates(search::Worker& worker) { worker.build_root_candidates(); }
 
     static void search_root(search::Worker& worker) { worker.search_root(); }
 

@@ -119,7 +119,7 @@ private:
     void wait_while_pondering() const noexcept;
 
     // Worker results and diagnostics.
-    std::vector<RootLine> root_snapshots() const;
+    RootLine              select_root_result(RootLine fallback) const;
     Instrumentation<>     aggregate_instrumentation() const;
 };
 

@@ -161,14 +161,14 @@ TEST_F(SearchWorkerTest, StoppedSearchReportsFallbackWithoutCompletingRootSnapsh
     EXPECT_EQ(snapshot.depth, 0);
     EXPECT_TRUE(snapshot.pv.empty());
 
-    const auto& root_lines = SearchTestAccess::root_lines(worker());
-    ASSERT_FALSE(root_lines.empty());
+    const auto& root_candidates = SearchTestAccess::root_candidates(worker());
+    ASSERT_FALSE(root_candidates.empty());
     ASSERT_FALSE(reporter.progress.empty());
     const RootLine& final_line = reporter.progress.back();
     EXPECT_EQ(final_line.depth, 0);
     EXPECT_TRUE(final_line.pv.empty());
     ASSERT_EQ(reporter.best_moves.size(), 1U);
-    EXPECT_EQ(reporter.best_moves.front(), root_lines.front().root_move);
+    EXPECT_EQ(reporter.best_moves.front(), root_candidates.front().root_move);
 }
 
 TEST_F(SearchWorkerTest, ExhaustedClockPublishesLegalIncompleteFallback) {
@@ -198,7 +198,7 @@ TEST_F(SearchWorkerTest, SoleRootMoveSavesClockButPreservesExplicitDepth) {
     limits.set_binc(5000);
     worker().configure_search(board, limits, SearchClock::now());
     (void)worker().search();
-    EXPECT_EQ(SearchTestAccess::root_lines(worker()).size(), 1U);
+    EXPECT_EQ(SearchTestAccess::root_candidates(worker()).size(), 1U);
     EXPECT_EQ(worker().root_snapshot().depth, 1);
     EXPECT_TRUE(worker().root_snapshot().completed);
     EXPECT_EQ(worker().root_snapshot().root_move, Move(G8, F8));
