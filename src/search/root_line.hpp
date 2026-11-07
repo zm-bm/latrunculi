@@ -4,7 +4,7 @@
 
 #include "core/constants.hpp"
 #include "core/move.hpp"
-#include "search/principal_variation.hpp"
+#include "search/pv.hpp"
 
 namespace search {
 
@@ -16,7 +16,7 @@ struct RootLine {
     int  depth{0};
     bool completed{false};
 
-    PrincipalVariation pv;
+    PV pv;
 
     void reset_attempt() noexcept {
         value     = -scores::inf;
@@ -25,7 +25,7 @@ struct RootLine {
         pv.clear();
     }
 
-    void complete(int completed_depth, Score score, const PrincipalVariation& child_pv) {
+    void complete(int completed_depth, Score score, const PV& child_pv) {
         value     = score;
         depth     = completed_depth;
         completed = true;

@@ -10,14 +10,14 @@
 namespace search {
 
 // Principal variation line built during search.
-struct PrincipalVariation {
+struct PV {
     // Keep unused move slots uninitialized, including during value initialization.
-    PrincipalVariation() noexcept : length(0) {}
+    PV() noexcept : length(0) {}
 
-    PrincipalVariation(const PrincipalVariation& rhs) noexcept { *this = rhs; }
-    PrincipalVariation(PrincipalVariation&& rhs) noexcept { *this = rhs; }
+    PV(const PV& rhs) noexcept { *this = rhs; }
+    PV(PV&& rhs) noexcept { *this = rhs; }
 
-    PrincipalVariation& operator=(const PrincipalVariation& rhs) noexcept {
+    PV& operator=(const PV& rhs) noexcept {
         if (this == &rhs)
             return *this;
 
@@ -26,9 +26,9 @@ struct PrincipalVariation {
         return *this;
     }
 
-    PrincipalVariation& operator=(PrincipalVariation&& rhs) noexcept { return *this = rhs; }
+    PV& operator=(PV&& rhs) noexcept { return *this = rhs; }
 
-    bool operator==(const PrincipalVariation& rhs) const noexcept {
+    bool operator==(const PV& rhs) const noexcept {
         if (length != rhs.length)
             return false;
 
@@ -50,7 +50,7 @@ struct PrincipalVariation {
     }
 
     // Replace this PV with head followed by child.
-    void update(Move head, const PrincipalVariation& child) noexcept {
+    void update(Move head, const PV& child) noexcept {
         assert(this != &child);
 
         const int child_length =

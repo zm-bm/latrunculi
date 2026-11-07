@@ -21,13 +21,13 @@ namespace search {
 
 namespace {
 
-PrincipalVariation pv_for(Move first, Move second = NULL_MOVE) {
-    PrincipalVariation child;
+PV pv_for(Move first, Move second = NULL_MOVE) {
+    PV child;
     if (!second.is_null()) {
-        PrincipalVariation empty;
+        PV empty;
         child.update(second, empty);
     }
-    PrincipalVariation pv;
+    PV pv;
     pv.update(first, child);
     return pv;
 }
@@ -151,7 +151,7 @@ TEST_F(RootSearchTest, BuildsLegalRootCandidates) {
     }
 }
 
-TEST_F(RootSearchTest, CompletesOrdersAndPublishesPrincipalVariation) {
+TEST_F(RootSearchTest, CompletesOrdersAndPublishesPV) {
     Board board{board_test::fen::start};
     load(board, 2);
 

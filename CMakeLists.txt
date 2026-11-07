@@ -143,7 +143,7 @@ if(BUILD_TESTING)
         tests/search/history.test.cpp
         tests/search/instrumentation.test.cpp
         tests/search/limits.test.cpp
-        tests/search/principal_variation.test.cpp
+        tests/search/pv.test.cpp
         tests/search/quiescence.test.cpp
         tests/search/root_line.test.cpp
         tests/search/root_search.test.cpp

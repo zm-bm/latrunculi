@@ -28,7 +28,7 @@ Score draw_or_mate_score(const Board& board, int search_ply) {
 
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
 template <NodeType Node>
-Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* pv) {
+Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
     /*
      * PV reset and stop checks.
      * Clear the PV, check search limits, and return if a stop was requested.
@@ -252,7 +252,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
     const auto context = history.context_for(board, search_ply, tt_move);
     auto       moves   = movegen::MainSearchMoves(board, history, context);
 
-    PrincipalVariation child_pv;
+    PV child_pv;
     // Excluded searches neither train history nor contribute learning instrumentation.
     std::optional<HistoryLearning> learning;
     if (!excluded_search)
@@ -439,7 +439,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* 
 
 // Quiescence search for tactical depth-zero nodes.
 template <NodeType Node, bool UseTt>
-Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
+Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
     /*
      * PV reset and stop checks.
      * Clear the PV, check search limits, and return if a stop was requested.
@@ -528,8 +528,8 @@ Score Worker::quiescence(Score alpha, Score beta, PrincipalVariation* pv) {
      * Move preparation.
      * Set up tactical moves, or all legal evasions when in check.
      */
-    auto               moves = movegen::QuiescenceMoves(board, history, tt_move);
-    PrincipalVariation child_pv;
+    auto moves = movegen::QuiescenceMoves(board, history, tt_move);
+    PV   child_pv;
 
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         ++move_count;
@@ -645,8 +645,8 @@ bool Worker::settle(Board& position) {
     configure_search(position, Limits{}, SearchClock::now());
     history.clear();
 
-    PrincipalVariation pv;
-    const Score        value = quiescence<NodeType::Pv, false>(-scores::inf, scores::inf, &pv);
+    PV          pv;
+    const Score value = quiescence<NodeType::Pv, false>(-scores::inf, scores::inf, &pv);
     if (std::abs(value) >= scores::mate_bound)
         return false;
 
@@ -664,9 +664,9 @@ bool Worker::settle(Board& position) {
 }
 
 // Template definitions live in this translation unit; instantiate the node types we use.
-template Score Worker::alphabeta<NodeType::Pv>(Score, Score, int, PrincipalVariation*);
-template Score Worker::alphabeta<NodeType::NonPv>(Score, Score, int, PrincipalVariation*);
-template Score Worker::quiescence<NodeType::Pv, true>(Score, Score, PrincipalVariation*);
-template Score Worker::quiescence<NodeType::NonPv, true>(Score, Score, PrincipalVariation*);
+template Score Worker::alphabeta<NodeType::Pv>(Score, Score, int, PV*);
+template Score Worker::alphabeta<NodeType::NonPv>(Score, Score, int, PV*);
+template Score Worker::quiescence<NodeType::Pv, true>(Score, Score, PV*);
+template Score Worker::quiescence<NodeType::NonPv, true>(Score, Score, PV*);
 
 } // namespace search

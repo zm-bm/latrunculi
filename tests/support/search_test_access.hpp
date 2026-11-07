@@ -77,19 +77,14 @@ public:
     }
 
     template <search::NodeType Node>
-    static Score alphabeta(search::Worker&             worker,
-                           Score                       alpha,
-                           Score                       beta,
-                           int                         depth,
-                           search::PrincipalVariation* pv = nullptr) {
+    static Score alphabeta(
+        search::Worker& worker, Score alpha, Score beta, int depth, search::PV* pv = nullptr) {
         return worker.alphabeta<Node>(alpha, beta, depth, pv);
     }
 
     template <search::NodeType Node>
-    static Score quiescence(search::Worker&             worker,
-                            Score                       alpha,
-                            Score                       beta,
-                            search::PrincipalVariation* pv = nullptr) {
+    static Score
+    quiescence(search::Worker& worker, Score alpha, Score beta, search::PV* pv = nullptr) {
         return worker.quiescence<Node>(alpha, beta, pv);
     }
 

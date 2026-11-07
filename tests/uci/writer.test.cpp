@@ -16,16 +16,16 @@
 
 namespace {
 
-search::PrincipalVariation pv_for_move(Move move) {
-    search::PrincipalVariation pv;
-    search::PrincipalVariation child;
+search::PV pv_for_move(Move move) {
+    search::PV pv;
+    search::PV child;
     pv.update(move, child);
     return pv;
 }
 
-search::PrincipalVariation pv_for_line(Move first, Move second) {
-    search::PrincipalVariation child = pv_for_move(second);
-    search::PrincipalVariation pv;
+search::PV pv_for_line(Move first, Move second) {
+    search::PV child = pv_for_move(second);
+    search::PV pv;
     pv.update(first, child);
     return pv;
 }

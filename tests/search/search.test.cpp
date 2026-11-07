@@ -61,7 +61,7 @@ protected:
         ASSERT_TRUE(detail::after_null_move(position(), ply()));
     }
 
-    Score pv_search(Score alpha, Score beta, int depth, PrincipalVariation& pv) {
+    Score pv_search(Score alpha, Score beta, int depth, PV& pv) {
         return SearchTestAccess::alphabeta<NodeType::Pv>(worker, alpha, beta, depth, &pv);
     }
 
@@ -195,7 +195,7 @@ TEST_F(SearchTest, AdjudicatesFiftyMoveBoundaryBeforeTtAndMaxPly) {
         ply() = tc.search_ply;
         tt.store(position().tt_key(), NULL_MOVE, 1234, 8, TTBound::Exact, ply());
         EXPECT_EQ(search(-1, 0, 2), tc.value);
-        PrincipalVariation pv;
+        PV pv;
         EXPECT_EQ(pv_search(-scores::inf, scores::inf, 2, pv), tc.value);
     }
 }
@@ -374,7 +374,7 @@ TEST_F(SearchTest, SingularExtensionBuildsLegalPv) {
     const Move only                                = find_move("a8b8");
     tt.store(position().tt_key(), only, 30000, 7, TTBound::LowerBound, ply());
 
-    PrincipalVariation pv;
+    PV pv;
     pv_search(-scores::inf, scores::inf, 8, pv);
     ASSERT_FALSE(pv.empty());
     EXPECT_EQ(pv.front(), only);
@@ -434,7 +434,7 @@ TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
 
         // The parent and excluded root run; the next child polls the node limit.
         SearchTestAccess::set_nodes(worker, 4094);
-        PrincipalVariation pv;
+        PV pv;
         EXPECT_EQ(pv_search(-1000, 1000, 8, pv), -1000);
         EXPECT_EQ(worker.node_count(), 4096U);
         EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
@@ -495,13 +495,13 @@ TEST_F(SearchTest, NullMovePruningReturnsFailSoftCutoff) {
 TEST_F(SearchTest, PvNodesDoNotUseNullMovePruning) {
     Board baseline_board{board_test::fen::start};
     load(baseline_board, 4);
-    PrincipalVariation baseline_pv;
-    const Score        baseline = pv_search(-50, 50, 4, baseline_pv);
+    PV          baseline_pv;
+    const Score baseline = pv_search(-50, 50, 4, baseline_pv);
 
     Board board{board_test::fen::start};
     load(board, 4);
     tt.store(null_child_key(), NULL_MOVE, -200, 1, TTBound::Exact, 1);
-    PrincipalVariation pv;
+    PV pv;
     EXPECT_EQ(pv_search(-50, 50, 4, pv), baseline);
 
 #if LATRUNCULI_SEARCH_STATS
@@ -677,7 +677,7 @@ TEST_F(SearchTest, RazoringRequiresAllGuards) {
         }
         const Score alpha = eval::evaluate(position()) + tc.alpha_offset;
         if (tc.pv) {
-            PrincipalVariation pv;
+            PV pv;
             (void)pv_search(alpha, alpha + 100, tc.depth, pv);
         } else {
             (void)search(alpha, alpha + 100, tc.depth);
@@ -742,7 +742,7 @@ TEST_F(SearchTest, FutilityRequiresAllGuards) {
                 position().tt_key(), ordered_moves().front(), 0, 0, TTBound::UpperBound, ply());
         }
         if (tc.pv) {
-            PrincipalVariation pv;
+            PV pv;
             (void)pv_search(tc.alpha, tc.alpha + 100, tc.depth, pv);
         } else {
             (void)search(tc.alpha, tc.alpha + 100, tc.depth);
@@ -861,7 +861,7 @@ TEST_F(SearchTest, LateMovePruningRequiresNonPvAndNegativeCombinedHistory) {
                 store_child(move, move == late_quiet ? -200 : 0, 1);
 
             if (pv_node) {
-                PrincipalVariation pv;
+                PV pv;
                 result = pv_search(-200, 100, 2, pv);
                 // Searching the late child replaces its seeded null TT move.
                 with_move(late_quiet, [&] {
@@ -1015,7 +1015,7 @@ TEST_F(SearchTest, PvSearchMatchesFullWindowAndBuildsPv) {
 
         Board board{fen};
         load(board, 3);
-        PrincipalVariation pv;
+        PV pv;
         EXPECT_EQ(pv_search(-scores::inf, scores::inf, 3, pv), baseline);
         ASSERT_FALSE(pv.empty());
         EXPECT_TRUE(position().is_legal_move(pv.front()));
@@ -1026,8 +1026,8 @@ TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
     Board board{board_test::fen::start};
     load(board, 4);
 
-    PrincipalVariation cold_pv;
-    const Score        value = pv_search(-scores::inf, scores::inf, 4, cold_pv);
+    PV          cold_pv;
+    const Score value = pv_search(-scores::inf, scores::inf, 4, cold_pv);
     ASSERT_GE(cold_pv.size(), 4);
 
     const auto stored = record();
@@ -1035,7 +1035,7 @@ TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
     ASSERT_EQ(stored->bound, TTBound::Exact);
     ASSERT_GE(stored->depth, 4);
 
-    PrincipalVariation warm_pv;
+    PV warm_pv;
     EXPECT_EQ(pv_search(-scores::inf, scores::inf, 4, warm_pv), value);
     ASSERT_GE(warm_pv.size(), 4);
 
@@ -1051,15 +1051,15 @@ TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
 TEST_F(SearchTest, PvNodeIgnoresLowerTtBound) {
     const Board board{board_test::fen::quiet_black_to_move};
     load(board, 2);
-    PrincipalVariation baseline_pv;
-    const Score        baseline = pv_search(-scores::inf, scores::inf, 2, baseline_pv);
-    const Score        alpha    = baseline - 100;
-    const Score        beta     = baseline + 100;
-    const Score        bogus    = beta + 25;
+    PV          baseline_pv;
+    const Score baseline = pv_search(-scores::inf, scores::inf, 2, baseline_pv);
+    const Score alpha    = baseline - 100;
+    const Score beta     = baseline + 100;
+    const Score bogus    = beta + 25;
 
     load(board, 2);
     tt.store(position().tt_key(), NULL_MOVE, bogus, 2, TTBound::LowerBound, ply());
-    PrincipalVariation pv;
+    PV pv;
     EXPECT_EQ(pv_search(alpha, beta, 2, pv), baseline);
 }
 
@@ -1155,7 +1155,7 @@ TEST_F(SearchTest, StaticEvalPathInvalidatesSkippedEvaluations) {
 
         // A PV re-search at the same ply must not retain the previous non-PV value.
         tt.clear();
-        PrincipalVariation pv;
+        PV pv;
         (void)pv_search(-scores::inf, scores::inf, 1, pv);
         EXPECT_FALSE(frames[ply()].static_eval.has_value());
 

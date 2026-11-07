@@ -154,8 +154,8 @@ bool Worker::search_root_window(int search_depth, int nominal_depth, Score alpha
 
         // Root PVS searches full-window until a root PV is established.
         // Scout later root moves and re-search only strict alpha improvements.
-        PrincipalVariation child_pv;
-        Score              value;
+        PV    child_pv;
+        Score value;
         if (move_count == 1 || !has_pv_move) {
             value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, &child_pv);
         } else {

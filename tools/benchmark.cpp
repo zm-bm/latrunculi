@@ -203,7 +203,7 @@ std::string_view limit_type_name(LimitType type) {
     throw std::runtime_error("unknown search limit type");
 }
 
-std::string format_pv(const search::PrincipalVariation& pv) {
+std::string format_pv(const search::PV& pv) {
     std::string result;
     for (int index = 0; index < pv.size(); ++index) {
         if (!result.empty())

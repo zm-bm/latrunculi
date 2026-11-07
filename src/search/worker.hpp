@@ -98,9 +98,9 @@ private:
     // Recursive search. (search.cpp)
     bool settle(Board& position);
     template <NodeType Node = NodeType::NonPv>
-    Score alphabeta(Score alpha, Score beta, int depth, PrincipalVariation* pv = nullptr);
+    Score alphabeta(Score alpha, Score beta, int depth, PV* pv = nullptr);
     template <NodeType Node = NodeType::NonPv, bool UseTt = true>
-    Score quiescence(Score alpha, Score beta, PrincipalVariation* pv = nullptr);
+    Score quiescence(Score alpha, Score beta, PV* pv = nullptr);
 
     // Root results and reporting. (worker.cpp)
     void prepare_final_result();
