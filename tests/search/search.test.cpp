@@ -343,7 +343,7 @@ TEST_F(SearchTest, SingularExclusionDoesNotCreateMateOrStalemate) {
         ASSERT_FALSE(only.is_null());
         tt.store(position().tt_key(), only, 1000, 9, TTBound::Exact, ply());
         SearchTestAccess::frames(worker)[ply()].excluded_move = only;
-        SearchTestAccess::singular_search_active(worker)      = true;
+        SearchTestAccess::frames(worker)[ply()].singular_search_active = true;
 
         EXPECT_EQ(search(200, 201, 3), 200);
         EXPECT_EQ(position().to_fen(), fen);
@@ -370,7 +370,7 @@ TEST_F(SearchTest, SingularExtensionRequiresFailLow) {
         search(999, 1000, 8);
         EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
         EXPECT_TRUE(SearchTestAccess::frames(worker)[ply()].excluded_move.is_null());
-        EXPECT_FALSE(SearchTestAccess::singular_search_active(worker));
+        EXPECT_FALSE(SearchTestAccess::frames(worker)[ply()].singular_search_active);
         const auto child = with_move(tt_move, [&] { return record(); });
         ASSERT_TRUE(child);
         EXPECT_EQ(child->depth, alternative_score < 984 ? 8 : 7);
@@ -422,10 +422,28 @@ TEST_F(SearchTest, SingularMulticutLeavesTtAndHistoryUnchanged) {
         EXPECT_EQ(quiet_history(move), 0);
         EXPECT_FALSE(history().is_killer(move, ply()));
     }
-    const auto& frame = SearchTestAccess::frames(worker)[ply()];
+    auto& frame = SearchTestAccess::frames(worker)[ply()];
     EXPECT_EQ(frame.static_eval, eval::evaluate(position()));
     EXPECT_TRUE(frame.excluded_move.is_null());
-    EXPECT_FALSE(SearchTestAccess::singular_search_active(worker));
+    EXPECT_FALSE(frame.singular_search_active);
+
+    // Inside a verification subtree, this same result must not take a multicut.
+    frame.singular_search_active = true;
+    (void)search(983, 984, 8);
+    ASSERT_TRUE(record());
+    EXPECT_EQ(record()->depth, 8);
+    EXPECT_TRUE(frame.singular_search_active);
+    EXPECT_TRUE(frame.excluded_move.is_null());
+    const auto& child = SearchTestAccess::frames(worker)[ply() + 1];
+    EXPECT_TRUE(child.singular_search_active);
+    EXPECT_TRUE(child.excluded_move.is_null());
+
+    // A later ordinary call reuses that child frame without the inherited restriction.
+    frame.singular_search_active = false;
+    PV pv;
+    (void)pv_search(-scores::inf, scores::inf, 1, pv);
+    EXPECT_FALSE(child.singular_search_active);
+    EXPECT_FALSE(frame.singular_search_active);
 }
 
 TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
@@ -436,7 +454,7 @@ TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
         ply()                                          = 1;
         SearchTestAccess::root_iteration_depth(worker) = 12;
         tt.store(position().tt_key(), find_move("a8b8"), 1000, 5, TTBound::LowerBound, ply());
-        SearchTestAccess::singular_search_active(worker) = was_active;
+        SearchTestAccess::frames(worker)[ply()].singular_search_active = was_active;
         auto& frame                                      = SearchTestAccess::frames(worker)[ply()];
         frame.static_eval                                = 456;
         frame.real_move                                  = true;
@@ -450,7 +468,7 @@ TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
         EXPECT_FALSE(frame.static_eval);
         EXPECT_FALSE(frame.real_move);
         EXPECT_TRUE(frame.excluded_move.is_null());
-        EXPECT_EQ(SearchTestAccess::singular_search_active(worker), was_active);
+        EXPECT_EQ(SearchTestAccess::frames(worker)[ply()].singular_search_active, was_active);
         EXPECT_TRUE(pv.empty());
         EXPECT_TRUE(frame.pv_enabled);
         EXPECT_TRUE(frame.pv.empty());
@@ -493,7 +511,11 @@ TEST_F(SearchTest, NullMovePruningReturnsFailSoftCutoff) {
     const PositionKey root_key = position().tt_key();
     tt.store(null_child_key(), NULL_MOVE, -200, 1, TTBound::Exact, 1);
 
+    auto& frames                     = SearchTestAccess::frames(worker);
+    frames[0].singular_search_active = true;
     EXPECT_EQ(search(-50, 50, 4), 200);
+    EXPECT_TRUE(frames[1].singular_search_active);
+    EXPECT_TRUE(frames[0].singular_search_active);
     EXPECT_FALSE(tt.probe(root_key).record.has_value());
 
 #if LATRUNCULI_SEARCH_STATS

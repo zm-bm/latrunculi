@@ -8,10 +8,6 @@ public:
 
     static Board& board(search::Worker& worker) { return worker.board; }
 
-    static bool& singular_search_active(search::Worker& worker) {
-        return worker.singular_search_active;
-    }
-
     static int& root_iteration_depth(search::Worker& worker) { return worker.root_iteration_depth; }
     static void set_nodes(search::Worker& worker, NodeCount n) { worker.nodes.store(n); }
 

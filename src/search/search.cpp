@@ -177,7 +177,8 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             const int reduction = detail::null_move_reduction(depth, static_eval, beta);
 
             board.make_null(prefetch_child_tt);
-            (frame + 1)->pv_enabled = false;
+            (frame + 1)->singular_search_active = frame->singular_search_active;
+            (frame + 1)->pv_enabled             = false;
             const Score value =
                 -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, frame + 1);
             // Restore the parent position before checking the result or stop request.
@@ -224,20 +225,20 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         if (non_mate_scores && !tt_move.is_null() && board.is_pseudo_legal(tt_move)
             && board.is_legal_pseudo_move(tt_move)) {
             // Reuse this ply without PV output, then restore its search metadata.
-            const auto saved_eval      = frame->static_eval;
-            const bool saved_real_move = frame->real_move;
-            const bool pv_enabled      = frame->pv_enabled;
-            const bool was_active      = singular_search_active;
-            frame->excluded_move       = tt_move;
-            frame->pv_enabled          = false;
-            singular_search_active     = true;
+            const auto saved_eval         = frame->static_eval;
+            const bool saved_real_move    = frame->real_move;
+            const bool pv_enabled         = frame->pv_enabled;
+            const bool was_active         = frame->singular_search_active;
+            frame->excluded_move          = tt_move;
+            frame->pv_enabled             = false;
+            frame->singular_search_active = true;
             const Score singular_score =
                 alphabeta<NodeType::NonPv>(singular_beta - 1, singular_beta, singular_depth, frame);
-            frame->static_eval     = saved_eval;
-            frame->real_move       = saved_real_move;
-            frame->excluded_move   = excluded_move;
-            frame->pv_enabled      = pv_enabled;
-            singular_search_active = was_active;
+            frame->static_eval            = saved_eval;
+            frame->real_move              = saved_real_move;
+            frame->excluded_move          = excluded_move;
+            frame->pv_enabled             = pv_enabled;
+            frame->singular_search_active = was_active;
 
             if (stop_requested())
                 return alpha;
@@ -250,7 +251,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
                     && beta > -scores::mate_bound && beta < scores::mate_bound;
 
                 // Multicuts also require the singular window's lower edge outside mate ranges.
-                if (!singular_search_active && !in_check && non_mate_window
+                if (!frame->singular_search_active && !in_check && non_mate_window
                     && singular_beta - 1 > -scores::mate_bound && singular_beta >= beta)
                     return stop_requested() ? alpha : singular_beta;
             }
@@ -272,6 +273,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
 
     SearchFrame* child = frame + 1;
     child->pv.clear();
+    child->singular_search_active = frame->singular_search_active;
     // Excluded searches neither train history nor contribute learning instrumentation.
     std::optional<HistoryLearning> learning;
     if (!excluded_search)
@@ -548,6 +550,7 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
     auto moves = movegen::QuiescenceMoves(board, history, tt_move);
     SearchFrame* child = frame + 1;
     child->pv.clear();
+    child->singular_search_active = frame->singular_search_active;
 
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         ++move_count;
@@ -657,9 +660,10 @@ bool Worker::settle(Board& position) {
     configure_search(position, Limits{}, SearchClock::now());
     history.clear();
 
-    SearchFrame* frame = &frames[0];
-    frame->pv_enabled  = true;
-    const Score value  = quiescence<NodeType::Pv, false>(-scores::inf, scores::inf, frame);
+    SearchFrame* frame            = &frames[0];
+    frame->pv_enabled             = true;
+    frame->singular_search_active = false;
+    const Score value = quiescence<NodeType::Pv, false>(-scores::inf, scores::inf, frame);
     if (std::abs(value) >= scores::mate_bound)
         return false;
 

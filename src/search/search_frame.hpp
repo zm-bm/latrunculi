@@ -20,6 +20,9 @@ struct SearchFrame {
     bool                 real_move{false};
     bool                 pv_enabled{false};
 
+    // Inherited by descendants; excluded_move applies only at its own ply.
+    bool singular_search_active{false};
+
     // Output for this ply. Disabled searches leave it alone; the caller clears it
     // when starting a new child buffer. Unused move slots remain uninitialized.
     PV pv;

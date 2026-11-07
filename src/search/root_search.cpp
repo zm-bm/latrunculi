@@ -155,6 +155,7 @@ bool Worker::search_root_window(int search_depth, int nominal_depth, Score alpha
         // Scout later root moves and re-search only strict alpha improvements.
         SearchFrame* child = &frames[1];
         child->pv.clear();
+        child->singular_search_active = false;
         Score value;
         if (move_count == 1 || !has_pv_move) {
             child->pv_enabled = true;

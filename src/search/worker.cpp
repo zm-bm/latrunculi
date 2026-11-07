@@ -87,14 +87,14 @@ Score Worker::search() {
 
 void Worker::reset_search_state() {
     reset_nodes();
-    singular_search_active = false;
-    root_iteration_depth   = 0;
-    accepted_result        = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
+    root_iteration_depth = 0;
+    accepted_result      = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
     for (auto& frame : frames) {
         frame.static_eval.reset();
-        frame.excluded_move = NULL_MOVE;
-        frame.real_move     = false;
-        frame.pv_enabled    = false;
+        frame.excluded_move          = NULL_MOVE;
+        frame.real_move              = false;
+        frame.pv_enabled             = false;
+        frame.singular_search_active = false;
         frame.pv.clear();
     }
     if (!board.is_check())

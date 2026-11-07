@@ -74,9 +74,6 @@ private:
 
     // Search control state.
     std::atomic<bool> stop_requested_flag{false};
-    // Active in a singular search and its descendants; prevents multicuts.
-    // SearchFrame::excluded_move excludes a move only at its own ply.
-    bool singular_search_active{false};
 
     // Synchronized result publication.
     mutable std::mutex published_result_mutex;
