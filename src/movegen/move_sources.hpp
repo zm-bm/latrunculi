@@ -29,18 +29,35 @@ class MoveSource;
 
 inline constexpr std::size_t MoveCapacity = 256;
 
+enum class CandidateState : std::uint8_t { Ready, Excluded, Deferred };
+
+struct Candidate {
+    // Scoring fills every field before the candidate becomes part of an active range.
+    // Unused slots remain uninitialized.
+    Move move;
+    CandidateState state;
+    int score;
+    // Captured with the score, before child searches can train the history table.
+    int see_threshold;
+};
+
+struct CandidateRange {
+    Candidate* cursor{nullptr};
+    Candidate* end{nullptr};
+};
+
 // Owns complete scored batches and their selection. Sources control stage progression,
 // validate hints, and supply SEE acceptance and quiet eligibility.
 // The templated operations are defined and instantiated in move_sources.cpp.
-class OrderedCandidates {
+class Candidates {
 public:
-    OrderedCandidates() = default;
+    Candidates() = default;
 
     // Active ranges point into this object's storage.
-    OrderedCandidates(const OrderedCandidates&) = delete;
-    OrderedCandidates(OrderedCandidates&&) = delete;
-    OrderedCandidates& operator=(const OrderedCandidates&) = delete;
-    OrderedCandidates& operator=(OrderedCandidates&&) = delete;
+    Candidates(const Candidates&) = delete;
+    Candidates(Candidates&&) = delete;
+    Candidates& operator=(const Candidates&) = delete;
+    Candidates& operator=(Candidates&&) = delete;
 
     void load_evasions(const Board& board,
                        const search::History& history,
@@ -69,32 +86,15 @@ public:
     Move take_deferred_noisy();
 
 private:
-    enum class CandidateState : std::uint8_t { Ready, Excluded, Deferred };
-
-    struct Candidate {
-        // Scoring fills every field before the candidate becomes part of an active range.
-        // Unused slots remain uninitialized.
-        Move move;
-        CandidateState state;
-        int score;
-        // Captured with the score, before child searches can train the history table.
-        int see_threshold;
-    };
-
-    struct Range {
-        Candidate* cursor{nullptr};
-        Candidate* end{nullptr};
-    };
-
     template <typename Eligible>
-    static Candidate* find_best_ready(const Range& range, Eligible eligible);
+    static Candidate* find_best_ready(const CandidateRange& range, Eligible eligible);
 
-    static Move consume(Range& range, Candidate* selected);
+    static Move consume(CandidateRange& range, Candidate* selected);
 
     std::array<Candidate, MoveCapacity> storage;
     // Evasions when in check, otherwise noisy moves; quiets load only if reached.
-    Range primary;
-    Range quiet;
+    CandidateRange primary;
+    CandidateRange quiet;
 };
 
 // Move sources for each policy.
@@ -152,7 +152,7 @@ class MoveSource<MovePolicy::MainSearch> {
     const search::OrderingContext& context;
     Move tt_hint{NULL_MOVE};
     Stage stage{Stage::TtHint};
-    OrderedCandidates candidates;
+    Candidates candidates;
     std::array<Move, QuietHintCapacity> quiet_hints{};
     int quiet_hint_count{0};
     int quiet_hint_index{0};
@@ -177,7 +177,7 @@ class MoveSource<MovePolicy::Quiescence> {
     Move tt_hint{NULL_MOVE};
     const bool in_check;
     Stage stage{Stage::TtHint};
-    OrderedCandidates candidates;
+    Candidates candidates;
 };
 
 } // namespace movegen

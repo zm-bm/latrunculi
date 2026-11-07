@@ -85,11 +85,10 @@ NoisyScore score_noisy(const Board& board,
 // Batch loading.
 
 // Each loader scores even excluded entries and publishes only after generation finishes.
-void OrderedCandidates::load_evasions(
-    const Board& board,
-    const History& history,
-    Color side,
-    Move tt_hint) {
+void Candidates::load_evasions(const Board& board,
+                               const History& history,
+                               Color side,
+                               Move tt_hint) {
     Candidate* const first = storage.data();
     Candidate* fill = first;
     generate_pseudo_legal<GenerationKind::Evasions>(
@@ -110,7 +109,7 @@ void OrderedCandidates::load_evasions(
 }
 
 template <MovePolicy Policy>
-void OrderedCandidates::load_noisy(const Board& board, const History& history, Move tt_hint) {
+void Candidates::load_noisy(const Board& board, const History& history, Move tt_hint) {
     Candidate* const first = storage.data();
     Candidate* fill = first;
     generate_pseudo_legal<GenerationKind::Noisy>(board, [&](Move move, PieceType moving_piece) {
@@ -129,7 +128,7 @@ void OrderedCandidates::load_noisy(const Board& board, const History& history, M
     primary = {first, fill};
 }
 
-void OrderedCandidates::load_quiets(
+void Candidates::load_quiets(
     const Board& board,
     const History& history,
     const OrderingContext& context,
@@ -156,13 +155,13 @@ void OrderedCandidates::load_quiets(
 
 // Candidate storage and selection.
 
-inline Move OrderedCandidates::take_evasion() {
+inline Move Candidates::take_evasion() {
     return consume(primary, find_best_ready(primary, [](Move) { return true; }));
 }
 
 // Test acceptance only after ranking. Rejected candidates stay in place for later.
 template <typename Accept>
-inline Move OrderedCandidates::take_noisy(Accept accept) {
+inline Move Candidates::take_noisy(Accept accept) {
     while (Candidate* selected = find_best_ready(primary, [](Move) { return true; })) {
         if (accept(selected->move, selected->see_threshold))
             return consume(primary, selected);
@@ -173,11 +172,11 @@ inline Move OrderedCandidates::take_noisy(Accept accept) {
 }
 
 template <typename Eligible>
-inline Move OrderedCandidates::take_quiet(Eligible eligible) {
+inline Move Candidates::take_quiet(Eligible eligible) {
     return consume(quiet, find_best_ready(quiet, eligible));
 }
 
-inline Move OrderedCandidates::take_deferred_noisy() {
+inline Move Candidates::take_deferred_noisy() {
     // Deferred moves follow the current buffer order, regardless of their scores.
     for (Candidate* candidate = primary.cursor; candidate != primary.end; ++candidate)
         if (candidate->state == CandidateState::Deferred)
@@ -186,8 +185,7 @@ inline Move OrderedCandidates::take_deferred_noisy() {
 }
 
 template <typename Eligible>
-inline OrderedCandidates::Candidate* OrderedCandidates::find_best_ready(const Range& range,
-                                                                        Eligible eligible) {
+inline Candidate* Candidates::find_best_ready(const CandidateRange& range, Eligible eligible) {
     Candidate* best = nullptr;
     int best_score = 0;
     for (Candidate* candidate = range.cursor; candidate != range.end; ++candidate) {
@@ -203,7 +201,7 @@ inline OrderedCandidates::Candidate* OrderedCandidates::find_best_ready(const Ra
     return best;
 }
 
-inline Move OrderedCandidates::consume(Range& range, Candidate* selected) {
+inline Move Candidates::consume(CandidateRange& range, Candidate* selected) {
     if (selected == nullptr)
         return NULL_MOVE;
     // Retain excluded entries: removing them changes later selection ties.

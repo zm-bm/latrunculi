@@ -2,11 +2,9 @@
 
 Current priorities:
 
-1. Try `.clang-format` changes on representative source, header, and test files,
-   then apply the chosen rules repository-wide in a separate formatting commit.
-2. Cache pawn and king evaluation, if profiling supports it.
-3. Reduce LMR verification cost, if measurements support it.
-4. Recognize candidate passed pawns.
+1. Cache pawn and king evaluation, if profiling supports it.
+2. Reduce LMR verification cost, if measurements support it.
+3. Recognize candidate passed pawns.
 
 Possible improvements and investigations, grouped by area rather than priority.
 
@@ -23,6 +21,27 @@ Explore whether deferred captures should precede quiet moves with poor history.
 A zero-score split increased cold search cost without a clear warm-search
 benefit. A better boundary or rationale is needed before another trial; the
 policy has not been strength-tested.
+
+### Clarify search completion ownership
+
+Review completion across `Worker::search()`, `prepare_final_result()`, and
+`Thread::idle_loop()`. Make helper shutdown, result selection, reporting, and
+the transition to idle easier to follow together. Preserve ponder/infinite
+waits and final publication under the thread state lock before idle becomes
+visible. Require a concrete ownership improvement before restructuring.
+
+### Hide thread-pool implementation details
+
+`thread_pool.hpp` exposes the full `Thread` definition and includes `Worker`,
+bringing search internals into UCI-facing headers. Consider hiding these
+implementation dependencies while retaining the pool interface. Account for
+tests that inspect threads directly; avoid extra allocations or runtime dispatch.
+
+### Separate the TT interface from its storage
+
+Keep records, probe/store operations, and the writer handle accessible to
+consumers, while encapsulating `TTEntry`, `TTCluster`, and generation encoding.
+Preserve compact layout, atomic access, replacement semantics, and hot-path cost.
 
 ## Evaluation and endgames
 
