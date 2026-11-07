@@ -8,7 +8,7 @@
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
-#include "search/root_line.hpp"
+#include "search/search_state.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -146,7 +146,7 @@ TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
     EXPECT_EQ(candidates()[0].pv, best.pv);
     ASSERT_EQ(candidates()[1].pv.size(), 1);
     EXPECT_EQ(candidates()[1].pv.front(), first);
-    EXPECT_FALSE(child.pv_enabled);
+    EXPECT_FALSE(child.state.pv_enabled);
     EXPECT_TRUE(child.pv.empty());
 }
 

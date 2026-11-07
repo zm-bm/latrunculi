@@ -51,30 +51,30 @@ TEST_F(SearchWorkerTest, NewSearchResetsAllFrames) {
     load_worker_board(board);
     auto& frames = SearchTestAccess::frames(worker());
     for (auto& frame : frames) {
-        frame.static_eval = 123;
-        frame.excluded_move = Move{A2, A3};
-        frame.real_move = true;
-        frame.pv_enabled = true;
-        frame.singular_search_active = true;
+        frame.state.static_eval = 123;
+        frame.state.excluded_move = Move{A2, A3};
+        frame.state.real_move = true;
+        frame.state.pv_enabled = true;
+        frame.state.singular_search_active = true;
         frame.pv.update(Move{E2, E4}, PV{});
     }
     load_worker_board(board);
-    EXPECT_EQ(frames[0].static_eval, eval::evaluate(board));
+    EXPECT_EQ(frames[0].state.static_eval, eval::evaluate(board));
     for (int i = 1; i <= engine::max_search_ply; ++i)
-        EXPECT_FALSE(frames[i].static_eval.has_value());
+        EXPECT_FALSE(frames[i].state.static_eval.has_value());
     for (int ply = 0; ply <= engine::max_search_ply; ++ply) {
         const auto& frame = frames[ply];
         EXPECT_EQ(frame.ply, ply);
-        EXPECT_FALSE(frame.pv_enabled);
-        EXPECT_FALSE(frame.singular_search_active);
+        EXPECT_FALSE(frame.state.pv_enabled);
+        EXPECT_FALSE(frame.state.singular_search_active);
         EXPECT_TRUE(frame.pv.empty());
-        EXPECT_FALSE(frame.real_move);
-        EXPECT_TRUE(frame.excluded_move.is_null());
+        EXPECT_FALSE(frame.state.real_move);
+        EXPECT_TRUE(frame.state.excluded_move.is_null());
     }
 
     Board checked{"4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
     load_worker_board(checked);
-    EXPECT_FALSE(frames[0].static_eval.has_value());
+    EXPECT_FALSE(frames[0].state.static_eval.has_value());
 }
 
 TEST_F(SearchWorkerTest, HelperDepthsFollowStaggeringSchedule) {

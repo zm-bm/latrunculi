@@ -9,7 +9,7 @@
 
 #include "board/board.hpp"
 #include "core/constants.hpp"
-#include "search/root_line.hpp"
+#include "search/search_state.hpp"
 #include "search/tt.hpp"
 #include "support/board_fixtures.hpp"
 #include "uci/options.hpp"

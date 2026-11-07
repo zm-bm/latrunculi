@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "search/reporter.hpp"
-#include "search/root_line.hpp"
+#include "search/search_state.hpp"
 
 class RecordingSearchReporter final : public search::Reporter {
 public:

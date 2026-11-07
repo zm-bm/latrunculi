@@ -118,7 +118,7 @@ TEST_F(QuiescenceTest, TerminatesDrawAndMaxPlyWithoutTtStore) {
     terminal.pv.update(Move{E2, E4}, PV{});
     PV pv;
     EXPECT_EQ(pv_search(-scores::inf, scores::inf, pv), eval::evaluate(position()));
-    EXPECT_TRUE(terminal.pv_enabled);
+    EXPECT_TRUE(terminal.state.pv_enabled);
     EXPECT_TRUE(terminal.pv.empty());
     EXPECT_TRUE(pv.empty());
     EXPECT_EQ(worker.node_count(), 1U);

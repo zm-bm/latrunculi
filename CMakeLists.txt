@@ -55,7 +55,6 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/search/root_search.cpp
     src/search/search.cpp
     src/search/instrumentation.cpp
-    src/search/root_line.cpp
     src/search/thread_pool.cpp
     src/search/time_manager.cpp
     src/search/tt.cpp

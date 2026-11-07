@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "search/pv.hpp"
+#include "search/search_state.hpp"
 
 namespace search {
 

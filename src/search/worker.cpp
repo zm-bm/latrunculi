@@ -89,16 +89,10 @@ void Worker::reset_search_state() {
     reset_nodes();
     root_iteration_depth = 0;
     accepted_result = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
-    for (auto& frame : frames) {
-        frame.static_eval.reset();
-        frame.excluded_move = NULL_MOVE;
-        frame.real_move = false;
-        frame.pv_enabled = false;
-        frame.singular_search_active = false;
-        frame.pv.clear();
-    }
+    for (auto& frame : frames)
+        frame.reset();
     if (!board.is_check())
-        frames[0].static_eval = accepted_result.value;
+        frames[0].state.static_eval = accepted_result.value;
     root_candidates.clear();
     last_reported_result.reset();
     pending_best_move.reset();

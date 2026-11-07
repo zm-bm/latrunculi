@@ -12,7 +12,7 @@
 #include "search/instrumentation.hpp"
 #include "search/limits.hpp"
 #include "search/reporter.hpp"
-#include "search/root_line.hpp"
+#include "search/search_state.hpp"
 #include "search/worker.hpp"
 
 class SearchThreadTestAccess;

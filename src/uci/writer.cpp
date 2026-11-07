@@ -6,7 +6,7 @@
 #include "board/board.hpp"
 #include "board/notation.hpp"
 #include "core/constants.hpp"
-#include "search/root_line.hpp"
+#include "search/search_state.hpp"
 #include "uci/options.hpp"
 
 namespace uci {

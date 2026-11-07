@@ -184,7 +184,7 @@ TEST_F(SearchTest, HandlesDrawAndMaxPlyExits) {
     terminal.pv.update(Move{E2, E4}, PV{});
     PV pv;
     EXPECT_EQ(pv_search(-scores::inf, scores::inf, 1, pv), eval::evaluate(position()));
-    EXPECT_TRUE(terminal.pv_enabled);
+    EXPECT_TRUE(terminal.state.pv_enabled);
     EXPECT_TRUE(terminal.pv.empty());
     EXPECT_TRUE(pv.empty());
     EXPECT_FALSE(record());
@@ -353,8 +353,8 @@ TEST_F(SearchTest, SingularExclusionDoesNotCreateMateOrStalemate) {
         const Move only = find_move("a8b8");
         ASSERT_FALSE(only.is_null());
         tt.store(position().tt_key(), only, 1000, 9, TTBound::Exact, ply());
-        SearchTestAccess::frames(worker)[ply()].excluded_move = only;
-        SearchTestAccess::frames(worker)[ply()].singular_search_active = true;
+        SearchTestAccess::frames(worker)[ply()].state.excluded_move = only;
+        SearchTestAccess::frames(worker)[ply()].state.singular_search_active = true;
 
         EXPECT_EQ(search(200, 201, 3), 200);
         EXPECT_EQ(position().to_fen(), fen);
@@ -380,8 +380,8 @@ TEST_F(SearchTest, SingularExtensionRequiresFailLow) {
 
         search(999, 1000, 8);
         EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
-        EXPECT_TRUE(SearchTestAccess::frames(worker)[ply()].excluded_move.is_null());
-        EXPECT_FALSE(SearchTestAccess::frames(worker)[ply()].singular_search_active);
+        EXPECT_TRUE(SearchTestAccess::frames(worker)[ply()].state.excluded_move.is_null());
+        EXPECT_FALSE(SearchTestAccess::frames(worker)[ply()].state.singular_search_active);
         const auto child = with_move(tt_move, [&] { return record(); });
         ASSERT_TRUE(child);
         EXPECT_EQ(child->depth, alternative_score < 984 ? 8 : 7);
@@ -434,27 +434,27 @@ TEST_F(SearchTest, SingularMulticutLeavesTtAndHistoryUnchanged) {
         EXPECT_FALSE(history().is_killer(move, ply()));
     }
     auto& frame = SearchTestAccess::frames(worker)[ply()];
-    EXPECT_EQ(frame.static_eval, eval::evaluate(position()));
-    EXPECT_TRUE(frame.excluded_move.is_null());
-    EXPECT_FALSE(frame.singular_search_active);
+    EXPECT_EQ(frame.state.static_eval, eval::evaluate(position()));
+    EXPECT_TRUE(frame.state.excluded_move.is_null());
+    EXPECT_FALSE(frame.state.singular_search_active);
 
     // Inside a verification subtree, this same result must not take a multicut.
-    frame.singular_search_active = true;
+    frame.state.singular_search_active = true;
     (void)search(983, 984, 8);
     ASSERT_TRUE(record());
     EXPECT_EQ(record()->depth, 8);
-    EXPECT_TRUE(frame.singular_search_active);
-    EXPECT_TRUE(frame.excluded_move.is_null());
+    EXPECT_TRUE(frame.state.singular_search_active);
+    EXPECT_TRUE(frame.state.excluded_move.is_null());
     const auto& child = SearchTestAccess::frames(worker)[ply() + 1];
-    EXPECT_TRUE(child.singular_search_active);
-    EXPECT_TRUE(child.excluded_move.is_null());
+    EXPECT_TRUE(child.state.singular_search_active);
+    EXPECT_TRUE(child.state.excluded_move.is_null());
 
     // A later ordinary call reuses that child frame without the inherited restriction.
-    frame.singular_search_active = false;
+    frame.state.singular_search_active = false;
     PV pv;
     (void)pv_search(-scores::inf, scores::inf, 1, pv);
-    EXPECT_FALSE(child.singular_search_active);
-    EXPECT_FALSE(frame.singular_search_active);
+    EXPECT_FALSE(child.state.singular_search_active);
+    EXPECT_FALSE(frame.state.singular_search_active);
 }
 
 TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
@@ -465,10 +465,10 @@ TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
         ply() = 1;
         SearchTestAccess::root_iteration_depth(worker) = 12;
         tt.store(position().tt_key(), find_move("a8b8"), 1000, 5, TTBound::LowerBound, ply());
-        SearchTestAccess::frames(worker)[ply()].singular_search_active = was_active;
+        SearchTestAccess::frames(worker)[ply()].state.singular_search_active = was_active;
         auto& frame = SearchTestAccess::frames(worker)[ply()];
-        frame.static_eval = 456;
-        frame.real_move = true;
+        frame.state.static_eval = 456;
+        frame.state.real_move = true;
 
         // The parent and excluded root run; the next child polls the node limit.
         SearchTestAccess::set_nodes(worker, 4094);
@@ -476,12 +476,12 @@ TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
         EXPECT_EQ(pv_search(-1000, 1000, 8, pv), -1000);
         EXPECT_EQ(worker.node_count(), 4096U);
         EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
-        EXPECT_FALSE(frame.static_eval);
-        EXPECT_FALSE(frame.real_move);
-        EXPECT_TRUE(frame.excluded_move.is_null());
-        EXPECT_EQ(SearchTestAccess::frames(worker)[ply()].singular_search_active, was_active);
+        EXPECT_FALSE(frame.state.static_eval);
+        EXPECT_FALSE(frame.state.real_move);
+        EXPECT_TRUE(frame.state.excluded_move.is_null());
+        EXPECT_EQ(SearchTestAccess::frames(worker)[ply()].state.singular_search_active, was_active);
         EXPECT_TRUE(pv.empty());
-        EXPECT_TRUE(frame.pv_enabled);
+        EXPECT_TRUE(frame.state.pv_enabled);
         EXPECT_TRUE(frame.pv.empty());
         const auto stored = record();
         ASSERT_TRUE(stored);
@@ -496,10 +496,10 @@ TEST_F(SearchTest, NullMovePruningReturnsFailSoftCutoff) {
     tt.store(null_child_key(), NULL_MOVE, -200, 1, TTBound::Exact, 1);
 
     auto& frames = SearchTestAccess::frames(worker);
-    frames[0].singular_search_active = true;
+    frames[0].state.singular_search_active = true;
     EXPECT_EQ(search(-50, 50, 4), 200);
-    EXPECT_TRUE(frames[1].singular_search_active);
-    EXPECT_TRUE(frames[0].singular_search_active);
+    EXPECT_TRUE(frames[1].state.singular_search_active);
+    EXPECT_TRUE(frames[0].state.singular_search_active);
     EXPECT_FALSE(tt.probe(root_key).record.has_value());
 
 #if LATRUNCULI_SEARCH_STATS
@@ -650,7 +650,7 @@ TEST_F(SearchTest, RazoringRestoresOutputAndContinuesUnlessFailLow) {
     EXPECT_EQ(SearchTestAccess::alphabeta<
                   NodeType::NonPv>(worker, static_eval + 901, static_eval + 1001, 2, &pv),
               static_eval);
-    EXPECT_TRUE(SearchTestAccess::frames(worker)[0].pv_enabled);
+    EXPECT_TRUE(SearchTestAccess::frames(worker)[0].state.pv_enabled);
     EXPECT_TRUE(pv.empty());
     const auto stored = record();
     ASSERT_TRUE(stored.has_value());
@@ -668,8 +668,8 @@ TEST_F(SearchTest, RazoringRestoresOutputAndContinuesUnlessFailLow) {
     SearchTestAccess::frames(worker)[1].pv.update(Move{E7, E5}, PV{});
     EXPECT_GE(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, alpha + 1, 1, &pv),
               alpha + 1);
-    EXPECT_TRUE(frame.pv_enabled);
-    EXPECT_EQ(frame.static_eval, eval::evaluate(position()));
+    EXPECT_TRUE(frame.state.pv_enabled);
+    EXPECT_EQ(frame.state.static_eval, eval::evaluate(position()));
     ASSERT_EQ(pv.size(), 1);
     EXPECT_EQ(pv.front(), Move(D3, C4));
     ASSERT_TRUE(record());
@@ -1146,36 +1146,36 @@ TEST_F(SearchTest, StaticEvalPathInvalidatesSkippedEvaluations) {
     with_move(Move(E2, E4), [&] {
         const Score expected = eval::evaluate(position());
         (void)search(-scores::inf, scores::inf, 1);
-        EXPECT_EQ(frames[ply()].static_eval, expected);
-        EXPECT_TRUE(frames[ply()].real_move);
+        EXPECT_EQ(frames[ply()].state.static_eval, expected);
+        EXPECT_TRUE(frames[ply()].state.real_move);
 
         // A PV re-search at the same ply must not retain the previous non-PV value.
         tt.clear();
         PV pv;
         (void)pv_search(-scores::inf, scores::inf, 1, pv);
-        EXPECT_FALSE(frames[ply()].static_eval.has_value());
+        EXPECT_FALSE(frames[ply()].state.static_eval.has_value());
 
-        frames[ply()].static_eval = expected;
+        frames[ply()].state.static_eval = expected;
         tt.store(position().tt_key(), NULL_MOVE, 100, 2, TTBound::Exact, ply());
         EXPECT_EQ(search(-1, 0, 2), 100);
-        EXPECT_FALSE(frames[ply()].static_eval.has_value());
+        EXPECT_FALSE(frames[ply()].state.static_eval.has_value());
 
-        frames[ply()].static_eval = expected;
+        frames[ply()].state.static_eval = expected;
         tt.clear();
         (void)search(-scores::inf, scores::inf, 0);
-        EXPECT_FALSE(frames[ply()].static_eval.has_value());
+        EXPECT_FALSE(frames[ply()].state.static_eval.has_value());
     });
 
     with_null_move([&] {
         (void)search(-scores::inf, scores::inf, 1);
-        EXPECT_FALSE(frames[ply()].real_move);
+        EXPECT_FALSE(frames[ply()].state.real_move);
     });
 
     Board checked{"4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
     load(checked, 1);
-    frames[0].static_eval = 100;
+    frames[0].state.static_eval = 100;
     (void)search(-scores::inf, scores::inf, 1);
-    EXPECT_FALSE(frames[0].static_eval.has_value());
+    EXPECT_FALSE(frames[0].state.static_eval.has_value());
 }
 
 TEST_F(SearchTest, LmrResearchesAtFullDepthAfterAlphaImprovement) {
@@ -1203,8 +1203,8 @@ TEST_F(SearchTest, DecliningLmrStillVerifiesAnApparentReducedCutoff) {
     const auto prepare = [&] {
         load(board, 5);
         ply() = 2;
-        SearchTestAccess::frames(worker)[0].static_eval = eval::evaluate(position()) + 100;
-        SearchTestAccess::frames(worker)[1].real_move = true;
+        SearchTestAccess::frames(worker)[0].state.static_eval = eval::evaluate(position()) + 100;
+        SearchTestAccess::frames(worker)[1].state.real_move = true;
     };
     prepare();
     const Score expected = search(-2000, 2000, 5);

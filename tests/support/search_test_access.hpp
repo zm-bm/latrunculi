@@ -92,7 +92,7 @@ public:
         search::PV* pv = nullptr,
         int ply = 0) {
         auto* frame = &worker.frames[ply];
-        frame->pv_enabled = pv != nullptr;
+        frame->state.pv_enabled = pv != nullptr;
         const Score value = worker.alphabeta<Node>(alpha, beta, depth, frame);
         if (pv)
             *pv = frame->pv;
@@ -106,7 +106,7 @@ public:
                             search::PV* pv = nullptr,
                             int ply = 0) {
         auto* frame = &worker.frames[ply];
-        frame->pv_enabled = pv != nullptr;
+        frame->state.pv_enabled = pv != nullptr;
         const Score value = worker.quiescence<Node>(alpha, beta, frame);
         if (pv)
             *pv = frame->pv;

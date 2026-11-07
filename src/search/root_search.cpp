@@ -155,18 +155,18 @@ bool Worker::search_root_window(int search_depth, int nominal_depth, Score alpha
         // Scout later root moves and re-search only strict alpha improvements.
         SearchFrame* child = &frames[1];
         child->pv.clear();
-        child->singular_search_active = false;
+        child->state.singular_search_active = false;
         Score value;
         if (move_count == 1 || !has_pv_move) {
-            child->pv_enabled = true;
+            child->state.pv_enabled = true;
             value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, child);
         } else {
-            child->pv_enabled = false;
+            child->state.pv_enabled = false;
             value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, search_depth - 1, child);
             if (!stop_requested() && value > alpha) {
                 stats.pvs_research(child->ply);
                 child->pv.clear();
-                child->pv_enabled = true;
+                child->state.pv_enabled = true;
                 value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, child);
             }
         }

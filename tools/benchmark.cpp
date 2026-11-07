@@ -21,7 +21,7 @@
 #include "eval/evaluation.hpp"
 #include "search/limits.hpp"
 #include "search/reporter.hpp"
-#include "search/root_line.hpp"
+#include "search/search_state.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 
