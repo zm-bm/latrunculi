@@ -31,6 +31,7 @@ protected:
     Thread&                 thread{SearchThreadTestAccess::thread(pool)};
     Worker&                 worker{SearchThreadTestAccess::worker(thread)};
     Limits                  limits;
+    int                     current_ply{0};
 
     void SetUp() override {
         limits.depth = 4;
@@ -43,14 +44,16 @@ protected:
         limits.depth = depth;
         worker.configure_search(board, limits, SearchClock::now());
         SearchTestAccess::reset(worker);
+        current_ply = 0;
     }
 
     Board&   position() { return SearchTestAccess::board(worker); }
-    int&     ply() { return SearchTestAccess::search_ply(worker); }
+    int&     ply() { return current_ply; }
     History& history() { return SearchTestAccess::history(worker); }
 
     Score search(Score alpha, Score beta, int depth) {
-        return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, depth);
+        return SearchTestAccess::alphabeta<NodeType::NonPv>(
+            worker, alpha, beta, depth, nullptr, ply());
     }
 
     void load_after_null(const Board& parent, int depth) {
@@ -62,7 +65,7 @@ protected:
     }
 
     Score pv_search(Score alpha, Score beta, int depth, PV& pv) {
-        return SearchTestAccess::alphabeta<NodeType::Pv>(worker, alpha, beta, depth, &pv);
+        return SearchTestAccess::alphabeta<NodeType::Pv>(worker, alpha, beta, depth, &pv, ply());
     }
 
     Move find_move(std::string_view move_string) {
@@ -165,7 +168,14 @@ TEST_F(SearchTest, HandlesDrawAndMaxPlyExits) {
     Board max_ply{board_test::fen::quiet_black_to_move};
     load(max_ply);
     ply() = engine::max_search_ply;
-    EXPECT_EQ(search(-scores::inf, scores::inf, 1), eval::evaluate(position()));
+    auto& terminal = SearchTestAccess::frames(worker)[ply()];
+    terminal.pv.update(Move{E2, E4}, PV{});
+    PV pv;
+    EXPECT_EQ(pv_search(-scores::inf, scores::inf, 1, pv), eval::evaluate(position()));
+    EXPECT_TRUE(terminal.pv_enabled);
+    EXPECT_TRUE(terminal.pv.empty());
+    EXPECT_TRUE(pv.empty());
+    EXPECT_FALSE(record());
 
     Board drawn_max{"k7/8/8/8/8/8/4r3/K2Q4 w - - 100 1"};
     load(drawn_max);
@@ -358,7 +368,6 @@ TEST_F(SearchTest, SingularExtensionRequiresFailLow) {
 
         search(999, 1000, 8);
         EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
-        EXPECT_EQ(ply(), 1);
         EXPECT_TRUE(SearchTestAccess::frames(worker)[ply()].excluded_move.is_null());
         EXPECT_FALSE(SearchTestAccess::singular_search_active(worker));
         const auto child = with_move(tt_move, [&] { return record(); });
@@ -402,7 +411,6 @@ TEST_F(SearchTest, SingularMulticutLeavesTtAndHistoryUnchanged) {
     // Return singular beta (1000 - 16), not the alternative's fail-soft score of 1134.
     EXPECT_EQ(search(983, 984, 8), 984);
     EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
-    EXPECT_EQ(ply(), 1);
     const auto stored = record();
     ASSERT_TRUE(stored);
     EXPECT_EQ(stored->depth, 5);
@@ -438,12 +446,13 @@ TEST_F(SearchTest, InterruptedSingularSearchRestoresState) {
         EXPECT_EQ(pv_search(-1000, 1000, 8, pv), -1000);
         EXPECT_EQ(worker.node_count(), 4096U);
         EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
-        EXPECT_EQ(ply(), 1);
         EXPECT_FALSE(frame.static_eval);
         EXPECT_FALSE(frame.real_move);
         EXPECT_TRUE(frame.excluded_move.is_null());
         EXPECT_EQ(SearchTestAccess::singular_search_active(worker), was_active);
         EXPECT_TRUE(pv.empty());
+        EXPECT_TRUE(frame.pv_enabled);
+        EXPECT_TRUE(frame.pv.empty());
         const auto stored = record();
         ASSERT_TRUE(stored);
         EXPECT_EQ(stored->depth, 5);
@@ -630,17 +639,41 @@ TEST_F(SearchTest, AfterNullMoveStillAllowsMoveLoopFutility) {
 #endif
 }
 
-TEST_F(SearchTest, RazoringReturnsQsearchFailLowWithoutParentTtStore) {
+TEST_F(SearchTest, RazoringRestoresOutputAndContinuesUnlessFailLow) {
     Board board{board_test::fen::quiet_black_to_move};
     load(board, 2);
     const Score static_eval = eval::evaluate(position());
-    EXPECT_EQ(search(static_eval + 901, static_eval + 1001, 2), static_eval);
+    PV          pv;
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(
+                  worker, static_eval + 901, static_eval + 1001, 2, &pv),
+              static_eval);
+    EXPECT_TRUE(SearchTestAccess::frames(worker)[0].pv_enabled);
+    EXPECT_TRUE(pv.empty());
     const auto stored = record();
     ASSERT_TRUE(stored.has_value());
     EXPECT_EQ(stored->depth, 0);
 
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_EQ(counters().razor_cutoffs[0], 1U);
+#endif
+
+    // The queen capture raises the razor result above alpha, so main search continues.
+    load(Board{"4k3/8/8/8/2q5/3P4/8/4K3 w - - 0 1"}, 1);
+    const Score alpha = eval::evaluate(position()) + detail::RazorMargin[1];
+    auto&       frame = SearchTestAccess::frames(worker)[0];
+    frame.pv.update(Move{E2, E4}, PV{});
+    SearchTestAccess::frames(worker)[1].pv.update(Move{E7, E5}, PV{});
+    EXPECT_GE(SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, alpha + 1, 1, &pv),
+              alpha + 1);
+    EXPECT_TRUE(frame.pv_enabled);
+    EXPECT_EQ(frame.static_eval, eval::evaluate(position()));
+    ASSERT_EQ(pv.size(), 1);
+    EXPECT_EQ(pv.front(), Move(D3, C4));
+    ASSERT_TRUE(record());
+    EXPECT_EQ(record()->depth, 1);
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(counters().razor_tries[0], 1U);
+    EXPECT_EQ(counters().razor_cutoffs[0], 0U);
 #endif
 }
 

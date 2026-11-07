@@ -21,6 +21,7 @@ class SearchWorkerTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
     ThreadPool              pool{1, reporter};
+    int                     current_ply{0};
 
     Thread& test_thread() { return SearchThreadTestAccess::thread(pool); }
 
@@ -29,9 +30,10 @@ protected:
     void load_worker_board(Board& board) {
         worker().configure_search(board, Limits{}, SearchClock::now());
         SearchTestAccess::reset(worker());
+        current_ply = 0;
     }
 
-    int& search_ply() { return SearchTestAccess::search_ply(worker()); }
+    int& search_ply() { return current_ply; }
     bool worker_is_draw() { return SearchTestAccess::board(worker()).is_draw(search_ply()); }
 
     History& history() { return SearchTestAccess::history(worker()); }
@@ -48,13 +50,23 @@ TEST_F(SearchWorkerTest, NewSearchResetsAllFrames) {
     Board board{board_test::fen::start};
     load_worker_board(board);
     auto& frames = SearchTestAccess::frames(worker());
-    frames.fill({123, Move{A2, A3}, true});
+    for (auto& frame : frames) {
+        frame.static_eval   = 123;
+        frame.excluded_move = Move{A2, A3};
+        frame.real_move     = true;
+        frame.pv_enabled    = true;
+        frame.pv.update(Move{E2, E4}, PV{});
+    }
     SearchTestAccess::singular_search_active(worker()) = true;
     load_worker_board(board);
     EXPECT_EQ(frames[0].static_eval, eval::evaluate(board));
-    for (int i = 1; i < engine::max_search_ply; ++i)
+    for (int i = 1; i <= engine::max_search_ply; ++i)
         EXPECT_FALSE(frames[i].static_eval.has_value());
-    for (const auto& frame : frames) {
+    for (int ply = 0; ply <= engine::max_search_ply; ++ply) {
+        const auto& frame = frames[ply];
+        EXPECT_EQ(frame.ply, ply);
+        EXPECT_FALSE(frame.pv_enabled);
+        EXPECT_TRUE(frame.pv.empty());
         EXPECT_FALSE(frame.real_move);
         EXPECT_TRUE(frame.excluded_move.is_null());
     }
@@ -97,6 +109,7 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeMoveHistoriesAndPreserveContinuation
     SearchTestAccess::continuation_history_entry(history(), WHITE, PAWN, E4, KNIGHT, F6) = 16;
 
     SearchTestAccess::reset(worker());
+    current_ply = 0;
     EXPECT_EQ(history().context_for(board, 0).primary_killer, NULL_MOVE);
     EXPECT_EQ(history().context_for(board, 0).secondary_killer, NULL_MOVE);
     EXPECT_EQ(SearchTestAccess::counter_move_entry(history(), WHITE, PAWN, E4), NULL_MOVE);
@@ -106,6 +119,7 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeMoveHistoriesAndPreserveContinuation
               16);
 
     SearchTestAccess::reset(worker());
+    current_ply = 0;
     EXPECT_EQ(SearchTestAccess::quiet_history_entry(history(), WHITE, E2, E4), 2);
     EXPECT_EQ(SearchTestAccess::capture_history_entry(history(), WHITE, KNIGHT, E5, PAWN), -64);
     EXPECT_EQ(SearchTestAccess::continuation_history_entry(history(), WHITE, PAWN, E4, KNIGHT, F6),

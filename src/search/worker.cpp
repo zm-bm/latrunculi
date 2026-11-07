@@ -14,12 +14,14 @@ namespace search {
 Worker::Worker(int id, Reporter& reporter, ThreadPool& pool)
     : reporter(reporter),
       thread_pool(pool),
-      worker_id(id) {}
+      worker_id(id) {
+    for (int ply = 0; ply <= engine::max_search_ply; ++ply)
+        frames[ply].ply = ply;
+}
 
 // Configuration.
 void Worker::configure_search(const Board& root_board, Limits limits, TimePoint search_start_time) {
-    board      = root_board;
-    search_ply = 0;
+    board = root_board;
 
     this->limits = limits;
     start_time   = search_start_time;
@@ -85,11 +87,16 @@ Score Worker::search() {
 
 void Worker::reset_search_state() {
     reset_nodes();
-    search_ply             = 0;
     singular_search_active = false;
     root_iteration_depth   = 0;
     root_result            = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
-    frames.fill({});
+    for (auto& frame : frames) {
+        frame.static_eval.reset();
+        frame.excluded_move = NULL_MOVE;
+        frame.real_move     = false;
+        frame.pv_enabled    = false;
+        frame.pv.clear();
+    }
     if (!board.is_check())
         frames[0].static_eval = root_result.value;
     root_lines.clear();

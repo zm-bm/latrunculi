@@ -46,13 +46,14 @@ public:
 private:
     // Board and search state.
     Board                 board;
-    int                   search_ply{0};
     int                   root_iteration_depth{0};
     RootLine              root_result;
     std::vector<RootLine> root_lines;
     History               history;
 
-    std::array<SearchFrame, engine::max_search_ply> frames{};
+    // Include the maximum-ply entry so terminal calls have a valid frame and PV.
+    // Default-initialize metadata without zeroing unused PV move slots.
+    std::array<SearchFrame, engine::max_search_ply + 1> frames;
 
     // Current search request.
     Limits      limits;
@@ -98,9 +99,9 @@ private:
     // Recursive search. (search.cpp)
     bool settle(Board& position);
     template <NodeType Node = NodeType::NonPv>
-    Score alphabeta(Score alpha, Score beta, int depth, PV* pv = nullptr);
+    Score alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame);
     template <NodeType Node = NodeType::NonPv, bool UseTt = true>
-    Score quiescence(Score alpha, Score beta, PV* pv = nullptr);
+    Score quiescence(Score alpha, Score beta, SearchFrame* frame);
 
     // Root results and reporting. (worker.cpp)
     void prepare_final_result();

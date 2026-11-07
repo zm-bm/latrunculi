@@ -9,8 +9,6 @@ public:
 
     static Board& board(search::Worker& worker) { return worker.board; }
 
-    static int& search_ply(search::Worker& worker) { return worker.search_ply; }
-
     static bool& singular_search_active(search::Worker& worker) {
         return worker.singular_search_active;
     }
@@ -77,15 +75,29 @@ public:
     }
 
     template <search::NodeType Node>
-    static Score alphabeta(
-        search::Worker& worker, Score alpha, Score beta, int depth, search::PV* pv = nullptr) {
-        return worker.alphabeta<Node>(alpha, beta, depth, pv);
+    static Score alphabeta(search::Worker& worker,
+                           Score           alpha,
+                           Score           beta,
+                           int             depth,
+                           search::PV*     pv  = nullptr,
+                           int             ply = 0) {
+        auto* frame       = &worker.frames[ply];
+        frame->pv_enabled = pv != nullptr;
+        const Score value = worker.alphabeta<Node>(alpha, beta, depth, frame);
+        if (pv)
+            *pv = frame->pv;
+        return value;
     }
 
     template <search::NodeType Node>
-    static Score
-    quiescence(search::Worker& worker, Score alpha, Score beta, search::PV* pv = nullptr) {
-        return worker.quiescence<Node>(alpha, beta, pv);
+    static Score quiescence(
+        search::Worker& worker, Score alpha, Score beta, search::PV* pv = nullptr, int ply = 0) {
+        auto* frame       = &worker.frames[ply];
+        frame->pv_enabled = pv != nullptr;
+        const Score value = worker.quiescence<Node>(alpha, beta, frame);
+        if (pv)
+            *pv = frame->pv;
+        return value;
     }
 
     static void build_root_lines(search::Worker& worker) { worker.build_root_lines(); }

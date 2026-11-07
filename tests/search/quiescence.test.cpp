@@ -26,6 +26,7 @@ protected:
     ThreadPool              pool{1, reporter};
     Worker&                 worker{SearchThreadTestAccess::worker(pool)};
     Limits                  limits;
+    int                     current_ply{0};
 
     void SetUp() override {
         limits.depth = 4;
@@ -36,21 +37,22 @@ protected:
         tt.clear();
         worker.configure_search(board, limits, SearchClock::now());
         SearchTestAccess::reset(worker);
+        current_ply = 0;
     }
 
     Board& position() { return SearchTestAccess::board(worker); }
-    int&   ply() { return SearchTestAccess::search_ply(worker); }
+    int&   ply() { return current_ply; }
 
     Score search(Score alpha, Score beta) {
-        return SearchTestAccess::quiescence<NodeType::NonPv>(worker, alpha, beta);
+        return SearchTestAccess::quiescence<NodeType::NonPv>(worker, alpha, beta, nullptr, ply());
     }
 
     Score pv_search(Score alpha, Score beta, PV& pv) {
-        return SearchTestAccess::quiescence<NodeType::Pv>(worker, alpha, beta, &pv);
+        return SearchTestAccess::quiescence<NodeType::Pv>(worker, alpha, beta, &pv, ply());
     }
 
     Score depth_zero(Score alpha, Score beta) {
-        return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, 0);
+        return SearchTestAccess::alphabeta<NodeType::NonPv>(worker, alpha, beta, 0, nullptr, ply());
     }
 
     Move find_move(std::string_view move_string) {
@@ -111,7 +113,13 @@ TEST_F(QuiescenceTest, TerminatesDrawAndMaxPlyWithoutTtStore) {
     Board max_ply{board_test::fen::quiet_black_to_move};
     load(max_ply);
     ply() = engine::max_search_ply;
-    EXPECT_EQ(search(-scores::inf, scores::inf), eval::evaluate(position()));
+    auto& terminal = SearchTestAccess::frames(worker)[ply()];
+    terminal.pv.update(Move{E2, E4}, PV{});
+    PV pv;
+    EXPECT_EQ(pv_search(-scores::inf, scores::inf, pv), eval::evaluate(position()));
+    EXPECT_TRUE(terminal.pv_enabled);
+    EXPECT_TRUE(terminal.pv.empty());
+    EXPECT_TRUE(pv.empty());
     EXPECT_EQ(worker.node_count(), 1U);
     EXPECT_FALSE(record().has_value());
 }

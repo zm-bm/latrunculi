@@ -131,6 +131,19 @@ TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
 #if LATRUNCULI_SEARCH_STATS
     EXPECT_GT(counters().pvs_researches[1], 0U);
 #endif
+
+    // Reuse the same child storage for a full search followed by a failed scout.
+    const RootLine best = lines()[1];
+    lines()             = {best, first_line};
+    auto& child         = SearchTestAccess::frames(worker)[1];
+    child.pv            = pv_for(Move(E2, E4), Move(E7, E5));
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 1, 1, -scores::inf, scores::inf));
+    EXPECT_LT(lines()[1].value, lines()[0].value);
+    EXPECT_EQ(lines()[0].pv, best.pv);
+    ASSERT_EQ(lines()[1].pv.size(), 1);
+    EXPECT_EQ(lines()[1].pv.front(), first);
+    EXPECT_FALSE(child.pv_enabled);
+    EXPECT_TRUE(child.pv.empty());
 }
 
 TEST_F(RootSearchTest, BuildsLegalRootCandidates) {

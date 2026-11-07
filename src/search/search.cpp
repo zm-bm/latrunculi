@@ -16,10 +16,9 @@ namespace search {
 namespace {
 
 // Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
-Score draw_or_mate_score(const Board& board, int search_ply) {
+Score draw_or_mate_score(const Board& board, int ply) {
     if (board.halfmove_clock() >= 100 && board.is_check()) {
-        return movegen::UnscoredMoves(board).next().is_null() ? -scores::mate + search_ply
-                                                              : scores::draw;
+        return movegen::UnscoredMoves(board).next().is_null() ? -scores::mate + ply : scores::draw;
     }
     return scores::draw;
 }
@@ -28,13 +27,14 @@ Score draw_or_mate_score(const Board& board, int search_ply) {
 
 // Recursive main search: alpha-beta for non-PV nodes, PVS for PV nodes.
 template <NodeType Node>
-Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
+Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) {
+    const int ply = frame->ply;
     /*
      * PV reset and stop checks.
      * Clear the PV and check whether the search should stop.
      */
-    if (pv)
-        pv->clear();
+    if (frame->pv_enabled)
+        frame->pv.clear();
 
     if (should_poll_search_limits())
         poll_search_limits();
@@ -43,19 +43,19 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
 
     /*
      * Draws and ply limit.
-     * Return for a draw or the ply limit before using the current search frame.
+     * Return for a draw or the ply limit before entering the main search.
      */
-    const bool drawn = board.is_draw(search_ply);
+    const bool drawn = board.is_draw(ply);
 
     if (drawn) {
         increment_nodes();
-        stats.node(search_ply);
-        return draw_or_mate_score(board, search_ply);
+        stats.node(ply);
+        return draw_or_mate_score(board, ply);
     }
 
-    if (search_ply >= engine::max_search_ply) {
+    if (ply >= engine::max_search_ply) {
         increment_nodes();
-        stats.node(search_ply);
+        stats.node(ply);
         return eval::evaluate(board);
     }
 
@@ -63,26 +63,25 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
      * Frame setup and quiescence.
      * Set up the frame, then use quiescence at depth zero or below. It counts its own nodes.
      */
-    auto&      frame           = frames[search_ply];
-    const Move excluded_move   = frame.excluded_move;
+    const Move excluded_move = frame->excluded_move;
     // An excluded search tests alternatives with restricted pruning and no TT cutoffs,
     // TT stores, or history learning at this node.
     const bool excluded_search = !excluded_move.is_null();
     assert(!excluded_search || depth > 0);
-    frame.static_eval.reset();
-    frame.real_move = !board.previous_move().is_null();
+    frame->static_eval.reset();
+    frame->real_move = !board.previous_move().is_null();
     if (depth <= 0)
-        return quiescence<Node>(alpha, beta, pv);
+        return quiescence<Node>(alpha, beta, frame);
 
     increment_nodes();
-    stats.node(search_ply);
+    stats.node(ply);
 
     /*
      * Mate-distance limits and TT lookup.
      * Limit the window to possible mate scores, then check for a usable TT bound.
      */
-    alpha = std::max(alpha, -scores::mate + search_ply);
-    beta  = std::min(beta, scores::mate - search_ply - 1);
+    alpha = std::max(alpha, -scores::mate + ply);
+    beta  = std::min(beta, scores::mate - ply - 1);
     if (alpha >= beta)
         return alpha;
 
@@ -90,17 +89,17 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
     const PositionKey tt_key         = board.tt_key();
     Move              tt_move        = NULL_MOVE;
 
-    stats.main_tt_probe(search_ply);
+    stats.main_tt_probe(ply);
     const auto  tt_probe  = tt.probe(tt_key);
     const auto& tt_record = tt_probe.record;
     if (tt_record) {
-        stats.main_tt_hit(search_ply);
+        stats.main_tt_hit(ply);
 
         const TTRecord& record   = *tt_record;
-        const Score     tt_score = record.score_at_ply(search_ply);
+        const Score     tt_score = record.score_at_ply(ply);
         if (!excluded_search
             && detail::tt_cutoff_allowed<Node>(record, tt_score, depth, alpha, beta)) {
-            stats.main_tt_cutoff(search_ply);
+            stats.main_tt_cutoff(ply);
             return tt_score;
         }
 
@@ -118,27 +117,29 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
 
     bool declining = false;
     if constexpr (Node == NodeType::NonPv) {
-        const bool after_null = detail::after_null_move(board, search_ply);
+        const bool after_null = detail::after_null_move(board, ply);
         static_eval = tt_record && tt_record->has_static_eval() ? tt_record->static_eval
                                                                 : eval::evaluate(board);
         if (!in_check) {
             // Keep evaluations outside check in the frame for LMR's two-ply comparison.
-            frame.static_eval = static_eval;
-            declining = search_ply >= 2 && frame.real_move && frames[search_ply - 1].real_move
-                     && frames[search_ply - 2].static_eval
-                     && static_eval < *frames[search_ply - 2].static_eval;
+            frame->static_eval = static_eval;
+            declining          = ply >= 2 && frame->real_move && (frame - 1)->real_move
+                     && (frame - 2)->static_eval && static_eval < *(frame - 2)->static_eval;
         }
 
         // At shallow depth, try quiescence when the evaluation is far below alpha.
         const bool razor_candidate = !excluded_search && !after_null && !in_check
                                   && depth <= detail::RazorMaxDepth && tt_move.is_null();
         if (razor_candidate && static_eval + detail::RazorMargin[depth] <= alpha) {
-            stats.razor_try(search_ply);
-            const Score value = quiescence<NodeType::NonPv>(alpha - 1, alpha);
+            stats.razor_try(ply);
+            const bool pv_enabled = frame->pv_enabled;
+            frame->pv_enabled     = false;
+            const Score value     = quiescence<NodeType::NonPv>(alpha - 1, alpha, frame);
+            frame->pv_enabled     = pv_enabled;
             if (stop_requested())
                 return alpha;
             if (value < alpha) {
-                stats.razor_cutoff(search_ply);
+                stats.razor_cutoff(ply);
                 return value;
             }
         }
@@ -146,7 +147,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
         // Skip reverse futility and null-move pruning when a deep TT bound is below beta.
         const bool tt_upper_veto = tt_record && tt_record->depth >= depth
                                 && tt_record->bound == TTBound::UpperBound
-                                && tt_record->score_at_ply(search_ply) < beta;
+                                && tt_record->score_at_ply(ply) < beta;
 
         // Reverse futility: return when the evaluation remains above beta after its margin.
         const bool reverse_futility_candidate =
@@ -159,22 +160,21 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
         // Null-move pruning: try a reduced search after passing the turn.
         if (!excluded_search && !after_null && !in_check && depth >= detail::NullMoveMinDepth
             && board.non_pawn_material(side) > eval::piece(ROOK).mg && !tt_upper_veto) {
-            stats.null_move_try(search_ply);
+            stats.null_move_try(ply);
 
             const int reduction = detail::null_move_reduction(depth, static_eval, beta);
 
             board.make_null(prefetch_child_tt);
-            ++search_ply;
+            (frame + 1)->pv_enabled = false;
             const Score value =
-                -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, nullptr);
+                -alphabeta<NodeType::NonPv>(-beta, -beta + 1, depth - reduction, frame + 1);
             // Restore the parent position before checking the result or stop request.
             board.unmake_null();
-            --search_ply;
 
             if (stop_requested())
                 return alpha;
             if (value >= beta) {
-                stats.null_move_cutoff(search_ply);
+                stats.null_move_cutoff(ply);
                 return value;
             }
         }
@@ -194,16 +194,15 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
 
     bool singular_extension = false;
 
-    const bool within_singular_limits = depth >= SingularMinDepth && search_ply > 0
-                                     && search_ply < 2 * root_iteration_depth
-                                     && search_ply + 1 < engine::max_search_ply;
+    const bool within_singular_limits = depth >= SingularMinDepth && ply > 0
+                                     && ply < 2 * root_iteration_depth
+                                     && ply + 1 < engine::max_search_ply;
 
     // Require a sufficiently deep TT bound and room to extend this search path.
     if (tt_record && within_singular_limits && !excluded_search
-        && !detail::after_null_move(board, search_ply)
-        && tt_record->depth >= depth - SingularTtDepthSlack
+        && !detail::after_null_move(board, ply) && tt_record->depth >= depth - SingularTtDepthSlack
         && (tt_record->bound == TTBound::Exact || tt_record->bound == TTBound::LowerBound)) {
-        const Score tt_score       = tt_record->score_at_ply(search_ply);
+        const Score tt_score       = tt_record->score_at_ply(ply);
         const Score singular_beta  = tt_score - std::max(1, depth * eval::pawn.mg / 50);
         const int   singular_depth = (depth - 1) / 2;
 
@@ -212,14 +211,20 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
                                   && singular_beta < scores::mate_bound;
         if (non_mate_scores && !tt_move.is_null() && board.is_pseudo_legal(tt_move)
             && board.is_legal_pseudo_move(tt_move)) {
-            // Search the same position without the TT move, then restore the parent state.
-            const SearchFrame saved_frame = frame;
-            const bool        was_active  = singular_search_active;
-            frame.excluded_move           = tt_move;
-            singular_search_active        = true;
-            const Score singular_score    = alphabeta<NodeType::NonPv>(
-                singular_beta - 1, singular_beta, singular_depth, nullptr);
-            frame                  = saved_frame;
+            // Reuse this ply without PV output, then restore its search metadata.
+            const auto saved_eval      = frame->static_eval;
+            const bool saved_real_move = frame->real_move;
+            const bool pv_enabled      = frame->pv_enabled;
+            const bool was_active      = singular_search_active;
+            frame->excluded_move       = tt_move;
+            frame->pv_enabled          = false;
+            singular_search_active     = true;
+            const Score singular_score =
+                alphabeta<NodeType::NonPv>(singular_beta - 1, singular_beta, singular_depth, frame);
+            frame->static_eval     = saved_eval;
+            frame->real_move       = saved_real_move;
+            frame->excluded_move   = excluded_move;
+            frame->pv_enabled      = pv_enabled;
             singular_search_active = was_active;
 
             if (stop_requested())
@@ -250,10 +255,11 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
     Score best_value = -scores::inf;
     Move  best_move  = NULL_MOVE;
 
-    const auto context = history.context_for(board, search_ply, tt_move);
+    const auto context = history.context_for(board, ply, tt_move);
     auto       moves   = movegen::MainSearchMoves(board, history, context);
 
-    PV child_pv;
+    SearchFrame* child = frame + 1;
+    child->pv.clear();
     // Excluded searches neither train history nor contribute learning instrumentation.
     std::optional<HistoryLearning> learning;
     if (!excluded_search)
@@ -274,7 +280,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
         const bool is_capture        = board.is_capture(move);
         const bool is_quiet          = !is_capture && !is_promotion;
         const bool is_ordinary_quiet = is_quiet && move.type() == BASIC_MOVE;
-        const bool is_killer         = is_quiet && history.is_killer(move, search_ply);
+        const bool is_killer         = is_quiet && history.is_killer(move, ply);
         const bool is_counter        = is_quiet && move == context.counter_move;
 
         // LMR uses current history, read before making the move. Ordering retains its snapshot.
@@ -298,22 +304,21 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
 
         const int child_depth = depth - 1 + (move == tt_move && singular_extension);
         board.make(move, prefetch_child_tt);
-        ++search_ply;
 
         // Child position: checking status gates pruning and reduction.
         const bool gives_check = board.is_check();
         if (quiet_futility && !first_legal && is_quiet && !gives_check) {
             board.unmake();
-            --search_ply;
+
             moves.skip_nonchecking_quiets();
-            stats.futility_skip(search_ply);
+            stats.futility_skip(ply);
             continue;
         }
 
         // History-gated late-move pruning.
         if (history_lmp_candidate && !gives_check) {
             board.unmake();
-            --search_ply;
+
             continue;
         }
 
@@ -341,24 +346,24 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
         Score      value;
         if (scout) {
             if (reduction > 0)
-                stats.lmr_try(search_ply - 1);
-            value =
-                -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, child_depth - reduction, nullptr);
+                stats.lmr_try(ply);
+            child->pv_enabled = false;
+            value = -alphabeta<NodeType::NonPv>(-alpha - 1, -alpha, child_depth - reduction, child);
         }
 
         if (!scout || (!stop_requested() && value > alpha)) {
             if (reduction > 0) {
-                stats.lmr_research(search_ply - 1);
+                stats.lmr_research(ply);
                 stats.capture_research(lmr.capture_adjustment, lmr.base_plies != reduction);
             }
             if constexpr (Node == NodeType::Pv) {
                 if (scout) {
-                    stats.pvs_research(search_ply);
-                    child_pv.clear();
+                    stats.pvs_research(child->ply);
+                    child->pv.clear();
                 }
             }
-            value = -alphabeta<Node>(
-                -beta, -alpha, child_depth, Node == NodeType::Pv && pv ? &child_pv : nullptr);
+            child->pv_enabled = Node == NodeType::Pv && frame->pv_enabled;
+            value             = -alphabeta<Node>(-beta, -alpha, child_depth, child);
         }
 
         /*
@@ -366,7 +371,6 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
          * Restore the parent position before stop checks, learning, PV updates, or TT stores.
          */
         board.unmake();
-        --search_ply;
 
         if (stop_requested())
             return alpha;
@@ -375,10 +379,10 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
             if (learning)
                 learning->learn_from_cutoff(move, is_capture);
 
-            if (pv)
-                pv->update(move, child_pv);
+            if (frame->pv_enabled)
+                frame->pv.update(move, child->pv);
 
-            stats.beta_cutoff(search_ply, move_count);
+            stats.beta_cutoff(ply, move_count);
             if (!excluded_search)
                 tt.store(tt_probe.writer,
                          tt_key,
@@ -386,7 +390,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
                          value,
                          depth,
                          TTBound::LowerBound,
-                         search_ply,
+                         ply,
                          static_eval);
             return value;
         }
@@ -399,8 +403,8 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
 
             if (value > alpha) {
                 alpha = value;
-                if (pv)
-                    pv->update(move, child_pv);
+                if (frame->pv_enabled)
+                    frame->pv.update(move, child->pv);
             }
         }
     }
@@ -413,14 +417,14 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
         // Excluding the only move does not make the actual position terminal.
         if (excluded_search)
             return original_alpha;
-        best_value = in_check ? -scores::mate + search_ply : scores::draw;
+        best_value = in_check ? -scores::mate + ply : scores::draw;
         tt.store(tt_probe.writer,
                  tt_key,
                  NULL_MOVE,
                  best_value,
                  depth,
                  TTBound::Exact,
-                 search_ply,
+                 ply,
                  static_eval);
         return best_value;
     }
@@ -432,7 +436,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
                  best_value,
                  depth,
                  tt_bound_for_window(best_value, original_alpha, beta),
-                 search_ply,
+                 ply,
                  static_eval);
 
     return best_value;
@@ -440,13 +444,14 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, PV* pv) {
 
 // Quiescence search for tactical depth-zero nodes.
 template <NodeType Node, bool UseTt>
-Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
+Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
+    const int ply = frame->ply;
     /*
      * PV reset and stop checks.
      * Clear the PV and check whether the search should stop.
      */
-    if (pv)
-        pv->clear();
+    if (frame->pv_enabled)
+        frame->pv.clear();
 
     if (should_poll_search_limits())
         poll_search_limits();
@@ -458,12 +463,12 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
      * Count this node, then return for a draw or the ply limit.
      */
     increment_nodes();
-    stats.qnode(search_ply);
+    stats.qnode(ply);
 
-    if (board.is_draw(search_ply))
-        return draw_or_mate_score(board, search_ply);
+    if (board.is_draw(ply))
+        return draw_or_mate_score(board, ply);
 
-    if (search_ply >= engine::max_search_ply)
+    if (ply >= engine::max_search_ply)
         return eval::evaluate(board);
 
     /*
@@ -478,15 +483,15 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
     const auto&       tt_record = tt_probe.record;
 
     if constexpr (UseTt) {
-        stats.q_tt_probe(search_ply);
+        stats.q_tt_probe(ply);
         tt_probe = tt.probe(tt_key);
         if (tt_record) {
-            stats.q_tt_hit(search_ply);
+            stats.q_tt_hit(ply);
 
-            const Score tt_score = tt_record->score_at_ply(search_ply);
+            const Score tt_score = tt_record->score_at_ply(ply);
             if (detail::tt_cutoff_allowed<Node>(
                     *tt_record, tt_score, qsearch_tt_depth, alpha, beta)) {
-                stats.q_tt_cutoff(search_ply);
+                stats.q_tt_cutoff(ply);
                 return tt_score;
             }
 
@@ -516,7 +521,7 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
                          best_value,
                          qsearch_tt_depth,
                          TTBound::LowerBound,
-                         search_ply,
+                         ply,
                          static_eval);
             }
             return best_value;
@@ -527,7 +532,8 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
 
     // Search tactical moves, or all legal evasions when in check.
     auto moves = movegen::QuiescenceMoves(board, history, tt_move);
-    PV   child_pv;
+    SearchFrame* child = frame + 1;
+    child->pv.clear();
 
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         ++move_count;
@@ -558,23 +564,23 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
 
         // Search the child position.
         board.make(move, UseTt ? prefetch_child_tt : nullptr);
-        ++search_ply;
-        const Score value = -quiescence<Node, UseTt>(-beta, -alpha, pv ? &child_pv : nullptr);
+
+        child->pv_enabled = frame->pv_enabled;
+        const Score value = -quiescence<Node, UseTt>(-beta, -alpha, child);
 
         /*
          * Move results.
          * Restore the parent position before stop checks, PV updates, or TT stores.
          */
         board.unmake();
-        --search_ply;
 
         if (stop_requested())
             return alpha;
 
         if (value >= beta) {
-            if (pv)
-                pv->update(move, child_pv);
-            stats.beta_cutoff(search_ply, move_count);
+            if (frame->pv_enabled)
+                frame->pv.update(move, child->pv);
+            stats.beta_cutoff(ply, move_count);
             if constexpr (UseTt) {
                 tt.store(tt_probe.writer,
                          tt_key,
@@ -582,7 +588,7 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
                          value,
                          qsearch_tt_depth,
                          TTBound::LowerBound,
-                         search_ply,
+                         ply,
                          static_eval);
             }
             return value;
@@ -593,8 +599,8 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
             best_move  = move;
             if (value > alpha) {
                 alpha = value;
-                if (pv)
-                    pv->update(move, child_pv);
+                if (frame->pv_enabled)
+                    frame->pv.update(move, child->pv);
             }
         }
     }
@@ -604,7 +610,7 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
      * Handle checkmate, otherwise store the best score and its bound.
      */
     if (in_check && move_count == 0) {
-        best_value = -scores::mate + search_ply;
+        best_value = -scores::mate + ply;
         if constexpr (UseTt) {
             tt.store(tt_probe.writer,
                      tt_key,
@@ -612,7 +618,7 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
                      best_value,
                      qsearch_tt_depth,
                      TTBound::Exact,
-                     search_ply,
+                     ply,
                      static_eval);
         }
         return best_value;
@@ -625,7 +631,7 @@ Score Worker::quiescence(Score alpha, Score beta, PV* pv) {
                  best_value,
                  qsearch_tt_depth,
                  tt_bound_for_window(best_value, original_alpha, beta),
-                 search_ply,
+                 ply,
                  static_eval);
     }
 
@@ -636,13 +642,14 @@ bool Worker::settle(Board& position) {
     configure_search(position, Limits{}, SearchClock::now());
     history.clear();
 
-    PV          pv;
-    const Score value = quiescence<NodeType::Pv, false>(-scores::inf, scores::inf, &pv);
+    SearchFrame* frame = &frames[0];
+    frame->pv_enabled  = true;
+    const Score value  = quiescence<NodeType::Pv, false>(-scores::inf, scores::inf, frame);
     if (std::abs(value) >= scores::mate_bound)
         return false;
 
-    for (int index = 0; index < pv.size(); ++index)
-        board.make(pv.move_at(index));
+    for (int index = 0; index < frame->pv.size(); ++index)
+        board.make(frame->pv.move_at(index));
 
     if (board.is_draw())
         return false;
@@ -655,9 +662,9 @@ bool Worker::settle(Board& position) {
 }
 
 // Template definitions live in this translation unit; instantiate the node types we use.
-template Score Worker::alphabeta<NodeType::Pv>(Score, Score, int, PV*);
-template Score Worker::alphabeta<NodeType::NonPv>(Score, Score, int, PV*);
-template Score Worker::quiescence<NodeType::Pv, true>(Score, Score, PV*);
-template Score Worker::quiescence<NodeType::NonPv, true>(Score, Score, PV*);
+template Score Worker::alphabeta<NodeType::Pv>(Score, Score, int, SearchFrame*);
+template Score Worker::alphabeta<NodeType::NonPv>(Score, Score, int, SearchFrame*);
+template Score Worker::quiescence<NodeType::Pv, true>(Score, Score, SearchFrame*);
+template Score Worker::quiescence<NodeType::NonPv, true>(Score, Score, SearchFrame*);
 
 } // namespace search
