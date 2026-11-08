@@ -6,6 +6,7 @@ class Board;
 
 namespace eval {
 
-[[nodiscard]] EvalValue evaluate(const Board& board);
+[[nodiscard]]
+Score evaluate(const Board& board);
 
 } // namespace eval

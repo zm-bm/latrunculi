@@ -1,14 +1,15 @@
 #include "board/board.hpp"
 
-#include "core/move_geometry.hpp"
-
 #include <cassert>
 #include <cstdlib>
 
+#include "core/move_geometry.hpp"
+
 namespace {
 
-[[gnu::always_inline]] inline void clear_castling_rights(PlyState& state, Color color) noexcept {
-    const CastlingRights kingside  = color == WHITE ? W_KINGSIDE : B_KINGSIDE;
+[[gnu::always_inline]]
+inline void clear_castling_rights(PlyState& state, Color color) noexcept {
+    const CastlingRights kingside = color == WHITE ? W_KINGSIDE : B_KINGSIDE;
     const CastlingRights queenside = color == WHITE ? W_QUEENSIDE : B_QUEENSIDE;
 
     if (state.castling_rights & kingside)
@@ -19,9 +20,9 @@ namespace {
     state.castling_rights &= (color == WHITE ? B_CASTLE : W_CASTLE);
 }
 
-[[gnu::always_inline]] inline void
-clear_rook_castling_right(PlyState& state, Color color, Square rook_square) noexcept {
-    const CastlingRights kingside  = color == WHITE ? W_KINGSIDE : B_KINGSIDE;
+[[gnu::always_inline]]
+inline void clear_rook_castling_right(PlyState& state, Color color, Square rook_square) noexcept {
+    const CastlingRights kingside = color == WHITE ? W_KINGSIDE : B_KINGSIDE;
     const CastlingRights queenside = color == WHITE ? W_QUEENSIDE : B_QUEENSIDE;
 
     if (rook_square == move_geometry::castling(CASTLE_KINGSIDE, color).rook_from
@@ -39,16 +40,16 @@ clear_rook_castling_right(PlyState& state, Color color, Square rook_square) noex
 
 // Precondition: move is legal and non-null.
 void Board::make(Move move, TTKeyReadyCallback on_tt_key_ready) {
-    const Square    from       = move.from();
-    const Square    to         = move.to();
-    const MoveType  move_type  = move.type();
-    const Color     mover      = turn;
-    const Color     opponent   = ~mover;
+    const Square from = move.from();
+    const Square to = move.to();
+    const MoveType move_type = move.type();
+    const Color mover = turn;
+    const Color opponent = ~mover;
     const PieceType piece_type = piece_type_on(from);
-    const Square    captured_square =
+    const Square captured_square =
         move_type == MOVE_EP ? move_geometry::enpassant_captured_square(to, mover) : to;
     const PieceType captured_piece_type = move_type == MOVE_EP ? PAWN : piece_type_on(to);
-    const Square    previous_legal_enpassant_target = legal_enpassant_target();
+    const Square previous_legal_enpassant_target = legal_enpassant_target();
 
     auto& state = push_ply_state(move);
     ++absolute_ply;
@@ -71,29 +72,29 @@ void Board::make(Move move, TTKeyReadyCallback on_tt_key_ready) {
     }
 
     switch (piece_type) {
-    case PAWN:
-        state.halfmove_clock = 0;
-        if (std::abs(to - from) == pawn_delta::double_push) {
-            state.enpassant_target = move_geometry::enpassant_target(to, mover);
-        } else if (move_type == MOVE_PROM) {
-            const PieceType promotion_piece = move.prom_piece();
-            remove_piece<true>(to, mover, PAWN);
-            add_piece<true>(to, mover, promotion_piece);
-        }
-        break;
+        case PAWN:
+            state.halfmove_clock = 0;
+            if (std::abs(to - from) == pawn_delta::double_push) {
+                state.enpassant_target = move_geometry::enpassant_target(to, mover);
+            } else if (move_type == MOVE_PROM) {
+                const PieceType promotion_piece = move.prom_piece();
+                remove_piece<true>(to, mover, PAWN);
+                add_piece<true>(to, mover, promotion_piece);
+            }
+            break;
 
-    case KING:
-        king_square[mover] = to;
-        if (has_castling_rights(mover))
-            clear_castling_rights(state, mover);
-        break;
+        case KING:
+            king_square[mover] = to;
+            if (has_castling_rights(mover))
+                clear_castling_rights(state, mover);
+            break;
 
-    case ROOK:
-        if (has_castling_rights(mover))
-            clear_rook_castling_right(state, mover, from);
-        break;
+        case ROOK:
+            if (has_castling_rights(mover))
+                clear_rook_castling_right(state, mover, from);
+            break;
 
-    default: break;
+        default: break;
     }
 
     turn = opponent;
@@ -118,16 +119,16 @@ void Board::unmake() {
     assert(can_unmake());
     assert(!previous_move().is_null());
 
-    const Move      move                = ply_state().previous_move;
-    const Square    from                = move.from();
-    const Square    to                  = move.to();
-    const MoveType  move_type           = move.type();
-    const Color     opponent            = turn;
-    const Color     mover               = ~opponent;
-    const PieceType destination_piece   = piece_type_on(to);
-    const PieceType piece_type          = move_type == MOVE_PROM ? PAWN : destination_piece;
+    const Move move = ply_state().previous_move;
+    const Square from = move.from();
+    const Square to = move.to();
+    const MoveType move_type = move.type();
+    const Color opponent = turn;
+    const Color mover = ~opponent;
+    const PieceType destination_piece = piece_type_on(to);
+    const PieceType piece_type = move_type == MOVE_PROM ? PAWN : destination_piece;
     const PieceType captured_piece_type = ply_state().captured_piece_type;
-    const Square    captured_square =
+    const Square captured_square =
         move_type == MOVE_EP ? move_geometry::enpassant_captured_square(to, mover) : to;
 
     pop_ply_state();

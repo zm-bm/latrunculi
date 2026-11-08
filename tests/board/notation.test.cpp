@@ -68,7 +68,7 @@ TEST(BoardNotationTest, FormatsSanCaptures) {
 
 TEST(BoardNotationTest, DisambiguatesSanByFileRankAndSquare) {
     constexpr std::string_view knights = "4k3/8/8/8/8/8/8/1N2KN2 w - - 0 1";
-    constexpr std::string_view rooks   = "7k/8/8/8/8/R7/8/R3K3 w - - 0 1";
+    constexpr std::string_view rooks = "7k/8/8/8/8/R7/8/R3K3 w - - 0 1";
 
     expect_san(knights, Move(B1, D2), "Nbd2");
     expect_san(knights, Move(F1, D2), "Nfd2");

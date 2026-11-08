@@ -16,19 +16,19 @@ namespace search {
 struct Limits {
     static constexpr int max_depth = engine::max_search_depth;
 
-    int  depth = max_depth;
+    int depth = max_depth;
     bool infinite{false};
     bool ponder{false};
 
     std::optional<Milliseconds> movetime;
-    std::optional<NodeCount>    nodes;
+    std::optional<NodeCount> nodes;
     std::optional<Milliseconds> wtime;
     std::optional<Milliseconds> btime;
     std::optional<Milliseconds> winc;
     std::optional<Milliseconds> binc;
-    std::optional<int>          movestogo;
-    std::optional<int>          mate;
-    std::vector<Move>           root_moves;
+    std::optional<int> movestogo;
+    std::optional<int> mate;
+    std::vector<Move> root_moves;
 
     Limits() = default;
 
@@ -52,16 +52,18 @@ struct Limits {
         root_moves = std::move(moves);
     }
 
-    [[nodiscard]] bool allows_root_move(Move move) const noexcept {
+    [[nodiscard]]
+    bool allows_root_move(Move move) const noexcept {
         return root_moves.empty()
             || std::find(root_moves.begin(), root_moves.end(), move) != root_moves.end();
     }
 
-    [[nodiscard]] bool has_mate_within_limit(EvalValue value) const noexcept {
-        if (!mate || *mate <= 0 || std::abs(value) <= eval_value::mate_bound)
+    [[nodiscard]]
+    bool has_mate_within_limit(Score value) const noexcept {
+        if (!mate || *mate <= 0 || std::abs(value) <= scores::mate_bound)
             return false;
 
-        const int distance_in_plies = eval_value::mate - std::abs(value);
+        const int distance_in_plies = scores::mate - std::abs(value);
         const int distance_in_moves = (distance_in_plies + 1) / 2;
         return distance_in_moves <= *mate;
     }

@@ -20,7 +20,8 @@ namespace {
 class SearchWorkerTest : public ::testing::Test {
 protected:
     RecordingSearchReporter reporter;
-    ThreadPool              pool{1, reporter};
+    ThreadPool pool{1, reporter};
+    int current_ply{0};
 
     Thread& test_thread() { return SearchThreadTestAccess::thread(pool); }
 
@@ -29,9 +30,10 @@ protected:
     void load_worker_board(Board& board) {
         worker().configure_search(board, Limits{}, SearchClock::now());
         SearchTestAccess::reset(worker());
+        current_ply = 0;
     }
 
-    int& search_ply() { return SearchTestAccess::search_ply(worker()); }
+    int& search_ply() { return current_ply; }
     bool worker_is_draw() { return SearchTestAccess::board(worker()).is_draw(search_ply()); }
 
     History& history() { return SearchTestAccess::history(worker()); }
@@ -39,21 +41,6 @@ protected:
     void make_worker_move(Move move) {
         SearchTestAccess::board(worker()).make(move);
         ++search_ply();
-    }
-
-    void unmake_worker_move() {
-        SearchTestAccess::board(worker()).unmake();
-        --search_ply();
-    }
-
-    void make_worker_null_move() {
-        SearchTestAccess::board(worker()).make_null();
-        ++search_ply();
-    }
-
-    void unmake_worker_null_move() {
-        SearchTestAccess::board(worker()).unmake_null();
-        --search_ply();
     }
 };
 
@@ -63,45 +50,31 @@ TEST_F(SearchWorkerTest, NewSearchResetsAllFrames) {
     Board board{board_test::fen::start};
     load_worker_board(board);
     auto& frames = SearchTestAccess::frames(worker());
-    frames.fill({123, Move{A2, A3}, true, true});
+    for (auto& frame : frames) {
+        frame.state.static_eval = 123;
+        frame.state.excluded_move = Move{A2, A3};
+        frame.state.real_move = true;
+        frame.state.pv_enabled = true;
+        frame.state.singular_search_active = true;
+        frame.pv.update(Move{E2, E4}, PV{});
+    }
     load_worker_board(board);
-    EXPECT_EQ(frames[0].static_eval, eval::evaluate(board));
-    for (int i = 1; i < engine::max_search_ply; ++i)
-        EXPECT_FALSE(frames[i].static_eval.has_value());
-    for (const auto& frame : frames) {
-        EXPECT_FALSE(frame.real_move);
-        EXPECT_TRUE(frame.excluded_move.is_null());
-        EXPECT_FALSE(frame.in_singular_verification);
+    EXPECT_EQ(frames[0].state.static_eval, eval::evaluate(board));
+    for (int i = 1; i <= engine::max_search_ply; ++i)
+        EXPECT_FALSE(frames[i].state.static_eval.has_value());
+    for (int ply = 0; ply <= engine::max_search_ply; ++ply) {
+        const auto& frame = frames[ply];
+        EXPECT_EQ(frame.ply, ply);
+        EXPECT_FALSE(frame.state.pv_enabled);
+        EXPECT_FALSE(frame.state.singular_search_active);
+        EXPECT_TRUE(frame.pv.empty());
+        EXPECT_FALSE(frame.state.real_move);
+        EXPECT_TRUE(frame.state.excluded_move.is_null());
     }
 
     Board checked{"4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1"};
     load_worker_board(checked);
-    EXPECT_FALSE(frames[0].static_eval.has_value());
-}
-
-TEST_F(SearchWorkerTest, NullMoveKeepsSearchPlyInSync) {
-    Board board{board_test::fen::start};
-    load_worker_board(board);
-
-    EXPECT_EQ(search_ply(), 0);
-
-    make_worker_null_move();
-    EXPECT_EQ(search_ply(), 1);
-
-    unmake_worker_null_move();
-    EXPECT_EQ(search_ply(), 0);
-
-    make_worker_move(Move(E2, E4));
-    EXPECT_EQ(search_ply(), 1);
-
-    make_worker_null_move();
-    EXPECT_EQ(search_ply(), 2);
-
-    unmake_worker_null_move();
-    EXPECT_EQ(search_ply(), 1);
-
-    unmake_worker_move();
-    EXPECT_EQ(search_ply(), 0);
+    EXPECT_FALSE(frames[0].state.static_eval.has_value());
 }
 
 TEST_F(SearchWorkerTest, HelperDepthsFollowStaggeringSchedule) {
@@ -118,7 +91,10 @@ TEST_F(SearchWorkerTest, HelperDepthsFollowStaggeringSchedule) {
         for (int depth = 1; depth <= static_cast<int>(expected[worker_id].size()); ++depth) {
             EXPECT_EQ(SearchTestAccess::should_search_root_depth(search_worker, depth),
                       expected[worker_id][depth - 1])
-                << "worker " << worker_id << ", depth " << depth;
+                << "worker "
+                << worker_id
+                << ", depth "
+                << depth;
         }
     }
 }
@@ -129,12 +105,13 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeMoveHistoriesAndPreserveContinuation
 
     history().update_quiet_refutations(OrderingContext{}, Move(E2, E4));
     history().update_quiet_refutations(OrderingContext{}, Move(D2, D4));
-    SearchTestAccess::counter_move_entry(history(), WHITE, PAWN, E4)            = Move(G8, F6);
-    SearchTestAccess::quiet_history_entry(history(), WHITE, E2, E4)             = 9;
+    SearchTestAccess::counter_move_entry(history(), WHITE, PAWN, E4) = Move(G8, F6);
+    SearchTestAccess::quiet_history_entry(history(), WHITE, E2, E4) = 9;
     SearchTestAccess::capture_history_entry(history(), WHITE, KNIGHT, E5, PAWN) = -257;
     SearchTestAccess::continuation_history_entry(history(), WHITE, PAWN, E4, KNIGHT, F6) = 16;
 
     SearchTestAccess::reset(worker());
+    current_ply = 0;
     EXPECT_EQ(history().context_for(board, 0).primary_killer, NULL_MOVE);
     EXPECT_EQ(history().context_for(board, 0).secondary_killer, NULL_MOVE);
     EXPECT_EQ(SearchTestAccess::counter_move_entry(history(), WHITE, PAWN, E4), NULL_MOVE);
@@ -144,6 +121,7 @@ TEST_F(SearchWorkerTest, RepeatedSearchesAgeMoveHistoriesAndPreserveContinuation
               16);
 
     SearchTestAccess::reset(worker());
+    current_ply = 0;
     EXPECT_EQ(SearchTestAccess::quiet_history_entry(history(), WHITE, E2, E4), 2);
     EXPECT_EQ(SearchTestAccess::capture_history_entry(history(), WHITE, KNIGHT, E5, PAWN), -64);
     EXPECT_EQ(SearchTestAccess::continuation_history_entry(history(), WHITE, PAWN, E4, KNIGHT, F6),
@@ -185,18 +163,18 @@ TEST_F(SearchWorkerTest, StoppedSearchReportsFallbackWithoutCompletingRootSnapsh
     EXPECT_EQ(snapshot.depth, 0);
     EXPECT_TRUE(snapshot.pv.empty());
 
-    const auto& root_lines = SearchTestAccess::root_lines(worker());
-    ASSERT_FALSE(root_lines.empty());
+    const auto& root_candidates = SearchTestAccess::root_candidates(worker());
+    ASSERT_FALSE(root_candidates.empty());
     ASSERT_FALSE(reporter.progress.empty());
     const RootLine& final_line = reporter.progress.back();
     EXPECT_EQ(final_line.depth, 0);
     EXPECT_TRUE(final_line.pv.empty());
     ASSERT_EQ(reporter.best_moves.size(), 1U);
-    EXPECT_EQ(reporter.best_moves.front(), root_lines.front().root_move);
+    EXPECT_EQ(reporter.best_moves.front(), root_candidates.front().root_move);
 }
 
 TEST_F(SearchWorkerTest, ExhaustedClockPublishesLegalIncompleteFallback) {
-    Board  board{board_test::fen::start};
+    Board board{board_test::fen::start};
     Limits limits;
     limits.set_wtime(50);
     limits.set_btime(50);
@@ -215,14 +193,14 @@ TEST_F(SearchWorkerTest, ExhaustedClockPublishesLegalIncompleteFallback) {
 }
 
 TEST_F(SearchWorkerTest, SoleRootMoveSavesClockButPreservesExplicitDepth) {
-    Board  board{"1rb1r1k1/5ppQ/p3p1n1/q2pP1P1/2pP2B1/b1N1B2R/P1R3PP/6K1 b - - 4 25"};
+    Board board{"1rb1r1k1/5ppQ/p3p1n1/q2pP1P1/2pP2B1/b1N1B2R/P1R3PP/6K1 b - - 4 25"};
     Limits limits;
     limits.set_wtime(401929);
     limits.set_btime(401929);
     limits.set_binc(5000);
     worker().configure_search(board, limits, SearchClock::now());
     (void)worker().search();
-    EXPECT_EQ(SearchTestAccess::root_lines(worker()).size(), 1U);
+    EXPECT_EQ(SearchTestAccess::root_candidates(worker()).size(), 1U);
     EXPECT_EQ(worker().root_snapshot().depth, 1);
     EXPECT_TRUE(worker().root_snapshot().completed);
     EXPECT_EQ(worker().root_snapshot().root_move, Move(G8, F8));

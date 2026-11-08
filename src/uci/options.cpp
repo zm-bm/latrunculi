@@ -10,8 +10,9 @@ namespace uci {
 namespace {
 
 std::string lower_ascii(std::string value) {
-    std::ranges::transform(
-        value, value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    std::ranges::transform(value, value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
     return value;
 }
 
@@ -19,7 +20,7 @@ std::string lower_ascii(std::string value) {
 
 void SpinOption::set(std::string value_str) {
     size_t pos = 0;
-    int    val = std::stoi(value_str, &pos);
+    int val = std::stoi(value_str, &pos);
     while (pos < value_str.size() && std::isspace(static_cast<unsigned char>(value_str[pos])))
         ++pos;
     if (pos != value_str.size())

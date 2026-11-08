@@ -21,13 +21,13 @@ struct PlyState {
 
     // Rule state and position key.
     // Full Zobrist key; en passant is keyed only through legal_enpassant_target.
-    PositionKey    zkey{};
+    PositionKey zkey{};
     CastlingRights castling_rights{NO_CASTLE};
     // FEN target after a double pawn push; it need not be capturable.
     Square enpassant_target{INVALID};
     // Same target when at least one legal en-passant capture exists; otherwise INVALID.
     // Move generation and Zobrist hashing use this value.
-    Square       legal_enpassant_target{INVALID};
+    Square legal_enpassant_target{INVALID};
     std::uint8_t halfmove_clock{};
 
     // Transition into this state.

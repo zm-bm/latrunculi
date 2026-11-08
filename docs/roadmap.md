@@ -2,11 +2,9 @@
 
 Current priorities:
 
-1. Extend quiescence capture pruning.
-2. Add singular extensions.
-3. Cache pawn and king evaluation, if profiling supports it.
-4. Reduce LMR verification cost, if measurements support it.
-5. Recognize candidate passed pawns.
+1. Cache pawn and king evaluation, if profiling supports it.
+2. Reduce LMR verification cost, if measurements support it.
+3. Recognize candidate passed pawns.
 
 Possible improvements and investigations, grouped by area rather than priority.
 
@@ -17,24 +15,33 @@ Possible improvements and investigations, grouped by area rather than priority.
 Investigate whether some late-move-reduction fail-highs can be verified at a
 shallower depth without accepting false cutoffs or causing more re-searches later.
 
-### Extend quiescence capture pruning
-
-Explore additional pruning beyond the existing SEE filter, accounting for capture
-safety and potential gain beyond the captured piece's value. Reduce search work
-without discarding tactical refutations.
-
-### Add singular extensions
-
-Explore a one-ply extension when excluding a reliable transposition-table move
-shows that all alternatives are substantially worse. Assess whether the extra
-search improves play enough to cover the verification cost.
-
 ### Refine deferred-capture placement
 
 Explore whether deferred captures should precede quiet moves with poor history.
 A zero-score split increased cold search cost without a clear warm-search
 benefit. A better boundary or rationale is needed before another trial; the
 policy has not been strength-tested.
+
+### Clarify search completion ownership
+
+Review completion across `Worker::search()`, `prepare_final_result()`, and
+`Thread::idle_loop()`. Make helper shutdown, result selection, reporting, and
+the transition to idle easier to follow together. Preserve ponder/infinite
+waits and final publication under the thread state lock before idle becomes
+visible. Require a concrete ownership improvement before restructuring.
+
+### Hide thread-pool implementation details
+
+`thread_pool.hpp` exposes the full `Thread` definition and includes `Worker`,
+bringing search internals into UCI-facing headers. Consider hiding these
+implementation dependencies while retaining the pool interface. Account for
+tests that inspect threads directly; avoid extra allocations or runtime dispatch.
+
+### Separate the TT interface from its storage
+
+Keep records, probe/store operations, and the writer handle accessible to
+consumers, while encapsulating `TTEntry`, `TTCluster`, and generation encoding.
+Preserve compact layout, atomic access, replacement semantics, and hot-path cost.
 
 ## Evaluation and endgames
 

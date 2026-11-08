@@ -16,30 +16,30 @@ enum class Phase : std::uint8_t {
     Count,
 };
 
-inline constexpr int tempo_bonus    = 20;
-inline constexpr int scale_limit    = 64;
-inline constexpr int scale_base     = 48;
+inline constexpr int tempo_bonus = 20;
+inline constexpr int scale_limit = 64;
+inline constexpr int scale_base = 48;
 inline constexpr int scale_per_pawn = 4;
-inline constexpr int phase_limit    = 128;
+inline constexpr int phase_limit = 128;
 
-inline constexpr TaperedScore pawn   = {100, 198};
+inline constexpr TaperedScore pawn = {100, 198};
 inline constexpr TaperedScore knight = {603, 677};
 inline constexpr TaperedScore bishop = {615, 707};
-inline constexpr TaperedScore rook   = {901, 1082};
-inline constexpr TaperedScore queen  = {2073, 2080};
+inline constexpr TaperedScore rook = {901, 1082};
+inline constexpr TaperedScore queen = {2073, 2080};
 
 inline constexpr int material_mg = 4 * knight.mg + 4 * bishop.mg + 4 * rook.mg + 2 * queen.mg;
 inline constexpr int material_eg = 0;
 
 namespace masks {
 
-inline constexpr Bitboard dark_squares  = 0xAA55AA55AA55AA55ull;
+inline constexpr Bitboard dark_squares = 0xAA55AA55AA55AA55ull;
 inline constexpr Bitboard light_squares = 0x55AA55AA55AA55AAull;
 inline constexpr Bitboard center_files =
     (bb::file(FILE3) | bb::file(FILE4) | bb::file(FILE5) | bb::file(FILE6)) & ~bb::rank(RANK8);
 inline constexpr Bitboard center_squares = bb::set(D4, E4, D5, E5);
-inline constexpr Bitboard w_outposts     = bb::rank(RANK4) | bb::rank(RANK5) | bb::rank(RANK6);
-inline constexpr Bitboard b_outposts     = bb::rank(RANK3) | bb::rank(RANK4) | bb::rank(RANK5);
+inline constexpr Bitboard w_outposts = bb::rank(RANK4) | bb::rank(RANK5) | bb::rank(RANK6);
+inline constexpr Bitboard b_outposts = bb::rank(RANK3) | bb::rank(RANK4) | bb::rank(RANK5);
 
 } // namespace masks
 
@@ -209,40 +209,40 @@ constexpr TaperedScore piece(PieceType pt, Color c = WHITE) {
 
 constexpr TaperedScore piece_sq(PieceType pt, Color c, Square sq) {
     assert(is_piece_type(pt));
-    Square       relative = square::relative(sq, c);
-    TaperedScore score    = {
-           .mg = piece_squares[piece_slot(pt)][std::to_underlying(Phase::Midgame)][relative],
-           .eg = piece_squares[piece_slot(pt)][std::to_underlying(Phase::Endgame)][relative]};
+    Square relative = square::relative(sq, c);
+    TaperedScore square_scores = {
+        .mg = piece_squares[piece_slot(pt)][std::to_underlying(Phase::Midgame)][relative],
+        .eg = piece_squares[piece_slot(pt)][std::to_underlying(Phase::Endgame)][relative]};
 
-    return (score * c * 2) - score;
+    return (square_scores * c * 2) - square_scores;
 }
 
 inline constexpr TaperedScore isolated_pawn = {-12, -21};
 inline constexpr TaperedScore backward_pawn = {-24, -17};
-inline constexpr TaperedScore doubled_pawn  = {5, -30};
+inline constexpr TaperedScore doubled_pawn = {5, -30};
 inline constexpr TaperedScore connected_pawn_link = {31, 8};
 // Additional penalties for weak pawns on files without opposing pawns.
 inline constexpr TaperedScore isolated_open_pawn = {-10, -10};
 inline constexpr TaperedScore backward_open_pawn = {-12, -8};
-inline constexpr TaperedScore passed_pawn[] = {
-    {0, 0}, {0, 0}, {-7, 15}, {-8, 69}, {37, 120}, {99, 211}, {195, 292}, {0, 0}};
-inline constexpr TaperedScore reachable_outpost       = {18, 23};
-inline constexpr TaperedScore bishop_outpost          = {49, -20};
-inline constexpr TaperedScore knight_outpost          = {59, 25};
-inline constexpr TaperedScore minor_pawn_shield       = {14, 6};
-inline constexpr TaperedScore bishop_long_diagonal    = {28, 31};
-inline constexpr TaperedScore bishop_pair             = {50, 109};
-inline constexpr TaperedScore bishop_blockers         = {-1, -7};
-inline constexpr TaperedScore rook_closed_file        = {-7, -32};
-inline constexpr TaperedScore king_zone_xray_attack   = {17, 13};
+inline constexpr TaperedScore passed_pawn[] =
+    {{0, 0}, {0, 0}, {-7, 15}, {-8, 69}, {37, 120}, {99, 211}, {195, 292}, {0, 0}};
+inline constexpr TaperedScore reachable_outpost = {18, 23};
+inline constexpr TaperedScore bishop_outpost = {49, -20};
+inline constexpr TaperedScore knight_outpost = {59, 25};
+inline constexpr TaperedScore minor_pawn_shield = {14, 6};
+inline constexpr TaperedScore bishop_long_diagonal = {28, 31};
+inline constexpr TaperedScore bishop_pair = {50, 109};
+inline constexpr TaperedScore bishop_blockers = {-1, -7};
+inline constexpr TaperedScore rook_closed_file = {-7, -32};
+inline constexpr TaperedScore king_zone_xray_attack = {17, 13};
 inline constexpr TaperedScore queen_discovered_attack = {-53, 52};
 
 // bonus for rook on open files: [0 = semi-open, 1 = fully open]
 inline constexpr TaperedScore rook_open_file[] = {{28, 2}, {58, -5}};
 
 // shelter bonus for friendly pawn rank [index = pawn rank, 0 = no pawn]
-inline constexpr TaperedScore pawn_shelter[] = {
-    {-30, 0}, {60, 0}, {35, 0}, {-20, 0}, {-5, 0}, {-20, 0}, {-80, 0}};
+inline constexpr TaperedScore pawn_shelter[] =
+    {{-30, 0}, {60, 0}, {35, 0}, {-20, 0}, {-5, 0}, {-20, 0}, {-80, 0}};
 
 // Pawn storm penalty by pawn rank:
 // [0 = unblocked, 1 = blocked][index = pawn rank, 0 = no pawn)]
@@ -257,12 +257,12 @@ inline constexpr TaperedScore king_open_file[][2] = {
 };
 
 // Bonus for king based on file [index = king file]
-inline constexpr TaperedScore king_file[] = {
-    {20, 0}, {5, 0}, {-15, 0}, {-30, 0}, {-30, 0}, {-15, 0}, {5, 0}, {20, 0}};
+inline constexpr TaperedScore king_file[] =
+    {{20, 0}, {5, 0}, {-15, 0}, {-30, 0}, {-30, 0}, {-15, 0}, {5, 0}, {20, 0}};
 
 // Penalty for potentially hanging piece [index = piece type]
-inline constexpr TaperedScore weak_piece[] = {
-    TaperedScore::Zero, TaperedScore::Zero, {-68, -58}, {-65, -53}, {-38, -71}, {-89, -4}};
+inline constexpr TaperedScore weak_piece[] =
+    {TaperedScore::Zero, TaperedScore::Zero, {-68, -58}, {-65, -53}, {-38, -71}, {-89, -4}};
 
 // Piece mobility scores (index = # of legal moves)
 inline constexpr TaperedScore knight_mob[] = {
@@ -330,10 +330,10 @@ inline constexpr const TaperedScore* mobility[] = {
 
 // danger values [index = piece type]
 inline constexpr int king_zone_attack_danger[N_PIECETYPES] = {0, 0, 30, 22, 18, 5};
-inline constexpr int safe_check_danger[N_PIECETYPES]       = {0, 0, 320, 240, 360, 280};
-inline constexpr int unsafe_check_danger[N_PIECETYPES]     = {0, 0, 35, 30, 25, 5};
+inline constexpr int safe_check_danger[N_PIECETYPES] = {0, 0, 320, 240, 360, 280};
+inline constexpr int unsafe_check_danger[N_PIECETYPES] = {0, 0, 35, 30, 25, 5};
 
-inline constexpr int pinned_piece_danger   = 30;
+inline constexpr int pinned_piece_danger = 30;
 inline constexpr int weak_king_zone_danger = 80;
 
 } // namespace eval

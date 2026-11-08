@@ -31,7 +31,7 @@ int parse_int(std::string_view field, const char* name) {
             throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
     }
 
-    int value            = 0;
+    int value = 0;
     const auto [ptr, ec] = std::from_chars(field.data(), field.data() + field.size(), value);
     if (ec != std::errc{} || ptr != field.data() + field.size())
         throw std::invalid_argument(std::string("invalid fen, invalid ") + name);
@@ -55,27 +55,27 @@ int fullmove_to_absolute_ply(int fullmove_number, Color side_to_move) {
 
 PieceSquare parse_piece(char symbol, Square square) {
     switch (symbol) {
-    case 'P': return {WHITE, PAWN, square};
-    case 'N': return {WHITE, KNIGHT, square};
-    case 'B': return {WHITE, BISHOP, square};
-    case 'R': return {WHITE, ROOK, square};
-    case 'Q': return {WHITE, QUEEN, square};
-    case 'K': return {WHITE, KING, square};
-    case 'p': return {BLACK, PAWN, square};
-    case 'n': return {BLACK, KNIGHT, square};
-    case 'b': return {BLACK, BISHOP, square};
-    case 'r': return {BLACK, ROOK, square};
-    case 'q': return {BLACK, QUEEN, square};
-    case 'k': return {BLACK, KING, square};
-    default:  throw std::invalid_argument("invalid fen, invalid piece placement");
+        case 'P': return {WHITE, PAWN, square};
+        case 'N': return {WHITE, KNIGHT, square};
+        case 'B': return {WHITE, BISHOP, square};
+        case 'R': return {WHITE, ROOK, square};
+        case 'Q': return {WHITE, QUEEN, square};
+        case 'K': return {WHITE, KING, square};
+        case 'p': return {BLACK, PAWN, square};
+        case 'n': return {BLACK, KNIGHT, square};
+        case 'b': return {BLACK, BISHOP, square};
+        case 'r': return {BLACK, ROOK, square};
+        case 'q': return {BLACK, QUEEN, square};
+        case 'k': return {BLACK, KING, square};
+        default:  throw std::invalid_argument("invalid fen, invalid piece placement");
     }
 }
 
 void parse_piece_placement(ParsedFen& parsed, std::string_view field) {
     int white_kings = 0;
     int black_kings = 0;
-    int file        = 0;
-    int rank        = 7;
+    int file = 0;
+    int rank = 7;
 
     parsed.pieces.reserve(max_legal_pieces);
     for (char ch : field) {
@@ -127,7 +127,7 @@ void parse_castling_rights(ParsedFen& parsed, std::string_view field) {
         throw std::invalid_argument("invalid fen, invalid castling rights");
 
     constexpr std::string_view order = "KQkq";
-    std::size_t                next  = 0;
+    std::size_t next = 0;
 
     for (char ch : field) {
         const std::size_t pos = order.find(ch, next);
@@ -136,11 +136,11 @@ void parse_castling_rights(ParsedFen& parsed, std::string_view field) {
         next = pos + 1;
 
         switch (ch) {
-        case 'K': parsed.castling_rights |= W_KINGSIDE; break;
-        case 'Q': parsed.castling_rights |= W_QUEENSIDE; break;
-        case 'k': parsed.castling_rights |= B_KINGSIDE; break;
-        case 'q': parsed.castling_rights |= B_QUEENSIDE; break;
-        default:  break;
+            case 'K': parsed.castling_rights |= W_KINGSIDE; break;
+            case 'Q': parsed.castling_rights |= W_QUEENSIDE; break;
+            case 'k': parsed.castling_rights |= B_KINGSIDE; break;
+            case 'q': parsed.castling_rights |= B_QUEENSIDE; break;
+            default:  break;
         }
     }
 }
@@ -161,9 +161,9 @@ void parse_enpassant_target(ParsedFen& parsed, std::string_view field) {
 } // namespace
 
 ParsedFen parse_fen(std::string_view fen) {
-    std::istringstream       input{std::string(fen)};
+    std::istringstream input{std::string(fen)};
     std::vector<std::string> fields;
-    std::string              field;
+    std::string field;
 
     while (input >> field)
         fields.push_back(field);
@@ -178,7 +178,7 @@ ParsedFen parse_fen(std::string_view fen) {
     parse_enpassant_target(parsed, fields[3]);
 
     if (fields.size() == 6) {
-        parsed.halfmove_clock     = parse_uint8(fields[4], "halfmove clock");
+        parsed.halfmove_clock = parse_uint8(fields[4], "halfmove clock");
         const int fullmove_number = parse_int(fields[5], "fullmove number");
         if (fullmove_number == 0)
             throw std::invalid_argument("invalid fen, invalid fullmove number");

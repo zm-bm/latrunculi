@@ -23,7 +23,7 @@ TEST(AttacksTest, CorrectPawnShift) {
 }
 
 TEST(AttacksTest, ComputesPawnAndLeaperAttacks) {
-    const Bitboard pawns         = bb::set(A4, D4, H4);
+    const Bitboard pawns = bb::set(A4, D4, H4);
     const Bitboard white_attacks = bb::set(B5, C5, E5, G5);
     const Bitboard black_attacks = bb::set(B3, C3, E3, G3);
     EXPECT_EQ(attacks::pawn_attacks<WHITE>(pawns), white_attacks);

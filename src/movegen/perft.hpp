@@ -11,16 +11,16 @@ class Board;
 namespace movegen {
 
 struct PerftRootMove {
-    Move      move;
+    Move move;
     NodeCount nodes;
 };
 
 struct PerftResult {
-    NodeCount                  nodes;
+    NodeCount nodes;
     std::vector<PerftRootMove> root_moves;
 };
 
-NodeCount   perft(Board& board, int depth);
+NodeCount perft(Board& board, int depth);
 PerftResult perft_root(Board& board, int depth);
 std::string format_perft_result(const PerftResult& result);
 

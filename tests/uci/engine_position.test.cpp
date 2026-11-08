@@ -47,9 +47,10 @@ TEST_F(EnginePositionTest, PositionMovesBuildUndoableHistory) {
 }
 
 TEST_F(EnginePositionTest, PositionMovesBuildRepetitionHistoryThatFenReplacementClears) {
-    const std::string command = std::format("position fen {} moves "
-                                            "e6f5 h7g8 f5e6 g8h7 e6f5 h7g8 f5e6 g8h7 e6f5",
-                                            board_test::fen::repetition_cycle);
+    const std::string command = std::format(
+        "position fen {} moves "
+        "e6f5 h7g8 f5e6 g8h7 e6f5 h7g8 f5e6 g8h7 e6f5",
+        board_test::fen::repetition_cycle);
     ASSERT_TRUE(execute(command));
     ASSERT_TRUE(board().is_draw());
 
@@ -74,9 +75,10 @@ TEST_F(EnginePositionTest, FailedPositionCommandsPreserveBoardAndHistory) {
         std::string_view output;
     };
 
-    const std::string     seed       = std::format("position fen {} moves "
-                                                   "e6f5 h7g8 f5e6 g8h7 e6f5 h7g8 f5e6 g8h7 e6f5",
-                                         board_test::fen::repetition_cycle);
+    const std::string seed = std::format(
+        "position fen {} moves "
+        "e6f5 h7g8 f5e6 g8h7 e6f5 h7g8 f5e6 g8h7 e6f5",
+        board_test::fen::repetition_cycle);
     constexpr FailureCase failures[] = {
         {"position startpos moves e2e4 invalid",
          "info string error: invalid move in position command: invalid\n"},

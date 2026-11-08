@@ -5,7 +5,6 @@
 
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
-#include "movegen/moves.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
 #include "search/worker.hpp"
@@ -15,15 +14,17 @@ namespace search {
 Worker::Worker(int id, Reporter& reporter, ThreadPool& pool)
     : reporter(reporter),
       thread_pool(pool),
-      worker_id(id) {}
+      worker_id(id) {
+    for (int ply = 0; ply <= engine::max_search_ply; ++ply)
+        frames[ply].ply = ply;
+}
 
 // Configuration.
 void Worker::configure_search(const Board& root_board, Limits limits, TimePoint search_start_time) {
-    board      = root_board;
-    search_ply = 0;
+    board = root_board;
 
     this->limits = limits;
-    start_time   = search_start_time;
+    start_time = search_start_time;
     time_manager = TimeManager{this->limits, board.side_to_move()};
 
     reset_nodes();
@@ -33,22 +34,22 @@ void Worker::configure_search(const Board& root_board, Limits limits, TimePoint 
 
 // Root snapshot publication.
 void Worker::clear_root_snapshot() {
-    std::lock_guard<std::mutex> lock(root_snapshot_mutex);
-    root_result_snapshot = {};
+    std::lock_guard<std::mutex> lock(published_result_mutex);
+    published_result = {};
 }
 
 void Worker::publish_root_snapshot() {
-    std::lock_guard<std::mutex> lock(root_snapshot_mutex);
-    root_result_snapshot = root_result;
+    std::lock_guard<std::mutex> lock(published_result_mutex);
+    published_result = accepted_result;
 }
 
 RootLine Worker::root_snapshot() const {
-    std::lock_guard<std::mutex> lock(root_snapshot_mutex);
-    return root_result_snapshot;
+    std::lock_guard<std::mutex> lock(published_result_mutex);
+    return published_result;
 }
 
 // Search lifecycle.
-EvalValue Worker::search() {
+Score Worker::search() {
     reset_search_state();
 
     if (is_main_worker()) {
@@ -56,7 +57,7 @@ EvalValue Worker::search() {
         thread_pool.start_helper_searches();
     }
 
-    build_root_lines();
+    build_root_candidates();
     search_root();
 
     if (is_main_worker()) {
@@ -68,32 +69,32 @@ EvalValue Worker::search() {
             wait_for_stop();
     }
 
-    if (!root_result.completed && !stop_requested()) {
-        root_result.depth     = limits.depth;
-        root_result.completed = true;
+    if (!accepted_result.completed && !stop_requested()) {
+        accepted_result.depth = limits.depth;
+        accepted_result.completed = true;
     }
 
-    if (!root_result.completed)
-        root_result.pv.clear();
+    if (!accepted_result.completed)
+        accepted_result.pv.clear();
 
     publish_root_snapshot();
 
     if (is_main_worker())
         prepare_final_result();
 
-    return root_result.value;
+    return accepted_result.value;
 }
 
 void Worker::reset_search_state() {
     reset_nodes();
-    search_ply           = 0;
     root_iteration_depth = 0;
-    root_result          = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
-    frames.fill({});
+    accepted_result = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
+    for (auto& frame : frames)
+        frame.reset();
     if (!board.is_check())
-        frames[0].static_eval = root_result.value;
-    root_lines.clear();
-    last_reported_root_line.reset();
+        frames[0].state.static_eval = accepted_result.value;
+    root_candidates.clear();
+    last_reported_result.reset();
     pending_best_move.reset();
 
     history.prepare_for_search();
@@ -106,45 +107,21 @@ void Worker::clear_search_heuristics() {
     history.clear();
 }
 
-void Worker::build_root_lines() {
-    root_lines.clear();
-
-    // Root candidates start in ordered-stream order.
-    const auto context = history.context_for(board, 0);
-    auto       moves   = movegen::MainSearchMoves(board, history, context);
-
-    for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
-        if (limits.allows_root_move(move))
-            root_lines.push_back(RootLine{.root_move = move, .value = -eval_value::inf});
-    }
-}
-
 // Root result reporting.
-RootLine Worker::terminal_root_result() const {
-    assert(root_lines.empty());
-
-    return RootLine{
-        .root_move = NULL_MOVE,
-        .value     = board.is_check() ? -eval_value::mate : eval_value::draw,
-        .depth     = 0,
-        .completed = true,
-    };
-}
-
 void Worker::prepare_final_result() {
     thread_pool.stop_helper_searches();
 
-    RootLine selected = root_result;
+    RootLine selected = accepted_result;
 
     // Preserve a proven mate instead of replacing it with a deeper helper
     // result that does not satisfy the requested mate limit.
     if (!limits.has_mate_within_limit(selected.value))
-        selected = select_best_root_line(selected, thread_pool.root_snapshots());
+        selected = thread_pool.select_root_result(selected);
 
     // A stopped depth-zero search still needs a legal fallback move.
-    if (!selected.usable_root_move() && !root_lines.empty()) {
-        selected.root_move = root_lines.front().root_move;
-        selected.depth     = 0;
+    if (!selected.usable_root_move() && !root_candidates.empty()) {
+        selected.root_move = root_candidates.front().root_move;
+        selected.depth = 0;
         selected.completed = false;
         selected.pv.clear();
     }
@@ -167,11 +144,11 @@ void Worker::publish_final_result() {
 }
 
 void Worker::report_root_progress(const RootLine& line) {
-    if (last_reported_root_line && line == *last_reported_root_line)
+    if (last_reported_result && line == *last_reported_result)
         return;
 
     reporter.report_progress(line, board, total_nodes(), runtime());
-    last_reported_root_line = line;
+    last_reported_result = line;
 }
 
 // Accounting and limits.
@@ -201,14 +178,16 @@ void Worker::poll_search_limits() {
 }
 
 void Worker::finish_timed_iteration() {
-    assert(is_main_worker() && root_result.usable_root_move());
+    assert(is_main_worker() && accepted_result.usable_root_move());
 
     if (!time_manager.soft_limit() || thread_pool.is_pondering())
         return;
 
     time_manager.update_after_iteration(
-        root_result.depth, root_result.root_move, root_result.value);
-    if (root_lines.size() == 1 || runtime() >= *time_manager.soft_limit())
+        accepted_result.depth,
+        accepted_result.root_move,
+        accepted_result.value);
+    if (root_candidates.size() == 1 || runtime() >= *time_manager.soft_limit())
         thread_pool.request_stop();
 }
 

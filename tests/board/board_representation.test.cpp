@@ -80,7 +80,7 @@ TEST(BoardRepresentationTest, MaterialAndPsqtMatchExpectedValues) {
 }
 
 TEST(BoardRepresentationTest, TtClockGroupsLeaveRepetitionKeysUnchanged) {
-    const Board                     low("7k/8/8/8/8/8/6Q1/6K1 w - - 0 1");
+    const Board low("7k/8/8/8/8/8/6Q1/6K1 w - - 0 1");
     std::unordered_set<PositionKey> groups;
     for (int clock = 0; clock < 256; ++clock) {
         Board board("7k/8/8/8/8/8/6Q1/6K1 w - - " + std::to_string(clock) + " 1");
@@ -108,7 +108,7 @@ TEST(BoardRepresentationTest, TtClockGroupsDoNotChangeRepetitionDetection) {
 }
 
 TEST(BoardCopyTest, SourceAndDestinationRemainIndependent) {
-    Board      source(board_test::fen::perft_position_2);
+    Board source(board_test::fen::perft_position_2);
     const auto root = board_test::snapshot_board(source);
 
     Board destination(source);
@@ -152,7 +152,7 @@ TEST(BoardCopyTest, ReplacesRepetitionHistoryWhenDestinationIsReused) {
 }
 
 TEST(BoardCopyTest, CopiesAndUnwindsHistoryAcrossTheGrowthBoundary) {
-    Board      source(board_test::fen::start);
+    Board source(board_test::fen::start);
     const auto initial = board_test::snapshot_board(source);
     build_long_history(source);
     const auto root = board_test::snapshot_board(source);

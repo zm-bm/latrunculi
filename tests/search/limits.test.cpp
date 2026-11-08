@@ -36,8 +36,8 @@ TEST(SearchLimitsTest, SettersPreserveWideLimits) {
     using Rep = Milliseconds::rep;
 
     constexpr NodeCount max_nodes = std::numeric_limits<NodeCount>::max();
-    constexpr Rep       max_time  = std::numeric_limits<Rep>::max();
-    Limits              limits;
+    constexpr Rep max_time = std::numeric_limits<Rep>::max();
+    Limits limits;
 
     limits.set_movetime(max_time);
     limits.set_nodes(max_nodes);
@@ -86,13 +86,13 @@ TEST(SearchLimitsTest, MateLimitUsesUciMoveDistanceForEitherSide) {
     Limits limits;
     limits.set_mate(2);
 
-    EXPECT_TRUE(limits.has_mate_within_limit(eval_value::mate - 3));
-    EXPECT_TRUE(limits.has_mate_within_limit(-eval_value::mate + 4));
-    EXPECT_FALSE(limits.has_mate_within_limit(eval_value::mate - 5));
+    EXPECT_TRUE(limits.has_mate_within_limit(scores::mate - 3));
+    EXPECT_TRUE(limits.has_mate_within_limit(-scores::mate + 4));
+    EXPECT_FALSE(limits.has_mate_within_limit(scores::mate - 5));
     EXPECT_FALSE(limits.has_mate_within_limit(200));
 
     limits.mate.reset();
-    EXPECT_FALSE(limits.has_mate_within_limit(eval_value::mate - 1));
+    EXPECT_FALSE(limits.has_mate_within_limit(scores::mate - 1));
 }
 
 } // namespace search

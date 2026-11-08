@@ -27,13 +27,13 @@ static_assert(
 
 class MoveStreamTest : public ::testing::Test {
 protected:
-    int     ply = 5;
+    int ply = 5;
     History history;
 };
 
 namespace {
 
-constexpr std::string_view LOSING_CAPTURE_FEN        = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
+constexpr std::string_view LOSING_CAPTURE_FEN = "2b3k1/3p4/8/8/8/8/8/3Q2K1 w - - 0 1";
 constexpr std::string_view PROMOTION_AND_CAPTURE_FEN = "4k3/P7/8/1p6/3N4/8/8/4K3 w - - 0 1";
 
 std::vector<Move> collect_moves(auto& stream) {
@@ -44,15 +44,19 @@ std::vector<Move> collect_moves(auto& stream) {
     return moves;
 }
 
-std::vector<Move>
-main_search_moves(const Board& board, const History& history, int ply, Move tt_move = NULL_MOVE) {
+std::vector<Move> main_search_moves(
+    const Board& board,
+    const History& history,
+    int ply,
+    Move tt_move = NULL_MOVE) {
     const auto context = history.context_for(board, ply, tt_move);
-    auto       stream  = movegen::MainSearchMoves(board, history, context);
+    auto stream = movegen::MainSearchMoves(board, history, context);
     return collect_moves(stream);
 }
 
-std::vector<Move>
-quiescence_moves(const Board& board, const History& history, Move tt_move = NULL_MOVE) {
+std::vector<Move> quiescence_moves(const Board& board,
+                                   const History& history,
+                                   Move tt_move = NULL_MOVE) {
     auto stream = movegen::QuiescenceMoves(board, history, tt_move);
     return collect_moves(stream);
 }
@@ -63,12 +67,13 @@ void expect_tt_move_first_once(const std::vector<Move>& moves, Move tt_move) {
     EXPECT_EQ(std::count(moves.begin(), moves.end(), tt_move), 1);
 }
 
-void expect_capture_before_quiets(const Board&             board,
-                                  const std::vector<Move>& moves,
-                                  Move                     capture,
-                                  bool                     before_quiets) {
+void expect_capture_before_quiets(
+    const Board& board,
+    const std::vector<Move>& moves,
+    Move capture,
+    bool before_quiets) {
     const auto capture_it = std::find(moves.begin(), moves.end(), capture);
-    const auto quiet_it   = std::find_if(moves.begin(), moves.end(), [&](Move move) {
+    const auto quiet_it = std::find_if(moves.begin(), moves.end(), [&](Move move) {
         return move.type() != MOVE_PROM && !board.is_capture(move);
     });
     ASSERT_NE(capture_it, moves.end());
@@ -82,7 +87,7 @@ TEST_F(MoveStreamTest, UnscoredTraversalPreservesGenerationOrder) {
     for (std::string_view fen :
          {board_test::fen::start, board_test::fen::check_evasion, board_test::fen::stalemate}) {
         SCOPED_TRACE(fen);
-        const Board       board{fen};
+        const Board board{fen};
         std::vector<Move> expected;
         for (Move move : board_test::pseudo_legal_moves(board))
             if (board.is_legal_pseudo_move(move))
@@ -106,7 +111,7 @@ TEST_F(MoveStreamTest, UnscoredTraversalPreservesGenerationOrder) {
     }
 
     const Board pinned{board_test::fen::pinned_rook};
-    const Move  illegal{E2, F2};
+    const Move illegal{E2, F2};
     ASSERT_TRUE(pinned.is_pseudo_legal(illegal));
     ASSERT_FALSE(pinned.is_legal_pseudo_move(illegal));
     int match_count = 0;
@@ -122,11 +127,12 @@ TEST_F(MoveStreamTest, UnscoredTraversalPreservesGenerationOrder) {
 }
 
 TEST_F(MoveStreamTest, ReturnsLegalMainAndQuiescenceMoves) {
-    constexpr std::string_view positions[]{board_test::fen::start,
-                                           board_test::fen::perft_position_2,
-                                           board_test::fen::legal_en_passant_a3,
-                                           "1rr4k/P7/8/8/8/8/8/K7 w - - 0 1",
-                                           LOSING_CAPTURE_FEN};
+    constexpr std::string_view positions[]{
+        board_test::fen::start,
+        board_test::fen::perft_position_2,
+        board_test::fen::legal_en_passant_a3,
+        "1rr4k/P7/8/8/8/8/8/K7 w - - 0 1",
+        LOSING_CAPTURE_FEN};
     for (std::string_view fen : positions) {
         SCOPED_TRACE(fen);
         Board position{fen};
@@ -160,15 +166,16 @@ TEST_F(MoveStreamTest, MainSearchOrdersStagesAndDeduplicatesHints) {
     history.update_quiet_refutations(OrderingContext{.ply = ply}, killer_1);
     SearchTestAccess::quiet_history_entry(history, WHITE, history_move.from(), history_move.to()) =
         History::QuietMaxScore;
-    SearchTestAccess::continuation_history_entry(history,
-                                                 context,
-                                                 position.piece_type_on(continuation_move.from()),
-                                                 continuation_move.to()) = 16;
+    SearchTestAccess::continuation_history_entry(
+        history,
+        context,
+        position.piece_type_on(continuation_move.from()),
+        continuation_move.to()) = 16;
 
     SearchTestAccess::counter_move_entry(history, context) = counter;
-    const auto              moves = main_search_moves(position, history, ply, tt_move);
-    const std::vector<Move> prefix{
-        tt_move, capture, killer_1, killer_2, counter, history_move, continuation_move};
+    const auto moves = main_search_moves(position, history, ply, tt_move);
+    const std::vector<Move>
+        prefix{tt_move, capture, killer_1, killer_2, counter, history_move, continuation_move};
     ASSERT_GE(moves.size(), prefix.size());
     EXPECT_EQ(std::vector<Move>(moves.begin(), moves.begin() + prefix.size()), prefix);
 
@@ -206,13 +213,15 @@ TEST_F(MoveStreamTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
     }
     EXPECT_TRUE(std::ranges::is_permutation(baseline, expected));
 
-    const auto last_quiet = std::find_if(
-        baseline.rbegin(), baseline.rend(), [&](Move move) { return !position.is_capture(move); });
+    const auto last_quiet = std::find_if(baseline.rbegin(), baseline.rend(), [&](Move move) {
+        return !position.is_capture(move);
+    });
     ASSERT_NE(last_quiet, baseline.rend());
-    SearchTestAccess::continuation_history_entry(history,
-                                                 history.context_for(position, ply),
-                                                 position.piece_type_on(last_quiet->from()),
-                                                 last_quiet->to()) = 16;
+    SearchTestAccess::continuation_history_entry(
+        history,
+        history.context_for(position, ply),
+        position.piece_type_on(last_quiet->from()),
+        last_quiet->to()) = 16;
     history.update_quiet_refutations(OrderingContext{.ply = ply}, invalid_hint);
     history.update_capture(position, queen_capture, 2048);
     ASSERT_TRUE(position.is_pseudo_legal(invalid_hint));
@@ -225,17 +234,17 @@ TEST_F(MoveStreamTest, EvasionsUseMaterialOrderingAndLegalTtHints) {
     expect_tt_move_first_once(quiescence_moves(position, history, tt_evasion), tt_evasion);
 
     const auto context = history.context_for(position, ply);
-    auto       stream  = movegen::MainSearchMoves(position, history, context);
+    auto stream = movegen::MainSearchMoves(position, history, context);
     stream.skip_nonchecking_quiets();
     EXPECT_EQ(collect_moves(stream), baseline);
 }
 
 TEST_F(MoveStreamTest, PromotionsPrecedeCaptures) {
     const Board position{PROMOTION_AND_CAPTURE_FEN};
-    const Move  promotion{A7, A8, MOVE_PROM, QUEEN}, capture{D4, B5};
-    const auto  moves        = main_search_moves(position, history, ply);
-    const auto  promotion_it = std::find(moves.begin(), moves.end(), promotion);
-    const auto  capture_it   = std::find(moves.begin(), moves.end(), capture);
+    const Move promotion{A7, A8, MOVE_PROM, QUEEN}, capture{D4, B5};
+    const auto moves = main_search_moves(position, history, ply);
+    const auto promotion_it = std::find(moves.begin(), moves.end(), promotion);
+    const auto capture_it = std::find(moves.begin(), moves.end(), capture);
     ASSERT_NE(promotion_it, moves.end());
     ASSERT_NE(capture_it, moves.end());
     EXPECT_LT(promotion_it, capture_it);
@@ -255,12 +264,12 @@ TEST_F(MoveStreamTest, ValidatesAndPrioritizesHints) {
     EXPECT_EQ(quiescence_moves(position, history, Move(D1, D2)),
               quiescence_moves(position, history));
 
-    const auto context  = history.context_for(position, ply);
+    const auto context = history.context_for(position, ply);
     const auto baseline = main_search_moves(position, history, ply);
     for (Move hint : {Move(A1, A3), capture, promotion}) {
         SCOPED_TRACE(hint.str());
         SearchTestAccess::counter_move_entry(history, context) = hint;
-        const auto snapshot                                    = history.context_for(position, ply);
+        const auto snapshot = history.context_for(position, ply);
         SearchTestAccess::counter_move_entry(history, context) = NULL_MOVE;
         auto stream = movegen::MainSearchMoves(position, history, snapshot);
         EXPECT_EQ(snapshot.counter_move, hint);
@@ -269,7 +278,7 @@ TEST_F(MoveStreamTest, ValidatesAndPrioritizesHints) {
 }
 
 TEST_F(MoveStreamTest, SkipNoncheckingQuietsKeepsQuietChecksAndDeferredCaptures) {
-    Board      position{LOSING_CAPTURE_FEN};
+    Board position{LOSING_CAPTURE_FEN};
     const Move nonchecking{D1, D2};
     const Move checking{D1, G4};
     const Move deferred_capture{D1, D7};
@@ -281,7 +290,7 @@ TEST_F(MoveStreamTest, SkipNoncheckingQuietsKeepsQuietChecksAndDeferredCaptures)
     history.update_quiet_refutations(OrderingContext{.ply = ply}, checking);
     history.update_quiet_refutations(OrderingContext{.ply = ply}, nonchecking);
     const auto context = history.context_for(position, ply);
-    auto       stream  = movegen::MainSearchMoves(position, history, context);
+    auto stream = movegen::MainSearchMoves(position, history, context);
     stream.skip_nonchecking_quiets();
     const auto moves = collect_moves(stream);
 
@@ -295,10 +304,10 @@ TEST_F(MoveStreamTest, SkipNoncheckingQuietsKeepsQuietChecksAndDeferredCaptures)
 }
 
 TEST_F(MoveStreamTest, CaptureOrderingCombinesMaterialAndHistory) {
-    const Board             position{"7k/8/8/b1p1b3/Q7/3N4/6P1/7K w - - 0 1"};
-    const Move              knight_bishop{D3, E5}, queen_bishop{A4, A5}, knight_pawn{D3, C5};
+    const Board position{"7k/8/8/b1p1b3/Q7/3N4/6P1/7K w - - 0 1"};
+    const Move knight_bishop{D3, E5}, queen_bishop{A4, A5}, knight_pawn{D3, C5};
     const std::vector<Move> expected{knight_bishop, queen_bishop, knight_pawn};
-    const auto              main_moves = main_search_moves(position, history, ply);
+    const auto main_moves = main_search_moves(position, history, ply);
     ASSERT_GE(main_moves.size(), expected.size());
     EXPECT_EQ(std::vector<Move>(main_moves.begin(), main_moves.begin() + expected.size()),
               expected);
@@ -310,12 +319,12 @@ TEST_F(MoveStreamTest, CaptureOrderingCombinesMaterialAndHistory) {
 
 TEST_F(MoveStreamTest, CaptureOrderKeepsLoadTimeSnapshot) {
     const Board position{"7k/8/8/2p1p3/8/3N4/5pP1/K7 w - - 0 1"};
-    const auto  expected_order = main_search_moves(position, history, ply);
+    const auto expected_order = main_search_moves(position, history, ply);
     ASSERT_GE(expected_order.size(), 3U);
     for (int i = 0; i < 3; ++i)
         ASSERT_TRUE(position.is_capture(expected_order[i]));
     const auto context = history.context_for(position, ply);
-    auto       stream  = movegen::MainSearchMoves(position, history, context);
+    auto stream = movegen::MainSearchMoves(position, history, context);
     ASSERT_EQ(stream.next(), expected_order.front());
     history.update_capture(position, expected_order[1], -History::CaptureMaxScore);
     history.update_capture(position, expected_order[2], History::CaptureMaxScore);
@@ -326,33 +335,39 @@ TEST_F(MoveStreamTest, CaptureOrderKeepsLoadTimeSnapshot) {
 
 TEST_F(MoveStreamTest, CaptureSeeThresholdKeepsLoadTimeSnapshot) {
     const Board position{"3r4/7k/q7/3r4/3QP3/8/R7/1K6 w - - 0 1"};
-    const Move  first_capture{A2, A6}, second_capture{D4, D5};
-    const auto  context = history.context_for(position, ply);
-    auto        stream  = movegen::MainSearchMoves(position, history, context);
+    const Move first_capture{A2, A6}, second_capture{D4, D5};
+    const auto context = history.context_for(position, ply);
+    auto stream = movegen::MainSearchMoves(position, history, context);
     ASSERT_EQ(stream.next(), first_capture);
     history.update_capture(position, second_capture, -History::CaptureMaxScore);
     expect_capture_before_quiets(position, collect_moves(stream), second_capture, true);
     expect_capture_before_quiets(
-        position, main_search_moves(position, history, ply), second_capture, false);
+        position,
+        main_search_moves(position, history, ply),
+        second_capture,
+        false);
 }
 
 TEST_F(MoveStreamTest, CaptureThresholdUsesHistoryOnlyInMainSearch) {
     const Board position{"7k/8/5p2/4n3/3B4/8/8/K7 w - - 0 1"};
-    const Move  capture{D4, E5};
+    const Move capture{D4, E5};
     ASSERT_LT(board_test::exchange_oracle(position, capture), 0);
     for (int history_sign : {-1, 0, 1}) {
         SCOPED_TRACE(history_sign);
         history.clear();
         history.update_capture(position, capture, history_sign * History::CaptureMaxScore);
         expect_capture_before_quiets(
-            position, main_search_moves(position, history, ply), capture, history_sign >= 0);
+            position,
+            main_search_moves(position, history, ply),
+            capture,
+            history_sign >= 0);
         EXPECT_TRUE(quiescence_moves(position, history).empty());
     }
 }
 
 TEST_F(MoveStreamTest, DeferredCapturesFollowQuietsAndKeepSwapOrder) {
     const Board position{"3r1r2/7k/3r4/8/3Q1b2/8/p7/K7 w - - 0 1"};
-    const Move  early{A1, A2}, rook{D4, D6}, bishop{D4, F4};
+    const Move early{A1, A2}, rook{D4, D6}, bishop{D4, F4};
     ASSERT_FALSE(position.is_check());
     const auto moves = main_search_moves(position, history, ply);
     ASSERT_GT(moves.size(), 3U);

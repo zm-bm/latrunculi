@@ -8,10 +8,10 @@ namespace uci {
 
 // UCI options and engine configuration.
 struct SpinOption {
-    int  value;
-    int  default_value;
-    int  min_value;
-    int  max_value;
+    int value;
+    int default_value;
+    int min_value;
+    int max_value;
     void set(std::string value_str);
 };
 
@@ -29,21 +29,21 @@ struct Options {
     static constexpr int default_threads = 1;
 
     SpinOption hash = {
-        .value         = engine::default_hash_mb,
+        .value = engine::default_hash_mb,
         .default_value = engine::default_hash_mb,
-        .min_value     = 1,
-        .max_value     = 2048,
+        .min_value = 1,
+        .max_value = 2048,
     };
 
     SpinOption threads = {
-        .value         = default_threads,
+        .value = default_threads,
         .default_value = default_threads,
-        .min_value     = 1,
-        .max_value     = 64,
+        .min_value = 1,
+        .max_value = 64,
     };
 
     CheckOption ponder = {
-        .value         = false,
+        .value = false,
         .default_value = false,
     };
 

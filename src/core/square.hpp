@@ -31,9 +31,9 @@ enum Square : std::int8_t {
 // Pawn movement deltas in the A1=0 layout, measured from White's perspective.
 namespace pawn_delta {
 
-inline constexpr int left        = 7;
-inline constexpr int push        = 8;
-inline constexpr int right       = 9;
+inline constexpr int left = 7;
+inline constexpr int push = 8;
+inline constexpr int right = 9;
 inline constexpr int double_push = 16;
 
 } // namespace pawn_delta
@@ -42,12 +42,12 @@ namespace square {
 
 // Single-step square deltas in the A1=0 layout.
 inline constexpr int north_east = 9;
-inline constexpr int north      = 8;
+inline constexpr int north = 8;
 inline constexpr int north_west = 7;
-inline constexpr int east       = 1;
-inline constexpr int west       = -1;
+inline constexpr int east = 1;
+inline constexpr int west = -1;
 inline constexpr int south_east = -7;
-inline constexpr int south      = -8;
+inline constexpr int south = -8;
 inline constexpr int south_west = -9;
 
 // Builds a square from zero-based file and rank.
@@ -79,7 +79,7 @@ constexpr Rank relative_rank(const Square square, const Color color) {
 namespace tables {
 
 using SquareDistanceTable = std::array<std::array<std::uint8_t, N_SQUARES>, N_SQUARES>;
-using SquareMaskTable     = std::array<std::array<Bitboard, N_SQUARES>, N_SQUARES>;
+using SquareMaskTable = std::array<std::array<Bitboard, N_SQUARES>, N_SQUARES>;
 
 // Chebyshev distance value for one square pair.
 constexpr std::uint8_t distance_value(Square sq1, Square sq2) {
@@ -181,9 +181,9 @@ constexpr SquareMaskTable make_between_table() {
 }
 
 // Precomputed geometry tables for constant-time square queries.
-constexpr SquareDistanceTable distance_table  = make_distance_table();
-constexpr SquareMaskTable     collinear_table = make_collinear_table();
-constexpr SquareMaskTable     between_table   = make_between_table();
+constexpr SquareDistanceTable distance_table = make_distance_table();
+constexpr SquareMaskTable collinear_table = make_collinear_table();
+constexpr SquareMaskTable between_table = make_between_table();
 
 } // namespace tables
 

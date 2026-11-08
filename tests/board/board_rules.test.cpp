@@ -33,8 +33,8 @@ void complete_corner_king_cycle(Board& board) {
 TEST(BoardRulesTest, CachesCheckersAndSliderBlockers) {
     struct Case {
         std::string_view fen;
-        Bitboard         checkers;
-        Bitboard         blockers;
+        Bitboard checkers;
+        Bitboard blockers;
     };
     constexpr std::array cases = {
         Case{"4r2k/8/8/8/8/8/8/4K3 w - - 0 1", bb::set(E8), 0},
@@ -105,9 +105,9 @@ TEST(BoardRulesTest, CachesLegalEnPassantForBothColorsIncludingCheckEvasion) {
     struct Case {
         std::string_view with_enpassant;
         std::string_view without_enpassant;
-        Square           enpassant_target;
-        Move             move;
-        bool             in_check;
+        Square enpassant_target;
+        Move move;
+        bool in_check;
     };
 
     constexpr std::array cases = {
@@ -141,7 +141,7 @@ TEST(BoardRulesTest, CachesLegalEnPassantForBothColorsIncludingCheckEvasion) {
 }
 
 TEST(BoardRulesTest, AppliesLegalEnPassantCachePerCaptureOrigin) {
-    Board      board("k2r4/8/8/3PpP2/8/8/8/3K4 w - e6 0 1");
+    Board board("k2r4/8/8/3PpP2/8/8/8/3K4 w - e6 0 1");
     const Move pinned_capture(D5, E6, MOVE_EP);
     const Move legal_capture(F5, E6, MOVE_EP);
 
@@ -162,8 +162,8 @@ TEST(BoardRulesTest, DoesNotCacheUnavailableEnPassantForEitherColor) {
     struct Case {
         std::string_view with_enpassant;
         std::string_view without_enpassant;
-        Square           enpassant_target;
-        Move             rejected_move;
+        Square enpassant_target;
+        Move rejected_move;
     };
 
     constexpr std::array cases = {
@@ -205,8 +205,8 @@ TEST(BoardRulesTest, DoesNotCacheUnavailableEnPassantForEitherColor) {
 TEST(BoardRulesTest, FiltersPseudoLegalMovesThatLeaveTheKingUnsafe) {
     struct Case {
         std::string_view fen;
-        Move             move;
-        bool             legal;
+        Move move;
+        bool legal;
     };
 
     constexpr std::array cases = {
@@ -227,7 +227,7 @@ TEST(BoardRulesTest, FiltersPseudoLegalMovesThatLeaveTheKingUnsafe) {
 TEST(BoardRulesTest, RejectsUntrustedNonMoves) {
     struct Case {
         std::string_view fen;
-        Move             move;
+        Move move;
     };
 
     constexpr std::array cases = {
@@ -268,7 +268,7 @@ TEST(BoardRulesTest, ValidatesPawnMoveEncoding) {
 
 TEST(BoardRulesTest, ValidatesCastlingConditions) {
     const Move kingside(E1, G1, MOVE_CASTLE);
-    Board      castle_board{board_test::fen::perft_position_2};
+    Board castle_board{board_test::fen::perft_position_2};
     EXPECT_TRUE(castle_board.is_pseudo_legal(kingside));
     EXPECT_TRUE(castle_board.is_legal_move(kingside));
     EXPECT_TRUE(castle_board.is_pseudo_legal(Move(E1, C1, MOVE_CASTLE)));
@@ -311,7 +311,7 @@ TEST(BoardRulesTest, RecognizesDeadPositionsByMaterial) {
     struct Case {
         std::string_view name;
         std::string_view fen;
-        bool             dead;
+        bool dead;
     };
 
     constexpr std::array cases{

@@ -2,16 +2,14 @@
 BasedOnStyle: LLVM
 Language:        Cpp
 AccessModifierOffset: -4
-AlignConsecutiveAssignments:
-  Enabled:         true
-  AlignCompound:   false
-AlignConsecutiveDeclarations:
-  Enabled:         true
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
 AlignConsecutiveShortCaseStatements:
   Enabled:         true
-AlignOperands:   AlignAfterOperator
-AllowAllArgumentsOnNextLine: true
-AllowAllParametersOfDeclarationOnNextLine: true
+AlignOperands:   DontAlign
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortEnumsOnASingleLine: true
@@ -19,19 +17,26 @@ AllowShortFunctionsOnASingleLine: Inline
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLambdasOnASingleLine: All
 AllowShortLoopsOnASingleLine: false
-BreakTemplateDeclarations: Leave
+BreakTemplateDeclarations: Yes
 BinPackArguments: false
-BinPackParameters: false
+BinPackParameters: OnePerLine
+BreakAfterAttributes: Always
 BreakBeforeBinaryOperators: NonAssignment
+BreakBinaryOperations: RespectPrecedence
 ColumnLimit:     100
+ContinuationIndentWidth: 4
 DerivePointerAlignment: false
 IncludeBlocks:   Preserve
+IndentCaseLabels: true
 IndentWidth:     4
 InsertNewlineAtEOF: true
 LineEnding:      LF
-PackConstructorInitializers: CurrentLine
+PackConstructorInitializers: Never
+PenaltyIndentedWhitespace: 2
+PenaltyReturnTypeOnItsOwnLine: 300
 PointerAlignment: Left
 ReferenceAlignment: Pointer
+ReflowComments: IndentOnly
 SortIncludes:    CaseSensitive
 UseTab:          Never
 RequiresClausePosition: WithPreceding

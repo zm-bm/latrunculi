@@ -11,7 +11,7 @@
 TEST(EngineLoopTest, ReadsConfiguredInputStream) {
     std::istringstream input{"isready\nquit\n"};
     std::ostringstream output;
-    uci::Engine        engine{output, output, input};
+    uci::Engine engine{output, output, input};
 
     engine.loop();
 
@@ -58,8 +58,8 @@ TEST_F(EngineTest, UnknownInputIsIgnoredAndRecoveredDebugControlsDiagnostics) {
 
 struct CommandCase {
     std::vector<std::string> commands;
-    std::string              expected_fen;
-    std::string              expected_output;
+    std::string expected_fen;
+    std::string expected_output;
 };
 
 class EngineCommandsTest : public EngineTest, public ::testing::WithParamInterface<CommandCase> {};

@@ -13,39 +13,41 @@
 #include "board/board.hpp"
 #include "core/notation.hpp"
 #include "eval/parameters.hpp"
+#include "eval/score_finalization.hpp"
 
 namespace eval {
 
 namespace {
 
 TaperedScore weighted_score(const std::array<int, feature::count>& coefficients) noexcept {
-    TaperedScore score;
-    const auto&  schema = feature_schema();
+    TaperedScore phase_scores;
+    const auto& schema = feature_schema();
 
     for (std::size_t id = 0; id < coefficients.size(); ++id)
-        score += schema[id].weight * coefficients[id];
+        phase_scores += schema[id].weight * coefficients[id];
 
-    return score;
+    return phase_scores;
 }
 
-std::string format_score(TaperedScore score) {
+std::string format_score(TaperedScore phase_scores) {
     return std::format("{:5.2f} {:5.2f}",
-                       double(score.mg) / int(eval::pawn.mg),
-                       double(score.eg) / int(eval::pawn.mg));
+                       double(phase_scores.mg) / int(eval::pawn.mg),
+                       double(phase_scores.eg) / int(eval::pawn.mg));
 }
 
-std::string format_total(TaperedScore score) {
-    return std::format(" |  ----  ---- |  ----  ---- | {} | ", format_score(score));
+std::string format_total(TaperedScore phase_scores) {
+    return std::format(" |  ----  ---- |  ----  ---- | {} | ", format_score(phase_scores));
 }
 
-std::string format_term(Term term, const TermScore& score) {
+std::string format_term(Term term, const TermScore& term_score) {
     if (term != Term::Material && term != Term::PieceSquare) {
-        return std::format(" | {} | {} | {} | ",
-                           format_score(score.white),
-                           format_score(score.black),
-                           format_score(score.total()));
+        return std::format(
+            " | {} | {} | {} | ",
+            format_score(term_score.white),
+            format_score(term_score.black),
+            format_score(term_score.total()));
     }
-    return format_total(score.total());
+    return format_total(term_score.total());
 }
 
 void write_json_string(std::ostream& output, std::string_view text) {
@@ -55,19 +57,19 @@ void write_json_string(std::ostream& output, std::string_view text) {
 
     for (const unsigned char ch : text) {
         switch (ch) {
-        case '"':  output << "\\\""; break;
-        case '\\': output << "\\\\"; break;
-        case '\b': output << "\\b"; break;
-        case '\f': output << "\\f"; break;
-        case '\n': output << "\\n"; break;
-        case '\r': output << "\\r"; break;
-        case '\t': output << "\\t"; break;
-        default:
-            if (ch < 0x20) {
-                output << "\\u00" << hex_digits[ch >> 4] << hex_digits[ch & 0x0f];
-            } else {
-                output << ch;
-            }
+            case '"':  output << "\\\""; break;
+            case '\\': output << "\\\\"; break;
+            case '\b': output << "\\b"; break;
+            case '\f': output << "\\f"; break;
+            case '\n': output << "\\n"; break;
+            case '\r': output << "\\r"; break;
+            case '\t': output << "\\t"; break;
+            default:
+                if (ch < 0x20) {
+                    output << "\\u00" << hex_digits[ch >> 4] << hex_digits[ch & 0x0f];
+                } else {
+                    output << ch;
+                }
         }
     }
 
@@ -94,15 +96,27 @@ Board parse_board(std::string_view fen, int line_number) {
 }
 
 void write_schema(std::ostream& output) {
-    output << R"({"type":"schema","version":)" << feature_schema_version
-           << R"(,"perspective":{"coefficients":"white","fixed":"white","eval":"side_to_move"})"
-           << R"(,"result":"1=white_win,0=draw,-1=black_win")"
-           << R"(,"phase_counts":["knight","bishop","rook","queen"])"
-           << R"(,"pawn_counts":["white","black"],"phase_limit":)" << eval::phase_limit
-           << R"(,"phase_material_min":)" << eval::material_eg << R"(,"phase_material_max":)"
-           << eval::material_mg << R"(,"scale_limit":)" << eval::scale_limit << R"(,"scale_base":)"
-           << eval::scale_base << R"(,"scale_per_pawn":)" << eval::scale_per_pawn << R"(,"tempo":)"
-           << eval::tempo_bonus << R"(,"features":[)";
+    output
+        << R"({"type":"schema","version":)"
+        << feature_schema_version
+        << R"(,"perspective":{"coefficients":"white","fixed":"white","eval":"side_to_move"})"
+        << R"(,"result":"1=white_win,0=draw,-1=black_win")"
+        << R"(,"phase_counts":["knight","bishop","rook","queen"])"
+        << R"(,"pawn_counts":["white","black"],"phase_limit":)"
+        << eval::phase_limit
+        << R"(,"phase_material_min":)"
+        << eval::material_eg
+        << R"(,"phase_material_max":)"
+        << eval::material_mg
+        << R"(,"scale_limit":)"
+        << eval::scale_limit
+        << R"(,"scale_base":)"
+        << eval::scale_base
+        << R"(,"scale_per_pawn":)"
+        << eval::scale_per_pawn
+        << R"(,"tempo":)"
+        << eval::tempo_bonus
+        << R"(,"features":[)";
 
     const auto& schema = feature_schema();
     for (std::size_t id = 0; id < schema.size(); ++id) {
@@ -116,10 +130,10 @@ void write_schema(std::ostream& output) {
     output << "]}\n";
 }
 
-void write_record(std::ostream&        output,
-                  std::string_view     source,
-                  int                  result,
-                  const Board&         board,
+void write_record(std::ostream& output,
+                  std::string_view source,
+                  int result,
+                  const Board& board,
                   const FeatureRecord& record) {
     output << R"({"type":"position","version":)" << feature_schema_version << R"(,"source":)";
     write_json_string(output, source);
@@ -133,9 +147,16 @@ void write_record(std::ostream&        output,
         output << record.phase_counts[i];
     }
 
-    output << R"(],"pawn_counts":[)" << record.pawn_counts[WHITE] << ','
-           << record.pawn_counts[BLACK] << R"(],"fixed":[)" << record.fixed_score.mg << ','
-           << record.fixed_score.eg << R"(],"coefficients":[)";
+    output
+        << R"(],"pawn_counts":[)"
+        << record.pawn_counts[WHITE]
+        << ','
+        << record.pawn_counts[BLACK]
+        << R"(],"fixed":[)"
+        << record.fixed_score.mg
+        << ','
+        << record.fixed_score.eg
+        << R"(],"coefficients":[)";
 
     bool first = true;
     for (std::size_t id = 0; id < record.coefficients.size(); ++id) {
@@ -163,59 +184,53 @@ const TermScore& FeatureRecord::term(Term term) const noexcept {
 
 TaperedScore FeatureRecord::term_total() const noexcept {
     TaperedScore total;
-    for (const TermScore& score : terms)
-        total += score.total();
+    for (const TermScore& term_score : terms)
+        total += term_score.total();
     return total;
 }
 
-EvalValue FeatureRecord::white_value() const noexcept {
+Score FeatureRecord::white_value() const noexcept {
     return turn == WHITE ? value : -value;
 }
 
-EvalValue FeatureRecord::reconstruct() const noexcept {
-    TaperedScore score = weighted_score(coefficients) + fixed_score;
+Score FeatureRecord::reconstruct() const noexcept {
+    const TaperedScore phase_scores = weighted_score(coefficients) + fixed_score;
 
-    const Color stronger_side = score.eg < 0 ? BLACK : WHITE;
-    const int   scale         = std::min(
-        eval::scale_limit, eval::scale_base + eval::scale_per_pawn * pawn_counts[stronger_side]);
-    score.eg = (score.eg * scale) / eval::scale_limit;
-
-    const auto& schema            = feature_schema();
-    const int   non_pawn_material = phase_counts[0] * schema[feature::material(KNIGHT)].weight.mg
-                                + phase_counts[1] * schema[feature::material(BISHOP)].weight.mg
-                                + phase_counts[2] * schema[feature::material(ROOK)].weight.mg
-                                + phase_counts[3] * schema[feature::material(QUEEN)].weight.mg;
-    const int material = std::clamp(non_pawn_material, eval::material_eg, eval::material_mg);
-    const int phase    = ((material - eval::material_eg) * eval::phase_limit)
-                    / (eval::material_mg - eval::material_eg);
-
-    const EvalValue white_value =
-        (score.mg * phase + score.eg * (eval::phase_limit - phase)) / eval::phase_limit;
-    const EvalValue side_value = turn == WHITE ? white_value : -white_value;
-    return side_value + eval::tempo_bonus;
+    const auto& schema = feature_schema();
+    const int non_pawn_material = phase_counts[0] * schema[feature::material(KNIGHT)].weight.mg
+        + phase_counts[1] * schema[feature::material(BISHOP)].weight.mg
+        + phase_counts[2] * schema[feature::material(ROOK)].weight.mg
+        + phase_counts[3] * schema[feature::material(QUEEN)].weight.mg;
+    return finalize_score(phase_scores,
+                          non_pawn_material,
+                          pawn_counts[WHITE],
+                          pawn_counts[BLACK],
+                          turn)
+        .value;
 }
 
-void FeatureRecord::complete(const Board& board,
-                             TaperedScore unscaled,
-                             TaperedScore scaled,
-                             EvalValue    tapered_value,
-                             EvalValue    side_to_move_value,
-                             EvalValue    value) noexcept {
+void FeatureRecord::complete(
+    const Board& board,
+    TaperedScore unscaled,
+    TaperedScore scaled,
+    Score tapered_value,
+    Score side_to_move_value,
+    Score value) noexcept {
     phase_counts = {
         board.count(WHITE, KNIGHT) + board.count(BLACK, KNIGHT),
         board.count(WHITE, BISHOP) + board.count(BLACK, BISHOP),
         board.count(WHITE, ROOK) + board.count(BLACK, ROOK),
         board.count(WHITE, QUEEN) + board.count(BLACK, QUEEN),
     };
-    pawn_counts[WHITE]       = board.count(WHITE, PAWN);
-    pawn_counts[BLACK]       = board.count(BLACK, PAWN);
-    fixed_score              = unscaled - weighted_score(coefficients);
-    unscaled_score           = unscaled;
-    scaled_score             = scaled;
-    this->tapered_value      = tapered_value;
+    pawn_counts[WHITE] = board.count(WHITE, PAWN);
+    pawn_counts[BLACK] = board.count(BLACK, PAWN);
+    fixed_score = unscaled - weighted_score(coefficients);
+    unscaled_score = unscaled;
+    scaled_score = scaled;
+    this->tapered_value = tapered_value;
     this->side_to_move_value = side_to_move_value;
-    this->value              = value;
-    turn                     = board.side_to_move();
+    this->value = value;
+    turn = board.side_to_move();
 }
 
 const std::array<FeatureDefinition, feature::count>& feature_schema() {
@@ -228,8 +243,8 @@ const std::array<FeatureDefinition, feature::count>& feature_schema() {
             definitions[id] = {.name = std::move(name), .weight = weight};
         };
 
-        constexpr std::array<std::string_view, piece_slots> piece_names = {
-            "pawn", "knight", "bishop", "rook", "queen", "king"};
+        constexpr std::array<std::string_view, piece_slots> piece_names =
+            {"pawn", "knight", "bishop", "rook", "queen", "king"};
 
         set(feature::material(PAWN), "material.pawn", eval::pawn);
         set(feature::material(KNIGHT), "material.knight", eval::knight);
@@ -322,9 +337,10 @@ const std::array<FeatureDefinition, feature::count>& feature_schema() {
 }
 
 std::string format_evaluation(const FeatureRecord& record) {
-    std::string output = "     Term    |    White    |    Black    |    Total   \n"
-                         "             |   MG    EG  |   MG    EG  |   MG    EG \n"
-                         " ------------+-------------+-------------+------------\n";
+    std::string output =
+        "     Term    |    White    |    Black    |    Total   \n"
+        "             |   MG    EG  |   MG    EG  |   MG    EG \n"
+        " ------------+-------------+-------------+------------\n";
 
     const auto append_term = [&](std::string_view name, Term term) {
         output += std::format("{:>12}{}\n", name, format_term(term, record.term(term)));
@@ -352,7 +368,7 @@ void export_features(std::istream& input, std::ostream& output, const PositionPr
     write_schema(output);
 
     std::string line;
-    int         line_number = 0;
+    int line_number = 0;
     while (std::getline(input, line)) {
         ++line_number;
         if (line.empty())
@@ -367,7 +383,7 @@ void export_features(std::istream& input, std::ostream& output, const PositionPr
         const std::string_view source{line.data(), first_tab};
         const std::string_view result_text{line.data() + first_tab + 1, second_tab - first_tab - 1};
         const std::string_view fen{line.data() + second_tab + 1, line.size() - second_tab - 1};
-        const auto             result = parse_result(result_text);
+        const auto result = parse_result(result_text);
         if (!result || fen.empty())
             throw std::runtime_error(std::format("invalid input at line {}", line_number));
 

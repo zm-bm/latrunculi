@@ -64,40 +64,42 @@ inline void init() {
 template <PieceType p>
 constexpr Bitboard piece_moves(Square sq, Bitboard occupancy = 0) {
     switch (p) {
-    case KNIGHT: return tables::knight_moves[sq];
-    case BISHOP: return magic::bishop_moves(sq, occupancy);
-    case ROOK:   return magic::rook_moves(sq, occupancy);
-    case QUEEN:  return magic::queen_moves(sq, occupancy);
-    case KING:   return tables::king_moves[sq];
-    default:     return 0;
+        case KNIGHT: return tables::knight_moves[sq];
+        case BISHOP: return magic::bishop_moves(sq, occupancy);
+        case ROOK:   return magic::rook_moves(sq, occupancy);
+        case QUEEN:  return magic::queen_moves(sq, occupancy);
+        case KING:   return tables::king_moves[sq];
+        default:     return 0;
     }
 }
 
 // Runtime dispatch for piece attacks when the piece type is data.
 constexpr Bitboard piece_moves(Square sq, PieceType p, Bitboard occupancy) {
     switch (p) {
-    case KNIGHT: return tables::knight_moves[sq];
-    case BISHOP: return magic::bishop_moves(sq, occupancy);
-    case ROOK:   return magic::rook_moves(sq, occupancy);
-    case QUEEN:  return magic::queen_moves(sq, occupancy);
-    case KING:   return tables::king_moves[sq];
-    default:     return 0;
+        case KNIGHT: return tables::knight_moves[sq];
+        case BISHOP: return magic::bishop_moves(sq, occupancy);
+        case ROOK:   return magic::rook_moves(sq, occupancy);
+        case QUEEN:  return magic::queen_moves(sq, occupancy);
+        case KING:   return tables::king_moves[sq];
+        default:     return 0;
     }
 }
 
 // Single blockers between a king and opposing diagonal or orthogonal sliders.
-[[gnu::always_inline]] inline Bitboard slider_blockers(Square   king,
-                                                       Bitboard diagonal_sliders,
-                                                       Bitboard orthogonal_sliders,
-                                                       Bitboard occupancy) noexcept {
+[[gnu::always_inline]]
+inline Bitboard slider_blockers(
+    Square king,
+    Bitboard diagonal_sliders,
+    Bitboard orthogonal_sliders,
+    Bitboard occupancy) noexcept {
     Bitboard snipers = (piece_moves<BISHOP>(king) & diagonal_sliders)
-                     | (piece_moves<ROOK>(king) & orthogonal_sliders);
+        | (piece_moves<ROOK>(king) & orthogonal_sliders);
     // Exclude aligned snipers so they do not block each other's rays.
     occupancy ^= snipers;
 
     Bitboard blockers = 0;
     while (snipers) {
-        const Square   sniper         = bb::lsb_pop(snipers);
+        const Square sniper = bb::lsb_pop(snipers);
         const Bitboard pieces_between = occupancy & square::between(king, sniper);
 
         if (bb::is_one(pieces_between))

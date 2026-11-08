@@ -13,11 +13,12 @@ namespace {
 
 void expect_threshold_see(const Board& board, Move move) {
     const int exact = board_test::exchange_oracle(board, move);
-    for (int threshold : {std::numeric_limits<int>::min(),
-                          std::numeric_limits<int>::max(),
-                          exact - 1,
-                          exact,
-                          exact + 1}) {
+    for (int threshold :
+         {std::numeric_limits<int>::min(),
+          std::numeric_limits<int>::max(),
+          exact - 1,
+          exact,
+          exact + 1}) {
         EXPECT_EQ(board.see(move, threshold), exact >= threshold) << threshold;
     }
 }

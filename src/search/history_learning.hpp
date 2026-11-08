@@ -14,11 +14,11 @@ namespace search {
 // before reporting an outcome; pruned and stopped moves must not train history.
 class HistoryLearning {
 public:
-    HistoryLearning(const Board&           board,
-                    History&               history,
+    HistoryLearning(const Board& board,
+                    History& history,
                     const OrderingContext& context,
-                    int                    depth,
-                    Instrumentation<>&     stats)
+                    int depth,
+                    Instrumentation<>& stats)
         : board(board),
           history(history),
           context(context),
@@ -33,10 +33,10 @@ public:
     HistoryLearning(const Board&, History&, const OrderingContext&&, int, Instrumentation<>&) =
         delete;
 
-    HistoryLearning(const HistoryLearning&)            = delete;
-    HistoryLearning(HistoryLearning&&)                 = delete;
+    HistoryLearning(const HistoryLearning&) = delete;
+    HistoryLearning(HistoryLearning&&) = delete;
     HistoryLearning& operator=(const HistoryLearning&) = delete;
-    HistoryLearning& operator=(HistoryLearning&&)      = delete;
+    HistoryLearning& operator=(HistoryLearning&&) = delete;
 
     // Buffer eligible moves, including alpha improvements that did not reach beta.
     // Classification predates the child search, which may have changed live killer entries.
@@ -47,7 +47,9 @@ public:
         if (is_capture) {
             if (!context.in_check && capture_count != NonCutoffCapacity)
                 non_cutoff_captures[capture_count++] = move;
-        } else if (allow_quiet_penalties && move != context.tt_move && !was_killer
+        } else if (allow_quiet_penalties
+                   && move != context.tt_move
+                   && !was_killer
                    && quiet_count != NonCutoffCapacity) {
             non_cutoff_quiets[quiet_count++] = move;
             stats.quiet_penalty_candidate(depth);
@@ -55,7 +57,8 @@ public:
     }
 
     // Train immediately: reward the cutoff and penalize eligible recorded alternatives.
-    [[gnu::always_inline]] void learn_from_cutoff(Move move, bool is_capture) {
+    [[gnu::always_inline]]
+    void learn_from_cutoff(Move move, bool is_capture) {
         const bool is_promotion = move.type() == MOVE_PROM;
         if (!is_capture && !is_promotion) {
             stats.quiet_cutoff(depth);
@@ -81,13 +84,13 @@ public:
     }
 
 private:
-    static constexpr int QuietPenaltyMinDepth         = 4;
-    static constexpr int QuietPenaltyMinMoves         = 2;
-    static constexpr int QuietPenaltyDivisor          = 2;
+    static constexpr int QuietPenaltyMinDepth = 4;
+    static constexpr int QuietPenaltyMinMoves = 2;
+    static constexpr int QuietPenaltyDivisor = 2;
     static constexpr int CaptureHistoryMinRewardDepth = 3;
-    static constexpr int NonCutoffCapacity            = 32;
-    static constexpr int CaptureLearningRate          = 16;
-    static constexpr int CaptureDepthSquaredLimit     = 128;
+    static constexpr int NonCutoffCapacity = 32;
+    static constexpr int CaptureLearningRate = 16;
+    static constexpr int CaptureDepthSquaredLimit = 128;
 
     static int quiet_bonus(int depth, int divisor = 1) {
         return std::clamp(depth * depth / divisor, 0, History::QuietMaxScore);
@@ -97,17 +100,17 @@ private:
         return CaptureLearningRate * std::clamp(depth * depth, 0, CaptureDepthSquaredLimit);
     }
 
-    const Board&           board;
-    History&               history;
+    const Board& board;
+    History& history;
     const OrderingContext& context;
-    const int              depth;
-    const bool             allow_quiet_penalties;
-    Instrumentation<>&     stats;
+    const int depth;
+    const bool allow_quiet_penalties;
+    Instrumentation<>& stats;
     // Only recorded entries are initialized; both counts stay within the shared bound.
     std::array<Move, NonCutoffCapacity> non_cutoff_quiets;
-    int                                 quiet_count{0};
+    int quiet_count{0};
     std::array<Move, NonCutoffCapacity> non_cutoff_captures;
-    int                                 capture_count{0};
+    int capture_count{0};
 };
 
 } // namespace search

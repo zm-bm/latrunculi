@@ -91,19 +91,21 @@ TEST(UciParserTest, ParsesGoNumericBoundaries) {
     using Rep = Milliseconds::rep;
 
     constexpr NodeCount wide_value = NodeCount{1} << 40;
-    constexpr NodeCount max_value  = std::numeric_limits<NodeCount>::max();
+    constexpr NodeCount max_value = std::numeric_limits<NodeCount>::max();
 
     const auto zero = parse_as<uci::GoCommand>("go nodes 0");
     const auto wide = parse_as<uci::GoCommand>("go nodes +" + std::to_string(wide_value));
-    const auto max  = parse_as<uci::GoCommand>("go nodes " + std::to_string(max_value));
+    const auto max = parse_as<uci::GoCommand>("go nodes " + std::to_string(max_value));
 
     EXPECT_EQ(zero.parameters.nodes, NodeCount{0});
     EXPECT_EQ(wide.parameters.nodes, wide_value);
     EXPECT_EQ(max.parameters.nodes, max_value);
 
-    const auto signed_limits =
-        parse_as<uci::GoCommand>("go depth " + std::to_string(std::numeric_limits<int>::max())
-                                 + " movetime " + std::to_string(std::numeric_limits<Rep>::max()));
+    const auto signed_limits = parse_as<uci::GoCommand>(
+        "go depth "
+        + std::to_string(std::numeric_limits<int>::max())
+        + " movetime "
+        + std::to_string(std::numeric_limits<Rep>::max()));
 
     EXPECT_EQ(signed_limits.parameters.depth, std::numeric_limits<int>::max());
     EXPECT_EQ(signed_limits.parameters.movetime, std::numeric_limits<Rep>::max());
@@ -132,7 +134,7 @@ TEST(UciParserTest, RejectsInvalidGoNumericValuesWithoutConsumingLaterKeywords) 
     EXPECT_TRUE(missing.parameters.unknown_tokens.empty());
 
     constexpr NodeCount above_int_max = static_cast<NodeCount>(std::numeric_limits<int>::max()) + 1;
-    const auto          out_of_range  = parse_as<uci::GoCommand>(
+    const auto out_of_range = parse_as<uci::GoCommand>(
         "go depth " + std::to_string(above_int_max) + " movetime 999999999999999999999999999999");
 
     EXPECT_FALSE(out_of_range.parameters.depth.has_value());
@@ -189,7 +191,7 @@ TEST(UciParserTest, UnknownPrefixesRecoverWithoutRedispatchingPayload) {
         std::holds_alternative<uci::IsReadyCommand>(uci::parse_command("noise ignored isready")));
 
     const auto unknown = parse_as<uci::UnknownCommand>("notacommand arg");
-    const auto debug   = parse_as<uci::DebugCommand>("debug joho isready");
+    const auto debug = parse_as<uci::DebugCommand>("debug joho isready");
     const auto option = parse_as<uci::SetOptionCommand>("noise setoption name Debug value isready");
 
     EXPECT_EQ(unknown.token, "notacommand");

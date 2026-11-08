@@ -21,7 +21,7 @@ namespace {
 
 enum class FeatureMode { Raw, Settled };
 
-constexpr int bench_depth   = 13;
+constexpr int bench_depth = 13;
 constexpr int bench_hash_mb = 32;
 
 constexpr std::array bench_positions = {
@@ -35,10 +35,10 @@ constexpr std::array bench_positions = {
 
 class Reporter final : public search::Reporter {
 public:
-    void
-    report_progress(const search::RootLine&, const Board&, NodeCount nodes, Milliseconds) override {
+    void report_progress(const search::RootLine&, const Board&, NodeCount nodes, Milliseconds)
+        override {
         final_nodes = nodes;
-        reported    = true;
+        reported = true;
     }
 
     void report_best_move(Move move) override { best_move = move; }
@@ -46,11 +46,12 @@ public:
 
     void reset() {
         final_nodes = 0;
-        best_move   = NULL_MOVE;
-        reported    = false;
+        best_move = NULL_MOVE;
+        reported = false;
     }
 
-    [[nodiscard]] NodeCount nodes() const {
+    [[nodiscard]]
+    NodeCount nodes() const {
         if (!reported || best_move.is_null())
             throw std::runtime_error("search did not publish a complete result");
         return final_nodes;
@@ -58,8 +59,8 @@ public:
 
 private:
     NodeCount final_nodes{0};
-    Move      best_move{NULL_MOVE};
-    bool      reported{false};
+    Move best_move{NULL_MOVE};
+    bool reported{false};
 };
 
 void print_usage(std::ostream& diagnostics, const char* executable) {
@@ -67,15 +68,15 @@ void print_usage(std::ostream& diagnostics, const char* executable) {
 }
 
 void run_benchmark(std::ostream& output) {
-    Reporter           reporter;
+    Reporter reporter;
     search::ThreadPool thread_pool(1, reporter);
-    search::Limits     limits;
+    search::Limits limits;
     limits.set_depth(bench_depth);
 
     search::tt.resize(bench_hash_mb);
 
-    NodeCount  aggregate_nodes = 0;
-    const auto start           = std::chrono::steady_clock::now();
+    NodeCount aggregate_nodes = 0;
+    const auto start = std::chrono::steady_clock::now();
 
     for (const std::string_view fen : bench_positions) {
         Board board(fen);
@@ -89,14 +90,14 @@ void run_benchmark(std::ostream& output) {
         aggregate_nodes += reporter.nodes();
     }
 
-    const auto elapsed    = std::chrono::steady_clock::now() - start;
+    const auto elapsed = std::chrono::steady_clock::now() - start;
     const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
     const auto elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count();
     if (elapsed_ns <= 0)
         throw std::runtime_error("benchmark duration was zero");
 
-    const auto nps = static_cast<NodeCount>(static_cast<long double>(aggregate_nodes)
-                                            * 1'000'000'000.0L / elapsed_ns);
+    const auto nps = static_cast<NodeCount>(
+        static_cast<long double>(aggregate_nodes) * 1'000'000'000.0L / elapsed_ns);
     output << aggregate_nodes << " nodes " << elapsed_ms << " ms " << nps << " nps\n";
 }
 
@@ -104,17 +105,18 @@ void run_features(FeatureMode mode, std::istream& input, std::ostream& output) {
     if (mode == FeatureMode::Raw) {
         eval::export_features(input, output);
     } else {
-        Reporter           reporter;
+        Reporter reporter;
         search::ThreadPool thread_pool(1, reporter);
-        eval::export_features(
-            input, output, [&](Board& board) { return thread_pool.settle(board); });
+        eval::export_features(input, output, [&](Board& board) {
+            return thread_pool.settle(board);
+        });
     }
 }
 
 } // namespace
 
-int run(int           argument_count,
-        char* const   arguments[],
+int run(int argument_count,
+        char* const arguments[],
         std::istream& input,
         std::ostream& output,
         std::ostream& diagnostics) {
