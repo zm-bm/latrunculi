@@ -1,19 +1,69 @@
 # Engine Roadmap
 
-Current priorities:
+Current experiment priorities, based on expected value and effort rather than
+predicted Elo gains:
 
-1. Cache pawn and king evaluation, if profiling supports it.
-2. Reduce LMR verification cost, if measurements support it.
-3. Recognize candidate passed pawns.
+1. Adjust quiet-move reductions using history.
+2. Learn static-evaluation corrections.
+3. Refine LMR verification policy.
+4. Cache pawn and king evaluation, if profiling supports it.
+5. Investigate and tune king danger, guided by game mistakes.
+6. Recognize candidate passed pawns.
+
+Give caching a short feasibility investigation early and promote it if the
+measurements show substantial savings. Revisit this order as game analysis and
+experiments identify concrete weaknesses.
 
 Possible improvements and investigations, grouped by area rather than priority.
 
 ## Search
 
-### Reduce LMR verification cost
+### Adjust quiet-move reductions using history
 
-Investigate whether some late-move-reduction fail-highs can be verified at a
-shallower depth without accepting false cutoffs or causing more re-searches later.
+Quiet history currently affects ordering and shallow pruning, while capture
+history also adjusts LMR. Explore using quiet-history scores to reduce promising
+late quiet moves less and poor ones more. Compare the decisions in Weiss and
+Ethereal, adapting the adjustment to Latrunculi's history scale. Measure missed
+moves, re-search cost, and playing strength; a lower re-search rate alone does
+not establish an improvement.
+
+### Learn static-evaluation corrections
+
+Explore correction history: learn recurring differences between static
+evaluation and search results, then use those corrections in evaluation-based
+search decisions. Weiss provides a reference implementation. Keep cached raw
+evaluations distinct from learned corrections and account for search bounds
+when selecting updates. Test whether better pruning decisions justify the
+added state and runtime cost.
+
+### Refine LMR verification policy
+
+At PV nodes, a reduced search that beats alpha currently proceeds directly to
+a full-depth, full-window search. Test an intermediate full-depth, null-window
+verification to determine whether it filters out enough unsuccessful attempts
+to justify the extra search. Ethereal provides a reference implementation.
+
+Separately, explore adapting verification depth to the reduced search result.
+Measure decision quality and total cost, including false cutoffs and later
+re-searches. Test independently of quiet-history LMR changes and reassess after
+those changes, since they alter which moves need verification.
+
+### Tune SEE and capture-ordering values
+
+Investigate the fixed exchange prices in
+[`see_values.hpp`](../src/board/see_values.hpp). They affect quiescence capture
+filtering, main-search capture staging, and capture ordering, including evasions.
+Changing them also changes the balance between material and capture history.
+They are separate from the material weights fitted by the evaluation tuner.
+
+Keep pawn=100 and constrain the other prices to preserve the fixed attacker
+order: pawn, knight, bishop, rook, queen, with king handling unchanged. Start
+with a small, bounded comparison of price sets after capture/search policy
+stabilizes, holding history scaling and threshold formulas fixed. Use game
+results to assess strength; the current evaluation fit cannot optimize these
+search decisions. Check exchange correctness and changed capture decisions,
+then independently confirm any selected values. Consider SPSA if a broader
+tuning run justifies exposing the parameters through UCI.
 
 ### Refine deferred-capture placement
 
@@ -44,6 +94,15 @@ consumers, while encapsulating `TTEntry`, `TTCluster`, and generation encoding.
 Preserve compact layout, atomic access, replacement semantics, and hot-path cost.
 
 ## Evaluation and endgames
+
+### Investigate and tune king danger
+
+The nonlinear king-danger calculation has internal weights for attackers,
+checks, weak defenses, and pins that the current linear tuning feature set
+does not expose. Investigate recurring attack and defense errors, then test a
+focused change to the model or its weights. Choose a fitting method compatible
+with the nonlinear calculation, verify compiled evaluation behavior, and
+confirm gains on held-out data and in games.
 
 ### Syzygy tablebases
 
@@ -92,6 +151,10 @@ Explore a neural evaluation backend while retaining the handcrafted evaluation.
 
 Cache reusable pawn-structure and king-shelter terms per worker. Include all
 relevant pawn, king, and castling state in the key and preserve exact scores.
+Measure the cacheable share of total search time and the savings after lookup
+and memory costs. Limit cached king terms to those determined by the key;
+king danger also depends on other pieces and their attacks. Confirm unchanged
+search behavior and a net runtime gain before treating caching as an improvement.
 
 ### Reduce SEE cost and unnecessary calls
 

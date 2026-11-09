@@ -2,6 +2,10 @@
 
 Latrunculi is a free and open-source UCI chess engine written in C++23.
 
+**Estimated strength: ~2,950 CCRL Blitz Elo (v1.2.0).**
+Unofficial estimate from 12,032 games against six reference engines at `10+0.1`;
+see the [results and test conditions](docs/releases/1.2.0.md#ccrl-blitz-estimate).
+
 ## Features
 
 - Bitboards with magic sliding attacks
