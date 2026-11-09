@@ -77,7 +77,7 @@ ctest --preset debug
 - [Development scripts](docs/scripts.md)
 - [Evaluation tuning](docs/scripts.md#tune)
 - [Roadmap](docs/roadmap.md)
-- [1.1.1 release notes](docs/releases/1.1.1.md)
+- [1.2.0 release notes](docs/releases/1.2.0.md)
 - [UCI protocol reference](docs/uci-protocol-specification.txt)
 
 ## License
