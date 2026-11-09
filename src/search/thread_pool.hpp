@@ -65,7 +65,10 @@ private:
 class ThreadPool {
 public:
     ThreadPool() = delete;
-    ThreadPool(size_t thread_count, Reporter& reporter);
+    // Parameters must outlive the pool and may change only while all workers are idle.
+    ThreadPool(size_t thread_count,
+               Reporter& reporter,
+               const tuning::Parameters& parameters = tuning::defaults);
     ~ThreadPool();
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
@@ -102,6 +105,7 @@ private:
     // Non-owning, lifetime-bound result sink. The caller must keep it alive for
     // the entire lifetime of the pool and its workers.
     Reporter& reporter;
+    const tuning::Parameters& parameters;
 
     // Pool lifecycle state.
     bool shutdown_requested{false};

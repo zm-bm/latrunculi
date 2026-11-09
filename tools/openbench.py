@@ -11,7 +11,7 @@ import sys
 
 from openbench_client import cli
 
-from . import engine
+from . import engine, openbench_spsa
 
 
 TEMPLATES = Path(__file__).resolve().parent / "resources/openbench"
@@ -64,6 +64,7 @@ def parse_prepare_args(argv):
     )
     modes = parser.add_subparsers(dest="mode", required=True)
     for name, help_text in (
+        ("spsa", "SPSA tuning of exposed search parameters"),
         ("sprt", "strength comparison with the standard [0,3] bounds"),
         ("games", "fixed-game comparison or explicit self-play"),
         ("corpus", "self-play corpus using one worker and one match runner"),
@@ -78,7 +79,7 @@ def parse_prepare_args(argv):
                           help="new directory for settings and bench output")
         mode.add_argument("--timeout", type=finite_seconds, default=600,
                           help="seconds per bench run (default: 600)")
-        if name != "corpus":
+        if name not in ("corpus", "spsa"):
             mode.add_argument("--baseline", required=name == "sprt", metavar="REV")
             mode.add_argument("--baseline-engine", type=Path, required=name == "sprt",
                               metavar="FILE", help="already-built engine corresponding to --baseline")
@@ -86,9 +87,11 @@ def parse_prepare_args(argv):
             mode.add_argument("--self-play", action="store_true",
                               help="use the candidate for both sides instead of a baseline")
         if name != "sprt":
-            mode.add_argument("--games", type=even_games, required=name == "games",
+            mode.add_argument("--games", type=even_games, required=name in ("games", "spsa"),
                               help="positive, even game count" +
                               (" (default: 42000)" if name == "corpus" else ""))
+        if name == "spsa":
+            mode.add_argument("--group", choices=("search", "all"), default="search")
         if name == "corpus":
             mode.add_argument("--worker-concurrency", type=positive_int, required=True,
                               help="concurrency of the single worker running the corpus")
@@ -115,6 +118,8 @@ def write_settings(path, settings):
 
 
 def prepare(args):
+    if args.mode == "spsa":
+        return openbench_spsa.prepare(args, revision, write_settings)
     output = args.output.absolute()
     if output.exists() or output.is_symlink():
         raise ValueError(f"output already exists: {output}; inspect it or choose a new directory")
@@ -151,7 +156,7 @@ def main(argv=None):
         try:
             prepare(args)
             return 0
-        except (OSError, ValueError, KeyError, argparse.ArgumentTypeError, subprocess.SubprocessError) as error:
+        except (OSError, ValueError, KeyError, cli.OpenBenchError, argparse.ArgumentTypeError, subprocess.SubprocessError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
         except KeyboardInterrupt:
@@ -160,15 +165,36 @@ def main(argv=None):
 
     if argv[:1] in (["-h"], ["--help"]):
         print("Prepare Latrunculi settings locally:\n"
-              "  openbench prepare {sprt,games,corpus} [options]\n"
+              "  openbench prepare {sprt,games,corpus,spsa} [options]\n"
               "  See openbench prepare --help for details.\n\n"
+              "  openbench spsa ID  (progress and current parameter values)\n\n"
               "Other commands are provided by the OpenBench client:")
+    config_parser = argparse.ArgumentParser(add_help=False)
+    config_parser.add_argument("--config", type=Path, default=Path("~/.config/openbench/openbench.env"))
+    config_args, rest = config_parser.parse_known_args(argv)
+    if rest[:1] == ["spsa"]:
+        parser = argparse.ArgumentParser(prog="openbench spsa")
+        parser.add_argument("id", type=positive_int)
+        args = parser.parse_args(rest[1:])
+        try:
+            print(json.dumps(openbench_spsa.inspect(cli.read_config(config_args.config), args.id), indent=2))
+            return 0
+        except (cli.OpenBenchError, OSError, ValueError, cli.HTTPException) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+
+    original_submit, original_stop = cli.submit, cli.stop
+    def submit(config, settings, output=None, dry_run=False):
+        implementation = openbench_spsa.submit if isinstance(settings, dict) and settings.get("test_mode") == "SPSA" else original_submit
+        return implementation(config, settings, output, dry_run)
+    cli.submit, cli.stop = submit, openbench_spsa.stop
     original = cli.Session
     cli.Session = Session
     try:
         return cli.main(argv)
     finally:
         cli.Session = original
+        cli.submit, cli.stop = original_submit, original_stop
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ void Worker::build_root_candidates() {
 
     // Root candidates start in ordered-stream order.
     const auto context = history.context_for(board, 0);
-    auto moves = movegen::MainSearchMoves(board, history, context);
+    auto moves = movegen::MainSearchMoves(board, history, context, parameters);
 
     for (Move move = moves.next(); !move.is_null(); move = moves.next()) {
         if (limits.allows_root_move(move))
@@ -80,7 +80,7 @@ bool Worker::should_search_root_depth(int depth) const noexcept {
 bool Worker::search_root_depth(int depth, Score previous_value) {
     assert(depth >= 1);
 
-    Score delta = 50;
+    Score delta = parameters.AspirationInitialWindow;
     Score alpha = std::max(previous_value - delta, -scores::inf);
     Score beta = std::min(previous_value + delta, scores::inf);
     int retry_depth = depth;
@@ -124,7 +124,7 @@ bool Worker::search_root_depth(int depth, Score previous_value) {
         }
 
         // Recenter with the current delta above, then grow it for the next miss.
-        const Score growth = delta / 2;
+        const Score growth = delta / parameters.AspirationGrowthDivisor;
         delta = delta >= scores::inf - growth ? scores::inf : delta + growth;
     }
 

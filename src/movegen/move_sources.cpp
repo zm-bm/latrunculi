@@ -21,28 +21,29 @@ namespace {
 
 constexpr int EvasionCaptureScoreBase = 1 << 22;
 constexpr int PromotionScore = 1 << 28;
-constexpr int CaptureVictimWeight = 7;
-constexpr int CaptureMaterialOffset = see::piece_value(QUEEN);
-constexpr int CaptureHistoryDivisor = 16;
 static_assert(History::QuietMaxScore < EvasionCaptureScoreBase);
 static_assert(see::piece_value(PAWN) == 100, "Capture history uses pawn=100 exchange units");
 
 // Fixed-price material score shared by captures and capture evasions.
-constexpr int capture_material_score(int victim_value, int attacker_value) {
-    return CaptureVictimWeight * victim_value + CaptureMaterialOffset - attacker_value;
+constexpr int capture_material_score(int victim_value,
+                                     int attacker_value,
+                                     const tuning::Parameters& parameters) {
+    return parameters.CaptureVictimWeight * victim_value + parameters.SeeQueen - attacker_value;
 }
 
 int score_evasion(const Board& board,
                   const History& history,
                   Color side,
                   Move move,
-                  PieceType moving_piece) {
+                  PieceType moving_piece,
+                  const tuning::Parameters& parameters) {
     if (move.type() == MOVE_PROM)
         return PromotionScore;
     if (board.is_capture(move)) {
-        const int victim_value = see::piece_value(board.captured_piece_type(move));
-        const int attacker_value = see::piece_value(moving_piece);
-        return EvasionCaptureScoreBase + capture_material_score(victim_value, attacker_value);
+        const int victim_value = see::piece_value(board.captured_piece_type(move), parameters);
+        const int attacker_value = see::piece_value(moving_piece, parameters);
+        return EvasionCaptureScoreBase
+            + capture_material_score(victim_value, attacker_value, parameters);
     }
     return history.base_quiet_score(side, move);
 }
@@ -57,26 +58,28 @@ template <MovePolicy Policy>
 NoisyScore score_noisy(const Board& board,
                        const History& history,
                        Move move,
-                       PieceType moving_piece) {
+                       PieceType moving_piece,
+                       const tuning::Parameters& parameters) {
     static_assert(Policy == MovePolicy::MainSearch || Policy == MovePolicy::Quiescence);
     if (move.type() == MOVE_PROM)
         return {.score = PromotionScore, .see_threshold = 0};
 
     const PieceType victim = board.captured_piece_type(move);
-    const int victim_value = see::piece_value(victim);
-    const int attacker_value = see::piece_value(moving_piece);
+    const int victim_value = see::piece_value(victim, parameters);
+    const int attacker_value = see::piece_value(moving_piece, parameters);
     const int raw_history =
         history.capture_score(board.side_to_move(), moving_piece, move.to(), victim);
-    const int scaled_history = raw_history / CaptureHistoryDivisor;
-    const int score =
-        capture_material_score(victim_value, attacker_value) + CaptureVictimWeight * scaled_history;
+    const int scaled_history = raw_history / parameters.CaptureHistoryDivisor;
+    const int score = capture_material_score(victim_value, attacker_value, parameters)
+        + parameters.CaptureVictimWeight * scaled_history;
     NoisyScore result{
         .score = score,
         .see_threshold = 0,
     };
     // Divide after combining material and history to preserve signed truncation.
     if constexpr (Policy == MovePolicy::MainSearch)
-        result.see_threshold = -(victim_value + scaled_history) / 2;
+        result.see_threshold =
+            -(victim_value + scaled_history) / parameters.CaptureSeeThresholdDivisor;
     return result;
 }
 
@@ -85,10 +88,12 @@ NoisyScore score_noisy(const Board& board,
 // Batch loading.
 
 // Each loader scores even excluded entries and publishes only after generation finishes.
-void Candidates::load_evasions(const Board& board,
-                               const History& history,
-                               Color side,
-                               Move tt_hint) {
+void Candidates::load_evasions(
+    const Board& board,
+    const History& history,
+    Color side,
+    Move tt_hint,
+    const tuning::Parameters& parameters) {
     Candidate* const first = storage.data();
     Candidate* fill = first;
     generate_pseudo_legal<GenerationKind::Evasions>(
@@ -97,7 +102,7 @@ void Candidates::load_evasions(const Board& board,
             Candidate candidate{
                 .move = move,
                 .state = CandidateState::Ready,
-                .score = score_evasion(board, history, side, move, moving_piece),
+                .score = score_evasion(board, history, side, move, moving_piece, parameters),
                 .see_threshold = 0,
             };
             if (move == tt_hint)
@@ -109,11 +114,15 @@ void Candidates::load_evasions(const Board& board,
 }
 
 template <MovePolicy Policy>
-void Candidates::load_noisy(const Board& board, const History& history, Move tt_hint) {
+void Candidates::load_noisy(const Board& board,
+                            const History& history,
+                            Move tt_hint,
+                            const tuning::Parameters& parameters) {
     Candidate* const first = storage.data();
     Candidate* fill = first;
     generate_pseudo_legal<GenerationKind::Noisy>(board, [&](Move move, PieceType moving_piece) {
-        const NoisyScore scoring = score_noisy<Policy>(board, history, move, moving_piece);
+        const NoisyScore scoring =
+            score_noisy<Policy>(board, history, move, moving_piece, parameters);
         Candidate candidate{
             .move = move,
             .state = CandidateState::Ready,
@@ -242,9 +251,11 @@ MoveSource<MovePolicy::Unscored>::MoveSource(const Board& board)
 MoveSource<MovePolicy::MainSearch>::MoveSource(
     const Board& board,
     const History& history,
-    const OrderingContext& context)
+    const OrderingContext& context,
+    const tuning::Parameters& parameters)
     : board(board),
       history(history),
+      parameters(parameters),
       context(context) {
     tt_hint = validate_tt_hint(board, context.tt_move, context.in_check);
     if (!context.in_check) {
@@ -276,16 +287,16 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
                 break;
             case Stage::LoadPrimary:
                 if (context.in_check) {
-                    candidates.load_evasions(board, history, context.side, tt_hint);
+                    candidates.load_evasions(board, history, context.side, tt_hint, parameters);
                     stage = Stage::Evasions;
                     break;
                 }
-                candidates.load_noisy<MovePolicy::MainSearch>(board, history, tt_hint);
+                candidates.load_noisy<MovePolicy::MainSearch>(board, history, tt_hint, parameters);
                 stage = Stage::EarlyNoisy;
                 [[fallthrough]];
             case Stage::EarlyNoisy: {
                 const Move move = candidates.take_noisy([this](Move move, int see_threshold) {
-                    return move.type() == MOVE_PROM || board.see(move, see_threshold);
+                    return move.type() == MOVE_PROM || board.see(move, see_threshold, parameters);
                 });
                 if (!move.is_null())
                     return move;
@@ -336,9 +347,11 @@ void MoveSource<MovePolicy::MainSearch>::skip_nonchecking_quiets() {
 MoveSource<MovePolicy::Quiescence>::MoveSource(
     const Board& board,
     const History& history,
-    Move tt_move)
+    Move tt_move,
+    const tuning::Parameters& parameters)
     : board(board),
       history(history),
+      parameters(parameters),
       side(board.side_to_move()),
       in_check(board.is_check()) {
     tt_hint = validate_tt_hint(board, tt_move, in_check);
@@ -364,16 +377,16 @@ Move MoveSource<MovePolicy::Quiescence>::next_candidate() {
                 break;
             case Stage::LoadPrimary:
                 if (in_check) {
-                    candidates.load_evasions(board, history, side, tt_hint);
+                    candidates.load_evasions(board, history, side, tt_hint, parameters);
                     stage = Stage::Evasions;
                     break;
                 }
-                candidates.load_noisy<MovePolicy::Quiescence>(board, history, tt_hint);
+                candidates.load_noisy<MovePolicy::Quiescence>(board, history, tt_hint, parameters);
                 stage = Stage::Noisy;
                 [[fallthrough]];
             case Stage::Noisy: {
                 const Move move = candidates.take_noisy([this](Move move, int) {
-                    return move.type() == MOVE_PROM || board.see(move, 0);
+                    return move.type() == MOVE_PROM || board.see(move, 0, parameters);
                 });
                 if (!move.is_null())
                     return move;

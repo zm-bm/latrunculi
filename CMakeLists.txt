@@ -9,6 +9,7 @@ option(BUILD_TESTING "Build tests" OFF)
 include(CTest)
 find_package(Threads REQUIRED)
 
+option(LATRUNCULI_TUNING "Expose search parameters for SPSA tuning" OFF)
 option(LATRUNCULI_SEARCH_STATS "Enable search diagnostics" OFF)
 option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
 set(LATRUNCULI_SANITIZER "none" CACHE STRING "Sanitizer configuration")
@@ -59,6 +60,7 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/search/time_manager.cpp
     src/search/tt.cpp
     src/search/worker.cpp
+    src/tuning/parameters.cpp
     src/uci/engine.cpp
     src/uci/options.cpp
     src/uci/parser.cpp
@@ -68,6 +70,7 @@ set(LATRUNCULI_ENGINE_SOURCES
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
 set_property(TARGET latrunculi_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
 target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_TUNING=$<BOOL:${LATRUNCULI_TUNING}>)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_VERSION="${PROJECT_VERSION}")
 target_link_libraries(latrunculi_lib PUBLIC Threads::Threads)
@@ -150,6 +153,7 @@ if(BUILD_TESTING)
         tests/search/tt.test.cpp
         tests/search/tt_clock.test.cpp
         tests/search/worker.test.cpp
+        tests/tuning/parameters.test.cpp
         tests/uci/engine.test.cpp
         tests/uci/engine_options.test.cpp
         tests/uci/engine_position.test.cpp

@@ -6,6 +6,7 @@
 #include <span>
 
 #include "core/move.hpp"
+#include "tuning/parameters.hpp"
 
 class Board;
 
@@ -62,10 +63,14 @@ public:
     void load_evasions(const Board& board,
                        const search::History& history,
                        Color side,
-                       Move tt_hint);
+                       Move tt_hint,
+                       const tuning::Parameters& parameters = tuning::defaults);
 
     template <MovePolicy Policy>
-    void load_noisy(const Board& board, const search::History& history, Move tt_hint);
+    void load_noisy(const Board& board,
+                    const search::History& history,
+                    Move tt_hint,
+                    const tuning::Parameters& parameters = tuning::defaults);
 
     void load_quiets(const Board& board,
                      const search::History& history,
@@ -128,10 +133,14 @@ class MoveSource<MovePolicy::MainSearch> {
 
     MoveSource(const Board& board,
                const search::History& history,
-               const search::OrderingContext& context);
+               const search::OrderingContext& context,
+               const tuning::Parameters& parameters = tuning::defaults);
     // The source borrows context. Reject temporaries that would be destroyed
     // at the end of the construction expression, before traversal begins.
-    MoveSource(const Board&, const search::History&, const search::OrderingContext&&) = delete;
+    MoveSource(const Board&,
+               const search::History&,
+               const search::OrderingContext&&,
+               const tuning::Parameters& = tuning::defaults) = delete;
     Move next_candidate();
     void skip_nonchecking_quiets();
 
@@ -149,6 +158,7 @@ class MoveSource<MovePolicy::MainSearch> {
 
     const Board& board;
     const search::History& history;
+    const tuning::Parameters& parameters;
     const search::OrderingContext& context;
     Move tt_hint{NULL_MOVE};
     Stage stage{Stage::TtHint};
@@ -165,7 +175,10 @@ template <>
 class MoveSource<MovePolicy::Quiescence> {
     friend class Moves<MovePolicy::Quiescence>;
 
-    MoveSource(const Board& board, const search::History& history, Move tt_move = NULL_MOVE);
+    MoveSource(const Board& board,
+               const search::History& history,
+               Move tt_move = NULL_MOVE,
+               const tuning::Parameters& parameters = tuning::defaults);
 
     Move next_candidate();
 
@@ -173,6 +186,7 @@ class MoveSource<MovePolicy::Quiescence> {
 
     const Board& board;
     const search::History& history;
+    const tuning::Parameters& parameters;
     const Color side;
     Move tt_hint{NULL_MOVE};
     const bool in_check;

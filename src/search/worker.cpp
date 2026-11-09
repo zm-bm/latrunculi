@@ -14,7 +14,8 @@ namespace search {
 Worker::Worker(int id, Reporter& reporter, ThreadPool& pool)
     : reporter(reporter),
       thread_pool(pool),
-      worker_id(id) {
+      worker_id(id),
+      parameters(pool.parameters) {
     for (int ply = 0; ply <= engine::max_search_ply; ++ply)
         frames[ply].ply = ply;
 }
@@ -25,7 +26,7 @@ void Worker::configure_search(const Board& root_board, Limits limits, TimePoint 
 
     this->limits = limits;
     start_time = search_start_time;
-    time_manager = TimeManager{this->limits, board.side_to_move()};
+    time_manager = TimeManager{this->limits, board.side_to_move(), parameters};
 
     reset_nodes();
     clear_root_snapshot();

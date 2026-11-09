@@ -101,12 +101,13 @@ std::string format_identification(const Options& options) {
         "{}\n"
         "{}\n"
         "{}\n"
-        "uciok",
+        "{}uciok",
         engine::version,
         format_option("Hash", options.hash),
         format_option("Clear Hash", options.clear_hash),
         format_option("Threads", options.threads),
-        format_option("Ponder", options.ponder));
+        format_option("Ponder", options.ponder),
+        tuning::uci_options());
 }
 
 std::string format_bestmove(Move move) {

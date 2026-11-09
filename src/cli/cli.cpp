@@ -64,7 +64,10 @@ private:
 };
 
 void print_usage(std::ostream& diagnostics, const char* executable) {
-    diagnostics << "Usage: " << executable << " [bench|features [--settle]]\n";
+    diagnostics
+        << "Usage: "
+        << executable
+        << " [bench|features [--settle]|spsa --group search|all]\n";
 }
 
 void run_benchmark(std::ostream& output) {
@@ -126,6 +129,13 @@ int run(int argument_count,
         if (argument_count == 1) {
             uci::Engine engine(output, diagnostics, input);
             engine.loop();
+            return 0;
+        }
+
+        if (command == "spsa"
+            && argument_count == 4
+            && std::string_view{arguments[2]} == "--group") {
+            tuning::export_spsa(output, arguments[3]);
             return 0;
         }
 

@@ -11,13 +11,14 @@ namespace {
 constexpr PieceType see_attacker_order[] = {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING};
 } // namespace
 
-bool Board::see(Move move, int threshold) const noexcept {
+bool Board::see(Move move, int threshold, const tuning::Parameters& parameters) const noexcept {
     assert(is_pseudo_legal(move));
     assert(is_capture(move) || move.type() == MOVE_PROM);
 
-    int initial_gain = see::piece_value(captured_piece_type(move));
+    int initial_gain = see::piece_value(captured_piece_type(move), parameters);
     if (move.type() == MOVE_PROM)
-        initial_gain += see::piece_value(move.prom_piece()) - see::piece_value(PAWN);
+        initial_gain +=
+            see::piece_value(move.prom_piece(), parameters) - see::piece_value(PAWN, parameters);
     if (initial_gain < threshold)
         return false;
 
@@ -25,7 +26,7 @@ bool Board::see(Move move, int threshold) const noexcept {
     Color side = side_to_move();
     const PieceType moving_piece =
         move.type() == MOVE_PROM ? move.prom_piece() : piece_type_on(move.from());
-    const int moving_value = see::piece_value(moving_piece);
+    const int moving_value = see::piece_value(moving_piece, parameters);
     // Check both bounds before subtraction so even extreme thresholds are safe.
     if (threshold <= initial_gain - moving_value)
         return true;
@@ -71,7 +72,7 @@ bool Board::see(Move move, int threshold) const noexcept {
         if (!recapturer)
             return result;
         result = !result;
-        balance = see::piece_value(recapturer_type) - balance;
+        balance = see::piece_value(recapturer_type, parameters) - balance;
         // Equality succeeds for the original side, but fails for its opponent.
         if (balance < static_cast<int>(result))
             return result;

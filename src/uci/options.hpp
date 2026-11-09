@@ -3,6 +3,7 @@
 #include <string>
 
 #include "core/constants.hpp"
+#include "tuning/parameters.hpp"
 
 namespace uci {
 
@@ -23,7 +24,7 @@ struct CheckOption {
 
 struct ButtonOption {};
 
-enum class OptionId { Hash, Threads, Ponder, ClearHash };
+enum class OptionId { Hash, Threads, Ponder, ClearHash, Tuning };
 
 struct Options {
     static constexpr int default_threads = 1;
@@ -48,6 +49,7 @@ struct Options {
     };
 
     ButtonOption clear_hash;
+    tuning::Parameters parameters;
 
     OptionId set(const std::string& name, const std::string& value, bool has_value);
 };

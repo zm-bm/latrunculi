@@ -270,7 +270,7 @@ Server commands:
 If a stop response is uncertain, inspect `stop.json` and `status ID` before
 retrying. In-flight results may arrive after a workload is stopped.
 The local `tools/openbench.py` entry point also corrects the pinned client's
-missing trailing slash in the stop URL.
+missing trailing slash in the stop URL and adds SPSA form submission and readback.
 
 ### Options
 
@@ -281,7 +281,8 @@ Preparation options use executable paths for engines:
 | `--candidate REV`, `--candidate-engine FILE` | All | Required candidate revision and matching binary. |
 | `--baseline REV`, `--baseline-engine FILE` | `sprt`, `games` | Baseline revision and matching binary; required for comparisons. |
 | `--self-play` | `games` | Use the candidate for both sides instead of baseline arguments. |
-| `--games N` | `games`, `corpus` | Positive, even game count; required for `games`, default 42,000 for `corpus`. |
+| `--games N` | `games`, `corpus`, `spsa` | Game budget; required for `games` and `spsa`, default 42,000 for `corpus`. SPSA requires a multiple of eight; other modes require an even count. |
+| `--group NAME` | `spsa` | Parameter group: `search` (default) or `all`. |
 | `--worker-concurrency N` | `corpus` | Required concurrency of the single worker. |
 | `--description TEXT` | All | Required workload description. |
 | `--output DIR` | All | Required new directory for settings and bench output. |
@@ -314,6 +315,80 @@ Reuse the saved settings; do not blindly repeat submission.
 For custom tests, edit the generated `settings.json` before submitting.
 The [templates](../tools/resources/openbench/) are incomplete until preparation
 fills in revisions, bench counts, and workload details.
+
+### SPSA search tuning
+
+Build with `LATRUNCULI_TUNING=ON` to expose search, SEE, history, aspiration, and
+time-allocation parameters as UCI options. Ordinary builds default to `OFF` and
+keep compile-time constants. On the `tune/search-spsa` branch, the OpenBench
+`bench/Makefile` enables tuning by default; `make -C bench TUNE=OFF` overrides it.
+No server configuration or service restart is needed.
+
+```bash
+cmake -S . -B build/spsa-tuning -DCMAKE_BUILD_TYPE=Release -DLATRUNCULI_TUNING=ON
+cmake --build build/spsa-tuning
+build/spsa-tuning/latrunculi spsa --group search
+```
+
+The [parameter registry](../src/tuning/parameters.inc) defines names, types,
+defaults, bounds, and group membership. Integer parameters use UCI `spin` options;
+floating-point parameters use `string` options with finite, range-checked values.
+Changing a parameter requires an idle engine and clears its TT and learned
+history. Values survive `ucinewgame` and thread-count changes.
+
+The `search` group varies 28 parameters: four SEE prices, futility and razor
+margins, late-move pruning count, quiescence capture margin, null-move depth and
+surplus divisors, singular margin divisor, LMR coefficients, capture ordering and
+learning weights, and aspiration initial window. Other exposed parameters,
+including time management and discrete depth thresholds, stay at their defaults.
+`--group all` exports all 56 parameters for later, deliberately scoped experiments.
+Pawn SEE price remains 100; king handling, evaluation weights, structural limits,
+TT policy, and SMP scheduling are not tuned. Bounds preserve SEE price ordering,
+margin-table indices, valid LMR and singular depths, positive divisors, and positive
+time multipliers even at combined extremes.
+
+Prepare a 100,000-game workload from the tested, pushed revision and matching binary:
+
+```bash
+./bin/openbench prepare spsa \
+  --candidate HEAD --candidate-engine build/spsa-tuning/latrunculi \
+  --group search --games 100000 \
+  --description "SPSA: Search parameters from v1.2.0" \
+  --output tools/output/search-spsa-workload
+./bin/openbench submit tools/output/search-spsa-workload/settings.json \
+  --output tools/output/search-spsa-workload/submission
+```
+
+Preparation checks exported parameters against UCI discovery, runs the default
+bench, and records the binary's SHA-256 and revision. These records identify the
+supplied inputs; they do not prove that a binary was built from that revision.
+Retain matching build and validation evidence.
+
+The [SPSA template](../tools/resources/openbench/spsa.json) uses `10+0.1`,
+`Threads=1 Hash=32`, UHO paired openings, DEV scaling at 2,050,000 NPS, compact
+PGNs, and priority `-1`. Existing priority-zero comparisons run first. The default
+schedule is `BATCHED` reporting, `SINGLE` distribution, four pairs per point,
+alpha `0.602`, gamma `0.101`, and A-ratio `0.1`. Game budgets must be divisible by
+eight; 100,000 games gives 12,500 nominal iterations. Worker batches can reuse a
+perturbation across several points, and in-flight games can exceed the target.
+The export uses `C_end = range/20` (at least `0.5` for integers) and `R_end = 0.002`.
+
+Submission uses the authenticated tune form, checks equivalent unfinished tunes,
+and verifies engine identity, schedule, parameters, and common settings. It saves
+`submission.json` before sending the POST. An ambiguous response requires
+inspection of that record and the server; never blindly resubmit. Approval means
+a workload is eligible for scheduling, not that a worker has started it.
+
+```bash
+./bin/openbench spsa ID
+./bin/openbench status ID
+./bin/openbench stop ID --output tools/output/stopped-tune-ID
+```
+
+`spsa` returns progress, the original settings, current rounded output values, and
+a parameter digest with unrounded estimates and current perturbation rates. Keep
+the final values and verify a separately compiled candidate in independent games
+before adopting them; the tuning run itself does not establish an Elo gain.
 
 ## `uci-probe`
 

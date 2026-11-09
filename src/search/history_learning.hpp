@@ -7,6 +7,7 @@
 #include "core/move.hpp"
 #include "search/history.hpp"
 #include "search/instrumentation.hpp"
+#include "tuning/parameters.hpp"
 
 namespace search {
 
@@ -18,20 +19,26 @@ public:
                     History& history,
                     const OrderingContext& context,
                     int depth,
-                    Instrumentation<>& stats)
+                    Instrumentation<>& stats,
+                    const tuning::Parameters& parameters = tuning::defaults)
         : board(board),
           history(history),
           context(context),
           depth(depth),
-          allow_quiet_penalties(depth >= QuietPenaltyMinDepth && !context.in_check),
-          stats(stats) {
+          allow_quiet_penalties(depth >= parameters.QuietPenaltyMinDepth && !context.in_check),
+          stats(stats),
+          parameters(parameters) {
         if (allow_quiet_penalties)
             stats.quiet_penalty_eligible_node(depth);
     }
 
     // Borrow the same named context as the move stream for this node.
-    HistoryLearning(const Board&, History&, const OrderingContext&&, int, Instrumentation<>&) =
-        delete;
+    HistoryLearning(const Board&,
+                    History&,
+                    const OrderingContext&&,
+                    int,
+                    Instrumentation<>&,
+                    const tuning::Parameters& = tuning::defaults) = delete;
 
     HistoryLearning(const HistoryLearning&) = delete;
     HistoryLearning(HistoryLearning&&) = delete;
@@ -64,8 +71,8 @@ public:
             stats.quiet_cutoff(depth);
             history.update_quiet_refutations(context, move);
             history.update_quiet(context, board, move, quiet_bonus(depth));
-            if (allow_quiet_penalties && quiet_count >= QuietPenaltyMinMoves) {
-                const int penalty = -quiet_bonus(depth, QuietPenaltyDivisor);
+            if (allow_quiet_penalties && quiet_count >= parameters.QuietPenaltyMinMoves) {
+                const int penalty = -quiet_bonus(depth, parameters.QuietPenaltyDivisor);
                 for (int i = 0; i < quiet_count; ++i) {
                     history.update_quiet(context, board, non_cutoff_quiets[i], penalty);
                     stats.quiet_penalty_update(depth);
@@ -73,7 +80,7 @@ public:
             }
         }
         const bool reward_capture =
-            is_capture && !is_promotion && depth >= CaptureHistoryMinRewardDepth;
+            is_capture && !is_promotion && depth >= parameters.CaptureHistoryMinRewardDepth;
         if (!context.in_check && (reward_capture || capture_count != 0)) {
             const int bonus = capture_bonus(depth);
             if (reward_capture)
@@ -84,20 +91,15 @@ public:
     }
 
 private:
-    static constexpr int QuietPenaltyMinDepth = 4;
-    static constexpr int QuietPenaltyMinMoves = 2;
-    static constexpr int QuietPenaltyDivisor = 2;
-    static constexpr int CaptureHistoryMinRewardDepth = 3;
     static constexpr int NonCutoffCapacity = 32;
-    static constexpr int CaptureLearningRate = 16;
-    static constexpr int CaptureDepthSquaredLimit = 128;
 
     static int quiet_bonus(int depth, int divisor = 1) {
         return std::clamp(depth * depth / divisor, 0, History::QuietMaxScore);
     }
 
-    static int capture_bonus(int depth) {
-        return CaptureLearningRate * std::clamp(depth * depth, 0, CaptureDepthSquaredLimit);
+    int capture_bonus(int depth) const {
+        return parameters.CaptureLearningRate
+            * std::clamp(depth * depth, 0, parameters.CaptureDepthSquaredLimit);
     }
 
     const Board& board;
@@ -106,6 +108,7 @@ private:
     const int depth;
     const bool allow_quiet_penalties;
     Instrumentation<>& stats;
+    const tuning::Parameters& parameters;
     // Only recorded entries are initialized; both counts stay within the shared bound.
     std::array<Move, NonCutoffCapacity> non_cutoff_quiets;
     int quiet_count{0};

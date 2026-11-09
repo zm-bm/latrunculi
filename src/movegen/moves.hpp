@@ -17,19 +17,25 @@ public:
 
     explicit Moves(const Board& board,
                    const search::History& history,
-                   const search::OrderingContext& context)
+                   const search::OrderingContext& context,
+                   const tuning::Parameters& parameters = tuning::defaults)
         requires(Policy == MovePolicy::MainSearch)
-        : source(board, history, context) {}
+        : source(board, history, context, parameters) {}
 
     // The stream borrows context. Reject temporaries that would be destroyed
     // at the end of the construction expression, before traversal begins.
-    Moves(const Board&, const search::History&, const search::OrderingContext&&)
-        requires(Policy == MovePolicy::MainSearch)
-        = delete;
+    Moves(const Board&,
+          const search::History&,
+          const search::OrderingContext&&,
+          const tuning::Parameters& = tuning::defaults) requires(Policy == MovePolicy::MainSearch)
+    = delete;
 
-    explicit Moves(const Board& board, const search::History& history, Move tt_move = NULL_MOVE)
+    explicit Moves(const Board& board,
+                   const search::History& history,
+                   Move tt_move = NULL_MOVE,
+                   const tuning::Parameters& parameters = tuning::defaults)
         requires(Policy == MovePolicy::Quiescence)
-        : source(board, history, tt_move) {}
+        : source(board, history, tt_move, parameters) {}
 
     Moves(const Moves&) = delete;
     Moves(Moves&&) = delete;

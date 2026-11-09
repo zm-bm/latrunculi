@@ -74,6 +74,7 @@ private:
     Reporter& reporter;
     ThreadPool& thread_pool;
     const int worker_id;
+    const tuning::Parameters& parameters;
 
     // Search control state.
     std::atomic<bool> stop_requested_flag{false};

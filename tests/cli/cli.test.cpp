@@ -17,7 +17,8 @@ void expect_top_level_usage(int argument_count, char* arguments[]) {
 
     EXPECT_EQ(run(argument_count, arguments, input, output, diagnostics), 1);
     EXPECT_TRUE(output.str().empty());
-    EXPECT_EQ(diagnostics.str(), "Usage: latrunculi [bench|features [--settle]]\n");
+    EXPECT_EQ(diagnostics.str(),
+              "Usage: latrunculi [bench|features [--settle]|spsa --group search|all]\n");
 }
 
 TEST(CliTest, RunsUciWithoutArguments) {
@@ -74,7 +75,8 @@ TEST(CliTest, RejectsInvalidFeatureArguments) {
 
     EXPECT_EQ(run(3, arguments, input, output, diagnostics), 1);
     EXPECT_TRUE(output.str().empty());
-    EXPECT_EQ(diagnostics.str(), "Usage: latrunculi [bench|features [--settle]]\n");
+    EXPECT_EQ(diagnostics.str(),
+              "Usage: latrunculi [bench|features [--settle]|spsa --group search|all]\n");
 }
 
 TEST(CliTest, ReportsFeatureExportErrors) {

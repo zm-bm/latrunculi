@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tuning/parameters.hpp"
+
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -129,9 +131,11 @@ public:
 
     // Static exchange evaluation (board_see.cpp)
 
-    // Tests an inclusive threshold using fixed exchange prices.
+    // Tests an inclusive threshold using the supplied exchange prices.
     // Requires a pseudo-legal capture or promotion.
-    bool see(Move move, int threshold) const noexcept;
+    bool see(Move move,
+             int threshold,
+             const tuning::Parameters& parameters = tuning::defaults) const noexcept;
 
 private:
     // Ply-state storage

@@ -3,6 +3,7 @@
 #include <optional>
 
 #include "search/limits.hpp"
+#include "tuning/parameters.hpp"
 
 namespace search {
 
@@ -11,7 +12,9 @@ namespace search {
 class TimeManager {
 public:
     TimeManager() = default;
-    TimeManager(const Limits& limits, Color side);
+    TimeManager(const Limits& limits,
+                Color side,
+                const tuning::Parameters& parameters = tuning::defaults);
 
     // Elapsed budgets from the common search start: nullopt disables a limit,
     // while zero expires immediately. A soft limit enables iteration feedback
@@ -32,6 +35,7 @@ public:
     void update_after_iteration(int depth, Move best_move, Score score);
 
 private:
+    tuning::Parameters parameters;
     std::optional<Milliseconds> hard_budget;
     std::optional<Milliseconds> soft_target;
     Milliseconds base_target{0};

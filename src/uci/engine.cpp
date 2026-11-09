@@ -23,7 +23,7 @@ namespace uci {
 Engine::Engine(std::ostream& output, std::ostream& diagnostics, std::istream& input)
     : input(input),
       writer(output, diagnostics),
-      thread_pool(options.threads.value, writer) {}
+      thread_pool(options.threads.value, writer, options.parameters) {}
 
 void Engine::loop() {
     std::string line;
@@ -309,6 +309,10 @@ void Engine::apply_option_effect(OptionId option, const Options& candidate) {
         case OptionId::Threads:
             if (!thread_pool.resize(candidate.threads.value))
                 throw std::runtime_error("failed to resize thread pool");
+            break;
+        case OptionId::Tuning:
+            thread_pool.clear_search_heuristics();
+            search::tt.clear();
             break;
         case OptionId::Ponder:    break;
         case OptionId::ClearHash: search::tt.clear(); break;
