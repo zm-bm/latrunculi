@@ -4,7 +4,7 @@ Latrunculi is a free and open-source UCI chess engine written in C++23.
 
 ## Features
 
-- Bitboards with magic sliding attacks
+- Bitboards with PEXT or magic sliding attacks
 - Iterative-deepening PVS with aspiration windows and quiescence search
 - Lazy SMP parallel search with a shared transposition table
 - Staged move ordering, late move reductions, and null-move and futility pruning

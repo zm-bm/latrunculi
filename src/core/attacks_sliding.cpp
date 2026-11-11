@@ -1,5 +1,5 @@
 /**
- * Source file for magic move bitboard generation.
+ * Source file for PEXT and magic sliding attack generation.
  *
  * This file uses magic numbers and related constants from Pradyumna Kannan's work.
  * The implementation code including move generation functions and
@@ -27,61 +27,76 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#include "core/attacks_magic.hpp"
+#include "core/attacks_sliding.hpp"
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <utility>
-#include <vector>
 
 #include "core/bitboard.hpp"
 
-namespace attacks::magic {
+namespace attacks::sliding {
 
-// Dense backing stores for all generated attacks.
-Bitboard rook_table[102400];
-Bitboard bishop_table[5248];
+namespace {
 
-// Per-square slice heads into the dense tables.
-Bitboard* const rook_moves_table[64] = {
-    rook_table + 86016, rook_table + 73728, rook_table + 36864, rook_table + 43008,
-    rook_table + 47104, rook_table + 51200, rook_table + 77824, rook_table + 94208,
-    rook_table + 69632, rook_table + 32768, rook_table + 38912, rook_table + 10240,
-    rook_table + 14336, rook_table + 53248, rook_table + 57344, rook_table + 81920,
-    rook_table + 24576, rook_table + 33792, rook_table + 6144,  rook_table + 11264,
-    rook_table + 15360, rook_table + 18432, rook_table + 58368, rook_table + 61440,
-    rook_table + 26624, rook_table + 4096,  rook_table + 7168,  rook_table + 0,
-    rook_table + 2048,  rook_table + 19456, rook_table + 22528, rook_table + 63488,
-    rook_table + 28672, rook_table + 5120,  rook_table + 8192,  rook_table + 1024,
-    rook_table + 3072,  rook_table + 20480, rook_table + 23552, rook_table + 65536,
-    rook_table + 30720, rook_table + 34816, rook_table + 9216,  rook_table + 12288,
-    rook_table + 16384, rook_table + 21504, rook_table + 59392, rook_table + 67584,
-    rook_table + 71680, rook_table + 35840, rook_table + 39936, rook_table + 13312,
-    rook_table + 17408, rook_table + 54272, rook_table + 60416, rook_table + 83968,
-    rook_table + 90112, rook_table + 75776, rook_table + 40960, rook_table + 45056,
-    rook_table + 49152, rook_table + 55296, rook_table + 79872, rook_table + 98304};
+std::array<Bitboard, 102400> rook_storage{};
+std::array<Bitboard, 5248> bishop_storage{};
 
-Bitboard* const bishop_moves_table[64] = {
-    bishop_table + 4992, bishop_table + 2624, bishop_table + 256,  bishop_table + 896,
-    bishop_table + 1280, bishop_table + 1664, bishop_table + 4800, bishop_table + 5120,
-    bishop_table + 2560, bishop_table + 2656, bishop_table + 288,  bishop_table + 928,
-    bishop_table + 1312, bishop_table + 1696, bishop_table + 4832, bishop_table + 4928,
-    bishop_table + 0,    bishop_table + 128,  bishop_table + 320,  bishop_table + 960,
-    bishop_table + 1344, bishop_table + 1728, bishop_table + 2304, bishop_table + 2432,
-    bishop_table + 32,   bishop_table + 160,  bishop_table + 448,  bishop_table + 2752,
-    bishop_table + 3776, bishop_table + 1856, bishop_table + 2336, bishop_table + 2464,
-    bishop_table + 64,   bishop_table + 192,  bishop_table + 576,  bishop_table + 3264,
-    bishop_table + 4288, bishop_table + 1984, bishop_table + 2368, bishop_table + 2496,
-    bishop_table + 96,   bishop_table + 224,  bishop_table + 704,  bishop_table + 1088,
-    bishop_table + 1472, bishop_table + 2112, bishop_table + 2400, bishop_table + 2528,
-    bishop_table + 2592, bishop_table + 2688, bishop_table + 832,  bishop_table + 1216,
-    bishop_table + 1600, bishop_table + 2240, bishop_table + 4864, bishop_table + 4960,
-    bishop_table + 5056, bishop_table + 2720, bishop_table + 864,  bishop_table + 1248,
-    bishop_table + 1632, bishop_table + 2272, bishop_table + 4896, bishop_table + 5184};
+} // namespace
+
+namespace detail {
+
+// Per-square slices fit every blocker subset, including the PEXT index range.
+const SquareTable<Bitboard*> rook_attacks = {
+    rook_storage.data() + 86016, rook_storage.data() + 73728, rook_storage.data() + 36864,
+    rook_storage.data() + 43008, rook_storage.data() + 47104, rook_storage.data() + 51200,
+    rook_storage.data() + 77824, rook_storage.data() + 94208, rook_storage.data() + 69632,
+    rook_storage.data() + 32768, rook_storage.data() + 38912, rook_storage.data() + 10240,
+    rook_storage.data() + 14336, rook_storage.data() + 53248, rook_storage.data() + 57344,
+    rook_storage.data() + 81920, rook_storage.data() + 24576, rook_storage.data() + 33792,
+    rook_storage.data() + 6144,  rook_storage.data() + 11264, rook_storage.data() + 15360,
+    rook_storage.data() + 18432, rook_storage.data() + 58368, rook_storage.data() + 61440,
+    rook_storage.data() + 26624, rook_storage.data() + 4096,  rook_storage.data() + 7168,
+    rook_storage.data() + 0,     rook_storage.data() + 2048,  rook_storage.data() + 19456,
+    rook_storage.data() + 22528, rook_storage.data() + 63488, rook_storage.data() + 28672,
+    rook_storage.data() + 5120,  rook_storage.data() + 8192,  rook_storage.data() + 1024,
+    rook_storage.data() + 3072,  rook_storage.data() + 20480, rook_storage.data() + 23552,
+    rook_storage.data() + 65536, rook_storage.data() + 30720, rook_storage.data() + 34816,
+    rook_storage.data() + 9216,  rook_storage.data() + 12288, rook_storage.data() + 16384,
+    rook_storage.data() + 21504, rook_storage.data() + 59392, rook_storage.data() + 67584,
+    rook_storage.data() + 71680, rook_storage.data() + 35840, rook_storage.data() + 39936,
+    rook_storage.data() + 13312, rook_storage.data() + 17408, rook_storage.data() + 54272,
+    rook_storage.data() + 60416, rook_storage.data() + 83968, rook_storage.data() + 90112,
+    rook_storage.data() + 75776, rook_storage.data() + 40960, rook_storage.data() + 45056,
+    rook_storage.data() + 49152, rook_storage.data() + 55296, rook_storage.data() + 79872,
+    rook_storage.data() + 98304};
+
+const SquareTable<Bitboard*> bishop_attacks = {
+    bishop_storage.data() + 4992, bishop_storage.data() + 2624, bishop_storage.data() + 256,
+    bishop_storage.data() + 896,  bishop_storage.data() + 1280, bishop_storage.data() + 1664,
+    bishop_storage.data() + 4800, bishop_storage.data() + 5120, bishop_storage.data() + 2560,
+    bishop_storage.data() + 2656, bishop_storage.data() + 288,  bishop_storage.data() + 928,
+    bishop_storage.data() + 1312, bishop_storage.data() + 1696, bishop_storage.data() + 4832,
+    bishop_storage.data() + 4928, bishop_storage.data() + 0,    bishop_storage.data() + 128,
+    bishop_storage.data() + 320,  bishop_storage.data() + 960,  bishop_storage.data() + 1344,
+    bishop_storage.data() + 1728, bishop_storage.data() + 2304, bishop_storage.data() + 2432,
+    bishop_storage.data() + 32,   bishop_storage.data() + 160,  bishop_storage.data() + 448,
+    bishop_storage.data() + 2752, bishop_storage.data() + 3776, bishop_storage.data() + 1856,
+    bishop_storage.data() + 2336, bishop_storage.data() + 2464, bishop_storage.data() + 64,
+    bishop_storage.data() + 192,  bishop_storage.data() + 576,  bishop_storage.data() + 3264,
+    bishop_storage.data() + 4288, bishop_storage.data() + 1984, bishop_storage.data() + 2368,
+    bishop_storage.data() + 2496, bishop_storage.data() + 96,   bishop_storage.data() + 224,
+    bishop_storage.data() + 704,  bishop_storage.data() + 1088, bishop_storage.data() + 1472,
+    bishop_storage.data() + 2112, bishop_storage.data() + 2400, bishop_storage.data() + 2528,
+    bishop_storage.data() + 2592, bishop_storage.data() + 2688, bishop_storage.data() + 832,
+    bishop_storage.data() + 1216, bishop_storage.data() + 1600, bishop_storage.data() + 2240,
+    bishop_storage.data() + 4864, bishop_storage.data() + 4960, bishop_storage.data() + 5056,
+    bishop_storage.data() + 2720, bishop_storage.data() + 864,  bishop_storage.data() + 1248,
+    bishop_storage.data() + 1632, bishop_storage.data() + 2272, bishop_storage.data() + 4896,
+    bishop_storage.data() + 5184};
 
 // Per-square multipliers for hashing relevant blockers.
-const std::uint64_t rook_magic[64] = {
+const SquareTable<std::uint64_t> rook_magic = {
     0x0080001020400080ull, 0x0040001000200040ull, 0x0080081000200080ull, 0x0080040800100080ull,
     0x0080020400080080ull, 0x0080010200040080ull, 0x0080008001000200ull, 0x0080002040800100ull,
     0x0000800020400080ull, 0x0000400020005000ull, 0x0000801000200080ull, 0x0000800800100080ull,
@@ -99,7 +114,7 @@ const std::uint64_t rook_magic[64] = {
     0x00FFFCDDFCED714Aull, 0x007FFCDDFCED714Aull, 0x003FFFCDFFD88096ull, 0x0000040810002101ull,
     0x0001000204080011ull, 0x0001000204000801ull, 0x0001000082000401ull, 0x0001FFFAABFAD1A2ull};
 
-const std::uint64_t bishop_magic[64] = {
+const SquareTable<std::uint64_t> bishop_magic = {
     0x0002020202020200ull, 0x0002020202020000ull, 0x0004010202000000ull, 0x0004040080000000ull,
     0x0001104000000000ull, 0x0000821040000000ull, 0x0000410410400000ull, 0x0000104104104000ull,
     0x0000040404040400ull, 0x0000020202020200ull, 0x0000040102020000ull, 0x0000040400800000ull,
@@ -119,7 +134,7 @@ const std::uint64_t bishop_magic[64] = {
 
 // Relevant blocker masks. Edge blockers are still attacked, with no farther
 // squares behind them, so they do not affect the lookup key.
-const Bitboard rook_mask[64] = {
+const SquareTable<Bitboard> rook_masks = {
     0x000101010101017Eull, 0x000202020202027Cull, 0x000404040404047Aull, 0x0008080808080876ull,
     0x001010101010106Eull, 0x002020202020205Eull, 0x004040404040403Eull, 0x008080808080807Eull,
     0x0001010101017E00ull, 0x0002020202027C00ull, 0x0004040404047A00ull, 0x0008080808087600ull,
@@ -137,7 +152,7 @@ const Bitboard rook_mask[64] = {
     0x7E01010101010100ull, 0x7C02020202020200ull, 0x7A04040404040400ull, 0x7608080808080800ull,
     0x6E10101010101000ull, 0x5E20202020202000ull, 0x3E40404040404000ull, 0x7E80808080808000ull};
 
-const Bitboard bishop_mask[64] = {
+const SquareTable<Bitboard> bishop_masks = {
     0x0040201008040200ull, 0x0000402010080400ull, 0x0000004020100A00ull, 0x0000000040221400ull,
     0x0000000002442800ull, 0x0000000204085000ull, 0x0000020408102000ull, 0x0002040810204000ull,
     0x0020100804020000ull, 0x0040201008040000ull, 0x00004020100A0000ull, 0x0000004022140000ull,
@@ -156,15 +171,19 @@ const Bitboard bishop_mask[64] = {
     0x0028440200000000ull, 0x0050080402000000ull, 0x0020100804020000ull, 0x0040201008040200ull};
 
 // Right shifts that compact each magic product into its table slice.
-const int rook_shift[64] = {
+const SquareTable<int> rook_shifts = {
     52, 53, 53, 53, 53, 53, 53, 52, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54,
     54, 53, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54,
     54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 53, 53, 53, 53, 53};
 
-const int bishop_shift[64] = {
+const SquareTable<int> bishop_shifts = {
     58, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 57, 57, 57, 57,
     59, 59, 59, 59, 57, 55, 55, 57, 59, 59, 59, 59, 57, 55, 55, 57, 59, 59, 59, 59, 57, 57,
     57, 57, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 58};
+
+} // namespace detail
+
+namespace {
 
 // File/rank delta for one slider ray.
 using SliderDirection = std::pair<int, int>;
@@ -174,9 +193,7 @@ using SliderDirections = std::array<SliderDirection, 4>;
 Bitboard generate_slider_moves(Square from, Bitboard occupied, const SliderDirections& directions) {
     Bitboard attacks = 0ULL;
 
-    for (const SliderDirection& direction : directions) {
-        const int file_delta = direction.first;
-        const int rank_delta = direction.second;
+    for (const auto& [file_delta, rank_delta] : directions) {
 
         // Start one step away; the source square is never attacked.
         int file = square::file_of(from) + file_delta;
@@ -197,48 +214,32 @@ Bitboard generate_slider_moves(Square from, Bitboard occupied, const SliderDirec
     return attacks;
 }
 
-// Decode subset bits onto the mask squares: bit i controls squares[i].
-Bitboard reconstruct_occupancy(const std::vector<Square>& squares, std::uint64_t subset) {
-    Bitboard occupied = 0;
-    for (std::size_t i = 0; i < squares.size(); i++) {
-        if (bb::contains(subset, Square(i)))
-            bb::add(occupied, squares[i]);
-    }
-    return occupied;
-}
-
-// Fill each square's slice with attacks for every blocker subset.
-void init_slider_magic(const Bitboard masks[64],
-                       const std::uint64_t magic_nums[64],
-                       const int shifts[64],
-                       Bitboard* const moves[64],
-                       const SliderDirections& directions) {
+// Enumerate blocker subsets with unsigned wraparound; no temporary allocations.
+template <PieceType P>
+void init_slider(const SliderDirections& directions) {
+    const auto& masks = P == BISHOP ? detail::bishop_masks : detail::rook_masks;
+    const auto& moves = P == BISHOP ? detail::bishop_attacks : detail::rook_attacks;
 
     for (Square sq = A1; sq < INVALID; ++sq) {
-        Bitboard mask = masks[sq];
-
-        std::vector<Square> squares;
-        while (mask)
-            squares.push_back(bb::lsb_pop(mask));
-
-        // There are 2^N subsets for N relevant blocker squares.
-        Bitboard max_occ = bb::set(Square(squares.size()));
-        for (std::uint64_t subset = 0; subset < max_occ; subset++) {
-            Bitboard occupied = reconstruct_occupancy(squares, subset);
-            std::uint64_t offset = (occupied * magic_nums[sq]) >> shifts[sq];
-
-            *(moves[sq] + offset) = generate_slider_moves(sq, occupied, directions);
-        }
+        const Bitboard mask = masks[sq];
+        Bitboard occupied = 0;
+        do {
+            moves[sq][detail::occupancy_index<P>(sq, occupied)] =
+                generate_slider_moves(sq, occupied, directions);
+            occupied = (occupied - mask) & mask;
+        } while (occupied);
     }
 }
+
+} // namespace
 
 void init() {
     // Directions are file/rank deltas from the source square.
-    SliderDirections bishop_dirs = {{{-1, 1}, {1, 1}, {-1, -1}, {1, -1}}};
-    SliderDirections rook_dirs = {{{0, 1}, {1, 0}, {0, -1}, {-1, 0}}};
+    constexpr SliderDirections bishop_dirs = {{{-1, 1}, {1, 1}, {-1, -1}, {1, -1}}};
+    constexpr SliderDirections rook_dirs = {{{0, 1}, {1, 0}, {0, -1}, {-1, 0}}};
 
-    init_slider_magic(bishop_mask, bishop_magic, bishop_shift, bishop_moves_table, bishop_dirs);
-    init_slider_magic(rook_mask, rook_magic, rook_shift, rook_moves_table, rook_dirs);
+    init_slider<BISHOP>(bishop_dirs);
+    init_slider<ROOK>(rook_dirs);
 }
 
-} // namespace attacks::magic
+} // namespace attacks::sliding

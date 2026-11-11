@@ -621,7 +621,7 @@ template <Color C, PieceType P>
 inline bool Evaluator::discovery_attack(const PieceContext& ctx) const {
     constexpr Color Opp = ~C;
 
-    Bitboard attackers = board.pieces<P>(Opp) & attacks::piece_moves<P>(ctx.square, 0);
+    Bitboard attackers = board.pieces<P>(Opp) & attacks::piece_moves<P>(ctx.square);
     while (attackers) {
         const Square attacker = bb::lsb_pop(attackers);
         const Bitboard pieces_between = square::between(ctx.square, attacker) & ctx.occupied;
