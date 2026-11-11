@@ -80,6 +80,15 @@ private:
     template <bool Collecting, Color C>
     TaperedScore evaluate_pawns();
 
+    template <bool Collecting, Color C>
+    TaperedScore evaluate_passers() const;
+
+    template <bool Collecting, Color C>
+    TaperedScore evaluate_pawn_push_threats() const;
+
+    template <Color C>
+    bool pawn_push_preserves_pin(Square from, Square to) const;
+
     template <bool Collecting, Color C, PieceType P>
     TaperedScore evaluate_pieces();
 
@@ -156,10 +165,8 @@ Score Evaluator::evaluate_impl() {
     // Basic terms.
     phase_scores += record_term<Collecting>(Term::Material, board.base_terms().material());
     phase_scores += record_term<Collecting>(Term::PieceSquare, board.base_terms().piece_square());
-    phase_scores += record_term<Collecting>(
-        Term::Pawns,
-        evaluate_pawns<Collecting, WHITE>(),
-        evaluate_pawns<Collecting, BLACK>());
+    const TaperedScore white_pawns = evaluate_pawns<Collecting, WHITE>();
+    const TaperedScore black_pawns = evaluate_pawns<Collecting, BLACK>();
     phase_scores += record_term<Collecting>(
         Term::Knights,
         evaluate_pieces<Collecting, WHITE, KNIGHT>(),
@@ -179,13 +186,19 @@ Score Evaluator::evaluate_impl() {
 
     // Terms requiring data accumulated by basic terms.
     phase_scores += record_term<Collecting>(
+        Term::Pawns,
+        white_pawns + evaluate_passers<Collecting, WHITE>(),
+        black_pawns + evaluate_passers<Collecting, BLACK>());
+    phase_scores += record_term<Collecting>(
         Term::KingSafety,
         evaluate_king_safety<WHITE>(),
         evaluate_king_safety<BLACK>());
     phase_scores +=
         record_term<Collecting>(Term::Mobility, scores.mobility[WHITE], scores.mobility[BLACK]);
-    phase_scores +=
-        record_term<Collecting>(Term::Threats, scores.threats[WHITE], scores.threats[BLACK]);
+    phase_scores += record_term<Collecting>(
+        Term::Threats,
+        scores.threats[WHITE] + evaluate_pawn_push_threats<Collecting, WHITE>(),
+        scores.threats[BLACK] + evaluate_pawn_push_threats<Collecting, BLACK>());
 
     const auto final = finalize_score(
         phase_scores,
@@ -379,6 +392,125 @@ TaperedScore Evaluator::evaluate_pawns() {
     });
 
     return phase_scores;
+}
+
+// A forward push may stay on a file pin, but must not uncover a diagonal pin.
+template <Color C>
+bool Evaluator::pawn_push_preserves_pin(Square from, Square to) const {
+    return !bb::contains(board.blockers(C), from)
+        || bb::contains(square::collinear(board.king_sq(C), from), to);
+}
+
+// Passed-pawn refinements need both sides' complete attack maps.
+template <bool Collecting, Color C>
+TaperedScore Evaluator::evaluate_passers() const {
+    constexpr Color Opp = ~C;
+    constexpr int push = C == WHITE ? pawn_delta::push : -pawn_delta::push;
+    const Bitboard pawns = board.pieces<PAWN>(C);
+    const Bitboard opp_pawns = board.pieces<PAWN>(Opp);
+    const Bitboard frontmost = pawns & ~bb::span_back<C>(pawns);
+    const Bitboard passed = frontmost & ~bb::full_span<Opp>(opp_pawns);
+    const Bitboard occupied = board.occupancy();
+    const Bitboard enemy_attacks = attacks.by[Opp][all_pieces_slot];
+    TaperedScore phase_scores;
+
+    bb::scan<C>(passed, [&](Square sq) {
+        const Rank rank = square::relative_rank(sq, C);
+        if (rank < RANK4 || rank > RANK7)
+            return;
+        const Square next = Square(sq + push);
+        if (bb::contains(occupied, next)) {
+            phase_scores += linear_feature<Collecting, C>(
+                feature::passed_blocked(rank),
+                eval::passed_blocked[rank]);
+        } else if (!bb::contains(enemy_attacks, next) && pawn_push_preserves_pin<C>(sq, next)) {
+            phase_scores += linear_feature<Collecting, C>(
+                feature::passed_safe_advance(rank),
+                eval::passed_safe_advance[rank]);
+        }
+        phase_scores += linear_feature<Collecting, C>(
+            feature::passed_own_king_distance(rank),
+            eval::passed_own_king_distance[rank],
+            std::min(5, square::distance(board.king_sq(C), next)));
+        phase_scores += linear_feature<Collecting, C>(
+            feature::passed_enemy_king_distance(rank),
+            eval::passed_enemy_king_distance[rank],
+            std::min(5, square::distance(board.king_sq(Opp), next)));
+    });
+
+    const Bitboard blocked_candidates = frontmost
+        & (bb::relative_rank<C>(RANK5) | bb::relative_rank<C>(RANK6))
+        & attacks::pawn_shift<pawn_delta::push, Opp>(opp_pawns);
+    if (!blocked_candidates)
+        return phase_scores;
+
+    const Bitboard enemy_pawn_double_attacks = attacks::pawn_shift<pawn_delta::left, Opp>(opp_pawns)
+        & attacks::pawn_shift<pawn_delta::right, Opp>(opp_pawns);
+    const Bitboard helper_destinations = ~occupied
+        & ~enemy_pawn_double_attacks
+        & (~attacks.by2[Opp] | attacks.by[C][all_pieces_slot]);
+    bb::scan<C>(blocked_candidates, [&](Square sq) {
+        // Classical Stockfish's single front stopper, with an empty helper square.
+        const Bitboard stoppers = bb::full_span<C>(bb::set(sq)) & opp_pawns;
+        if (stoppers != bb::set(Square(sq + push)))
+            return;
+        Bitboard helpers = attacks::pawn_attacks<Opp>(sq) & pawns;
+        while (helpers) {
+            const Square helper = bb::lsb_pop(helpers);
+            const Square next = Square(helper + push);
+            if (bb::contains(helper_destinations, next)
+                && pawn_push_preserves_pin<C>(helper, next)) {
+                const Rank rank = square::relative_rank(sq, C);
+                phase_scores += linear_feature<Collecting, C>(
+                    feature::candidate_pawn(rank),
+                    eval::candidate_pawn[rank]);
+                break;
+            }
+        }
+    });
+    return phase_scores;
+}
+
+// Quiet pushes are evaluated with their resulting occupancy. This matters for
+// both king safety and sliders uncovered by the pawn leaving its current square.
+template <bool Collecting, Color C>
+TaperedScore Evaluator::evaluate_pawn_push_threats() const {
+    constexpr Color Opp = ~C;
+    constexpr int push = C == WHITE ? pawn_delta::push : -pawn_delta::push;
+    const Bitboard occupied = board.occupancy();
+    const Bitboard enemy_pawn_attacks = attacks.by[Opp][PAWN];
+    const Bitboard targets = board.pieces<KNIGHT>(Opp) | board.pieces<BISHOP>(Opp)
+        | board.pieces<ROOK>(Opp) | board.pieces<QUEEN>(Opp);
+    Bitboard threatened = 0;
+    bb::scan<C>(board.pieces<PAWN>(C), [&](Square from) {
+        const Rank rank = square::relative_rank(from, C);
+        if (rank >= RANK7)
+            return;
+        const Square next = Square(from + push);
+        if (bb::contains(occupied, next))
+            return;
+        for (int distance = 1; distance <= (rank == RANK2 ? 2 : 1); ++distance) {
+            const Square to = Square(from + distance * push);
+            if (bb::contains(occupied | enemy_pawn_attacks, to)
+                || (distance == 2 && bb::contains(enemy_pawn_attacks, next)))
+                continue;
+            const Bitboard after = (occupied ^ bb::set(from)) | bb::set(to);
+            if (board.attacks_to(board.king_sq(C), Opp, after))
+                continue;
+            if (board.attacks_to(to, Opp, after) && !board.attacks_to(to, C, after))
+                continue;
+            threatened |= attacks::pawn_attacks<C>(to) & targets;
+        }
+    });
+    threatened &= ~attacks.by[C][PAWN];
+    TaperedScore score;
+    bb::scan<C>(threatened, [&](Square target) {
+        const PieceType piece = board.piece_type_on(target);
+        score += linear_feature<Collecting, C>(
+            feature::pawn_push_threat(piece),
+            eval::pawn_push_threat[piece - KNIGHT]);
+    });
+    return score;
 }
 
 /// eval all pieces of type p for color c

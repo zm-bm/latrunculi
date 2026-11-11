@@ -169,6 +169,7 @@ def write_prepared_dataset(output, current, engine, paths, policy=None):
             source=f"g{index}:game:8", result=1, phase_counts=(0, 0, 0, 0), pawns=(0, 0),
         )
         item["fen"] = board.fen()
+        item["version"] = current["version"]
         item["eval"] = dataset.reconstruct(current, item)[0]
         records.append(item)
     data = output / dataset.DATA_FILE

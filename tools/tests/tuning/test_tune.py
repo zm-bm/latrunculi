@@ -25,6 +25,37 @@ def fit_jobs(optimizer):
 
 
 class PrepareTest(unittest.TestCase):
+    def test_prepare_derives_schema_version_from_exporter(self):
+        for version in (7, 8):
+            with self.subTest(version=version):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = pathlib.Path(directory)
+                    engine, pgn, output = root / "engine", root / "games.pgn", root / "data"
+                    engine.write_text("exporter")
+                    pgn.write_text("games")
+                    current = fitting_schema()
+                    current["version"] = version
+                    policy = {**dataset.PREPARATION_POLICY, "schema_version": version,
+                              "minimum_games": 1, "minimum_groups": 1}
+                    with (
+                        mock.patch.dict(dataset.PREPARATION_POLICY, minimum_games=1, minimum_groups=1),
+                        mock.patch.object(tune, "read_engine_schema", return_value=current),
+                        mock.patch.object(
+                            dataset, "atomic_build",
+                            side_effect=lambda binary, paths, target, actual_policy: write_prepared_dataset(
+                                target, current, binary, paths, actual_policy),
+                        ) as build,
+                        contextlib.redirect_stdout(io.StringIO()),
+                    ):
+                        args = types.SimpleNamespace(engine=engine, pgn=[pgn], output=output)
+                        tune.prepare_command(args)
+                        tune.prepare_command(args)
+                        build.assert_called_once_with(engine, [pgn], output, policy)
+                        manifest = artifacts.load_json(output / "manifest.json")
+                        self.assertEqual(manifest["identity"]["policy"], policy)
+                        with self.assertRaisesRegex(ValueError, "schema does not match"):
+                            dataset.validate_dataset(output, dataset.PREPARATION_POLICY)
+
     def test_prepare_reuses_matching_dataset_and_rejects_changed_inputs(self):
         with tempfile.TemporaryDirectory(prefix="tune selection ") as directory:
             root = pathlib.Path(directory)
@@ -45,7 +76,8 @@ class PrepareTest(unittest.TestCase):
                 mock.patch.object(tune, "read_engine_schema", return_value=current),
                 mock.patch.object(
                     dataset, "atomic_build",
-                    side_effect=lambda binary, paths, target: write_prepared_dataset(target, current, binary, paths),
+                    side_effect=lambda binary, paths, target, policy: write_prepared_dataset(
+                        target, current, binary, paths, policy),
                 ) as build,
                 contextlib.redirect_stdout(io.StringIO()),
             ):
@@ -53,7 +85,7 @@ class PrepareTest(unittest.TestCase):
                 self.assertEqual(tune.main([
                     "prepare", "--engine", "./latrunculi", "--output", str(output), pgn.name,
                 ]), 0)
-                build.assert_called_once_with(engine, [pgn], output)
+                build.assert_called_once_with(engine, [pgn], output, dataset.PREPARATION_POLICY)
                 pgn.write_text("different games")
                 with self.assertRaisesRegex(ValueError, "changed"):
                     tune.prepare_command(tune.parse_args(arguments))
@@ -163,6 +195,23 @@ class FitTest(unittest.TestCase):
 
 
 class VerificationTest(unittest.TestCase):
+    def test_supported_schemas_fit_and_compiled_verification_remain_readable(self):
+        for version in (7, 8):
+            with self.subTest(version=version):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = pathlib.Path(directory)
+                    with mock.patch.dict(dataset.PREPARATION_POLICY, schema_version=version):
+                        output, current, candidate = verification_fixture(root)
+                    engine = root / "engine"
+                    engine.write_text(f"schema{version} build")
+                    self.assertEqual(current["version"], version)
+                    with (
+                        mock.patch.object(tune, "read_engine_schema", return_value=current),
+                        contextlib.redirect_stdout(io.StringIO()) as result,
+                    ):
+                        tune.verify_command(types.SimpleNamespace(output=output, engine=engine))
+                    self.assertEqual(json.loads(result.getvalue())["candidate_id"], candidate["artifact_id"])
+
     def test_verify_is_repeatable_for_equivalent_binaries_without_dataset_or_mutation(self):
         with tempfile.TemporaryDirectory(prefix="tune selection ") as directory:
             root = pathlib.Path(directory)

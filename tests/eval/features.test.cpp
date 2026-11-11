@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <span>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -36,12 +37,16 @@ std::uint64_t schema_name_hash(const auto& schema) {
 TEST(FeaturesTest, SchemaIsStableAndUnique) {
     const auto& schema = eval::feature_schema();
 
-    EXPECT_EQ(eval::feature_schema_version, 4);
-    EXPECT_EQ(schema.size(), 485u);
+    EXPECT_EQ(eval::feature_schema_version, 8);
+    EXPECT_EQ(schema.size(), 529u);
     EXPECT_EQ(schema.front().name, "material.pawn");
-    EXPECT_EQ(schema.back().name, "pawn.backward_open");
+    EXPECT_EQ(schema[484].name, "pawn.backward_open");
+    EXPECT_EQ(schema[524].name, "pawn.passed_enemy_king_distance.r8");
+    EXPECT_EQ(schema.back().name, "threat.pawn_push_queen");
     // Feature names and IDs must not change without a schema-version bump.
-    EXPECT_EQ(schema_name_hash(schema), 12504289562783657569ull);
+    EXPECT_EQ(schema_name_hash(std::span(schema).first(485)), 12504289562783657569ull);
+    EXPECT_EQ(schema_name_hash(std::span(schema).first(525)), 17077940616765496473ull);
+    EXPECT_EQ(schema_name_hash(schema), 18034479174247602796ull);
 
     std::unordered_set<std::string> names;
     for (const auto& feature : schema) {
@@ -176,7 +181,7 @@ TEST(FeaturesTest, BatchExportIsDeterministic) {
     const std::string first = run();
     EXPECT_EQ(first, run());
     EXPECT_EQ(std::count(first.begin(), first.end(), '\n'), 4);
-    EXPECT_NE(first.find(R"("type":"schema","version":4)"), std::string::npos);
+    EXPECT_NE(first.find(R"("type":"schema","version":8)"), std::string::npos);
     EXPECT_NE(
         first.find(
             R"("perspective":{"coefficients":"white","fixed":"white","eval":"side_to_move"})"),
@@ -246,5 +251,70 @@ TEST(FeaturesTest, BatchExportRejectsInvalidFen) {
         FAIL() << "expected invalid FEN to fail";
     } catch (const std::runtime_error& error) {
         EXPECT_STREQ(error.what(), "invalid FEN at line 1: invalid fen, must have 4 or 6 fields");
+    }
+}
+
+TEST(FeaturesTest, PawnPushThreatBoundariesAndReconstruction) {
+    struct Case {
+        std::string_view label;
+        std::string_view fen;
+        std::array<int, 4> counts;
+    };
+    const Case cases[] = {
+        {"single-push-white", "7k/8/8/3n4/8/4P3/8/K7 w - - 0 1", {1, 0, 0, 0}},
+        {"single-push-black", "k7/8/4p3/8/3N4/8/8/7K b - - 0 1", {-1, 0, 0, 0}},
+        {"two-targets-white", "7k/8/8/3n1b2/8/4PB2/8/K7 w - - 0 1", {1, 1, 0, 0}},
+        {"two-targets-black", "k7/8/4pb2/8/3N1B2/8/8/7K b - - 0 1", {-1, -1, 0, 0}},
+        {"duplicate-target-white", "7k/8/8/3n4/8/2P1P3/8/K7 w - - 0 1", {1, 0, 0, 0}},
+        {"duplicate-target-black", "k7/8/2p1p3/8/3N4/8/8/7K b - - 0 1", {-1, 0, 0, 0}},
+        {"already-pawn-attacked-white", "7k/8/8/3n4/2P5/4P3/8/K7 w - - 0 1", {0, 0, 0, 0}},
+        {"already-pawn-attacked-black", "k7/8/4p3/2p5/3N4/8/8/7K b - - 0 1", {0, 0, 0, 0}},
+        {"occupied-next-white", "7k/8/8/3n4/4N3/4P3/8/K7 w - - 0 1", {0, 0, 0, 0}},
+        {"occupied-next-black", "k7/8/4p3/4n3/3N4/8/8/7K b - - 0 1", {0, 0, 0, 0}},
+        {"pawn-unsafe-white", "7k/8/8/3n1p2/8/4P3/8/K7 w - - 0 1", {0, 0, 0, 0}},
+        {"pawn-unsafe-black", "k7/8/4p3/8/3N1P2/8/8/7K b - - 0 1", {0, 0, 0, 0}},
+        {"undefended-attacked-white", "4r2k/8/8/3n4/8/4P3/8/K7 w - - 0 1", {0, 0, 0, 0}},
+        {"undefended-attacked-black", "k7/8/4p3/8/3N4/8/8/4R2K b - - 0 1", {0, 0, 0, 0}},
+        {"defended-attacked-white", "4r2k/8/8/3n4/8/4PB2/8/K7 w - - 0 1", {1, 0, 0, 0}},
+        {"defended-attacked-black", "k7/8/4pb2/8/3N4/8/8/4R2K b - - 0 1", {-1, 0, 0, 0}},
+        {"newly-exposed-enemy-rook-white", "7k/8/8/3n4/8/4P3/K7/4r3 w - - 0 1", {0, 0, 0, 0}},
+        {"newly-exposed-enemy-rook-black", "4R3/k7/4p3/8/3N4/8/8/7K b - - 0 1", {0, 0, 0, 0}},
+        {"newly-exposed-own-rook-white", "7k/8/8/3n4/7r/4P3/K7/4R3 w - - 0 1", {1, 0, 0, 0}},
+        {"newly-exposed-own-rook-black", "4r3/k7/4p3/7R/3N4/8/8/7K b - - 0 1", {-1, 0, 0, 0}},
+        {"diagonal-pin-white", "7k/8/8/2bn4/8/4P3/8/6K1 w - - 0 1", {0, 0, 0, 0}},
+        {"diagonal-pin-black", "6k1/8/4p3/8/2BN4/8/8/7K b - - 0 1", {0, 0, 0, 0}},
+        {"file-pin-preserved-white", "4r2k/8/8/3n4/8/4PB2/8/4K3 w - - 0 1", {1, 0, 0, 0}},
+        {"file-pin-preserved-black", "4k3/8/4pb2/8/3N4/8/8/4R2K b - - 0 1", {-1, 0, 0, 0}},
+        {"double-push-white", "7k/8/8/3n4/8/8/4P3/K7 w - - 0 1", {1, 0, 0, 0}},
+        {"double-push-black", "k7/4p3/8/8/3N4/8/8/7K b - - 0 1", {-1, 0, 0, 0}},
+        {"double-occupied-intermediate-white", "7k/8/8/3n4/8/4N3/4P3/K7 w - - 0 1", {0, 0, 0, 0}},
+        {"double-occupied-intermediate-black", "k7/4p3/4n3/8/3N4/8/8/7K b - - 0 1", {0, 0, 0, 0}},
+        {"double-occupied-destination-white", "7k/8/8/3n4/4N3/8/4P3/K7 w - - 0 1", {0, 0, 0, 0}},
+        {"double-occupied-destination-black", "k7/4p3/8/4n3/3N4/8/8/7K b - - 0 1", {0, 0, 0, 0}},
+        {"double-pawn-unsafe-intermediate-white", "7k/8/8/3n4/3p4/8/4P3/K7 w - - 0 1", {0, 0, 0, 0}},
+        {"double-pawn-unsafe-intermediate-black", "k7/4p3/8/3P4/3N4/8/8/7K b - - 0 1", {0, 0, 0, 0}},
+        {"double-other-attack-intermediate-white", "7k/8/7b/3n4/8/8/4P3/K7 w - - 0 1", {1, 0, 0, 0}},
+        {"double-other-attack-intermediate-black", "k7/4p3/8/8/3N4/7B/8/7K b - - 0 1", {-1, 0, 0, 0}},
+        {"double-pawn-unsafe-destination-white", "7k/8/8/3n1p2/8/8/4P3/K7 w - - 0 1", {0, 0, 0, 0}},
+        {"double-pawn-unsafe-destination-black", "k7/4p3/8/8/3N1P2/8/8/7K b - - 0 1", {0, 0, 0, 0}},
+        {"edge-push-white", "7k/8/8/1n6/8/P7/8/K7 w - - 0 1", {1, 0, 0, 0}},
+        {"edge-push-black", "k7/8/p7/8/1N6/8/8/7K b - - 0 1", {-1, 0, 0, 0}},
+        {"promotion-excluded-white", "3n3k/4P3/8/8/8/8/8/K7 w - - 0 1", {0, 0, 0, 0}},
+        {"promotion-excluded-black", "k7/8/8/8/8/8/4p3/3N3K b - - 0 1", {0, 0, 0, 0}},
+        {"queen-and-rook-white", "7k/8/8/3q1r2/8/4PB2/8/K7 w - - 0 1", {0, 0, 1, 1}},
+        {"queen-and-rook-black", "k7/8/4pb2/8/3Q1R2/8/8/7K b - - 0 1", {0, 0, -1, -1}},
+        {"h-file-push-white", "7k/8/8/6n1/8/7P/8/K7 w - - 0 1", {1, 0, 0, 0}},
+        {"h-file-push-black", "k7/8/7p/8/6N1/8/8/7K b - - 0 1", {-1, 0, 0, 0}},
+        {"h-file-no-wrap-white", "7k/8/8/n7/8/7P/8/K7 w - - 0 1", {0, 0, 0, 0}},
+        {"h-file-no-wrap-black", "k7/8/7p/8/N7/8/8/7K b - - 0 1", {0, 0, 0, 0}},
+    };
+    for (const auto& test : cases) {
+        SCOPED_TRACE(test.label);
+        const Board board(test.fen);
+        const auto record = eval::extract_features(board);
+        for (std::size_t i = 0; i < test.counts.size(); ++i)
+            EXPECT_EQ(record.coefficients[eval::feature::pawn_push_threat_offset + i], test.counts[i]);
+        EXPECT_EQ(record.reconstruct(), eval::evaluate(board));
+        EXPECT_EQ(record.term_total(), record.unscaled_score);
     }
 }

@@ -226,6 +226,17 @@ inline constexpr TaperedScore isolated_open_pawn = {-14, -14};
 inline constexpr TaperedScore backward_open_pawn = {-13, -6};
 inline constexpr TaperedScore passed_pawn[] =
     {{0, 0}, {1, 1}, {-8, 9}, {-2, 65}, {34, 122}, {102, 211}, {198, 296}, {0, 0}};
+// Provisional passer weights, indexed by relative rank. These have not been tuned.
+inline constexpr TaperedScore candidate_pawn[8] =
+    {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {8, 30}, {25, 52}, {0, 0}, {0, 0}};
+inline constexpr TaperedScore passed_blocked[8] =
+    {{0, 0}, {0, 0}, {0, 0}, {0, -16}, {0, -30}, {0, -52}, {0, -74}, {0, 0}};
+inline constexpr TaperedScore passed_safe_advance[8] =
+    {{0, 0}, {0, 0}, {0, 0}, {0, 8}, {0, 15}, {0, 26}, {0, 37}, {0, 0}};
+inline constexpr TaperedScore passed_own_king_distance[8] =
+    {{0, 0}, {0, 0}, {0, 0}, {0, -2}, {0, -4}, {0, -6}, {0, -8}, {0, 0}};
+inline constexpr TaperedScore passed_enemy_king_distance[8] =
+    {{0, 0}, {0, 0}, {0, 0}, {0, 2}, {0, 4}, {0, 6}, {0, 8}, {0, 0}};
 inline constexpr TaperedScore reachable_outpost = {21, 26};
 inline constexpr TaperedScore bishop_outpost = {51, -14};
 inline constexpr TaperedScore knight_outpost = {60, 25};
@@ -263,6 +274,11 @@ inline constexpr TaperedScore king_file[] =
 // Penalty for potentially hanging piece [index = piece type]
 inline constexpr TaperedScore weak_piece[] =
     {TaperedScore::Zero, TaperedScore::Zero, {-68, -56}, {-66, -51}, {-38, -68}, {-90, -4}};
+
+// Bonus for a new piece target after an eligible pawn push [N, B, R, Q].
+inline constexpr TaperedScore pawn_push_threat[4] = {
+    {19, 14}, {18, 18}, {26, 24}, {29, 0},
+};
 
 // Piece mobility scores (index = # of legal moves)
 inline constexpr TaperedScore knight_mob[] = {

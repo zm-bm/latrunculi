@@ -327,6 +327,30 @@ const std::array<FeatureDefinition, feature::count>& feature_schema() {
         set(feature::isolated_open_pawn, "pawn.isolated_open", eval::isolated_open_pawn);
         set(feature::backward_open_pawn, "pawn.backward_open", eval::backward_open_pawn);
 
+        for (Rank rank = RANK1; rank <= RANK8; rank = Rank(rank + 1)) {
+            const std::string suffix = ".r" + std::string(1, to_char(rank));
+            set(feature::candidate_pawn(rank),
+                "pawn.candidate" + suffix,
+                eval::candidate_pawn[rank]);
+            set(feature::passed_blocked(rank),
+                "pawn.passed_blocked" + suffix,
+                eval::passed_blocked[rank]);
+            set(feature::passed_safe_advance(rank),
+                "pawn.passed_safe_advance" + suffix,
+                eval::passed_safe_advance[rank]);
+            set(feature::passed_own_king_distance(rank),
+                "pawn.passed_own_king_distance" + suffix,
+                eval::passed_own_king_distance[rank]);
+            set(feature::passed_enemy_king_distance(rank),
+                "pawn.passed_enemy_king_distance" + suffix,
+                eval::passed_enemy_king_distance[rank]);
+        }
+
+        set(feature::pawn_push_threat(KNIGHT), "threat.pawn_push_knight", eval::pawn_push_threat[0]);
+        set(feature::pawn_push_threat(BISHOP), "threat.pawn_push_bishop", eval::pawn_push_threat[1]);
+        set(feature::pawn_push_threat(ROOK), "threat.pawn_push_rook", eval::pawn_push_threat[2]);
+        set(feature::pawn_push_threat(QUEEN), "threat.pawn_push_queen", eval::pawn_push_threat[3]);
+
         assert(std::ranges::all_of(definitions, [](const FeatureDefinition& definition) {
             return !definition.name.empty();
         }));

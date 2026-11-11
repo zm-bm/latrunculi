@@ -159,11 +159,31 @@ TEST(EvaluationTermsTest, Pawns) {
          eval::isolated_pawn + eval::isolated_open_pawn,
          eval::isolated_pawn + eval::isolated_open_pawn},
         {passed_pawns,
-         eval::isolated_pawn + eval::isolated_open_pawn + eval::passed_pawn[RANK4],
-         eval::isolated_pawn + eval::isolated_open_pawn + eval::passed_pawn[RANK4]},
+         eval::isolated_pawn
+             + eval::isolated_open_pawn
+             + eval::passed_pawn[RANK4]
+             + eval::passed_safe_advance[RANK4]
+             + eval::passed_own_king_distance[RANK4] * 4
+             + eval::passed_enemy_king_distance[RANK4] * 3,
+         eval::isolated_pawn
+             + eval::isolated_open_pawn
+             + eval::passed_pawn[RANK4]
+             + eval::passed_safe_advance[RANK4]
+             + eval::passed_own_king_distance[RANK4] * 4
+             + eval::passed_enemy_king_distance[RANK4] * 3},
         {advanced_passers,
-         eval::isolated_pawn + eval::isolated_open_pawn + eval::passed_pawn[RANK7],
-         eval::isolated_pawn + eval::isolated_open_pawn + eval::passed_pawn[RANK7]},
+         eval::isolated_pawn
+             + eval::isolated_open_pawn
+             + eval::passed_pawn[RANK7]
+             + eval::passed_safe_advance[RANK7]
+             + eval::passed_own_king_distance[RANK7] * 5
+             + eval::passed_enemy_king_distance[RANK7] * 4,
+         eval::isolated_pawn
+             + eval::isolated_open_pawn
+             + eval::passed_pawn[RANK7]
+             + eval::passed_safe_advance[RANK7]
+             + eval::passed_own_king_distance[RANK7] * 5
+             + eval::passed_enemy_king_distance[RANK7] * 3},
     };
 
     for (const auto& [fen, white, black] : test_cases)
@@ -199,6 +219,134 @@ TEST(EvaluationTermsTest, OnlyFrontmostPawnsReceivePassedBonus) {
             EXPECT_EQ(record.coefficients[eval::feature::passed_pawn(Rank(rank))], expected[rank]);
         EXPECT_EQ(record.reconstruct(), eval::evaluate(board));
     }
+}
+
+TEST(EvaluationTermsTest, CandidatePassersRequireFeasibleSingleBlockerHelpers) {
+    struct Case {
+        std::string_view label;
+        std::string_view fen;
+        int relative_rank;
+        int sign;
+    };
+    const Case cases[] = {
+        {"single-helper-white", "7k/8/3p4/3P4/4P3/8/8/K7 w - - 0 1", 5, 1},
+        {"single-helper-black", "k7/8/8/4p3/3p4/3P4/8/7K b - - 0 1", 5, -1},
+        {"two-helpers-white", "7k/8/3p4/3P4/2P1P3/8/8/K7 w - - 0 1", 5, 1},
+        {"two-helpers-black", "k7/8/8/2p1p3/3p4/3P4/8/7K b - - 0 1", 5, -1},
+        {"no-helper-white", "7k/8/3p4/3P4/8/8/8/K7 w - - 0 1", 0, 1},
+        {"no-helper-black", "k7/8/8/8/3p4/3P4/8/7K b - - 0 1", 0, -1},
+        {"extra-stopper-white", "7k/2p5/3p4/3P4/4P3/8/8/K7 w - - 0 1", 0, 1},
+        {"extra-stopper-black", "k7/8/8/4p3/3p4/3P4/2P5/7K b - - 0 1", 0, -1},
+        {"own-occupied-helper-white", "7k/8/3p4/3PN3/4P3/8/8/K7 w - - 0 1", 0, 1},
+        {"own-occupied-helper-black", "k7/8/8/4p3/3pn3/3P4/8/7K b - - 0 1", 0, -1},
+        {"enemy-occupied-helper-white", "7k/8/3p4/3Pn3/4P3/8/8/K7 w - - 0 1", 0, 1},
+        {"enemy-occupied-helper-black", "k7/8/8/4p3/3pN3/3P4/8/7K b - - 0 1", 0, -1},
+        {"two-pawn-attacks-even-defended-white", "7k/8/3p1p2/3P4/4PB2/8/8/K7 w - - 0 1", 0, 1},
+        {"two-pawn-attacks-even-defended-black", "k7/8/8/4pb2/3p4/3P1P2/8/7K b - - 0 1", 0, -1},
+        {"two-attacks-undefended-white", "7k/8/3p4/3P1r2/4P3/8/8/K7 w - - 0 1", 0, 1},
+        {"two-attacks-undefended-black", "k7/8/8/4p3/3p1R2/3P4/8/7K b - - 0 1", 0, -1},
+        {"two-attacks-defended-white", "7k/8/3p4/3P1r2/4PB2/8/8/K7 w - - 0 1", 5, 1},
+        {"two-attacks-defended-black", "k7/8/8/4pb2/3p1R2/3P4/8/7K b - - 0 1", 5, -1},
+        {"pinned-helper-white", "7k/8/3p4/3P1K2/4P3/3b4/8/8 w - - 0 1", 0, 1},
+        {"pinned-helper-black", "8/8/3B4/4p3/3p1k2/3P4/8/7K b - - 0 1", 0, -1},
+        {"helper-push-on-pin-file-white", "4r2k/8/3p4/3P4/4PB2/8/8/4K3 w - - 0 1", 5, 1},
+        {"helper-push-on-pin-file-black", "4k3/8/8/4pb2/3p4/3P4/8/4R2K b - - 0 1", 5, -1},
+        {"rank-four-white", "7k/8/8/3p4/3P4/4P3/8/K7 w - - 0 1", 0, 1},
+        {"rank-four-black", "k7/8/4p3/3p4/3P4/8/8/7K b - - 0 1", 0, -1},
+        {"rank-six-white", "7k/3p4/3P4/4P3/8/8/8/K7 w - - 0 1", 6, 1},
+        {"rank-six-black", "k7/8/8/8/4p3/3p4/3P4/7K b - - 0 1", 6, -1},
+        {"own-pawn-ahead-white", "7k/3P4/3p4/3P4/4P3/8/8/K7 w - - 0 1", 0, 1},
+        {"own-pawn-ahead-black", "k7/8/8/4p3/3p4/3P4/3p4/7K b - - 0 1", 0, -1},
+        {"rear-doubled-white", "7k/8/3p4/3P4/3PP3/4P3/8/K7 w - - 0 1", 5, 1},
+        {"rear-doubled-black", "k7/8/4p3/3pp3/3p4/3P4/8/7K b - - 0 1", 5, -1},
+        {"actual-passer-not-candidate-white", "7k/8/8/3P4/4P3/8/8/K7 w - - 0 1", 0, 1},
+        {"actual-passer-not-candidate-black", "k7/8/8/4p3/3p4/8/8/7K b - - 0 1", 0, -1},
+        {"a-file-white", "7k/8/p7/P7/1P6/8/8/K7 w - - 0 1", 5, 1},
+        {"a-file-black", "k7/8/8/1p6/p7/P7/8/7K b - - 0 1", 5, -1},
+        {"h-file-white", "7k/8/7p/7P/6P1/8/8/K7 w - - 0 1", 5, 1},
+        {"h-file-black", "k7/8/8/6p1/7p/7P/8/7K b - - 0 1", 5, -1},
+        {"no-file-wrap-white", "7k/8/p7/P7/8/7P/8/K7 w - - 0 1", 0, 1},
+        {"no-file-wrap-black", "k7/8/7p/8/p7/P7/8/7K b - - 0 1", 0, -1},
+    };
+    for (const auto& [label, fen, relative_rank, sign] : cases) {
+        SCOPED_TRACE(label);
+        const Board board(fen);
+        const auto record = eval::extract_features(board);
+        for (int rank = RANK1; rank <= RANK8; ++rank)
+            EXPECT_EQ(record.coefficients[eval::feature::candidate_pawn(Rank(rank))],
+                      rank + 1 == relative_rank ? sign : 0);
+        EXPECT_EQ(record.reconstruct(), eval::evaluate(board));
+        EXPECT_EQ(record.term_total(), record.unscaled_score);
+    }
+}
+
+TEST(EvaluationTermsTest, PassedPawnAdjustmentsDistinguishAdvanceAndKingSupport) {
+    struct Case {
+        std::string_view label;
+        std::string_view fen;
+        int relative_rank;
+        int blocked;
+        int safe;
+        int own_distance;
+        int enemy_distance;
+    };
+    const Case cases[] = {
+        {"safe-white", "7k/8/8/3P4/8/8/8/K7 w - - 0 1", 5, 0, 1, 5, 4},
+        {"safe-black", "k7/8/8/8/3p4/8/8/7K b - - 0 1", 5, 0, -1, -5, -4},
+        {"enemy-blockade-white", "7k/8/3n4/3P4/8/8/8/K7 w - - 0 1", 5, 1, 0, 5, 4},
+        {"enemy-blockade-black", "k7/8/8/8/3p4/3N4/8/7K b - - 0 1", 5, -1, 0, -5, -4},
+        {"own-blockade-white", "7k/8/3N4/3P4/8/8/8/K7 w - - 0 1", 5, 1, 0, 5, 4},
+        {"own-blockade-black", "k7/8/8/8/3p4/3n4/8/7K b - - 0 1", 5, -1, 0, -5, -4},
+        {"attacked-advance-white", "7k/1n6/8/3P4/8/8/8/K7 w - - 0 1", 5, 0, 0, 5, 4},
+        {"attacked-advance-black", "k7/8/8/8/3p4/8/1N6/7K b - - 0 1", 5, 0, 0, -5, -4},
+        {"pinned-passer-white", "7k/1b6/8/3P4/8/5K2/8/8 w - - 0 1", 5, 0, 0, 3, 4},
+        {"pinned-passer-black", "8/8/5k2/8/3p4/8/1B6/7K b - - 0 1", 5, 0, 0, -3, -4},
+        {"push-along-pin-white", "3K4/8/8/3P4/8/8/8/3r3k w - - 0 1", 5, 0, 1, 2, 5},
+        {"push-along-pin-black", "3R3K/8/8/8/3p4/8/8/3k4 b - - 0 1", 5, 0, -1, -2, -5},
+        {"own-king-near-white", "7k/8/8/3PK3/8/8/8/8 w - - 0 1", 5, 0, 1, 1, 4},
+        {"own-king-near-black", "8/8/8/8/3pk3/8/8/7K b - - 0 1", 5, 0, -1, -1, -4},
+        {"enemy-king-near-white", "8/4k3/8/3P4/8/8/8/K7 w - - 0 1", 5, 0, 0, 5, 1},
+        {"enemy-king-near-black", "k7/8/8/8/3p4/8/4K3/8 b - - 0 1", 5, 0, 0, -5, -1},
+        {"rank-four-white", "7k/8/8/8/3P4/8/8/K7 w - - 0 1", 4, 0, 1, 4, 4},
+        {"rank-four-black", "k7/8/8/3p4/8/8/8/7K b - - 0 1", 4, 0, -1, -4, -4},
+        {"rank-six-white", "7k/8/3P4/8/8/8/8/K7 w - - 0 1", 6, 0, 1, 5, 4},
+        {"rank-six-black", "k7/8/8/8/8/3p4/8/7K b - - 0 1", 6, 0, -1, -5, -4},
+        {"rank-seven-white", "7k/3P4/8/8/8/8/8/K7 w - - 0 1", 7, 0, 1, 5, 4},
+        {"rank-seven-black", "k7/8/8/8/8/8/3p4/7K b - - 0 1", 7, 0, -1, -5, -4},
+        {"low-rank-white", "7k/8/8/8/8/3P4/8/K7 w - - 0 1", 0, 0, 0, 0, 0},
+        {"low-rank-black", "k7/8/3p4/8/8/8/8/7K b - - 0 1", 0, 0, 0, 0, 0},
+        {"frontmost-only-white", "7k/8/8/3P4/8/3P4/8/K7 w - - 0 1", 5, 0, 1, 5, 4},
+        {"frontmost-only-black", "k7/8/3p4/8/3p4/8/8/7K b - - 0 1", 5, 0, -1, -5, -4},
+    };
+    for (const auto& [label, fen, relative_rank, blocked, safe, own_distance, enemy_distance] :
+         cases) {
+        SCOPED_TRACE(label);
+        const Board board(fen);
+        const auto record = eval::extract_features(board);
+        for (int r = RANK1; r <= RANK8; ++r) {
+            const Rank rank = Rank(r);
+            const bool active = r + 1 == relative_rank;
+            EXPECT_EQ(record.coefficients[eval::feature::passed_blocked(rank)],
+                      active ? blocked : 0);
+            EXPECT_EQ(record.coefficients[eval::feature::passed_safe_advance(rank)],
+                      active ? safe : 0);
+            EXPECT_EQ(record.coefficients[eval::feature::passed_own_king_distance(rank)],
+                      active ? own_distance : 0);
+            EXPECT_EQ(record.coefficients[eval::feature::passed_enemy_king_distance(rank)],
+                      active ? enemy_distance : 0);
+        }
+        EXPECT_EQ(record.reconstruct(), eval::evaluate(board));
+        EXPECT_EQ(record.term_total(), record.unscaled_score);
+    }
+}
+
+TEST(EvaluationTermsTest, CloserFriendlyKingAndMoreDistantEnemyKingHelpPassers) {
+    const auto pawns = [](std::string_view fen) {
+        return eval::extract_features(Board(fen)).term(eval::Term::Pawns).white.eg;
+    };
+    const int remote = pawns("7k/8/8/3P4/8/8/8/K7 w - - 0 1");
+    EXPECT_GT(pawns("7k/8/8/3PK3/8/8/8/8 w - - 0 1"), remote);
+    EXPECT_LT(pawns("8/4k3/8/3P4/8/8/8/K7 w - - 0 1"), remote);
 }
 
 TEST(EvaluationTermsTest, PawnStructurePredicates) {

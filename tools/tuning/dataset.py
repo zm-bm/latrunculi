@@ -33,7 +33,7 @@ def validate_policy(policy):
         raise ValueError("invalid preparation policy")
     if any(type(value) is not int for value in policy.values()):
         raise ValueError("preparation policy values must be integers")
-    if policy["schema_version"] != 4 or policy["maximum_positions_per_game"] <= 0:
+    if policy["schema_version"] not in (4, 7, 8) or policy["maximum_positions_per_game"] <= 0:
         raise ValueError("unsupported preparation policy")
     if any(policy[name] < 0 for name in ("minimum_game_ply", "minimum_games", "minimum_groups")):
         raise ValueError("preparation limits must be nonnegative")
@@ -41,7 +41,7 @@ def validate_policy(policy):
 
 def validate_schema(schema):
     if (not isinstance(schema, dict) or schema.get("type") != "schema"
-            or type(schema.get("version")) is not int or schema["version"] != 4):
+            or type(schema.get("version")) is not int or schema["version"] not in (4, 7, 8)):
         raise ValueError("unsupported dataset schema")
     features = schema.get("features")
     if not isinstance(features, list) or any(not isinstance(feature, dict) for feature in features):

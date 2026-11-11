@@ -18,7 +18,7 @@ class Board;
 
 namespace eval {
 
-inline constexpr int feature_schema_version = 4;
+inline constexpr int feature_schema_version = 8;
 
 enum class Term : std::uint8_t {
     Material = 0,
@@ -86,7 +86,16 @@ inline constexpr Id weak_piece_count = 4;
 inline constexpr Id connected_pawn_link = weak_piece_offset + weak_piece_count;
 inline constexpr Id isolated_open_pawn = connected_pawn_link + 1;
 inline constexpr Id backward_open_pawn = isolated_open_pawn + 1;
-inline constexpr Id count = backward_open_pawn + 1;
+inline constexpr Id candidate_pawn_offset = backward_open_pawn + 1;
+inline constexpr Id passed_blocked_offset = candidate_pawn_offset + passed_pawn_count;
+inline constexpr Id passed_safe_advance_offset = passed_blocked_offset + passed_pawn_count;
+inline constexpr Id passed_own_king_distance_offset =
+    passed_safe_advance_offset + passed_pawn_count;
+inline constexpr Id passed_enemy_king_distance_offset =
+    passed_own_king_distance_offset + passed_pawn_count;
+inline constexpr Id pawn_push_threat_offset =
+    passed_enemy_king_distance_offset + passed_pawn_count;
+inline constexpr Id count = pawn_push_threat_offset + 4;
 
 constexpr Id material(PieceType piece) {
     return material_offset + std::size_t(piece - PAWN);
@@ -98,6 +107,26 @@ constexpr Id piece_square(PieceType piece, Square square) {
 
 constexpr Id passed_pawn(Rank rank) {
     return passed_pawn_offset + std::size_t(rank);
+}
+
+constexpr Id candidate_pawn(Rank rank) {
+    return candidate_pawn_offset + std::size_t(rank);
+}
+
+constexpr Id passed_blocked(Rank rank) {
+    return passed_blocked_offset + std::size_t(rank);
+}
+
+constexpr Id passed_safe_advance(Rank rank) {
+    return passed_safe_advance_offset + std::size_t(rank);
+}
+
+constexpr Id passed_own_king_distance(Rank rank) {
+    return passed_own_king_distance_offset + std::size_t(rank);
+}
+
+constexpr Id passed_enemy_king_distance(Rank rank) {
+    return passed_enemy_king_distance_offset + std::size_t(rank);
 }
 
 constexpr Id piece_feature(PieceFeature feature) {
@@ -126,6 +155,10 @@ constexpr Id mobility(PieceType piece, int move_count) {
 
 constexpr Id weak_piece(PieceType piece) {
     return weak_piece_offset + std::size_t(piece - KNIGHT);
+}
+
+constexpr Id pawn_push_threat(PieceType piece) {
+    return pawn_push_threat_offset + std::size_t(piece - KNIGHT);
 }
 
 } // namespace feature

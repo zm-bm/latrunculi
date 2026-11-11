@@ -42,16 +42,17 @@ def prepare_command(args):
     engine = args.engine.resolve()
     pgn_paths = [path.resolve() for path in args.pgn]
     output = args.output.resolve()
-    identity = dataset.preparation_identity(engine, pgn_paths)
     schema = read_engine_schema(engine)
     dataset.validate_schema(schema)
+    policy = {**dataset.PREPARATION_POLICY, "schema_version": schema["version"]}
+    identity = dataset.preparation_identity(engine, pgn_paths, policy)
     if not output.exists():
-        dataset.atomic_build(engine, pgn_paths, output)
+        dataset.atomic_build(engine, pgn_paths, output, policy)
     report, actual_schema = dataset.validate_output(output)
     manifest = artifacts.load_json(output / "manifest.json")
     if manifest["identity"] != identity:
         raise ValueError("preparation inputs, policy, or tools changed; use a new output directory")
-    if actual_schema != schema or dataset.preparation_identity(engine, pgn_paths) != identity:
+    if actual_schema != schema or dataset.preparation_identity(engine, pgn_paths, policy) != identity:
         raise ValueError("preparation inputs or exporter changed")
     print(json.dumps(report, indent=2, sort_keys=True))
 
