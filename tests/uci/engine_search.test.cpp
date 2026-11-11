@@ -294,7 +294,8 @@ TEST_F(EngineSearchTest, PonderSearchWaitsForHitAndPublishesExistingResult) {
 
 TEST_F(EngineSearchTest, PonderingIgnoresExhaustedClockUntilHit) {
     EXPECT_TRUE(execute("go ponder wtime 0 btime 0 winc 3000 binc 3000"));
-    ASSERT_TRUE(wait_for_depth(4));
+    // Reaching depth four checks progress, not speed; allow instrumented builds.
+    ASSERT_TRUE(wait_for_depth(4, std::chrono::seconds(2)));
     EXPECT_TRUE(thread_pool().is_searching());
 
     EXPECT_TRUE(execute("ponderhit"));

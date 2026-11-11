@@ -150,6 +150,61 @@ TEST_F(RootSearchTest, ResearchesLateRootAlphaImprovement) {
     EXPECT_TRUE(child.pv.empty());
 }
 
+TEST_F(RootSearchTest, ResearchesAlphaImprovementAfterFirstMoveFailsLow) {
+    Board board{"k7/4r3/8/8/8/3Q4/4p3/K7 w - - 0 1"};
+    load(board, 1);
+    const Move first = find_move("d3e2");
+    const Move winning = find_move("d3d8");
+    ASSERT_FALSE(first.is_null());
+    ASSERT_FALSE(winning.is_null());
+    candidates() = {RootLine{.root_move = first}, RootLine{.root_move = winning}};
+
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 1, 1, 0, scores::inf));
+    EXPECT_LE(candidates()[0].value, 0);
+    EXPECT_GT(candidates()[1].value, 0);
+    EXPECT_EQ(progress_count(1), 1);
+    EXPECT_TRUE(SearchTestAccess::frames(worker)[1].state.pv_enabled);
+    ASSERT_FALSE(candidates()[1].pv.empty());
+    EXPECT_EQ(candidates()[1].pv.front(), winning);
+    EXPECT_EQ(position().to_fen(), board.to_fen());
+    EXPECT_EQ(position().tt_key(), board.tt_key());
+
+#if LATRUNCULI_SEARCH_STATS
+    EXPECT_EQ(counters().pvs_researches[1], 1U);
+#endif
+}
+
+TEST_F(RootSearchTest, FailedScoutAfterFirstFailLowDoesNotPublishTtBoundAsPv) {
+    Board board{board_test::fen::start};
+    load(board, 2);
+    const Move first = find_move("e2e4");
+    const Move second = find_move("d2d4");
+    ASSERT_FALSE(first.is_null());
+    ASSERT_FALSE(second.is_null());
+    candidates() = {RootLine{.root_move = first}, RootLine{.root_move = second}};
+
+    // A child lower bound is a root upper bound. It may end the scout, but
+    // must not supply a stale continuation or publish an exact root result.
+    position().make(second);
+    tt.store(position().tt_key(), NULL_MOVE, 5000, 8, TTBound::LowerBound, 1);
+    position().unmake();
+    auto& child = SearchTestAccess::frames(worker)[1];
+    child.pv = pv_for(Move(E7, E5), Move(G1, F3));
+    const RootLine accepted = result();
+
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 2, 2, 1000, 2000));
+    EXPECT_LE(candidates()[0].value, 1000);
+    EXPECT_EQ(candidates()[1].value, -5000);
+    EXPECT_FALSE(child.state.pv_enabled);
+    EXPECT_TRUE(child.pv.empty());
+    ASSERT_EQ(candidates()[1].pv.size(), 1);
+    EXPECT_EQ(candidates()[1].pv.front(), second);
+    EXPECT_EQ(progress_count(2), 0);
+    EXPECT_EQ(result(), accepted);
+    EXPECT_EQ(position().to_fen(), board.to_fen());
+    EXPECT_EQ(position().tt_key(), board.tt_key());
+}
+
 TEST_F(RootSearchTest, BuildsLegalRootCandidates) {
     Board board{board_test::fen::start};
     load(board, 1);

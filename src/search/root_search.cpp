@@ -151,13 +151,13 @@ bool Worker::search_root_window(int search_depth, int nominal_depth, Score alpha
 
         board.make(root_move, prefetch_child_tt);
 
-        // Root PVS searches full-window until a root PV is established.
-        // Scout later root moves and re-search only strict alpha improvements.
+        // Search the first root move at full window. Later moves can use a scout
+        // even after a fail-low; verify strict alpha improvements at full window.
         SearchFrame* child = &frames[1];
         child->pv.clear();
         child->state.singular_search_active = false;
         Score value;
-        if (move_count == 1 || !has_pv_move) {
+        if (move_count == 1) {
             child->state.pv_enabled = true;
             value = -alphabeta<NodeType::Pv>(-beta, -alpha, search_depth - 1, child);
         } else {
