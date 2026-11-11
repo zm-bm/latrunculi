@@ -1,6 +1,7 @@
 """Tuning policy, constrained optimization, and grouped validation."""
 
 import fnmatch
+import copy
 import hashlib
 import math
 from dataclasses import dataclass
@@ -8,7 +9,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import optimize
 
-from . import model
+from . import model, finalization
 
 
 FIT_POLICY = {
@@ -79,6 +80,25 @@ FIT_POLICY = {
         "minimum_phase_groups": 128,
     },
 }
+
+
+def selected_policy(schema, patterns=()):
+    policy = copy.deepcopy(FIT_POLICY)
+    coordinates = {coordinate_name(f["name"], phase) for f in schema["features"] for phase in range(2)}
+    if schema["version"] == 9:
+        policy["constraints"]["fixed"] += [f'{schema["features"][i]["name"]}.mg' for i in finalization.special_ids(schema)]
+        policy["fit"]["bounds"] += [dict(pattern=name, minimum=bound[0], maximum=bound[1])
+                                     for name, bound in finalization.BOUNDS.items() if name in coordinates]
+    if patterns:
+        selected = set()
+        for pattern in patterns:
+            matches = {name for name in coordinates if fnmatch.fnmatchcase(name, pattern)}
+            if not matches:
+                raise ValueError(f"parameter pattern matches nothing: {pattern}")
+            selected |= matches
+        policy["constraints"]["fixed"] = sorted(set(policy["constraints"]["fixed"]) | (coordinates - selected))
+        policy["selection"] = dict(patterns=list(patterns), coordinates=sorted(selected))
+    return policy
 
 
 @dataclass
@@ -338,7 +358,17 @@ def build_parameter_map(schema, parent, split, policy, assignments=None):
         raise ValueError("all selected parameters are frozen")
     for index, override in enumerate(fit["bounds"]):
         if index not in used_bounds:
-            raise ValueError(f"bound pattern matches nothing: {override['pattern']}")
+            # Scoped fits freeze otherwise valid bounds. New finalization
+            # coordinates may also be frozen by the existing support rule.
+            allow_frozen = "selection" in policy or (
+                schema["version"] == 9 and override["pattern"] in finalization.BOUNDS
+            )
+            matches_schema = any(
+                fnmatch.fnmatchcase(coordinate_name(f["name"], phase), override["pattern"])
+                for f in schema["features"] for phase in range(2)
+            )
+            if not allow_frozen or not matches_schema:
+                raise ValueError(f"bound pattern matches nothing: {override['pattern']}")
 
     return ParameterMap(
         parent=parent,

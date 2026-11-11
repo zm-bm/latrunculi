@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import sparse, special
 
-from . import dataset
+from . import dataset, finalization
 
 
 PHASES = ("mg", "eg")
@@ -36,6 +36,7 @@ class Split:
     groups: np.ndarray
     group_names: np.ndarray
     weights: np.ndarray
+    finalization_context: np.ndarray | None = None
 
 
 @dataclass
@@ -66,6 +67,7 @@ def subset_split(split, mask):
         groups=groups,
         group_names=split.group_names,
         weights=group_weights(groups),
+        finalization_context=None if split.finalization_context is None else split.finalization_context[mask],
     )
 
 
@@ -80,6 +82,7 @@ def load_split(path, name, schema):
     targets = []
     exported = []
     groups = []
+    contexts = []
 
     with path.open(encoding="utf-8") as stream:
         split_schema = json.loads(next(stream))
@@ -103,6 +106,10 @@ def load_split(path, name, schema):
             targets.append((record["result"] + 1) / 2)
             exported.append(record["eval"])
             groups.append(dataset.group_from_source(record["source"]))
+            if schema["version"] == 9:
+                context = record["finalization"]
+                contexts.append(context["pieces"][0] + context["pieces"][1]
+                                + context["pawn_flanks"] + context["bishop_colors"])
 
     group_names, group_array = np.unique(
         np.asarray(groups, dtype=object), return_inverse=True
@@ -129,6 +136,7 @@ def load_split(path, name, schema):
         groups=group_array,
         group_names=group_names,
         weights=group_weights(group_array),
+        finalization_context=np.asarray(contexts, dtype=np.int16) if contexts else None,
     )
     parent = baseline_weights(schema).astype(np.int64)
     if not np.array_equal(exact_evaluations(split, schema, parent), white_exported(split)):
@@ -194,25 +202,72 @@ def _continuous_phase(split, schema, material_weights):
     return material, phase_max, blend
 
 
+def _raw_scores(split, schema, weights):
+    special = finalization.special_ids(schema)
+    if special:
+        weights = weights.copy()
+        weights[special] = 0
+    return split.coefficients @ weights + split.fixed
+
+
+def _finalized_eg(split, schema, weights, raw, exact=False):
+    """Return EG and local derivatives; discontinuous branch boundaries use zero slopes."""
+    limit = schema["scale_limit"]
+    base = _endgame_scale(split, schema, raw)
+    if schema["version"] != 9:
+        eg = signed_divide(raw * base, limit) if exact else raw * base / limit
+        return eg, base / limit, None, None
+    roles = schema["finalization"]
+    context = split.finalization_context
+    if context is None or context.shape != (len(raw), 14):
+        raise ValueError("missing finalization context")
+    pieces = context[:, :10].reshape((-1, 2, 5))
+    target = base.copy()
+    opposite = (pieces[:, 0, 2] == 1) & (pieces[:, 1, 2] == 1) & ((context[:, 12] ^ context[:, 13]) == 3)
+    matching = opposite & (pieces[:, 0, 1] == pieces[:, 1, 1]) & (pieces[:, 0, 3] == pieces[:, 1, 3]) & (pieces[:, :, 4].sum(axis=1) == 0)
+    pure = matching & (pieces[:, 0, 1] == 0) & (pieces[:, 0, 3] == 0)
+    extra = matching & (((pieces[:, 0, 1] == 1) & (pieces[:, 0, 3] == 0)) | ((pieces[:, 0, 1] == 0) & (pieces[:, 0, 3] == 1)))
+    target = np.where(pure, np.minimum(target, 32), target)
+    target = np.where(extra, np.minimum(target, 48), target)
+    material = weights[phase_material_ids(schema), 0]
+    npm = pieces[:, :, 1:] @ material
+    strong = (raw < 0).astype(np.int8)
+    rows = np.arange(len(raw))
+    advantage = npm[rows, strong] - npm[rows, 1 - strong]
+    pawnless = (pieces[rows, strong, 0] == 0) & (npm[rows, 1 - strong] > 0) & (advantage >= 0) & (advantage <= material[1])
+    target = np.where(pawnless, np.minimum(target, 16), target)
+    flanks = context[rows, 10 + strong]
+    target = np.where((flanks == 1) | (flanks == 2), np.minimum(target, base - 4), target)
+    complexity_ids = roles["complexity"]
+    complexity = split.coefficients[:, complexity_ids] @ weights[complexity_ids, 1] if complexity_ids else np.zeros_like(raw)
+    sign = np.sign(raw)
+    active = (raw != 0) & (np.abs(raw) + complexity > 0)
+    adjusted = sign * np.maximum(np.abs(raw) + complexity, 0)
+    strength = weights[roles["strength"], 1] if roles["strength"] is not None else 0
+    reduction = (base - target) * strength
+    effective = base - (reduction // limit if exact else reduction / limit)
+    eg = signed_divide(adjusted * effective, limit) if exact else adjusted * effective / limit
+    return (eg, active * effective / limit, sign * active * effective / limit,
+            adjusted * (target - base) / (limit * limit))
+
+
 def continuous_evaluation(split, schema, weights):
-    scores = split.coefficients @ weights + split.fixed
+    scores = _raw_scores(split, schema, weights)
     mg = scores[:, 0]
     raw_eg = scores[:, 1]
 
-    eg_scale = _endgame_scale(split, schema, raw_eg) / schema["scale_limit"]
-    eg = raw_eg * eg_scale
+    eg, _, _, _ = _finalized_eg(split, schema, weights, raw_eg)
     _, _, blend = _continuous_phase(split, schema, weights[phase_material_ids(schema), 0])
     white = mg * blend + eg * (1 - blend)
     return white + split.turns * schema["tempo"]
 
 
 def continuous_loss_gradient(split, schema, weights, scale):
-    scores = split.coefficients @ weights + split.fixed
+    scores = _raw_scores(split, schema, weights)
     mg = scores[:, 0]
     raw_eg = scores[:, 1]
 
-    eg_scale = _endgame_scale(split, schema, raw_eg) / schema["scale_limit"]
-    eg = raw_eg * eg_scale
+    eg, eg_derivative, complexity_derivative, strength_derivative = _finalized_eg(split, schema, weights, raw_eg)
 
     ids = phase_material_ids(schema)
     material, phase_max, blend = _continuous_phase(split, schema, weights[ids, 0])
@@ -236,7 +291,14 @@ def continuous_loss_gradient(split, schema, weights, scale):
 
     gradient = np.empty_like(weights)
     gradient[:, 0] = split.coefficients.T @ (score_gradient * blend)
-    gradient[:, 1] = split.coefficients.T @ (score_gradient * (1 - blend) * eg_scale)
+    gradient[:, 1] = split.coefficients.T @ (score_gradient * (1 - blend) * eg_derivative)
+    if schema["version"] == 9:
+        roles = schema["finalization"]
+        gradient[finalization.special_ids(schema)] = 0
+        if roles["complexity"]:
+            gradient[roles["complexity"], 1] = split.coefficients[:, roles["complexity"]].T @ (score_gradient * (1 - blend) * complexity_derivative)
+        if roles["strength"] is not None:
+            gradient[roles["strength"], 1] = np.sum(score_gradient * (1 - blend) * strength_derivative)
 
     interior = (material > phase_min) & (material < phase_max)
     phase_effect = score_gradient * (mg - eg) * interior
@@ -268,12 +330,11 @@ def signed_divide(values, divisor):
 
 
 def exact_evaluations_and_phases(split, schema, weights):
-    scores = split.coefficients @ weights + split.fixed
+    scores = _raw_scores(split, schema, weights)
     mg = scores[:, 0]
     raw_eg = scores[:, 1]
 
-    scale = _endgame_scale(split, schema, raw_eg)
-    eg = signed_divide(raw_eg * scale, schema["scale_limit"])
+    eg, _, _, _ = _finalized_eg(split, schema, weights, raw_eg, exact=True)
 
     ids = phase_material_ids(schema)
     phase_min = schema["phase_material_min"]

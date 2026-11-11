@@ -640,7 +640,13 @@ TEST(EvaluationTermsTest, EndgameScalingUsesStrongerSidePawnCount) {
         SCOPED_TRACE(fen);
         ASSERT_NE(record.unscaled_score.eg, 0);
         EXPECT_EQ(record.scaled_score.mg, record.unscaled_score.mg);
-        EXPECT_EQ(record.scaled_score.eg, record.unscaled_score.eg * factor / eval::scale_limit);
+        EXPECT_EQ(record.finalization.base_scale, factor);
+        const auto legacy = eval::finalize_score(
+            record.unscaled_score,
+            record.finalization_context,
+            record.turn,
+            0);
+        EXPECT_EQ(legacy.scaled.eg, record.unscaled_score.eg * factor / eval::scale_limit);
     }
 }
 

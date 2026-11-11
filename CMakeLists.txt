@@ -142,6 +142,7 @@ if(BUILD_TESTING)
         tests/movegen/perft.test.cpp
         tests/eval/evaluation.test.cpp
         tests/eval/features.test.cpp
+        tests/eval/finalization.test.cpp
         tests/eval/parameters.test.cpp
         tests/eval/tapered_score.test.cpp
         tests/search/search.test.cpp

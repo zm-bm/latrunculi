@@ -23,7 +23,7 @@ TaperedScore weighted_score(const std::array<int, feature::count>& coefficients)
     TaperedScore phase_scores;
     const auto& schema = feature_schema();
 
-    for (std::size_t id = 0; id < coefficients.size(); ++id)
+    for (std::size_t id = 0; id < feature::finalization_offset; ++id)
         phase_scores += schema[id].weight * coefficients[id];
 
     return phase_scores;
@@ -116,6 +116,9 @@ void write_schema(std::ostream& output) {
         << eval::scale_per_pawn
         << R"(,"tempo":)"
         << eval::tempo_bonus
+        << R"(,"finalization":{"material":null,"complexity":[],"strength":)"
+        << feature::scale_strength
+        << R"(,"context":"pieces-flanks-bishops-v1"})"
         << R"(,"features":[)";
 
     const auto& schema = feature_schema();
@@ -152,7 +155,28 @@ void write_record(std::ostream& output,
         << record.pawn_counts[WHITE]
         << ','
         << record.pawn_counts[BLACK]
-        << R"(],"fixed":[)"
+        << R"(],"finalization":{"pieces":[)";
+    for (Color c : {WHITE, BLACK}) {
+        if (c == BLACK)
+            output << ',';
+        output << '[';
+        for (int i = 0; i < 5; ++i) {
+            if (i)
+                output << ',';
+            output << record.finalization_context.pieces[c][i];
+        }
+        output << ']';
+    }
+    output
+        << R"(],"pawn_flanks":[)"
+        << record.finalization_context.pawn_flanks[WHITE]
+        << ','
+        << record.finalization_context.pawn_flanks[BLACK]
+        << R"(],"bishop_colors":[)"
+        << record.finalization_context.bishop_colors[WHITE]
+        << ','
+        << record.finalization_context.bishop_colors[BLACK]
+        << R"(]},"fixed":[)"
         << record.fixed_score.mg
         << ','
         << record.fixed_score.eg
@@ -196,17 +220,7 @@ Score FeatureRecord::white_value() const noexcept {
 Score FeatureRecord::reconstruct() const noexcept {
     const TaperedScore phase_scores = weighted_score(coefficients) + fixed_score;
 
-    const auto& schema = feature_schema();
-    const int non_pawn_material = phase_counts[0] * schema[feature::material(KNIGHT)].weight.mg
-        + phase_counts[1] * schema[feature::material(BISHOP)].weight.mg
-        + phase_counts[2] * schema[feature::material(ROOK)].weight.mg
-        + phase_counts[3] * schema[feature::material(QUEEN)].weight.mg;
-    return finalize_score(phase_scores,
-                          non_pawn_material,
-                          pawn_counts[WHITE],
-                          pawn_counts[BLACK],
-                          turn)
-        .value;
+    return finalize_score(phase_scores, finalization_context, turn).value;
 }
 
 void FeatureRecord::complete(
@@ -231,6 +245,8 @@ void FeatureRecord::complete(
     this->side_to_move_value = side_to_move_value;
     this->value = value;
     turn = board.side_to_move();
+    finalization_context = FinalizationContext::from_board(board);
+    finalization = finalize_score(unscaled, finalization_context, turn);
 }
 
 const std::array<FeatureDefinition, feature::count>& feature_schema() {
@@ -346,10 +362,15 @@ const std::array<FeatureDefinition, feature::count>& feature_schema() {
                 eval::passed_enemy_king_distance[rank]);
         }
 
-        set(feature::pawn_push_threat(KNIGHT), "threat.pawn_push_knight", eval::pawn_push_threat[0]);
-        set(feature::pawn_push_threat(BISHOP), "threat.pawn_push_bishop", eval::pawn_push_threat[1]);
+        set(feature::pawn_push_threat(KNIGHT),
+            "threat.pawn_push_knight",
+            eval::pawn_push_threat[0]);
+        set(feature::pawn_push_threat(BISHOP),
+            "threat.pawn_push_bishop",
+            eval::pawn_push_threat[1]);
         set(feature::pawn_push_threat(ROOK), "threat.pawn_push_rook", eval::pawn_push_threat[2]);
         set(feature::pawn_push_threat(QUEEN), "threat.pawn_push_queen", eval::pawn_push_threat[3]);
+        set(feature::scale_strength, "endgame.scale_strength", eval::endgame_scale_strength);
 
         assert(std::ranges::all_of(definitions, [](const FeatureDefinition& definition) {
             return !definition.name.empty();
@@ -383,6 +404,14 @@ std::string format_evaluation(const FeatureRecord& record) {
 
     output += " ------------+-------------+-------------+------------\n";
     output += std::format("{:>12}{}\n\n", "Total", format_total(record.scaled_score));
+    output +=
+        std::format("Raw MG/EG: {} / {}\n", record.unscaled_score.mg, record.unscaled_score.eg);
+    output += std::format(
+        "Scale base/target/effective: {} / {} / {} (normal {})\n",
+        record.finalization.base_scale,
+        record.finalization.target_scale,
+        record.finalization.effective_scale,
+        eval::scale_limit);
     output +=
         std::format("Evaluation:\t{:.2f}\n", double(record.white_value()) / int(eval::pawn.mg));
     return output;

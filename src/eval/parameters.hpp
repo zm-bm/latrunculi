@@ -22,6 +22,9 @@ inline constexpr int scale_base = 48;
 inline constexpr int scale_per_pawn = 4;
 inline constexpr int phase_limit = 128;
 
+// EG-only interpolation from the pawn-count base to material-aware conversion caps.
+inline constexpr TaperedScore endgame_scale_strength = {0, 64};
+
 inline constexpr TaperedScore pawn = {100, 202};
 inline constexpr TaperedScore knight = {602, 679};
 inline constexpr TaperedScore bishop = {613, 709};
@@ -277,7 +280,10 @@ inline constexpr TaperedScore weak_piece[] =
 
 // Bonus for a new piece target after an eligible pawn push [N, B, R, Q].
 inline constexpr TaperedScore pawn_push_threat[4] = {
-    {19, 14}, {18, 18}, {26, 24}, {29, 0},
+    {19, 14},
+    {18, 18},
+    {26, 24},
+    {29, 0},
 };
 
 // Piece mobility scores (index = # of legal moves)

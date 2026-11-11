@@ -12,13 +12,14 @@
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "core/types.hpp"
+#include "eval/score_finalization.hpp"
 #include "eval/tapered_score.hpp"
 
 class Board;
 
 namespace eval {
 
-inline constexpr int feature_schema_version = 8;
+inline constexpr int feature_schema_version = 9;
 
 enum class Term : std::uint8_t {
     Material = 0,
@@ -93,9 +94,10 @@ inline constexpr Id passed_own_king_distance_offset =
     passed_safe_advance_offset + passed_pawn_count;
 inline constexpr Id passed_enemy_king_distance_offset =
     passed_own_king_distance_offset + passed_pawn_count;
-inline constexpr Id pawn_push_threat_offset =
-    passed_enemy_king_distance_offset + passed_pawn_count;
-inline constexpr Id count = pawn_push_threat_offset + 4;
+inline constexpr Id pawn_push_threat_offset = passed_enemy_king_distance_offset + passed_pawn_count;
+inline constexpr Id finalization_offset = pawn_push_threat_offset + 4;
+inline constexpr Id scale_strength = finalization_offset;
+inline constexpr Id count = scale_strength + 1;
 
 constexpr Id material(PieceType piece) {
     return material_offset + std::size_t(piece - PAWN);
@@ -180,6 +182,8 @@ struct FeatureRecord {
     Score side_to_move_value = 0;
     Score value = 0;
     Color turn = WHITE;
+    FinalizationContext finalization_context{};
+    FinalizedScore finalization{};
 
     [[nodiscard]]
     const TermScore& term(Term term) const noexcept;

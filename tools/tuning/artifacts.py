@@ -75,6 +75,7 @@ def tool_record():
     sources = (
         "__init__.py", "paths.py", "tuning/__init__.py", "tuning/dataset.py", "tuning/model.py",
         "tuning/fit.py", "tuning/artifacts.py", "tuning/tune.py",
+        "tuning/finalization.py",
     )
     return {name: dataset.sha256_file(tools / name) for name in sources}
 
@@ -339,7 +340,7 @@ def candidate_artifact(data, policy, cross_validation, calibration=None, fit=Non
     }
 
 
-def fit_descriptor(data):
+def fit_descriptor(data, policy=None):
     return {
         "format_version": FORMAT_VERSION,
         "kind": "run",
@@ -348,7 +349,7 @@ def fit_descriptor(data):
             "data_sha256": data.data_sha256,
         },
         "schema": data.schema,
-        "policy": fitting.FIT_POLICY,
+        "policy": fitting.FIT_POLICY if policy is None else policy,
         "tool": tool_record(),
         "dependencies": dependency_versions(),
     }

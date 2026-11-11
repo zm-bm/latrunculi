@@ -37,16 +37,18 @@ std::uint64_t schema_name_hash(const auto& schema) {
 TEST(FeaturesTest, SchemaIsStableAndUnique) {
     const auto& schema = eval::feature_schema();
 
-    EXPECT_EQ(eval::feature_schema_version, 8);
-    EXPECT_EQ(schema.size(), 529u);
+    EXPECT_EQ(eval::feature_schema_version, 9);
+    EXPECT_EQ(schema.size(), 530u);
     EXPECT_EQ(schema.front().name, "material.pawn");
     EXPECT_EQ(schema[484].name, "pawn.backward_open");
     EXPECT_EQ(schema[524].name, "pawn.passed_enemy_king_distance.r8");
-    EXPECT_EQ(schema.back().name, "threat.pawn_push_queen");
+    EXPECT_EQ(schema[528].name, "threat.pawn_push_queen");
+    EXPECT_EQ(schema.back().name, "endgame.scale_strength");
     // Feature names and IDs must not change without a schema-version bump.
     EXPECT_EQ(schema_name_hash(std::span(schema).first(485)), 12504289562783657569ull);
     EXPECT_EQ(schema_name_hash(std::span(schema).first(525)), 17077940616765496473ull);
-    EXPECT_EQ(schema_name_hash(schema), 18034479174247602796ull);
+    EXPECT_EQ(schema_name_hash(std::span(schema).first(529)), 18034479174247602796ull);
+    EXPECT_EQ(schema_name_hash(schema), 4165332823372527923ull);
 
     std::unordered_set<std::string> names;
     for (const auto& feature : schema) {
@@ -115,7 +117,10 @@ TEST(FeaturesTest, EvaluationIsColorSymmetric) {
     ASSERT_NE(original_record.coefficients[eval::feature::material(PAWN)], 0);
     for (std::size_t id = 0; id < original_record.coefficients.size(); ++id) {
         SCOPED_TRACE(id);
-        EXPECT_EQ(original_record.coefficients[id], -swapped_record.coefficients[id]);
+        if (id >= eval::feature::finalization_offset)
+            EXPECT_EQ(original_record.coefficients[id], swapped_record.coefficients[id]);
+        else
+            EXPECT_EQ(original_record.coefficients[id], -swapped_record.coefficients[id]);
     }
 
     EXPECT_EQ(original_record.phase_counts, swapped_record.phase_counts);
@@ -181,7 +186,7 @@ TEST(FeaturesTest, BatchExportIsDeterministic) {
     const std::string first = run();
     EXPECT_EQ(first, run());
     EXPECT_EQ(std::count(first.begin(), first.end(), '\n'), 4);
-    EXPECT_NE(first.find(R"("type":"schema","version":8)"), std::string::npos);
+    EXPECT_NE(first.find(R"("type":"schema","version":9)"), std::string::npos);
     EXPECT_NE(
         first.find(
             R"("perspective":{"coefficients":"white","fixed":"white","eval":"side_to_move"})"),
@@ -291,10 +296,18 @@ TEST(FeaturesTest, PawnPushThreatBoundariesAndReconstruction) {
         {"double-occupied-intermediate-black", "k7/4p3/4n3/8/3N4/8/8/7K b - - 0 1", {0, 0, 0, 0}},
         {"double-occupied-destination-white", "7k/8/8/3n4/4N3/8/4P3/K7 w - - 0 1", {0, 0, 0, 0}},
         {"double-occupied-destination-black", "k7/4p3/8/4n3/3N4/8/8/7K b - - 0 1", {0, 0, 0, 0}},
-        {"double-pawn-unsafe-intermediate-white", "7k/8/8/3n4/3p4/8/4P3/K7 w - - 0 1", {0, 0, 0, 0}},
-        {"double-pawn-unsafe-intermediate-black", "k7/4p3/8/3P4/3N4/8/8/7K b - - 0 1", {0, 0, 0, 0}},
-        {"double-other-attack-intermediate-white", "7k/8/7b/3n4/8/8/4P3/K7 w - - 0 1", {1, 0, 0, 0}},
-        {"double-other-attack-intermediate-black", "k7/4p3/8/8/3N4/7B/8/7K b - - 0 1", {-1, 0, 0, 0}},
+        {"double-pawn-unsafe-intermediate-white",
+         "7k/8/8/3n4/3p4/8/4P3/K7 w - - 0 1",
+         {0, 0, 0, 0}},
+        {"double-pawn-unsafe-intermediate-black",
+         "k7/4p3/8/3P4/3N4/8/8/7K b - - 0 1",
+         {0, 0, 0, 0}},
+        {"double-other-attack-intermediate-white",
+         "7k/8/7b/3n4/8/8/4P3/K7 w - - 0 1",
+         {1, 0, 0, 0}},
+        {"double-other-attack-intermediate-black",
+         "k7/4p3/8/8/3N4/7B/8/7K b - - 0 1",
+         {-1, 0, 0, 0}},
         {"double-pawn-unsafe-destination-white", "7k/8/8/3n1p2/8/8/4P3/K7 w - - 0 1", {0, 0, 0, 0}},
         {"double-pawn-unsafe-destination-black", "k7/4p3/8/8/3N1P2/8/8/7K b - - 0 1", {0, 0, 0, 0}},
         {"edge-push-white", "7k/8/8/1n6/8/P7/8/K7 w - - 0 1", {1, 0, 0, 0}},
@@ -313,7 +326,8 @@ TEST(FeaturesTest, PawnPushThreatBoundariesAndReconstruction) {
         const Board board(test.fen);
         const auto record = eval::extract_features(board);
         for (std::size_t i = 0; i < test.counts.size(); ++i)
-            EXPECT_EQ(record.coefficients[eval::feature::pawn_push_threat_offset + i], test.counts[i]);
+            EXPECT_EQ(record.coefficients[eval::feature::pawn_push_threat_offset + i],
+                      test.counts[i]);
         EXPECT_EQ(record.reconstruct(), eval::evaluate(board));
         EXPECT_EQ(record.term_total(), record.unscaled_score);
     }

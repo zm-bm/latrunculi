@@ -13,6 +13,8 @@ import tempfile
 import chess
 import chess.pgn
 
+from . import finalization
+
 
 RESULTS = {"1-0": 1, "1/2-1/2": 0, "0-1": -1}
 DATA_FILE = "development.jsonl"
@@ -33,7 +35,7 @@ def validate_policy(policy):
         raise ValueError("invalid preparation policy")
     if any(type(value) is not int for value in policy.values()):
         raise ValueError("preparation policy values must be integers")
-    if policy["schema_version"] not in (4, 7, 8) or policy["maximum_positions_per_game"] <= 0:
+    if policy["schema_version"] not in (4, 7, 8, 9) or policy["maximum_positions_per_game"] <= 0:
         raise ValueError("unsupported preparation policy")
     if any(policy[name] < 0 for name in ("minimum_game_ply", "minimum_games", "minimum_groups")):
         raise ValueError("preparation limits must be nonnegative")
@@ -41,7 +43,7 @@ def validate_policy(policy):
 
 def validate_schema(schema):
     if (not isinstance(schema, dict) or schema.get("type") != "schema"
-            or type(schema.get("version")) is not int or schema["version"] not in (4, 7, 8)):
+            or type(schema.get("version")) is not int or schema["version"] not in (4, 7, 8, 9)):
         raise ValueError("unsupported dataset schema")
     features = schema.get("features")
     if not isinstance(features, list) or any(not isinstance(feature, dict) for feature in features):
@@ -81,6 +83,8 @@ def validate_schema(schema):
     if (schema["scale_limit"] <= 0 or not 0 <= schema["scale_base"] <= schema["scale_limit"]
             or schema["scale_per_pawn"] < 0):
         raise ValueError("invalid evaluation scaling invariants")
+    if schema["version"] == 9:
+        finalization.validate_schema(schema)
     return schema
 
 
@@ -294,7 +298,10 @@ def reconstruct(schema, record):
     mg = record["fixed"][0]
     eg = record["fixed"][1]
     weights = schema["features"]
+    special = set(finalization.special_ids(schema))
     for feature_id, coefficient in record["coefficients"]:
+        if feature_id in special:
+            continue
         mg += weights[feature_id]["mg"] * coefficient
         eg += weights[feature_id]["eg"] * coefficient
 
@@ -303,10 +310,12 @@ def reconstruct(schema, record):
         schema["scale_limit"],
         schema["scale_base"] + schema["scale_per_pawn"] * stronger_pawns,
     )
-    eg = abs(eg * scale) // schema["scale_limit"] * (-1 if eg < 0 else 1)
-
     material_names = ("material.knight", "material.bishop", "material.rook", "material.queen")
     material_weights = {feature["name"]: feature["mg"] for feature in schema["features"]}
+    if schema["version"] == 9:
+        eg, scale = finalization.adjusted_eg(
+            schema, record, eg, scale, [material_weights[name] for name in material_names])
+    eg = abs(eg * scale) // schema["scale_limit"] * (-1 if eg < 0 else 1)
     material = sum(
         count * material_weights[name]
         for count, name in zip(record["phase_counts"], material_names)
@@ -404,6 +413,8 @@ def _validate_record(schema, record, policy):
     pawn_counts = [len(board.pieces(chess.PAWN, color)) for color in (chess.WHITE, chess.BLACK)]
     if record["phase_counts"] != phase_counts or record["pawn_counts"] != pawn_counts:
         raise ValueError("position material counts differ from its FEN")
+    if schema["version"] == 9:
+        finalization.validate_context(record.get("finalization"), board)
     coefficients = record.get("coefficients")
     if (not isinstance(coefficients, list) or any(
             not isinstance(pair, list) or len(pair) != 2
@@ -414,6 +425,10 @@ def _validate_record(schema, record, policy):
     ids = [pair[0] for pair in coefficients]
     if ids != sorted(set(ids)):
         raise ValueError("duplicate or unordered coefficient IDs")
+    if schema["version"] == 9:
+        actual = dict(coefficients)
+        if any(actual.get(i, 0) != value for i, value in finalization.expected_coefficients(schema, record["finalization"]).items()):
+            raise ValueError("finalization coefficients differ from their context")
     if type(record.get("eval")) is not int:
         raise ValueError("invalid exported evaluation")
     return parts

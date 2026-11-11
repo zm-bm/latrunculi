@@ -161,12 +161,19 @@ cmake --build --preset release-dev
 | --- | --- | --- |
 | `--engine BUILD` | `prepare`, `verify` | Engine: `build/BUILD/latrunculi`. |
 | `--dataset DATA` | `fit` | Prepared dataset: `tools/tuning/output/DATA/`. |
+| `--only PATTERN` | `fit` | Fit matching `feature.phase` coordinates and freeze all others; repeatable. |
 | `--name NAME` | `prepare`, `fit` | Save under `tools/tuning/output/NAME/`. |
 | `--output PATH` | `prepare`, `fit` | Explicit output directory instead of `--name`. |
 
 `FIT` names also select `tools/tuning/output/FIT/`. Names resolve within this
 checkout. Engine, dataset, and fit arguments containing `/` are explicit paths
 (for example `./prepared`).
+
+For example, `--only 'endgame.*.eg'` selects the endgame finalization weights.
+Patterns use shell-style wildcards; quote them to prevent shell
+expansion. Unmatched patterns are rejected. Existing fixed coordinates, anchors,
+support requirements, and bounds still apply. The resolved selection is recorded
+in the fit, and changing it requires a new output directory.
 
 ### Results
 

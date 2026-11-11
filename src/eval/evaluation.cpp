@@ -163,7 +163,18 @@ Score Evaluator::evaluate_impl() {
     TaperedScore phase_scores;
 
     // Basic terms.
+    const auto context = FinalizationContext::from_board(board);
     phase_scores += record_term<Collecting>(Term::Material, board.base_terms().material());
+    if constexpr (Collecting) {
+        // Potential activation for either favored side, independent of fitted weights.
+        bool scale_active = false;
+        for (Color c : {WHITE, BLACK}) {
+            const int base =
+                std::min(scale_limit, scale_base + scale_per_pawn * context.count(c, PAWN));
+            scale_active |= conversion_target(context, c, base) != base;
+        }
+        feature_record->add(feature::scale_strength, int(scale_active));
+    }
     phase_scores += record_term<Collecting>(Term::PieceSquare, board.base_terms().piece_square());
     const TaperedScore white_pawns = evaluate_pawns<Collecting, WHITE>();
     const TaperedScore black_pawns = evaluate_pawns<Collecting, BLACK>();
@@ -200,12 +211,7 @@ Score Evaluator::evaluate_impl() {
         scores.threats[WHITE] + evaluate_pawn_push_threats<Collecting, WHITE>(),
         scores.threats[BLACK] + evaluate_pawn_push_threats<Collecting, BLACK>());
 
-    const auto final = finalize_score(
-        phase_scores,
-        board.non_pawn_material(WHITE) + board.non_pawn_material(BLACK),
-        board.count(WHITE, PAWN),
-        board.count(BLACK, PAWN),
-        board.side_to_move());
+    const auto final = finalize_score(phase_scores, context, board.side_to_move());
 
     if constexpr (Collecting)
         feature_record->complete(
@@ -479,8 +485,10 @@ TaperedScore Evaluator::evaluate_pawn_push_threats() const {
     constexpr int push = C == WHITE ? pawn_delta::push : -pawn_delta::push;
     const Bitboard occupied = board.occupancy();
     const Bitboard enemy_pawn_attacks = attacks.by[Opp][PAWN];
-    const Bitboard targets = board.pieces<KNIGHT>(Opp) | board.pieces<BISHOP>(Opp)
-        | board.pieces<ROOK>(Opp) | board.pieces<QUEEN>(Opp);
+    const Bitboard targets = board.pieces<KNIGHT>(Opp)
+        | board.pieces<BISHOP>(Opp)
+        | board.pieces<ROOK>(Opp)
+        | board.pieces<QUEEN>(Opp);
     Bitboard threatened = 0;
     bb::scan<C>(board.pieces<PAWN>(C), [&](Square from) {
         const Rank rank = square::relative_rank(from, C);
@@ -506,9 +514,8 @@ TaperedScore Evaluator::evaluate_pawn_push_threats() const {
     TaperedScore score;
     bb::scan<C>(threatened, [&](Square target) {
         const PieceType piece = board.piece_type_on(target);
-        score += linear_feature<Collecting, C>(
-            feature::pawn_push_threat(piece),
-            eval::pawn_push_threat[piece - KNIGHT]);
+        score += linear_feature<Collecting, C>(feature::pawn_push_threat(piece),
+                                               eval::pawn_push_threat[piece - KNIGHT]);
     });
     return score;
 }

@@ -1,7 +1,6 @@
 """Prepare data, fit weights, and verify compiled Latrunculi evaluation."""
 
 import argparse
-import copy
 import json
 import pathlib
 import subprocess
@@ -61,9 +60,9 @@ def fit_command(args):
     dataset_path = args.dataset.resolve()
     output = args.output.resolve()
     data = model.load_dataset(dataset_path)
-    policy = copy.deepcopy(fitting.FIT_POLICY)
+    policy = fitting.selected_policy(data.schema, getattr(args, "only", None) or ())
     fitting.validate_constraints(data.schema, policy)
-    descriptor = artifacts.fit_descriptor(data)
+    descriptor = artifacts.fit_descriptor(data, policy)
     run_path = output / "run.json"
     if not run_path.exists() and output.exists():
         if any(path.name != "run.json.partial" for path in output.iterdir()):
@@ -157,7 +156,7 @@ def fit_command(args):
     if (dataset.sha256_file(dataset_path / "manifest.json"),
         dataset.sha256_file(dataset_path / dataset.DATA_FILE)) != (data.manifest_sha256, data.data_sha256):
         raise ValueError("prepared dataset changed during fitting")
-    artifacts.read_artifact(run_path, artifacts.fit_descriptor(data))
+    artifacts.read_artifact(run_path, artifacts.fit_descriptor(data, policy))
     print(json.dumps({
         "run_id": run["artifact_id"],
         "candidate_id": candidate["artifact_id"],
@@ -204,6 +203,8 @@ def parse_args(argv=None):
     fit = subparsers.add_parser("fit", help="fit or resume weights from a prepared dataset")
     fit.add_argument("--dataset", type=tuning_directory, required=True,
                      help="dataset name or directory path containing /")
+    fit.add_argument("--only", action="append", default=[], metavar="PATTERN",
+                     help="fit only matching feature.phase coordinates; repeatable")
     fit.set_defaults(function=fit_command)
 
     for command in (prepare, fit):
