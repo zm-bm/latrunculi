@@ -3,7 +3,7 @@
 #include <array>
 #include <cstddef>
 
-#include "core/attacks_magic.hpp"
+#include "core/attacks_sliding.hpp"
 #include "core/bitboard.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
@@ -53,23 +53,35 @@ constexpr std::array<Bitboard, N_SQUARES> king_moves =
 
 namespace attacks {
 
-// Initializes magic slider attack tables. Call once before using bishop, rook,
+// Initializes PEXT or magic slider attack tables. Call once before using bishop, rook,
 // or queen attacks. Pawn, knight, and king attack tables are constexpr and do
 // not depend on initialization.
 inline void init() {
-    magic::init();
+    sliding::init();
 }
 
 // Compile-time dispatch for piece attacks when the piece type is known.
 template <PieceType p>
-constexpr Bitboard piece_moves(Square sq, Bitboard occupancy = 0) {
+constexpr Bitboard piece_moves(Square sq, Bitboard occupancy) {
     switch (p) {
         case KNIGHT: return tables::knight_moves[sq];
-        case BISHOP: return magic::bishop_moves(sq, occupancy);
-        case ROOK:   return magic::rook_moves(sq, occupancy);
-        case QUEEN:  return magic::queen_moves(sq, occupancy);
+        case BISHOP: return sliding::bishop_moves(sq, occupancy);
+        case ROOK:   return sliding::rook_moves(sq, occupancy);
+        case QUEEN:  return sliding::queen_moves(sq, occupancy);
         case KING:   return tables::king_moves[sq];
         default:     return 0;
+    }
+}
+
+// Empty-board slider rays always occupy entry zero in either backend.
+// Avoid PEXT work for a known-empty board.
+template <PieceType p>
+constexpr Bitboard piece_moves(Square sq) {
+    switch (p) {
+        case BISHOP: return sliding::bishop_rays(sq);
+        case ROOK:   return sliding::rook_rays(sq);
+        case QUEEN:  return sliding::queen_rays(sq);
+        default:     return piece_moves<p>(sq, 0);
     }
 }
 
@@ -77,9 +89,9 @@ constexpr Bitboard piece_moves(Square sq, Bitboard occupancy = 0) {
 constexpr Bitboard piece_moves(Square sq, PieceType p, Bitboard occupancy) {
     switch (p) {
         case KNIGHT: return tables::knight_moves[sq];
-        case BISHOP: return magic::bishop_moves(sq, occupancy);
-        case ROOK:   return magic::rook_moves(sq, occupancy);
-        case QUEEN:  return magic::queen_moves(sq, occupancy);
+        case BISHOP: return sliding::bishop_moves(sq, occupancy);
+        case ROOK:   return sliding::rook_moves(sq, occupancy);
+        case QUEEN:  return sliding::queen_moves(sq, occupancy);
         case KING:   return tables::king_moves[sq];
         default:     return 0;
     }

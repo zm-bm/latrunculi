@@ -21,9 +21,9 @@ handcrafted evaluation, and multithreaded principal variation search (PVS).
 to undo moves.
 
 - Pieces are stored in bitboards and an array indexed by square.
-- Sliding-piece attacks use
+- Sliding-piece attacks use PEXT or
   [magic bitboard](https://chessprogramming.org/Magic_Bitboards) tables in
-  [attacks_magic.cpp](../src/core/attacks_magic.cpp).
+  [attacks_sliding.cpp](../src/core/attacks_sliding.cpp), selected at build time.
 - Make/unmake uses a stack of saved states, updating the Zobrist key and
   cached evaluation terms as pieces move.
 - `Board` also handles castling, en passant, and draw detection.

@@ -11,6 +11,7 @@ find_package(Threads REQUIRED)
 
 option(LATRUNCULI_SEARCH_STATS "Enable search diagnostics" OFF)
 option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
+include(cmake/SliderBackend.cmake)
 set(LATRUNCULI_SANITIZER "none" CACHE STRING "Sanitizer configuration")
 set_property(CACHE LATRUNCULI_SANITIZER PROPERTY STRINGS none address-undefined thread)
 
@@ -38,7 +39,7 @@ elseif(DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
 endif()
 
 set(LATRUNCULI_ENGINE_SOURCES
-    src/core/attacks_magic.cpp
+    src/core/attacks_sliding.cpp
     src/core/move.cpp
     src/core/notation.cpp
     src/board/board_fen.cpp
@@ -71,6 +72,11 @@ target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_VERSION="${PROJECT_VERSION}")
 target_link_libraries(latrunculi_lib PUBLIC Threads::Threads)
+
+target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_USE_PEXT=$<BOOL:${LATRUNCULI_USE_PEXT}>)
+if(LATRUNCULI_USE_PEXT)
+    target_compile_options(latrunculi_lib PUBLIC -mbmi2)
+endif()
 
 if(LATRUNCULI_SANITIZER STREQUAL "address-undefined")
     target_compile_options(latrunculi_lib PUBLIC
@@ -115,7 +121,7 @@ if(BUILD_TESTING)
     set(LATRUNCULI_TEST_SOURCES
         tests/main.cpp
         tests/core/attacks.test.cpp
-        tests/core/attacks_magic.test.cpp
+        tests/core/attacks_sliding.test.cpp
         tests/core/bitboard.test.cpp
         tests/core/move.test.cpp
         tests/core/move_geometry.test.cpp

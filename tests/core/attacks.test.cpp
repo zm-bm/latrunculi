@@ -46,3 +46,11 @@ TEST(AttacksTest, FindsSingleSliderBlockers) {
     EXPECT_EQ(attacks::slider_blockers(E1, 0, rook_snipers, bb::set(E1, E2, E3, E7, E8)), 0);
     EXPECT_EQ(attacks::slider_blockers(A1, bb::set(H8), 0, bb::set(A1, D4, H8)), bb::set(D4));
 }
+
+TEST(AttacksTest, ComputesEmptyBoardSliderRays) {
+    const Bitboard bishop = bb::set(B2, C3, D4, E5, F6, G7, H8);
+    const Bitboard rook = bb::set(B1, C1, D1, E1, F1, G1, H1, A2, A3, A4, A5, A6, A7, A8);
+    EXPECT_EQ(attacks::piece_moves<BISHOP>(A1), bishop);
+    EXPECT_EQ(attacks::piece_moves<ROOK>(A1), rook);
+    EXPECT_EQ(attacks::piece_moves<QUEEN>(A1), bishop | rook);
+}

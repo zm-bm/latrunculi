@@ -8,7 +8,7 @@ see the [results and test conditions](docs/releases/1.2.0.md#ccrl-blitz-estimate
 
 ## Features
 
-- Bitboards with magic sliding attacks
+- Bitboards with PEXT or magic sliding attacks
 - Iterative-deepening PVS with aspiration windows and quiescence search
 - Lazy SMP parallel search with a shared transposition table
 - Staged move ordering, late move reductions, and null-move and futility pruning
