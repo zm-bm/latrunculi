@@ -21,9 +21,9 @@ namespace {
 
 constexpr int EvasionCaptureScoreBase = 1 << 22;
 constexpr int PromotionScore = 1 << 28;
-constexpr int CaptureVictimWeight = 7;
+constexpr int CaptureVictimWeight = 8;
 constexpr int CaptureMaterialOffset = see::piece_value(QUEEN);
-constexpr int CaptureHistoryDivisor = 16;
+constexpr int CaptureHistoryDivisor = 17;
 static_assert(History::QuietMaxScore < EvasionCaptureScoreBase);
 static_assert(see::piece_value(PAWN) == 100, "Capture history uses pawn=100 exchange units");
 

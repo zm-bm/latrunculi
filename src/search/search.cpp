@@ -17,43 +17,43 @@ namespace {
 
 // Shallow pruning. Both reverse and move-loop futility use the same margins.
 constexpr int FutilityMaxDepth = 3;
-constexpr int FutilityMargin[] = {0, 250, 400, 550};
+constexpr int FutilityMargin[] = {0, 199, 389, 526};
 constexpr int RazorMaxDepth = 3;
-constexpr int RazorMargin[] = {0, 500, 900, 1800};
+constexpr int RazorMargin[] = {0, 499, 884, 1831};
 constexpr int LateMovePruningDepth = 2;
-constexpr int LateMovePruningMoveCount = 12;
+constexpr int LateMovePruningMoveCount = 11;
 
 // Null-move reductions.
 constexpr int NullMoveMinDepth = 3;
 constexpr int NullMoveReductionBase = 3;
 constexpr int NullMoveReductionMax = 6;
-constexpr int NullMoveDepthDivisor = 7;
-constexpr Score NullMoveSurplusPerPly = 2 * eval::pawn.mg;
+constexpr int NullMoveDepthDivisor = 4;
+constexpr Score NullMoveSurplusPerPly = 188;
 constexpr int NullMoveSurplusBonusMax = 2;
 
 // Singular searches.
 constexpr int SingularMinDepth = 8;
 constexpr int SingularTtDepthSlack = 3;
 constexpr int SingularPlyLimitFactor = 2;
-constexpr int SingularMarginDivisor = 50;
+constexpr int SingularMarginDivisor = 47;
 constexpr int SingularDepthDivisor = 2;
 
 // Late-move reductions.
 constexpr int LmrMinDepth = 3;
 constexpr int LmrMinMoveCount = 4;
-constexpr double LmrQuietOffset = 1.25;
-constexpr double LmrCaptureOffset = 0.75;
-constexpr double LmrQuietDivisor = 2.5;
-constexpr double LmrCaptureDivisor = 3.3;
-constexpr double LmrPvScale = 0.7;
-constexpr double LmrKillerScale = 0.8;
+constexpr double LmrQuietOffset = 1.380908408274192;
+constexpr double LmrCaptureOffset = 0.7600052510499234;
+constexpr double LmrQuietDivisor = 2.2460166616796684;
+constexpr double LmrCaptureDivisor = 3.4319345003516952;
+constexpr double LmrPvScale = 0.7614025508148875;
+constexpr double LmrKillerScale = 0.7373931693917907;
 constexpr int CaptureLmrMinDepth = 4;
-constexpr int CaptureLmrHistoryDivisor = 8192;
-constexpr double CaptureLmrMaxAdjustment = 1.0;
+constexpr int CaptureLmrHistoryDivisor = 7981;
+constexpr double CaptureLmrMaxAdjustment = 0.9636251806466067;
 
 // Quiescence.
 constexpr int QuiescenceTtDepth = 0;
-constexpr Score QCaptureMargin = 300;
+constexpr Score QCaptureMargin = 292;
 
 // Null-search roots suppress early pruning and singular searches, but retain
 // ordinary TT and move-loop behavior. A loaded position without history is not a null edge.

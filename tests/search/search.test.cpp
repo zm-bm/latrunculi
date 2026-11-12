@@ -368,8 +368,8 @@ TEST_F(SearchTest, SingularExclusionDoesNotCreateMateOrStalemate) {
 }
 
 TEST_F(SearchTest, SingularExtensionRequiresFailLow) {
-    // At depth eight, a TT score of 1000 gives a singular beta of 984.
-    for (Score alternative_score : {983, 984}) {
+    // At depth eight, a TT score of 1000 gives a singular beta of 983 (1000 - 800 / 47).
+    for (Score alternative_score : {982, 983}) {
         SCOPED_TRACE(alternative_score);
         load(Board{board_test::fen::quiet_black_to_move}, 12);
         ply() = 1;
@@ -384,7 +384,7 @@ TEST_F(SearchTest, SingularExtensionRequiresFailLow) {
         EXPECT_FALSE(SearchTestAccess::frames(worker)[ply()].state.singular_search_active);
         const auto child = with_move(tt_move, [&] { return record(); });
         ASSERT_TRUE(child);
-        EXPECT_EQ(child->depth, alternative_score < 984 ? 8 : 7);
+        EXPECT_EQ(child->depth, alternative_score < 983 ? 8 : 7);
     }
 }
 
@@ -420,8 +420,8 @@ TEST_F(SearchTest, SingularMulticutLeavesTtAndHistoryUnchanged) {
     store_child(alternative, -1134, engine::max_search_depth);
     tt.store(position().tt_key(), tt_move, 1000, 5, TTBound::LowerBound, ply());
 
-    // Return singular beta (1000 - 16), not the alternative's fail-soft score of 1134.
-    EXPECT_EQ(search(983, 984, 8), 984);
+    // Return singular beta (1000 - 17), not the alternative's fail-soft score of 1134.
+    EXPECT_EQ(search(982, 983, 8), 983);
     EXPECT_EQ(position().to_fen(), board_test::fen::quiet_black_to_move);
     const auto stored = record();
     ASSERT_TRUE(stored);
@@ -440,7 +440,7 @@ TEST_F(SearchTest, SingularMulticutLeavesTtAndHistoryUnchanged) {
 
     // Inside a verification subtree, this same result must not take a multicut.
     frame.state.singular_search_active = true;
-    (void)search(983, 984, 8);
+    (void)search(982, 983, 8);
     ASSERT_TRUE(record());
     EXPECT_EQ(record()->depth, 8);
     EXPECT_TRUE(frame.state.singular_search_active);
@@ -697,7 +697,7 @@ TEST_F(SearchTest, RazoringRequiresAllGuards) {
         Case{"deep", board_test::fen::quiet_black_to_move, 4, false, false, false, 1901},
         Case{"after null", board_test::fen::start, 2, true, false, false, 901},
         Case{"TT move", board_test::fen::start, 2, false, false, true, 901},
-        Case{"inside margin", board_test::fen::start, 2, false, false, false, 899},
+        Case{"inside margin", board_test::fen::start, 2, false, false, false, 883},
     };
 
     for (const auto& tc : cases) {
@@ -955,7 +955,7 @@ TEST_F(SearchTest, CaptureCutoffSkipsShallowRewardsAndPenalizesEarlierNonCutoffs
         int penalty;
         int reward;
     };
-    for (const auto& tc : {Case{1, -16, 0}, Case{2, -64, 0}, Case{3, -144, 144}}) {
+    for (const auto& tc : {Case{1, -17, 0}, Case{2, -68, 0}, Case{3, -153, 153}}) {
         SCOPED_TRACE(tc.depth);
         Board board{"7k/8/8/2p1p3/5p2/3N4/6P1/4K3 b - - 0 1"};
         board.make(Move(H8, G8));

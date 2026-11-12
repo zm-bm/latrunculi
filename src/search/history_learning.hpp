@@ -89,8 +89,8 @@ private:
     static constexpr int QuietPenaltyDivisor = 2;
     static constexpr int CaptureHistoryMinRewardDepth = 3;
     static constexpr int NonCutoffCapacity = 32;
-    static constexpr int CaptureLearningRate = 16;
-    static constexpr int CaptureDepthSquaredLimit = 128;
+    static constexpr int CaptureLearningRate = 17;
+    static constexpr int CaptureDepthSquaredLimit = 119;
 
     static int quiet_bonus(int depth, int divisor = 1) {
         return std::clamp(depth * depth / divisor, 0, History::QuietMaxScore);

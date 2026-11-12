@@ -80,7 +80,7 @@ bool Worker::should_search_root_depth(int depth) const noexcept {
 bool Worker::search_root_depth(int depth, Score previous_value) {
     assert(depth >= 1);
 
-    Score delta = 50;
+    Score delta = 49;
     Score alpha = std::max(previous_value - delta, -scores::inf);
     Score beta = std::min(previous_value + delta, scores::inf);
     int retry_depth = depth;

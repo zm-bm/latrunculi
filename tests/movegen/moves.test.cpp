@@ -334,8 +334,10 @@ TEST_F(MoveStreamTest, CaptureOrderKeepsLoadTimeSnapshot) {
 }
 
 TEST_F(MoveStreamTest, CaptureSeeThresholdKeepsLoadTimeSnapshot) {
-    const Board position{"3r4/7k/q7/3r4/3QP3/8/R7/1K6 w - - 0 1"};
+    // A bishop recapture keeps the exchange marginal enough for history to change its stage.
+    const Board position{"6b1/7k/q7/3r4/3QP3/8/R7/1K6 w - - 0 1"};
     const Move first_capture{A2, A6}, second_capture{D4, D5};
+    ASSERT_LT(board_test::exchange_oracle(position, second_capture), 0);
     const auto context = history.context_for(position, ply);
     auto stream = movegen::MainSearchMoves(position, history, context);
     ASSERT_EQ(stream.next(), first_capture);

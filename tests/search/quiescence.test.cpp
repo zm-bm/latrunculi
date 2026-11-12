@@ -383,7 +383,7 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
 TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
     load(Board{"1n2k1nr/8/8/3p4/4P3/8/8/RN2K1N1 w - - 0 1"});
     const Score stand_pat = eval::evaluate(position());
-    const Score estimate = stand_pat + eval::pawn.eg + 300;
+    const Score estimate = stand_pat + eval::pawn.eg + 292;
 
     PV pv;
     EXPECT_EQ(pv_search(estimate + 1, estimate + 2, pv), estimate);
