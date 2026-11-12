@@ -52,6 +52,8 @@ private:
     // Root-search state: current candidates and the last accepted result.
     int root_iteration_depth{0};
     RootLine accepted_result;
+    // A verified improvement over the incumbent in the current full-depth window.
+    std::optional<RootLine> interrupted_root_result;
     std::vector<RootLine> root_candidates;
 
     // Persistent ordering memory.

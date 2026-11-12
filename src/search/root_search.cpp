@@ -138,6 +138,13 @@ bool Worker::search_root_window(int search_depth, int nominal_depth, Score alpha
     assert(nominal_depth >= search_depth);
     root_iteration_depth = nominal_depth;
 
+    interrupted_root_result.reset();
+    // Compare against the incumbent at the same actual depth. Reduced aspiration
+    // retries and windows starting with a different move do not qualify.
+    const bool can_retain_completed_line = search_depth == nominal_depth
+        && nominal_depth > accepted_result.depth
+        && root_candidates.front().root_move == accepted_result.root_move;
+
     int move_count = 0;
     bool has_pv_move = false;
 
@@ -184,6 +191,11 @@ bool Worker::search_root_window(int search_depth, int nominal_depth, Score alpha
             return true;
 
         if (value > alpha) {
+            // The full-window search finished strictly inside its window.
+            // Earlier root moves, including the incumbent, have been searched.
+            if (can_retain_completed_line)
+                interrupted_root_result = line;
+
             // A new root move improved alpha.
             if (is_main_worker())
                 report_root_progress(line);

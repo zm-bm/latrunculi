@@ -75,6 +75,10 @@ public:
         return worker.accepted_result;
     }
 
+    static auto& interrupted_root_result(search::Worker& worker) {
+        return worker.interrupted_root_result;
+    }
+
     static std::vector<search::RootLine>& root_candidates(search::Worker& worker) {
         return worker.root_candidates;
     }

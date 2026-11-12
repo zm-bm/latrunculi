@@ -388,4 +388,106 @@ TEST_F(RootSearchTest, StoppedSearchPreservesLastCompletedDepth) {
     EXPECT_EQ(snapshot.pv.front(), snapshot.root_move);
 }
 
+
+TEST_F(RootSearchTest, RetainsOnlyVerifiedComparableRootLines) {
+    const Board board{"k7/4r3/8/8/8/3Q4/4p3/K7 w - - 0 1"};
+    load(board, 2);
+    const Move first = find_move("d3e2");
+    const Move winning = find_move("d3d8");
+    const auto prepare = [&] {
+        load(board, 2);
+        result() = RootLine{.root_move = first, .depth = 1, .completed = true};
+        candidates() = {RootLine{.root_move = first}, RootLine{.root_move = winning}};
+    };
+    prepare();
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 2, 2, -scores::inf, scores::inf));
+    const auto& pending = SearchTestAccess::interrupted_root_result(worker);
+    ASSERT_TRUE(pending.has_value());
+    EXPECT_EQ(pending->root_move, winning);
+    EXPECT_EQ(pending->pv.front(), winning);
+    EXPECT_EQ(pending->depth, 2);
+    EXPECT_EQ(position().to_fen(), board.to_fen());
+    EXPECT_EQ(result().root_move, first); // Publication waits for stop or completed iteration.
+
+    // A new attempt invalidates the prior pending result; a fail-high is a bound.
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 2, 2, -10000, -9999));
+    EXPECT_FALSE(pending.has_value());
+    prepare();
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 2, 2, 10000, 10001));
+    EXPECT_FALSE(pending.has_value());
+
+    prepare();
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 2, 3, -scores::inf, scores::inf));
+    EXPECT_FALSE(pending.has_value()); // Reduced-depth retry is not nominal-depth evidence.
+    prepare();
+    result().root_move = winning;
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 2, 2, -scores::inf, scores::inf));
+    EXPECT_FALSE(pending.has_value()); // Incumbent was not the first move verified.
+}
+
+TEST_F(RootSearchTest, FailedRootScoutCannotReplaceVerifiedPendingLine) {
+    const Board board{board_test::fen::start};
+    load(board, 2);
+    const Move first = find_move("e2e4");
+    const Move second = find_move("d2d4");
+    result() = RootLine{.root_move = first, .depth = 1, .completed = true};
+    candidates() = {RootLine{.root_move = first}, RootLine{.root_move = second}};
+    position().make(second);
+    tt.store(position().tt_key(), NULL_MOVE, 5000, 8, TTBound::LowerBound, 1);
+    position().unmake();
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 2, 2, -1000, 1000));
+    const auto& pending = SearchTestAccess::interrupted_root_result(worker);
+    ASSERT_TRUE(pending.has_value());
+    EXPECT_EQ(pending->root_move, first);
+    EXPECT_EQ(pending->pv.front(), first);
+    EXPECT_EQ(candidates()[1].value, -5000);
+    EXPECT_EQ(position().to_fen(), board.to_fen());
+    SearchTestAccess::reset(worker);
+    EXPECT_FALSE(pending.has_value());
+}
+
+TEST(RootInterruptionTest, PublishesCompletedLineAndResetsForNextSearch) {
+    class InterruptingReporter final : public Reporter {
+    public:
+        Worker* worker = nullptr;
+        std::optional<RootLine> interrupted;
+        bool enabled = true;
+        void report_progress(const RootLine& line, const Board&, NodeCount, Milliseconds) override {
+            if (enabled && !interrupted && line.depth == 2) {
+                interrupted = line;
+                worker->request_stop();
+            }
+        }
+        void report_best_move(Move) override {}
+        void report_diagnostic(std::string_view) override {}
+    } reporter;
+    ThreadPool pool{1, reporter};
+    auto& worker = SearchThreadTestAccess::worker(SearchThreadTestAccess::thread(pool));
+    reporter.worker = &worker;
+    Limits limits;
+    limits.depth = 4;
+    Board board{board_test::fen::start};
+    tt.clear();
+    worker.configure_search(board, limits, SearchClock::now());
+    const Score value = worker.search();
+    ASSERT_TRUE(reporter.interrupted.has_value());
+    EXPECT_EQ(worker.root_snapshot(), *reporter.interrupted);
+    EXPECT_EQ(value, reporter.interrupted->value);
+    EXPECT_EQ(SearchTestAccess::board(worker).to_fen(), board.to_fen());
+    Board continuation{board};
+    for (int i = 0; i < reporter.interrupted->pv.size(); ++i) {
+        const Move move = reporter.interrupted->pv.move_at(i);
+        ASSERT_TRUE(continuation.is_legal_move(move));
+        continuation.make(move);
+    }
+
+    reporter.enabled = false;
+    limits.depth = 1;
+    worker.configure_search(board, limits, SearchClock::now());
+    (void)worker.search();
+    EXPECT_EQ(worker.root_snapshot().depth, 1);
+    EXPECT_FALSE(SearchTestAccess::interrupted_root_result(worker).has_value());
+    EXPECT_EQ(SearchTestAccess::board(worker).to_fen(), board.to_fen());
+}
+
 } // namespace search

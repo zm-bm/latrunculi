@@ -69,6 +69,13 @@ Score Worker::search() {
             wait_for_stop();
     }
 
+    // A completed in-window root improvement can survive an interrupted iteration.
+    // Preserve explicitly requested mates and reject results from older windows.
+    if (stop_requested() && !limits.has_mate_within_limit(accepted_result.value)
+        && interrupted_root_result
+        && interrupted_root_result->depth > accepted_result.depth)
+        accepted_result = *interrupted_root_result;
+
     if (!accepted_result.completed && !stop_requested()) {
         accepted_result.depth = limits.depth;
         accepted_result.completed = true;
@@ -88,6 +95,7 @@ Score Worker::search() {
 void Worker::reset_search_state() {
     reset_nodes();
     root_iteration_depth = 0;
+    interrupted_root_result.reset();
     accepted_result = RootLine{NULL_MOVE, eval::evaluate(board), 0, false};
     for (auto& frame : frames)
         frame.reset();
