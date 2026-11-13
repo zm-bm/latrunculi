@@ -12,6 +12,22 @@ find_package(Threads REQUIRED)
 option(LATRUNCULI_SEARCH_STATS "Enable search diagnostics" OFF)
 option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
 include(cmake/SliderBackend.cmake)
+option(LATRUNCULI_NNUE "Use the experimental embedded NNUE evaluator" OFF)
+set(LATRUNCULI_NNUE_NETWORK "" CACHE FILEPATH "Frozen NNUE network to embed")
+if(LATRUNCULI_NNUE)
+    if(NOT EXISTS "${LATRUNCULI_NNUE_NETWORK}" OR IS_DIRECTORY "${LATRUNCULI_NNUE_NETWORK}")
+        message(FATAL_ERROR "NNUE requires an explicit existing LATRUNCULI_NNUE_NETWORK")
+    endif()
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${LATRUNCULI_NNUE_NETWORK}" "${CMAKE_SOURCE_DIR}/tools/nnue/format.py")
+    execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/nnue/format.py"
+        "${LATRUNCULI_NNUE_NETWORK}" --embed "${CMAKE_BINARY_DIR}/nnue_embedded.hpp"
+        RESULT_VARIABLE nnue_export_result ERROR_VARIABLE nnue_export_error)
+    if(NOT nnue_export_result EQUAL 0)
+        message(FATAL_ERROR "Invalid NNUE network: ${nnue_export_error}")
+    endif()
+endif()
 set(LATRUNCULI_SANITIZER "none" CACHE STRING "Sanitizer configuration")
 set_property(CACHE LATRUNCULI_SANITIZER PROPERTY STRINGS none address-undefined thread)
 
@@ -67,6 +83,13 @@ set(LATRUNCULI_ENGINE_SOURCES
 )
 
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
+if(LATRUNCULI_NNUE)
+    target_sources(latrunculi_lib PRIVATE src/eval/nnue.cpp)
+    target_include_directories(latrunculi_lib PRIVATE "${CMAKE_BINARY_DIR}")
+    target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_NNUE=1)
+    add_executable(latrunculi-neural-verify tools/nnue/verify.cpp)
+    target_link_libraries(latrunculi-neural-verify PRIVATE latrunculi_lib)
+endif()
 set_property(TARGET latrunculi_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
 target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
@@ -165,11 +188,22 @@ if(BUILD_TESTING)
         tests/uci/writer.test.cpp
     )
 
+    if(LATRUNCULI_NNUE)
+        # HCE score/reconstruction fixtures belong to the full default build.
+        # NNUE has an explicit export refusal and its own evaluator contracts.
+        list(REMOVE_ITEM LATRUNCULI_TEST_SOURCES
+            tests/eval/evaluation.test.cpp tests/eval/features.test.cpp tests/cli/cli.test.cpp)
+        list(APPEND LATRUNCULI_TEST_SOURCES tests/eval/nnue.test.cpp)
+    endif()
+
     add_executable(tests
         src/cli/cli.cpp
         ${LATRUNCULI_TEST_SOURCES}
     )
     target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
+    if(LATRUNCULI_NNUE)
+        target_include_directories(tests PRIVATE ${CMAKE_BINARY_DIR})
+    endif()
     target_link_libraries(tests PRIVATE latrunculi_lib gtest gmock)
     set_property(TARGET tests PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
     add_test(NAME unit_tests COMMAND tests)

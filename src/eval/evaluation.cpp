@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#ifdef LATRUNCULI_NNUE
+#include <stdexcept>
+#endif
 
 #include "board/board.hpp"
 #include "core/attacks.hpp"
@@ -755,11 +758,19 @@ inline int Evaluator::calculate_check_danger(const Bitboard safe_checks,
 }
 
 Score evaluate(const Board& board) {
+#ifdef LATRUNCULI_NNUE
+    return nnue::evaluate(board.neural_state(), board.side_to_move());
+#else
     return Evaluator(board).evaluate();
+#endif
 }
 
 FeatureRecord extract_features(const Board& board) {
+#ifdef LATRUNCULI_NNUE
+    throw std::logic_error("HCE feature reconstruction is unavailable in an NNUE build; use latrunculi-neural-verify");
+#else
     return Evaluator(board).extract_features();
+#endif
 }
 
 } // namespace eval

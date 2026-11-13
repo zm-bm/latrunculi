@@ -365,6 +365,9 @@ std::string format_evaluation(const FeatureRecord& record) {
 }
 
 void export_features(std::istream& input, std::ostream& output, const PositionPreparer& prepare) {
+#ifdef LATRUNCULI_NNUE
+    throw std::logic_error("HCE feature export is unavailable in an NNUE build; use latrunculi-neural-verify");
+#endif
     write_schema(output);
 
     std::string line;

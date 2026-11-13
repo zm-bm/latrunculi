@@ -172,7 +172,16 @@ TEST_F(RootSearchTest, CompletesOrdersAndPublishesPV) {
     Board board{board_test::fen::start};
     load(board, 2);
 
-    (void)worker.search();
+    // Establish a full-depth score before testing publication. Iterative
+    // aspiration can deliberately accept a shallower retry at nominal depth 2;
+    // ReducedAspirationRetryPublishesNominalDepth covers that separate contract.
+    build_candidates();
+    ASSERT_TRUE(SearchTestAccess::search_root_window(worker, 2, 2, -scores::inf, scores::inf));
+    const Score previous = std::ranges::max(candidates(), {}, &RootLine::value).value;
+    load(board, 2);
+    SearchTestAccess::history(worker).clear();
+    build_candidates();
+    ASSERT_TRUE(SearchTestAccess::search_root_depth(worker, 2, previous));
 
     ASSERT_TRUE(result().completed);
     ASSERT_TRUE(position().is_legal_move(result().root_move));

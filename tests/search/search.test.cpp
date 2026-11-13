@@ -1081,6 +1081,9 @@ TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
     ASSERT_EQ(stored->bound, TTBound::Exact);
     ASSERT_GE(stored->depth, 4);
 
+    // Isolate retained TT state. Learned history can change selective searches
+    // even with a cleared TT; that is not a test of continuation reconstruction.
+    history().clear();
     PV warm_pv;
     EXPECT_EQ(pv_search(-scores::inf, scores::inf, 4, warm_pv), value);
     ASSERT_GE(warm_pv.size(), 4);

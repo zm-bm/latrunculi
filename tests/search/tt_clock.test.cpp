@@ -71,14 +71,25 @@ TEST_F(TtClockTest, MainAndQuiescenceSeparateLowAndNearLimitBounds) {
             tt.clear();
             load(Board(low_clock_evasion_fen));
             const auto low = search(pv, depth, -scores::inf, scores::inf);
+            // Clock separation needs a non-draw control, independently of the
+            // evaluator's scale. Preserve the original HCE material anchor.
+            ASSERT_NE(low, scores::draw);
+#if !LATRUNCULI_NNUE
             EXPECT_LT(low, -1000);
+#endif
             load(Board(high_clock_evasion_fen));
             EXPECT_EQ(search(pv, depth, -scores::inf, scores::inf), scores::draw);
             tt.clear();
             load(Board(high_clock_evasion_fen));
             EXPECT_EQ(search(pv, depth, -scores::inf, scores::inf), scores::draw);
             load(Board(low_clock_evasion_fen));
-            EXPECT_LT(search(pv, depth, -scores::inf, scores::inf), -1000);
+            // Retaining a near-limit TT must reproduce the cold low-clock
+            // result exactly, rather than merely remaining below a threshold.
+            const auto retained = search(pv, depth, -scores::inf, scores::inf);
+            EXPECT_EQ(retained, low);
+#if !LATRUNCULI_NNUE
+            EXPECT_LT(retained, -1000);
+#endif
         }
     }
 }

@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef LATRUNCULI_NNUE
+#include "eval/nnue.hpp"
+#endif
+
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -87,6 +91,9 @@ public:
     bool is_double_check() const noexcept { return bb::is_many(checkers()); }
 
     const eval::BaseTerms& base_terms() const noexcept { return cached_base_terms; }
+#ifdef LATRUNCULI_NNUE
+    const nnue::Accumulators& neural_state() const noexcept { return cached_neural_state; }
+#endif
     Score non_pawn_material(Color color) const noexcept;
 
     // Attacks, castling, and move classification
@@ -165,6 +172,9 @@ private:
 
     // HCE-specific incremental material and piece-square terms.
     eval::BaseTerms cached_base_terms;
+#ifdef LATRUNCULI_NNUE
+    nnue::Accumulators cached_neural_state;
+#endif
 
     // Reversible history from the loaded root; the final entry is the current state.
     std::vector<PlyState> ply_states;
@@ -272,6 +282,9 @@ inline void Board::add_piece(Square square, Color color, PieceType piece_type) n
     bb::add(piece_bb[color][all_pieces_slot], square);
     squares[square] = make_piece(color, piece_type);
     cached_base_terms.add_piece(piece_type, color, square);
+#ifdef LATRUNCULI_NNUE
+    cached_neural_state.update(color, piece_type, square, 1);
+#endif
     if constexpr (apply_hash)
         ply_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
@@ -285,6 +298,9 @@ inline void Board::remove_piece(Square square, Color color, PieceType piece_type
     bb::remove(piece_bb[color][all_pieces_slot], square);
     squares[square] = NO_PIECE;
     cached_base_terms.remove_piece(piece_type, color, square);
+#ifdef LATRUNCULI_NNUE
+    cached_neural_state.update(color, piece_type, square, -1);
+#endif
     if constexpr (apply_hash)
         ply_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
@@ -299,6 +315,9 @@ inline void Board::move_piece(Square from, Square to, Color color, PieceType pie
     squares[from] = NO_PIECE;
     squares[to] = make_piece(color, piece_type);
     cached_base_terms.move_piece(piece_type, color, from, to);
+#ifdef LATRUNCULI_NNUE
+    cached_neural_state.move(color, piece_type, from, to);
+#endif
     if constexpr (apply_hash)
         ply_state().zkey ^=
             zob::hash_piece(color, piece_type, from) ^ zob::hash_piece(color, piece_type, to);

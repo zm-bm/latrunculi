@@ -12,6 +12,9 @@
 #include "board/notation.hpp"
 #include "core/move.hpp"
 #include "eval/features.hpp"
+#ifdef LATRUNCULI_NNUE
+#include "eval/evaluation.hpp"
+#endif
 #include "movegen/moves.hpp"
 #include "movegen/perft.hpp"
 #include "search/limits.hpp"
@@ -231,7 +234,11 @@ bool Engine::display_board() {
 }
 
 bool Engine::evaluate() {
+#ifdef LATRUNCULI_NNUE
+    writer.diagnostic_line(std::format("NNUE {} static score {}", nnue::network_sha256(), eval::evaluate(board)));
+#else
     writer.diagnostic_line(eval::format_evaluation(eval::extract_features(board)));
+#endif
     return true;
 }
 

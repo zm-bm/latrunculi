@@ -51,6 +51,9 @@ Board& Board::operator=(const Board& source) {
     turn = source.turn;
     absolute_ply = source.absolute_ply;
     cached_base_terms = source.cached_base_terms;
+#ifdef LATRUNCULI_NNUE
+    cached_neural_state = source.cached_neural_state;
+#endif
 
     return *this;
 }
@@ -67,6 +70,9 @@ void Board::clear_position() noexcept {
         squares[square_index] = NO_PIECE;
 
     cached_base_terms = {};
+#ifdef LATRUNCULI_NNUE
+    cached_neural_state.reset();
+#endif
     king_square[WHITE] = INVALID;
     king_square[BLACK] = INVALID;
     turn = WHITE;
