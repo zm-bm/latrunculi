@@ -14,18 +14,36 @@ option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
 include(cmake/SliderBackend.cmake)
 option(LATRUNCULI_NNUE "Use the experimental embedded NNUE evaluator" OFF)
 set(LATRUNCULI_NNUE_NETWORK "" CACHE FILEPATH "Frozen NNUE network to embed")
+set(LATRUNCULI_NNUE_NETWORK_SHA256 "" CACHE STRING "SHA256 of an already validated frozen NNUE network")
 if(LATRUNCULI_NNUE)
     if(NOT EXISTS "${LATRUNCULI_NNUE_NETWORK}" OR IS_DIRECTORY "${LATRUNCULI_NNUE_NETWORK}")
         message(FATAL_ERROR "NNUE requires an explicit existing LATRUNCULI_NNUE_NETWORK")
     endif()
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${LATRUNCULI_NNUE_NETWORK}" "${CMAKE_SOURCE_DIR}/tools/nnue/format.py")
-    execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/nnue/format.py"
-        "${LATRUNCULI_NNUE_NETWORK}" --embed "${CMAKE_BINARY_DIR}/nnue_embedded.hpp"
-        RESULT_VARIABLE nnue_export_result ERROR_VARIABLE nnue_export_error)
-    if(NOT nnue_export_result EQUAL 0)
-        message(FATAL_ERROR "Invalid NNUE network: ${nnue_export_error}")
+    if(LATRUNCULI_NNUE_NETWORK_SHA256)
+        # Workers need no Python when building an already validated, pinned artifact.
+        # The native decoder still checks its format and arithmetic bounds on load.
+        file(SHA256 "${LATRUNCULI_NNUE_NETWORK}" nnue_sha256)
+        if(NOT nnue_sha256 STREQUAL LATRUNCULI_NNUE_NETWORK_SHA256)
+            message(FATAL_ERROR "Frozen NNUE network SHA256 mismatch")
+        endif()
+        file(READ "${LATRUNCULI_NNUE_NETWORK}" nnue_hex HEX)
+        string(LENGTH "${nnue_hex}" nnue_hex_size)
+        math(EXPR nnue_size "${nnue_hex_size} / 2")
+        string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," nnue_bytes "${nnue_hex}")
+        file(WRITE "${CMAKE_BINARY_DIR}/nnue_embedded.hpp"
+            "#pragma once\n#include <array>\n#include <cstdint>\nnamespace nnue::embedded {\n"
+            "inline constexpr std::array<std::uint8_t, ${nnue_size}> bytes = {${nnue_bytes}};\n"
+            "inline constexpr char sha256[] = \"${nnue_sha256}\";\n}\n")
+    else()
+        find_package(Python3 REQUIRED COMPONENTS Interpreter)
+        execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/nnue/format.py"
+            "${LATRUNCULI_NNUE_NETWORK}" --embed "${CMAKE_BINARY_DIR}/nnue_embedded.hpp"
+            RESULT_VARIABLE nnue_export_result ERROR_VARIABLE nnue_export_error)
+        if(NOT nnue_export_result EQUAL 0)
+            message(FATAL_ERROR "Invalid NNUE network: ${nnue_export_error}")
+        endif()
     endif()
 endif()
 set(LATRUNCULI_SANITIZER "none" CACHE STRING "Sanitizer configuration")
