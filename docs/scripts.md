@@ -127,10 +127,13 @@ compiled engine. See [tuning guidelines](engine-development.md#tune-evaluation).
 
 ### Usage
 
-Prepare games with `release-dev`, then fit weights:
+The fitter uses HCE feature exports. Configure and build the explicit HCE preset,
+then prepare games and fit weights:
 
 ```bash
-./bin/tune prepare --engine release-dev --name pawns-data games.pgn.tar
+cmake --preset release-hce
+cmake --build --preset release-hce
+./bin/tune prepare --engine release-hce --name pawns-data games.pgn.tar
 ./bin/tune fit --dataset pawns-data --name pawns-fit
 ```
 
@@ -138,8 +141,8 @@ After reviewing a supported fit, copy its exact weights into
 [`src/eval/parameters.hpp`](../src/eval/parameters.hpp), then rebuild and verify:
 
 ```bash
-cmake --build --preset release-dev
-./bin/tune verify pawns-fit --engine release-dev
+cmake --build --preset release-hce
+./bin/tune verify pawns-fit --engine release-hce
 ```
 
 ### Commands

@@ -40,6 +40,16 @@ cmake --build --preset release-dev
 ctest --preset release-dev
 ```
 
+Ordinary builds use the bundled HalfKP NNUE network with the AUTO backend. Keep
+the explicit HCE suite covered when changing shared board, search, or evaluation
+code:
+
+```bash
+cmake --preset release-hce
+cmake --build --preset release-hce
+ctest --preset release-hce
+```
+
 Changes to search state, time controls, or thread lifetime need tests with
 repeated searches in one engine session. For changes to Python tools or engine
 feature export, run the [tool tests](scripts.md#tests).
@@ -111,6 +121,9 @@ cmake --build --preset profile
 
 ## Tune evaluation
 
+This workflow fits handcrafted evaluation weights. Build `release-hce` first;
+NNUE builds reject the HCE feature export and are not supported by this fitter.
+
 Use [OpenBench self-play](#self-play-corpus) with varied openings to generate the
 tuning games, and record the starting engine revision and evaluation. Download
 the completed PGNs with [openbench download-pgns](scripts.md#openbench).
@@ -118,7 +131,7 @@ Prepare the games with the starting engine. Changes to evaluation definitions
 require fresh preparation:
 
 ```bash
-./bin/tune prepare --engine release-dev --name pawns-data games.pgn.tar
+./bin/tune prepare --engine release-hce --name pawns-data games.pgn.tar
 ./bin/tune fit --dataset pawns-data --name pawns-fit
 ```
 
@@ -135,8 +148,8 @@ Apply the exact supported weights to [parameters.hpp](../src/eval/parameters.hpp
 then rebuild and verify the compiled evaluation:
 
 ```bash
-cmake --build --preset release-dev
-./bin/tune verify pawns-fit --engine release-dev
+cmake --build --preset release-hce
+./bin/tune verify pawns-fit --engine release-hce
 ```
 
 Complete the [engine checks](#build-and-test), [local comparison](#compare-locally),

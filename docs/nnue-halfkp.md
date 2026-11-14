@@ -1,21 +1,24 @@
-# HalfKP NNUE Bootstrap
+# HalfKP NNUE
 
-This optional evaluator uses Stockfish 12's frozen network with Latrunculi's own
-scalar and AVX2 inference kernels. HCE remains the default. The bootstrap verifies
-inference and integration; it does not establish playing strength.
+The default evaluator uses Stockfish 12's frozen network with Latrunculi's own
+scalar and AVX2 inference kernels. The network, score adapter, and AUTO backend
+match the untuned candidate tested in OpenBench #105. HCE remains available as an
+explicit build option.
 
 ## Build
 
 On Linux with GCC or Clang:
 
 ```bash
-cmake -S . -B build/halfkp-auto -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_TESTING=ON -DLATRUNCULI_BUILD_BENCHMARK=ON \
-  -DLATRUNCULI_NNUE=ON \
-  -DLATRUNCULI_NNUE_NETWORK="$PWD/networks/nn-82215d0fd0df.nnue"
-cmake --build build/halfkp-auto --parallel 2
-ctest --test-dir build/halfkp-auto --output-on-failure
+cmake --preset release-dev
+cmake --build --preset release-dev --parallel 2
+ctest --preset release-dev
 ```
+
+Fresh builds enable `LATRUNCULI_NNUE` and embed
+`networks/nn-82215d0fd0df.nnue` by default. `LATRUNCULI_NNUE_NETWORK` can name another
+copy of this exact file; the complete frozen SHA256 is always enforced. Existing
+CMake caches retain explicit settings.
 
 `LATRUNCULI_NNUE_BACKEND` is `AUTO` (default), `SCALAR`, or `AVX2`. Automatic
 selection checks CPU support once. Forced AVX2 fails explicitly on unsupported
@@ -25,10 +28,21 @@ engine builds need neither Python nor a network connection. A missing or
 different network fails configuration. The native loader also validates the
 format, arithmetic bounds, and complete frozen SHA256 before use.
 
-On this match branch, `make -C bench` defaults to the frozen NNUE evaluator so
-OpenBench's worker recipe builds the intended candidate. `NNUE=OFF` selects HCE;
-ordinary CMake builds still default to HCE. `NNUE_BACKEND=SCALAR` forces the
-portable reference kernels. Builds use two jobs.
+`make -C bench` uses the same NNUE/AUTO defaults for OpenBench workers.
+`NNUE=OFF` selects HCE; `NNUE_BACKEND=SCALAR` forces the portable reference
+kernels. Worker builds use two jobs.
+
+The explicit HCE preset retains the complete handcrafted score and feature-export
+test coverage:
+
+```bash
+cmake --preset release-hce
+cmake --build --preset release-hce --parallel 2
+ctest --preset release-hce
+```
+
+For custom build directories, select HCE with `-DLATRUNCULI_NNUE=OFF`. Its build
+does not require the network file.
 
 The `eval` console command reports the network, backend, raw inference score, and
 adapted static score. UCI options and search parameters are unchanged. `features`
@@ -84,7 +98,7 @@ must be a new corpus destination; keep its identity records and oracle transcrip
 
 ```bash
 python -m tools.nnue.verify check --output OUTPUT \
-  --executable build/halfkp-auto/latrunculi-neural-verify \
+  --executable build/release-dev/latrunculi-neural-verify \
   --label auto-parity --all-backends
 ```
 

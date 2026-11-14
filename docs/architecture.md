@@ -1,7 +1,7 @@
 # Architecture
 
 Latrunculi is a C++23 UCI chess engine with bitboard move generation,
-handcrafted evaluation, and multithreaded principal variation search (PVS).
+HalfKP NNUE evaluation, and multithreaded principal variation search (PVS).
 
 ## Source layout
 
@@ -34,7 +34,15 @@ generation and make/unmake code.
 
 ## Evaluation
 
-The handcrafted [Evaluator](../src/eval/evaluation.cpp) uses tunable weights:
+The default [NNUE evaluator](../src/eval/nnue.cpp) embeds the pinned Stockfish 12
+HalfKP network. Each board-history entry owns both perspectives' accumulators;
+make/unmake updates or restores them with the position. Immutable weights are
+shared across workers. Scalar and AVX2 kernels implement the same integer
+inference; `AUTO` selects the backend once using CPU support. See
+[NNUE](nnue-halfkp.md) for the feature map, score adapter, and parity checks.
+
+With `LATRUNCULI_NNUE=OFF`, the handcrafted
+[Evaluator](../src/eval/evaluation.cpp) uses tunable weights:
 
 - `Board` keeps material and piece-square scores up to date during make/unmake.
 - The evaluator adds scores for pawn structure, piece activity, mobility,
@@ -43,7 +51,8 @@ The handcrafted [Evaluator](../src/eval/evaluation.cpp) uses tunable weights:
   middlegame and endgame scores based on the remaining non-pawn material.
 - It also applies endgame scaling and a tempo bonus.
 
-The same evaluator exports linear features for fitting weights from recorded games.
+The HCE build also exports linear features for fitting weights from recorded games.
+NNUE builds explicitly reject HCE feature export.
 
 ## Search
 

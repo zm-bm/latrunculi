@@ -63,6 +63,15 @@
       }
     },
     {
+      "name": "release-hce",
+      "inherits": ["release-dev"],
+      "displayName": "Release with Handcrafted Evaluation",
+      "description": "Explicit HCE build with tests and native search benchmark enabled",
+      "cacheVariables": {
+        "LATRUNCULI_NNUE": "OFF"
+      }
+    },
+    {
       "name": "release-stats",
       "inherits": ["release-dev"],
       "displayName": "Release with search stats",
@@ -102,6 +111,10 @@
     {
       "name": "release-dev",
       "configurePreset": "release-dev"
+    },
+    {
+      "name": "release-hce",
+      "configurePreset": "release-hce"
     },
     {
       "name": "release-stats",
@@ -154,6 +167,16 @@
     {
       "name": "release-dev",
       "configurePreset": "release-dev",
+      "execution": {
+        "noTestsAction": "error"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release-hce",
+      "configurePreset": "release-hce",
       "execution": {
         "noTestsAction": "error"
       },
