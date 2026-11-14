@@ -97,6 +97,34 @@ void Board::make(Move move, TTKeyReadyCallback on_tt_key_ready) {
         default: break;
     }
 
+#ifdef LATRUNCULI_NNUE
+    for (Color perspective : {BLACK, WHITE}) {
+        if (piece_type == KING && perspective == mover) {
+            nnue::refresh(*this, state.neural, perspective, nnue::backend());
+            continue;
+        }
+        const auto update = [&](Color color, PieceType piece, Square square, int sign) {
+            if (piece != KING && piece != NO_PIECETYPE)
+                nnue::update(
+                    state.neural,
+                    perspective,
+                    king_square[perspective],
+                    color,
+                    piece,
+                    square,
+                    sign);
+        };
+        update(opponent, captured_piece_type, captured_square, -1);
+        update(mover, piece_type, from, -1);
+        update(mover, move_type == MOVE_PROM ? move.prom_piece() : piece_type, to, 1);
+        if (move_type == MOVE_CASTLE) {
+            const auto& castling =
+                move_geometry::castling(move_geometry::castle_side(from, to), mover);
+            update(mover, ROOK, castling.rook_from, -1);
+            update(mover, ROOK, castling.rook_to, 1);
+        }
+    }
+#endif
     turn = opponent;
     state.zkey ^= zob::hash_turn();
 

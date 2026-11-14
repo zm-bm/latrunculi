@@ -26,6 +26,9 @@ void Board::load_fen(std::string_view fen) {
     refresh_tactical_cache();
     refresh_legal_enpassant_target();
     state.zkey = recompute_key();
+#ifdef LATRUNCULI_NNUE
+    state.neural = nnue::refresh(*this);
+#endif
 }
 
 std::string Board::to_fen() const {

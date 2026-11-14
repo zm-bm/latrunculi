@@ -9,9 +9,15 @@
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "core/types.hpp"
+#ifdef LATRUNCULI_NNUE
+#include "eval/nnue.hpp"
+#endif
 
 /** One entry in Board's reversible history stack. */
 struct PlyState {
+#ifdef LATRUNCULI_NNUE
+    nnue::Accumulators neural;
+#endif
     // Cached tactical data for this position.
     // Opposing pieces checking the side-to-move king.
     Bitboard checkers{};

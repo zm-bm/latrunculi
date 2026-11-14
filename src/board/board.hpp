@@ -87,6 +87,9 @@ public:
     bool is_double_check() const noexcept { return bb::is_many(checkers()); }
 
     const eval::BaseTerms& base_terms() const noexcept { return cached_base_terms; }
+#ifdef LATRUNCULI_NNUE
+    const nnue::Accumulators& neural_state() const noexcept { return ply_state().neural; }
+#endif
     Score non_pawn_material(Color color) const noexcept;
 
     // Attacks, castling, and move classification
@@ -193,6 +196,9 @@ inline PlyState& Board::push_ply_state(Move move) {
     state.castling_rights = previous.castling_rights;
     state.halfmove_clock = previous.halfmove_clock + 1;
     state.previous_move = move;
+#ifdef LATRUNCULI_NNUE
+    state.neural = previous.neural;
+#endif
     return state;
 }
 

@@ -42,9 +42,15 @@ TEST(CliTest, ExportsRawFeatures) {
     std::ostringstream output;
     std::ostringstream diagnostics;
 
+#ifdef LATRUNCULI_NNUE
+    EXPECT_EQ(run(2, arguments, input, output, diagnostics), 1);
+    EXPECT_TRUE(output.str().empty());
+    EXPECT_EQ(diagnostics.str(), "features: HCE feature export is unavailable in an NNUE build\n");
+#else
     EXPECT_EQ(run(2, arguments, input, output, diagnostics), 0);
     EXPECT_TRUE(diagnostics.str().empty());
     EXPECT_NE(output.str().find(R"("fen":"k7/8/8/8/8/8/4r3/K2Q4 w - - 0 1")"), std::string::npos);
+#endif
 }
 
 TEST(CliTest, ExportsSettledFeatures) {
@@ -57,9 +63,15 @@ TEST(CliTest, ExportsSettledFeatures) {
     std::ostringstream output;
     std::ostringstream diagnostics;
 
+#ifdef LATRUNCULI_NNUE
+    EXPECT_EQ(run(3, arguments, input, output, diagnostics), 1);
+    EXPECT_TRUE(output.str().empty());
+    EXPECT_EQ(diagnostics.str(), "features: HCE feature export is unavailable in an NNUE build\n");
+#else
     EXPECT_EQ(run(3, arguments, input, output, diagnostics), 0);
     EXPECT_TRUE(diagnostics.str().empty());
     EXPECT_NE(output.str().find(R"("fen":"k7/8/8/8/8/8/4Q3/K7 b - - 0 1")"), std::string::npos);
+#endif
 }
 
 TEST(CliTest, RejectsInvalidFeatureArguments) {
@@ -87,7 +99,12 @@ TEST(CliTest, ReportsFeatureExportErrors) {
     std::ostringstream diagnostics;
 
     EXPECT_EQ(run(2, arguments, input, output, diagnostics), 1);
+#ifdef LATRUNCULI_NNUE
+    EXPECT_TRUE(output.str().empty());
+    EXPECT_EQ(diagnostics.str(), "features: HCE feature export is unavailable in an NNUE build\n");
+#else
     EXPECT_EQ(diagnostics.str(), "features: invalid input at line 1\n");
+#endif
 }
 
 TEST(CliTest, RejectsUnknownCommand) {

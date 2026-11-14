@@ -33,6 +33,9 @@ struct BoardSnapshot {
     std::array<Bitboard, N_COLORS> blockers{};
     std::array<Square, N_COLORS> kings{};
     eval::BaseTerms base_terms;
+#ifdef LATRUNCULI_NNUE
+    nnue::Accumulators neural_state;
+#endif
     std::array<std::array<Bitboard, N_PIECETYPES>, N_COLORS> piece_bb{};
     std::array<std::array<std::uint8_t, N_PIECETYPES>, N_COLORS> counts{};
 };
@@ -48,6 +51,9 @@ inline BoardSnapshot snapshot_board(const Board& board) {
     snapshot.occupancy = board.occupancy();
     snapshot.checkers = board.checkers();
     snapshot.base_terms = board.base_terms();
+#ifdef LATRUNCULI_NNUE
+    snapshot.neural_state = board.neural_state();
+#endif
 
     for (int c = BLACK; c < N_COLORS; ++c) {
         const auto color = Color(c);
@@ -66,6 +72,9 @@ inline BoardSnapshot snapshot_board(const Board& board) {
 
 inline void expect_base_terms_consistent(const Board& board) {
     EXPECT_EQ(board.base_terms(), board.recompute_base_terms());
+#ifdef LATRUNCULI_NNUE
+    EXPECT_EQ(board.neural_state(), nnue::refresh(board));
+#endif
 }
 
 inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& expected) {
@@ -77,6 +86,9 @@ inline void expect_same_board_snapshot(const Board& board, const BoardSnapshot& 
     EXPECT_EQ(board.occupancy(), expected.occupancy);
     EXPECT_EQ(board.checkers(), expected.checkers);
     EXPECT_EQ(board.base_terms(), expected.base_terms);
+#ifdef LATRUNCULI_NNUE
+    EXPECT_EQ(board.neural_state(), expected.neural_state);
+#endif
     expect_base_terms_consistent(board);
 
     for (int c = BLACK; c < N_COLORS; ++c) {

@@ -1069,28 +1069,49 @@ TEST_F(SearchTest, PvSearchMatchesFullWindowAndBuildsPv) {
 }
 
 TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
-    Board board{board_test::fen::start};
-    load(board, 4);
+    struct Case {
+        const char* fen;
+        bool forced_mate;
+    };
+    constexpr std::array positions{
+#ifndef LATRUNCULI_NNUE
+        Case{board_test::fen::start, false}, // Preserve the original HCE fixture.
+#endif
+        // Exhaustive legal-move minimax proves mate in exactly four plies.
+        // Unlike a selective middlegame score, its value is independent of
+        // learned ordering history and TT-induced changes to pruning.
+        Case{"7k/8/5K2/8/8/8/8/Q7 b - - 0 1", true}};
+    for (const auto& tc : positions) {
+        SCOPED_TRACE(tc.fen);
+        Board board{tc.fen};
+        load(board, 4);
 
-    PV cold_pv;
-    const Score value = pv_search(-scores::inf, scores::inf, 4, cold_pv);
-    ASSERT_GE(cold_pv.size(), 4);
+        PV cold_pv;
+        const Score value = pv_search(-scores::inf, scores::inf, 4, cold_pv);
+        ASSERT_GE(cold_pv.size(), 4);
+        if (tc.forced_mate)
+            ASSERT_EQ(value, -scores::mate + 4);
 
-    const auto stored = record();
-    ASSERT_TRUE(stored.has_value());
-    ASSERT_EQ(stored->bound, TTBound::Exact);
-    ASSERT_GE(stored->depth, 4);
+        const auto stored = record();
+        ASSERT_TRUE(stored.has_value());
+        ASSERT_EQ(stored->bound, TTBound::Exact);
+        ASSERT_GE(stored->depth, 4);
 
-    PV warm_pv;
-    EXPECT_EQ(pv_search(-scores::inf, scores::inf, 4, warm_pv), value);
-    ASSERT_GE(warm_pv.size(), 4);
+        PV warm_pv;
+        EXPECT_EQ(pv_search(-scores::inf, scores::inf, 4, warm_pv), value);
+        ASSERT_GE(warm_pv.size(), 4);
 
-    Board replay{board};
-    for (int index = 0; index < warm_pv.size(); ++index) {
-        SCOPED_TRACE(index);
-        const Move move = warm_pv.move_at(index);
-        ASSERT_TRUE(replay.is_legal_move(move));
-        replay.make(move);
+        Board replay{board};
+        for (int index = 0; index < warm_pv.size(); ++index) {
+            SCOPED_TRACE(index);
+            const Move move = warm_pv.move_at(index);
+            ASSERT_TRUE(replay.is_legal_move(move));
+            replay.make(move);
+        }
+        if (tc.forced_mate) {
+            ASSERT_TRUE(replay.is_check());
+            ASSERT_TRUE(movegen::UnscoredMoves(replay).next().is_null());
+        }
     }
 }
 

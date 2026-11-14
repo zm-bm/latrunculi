@@ -12,6 +12,9 @@
 #include "board/notation.hpp"
 #include "core/move.hpp"
 #include "eval/features.hpp"
+#ifdef LATRUNCULI_NNUE
+#include "eval/nnue.hpp"
+#endif
 #include "movegen/moves.hpp"
 #include "movegen/perft.hpp"
 #include "search/limits.hpp"
@@ -231,7 +234,17 @@ bool Engine::display_board() {
 }
 
 bool Engine::evaluate() {
+#ifdef LATRUNCULI_NNUE
+    const auto raw = nnue::raw(board.neural_state(), board.side_to_move());
+    writer.diagnostic_line(std::format(
+        "HalfKP {} backend {} raw {} static score {}",
+        nnue::network_sha256,
+        nnue::backend_name(),
+        raw,
+        nnue::adapt(raw)));
+#else
     writer.diagnostic_line(eval::format_evaluation(eval::extract_features(board)));
+#endif
     return true;
 }
 
