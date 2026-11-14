@@ -25,8 +25,10 @@ engine builds need neither Python nor a network connection. A missing or
 different network fails configuration. The native loader also validates the
 format, arithmetic bounds, and complete frozen SHA256 before use.
 
-The worker-style build is `make -C bench NNUE=ON`; its default remains HCE.
-`NNUE_BACKEND=SCALAR` forces the portable reference kernels. Builds use two jobs.
+On this match branch, `make -C bench` defaults to the frozen NNUE evaluator so
+OpenBench's worker recipe builds the intended candidate. `NNUE=OFF` selects HCE;
+ordinary CMake builds still default to HCE. `NNUE_BACKEND=SCALAR` forces the
+portable reference kernels. Builds use two jobs.
 
 The `eval` console command reports the network, backend, raw inference score, and
 adapted static score. UCI options and search parameters are unchanged. `features`

@@ -1,6 +1,7 @@
 EXE ?= latrunculi
 CXX ?= c++
-NNUE ?= OFF
+# This match branch enables HalfKP for OpenBench's default worker recipe.
+NNUE ?= ON
 NNUE_BACKEND ?= AUTO
 NNUE_NETWORK ?= $(abspath ../networks/nn-82215d0fd0df.nnue)
 
