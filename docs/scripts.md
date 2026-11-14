@@ -305,6 +305,59 @@ for complete settings and recovery details.
 
 Preparation saves `settings.json`, `candidate-bench.txt`,
 and, for comparisons, `baseline-bench.txt`, with matching `.stderr.txt` files.
+
+### Search SPSA
+
+Normal builds retain compile-time search values and their usual UCI options.
+Build the explicit tuning preset to expose eight pruning margins and export their
+names, integer types, defaults, and engine-safe limits:
+
+```bash
+cmake --preset release-tuning
+cmake --build --preset release-tuning --parallel 2
+ctest --preset release-tuning
+build/release-tuning/latrunculi spsa
+```
+
+Defaults live in [`src/search/parameters.hpp`](../src/search/parameters.hpp).
+The [tuning adapter](../src/tuning/options.cpp) handles metadata and validated UCI
+updates. Settings belong to each engine, cannot change during search, and changes
+clear TT and learned history. The normal build uses the same defaults as constants.
+
+The [NNUE pruning recipe](../tools/resources/openbench/recipes/nnue-pruning.json)
+selects parameters, narrower campaign bounds, perturbations, and the schedule.
+Engine defaults are read from the executable rather than duplicated in recipes.
+Preparation is offline and requires an explicit game budget divisible by eight
+for this recipe's four color pairs per iteration:
+
+```bash
+./bin/openbench prepare spsa --candidate HEAD \
+  --candidate-engine build/release-tuning/latrunculi --games 20000 \
+  --description "SPSA: Frozen NNUE pruning margins" \
+  --output tools/output/nnue-pruning
+```
+
+The worker must build the tuning executable. Configure a server engine profile
+named `Latrunculi-Tuning` by copying the ordinary Latrunculi profile and changing
+`build.path` to `bench/tuning`. That directory delegates to the common worker
+Makefile with `TUNING=ON`. The normal `bench` recipe stays `TUNING=OFF`.
+`--engine NAME` selects another profile; submission checks its build path.
+
+After pushing the exact candidate and reviewing the budget and saved settings:
+
+```bash
+./bin/openbench submit-spsa tools/output/nnue-pruning/settings.json --dry-run
+./bin/openbench submit-spsa tools/output/nnue-pruning/settings.json \
+  --output tools/output/nnue-pruning/submission
+./bin/openbench spsa ID
+./bin/openbench stop-spsa ID --output tools/output/nnue-pruning/stop
+```
+
+These explicit SPSA commands isolate compatibility with the pinned client's
+missing tune endpoints in `tools/openbench_spsa_client.py`. Ordinary test
+submission is unchanged. Ambiguous submissions retain evidence and never repeat
+the POST automatically. Apply final values to the search defaults, rebuild a
+normal executable, and validate it against the frozen untuned NNUE baseline.
 Bench failures leave diagnostics but no settings.
 
 Downloads retain `ID.pgn.tar`, its `.sha256` checksum, and `ID.workload.json`.

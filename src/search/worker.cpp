@@ -14,7 +14,12 @@ namespace search {
 Worker::Worker(int id, Reporter& reporter, ThreadPool& pool)
     : reporter(reporter),
       thread_pool(pool),
-      worker_id(id) {
+      worker_id(id)
+#if LATRUNCULI_TUNING
+      ,
+      parameters(pool.parameters)
+#endif
+{
     for (int ply = 0; ply <= engine::max_search_ply; ++ply)
         frames[ply].ply = ply;
 }

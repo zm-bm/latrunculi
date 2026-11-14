@@ -1,0 +1,21 @@
+{
+  "format": "latrunculi.spsa-recipe.v1",
+  "schedule": {
+    "spsa_reporting_type": "BATCHED",
+    "spsa_distribution_type": "SINGLE",
+    "spsa_alpha": 0.602,
+    "spsa_gamma": 0.101,
+    "spsa_A_ratio": 0.1,
+    "spsa_pairs_per": 4
+  },
+  "parameters": [
+    {"name": "FutilityMargin1", "min": 125, "max": 375, "c_end": 12.5, "r_end": 0.002},
+    {"name": "FutilityMargin2", "min": 200, "max": 600, "c_end": 20, "r_end": 0.002},
+    {"name": "FutilityMargin3", "min": 275, "max": 825, "c_end": 27.5, "r_end": 0.002},
+    {"name": "RazorMargin1", "min": 250, "max": 750, "c_end": 25, "r_end": 0.002},
+    {"name": "RazorMargin2", "min": 450, "max": 1350, "c_end": 45, "r_end": 0.002},
+    {"name": "RazorMargin3", "min": 900, "max": 2700, "c_end": 90, "r_end": 0.002},
+    {"name": "NullMoveSurplusPerPly", "min": 100, "max": 300, "c_end": 10, "r_end": 0.002},
+    {"name": "QCaptureMargin", "min": 150, "max": 450, "c_end": 15, "r_end": 0.002}
+  ]
+}

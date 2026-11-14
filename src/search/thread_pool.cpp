@@ -1,4 +1,7 @@
 #include "search/thread_pool.hpp"
+#if LATRUNCULI_TUNING
+#include "search/tt.hpp"
+#endif
 
 #include <algorithm>
 #include <cassert>
@@ -99,6 +102,17 @@ ThreadPool::ThreadPool(size_t thread_count, Reporter& reporter)
 ThreadPool::~ThreadPool() {
     shutdown();
 }
+
+#if LATRUNCULI_TUNING
+bool ThreadPool::configure_parameters(const Parameters& value) {
+    if (shutdown_requested || is_searching())
+        return false;
+    parameters = value;
+    clear_search_heuristics();
+    tt.clear();
+    return true;
+}
+#endif
 
 // Search lifecycle.
 bool ThreadPool::start_search(const Board& root_board, Limits limits) {

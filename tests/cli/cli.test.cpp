@@ -10,6 +10,12 @@ namespace {
 
 constexpr auto input_record = "game-1:12\t1-0\tk7/8/8/8/8/8/4r3/K2Q4 w - - 0 1\n";
 
+#if LATRUNCULI_TUNING
+constexpr auto expected_usage = "Usage: latrunculi [bench|features [--settle]|spsa]\n";
+#else
+constexpr auto expected_usage = "Usage: latrunculi [bench|features [--settle]]\n";
+#endif
+
 void expect_top_level_usage(int argument_count, char* arguments[]) {
     std::istringstream input;
     std::ostringstream output;
@@ -17,7 +23,7 @@ void expect_top_level_usage(int argument_count, char* arguments[]) {
 
     EXPECT_EQ(run(argument_count, arguments, input, output, diagnostics), 1);
     EXPECT_TRUE(output.str().empty());
-    EXPECT_EQ(diagnostics.str(), "Usage: latrunculi [bench|features [--settle]]\n");
+    EXPECT_EQ(diagnostics.str(), expected_usage);
 }
 
 TEST(CliTest, RunsUciWithoutArguments) {
@@ -86,7 +92,7 @@ TEST(CliTest, RejectsInvalidFeatureArguments) {
 
     EXPECT_EQ(run(3, arguments, input, output, diagnostics), 1);
     EXPECT_TRUE(output.str().empty());
-    EXPECT_EQ(diagnostics.str(), "Usage: latrunculi [bench|features [--settle]]\n");
+    EXPECT_EQ(diagnostics.str(), expected_usage);
 }
 
 TEST(CliTest, ReportsFeatureExportErrors) {

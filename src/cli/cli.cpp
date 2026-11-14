@@ -10,6 +10,9 @@
 
 #include "board/board.hpp"
 #include "eval/features.hpp"
+#if LATRUNCULI_TUNING
+#include "tuning/options.hpp"
+#endif
 #include "search/limits.hpp"
 #include "search/reporter.hpp"
 #include "search/thread_pool.hpp"
@@ -64,7 +67,11 @@ private:
 };
 
 void print_usage(std::ostream& diagnostics, const char* executable) {
-    diagnostics << "Usage: " << executable << " [bench|features [--settle]]\n";
+    diagnostics << "Usage: " << executable << " [bench|features [--settle]";
+#if LATRUNCULI_TUNING
+    diagnostics << "|spsa";
+#endif
+    diagnostics << "]\n";
 }
 
 void run_benchmark(std::ostream& output) {
@@ -133,6 +140,13 @@ int run(int argument_count,
             run_benchmark(output);
             return 0;
         }
+
+#if LATRUNCULI_TUNING
+        if (command == "spsa" && argument_count == 2) {
+            tuning::export_parameters(output);
+            return 0;
+        }
+#endif
 
         if (command == "features") {
             if (argument_count == 2) {

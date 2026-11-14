@@ -89,6 +89,30 @@
         "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG -g",
         "LATRUNCULI_SEARCH_STATS": "OFF"
       }
+    },
+    {
+      "name": "release-tuning",
+      "inherits": ["release-dev"],
+      "displayName": "Release Tuning",
+      "cacheVariables": {
+        "LATRUNCULI_TUNING": "ON"
+      }
+    },
+    {
+      "name": "debug-asan-ubsan-tuning",
+      "inherits": ["debug-asan-ubsan"],
+      "displayName": "Debug Asan Ubsan Tuning",
+      "cacheVariables": {
+        "LATRUNCULI_TUNING": "ON"
+      }
+    },
+    {
+      "name": "debug-tsan-tuning",
+      "inherits": ["debug-tsan"],
+      "displayName": "Debug Tsan Tuning",
+      "cacheVariables": {
+        "LATRUNCULI_TUNING": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -124,6 +148,18 @@
       "name": "profile",
       "configurePreset": "profile",
       "targets": ["latrunculi-benchmark"]
+    },
+    {
+      "name": "release-tuning",
+      "configurePreset": "release-tuning"
+    },
+    {
+      "name": "debug-asan-ubsan-tuning",
+      "configurePreset": "debug-asan-ubsan-tuning"
+    },
+    {
+      "name": "debug-tsan-tuning",
+      "configurePreset": "debug-tsan-tuning"
     }
   ],
   "testPresets": [
@@ -192,6 +228,43 @@
       },
       "output": {
         "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release-tuning",
+      "configurePreset": "release-tuning",
+      "execution": {
+        "noTestsAction": "error"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "debug-asan-ubsan-tuning",
+      "configurePreset": "debug-asan-ubsan-tuning",
+      "execution": {
+        "noTestsAction": "error"
+      },
+      "output": {
+        "outputOnFailure": true
+      },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+      }
+    },
+    {
+      "name": "debug-tsan-tuning",
+      "configurePreset": "debug-tsan-tuning",
+      "execution": {
+        "noTestsAction": "error"
+      },
+      "output": {
+        "outputOnFailure": true
+      },
+      "environment": {
+        "TSAN_OPTIONS": "halt_on_error=1"
       }
     }
   ]

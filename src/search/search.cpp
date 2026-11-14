@@ -17,9 +17,7 @@ namespace {
 
 // Shallow pruning. Both reverse and move-loop futility use the same margins.
 constexpr int FutilityMaxDepth = 3;
-constexpr int FutilityMargin[] = {0, 250, 400, 550};
 constexpr int RazorMaxDepth = 3;
-constexpr int RazorMargin[] = {0, 500, 900, 1800};
 constexpr int LateMovePruningDepth = 2;
 constexpr int LateMovePruningMoveCount = 12;
 
@@ -28,7 +26,6 @@ constexpr int NullMoveMinDepth = 3;
 constexpr int NullMoveReductionBase = 3;
 constexpr int NullMoveReductionMax = 6;
 constexpr int NullMoveDepthDivisor = 7;
-constexpr Score NullMoveSurplusPerPly = 2 * eval::pawn.mg;
 constexpr int NullMoveSurplusBonusMax = 2;
 
 // Singular searches.
@@ -53,7 +50,6 @@ constexpr double CaptureLmrMaxAdjustment = 1.0;
 
 // Quiescence.
 constexpr int QuiescenceTtDepth = 0;
-constexpr Score QCaptureMargin = 300;
 
 // Null-search roots suppress early pruning and singular searches, but retain
 // ordinary TT and move-loop behavior. A loaded position without history is not a null edge.
@@ -185,7 +181,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             && !in_check
             && depth <= RazorMaxDepth
             && tt_move.is_null();
-        if (razor_candidate && static_eval + RazorMargin[depth] <= alpha) {
+        if (razor_candidate && static_eval + parameters.razor_margin[depth] <= alpha) {
             stats.razor_try(ply);
             const bool pv_enabled = state.pv_enabled;
             state.pv_enabled = false;
@@ -215,7 +211,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         if (reverse_futility_candidate
             && board.non_pawn_material(side) > eval::piece(ROOK).mg
             && !tt_upper_veto
-            && static_eval - FutilityMargin[depth] >= beta)
+            && static_eval - parameters.futility_margin[depth] >= beta)
             return static_eval;
 
         // Null-move pruning: try a reduced search after passing the turn.
@@ -229,7 +225,8 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
 
             const Score positive_surplus = std::max(static_eval - beta, Score{0});
             const int surplus_bonus =
-                std::min(int(positive_surplus / NullMoveSurplusPerPly), NullMoveSurplusBonusMax);
+                std::min(int(positive_surplus / parameters.null_move_surplus_per_ply),
+                         NullMoveSurplusBonusMax);
             const int reduction =
                 std::min({depth,
                           NullMoveReductionMax,
@@ -257,7 +254,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             && !in_check
             && alpha > -scores::mate_bound
             && alpha < scores::mate_bound
-            && static_eval + FutilityMargin[depth] <= alpha;
+            && static_eval + parameters.futility_margin[depth] <= alpha;
     }
 
     /*
@@ -655,7 +652,7 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
             const PieceType victim = board.captured_piece_type(move);
             const auto price = eval::piece(victim);
             const Score capture_gain_estimate =
-                static_eval + std::max(price.mg, price.eg) + QCaptureMargin;
+                static_eval + std::max(price.mg, price.eg) + parameters.qcapture_margin;
             if (capture_gain_estimate < alpha) {
                 const bool material_allows_capture_pruning =
                     board.non_pawn_material(board.side_to_move()) > eval::rook.mg

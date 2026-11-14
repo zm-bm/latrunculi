@@ -325,6 +325,12 @@ void Engine::apply_option_effect(OptionId option, const Options& candidate) {
             break;
         case OptionId::Ponder:    break;
         case OptionId::ClearHash: search::tt.clear(); break;
+#if LATRUNCULI_TUNING
+        case OptionId::Tuning:
+            if (!thread_pool.configure_parameters(candidate.search_parameters))
+                throw std::runtime_error("cannot configure search parameters while searching");
+            break;
+#endif
     }
 }
 

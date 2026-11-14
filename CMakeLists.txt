@@ -10,6 +10,7 @@ include(CTest)
 find_package(Threads REQUIRED)
 
 option(LATRUNCULI_SEARCH_STATS "Enable search diagnostics" OFF)
+option(LATRUNCULI_TUNING "Expose search parameters for SPSA" OFF)
 option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
 include(cmake/SliderBackend.cmake)
 option(LATRUNCULI_NNUE "Use the frozen SF12 HalfKP evaluator" ON)
@@ -101,6 +102,10 @@ set(LATRUNCULI_ENGINE_SOURCES
 )
 
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
+target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_TUNING=$<BOOL:${LATRUNCULI_TUNING}>)
+if(LATRUNCULI_TUNING)
+    target_sources(latrunculi_lib PRIVATE src/tuning/options.cpp)
+endif()
 if(LATRUNCULI_NNUE)
     target_sources(latrunculi_lib PRIVATE src/eval/nnue.cpp src/eval/nnue_avx2.cpp
         "${CMAKE_CURRENT_BINARY_DIR}/nnue_blob.S")
@@ -211,6 +216,9 @@ if(BUILD_TESTING)
         # Keep HCE score and reconstruction contracts in the explicit HCE build.
         list(REMOVE_ITEM LATRUNCULI_TEST_SOURCES tests/eval/evaluation.test.cpp tests/eval/features.test.cpp)
         list(APPEND LATRUNCULI_TEST_SOURCES tests/eval/nnue.test.cpp)
+    endif()
+    if(LATRUNCULI_TUNING)
+        list(APPEND LATRUNCULI_TEST_SOURCES tests/tuning/options.test.cpp)
     endif()
     add_executable(tests
         src/cli/cli.cpp
