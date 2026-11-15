@@ -9,7 +9,6 @@ See [Development scripts](scripts.md) for command usage and the
 - [Branch and baseline](#branch-and-baseline): Create a branch and save a comparison baseline.
 - [Build and test](#build-and-test): Build the engine and run applicable tests and sanitizers.
 - [Benchmark and profile](#benchmark-and-profile): Compare runtime and search behavior, inspect positions, and locate CPU costs.
-- [Tune evaluation](#tune-evaluation): Select games, review fitted weights, and verify the compiled evaluation.
 - [Test strength](#test-strength): Choose OpenBench tests and interpret their results.
 - [Merge](#merge): Review the candidate, validate the merged result, and retain evidence.
 - [Release](#release): Check stability, update release information, and publish verified artifacts.
@@ -40,19 +39,13 @@ cmake --build --preset release-dev
 ctest --preset release-dev
 ```
 
-Ordinary builds use the bundled HalfKP NNUE network with the AUTO backend. Keep
-the explicit HCE suite covered when changing shared board, search, or evaluation
-code:
-
-```bash
-cmake --preset release-hce
-cmake --build --preset release-hce
-ctest --preset release-hce
-```
+All builds use the pinned external HalfKP NNUE network with automatic backend
+selection. CMake copies the network beside the executables; keep it there when
+copying or packaging a build.
 
 Changes to search state, time controls, or thread lifetime need tests with
-repeated searches in one engine session. For changes to Python tools or engine
-feature export, run the [tool tests](scripts.md#tests).
+repeated searches in one engine session. For changes to Python tools, run the
+[tool tests](scripts.md#tests).
 
 ### Sanitizers
 
@@ -119,57 +112,9 @@ cmake --build --preset profile
 ./bin/profile profile --name cpu-profile
 ```
 
-## Tune evaluation
-
-This workflow fits handcrafted evaluation weights. Build `release-hce` first;
-NNUE builds reject the HCE feature export and are not supported by this fitter.
-
-Use [OpenBench self-play](#self-play-corpus) with varied openings to generate the
-tuning games, and record the starting engine revision and evaluation. Download
-the completed PGNs with [openbench download-pgns](scripts.md#openbench).
-Prepare the games with the starting engine. Changes to evaluation definitions
-require fresh preparation:
-
-```bash
-./bin/tune prepare --engine release-hce --name pawns-data games.pgn.tar
-./bin/tune fit --dataset pawns-data --name pawns-fit
-```
-
-Review `cross-validation.json` and `candidate.json` before applying weights:
-
-- Grouped held-out validation must support the proposed weights, with related
-  openings kept together. Lower training loss alone is insufficient.
-- Investigate large coefficient changes and bound hits; they are review flags,
-  not automatic failures.
-- Do not change the [preparation](../tools/tuning/dataset.py) or
-  [fitting](../tools/tuning/fit.py) policies merely to obtain a passing fit.
-
-Apply the exact supported weights to [parameters.hpp](../src/eval/parameters.hpp),
-then rebuild and verify the compiled evaluation:
-
-```bash
-cmake --build --preset release-hce
-./bin/tune verify pawns-fit --engine release-hce
-```
-
-Complete the [engine checks](#build-and-test), [local comparison](#compare-locally),
-and [strength test](#test-strength). Retain the games, dataset, complete fit, and
-verification result as [reproducible evidence](#merge).
-
-### Self-play corpus
-
-Self-play uses one revision for both sides. The [corpus template](../tools/resources/openbench/corpus.json)
-defaults to 42,000 games at `4+0.04`. Before submission, check that one worker runs
-one match runner; multiple workers or runners in the pinned OpenBench version
-overlap opening ranges. The final game count may exceed the target.
-
-Check the completed workload's revisions and game count, and retain its PGNs,
-checksum, and metadata. Scores and fixed-test pass/fail flags do not establish
-tuning suitability; preparation checks the dataset requirements.
-
 ## Test strength
 
-Evaluation tuning and strength-oriented search changes need game evidence.
+Changes to neural weights and strength-oriented search changes need game evidence.
 A narrow correctness fix may be justified by a regression test and local checks.
 Use a two-game `Smoke` test when build or match integration needs checking.
 
@@ -204,6 +149,17 @@ game results, or to resolve conflicting evidence. State the question being
 tested; longer time controls are optional. Do not rerun a rejected candidate
 merely to obtain a pass.
 
+### Self-play corpus
+
+Self-play uses one revision for both sides. The [corpus template](../tools/resources/openbench/corpus.json)
+defaults to 42,000 games at `4+0.04`. Before submission, check that one worker runs
+one match runner; multiple workers or runners in the pinned OpenBench version
+overlap opening ranges. The final game count may exceed the target.
+
+Check the completed workload's revisions and game count, and retain its PGNs,
+checksum, and metadata. Scores and fixed-test pass/fail flags do not establish
+whether the games are suitable for training.
+
 ## Merge
 
 For engine changes, the proposed merged result must be covered by the full
@@ -231,8 +187,9 @@ The score and fixed-test pass/fail flag do not establish stability.
 
 Package a source archive including pinned submodules and verify its build and
 tests. Build the Linux x86-64 binary from that archive with the `release` preset,
-test the packaged binary on its supported platform, and document its CPU and
-runtime requirements. Publish an annotated `vX.Y.Z` tag at
-the verified revision and a GitHub release containing the archive, binary, and
-`SHA256SUMS`. Download the published assets to check their checksums and confirm
-the binary's UCI version and bench count against the verified build.
+test the packaged executable/network pair on its supported platform, and
+document its CPU and runtime requirements. Publish an annotated `vX.Y.Z` tag at
+the verified revision and a GitHub release containing the archive, executable,
+pinned network, network license, and `SHA256SUMS`. Download the published assets
+to check their checksums and confirm the binary's UCI version and bench count
+against the verified build.

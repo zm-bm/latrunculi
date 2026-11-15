@@ -1074,9 +1074,6 @@ TEST_F(SearchTest, PvSearchRebuildsContinuationWithRetainedTt) {
         bool forced_mate;
     };
     constexpr std::array positions{
-#ifndef LATRUNCULI_NNUE
-        Case{board_test::fen::start, false}, // Preserve the original HCE fixture.
-#endif
         // Exhaustive legal-move minimax proves mate in exactly four plies.
         // Unlike a selective middlegame score, its value is independent of
         // learned ordering history and TT-induced changes to pruning.

@@ -9,7 +9,6 @@
 #include <string_view>
 
 #include "board/board.hpp"
-#include "eval/features.hpp"
 #if LATRUNCULI_TUNING
 #include "tuning/options.hpp"
 #endif
@@ -21,8 +20,6 @@
 
 namespace cli {
 namespace {
-
-enum class FeatureMode { Raw, Settled };
 
 constexpr int bench_depth = 13;
 constexpr int bench_hash_mb = 32;
@@ -67,7 +64,7 @@ private:
 };
 
 void print_usage(std::ostream& diagnostics, const char* executable) {
-    diagnostics << "Usage: " << executable << " [bench|features [--settle]";
+    diagnostics << "Usage: " << executable << " [bench";
 #if LATRUNCULI_TUNING
     diagnostics << "|spsa";
 #endif
@@ -108,18 +105,6 @@ void run_benchmark(std::ostream& output) {
     output << aggregate_nodes << " nodes " << elapsed_ms << " ms " << nps << " nps\n";
 }
 
-void run_features(FeatureMode mode, std::istream& input, std::ostream& output) {
-    if (mode == FeatureMode::Raw) {
-        eval::export_features(input, output);
-    } else {
-        Reporter reporter;
-        search::ThreadPool thread_pool(1, reporter);
-        eval::export_features(input, output, [&](Board& board) {
-            return thread_pool.settle(board);
-        });
-    }
-}
-
 } // namespace
 
 int run(int argument_count,
@@ -147,17 +132,6 @@ int run(int argument_count,
             return 0;
         }
 #endif
-
-        if (command == "features") {
-            if (argument_count == 2) {
-                run_features(FeatureMode::Raw, input, output);
-                return 0;
-            }
-            if (argument_count == 3 && std::string_view{arguments[2]} == "--settle") {
-                run_features(FeatureMode::Settled, input, output);
-                return 0;
-            }
-        }
     } catch (const std::exception& error) {
         diagnostics << command << ": " << error.what() << '\n';
         return 1;

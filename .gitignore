@@ -11,7 +11,9 @@ logs/
 /tools/tuning/output/
 /tools/.venv/
 /bench/latrunculi
+/bench/*.nnue
 /bench/tuning/latrunculi
+/bench/tuning/*.nnue
 /bot/
 *.pyc
 __pycache__/

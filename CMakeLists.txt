@@ -13,40 +13,8 @@ option(LATRUNCULI_SEARCH_STATS "Enable search diagnostics" OFF)
 option(LATRUNCULI_TUNING "Expose search parameters for SPSA" OFF)
 option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
 include(cmake/SliderBackend.cmake)
-option(LATRUNCULI_NNUE "Use the frozen SF12 HalfKP evaluator" ON)
-set(LATRUNCULI_NNUE_NETWORK "${CMAKE_CURRENT_SOURCE_DIR}/networks/nn-82215d0fd0df.nnue"
-    CACHE FILEPATH "Pinned HalfKP network to embed")
-set(LATRUNCULI_NNUE_BACKEND "AUTO" CACHE STRING "HalfKP backend: AUTO, SCALAR, AVX2")
-set_property(CACHE LATRUNCULI_NNUE_BACKEND PROPERTY STRINGS AUTO SCALAR AVX2)
-if(LATRUNCULI_NNUE)
-    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        message(FATAL_ERROR "HalfKP embedding currently requires Linux with GCC or Clang")
-    endif()
-    if(NOT EXISTS "${LATRUNCULI_NNUE_NETWORK}" OR IS_DIRECTORY "${LATRUNCULI_NNUE_NETWORK}")
-        message(FATAL_ERROR "NNUE requires an existing LATRUNCULI_NNUE_NETWORK")
-    endif()
-    file(SHA256 "${LATRUNCULI_NNUE_NETWORK}" nnue_sha)
-    if(NOT nnue_sha STREQUAL "82215d0fd0df3cde17fc47ac024c5b5736823ec390200abdd705c44660c69ee4")
-        message(FATAL_ERROR "Frozen HalfKP network SHA256 mismatch")
-    endif()
-    if(LATRUNCULI_NNUE_BACKEND STREQUAL "AUTO")
-        set(nnue_backend 0)
-    elseif(LATRUNCULI_NNUE_BACKEND STREQUAL "SCALAR")
-        set(nnue_backend 1)
-    elseif(LATRUNCULI_NNUE_BACKEND STREQUAL "AVX2")
-        set(nnue_backend 2)
-    else()
-        message(FATAL_ERROR "Invalid LATRUNCULI_NNUE_BACKEND")
-    endif()
-    enable_language(ASM)
-    get_filename_component(NNUE_ASM_PATH "${LATRUNCULI_NNUE_NETWORK}" ABSOLUTE)
-    string(REPLACE "\\" "\\\\" NNUE_ASM_PATH "${NNUE_ASM_PATH}")
-    string(REPLACE "\"" "\\\"" NNUE_ASM_PATH "${NNUE_ASM_PATH}")
-    configure_file(cmake/NnueBlob.S.in "${CMAKE_CURRENT_BINARY_DIR}/nnue_blob.S" @ONLY)
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${LATRUNCULI_NNUE_NETWORK}")
-    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/nnue_blob.S" PROPERTIES
-        OBJECT_DEPENDS "${LATRUNCULI_NNUE_NETWORK}")
-endif()
+# Ship the fixed external network beside the executables. It is read once at startup.
+configure_file(networks/nn-82215d0fd0df.nnue nn-82215d0fd0df.nnue COPYONLY)
 set(LATRUNCULI_SANITIZER "none" CACHE STRING "Sanitizer configuration")
 set_property(CACHE LATRUNCULI_SANITIZER PROPERTY STRINGS none address-undefined thread)
 
@@ -87,7 +55,9 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/movegen/move_sources.cpp
     src/movegen/perft.cpp
     src/eval/evaluation.cpp
-    src/eval/features.cpp
+    src/eval/nnue.cpp
+    src/eval/nnue_network.cpp
+    src/eval/nnue_avx2.cpp
     src/search/root_search.cpp
     src/search/search.cpp
     src/search/instrumentation.cpp
@@ -105,14 +75,6 @@ add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_TUNING=$<BOOL:${LATRUNCULI_TUNING}>)
 if(LATRUNCULI_TUNING)
     target_sources(latrunculi_lib PRIVATE src/tuning/options.cpp)
-endif()
-if(LATRUNCULI_NNUE)
-    target_sources(latrunculi_lib PRIVATE src/eval/nnue.cpp src/eval/nnue_avx2.cpp
-        "${CMAKE_CURRENT_BINARY_DIR}/nnue_blob.S")
-    target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_NNUE=1)
-    target_compile_definitions(latrunculi_lib PRIVATE LATRUNCULI_NNUE_BACKEND=${nnue_backend})
-    add_executable(latrunculi-neural-verify tools/nnue/verify.cpp)
-    target_link_libraries(latrunculi-neural-verify PRIVATE latrunculi_lib)
 endif()
 set_property(TARGET latrunculi_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
 target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
@@ -163,6 +125,9 @@ if(LATRUNCULI_BUILD_BENCHMARK)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(latrunculi-neural-verify tools/nnue/verify.cpp)
+    target_link_libraries(latrunculi-neural-verify PRIVATE latrunculi_lib)
+
     add_subdirectory(third_party/googletest)
 
     set(LATRUNCULI_TEST_SOURCES
@@ -187,10 +152,8 @@ if(BUILD_TESTING)
         tests/movegen/generator.test.cpp
         tests/movegen/moves.test.cpp
         tests/movegen/perft.test.cpp
-        tests/eval/evaluation.test.cpp
-        tests/eval/features.test.cpp
-        tests/eval/parameters.test.cpp
-        tests/eval/tapered_score.test.cpp
+        tests/eval/nnue.test.cpp
+        tests/eval/nnue_network.test.cpp
         tests/search/search.test.cpp
         tests/search/history.test.cpp
         tests/search/instrumentation.test.cpp
@@ -212,11 +175,6 @@ if(BUILD_TESTING)
         tests/uci/writer.test.cpp
     )
 
-    if(LATRUNCULI_NNUE)
-        # Keep HCE score and reconstruction contracts in the explicit HCE build.
-        list(REMOVE_ITEM LATRUNCULI_TEST_SOURCES tests/eval/evaluation.test.cpp tests/eval/features.test.cpp)
-        list(APPEND LATRUNCULI_TEST_SOURCES tests/eval/nnue.test.cpp)
-    endif()
     if(LATRUNCULI_TUNING)
         list(APPEND LATRUNCULI_TEST_SOURCES tests/tuning/options.test.cpp)
     endif()

@@ -10,10 +10,10 @@ HalfKP NNUE evaluation, and multithreaded principal variation search (PVS).
 | [core](../src/core/) | Chess types, bitboards, and attack tables |
 | [board](../src/board/) | Position state, make/unmake, rules, FEN, and notation |
 | [movegen](../src/movegen/) | Pseudo-legal move generation and perft |
-| [eval](../src/eval/) | Static evaluation, weights, and tuning features |
+| [eval](../src/eval/) | HalfKP loading, accumulators, and scalar/AVX2 inference |
 | [search](../src/search/) | Search, move ordering, the transposition table, limits, and threads |
 | [uci](../src/uci/) | GUI commands, engine options, and search output |
-| [cli](../src/cli/) | Command-line entry point, benchmark, and feature export |
+| [cli](../src/cli/) | Command-line entry point and built-in benchmark |
 
 ## Positions and moves
 
@@ -34,25 +34,20 @@ generation and make/unmake code.
 
 ## Evaluation
 
-The default [NNUE evaluator](../src/eval/nnue.cpp) embeds the pinned Stockfish 12
-HalfKP network. Each board-history entry owns both perspectives' accumulators;
+The [network loader](../src/eval/nnue_network.cpp) reads and validates the pinned
+Stockfish 12 HalfKP weights from beside the executable once per process. The
+[inference module](../src/eval/nnue.cpp) handles accumulator updates, scalar
+kernels, and score adaptation; AVX2 kernels remain separate. Board-facing
+headers expose accumulator state without file-loading or weight-layout details.
+Each board-history entry owns both perspectives' accumulators;
 make/unmake updates or restores them with the position. Immutable weights are
 shared across workers. Scalar and AVX2 kernels implement the same integer
 inference; `AUTO` selects the backend once using CPU support. See
 [NNUE](nnue-halfkp.md) for the feature map, score adapter, and parity checks.
 
-With `LATRUNCULI_NNUE=OFF`, the handcrafted
-[Evaluator](../src/eval/evaluation.cpp) uses tunable weights:
-
-- `Board` keeps material and piece-square scores up to date during make/unmake.
-- The evaluator adds scores for pawn structure, piece activity, mobility,
-  threats, and king safety.
-- [Tapered evaluation](https://chessprogramming.org/Tapered_Eval) blends
-  middlegame and endgame scores based on the remaining non-pawn material.
-- It also applies endgame scaling and a tempo bonus.
-
-The HCE build also exports linear features for fitting weights from recorded games.
-NNUE builds explicitly reject HCE feature export.
+Search material estimates are kept separately in
+[material_values.hpp](../src/board/material_values.hpp). SEE retains its own
+exchange prices; neither is a positional evaluator.
 
 ## Search
 

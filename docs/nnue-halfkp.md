@@ -2,8 +2,7 @@
 
 The default evaluator uses Stockfish 12's frozen network with Latrunculi's own
 scalar and AVX2 inference kernels. The network, score adapter, and AUTO backend
-match the untuned candidate tested in OpenBench #105. HCE remains available as an
-explicit build option.
+match the untuned candidate tested in OpenBench #105. NNUE is the only evaluator.
 
 ## Build
 
@@ -15,38 +14,37 @@ cmake --build --preset release-dev --parallel 2
 ctest --preset release-dev
 ```
 
-Fresh builds enable `LATRUNCULI_NNUE` and embed
-`networks/nn-82215d0fd0df.nnue` by default. `LATRUNCULI_NNUE_NETWORK` can name another
-copy of this exact file; the complete frozen SHA256 is always enforced. Existing
-CMake caches retain explicit settings.
+CMake copies `networks/nn-82215d0fd0df.nnue` into the build directory. Ship it
+beside `latrunculi`. The engine resolves its own executable through Linux's
+`/proc/self/exe` and reads that sibling file once, independent of the launcher's
+working directory or a symlink used to start the engine. Weights remain immutable
+and shared across workers. Missing, truncated, incompatible, or modified files
+fail initialization explicitly; there is no evaluator fallback or download.
 
-`LATRUNCULI_NNUE_BACKEND` is `AUTO` (default), `SCALAR`, or `AVX2`. Automatic
-selection checks CPU support once. Forced AVX2 fails explicitly on unsupported
-CPUs. The AVX2 functions have their own compiler target; generic code retains
-its normal CPU requirements. Network embedding uses the assembler's `.incbin`;
-engine builds need neither Python nor a network connection. A missing or
-different network fails configuration. The native loader also validates the
-format, arithmetic bounds, and complete frozen SHA256 before use.
+The fixed network SHA256 is
+`82215d0fd0df3cde17fc47ac024c5b5736823ec390200abdd705c44660c69ee4`.
+Loading, format validation, SHA256, and immutable weight ownership are kept in
+`nnue_network`; accumulator updates, inference, and score adaptation are in
+`nnue`. Engine startup calls `nnue::initialize()` before accepting commands.
+The loader validates the format and arithmetic bounds before use. There are
+no evaluator, network-path, or backend CMake options. `EvalFile` and network
+switching are deferred; replacing the fixed file with other weights is unsupported.
 
-`make -C bench` uses the same NNUE/AUTO defaults for OpenBench workers.
-`NNUE=OFF` selects HCE; `NNUE_BACKEND=SCALAR` forces the portable reference
-kernels. Worker builds use two jobs.
+Automatic backend selection checks CPU support once. AVX2 functions have their
+own compiler target; generic code retains its normal CPU requirements. The
+portable scalar implementation remains the reference in tests and the offline
+verifier. Builds need neither Python nor network access, and no assembler blob
+is generated. Native verification tools are built with `BUILD_TESTING=ON`.
 
-The explicit HCE preset retains the complete handcrafted score and feature-export
-test coverage:
+`make -C bench` uses the same defaults for OpenBench workers and copies both
+files to its output directory. The current OpenBench client subsequently moves
+only the executable into its engine cache, so workers also need the pinned
+network provisioned beside those cached executables before a campaign. Worker
+builds use two jobs. The separate tuning entry point still enables SPSA search
+options; HCE fitting and feature export have been removed.
 
-```bash
-cmake --preset release-hce
-cmake --build --preset release-hce --parallel 2
-ctest --preset release-hce
-```
-
-For custom build directories, select HCE with `-DLATRUNCULI_NNUE=OFF`. Its build
-does not require the network file.
-
-The `eval` console command reports the network, backend, raw inference score, and
-adapted static score. UCI options and search parameters are unchanged. `features`
-is an HCE-only interface and fails explicitly in an NNUE build.
+The `eval` console command reports the network, backend, raw inference score,
+and adapted static score. UCI options and search parameters are unchanged.
 
 ## Arithmetic and state contract
 

@@ -7,6 +7,7 @@
 #include "board/board.hpp"
 #include "core/attacks.hpp"
 #include "eval/nnue.hpp"
+#include "eval/nnue_network.hpp"
 #include "movegen/moves.hpp"
 
 int main(int argc, char** argv) {

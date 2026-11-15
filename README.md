@@ -13,7 +13,6 @@ see the [results and test conditions](docs/releases/1.2.0.md#ccrl-blitz-estimate
 - Lazy SMP parallel search with a shared transposition table
 - Staged move ordering, late move reductions, and null-move and futility pruning
 - HalfKP NNUE evaluation with scalar and AVX2 inference
-- Optional handcrafted tapered evaluation with tunable weights
 
 See [Architecture](docs/architecture.md) for how these fit together.
 
@@ -31,24 +30,15 @@ cmake --preset release
 cmake --build --preset release
 ```
 
-The build embeds the bundled, pinned Stockfish 12 HalfKP network. `AUTO` selects
-AVX2 when supported and scalar inference otherwise; no network download or Python
-is needed. See [NNUE](docs/nnue-halfkp.md) for the network identity and build options.
+The build copies the pinned Stockfish 12 HalfKP network beside the executable.
+Distribute `latrunculi` and `nn-82215d0fd0df.nnue` together in the same directory.
+The engine loads that fixed file once; it does not search the working directory,
+embed weights, or download a network. `AUTO` selects AVX2 when supported and
+scalar inference otherwise. No Python is needed to build the engine. See
+[NNUE](docs/nnue-halfkp.md) for network identity and verification.
 
 On x86-64, POPCNT is enabled by default. For older processors, add
 `-DLATRUNCULI_USE_POPCNT=OFF` to the configure command.
-
-For an explicit handcrafted-evaluation build with its tests:
-
-```bash
-cmake --preset release-hce
-cmake --build --preset release-hce
-ctest --preset release-hce
-```
-
-Custom builds can select HCE with `-DLATRUNCULI_NNUE=OFF`. Existing CMake caches
-retain explicit evaluator and backend selections; use a fresh build directory to
-pick up defaults.
 
 ## Run
 
@@ -97,7 +87,6 @@ ctest --preset debug
 - [OpenBench testing](docs/engine-development.md#test-strength)
 - [Development manual](docs/engine-development.md)
 - [Development scripts](docs/scripts.md)
-- [Evaluation tuning](docs/scripts.md#tune)
 - [Roadmap](docs/roadmap.md)
 - [1.2.0 release notes](docs/releases/1.2.0.md)
 - [UCI protocol reference](docs/uci-protocol-specification.txt)

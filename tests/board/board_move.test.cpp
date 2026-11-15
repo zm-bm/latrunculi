@@ -28,7 +28,7 @@ void expect_move_round_trip(std::string_view before, Move move, std::string_view
     board.make(move);
     EXPECT_EQ(board.to_fen(), after);
     EXPECT_EQ(board.key(), board.recompute_key());
-    board_test::expect_base_terms_consistent(board);
+    board_test::expect_neural_state_consistent(board);
 
     board.unmake();
     board_test::expect_same_board_snapshot(board, before_snapshot);
@@ -46,7 +46,7 @@ TEST(BoardMoveTest, MakesAndUnmakesOrdinaryMovesInLifoOrder) {
     board.make(first);
     EXPECT_EQ(board.to_fen(), "rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1");
     EXPECT_EQ(board.key(), board.recompute_key());
-    board_test::expect_base_terms_consistent(board);
+    board_test::expect_neural_state_consistent(board);
     EXPECT_TRUE(board.can_unmake());
     EXPECT_EQ(board.previous_move(), first);
     const auto after_first = board_test::snapshot_board(board);
@@ -55,7 +55,7 @@ TEST(BoardMoveTest, MakesAndUnmakesOrdinaryMovesInLifoOrder) {
     board.make(second);
     EXPECT_EQ(board.previous_move(), second);
     EXPECT_EQ(board.key(), board.recompute_key());
-    board_test::expect_base_terms_consistent(board);
+    board_test::expect_neural_state_consistent(board);
 
     board.unmake();
     board_test::expect_same_board_snapshot(board, after_first);
@@ -130,7 +130,7 @@ TEST(BoardMoveTest, DoublePushUpdatesEnPassantState) {
         EXPECT_EQ(board.legal_enpassant_target(), test.legal_enpassant_target);
         EXPECT_EQ(board.to_fen(), test.after);
         EXPECT_EQ(board.key(), board.recompute_key());
-        board_test::expect_base_terms_consistent(board);
+        board_test::expect_neural_state_consistent(board);
 
         board.unmake();
         board_test::expect_same_board_snapshot(board, before);
@@ -145,7 +145,7 @@ TEST(BoardMoveTest, MakesAndUnmakesEnPassantCapture) {
     EXPECT_EQ(board.to_fen(), "4k3/8/8/8/8/p7/8/4K3 w - - 0 2");
     EXPECT_EQ(board.legal_enpassant_target(), INVALID);
     EXPECT_EQ(board.key(), board.recompute_key());
-    board_test::expect_base_terms_consistent(board);
+    board_test::expect_neural_state_consistent(board);
 
     board.unmake();
     board_test::expect_same_board_snapshot(board, before);
@@ -213,8 +213,7 @@ TEST(BoardMoveTest, MakesAndUnmakesNullMove) {
         board.make_null();
 
         EXPECT_EQ(board.occupancy(), before.occupancy);
-        EXPECT_EQ(board.base_terms(), before.base_terms);
-        board_test::expect_base_terms_consistent(board);
+        board_test::expect_neural_state_consistent(board);
         EXPECT_EQ(board.side_to_move(), ~side_to_move);
         EXPECT_EQ(+board.halfmove_clock(), +halfmove_clock + 1);
         EXPECT_EQ(board.fullmove_number(), fullmove_number);

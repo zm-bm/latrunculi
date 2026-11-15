@@ -5,6 +5,7 @@
 #include <cmath>
 #include <optional>
 
+#include "board/material_values.hpp"
 #include "core/constants.hpp"
 #include "eval/evaluation.hpp"
 #include "movegen/moves.hpp"
@@ -209,7 +210,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             && beta > -scores::mate_bound
             && beta < scores::mate_bound;
         if (reverse_futility_candidate
-            && board.non_pawn_material(side) > eval::piece(ROOK).mg
+            && board.non_pawn_material(side) > material::value(ROOK)
             && !tt_upper_veto
             && static_eval - parameters.futility_margin[depth] >= beta)
             return static_eval;
@@ -219,7 +220,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             && !after_null
             && !in_check
             && depth >= NullMoveMinDepth
-            && board.non_pawn_material(side) > eval::piece(ROOK).mg
+            && board.non_pawn_material(side) > material::value(ROOK)
             && !tt_upper_veto) {
             stats.null_move_try(ply);
 
@@ -277,7 +278,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         && (tt_record->bound == TTBound::Exact || tt_record->bound == TTBound::LowerBound)) {
         const Score tt_score = tt_record->score_at_ply(ply);
         const Score singular_beta =
-            tt_score - std::max(1, depth * eval::pawn.mg / SingularMarginDivisor);
+            tt_score - std::max(1, depth * material::value(PAWN) / SingularMarginDivisor);
         const int singular_depth = (depth - 1) / SingularDepthDivisor;
 
         const bool non_mate_scores = std::abs(tt_score) < scores::mate_bound
@@ -642,7 +643,7 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
 
         /*
          * Capture pruning.
-         * Use evaluation material to estimate whether a capture can improve alpha.
+         * Use material values to estimate whether a capture can improve alpha.
          */
         if (!in_check
             && move != tt_move
@@ -650,15 +651,14 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
             && alpha > -scores::mate_bound
             && beta < scores::mate_bound) {
             const PieceType victim = board.captured_piece_type(move);
-            const auto price = eval::piece(victim);
             const Score capture_gain_estimate =
-                static_eval + std::max(price.mg, price.eg) + parameters.qcapture_margin;
+                static_eval + material::capture_value(victim) + parameters.qcapture_margin;
             if (capture_gain_estimate < alpha) {
                 const bool material_allows_capture_pruning =
-                    board.non_pawn_material(board.side_to_move()) > eval::rook.mg
+                    board.non_pawn_material(board.side_to_move()) > material::value(ROOK)
                     && board.non_pawn_material(~board.side_to_move())
-                            - (victim == PAWN ? 0 : price.mg)
-                        > eval::rook.mg;
+                            - (victim == PAWN ? 0 : material::value(victim))
+                        > material::value(ROOK);
                 if (material_allows_capture_pruning && !board.gives_check(move)) {
                     // Keep a fail-low estimate; leave alpha and the PV unchanged.
                     best_value = std::max(best_value, capture_gain_estimate);

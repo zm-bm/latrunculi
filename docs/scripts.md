@@ -2,7 +2,6 @@
 
 - [`./bin/baseline`](#baseline): build, test, and retain a named baseline.
 - [`./bin/benchmark`](#benchmark): run a position suite or compare two builds.
-- [`./bin/tune`](#tune): fit evaluation weights from games and check them in the compiled engine.
 - [`./bin/openbench`](#openbench): prepare settings, submit tests, and inspect OpenBench workloads.
 - [`./bin/uci-probe`](#uci-probe): search one position and capture engine output.
 - [`./bin/profile`](#profile): record CPU profiles and hardware counters.
@@ -119,74 +118,6 @@ tracing, and profiling. With `--cpu N`, keep other logical CPUs on the same
 physical core idle.
 Check the per-pair timings for variation between runs. The CPU load recorded in
 `timing-load.jsonl` can help identify competing activity that affected the measurements.
-
-## `tune`
-
-`./bin/tune` fits linear evaluation weights from PGNs and checks them against a
-compiled engine. See [tuning guidelines](engine-development.md#tune-evaluation).
-
-### Usage
-
-The fitter uses HCE feature exports. Configure and build the explicit HCE preset,
-then prepare games and fit weights:
-
-```bash
-cmake --preset release-hce
-cmake --build --preset release-hce
-./bin/tune prepare --engine release-hce --name pawns-data games.pgn.tar
-./bin/tune fit --dataset pawns-data --name pawns-fit
-```
-
-After reviewing a supported fit, copy its exact weights into
-[`src/eval/parameters.hpp`](../src/eval/parameters.hpp), then rebuild and verify:
-
-```bash
-cmake --build --preset release-hce
-./bin/tune verify pawns-fit --engine release-hce
-```
-
-### Commands
-
-- `prepare`: create a dataset from an engine built with the starting weights and
-  one or more `.pgn`, `.pgn.bz2`, or `.pgn.tar` files.
-  Requires at least 40,000 valid games and 20,000 retained opening groups.
-  The engine and PGNs must remain unchanged during preparation.
-- `fit`: fit weights from a prepared dataset; the original engine and PGNs are
-  no longer needed.
-- `verify FIT`: check that the compiled weights and evaluation invariants match
-  a supported fit. Requires only the fit directory and engine binary.
-
-### Options
-
-`prepare` and `fit` require exactly one of `--name` or `--output`.
-
-| Option | Command | Meaning |
-| --- | --- | --- |
-| `--engine BUILD` | `prepare`, `verify` | Engine: `build/BUILD/latrunculi`. |
-| `--dataset DATA` | `fit` | Prepared dataset: `tools/tuning/output/DATA/`. |
-| `--name NAME` | `prepare`, `fit` | Save under `tools/tuning/output/NAME/`. |
-| `--output PATH` | `prepare`, `fit` | Explicit output directory instead of `--name`. |
-
-`FIT` names also select `tools/tuning/output/FIT/`. Names resolve within this
-checkout. Engine, dataset, and fit arguments containing `/` are explicit paths
-(for example `./prepared`).
-
-### Results
-
-- Prepared data: `development.jsonl`, with input and filtering records in `manifest.json`.
-- Fit results: `cross-validation.json` for validation and `candidate.json` for
-  integer weights and review flags.
-
-If `cross_validation_supported` is false in `candidate.json`, the fit retains
-the baseline weights.
-
-Rerun the same command to reuse matching outputs: `prepare` validates the existing
-dataset, while `fit` reuses completed checkpoints and reruns interrupted work.
-
-Changed data, policy, tools, or dependencies require a fresh fit directory.
-Tool changes affecting only fitting or the CLI leave matching prepared datasets
-reusable and completed fits verifiable.
-Unsupported output formats require fresh preparation or fitting as applicable.
 
 ## `openbench`
 

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "board/castling_rights.hpp"
+#include "board/material_values.hpp"
 #include "board/ply_state.hpp"
 #include "board/zobrist.hpp"
 #include "core/attacks.hpp"
@@ -16,7 +17,6 @@
 #include "core/move_geometry.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
-#include "eval/base_terms.hpp"
 
 /**
  * Mutable chess position with owned, reversible history from the loaded
@@ -41,7 +41,6 @@ public:
 
     void clear_position() noexcept;
     PositionKey recompute_key() const noexcept;
-    eval::BaseTerms recompute_base_terms() const noexcept;
 
     // Position and state queries
 
@@ -86,10 +85,7 @@ public:
     bool is_check() const noexcept { return checkers(); }
     bool is_double_check() const noexcept { return bb::is_many(checkers()); }
 
-    const eval::BaseTerms& base_terms() const noexcept { return cached_base_terms; }
-#ifdef LATRUNCULI_NNUE
     const nnue::Accumulators& neural_state() const noexcept { return ply_state().neural; }
-#endif
     Score non_pawn_material(Color color) const noexcept;
 
     // Attacks, castling, and move classification
@@ -166,9 +162,6 @@ private:
     // Game ply used for FEN fullmove numbering; null moves do not change it.
     int absolute_ply = 0;
 
-    // HCE-specific incremental material and piece-square terms.
-    eval::BaseTerms cached_base_terms;
-
     // Reversible history from the loaded root; the final entry is the current state.
     std::vector<PlyState> ply_states;
 };
@@ -196,9 +189,7 @@ inline PlyState& Board::push_ply_state(Move move) {
     state.castling_rights = previous.castling_rights;
     state.halfmove_clock = previous.halfmove_clock + 1;
     state.previous_move = move;
-#ifdef LATRUNCULI_NNUE
     state.neural = previous.neural;
-#endif
     return state;
 }
 
@@ -210,10 +201,10 @@ inline void Board::pop_ply_state() noexcept {
 // Inline query definitions
 
 inline Score Board::non_pawn_material(Color color) const noexcept {
-    return ((count(color, KNIGHT) * eval::piece(KNIGHT).mg)
-            + (count(color, BISHOP) * eval::piece(BISHOP).mg)
-            + (count(color, ROOK) * eval::piece(ROOK).mg)
-            + (count(color, QUEEN) * eval::piece(QUEEN).mg));
+    return ((count(color, KNIGHT) * material::value(KNIGHT))
+            + (count(color, BISHOP) * material::value(BISHOP))
+            + (count(color, ROOK) * material::value(ROOK))
+            + (count(color, QUEEN) * material::value(QUEEN)));
 }
 
 // Returns geometric attackers of target, including pinned pieces.
@@ -267,7 +258,7 @@ inline PieceType Board::captured_piece_type(Move move) const noexcept {
 
 // Inline representation mutation
 
-// Updates piece storage and incremental scores. apply_hash controls Zobrist
+// Updates piece storage. apply_hash controls Zobrist
 // updates; callers maintain king_square.
 template <bool apply_hash>
 inline void Board::add_piece(Square square, Color color, PieceType piece_type) noexcept {
@@ -277,7 +268,6 @@ inline void Board::add_piece(Square square, Color color, PieceType piece_type) n
     bb::add(piece_bb[color][piece_type], square);
     bb::add(piece_bb[color][all_pieces_slot], square);
     squares[square] = make_piece(color, piece_type);
-    cached_base_terms.add_piece(piece_type, color, square);
     if constexpr (apply_hash)
         ply_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
@@ -290,7 +280,6 @@ inline void Board::remove_piece(Square square, Color color, PieceType piece_type
     bb::remove(piece_bb[color][piece_type], square);
     bb::remove(piece_bb[color][all_pieces_slot], square);
     squares[square] = NO_PIECE;
-    cached_base_terms.remove_piece(piece_type, color, square);
     if constexpr (apply_hash)
         ply_state().zkey ^= zob::hash_piece(color, piece_type, square);
 }
@@ -304,7 +293,6 @@ inline void Board::move_piece(Square from, Square to, Color color, PieceType pie
     bb::move(piece_bb[color][all_pieces_slot], from, to);
     squares[from] = NO_PIECE;
     squares[to] = make_piece(color, piece_type);
-    cached_base_terms.move_piece(piece_type, color, from, to);
     if constexpr (apply_hash)
         ply_state().zkey ^=
             zob::hash_piece(color, piece_type, from) ^ zob::hash_piece(color, piece_type, to);

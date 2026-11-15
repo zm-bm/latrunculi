@@ -21,7 +21,6 @@
 #include "board/notation.hpp"
 #include "core/attacks.hpp"
 #include "eval/evaluation.hpp"
-#include "eval/features.hpp"
 #include "movegen/generator.hpp"
 #include "search/limits.hpp"
 #include "search/thread_pool.hpp"
@@ -211,16 +210,9 @@ TEST(RandomizedStressTest, LegalPositionsRoundTripEvaluateAndSearch) {
             SCOPED_TRACE(position_context(ply, board, uci_history, san_history));
 
             EXPECT_EQ(board.key(), board.recompute_key());
-            board_test::expect_base_terms_consistent(board);
-#ifdef LATRUNCULI_NNUE
+            board_test::expect_neural_state_consistent(board);
             EXPECT_EQ(eval::evaluate(board),
                       nnue::evaluate(nnue::refresh(board), board.side_to_move()));
-#else
-            const eval::FeatureRecord features = eval::extract_features(board);
-            EXPECT_EQ(eval::evaluate(board), features.value);
-            EXPECT_EQ(features.value, features.reconstruct());
-            EXPECT_EQ(features.fixed_score, features.term(eval::Term::KingSafety).total());
-#endif
 
             for (Move move : board_test::pseudo_legal_moves(board)) {
                 if (!board.is_capture(move) && move.type() != MOVE_PROM)
@@ -244,16 +236,9 @@ TEST(RandomizedStressTest, LegalPositionsRoundTripEvaluateAndSearch) {
 
                 board.make(move);
                 EXPECT_EQ(board.key(), board.recompute_key());
-                board_test::expect_base_terms_consistent(board);
-#ifdef LATRUNCULI_NNUE
+                board_test::expect_neural_state_consistent(board);
                 EXPECT_EQ(eval::evaluate(board),
                           nnue::evaluate(nnue::refresh(board), board.side_to_move()));
-#else
-                const eval::FeatureRecord features = eval::extract_features(board);
-                EXPECT_EQ(eval::evaluate(board), features.value);
-                EXPECT_EQ(features.value, features.reconstruct());
-                EXPECT_EQ(features.fixed_score, features.term(eval::Term::KingSafety).total());
-#endif
 
                 if (!searched && ply < search_ply && move == selected)
                     selected_ends_searchable_playout =

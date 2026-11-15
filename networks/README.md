@@ -15,5 +15,7 @@ https://github.com/official-stockfish/networks for provenance. Latrunculi's kern
 are its own implementation of the documented format and architecture. The
 reference oracle is built separately from the pinned GPLv3 Stockfish source.
 
-Builds embed this exact file and never download it automatically. Other network
-files are unsupported in this bootstrap milestone.
+Builds copy this exact file beside the executable and never download it
+automatically. Keep both files together when distributing the engine. The engine
+loads the network once, checks its complete SHA256, and rejects other weights.
+Network selection and in-process switching are not supported.

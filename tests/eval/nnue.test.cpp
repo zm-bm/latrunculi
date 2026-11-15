@@ -1,18 +1,15 @@
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <limits>
-#include <sstream>
-#include <thread>
-#include <vector>
+#include <stdexcept>
 
 #include "board/board.hpp"
 #include "eval/evaluation.hpp"
-#include "eval/features.hpp"
 #include "eval/nnue.hpp"
 #include "eval/nnue_kernels.hpp"
+#include "eval/nnue_network.hpp"
 #include "movegen/moves.hpp"
 #include "search/thread_pool.hpp"
 #include "search/tt.hpp"
@@ -25,31 +22,11 @@ TEST(HalfKpTest, LegacyFeatureCoordinatesAndColorEncoding) {
     EXPECT_EQ(nnue::feature(WHITE, E1, WHITE, PAWN, A2), 2573);
     EXPECT_EQ(nnue::feature(BLACK, E8, BLACK, PAWN, A7), 1939);
     EXPECT_EQ(nnue::feature(WHITE, E1, BLACK, PAWN, A7), 2677);
-    EXPECT_EQ(nnue::network().weights.size(), 41024 * 256);
 }
 
-TEST(HalfKpTest, BackendSelectionSafelyHandlesUnsupportedCpus) {
-    EXPECT_EQ(nnue::resolve_backend(nnue::BackendPreference::Auto, false), nnue::Backend::Scalar);
-    EXPECT_EQ(nnue::resolve_backend(nnue::BackendPreference::Scalar, true), nnue::Backend::Scalar);
-    EXPECT_EQ(nnue::resolve_backend(nnue::BackendPreference::Auto, true), nnue::Backend::Avx2);
-    EXPECT_EQ(nnue::resolve_backend(nnue::BackendPreference::Avx2, true), nnue::Backend::Avx2);
-    EXPECT_THROW(nnue::resolve_backend(nnue::BackendPreference::Avx2, false), std::runtime_error);
-}
-
-TEST(HalfKpTest, FrozenLoaderRejectsIncompatibleCorruptAndTruncatedFiles) {
-    const auto embedded = nnue::embedded_network();
-    std::vector<std::uint8_t> bytes(embedded.begin(), embedded.end());
-    EXPECT_NO_THROW((void)nnue::decode(bytes));
-    for (std::size_t offset : {0U, 4U, 8U, 189U, 21004993U, 21022696U}) {
-        bytes[offset] ^= 1;
-        EXPECT_THROW((void)nnue::decode(bytes), std::invalid_argument) << offset;
-        bytes[offset] ^= 1;
-    }
-    bytes.pop_back();
-    EXPECT_THROW((void)nnue::decode(bytes), std::invalid_argument);
-    bytes.push_back(0);
-    bytes.push_back(0);
-    EXPECT_THROW((void)nnue::decode(bytes), std::invalid_argument);
+TEST(HalfKpTest, BackendSelectionFallsBackWithoutAvx2) {
+    EXPECT_EQ(nnue::resolve_backend(false), nnue::Backend::Scalar);
+    EXPECT_EQ(nnue::resolve_backend(true), nnue::Backend::Avx2);
 }
 
 TEST(HalfKpTest, AdapterUsesSignedTruncationAndStaysOutsideMateBand) {
@@ -97,15 +74,6 @@ TEST(HalfKpTest, SpecialMovesCopiesAndFailedFenRestoreExactState) {
         }
         EXPECT_EQ(reinterpret_cast<std::uintptr_t>(&board.neural_state()) % 64, 0);
     }
-}
-
-TEST(HalfKpTest, HceExportsFailBeforeEmittingSchema) {
-    Board board;
-    EXPECT_THROW((void)eval::extract_features(board), std::logic_error);
-    std::istringstream input;
-    std::ostringstream output;
-    EXPECT_THROW(eval::export_features(input, output), std::logic_error);
-    EXPECT_TRUE(output.str().empty());
 }
 
 TEST(HalfKpTest, Avx2MatchesEveryIntermediateAtClippingBoundaries) {

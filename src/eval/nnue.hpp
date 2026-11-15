@@ -2,8 +2,6 @@
 
 #include <array>
 #include <cstdint>
-#include <span>
-#include <vector>
 
 #include "core/piece.hpp"
 #include "core/square.hpp"
@@ -14,33 +12,17 @@ namespace nnue {
 inline constexpr int inputs = 41024;
 inline constexpr int hidden = 256;
 inline constexpr int static_limit = 30000;
-inline constexpr char network_sha256[] =
-    "82215d0fd0df3cde17fc47ac024c5b5736823ec390200abdd705c44660c69ee4";
 
 enum class Backend { Scalar, Avx2 };
-enum class BackendPreference { Auto, Scalar, Avx2 };
-Backend resolve_backend(BackendPreference, bool supports_avx2);
+
+struct Network;
+
+// Initialize the automatic backend and fixed network before accepting commands.
+void initialize();
+Backend resolve_backend(bool supports_avx2) noexcept;
 Backend backend();
 bool avx2_available() noexcept;
 const char* backend_name();
-
-template <int In, int Out>
-struct Layer {
-    std::array<std::int32_t, Out> bias{};
-    alignas(64) std::array<std::int8_t, In * Out> weights{};
-};
-
-struct Network {
-    std::array<std::int16_t, hidden> bias{};
-    std::vector<std::int16_t> weights;
-    Layer<512, 32> first;
-    Layer<32, 32> second;
-    Layer<32, 1> output;
-};
-
-Network decode(std::span<const std::uint8_t> bytes);
-std::span<const std::uint8_t> embedded_network();
-const Network& network();
 
 struct alignas(64) Accumulators {
     std::array<std::array<std::int16_t, hidden>, N_COLORS> values{};

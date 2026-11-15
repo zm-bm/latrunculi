@@ -6,13 +6,6 @@ predicted Elo gains:
 1. Adjust quiet-move reductions using history.
 2. Learn static-evaluation corrections.
 3. Refine LMR verification policy.
-4. Cache pawn and king evaluation, if profiling supports it.
-5. Investigate and tune king danger, guided by game mistakes.
-6. Recognize candidate passed pawns.
-
-Give caching a short feasibility investigation early and promote it if the
-measurements show substantial savings. Revisit this order as game analysis and
-experiments identify concrete weaknesses.
 
 Possible improvements and investigations, grouped by area rather than priority.
 
@@ -54,15 +47,15 @@ Investigate the fixed exchange prices in
 [`see_values.hpp`](../src/board/see_values.hpp). They affect quiescence capture
 filtering, main-search capture staging, and capture ordering, including evasions.
 Changing them also changes the balance between material and capture history.
-They are separate from the material weights fitted by the evaluation tuner.
+They are independent of NNUE weights and separate from the material estimates
+used by pruning.
 
 Keep pawn=100 and constrain the other prices to preserve the fixed attacker
 order: pawn, knight, bishop, rook, queen, with king handling unchanged. Start
 with a small, bounded comparison of price sets after capture/search policy
 stabilizes, holding history scaling and threshold formulas fixed. Use game
-results to assess strength; the current evaluation fit cannot optimize these
-search decisions. Check exchange correctness and changed capture decisions,
-then independently confirm any selected values. Consider SPSA if a broader
+results to assess strength. Check exchange correctness and changed capture
+decisions, then independently confirm any selected values. Consider SPSA if a broader
 tuning run justifies exposing the parameters through UCI.
 
 ### Refine deferred-capture placement
@@ -95,14 +88,8 @@ Preserve compact layout, atomic access, replacement semantics, and hot-path cost
 
 ## Evaluation and endgames
 
-### Investigate and tune king danger
-
-The nonlinear king-danger calculation has internal weights for attackers,
-checks, weak defenses, and pins that the current linear tuning feature set
-does not expose. Investigate recurring attack and defense errors, then test a
-focused change to the model or its weights. Choose a fitting method compatible
-with the nonlinear calculation, verify compiled evaluation behavior, and
-confirm gains on held-out data and in games.
+The sole evaluator is the frozen [HalfKP NNUE](nnue-halfkp.md). Tablebase and
+rule-based endgame investigations remain applicable independently of its weights.
 
 ### Syzygy tablebases
 
@@ -112,18 +99,6 @@ Add optional WDL/DTZ probing using user-supplied tablebase files.
 
 Compare engine choices with external tablebase WDL/DTZ results to identify
 recurring errors in low-material positions, accounting for the fifty-move rule.
-
-### Recognize candidate passed pawns
-
-Explore a bonus for pawns that become passed after another friendly pawn
-exchanges away their only enemy blocker. Distinguish feasible breakthroughs
-from unsupported pawns or multiple blockers.
-
-### Evaluate rooks behind passed pawns
-
-Explore evaluation terms for friendly and enemy rooks behind passed pawns,
-accounting for intervening pieces and whether the rook supports or restrains
-advancement.
 
 ### Add a KPK bitbase
 
@@ -135,26 +110,7 @@ correct side-to-move, promotion, and fifty-move handling.
 Recognize drawn king, bishop, and rook-pawn versus king positions using king
 placement, bishop color, side to move, and promotion threats.
 
-### Improve evaluation of drawish minor-piece endings
-
-Investigate scaling for minor-piece endings with blocked pawns or few pawns on
-one flank. Treat bishop and knight endings separately, account for other draw
-effects, and preserve winning positions.
-
-### NNUE
-
-Explore a neural evaluation backend while retaining the handcrafted evaluation.
-
 ## Performance and parallelism
-
-### Cache pawn and king evaluation
-
-Cache reusable pawn-structure and king-shelter terms per worker. Include all
-relevant pawn, king, and castling state in the key and preserve exact scores.
-Measure the cacheable share of total search time and the savings after lookup
-and memory costs. Limit cached king terms to those determined by the key;
-king danger also depends on other pieces and their attacks. Confirm unchanged
-search behavior and a net runtime gain before treating caching as an improvement.
 
 ### Reduce SEE cost and unnecessary calls
 
