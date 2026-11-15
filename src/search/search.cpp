@@ -20,34 +20,23 @@ namespace {
 constexpr int FutilityMaxDepth = 3;
 constexpr int RazorMaxDepth = 3;
 constexpr int LateMovePruningDepth = 2;
-constexpr int LateMovePruningMoveCount = 12;
 
 // Null-move reductions.
 constexpr int NullMoveMinDepth = 3;
 constexpr int NullMoveReductionBase = 3;
 constexpr int NullMoveReductionMax = 6;
-constexpr int NullMoveDepthDivisor = 7;
 constexpr int NullMoveSurplusBonusMax = 2;
 
 // Singular searches.
 constexpr int SingularMinDepth = 8;
 constexpr int SingularTtDepthSlack = 3;
 constexpr int SingularPlyLimitFactor = 2;
-constexpr int SingularMarginDivisor = 50;
 constexpr int SingularDepthDivisor = 2;
 
 // Late-move reductions.
 constexpr int LmrMinDepth = 3;
 constexpr int LmrMinMoveCount = 4;
-constexpr double LmrQuietOffset = 1.25;
-constexpr double LmrCaptureOffset = 0.75;
-constexpr double LmrQuietDivisor = 2.5;
-constexpr double LmrCaptureDivisor = 3.3;
-constexpr double LmrPvScale = 0.7;
-constexpr double LmrKillerScale = 0.8;
 constexpr int CaptureLmrMinDepth = 4;
-constexpr int CaptureLmrHistoryDivisor = 8192;
-constexpr double CaptureLmrMaxAdjustment = 1.0;
 
 // Quiescence.
 constexpr int QuiescenceTtDepth = 0;
@@ -228,10 +217,12 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             const int surplus_bonus =
                 std::min(int(positive_surplus / parameters.null_move_surplus_per_ply),
                          NullMoveSurplusBonusMax);
-            const int reduction =
-                std::min({depth,
-                          NullMoveReductionMax,
-                          NullMoveReductionBase + depth / NullMoveDepthDivisor + surplus_bonus});
+            const int reduction = std::min(
+                {depth,
+                 NullMoveReductionMax,
+                 NullMoveReductionBase
+                     + depth / parameters.null_move_depth_divisor
+                     + surplus_bonus});
 
             board.make_null(prefetch_child_tt);
             (frame + 1)->state.singular_search_active = state.singular_search_active;
@@ -277,8 +268,8 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         && tt_record->depth >= depth - SingularTtDepthSlack
         && (tt_record->bound == TTBound::Exact || tt_record->bound == TTBound::LowerBound)) {
         const Score tt_score = tt_record->score_at_ply(ply);
-        const Score singular_beta =
-            tt_score - std::max(1, depth * material::value(PAWN) / SingularMarginDivisor);
+        const Score singular_beta = tt_score
+            - std::max(1, depth * material::value(PAWN) / parameters.singular_margin_divisor);
         const int singular_depth = (depth - 1) / SingularDepthDivisor;
 
         const bool non_mate_scores = std::abs(tt_score) < scores::mate_bound
@@ -364,7 +355,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         if constexpr (Node == NodeType::NonPv) {
             const bool late_quiet_pruning_node = !excluded_search
                 && depth == LateMovePruningDepth
-                && move_count > LateMovePruningMoveCount
+                && move_count > parameters.late_move_pruning_move_count
                 && !quiet_futility
                 && !in_check
                 && best_value > -scores::mate_bound
@@ -407,14 +398,16 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             && !is_promotion
             && !in_check
             && !gives_check) {
-            const double offset = is_quiet ? LmrQuietOffset : LmrCaptureOffset;
-            const double divisor = is_quiet ? LmrQuietDivisor : LmrCaptureDivisor;
+            const double offset =
+                is_quiet ? parameters.lmr_quiet_offset : parameters.lmr_capture_offset;
+            const double divisor =
+                is_quiet ? parameters.lmr_quiet_divisor : parameters.lmr_capture_divisor;
             double fractional_reduction = offset + std::log(depth) * std::log(move_count) / divisor;
 
             if constexpr (Node == NodeType::Pv)
-                fractional_reduction *= LmrPvScale;
+                fractional_reduction *= parameters.lmr_pv_scale;
             if (is_killer)
-                fractional_reduction *= LmrKillerScale;
+                fractional_reduction *= parameters.lmr_killer_scale;
 
             // Keep at least one main-search ply after the move.
             reduction = std::clamp(static_cast<int>(fractional_reduction), 1, depth - 2);
@@ -427,12 +420,12 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             if constexpr (Node == NodeType::NonPv) {
                 // Adjust captures before rounding; retain the integer base for instrumentation.
                 if (!is_quiet && move != tt_move && depth >= CaptureLmrMinDepth) {
-                    const double history_adjustment =
-                        -static_cast<double>(raw_capture_history) / CaptureLmrHistoryDivisor;
+                    const double history_adjustment = -static_cast<double>(raw_capture_history)
+                        / parameters.capture_lmr_history_divisor;
                     const double adjustment = std::clamp(
                         history_adjustment,
-                        -CaptureLmrMaxAdjustment,
-                        CaptureLmrMaxAdjustment);
+                        -parameters.capture_lmr_max_adjustment,
+                        parameters.capture_lmr_max_adjustment);
                     reduction = std::clamp(static_cast<int>(fractional_reduction + adjustment),
                                            0,
                                            depth - 2);

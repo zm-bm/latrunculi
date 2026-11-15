@@ -89,15 +89,15 @@ private:
     static constexpr int QuietPenaltyDivisor = 2;
     static constexpr int CaptureHistoryMinRewardDepth = 3;
     static constexpr int NonCutoffCapacity = 32;
-    static constexpr int CaptureLearningRate = 16;
-    static constexpr int CaptureDepthSquaredLimit = 128;
 
     static int quiet_bonus(int depth, int divisor = 1) {
         return std::clamp(depth * depth / divisor, 0, History::QuietMaxScore);
     }
 
-    static int capture_bonus(int depth) {
-        return CaptureLearningRate * std::clamp(depth * depth, 0, CaptureDepthSquaredLimit);
+    int capture_bonus(int depth) const {
+        const auto& parameters = history.parameters();
+        return parameters.capture_learning_rate
+            * std::clamp(depth * depth, 0, parameters.capture_depth_squared_limit);
     }
 
     const Board& board;

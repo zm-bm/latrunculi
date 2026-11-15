@@ -1,6 +1,7 @@
 """Offline SPSA preparation: engine metadata plus an explicit campaign recipe."""
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import subprocess
@@ -18,9 +19,10 @@ def parameter_rows(metadata, recipe):
     for item in metadata['parameters']:
         if (not isinstance(item, dict) or set(item) != {'name', 'type', 'default', 'min', 'max'}
                 or not isinstance(item['name'], str)
-                or item['type'] != 'int' or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*', item['name'])
+                or item['type'] not in ('int', 'float') or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*', item['name'])
                 or item['name'].lower() in definitions
-                or any(type(item[key]) is not int for key in ['default', 'min', 'max'])
+                or any(type(item[key]) not in (int, float) or not math.isfinite(item[key]) for key in ['default', 'min', 'max'])
+                or (item['type'] == 'int' and any(type(item[key]) is not int for key in ['default', 'min', 'max']))
                 or not item['min'] <= item['default'] <= item['max']):
             raise ValueError('Malformed engine parameter metadata')
         definitions[item['name'].lower()] = item
@@ -30,11 +32,13 @@ def parameter_rows(metadata, recipe):
     for item in recipe['parameters']:
         if (not isinstance(item, dict) or set(item) != {'name', 'min', 'max', 'c_end', 'r_end'}
                 or not isinstance(item['name'], str)
-                or any(type(item[key]) is not int for key in ['min', 'max'])):
+                or any(type(item[key]) not in (int, float) or not math.isfinite(item[key]) for key in ['min', 'max'])):
             raise ValueError('Malformed recipe parameter')
         definition = definitions.get(item['name'].lower())
         if definition is None:
             raise ValueError('Recipe names an unknown parameter: '+item['name'])
+        if definition['type'] == 'int' and any(type(item[key]) is not int for key in ['min', 'max']):
+            raise ValueError('Integer recipe bounds must be integers')
         if not definition['min'] <= item['min'] <= definition['default'] <= item['max'] <= definition['max']:
             raise ValueError('Recipe bounds disagree with engine metadata: '+item['name'])
         rows.append((definition['name'], definition['type'], definition['default'],
@@ -60,8 +64,8 @@ def prepare(args, revision, write_settings):
     discovery = subprocess.run([str(binary)], input='uci\nquit\n', capture_output=True,
                                text=True, check=True, timeout=args.timeout)
     for item in metadata['parameters']:
-        line = (f"option name {item['name']} type spin default {item['default']} "
-                f"min {item['min']} max {item['max']}")
+        line = (f"option name {item['name']} type spin default {item['default']} min {item['min']} max {item['max']}"
+                if item['type'] == 'int' else f"option name {item['name']} type string default {item['default']}")
         if discovery.stdout.splitlines().count(line) != 1:
             raise ValueError('Engine metadata disagrees with UCI options: '+item['name'])
     settings = json.loads((RECIPES.parent / 'spsa.json').read_text())

@@ -10,6 +10,7 @@
 #include "board/castling_rights.hpp"
 #include "board/material_values.hpp"
 #include "board/ply_state.hpp"
+#include "board/see_values.hpp"
 #include "board/zobrist.hpp"
 #include "core/attacks.hpp"
 #include "core/constants.hpp"
@@ -130,7 +131,9 @@ public:
 
     // Tests an inclusive threshold using fixed exchange prices.
     // Requires a pseudo-legal capture or promotion.
-    bool see(Move move, int threshold) const noexcept;
+    bool see(Move move,
+             int threshold,
+             const see::Values& values = see::piece_values) const noexcept;
 
 private:
     // Ply-state storage

@@ -3,6 +3,7 @@
 #include <array>
 #include <sstream>
 
+#include "movegen/moves.hpp"
 #include "search/parameters.hpp"
 #include "search/tt.hpp"
 #include "support/engine_test_fixture.hpp"
@@ -124,4 +125,65 @@ TEST(TuningTest, CampaignBoundaryCombinationsKeepLegalSearchResults) {
         ASSERT_EQ(reporter.best_moves.size(), 1U);
         EXPECT_TRUE(position.is_legal_move(reporter.best_moves.front()));
     }
+}
+
+TEST(TuningTest, FractionalOptionsAndSeePricesAreValidatedAtomically) {
+    search::Parameters p;
+    ASSERT_TRUE(tuning::set(p, "LmrQuietDivisor", "2.375"));
+    EXPECT_DOUBLE_EQ(p.lmr_quiet_divisor, 2.375);
+    for (const char* value : {"nan", "inf", "0", "2.5 extra", "1e309"}) {
+        EXPECT_THROW(tuning::set(p, "LmrQuietDivisor", value), std::exception);
+        EXPECT_DOUBLE_EQ(p.lmr_quiet_divisor, 2.375);
+    }
+    ASSERT_TRUE(tuning::set(p, "SeeKnight", "375"));
+    EXPECT_THROW(tuning::set(p, "SeeKnight", "376"), std::out_of_range);
+    EXPECT_EQ(p.see_values[KNIGHT], 375);
+    EXPECT_TRUE(tuning::valid(p));
+    p.see_values[PAWN] = 101;
+    EXPECT_FALSE(tuning::valid(p));
+    RecordingSearchReporter reporter;
+    search::ThreadPool pool(1, reporter);
+    EXPECT_FALSE(pool.configure_parameters(p));
+    EXPECT_EQ(SearchTestAccess::parameters(SearchThreadTestAccess::worker(pool)).see_values[PAWN],
+              100);
+}
+
+TEST(TuningTest, WorkerHistoryAndMoveOrderingSharePoolSettings) {
+    search::Parameters p;
+    p.see_values[KNIGHT] = 375;
+    p.capture_history_divisor = 24;
+    p.capture_victim_weight = 9;
+    RecordingSearchReporter reporter;
+    search::ThreadPool pool(2, reporter);
+    ASSERT_TRUE(pool.configure_parameters(p));
+    for (int count : {2, 1, 3}) {
+        ASSERT_TRUE(pool.resize(count));
+        for (int i = 0; i < count; ++i) {
+            auto& worker = SearchThreadTestAccess::worker(pool, i);
+            const auto& values = SearchTestAccess::history(worker).parameters();
+            EXPECT_EQ(&values, &SearchTestAccess::parameters(worker));
+            EXPECT_EQ(values.see_values[KNIGHT], 375);
+            EXPECT_EQ(values.capture_history_divisor, 24);
+            EXPECT_EQ(values.capture_victim_weight, 9);
+        }
+    }
+}
+
+TEST(TuningTest, MoveStagesUseTheSameTunedSeePricesAsCaptureOrdering) {
+    const Board board("7k/8/2p5/3r4/4Q3/8/8/K7 w - - 0 1");
+    const Move capture(E4, D5);
+    ASSERT_TRUE(board.is_legal_move(capture));
+    search::History defaults;
+    auto context = defaults.context_for(board, 0);
+    movegen::MainSearchMoves baseline(board, defaults, context);
+    EXPECT_NE(baseline.next(), capture);
+
+    search::Parameters p;
+    p.see_values[ROOK] = 900;
+    p.see_values[QUEEN] = 900;
+    ASSERT_TRUE(tuning::valid(p));
+    search::History history(p);
+    auto tuned_context = history.context_for(board, 0);
+    movegen::MainSearchMoves tuned(board, history, tuned_context);
+    EXPECT_EQ(tuned.next(), capture);
 }

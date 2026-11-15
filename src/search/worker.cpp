@@ -12,7 +12,11 @@
 namespace search {
 
 Worker::Worker(int id, Reporter& reporter, ThreadPool& pool)
-    : reporter(reporter),
+    :
+#if LATRUNCULI_TUNING
+      history(pool.parameters),
+#endif
+      reporter(reporter),
       thread_pool(pool),
       worker_id(id)
 #if LATRUNCULI_TUNING

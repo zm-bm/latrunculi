@@ -1,6 +1,7 @@
 #include "search/thread_pool.hpp"
 #if LATRUNCULI_TUNING
 #include "search/tt.hpp"
+#include "tuning/options.hpp"
 #endif
 
 #include <algorithm>
@@ -105,7 +106,7 @@ ThreadPool::~ThreadPool() {
 
 #if LATRUNCULI_TUNING
 bool ThreadPool::configure_parameters(const Parameters& value) {
-    if (shutdown_requested || is_searching())
+    if (shutdown_requested || is_searching() || !tuning::valid(value))
         return false;
     parameters = value;
     clear_search_heuristics();

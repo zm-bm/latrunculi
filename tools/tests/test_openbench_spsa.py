@@ -12,15 +12,27 @@ from tools import openbench, openbench_spsa as spsa
 
 
 def recipe():
-    return json.loads((spsa.RECIPES/'nnue-pruning.json').read_text())
+    value = json.loads((spsa.RECIPES/'nnue-pruning.json').read_text())
+    value['parameters'] = [
+        dict(name='FutilityMargin1', min=125, max=375, c_end=12.5, r_end=.002),
+        dict(name='NullMoveSurplusPerPly', min=100, max=300, c_end=10, r_end=.002),
+        dict(name='LmrQuietDivisor', min=1.25, max=3.75, c_end=.125, r_end=.002),
+    ]
+    return value
 
 
 def metadata():
-    initial = [250, 400, 550, 500, 900, 1800, 200, 300]
     return {'format': 'latrunculi.search-parameters.v1', 'parameters': [
-        dict(name=item['name'], type='int', default=value,
-             min=1 if item['name']=='NullMoveSurplusPerPly' else 0, max=30000)
-        for item, value in zip(recipe()['parameters'], initial)]}
+        dict(name='FutilityMargin1', type='int', default=250, min=0, max=30000),
+        dict(name='NullMoveSurplusPerPly', type='int', default=200, min=1, max=30000),
+        dict(name='LmrQuietDivisor', type='float', default=2.5, min=.5, max=10),
+    ]}
+
+
+def option_line(p):
+    if p['type'] == 'float':
+        return f"option name {p['name']} type string default {p['default']}"
+    return f"option name {p['name']} type spin default {p['default']} min {p['min']} max {p['max']}"
 
 
 class RecipeTests(unittest.TestCase):
@@ -37,7 +49,7 @@ class RecipeTests(unittest.TestCase):
             path = folder/'recipe.json'; original = json.dumps(recipe()).encode(); path.write_bytes(original)
             args = openbench.parse_prepare_args(['spsa','--candidate','HEAD','--candidate-engine',str(binary),
                 '--games','2000','--recipe',str(path),'--description','test','--output',str(folder/'prepared')])
-            uci = '\n'.join(f"option name {p['name']} type spin default {p['default']} min {p['min']} max {p['max']}"
+            uci = '\n'.join(option_line(p)
                             for p in metadata()['parameters'])
             def bench(*args, **kwargs):
                 path.write_text('{}')
@@ -52,7 +64,8 @@ class RecipeTests(unittest.TestCase):
 
     def test_defaults_come_from_engine_and_campaign_policy_from_recipe(self):
         rows = spsa.parameter_rows(metadata(), recipe())
-        self.assertEqual(len(rows), 8)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[2], ('LmrQuietDivisor', 'float', 2.5, 1.25, 3.75, .125, .002))
         self.assertEqual(rows[0], ('FutilityMargin1', 'int', 250, 125, 375, 12.5, .002))
         changed = metadata()
         changed['parameters'][0]['default'] = 260
@@ -71,11 +84,25 @@ class RecipeTests(unittest.TestCase):
         value = metadata(); value['parameters'].append(value['parameters'][0])
         with self.assertRaises(ValueError): spsa.parameter_rows(value, recipe())
 
+    def test_fractional_metadata_and_bounds_must_be_finite_and_typed(self):
+        for invalid in (float('nan'), float('inf'), True):
+            value = metadata(); value['parameters'][2]['default'] = invalid
+            with self.subTest(metadata=invalid), self.assertRaises(ValueError):
+                spsa.parameter_rows(value, recipe())
+            value = recipe(); value['parameters'][2]['max'] = invalid
+            with self.subTest(bound=invalid), self.assertRaises(ValueError):
+                spsa.parameter_rows(metadata(), value)
+        value = recipe(); value['parameters'][0]['min'] = 125.5
+        with self.assertRaises(ValueError):
+            spsa.parameter_rows(metadata(), value)
+
     def prepare(self, temporary, *, uci=True, games='2000'):
         binary = temporary/'engine'; binary.write_text('binary'); binary.chmod(0o700)
         args = openbench.parse_prepare_args(['spsa','--candidate','HEAD','--candidate-engine',str(binary),
             '--games',games,'--description','SPSA test','--output',str(temporary/'prepared')])
-        discovery = '\n'.join(f"option name {p['name']} type spin default {p['default']} min {p['min']} max {p['max']}"
+        args.recipe = temporary/'recipe.json'
+        args.recipe.write_text(json.dumps(recipe()))
+        discovery = '\n'.join(option_line(p)
                               for p in metadata()['parameters']) if uci else 'uciok'
         with patch.object(openbench,'revision',return_value='1'*40), \
                 patch.object(spsa.subprocess,'run',side_effect=[Mock(stdout=json.dumps(metadata())), Mock(stdout=discovery)]), \
@@ -90,7 +117,7 @@ class RecipeTests(unittest.TestCase):
             value = json.loads(path.read_text())
             self.assertEqual(value['dev_engine'],'Latrunculi-Tuning')
             self.assertEqual(int(value['spsa_iterations'])*2*int(value['spsa_pairs_per']),2000)
-            self.assertEqual(len(spsa.client.parameters(value['spsa_inputs'])),8)
+            self.assertEqual(len(spsa.client.parameters(value['spsa_inputs'])),3)
             self.assertEqual(json.loads((path.parent/'recipe.json').read_text()),recipe())
             self.assertEqual(len(json.loads((path.parent/'candidate.json').read_text())['sha256']),64)
             bench.assert_called_once()

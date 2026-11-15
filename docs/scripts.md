@@ -240,8 +240,8 @@ and, for comparisons, `baseline-bench.txt`, with matching `.stderr.txt` files.
 ### Search SPSA
 
 Normal builds retain compile-time search values and their usual UCI options.
-Build the explicit tuning preset to expose eight pruning margins and export their
-names, integer types, defaults, and engine-safe limits:
+Build the explicit tuning preset to expose 28 search and SEE parameters and export their
+names, numeric types, defaults, and engine-safe limits:
 
 ```bash
 cmake --preset release-tuning
@@ -255,7 +255,11 @@ The [tuning adapter](../src/tuning/options.cpp) handles metadata and validated U
 updates. Settings belong to each engine, cannot change during search, and changes
 clear TT and learned history. The normal build uses the same defaults as constants.
 
-The [NNUE pruning recipe](../tools/resources/openbench/recipes/nnue-pruning.json)
+Fractional parameters use UCI string options; integer parameters use spin options.
+SEE prices are shared by capture ordering and exchange evaluation, with pawn=100
+and bounds that preserve attacker order, including equal prices.
+
+The [NNUE search recipe](../tools/resources/openbench/recipes/nnue-pruning.json)
 selects parameters, narrower campaign bounds, perturbations, and the schedule.
 Engine defaults are read from the executable rather than duplicated in recipes.
 Preparation is offline and requires an explicit game budget divisible by eight
@@ -263,8 +267,8 @@ for this recipe's four color pairs per iteration:
 
 ```bash
 ./bin/openbench prepare spsa --candidate HEAD \
-  --candidate-engine build/release-tuning/latrunculi --games 20000 \
-  --description "SPSA: Frozen NNUE pruning margins" \
+  --candidate-engine build/release-tuning/latrunculi --games 80000 \
+  --description "SPSA: Joint NNUE search and SEE tune" \
   --output tools/output/nnue-pruning
 ```
 
