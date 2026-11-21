@@ -14,6 +14,7 @@ from openbench_client import cli
 from . import engine
 from . import openbench_spsa
 from . import openbench_spsa_client
+from . import openbench_monitor
 
 
 TEMPLATES = Path(__file__).resolve().parent / "resources/openbench"
@@ -169,12 +170,14 @@ def main(argv=None):
     if argv[:1] in (["-h"], ["--help"]):
         print("Prepare Latrunculi settings locally:\n"
               "  openbench prepare {sprt,games,corpus,spsa} [options]\n"
-              "  openbench {submit-spsa,stop-spsa,spsa} --help\n"
+              "  openbench {submit-spsa,stop-spsa,spsa,monitor-spsa} --help\n"
               "  See openbench prepare --help for details.\n\n"
               "Other commands are provided by the OpenBench client:")
     config_parser = argparse.ArgumentParser(add_help=False)
     config_parser.add_argument("--config", type=Path, default=Path("~/.config/openbench/openbench.env"))
     config_args, rest = config_parser.parse_known_args(argv)
+    if rest[:1] == ["monitor-spsa"]:
+        return openbench_monitor.main(rest[1:], config_args.config)
     if rest[:1] and rest[0] in ("spsa", "submit-spsa", "stop-spsa"):
         return openbench_spsa_client.main(rest, config_args.config)
     original = cli.Session

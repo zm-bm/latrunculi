@@ -8,6 +8,13 @@
 #include <stdexcept>
 #include <string>
 
+#if LATRUNCULI_EMBED_NETWORK
+extern "C" {
+extern const std::uint8_t latrunculi_nnue_start[];
+extern const std::uint64_t latrunculi_nnue_size;
+}
+#endif
+
 namespace nnue {
 namespace {
 constexpr std::size_t file_size = 21022697;
@@ -175,7 +182,11 @@ Network load_network(const std::filesystem::path& path) {
 }
 
 const Network& network() {
+#if LATRUNCULI_EMBED_NETWORK
+    static const Network value = decode({latrunculi_nnue_start, latrunculi_nnue_size});
+#else
     static const Network value = load_network(network_path());
+#endif
     return value;
 }
 

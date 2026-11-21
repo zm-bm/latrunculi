@@ -27,21 +27,26 @@ Loading, format validation, SHA256, and immutable weight ownership are kept in
 `nnue_network`; accumulator updates, inference, and score adaptation are in
 `nnue`. Engine startup calls `nnue::initialize()` before accepting commands.
 The loader validates the format and arithmetic bounds before use. There are
-no evaluator, network-path, or backend CMake options. `EvalFile` and network
+no evaluator, network-path, or backend selection options. `EvalFile` and network
 switching are deferred; replacing the fixed file with other weights is unsupported.
 
 Automatic backend selection checks CPU support once. AVX2 functions have their
 own compiler target; generic code retains its normal CPU requirements. The
 portable scalar implementation remains the reference in tests and the offline
-verifier. Builds need neither Python nor network access, and no assembler blob
-is generated. Native verification tools are built with `BUILD_TESTING=ON`.
+verifier. Builds need neither Python nor network access. Native verification
+tools are built with `BUILD_TESTING=ON`.
 
-`make -C bench` uses the same defaults for OpenBench workers and copies both
-files to its output directory. The current OpenBench client subsequently moves
-only the executable into its engine cache, so workers also need the pinned
-network provisioned beside those cached executables before a campaign. Worker
-builds use two jobs. The separate tuning entry point still enables SPSA search
-options; HCE fitting and feature export have been removed.
+`make -C bench` embeds the same pinned network for single-file worker deployment.
+OpenBench moves only the executable into its cache and can expire other files
+independently, so worker binaries must not depend on a separately provisioned
+network. The Makefile enables `LATRUNCULI_EMBED_NETWORK=ON`; ordinary CMake builds
+keep the external-file default. Embedded builds use a generated GNU assembly
+`.incbin` object, track the network as a build dependency, and use the same
+decoder, SHA256 check, and immutable weights. A sibling file cannot override the
+embedded network. This packaging option requires Linux with GCC or Clang.
+
+Worker builds use two jobs. The separate tuning entry point still enables SPSA
+search options; HCE fitting and feature export have been removed.
 
 The `eval` console command reports the network, backend, raw inference score,
 and adapted static score. UCI options and search parameters are unchanged.

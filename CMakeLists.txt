@@ -15,6 +15,7 @@ option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
 include(cmake/SliderBackend.cmake)
 # Ship the fixed external network beside the executables. It is read once at startup.
 configure_file(networks/nn-82215d0fd0df.nnue nn-82215d0fd0df.nnue COPYONLY)
+option(LATRUNCULI_EMBED_NETWORK "Embed the pinned network for single-file deployment" OFF)
 set(LATRUNCULI_SANITIZER "none" CACHE STRING "Sanitizer configuration")
 set_property(CACHE LATRUNCULI_SANITIZER PROPERTY STRINGS none address-undefined thread)
 
@@ -72,6 +73,18 @@ set(LATRUNCULI_ENGINE_SOURCES
 )
 
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
+if(LATRUNCULI_EMBED_NETWORK)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        message(FATAL_ERROR "Embedded network builds require Linux with GCC or Clang")
+    endif()
+    enable_language(ASM)
+    set(NNUE_ASM_PATH "${CMAKE_CURRENT_SOURCE_DIR}/networks/nn-82215d0fd0df.nnue")
+    configure_file(cmake/NnueBlob.S.in NnueBlob.S @ONLY)
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/NnueBlob.S"
+        PROPERTIES OBJECT_DEPENDS "${NNUE_ASM_PATH}")
+    target_sources(latrunculi_lib PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/NnueBlob.S")
+    target_compile_definitions(latrunculi_lib PRIVATE LATRUNCULI_EMBED_NETWORK=1)
+endif()
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_TUNING=$<BOOL:${LATRUNCULI_TUNING}>)
 if(LATRUNCULI_TUNING)
     target_sources(latrunculi_lib PRIVATE src/tuning/options.cpp)

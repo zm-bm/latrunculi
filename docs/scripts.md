@@ -277,6 +277,8 @@ named `Latrunculi-Tuning` by copying the ordinary Latrunculi profile and changin
 `build.path` to `bench/tuning`. That directory delegates to the common worker
 Makefile with `TUNING=ON`. The normal `bench` recipe stays `TUNING=OFF`.
 `--engine NAME` selects another profile; submission checks its build path.
+Both worker entry points embed the pinned network, so the cached executable
+needs no separately installed network file or worker-specific deployment changes.
 
 After pushing the exact candidate and reviewing the budget and saved settings:
 
@@ -287,6 +289,20 @@ After pushing the exact candidate and reviewing the budget and saved settings:
 ./bin/openbench spsa ID
 ./bin/openbench stop-spsa ID --output tools/output/nnue-pruning/stop
 ```
+
+To observe the exact submitted settings and retain progress:
+
+```bash
+./bin/openbench monitor-spsa ID \
+  --settings tools/output/nnue-pruning/settings.json \
+  --output tools/output/nnue-pruning/monitor
+```
+
+The monitor treats a stopped workload below its game target as a premature stop,
+even when the server's error flag is clear. It exits nonzero and retains the
+snapshot. Correctness errors stop an active workload through the verified stop
+helper. Identity changes refuse further action; transient inspection errors are
+recorded and retried. The monitor never restarts a workload or applies values.
 
 These explicit SPSA commands isolate compatibility with the pinned client's
 missing tune endpoints in `tools/openbench_spsa_client.py`. Ordinary test

@@ -39,9 +39,10 @@ cmake --build --preset release-dev
 ctest --preset release-dev
 ```
 
-All builds use the pinned external HalfKP NNUE network with automatic backend
-selection. CMake copies the network beside the executables; keep it there when
-copying or packaging a build.
+All builds use the pinned HalfKP NNUE network with automatic backend selection.
+Ordinary CMake builds copy the network beside the executables; keep it there
+when copying or packaging them. The worker Makefiles embed the same network
+for single-file deployment.
 
 Changes to search state, time controls, or thread lifetime need tests with
 repeated searches in one engine session. For changes to Python tools, run the

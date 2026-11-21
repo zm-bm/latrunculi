@@ -1,0 +1,17 @@
+.section .rodata
+.balign 64
+.global latrunculi_nnue_start
+.hidden latrunculi_nnue_start
+.type latrunculi_nnue_start, @object
+latrunculi_nnue_start:
+.incbin "@NNUE_ASM_PATH@"
+.Lnnue_end:
+.size latrunculi_nnue_start, .Lnnue_end-latrunculi_nnue_start
+.balign 8
+.global latrunculi_nnue_size
+.hidden latrunculi_nnue_size
+.type latrunculi_nnue_size, @object
+latrunculi_nnue_size:
+.quad .Lnnue_end-latrunculi_nnue_start
+.size latrunculi_nnue_size, 8
+.section .note.GNU-stack,"",@progbits

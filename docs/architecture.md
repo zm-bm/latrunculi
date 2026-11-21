@@ -34,8 +34,9 @@ generation and make/unmake code.
 
 ## Evaluation
 
-The [network loader](../src/eval/nnue_network.cpp) reads and validates the pinned
-Stockfish 12 HalfKP weights from beside the executable once per process. The
+The [network loader](../src/eval/nnue_network.cpp) validates the pinned Stockfish
+12 HalfKP weights once per process, from a sibling file in ordinary builds or
+an embedded copy in worker builds. The
 [inference module](../src/eval/nnue.cpp) handles accumulator updates, scalar
 kernels, and score adaptation; AVX2 kernels remain separate. Board-facing
 headers expose accumulator state without file-loading or weight-layout details.

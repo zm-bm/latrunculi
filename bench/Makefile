@@ -5,10 +5,9 @@ TUNING ?= OFF
 .PHONY: all clean
 
 all:
-	cmake -S .. -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$(CXX) -DLATRUNCULI_TUNING=$(TUNING)
+	cmake -S .. -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$(CXX) -DLATRUNCULI_TUNING=$(TUNING) -DLATRUNCULI_EMBED_NETWORK=ON
 	cmake --build build --target latrunculi --parallel 2
 	cmake -E copy build/latrunculi $(EXE)
-	cmake -E copy ../networks/nn-82215d0fd0df.nnue $(dir $(EXE))
 
 clean:
 	cmake -E rm -rf build $(EXE)
