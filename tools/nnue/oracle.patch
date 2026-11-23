@@ -1,0 +1,25 @@
+--- a/src/uci.cpp
++++ b/src/uci.cpp
+@@ -267,6 +267,22 @@
+       else if (token == "position")   position(pos, is, states);
+       else if (token == "ucinewgame") Search::clear();
+       else if (token == "isready")    sync_cout << "readyok" << sync_endl;
++      // Latrunculi's offline oracle: expose raw inference without hybrid evaluation.
++      else if (token == "nnueraw")
++          sync_cout << "nnue_raw " << int(Eval::NNUE::compute_eval(pos)) << sync_endl;
++      else if (token == "nnuepush") {
++          string move;
++          is >> move;
++          if (move == "0000") {
++              states->emplace_back();
++              pos.do_null_move(states->back());
++          } else {
++              Move m = UCI::to_move(pos, move);
++              assert(m != MOVE_NONE);
++              states->emplace_back();
++              pos.do_move(m, states->back());
++          }
++      }
+ 
+       // Additional custom non-UCI commands, mainly for debugging.
+       // Do not use these commands during a search!

@@ -12,6 +12,7 @@
 #include "search/history.hpp"
 #include "search/instrumentation.hpp"
 #include "search/limits.hpp"
+#include "search/parameters.hpp"
 #include "search/reporter.hpp"
 #include "search/search_state.hpp"
 #include "search/time_manager.hpp"
@@ -74,6 +75,13 @@ private:
     Reporter& reporter;
     ThreadPool& thread_pool;
     const int worker_id;
+
+#if LATRUNCULI_TUNING
+    // Owned by the pool; settings stay fixed while any worker is searching.
+    const Parameters& parameters;
+#else
+    static constexpr Parameters parameters = default_parameters;
+#endif
 
     // Search control state.
     std::atomic<bool> stop_requested_flag{false};

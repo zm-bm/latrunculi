@@ -12,7 +12,7 @@ see the [results and test conditions](docs/releases/1.2.0.md#ccrl-blitz-estimate
 - Iterative-deepening PVS with aspiration windows and quiescence search
 - Lazy SMP parallel search with a shared transposition table
 - Staged move ordering, late move reductions, and null-move and futility pruning
-- Handcrafted tapered evaluation with tunable weights
+- HalfKP NNUE evaluation with scalar and AVX2 inference
 
 See [Architecture](docs/architecture.md) for how these fit together.
 
@@ -21,7 +21,7 @@ See [Architecture](docs/architecture.md) for how these fit together.
 [Releases](https://github.com/zm-bm/latrunculi/releases) include a Linux x86-64
 binary (requires POPCNT), a source archive, and checksums.
 
-To build from source, you need GCC 13+ or Clang 18+, CMake 3.23+, and Git.
+Default NNUE builds target Linux and need GCC 13+ or Clang 18+, CMake 3.23+, and Git.
 
 ```bash
 git clone --recurse-submodules https://github.com/zm-bm/latrunculi.git
@@ -29,6 +29,11 @@ cd latrunculi
 cmake --preset release
 cmake --build --preset release
 ```
+
+Every build embeds the pinned Stockfish 12 HalfKP network. Distribute `latrunculi`
+alone; no separate network file or download is needed. `AUTO` selects AVX2 when
+supported and scalar inference otherwise. No Python is needed to build the engine.
+See [NNUE](docs/nnue-halfkp.md) for network identity and verification.
 
 On x86-64, POPCNT is enabled by default. For older processors, add
 `-DLATRUNCULI_USE_POPCNT=OFF` to the configure command.
@@ -68,18 +73,19 @@ From the shell, `./build/release/latrunculi bench` runs the built-in benchmark.
 Configure, build, and run the complete test suite:
 
 ```bash
-cmake --preset debug
-cmake --build --preset debug
-ctest --preset debug
+cmake --preset release-dev
+cmake --build --preset release-dev
+ctest --preset release-dev
 ```
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Understanding the NNUE implementation](docs/nnue-explained.md)
+- [NNUE evaluation and verification](docs/nnue-halfkp.md)
 - [OpenBench testing](docs/engine-development.md#test-strength)
 - [Development manual](docs/engine-development.md)
 - [Development scripts](docs/scripts.md)
-- [Evaluation tuning](docs/scripts.md#tune)
 - [Roadmap](docs/roadmap.md)
 - [1.2.0 release notes](docs/releases/1.2.0.md)
 - [UCI protocol reference](docs/uci-protocol-specification.txt)
@@ -87,3 +93,4 @@ ctest --preset debug
 ## License
 
 Latrunculi is licensed under the [GNU General Public License v3.0](LICENSE.txt).
+The bundled network is distributed under [CC0](networks/LICENSE).

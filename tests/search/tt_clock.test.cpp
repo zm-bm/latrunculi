@@ -174,7 +174,10 @@ TEST_F(TtClockTest, ClockGroupsControlNonPvMainAndQuiescenceCutoffs) {
             if (reverse)
                 std::swap(clocks.stored, clocks.current);
             const auto fen = [](int clock) {
-                return "7k/8/8/8/8/8/7Q/6K1 b - - " + std::to_string(clock) + " 1";
+                std::string result = "7k/8/8/8/8/8/7Q/6K1 b - - ";
+                result += std::to_string(clock);
+                result += " 1";
+                return result;
             };
             for (int depth : {0, 2}) {
                 SCOPED_TRACE(
@@ -209,7 +212,10 @@ TEST_F(TtClockTest, ClockGroupsSeparateUpperBoundPruningVetoes) {
     // The null child supplies a fail-high score; only a compatible parent upper
     // bound can veto null-move pruning.
     const auto fen = [](int clock) {
-        return "7k/8/8/8/8/8/8/K2Q4 w - - " + std::to_string(clock) + " 1";
+        std::string result = "7k/8/8/8/8/8/8/K2Q4 w - - ";
+        result += std::to_string(clock);
+        result += " 1";
+        return result;
     };
     for (int stored_clock : {0, 16, 80, 98}) {
         tt.clear();

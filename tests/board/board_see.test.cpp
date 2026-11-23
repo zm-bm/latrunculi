@@ -59,3 +59,35 @@ TEST(BoardSeeTest, ThresholdMatchesRecursiveOracleForSpecialPositions) {
         }
     }
 }
+
+TEST(BoardSeeTest, ExplicitPricesChangeExchangeThresholdWithoutChangingDefaults) {
+    Board board("4k3/8/8/3n4/4P3/8/8/4K3 w - - 0 1");
+    const Move move(E4, D5);
+    ASSERT_TRUE(board.is_legal_move(move));
+    auto values = see::piece_values;
+    values[KNIGHT] = 375;
+    EXPECT_FALSE(board.see(move, 360));
+    EXPECT_TRUE(board.see(move, 360, values));
+    EXPECT_FALSE(board.see(move, 360));
+}
+
+TEST(BoardSeeTest, TunedPricesMatchIndependentOracleForCapturesAndPromotions) {
+    for (const char* fen :
+         {Board::start_fen,
+          "r3k2r/8/3q4/2pPp3/3R4/8/P6p/4K3 w kq e6 0 1",
+          "1r2k3/P7/8/8/8/8/p7/1R2K3 w - - 0 1"}) {
+        Board board(fen);
+        for (const auto prices :
+             {see::Values{0, 100, 250, 375, 500, 900, 0},
+              see::Values{0, 100, 375, 500, 900, 1600, 0},
+              see::Values{0, 100, 375, 375, 900, 900, 0}}) {
+            for (Move move : board_test::pseudo_legal_moves(board)) {
+                if (!board.is_capture(move) && move.type() != MOVE_PROM)
+                    continue;
+                const int exact = board_test::exchange_oracle(board, move, prices);
+                for (int threshold : {exact - 1, exact, exact + 1, 0})
+                    EXPECT_EQ(board.see(move, threshold, prices), exact >= threshold) << move.str();
+            }
+        }
+    }
+}

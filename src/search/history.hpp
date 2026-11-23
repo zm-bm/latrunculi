@@ -11,6 +11,7 @@
 #include "core/move.hpp"
 #include "core/piece.hpp"
 #include "core/square.hpp"
+#include "search/parameters.hpp"
 
 class SearchTestAccess;
 
@@ -48,8 +49,23 @@ public:
     static constexpr int QuietMaxScore = 1024;
     static constexpr int CaptureMaxScore = 16384;
 
+#if LATRUNCULI_TUNING
+    explicit History(const Parameters& values = default_parameters)
+        : tuning_parameters(values),
+          continuation_scores(std::make_unique<ContinuationTable>()) {}
+    History(const Parameters&&) = delete;
+#else
     History()
         : continuation_scores(std::make_unique<ContinuationTable>()) {}
+#endif
+
+    const Parameters& parameters() const noexcept {
+#if LATRUNCULI_TUNING
+        return tuning_parameters;
+#else
+        return default_parameters;
+#endif
+    }
 
     // Build once before constructing the node's stream and learning object.
     OrderingContext context_for(const Board& board, int ply, Move tt_move = NULL_MOVE) const {
@@ -215,6 +231,10 @@ private:
 
     static void age_entry(HistoryScore& entry) { entry /= 2; }
 
+#if LATRUNCULI_TUNING
+    // The owning pool outlives its workers and only updates this object while idle.
+    const Parameters& tuning_parameters;
+#endif
     Move killer_moves[engine::max_search_ply][2]{};
     Move counter_moves[OrderingContext::PreviousKeyCount]{};
     HistoryScore quiet_scores[N_COLORS][N_SQUARES][N_SQUARES]{};

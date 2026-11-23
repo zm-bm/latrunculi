@@ -11,7 +11,8 @@
 #include "board/board.hpp"
 #include "board/notation.hpp"
 #include "core/move.hpp"
-#include "eval/features.hpp"
+#include "eval/nnue.hpp"
+#include "eval/nnue_network.hpp"
 #include "movegen/moves.hpp"
 #include "movegen/perft.hpp"
 #include "search/limits.hpp"
@@ -231,7 +232,13 @@ bool Engine::display_board() {
 }
 
 bool Engine::evaluate() {
-    writer.diagnostic_line(eval::format_evaluation(eval::extract_features(board)));
+    const auto raw = nnue::raw(board.neural_state(), board.side_to_move());
+    writer.diagnostic_line(std::format(
+        "HalfKP {} backend {} raw {} static score {}",
+        nnue::network_sha256,
+        nnue::backend_name(),
+        raw,
+        nnue::adapt(raw)));
     return true;
 }
 
@@ -312,6 +319,12 @@ void Engine::apply_option_effect(OptionId option, const Options& candidate) {
             break;
         case OptionId::Ponder:    break;
         case OptionId::ClearHash: search::tt.clear(); break;
+#if LATRUNCULI_TUNING
+        case OptionId::Tuning:
+            if (!thread_pool.configure_parameters(candidate.search_parameters))
+                throw std::runtime_error("cannot configure search parameters while searching");
+            break;
+#endif
     }
 }
 

@@ -21,15 +21,15 @@ namespace {
 
 constexpr int EvasionCaptureScoreBase = 1 << 22;
 constexpr int PromotionScore = 1 << 28;
-constexpr int CaptureVictimWeight = 7;
-constexpr int CaptureMaterialOffset = see::piece_value(QUEEN);
-constexpr int CaptureHistoryDivisor = 16;
 static_assert(History::QuietMaxScore < EvasionCaptureScoreBase);
 static_assert(see::piece_value(PAWN) == 100, "Capture history uses pawn=100 exchange units");
 
 // Fixed-price material score shared by captures and capture evasions.
-constexpr int capture_material_score(int victim_value, int attacker_value) {
-    return CaptureVictimWeight * victim_value + CaptureMaterialOffset - attacker_value;
+int capture_material_score(const History& history, int victim_value, int attacker_value) {
+    const auto& parameters = history.parameters();
+    return parameters.capture_victim_weight * victim_value
+        + see::piece_value(QUEEN, parameters.see_values)
+        - attacker_value;
 }
 
 int score_evasion(const Board& board,
@@ -40,9 +40,11 @@ int score_evasion(const Board& board,
     if (move.type() == MOVE_PROM)
         return PromotionScore;
     if (board.is_capture(move)) {
-        const int victim_value = see::piece_value(board.captured_piece_type(move));
-        const int attacker_value = see::piece_value(moving_piece);
-        return EvasionCaptureScoreBase + capture_material_score(victim_value, attacker_value);
+        const int victim_value =
+            see::piece_value(board.captured_piece_type(move), history.parameters().see_values);
+        const int attacker_value = see::piece_value(moving_piece, history.parameters().see_values);
+        return EvasionCaptureScoreBase
+            + capture_material_score(history, victim_value, attacker_value);
     }
     return history.base_quiet_score(side, move);
 }
@@ -63,13 +65,13 @@ NoisyScore score_noisy(const Board& board,
         return {.score = PromotionScore, .see_threshold = 0};
 
     const PieceType victim = board.captured_piece_type(move);
-    const int victim_value = see::piece_value(victim);
-    const int attacker_value = see::piece_value(moving_piece);
+    const int victim_value = see::piece_value(victim, history.parameters().see_values);
+    const int attacker_value = see::piece_value(moving_piece, history.parameters().see_values);
     const int raw_history =
         history.capture_score(board.side_to_move(), moving_piece, move.to(), victim);
-    const int scaled_history = raw_history / CaptureHistoryDivisor;
-    const int score =
-        capture_material_score(victim_value, attacker_value) + CaptureVictimWeight * scaled_history;
+    const int scaled_history = raw_history / history.parameters().capture_history_divisor;
+    const int score = capture_material_score(history, victim_value, attacker_value)
+        + history.parameters().capture_victim_weight * scaled_history;
     NoisyScore result{
         .score = score,
         .see_threshold = 0,
@@ -285,7 +287,8 @@ Move MoveSource<MovePolicy::MainSearch>::next_candidate() {
                 [[fallthrough]];
             case Stage::EarlyNoisy: {
                 const Move move = candidates.take_noisy([this](Move move, int see_threshold) {
-                    return move.type() == MOVE_PROM || board.see(move, see_threshold);
+                    return move.type() == MOVE_PROM
+                        || board.see(move, see_threshold, history.parameters().see_values);
                 });
                 if (!move.is_null())
                     return move;
@@ -373,7 +376,8 @@ Move MoveSource<MovePolicy::Quiescence>::next_candidate() {
                 [[fallthrough]];
             case Stage::Noisy: {
                 const Move move = candidates.take_noisy([this](Move move, int) {
-                    return move.type() == MOVE_PROM || board.see(move, 0);
+                    return move.type() == MOVE_PROM
+                        || board.see(move, 0, history.parameters().see_values);
                 });
                 if (!move.is_null())
                     return move;

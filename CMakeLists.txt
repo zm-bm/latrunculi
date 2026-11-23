@@ -10,8 +10,17 @@ include(CTest)
 find_package(Threads REQUIRED)
 
 option(LATRUNCULI_SEARCH_STATS "Enable search diagnostics" OFF)
+option(LATRUNCULI_TUNING "Expose search parameters for SPSA" OFF)
 option(LATRUNCULI_USE_POPCNT "Require hardware POPCNT on x86-64" ON)
 include(cmake/SliderBackend.cmake)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    message(FATAL_ERROR "Latrunculi requires Linux with GCC or Clang")
+endif()
+enable_language(ASM)
+set(NNUE_ASM_PATH "${CMAKE_CURRENT_SOURCE_DIR}/networks/nn-82215d0fd0df.nnue")
+configure_file(cmake/NnueBlob.S.in NnueBlob.S @ONLY)
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/NnueBlob.S"
+    PROPERTIES OBJECT_DEPENDS "${NNUE_ASM_PATH}")
 set(LATRUNCULI_SANITIZER "none" CACHE STRING "Sanitizer configuration")
 set_property(CACHE LATRUNCULI_SANITIZER PROPERTY STRINGS none address-undefined thread)
 
@@ -39,6 +48,7 @@ elseif(DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
 endif()
 
 set(LATRUNCULI_ENGINE_SOURCES
+    src/cli/cli.cpp
     src/core/attacks_sliding.cpp
     src/core/move.cpp
     src/core/notation.cpp
@@ -52,7 +62,9 @@ set(LATRUNCULI_ENGINE_SOURCES
     src/movegen/move_sources.cpp
     src/movegen/perft.cpp
     src/eval/evaluation.cpp
-    src/eval/features.cpp
+    src/eval/nnue.cpp
+    src/eval/nnue_network.cpp
+    src/eval/nnue_avx2.cpp
     src/search/root_search.cpp
     src/search/search.cpp
     src/search/instrumentation.cpp
@@ -67,6 +79,11 @@ set(LATRUNCULI_ENGINE_SOURCES
 )
 
 add_library(latrunculi_lib OBJECT ${LATRUNCULI_ENGINE_SOURCES})
+target_sources(latrunculi_lib PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/NnueBlob.S")
+target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_TUNING=$<BOOL:${LATRUNCULI_TUNING}>)
+if(LATRUNCULI_TUNING)
+    target_sources(latrunculi_lib PRIVATE src/tuning/options.cpp)
+endif()
 set_property(TARGET latrunculi_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
 target_include_directories(latrunculi_lib PUBLIC ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(latrunculi_lib PUBLIC LATRUNCULI_SEARCH_STATS=$<BOOL:${LATRUNCULI_SEARCH_STATS}>)
@@ -98,10 +115,7 @@ if(LATRUNCULI_USE_POPCNT
     target_compile_options(latrunculi_lib PUBLIC -mpopcnt)
 endif()
 
-add_executable(latrunculi
-    src/main.cpp
-    src/cli/cli.cpp
-)
+add_executable(latrunculi src/main.cpp)
 target_link_libraries(latrunculi PRIVATE latrunculi_lib)
 set_property(TARGET latrunculi PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})
 
@@ -116,6 +130,9 @@ if(LATRUNCULI_BUILD_BENCHMARK)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(latrunculi-neural-verify tools/nnue/verify.cpp)
+    target_link_libraries(latrunculi-neural-verify PRIVATE latrunculi_lib)
+
     add_subdirectory(third_party/googletest)
 
     set(LATRUNCULI_TEST_SOURCES
@@ -140,10 +157,8 @@ if(BUILD_TESTING)
         tests/movegen/generator.test.cpp
         tests/movegen/moves.test.cpp
         tests/movegen/perft.test.cpp
-        tests/eval/evaluation.test.cpp
-        tests/eval/features.test.cpp
-        tests/eval/parameters.test.cpp
-        tests/eval/tapered_score.test.cpp
+        tests/eval/nnue.test.cpp
+        tests/eval/nnue_network.test.cpp
         tests/search/search.test.cpp
         tests/search/history.test.cpp
         tests/search/instrumentation.test.cpp
@@ -165,10 +180,10 @@ if(BUILD_TESTING)
         tests/uci/writer.test.cpp
     )
 
-    add_executable(tests
-        src/cli/cli.cpp
-        ${LATRUNCULI_TEST_SOURCES}
-    )
+    if(LATRUNCULI_TUNING)
+        list(APPEND LATRUNCULI_TEST_SOURCES tests/tuning/options.test.cpp)
+    endif()
+    add_executable(tests ${LATRUNCULI_TEST_SOURCES})
     target_include_directories(tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
     target_link_libraries(tests PRIVATE latrunculi_lib gtest gmock)
     set_property(TARGET tests PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE ${LATRUNCULI_RELEASE_IPO})

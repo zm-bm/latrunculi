@@ -9,7 +9,6 @@ See [Development scripts](scripts.md) for command usage and the
 - [Branch and baseline](#branch-and-baseline): Create a branch and save a comparison baseline.
 - [Build and test](#build-and-test): Build the engine and run applicable tests and sanitizers.
 - [Benchmark and profile](#benchmark-and-profile): Compare runtime and search behavior, inspect positions, and locate CPU costs.
-- [Tune evaluation](#tune-evaluation): Select games, review fitted weights, and verify the compiled evaluation.
 - [Test strength](#test-strength): Choose OpenBench tests and interpret their results.
 - [Merge](#merge): Review the candidate, validate the merged result, and retain evidence.
 - [Release](#release): Check stability, update release information, and publish verified artifacts.
@@ -40,9 +39,40 @@ cmake --build --preset release-dev
 ctest --preset release-dev
 ```
 
+All builds use the pinned HalfKP NNUE network with automatic backend selection.
+Every executable embeds the same frozen weights; ship the executable alone.
+Build presets use two jobs; CTest presets run sequentially and fail if no tests
+are found. The six configure/build presets cover the regular workflows:
+
+| Preset | Contents |
+| --- | --- |
+| `release` | Optimized engine only |
+| `release-dev` | Optimized engine, tests, and benchmark; compilation database for clangd |
+| `release-tuning` | Development build with SPSA parameters exposed |
+| `debug-asan-ubsan` | Debug engine and tests with address/undefined behavior sanitizers |
+| `debug-tsan` | Debug engine and tests with the thread sanitizer |
+| `profile` | Release benchmark with debug symbols, without test targets |
+
+For plain Debug or search statistics, override the development preset in a
+separate build directory:
+
+```bash
+cmake --preset release-dev -B build/debug -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/debug --parallel 2
+ctest --preset release-dev --test-dir build/debug
+
+cmake --preset release-dev -B build/release-stats -DLATRUNCULI_SEARCH_STATS=ON
+cmake --build build/release-stats --parallel 2
+ctest --preset release-dev --test-dir build/release-stats
+```
+
+Keep `build/release-dev/compile_commands.json` as the development compilation
+database. Diagnostic settings, tuning, sanitizers, and slider backend options
+remain explicit CMake settings; extra combinations do not need their own preset.
+
 Changes to search state, time controls, or thread lifetime need tests with
-repeated searches in one engine session. For changes to Python tools or engine
-feature export, run the [tool tests](scripts.md#tests).
+repeated searches in one engine session. For changes to Python tools, run the
+[tool tests](scripts.md#tests).
 
 ### Sanitizers
 
@@ -56,6 +86,18 @@ ctest --preset debug-asan-ubsan
 ```
 
 Keep leak detection enabled and run LeakSanitizer without a debugger or tracer.
+To include SPSA code in sanitizer checks, add the tuning flag in a separate
+build directory:
+
+```bash
+cmake --preset debug-asan-ubsan -B build/asan-tuning -DLATRUNCULI_TUNING=ON
+cmake --build build/asan-tuning --parallel 2
+ctest --preset debug-asan-ubsan --test-dir build/asan-tuning
+
+cmake --preset debug-tsan -B build/tsan-tuning -DLATRUNCULI_TUNING=ON
+cmake --build build/tsan-tuning --parallel 2
+ctest --preset debug-tsan --test-dir build/tsan-tuning
+```
 
 ## Benchmark and profile
 
@@ -109,54 +151,9 @@ cmake --build --preset profile
 ./bin/profile profile --name cpu-profile
 ```
 
-## Tune evaluation
-
-Use [OpenBench self-play](#self-play-corpus) with varied openings to generate the
-tuning games, and record the starting engine revision and evaluation. Download
-the completed PGNs with [openbench download-pgns](scripts.md#openbench).
-Prepare the games with the starting engine. Changes to evaluation definitions
-require fresh preparation:
-
-```bash
-./bin/tune prepare --engine release-dev --name pawns-data games.pgn.tar
-./bin/tune fit --dataset pawns-data --name pawns-fit
-```
-
-Review `cross-validation.json` and `candidate.json` before applying weights:
-
-- Grouped held-out validation must support the proposed weights, with related
-  openings kept together. Lower training loss alone is insufficient.
-- Investigate large coefficient changes and bound hits; they are review flags,
-  not automatic failures.
-- Do not change the [preparation](../tools/tuning/dataset.py) or
-  [fitting](../tools/tuning/fit.py) policies merely to obtain a passing fit.
-
-Apply the exact supported weights to [parameters.hpp](../src/eval/parameters.hpp),
-then rebuild and verify the compiled evaluation:
-
-```bash
-cmake --build --preset release-dev
-./bin/tune verify pawns-fit --engine release-dev
-```
-
-Complete the [engine checks](#build-and-test), [local comparison](#compare-locally),
-and [strength test](#test-strength). Retain the games, dataset, complete fit, and
-verification result as [reproducible evidence](#merge).
-
-### Self-play corpus
-
-Self-play uses one revision for both sides. The [corpus template](../tools/resources/openbench/corpus.json)
-defaults to 42,000 games at `4+0.04`. Before submission, check that one worker runs
-one match runner; multiple workers or runners in the pinned OpenBench version
-overlap opening ranges. The final game count may exceed the target.
-
-Check the completed workload's revisions and game count, and retain its PGNs,
-checksum, and metadata. Scores and fixed-test pass/fail flags do not establish
-tuning suitability; preparation checks the dataset requirements.
-
 ## Test strength
 
-Evaluation tuning and strength-oriented search changes need game evidence.
+Changes to neural weights and strength-oriented search changes need game evidence.
 A narrow correctness fix may be justified by a regression test and local checks.
 Use a two-game `Smoke` test when build or match integration needs checking.
 
@@ -191,6 +188,17 @@ game results, or to resolve conflicting evidence. State the question being
 tested; longer time controls are optional. Do not rerun a rejected candidate
 merely to obtain a pass.
 
+### Self-play corpus
+
+Self-play uses one revision for both sides. The [corpus template](../tools/resources/openbench/corpus.json)
+defaults to 42,000 games at `4+0.04`. Before submission, check that one worker runs
+one match runner; multiple workers or runners in the pinned OpenBench version
+overlap opening ranges. The final game count may exceed the target.
+
+Check the completed workload's revisions and game count, and retain its PGNs,
+checksum, and metadata. Scores and fixed-test pass/fail flags do not establish
+whether the games are suitable for training.
+
 ## Merge
 
 For engine changes, the proposed merged result must be covered by the full
@@ -218,8 +226,9 @@ The score and fixed-test pass/fail flag do not establish stability.
 
 Package a source archive including pinned submodules and verify its build and
 tests. Build the Linux x86-64 binary from that archive with the `release` preset,
-test the packaged binary on its supported platform, and document its CPU and
-runtime requirements. Publish an annotated `vX.Y.Z` tag at
-the verified revision and a GitHub release containing the archive, binary, and
-`SHA256SUMS`. Download the published assets to check their checksums and confirm
-the binary's UCI version and bench count against the verified build.
+test the self-contained executable on its supported platform, and
+document its CPU and runtime requirements. Publish an annotated `vX.Y.Z` tag at
+the verified revision and a GitHub release containing the archive, executable,
+network license, and `SHA256SUMS`. Download the published assets
+to check their checksums and confirm the binary's UCI version and bench count
+against the verified build.

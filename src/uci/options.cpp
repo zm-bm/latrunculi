@@ -4,6 +4,9 @@
 #include <cctype>
 #include <stdexcept>
 #include <utility>
+#if LATRUNCULI_TUNING
+#include "tuning/options.hpp"
+#endif
 
 namespace uci {
 
@@ -65,7 +68,14 @@ OptionId Options::set(const std::string& name, const std::string& value, bool ha
         if (has_value)
             throw std::invalid_argument("Clear Hash does not take a value");
         return OptionId::ClearHash;
-    } else {
+    }
+#if LATRUNCULI_TUNING
+    else if (tuning::set(search_parameters, name, value)) {
+        require_value(name);
+        return OptionId::Tuning;
+    }
+#endif
+    else {
         throw std::invalid_argument("Unknown UCI option: " + name);
     }
 }

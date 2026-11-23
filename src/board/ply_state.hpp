@@ -9,9 +9,11 @@
 #include "core/piece.hpp"
 #include "core/square.hpp"
 #include "core/types.hpp"
+#include "eval/nnue.hpp"
 
 /** One entry in Board's reversible history stack. */
 struct PlyState {
+    nnue::Accumulators neural;
     // Cached tactical data for this position.
     // Opposing pieces checking the side-to-move king.
     Bitboard checkers{};

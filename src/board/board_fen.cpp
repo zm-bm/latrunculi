@@ -26,6 +26,7 @@ void Board::load_fen(std::string_view fen) {
     refresh_tactical_cache();
     refresh_legal_enpassant_target();
     state.zkey = recompute_key();
+    state.neural = nnue::refresh(*this);
 }
 
 std::string Board::to_fen() const {

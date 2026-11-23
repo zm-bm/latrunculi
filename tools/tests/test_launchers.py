@@ -13,7 +13,6 @@ import unittest
 BIN = Path(__file__).resolve().parents[2] / "bin"
 ENTRIES = {
     ("benchmark",): "tools.benchmark",
-    ("tune",): "tools.tuning.tune",
     ("openbench",): "tools.openbench",
     ("openbench", "prepare"): "tools.openbench",
 }

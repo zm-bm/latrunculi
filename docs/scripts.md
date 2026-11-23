@@ -2,7 +2,6 @@
 
 - [`./bin/baseline`](#baseline): build, test, and retain a named baseline.
 - [`./bin/benchmark`](#benchmark): run a position suite or compare two builds.
-- [`./bin/tune`](#tune): fit evaluation weights from games and check them in the compiled engine.
 - [`./bin/openbench`](#openbench): prepare settings, submit tests, and inspect OpenBench workloads.
 - [`./bin/uci-probe`](#uci-probe): search one position and capture engine output.
 - [`./bin/profile`](#profile): record CPU profiles and hardware counters.
@@ -114,76 +113,12 @@ Each position starts with cleared search state and no game history. Reported
 times cover search only, excluding allocation, setup, clearing, and output.
 
 For timing comparisons, use ordinary Release builds with the same compiler and
-build settings; `release-stats` adds diagnostics. Avoid competing CPU activity,
-tracing, and profiling. With `--cpu N`, keep other logical CPUs on the same
-physical core idle.
+build settings. Enable search diagnostics separately with
+`-DLATRUNCULI_SEARCH_STATS=ON`; see the [build commands](engine-development.md#build-and-test).
+Avoid competing CPU activity, tracing, and profiling. With `--cpu N`, keep other
+logical CPUs on the same physical core idle.
 Check the per-pair timings for variation between runs. The CPU load recorded in
 `timing-load.jsonl` can help identify competing activity that affected the measurements.
-
-## `tune`
-
-`./bin/tune` fits linear evaluation weights from PGNs and checks them against a
-compiled engine. See [tuning guidelines](engine-development.md#tune-evaluation).
-
-### Usage
-
-Prepare games with `release-dev`, then fit weights:
-
-```bash
-./bin/tune prepare --engine release-dev --name pawns-data games.pgn.tar
-./bin/tune fit --dataset pawns-data --name pawns-fit
-```
-
-After reviewing a supported fit, copy its exact weights into
-[`src/eval/parameters.hpp`](../src/eval/parameters.hpp), then rebuild and verify:
-
-```bash
-cmake --build --preset release-dev
-./bin/tune verify pawns-fit --engine release-dev
-```
-
-### Commands
-
-- `prepare`: create a dataset from an engine built with the starting weights and
-  one or more `.pgn`, `.pgn.bz2`, or `.pgn.tar` files.
-  Requires at least 40,000 valid games and 20,000 retained opening groups.
-  The engine and PGNs must remain unchanged during preparation.
-- `fit`: fit weights from a prepared dataset; the original engine and PGNs are
-  no longer needed.
-- `verify FIT`: check that the compiled weights and evaluation invariants match
-  a supported fit. Requires only the fit directory and engine binary.
-
-### Options
-
-`prepare` and `fit` require exactly one of `--name` or `--output`.
-
-| Option | Command | Meaning |
-| --- | --- | --- |
-| `--engine BUILD` | `prepare`, `verify` | Engine: `build/BUILD/latrunculi`. |
-| `--dataset DATA` | `fit` | Prepared dataset: `tools/tuning/output/DATA/`. |
-| `--name NAME` | `prepare`, `fit` | Save under `tools/tuning/output/NAME/`. |
-| `--output PATH` | `prepare`, `fit` | Explicit output directory instead of `--name`. |
-
-`FIT` names also select `tools/tuning/output/FIT/`. Names resolve within this
-checkout. Engine, dataset, and fit arguments containing `/` are explicit paths
-(for example `./prepared`).
-
-### Results
-
-- Prepared data: `development.jsonl`, with input and filtering records in `manifest.json`.
-- Fit results: `cross-validation.json` for validation and `candidate.json` for
-  integer weights and review flags.
-
-If `cross_validation_supported` is false in `candidate.json`, the fit retains
-the baseline weights.
-
-Rerun the same command to reuse matching outputs: `prepare` validates the existing
-dataset, while `fit` reuses completed checkpoints and reruns interrupted work.
-
-Changed data, policy, tools, or dependencies require a fresh fit directory.
-Tool changes affecting only fitting or the CLI leave matching prepared datasets
-reusable and completed fits verifiable.
-Unsupported output formats require fresh preparation or fitting as applicable.
 
 ## `openbench`
 
@@ -302,6 +237,79 @@ for complete settings and recovery details.
 
 Preparation saves `settings.json`, `candidate-bench.txt`,
 and, for comparisons, `baseline-bench.txt`, with matching `.stderr.txt` files.
+
+### Search SPSA
+
+Normal builds retain compile-time search values and their usual UCI options.
+Build the explicit tuning preset to expose 28 search and SEE parameters and export their
+names, numeric types, defaults, and engine-safe limits:
+
+```bash
+cmake --preset release-tuning
+cmake --build --preset release-tuning --parallel 2
+ctest --preset release-tuning
+build/release-tuning/latrunculi spsa
+```
+
+Defaults live in [`src/search/parameters.hpp`](../src/search/parameters.hpp).
+The [tuning adapter](../src/tuning/options.cpp) handles metadata and validated UCI
+updates. Settings belong to each engine, cannot change during search, and changes
+clear TT and learned history. The normal build uses the same defaults as constants.
+
+Fractional parameters use UCI string options; integer parameters use spin options.
+SEE prices are shared by capture ordering and exchange evaluation, with pawn=100
+and bounds that preserve attacker order, including equal prices.
+
+The [NNUE search recipe](../tools/resources/openbench/recipes/nnue-pruning.json)
+selects parameters, narrower campaign bounds, perturbations, and the schedule.
+Engine defaults are read from the executable rather than duplicated in recipes.
+Preparation is offline and requires an explicit game budget divisible by eight
+for this recipe's four color pairs per iteration:
+
+```bash
+./bin/openbench prepare spsa --candidate HEAD \
+  --candidate-engine build/release-tuning/latrunculi --games 80000 \
+  --description "SPSA: Joint NNUE search and SEE tune" \
+  --output tools/output/nnue-pruning
+```
+
+The worker must build the tuning executable. Configure a server engine profile
+named `Latrunculi-Tuning` by copying the ordinary Latrunculi profile and changing
+`build.path` to `bench/tuning`. That directory delegates to the common worker
+Makefile with `TUNING=ON`. The normal `bench` recipe stays `TUNING=OFF`.
+`--engine NAME` selects another profile; submission checks its build path.
+Both worker entry points embed the pinned network, so the cached executable
+needs no separately installed network file or worker-specific deployment changes.
+
+After pushing the exact candidate and reviewing the budget and saved settings:
+
+```bash
+./bin/openbench submit-spsa tools/output/nnue-pruning/settings.json --dry-run
+./bin/openbench submit-spsa tools/output/nnue-pruning/settings.json \
+  --output tools/output/nnue-pruning/submission
+./bin/openbench spsa ID
+./bin/openbench stop-spsa ID --output tools/output/nnue-pruning/stop
+```
+
+To observe the exact submitted settings and retain progress:
+
+```bash
+./bin/openbench monitor-spsa ID \
+  --settings tools/output/nnue-pruning/settings.json \
+  --output tools/output/nnue-pruning/monitor
+```
+
+The monitor treats a stopped workload below its game target as a premature stop,
+even when the server's error flag is clear. It exits nonzero and retains the
+snapshot. Correctness errors stop an active workload through the verified stop
+helper. Identity changes refuse further action; transient inspection errors are
+recorded and retried. The monitor never restarts a workload or applies values.
+
+These explicit SPSA commands isolate compatibility with the pinned client's
+missing tune endpoints in `tools/openbench_spsa_client.py`. Ordinary test
+submission is unchanged. Ambiguous submissions retain evidence and never repeat
+the POST automatically. Apply final values to the search defaults, rebuild a
+normal executable, and validate it against the frozen untuned NNUE baseline.
 Bench failures leave diagnostics but no settings.
 
 Downloads retain `ID.pgn.tar`, its `.sha256` checksum, and `ID.workload.json`.

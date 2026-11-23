@@ -72,6 +72,11 @@ public:
     ThreadPool(ThreadPool&&) = delete;
     ThreadPool& operator=(ThreadPool&&) = delete;
 
+#if LATRUNCULI_TUNING
+    // Copy a complete configuration while idle and invalidate search state.
+    bool configure_parameters(const Parameters& value);
+#endif
+
     // Search lifecycle.
     bool start_search(const Board& root_board, Limits limits);
     void request_stop();
@@ -102,6 +107,11 @@ private:
     // Non-owning, lifetime-bound result sink. The caller must keep it alive for
     // the entire lifetime of the pool and its workers.
     Reporter& reporter;
+
+#if LATRUNCULI_TUNING
+    // Owned configuration, changed only while all workers are idle.
+    Parameters parameters;
+#endif
 
     // Pool lifecycle state.
     bool shutdown_requested{false};

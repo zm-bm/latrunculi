@@ -3,6 +3,9 @@
 #include <string>
 
 #include "core/constants.hpp"
+#if LATRUNCULI_TUNING
+#include "search/parameters.hpp"
+#endif
 
 namespace uci {
 
@@ -23,7 +26,16 @@ struct CheckOption {
 
 struct ButtonOption {};
 
-enum class OptionId { Hash, Threads, Ponder, ClearHash };
+enum class OptionId {
+    Hash,
+    Threads,
+    Ponder,
+    ClearHash
+#if LATRUNCULI_TUNING
+    ,
+    Tuning
+#endif
+};
 
 struct Options {
     static constexpr int default_threads = 1;
@@ -48,6 +60,10 @@ struct Options {
     };
 
     ButtonOption clear_hash;
+
+#if LATRUNCULI_TUNING
+    search::Parameters search_parameters;
+#endif
 
     OptionId set(const std::string& name, const std::string& value, bool has_value);
 };

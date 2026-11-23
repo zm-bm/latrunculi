@@ -1,4 +1,7 @@
 #include "uci/writer.hpp"
+#if LATRUNCULI_TUNING
+#include "tuning/options.hpp"
+#endif
 
 #include <cstdlib>
 #include <format>
@@ -94,7 +97,7 @@ std::string format_option(std::string_view name, const ButtonOption&) {
 }
 
 std::string format_identification(const Options& options) {
-    return std::format(
+    auto result = std::format(
         "id name Latrunculi {}\n"
         "id author Eric VanderHelm\n"
         "{}\n"
@@ -107,6 +110,10 @@ std::string format_identification(const Options& options) {
         format_option("Clear Hash", options.clear_hash),
         format_option("Threads", options.threads),
         format_option("Ponder", options.ponder));
+#if LATRUNCULI_TUNING
+    result.insert(result.size() - 5, tuning::uci_options());
+#endif
+    return result;
 }
 
 std::string format_bestmove(Move move) {

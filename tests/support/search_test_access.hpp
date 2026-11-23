@@ -4,6 +4,12 @@
 
 class SearchTestAccess {
 public:
+#if LATRUNCULI_TUNING
+    static const search::Parameters& parameters(const search::Worker& worker) {
+        return worker.parameters;
+    }
+#endif
+
     using NodeType = search::Worker::NodeType;
 
     static void reset(search::Worker& worker) { worker.reset_search_state(); }

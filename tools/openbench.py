@@ -12,6 +12,9 @@ import sys
 from openbench_client import cli
 
 from . import engine
+from . import openbench_spsa
+from . import openbench_spsa_client
+from . import openbench_monitor
 
 
 TEMPLATES = Path(__file__).resolve().parent / "resources/openbench"
@@ -67,6 +70,7 @@ def parse_prepare_args(argv):
         ("sprt", "strength comparison with the standard [0,3] bounds"),
         ("games", "fixed-game comparison or explicit self-play"),
         ("corpus", "self-play corpus using one worker and one match runner"),
+        ("spsa", "bounded tuning from engine metadata and a campaign recipe"),
     ):
         mode = modes.add_parser(name, help=help_text, description=help_text)
         mode.add_argument("--candidate", required=True, metavar="REV",
@@ -78,7 +82,7 @@ def parse_prepare_args(argv):
                           help="new directory for settings and bench output")
         mode.add_argument("--timeout", type=finite_seconds, default=600,
                           help="seconds per bench run (default: 600)")
-        if name != "corpus":
+        if name not in ("corpus", "spsa"):
             mode.add_argument("--baseline", required=name == "sprt", metavar="REV")
             mode.add_argument("--baseline-engine", type=Path, required=name == "sprt",
                               metavar="FILE", help="already-built engine corresponding to --baseline")
@@ -86,12 +90,15 @@ def parse_prepare_args(argv):
             mode.add_argument("--self-play", action="store_true",
                               help="use the candidate for both sides instead of a baseline")
         if name != "sprt":
-            mode.add_argument("--games", type=even_games, required=name == "games",
+            mode.add_argument("--games", type=even_games, required=name in ("games", "spsa"),
                               help="positive, even game count" +
                               (" (default: 42000)" if name == "corpus" else ""))
         if name == "corpus":
             mode.add_argument("--worker-concurrency", type=positive_int, required=True,
                               help="concurrency of the single worker running the corpus")
+        if name == "spsa":
+            mode.add_argument("--recipe", type=Path, default=openbench_spsa.RECIPES / "nnue-pruning.json")
+            mode.add_argument("--engine", default="Latrunculi-Tuning", help="server engine profile using bench/tuning")
     args = parser.parse_args(argv)
     if not args.description.strip() or len(args.description) > 1024:
         parser.error("--description must contain 1 to 1024 characters, including non-whitespace")
@@ -115,6 +122,8 @@ def write_settings(path, settings):
 
 
 def prepare(args):
+    if args.mode == "spsa":
+        return openbench_spsa.prepare(args, revision, write_settings)
     output = args.output.absolute()
     if output.exists() or output.is_symlink():
         raise ValueError(f"output already exists: {output}; inspect it or choose a new directory")
@@ -151,7 +160,7 @@ def main(argv=None):
         try:
             prepare(args)
             return 0
-        except (OSError, ValueError, KeyError, argparse.ArgumentTypeError, subprocess.SubprocessError) as error:
+        except (OSError, ValueError, KeyError, cli.OpenBenchError, argparse.ArgumentTypeError, subprocess.SubprocessError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
         except KeyboardInterrupt:
@@ -160,9 +169,17 @@ def main(argv=None):
 
     if argv[:1] in (["-h"], ["--help"]):
         print("Prepare Latrunculi settings locally:\n"
-              "  openbench prepare {sprt,games,corpus} [options]\n"
+              "  openbench prepare {sprt,games,corpus,spsa} [options]\n"
+              "  openbench {submit-spsa,stop-spsa,spsa,monitor-spsa} --help\n"
               "  See openbench prepare --help for details.\n\n"
               "Other commands are provided by the OpenBench client:")
+    config_parser = argparse.ArgumentParser(add_help=False)
+    config_parser.add_argument("--config", type=Path, default=Path("~/.config/openbench/openbench.env"))
+    config_args, rest = config_parser.parse_known_args(argv)
+    if rest[:1] == ["monitor-spsa"]:
+        return openbench_monitor.main(rest[1:], config_args.config)
+    if rest[:1] and rest[0] in ("spsa", "submit-spsa", "stop-spsa"):
+        return openbench_spsa_client.main(rest, config_args.config)
     original = cli.Session
     cli.Session = Session
     try:
