@@ -603,7 +603,7 @@ TEST_F(SearchTest, NullMoveContextRequiresAnActualNullSearchEdge) {
     ply() = 1;
     ASSERT_FALSE(position().can_unmake());
     const Score static_eval = eval::evaluate(position());
-    const Score beta = static_eval - 250;
+    const Score beta = static_eval - default_parameters.futility_margin[1];
 
     // A loaded position at a nonzero ply still permits reverse futility.
     EXPECT_EQ(search(beta - 1, beta, 1), static_eval);
@@ -614,7 +614,7 @@ TEST_F(SearchTest, NullMoveContextRequiresAnActualNullSearchEdge) {
 TEST_F(SearchTest, AfterNullMoveSkipsReverseFutilityButRetainsOrdinaryTtStores) {
     load_after_null(Board{board_test::fen::start}, 1);
     const Score static_eval = eval::evaluate(position());
-    const Score beta = static_eval - 250;
+    const Score beta = static_eval - default_parameters.futility_margin[1];
     const Score expected = static_eval + 200;
     const Move first = ordered_moves().front();
     store_child(first, -expected, 0);
@@ -628,7 +628,7 @@ TEST_F(SearchTest, AfterNullMoveSkipsReverseFutilityButRetainsOrdinaryTtStores) 
 
 TEST_F(SearchTest, AfterNullMoveStillAllowsMoveLoopFutility) {
     load_after_null(Board{board_test::fen::start}, 2);
-    const Score alpha = eval::evaluate(position()) + 401;
+    const Score alpha = eval::evaluate(position()) + default_parameters.futility_margin[2] + 1;
     const auto moves = ordered_moves();
     ASSERT_GT(moves.size(), 1U);
     (void)search(alpha, alpha + 100, 2);
@@ -647,8 +647,12 @@ TEST_F(SearchTest, RazoringRestoresOutputAndContinuesUnlessFailLow) {
     load(board, 2);
     const Score static_eval = eval::evaluate(position());
     PV pv;
-    EXPECT_EQ(SearchTestAccess::alphabeta<
-                  NodeType::NonPv>(worker, static_eval + 901, static_eval + 1001, 2, &pv),
+    EXPECT_EQ(SearchTestAccess::alphabeta<NodeType::NonPv>(
+                  worker,
+                  static_eval + default_parameters.razor_margin[2] + 1,
+                  static_eval + default_parameters.razor_margin[2] + 101,
+                  2,
+                  &pv),
               static_eval);
     EXPECT_TRUE(SearchTestAccess::frames(worker)[0].state.pv_enabled);
     EXPECT_TRUE(pv.empty());
@@ -662,7 +666,7 @@ TEST_F(SearchTest, RazoringRestoresOutputAndContinuesUnlessFailLow) {
 
     // The queen capture raises the razor result above alpha, so main search continues.
     load(Board{"4k3/8/8/8/2q5/3P4/8/4K3 w - - 0 1"}, 1);
-    const Score alpha = eval::evaluate(position()) + 500;
+    const Score alpha = eval::evaluate(position()) + default_parameters.razor_margin[1];
     auto& frame = SearchTestAccess::frames(worker)[0];
     frame.pv.update(Move{E2, E4}, PV{});
     SearchTestAccess::frames(worker)[1].pv.update(Move{E7, E5}, PV{});
@@ -691,13 +695,20 @@ TEST_F(SearchTest, RazoringRequiresAllGuards) {
         int alpha_offset;
     };
 
+    constexpr auto& margins = default_parameters.razor_margin;
     constexpr std::array cases{
-        Case{"PV", board_test::fen::quiet_black_to_move, 2, false, true, false, 901},
-        Case{"check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", 2, false, false, false, 901},
-        Case{"deep", board_test::fen::quiet_black_to_move, 4, false, false, false, 1901},
-        Case{"after null", board_test::fen::start, 2, true, false, false, 901},
-        Case{"TT move", board_test::fen::start, 2, false, false, true, 901},
-        Case{"inside margin", board_test::fen::start, 2, false, false, false, 899},
+        Case{"PV", board_test::fen::quiet_black_to_move, 2, false, true, false, margins[2] + 1},
+        Case{"check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", 2, false, false, false, margins[2] + 1},
+        Case{"deep",
+             board_test::fen::quiet_black_to_move,
+             4,
+             false,
+             false,
+             false,
+             margins[3] + 101},
+        Case{"after null", board_test::fen::start, 2, true, false, false, margins[2] + 1},
+        Case{"TT move", board_test::fen::start, 2, false, false, true, margins[2] + 1},
+        Case{"inside margin", board_test::fen::start, 2, false, false, false, margins[2] - 1},
     };
 
     for (const auto& tc : cases) {
@@ -727,7 +738,7 @@ TEST_F(SearchTest, ReverseFutilityPruningReturnsStaticEval) {
     Board board{board_test::fen::start};
     load(board, 1);
     const Score static_eval = eval::evaluate(position());
-    const Score beta = static_eval - 250;
+    const Score beta = static_eval - default_parameters.futility_margin[1];
 
     EXPECT_EQ(search(beta - 1, beta, 1), static_eval);
     EXPECT_FALSE(record().has_value());
@@ -736,7 +747,7 @@ TEST_F(SearchTest, ReverseFutilityPruningReturnsStaticEval) {
 TEST_F(SearchTest, FutilitySkipsOnlyAfterFirstLegalQuiet) {
     Board expected_board{board_test::fen::start};
     load(expected_board, 2);
-    const Score alpha = eval::evaluate(position()) + 401;
+    const Score alpha = eval::evaluate(position()) + default_parameters.futility_margin[2] + 1;
     const Score beta = alpha + 100;
     const Move first = ordered_moves().front();
     const Score expected = with_move(first, [&] { return -search(-beta, -alpha, 1); });
@@ -760,12 +771,13 @@ TEST_F(SearchTest, FutilityRequiresAllGuards) {
         Score alpha;
         bool pv;
     };
+    const Score threshold = static_eval + default_parameters.futility_margin[2];
     const std::array cases{
-        Case{"PV", board_test::fen::start, 2, static_eval + 401, true},
+        Case{"PV", board_test::fen::start, 2, threshold + 1, true},
         Case{"check", "k7/8/2K5/8/8/8/R6q/8 b - - 0 1", 2, 1000, false},
-        Case{"deep", board_test::fen::start, 4, static_eval + 401, false},
+        Case{"deep", board_test::fen::start, 4, threshold + 1, false},
         Case{"mate alpha", board_test::fen::start, 2, scores::mate_bound, false},
-        Case{"inside margin", board_test::fen::start, 2, static_eval + 399, false},
+        Case{"inside margin", board_test::fen::start, 2, threshold - 1, false},
     };
 
     for (const auto& tc : cases) {
@@ -813,7 +825,7 @@ TEST_F(SearchTest, FutilityKeepsTacticalMoves) {
         SCOPED_TRACE(tc.fen);
         Board board{tc.fen};
         load(board, 2);
-        const Score alpha = eval::evaluate(position()) + 401;
+        const Score alpha = eval::evaluate(position()) + default_parameters.futility_margin[2] + 1;
         const Score beta = alpha + 1000;
         tt.store(position().tt_key(), tc.first, 0, 0, TTBound::Exact, ply());
         if (tc.killer)
@@ -851,7 +863,7 @@ TEST_F(SearchTest, FutilityKeepsLaterCheckingQuietHintsAndGeneratedMoves) {
         ASSERT_NE(checking_it, moves.end());
         ASSERT_LT(skipped_it, checking_it);
 
-        const Score alpha = eval::evaluate(position()) + 401;
+        const Score alpha = eval::evaluate(position()) + default_parameters.futility_margin[2] + 1;
         const Score beta = alpha + 1000;
         tt.store(position().tt_key(), first, 0, 0, TTBound::Exact, ply());
         store_child(checking, -(beta + 100), 1);

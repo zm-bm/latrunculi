@@ -66,9 +66,10 @@ TEST(BoardSeeTest, ExplicitPricesChangeExchangeThresholdWithoutChangingDefaults)
     ASSERT_TRUE(board.is_legal_move(move));
     auto values = see::piece_values;
     values[KNIGHT] = 375;
-    EXPECT_FALSE(board.see(move, 360));
-    EXPECT_TRUE(board.see(move, 360, values));
-    EXPECT_FALSE(board.see(move, 360));
+    const int threshold = see::piece_value(KNIGHT) + 1;
+    EXPECT_FALSE(board.see(move, threshold));
+    EXPECT_TRUE(board.see(move, threshold, values));
+    EXPECT_FALSE(board.see(move, threshold));
 }
 
 TEST(BoardSeeTest, TunedPricesMatchIndependentOracleForCapturesAndPromotions) {

@@ -383,7 +383,8 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
 TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
     load(Board{"1n2k1nr/8/8/3p4/4P3/8/8/RN2K1N1 w - - 0 1"});
     const Score stand_pat = eval::evaluate(position());
-    const Score estimate = stand_pat + material::qsearch_capture_value(PAWN) + 300;
+    const Score estimate =
+        stand_pat + material::qsearch_capture_value(PAWN) + default_parameters.qcapture_margin;
 
     PV pv;
     EXPECT_EQ(pv_search(estimate + 1, estimate + 2, pv), estimate);
@@ -397,7 +398,9 @@ TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
 
 TEST_F(QuiescenceTest, CaptureGainUsesEvaluationUnitsForMinorVictim) {
     load(Board{"1n2k1nr/8/8/3n4/4P3/8/8/RN2K1N1 w - - 0 1"});
-    const Score alpha = eval::evaluate(position()) + 700;
+    ASSERT_LT(see::piece_value(KNIGHT), material::qsearch_capture_value(KNIGHT));
+    const Score alpha = eval::evaluate(position()) + see::piece_value(KNIGHT)
+        + default_parameters.qcapture_margin + 1;
     // A SEE knight price plus the margin would incorrectly discard this capture.
     search(alpha, alpha + 1);
     EXPECT_GT(worker.node_count(), 1U);

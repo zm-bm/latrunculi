@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <format>
 #include <sstream>
 
 #include "movegen/moves.hpp"
@@ -16,12 +17,15 @@ TEST(TuningTest, MetadataReportsDefaultsAndLimitsWithoutCampaignPolicy) {
     std::ostringstream output;
     tuning::export_parameters(output);
     EXPECT_NE(output.str().find("latrunculi.search-parameters.v1"), std::string::npos);
-    EXPECT_NE(output.str().find(
-                  "\"name\":\"NullMoveSurplusPerPly\",\"type\":\"int\",\"default\":200,\"min\":1"),
+    EXPECT_NE(output.str().find(std::format(
+                  "\"name\":\"NullMoveSurplusPerPly\",\"type\":\"int\",\"default\":{},\"min\":1",
+                  search::default_parameters.null_move_surplus_per_ply)),
               std::string::npos);
     EXPECT_EQ(output.str().find("c_end"), std::string::npos);
     EXPECT_EQ(output.str().find("iterations"), std::string::npos);
-    EXPECT_NE(tuning::uci_options().find("FutilityMargin1 type spin default 250 min 0 max 30000"),
+    EXPECT_NE(tuning::uci_options().find(std::format(
+                  "FutilityMargin1 type spin default {} min 0 max 30000",
+                  search::default_parameters.futility_margin[1])),
               std::string::npos);
 }
 
@@ -29,14 +33,14 @@ TEST(TuningTest, InvalidChangesAreAtomicAndEngineValuesStayIndependent) {
     search::Parameters a, b;
     ASSERT_TRUE(tuning::set(a, "fUtilityMargin1", "300"));
     EXPECT_EQ(a.futility_margin[1], 300);
-    EXPECT_EQ(b.futility_margin[1], 250);
+    EXPECT_EQ(b.futility_margin[1], search::default_parameters.futility_margin[1]);
     for (const char* value :
          {"", "nan", "inf", "12 extra", "3.5", "999999999999999999", "-1", "30001"}) {
         EXPECT_THROW(tuning::set(a, "FutilityMargin1", value), std::exception);
         EXPECT_EQ(a.futility_margin[1], 300);
     }
     EXPECT_THROW(tuning::set(a, "NullMoveSurplusPerPly", "0"), std::out_of_range);
-    EXPECT_EQ(a.null_move_surplus_per_ply, 200);
+    EXPECT_EQ(a.null_move_surplus_per_ply, search::default_parameters.null_move_surplus_per_ply);
     EXPECT_FALSE(tuning::set(a, "Unknown", "12"));
 }
 
@@ -81,11 +85,13 @@ TEST_F(TuningEngineTest, UpdatesClearSearchStateAndSurviveNewGames) {
 TEST_F(TuningEngineTest, ActiveSearchAndInvalidValuesCannotChangeSettings) {
     execute("go infinite");
     execute("setoption name QCaptureMargin value 222");
-    EXPECT_EQ(options().search_parameters.qcapture_margin, 300);
+    EXPECT_EQ(options().search_parameters.qcapture_margin,
+              search::default_parameters.qcapture_margin);
     execute("stop");
     thread_pool().wait();
     execute("setoption name NullMoveSurplusPerPly value 0");
-    EXPECT_EQ(options().search_parameters.null_move_surplus_per_ply, 200);
+    EXPECT_EQ(options().search_parameters.null_move_surplus_per_ply,
+              search::default_parameters.null_move_surplus_per_ply);
     execute("setoption name NullMoveSurplusPerPly value 150");
     EXPECT_EQ(options().search_parameters.null_move_surplus_per_ply, 150);
 }

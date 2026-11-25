@@ -80,7 +80,9 @@ TEST(HistoryLearningTest, PreservesDepthBonusesAndQuietPenaltyDivision) {
     // Divide depth squared before clamping: 1600 / 2 is 800, not 1024 / 2.
     EXPECT_EQ(history.base_quiet_score(WHITE, king), -800);
     EXPECT_EQ(history.base_quiet_score(WHITE, pawn), -800);
-    EXPECT_EQ(history.capture_score(board, capture), -2048);
+    EXPECT_EQ(
+        history.capture_score(board, capture),
+        -default_parameters.capture_learning_rate * default_parameters.capture_depth_squared_limit);
 
     history.clear();
     stats.reset();
