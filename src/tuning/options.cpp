@@ -90,10 +90,19 @@ constexpr Definition<int> integers[] = {
                 2,
                 10000,
                 [](Parameters& p) -> int& { return p.aspiration_initial_window; }),
-    define<int>("SeeKnight", 250, 375, [](Parameters& p) -> int& { return p.see_values[KNIGHT]; }),
-    define<int>("SeeBishop", 375, 500, [](Parameters& p) -> int& { return p.see_values[BISHOP]; }),
-    define<int>("SeeRook", 500, 900, [](Parameters& p) -> int& { return p.see_values[ROOK]; }),
-    define<int>("SeeQueen", 900, 1600, [](Parameters& p) -> int& { return p.see_values[QUEEN]; }),
+    define<int>("KnightValue",
+                250,
+                375,
+                [](Parameters& p) -> int& { return p.piece_values[KNIGHT]; }),
+    define<int>("BishopValue",
+                375,
+                500,
+                [](Parameters& p) -> int& { return p.piece_values[BISHOP]; }),
+    define<int>("RookValue", 500, 900, [](Parameters& p) -> int& { return p.piece_values[ROOK]; }),
+    define<int>("QueenValue",
+                900,
+                1600,
+                [](Parameters& p) -> int& { return p.piece_values[QUEEN]; }),
 };
 
 constexpr Definition<double> reals[] = {
@@ -206,9 +215,9 @@ bool valid(const Parameters& parameters) noexcept {
     auto values = parameters;
     return valid_values(values, integers)
         && valid_values(values, reals)
-        && values.see_values[NO_PIECETYPE] == 0
-        && values.see_values[PAWN] == 100
-        && values.see_values[KING] == 0;
+        && values.piece_values[NO_PIECETYPE] == 0
+        && values.piece_values[PAWN] == 100
+        && values.piece_values[KING] == 0;
 }
 
 std::string uci_options() {

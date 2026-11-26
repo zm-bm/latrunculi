@@ -69,10 +69,13 @@ TEST(BoardRepresentationTest, LoadsRepresentativePositionState) {
     EXPECT_EQ(board.key(), board.recompute_key());
 }
 
-TEST(BoardRepresentationTest, NonPawnMaterialRetainsSearchScale) {
-    Board board("3rk3/8/8/8/8/8/P7/3QK3 w - - 0 1");
-    EXPECT_EQ(board.non_pawn_material(WHITE), 2075);
-    EXPECT_EQ(board.non_pawn_material(BLACK), 880);
+TEST(BoardRepresentationTest, NonPawnPiecesExcludePawnsAndKings) {
+    const Board board("rnbqk3/8/8/8/8/8/P7/1NBQK2R w - - 0 1");
+    EXPECT_EQ(board.non_pawn_pieces(WHITE), bb::set(B1, C1, D1, H1));
+    EXPECT_EQ(board.non_pawn_pieces(BLACK), bb::set(A8, B8, C8, D8));
+    const Board pawns("4k3/7p/8/8/8/8/P7/4K3 w - - 0 1");
+    EXPECT_EQ(pawns.non_pawn_pieces(WHITE), 0U);
+    EXPECT_EQ(pawns.non_pawn_pieces(BLACK), 0U);
 }
 
 TEST(BoardRepresentationTest, TtClockGroupsLeaveRepetitionKeysUnchanged) {

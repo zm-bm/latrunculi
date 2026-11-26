@@ -238,80 +238,6 @@ for complete settings and recovery details.
 Preparation saves `settings.json`, `candidate-bench.txt`,
 and, for comparisons, `baseline-bench.txt`, with matching `.stderr.txt` files.
 
-### Search SPSA
-
-Normal builds retain compile-time search values and their usual UCI options.
-Build the explicit tuning preset to expose 28 search and SEE parameters and export their
-names, numeric types, defaults, and engine-safe limits:
-
-```bash
-cmake --preset release-tuning
-cmake --build --preset release-tuning --parallel 2
-ctest --preset release-tuning
-build/release-tuning/latrunculi spsa
-```
-
-Defaults live in [`src/search/parameters.hpp`](../src/search/parameters.hpp).
-The [tuning adapter](../src/tuning/options.cpp) handles metadata and validated UCI
-updates. Settings belong to each engine, cannot change during search, and changes
-clear TT and learned history. The normal build uses the same defaults as constants.
-
-Fractional parameters use UCI string options; integer parameters use spin options.
-SEE prices are shared by capture ordering and exchange evaluation, with pawn=100
-and bounds that preserve attacker order, including equal prices.
-
-The [NNUE search recipe](../tools/resources/openbench/recipes/nnue-pruning.json)
-selects parameters, narrower campaign bounds, perturbations, and the schedule.
-Engine defaults are read from the executable rather than duplicated in recipes.
-Preparation is offline and requires an explicit game budget divisible by eight
-for this recipe's four color pairs per iteration:
-
-```bash
-./bin/openbench prepare spsa --candidate HEAD \
-  --candidate-engine build/release-tuning/latrunculi --games 80000 \
-  --description "SPSA: Joint NNUE search and SEE tune" \
-  --output tools/output/nnue-pruning
-```
-
-The worker must build the tuning executable. Configure a server engine profile
-named `Latrunculi-Tuning` by copying the ordinary Latrunculi profile and changing
-`build.path` to `bench/tuning`. That directory delegates to the common worker
-Makefile with `TUNING=ON`. The normal `bench` recipe stays `TUNING=OFF`.
-`--engine NAME` selects another profile; submission checks its build path.
-Both worker entry points embed the pinned network, so the cached executable
-needs no separately installed network file or worker-specific deployment changes.
-
-After pushing the exact candidate and reviewing the budget and saved settings:
-
-```bash
-./bin/openbench submit-spsa tools/output/nnue-pruning/settings.json --dry-run
-./bin/openbench submit-spsa tools/output/nnue-pruning/settings.json \
-  --output tools/output/nnue-pruning/submission
-./bin/openbench spsa ID
-./bin/openbench stop-spsa ID --output tools/output/nnue-pruning/stop
-```
-
-To observe the exact submitted settings and retain progress:
-
-```bash
-./bin/openbench monitor-spsa ID \
-  --settings tools/output/nnue-pruning/settings.json \
-  --output tools/output/nnue-pruning/monitor
-```
-
-The monitor treats a stopped workload below its game target as a premature stop,
-even when the server's error flag is clear. It exits nonzero and retains the
-snapshot. Correctness errors stop an active workload through the verified stop
-helper. Identity changes refuse further action; transient inspection errors are
-recorded and retried. The monitor never restarts a workload or applies values.
-
-These explicit SPSA commands isolate compatibility with the pinned client's
-missing tune endpoints in `tools/openbench_spsa_client.py`. Ordinary test
-submission is unchanged. Ambiguous submissions retain evidence and never repeat
-the POST automatically. Apply final values to the search defaults, rebuild a
-normal executable, and validate it against the frozen untuned NNUE baseline.
-Bench failures leave diagnostics but no settings.
-
 Downloads retain `ID.pgn.tar`, its `.sha256` checksum, and `ID.workload.json`.
 Submissions retain `submission.json` in the chosen output directory.
 
@@ -322,6 +248,68 @@ Reuse the saved settings; do not blindly repeat submission.
 For custom tests, edit the generated `settings.json` before submitting.
 The [templates](../tools/resources/openbench/) are incomplete until preparation
 fills in revisions, bench counts, and workload details.
+
+### Manual search tuning (SPSA)
+
+Use the OpenBench web UI for occasional SPSA runs. The local CLI handles ordinary
+strength tests and self-play, not tuning submissions.
+
+1. Build and test the candidate with tuning enabled. Export its parameter names,
+   types, defaults, and limits, and obtain its bench count:
+
+   ```bash
+   cmake --preset release-tuning
+   cmake --build --preset release-tuning --parallel 2
+   ctest --preset release-tuning
+   build/release-tuning/latrunculi spsa
+   build/release-tuning/latrunculi bench
+   git rev-parse HEAD
+   ```
+
+2. Commit and push the exact candidate being tested. Use the `Latrunculi-Tuning`
+   server profile with `build.path=bench`. The Makefile enables tuning for
+   `Latrunculi-Tuning-*` executable basenames; ordinary `Latrunculi` builds keep
+   compile-time constants. Local builds can override this with `TUNING=ON/OFF`.
+   Migrate the old profile path from `bench/tuning` after pushing this build
+   change; older revisions still need their original path.
+
+3. Prepare one parameter row per selected option, combining the executable's
+   type and default with the [recipe's](../tools/resources/openbench/recipes/nnue-pruning.json)
+   campaign bounds and perturbations. The recipe covers all 28 exposed search
+   and piece-value parameters. OpenBench expects
+   `name, type, start, min, max, c_end, r_end`, for example:
+
+   ```text
+   QCaptureMargin, int, 400, 200, 700, 15, 0.002
+   ```
+
+   Use the current executable's defaults, not values copied from an old run.
+   Check that every starting value lies within its campaign bounds and that
+   those bounds fit the engine's limits. Integer options use `int`; fractional
+   options use `float`.
+
+4. Open the new-tune form (`/tune/new/`). Select the tuning profile, pushed commit,
+   and matching bench count. Set the time control, book, and fixed options
+   (for example, `Threads=1 Hash=32`); do not also put tuned options there. Paste
+   the parameter rows and enter the recipe's schedule. The game budget is
+   `2 × pairs per iteration × iterations`: with four pairs, 8,000 iterations
+   request 64,000 games. Review the settings before submitting.
+
+5. Watch progress and errors on the tune page, and stop there if needed. Check
+   the completed game count against the requested budget; a stopped run is not
+   necessarily a completed tune. Save the input, final values, commit, and run
+   URL together for later reference.
+
+6. Review and round the results where appropriate, then update the defaults in
+   [`src/search/parameters.hpp`](../src/search/parameters.hpp) and shared piece
+   prices in [`src/board/material_values.hpp`](../src/board/material_values.hpp).
+   Rebuild and test a normal executable, then run a separate strength comparison
+   against the untuned parent. A completed tune alone does not establish a gain.
+
+The tuning build exposes 28 search and piece-value parameters; NNUE weights are
+unchanged. Both build modes embed the pinned network. OpenBench worker builds
+share `build/openbench/` within a checkout and must run sequentially; workers use
+separate checkouts. Local CMake presets retain separate build directories.
 
 ## `uci-probe`
 

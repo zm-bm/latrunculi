@@ -45,9 +45,12 @@ shared across workers. Scalar and AVX2 kernels implement the same integer
 inference; `AUTO` selects the backend once using CPU support. See
 [NNUE](nnue-halfkp.md) for the feature map, score adapter, and parity checks.
 
-Search material estimates are kept separately in
-[material_values.hpp](../src/board/material_values.hpp). SEE retains its own
-exchange prices; neither is a positional evaluator.
+SEE, capture ordering, and quiescence capture estimates share pawn=100 search
+prices in [material_values.hpp](../src/board/material_values.hpp). These are
+heuristics, not a positional evaluator or a rescaling of NNUE scores.
+Quiescence scales the captured piece's price by `5 / 3` before adding its margin
+to the NNUE evaluation.
+Low-material pruning guards use piece presence and count, independently of prices.
 
 ## Search
 

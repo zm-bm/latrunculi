@@ -44,8 +44,9 @@ presets. OpenBench can cache or expire the executable without managing a separat
 network asset. A sibling file cannot override the embedded network. All builds
 require Linux with GCC or Clang.
 
-Worker builds use two jobs. The separate tuning entry point still enables SPSA
-search options; HCE fitting and feature export have been removed.
+Worker builds use two jobs and one shared Makefile, which enables SPSA search
+options for `Latrunculi-Tuning-*` executable basenames. HCE fitting and feature
+export have been removed.
 
 The `eval` console command reports the network, backend, raw inference score,
 and adapted static score. UCI options and search parameters are unchanged.

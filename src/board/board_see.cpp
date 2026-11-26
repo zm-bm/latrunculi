@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-#include "board/see_values.hpp"
+#include "board/material_values.hpp"
 #include "core/attacks.hpp"
 #include "core/move_geometry.hpp"
 
@@ -11,14 +11,14 @@ namespace {
 constexpr PieceType see_attacker_order[] = {PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING};
 } // namespace
 
-bool Board::see(Move move, int threshold, const see::Values& values) const noexcept {
+bool Board::see(Move move, int threshold, const material::Values& values) const noexcept {
     assert(is_pseudo_legal(move));
     assert(is_capture(move) || move.type() == MOVE_PROM);
 
-    int initial_gain = see::piece_value(captured_piece_type(move), values);
+    int initial_gain = material::piece_value(captured_piece_type(move), values);
     if (move.type() == MOVE_PROM)
         initial_gain +=
-            see::piece_value(move.prom_piece(), values) - see::piece_value(PAWN, values);
+            material::piece_value(move.prom_piece(), values) - material::piece_value(PAWN, values);
     if (initial_gain < threshold)
         return false;
 
@@ -26,7 +26,7 @@ bool Board::see(Move move, int threshold, const see::Values& values) const noexc
     Color side = side_to_move();
     const PieceType moving_piece =
         move.type() == MOVE_PROM ? move.prom_piece() : piece_type_on(move.from());
-    const int moving_value = see::piece_value(moving_piece, values);
+    const int moving_value = material::piece_value(moving_piece, values);
     // Check both bounds before subtraction so even extreme thresholds are safe.
     if (threshold <= initial_gain - moving_value)
         return true;
@@ -72,7 +72,7 @@ bool Board::see(Move move, int threshold, const see::Values& values) const noexc
         if (!recapturer)
             return result;
         result = !result;
-        balance = see::piece_value(recapturer_type, values) - balance;
+        balance = material::piece_value(recapturer_type, values) - balance;
         // Equality succeeds for the original side, but fails for its opponent.
         if (balance < static_cast<int>(result))
             return result;

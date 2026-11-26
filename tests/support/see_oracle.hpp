@@ -5,7 +5,7 @@
 #include <cstdlib>
 
 #include "board/board.hpp"
-#include "board/see_values.hpp"
+#include "board/material_values.hpp"
 
 namespace board_test {
 
@@ -16,7 +16,7 @@ namespace see_oracle {
 struct Position {
     std::array<Piece, N_SQUARES> squares{};
     Bitboard occupancy{};
-    see::Values prices = see::piece_values;
+    material::Values prices = material::piece_values;
 
     bool attacks(Square from, Square to) const {
         const Piece piece = squares[from];
@@ -73,7 +73,7 @@ struct Position {
                 // Non-king pins are ignored; later pawn recaptures keep the pawn price.
                 return std::max(
                     0,
-                    see::piece_value(type_of(squares[to]), prices) - next.reply(to, ~side));
+                    material::piece_value(type_of(squares[to]), prices) - next.reply(to, ~side));
             }
         }
         return 0;
@@ -85,14 +85,14 @@ struct Position {
 // Numerical exchange value under the engine's fixed prices.
 inline int exchange_oracle(const Board& board,
                            Move move,
-                           const see::Values& prices = see::piece_values) {
+                           const material::Values& prices = material::piece_values) {
     see_oracle::Position position;
     position.prices = prices;
     position.occupancy = board.occupancy();
     for (Square square = A1; square < N_SQUARES; ++square)
         position.squares[square] = board.piece_on(square);
 
-    int gain = see::piece_value(board.captured_piece_type(move), prices);
+    int gain = material::piece_value(board.captured_piece_type(move), prices);
     if (move.type() == MOVE_EP) {
         const Square victim =
             move_geometry::enpassant_captured_square(move.to(), board.side_to_move());
@@ -101,7 +101,8 @@ inline int exchange_oracle(const Board& board,
     }
     position = position.capture(move.from(), move.to());
     if (move.type() == MOVE_PROM) {
-        gain += see::piece_value(move.prom_piece(), prices) - see::piece_value(PAWN, prices);
+        gain +=
+            material::piece_value(move.prom_piece(), prices) - material::piece_value(PAWN, prices);
         position.squares[move.to()] = make_piece(board.side_to_move(), move.prom_piece());
     }
     return gain - position.reply(move.to(), ~board.side_to_move());

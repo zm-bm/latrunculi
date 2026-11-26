@@ -10,7 +10,6 @@
 #include "board/castling_rights.hpp"
 #include "board/material_values.hpp"
 #include "board/ply_state.hpp"
-#include "board/see_values.hpp"
 #include "board/zobrist.hpp"
 #include "core/attacks.hpp"
 #include "core/constants.hpp"
@@ -87,7 +86,7 @@ public:
     bool is_double_check() const noexcept { return bb::is_many(checkers()); }
 
     const nnue::Accumulators& neural_state() const noexcept { return ply_state().neural; }
-    Score non_pawn_material(Color color) const noexcept;
+    Bitboard non_pawn_pieces(Color color) const noexcept;
 
     // Attacks, castling, and move classification
 
@@ -133,7 +132,7 @@ public:
     // Requires a pseudo-legal capture or promotion.
     bool see(Move move,
              int threshold,
-             const see::Values& values = see::piece_values) const noexcept;
+             const material::Values& values = material::piece_values) const noexcept;
 
 private:
     // Ply-state storage
@@ -203,11 +202,8 @@ inline void Board::pop_ply_state() noexcept {
 
 // Inline query definitions
 
-inline Score Board::non_pawn_material(Color color) const noexcept {
-    return ((count(color, KNIGHT) * material::pruning_value(KNIGHT))
-            + (count(color, BISHOP) * material::pruning_value(BISHOP))
-            + (count(color, ROOK) * material::pruning_value(ROOK))
-            + (count(color, QUEEN) * material::pruning_value(QUEEN)));
+inline Bitboard Board::non_pawn_pieces(Color color) const noexcept {
+    return pieces(color) & ~pieces<PAWN, KING>(color);
 }
 
 // Returns geometric attackers of target, including pinned pieces.

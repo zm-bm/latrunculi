@@ -50,18 +50,17 @@ can be retained and updated when a piece moves, instead of recomputed from zero.
 This implementation does that for the large first layer. The small layers after
 it are evaluated again whenever an evaluation is requested.
 
-NNUE is Latrunculi's sole positional evaluator. Two other uses of piece values
-remain in search:
+NNUE is Latrunculi's sole positional evaluator. Search uses one pawn=100 table in
+[material_values.hpp](../src/board/material_values.hpp) for static exchange
+evaluation (SEE), capture ordering, and quiescence capture-delta estimates.
+SEE estimates the material consequences of an exchange on a square. Quiescence
+adds `victim price * 5 / 3` and a pruning margin to the NNUE evaluation; this is a
+heuristic estimate, not an exact conversion between piece prices and NNUE scores.
+Tuning overrides apply to all three consumers.
 
-- [material_values.hpp](../src/board/material_values.hpp) provides
-  `pruning_value` for material thresholds and singular-search margins, and
-  `qsearch_capture_value` for quiescence capture-delta pruning.
-- [see_values.hpp](../src/board/see_values.hpp) provides exchange prices for
-  static exchange evaluation (SEE) and capture ordering. SEE estimates the
-  material consequences of an exchange on a square.
-
-These tables are search tools. They are not another positional evaluator blended
-with the network.
+Low-material pruning guards use piece presence and count. Singular-search margins
+use their own depth scaling. Neither depends on tuned piece prices. The shared
+table is a search tool, not another positional evaluator blended with the network.
 
 ## From weighted sums to a network
 

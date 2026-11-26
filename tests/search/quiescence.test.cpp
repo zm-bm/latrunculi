@@ -1,5 +1,7 @@
 #include <array>
 #include <optional>
+#include <string>
+#include <utility>
 
 #include <gtest/gtest.h>
 
@@ -383,8 +385,7 @@ TEST_F(QuiescenceTest, PvNodePropagatesToChildTtPolicy) {
 TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
     load(Board{"1n2k1nr/8/8/3p4/4P3/8/8/RN2K1N1 w - - 0 1"});
     const Score stand_pat = eval::evaluate(position());
-    const Score estimate =
-        stand_pat + material::qsearch_capture_value(PAWN) + default_parameters.qcapture_margin;
+    const Score estimate = stand_pat + 166 + default_parameters.qcapture_margin;
 
     PV pv;
     EXPECT_EQ(pv_search(estimate + 1, estimate + 2, pv), estimate);
@@ -396,15 +397,87 @@ TEST_F(QuiescenceTest, CaptureGainPruningReturnsUpperEstimateWithoutPv) {
     EXPECT_EQ(stored->score_at_ply(ply()), estimate);
 }
 
-TEST_F(QuiescenceTest, CaptureGainUsesEvaluationUnitsForMinorVictim) {
-    load(Board{"1n2k1nr/8/8/3n4/4P3/8/8/RN2K1N1 w - - 0 1"});
-    ASSERT_LT(see::piece_value(KNIGHT), material::qsearch_capture_value(KNIGHT));
-    const Score alpha = eval::evaluate(position()) + see::piece_value(KNIGHT)
-        + default_parameters.qcapture_margin + 1;
-    // A SEE knight price plus the margin would incorrectly discard this capture.
-    search(alpha, alpha + 1);
-    EXPECT_GT(worker.node_count(), 1U);
+TEST_F(QuiescenceTest, CaptureGainScalesSharedPricesAtPruningBoundary) {
+    // Integer-scaled capture gains for pawn, knight, bishop, rook, and queen.
+    for (const auto [symbol, gain] :
+         {std::pair{'p', 166}, {'n', 600}, {'b', 641}, {'r', 1091}, {'q', 2058}}) {
+        SCOPED_TRACE(symbol);
+        const Board board{std::string("1n2k1nr/8/8/3") + symbol + "4/4P3/8/8/RN2K1N1 w - - 0 1"};
+        const Score estimate = eval::evaluate(board) + gain + default_parameters.qcapture_margin;
+        load(board);
+        EXPECT_EQ(search(estimate + 1, estimate + 2), estimate);
+        EXPECT_EQ(worker.node_count(), 1U);
+        load(board);
+        search(estimate, estimate + 1);
+        EXPECT_GT(worker.node_count(), 1U);
+    }
 }
+
+TEST_F(QuiescenceTest, CapturePruningRequiresQueenOrMultipleNonPawnPieces) {
+    struct Case {
+        const char* white;
+        const char* black;
+        bool prunes;
+    };
+    for (const auto& [white, black, prunes] : std::array{
+             Case{"4K3", "1n2k1n1", false},
+             Case{"1N2K3", "1n2k1n1", false},
+             Case{"R3K3", "1n2k1n1", false},
+             Case{"4KQ2", "1n2k1n1", true},
+             Case{"1N2K1N1", "1n2k1n1", true},
+             Case{"1N2K1N1", "4k3", false},
+             Case{"1N2K1N1", "1n2k3", false},
+             Case{"1N2K1N1", "4k2r", false},
+             Case{"1N2K1N1", "4k1q1", true}}) {
+        SCOPED_TRACE(std::string(white) + " / " + black);
+        load(Board{std::string(black) + "/8/8/3p4/4P3/8/8/" + white + " w - - 0 1"});
+        const Score alpha =
+            eval::evaluate(position()) + 166 + default_parameters.qcapture_margin + 1;
+        search(alpha, alpha + 1);
+        EXPECT_EQ(worker.node_count() == 1U, prunes);
+    }
+}
+
+TEST_F(QuiescenceTest, CapturePruningChecksOpponentsRemainingMaterial) {
+    for (const char victim : {'n', 'b', 'r', 'q'}) {
+        for (const auto [remaining, prunes] :
+             {std::pair{"4k3", false},
+              {"1n2k3", false},
+              {"4k2r", false},
+              {"1n2k1n1", true},
+              {"4k1q1", true}}) {
+            SCOPED_TRACE(std::string(remaining) + " / " + victim);
+            load(Board{std::string(remaining) + "/8/8/3" + victim + "4/4P3/8/8/1N2K1N1 w - - 0 1"});
+            const Move capture = find_move("e4d5");
+            ASSERT_FALSE(capture.is_null());
+            const Score alpha = eval::evaluate(position())
+                + material::piece_value(position().captured_piece_type(capture)) * 5 / 3
+                + default_parameters.qcapture_margin
+                + 1;
+            search(alpha, alpha + 1);
+            EXPECT_EQ(worker.node_count() == 1U, prunes);
+        }
+    }
+}
+
+#if LATRUNCULI_TUNING
+TEST_F(QuiescenceTest, ActivePiecePricesControlSeeAndCapturePruning) {
+    const Board board{"1n2k1nr/8/8/3n4/4P3/8/8/RN2K1N1 w - - 0 1"};
+    const Move capture{E4, D5};
+    constexpr int threshold = 300;
+    const Score alpha = eval::evaluate(board) + 500 + default_parameters.qcapture_margin;
+    for (const int knight_value : {250, 375}) {
+        Parameters parameters;
+        parameters.piece_values[KNIGHT] = knight_value;
+        ASSERT_TRUE(pool.configure_parameters(parameters));
+        load(board);
+        const auto& active = SearchTestAccess::parameters(worker);
+        EXPECT_EQ(board.see(capture, threshold, active.piece_values), knight_value >= threshold);
+        search(alpha, alpha + 1);
+        EXPECT_EQ(worker.node_count() == 1U, knight_value < threshold);
+    }
+}
+#endif
 
 TEST_F(QuiescenceTest, CaptureGainPreservesCheckingMateFarBelowAlpha) {
     load(Board{"rn3rk1/5ppp/8/8/8/3B4/8/RN2K1NQ w - - 0 1"});

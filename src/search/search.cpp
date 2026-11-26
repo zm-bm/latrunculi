@@ -47,6 +47,13 @@ bool after_null_move(const Board& board, int ply) noexcept {
     return ply > 0 && board.previous_move().is_null() && board.can_unmake();
 }
 
+// Require a queen or at least two non-pawn pieces after exclusions.
+// The excluded mask removes a prospective capture from the opponent's material.
+bool has_pruning_material(const Board& board, Color side, Bitboard excluded = 0) noexcept {
+    const Bitboard pieces = board.non_pawn_pieces(side) & ~excluded;
+    return (pieces & board.pieces<QUEEN>(side)) || bb::is_many(pieces);
+}
+
 // Called after Board::is_draw(). Checkmate takes precedence over the fifty-move rule.
 Score draw_or_mate_score(const Board& board, int ply) {
     if (board.halfmove_clock() >= 100 && board.is_check()) {
@@ -199,7 +206,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             && beta > -scores::mate_bound
             && beta < scores::mate_bound;
         if (reverse_futility_candidate
-            && board.non_pawn_material(side) > material::pruning_value(ROOK)
+            && has_pruning_material(board, side)
             && !tt_upper_veto
             && static_eval - parameters.futility_margin[depth] >= beta)
             return static_eval;
@@ -209,7 +216,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
             && !after_null
             && !in_check
             && depth >= NullMoveMinDepth
-            && board.non_pawn_material(side) > material::pruning_value(ROOK)
+            && has_pruning_material(board, side)
             && !tt_upper_veto) {
             stats.null_move_try(ply);
 
@@ -268,8 +275,9 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
         && tt_record->depth >= depth - SingularTtDepthSlack
         && (tt_record->bound == TTBound::Exact || tt_record->bound == TTBound::LowerBound)) {
         const Score tt_score = tt_record->score_at_ply(ply);
-        const Score singular_beta = tt_score
-            - std::max(1, depth * material::pruning_value(PAWN) / parameters.singular_margin_divisor);
+        // Fixed parameter normalization; independent of tuned piece prices.
+        const Score singular_beta =
+            tt_score - std::max(1, 100 * depth / parameters.singular_margin_divisor);
         const int singular_depth = (depth - 1) / SingularDepthDivisor;
 
         const bool non_mate_scores = std::abs(tt_score) < scores::mate_bound
@@ -361,7 +369,7 @@ Score Worker::alphabeta(Score alpha, Score beta, int depth, SearchFrame* frame) 
                 && best_value > -scores::mate_bound
                 && alpha > -scores::mate_bound
                 && beta < scores::mate_bound;
-            if (late_quiet_pruning_node && board.non_pawn_material(side) > 0) {
+            if (late_quiet_pruning_node && board.non_pawn_pieces(side) != 0) {
                 const bool unprotected_quiet =
                     is_ordinary_quiet && move != tt_move && !is_killer && !is_counter;
                 history_lmp_candidate =
@@ -644,14 +652,14 @@ Score Worker::quiescence(Score alpha, Score beta, SearchFrame* frame) {
             && alpha > -scores::mate_bound
             && beta < scores::mate_bound) {
             const PieceType victim = board.captured_piece_type(move);
-            const Score capture_gain_estimate =
-                static_eval + material::qsearch_capture_value(victim) + parameters.qcapture_margin;
+            // Scale shared exchange prices for the NNUE capture-gain estimate.
+            const Score capture_gain_estimate = static_eval
+                + material::piece_value(victim, parameters.piece_values) * 5 / 3
+                + parameters.qcapture_margin;
             if (capture_gain_estimate < alpha) {
                 const bool material_allows_capture_pruning =
-                    board.non_pawn_material(board.side_to_move()) > material::pruning_value(ROOK)
-                    && board.non_pawn_material(~board.side_to_move())
-                            - (victim == PAWN ? 0 : material::pruning_value(victim))
-                        > material::pruning_value(ROOK);
+                    has_pruning_material(board, board.side_to_move())
+                    && has_pruning_material(board, ~board.side_to_move(), bb::set(move.to()));
                 if (material_allows_capture_pruning && !board.gives_check(move)) {
                     // Keep a fail-low estimate; leave alpha and the PV unchanged.
                     best_value = std::max(best_value, capture_gain_estimate);

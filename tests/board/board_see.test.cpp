@@ -64,9 +64,9 @@ TEST(BoardSeeTest, ExplicitPricesChangeExchangeThresholdWithoutChangingDefaults)
     Board board("4k3/8/8/3n4/4P3/8/8/4K3 w - - 0 1");
     const Move move(E4, D5);
     ASSERT_TRUE(board.is_legal_move(move));
-    auto values = see::piece_values;
+    auto values = material::piece_values;
     values[KNIGHT] = 375;
-    const int threshold = see::piece_value(KNIGHT) + 1;
+    const int threshold = material::piece_value(KNIGHT) + 1;
     EXPECT_FALSE(board.see(move, threshold));
     EXPECT_TRUE(board.see(move, threshold, values));
     EXPECT_FALSE(board.see(move, threshold));
@@ -79,9 +79,9 @@ TEST(BoardSeeTest, TunedPricesMatchIndependentOracleForCapturesAndPromotions) {
           "1r2k3/P7/8/8/8/8/p7/1R2K3 w - - 0 1"}) {
         Board board(fen);
         for (const auto prices :
-             {see::Values{0, 100, 250, 375, 500, 900, 0},
-              see::Values{0, 100, 375, 500, 900, 1600, 0},
-              see::Values{0, 100, 375, 375, 900, 900, 0}}) {
+             {material::Values{0, 100, 250, 375, 500, 900, 0},
+              material::Values{0, 100, 375, 500, 900, 1600, 0},
+              material::Values{0, 100, 375, 375, 900, 900, 0}}) {
             for (Move move : board_test::pseudo_legal_moves(board)) {
                 if (!board.is_capture(move) && move.type() != MOVE_PROM)
                     continue;

@@ -3,6 +3,7 @@
 #include <array>
 #include <format>
 #include <sstream>
+#include <utility>
 
 #include "movegen/moves.hpp"
 #include "search/parameters.hpp"
@@ -106,8 +107,8 @@ TEST(TuningTest, CampaignBoundaryCombinationsKeepLegalSearchResults) {
         "RazorMargin3",
         "NullMoveSurplusPerPly",
         "QCaptureMargin"};
-    constexpr std::array lows{125, 200, 275, 250, 450, 900, 100, 150};
-    constexpr std::array highs{375, 600, 825, 750, 1350, 2700, 300, 450};
+    constexpr std::array lows{125, 200, 275, 250, 450, 900, 100, 475};
+    constexpr std::array highs{375, 600, 825, 750, 1350, 2700, 300, 775};
     search::Parameters parameters;
     RecordingSearchReporter reporter;
     search::ThreadPool pool(1, reporter);
@@ -133,7 +134,7 @@ TEST(TuningTest, CampaignBoundaryCombinationsKeepLegalSearchResults) {
     }
 }
 
-TEST(TuningTest, FractionalOptionsAndSeePricesAreValidatedAtomically) {
+TEST(TuningTest, FractionalOptionsAndPiecePricesAreValidatedAtomically) {
     search::Parameters p;
     ASSERT_TRUE(tuning::set(p, "LmrQuietDivisor", "2.375"));
     EXPECT_DOUBLE_EQ(p.lmr_quiet_divisor, 2.375);
@@ -141,22 +142,35 @@ TEST(TuningTest, FractionalOptionsAndSeePricesAreValidatedAtomically) {
         EXPECT_THROW(tuning::set(p, "LmrQuietDivisor", value), std::exception);
         EXPECT_DOUBLE_EQ(p.lmr_quiet_divisor, 2.375);
     }
-    ASSERT_TRUE(tuning::set(p, "SeeKnight", "375"));
-    EXPECT_THROW(tuning::set(p, "SeeKnight", "376"), std::out_of_range);
-    EXPECT_EQ(p.see_values[KNIGHT], 375);
+    ASSERT_TRUE(tuning::set(p, "KnightValue", "375"));
+    EXPECT_THROW(tuning::set(p, "KnightValue", "376"), std::out_of_range);
+    EXPECT_EQ(p.piece_values[KNIGHT], 375);
     EXPECT_TRUE(tuning::valid(p));
-    p.see_values[PAWN] = 101;
+    EXPECT_FALSE(tuning::set(p, "SeeKnight", "360"));
+    for (const auto [piece, value] :
+         {std::pair{NO_PIECETYPE, 1},
+          {PAWN, 101},
+          {KING, 1},
+          {KNIGHT, 376},
+          {BISHOP, 374},
+          {ROOK, 499},
+          {QUEEN, 899}}) {
+        auto invalid = p;
+        invalid.piece_values[piece] = value;
+        EXPECT_FALSE(tuning::valid(invalid));
+    }
+    p.piece_values[PAWN] = 101;
     EXPECT_FALSE(tuning::valid(p));
     RecordingSearchReporter reporter;
     search::ThreadPool pool(1, reporter);
     EXPECT_FALSE(pool.configure_parameters(p));
-    EXPECT_EQ(SearchTestAccess::parameters(SearchThreadTestAccess::worker(pool)).see_values[PAWN],
+    EXPECT_EQ(SearchTestAccess::parameters(SearchThreadTestAccess::worker(pool)).piece_values[PAWN],
               100);
 }
 
 TEST(TuningTest, WorkerHistoryAndMoveOrderingSharePoolSettings) {
     search::Parameters p;
-    p.see_values[KNIGHT] = 375;
+    p.piece_values[KNIGHT] = 375;
     p.capture_history_divisor = 24;
     p.capture_victim_weight = 9;
     RecordingSearchReporter reporter;
@@ -168,14 +182,14 @@ TEST(TuningTest, WorkerHistoryAndMoveOrderingSharePoolSettings) {
             auto& worker = SearchThreadTestAccess::worker(pool, i);
             const auto& values = SearchTestAccess::history(worker).parameters();
             EXPECT_EQ(&values, &SearchTestAccess::parameters(worker));
-            EXPECT_EQ(values.see_values[KNIGHT], 375);
+            EXPECT_EQ(values.piece_values[KNIGHT], 375);
             EXPECT_EQ(values.capture_history_divisor, 24);
             EXPECT_EQ(values.capture_victim_weight, 9);
         }
     }
 }
 
-TEST(TuningTest, MoveStagesUseTheSameTunedSeePricesAsCaptureOrdering) {
+TEST(TuningTest, MoveStagesUseTheSameTunedPiecePricesAsCaptureOrdering) {
     const Board board("7k/8/2p5/3r4/4Q3/8/8/K7 w - - 0 1");
     const Move capture(E4, D5);
     ASSERT_TRUE(board.is_legal_move(capture));
@@ -185,8 +199,8 @@ TEST(TuningTest, MoveStagesUseTheSameTunedSeePricesAsCaptureOrdering) {
     EXPECT_NE(baseline.next(), capture);
 
     search::Parameters p;
-    p.see_values[ROOK] = 900;
-    p.see_values[QUEEN] = 900;
+    p.piece_values[ROOK] = 900;
+    p.piece_values[QUEEN] = 900;
     ASSERT_TRUE(tuning::valid(p));
     search::History history(p);
     auto tuned_context = history.context_for(board, 0);

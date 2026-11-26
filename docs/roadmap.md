@@ -41,23 +41,6 @@ Measure decision quality and total cost, including false cutoffs and later
 re-searches. Test independently of quiet-history LMR changes and reassess after
 those changes, since they alter which moves need verification.
 
-### Tune SEE and capture-ordering values
-
-Investigate the fixed exchange prices in
-[`see_values.hpp`](../src/board/see_values.hpp). They affect quiescence capture
-filtering, main-search capture staging, and capture ordering, including evasions.
-Changing them also changes the balance between material and capture history.
-They are independent of NNUE weights and separate from the material estimates
-used by pruning.
-
-Keep pawn=100 and constrain the other prices to preserve the fixed attacker
-order: pawn, knight, bishop, rook, queen, with king handling unchanged. Start
-with a small, bounded comparison of price sets after capture/search policy
-stabilizes, holding history scaling and threshold formulas fixed. Use game
-results to assess strength. Check exchange correctness and changed capture
-decisions, then independently confirm any selected values. Consider SPSA if a broader
-tuning run justifies exposing the parameters through UCI.
-
 ### Refine deferred-capture placement
 
 Explore whether deferred captures should precede quiet moves with poor history.

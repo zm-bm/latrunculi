@@ -12,8 +12,6 @@ logs/
 /tools/.venv/
 /bench/latrunculi
 /bench/*.nnue
-/bench/tuning/latrunculi
-/bench/tuning/*.nnue
 /bot/
 *.pyc
 __pycache__/
@@ -29,7 +27,6 @@ CTestTestfile.cmake
 cmake_install.cmake
 Makefile
 !bench/Makefile
-!bench/tuning/Makefile
 DartConfiguration.tcl
 
 # Ignore executables and libraries

@@ -9,201 +9,33 @@
     "spsa_pairs_per": 4
   },
   "parameters": [
-    {
-      "name": "FutilityMargin1",
-      "min": 125,
-      "max": 375,
-      "c_end": 12.5,
-      "r_end": 0.002
-    },
-    {
-      "name": "FutilityMargin2",
-      "min": 200,
-      "max": 600,
-      "c_end": 20.0,
-      "r_end": 0.002
-    },
-    {
-      "name": "FutilityMargin3",
-      "min": 275,
-      "max": 825,
-      "c_end": 27.5,
-      "r_end": 0.002
-    },
-    {
-      "name": "RazorMargin1",
-      "min": 250,
-      "max": 750,
-      "c_end": 25.0,
-      "r_end": 0.002
-    },
-    {
-      "name": "RazorMargin2",
-      "min": 450,
-      "max": 1350,
-      "c_end": 45.0,
-      "r_end": 0.002
-    },
-    {
-      "name": "RazorMargin3",
-      "min": 900,
-      "max": 2700,
-      "c_end": 90.0,
-      "r_end": 0.002
-    },
-    {
-      "name": "LateMovePruningMoveCount",
-      "min": 6,
-      "max": 18,
-      "c_end": 0.6,
-      "r_end": 0.002
-    },
-    {
-      "name": "NullMoveDepthDivisor",
-      "min": 3,
-      "max": 11,
-      "c_end": 0.5,
-      "r_end": 0.002
-    },
-    {
-      "name": "NullMoveSurplusPerPly",
-      "min": 100,
-      "max": 300,
-      "c_end": 10.0,
-      "r_end": 0.002
-    },
-    {
-      "name": "SingularMarginDivisor",
-      "min": 25,
-      "max": 75,
-      "c_end": 2.5,
-      "r_end": 0.002
-    },
-    {
-      "name": "CaptureLmrHistoryDivisor",
-      "min": 4096,
-      "max": 12288,
-      "c_end": 409.6,
-      "r_end": 0.002
-    },
-    {
-      "name": "QCaptureMargin",
-      "min": 150,
-      "max": 450,
-      "c_end": 15.0,
-      "r_end": 0.002
-    },
-    {
-      "name": "CaptureVictimWeight",
-      "min": 3,
-      "max": 11,
-      "c_end": 0.5,
-      "r_end": 0.002
-    },
-    {
-      "name": "CaptureHistoryDivisor",
-      "min": 8,
-      "max": 24,
-      "c_end": 0.8,
-      "r_end": 0.002
-    },
-    {
-      "name": "CaptureLearningRate",
-      "min": 8,
-      "max": 24,
-      "c_end": 0.8,
-      "r_end": 0.002
-    },
-    {
-      "name": "CaptureDepthSquaredLimit",
-      "min": 64,
-      "max": 192,
-      "c_end": 6.4,
-      "r_end": 0.002
-    },
-    {
-      "name": "AspirationInitialWindow",
-      "min": 25,
-      "max": 75,
-      "c_end": 2.5,
-      "r_end": 0.002
-    },
-    {
-      "name": "SeeKnight",
-      "min": 250,
-      "max": 375,
-      "c_end": 6.25,
-      "r_end": 0.002
-    },
-    {
-      "name": "SeeBishop",
-      "min": 375,
-      "max": 500,
-      "c_end": 6.25,
-      "r_end": 0.002
-    },
-    {
-      "name": "SeeRook",
-      "min": 500,
-      "max": 900,
-      "c_end": 20.0,
-      "r_end": 0.002
-    },
-    {
-      "name": "SeeQueen",
-      "min": 900,
-      "max": 1600,
-      "c_end": 35.0,
-      "r_end": 0.002
-    },
-    {
-      "name": "LmrQuietOffset",
-      "min": 0.625,
-      "max": 1.875,
-      "c_end": 0.0625,
-      "r_end": 0.002
-    },
-    {
-      "name": "LmrCaptureOffset",
-      "min": 0.375,
-      "max": 1.125,
-      "c_end": 0.0375,
-      "r_end": 0.002
-    },
-    {
-      "name": "LmrQuietDivisor",
-      "min": 1.25,
-      "max": 3.75,
-      "c_end": 0.125,
-      "r_end": 0.002
-    },
-    {
-      "name": "LmrCaptureDivisor",
-      "min": 1.65,
-      "max": 4.95,
-      "c_end": 0.165,
-      "r_end": 0.002
-    },
-    {
-      "name": "LmrPvScale",
-      "min": 0.35,
-      "max": 1.05,
-      "c_end": 0.035,
-      "r_end": 0.002
-    },
-    {
-      "name": "LmrKillerScale",
-      "min": 0.4,
-      "max": 1.2,
-      "c_end": 0.04,
-      "r_end": 0.002
-    },
-    {
-      "name": "CaptureLmrMaxAdjustment",
-      "min": 0.5,
-      "max": 1.5,
-      "c_end": 0.05,
-      "r_end": 0.002
-    }
+    {"name": "FutilityMargin1", "min": 125, "max": 375, "c_end": 12.5, "r_end": 0.002},
+    {"name": "FutilityMargin2", "min": 200, "max": 600, "c_end": 20.0, "r_end": 0.002},
+    {"name": "FutilityMargin3", "min": 275, "max": 825, "c_end": 27.5, "r_end": 0.002},
+    {"name": "RazorMargin1", "min": 250, "max": 750, "c_end": 25.0, "r_end": 0.002},
+    {"name": "RazorMargin2", "min": 450, "max": 1350, "c_end": 45.0, "r_end": 0.002},
+    {"name": "RazorMargin3", "min": 900, "max": 2700, "c_end": 90.0, "r_end": 0.002},
+    {"name": "LateMovePruningMoveCount", "min": 6, "max": 18, "c_end": 0.6, "r_end": 0.002},
+    {"name": "NullMoveDepthDivisor", "min": 3, "max": 11, "c_end": 0.5, "r_end": 0.002},
+    {"name": "NullMoveSurplusPerPly", "min": 100, "max": 300, "c_end": 10.0, "r_end": 0.002},
+    {"name": "SingularMarginDivisor", "min": 25, "max": 75, "c_end": 2.5, "r_end": 0.002},
+    {"name": "CaptureLmrHistoryDivisor", "min": 4096, "max": 12288, "c_end": 409.6, "r_end": 0.002},
+    {"name": "QCaptureMargin", "min": 200, "max": 700, "c_end": 15.0, "r_end": 0.002},
+    {"name": "CaptureVictimWeight", "min": 3, "max": 11, "c_end": 0.5, "r_end": 0.002},
+    {"name": "CaptureHistoryDivisor", "min": 8, "max": 24, "c_end": 0.8, "r_end": 0.002},
+    {"name": "CaptureLearningRate", "min": 8, "max": 24, "c_end": 0.8, "r_end": 0.002},
+    {"name": "CaptureDepthSquaredLimit", "min": 64, "max": 192, "c_end": 6.4, "r_end": 0.002},
+    {"name": "AspirationInitialWindow", "min": 25, "max": 75, "c_end": 2.5, "r_end": 0.002},
+    {"name": "KnightValue", "min": 250, "max": 375, "c_end": 6.25, "r_end": 0.002},
+    {"name": "BishopValue", "min": 375, "max": 500, "c_end": 6.25, "r_end": 0.002},
+    {"name": "RookValue", "min": 500, "max": 900, "c_end": 20.0, "r_end": 0.002},
+    {"name": "QueenValue", "min": 900, "max": 1600, "c_end": 35.0, "r_end": 0.002},
+    {"name": "LmrQuietOffset", "min": 0.625, "max": 1.875, "c_end": 0.0625, "r_end": 0.002},
+    {"name": "LmrCaptureOffset", "min": 0.375, "max": 1.125, "c_end": 0.0375, "r_end": 0.002},
+    {"name": "LmrQuietDivisor", "min": 1.25, "max": 3.75, "c_end": 0.125, "r_end": 0.002},
+    {"name": "LmrCaptureDivisor", "min": 1.65, "max": 4.95, "c_end": 0.165, "r_end": 0.002},
+    {"name": "LmrPvScale", "min": 0.35, "max": 1.05, "c_end": 0.035, "r_end": 0.002},
+    {"name": "LmrKillerScale", "min": 0.4, "max": 1.2, "c_end": 0.04, "r_end": 0.002},
+    {"name": "CaptureLmrMaxAdjustment", "min": 0.5, "max": 1.5, "c_end": 0.05, "r_end": 0.002}
   ]
 }

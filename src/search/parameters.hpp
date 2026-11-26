@@ -2,12 +2,11 @@
 
 #include <array>
 
-#include "board/see_values.hpp"
+#include "board/material_values.hpp"
 
 namespace search {
 
 // Values used by search, ordering and learning. Recipes own campaign bounds and schedules.
-// Rounded defaults from OpenBench SPSA #107, warm-started from #106.
 struct Parameters {
     std::array<int, 4> futility_margin{0, 220, 385, 535};
     std::array<int, 4> razor_margin{0, 515, 870, 1770};
@@ -25,13 +24,13 @@ struct Parameters {
     int capture_lmr_history_divisor = 8192;
     double capture_lmr_max_adjustment = 0.9655;
 
-    int qcapture_margin = 355;
+    int qcapture_margin = 400;
     int capture_victim_weight = 7;
     int capture_history_divisor = 16;
     int capture_learning_rate = 16;
     int capture_depth_squared_limit = 127;
     int aspiration_initial_window = 52;
-    see::Values see_values = see::piece_values;
+    material::Values piece_values = material::piece_values;
 };
 
 inline constexpr Parameters default_parameters{};
